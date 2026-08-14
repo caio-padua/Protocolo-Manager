@@ -15,6 +15,8 @@ import { uploadToFolderById } from "./google-drive.js";
 import { sendGmailMessage } from "./google-gmail.js";
 import { logger } from "./logger.js";
 import { baseUrlFromEnv } from "./messaging/base-url.js";
+import { paxterEmailShell } from "./messaging/render-email.js";
+import { blocoTabelaSubstancias, soMiligramas } from "./messaging/substance-table.js";
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -349,10 +351,12 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       medicoNome,
       medicoCrm,
       clinicaNome,
-      data: `${d}/${m}/${y}`,
+      data:        `${d}/${m}/${y}`,
       fileName,
       driveUrl,
       modeloUsado: modelo.nome,
+      formulas:    params.formulas,   // cartões alinhados blocoTabelaSubstancias
+      baseUrl:     assetsBase,        // para o banner GIF e URLs absolutas
     });
     const mailResult = await sendGmailMessage({
       to: emailRecipients.join(", "),
@@ -395,36 +399,74 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, modeloUsado: modelo.nome, tipoMotor: modelo.tipo, consultaToken, consultaUrl };
 }
 
-// ── HTML do e-mail de notificação ─────────────────────────────────────────────
+// ── HTML do e-mail de receituário — padrão Paxter terno/navy ─────────────────
+// Segue o MESMO motor visual de todos os e-mails ricos:
+//   paxterEmailShell  → casco navy/terno (fundo #0a1430, borda ouro, banner GIF)
+//   blocoTabelaSubstancias → cartões alinhados com linha vertical imaginária
+// Lição de 30/06/2026: varrer TODOS os geradores de e-mail para garantir que
+// chamam o motor, não montam tabela própria. Correção aplicada aqui em 14/08/2026.
+
+function esc(s: string | null | undefined): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
 function buildEmailHtml(d: {
-  pacienteNome: string; medicoNome: string; medicoCrm: string;
-  clinicaNome: string; data: string; fileName: string;
-  driveUrl: string | null; modeloUsado: string;
+  pacienteNome: string;
+  medicoNome:   string;
+  medicoCrm:    string;
+  clinicaNome:  string;
+  data:         string;
+  fileName:     string;
+  driveUrl:     string | null;
+  modeloUsado:  string;
+  formulas?:    FormulaEmissao[];
+  baseUrl?:     string;
 }): string {
-  return `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-      <div style="background:#16284a;padding:20px 24px;text-align:center">
-        <h1 style="color:#c9a24e;margin:0;font-size:24px;letter-spacing:2px">PAXTER</h1>
-        <p style="color:#45B8CC;margin:4px 0 0;font-size:13px">Motor Clínico — Receituário Assinado</p>
-      </div>
-      <div style="padding:24px;background:#f8fafc">
-        <h2 style="color:#16284a;margin-top:0">Receituário Gerado e Assinado Digitalmente</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr><td style="padding:6px 0;color:#64748b;width:130px">Paciente</td><td style="padding:6px 0;font-weight:600;color:#1e293b">${d.pacienteNome}</td></tr>
-          <tr><td style="padding:6px 0;color:#64748b">Médico</td><td style="padding:6px 0;color:#1e293b">${d.medicoNome}</td></tr>
-          <tr><td style="padding:6px 0;color:#64748b">CRM</td><td style="padding:6px 0;color:#1e293b">${d.medicoCrm}</td></tr>
-          <tr><td style="padding:6px 0;color:#64748b">Clínica</td><td style="padding:6px 0;color:#1e293b">${d.clinicaNome}</td></tr>
-          <tr><td style="padding:6px 0;color:#64748b">Data</td><td style="padding:6px 0;color:#1e293b">${d.data}</td></tr>
-          <tr><td style="padding:6px 0;color:#64748b">Modelo</td><td style="padding:6px 0;color:#1e293b">${d.modeloUsado}</td></tr>
-        </table>
-        ${d.driveUrl ? `<p style="margin-top:16px"><a href="${d.driveUrl}" style="background:#45B8CC;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;font-weight:600">Ver no Google Drive</a></p>` : ""}
-        <p style="color:#64748b;font-size:12px;margin-top:16px">Gerado pelo Motor Único PAXTER · Modelo: ${d.modeloUsado}</p>
-      </div>
-      <div style="background:#16284a;padding:12px 24px;text-align:center">
-        <p style="color:#45B8CC;font-size:11px;margin:0">Documento assinado digitalmente via ICP-Brasil/PAdES — PAXTER Clinical Intelligence System</p>
-      </div>
-    </div>`;
+  // Cartões de fórmulas: padrão blocoTabelaSubstancias (colunas alinhadas, ouro)
+  const formulaBlock = d.formulas?.length
+    ? "<div style=\"background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-radius:8px;padding:20px;margin:0 0 16px;\">" +
+      "<h3 style=\"margin:0 0 14px;color:#c9a24f;font-size:15px;font-family:Georgia,serif;\">Formulas prescritas:</h3>" +
+      blocoTabelaSubstancias(
+        d.formulas.map((f) => ({
+          nome:       f.nome,
+          dose:       soMiligramas(f.dose ?? undefined),
+          frequencia: f.via ?? undefined,
+          cor:        "#c9a24f",
+        })),
+      ) +
+      "</div>"
+    : "";
+
+  // Botão dourado "bulletproof" apontando para o Drive (opcional)
+  const btnDrive = d.driveUrl
+    ? "<tr><td align=\"center\" style=\"padding:24px 40px 8px;\">" +
+      "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\">" +
+      "<tr><td align=\"center\" bgcolor=\"#d4ad5c\" style=\"border-radius:12px;background:linear-gradient(135deg,#f0d488 0%,#d4ad5c 48%,#b88a3f 100%);box-shadow:0 10px 24px rgba(184,138,63,.45);\">" +
+      `<a href="${esc(d.driveUrl)}" style="display:inline-block;padding:14px 36px;color:#0a162e;font-family:Georgia,serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">Ver no Drive</a>` +
+      "</td></tr></table></td></tr>"
+    : "";
+
+  const inner =
+    "<tr><td style=\"padding:36px 40px 8px;text-align:center;\">" +
+    "<div style=\"color:#f3ead6;font-family:Georgia,'Times New Roman',Times,serif;font-size:28px;line-height:1.25;font-weight:400;\">Receituario Medico</div>" +
+    "</td></tr>" +
+    "<tr><td style=\"padding:18px 40px 4px;text-align:center;\">" +
+    `<p style="margin:0 0 14px;color:#c2cee0;font-size:15px;line-height:1.7;">Prezado(a) <strong style="color:#f3ead6;">${esc(d.pacienteNome)}</strong>, segue o seu receituario medico emitido em <strong style="color:#c9a24f;">${esc(d.data)}</strong> sob responsabilidade do(a) Dr(a). <strong style="color:#f3ead6;">${esc(d.medicoNome)}</strong> (CRM ${esc(d.medicoCrm)} \u2014 ${esc(d.clinicaNome)}).</p>` +
+    "<p style=\"margin:0 0 4px;color:#c2cee0;font-size:15px;line-height:1.7;\">O documento esta em anexo neste e-mail, assinado digitalmente com certificado ICP-Brasil.</p>" +
+    "</td></tr>" +
+    "<tr><td style=\"padding:8px 32px 4px;text-align:left;\">" +
+    formulaBlock +
+    "<div style=\"background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-radius:8px;padding:16px;\">" +
+    "<p style=\"margin:0;color:#c2cee0;font-size:13px;line-height:1.6;\"><strong style=\"color:#c9a24f;\">Importante:</strong> guarde este documento e leve-o na proxima consulta. Em caso de duvida, entre em contato com a clinica antes de alterar qualquer medicacao por conta propria.</p>" +
+    "</div>" +
+    "</td></tr>" +
+    btnDrive +
+    "<tr><td style=\"padding:0 40px 28px;\"></td></tr>";
+
+  return paxterEmailShell(inner, d.baseUrl ?? "");
 }
 
 // ── Inicialização da tabela (idempotente) ─────────────────────────────────────

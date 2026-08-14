@@ -21,6 +21,7 @@ import { consumeSncrNumber } from "../lib/sncr";
 import { generateRecipePdf } from "../lib/prescription-pdf";
 import { ensurePharmacyDayFolder, uploadFileToDrive } from "../lib/google-drive";
 import { sendWhatsapp } from "../lib/whatsapp";
+import { sendTelegram } from "../lib/telegram";
 import { recipeTypeForControlledClass } from "../lib/anvisa-catalog";
 import { handleSncrAlert } from "../lib/sncr-alerts";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
@@ -519,22 +520,51 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
     await handleSncrAlert(alert);
   }
 
-  // 4b) Motor de lembretes — WhatsApp imediato ao emitir (fire-and-forget).
-  // Só dispara quando: clientId informado, lembrete sincronizado e telefone disponível.
-  // Usa templateLembretePrescricao + sendWhatsapp — NUNCA Twilio direto.
-  if (lembretePeriodos && lembretePeriodos.length > 0 && body.clientPhone) {
+  // 4b) Motor de lembretes — disparo imediato ao emitir (fire-and-forget).
+  // Canal preferido: Telegram (quando telegramChatId vinculado) + WhatsApp em paralelo.
+  // Cópia ao CEO via Telegram sempre que o PADAXOR_TELEGRAM_CHAT_ID estiver configurado.
+  if (lembretePeriodos && lembretePeriodos.length > 0) {
     const mensagemLembrete = truncarMensagemWhatsapp(templateLembretePrescricao({
       clienteNome: body.clientName,
       clienteGenero: "nao_informado",
       periodos: lembretePeriodos,
       agora: new Date(),
     }));
-    sendWhatsapp(body.clientPhone, mensagemLembrete, {
-      contexto: "lembrete_prescricao",
-      clienteId: body.clientId ?? undefined,
-    }).catch((err) =>
-      req.log?.warn({ err }, "[prescriptions/emit] whatsapp lembrete — falhou silenciosamente"),
-    );
+
+    // WhatsApp (paralelo, fire-and-forget)
+    if (body.clientPhone) {
+      sendWhatsapp(body.clientPhone, mensagemLembrete, {
+        contexto: "lembrete_prescricao",
+        clienteId: body.clientId ?? undefined,
+      }).catch((err) =>
+        req.log?.warn({ err }, "[prescriptions/emit] whatsapp lembrete — falhou silenciosamente"),
+      );
+    }
+
+    // Telegram ao paciente + cópia ao CEO (fire-and-forget)
+    if (body.clientId) {
+      db.select({ telegramChatId: clientsTable.telegramChatId })
+        .from(clientsTable)
+        .where(eq(clientsTable.id, body.clientId))
+        .limit(1)
+        .then(async ([cli]) => {
+          if (cli?.telegramChatId) {
+            await sendTelegram(cli.telegramChatId, mensagemLembrete).catch((e) =>
+              req.log?.warn({ err: e }, "[prescriptions/emit] telegram paciente — falhou"),
+            );
+          }
+          const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
+          if (ceoChatId) {
+            const msgCeo = `Copia CEO - Emissao #${prescription.id} - ${body.clientName}\n\n${mensagemLembrete}`;
+            await sendTelegram(ceoChatId, truncarMensagemWhatsapp(msgCeo, 3800)).catch((e) =>
+              req.log?.warn({ err: e }, "[prescriptions/emit] telegram CEO — falhou"),
+            );
+          }
+        })
+        .catch((e) =>
+          req.log?.warn({ err: e }, "[prescriptions/emit] telegram lembrete — erro ao buscar chatId"),
+        );
+    }
   }
 
   res.status(201).json({
@@ -766,6 +796,34 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
     });
   }
 
+  // Telegram: ao paciente (se telegramChatId vinculado) + cópia ao CEO (sempre).
+  // Canal preferido pelo CEO (14/08/2026). WhatsApp mantido como canal paralelo.
+  const telegramResults: { destino: string; sent: boolean; error?: string | null }[] = [];
+
+  const [cliTelegram] = await db
+    .select({ telegramChatId: clientsTable.telegramChatId })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId))
+    .limit(1);
+
+  if (cliTelegram?.telegramChatId) {
+    const rt = await sendTelegram(cliTelegram.telegramChatId, mensagem);
+    telegramResults.push({ destino: `paciente (ID ${clientId})`, sent: rt.sent, error: rt.error ?? null });
+  } else {
+    telegramResults.push({
+      destino: "paciente",
+      sent: false,
+      error: "telegram_chat_id nao vinculado — paciente precisa enviar /start ao @Paduaclinica_bot",
+    });
+  }
+
+  const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
+  if (ceoChatId) {
+    const msgCeo = `Copia CEO - Prescricao #${id} - ${pres.clientName}\n\n${mensagem}`;
+    const rc = await sendTelegram(ceoChatId, truncarMensagemWhatsapp(msgCeo, 3800));
+    telegramResults.push({ destino: "CEO", sent: rc.sent, error: rc.error ?? null });
+  }
+
   res.json({
     ok: true,
     prescriptionId: id,
@@ -781,6 +839,7 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
     whatsapp: whatsappResult
       ? { sent: whatsappResult.sent, via: whatsappResult.via, error: whatsappResult.error ?? null }
       : { sent: false, via: null, error: "telefone não encontrado — mensagem não enviada" },
+    telegram: telegramResults,
     mensagemPreview: mensagem.slice(0, 300) + (mensagem.length > 300 ? "…" : ""),
   });
 });
