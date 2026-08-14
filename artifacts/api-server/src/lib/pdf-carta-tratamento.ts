@@ -620,12 +620,31 @@ function drawRadar(page: PDFPage, cx: number, cy: number, r: number, axes: { lab
     try { page.drawText(lbl, { x: lx - 12, y: ly - 2, font: f.mrReg, size: T.label - 0.5, color: WARM_CLR }); } catch { /**/ }
   }
 
-  // Polígono dos valores (NAVY translúcido via múltiplas linhas)
+  // Polígono dos valores — fill translúcido + contorno
+  // drawSvgPath interpreta coordenadas SVG (y para BAIXO): ancorar em y=pageH
+  // e converter cada ponto com svgY = pageH - pageY (ver memory/pdflib-drawsvgpath-y-flip.md)
+  const pageH = page.getHeight();
+  const svgY  = (py: number): number => pageH - py;
+  const FILL_C = rgb(0.0863, 0.1569, 0.2902); // mesmo NAVY, aplicado com opacity baixa
+
   const points = axes.map((ax, i) => {
     const angle = Math.PI / 2 - (2 * Math.PI * i) / n;
     const v = Math.min(5, Math.max(0, ax.value));
     return { x: cx + (r * v / 5) * Math.cos(angle), y: cy + (r * v / 5) * Math.sin(angle) };
   });
+
+  // Fill via drawSvgPath (fechado)
+  try {
+    const polySegs = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${svgY(p.y).toFixed(1)}`);
+    polySegs.push("Z");
+    page.drawSvgPath(polySegs.join(" "), {
+      x: 0, y: pageH,
+      color: FILL_C, opacity: 0.20,
+      borderColor: FILL_C, borderWidth: 0,
+    });
+  } catch { /* fallback silencioso */ }
+
+  // Contorno sólido por cima do fill
   for (let i = 0; i < n; i++) {
     const p1 = points[i], p2 = points[(i + 1) % n];
     page.drawLine({ start: p1, end: p2, thickness: 1.5, color: NAVY });
