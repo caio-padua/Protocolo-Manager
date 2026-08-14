@@ -311,14 +311,16 @@ export async function sendWhatsapp(
     if (!resp.ok) {
       const text = await resp.text();
       logger.warn({ status: resp.status, text }, "Twilio WhatsApp send failed");
+      const whatsappError = `HTTP_${resp.status}`;
       const logId = await registrarLog({
         telefone: phone,
         corpo: message,
         status: "failed",
-        errorCode: `HTTP_${resp.status}`,
+        errorCode: whatsappError,
         contexto: opts.contexto,
         clienteId: opts.clienteId,
       });
+      void registrarTelegramBloqueado(phone, message, whatsappError, opts);
       return { sent: false, via: "link", link, error: `HTTP ${resp.status}`, logId };
     }
 
@@ -348,6 +350,7 @@ export async function sendWhatsapp(
       const code = `twilio_${created.error_code}`;
       logger.warn({ code, sid: created.sid }, "Twilio WhatsApp erro imediato");
       await atualizarLog(logId, { status: "failed", errorCode: code });
+      void registrarTelegramBloqueado(phone, message, code, opts);
       return { sent: false, via: "twilio", link, error: code, logId };
     }
     if (created.sid) {
@@ -362,6 +365,7 @@ export async function sendWhatsapp(
           "Twilio WhatsApp não entregue (status final)",
         );
         await atualizarLog(logId, { status: "failed", errorCode: finalError });
+        void registrarTelegramBloqueado(phone, message, finalError, opts);
         return { sent: false, via: "twilio", link, error: finalError, logId };
       }
     }
@@ -382,6 +386,53 @@ export async function sendWhatsapp(
       contexto: opts.contexto,
       clienteId: opts.clienteId,
     });
+    void registrarTelegramBloqueado(phone, message, "exception", opts);
     return { sent: false, via: "link", link, error: err?.message ?? String(err), logId };
+  }
+}
+
+/**
+ * Grava uma linha no log com via='telegram' e status='bloqueado' para indicar
+ * que o espelho Telegram foi impedido por falha do WhatsApp. Fire-and-forget,
+ * nunca lança.
+ *
+ * Pré-condições para gravar:
+ *  1. clienteId deve estar presente (sem ele não há espelho possível).
+ *  2. O paciente deve ter telegramChatId vinculado — sem chatId nunca haveria
+ *     espelho, logo não há bloqueio a registrar.
+ * Ambas as condições são verificadas antes de inserir qualquer linha.
+ */
+async function registrarTelegramBloqueado(
+  phone: string,
+  message: string,
+  whatsappError: string,
+  opts: Pick<SendWhatsappOptions, "contexto" | "clienteId">,
+): Promise<void> {
+  if (!opts.clienteId) return;
+  try {
+    // Só registra se o paciente tem chatId — sem chatId o espelho nunca seria
+    // tentado, e um badge "Telegram bloqueado" seria enganoso.
+    const [c] = await db
+      .select({ telegramChatId: clientsTable.telegramChatId })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, opts.clienteId))
+      .limit(1);
+    if (!c?.telegramChatId) return;
+
+    await registrarLog({
+      telefone: phone,
+      corpo: message,
+      status: "bloqueado",
+      errorCode: whatsappError,
+      contexto: opts.contexto,
+      clienteId: opts.clienteId,
+      via: "telegram",
+    });
+    logger.info(
+      { clienteId: opts.clienteId, motivo: whatsappError },
+      "[whatsapp→telegram] espelho bloqueado — registrado no histórico",
+    );
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "[whatsapp→telegram] falha ao registrar bloqueio no histórico");
   }
 }

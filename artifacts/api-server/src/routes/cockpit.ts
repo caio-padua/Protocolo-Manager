@@ -13,7 +13,7 @@ import {
   catalogoDoencasTable,
   whatsappMensagensLogTable,
 } from "@workspace/db";
-import { eq, and, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, inArray, desc, ne, sql } from "drizzle-orm";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   computeMotor,
@@ -139,6 +139,7 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
     .orderBy(desc(whatsappMensagensLogTable.criadoEm))
     .limit(1);
 
+  // Último Telegram entregue (status != 'bloqueado') — contato real com o paciente.
   const [ultimoLogTg] = await db
     .select({ criadoEm: whatsappMensagensLogTable.criadoEm })
     .from(whatsappMensagensLogTable)
@@ -146,6 +147,24 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
       and(
         eq(whatsappMensagensLogTable.clienteId, clienteId),
         eq(whatsappMensagensLogTable.via, "telegram"),
+        ne(whatsappMensagensLogTable.status, "bloqueado"),
+      ),
+    )
+    .orderBy(desc(whatsappMensagensLogTable.criadoEm))
+    .limit(1);
+
+  // Último espelho Telegram bloqueado por falha do WhatsApp — para o CEO auditar.
+  const [ultimoTelegramBloqueado] = await db
+    .select({
+      criadoEm: whatsappMensagensLogTable.criadoEm,
+      errorCode: whatsappMensagensLogTable.errorCode,
+    })
+    .from(whatsappMensagensLogTable)
+    .where(
+      and(
+        eq(whatsappMensagensLogTable.clienteId, clienteId),
+        eq(whatsappMensagensLogTable.via, "telegram"),
+        eq(whatsappMensagensLogTable.status, "bloqueado"),
       ),
     )
     .orderBy(desc(whatsappMensagensLogTable.criadoEm))
@@ -160,6 +179,8 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
       telegramLinked: cliente.telegramChatId != null,
       ultimoContatoWhatsappAt: ultimoLogWa?.criadoEm?.toISOString() ?? null,
       ultimoContatoTelegramAt: ultimoLogTg?.criadoEm?.toISOString() ?? null,
+      ultimoTelegramBloqueadoAt: ultimoTelegramBloqueado?.criadoEm?.toISOString() ?? null,
+      ultimoTelegramBloqueadoMotivo: ultimoTelegramBloqueado?.errorCode ?? null,
       /** @deprecated use ultimoContatoWhatsappAt / ultimoContatoTelegramAt */
       ultimoContatoAt: (ultimoLogWa?.criadoEm ?? ultimoLogTg?.criadoEm)?.toISOString() ?? null,
     },

@@ -232,3 +232,4 @@ router.post("/radar-clinico/mensagem", async (req, res): Promise<void> => {
 });
 
 export default router;
+

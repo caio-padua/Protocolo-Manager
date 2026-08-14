@@ -91,6 +91,11 @@ router.post("/whatsapp/status", async (req, res): Promise<void> => {
     // Propaga o status final assíncrono para o lembrete vinculado (se houver). Um
     // envio aceito na hora (ENVIADO) pode falhar depois (undelivered/failed): sem
     // isso, a tela de falhas de lembrete perderia esses casos.
+    // NOTA: NÃO gravamos bloqueio de espelho Telegram aqui. O espelho só é
+    // disparado após sendWhatsapp confirmar aceitação (verifyDeliveryFailure sem
+    // erro); quando o callback chega, o Telegram pode já ter sido enviado. O
+    // bloqueio do espelho é registrado exclusivamente nos caminhos síncronos de
+    // falha em lib/whatsapp.ts (HTTP error, error_code imediato, verifyDeliveryFailure).
     if (falhaFinal && logRow?.id != null) {
       await db
         .update(lembreteEnviosTable)

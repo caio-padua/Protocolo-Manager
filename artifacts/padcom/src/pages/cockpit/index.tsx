@@ -80,6 +80,8 @@ interface CockpitDTO {
     ultimoContatoAt: string | null;
     ultimoContatoWhatsappAt: string | null;
     ultimoContatoTelegramAt: string | null;
+    ultimoTelegramBloqueadoAt: string | null;
+    ultimoTelegramBloqueadoMotivo: string | null;
   };
   passado: {
     protocolos: { id: number; status: string; createdAt: string }[];
@@ -307,7 +309,26 @@ export default function Cockpit() {
                   }).format(new Date(dto.cliente.ultimoContatoTelegramAt))}
                 </span>
               )}
-              {!dto.cliente.ultimoContatoWhatsappAt && !dto.cliente.ultimoContatoTelegramAt && (
+              {dto.cliente.ultimoTelegramBloqueadoAt && (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-900/40 px-2.5 py-0.5 text-xs font-medium text-amber-300 ring-1 ring-amber-600/40"
+                  title={`Registrado em ${new Intl.DateTimeFormat("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Sao_Paulo",
+                  }).format(new Date(dto.cliente.ultimoTelegramBloqueadoAt))}`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  Telegram bloqueado: WhatsApp falhou
+                  {dto.cliente.ultimoTelegramBloqueadoMotivo
+                    ? ` (${dto.cliente.ultimoTelegramBloqueadoMotivo})`
+                    : ""}
+                </span>
+              )}
+              {!dto.cliente.ultimoContatoWhatsappAt && !dto.cliente.ultimoContatoTelegramAt && !dto.cliente.ultimoTelegramBloqueadoAt && (
                 <span className="text-xs text-slate-600">sem contato registrado</span>
               )}
             </div>
