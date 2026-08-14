@@ -44,14 +44,17 @@ const ESPACO = "\u00A0";
 export type Molde = "pleno" | "alto" | "engenharia";
 
 /**
- * As tres opcoes de cifrao em avaliacao pelo CEO (task de 13/08/2026).
- * O defeito apontado: o simbolo a 0,56 em subindo 0,52 em vira "sinalzinho
+ * ESCOLHA TRAVADA PELO CEO EM 14/08/2026: opcao "C" ajustada por ele —
+ * simbolo a 80% do corpo (0,8 em) com elevacao cortada para 0,2 em.
+ * Essa e agora a REGRA VIGENTE (estiloSimbolo abaixo). As opcoes "A" e "B"
+ * ficam de pe apenas para a tela de comparacao Lei do Numeral; nenhuma tela
+ * de producao passa a prop `cifrao`.
+ *
+ * Historico do defeito: o simbolo a 0,56 em subindo 0,52 em virava "sinalzinho
  * pendurado" no topo do digito.
- * - "A": simbolo maior (0,72 em) com elevacao pequena (-0,14 em). Recomendada.
+ * - "A": simbolo maior (0,72 em) com elevacao pequena (-0,14 em).
  * - "B": simbolo alinhado pela linha de base, sem elevacao alguma.
- * - "C": simbolo no tamanho atual (0,56 em) com elevacao reduzida (-0,26 em).
- * Sem a prop, vale o comportamento vigente (estiloSimbolo do molde) — nada muda
- * nas telas existentes ate o CEO travar a escolha.
+ * - "C": a escolhida — 0,8 em com elevacao de -0,2 em.
  */
 export type Cifrao = "A" | "B" | "C";
 
@@ -63,7 +66,8 @@ function estiloCifrao(cifrao: Cifrao): CSSProperties {
   if (cifrao === "B") {
     return { ...comum, fontSize: "0.62em", opacity: 0.6 };
   }
-  return { ...comum, fontSize: "0.56em", opacity: 0.62, transform: "translateY(-0.26em)" };
+  // "C" espelha exatamente a regra vigente travada pelo CEO.
+  return { ...comum, fontSize: "0.8em", opacity: 0.62, transform: "translateY(-0.2em)" };
 }
 
 const BASE: CSSProperties = {
@@ -77,21 +81,28 @@ const BASE: CSSProperties = {
 };
 
 /**
- * Simbolo (R$, %, mg). Medido, nao chutado:
- * o algarismo do EB Garamond ocupa cerca de 0,66 em de altura. Um simbolo a 56%
- * precisa subir 0,66 x (1 - 0,56) = 0,29 em do corpo grande — que equivale a
- * 0,52 em do corpo do proprio simbolo — para o topo dele encostar no topo do digito.
+ * Simbolo (R$, %, mg) — REGRA VIGENTE, travada pelo CEO em 14/08/2026:
+ * corpo a 80% do algarismo, elevacao de 0,2 em.
+ *
+ * O que mudou e por que: antes o simbolo era pequeno (0,56 em) E subia ate o
+ * topo do digito (0,52 em) — duas causas somadas que o deixavam com cara de
+ * sinalzinho pendurado. Agora ele tem presenca (80%) e sobe pouco (0,2 em):
+ * anuncia o valor sem competir com ele. A opacidade continua em 0,62 para o
+ * olho pousar no numero, nao no simbolo.
+ *
+ * O molde "engenharia" segue com regra propria (linha de base, sem elevacao):
+ * ele existe para planilha densa e relatorio contabil, onde nada sobe.
  */
 function estiloSimbolo(molde: Molde): CSSProperties {
   if (molde === "engenharia") {
     return { fontSize: "0.62em", fontWeight: 500, opacity: 0.55, letterSpacing: "0.02em" };
   }
   return {
-    fontSize: "0.56em",
+    fontSize: "0.8em",
     fontWeight: 500,
     opacity: 0.62,
     letterSpacing: "0.04em",
-    transform: "translateY(-0.52em)",
+    transform: "translateY(-0.2em)",
   };
 }
 

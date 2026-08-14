@@ -420,37 +420,37 @@ export default function LeiDoNumeral() {
       {/* ══ ZONA 4B — O CIFRAO: TRES OPCOES ══ */}
       <Zona
         n="R$"
-        titulo="O cifrao — tres opcoes lado a lado"
-        linhaFina="O CEO apontou: hoje o simbolo tem 0,56 em e sobe 0,52 em ate o topo do digito — vira um sinalzinho pendurado. Abaixo, o mesmo valor, no card real do Painel, em tres regras de cifrao. Nada muda no sistema ate a escolha ser travada."
+        titulo="O cifrao — escolha travada pelo CEO"
+        linhaFina="Decidido em 14 de agosto de 2026: opcao C ajustada pelo CEO — simbolo a 80% do corpo, subindo apenas 0,2 em. Essa e a regra VIGENTE: todo valor que nasce do motor de numeral ja sai assim, sem precisar pedir. As opcoes A e B ficam abaixo so como registro da comparacao."
       >
         <div className="grid gap-4 md:grid-cols-3">
           {(
             [
               {
+                id: "C" as Cifrao,
+                nome: "C · Travada pelo CEO",
+                regra: "Simbolo a 80% do corpo, subindo apenas 0,2 em",
+                leitura: "Presenca sem disputa: o cifrao anuncia o valor e nao compete com ele.",
+                recomendada: true,
+              },
+              {
                 id: "A" as Cifrao,
                 nome: "A · Maior, elevacao pequena",
                 regra: "Simbolo a 72% do corpo, subindo so 0,14 em",
-                leitura: "O cifrao ganha presenca e continua anunciando sem competir.",
-                recomendada: true,
+                leitura: "Registro da comparacao. Nao esta em uso.",
               },
               {
                 id: "B" as Cifrao,
                 nome: "B · Na linha de base",
                 regra: "Simbolo a 62% do corpo, sem elevacao alguma",
-                leitura: "Sobrio, contabil: cifrao e digito pisam no mesmo chao.",
-              },
-              {
-                id: "C" as Cifrao,
-                nome: "C · Atual, sobe menos",
-                regra: "Simbolo nos 56% de hoje, elevacao cortada para 0,26 em",
-                leitura: "Mantem o tamanho vigente, apenas desce o simbolo do topo.",
+                leitura: "Registro da comparacao. Nao esta em uso.",
               },
             ]
           ).map((op) => (
             <div key={op.id} className="space-y-2">
               <div className="flex items-center gap-2">
                 <Selo cor={op.recomendada ? VERDE : OURO}>{op.nome}</Selo>
-                {op.recomendada && <Selo cor={VERDE}>Recomendada</Selo>}
+                {op.recomendada && <Selo cor={VERDE}>Regra vigente</Selo>}
               </div>
               <CardKpi
                 label="Receita do Mes"
@@ -467,10 +467,10 @@ export default function LeiDoNumeral() {
         </div>
         <div className="panel-3d-sub rounded-[5px] p-3">
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Para comparar tambem em corpo grande — o mesmo valor, ampliado, nas tres regras:
+            Em corpo grande — a regra vigente (C) ao lado das duas descartadas:
           </p>
           <div className="mt-2 flex flex-wrap items-end justify-center gap-x-10 gap-y-4 text-primary">
-            {(["A", "B", "C"] as Cifrao[]).map((c) => (
+            {(["C", "A", "B"] as Cifrao[]).map((c) => (
               <div key={c} className="flex flex-col items-center gap-1">
                 <span style={{ fontSize: 44, lineHeight: 1 }}>
                   <Valor valor={3385} molde={molde} cifrao={c} />
