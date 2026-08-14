@@ -410,6 +410,25 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
     onError: (err: Error) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
+  const resendTelegramOnboarding = useMutation({
+    mutationFn: async () => {
+      const token = getCollabToken();
+      const res = await fetch(`${apiBase}/clients/${clienteId}/resend-telegram-onboarding`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Falha ao reenviar e-mail");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "E-mail reenviado", description: data.message || "E-mail de onboarding reenviado com a senha existente." });
+    },
+    onError: (err: Error) => toast({ title: "Erro ao reenviar", description: err.message, variant: "destructive" }),
+  });
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen w-full font-sans" style={{ background: CREAM }}>
@@ -1056,17 +1075,33 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                               </span>
                             </div>
                           ) : (
-                            <Button
-                              className="btn-3d-soft h-7 text-[10px] font-black px-3"
-                              onClick={() => activateTelegram.mutate()}
-                              disabled={activateTelegram.isPending || !client.email}
-                              title={!client.email ? "Cliente sem e-mail cadastrado" : "Gerar senha e enviar e-mail de onboarding"}
-                            >
-                              {activateTelegram.isPending
-                                ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                                : <Send className="w-3 h-3 mr-1.5" />}
-                              ATIVAR TELEGRAM
-                            </Button>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              <Button
+                                className="btn-3d-soft h-7 text-[10px] font-black px-3"
+                                onClick={() => activateTelegram.mutate()}
+                                disabled={activateTelegram.isPending || resendTelegramOnboarding.isPending || !client.email}
+                                title={!client.email ? "Cliente sem e-mail cadastrado" : "Gerar nova senha e enviar e-mail de onboarding"}
+                              >
+                                {activateTelegram.isPending
+                                  ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                  : <Send className="w-3 h-3 mr-1.5" />}
+                                ATIVAR TELEGRAM
+                              </Button>
+                              {(client as any).validationPassword && (
+                                <Button
+                                  variant="outline"
+                                  className="h-7 text-[10px] font-black px-3"
+                                  onClick={() => resendTelegramOnboarding.mutate()}
+                                  disabled={resendTelegramOnboarding.isPending || activateTelegram.isPending || !client.email}
+                                  title="Reenviar e-mail com a senha já gerada (sem alterar a senha)"
+                                >
+                                  {resendTelegramOnboarding.isPending
+                                    ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                    : <Send className="w-3 h-3 mr-1.5" />}
+                                  REENVIAR E-MAIL
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </div>
                         {client.address && (

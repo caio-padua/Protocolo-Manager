@@ -404,6 +404,59 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
   }
 });
 
+// ── POST /api/clients/:id/resend-telegram-onboarding ─────────────────────────
+// Reenvia o e-mail de onboarding do Telegram usando a senha já gravada em
+// clients.validationPassword, SEM gerar uma nova senha.
+// Útil quando o e-mail caiu em spam ou o paciente perdeu o acesso.
+router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "clientId inválido" });
+    return;
+  }
+
+  const empresaId = req.tenantContext.empresaId;
+  const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
+
+  const [client] = await db
+    .select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+      email: clientsTable.email,
+      telegramChatId: clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+    })
+    .from(clientsTable)
+    .where(tenantFilter)
+    .limit(1);
+
+  if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
+  if (client.telegramChatId) {
+    res.status(409).json({ error: "Telegram já vinculado", chatId: client.telegramChatId });
+    return;
+  }
+  if (!client.validationPassword) {
+    res.status(422).json({ error: "Nenhuma senha gerada ainda — use 'Ativar Telegram' primeiro" });
+    return;
+  }
+
+  try {
+    const result = await sendTelegramOnboardingEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      validationPassword: client.validationPassword,
+    });
+    if (result.success) {
+      res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
+    } else {
+      res.status(500).json({ error: result.error ?? "Falha no reenvio do e-mail" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
+  }
+});
+
 // ─── Boas-vindas automáticas por WPP (Kaizen B) ──────────────────────────────
 async function dispararBoasVindas(clientId: number, nome: string, telefone: string | null) {
   if (!telefone) {
