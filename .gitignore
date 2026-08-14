@@ -57,3 +57,19 @@ docs/PROTOCOLO_CARLUCIA_V2_LAYOUT.pdf
 # Provas de conferencia do CEO — documento clinico REAL de paciente (CPF, dados
 # clinicos, assinatura). Fica so na maquina. Nunca versionar.
 docs/provas/
+
+# ---------------------------------------------------------------------------
+# Anexos do chat (attached_assets) — decisao do CEO em 14/08/2026
+# ---------------------------------------------------------------------------
+# MOTIVO: a pasta chegou a 1.019 MB e o historico do Git a 979,59 MB, o que
+# travava o editor e o painel de versionamento em rajadas.
+#
+# O QUE ESTA REGRA FAZ: anexos NOVOS param de entrar no historico.
+# O QUE ELA NAO FAZ: nao apaga nada do disco, e nao tira do historico os 1.157
+# anexos que ja estavam versionados (arquivo ja rastreado continua rastreado).
+#
+# ATENCAO AO USAR ARTE NOVA NA TELA: as telas importam imagem por "@assets/...",
+# que aponta para esta pasta. Arquivo novo aqui NAO sobe para producao. Para arte
+# que a tela precisa exibir, copie para a pasta de assets do proprio artefato
+# (exemplo: artifacts/padcom/src/assets/), que continua versionada normalmente.
+attached_assets/

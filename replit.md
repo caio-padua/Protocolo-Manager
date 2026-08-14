@@ -78,6 +78,15 @@ a credencial configurada. O método aprovado de push é o painel Git do Replit (
 - `lib/db` — schema Drizzle (clientes, protocolos, sessões, exames, catálogo, financeiro, etc.)
 - Detalhe tela-a-tela, rotas e integrações: `docs/PADCOM-FUNCIONALIDADES.md`
 
+### `attached_assets/` — anexos do chat NÃO sobem mais para o Git (desde 14/08/2026)
+
+- A pasta chegou a 1.019 MB e o histórico do Git a 979,59 MB, travando editor e painel de versionamento.
+- Regra atual: `attached_assets/` está no `.gitignore` — anexo **novo** fica só no disco.
+- Nada foi apagado: os 1.157 anexos que já estavam versionados continuam versionados.
+- **Arte que a tela precisa exibir** não pode ficar só em `attached_assets` (não vai para produção):
+  copiar para a pasta de assets do artefato, por exemplo `artifacts/padcom/src/assets/`.
+- Encolher o histórico já existente é outra conversa: exige reescrita de histórico e **ordem escrita do CEO**.
+
 ## Working Language
 
 - UI e comunicação com usuário em Português (Brasil)
