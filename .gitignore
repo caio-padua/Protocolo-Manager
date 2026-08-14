@@ -72,4 +72,7 @@ docs/provas/
 # que aponta para esta pasta. Arquivo novo aqui NAO sobe para producao. Para arte
 # que a tela precisa exibir, copie para a pasta de assets do proprio artefato
 # (exemplo: artifacts/padcom/src/assets/), que continua versionada normalmente.
+#
+# Nesta task os 1.157 anexos tambem sairam do INDICE (git rm --cached): continuam
+# no disco e no historico antigo, mas nao entram em nenhum commit novo.
 attached_assets/
