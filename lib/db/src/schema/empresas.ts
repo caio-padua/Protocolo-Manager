@@ -20,6 +20,7 @@ export const empresasTable = pgTable("empresas", {
   ativa: boolean("ativa").notNull().default(true),
   donoNome: text("dono_nome"),
   slug: text("slug"),
+  areaUrl: text("area_url"),                     // URL pública da Área do Paciente (ex: https://app.padua.com.br)
   timezone: text("timezone").default("America/Sao_Paulo"),
 
   // ── Dados fiscais / jurídicos ───────────────────────────────────────────────

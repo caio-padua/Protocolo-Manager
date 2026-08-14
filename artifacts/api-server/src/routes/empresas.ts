@@ -54,7 +54,7 @@ function sanitizarEmpresa(row: EmpresaRow) {
 
 // Todos os campos editáveis da tabela empresas (exceto credenciais — essas têm rota própria)
 const CAMPOS_EMPRESA = [
-  "nome","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","timezone",
+  "nome","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","areaUrl","timezone",
   // Fiscal/Jurídico
   "cnae","cnaeDescricao","cnaesSecundarios","naturezaJuridica","regimeTributario",
   "inscricaoEstadual","inscricaoMunicipal","dataAbertura","capitalSocial",
@@ -94,6 +94,28 @@ const CAMPOS_EMPRESA = [
 const CAMPOS_CREDENCIAL_ESCRITA = [
   "zapsignToken","waToken","twilioAuthToken","telegramBotToken","certFileId","certDriveFolderId",
 ];
+
+// ── Validação de slug ─────────────────────────────────────────────────────────
+const SLUG_RE = /^[a-z0-9-]+$/;
+
+/** Normaliza slug: "" ou whitespace → null para não colidir no índice único. */
+function normalizarSlug(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
+  const s = String(val).trim();
+  return s === "" ? null : s;
+}
+
+/** Valida formato e unicidade do slug. Retorna mensagem de erro ou null se ok. */
+async function validarSlug(slug: string, excludeId?: number): Promise<string | null> {
+  if (!SLUG_RE.test(slug)) {
+    return "Slug inválido: use apenas letras minúsculas, números e hífens.";
+  }
+  const rows = await db.select({ id: empresasTable.id }).from(empresasTable)
+    .where(eq(empresasTable.slug, slug));
+  const conflito = rows.find(r => r.id !== excludeId);
+  if (conflito) return `Slug '${slug}' já está em uso por outra empresa.`;
+  return null;
+}
 
 // ── HELPERS INTERNOS ──────────────────────────────────────────────────────────
 
@@ -406,6 +428,13 @@ router.post("/empresas", async (req, res): Promise<void> => {
     return;
   }
 
+  // ── Normaliza e valida slug ────────────────────────────────────────────────
+  body.slug = normalizarSlug(body.slug);
+  if (body.slug !== null) {
+    const errSlug = await validarSlug(body.slug as string);
+    if (errSlug) { res.status(422).json({ error: errSlug }); return; }
+  }
+
   const nick = (body.nick || body.nome).toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "").slice(0, 20);
   const zohoSugerido = body.zohoEmail || `${nick}@padcon.com.br`;
 
@@ -426,8 +455,16 @@ router.post("/empresas", async (req, res): Promise<void> => {
     }
   }
 
-  const [inserted] = await db.insert(empresasTable).values(payload as never).returning();
-  res.status(201).json(sanitizarEmpresa(inserted));
+  try {
+    const [inserted] = await db.insert(empresasTable).values(payload as never).returning();
+    res.status(201).json(sanitizarEmpresa(inserted));
+  } catch (e: any) {
+    if (e?.code === "23505" && e?.constraint?.includes("slug")) {
+      res.status(409).json({ error: "Slug já está em uso por outra empresa." });
+    } else {
+      throw e;
+    }
+  }
 });
 
 router.put("/empresas/:id", async (req, res): Promise<void> => {
@@ -443,15 +480,35 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
     }
   }
 
+  // ── Normaliza e valida slug ────────────────────────────────────────────────
+  if (req.body.slug !== undefined) {
+    req.body.slug = normalizarSlug(req.body.slug);
+  }
+  if (req.body.slug !== null && req.body.slug !== undefined) {
+    const errSlug = await validarSlug(req.body.slug as string, id);
+    if (errSlug) {
+      res.status(errSlug.includes("uso") ? 409 : 422).json({ error: errSlug });
+      return;
+    }
+  }
+
   const updates: Record<string, unknown> = { atualizadoEm: new Date() };
   const todosCampos = [...CAMPOS_EMPRESA, ...CAMPOS_CREDENCIAL_ESCRITA];
   for (const f of todosCampos) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
   }
 
-  const [updated] = await db.update(empresasTable).set(updates).where(eq(empresasTable.id, id)).returning();
-  if (!updated) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
-  res.json(sanitizarEmpresa(updated));
+  try {
+    const [updated] = await db.update(empresasTable).set(updates).where(eq(empresasTable.id, id)).returning();
+    if (!updated) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
+    res.json(sanitizarEmpresa(updated));
+  } catch (e: any) {
+    if (e?.code === "23505" && e?.constraint?.includes("slug")) {
+      res.status(409).json({ error: "Slug já está em uso por outra empresa." });
+    } else {
+      throw e;
+    }
+  }
 });
 
 router.delete("/empresas/:id", async (req, res): Promise<void> => {

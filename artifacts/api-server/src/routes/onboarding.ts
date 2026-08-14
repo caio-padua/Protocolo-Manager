@@ -33,6 +33,12 @@ export const onboardingPublicRouter = Router();
     `);
     // area_url: URL pública da Área do Paciente por empresa
     await db.execute(sqlRaw`ALTER TABLE empresas ADD COLUMN IF NOT EXISTS area_url TEXT`);
+    // Índice único parcial: NULL e "" não colidem — slug opcional permanece livre
+    await db.execute(sqlRaw`
+      CREATE UNIQUE INDEX IF NOT EXISTS empresas_slug_unique
+      ON empresas (slug)
+      WHERE slug IS NOT NULL AND slug <> ''
+    `);
   } catch (e) {
     // não bloqueia o boot
     console.warn("[onboarding] migration warning:", e);

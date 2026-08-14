@@ -621,5 +621,3 @@ router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res
 });
 
 export default router;
-
-  const extraRow = extraResult.rows[0] as { telegram_last_test_ok: boolean | null } | undefined;

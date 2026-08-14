@@ -24,7 +24,7 @@ interface Empresa {
   id: number; iheId: number | null;
   nome: string; nick: string | null; cnpj: string | null;
   tipo: string; tipoUnidade: string | null; status: string; ativa: boolean;
-  donoNome: string | null; slug: string | null; timezone: string | null;
+  donoNome: string | null; slug: string | null; areaUrl: string | null; timezone: string | null;
   endereco: string | null; cep: string | null; bairro: string | null;
   cidade: string | null; estado: string | null; zona: string | null;
   telefone: string | null; emailGeral: string | null; emailAgenda: string | null;
@@ -61,7 +61,8 @@ const formSchema = z.object({
   status:          z.string(),
   ativa:           z.boolean(),
   donoNome:        z.string().optional(),
-  slug:            z.string().optional(),
+  slug:            z.string().regex(/^[a-z0-9-]*$/, "Slug: apenas letras minúsculas, números e hífens").optional(),
+  areaUrl:         z.string().optional(),
   timezone:        z.string().optional(),
   // Dados fiscais / jurídicos
   cnae:            z.string().optional(),
@@ -145,7 +146,7 @@ type FormValues = z.infer<typeof formSchema>;
 const EMPTY: FormValues = {
   nome: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
   tipoUnidade: "CLINICA_PARCEIRA", status: "ATIVO", ativa: true,
-  donoNome: "", slug: "", timezone: "America/Sao_Paulo",
+  donoNome: "", slug: "", areaUrl: "", timezone: "America/Sao_Paulo",
   cnae: "", cnaeDescricao: "", naturezaJuridica: "Ltda",
   regimeTributario: "simples_nacional", inscricaoEstadual: "",
   inscricaoMunicipal: "", dataAbertura: "", capitalSocial: "", optanteSimples: true,
@@ -921,7 +922,7 @@ export default function CadastroEmpresas() {
     form.reset({
       nome: e.nome, razaoSocial: e.razaoSocial || "", nick: e.nick || "", cnpj: e.cnpj || "",
       tipo: e.tipo, tipoUnidade: e.tipoUnidade || "", status: e.status, ativa: e.ativa,
-      donoNome: e.donoNome || "", slug: e.slug || "", timezone: e.timezone || "America/Sao_Paulo",
+      donoNome: e.donoNome || "", slug: e.slug || "", areaUrl: e.areaUrl || "", timezone: e.timezone || "America/Sao_Paulo",
       cnae: e.cnae || "", cnaeDescricao: e.cnaeDescricao || "",
       naturezaJuridica: e.naturezaJuridica || "Ltda",
       regimeTributario: e.regimeTributario || "simples_nacional",
@@ -1204,6 +1205,16 @@ export default function CadastroEmpresas() {
                       <FormItem>
                         <FormLabel className="lbl">Slug (URL interna)</FormLabel>
                         <FormControl><Input placeholder="instituto-padua" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="areaUrl" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">URL da Área do Paciente</FormLabel>
+                        <FormControl><Input placeholder="https://app.institutopadua.com.br" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">
+                          URL base da área do paciente para este tenant (ex: enviada no Guia Digital).
+                        </p>
                       </FormItem>
                     )} />
                     <Divider label="Contatos" />
