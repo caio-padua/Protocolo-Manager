@@ -97,18 +97,21 @@ export async function processarWebhookInbox(
     return { kind: "nao_vinculado" };
   }
 
+  // Notificar CEO ANTES do INSERT: garante que o CEO veja a mensagem mesmo se o banco
+  // recusar o INSERT (ex.: constraint violada, banco fora do ar). O repasse ao CEO é
+  // fire-and-forget e nunca bloqueia nem derruba o fluxo principal.
+  if (chatIdCEO && deps.notificarCEO) {
+    void deps.notificarCEO(chatIdCEO, cliente, texto).catch(() => {
+      /* best-effort — falha não derruba o fluxo principal */
+    });
+  }
+
   const { id: mensagemId } = await deps.insertMensagem({
     empresaId: cliente.empresaId,
     clienteId: cliente.id,
     chatId,
     texto,
   });
-
-  if (chatIdCEO && deps.notificarCEO) {
-    void deps.notificarCEO(chatIdCEO, cliente, texto).catch(() => {
-      /* best-effort — falha não derruba o fluxo principal */
-    });
-  }
 
   return { kind: "gravado", mensagemId, clienteId: cliente.id };
 }

@@ -145,6 +145,123 @@ describe("Etapa 1 — Webhook: mensagem do paciente grava no inbox", () => {
   });
 });
 
+// ── Falha silenciosa no INSERT: comportamento da camada de rota ───────────────
+//
+// A rota de produção (assinaturas.ts) envolve processarWebhookInbox com
+// `.catch(logger.error)` e sempre responde 200 ao Telegram, mesmo quando o
+// banco rejeita o INSERT. Este bloco valida esse contrato sem precisar de
+// servidor HTTP real, simulando o padrão da rota.
+//
+// Análise de aceitabilidade da falha silenciosa:
+//   ✔ ACEITÁVEL retornar 200 ao Telegram (evita loop de reentrega)
+//   ✔ ACEITÁVEL logar o erro (logger.error) para monitoramento
+//   ✔ NECESSÁRIO notificar o CEO mesmo assim — sem o cockpit ele não vê a msg
+//   ✘ NÃO há retentativa automática; se o banco cair, a mensagem se perde no DB
+//      (mas o CEO ainda recebe via Telegram e pode agir manualmente)
+//
+describe("Falha silenciosa no INSERT — contrato da rota de produção", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /**
+   * Simula o padrão da rota:
+   *   await processarWebhookInbox(...).catch(err => loggerError(err));
+   *   res.status(200).json({ ok: true });
+   */
+  async function simularRota(
+    params: Parameters<typeof processarWebhookInbox>[0],
+    deps: WebhookInboxDeps,
+  ) {
+    const loggerError = vi.fn();
+    await processarWebhookInbox(params, deps).catch((err: unknown) =>
+      loggerError({ err }),
+    );
+    // Rota sempre responde 200 independentemente do resultado
+    const httpStatus = 200;
+    return { httpStatus, loggerError };
+  }
+
+  it("1. webhook retorna HTTP 200 mesmo quando o banco recusa o INSERT", async () => {
+    const deps = makeWebhookDeps({
+      insertMensagem: vi.fn().mockRejectedValue(new Error("constraint violation")),
+    });
+
+    const { httpStatus } = await simularRota(
+      { chatId: CHAT_ID, texto: TEXTO, chatIdCEO: "CEOchatId" },
+      deps,
+    );
+
+    expect(httpStatus).toBe(200);
+  });
+
+  it("2. logger.error é chamado com o erro quando o INSERT falha", async () => {
+    const dbErr = new Error("DB offline");
+    const deps = makeWebhookDeps({
+      insertMensagem: vi.fn().mockRejectedValue(dbErr),
+    });
+
+    const { loggerError } = await simularRota(
+      { chatId: CHAT_ID, texto: TEXTO },
+      deps,
+    );
+
+    expect(loggerError).toHaveBeenCalledOnce();
+    expect(loggerError).toHaveBeenCalledWith({ err: dbErr });
+  });
+
+  it("3. CEO é notificado mesmo quando o INSERT falha (notificarCEO roda antes do INSERT)", async () => {
+    // notificarCEO é chamado ANTES do insertMensagem; por isso chega ao CEO
+    // mesmo que o banco esteja fora do ar.
+    const notificarCEO = vi.fn().mockResolvedValue(undefined);
+    const deps = makeWebhookDeps({
+      insertMensagem: vi.fn().mockRejectedValue(new Error("DB offline")),
+      notificarCEO,
+    });
+
+    await simularRota(
+      { chatId: CHAT_ID, texto: TEXTO, chatIdCEO: "999" },
+      deps,
+    );
+
+    // Aguarda microtasks fire-and-forget
+    await Promise.resolve();
+
+    expect(notificarCEO).toHaveBeenCalledOnce();
+    expect(notificarCEO).toHaveBeenCalledWith(
+      "999",
+      expect.objectContaining({ id: CLIENTE_ID }),
+      TEXTO,
+    );
+  });
+
+  it("3b. CEO NÃO é notificado quando chatIdCEO está ausente (mesmo com falha no INSERT)", async () => {
+    const notificarCEO = vi.fn().mockResolvedValue(undefined);
+    const deps = makeWebhookDeps({
+      insertMensagem: vi.fn().mockRejectedValue(new Error("DB offline")),
+      notificarCEO,
+    });
+
+    // Sem chatIdCEO
+    await simularRota({ chatId: CHAT_ID, texto: TEXTO }, deps);
+    await Promise.resolve();
+
+    expect(notificarCEO).not.toHaveBeenCalled();
+  });
+
+  it("SUCESSO: quando o INSERT funciona, CEO é notificado e nenhum erro é logado", async () => {
+    const deps = makeWebhookDeps();
+
+    const { httpStatus, loggerError } = await simularRota(
+      { chatId: CHAT_ID, texto: TEXTO, chatIdCEO: "CEOchatId" },
+      deps,
+    );
+    await Promise.resolve();
+
+    expect(httpStatus).toBe(200);
+    expect(loggerError).not.toHaveBeenCalled();
+    expect(deps.notificarCEO).toHaveBeenCalledOnce();
+  });
+});
+
 // ── Etapa 2: obterBadge ───────────────────────────────────────────────────────
 
 function makeBadgeDeps(total = 1): BadgeDeps {

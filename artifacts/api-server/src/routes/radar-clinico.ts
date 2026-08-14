@@ -303,10 +303,3 @@ router.post("/radar-clinico/mensagem", async (req, res): Promise<void> => {
 });
 
 export default router;
-
-
-    let paramIdx = 2;
-
-    const searchFilter = search
-      ? (() => { params.push(`%${search}%`); return `AND c.name ILIKE $${paramIdx++}`; })()
-      : "";
