@@ -24,15 +24,36 @@ const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 // ─── Health endpoint mínimo para Railway verificar o worker ─────────────────
 const server = http.createServer((req, res) => {
   if (req.url === "/worker/status" || req.url === "/") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "ok",
-        worker: "api-worker",
-        jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min", "llm-slack-8h", "telegram-webhook-guard"],
-        ts: new Date().toISOString(),
+    // Lê o último check do webhook do módulo já carregado pelo Job 6.
+    // O import é síncrono depois do primeiro carregamento (ESM cache),
+    // mas usamos .then para não bloquear caso o módulo ainda não tenha
+    // terminado de carregar (boot recente).
+    import("../../api-server/src/lib/telegram-webhook-guard.js" as string)
+      .then(({ getLastWebhookCheck }) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            status: "ok",
+            worker: "api-worker",
+            jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min", "llm-slack-8h", "telegram-webhook-guard"],
+            telegramWebhook: getLastWebhookCheck(),
+            ts: new Date().toISOString(),
+          })
+        );
       })
-    );
+      .catch(() => {
+        // Módulo não carregou ainda — responde sem o campo do webhook
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            status: "ok",
+            worker: "api-worker",
+            jobs: ["farmacia-22h", "lembrete-minuto", "receituario-6h", "drive-watcher-5min", "llm-slack-8h", "telegram-webhook-guard"],
+            telegramWebhook: null,
+            ts: new Date().toISOString(),
+          })
+        );
+      });
   } else {
     res.writeHead(404);
     res.end();
