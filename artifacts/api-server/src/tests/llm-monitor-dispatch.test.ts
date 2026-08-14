@@ -222,3 +222,103 @@ describe("runLlmMonitorJob — dual-canal fail-safe", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Testes do canal gravado em salvarHistorico — as 4 combinações possíveis
+// ---------------------------------------------------------------------------
+describe("runLlmMonitorJob — canal gravado no salvarHistorico", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Combinação 1: ambos entregaram → canal = "ambos"
+  it("grava canal='ambos' quando Slack e Telegram entregam", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({ salvarHistorico });
+
+    await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    expect(salvarHistorico).toHaveBeenCalledOnce();
+    expect(salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "ambos",
+      true,
+      undefined,
+    );
+  });
+
+  // Combinação 2: só Slack entregou → canal = "slack"
+  it("grava canal='slack' quando apenas Slack entrega (Telegram falha)", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      postTelegramReport: vi.fn().mockRejectedValue(new Error("Telegram bot blocked")),
+      salvarHistorico,
+    });
+
+    await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    expect(salvarHistorico).toHaveBeenCalledOnce();
+    expect(salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "slack",
+      false,
+      expect.stringContaining("Slack: OK"),
+    );
+  });
+
+  // Combinação 3: só Telegram entregou → canal = "telegram"
+  it("grava canal='telegram' quando apenas Telegram entrega (Slack falha)", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      postSlackReport: vi.fn().mockRejectedValue(new Error("Slack API down")),
+      salvarHistorico,
+    });
+
+    await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    expect(salvarHistorico).toHaveBeenCalledOnce();
+    expect(salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "telegram",
+      false,
+      expect.stringContaining("Telegram: OK"),
+    );
+  });
+
+  // Combinação 4: nenhum entregou → canal = "nenhum"
+  it("grava canal='nenhum' quando ambos os canais falham", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      postSlackReport:    vi.fn().mockRejectedValue(new Error("Slack down")),
+      postTelegramReport: vi.fn().mockRejectedValue(new Error("Telegram down")),
+      salvarHistorico,
+    });
+
+    await runLlmMonitorJob(CONFIG_PADRAO, deps, LOGGER_MUDO);
+
+    expect(salvarHistorico).toHaveBeenCalledOnce();
+    expect(salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "nenhum",
+      false,
+      expect.stringContaining("Slack: falhou"),
+    );
+  });
+
+  // Bônus: Telegram não configurado → canal = "slack" (não "ambos")
+  it("grava canal='slack' quando Telegram não está configurado", async () => {
+    const salvarHistorico = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({ salvarHistorico });
+    const config: LlmMonitorConfig = { ...CONFIG_PADRAO, telegramChatId: "" };
+
+    await runLlmMonitorJob(config, deps, LOGGER_MUDO);
+
+    expect(salvarHistorico).toHaveBeenCalledOnce();
+    expect(salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "slack",
+      true,
+      undefined,
+    );
+  });
+});

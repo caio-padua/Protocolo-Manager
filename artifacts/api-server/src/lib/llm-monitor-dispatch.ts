@@ -19,7 +19,7 @@ import type { LlmReport } from "./slack-reporter";
 export type BuildReportFn       = (horas?: number) => Promise<LlmReport>;
 export type PostSlackFn         = (channelId: string, report: LlmReport) => Promise<void>;
 export type PostTelegramFn      = (chatId: string, report: LlmReport, fallbackSlackChannelId?: string) => Promise<void>;
-export type SalvarHistoricoFn   = (report: LlmReport, canal: "slack" | "telegram" | "ambos", ok: boolean, erro?: string) => Promise<void>;
+export type SalvarHistoricoFn   = (report: LlmReport, canal: "slack" | "telegram" | "ambos" | "nenhum", ok: boolean, erro?: string) => Promise<void>;
 
 export interface LlmMonitorDeps {
   buildLlmReport:     BuildReportFn;
@@ -118,15 +118,22 @@ export async function runLlmMonitorJob(
     }
   }
 
-  // ── 4. Registro "ambos" — resumo dual-canal do ciclo ───────────────────
+  // ── 4. Registro do ciclo — canal reflete quais canais de fato entregaram ──
   // Só grava se o relatório foi construído e a função foi injetada.
   if (result.reportBuilt && deps.salvarHistorico) {
-    // ambosOk: Slack entregou E (Telegram entregou OU Telegram não estava configurado).
-    // telegramSkipped (chatId vazio) é ausência de configuração — não é falha de entrega.
-    const ambosOk = result.slackOk && (result.telegramOk || result.telegramSkipped);
+    // Derivar o canal a partir dos resultados REAIS de entrega.
+    // telegramSkipped (chatId vazio) = sem configuração; não conta como entrega.
+    const canal: "slack" | "telegram" | "ambos" | "nenhum" = (() => {
+      if (result.slackOk && result.telegramOk)  return "ambos";
+      if (result.slackOk)                        return "slack";   // telegram falhou ou não configurado
+      if (result.telegramOk)                     return "telegram";
+      return "nenhum";
+    })();
+
+    // ok=true quando todos os canais configurados entregaram
+    const cicloOk = result.slackOk && (result.telegramOk || result.telegramSkipped);
 
     // Mensagem estruturada: descreve o estado de CADA canal explicitamente.
-    // Permite distinguir "Slack OK, Telegram falhou" de "ambos falharam" no histórico.
     const descSlack = result.slackOk
       ? "Slack: OK"
       : `Slack: falhou — ${result.slackError ?? "erro desconhecido"}`;
@@ -137,20 +144,20 @@ export async function runLlmMonitorJob(
         : `Telegram: falhou — ${result.telegramError ?? "erro desconhecido"}`;
 
     // Só grava o campo erro quando houve falha real (não quando é só "não configurado")
-    const erroStr = ambosOk ? undefined : `${descSlack} | ${descTelegram}`;
+    const erroStr = cicloOk ? undefined : `${descSlack} | ${descTelegram}`;
 
     try {
-      await deps.salvarHistorico(report, "ambos", ambosOk, erroStr);
+      await deps.salvarHistorico(report, canal, cicloOk, erroStr);
     } catch (saveErr) {
       // salvarHistorico já loga internamente; aqui só garantimos que o ciclo não derruba
       logger?.warn(
         { err: saveErr instanceof Error ? saveErr.message : String(saveErr) },
-        "llm-monitor: falha ao gravar registro 'ambos' — ciclo já entregou",
+        "llm-monitor: falha ao gravar histórico do ciclo — ciclo já entregou",
       );
     }
     logger?.info(
-      { slackOk: result.slackOk, telegramOk: result.telegramOk, telegramSkipped: result.telegramSkipped, ambosOk },
-      "llm-monitor: registro 'ambos' gravado no histórico",
+      { slackOk: result.slackOk, telegramOk: result.telegramOk, telegramSkipped: result.telegramSkipped, canal, cicloOk },
+      "llm-monitor: histórico do ciclo gravado",
     );
   }
 

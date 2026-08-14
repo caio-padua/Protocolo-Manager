@@ -734,7 +734,7 @@ export async function listarCanaisSlack(): Promise<{ id: string; name: string }[
 // ---------------------------------------------------------------------------
 export async function salvarHistorico(
   report: LlmReport,
-  canal: "slack" | "telegram" | "ambos",
+  canal: "slack" | "telegram" | "ambos" | "nenhum",
   enviado_ok: boolean,
   erro?: string,
 ): Promise<void> {
