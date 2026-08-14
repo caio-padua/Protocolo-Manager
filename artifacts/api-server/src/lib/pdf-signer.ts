@@ -2216,39 +2216,43 @@ function drawSubcapaPage(
     return y - SEC_GAP;
   };
 
-  // ── COLUNA ESQUERDA: trajetória e formação ────────────────────────────────
-  ly = sec(lX, ly, "QUEM SOU EU");
+  // ── COLUNA ESQUERDA: vocação, trajetória e formação ─────────────────────
+  ly = sec(lX, ly, "UMA VOCA\u00c7\u00c3O QUE VEM DO DNA");
   ly = para(lX, ly,
-    "Formado pela Faculdade de Medicina de Mogi das Cruzes em 2006, venho de uma fam\u00edlia marcada pela voca\u00e7\u00e3o m\u00e9dica. Inspirado pela minha irm\u00e3 m\u00e9dica e por familiares que carregam a mesma chama, compreendi que a medicina seria para mim n\u00e3o apenas uma profiss\u00e3o, mas uma miss\u00e3o de vida.",
+    "Nasci em uma fam\u00edlia marcada pela voca\u00e7\u00e3o m\u00e9dica. Minha irm\u00e3 m\u00e9dica foi minha primeira grande inspira\u00e7\u00e3o \u2014 e ao redor dela, outros familiares que carregavam a mesma chama: a de cuidar, servir e transformar vidas. Cresci entendendo que a medicina n\u00e3o era apenas uma escolha de carreira. Era um chamado de vida, inscrito no mais fundo do meu ser.",
     COL_W);
 
-  ly = sec(lX, ly, "FORMA\u00c7\u00c3O ACAD\u00caMICA");
+  ly = sec(lX, ly, "FORMA\u00c7\u00c3O ACAD\u00camica");
   ly = bul(lX, ly, [
-    "Gradua\u00e7\u00e3o em Medicina \u2014 Mogi das Cruzes (2006)",
+    "Gradua\u00e7\u00e3o em Medicina \u2014 Univ. de Mogi das Cruzes (2006)",
     "P\u00f3s-Gradua\u00e7\u00e3o em Endocrinologia",
     "P\u00f3s-Gradua\u00e7\u00e3o em Adequa\u00e7\u00e3o Nutricional e Homeostase",
-    "Especializa\u00e7\u00e3o em preven\u00e7\u00e3o de doen\u00e7as relacionadas \u00e0 idade",
+    "Especializa\u00e7\u00e3o em Longevidade e Medicina Preventiva",
+    "Est\u00e9tica Integrativa e Medicina Anti-Aging",
+    "+19 anos de pr\u00e1tica cl\u00ednica integrativa",
   ], COL_W);
 
-  ly = sec(lX, ly, "MENTORIA: DR. LAIR RIBEIRO");
+  ly = sec(lX, ly, "MENTORIA \u2014 DR. LAIR RIBEIRO");
   para(lX, ly,
-    "Aluno e mentorado por mais de 3 anos do Dr. Lair Ribeiro \u2014 Professor Em\u00e9rito de Harvard, ex-Vice-Presidente da Ciba-Geigy (hoje Novartis) e refer\u00eancia incontestável na Medicina Integrativa. A p\u00f3s-gradua\u00e7\u00e3o por ele ministrada \u00e9 uma das mais prestigiadas do Brasil, atraindo m\u00e9dicos de todo o mundo.",
+    "Por mais de 3 anos, tive o privil\u00e9gio de ser aluno e mentorado do Dr. Lair Ribeiro \u2014 Professor Em\u00e9rito de Harvard, ex-Vice-Presidente da Ciba-Geigy (hoje Novartis) e considerado o brasileiro com o maior curr\u00edculo m\u00e9dico das Am\u00e9ricas. Aquela mentoria n\u00e3o foi apenas uma p\u00f3s-gradua\u00e7\u00e3o: foi uma descontru\u00e7\u00e3o e reconstru\u00e7\u00e3o completa de tudo que eu acreditava saber sobre medicina. O encontro que redefiniu minha vis\u00e3o e abriu as portas da medicina que realmente cura.",
     COL_W);
 
-  // ── COLUNA DIREITA: filosofia, prioridade e frase-símbolo ────────────────
-  ry = sec(rX, ry, "INSTITUTO P\u00c1DUA");
+  // ── COLUNA DIREITA: GPS, filosofia e frase-símbolo ───────────────────────
+  ry = sec(rX, ry, "O PROTOCOLO GPS");
   ry = para(rX, ry,
-    "Fundador e Diretor do Instituto P\u00e1dua — cl\u00ednica com foco em medicina integrativa e preventiva. Protocolos pr\u00f3prios desenvolvidos com rigor cient\u00edfico. Miss\u00e3o: levar sa\u00fade, longevidade e qualidade de vida a cada paciente.",
+    "O GPS \u2014 Gerenciamento Personalizado de Sa\u00fade \u2014 \u00e9 o protocolo propriet\u00e1rio que desenvolvi ao longo de anos de pr\u00e1tica integrativa. Diferente dos protocolos gen\u00e9ricos da medicina convencional, o GPS trata cada paciente como um ser \u00fanico, com sua bioqu\u00edmica individual, sua hist\u00f3ria de vida, seus objetivos e suas necessidades espec\u00edficas.",
     COL_W);
+  ry = bul(rX, ry, [
+    "Avalia\u00e7\u00e3o hormonal e metab\u00f3lica aprofundada",
+    "Protocolos nutricionais individualizados",
+    "Suplementa\u00e7\u00e3o baseada em evid\u00eancias integrativas",
+    "Acompanhamento cont\u00ednuo e ajuste din\u00e2mico",
+    "Foco na preven\u00e7\u00e3o e revers\u00e3o do adoecimento",
+  ], COL_W);
 
   ry = sec(rX, ry, "MINHA FILOSOFIA");
   ry = para(rX, ry,
-    "Buscar a raiz dos problemas, promover o equil\u00edbrio e estimular o potencial de cura natural do organismo \u2014 algo que a medicina convencional frequentemente ignora. N\u00e3o viso o retorno financeiro como fim, pois ele \u00e9 apenas consequ\u00eancia de transformar vidas.",
-    COL_W);
-
-  ry = sec(rX, ry, "MINHA PRIORIDADE");
-  ry = para(rX, ry,
-    "Transformar vidas. Ajudar meus pacientes a viverem mais, melhor e com dignidade. Cada consulta, cada protocolo e cada material educativo \u00e9 preparado com o m\u00e1ximo rigor cient\u00edfico \u2014 fruto de anos de dedica\u00e7\u00e3o, aprendizado e supera\u00e7\u00e3o.",
+    "A medicina convencional trata sintomas. N\u00f3s buscamos as causas reais: desequil\u00edbrios hormonais, defici\u00eancias nutricionais, inflama\u00e7\u00e3o cr\u00f4nica. Medicina integrativa n\u00e3o \u00e9 medicina alternativa \u2014 \u00e9 ci\u00eancia de ponta aplicada com vis\u00e3o sist\u00eamica. O retorno financeiro \u00e9 consequ\u00eancia de um trabalho feito com excel\u00eancia e amor genuiuno \u2014 jamais ser\u00e1 o fim em si mesmo.",
     COL_W);
 
   // Frase-símbolo do CEO: em ouro, maior, como assinatura da página

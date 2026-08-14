@@ -438,3 +438,10 @@ uri = "file://docs/preview/protocolo-capa-v2-final.png"
 type = "image"
 title = "Protocolo Carlucia — Capa v2 + Subcapa biográfica (com acentos)"
 description = "Fileira 1: capa nova (esq.) e subcapa biográfica (dir.). Fileira 2: zoom do cabeçalho e rodapé da capa. Fileira 3: zoom da faixa navy e do corpo em duas colunas da subcapa."
+
+[[outputs]]
+id = "EeZHI9USj3PjoJ549lthp"
+uri = "file://docs/preview/subcapa-v3-curriculo-real.png"
+type = "image"
+title = "Subcapa biográfica v3 — dados reais do seu currículo"
+description = "Topo: página completa. Meio: zoom da faixa navy com seu nome e credenciais. Base: zoom das duas colunas — esquerda (Vocação, Formação, Mentoria Lair Ribeiro) e direita (GPS, Filosofia, frase símbolo)."
