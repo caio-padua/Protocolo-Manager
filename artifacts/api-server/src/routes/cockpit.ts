@@ -428,4 +428,48 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
   res.json({ ok: true, sent: resultado.sent, mock: resultado.mock });
 });
 
+// ── GET /cockpit/:clientId/mensageria ────────────────────────────────────────
+// Histórico de mensagens enviadas ao paciente (mensageria_lembrete, tipo radar
+// e lembretes). Apenas o tenant correto pode ler (empresaId isolado).
+router.get("/cockpit/:clientId/mensageria", requireCollaborator, async (req, res): Promise<void> => {
+  const empresaId = resolveEmpresaId(req as any);
+  const clienteId = Number(req.params.clientId);
+  if (!Number.isInteger(clienteId) || clienteId <= 0) {
+    res.status(400).json({ error: "clientId inválido" });
+    return;
+  }
+
+  // Confirma que o cliente pertence ao tenant
+  const [cliente] = await db
+    .select({ id: clientsTable.id })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
+    .limit(1);
+  if (!cliente) {
+    res.status(404).json({ error: "Cliente não encontrado" });
+    return;
+  }
+
+  const rows = await db.execute(sql`
+    SELECT
+      id,
+      tipo,
+      titulo,
+      mensagem,
+      via,
+      status,
+      enviado_em,
+      created_at
+    FROM mensageria_lembrete
+    WHERE cliente_id = ${clienteId}
+      AND empresa_id = ${empresaId}
+      AND status = 'enviado'
+      AND enviado_em IS NOT NULL
+    ORDER BY enviado_em DESC
+    LIMIT 50
+  `);
+
+  res.json({ mensagens: rows.rows });
+});
+
 export default router;

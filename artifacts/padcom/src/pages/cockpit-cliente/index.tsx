@@ -310,6 +310,23 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba, clienteId]);
 
+  // ── Histórico de mensagens enviadas (mensageria_lembrete) ─────────────────
+  const { data: mensageriaData } = useQuery<{
+    mensagens: { id: number; tipo: string; titulo: string; mensagem: string; via: string | null; status: string; enviado_em: string | null; created_at: string }[];
+  }>({
+    queryKey: ["cockpit-mensageria", clienteId],
+    queryFn: async () => {
+      if (!clienteId) return { mensagens: [] };
+      const token = getCollabToken();
+      const res = await fetch(`${apiBase}/cockpit/${clienteId}/mensageria`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { mensagens: [] };
+      return res.json();
+    },
+    enabled: !!clienteId && aba === "cadastro",
+  });
+
   // ── KPIs financeiros ─────────────────────────────────────────────────────
   const totalPago = useMemo(
     () => (payments ?? []).filter(p => p.status === "paid").reduce((s, p) => s + p.amount, 0),
@@ -1139,6 +1156,48 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                       </Card>
                     </div>
                   </div>
+                )}
+
+                {/* ── Histórico de Mensagens Enviadas ────────────────────── */}
+                {clienteId && (
+                  <Card className="panel-3d border-none relative overflow-visible">
+                    <div className="bevel-3d px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-widest inline-flex items-center gap-2 absolute -top-3 left-4">
+                      <MessageCircle className="h-3 w-3 text-primary" /> Histórico de Mensagens
+                    </div>
+                    <CardContent className="pt-8">
+                      {!mensageriaData || mensageriaData.mensagens.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          Nenhuma mensagem enviada a este paciente.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {mensageriaData.mensagens.map((m) => {
+                            const canalLabel =
+                              m.via === "twilio" ? "WhatsApp"
+                              : m.via === "telegram" ? "Telegram"
+                              : m.via === "gmail" ? "E-mail"
+                              : m.via ?? "—";
+                            const dataEnvio = m.enviado_em
+                              ? format(new Date(m.enviado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                              : "—";
+                            return (
+                              <div key={m.id} className="concave-3d px-3 py-2 rounded-[6px] flex flex-col gap-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary">
+                                    {canalLabel}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground">{dataEnvio}</span>
+                                </div>
+                                <p className="text-xs font-medium leading-snug line-clamp-2 text-foreground/80">
+                                  {m.mensagem}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             )}
