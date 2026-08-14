@@ -140,8 +140,7 @@
 - [Fonte .woff em PDF exige subset:true](pdf-woff-subset-obrigatorio.md) — EXCECAO: instancia de fonte variavel inverte a regra (subset:true corrompe, recortar antes com fontTools e usar subset:false).
 - [Gerar PDF do protocolo DISPARA e-mail real](protocolo-document-pdf-envia-email.md) — document-pdf E validate escrevem ao paciente; validar espelho com ?skipOnboardingEmail=true; carta-pdf é a rota sem efeito colateral.
 - [Sanitizador Latin-1 em PDF é armadilha](pdf-sanitizer-latin1.md) — filtro por faixa vira "?" no documento do paciente; apagar é pior; fonte EMBUTIDA não lança por glifo ausente (StandardFonts lança).
-- [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — PDF assinado abre em branco no chat e HTML abre como código no editor; entregar PNG por página; no app, abrir em aba nova, nunca baixar.
-- [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
+- [Carta de Tratamento Premium PDF (Item #88)](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [Git push/fetch — fallback de autenticação HTTPS](git-http-auth-fallback.md) — "Invalid username or token" no painel/terminal; checar divergência+working tree antes de credencial; GITHUB_PAT via http.extraHeader destrava só o terminal, não o painel.
 - [Log do Vite pode mostrar erro já resolvido](vite-hmr-log-durante-merge.md) — burst de escrita (merge de task agent) gera "Failed to reload" transitório; conferir arquivo/tela atual antes de "corrigir" bug fantasma.
 - ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro nome.
@@ -153,3 +152,6 @@
 - [Apify — contrato REST assíncrono (run/poll/dataset)](apify-async-run-contract.md) — nunca usar run-sync (bloqueia até 300s); runs/actor-runs embrulham em {data}, dataset/items não.
 - [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.
 - [pdf-lib drawSvgPath y invertido](pdflib-drawsvgpath-y-flip.md) — path é SVG y-down relativo à opção y; y:0 desenha fora da página sem erro; ancorar y=pageH e flipar cada ponto.
+// hint: Logic changed on both sides. Requires understanding intent of each change.
+- [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — PDF assinado abre em branco no chat e HTML abre como código no editor; entregar PNG por página; no app, abrir em aba nova, nunca baixar.
+- [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.

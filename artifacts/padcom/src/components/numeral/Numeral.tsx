@@ -43,6 +43,29 @@ const ESPACO = "\u00A0";
  */
 export type Molde = "pleno" | "alto" | "engenharia";
 
+/**
+ * As tres opcoes de cifrao em avaliacao pelo CEO (task de 13/08/2026).
+ * O defeito apontado: o simbolo a 0,56 em subindo 0,52 em vira "sinalzinho
+ * pendurado" no topo do digito.
+ * - "A": simbolo maior (0,72 em) com elevacao pequena (-0,14 em). Recomendada.
+ * - "B": simbolo alinhado pela linha de base, sem elevacao alguma.
+ * - "C": simbolo no tamanho atual (0,56 em) com elevacao reduzida (-0,26 em).
+ * Sem a prop, vale o comportamento vigente (estiloSimbolo do molde) — nada muda
+ * nas telas existentes ate o CEO travar a escolha.
+ */
+export type Cifrao = "A" | "B" | "C";
+
+function estiloCifrao(cifrao: Cifrao): CSSProperties {
+  const comum: CSSProperties = { fontWeight: 500, letterSpacing: "0.04em" };
+  if (cifrao === "A") {
+    return { ...comum, fontSize: "0.72em", opacity: 0.66, transform: "translateY(-0.14em)" };
+  }
+  if (cifrao === "B") {
+    return { ...comum, fontSize: "0.62em", opacity: 0.6 };
+  }
+  return { ...comum, fontSize: "0.56em", opacity: 0.62, transform: "translateY(-0.26em)" };
+}
+
 const BASE: CSSProperties = {
   fontFamily: SERIF,
   fontVariantNumeric: "tabular-nums lining-nums",
@@ -141,7 +164,14 @@ export function Valor({
   peso = 700,
   className = "",
   style,
-}: Comum & { valor: number | null | undefined; moeda?: string; semCentavos?: boolean }) {
+  cifrao,
+}: Comum & {
+  valor: number | null | undefined;
+  moeda?: string;
+  semCentavos?: boolean;
+  /** opcao experimental de cifrao (comparacao para o CEO); ausente = regra vigente. */
+  cifrao?: Cifrao;
+}) {
   if (!valido(valor)) return <Ausente className={className} style={style} />;
 
   const negativo = valor < 0;
@@ -151,7 +181,7 @@ export function Valor({
   return (
     <span className={className} aria-label={legivel} style={{ ...BASE, fontWeight: peso, ...style }}>
       {negativo && <span>&minus;</span>}
-      <span style={estiloSimbolo(molde)}>
+      <span style={cifrao ? estiloCifrao(cifrao) : estiloSimbolo(molde)}>
         {moeda}
         {ESPACO}
       </span>

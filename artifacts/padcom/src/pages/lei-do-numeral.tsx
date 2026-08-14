@@ -5,7 +5,7 @@
    apresenta os tres moldes possiveis para o CEO escolher com os olhos.
    Rota: /lei-do-numeral
    ══════════════════════════════════════════════════════════════════════════════ */
-import { Valor, Percentual, Numeral, Medida, type Molde } from "@/components/numeral/Numeral";
+import { Valor, Percentual, Numeral, Medida, type Molde, type Cifrao } from "@/components/numeral/Numeral";
 import { Activity, Calendar as CalendarIcon, CheckCircle2, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
@@ -414,6 +414,73 @@ export default function LeiDoNumeral() {
               </button>
             );
           })}
+        </div>
+      </Zona>
+
+      {/* ══ ZONA 4B — O CIFRAO: TRES OPCOES ══ */}
+      <Zona
+        n="R$"
+        titulo="O cifrao — tres opcoes lado a lado"
+        linhaFina="O CEO apontou: hoje o simbolo tem 0,56 em e sobe 0,52 em ate o topo do digito — vira um sinalzinho pendurado. Abaixo, o mesmo valor, no card real do Painel, em tres regras de cifrao. Nada muda no sistema ate a escolha ser travada."
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          {(
+            [
+              {
+                id: "A" as Cifrao,
+                nome: "A · Maior, elevacao pequena",
+                regra: "Simbolo a 72% do corpo, subindo so 0,14 em",
+                leitura: "O cifrao ganha presenca e continua anunciando sem competir.",
+                recomendada: true,
+              },
+              {
+                id: "B" as Cifrao,
+                nome: "B · Na linha de base",
+                regra: "Simbolo a 62% do corpo, sem elevacao alguma",
+                leitura: "Sobrio, contabil: cifrao e digito pisam no mesmo chao.",
+              },
+              {
+                id: "C" as Cifrao,
+                nome: "C · Atual, sobe menos",
+                regra: "Simbolo nos 56% de hoje, elevacao cortada para 0,26 em",
+                leitura: "Mantem o tamanho vigente, apenas desce o simbolo do topo.",
+              },
+            ]
+          ).map((op) => (
+            <div key={op.id} className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Selo cor={op.recomendada ? VERDE : OURO}>{op.nome}</Selo>
+                {op.recomendada && <Selo cor={VERDE}>Recomendada</Selo>}
+              </div>
+              <CardKpi
+                label="Receita do Mes"
+                sub="9 pagamentos pendentes"
+                cor={OURO}
+                icone={TrendingUp}
+              >
+                <Valor valor={3385} molde={molde} cifrao={op.id} />
+              </CardKpi>
+              <p className="pl-1 text-[11px] leading-snug text-primary">{op.regra}</p>
+              <p className="pl-1 text-[10px] leading-snug text-muted-foreground">{op.leitura}</p>
+            </div>
+          ))}
+        </div>
+        <div className="panel-3d-sub rounded-[5px] p-3">
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Para comparar tambem em corpo grande — o mesmo valor, ampliado, nas tres regras:
+          </p>
+          <div className="mt-2 flex flex-wrap items-end justify-center gap-x-10 gap-y-4 text-primary">
+            {(["A", "B", "C"] as Cifrao[]).map((c) => (
+              <div key={c} className="flex flex-col items-center gap-1">
+                <span style={{ fontSize: 44, lineHeight: 1 }}>
+                  <Valor valor={3385} molde={molde} cifrao={c} />
+                </span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  Opcao {c}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </Zona>
 
