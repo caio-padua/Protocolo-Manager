@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:dicionario": "tsx src/scripts/check-dicionario.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1095.0",
