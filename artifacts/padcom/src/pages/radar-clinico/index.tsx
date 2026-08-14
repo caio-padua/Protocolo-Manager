@@ -481,7 +481,13 @@ export default function RadarClinico() {
   const [substancia, setSubstancia] = useState("");
   const [silencioDias, setSilencioDias] = useState("");
   // "urgencia" (padrão) = faltou DESC → silêncio DESC → A-Z
-  const [ordenacao, setOrdenacao] = useState<"urgencia" | "az">("urgencia");
+  const [ordenacao, setOrdenacao] = useState<"urgencia" | "az">(
+    () => (localStorage.getItem("radar-ordenacao") as "urgencia" | "az") ?? "urgencia"
+  );
+  const setOrdenacaoComPersistencia = (valor: "urgencia" | "az") => {
+    localStorage.setItem("radar-ordenacao", valor);
+    setOrdenacao(valor);
+  };
   const [search, setSearch] = useState("");
   const [pacienteMsg, setPacienteMsg] = useState<Paciente | null>(null);
   const queryClient = useQueryClient();
@@ -545,7 +551,7 @@ export default function RadarClinico() {
               {(["urgencia", "az"] as const).map((op) => (
                 <button
                   key={op}
-                  onClick={() => { setOrdenacao(op); setPagina(1); }}
+                  onClick={() => { setOrdenacaoComPersistencia(op); setPagina(1); }}
                   className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest rounded-[4px] transition-all
                     ${ordenacao === op
                       ? "bevel-3d"
