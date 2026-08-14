@@ -6,7 +6,7 @@
  * Exibe histórico de resets (auditoria) por CPF.
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   ShieldOff,
   RefreshCw,
@@ -29,6 +29,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  PaxterClientSelector,
+  type PaxterClientOption,
+} from "@/components/PaxterClientSelector";
 
 interface PenalidadeRow {
   cpf_mascarado: string;
@@ -51,7 +55,7 @@ interface ModalState {
   open: boolean;
   mode: "reset" | "historico";
   cpfMascarado: string;
-  cpfInput: string;
+  clienteId: number | null;
   confirmado: boolean;
 }
 
@@ -59,7 +63,7 @@ const MODAL_INICIAL: ModalState = {
   open: false,
   mode: "reset",
   cpfMascarado: "",
-  cpfInput: "",
+  clienteId: null,
   confirmado: false,
 };
 
@@ -241,7 +245,40 @@ export default function ConciergePenalidades() {
   const [expandido, setExpandido] = useState<Record<string, string>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Lista de clientes para o PaxterClientSelector
+  const [clientes, setClientes] = useState<PaxterClientOption[]>([]);
+
   const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+
+  // Carrega lista de clientes uma única vez
+  useEffect(() => {
+    fetch(`${base}/api/clients?limit=5000`)
+      .then((r) => r.json())
+      .then((d) => {
+        const arr = Array.isArray(d) ? d : (d.clients ?? []);
+        setClientes(
+          arr.map((c: any) => ({
+            id: c.id,
+            name: c.name ?? "",
+            cpf: c.cpf ?? null,
+            phone: c.phone ?? null,
+            photoUrl: c.photoUrl ?? null,
+            status: c.status ?? "active",
+            deletedAt: c.deletedAt ?? null,
+          })),
+        );
+      })
+      .catch(() => {
+        // falha silenciosa — seletor fica vazio, usuário pode tentar depois
+      });
+  }, [base]);
+
+  // CPF do cliente selecionado no modal (limpo, 11 dígitos)
+  const cpfSelecionado = useMemo(() => {
+    if (modal.clienteId === null) return "";
+    const c = clientes.find((x) => x.id === modal.clienteId);
+    return (c?.cpf ?? "").replace(/\D/g, "");
+  }, [modal.clienteId, clientes]);
 
   const carregar = useCallback(
     async (cpfFiltro: string) => {
@@ -282,21 +319,18 @@ export default function ConciergePenalidades() {
     };
   }, [filtro, carregar]);
 
-  /** Abre o modal de confirmação de reset.
-   * Se o filtro ativo já for um CPF completo (11 dígitos), pré-preenche o campo. */
+  /** Abre o modal de confirmação de reset com seletor de cliente. */
   function abrirModalReset(cpfMascarado: string) {
-    const cpfDoFiltro = filtro.replace(/\D/g, "");
-    const prefill = cpfDoFiltro.length === 11 ? cpfDoFiltro : "";
     setModal({
       open: true,
       mode: "reset",
       cpfMascarado,
-      cpfInput: prefill,
+      clienteId: null,
       confirmado: false,
     });
   }
 
-  /** Abre o modal para digitar o CPF e ver o histórico de resets. */
+  /** Abre o modal para selecionar o cliente e ver o histórico de resets. */
   function abrirModalHistorico(cpfMascarado: string) {
     // Se já está expandido, fecha
     if (expandido[cpfMascarado] !== undefined) {
@@ -307,29 +341,21 @@ export default function ConciergePenalidades() {
       });
       return;
     }
-    // Se o filtro já tem o CPF completo, abre direto sem modal
-    const cpfDoFiltro = filtro.replace(/\D/g, "");
-    if (cpfDoFiltro.length === 11) {
-      setExpandido((prev) => ({ ...prev, [cpfMascarado]: cpfDoFiltro }));
-      return;
-    }
-    // Caso contrário, pede via modal
     setModal({
       open: true,
       mode: "historico",
       cpfMascarado,
-      cpfInput: "",
+      clienteId: null,
       confirmado: false,
     });
   }
 
   /** Executa a ação confirmada no modal (reset ou abrir histórico). */
   async function confirmarAcao() {
-    const cpfLimpo = modal.cpfInput.replace(/\D/g, "");
-    if (cpfLimpo.length < 11) return;
+    if (cpfSelecionado.length < 11) return;
 
     if (modal.mode === "historico") {
-      setExpandido((prev) => ({ ...prev, [modal.cpfMascarado]: cpfLimpo }));
+      setExpandido((prev) => ({ ...prev, [modal.cpfMascarado]: cpfSelecionado }));
       setModal(MODAL_INICIAL);
       return;
     }
@@ -341,7 +367,7 @@ export default function ConciergePenalidades() {
     setFeedback(null);
     try {
       const r = await fetch(
-        `${base}/api/admin/concierge-penalidade/${encodeURIComponent(cpfLimpo)}`,
+        `${base}/api/admin/concierge-penalidade/${encodeURIComponent(cpfSelecionado)}`,
         { method: "PATCH" },
       );
       const j = await r.json().catch(() => ({}));
@@ -361,9 +387,9 @@ export default function ConciergePenalidades() {
     }
   }
 
-  const cpfValido = modal.cpfInput.replace(/\D/g, "").length === 11;
+  const clienteSelecionadoValido = cpfSelecionado.length === 11;
   const podeConfirmar =
-    cpfValido && (modal.mode === "historico" || modal.confirmado);
+    clienteSelecionadoValido && (modal.mode === "historico" || modal.confirmado);
 
   return (
     <div className="space-y-6">
@@ -398,21 +424,18 @@ export default function ConciergePenalidades() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                CPF completo (somente números)
+                Selecionar cliente
               </label>
-              <Input
-                className="concave-3d font-mono tracking-widest text-sm"
-                placeholder="00000000000"
-                maxLength={14}
-                value={modal.cpfInput}
-                onChange={(e) =>
-                  setModal((m) => ({ ...m, cpfInput: e.target.value }))
-                }
-                autoFocus={modal.cpfInput === ""}
+              <PaxterClientSelector
+                clientes={clientes}
+                value={modal.clienteId}
+                onChange={(id) => setModal((m) => ({ ...m, clienteId: id }))}
+                placeholder="Selecionar cliente…"
+                variant="popover"
               />
-              {modal.cpfInput && !cpfValido && (
-                <p className="text-[11px] text-red-500">
-                  CPF deve ter 11 dígitos numéricos.
+              {modal.clienteId !== null && !clienteSelecionadoValido && (
+                <p className="text-[11px] text-amber-600">
+                  O cliente selecionado não possui CPF cadastrado.
                 </p>
               )}
             </div>
