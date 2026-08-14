@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -42,7 +42,16 @@ export const substanceApplicationsTable = pgTable("substance_applications", {
   appliedAt: text("applied_at"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // Task 277: uma sessão não pode ter duas linhas IGUAIS para a mesma
+  // substância e mesmo número de sessão — a duplicata exata inflacionaria a
+  // contagem de sessões feitas. session_number FAZ PARTE da chave porque a
+  // consolidação semanal (POST /protocols/:id/validate) legitimamente insere a
+  // mesma substância várias vezes na mesma sessão quando intervalDays < 7
+  // (uma linha por ocorrência, cada uma com sessionNumber distinto).
+  // Índice criado no banco via boot migration (ensure-substance-applications-unique.ts).
+  uniqueIndex("substance_applications_session_substance_num_uidx").on(t.sessionId, t.substanceId, t.sessionNumber),
+]);
 
 export const insertSessionSchema = createInsertSchema(sessionsTable).omit({ id: true, createdAt: true });
 export const insertSubstanceApplicationSchema = createInsertSchema(substanceApplicationsTable).omit({ id: true, createdAt: true });

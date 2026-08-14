@@ -10,6 +10,7 @@ import { runSeedDemoRogerio } from "./lib/seed-demo-rogerio";
 import { runSeedDieta } from "./lib/seed-dieta";
 import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
 import { ensurePesquisasSchema } from "./lib/ensure-pesquisas-schema";
+import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applications-unique";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
@@ -62,6 +63,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("pesquisas (Central de Pesquisa/Apify): schema pronto antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar schema da Central de Pesquisa — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureSubstanceApplicationsUnique();
+    logger.info("substance_applications: índice único (session_id, substance_id, session_number) garantido antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir índice único de substance_applications — abortando boot");
     process.exit(1);
   }
 
