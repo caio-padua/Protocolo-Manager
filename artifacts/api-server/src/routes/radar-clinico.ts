@@ -23,6 +23,7 @@ import { sendWhatsapp } from "../lib/whatsapp";
 import { sendTelegram } from "../lib/telegram";
 import { sendGmailMessage } from "../lib/google-gmail";
 import { enviarMensagemRadar, type RadarMensagemDeps } from "../lib/radar-mensagem";
+import { sortByUrgencia } from "../lib/radar-sort";
 
 const router = Router();
 
@@ -115,20 +116,7 @@ router.get("/radar-clinico", async (req, res): Promise<void> => {
 
     // ── Ordenação ────────────────────────────────────────────────────────────
     if (ordenacao === "urgencia") {
-      rows.sort((a, b) => {
-        // 1) faltou DESC (quem faltou aparece antes)
-        const faltaA = a.alertas.faltaHaDias != null ? 1 : 0;
-        const faltaB = b.alertas.faltaHaDias != null ? 1 : 0;
-        if (faltaB !== faltaA) return faltaB - faltaA;
-
-        // 2) silêncio DESC (maior silêncio primeiro; null = nunca contatado → trata como máximo)
-        const silA = a.alertas.silencioHaDias ?? Number.MAX_SAFE_INTEGER;
-        const silB = b.alertas.silencioHaDias ?? Number.MAX_SAFE_INTEGER;
-        if (silB !== silA) return silB - silA;
-
-        // 3) nome ASC (desempate alfabético)
-        return a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" });
-      });
+      sortByUrgencia(rows);
     } else {
       // "az" — ordem alfabética simples
       rows.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
