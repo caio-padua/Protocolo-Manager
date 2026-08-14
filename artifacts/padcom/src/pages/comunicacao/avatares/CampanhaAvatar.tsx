@@ -10,7 +10,7 @@ import { tituloProprio } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   Users, Search, Send, Loader2, CheckCircle2, XCircle,
-  Mic, Video, BarChart3, RefreshCw, User, X,
+  Mic, Video, BarChart3, RefreshCw, User, X, RotateCcw,
 } from "lucide-react";
 
 interface Avatar { id: number; nomeExibido: string; status: string; nivel?: string; }
@@ -40,9 +40,10 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
   const [busca,       setBusca]       = useState("");
   const [resultsBusca, setResultsBusca] = useState<Cliente[]>([]);
   const [selecionados, setSelecionados] = useState<Cliente[]>([]);
-  const [enviando,    setEnviando]    = useState(false);
-  const [campaignId,  setCampaignId]  = useState<string | null>(null);
-  const [erro,        setErro]        = useState<string | null>(null);
+  const [enviando,      setEnviando]      = useState(false);
+  const [campaignId,    setCampaignId]    = useState<string | null>(null);
+  const [erro,          setErro]          = useState<string | null>(null);
+  const [reenviando,    setReenviando]    = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -116,6 +117,25 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
       setErro(e?.message ?? "Erro de rede");
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function reenviarFalhos(srcCampaignId: string) {
+    setReenviando(true);
+    setErro(null);
+    try {
+      const r = await fetch(`${apiBase}/api/avatares/campanha/${srcCampaignId}/reenviar-erros`, {
+        method:      "POST",
+        credentials: "include",
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d.error ?? "Erro ao reenviar falhas"); return; }
+      // Aponta o painel de progresso para a nova campanha
+      setCampaignId(d.campaignId);
+    } catch (e: any) {
+      setErro(e?.message ?? "Erro de rede");
+    } finally {
+      setReenviando(false);
     }
   }
 
@@ -343,19 +363,36 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
 
               {/* Status final */}
               {progresso.status === "concluida" && (
-                <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
-                  progresso.erros === 0
-                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"
-                    : "bg-amber-500/10 border border-amber-500/20 text-amber-300"
-                }`}>
-                  {progresso.erros === 0
-                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    : <XCircle className="w-4 h-4 shrink-0" />
-                  }
-                  {progresso.erros === 0
-                    ? `Campanha concluída — ${progresso.enviados} envio${progresso.enviados !== 1 ? "s" : ""} realizados com sucesso.`
-                    : `Campanha concluída — ${progresso.enviados} enviados, ${progresso.erros} com erro.`
-                  }
+                <div className="space-y-2">
+                  <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
+                    progresso.erros === 0
+                      ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300"
+                      : "bg-amber-500/10 border border-amber-500/20 text-amber-300"
+                  }`}>
+                    {progresso.erros === 0
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      : <XCircle className="w-4 h-4 shrink-0" />
+                    }
+                    {progresso.erros === 0
+                      ? `Campanha concluída — ${progresso.enviados} envio${progresso.enviados !== 1 ? "s" : ""} realizados com sucesso.`
+                      : `Campanha concluída — ${progresso.enviados} enviados, ${progresso.erros} com erro.`
+                    }
+                  </div>
+
+                  {/* Botão reenviar falhos — só aparece quando há erros */}
+                  {progresso.erros > 0 && (
+                    <button
+                      onClick={() => reenviarFalhos(progresso.id)}
+                      disabled={reenviando}
+                      className="bevel-3d w-full py-2 text-xs font-semibold text-amber-300 flex
+                                 items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {reenviando
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Criando reenvio…</>
+                        : <><RotateCcw className="w-3.5 h-3.5" /> Reenviar falhos ({progresso.erros})</>
+                      }
+                    </button>
+                  )}
                 </div>
               )}
 

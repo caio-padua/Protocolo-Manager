@@ -493,6 +493,80 @@ router.get("/api/avatares/:id/historico", async (req, res) => {
   }
 });
 
+// ─── POST /api/avatares/campanha/:campaignId/reenviar-erros ──────────────────
+// Cria uma nova campanha contendo apenas os itens com status='erro' da campanha
+// original. O campo campanha_pai_id vincula as duas para rastreabilidade.
+// Filtrado por empresaId (anti-IDOR).
+
+router.post("/api/avatares/campanha/:campaignId/reenviar-erros", async (req, res) => {
+  try {
+    await ensureCampanhaSchema();
+    const { campaignId } = req.params;
+    if (!campaignId) return res.status(400).json({ error: "campaignId obrigatório" });
+
+    const empresaId = empresaIdFromReq(req);
+
+    // Busca a campanha original verificando ownership
+    const campanhaRows = await db.execute(sql`
+      SELECT id, empresa_id, avatar_id, canal, texto
+      FROM avatar_campanhas
+      WHERE id = ${campaignId}
+        AND empresa_id = ${empresaId}
+    `);
+    if (!campanhaRows.rows[0]) {
+      return res.status(404).json({ error: "Campanha não encontrada" });
+    }
+    const orig = campanhaRows.rows[0] as any;
+
+    // Busca itens com erro da campanha original
+    const itensRows = await db.execute(sql`
+      SELECT cliente_id, telefone, email, nome
+      FROM avatar_campanha_itens
+      WHERE campanha_id = ${campaignId}
+        AND status = 'erro'
+    `);
+
+    if (itensRows.rows.length === 0) {
+      return res.status(400).json({ error: "Nenhum item com erro nesta campanha" });
+    }
+
+    const clientes = (itensRows.rows as any[]).map(r => ({
+      id:    Number(r.cliente_id),
+      phone: r.telefone ?? null,
+      email: r.email    ?? null,
+      name:  r.nome     ?? "",
+    }));
+
+    const novaCampaignId = `camp_${Date.now()}`;
+
+    await criarCampanha({
+      campaignId:     novaCampaignId,
+      empresaId,
+      avatarId:       Number(orig.avatar_id),
+      canal:          String(orig.canal) as "VOICE" | "VIDEO",
+      texto:          String(orig.texto),
+      clientes,
+      campanhaPaiId:  campaignId,
+    });
+
+    logger.info(
+      { novaCampaignId, campanhaOrigem: campaignId, total: clientes.length },
+      "[avatar] campanha de reenvio criada a partir dos erros",
+    );
+
+    res.json({
+      ok:            true,
+      campaignId:    novaCampaignId,
+      campanhaPaiId: campaignId,
+      totalClientes: clientes.length,
+      mensagem:      `Nova campanha criada com ${clientes.length} cliente${clientes.length !== 1 ? "s" : ""} que falharam.`,
+    });
+  } catch (e: any) {
+    logger.error({ err: e?.message }, "avatares: erro ao reenviar erros de campanha");
+    res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
 // ─── GET /api/avatares/fila-video ────────────────────────────────────────────
 // Estado da fila de vídeos pendentes / em geração (painel CEO).
 

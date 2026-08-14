@@ -41,18 +41,24 @@ export async function ensureCampanhaSchema(): Promise<void> {
   if (schemaOk) return;
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS avatar_campanhas (
-      id            TEXT PRIMARY KEY,
-      empresa_id    INTEGER NOT NULL,
-      avatar_id     INTEGER NOT NULL,
-      canal         TEXT NOT NULL DEFAULT 'VOICE',
-      texto         TEXT NOT NULL,
-      total         INTEGER NOT NULL DEFAULT 0,
-      enviados      INTEGER NOT NULL DEFAULT 0,
-      erros         INTEGER NOT NULL DEFAULT 0,
-      status        TEXT NOT NULL DEFAULT 'em_andamento',
-      criado_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      concluido_at  TIMESTAMPTZ
+      id              TEXT PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL,
+      avatar_id       INTEGER NOT NULL,
+      canal           TEXT NOT NULL DEFAULT 'VOICE',
+      texto           TEXT NOT NULL,
+      total           INTEGER NOT NULL DEFAULT 0,
+      enviados        INTEGER NOT NULL DEFAULT 0,
+      erros           INTEGER NOT NULL DEFAULT 0,
+      status          TEXT NOT NULL DEFAULT 'em_andamento',
+      campanha_pai_id TEXT REFERENCES avatar_campanhas(id),
+      criado_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      concluido_at    TIMESTAMPTZ
     )
+  `));
+  // Adiciona campanha_pai_id se a tabela já existia sem a coluna (idempotente)
+  await db.execute(sql.raw(`
+    ALTER TABLE avatar_campanhas
+    ADD COLUMN IF NOT EXISTS campanha_pai_id TEXT REFERENCES avatar_campanhas(id)
   `));
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS avatar_campanha_itens (
@@ -93,24 +99,26 @@ export interface ClienteParaCampanha {
 }
 
 export async function criarCampanha(opts: {
-  campaignId: string;
-  empresaId:  number;
-  avatarId:   number;
-  canal:      "VOICE" | "VIDEO";
-  texto:      string;
-  clientes:   ClienteParaCampanha[];
+  campaignId:     string;
+  empresaId:      number;
+  avatarId:       number;
+  canal:          "VOICE" | "VIDEO";
+  texto:          string;
+  clientes:       ClienteParaCampanha[];
+  campanhaPaiId?: string | null;
 }): Promise<void> {
   await ensureCampanhaSchema();
 
   await db.execute(sql.raw(`
-    INSERT INTO avatar_campanhas (id, empresa_id, avatar_id, canal, texto, total)
+    INSERT INTO avatar_campanhas (id, empresa_id, avatar_id, canal, texto, total, campanha_pai_id)
     VALUES (
       ${escapeStr(opts.campaignId)},
       ${opts.empresaId},
       ${opts.avatarId},
       ${escapeStr(opts.canal)},
       ${escapeStr(opts.texto)},
-      ${opts.clientes.length}
+      ${opts.clientes.length},
+      ${opts.campanhaPaiId ? escapeStr(opts.campanhaPaiId) : "NULL"}
     )
   `));
 
