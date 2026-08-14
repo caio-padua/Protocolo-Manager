@@ -8,6 +8,8 @@ export const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export type ComunicacaoStatus = {
   telegram: boolean;
+  /** true quando PADAXOR_TELEGRAM_CHAT_ID está configurado no servidor. */
+  telegramChatIdConfigurado?: boolean;
   whatsapp: boolean;
   gmail: boolean;
   drive: boolean;

@@ -23,6 +23,9 @@ router.use(moduleGuard("comunicacao"));
 router.get("/comunicacao/status", async (req, res) => {
   const status = {
     telegram: false,
+    // true quando PADAXOR_TELEGRAM_CHAT_ID está configurado (env/secret).
+    // Independente do bot token — sem chatId o CEO nunca recebe mensagens.
+    telegramChatIdConfigurado: (process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "").trim().length > 0,
     whatsapp: false,
     gmail: false,
     drive: false,

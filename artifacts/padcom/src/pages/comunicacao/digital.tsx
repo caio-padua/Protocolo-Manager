@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Smartphone, MessageCircle, Send, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { Smartphone, MessageCircle, Send, ShieldCheck, ShieldAlert, Loader2, AlertTriangle } from "lucide-react";
 import { ConsoleShell, ToolCard, StatusVela, ExplainRow, useComunicacaoStatus, BASE } from "./_shared";
 import { IntegrationVaultCard } from "@/components/integrations/IntegrationVault";
 import { getCollabToken } from "@/lib/collab-auth";
@@ -160,6 +160,22 @@ export default function ComunicacaoDigital() {
                 Canal nativo do bot <strong>@Paduaclinica_bot</strong>. O cliente é vinculado por
                 <strong> chat_id</strong> (prova de posse via webhook), sem expor telefone.
               </ExplainRow>
+
+              {/* Aviso: PADAXOR_TELEGRAM_CHAT_ID ausente — CEO não recebe mensagens */}
+              {!loading && !error && status?.telegramChatIdConfigurado === false && (
+                <div className="concave-3d flex items-start gap-2.5 px-3 py-2.5 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-0.5">
+                    <p className="text-[12px] font-semibold uppercase tracking-wide">
+                      Chat ID não configurado
+                    </p>
+                    <p className="text-[11px] font-normal normal-case tracking-normal text-amber-700/80 dark:text-amber-400/80">
+                      <strong>PADAXOR_TELEGRAM_CHAT_ID</strong> está ausente — o CEO não receberá
+                      relatórios nem alertas pelo Telegram. Configure como Replit Secret.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Painel de saúde do webhook — detecta polling ativo */}
               <div className="concave-3d mt-2 flex items-start justify-between gap-2 px-3 py-2">
