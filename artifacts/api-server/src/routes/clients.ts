@@ -492,6 +492,35 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
   }
 });
 
+// ── DELETE /api/clients/:id/telegram ─────────────────────────────────────────
+// Remove o vínculo Telegram do cliente (zera telegram_chat_id e telegram_vinculado_em).
+// Usar quando o paciente desvinculou o bot ou o CEO precisa resetar manualmente.
+// Requer colaborador autenticado; isola por tenant.
+router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "clientId inválido" });
+    return;
+  }
+
+  const empresaId = req.tenantContext.empresaId;
+  try {
+    const result = await db.execute(
+      sql`UPDATE clients
+          SET telegram_chat_id = NULL, telegram_vinculado_em = NULL
+          WHERE id = ${id} AND empresa_id = ${empresaId}
+          RETURNING id`
+    );
+    if ((result.rows as unknown[]).length === 0) {
+      res.status(404).json({ error: "Cliente não encontrado ou sem permissão" });
+      return;
+    }
+    res.json({ ok: true, message: "Vínculo Telegram removido com sucesso" });
+  } catch (err) {
+    res.status(500).json({ error: "erro_unlink_telegram", detalhe: String(err) });
+  }
+});
+
 // ─── Boas-vindas automáticas por WPP (Kaizen B) ──────────────────────────────
 async function dispararBoasVindas(clientId: number, nome: string, telefone: string | null) {
   if (!telefone) {
