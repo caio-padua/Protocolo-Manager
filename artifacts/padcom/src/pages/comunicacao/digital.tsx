@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Smartphone, MessageCircle, Send, Save, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Smartphone, MessageCircle, Send, Save, ShieldCheck, ShieldAlert, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
@@ -229,9 +229,109 @@ function CartaoCanal({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Painel de saúde do webhook Telegram — hook + badge + botão de reativação
+// ---------------------------------------------------------------------------
+
+interface WebhookStatus {
+  healthy: boolean;
+  url: string;
+  pendingUpdateCount: number;
+  lastErrorMessage?: string;
+  mock?: boolean;
+  fetchError?: string;
+  checkedAt: string;
+}
+
+function useTelegramWebhookStatus() {
+  const [data, setData] = useState<WebhookStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [rev, setRev] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(`${BASE}/api/telegram/webhook-status`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d) => {
+        if (!alive) return;
+        setData(d as WebhookStatus);
+        setError(false);
+      })
+      .catch(() => {
+        if (alive) setError(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [rev]);
+
+  const refetch = useCallback(() => setRev((v) => v + 1), []);
+
+  return { data, loading, error, refetch };
+}
+
+function WebhookBadge({ loading, error, data }: {
+  loading: boolean;
+  error: boolean;
+  data: WebhookStatus | null;
+}) {
+  if (loading) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Verificando…
+      </span>
+    );
+  }
+  if (error) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+        <ShieldAlert className="h-3.5 w-3.5" />
+        Indisponível
+      </span>
+    );
+  }
+  if (!data) return null;
+  if (data.mock) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+        <ShieldAlert className="h-3.5 w-3.5" />
+        Token ausente (MOCK)
+      </span>
+    );
+  }
+  if (data.healthy) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+        <ShieldCheck className="h-3.5 w-3.5" />
+        Webhook Ativo
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+      <ShieldAlert className="h-3.5 w-3.5" />
+      Webhook Inativo
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tela principal
+// ---------------------------------------------------------------------------
 export default function ComunicacaoDigital() {
   const { canais, loading, error, reload } = useCanais();
   const { toast } = useToast();
+  const { data: webhookData, loading: webhookLoading, error: webhookError, refetch: refetchWebhook } = useTelegramWebhookStatus();
+
+  const [reactivating, setReactivating] = useState(false);
+  const [reactivateMsg, setReactivateMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const reactivateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasTelegram = canais?.some((c) => c.canal === "telegram") ?? false;
 
   async function salvarCanal(canalId: string, valores: Record<string, string>) {
     try {
@@ -257,6 +357,36 @@ export default function ComunicacaoDigital() {
     }
   }
 
+  async function handleReactivateWebhook() {
+    setReactivating(true);
+    setReactivateMsg(null);
+    try {
+      const resp = await fetch(`${BASE}/api/telegram/register-webhook`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const body = await resp.json() as { ok: boolean; descricao?: string; error?: string };
+      const errorMap: Record<string, string> = {
+        token_ausente: "Token do bot não está no cofre. Configure telegram.botToken primeiro.",
+        webhook_secret_ausente: "Segredo do webhook ausente no cofre. Configure telegram.webhookSecret primeiro.",
+        dominio_publico_ausente: "Domínio público não configurado no servidor (RAILWAY_PUBLIC_DOMAIN ou REPLIT_DEV_DOMAIN).",
+      };
+      setReactivateMsg({
+        ok: body.ok,
+        text: body.ok
+          ? (body.descricao ?? "Webhook reativado com sucesso!")
+          : (errorMap[body.error ?? ""] ?? body.descricao ?? body.error ?? "Falha ao registrar webhook."),
+      });
+      if (body.ok) {
+        reactivateTimerRef.current = setTimeout(() => { refetchWebhook(); }, 1500);
+      }
+    } catch {
+      setReactivateMsg({ ok: false, text: "Erro de rede ao contactar o servidor." });
+    } finally {
+      setReactivating(false);
+    }
+  }
+
   return (
     <ConsoleShell
       icon={Smartphone}
@@ -279,7 +409,7 @@ export default function ComunicacaoDigital() {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p className="text-[12px]">
             Não foi possível ler o estado dos canais. Faça login como colaborador e use
-            “Atualizar”.
+            "Atualizar".
           </p>
         </div>
       )}
@@ -298,6 +428,60 @@ export default function ComunicacaoDigital() {
           <p className="text-[12px] text-muted-foreground">Consultando os canais…</p>
         )}
       </section>
+
+      {/* Painel de saúde do webhook — só aparece quando o canal Telegram está presente */}
+      {hasTelegram && (
+        <div className="concave-3d mt-4 flex items-start justify-between gap-2 px-3 py-2">
+          <div className="space-y-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Saúde do Webhook Telegram
+            </p>
+            <p className="text-[11px] text-muted-foreground/70">
+              {webhookLoading
+                ? "Consultando Telegram…"
+                : webhookError
+                  ? "Não foi possível verificar"
+                  : webhookData?.mock
+                    ? "Token ausente — verificação indisponível"
+                    : webhookData?.healthy
+                      ? `URL registrada · ${webhookData.pendingUpdateCount} updates pendentes`
+                      : webhookData?.fetchError
+                        ? `Erro de rede: ${webhookData.fetchError}`
+                        : "Webhook não registrado — polling pode estar ativo"}
+            </p>
+            {webhookData?.lastErrorMessage && (
+              <p className="text-[11px] text-rose-600 dark:text-rose-400">
+                Último erro: {webhookData.lastErrorMessage}
+              </p>
+            )}
+            {!webhookData?.healthy && !webhookLoading && !webhookError && !webhookData?.mock && (
+              <p className="text-[11px] text-rose-700 dark:text-rose-400 font-medium">
+                Mensagens dos pacientes podem não estar chegando ao CEO.
+              </p>
+            )}
+            {reactivateMsg && (
+              <p className={`text-[11px] font-medium ${reactivateMsg.ok ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
+                {reactivateMsg.text}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <WebhookBadge loading={webhookLoading} error={webhookError} data={webhookData} />
+            {!webhookData?.healthy && !webhookLoading && !webhookData?.mock && (
+              <button
+                onClick={handleReactivateWebhook}
+                disabled={reactivating}
+                className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide disabled:opacity-60"
+              >
+                {reactivating
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <RefreshCw className="h-3 w-3" />}
+                {reactivating ? "Registrando…" : "Reativar Webhook"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </ConsoleShell>
   );
 }

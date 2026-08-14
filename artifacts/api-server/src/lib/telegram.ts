@@ -94,6 +94,61 @@ export async function getWebhookInfo(): Promise<WebhookInfo> {
   }
 }
 
+/**
+ * Registra (ou atualiza) o webhook do bot no Telegram.
+ * A URL é montada a partir de RAILWAY_PUBLIC_DOMAIN (produção) ou
+ * REPLIT_DEV_DOMAIN (dev), com o segredo do cofre.
+ * MOCK quando sem token — nunca lança exceção.
+ */
+export async function setWebhook(): Promise<{ ok: boolean; description?: string; mock?: boolean; error?: string }> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) {
+    logger.warn("[telegram] setWebhook: sem token — operando em MOCK");
+    return { ok: false, mock: true, error: "token_ausente" };
+  }
+
+  // Monta a URL pública do webhook
+  const domain =
+    process.env["RAILWAY_PUBLIC_DOMAIN"] ||
+    process.env["REPLIT_DEV_DOMAIN"] ||
+    "";
+  if (!domain) {
+    return { ok: false, error: "dominio_publico_ausente" };
+  }
+
+  const webhookUrl = `https://${domain}/api/webhooks/telegram`;
+
+  // O segredo é obrigatório — sem ele o handler público descartará todos os
+  // updates (fail-closed), registrando o webhook mas tornando o canal mudo.
+  let secret: string | undefined;
+  try {
+    const s = await import("./secure-settings.js");
+    const v = await s.getSecret("telegram.webhookSecret");
+    if (v && v.trim()) secret = v.trim();
+  } catch {
+    // segredo não pôde ser lido
+  }
+  if (!secret) {
+    logger.warn("[telegram] setWebhook: segredo telegram.webhookSecret ausente no cofre — abortando");
+    return { ok: false, error: "webhook_secret_ausente" };
+  }
+
+  try {
+    const body: Record<string, unknown> = { url: webhookUrl, secret_token: secret };
+
+    const resp = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await resp.json()) as { ok: boolean; description?: string };
+    logger.info({ ok: data.ok, webhookUrl, description: data.description }, "[telegram] setWebhook resultado");
+    return { ok: data.ok, description: data.description };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
 /** True quando há token configurado (cofre ou env). Nunca expõe o valor. */
 export async function isTelegramConfigured(): Promise<boolean> {
   await ensureTelegramTokenLoaded();
