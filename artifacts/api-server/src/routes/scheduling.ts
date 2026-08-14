@@ -1141,9 +1141,9 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
   try {
     await ensureVerifyTables();
 
-    // Busca o telefone ANTES da transação (leitura read-only, não precisa de lock).
+    // Busca o telefone e o chat_id do Telegram ANTES da transação (leitura read-only).
     const clients = await db
-      .select({ phone: clientsTable.phone })
+      .select({ phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
       .from(clientsTable)
       .where(
         sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${rawCpf}`,
@@ -1156,6 +1156,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
     }
 
     const phone = clients[0].phone;
+    const telegramChatId = clients[0].telegramChatId ?? null;
 
     // ── Transação atômica com lock exclusivo por (fingerprint, CPF) ──────────
     // pg_advisory_xact_lock serializa todas as requisições para o mesmo par —
@@ -1235,6 +1236,22 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
     const maskedPhone = `(***) *****-${digits.slice(-4)}`;
 
     if (!result.sent) {
+      // Fallback: tenta Telegram se o paciente tiver chat vinculado.
+      if (telegramChatId) {
+        try {
+          const { sendTelegram } = await import("../lib/telegram.js");
+          const tgMessage =
+            `Seu código de verificação PAXTER: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
+          const tgResult = await sendTelegram(telegramChatId, tgMessage);
+          if (tgResult.sent) {
+            res.json({ sent: true, via: "telegram", maskedPhone });
+            return;
+          }
+        } catch (tgErr: unknown) {
+          req.log.warn({ err: String(tgErr) }, "Fallback Telegram falhou após falha no WhatsApp");
+        }
+      }
+
       // Fail-closed: sem link de fallback (link wa.me conteria o OTP em texto).
       res.status(503).json({
         sent: false,
@@ -1246,7 +1263,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
       return;
     }
 
-    res.json({ sent: true, maskedPhone });
+    res.json({ sent: true, via: "whatsapp", maskedPhone });
   } catch (err: unknown) {
     req.log.error({ err: String(err) }, "Erro ao enviar código de verificação de dispositivo");
     res.status(500).json({ error: "Falha ao enviar o código. Tente novamente." });

@@ -424,38 +424,6 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       return;
     }
 
-        // Notificação Slack — best-effort, independente do Telegram CEO.
-        // Só dispara quando o CEO já enviou ao menos uma mensagem ao paciente
-        // (últimas 48h), indicando que é uma resposta e não mensagem espontânea.
-        void (async () => {
-          try {
-          const { rows: saidaRows } = await db.execute(sql`
-            SELECT id FROM telegram_inbox_messages
-            WHERE cliente_id = ${cliente.id}
-              AND direcao = 'saida'
-              AND criado_at >= NOW() - INTERVAL '48 hours'
-            LIMIT 1
-          `);
-          if (saidaRows.length > 0) {
-            const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
-            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
-            const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
-              await postSlackAlert(
-                slackChannel,
-                `💬 *${primeiroNome}* respondeu no Telegram:\n"${trecho}"\n_Cockpit → ${primeiroNome}_`,
-              );
-              logger.info({ clienteId: cliente.id }, "[telegram] notificação Slack enviada ao CEO");
-            }
-          } catch (slackErr) {
-            logger.warn({ err: (slackErr as Error).message }, "[telegram] falha ao notificar Slack (best-effort)");
-          }
-        })();
-      }
-      res.status(200).json({ ok: true });
-      return;
-    }
-
-
     // ── PASSO 2: cliente não vinculado — tenta vinculação por prova de posse ─
     const candidatos = new Set<string>();
     const textoLimpo = texto.trim().toUpperCase();

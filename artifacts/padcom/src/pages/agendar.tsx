@@ -889,6 +889,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
   // Garante que atacante com apenas o CPF não pode expirar o OTP do paciente (§6.3).
   const [verifyChallengeid, setVerifyChallengeid] = useState<number | null>(null);
   const [codeSent, setCodeSent] = useState(false);
+  const [codeSentVia, setCodeSentVia] = useState<"whatsapp" | "telegram" | null>(null);
   const [codeSending, setCodeSending] = useState(false);
   const [codeSendError, setCodeSendError] = useState("");
   const [maskedPhone, setMaskedPhone] = useState("");
@@ -982,13 +983,15 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       });
       const body = (await res.json().catch(() => ({}))) as {
         sent?: boolean;
+        via?: "whatsapp" | "telegram";
         maskedPhone?: string;
         link?: string;
         error?: string;
       };
       if (res.ok && body.sent !== false) {
-        // Código enviado com sucesso via WhatsApp.
+        // Código enviado com sucesso (WhatsApp ou Telegram como fallback).
         setCodeSent(true);
+        setCodeSentVia(body.via ?? "whatsapp");
         setMaskedPhone(body.maskedPhone ?? "");
         setResendCooldown(60);
       } else if (res.status === 429) {
@@ -1940,8 +1943,9 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                           </p>
                         ) : codeSent ? (
                           <p className="text-xs leading-relaxed">
-                            Código enviado para o WhatsApp cadastrado
-                            {maskedPhone ? ` ${maskedPhone}` : ""}.{" "}
+                            {codeSentVia === "telegram"
+                              ? `Código enviado para o seu Telegram${maskedPhone ? ` (WhatsApp ${maskedPhone} indisponível)` : ""}.`
+                              : `Código enviado para o WhatsApp cadastrado${maskedPhone ? ` ${maskedPhone}` : ""}.`}{" "}
                             Digite-o abaixo para confirmar.
                           </p>
                         ) : codeSendError ? (
