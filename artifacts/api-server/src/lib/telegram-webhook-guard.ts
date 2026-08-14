@@ -100,94 +100,112 @@ async function sendSlackAlert(texto: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Guard periódico
+// Guard periódico — estado do ciclo
 // ---------------------------------------------------------------------------
 
 let _prevHealthy: boolean | null = null;
 let _consecutiveNetworkErrors = 0;
 
+/**
+ * Reseta o estado interno do guard.
+ * Usado APENAS em testes — não chamar em produção.
+ */
+export function _resetGuardStateForTesting(): void {
+  _prevHealthy = null;
+  _consecutiveNetworkErrors = 0;
+}
+
+/**
+ * Executa um ciclo de verificação do webhook: consulta o Telegram,
+ * decide se houve mudança de estado e dispara alertas conforme necessário.
+ *
+ * É exportada separadamente de `startWebhookGuard` para permitir testes
+ * unitários sem depender de `setTimeout`/`setInterval`.
+ */
+export async function runGuardCycle(logger: pino.Logger): Promise<void> {
+  try {
+    const result = await checkWebhookHealth();
+
+    // MOCK = sem token no cofre, não é falha do webhook
+    if (result.mock) {
+      logger.info("telegram-webhook-guard: MOCK (token ausente) — ignorando");
+      _prevHealthy = null;
+      return;
+    }
+
+    // Erro de rede na própria chamada getWebhookInfo
+    if (result.fetchError) {
+      _consecutiveNetworkErrors++;
+      logger.warn(
+        { fetchError: result.fetchError, consecutivo: _consecutiveNetworkErrors },
+        "telegram-webhook-guard: falha de rede ao consultar getWebhookInfo",
+      );
+      if (_consecutiveNetworkErrors >= 2) {
+        const msg =
+          `⚠️ *Telegram Webhook Guard* — Não consegui consultar o Telegram (${_consecutiveNetworkErrors}x consecutivas).\n` +
+          `Erro: \`${result.fetchError}\`\n` +
+          `Verifique a conectividade ou o token do bot.`;
+        await sendSlackAlert(msg);
+      }
+      return;
+    }
+
+    _consecutiveNetworkErrors = 0;
+
+    const prevHealthy = _prevHealthy; // captura ANTES de atualizar
+    const changed = prevHealthy === null || prevHealthy !== result.healthy;
+    _prevHealthy = result.healthy;
+
+    if (!result.healthy && changed) {
+      // Webhook inativo (URL vazia) — possível polling ativo
+      const msg =
+        `🚨 *ALERTA — Telegram Webhook Inativo*\n\n` +
+        `O webhook do @Paduaclinica_bot foi desativado.\n` +
+        `Isso acontece quando outro processo chama \`getUpdates\` (polling) e substitui o webhook.\n\n` +
+        `*Consequência:* mensagens dos pacientes NÃO chegam ao CEO.\n\n` +
+        `*Ação:* execute \`POST /api/telegram/register-webhook\` no painel de configurações ` +
+        `para reativar o webhook imediatamente.`;
+
+      logger.error({ result }, "telegram-webhook-guard: WEBHOOK INATIVO — alertando CEO");
+      await sendSlackAlert(msg);
+
+      // Também tenta alertar via Telegram se chatId do CEO estiver configurado
+      const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
+      if (ceoChatId) {
+        void sendTelegram(
+          ceoChatId,
+          `🚨 <b>ALERTA — Webhook do Bot Inativo</b>\n\n` +
+          `O webhook do @Paduaclinica_bot foi substituído por polling.\n` +
+          `Mensagens dos pacientes <b>não estão chegando</b>.\n\n` +
+          `Reative em: Configurações → Telegram → Registrar Webhook.`,
+        );
+      }
+    } else if (result.healthy && prevHealthy === false) {
+      // Voltou a ficar saudável após ter sido inativo — alerta de reativação.
+      // NÃO alerta quando prevHealthy===null (primeiro boot já saudável).
+      logger.info("telegram-webhook-guard: webhook reativado — OK");
+      await sendSlackAlert(
+        `✅ *Telegram Webhook Reativado*\nURL: \`${result.url}\`\nO canal do bot está funcionando normalmente.`,
+      );
+    } else {
+      logger.info(
+        { url: result.url, pendingUpdateCount: result.pendingUpdateCount },
+        "telegram-webhook-guard: webhook saudável",
+      );
+    }
+  } catch (err) {
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "telegram-webhook-guard: erro inesperado no ciclo",
+    );
+  }
+}
+
 export function startWebhookGuard(logger: pino.Logger): void {
   logger.info("telegram-webhook-guard: iniciado (verificação a cada 5 minutos)");
 
-  async function run(): Promise<void> {
-    try {
-      const result = await checkWebhookHealth();
-
-      // MOCK = sem token no cofre, não é falha do webhook
-      if (result.mock) {
-        logger.info("telegram-webhook-guard: MOCK (token ausente) — ignorando");
-        _prevHealthy = null;
-        return;
-      }
-
-      // Erro de rede na própria chamada getWebhookInfo
-      if (result.fetchError) {
-        _consecutiveNetworkErrors++;
-        logger.warn(
-          { fetchError: result.fetchError, consecutivo: _consecutiveNetworkErrors },
-          "telegram-webhook-guard: falha de rede ao consultar getWebhookInfo",
-        );
-        if (_consecutiveNetworkErrors >= 2) {
-          const msg =
-            `⚠️ *Telegram Webhook Guard* — Não consegui consultar o Telegram (${_consecutiveNetworkErrors}x consecutivas).\n` +
-            `Erro: \`${result.fetchError}\`\n` +
-            `Verifique a conectividade ou o token do bot.`;
-          await sendSlackAlert(msg);
-        }
-        return;
-      }
-
-      _consecutiveNetworkErrors = 0;
-
-      const changed = _prevHealthy === null || _prevHealthy !== result.healthy;
-      _prevHealthy = result.healthy;
-
-      if (!result.healthy && changed) {
-        // Webhook inativo (URL vazia) — possível polling ativo
-        const msg =
-          `🚨 *ALERTA — Telegram Webhook Inativo*\n\n` +
-          `O webhook do @Paduaclinica_bot foi desativado.\n` +
-          `Isso acontece quando outro processo chama \`getUpdates\` (polling) e substitui o webhook.\n\n` +
-          `*Consequência:* mensagens dos pacientes NÃO chegam ao CEO.\n\n` +
-          `*Ação:* execute \`POST /api/telegram/register-webhook\` no painel de configurações ` +
-          `para reativar o webhook imediatamente.`;
-
-        logger.error({ result }, "telegram-webhook-guard: WEBHOOK INATIVO — alertando CEO");
-        await sendSlackAlert(msg);
-
-        // Também tenta alertar via Telegram se chatId do CEO estiver configurado
-        const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
-        if (ceoChatId) {
-          void sendTelegram(
-            ceoChatId,
-            `🚨 <b>ALERTA — Webhook do Bot Inativo</b>\n\n` +
-            `O webhook do @Paduaclinica_bot foi substituído por polling.\n` +
-            `Mensagens dos pacientes <b>não estão chegando</b>.\n\n` +
-            `Reative em: Configurações → Telegram → Registrar Webhook.`,
-          );
-        }
-      } else if (result.healthy && changed && _prevHealthy !== null) {
-        // Voltou a ficar saudável
-        logger.info("telegram-webhook-guard: webhook reativado — OK");
-        await sendSlackAlert(
-          `✅ *Telegram Webhook Reativado*\nURL: \`${result.url}\`\nO canal do bot está funcionando normalmente.`,
-        );
-      } else {
-        logger.info(
-          { url: result.url, pendingUpdateCount: result.pendingUpdateCount },
-          "telegram-webhook-guard: webhook saudável",
-        );
-      }
-    } catch (err) {
-      logger.error(
-        { err: err instanceof Error ? err.message : String(err) },
-        "telegram-webhook-guard: erro inesperado no ciclo",
-      );
-    }
-  }
-
   // Primeira verificação 30 segundos após o boot (dar tempo ao processo subir)
-  setTimeout(() => void run(), 30_000);
+  setTimeout(() => void runGuardCycle(logger), 30_000);
   // Depois a cada 5 minutos
-  setInterval(() => void run(), 5 * 60_000);
+  setInterval(() => void runGuardCycle(logger), 5 * 60_000);
 }

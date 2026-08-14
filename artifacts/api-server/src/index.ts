@@ -18,6 +18,7 @@ import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
 import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
 import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
+import { startWebhookGuard } from "./lib/telegram-webhook-guard";
 
 const rawPort = process.env["PORT"];
 
@@ -146,6 +147,10 @@ if (Number.isNaN(port) || port <= 0) {
     recoverStuckDocuments().catch((e) =>
       logger.error({ err: e }, "[ExamesLab] Falha na recuperacao de documentos presos"),
     );
+
+    // Guard periódico: detecta se o webhook Telegram foi substituído por polling
+    // e alerta o CEO via Slack/Telegram. Primeira verificação em 30 s, depois a cada 5 min.
+    startWebhookGuard(logger);
 
     // Limpeza preventiva de device_offer_limits no boot: apaga linhas com
     // dia_brt > 2 dias atrás para não acumular entre restarts.
