@@ -21,6 +21,7 @@ export const clientsTable = pgTable("clients", {
   photoUrl: text("photo_url"),
   notes: text("notes"),
   validationPassword: text("validation_password"),
+  validationPasswordSentAt: timestamp("validation_password_sent_at", { withTimezone: true }),
   // Acesso leve do paciente a /area (Bloco D): senha com HASH forte (nunca texto puro),
   // troca obrigatoria no 1o acesso, e um token de definicao/reset com validade.
   passwordHash: text("password_hash"),

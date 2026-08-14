@@ -1105,18 +1105,31 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                                 ATIVAR TELEGRAM
                               </Button>
                               {(client as any).validationPassword && (
-                                <Button
-                                  variant="outline"
-                                  className="h-7 text-[10px] font-black px-3"
-                                  onClick={() => resendTelegramOnboarding.mutate()}
-                                  disabled={resendTelegramOnboarding.isPending || activateTelegram.isPending || !client.email}
-                                  title="Reenviar e-mail com a senha já gerada (sem alterar a senha)"
-                                >
-                                  {resendTelegramOnboarding.isPending
-                                    ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                                    : <Send className="w-3 h-3 mr-1.5" />}
-                                  REENVIAR E-MAIL
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    className="h-7 text-[10px] font-black px-3"
+                                    onClick={() => resendTelegramOnboarding.mutate()}
+                                    disabled={resendTelegramOnboarding.isPending || activateTelegram.isPending || !client.email}
+                                    title="Reenviar e-mail com a senha já gerada (sem alterar a senha)"
+                                  >
+                                    {resendTelegramOnboarding.isPending
+                                      ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                      : <Send className="w-3 h-3 mr-1.5" />}
+                                    REENVIAR E-MAIL
+                                  </Button>
+                                  {(client as any).validationPasswordSentAt && (
+                                    <span className="w-full text-[9px] text-muted-foreground text-right mt-0.5">
+                                      Ativação enviada em{" "}
+                                      {new Date((client as any).validationPasswordSentAt).toLocaleDateString("pt-BR", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        timeZone: "America/Sao_Paulo",
+                                      })}
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}

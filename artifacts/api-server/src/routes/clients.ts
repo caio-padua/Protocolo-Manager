@@ -17,8 +17,7 @@ import {
 
 const router: IRouter = Router();
 
-// Boot migration — coluna de data de vinculação do Telegram.
-// Pacientes vinculados antes desta migração terão telegram_vinculado_em = null.
+// Boot migrations — colunas de data do Telegram.
 (async () => {
   try {
     await db.execute(
@@ -26,6 +25,13 @@ const router: IRouter = Router();
     );
   } catch (e) {
     console.warn("[clients] migration telegram_vinculado_em:", e);
+  }
+  try {
+    await db.execute(
+      sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS validation_password_sent_at TIMESTAMPTZ`
+    );
+  } catch (e) {
+    console.warn("[clients] migration validation_password_sent_at:", e);
   }
 })();
 
@@ -393,10 +399,12 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
   // O paciente pode receber verbalmente, sem esperar e-mail.
   const senha = codigoTelegramSemantico(client.name, client.cpf);
 
-  // Persiste a senha no banco — filtra por tenant também no UPDATE para garantia dupla.
+  // Persiste a senha no banco e registra o momento da geração.
+  // Filtra por tenant também no UPDATE para garantia dupla.
+  const now = new Date();
   const updated = await db
     .update(clientsTable)
-    .set({ validationPassword: senha })
+    .set({ validationPassword: senha, validationPasswordSentAt: now })
     .where(tenantFilter)
     .returning({ id: clientsTable.id });
 
