@@ -73,12 +73,32 @@ function useGuiaConfigLoader(): GuiaConfig {
   return config;
 }
 
+// ── client_id e tenant do paciente (passados via ?c=ID&tenant=SLUG pelo CEO) ──
+function readClientId(): number | undefined {
+  const raw = new URLSearchParams(window.location.search).get("c");
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+function readTenant(): string | undefined {
+  const t = new URLSearchParams(window.location.search).get("tenant");
+  return t ? t.trim() : undefined;
+}
+
 // ── Evento de analytics — silencioso, nunca bloqueia o paciente ───────────────
+// tenant resolve empresa_id no servidor — nunca confiamos em valores do cliente.
 function registrarEvento(device: string, secao: string): void {
+  const client_id = readClientId();
+  const tenant    = readTenant();
   fetch(`${API_BASE}/api/onboarding/evento`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ empresa_id: 5, device, secao }),
+    body: JSON.stringify({
+      device,
+      secao,
+      ...(tenant    ? { tenant }    : {}),
+      ...(client_id ? { client_id } : {}),
+    }),
   }).catch(() => {/* silencioso */});
 }
 
@@ -587,6 +607,16 @@ export default function GuiaDigital() {
     if (!aberta[key]) registrarEvento(device, key);
     setAberta((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  // Registrar evento de abertura da página para as seções pré-abertas no mount.
+  // Garante que o paciente seja identificado mesmo sem interagir com o accordion.
+  useEffect(() => {
+    const abertas = Object.entries(aberta)
+      .filter(([, open]) => open)
+      .map(([key]) => key as SecKey);
+    abertas.forEach((key) => registrarEvento(device, key));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // apenas no mount
 
   // Scroll suave para a seção do dispositivo
   useEffect(() => {

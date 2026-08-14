@@ -625,6 +625,8 @@ function PainelCustoIA() {
 interface OnboardingStats {
   ok: boolean;
   total: number;
+  pacientesUnicos: number;
+  pacientes: { client_id: number; nome: string; ultimo_acesso: string }[];
   porDevice: { device: string; total: number }[];
   porSecao:  { secao:  string; total: number }[];
 }
@@ -728,13 +730,42 @@ function PainelOnboarding() {
       {/* Dados */}
       {!loading && stats && stats.total > 0 && (
         <>
-          {/* KPI total */}
-          <div className="concave-3d px-4 py-3 flex items-center gap-3">
-            <span className="text-3xl font-black tabular-nums text-primary">{stats.total}</span>
-            <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-              seções abertas<br />nos últimos 30 dias
-            </span>
+          {/* KPI total + pacientes únicos */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="concave-3d px-4 py-3 flex items-center gap-3">
+              <span className="text-3xl font-black tabular-nums text-primary">{stats.total}</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+                seções abertas<br />nos últimos 30 dias
+              </span>
+            </div>
+            <div className="concave-3d px-4 py-3 flex items-center gap-3">
+              <span className="text-3xl font-black tabular-nums text-primary">{stats.pacientesUnicos}</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+                pacientes<br />únicos
+              </span>
+            </div>
           </div>
+
+          {/* Lista de pacientes que abriram */}
+          {stats.pacientes && stats.pacientes.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                Pacientes que abriram o guia
+              </p>
+              <div className="concave-3d rounded-lg divide-y divide-border/20 max-h-48 overflow-y-auto">
+                {stats.pacientes.map((p) => (
+                  <div key={p.client_id} className="flex items-center justify-between px-3 py-2 gap-2">
+                    <span className="text-[11px] font-bold text-foreground uppercase tracking-tight truncate">
+                      {p.nome}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
+                      {new Date(p.ultimo_acesso).toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Por dispositivo */}

@@ -275,12 +275,16 @@ export default function GuiaPaciente() {
   const { toast } = useToast();
   const { slug, clinicaNome } = useMinhaConfig();
 
-  // Link do guia — inclui ?tenant=slug para multi-clínica quando disponível
-  const guiaUrl = slug
-    ? `${GUIA_BASE}?tenant=${encodeURIComponent(slug)}`
-    : GUIA_BASE;
-
   const [clientId, setClientId] = useState<number | null>(null);
+
+  // Link do guia — inclui ?tenant=slug (multi-clínica) e ?c=clientId (rastreio de abertura)
+  const guiaUrl = (() => {
+    const params = new URLSearchParams();
+    if (slug) params.set("tenant", slug);
+    if (clientId) params.set("c", String(clientId));
+    const qs = params.toString();
+    return qs ? `${GUIA_BASE}?${qs}` : GUIA_BASE;
+  })();
   const [copiado,  setCopiado]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [resultados, setResultados] = useState<EnvioResult[]>([]);
