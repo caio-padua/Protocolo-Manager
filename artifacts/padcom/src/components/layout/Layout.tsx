@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, Redirect } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
 import {
@@ -369,28 +370,26 @@ export function Layout({ children }: LayoutProps) {
   }, []);
 
   // ─── Badge Telegram: conta mensagens não lidas de todos os pacientes ─────────
-  const [telegramBadge, setTelegramBadge] = useState<number>(0);
-
-  useEffect(() => {
-    const fetchBadge = () => {
+  // Usa a mesma queryKey do cockpit (["telegram-inbox-badge"]) para que quando
+  // o CEO marcar as mensagens como lidas o badge suma imediatamente no menu,
+  // sem esperar o próximo ciclo de 30 s.
+  const { data: _badgeData } = useQuery<{ naoLidas: number }>({
+    queryKey: ["telegram-inbox-badge"],
+    queryFn: async () => {
       const token =
         typeof window !== "undefined"
           ? localStorage.getItem("padcom_collab_token")
           : null;
-      fetch("/api/telegram-inbox/badge", {
+      const res = await fetch("/api/telegram-inbox/badge", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: { naoLidas?: number } | null) => {
-          setTelegramBadge(data?.naoLidas ?? 0);
-        })
-        .catch(() => {/* silencioso: badge some até próximo ciclo */});
-    };
-
-    fetchBadge();
-    const timer = setInterval(fetchBadge, BADGE_POLL_MS);
-    return () => clearInterval(timer);
-  }, []);
+      });
+      if (!res.ok) return { naoLidas: 0 };
+      return res.json() as Promise<{ naoLidas: number }>;
+    },
+    refetchInterval: BADGE_POLL_MS,
+    initialData: { naoLidas: 0 },
+  });
+  const telegramBadge = _badgeData?.naoLidas ?? 0;
 
   // Navegação filtrada pelos módulos que o servidor autorizou
   const navFiltrada = filtrarNavegacao(navigation, modulosAtivos);
