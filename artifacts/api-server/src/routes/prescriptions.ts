@@ -9,8 +9,11 @@ import {
   dispatchLogTable,
   catalogoItensTable,
   catalogoFormulasTable,
+  lembretesPrescricaoTable,
+  clientsTable,
+  type LembretePeriodoJson,
 } from "@workspace/db";
-import { eq, desc, asc, and } from "drizzle-orm";
+import { eq, desc, asc, and, sql } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
@@ -22,6 +25,13 @@ import { recipeTypeForControlledClass } from "../lib/anvisa-catalog";
 import { handleSncrAlert } from "../lib/sncr-alerts";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
 import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
+// ── Motor de lembretes por período (portado do IHE) ──
+import {
+  sincronizarLembretePrescricao,
+  type ItemLembretePrescricao,
+  type PeriodoAntigo,
+} from "../lib/lembrete-periodo";
+import { templateLembretePrescricao } from "../lib/lembrete-templates";
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
@@ -36,6 +46,52 @@ function dateBRfull(): string {
   const day = String(brt.getUTCDate()).padStart(2, "0");
   const month = String(brt.getUTCMonth() + 1).padStart(2, "0");
   return `${day}/${month}/${brt.getUTCFullYear()}`;
+}
+
+// Converte o texto livre do campo `periodo` de prescription_items
+// (ex.: "À Tarde; 2h Antes do Jantar") nos valores canônicos (PeriodoAntigo)
+// que sincronizarLembretePrescricao aceita. Sem match → padrão de fórmula.
+function mapPeriodosTextoToCanonicos(texto: string): PeriodoAntigo[] {
+  const norm = (s: string) =>
+    s.trim().toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
+
+  const MAP: Record<string, PeriodoAntigo> = {
+    "jejum":              "jejum",
+    "ao acordar":         "manha",
+    "inicio da manha":    "manha",
+    "manha":              "manha",
+    "meio da manha":      "meio_manha",
+    "meio manha":         "meio_manha",
+    "almoco":             "almoco",
+    "antes do almoco":    "almoco",
+    "2h antes do almoco": "almoco",
+    "inicio da tarde":    "tarde",
+    "a tarde":            "tarde",
+    "tarde":              "tarde",
+    "meio tarde":         "meio_tarde",
+    "meio da tarde":      "meio_tarde",
+    "noite":              "noite",
+    "antes do jantar":    "noite",
+    "2h antes do jantar": "noite",
+    "final da noite":     "final_noite",
+    "final noite":        "final_noite",
+    "ceia":               "ceia",
+  };
+
+  if (!texto.trim()) return ["manha", "noite"]; // padrão para fórmula
+  const result = texto
+    .split(";")
+    .map((p) => MAP[norm(p)])
+    .filter((p): p is PeriodoAntigo => !!p);
+  return result.length > 0 ? result : ["manha", "noite"];
+}
+
+// Trunca a mensagem no último parágrafo vazio antes de `max` chars (padrão 1.450).
+// Evita erro 21617 do Twilio (limite de 1.600 chars no WhatsApp).
+function truncarMensagemWhatsapp(msg: string, max = 1450): string {
+  if (msg.length <= max) return msg;
+  const corte = msg.lastIndexOf("\n\n", max);
+  return (corte > 0 ? msg.slice(0, corte) : msg.slice(0, max - 5)) + "\n\n(…)";
 }
 
 router.post("/prescriptions/preview", async (req, res): Promise<void> => {
@@ -155,6 +211,33 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
       pharmacyId: it.pharmacyId ?? null,
     })),
   );
+
+  // 1c) Motor de lembretes — sincronizar prescrição por período (idempotente).
+  // Mapeia o campo livre `periodo` dos itens aos 9 períodos canônicos (JE…CE)
+  // e faz upsert em lembretes_prescricao. Fail-safe: nunca bloqueia a emissão.
+  let lembretePeriodos: LembretePeriodoJson[] | null = null;
+  if (body.clientId) {
+    try {
+      const itensLembrete: ItemLembretePrescricao[] = items.map((it) => ({
+        tipo: "formula" as const,
+        nome: it.name,
+        ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
+        dose: it.dose ?? undefined,
+        // posologia OMITIDA: o campo do receituário é verboso (para a farmácia).
+        // O lembrete para o paciente deve conter apenas nome + dose — conciso.
+        periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
+      }));
+      await sincronizarLembretePrescricao(body.clientId, itensLembrete);
+      const [lembrete] = await db
+        .select({ periodos: lembretesPrescricaoTable.periodos })
+        .from(lembretesPrescricaoTable)
+        .where(eq(lembretesPrescricaoTable.clienteId, body.clientId))
+        .limit(1);
+      lembretePeriodos = (lembrete?.periodos as LembretePeriodoJson[]) ?? null;
+    } catch (err) {
+      req.log?.warn({ err }, "[prescriptions/emit] falha ao sincronizar lembrete — emissão não interrompida");
+    }
+  }
 
   // 2) Desmembra.
   const plans = planDesmembramento(items);
@@ -436,6 +519,24 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
     await handleSncrAlert(alert);
   }
 
+  // 4b) Motor de lembretes — WhatsApp imediato ao emitir (fire-and-forget).
+  // Só dispara quando: clientId informado, lembrete sincronizado e telefone disponível.
+  // Usa templateLembretePrescricao + sendWhatsapp — NUNCA Twilio direto.
+  if (lembretePeriodos && lembretePeriodos.length > 0 && body.clientPhone) {
+    const mensagemLembrete = truncarMensagemWhatsapp(templateLembretePrescricao({
+      clienteNome: body.clientName,
+      clienteGenero: "nao_informado",
+      periodos: lembretePeriodos,
+      agora: new Date(),
+    }));
+    sendWhatsapp(body.clientPhone, mensagemLembrete, {
+      contexto: "lembrete_prescricao",
+      clienteId: body.clientId ?? undefined,
+    }).catch((err) =>
+      req.log?.warn({ err }, "[prescriptions/emit] whatsapp lembrete — falhou silenciosamente"),
+    );
+  }
+
   res.status(201).json({
     prescriptionId:      prescription.id,
     recipes:             emittedRecipes,
@@ -561,6 +662,127 @@ router.get("/prescription-formulas", async (_req, res): Promise<void> => {
     });
 
   res.json(formulas);
+});
+
+// POST /prescriptions/:id/enviar-lembrete
+// Dispara o motor de lembretes para uma prescrição já emitida.
+// Útil para reenvio manual ou quando a emissão original não tinha clientId.
+// Fluxo: sincroniza lembretes_prescricao → templateLembretePrescricao → sendWhatsapp.
+router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "id inválido" });
+    return;
+  }
+
+  const [pres] = await db
+    .select()
+    .from(prescriptionsTable)
+    .where(eq(prescriptionsTable.id, id));
+  if (!pres) {
+    res.status(404).json({ error: "Prescrição não encontrada" });
+    return;
+  }
+
+  // Resolver clientId e telefone — tenta o registro direto, depois busca pelo CPF.
+  let clientId = pres.clientId ?? null;
+  let clientPhone = pres.clientPhone ?? null;
+
+  if ((!clientId || !clientPhone) && pres.clientCpf) {
+    const cpfDigits = pres.clientCpf.replace(/\D/g, "");
+    const [cli] = await db
+      .select({ id: clientsTable.id, phone: clientsTable.phone })
+      .from(clientsTable)
+      .where(
+        sql`REGEXP_REPLACE(${clientsTable.cpf}, '[^0-9]', '', 'g') = ${cpfDigits}`,
+      )
+      .limit(1);
+    if (cli) {
+      clientId   = clientId   ?? cli.id;
+      clientPhone = clientPhone ?? cli.phone ?? null;
+    }
+  }
+
+  if (!clientId) {
+    res.status(422).json({
+      error: "clientId não encontrado — vincule o paciente à prescrição ou forneça um CPF válido",
+    });
+    return;
+  }
+
+  // Itens da prescrição
+  const itens = await db
+    .select()
+    .from(prescriptionItemsTable)
+    .where(eq(prescriptionItemsTable.prescriptionId, id));
+
+  if (itens.length === 0) {
+    res.status(422).json({ error: "Prescrição sem itens" });
+    return;
+  }
+
+  // Sincronizar lembrete (idempotente — cria ou atualiza)
+  const itensLembrete: ItemLembretePrescricao[] = itens.map((it) => ({
+    tipo: "formula" as const,
+    nome: it.name,
+    ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
+    dose: it.dose ?? undefined,
+    // posologia OMITIDA: verbosa do receituário (para farmácia), não para o paciente.
+    periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
+  }));
+
+  const sync = await sincronizarLembretePrescricao(clientId, itensLembrete);
+
+  // Ler os períodos recém-gravados
+  const [lembrete] = await db
+    .select({ periodos: lembretesPrescricaoTable.periodos })
+    .from(lembretesPrescricaoTable)
+    .where(eq(lembretesPrescricaoTable.clienteId, clientId))
+    .limit(1);
+
+  const lembretePeriodos = (lembrete?.periodos as LembretePeriodoJson[]) ?? [];
+
+  if (lembretePeriodos.length === 0) {
+    res.status(422).json({
+      error: "Nenhum período canônico mapeado — verifique o campo 'periodo' dos itens",
+      itens: itens.map((it) => ({ nome: it.name, periodo: it.periodo })),
+    });
+    return;
+  }
+
+  // Montar mensagem pelo motor oficial e enviar via sendWhatsapp
+  const mensagem = truncarMensagemWhatsapp(templateLembretePrescricao({
+    clienteNome: pres.clientName,
+    clienteGenero: "nao_informado",
+    periodos: lembretePeriodos,
+    agora: new Date(),
+  }));
+
+  let whatsappResult = null;
+  if (clientPhone) {
+    whatsappResult = await sendWhatsapp(clientPhone, mensagem, {
+      contexto: "lembrete_prescricao",
+      clienteId: clientId,
+    });
+  }
+
+  res.json({
+    ok: true,
+    prescriptionId: id,
+    clientId,
+    clientPhone: clientPhone ?? "não encontrado",
+    sync: {
+      lembreteId:  sync.lembreteId,
+      periodos:    sync.periodos,
+      horarios:    sync.horarios,
+      formulas:    sync.formulas,
+      ativo:       sync.ativo,
+    },
+    whatsapp: whatsappResult
+      ? { sent: whatsappResult.sent, via: whatsappResult.via, error: whatsappResult.error ?? null }
+      : { sent: false, via: null, error: "telefone não encontrado — mensagem não enviada" },
+    mensagemPreview: mensagem.slice(0, 300) + (mensagem.length > 300 ? "…" : ""),
+  });
 });
 
 export default router;
