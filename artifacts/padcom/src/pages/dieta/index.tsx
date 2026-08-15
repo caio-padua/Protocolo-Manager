@@ -1068,8 +1068,8 @@ function MontarCardapio() {
             <div className="panel-3d-sub border-l-4 border-primary p-4 space-y-3">
               <div className="flex items-center gap-2">
                 {pendingEmail.usedFallbackDownload
-                  ? <Download className="h-4 w-4 text-primary" />
-                  : <Eye className="h-4 w-4 text-primary" />}
+                  ? <Download className="h-4 w-4 text-primary" aria-label="PDF baixado" />
+                  : <Eye className="h-4 w-4 text-primary" aria-label="PDF aberto em nova aba" />}
                 <span className="text-[11px] font-black uppercase tracking-widest text-primary">
                   Revisar e confirmar envio
                 </span>

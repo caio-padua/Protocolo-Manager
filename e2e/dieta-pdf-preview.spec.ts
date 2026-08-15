@@ -1,12 +1,23 @@
 /**
  * Task #223 — Confirmar que o PDF abre na nova aba antes de o CEO poder enviar o e-mail
+ * Task #244 — Confirmar que o painel de e-mail mostra o nome correto do paciente
+ *             quando o popup foi bloqueado
  *
- * Fluxo:
+ * Fluxo (happy path):
  *  1. CEO marca "Enviar por e-mail" e clica "Gerar PDF para Revisão"
  *  2. O código abre window.open("about:blank") de forma SÍNCRONA (antes do fetch)
  *     para não ser bloqueado pelo popup blocker do browser.
  *  3. Após o PDF ser gerado, a nova aba recebe o blob via location.href.
  *  4. O painel "Revisar e confirmar envio" aparece com o botão "Confirmar envio".
+ *
+ * Fluxo (popup bloqueado):
+ *  1. window.open é sobrescrito para retornar null (simula bloqueio de popup).
+ *  2. O código detecta pdfWinRef.current === null e aciona o download via <a>.
+ *  3. O painel de confirmação deve exibir:
+ *     — ícone de Download (não Eye)
+ *     — texto "PDF foi baixado" + "popup bloqueado"
+ *     — nome do paciente selecionado (Ana Silva)
+ *     — calorias alvo calculadas
  *
  * Estratégia: mocks de rota para todas as chamadas à API, de modo que o teste
  * não dependa de dados reais nem de geração de PDF (~90 s) com IA.
@@ -192,6 +203,85 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
 
       // O botão "Gerar PDF para Revisão" fica desabilitado enquanto há envio
       // pendente (disabled={!!pendingEmail}), prevenindo duplo envio.
+      await expect(gerarBtn).toBeDisabled();
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Task #244 — popup bloqueado: o painel deve mostrar nome correto + kcal
+  // ---------------------------------------------------------------------------
+  test(
+    "popup bloqueado: painel exibe ícone Download, 'PDF foi baixado', nome do paciente e calorias",
+    async ({ page }) => {
+      // ── 0. Simula popup blocker: window.open retorna null ─────────────────
+      // addInitScript executa ANTES de qualquer script da página, então a
+      // sobrescrita é garantida mesmo que o componente use window.open no mount.
+      await page.addInitScript(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).open = () => null;
+      });
+
+      // ── 1. Navega para a página de Dieta ─────────────────────────────────
+      await page.goto("/dieta");
+      await expect(page.getByText("Órgão Dieta")).toBeVisible({ timeout: 10_000 });
+
+      // ── 2. Preenche dados antropométricos ─────────────────────────────────
+      // Peso 75 kg → fallback de calorias = 75 × 25 = 1875 kcal
+      await page.getByLabel("Peso (kg)").fill("75");
+      await page.getByLabel("Altura (cm)").fill("175");
+      await page.getByLabel("Idade", { exact: true }).fill("35");
+
+      // ── 3. Marca "Enviar por e-mail" ──────────────────────────────────────
+      await page
+        .locator('label:has(input[type="checkbox"])')
+        .filter({ hasText: /Enviar por e-mail/i })
+        .locator('input[type="checkbox"]')
+        .check();
+
+      // ── 4. Seleciona o cliente "Ana Silva" ────────────────────────────────
+      await page.locator('button', { hasText: /Selecionar cliente/i }).click();
+      await page.getByText("Ana Silva").first().click();
+
+      // ── 5. Garante que o botão de emissão está habilitado ─────────────────
+      const gerarBtn = page.getByRole("button", { name: /Gerar PDF para Revisão/i });
+      await expect(gerarBtn).toBeEnabled({ timeout: 5_000 });
+
+      // ── 6. Clica em "Gerar PDF para Revisão" ──────────────────────────────
+      // Com window.open retornando null, o código detecta pdfWinRef.current === null
+      // e entra no branch de fallback (download via <a>). Nenhuma nova aba abre.
+      await gerarBtn.click();
+
+      // ── 7. Aguarda o painel de confirmação aparecer ───────────────────────
+      const confirmarBtn = page.getByRole("button", { name: /Confirmar envio/i });
+      await expect(confirmarBtn).toBeVisible({ timeout: 15_000 });
+
+      // Âncora: o painel panel-3d-sub que contém o botão "Confirmar envio".
+      // Escopo estrito evita colisão com a toast notification que também
+      // aparece ao mesmo tempo.
+      const painel = page.locator("div").filter({ has: confirmarBtn }).first();
+
+      // ── 8. Verifica: cabeçalho "Revisar e confirmar envio" e ícone Download ─
+      // O ícone tem aria-label="PDF baixado" quando usedFallbackDownload=true;
+      // o caminho normal usa aria-label="PDF aberto em nova aba" (Eye).
+      await expect(painel.getByText(/Revisar e confirmar envio/i)).toBeVisible();
+      await expect(painel.locator('[aria-label="PDF baixado"]')).toBeVisible();
+      await expect(painel.locator('[aria-label="PDF aberto em nova aba"]')).not.toBeVisible();
+
+      // ── 9. Verifica: texto "PDF foi baixado" e "popup bloqueado" no painel ─
+      await expect(painel.getByText(/baixado/i).first()).toBeVisible();
+      await expect(painel.getByText(/popup bloqueado/i)).toBeVisible();
+
+      // ── 10. Verifica: nome do paciente "Ana Silva" no texto de confirmação ──
+      // O painel renderiza: <span class="font-bold">Enviar para Ana Silva?</span>
+      // Usar a frase completa evita colisão com o botão PaxterClientSelector.
+      await expect(page.getByText(/Enviar para Ana Silva/i)).toBeVisible();
+
+      // ── 11. Verifica: calorias alvo exibidas (fallback = 75 × 25 = 1875) ──
+      // A linha exibe: "Plano: <b>1875 kcal</b>"
+      await expect(painel.getByText(/1875/)).toBeVisible();
+      await expect(painel.getByText(/kcal/i).first()).toBeVisible();
+
+      // ── 12. Botão "Gerar PDF para Revisão" fica desabilitado (duplo envio) ─
       await expect(gerarBtn).toBeDisabled();
     }
   );

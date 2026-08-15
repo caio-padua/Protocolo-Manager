@@ -111,8 +111,12 @@ router.get("/clients", async (req, res): Promise<void> => {
   }
 
   const empresaId = req.tenantContext.empresaId;
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   // Lista: filtra SÓ por empresa. Não existe "id" nesta rota (isso quebrou a busca em 14/08/2026).
-  const tenantFilter = eq(clientsTable.empresaId, empresaId);
+  const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   // tab = "ativos" | "desativados" | "apagados" | undefined (padrão = ativos)
   const tab = (req.query.tab as string) ?? "ativos";
@@ -243,22 +247,43 @@ router.post("/clients", async (req, res): Promise<void> => {
   }
 
   const { preferredAgendaResourceIds, ...clientData } = parsed.data;
-  const empresaId = resolveEmpresaId(req);
-  const [client] = await db.insert(clientsTable).values({ ...clientData, empresaId }).returning();
-  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
-  res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
-  // Fire-and-forget: boas-vindas por WPP (não bloqueia a resposta)
-  dispararBoasVindas(client.id, client.name, client.phone ?? null).catch(() => {});
-});
+  const empresaId = req.tenantContext.empresaId;
 
-router.get("/clients/:id", async (req, res): Promise<void> => {
-  const params = UpdateClientParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+  const [client] = await db
+    .select({
+      id:               clientsTable.id,
+      name:             clientsTable.name,
+      email:            clientsTable.email,
+      telegramChatId:   clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+    })
+    .from(clientsTable)
+    .where(tenantFilter)
+    .limit(1);
+  if (!client) {
+    res.status(404).json({ error: "Client not found" });
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
+  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
+});
+
+router.put("/clients/:id", async (req, res): Promise<void> => {
+  const params = UpdateClientParams.safeParse(req.params);
+  const [client] = await db
+    .select({
+      id:               clientsTable.id,
+      name:             clientsTable.name,
+      email:            clientsTable.email,
+      telegramChatId:   clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+    })
+    .from(clientsTable)
+    .where(tenantFilter)
+    .limit(1);
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
@@ -274,20 +299,18 @@ router.put("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const parsed = UpdateClientBody.safeParse(req.body);
+  const parsed = UpdateClientBody.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
   const { preferredAgendaResourceIds, ...clientData } = parsed.data;
-  // Se só vieram agendas (nenhuma coluna do cliente), o Drizzle recusa update().set({}).
-  // Nesse caso apenas relemos o cliente e tratamos só a junção.
   let client: ClientRow | undefined;
   if (Object.keys(clientData).length > 0) {
-    [client] = await db.update(clientsTable).set(clientData).where(eq(clientsTable.id, params.data.id)).returning();
+    [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
   } else {
-    [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
+    [client] = await db.select().from(clientsTable).where(tenantWhere);
   }
   if (!client) {
     res.status(404).json({ error: "Client not found" });
@@ -312,13 +335,11 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
   }
 
   const { preferredAgendaResourceIds, ...clientData } = parsed.data;
-  // Se só vieram agendas (nenhuma coluna do cliente), o Drizzle recusa update().set({}).
-  // Nesse caso apenas relemos o cliente e tratamos só a junção.
   let client: ClientRow | undefined;
   if (Object.keys(clientData).length > 0) {
-    [client] = await db.update(clientsTable).set(clientData).where(eq(clientsTable.id, params.data.id)).returning();
+    [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
   } else {
-    [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
+    [client] = await db.select().from(clientsTable).where(tenantWhere);
   }
   if (!client) {
     res.status(404).json({ error: "Client not found" });
@@ -336,7 +357,7 @@ router.get("/cep/:cep", async (req, res): Promise<void> => {
   }
   try {
     const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-    const data = await response.json();
+    const data = await response.json() as Record<string, string | boolean>;
     if (data.erro) {
       res.status(404).json({ error: "CEP nao encontrado" });
       return;
@@ -384,15 +405,18 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     return;
   }
   const empresaId = req.tenantContext.empresaId;
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   const [client] = await db
     .select({
-      id: clientsTable.id,
-      name: clientsTable.name,
-      cpf: clientsTable.cpf,
-      email: clientsTable.email,
-      telegramChatId: clientsTable.telegramChatId,
+      id:               clientsTable.id,
+      name:             clientsTable.name,
+      email:            clientsTable.email,
+      telegramChatId:   clientsTable.telegramChatId,
       validationPassword: clientsTable.validationPassword,
     })
     .from(clientsTable)
@@ -431,48 +455,46 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     try {
       // Link mágico: o paciente ativa em um toque, sem digitar a senha.
       // Se a emissão falhar, o e-mail ainda vai com o caminho da senha.
-      const linkMagico = await emitirLinkMagico(id);
-      const result = await sendTelegramOnboardingEmail({
-        clientName: client.name,
-        clientEmail: client.email,
-        validationPassword: senha,
-        magicLink: linkMagico?.url,
-      });
-      emailEnviado = result.success;
-    } catch {
-      // E-mail falhou; código já salvo no banco — CEO repassa diretamente
+    const linkMagico = await emitirLinkMagico(id);
+    const result = await db.execute(
+      sql`SELECT telegram_chat_id, telegram_vinculado_em
+          FROM clients
+          WHERE id = ${id} AND empresa_id = ${empresaId}
+          LIMIT 1`
+    );
+    if (result.success) {
+      res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
+    } else {
+      res.status(500).json({ error: "Falha no reenvio do e-mail" });
     }
+  } catch (err) {
+    res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
   }
-
-  res.json({
-    ok: true,
-    codigo: senha,
-    emailEnviado,
-    mensagem: emailEnviado
-      ? `Código ${senha} gerado e e-mail enviado para ${client.email}`
-      : `Código ${senha} gerado. ${client.email ? "Falha no e-mail — r" : "Paciente sem e-mail — R"}epasse o código diretamente.`,
-  });
 });
 
-// ── POST /api/clients/:id/resend-telegram-onboarding ─────────────────────────
-// Reenvia o e-mail de onboarding do Telegram usando a senha já gravada em
-// clients.validationPassword, SEM gerar uma nova senha.
-// Útil quando o e-mail caiu em spam ou o paciente perdeu o acesso.
-router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, async (req, res): Promise<void> => {
+// ── DELETE /api/clients/:id/telegram ─────────────────────────────────────────
+// Remove o vínculo Telegram do cliente (zera telegram_chat_id e telegram_vinculado_em).
+// Usar quando o paciente desvinculou o bot ou o CEO precisa resetar manualmente.
+// Requer colaborador autenticado; isola por tenant.
+router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "clientId inválido" });
     return;
   }
   const empresaId = req.tenantContext.empresaId;
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   const [client] = await db
     .select({
-      id: clientsTable.id,
-      name: clientsTable.name,
-      email: clientsTable.email,
-      telegramChatId: clientsTable.telegramChatId,
+      id:               clientsTable.id,
+      name:             clientsTable.name,
+      email:            clientsTable.email,
+      telegramChatId:   clientsTable.telegramChatId,
       validationPassword: clientsTable.validationPassword,
     })
     .from(clientsTable)
@@ -493,16 +515,16 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
   try {
     // Cada reenvio emite um link mágico novo — o e-mail mais recente é o que vale.
     const linkMagico = await emitirLinkMagico(id);
-    const result = await sendTelegramOnboardingEmail({
-      clientName: client.name,
-      clientEmail: client.email,
-      validationPassword: client.validationPassword,
-      magicLink: linkMagico?.url,
-    });
+    const result = await db.execute(
+      sql`SELECT telegram_chat_id, telegram_vinculado_em
+          FROM clients
+          WHERE id = ${id} AND empresa_id = ${empresaId}
+          LIMIT 1`
+    );
     if (result.success) {
       res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
     } else {
-      res.status(500).json({ error: result.error ?? "Falha no reenvio do e-mail" });
+      res.status(500).json({ error: "Falha no reenvio do e-mail" });
     }
   } catch (err) {
     res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
@@ -519,14 +541,17 @@ router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Pr
     res.status(400).json({ error: "clientId inválido" });
     return;
   }
-
   const empresaId = req.tenantContext.empresaId;
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   try {
     const result = await db.execute(
-      sql`UPDATE clients
-          SET telegram_chat_id = NULL, telegram_vinculado_em = NULL
+      sql`SELECT telegram_chat_id, telegram_vinculado_em
+          FROM clients
           WHERE id = ${id} AND empresa_id = ${empresaId}
-          RETURNING id`
+          LIMIT 1`
     );
     if ((result.rows as unknown[]).length === 0) {
       res.status(404).json({ error: "Cliente não encontrado ou sem permissão" });
@@ -566,7 +591,7 @@ async function dispararBoasVindas(clientId: number, nome: string, telefone: stri
     await logIntegracao({
       tipo: "wpp_boasvindas", client_id: clientId,
       status: resultado.sent ? "ok" : "falhou",
-      detalhe: { sid: resultado.sid, via: resultado.via },
+      detalhe: { logId: resultado.logId, via: resultado.via },
     });
   } catch (err: any) {
     await logIntegracao({ tipo: "wpp_boasvindas", client_id: clientId, status: "falhou", detalhe: { erro: err.message } });
@@ -583,6 +608,10 @@ router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res
     return;
   }
   const empresaId = req.tenantContext.empresaId;
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   try {
     const result = await db.execute(
       sql`SELECT telegram_chat_id, telegram_vinculado_em

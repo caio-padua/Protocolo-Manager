@@ -1116,36 +1116,25 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
   drawProtocolRoutePage(routePage, dto, fonts, totalPages, totalPages, assets);
 
   // ── Assinatura PAdES (operação terminal, Seção 2 — Dr. Manus Item #88) ──────
-  // Graceful fallback: se o certificado não estiver configurado no ambiente,
-  // o PDF é entregue sem assinatura digital (válido e legível). O CEO recebe
-  // o PDF + um aviso implícito via ausência dos headers X-Cert-*. Quando o
-  // certificado estiver configurado, o PDF sai assinado com PAdES/ICP-Brasil.
+  // Graceful fallback ONLY when the certificate is not configured in the environment.
+  // If a certificate IS loaded but signing fails (corruption, password error, etc.),
+  // the error is re-thrown so the caller can surface it explicitly — never silently
+  // deliver an unsigned document when a certificate was expected to sign it.
   const sName = dto.professionalName;
-  try {
-    const certInfo = getCertInfo();
-    const pdfBytes = await embedPadesSignature(pdfDoc, {
-      name:        sName,
-      reason:      "Assinatura digital da Carta de Tratamento PAXMED (ICP-Brasil)",
-      location:    dto.unit || "Brasil",
-      contactInfo: dto.clientCpf || "",
-    });
-    return { pdfBytes, certInfo: { ...certInfo, signerName: sName } };
-  } catch (sigErr: any) {
-    const msg: string = sigErr?.message ?? String(sigErr);
-    // Fallback APENAS quando o certificado não está configurado no ambiente.
-    // Qualquer outro erro (certificado inválido, senha errada, falha de assinatura
-    // ou construção do PDF) é propagado — documento não é entregue sem aviso explícito.
-    const isMissingCert =
-      msg.includes("Certificado digital A1 nao configurado") ||
-      msg.includes("nao configurado");
-    if (!isMissingCert) {
-      throw sigErr;
-    }
-    console.warn(
-      "[carta-tratamento] Certificado PAdES não configurado — PDF entregue sem assinatura digital:",
-      msg,
-    );
+  const certInfo = getCertInfo();
+  if (!certInfo) {
+    // Cert not configured — deliver unsigned PDF (valid, readable). The caller
+    // signals this via certInfo === null in the response headers.
+    console.warn("[carta-tratamento] Certificado PAdES não configurado — PDF entregue sem assinatura digital.");
     const pdfBytes = new Uint8Array(await pdfDoc.save());
     return { pdfBytes, certInfo: null };
   }
+  // Cert IS configured — sign or fail loudly.
+  const pdfBytes = await embedPadesSignature(pdfDoc, {
+    name:        sName,
+    reason:      "Assinatura digital da Carta de Tratamento PAXMED (ICP-Brasil)",
+    location:    dto.unit || "Brasil",
+    contactInfo: dto.clientCpf || "",
+  });
+  return { pdfBytes, certInfo: { ...certInfo, signerName: sName } };
 }

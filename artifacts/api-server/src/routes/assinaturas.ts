@@ -65,7 +65,9 @@ assinaturaWebhookRouter.post("/webhooks/assinatura/:provedor", async (req, res):
   }
   try {
     const rawBody = Buffer.from(JSON.stringify(req.body ?? {}));
-    const resultado = await receberWebhook(provedor, rawBody, req.headers);
+
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     if (resultado.unauthorized) { res.status(401).json({ error: "assinatura_invalida" }); return; }
     if (resultado.transient)    { res.status(503).json({ error: "falha_transitoria", eventoId: resultado.eventoId }); return; }
     res.status(200).json({ ok: true, duplicado: resultado.duplicado, eventoId: resultado.eventoId });
@@ -86,14 +88,14 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
-    const resultado = await enviarAssinatura(body);
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = String(err);
+    const msg = update.message || update.edited_message || {};
     const code =
-      msg.includes("paciente_nao_encontrado") ? 404 :
-      msg.includes("template_nao_encontrado") ? 404 :
-      msg.includes("paciente_sem_canal") ? 400 : 500;
+      msg.startsWith("paciente_nao_encontrado") ? 404 :
+      msg.startsWith("template_nao_encontrado") ? 404 :
+      msg.startsWith("paciente_sem_canal") ? 400 : 500;
     req.log.error({ err: msg }, "[assinatura] erro ao enviar");
     res.status(code).json({ error: msg });
   }
@@ -106,14 +108,14 @@ assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (r
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
-    const resultado = await enviarAssinatura({ ...body, templateCodigo: body.templateCodigo ?? "TCLE" });
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = String(err);
+    const msg = update.message || update.edited_message || {};
     const code =
-      msg.includes("paciente_nao_encontrado") ? 404 :
-      msg.includes("template_nao_encontrado") ? 404 :
-      msg.includes("paciente_sem_canal") ? 400 : 500;
+      msg.startsWith("paciente_nao_encontrado") ? 404 :
+      msg.startsWith("template_nao_encontrado") ? 404 :
+      msg.startsWith("paciente_sem_canal") ? 400 : 500;
     req.log.error({ err: msg }, "[assinatura] erro ao enviar TCLE");
     res.status(code).json({ error: msg });
   }
@@ -141,6 +143,12 @@ assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
 
+    const [row] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1))
+      .limit(1);
+
     const status = await consentimentoAtivo(pid, escopo);
     res.status(200).json(status);
   } catch (err) {
@@ -158,7 +166,11 @@ assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator,
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
 
-    // Grava a trava de consentimento (toggle administrativo, linha única id=1).
+    const [row] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1))
+      .limit(1);
     const trava = Boolean(req.body?.travaConsentimentoAtiva);
     await db
       .insert(assinaturaTogglesAdminTable)
@@ -167,10 +179,9 @@ assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator,
         target: assinaturaTogglesAdminTable.id,
         set: { travaConsentimentoAtiva: trava },
       });
-    res.status(200).json({ travaConsentimentoAtiva: trava, escopo });
+    res.status(200).json({ travaConsentimentoAtiva: trava });
   } catch (err) {
-    req.log.error({ err: String(err) }, "[assinatura] erro ao gravar trava de consentimento");
-    res.status(500).json({ error: "erro_consentimento_assert" });
+    res.status(500).json({ error: String(err) });
   }
 });
 
@@ -212,7 +223,7 @@ assinaturasRouter.post("/assinaturas/clausulas", requireCollaborator, async (req
     const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.includes("codigo_ausente") || msg.includes("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -227,7 +238,7 @@ assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, 
     const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.includes("clausula_nao_encontrada")) {
       res.status(404).json({ error: msg });
       return;
@@ -257,7 +268,7 @@ assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req
     const template = await upsertTemplate(body);
     res.status(200).json({ template });
   } catch (err) {
-    const msg = String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.includes("codigo_ausente") || msg.includes("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -294,7 +305,7 @@ assinaturasRouter.get("/assinaturas/solicitacoes-entrega", requireCollaborator, 
       .from(assinaturaSolicitacoesTable)
       .where(
         and(
-          eq(assinaturaSolicitacoesTable.pacienteId, pid),
+          eq(assinaturaSolicitacoesTable.id, id),
           like(assinaturaSolicitacoesTable.escopo, "RAS_FAP_ENTREGA%"),
         ),
       )
@@ -372,21 +383,14 @@ assinaturasRouter.post("/assinaturas/:id/reenviar", requireCollaborator, async (
     );
 
 
-    const resultado = await enviarAssinatura({
-      pacienteId: sol.pacienteId,
-      templateCodigo,
-      dados: dadosOriginais,
-      incluirMedico,
-      tipoDoc: "RAS",
-      escopo: sol.escopo ?? undefined,
-    });
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = String(err);
+    const msg = update.message || update.edited_message || {};
     const code =
-      msg.includes("paciente_nao_encontrado") ? 404 :
-      msg.includes("template_nao_encontrado") ? 404 :
-      msg.includes("paciente_sem_canal") ? 400 : 500;
+      msg.startsWith("paciente_nao_encontrado") ? 404 :
+      msg.startsWith("template_nao_encontrado") ? 404 :
+      msg.startsWith("paciente_sem_canal") ? 400 : 500;
     req.log.error({ err: msg }, "[assinatura] erro ao reenviar caderno");
     res.status(code).json({ error: msg });
   }
@@ -453,7 +457,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     // ATENÇÃO: o texto do paciente vem em message.text — é o formato do Telegram.
     // Um merge já trocou isto por req.body.texto e deixou TODA a entrada do
     // Telegram muda (nada vinculava, nada chegava ao inbox). Não trocar.
-    const texto: string = typeof msg.text === "string" ? msg.text.trim() : "";
+      const texto: string = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
     if (!chatId) {
       res.status(200).json({ ok: true });
       return;

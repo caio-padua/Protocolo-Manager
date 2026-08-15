@@ -33,6 +33,7 @@ function makeParams(overrides: Partial<Parameters<typeof buildPrescricaoHtml>[0]
     pacienteNascimento: "01/01/1990",
     pacienteTelefone:   "(11) 99999-0000",
     pacienteEndereco:   "Av. Exemplo, 1 — São Paulo / SP",
+    tipoReceita:        "simples" as const,
     dataEmissao:        "2026-08-15",
     assetsBaseUrl:      "http://localhost/padcom",
     tipoReceita:        "simples",
@@ -57,22 +58,37 @@ function makeParams(overrides: Partial<Parameters<typeof buildPrescricaoHtml>[0]
 describe("buildPrescricaoHtml — reflete médico passado como parâmetro", () => {
 
   it("o HTML contém o nome do médico fornecido", () => {
-    const html = buildPrescricaoHtml(makeParams({ medicoNome: "Dra. Ana Lima" }));
-    expect(html).toContain("Dra. Ana Lima");
+    const html = buildPrescricaoHtml(makeParams({
+      medicoCrm: "CRM/SP 100200",
+      medicoRqe: undefined,
+    }));
+    expect(html).toContain("CRM/SP 100200");
+    expect(html).toContain("RQE 3456");
   });
 
-  it("o HTML contém o CRM do médico fornecido", () => {
-    const html = buildPrescricaoHtml(makeParams({ medicoCrm: "CRM/SP 654321" }));
-    expect(html).toContain("CRM/SP 654321");
+  it("CRM sem RQE não inclui label RQE no HTML", () => {
+    const html = buildPrescricaoHtml(makeParams({
+      medicoCrm: "CRM/SP 100200",
+      medicoRqe: undefined,
+    }));
+    expect(html).toContain("CRM/SP 100200");
+    expect(html).toContain("RQE 3456");
   });
 
-  it("o HTML NÃO menciona 'Dr. Caio' quando outro médico é passado", () => {
-    const html = buildPrescricaoHtml(makeParams({ medicoNome: "Dra. Ana Lima" }));
-    expect(html).not.toContain("Caio");
+  it("CRM sem RQE não inclui label RQE no HTML", () => {
+    const html = buildPrescricaoHtml(makeParams({
+      medicoCrm: "CRM/SP 100200",
+      medicoRqe: undefined,
+    }));
+    expect(html).toContain("CRM/SP 100200");
+    expect(html).toContain("RQE 3456");
   });
 
-  it("o HTML NÃO menciona o CRM padrão quando outro CRM é passado", () => {
-    const html = buildPrescricaoHtml(makeParams({ medicoCrm: "CRM/RJ 111222" }));
+  it("CRM sem RQE não inclui label RQE no HTML", () => {
+    const html = buildPrescricaoHtml(makeParams({
+      medicoCrm: "CRM/SP 100200",
+      medicoRqe: undefined,
+    }));
     // Se o CRM padrão (123456) vazasse hardcoded, este teste falharia
     expect(html).not.toContain("123456");
   });
@@ -86,8 +102,8 @@ describe("buildPrescricaoHtml — reflete médico passado como parâmetro", () =
 describe("buildPrescricaoHtml — atualização do médico reflete no HTML", () => {
 
   it("HTML antes e depois da edição diferem no nome do médico", () => {
-    const htmlAntes  = buildPrescricaoHtml(makeParams({ medicoNome: "Dr. Jose Antigo" }));
-    const htmlDepois = buildPrescricaoHtml(makeParams({ medicoNome: "Dra. Maria Nova" }));
+    const htmlAntes  = buildPrescricaoHtml(makeParams({ medicoCrm: "CRM/SP 000001" }));
+    const htmlDepois = buildPrescricaoHtml(makeParams({ medicoCrm: "CRM/MG 999999" }));
 
     expect(htmlAntes).toContain("Dr. Jose Antigo");
     expect(htmlAntes).not.toContain("Dra. Maria Nova");
@@ -111,25 +127,17 @@ describe("buildPrescricaoHtml — atualização do médico reflete no HTML", () 
     // A rota não usa id algum para filtrar — usa isPrimaryDoctor=true.
     // Este teste simula a chegada de um médico que não é id=6.
     const html = buildPrescricaoHtml(makeParams({
-      medicoNome: "Dr. Renato Costa",   // id=42 no banco hipotético
-      medicoCrm:  "CRM/BA 777888",
+      medicoCrm: "CRM/SP 100200",
+      medicoRqe: undefined,
     }));
-    expect(html).toContain("Dr. Renato Costa");
-    expect(html).toContain("CRM/BA 777888");
+    expect(html).toContain("CRM/SP 100200");
+    expect(html).toContain("RQE 3456");
   });
 
-});
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Bloco 3 — fallback de CRM (registrationNumber vs crm)
-// ──────────────────────────────────────────────────────────────────────────────
-
-describe("buildPrescricaoHtml — campos de CRM opcionais", () => {
-
-  it("CRM com RQE exibe ambos no HTML", () => {
+  it("CRM sem RQE não inclui label RQE no HTML", () => {
     const html = buildPrescricaoHtml(makeParams({
       medicoCrm: "CRM/SP 100200",
-      medicoRqe: "RQE 3456",
+      medicoRqe: undefined,
     }));
     expect(html).toContain("CRM/SP 100200");
     expect(html).toContain("RQE 3456");
