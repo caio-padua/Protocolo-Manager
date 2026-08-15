@@ -475,8 +475,14 @@ function drawCoverPage(page: PDFPage, dto: CartaTratamentoData, f: CartaFonts, a
 
   // ── ZONA G: Rodapé da capa ─────────────────────────────────────────────────
   const footY = topToY(292);
-  const footTxt = "Documento clinico individual — preparado para uso pessoal e nao transferivel | tecnologia PADCON | Pagina 01";
+  const footTxt = "Documento clinico individual — preparado para uso pessoal e nao transferivel | Pagina 01";
   try { page.drawText(footTxt, { x: MG, y: footY, font: f.mrReg, size: T.footer, color: WARM_CLR }); } catch { /**/ }
+
+  // Bloco PADCON em escala 1 (tamanho de referência da capa) — canto inferior
+  // direito, sem placa atrás, acima do rodapé para não colidir com o texto.
+  // Espelha exatamente o que o documento de protocolo faz na sua capa.
+  const markBaseY = footY + T.footer + 6;   // ≈ 24 pt do rodapé da folha
+  drawPadconMark(page, assets.padconSymbol ?? null, assets.padconWords ?? null, MG_R, markBaseY, 1);
 }
 
 // ─── MAPA DE ÊNFASES (Seção 6) ────────────────────────────────────────────────
