@@ -21,6 +21,7 @@ import { recoverStuckDocuments } from "./routes/exames-lab";
 import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
 import { startWebhookGuard } from "./lib/telegram-webhook-guard";
 import { purgeOldDietaPdfs } from "./lib/dieta-planos-storage";
+import { checkDicionarioAndAlert } from "./lib/dicionario-sync-alert";
 
 const rawPort = process.env["PORT"];
 
@@ -164,6 +165,17 @@ if (Number.isNaN(port) || port <= 0) {
     // Guard periódico: detecta se o webhook Telegram foi substituído por polling
     // e alerta o CEO via Slack/Telegram. Primeira verificação em 30 s, depois a cada 5 min.
     startWebhookGuard(logger);
+
+    // Verifica sincronismo GLOSSARIO ↔ DICIONARIO.md no boot e alerta no Slack
+    // se houver termos faltantes. Roda 10 s após o listen para não disputar
+    // recursos com as seeds críticas. Fail-open: nunca derruba o servidor.
+    setTimeout(
+      () =>
+        checkDicionarioAndAlert().catch((e) =>
+          logger.error({ err: e }, "[dicionario-sync] Erro inesperado"),
+        ),
+      10_000,
+    );
 
     // Limpeza preventiva de device_offer_limits no boot: apaga linhas com
     // dia_brt > 2 dias atrás para não acumular entre restarts.
