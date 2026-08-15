@@ -527,10 +527,10 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         ).catch((err: unknown) =>
           logger.error({ err }, "[telegram] falha ao processar mensagem no inbox"),
         );
-      }
+      } // closes if (texto)
       res.status(200).json({ ok: true });
       return;
-    }
+    } // closes if (clienteJaVinculado)
 
     // ── PASSO 2: cliente não vinculado — tenta vinculação por prova de posse ─
     const candidatos = new Set<string>();
