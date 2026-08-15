@@ -104,6 +104,12 @@ a credencial configurada. O método aprovado de push é o painel Git do Replit (
 
 Metodo de trabalho (decisao do CEO, 19/06/2026): para QUALQUER funcionalidade nao-trivial, seguir o **Paxter Loop** (skill `paxter-loop`) — Especificar (spec escrita em `specs/<nome>.md`) -> Construir (so o que esta na spec) -> Revisar com o architect ate aprovar sem pendencia. O CEO aciona por fala ("rode o loop", "spec isso", "pode buildar", "manda revisar").
 
+REGRA PERMANENTE — TRABALHO EM FILA (ordem do CEO, 14/08/2026, apos incidente de agentes em paralelo):
+- SEMPRE uma tarefa de cada vez, em fila, com encadeamento. NUNCA criar nem executar tarefas em paralelo.
+- So comecar a proxima tarefa depois que o CEO aprovar a anterior.
+- ANTES de criar qualquer tarefa nova, PERGUNTAR ao CEO primeiro. Nunca propor task por conta propria.
+- Motivo declarado pelo CEO: agentes em paralelo geram custo que ele paga e quebram o processo; ele quer "uma coisa de cada vez, bem feita, com processo".
+
 Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO XI da Biblia DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO):
 
 Art. 37  Conclusao primeiro; explicacao depois.

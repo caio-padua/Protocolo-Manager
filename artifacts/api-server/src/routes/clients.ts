@@ -102,7 +102,8 @@ router.get("/clients", async (req, res): Promise<void> => {
   }
 
   const empresaId = req.tenantContext.empresaId;
-  const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
+  // Lista: filtra SÓ por empresa. Não existe "id" nesta rota (isso quebrou a busca em 14/08/2026).
+  const tenantFilter = eq(clientsTable.empresaId, empresaId);
 
   // tab = "ativos" | "desativados" | "apagados" | undefined (padrão = ativos)
   const tab = (req.query.tab as string) ?? "ativos";
