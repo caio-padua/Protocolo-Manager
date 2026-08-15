@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCollabToken } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
@@ -205,6 +205,10 @@ function MontarCardapio() {
   );
 
   const [clientId, setClientId] = useState<number | null>(null);
+  // Ref atualizada SINCRONAMENTE no handler de troca de cliente.
+  // Permite que onSuccess verifique se o cliente mudou durante geração assíncrona do PDF.
+  const clientIdRef = useRef<number | null>(null);
+
   const [objetivo, setObjetivo] = useState("emagrecimento");
   const [peso, setPeso] = useState("");
   const [altura, setAltura] = useState("");
@@ -267,6 +271,21 @@ function MontarCardapio() {
     estiloAlimentar?: string;
     usedFallbackDownload?: boolean;
   } | null>(null);
+
+  // --- Handler síncrono de troca de cliente ---
+  // Atualiza a ref ANTES de qualquer await, garantindo que onSuccess do emitirPdf
+  // sempre compare contra o cliente corrente mesmo em race conditions.
+  function handleClientChange(newId: number | null) {
+    clientIdRef.current = newId; // síncrono — antes do setState e de qualquer re-render
+    setClientId(newId);
+    if (pendingEmail !== null) {
+      setPendingEmail(null);
+      toast({
+        title: "Envio pendente cancelado",
+        description: "O cliente foi alterado. O painel de confirmação foi descartado.",
+      });
+    }
+  }
 
   // ---- Conta TDEE ao vivo (espelha o backend) ----
   const conta = useMemo(() => {
@@ -477,15 +496,24 @@ function MontarCardapio() {
       // Atualiza o Histórico de Planos imediatamente (mesmo que a aba já esteja montada)
       qc.invalidateQueries({ queryKey: ["dieta", "planos-emitidos"] });
       if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {
-        // Exibir painel de confirmação de envio
-        setPendingEmail({
-          pdfBase64: result.pdfBase64,
-          clientId: result.clientId!,
-          nomePaciente: result.nomePaciente,
-          caloriasAlvo: result.caloriasAlvo,
-          estiloAlimentar: result.estiloAlimentar,
-          usedFallbackDownload: result.usedFallbackDownload,
-        });
+        if (result.clientId === clientIdRef.current) {
+          // Exibir painel de confirmação de envio apenas se o cliente não mudou
+          // durante a geração assíncrona do PDF (guarda contra race condition).
+          setPendingEmail({
+            pdfBase64: result.pdfBase64,
+            clientId: result.clientId!,
+            nomePaciente: result.nomePaciente,
+            caloriasAlvo: result.caloriasAlvo,
+            estiloAlimentar: result.estiloAlimentar,
+            usedFallbackDownload: result.usedFallbackDownload,
+          });
+        } else {
+          // O CEO trocou de cliente enquanto o PDF era gerado — descartar silenciosamente.
+          toast({
+            title: "Envio pendente cancelado",
+            description: "O cliente foi alterado durante a geração do PDF. O envio foi descartado.",
+          });
+        }
       }
     },
     onError: (e: Error) => {
@@ -553,7 +581,7 @@ function MontarCardapio() {
               <PaxterClientSelector
                 clientes={clientes ?? []}
                 value={clientId}
-                onChange={setClientId}
+                onChange={handleClientChange}
                 placeholder="Selecionar cliente…"
               />
             </Field>

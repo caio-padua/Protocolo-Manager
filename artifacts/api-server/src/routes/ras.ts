@@ -630,7 +630,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
         await db.insert(emailLogTable).values({
           tipo: "ras_fap_reenviado",
           clienteNome: client.name,
-          destinatario: client.email,
+          destinatario: client.email!, // email validado antes desta rota
           assunto: `PAXTER | RAS FAP Reenviado | ${protocol.title}`,
           status: "falhou",
           erro: emailResult.error ?? null,
@@ -647,7 +647,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
       await db.insert(emailLogTable).values({
         tipo: "ras_fap_reenviado",
         clienteNome: client.name,
-        destinatario: client.email,
+        destinatario: client.email!, // email validado antes desta rota
         assunto: `PAXTER | RAS FAP Reenviado | ${protocol.title}`,
         status: "enviado",
         protocolId,
@@ -667,7 +667,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
           await db.insert(emailLogTable).values({
             tipo: "ras_fap_reenviado",
             clienteNome: clientFallback.name,
-            destinatario: clientFallback.email,
+            destinatario: clientFallback.email!, // guardado pelo if acima
             assunto: `PAXTER | RAS FAP Reenviado | ${protocolFallback.title}`,
             status: "falhou",
             erro: err.message ?? "Erro operacional",
