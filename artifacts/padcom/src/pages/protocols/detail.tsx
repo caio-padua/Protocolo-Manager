@@ -7,7 +7,7 @@ import { formatStatus } from "@/lib/status";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send, History, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 const PAST_STATUSES = ["completed", "cancelled", "expired", "refunded"];
@@ -46,6 +46,7 @@ export default function ProtocolDetail() {
   const { toast } = useToast();
   const [physicalRasLoading, setPhysicalRasLoading] = useState(false);
   const [reenviarRasLoading, setReenviarRasLoading] = useState(false);
+  const [rasFapEmailLogs, setRasFapEmailLogs] = useState<Array<{ id: number; status: string; criadoEm: string; destinatarioMascarado: string; erro: string | null }>>([]);
   const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
   const [cartaPdfLoading, setCartaPdfLoading] = useState(false);
   const [emitirLoading, setEmitirLoading] = useState(false);
@@ -56,6 +57,21 @@ export default function ProtocolDetail() {
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
     query: { enabled: !!id, queryKey: ["protocol", id] }
   });
+
+  const fetchRasFapLogs = useCallback(async () => {
+    if (!id) return;
+    try {
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/email-logs`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setRasFapEmailLogs(data.items ?? []);
+      }
+    } catch { /* silencioso */ }
+  }, [id]);
+
+  useEffect(() => {
+    fetchRasFapLogs();
+  }, [fetchRasFapLogs]);
 
   const validateMutation = useValidateProtocol({
     mutation: {
@@ -174,28 +190,43 @@ export default function ProtocolDetail() {
                 {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
                 {physicalRasLoading ? "Gerando..." : "RAS FAP (Imprimir)"}
               </Button>
-              <Button
-                className="btn-3d-soft"
-                disabled={reenviarRasLoading}
-                onClick={async () => {
-                  setReenviarRasLoading(true);
-                  try {
-                    const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/reenviar-email`, { method: "POST" });
-                    const body = await resp.json().catch(() => null);
-                    if (!resp.ok) {
-                      throw new Error(body?.error || "Erro ao reenviar RAS FAP");
+              <div className="flex flex-col items-start gap-0.5">
+                <Button
+                  className="btn-3d-soft"
+                  disabled={reenviarRasLoading}
+                  onClick={async () => {
+                    setReenviarRasLoading(true);
+                    try {
+                      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/reenviar-email`, { method: "POST" });
+                      const body = await resp.json().catch(() => null);
+                      if (!resp.ok) {
+                        throw new Error(body?.error || "Erro ao reenviar RAS FAP");
+                      }
+                      toast({ title: "RAS FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
+                      fetchRasFapLogs();
+                    } catch (err: any) {
+                      toast({ title: "Erro ao reenviar", description: err.message, variant: "destructive" });
+                    } finally {
+                      setReenviarRasLoading(false);
                     }
-                    toast({ title: "RAS FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
-                  } catch (err: any) {
-                    toast({ title: "Erro ao reenviar", description: err.message, variant: "destructive" });
-                  } finally {
-                    setReenviarRasLoading(false);
-                  }
-                }}
-              >
-                {reenviarRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
-                {reenviarRasLoading ? "Enviando..." : "Reenviar RAS FAP"}
-              </Button>
+                  }}
+                >
+                  {reenviarRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
+                  {reenviarRasLoading ? "Enviando..." : "Reenviar RAS FAP"}
+                </Button>
+                {rasFapEmailLogs.length > 0 && (() => {
+                  const last = rasFapEmailLogs[0];
+                  return (
+                    <span className={`text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 px-0.5 ${last.status === "enviado" ? "text-green-600 dark:text-green-400" : "text-rose-500 dark:text-rose-400"}`}>
+                      {last.status === "enviado"
+                        ? <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                        : <Mail className="h-3 w-3 flex-shrink-0" />}
+                      Último reenvio: {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(last.criadoEm))}
+                      {rasFapEmailLogs.length > 1 && <span className="text-muted-foreground">({rasFapEmailLogs.length}x)</span>}
+                    </span>
+                  );
+                })()}
+              </div>
               <Button
                 className="btn-3d"
                 disabled={documentPdfLoading}

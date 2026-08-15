@@ -678,6 +678,7 @@ assinaturasRouter.post(
             const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
             const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
             const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
+            const { postSlackAlert } = await import("../lib/slack-reporter.js");
             await postSlackAlert(
               slackChannel,
               `💬 *${primeiroNome} respondeu via Telegram:*\n>${trecho}`,

@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable } from "@workspace/db";
+import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, emailLogTable } from "@workspace/db";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import {
@@ -625,15 +625,94 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
     });
 
     if (!emailResult.success) {
+      // Grava falha no log antes de retornar erro
+      try {
+        await db.insert(emailLogTable).values({
+          tipo: "ras_fap_reenviado",
+          clienteNome: client.name,
+          destinatario: client.email,
+          assunto: `PAXTER | RAS FAP Reenviado | ${protocol.title}`,
+          status: "falhou",
+          erro: emailResult.error ?? null,
+          protocolId,
+          provider: "gmail",
+        });
+      } catch (_logErr) { /* log não pode derrubar o fluxo */ }
       res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
       return;
     }
 
+    // Grava auditoria de reenvio bem-sucedido
+    try {
+      await db.insert(emailLogTable).values({
+        tipo: "ras_fap_reenviado",
+        clienteNome: client.name,
+        destinatario: client.email,
+        assunto: `PAXTER | RAS FAP Reenviado | ${protocol.title}`,
+        status: "enviado",
+        protocolId,
+        provider: "gmail",
+      });
+    } catch (_logErr) { /* log não pode derrubar o fluxo */ }
+
     res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
   } catch (err: any) {
     console.error("Reenviar RAS FAP error:", err);
-    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP", details: err.message });
+    // Grava falha operacional no log (geração de PDF / erro inesperado)
+    try {
+      const [protocolFallback] = await db.select({ clientId: protocolsTable.clientId, title: protocolsTable.title }).from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+      if (protocolFallback) {
+        const [clientFallback] = await db.select({ name: clientsTable.name, email: clientsTable.email }).from(clientsTable).where(eq(clientsTable.id, protocolFallback.clientId));
+        if (clientFallback?.email) {
+          await db.insert(emailLogTable).values({
+            tipo: "ras_fap_reenviado",
+            clienteNome: clientFallback.name,
+            destinatario: clientFallback.email,
+            assunto: `PAXTER | RAS FAP Reenviado | ${protocolFallback.title}`,
+            status: "falhou",
+            erro: err.message ?? "Erro operacional",
+            protocolId,
+            provider: "gmail",
+          });
+        }
+      }
+    } catch (_logErr) { /* log não pode derrubar o fluxo */ }
+    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP" });
   }
+});
+
+// ===== Histórico de reenvios de RAS FAP por e-mail =====
+router.get("/ras/physical/:protocolId/email-logs", async (req, res): Promise<void> => {
+  const protocolId = parseInt(req.params.protocolId);
+  if (isNaN(protocolId)) {
+    res.status(400).json({ error: "Invalid protocol id" });
+    return;
+  }
+
+  const logs = await db
+    .select()
+    .from(emailLogTable)
+    .where(and(
+      eq(emailLogTable.tipo, "ras_fap_reenviado"),
+      eq(emailLogTable.protocolId, protocolId),
+    ))
+    .orderBy(desc(emailLogTable.criadoEm))
+    .limit(20);
+
+  // Mascara destinatário na resposta
+  const masked = logs.map(l => ({
+    id: l.id,
+    status: l.status,
+    erro: l.erro ?? null,
+    criadoEm: l.criadoEm.toISOString(),
+    destinatarioMascarado: (() => {
+      const [local, domain] = l.destinatario.split("@");
+      if (!domain) return "***";
+      return `${local.substring(0, Math.min(3, local.length))}***@${domain}`;
+    })(),
+  }));
+
+  res.json({ total: masked.length, items: masked });
 });
 
 // ===== Demonstracao do RAS FAP (cliente ficticio, substancias reais) =====

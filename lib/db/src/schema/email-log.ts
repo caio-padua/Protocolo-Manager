@@ -2,6 +2,7 @@ import { pgTable, text, serial, integer, timestamp, index } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { sessionsTable } from "./sessions";
+import { protocolsTable } from "./protocols";
 
 // ============================================================================
 // LOG DE E-MAIL — rastreio de todo disparo de e-mail via Gmail (ou futuro Zoho).
@@ -21,6 +22,7 @@ export const emailLogTable = pgTable(
     status: text("status").notNull().default("enviado"), // enviado | falhou
     erro: text("erro"),
     sessionId: integer("session_id").references(() => sessionsTable.id, { onDelete: "set null" }),
+    protocolId: integer("protocol_id").references(() => protocolsTable.id, { onDelete: "set null" }),
     provider: text("provider").notNull().default("gmail"), // gmail | zoho | smtp — reservado para Spec B
     criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
   },

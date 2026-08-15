@@ -12,6 +12,7 @@ import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
 import { ensurePesquisasSchema } from "./lib/ensure-pesquisas-schema";
 import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applications-unique";
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
+import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
@@ -81,6 +82,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("protocol_emissoes: tabela de auditoria de emissões garantida antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir tabela protocol_emissoes — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureEmailLogProtocolId();
+    logger.info("email_log.protocol_id: coluna de rastreio por protocolo garantida antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao garantir coluna email_log.protocol_id — abortando boot");
     process.exit(1);
   }
 
