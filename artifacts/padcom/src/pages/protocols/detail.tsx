@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send, History, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { getCollabToken } from "@/lib/collab-auth";
 
 const PAST_STATUSES = ["completed", "cancelled", "expired", "refunded"];
 const FALLBACK_COLOR = "#94a3b8";
@@ -49,6 +50,7 @@ export default function ProtocolDetail() {
   const [rasFapEmailLogs, setRasFapEmailLogs] = useState<Array<{ id: number; status: string; criadoEm: string; destinatarioMascarado: string; erro: string | null }>>([]);
   const [documentPdfLoading, setDocumentPdfLoading] = useState(false);
   const [cartaPdfLoading, setCartaPdfLoading] = useState(false);
+  const [cartaEmailLoading, setCartaEmailLoading] = useState(false);
   const [emitirLoading, setEmitirLoading] = useState(false);
   const [emitirConfirm, setEmitirConfirm] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -368,6 +370,37 @@ export default function ProtocolDetail() {
               >
                 {cartaPdfLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Award className="h-4 w-4 mr-1" />}
                 {cartaPdfLoading ? "Gerando..." : "Carta Premium"}
+              </Button>
+              <Button
+                className="btn-3d-soft"
+                disabled={cartaEmailLoading}
+                onClick={async () => {
+                  setCartaEmailLoading(true);
+                  try {
+                    const token = getCollabToken();
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/carta-email`, {
+                      method: "POST",
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    });
+                    const body = await resp.json().catch(() => null);
+                    if (!resp.ok) {
+                      throw new Error(body?.error || body?.details || "Erro ao enviar Carta de Tratamento");
+                    }
+                    toast({
+                      title: "Carta enviada!",
+                      description: body?.email
+                        ? `PDF enviado para ${body.email}.`
+                        : "Carta de Tratamento enviada ao paciente.",
+                    });
+                  } catch (err: any) {
+                    toast({ title: "Erro ao enviar carta", description: err.message, variant: "destructive" });
+                  } finally {
+                    setCartaEmailLoading(false);
+                  }
+                }}
+              >
+                {cartaEmailLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
+                {cartaEmailLoading ? "Enviando..." : "Enviar Carta"}
               </Button>
             </>
           )}
