@@ -22,6 +22,7 @@ import {
   type PostSessionEmailData,
 } from "../lib/email-service";
 import { getGmailAddress } from "../lib/google-gmail";
+import { emitirLinkMagico } from "../lib/telegram-magic-link";
 
 const router: IRouter = Router();
 
@@ -631,20 +632,35 @@ router.post("/email/telegram-onboarding/:clientId", requireCollaborator, async (
   if (!Number.isInteger(clientId) || clientId <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
 
   const [client] = await db
-    .select({ name: clientsTable.name, email: clientsTable.email, validationPassword: clientsTable.validationPassword })
+    .select({
+      name: clientsTable.name,
+      email: clientsTable.email,
+      validationPassword: clientsTable.validationPassword,
+      telegramChatId: clientsTable.telegramChatId,
+    })
     .from(clientsTable)
     .where(eq(clientsTable.id, clientId))
     .limit(1);
 
   if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  // Já vinculado: não emitir link novo. Um link válido na caixa de e-mail de um
+  // paciente ativo é uma chave sobrando — a troca de aparelho passa pela equipe.
+  if (client.telegramChatId) {
+    res.status(409).json({ error: "Telegram já vinculado", chatId: client.telegramChatId });
+    return;
+  }
   if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
   if (!client.validationPassword) { res.status(422).json({ error: "Cliente sem senha de validação — gere primeiro em Cadastro" }); return; }
 
   try {
+    // Emite o link mágico (uso único, com validade) que vai no botão do e-mail.
+    // Se falhar, o e-mail ainda sai com o caminho manual da senha.
+    const linkMagico = await emitirLinkMagico(clientId);
     const result = await sendTelegramOnboardingEmail({
       clientName: client.name,
       clientEmail: client.email,
       validationPassword: client.validationPassword,
+      magicLink: linkMagico?.url,
     });
     if (result.success) {
       res.json({ ok: true, message: `E-mail de onboarding Telegram enviado para ${client.email}` });

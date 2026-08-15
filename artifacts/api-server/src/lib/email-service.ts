@@ -2,6 +2,9 @@ import { isGmailConnected } from "./google-gmail";
 import { buildVCalendar, durationFromProcedureTypes, nextSequence, type IcsEventInput } from "./ics";
 import { enviarMensagemPaxter, baseUrlFromEnv, type PaxterDoc } from "./messaging/index.js";
 import { blocoTabelaSubstancias, soMiligramas } from "./messaging/substance-table.js";
+// Validade do link mágico do Telegram — importada para o texto do e-mail nunca
+// prometer um prazo diferente do que o motor realmente aplica.
+import { VALIDADE_PADRAO_DIAS as VALIDADE_LINK_MAGICO_DIAS } from "./telegram-magic-link";
 
 export interface PreSessionEmailData {
   clientName: string;
@@ -676,6 +679,13 @@ export interface TelegramOnboardingData {
   clientName: string;
   clientEmail: string;
   validationPassword: string; // senha de vinculação (clients.validationPassword)
+  /**
+   * LINK MÁGICO de uso único (https://t.me/Paduaclinica_bot?start=TOKEN).
+   * Quando presente vira o caminho principal do e-mail: o paciente toca no
+   * botão dourado e o vínculo acontece sozinho, sem digitar nada.
+   * A senha de validação continua no e-mail como caminho alternativo.
+   */
+  magicLink?: string;
 }
 
 /**
@@ -687,6 +697,10 @@ export interface TelegramOnboardingData {
 export async function sendTelegramOnboardingEmail(data: TelegramOnboardingData): Promise<{ success: boolean; error?: string }> {
   const BOT_LINK = "https://t.me/Paduaclinica_bot";
   const _UNUSED_BOT_USERNAME = "@Paduaclinica_bot"; void _UNUSED_BOT_USERNAME;
+
+  // Caminho rápido: só existe quando o chamador emitiu um link mágico.
+  const temLinkMagico = typeof data.magicLink === "string" && data.magicLink.length > 0;
+  const linkBotao = temLinkMagico ? (data.magicLink as string) : BOT_LINK;
 
   const SERIF = "Georgia,'Times New Roman',Times,serif";
   const SANS  = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -845,6 +859,31 @@ export async function sendTelegramOnboardingEmail(data: TelegramOnboardingData):
     true,
   );
 
+  // ── Caminho rápido (só com link mágico) ─────────────────────────────────────
+  const atalhoBloco = !temLinkMagico ? "" : `
+    <tr><td style="padding:6px 36px 2px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+             style="background:linear-gradient(180deg,rgba(201,162,79,.11) 0%,rgba(201,162,79,.03) 100%);
+                    border:1px solid rgba(201,162,79,.45); border-radius:14px;
+                    box-shadow:0 0 28px rgba(201,162,79,.10);">
+        <tr><td style="padding:24px 26px;">
+          <div style="color:#c9a24f; font-family:${SANS}; font-size:10px; letter-spacing:3.5px; text-transform:uppercase; margin-bottom:12px;">
+            Caminho rápido — um toque
+          </div>
+          <p style="margin:0 0 14px; color:#f3ead6; font-family:${SERIF}; font-size:16px; line-height:1.75;">
+            Se o senhor já tem o Telegram instalado no celular, <strong style="color:#f0d070;">não precisa de nenhum dos
+            passos abaixo</strong>: basta tocar no botão dourado ao final deste e-mail.
+            Ele abre o nosso canal e ativa a sua conta sozinho, sem digitar nada.
+          </p>
+          <p style="margin:0; color:#8a9ab5; font-family:${SANS}; font-size:12px; line-height:1.75;">
+            Esse botão é pessoal, funciona uma única vez e vale por ${VALIDADE_LINK_MAGICO_DIAS} dias.
+            Os três passos detalhados abaixo continuam valendo para quem ainda não instalou o aplicativo
+            — ou preferir fazer o processo manualmente.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>`;
+
   // ── E-mail montado ───────────────────────────────────────────────────────────
   const blocosHtml: string[] = [`
     ${divider}
@@ -866,6 +905,8 @@ export async function sendTelegramOnboardingEmail(data: TelegramOnboardingData):
         com todas as instruções de que o senhor precisará.
       </p>
     </td></tr>
+
+    ${atalhoBloco}
 
     ${divider}
 
@@ -898,10 +939,12 @@ export async function sendTelegramOnboardingEmail(data: TelegramOnboardingData):
     paragrafos: [],
     blocosHtml,
     botao: {
-      label: "Abrir Instituto Pádua no Telegram",
-      url: BOT_LINK,
+      label: temLinkMagico ? "Ativar meu Telegram agora" : "Abrir Instituto Pádua no Telegram",
+      url: linkBotao,
     },
-    notaRodape: "Se o botão acima não abrir, abra o Telegram e pesquise por @Paduaclinica_bot",
+    notaRodape: temLinkMagico
+      ? "Se o botão não abrir, instale o Telegram no celular e toque nele novamente. Se ainda assim não abrir, pesquise por @Paduaclinica_bot e envie a senha acima."
+      : "Se o botão acima não abrir, abra o Telegram e pesquise por @Paduaclinica_bot",
     assunto: "Instituto Pádua — Ative o seu canal Telegram em 3 passos",
   };
 

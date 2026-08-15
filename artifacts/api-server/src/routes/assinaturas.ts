@@ -49,6 +49,7 @@ import {
   processarWebhookInbox,
   type ClienteVinculado,
 } from "../lib/telegram-inbox-flow";
+import { parseStart, consumirLinkMagico } from "../lib/telegram-magic-link";
 
 // ---------------------------------------------------------------------------
 // Webhook ZapSign (livre — registrado antes do guard).
@@ -417,6 +418,24 @@ assinaturasRouter.get("/assinaturas/:id/pdf-assinado", requireCollaborator, asyn
 // ---------------------------------------------------------------------------
 export const telegramWebhookRouter: IRouter = Router();
 
+/**
+ * Texto único de boas-vindas do vínculo.
+ * Vive numa função só para que os dois caminhos de ativação — link mágico e
+ * senha de validação — nunca comecem a dizer coisas diferentes ao paciente.
+ */
+function mensagemBoasVindasTelegram(nomeCompleto: string): string {
+  const primeiroNome = nomeCompleto.split(" ")[0] || nomeCompleto;
+  return (
+    `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +
+    `Seu Telegram está agora vinculado ao <b>Instituto Pádua</b>.\n\n` +
+    `A partir de agora você receberá aqui:\n` +
+    `• Lembretes de sessões\n` +
+    `• Resultados de exames\n` +
+    `• Orientações do Dr. Caio\n\n` +
+    `Você também pode nos enviar mensagens e a equipe receberá.`
+  );
+}
+
 telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void> => {
   try {
     // Defesa 1 — origem. Fail-closed: sem segredo no cofre, ninguém vincula.
@@ -431,13 +450,19 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     const update = req.body ?? {};
     const msg = update.message || update.edited_message || {};
     const chatId = msg.chat?.id != null ? String(msg.chat.id) : null;
-      const texto: string = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
+    // ATENÇÃO: o texto do paciente vem em message.text — é o formato do Telegram.
+    // Um merge já trocou isto por req.body.texto e deixou TODA a entrada do
+    // Telegram muda (nada vinculava, nada chegava ao inbox). Não trocar.
+    const texto: string = typeof msg.text === "string" ? msg.text.trim() : "";
     if (!chatId) {
       res.status(200).json({ ok: true });
       return;
     }
 
       const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+
+    // ── PASSO 0: o toque no link mágico chega ao bot como "/start <token>" ───
+    const { isStart, payload: tokenMagico } = parseStart(texto);
 
     // ── PASSO 1: verifica se este chatId já está vinculado a algum cliente ───
     const [clienteJaVinculado] = await db
@@ -452,6 +477,22 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       .limit(1);
 
     if (clienteJaVinculado) {
+      // Segundo toque no link mágico (ou "/start" digitado) de quem já está
+      // vinculado: confirma ao paciente e NÃO repassa ao CEO como se fosse
+      // uma mensagem clínica.
+      if (isStart) {
+        const jaVinculadoPrimeiroNome =
+          clienteJaVinculado.name.split(" ")[0] || clienteJaVinculado.name;
+        void sendTelegram(
+          chatId,
+          `✅ <b>Tudo certo, ${jaVinculadoPrimeiroNome}!</b>\n\n` +
+          `Seu Telegram já está vinculado ao <b>Instituto Pádua</b>. Não precisa fazer mais nada.\n\n` +
+          `Pode nos escrever por aqui sempre que precisar.`,
+        );
+        res.status(200).json({ ok: true });
+        return;
+      }
+
       // ── Modo INBOX: cliente vinculado enviou mensagem → delega à lib ────────
       if (texto) {
         const cliente: ClienteVinculado = {
@@ -529,7 +570,58 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       return;
     } // closes if (clienteJaVinculado)
 
-    // ── PASSO 2: cliente não vinculado — tenta vinculação por prova de posse ─
+    // ── PASSO 2: LINK MÁGICO — vincula em um toque, sem digitar nada ─────────
+    if (tokenMagico) {
+      const consumo = await consumirLinkMagico(tokenMagico, chatId);
+
+      if (consumo.status === "vinculado") {
+        logger.info({ clienteId: consumo.clienteId }, "[telegram] chat_id vinculado (link mágico)");
+        void sendTelegram(chatId, mensagemBoasVindasTelegram(consumo.nome));
+        if (chatIdCEO) {
+          void sendTelegram(
+            chatIdCEO,
+            `✅ <b>Novo cliente vinculou o Telegram</b>\n\n` +
+            `Cliente: ${consumo.nome}\n` +
+            `Via: link mágico do e-mail (um toque)`,
+          );
+        }
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      // Colisão é anomalia real (dois cadastros disputando o mesmo celular):
+      // o CEO precisa saber, o paciente recebe recusa educada.
+      if (consumo.status === "colisao" && chatIdCEO) {
+        void sendTelegram(
+          chatIdCEO,
+          `⚠️ <b>Vínculo de Telegram recusado</b>\n\n` +
+          `Um mesmo aparelho tentou se ligar a um segundo cadastro. Nada foi alterado.`,
+        );
+      }
+
+      // O link não serve mais: diz o motivo verdadeiro e oferece o outro caminho.
+      const explicacao =
+        consumo.status === "usado"
+          ? "Este link já foi usado uma vez e, por segurança, vale apenas uma."
+          : consumo.status === "expirado"
+            ? "Este link perdeu a validade por segurança."
+            : consumo.status === "ja_vinculado"
+              ? "Este cadastro já tem um Telegram ativo. A troca de aparelho é feita pela nossa equipe, por segurança."
+              : consumo.status === "colisao"
+                ? "Este Telegram já está vinculado a outro cadastro — não posso ligar o mesmo aparelho a dois."
+                : "Não reconheci este link de ativação.";
+      void sendTelegram(
+        chatId,
+        `⚠️ <b>Não consegui ativar por aqui</b>\n\n${explicacao}\n\n` +
+        `Peça um link novo à nossa equipe pelo WhatsApp <b>(11) 94655-4000</b> — ` +
+        `ou, se já tiver recebido uma <b>senha de validação</b>, envie-a aqui neste chat.`,
+      );
+      logger.warn({ motivo: consumo.status }, "[telegram] link mágico recusado");
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    // ── PASSO 3: cliente não vinculado — tenta vinculação por prova de posse ─
     const candidatos = new Set<string>();
     const textoLimpo = texto.trim().toUpperCase();
     if (textoLimpo) {
@@ -558,22 +650,8 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
 
       // Avisa o paciente e o CEO do vínculo bem-sucedido.
-      // Usa alvo.name (o cliente encontrado pela senha de validação).
-            const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
-
-              const textoSlack = typeof texto === "string" && texto.length > 120
-                ? texto.slice(0, 120) + "…"
-                : (texto as string);
-      void sendTelegram(
-        chatId,
-        `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +
-        `Seu Telegram está agora vinculado ao <b>Instituto Pádua</b>.\n\n` +
-        `A partir de agora você receberá aqui:\n` +
-        `• Lembretes de sessões\n` +
-        `• Resultados de exames\n` +
-        `• Orientações do Dr. Caio\n\n` +
-        `Você também pode nos enviar mensagens e a equipe receberá.`,
-      );
+      // Mesmo texto do link mágico — fonte única em mensagemBoasVindasTelegram.
+      void sendTelegram(chatId, mensagemBoasVindasTelegram(alvo.name));
 
       if (chatIdCEO) {
         void sendTelegram(

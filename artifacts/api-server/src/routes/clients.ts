@@ -4,6 +4,7 @@ import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
+import { emitirLinkMagico } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
 import { logIntegracao } from "./agentes-integracoes";
 import { sql } from "drizzle-orm";
@@ -27,6 +28,14 @@ const router: IRouter = Router();
     { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_vinculado_em TIMESTAMPTZ`,         label: "telegram_vinculado_em" },
     { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_last_test_ok BOOLEAN`,             label: "telegram_last_test_ok" },
     { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS validation_password_sent_at TIMESTAMPTZ`,   label: "validation_password_sent_at" },
+    // Link mágico do Telegram — token de uso único enviado por e-mail.
+    { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_magic_token TEXT`,                 label: "telegram_magic_token" },
+    { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_magic_expira_em TIMESTAMPTZ`,      label: "telegram_magic_expira_em" },
+    { ddl: sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS telegram_magic_usado_em TIMESTAMPTZ`,       label: "telegram_magic_usado_em" },
+    { ddl: sql`CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_magic_token ON clients (telegram_magic_token) WHERE telegram_magic_token IS NOT NULL`, label: "uniq_clients_telegram_magic_token" },
+    // Um celular = um paciente. Sem isto, dois links tocados no mesmo aparelho
+    // criariam dois donos para o mesmo chat e o inbox misturaria prontuários.
+    { ddl: sql`CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_chat_id ON clients (telegram_chat_id) WHERE telegram_chat_id IS NOT NULL`, label: "uniq_clients_telegram_chat_id" },
   ];
   for (const { ddl, label } of migrations) {
     try { await db.execute(ddl); }
@@ -381,6 +390,7 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     .select({
       id: clientsTable.id,
       name: clientsTable.name,
+      cpf: clientsTable.cpf,
       email: clientsTable.email,
       telegramChatId: clientsTable.telegramChatId,
       validationPassword: clientsTable.validationPassword,
@@ -388,10 +398,6 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     .from(clientsTable)
     .where(tenantFilter)
     .limit(1);
-
-  const extraResult = await db.execute(
-    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
-  );
 
   if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
   // Sem e-mail: não bloqueia — CEO repassa o código diretamente ao paciente.
@@ -423,12 +429,15 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
   let emailEnviado = false;
   if (client.email) {
     try {
-    const result = await db.execute(
-      sql`SELECT telegram_chat_id, telegram_vinculado_em
-          FROM clients
-          WHERE id = ${id} AND empresa_id = ${empresaId}
-          LIMIT 1`
-    );
+      // Link mágico: o paciente ativa em um toque, sem digitar a senha.
+      // Se a emissão falhar, o e-mail ainda vai com o caminho da senha.
+      const linkMagico = await emitirLinkMagico(id);
+      const result = await sendTelegramOnboardingEmail({
+        clientName: client.name,
+        clientEmail: client.email,
+        validationPassword: senha,
+        magicLink: linkMagico?.url,
+      });
       emailEnviado = result.success;
     } catch {
       // E-mail falhou; código já salvo no banco — CEO repassa diretamente
@@ -470,10 +479,6 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
     .where(tenantFilter)
     .limit(1);
 
-  const extraResult = await db.execute(
-    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
-  );
-
   if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
   if (!client.email) { res.status(422).json({ error: "Cliente sem e-mail cadastrado" }); return; }
   if (client.telegramChatId) {
@@ -486,12 +491,14 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
   }
 
   try {
-    const result = await db.execute(
-      sql`SELECT telegram_chat_id, telegram_vinculado_em
-          FROM clients
-          WHERE id = ${id} AND empresa_id = ${empresaId}
-          LIMIT 1`
-    );
+    // Cada reenvio emite um link mágico novo — o e-mail mais recente é o que vale.
+    const linkMagico = await emitirLinkMagico(id);
+    const result = await sendTelegramOnboardingEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      validationPassword: client.validationPassword,
+      magicLink: linkMagico?.url,
+    });
     if (result.success) {
       res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
     } else {

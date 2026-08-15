@@ -57,3 +57,14 @@ Envia e-mail PADAXOR (navy/gold) com 3 passos visuais:
 - Token é auto-carregado do cofre via `ensureTelegramTokenLoaded()` na primeira chamada
 - Sem token: modo MOCK (loga só metadados, nunca falha o boot)
 - Para verificar bot configurado: `GET /api/padaxor/telegram/meu-chat-id` (retorna botInfo + chatId do CEO)
+
+## Link mágico — travas de vínculo que não podem ser afrouxadas
+Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`/start TOKEN`) e senha de validação.
+
+- Consumir o token é UM ÚNICO UPDATE condicional (uso único + validade + `telegram_chat_id IS NULL`). Nunca ler-depois-gravar.
+- `telegram_chat_id` tem índice único parcial: **um celular = um paciente**. A violação (23505) vira recusa educada + aviso ao CEO, nunca erro 500.
+- Emitir link para cadastro **já vinculado** é recusado (409) em todas as rotas de onboarding: link válido na caixa de e-mail de paciente ativo é chave sobrando.
+- `/start` de quem já está vinculado responde "já vinculado" e **não** entra no inbox clínico.
+
+**Why:** um merge trocou `msg.text` por `req.body?.texto` no webhook e deixou TODA a entrada do Telegram muda — sem um erro sequer no log. E a primeira versão do consumo deixava um link ainda válido roubar um chat já vinculado.
+**How to apply:** o texto do paciente vem SEMPRE de `message.text` (`req.body?.texto` só é legítimo na rota de teste `/telegram/test-inbox` — a mesma string existe nos dois lugares, conferir o contexto antes de editar). Mexeu em vínculo de chat? Só aceite como provado depois de simular dois chats e dois tokens disputando ao mesmo tempo.

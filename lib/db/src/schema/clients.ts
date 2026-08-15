@@ -31,6 +31,11 @@ export const clientsTable = pgTable("clients", {
   examRequestsFolderId: text("exam_requests_folder_id"),
   driveFolderId: text("drive_folder_id"),
   telegramChatId: text("telegram_chat_id"),
+  // Link mágico do Telegram: token de uso único com validade, enviado por e-mail.
+  // O paciente toca no botão e o bot recebe "/start <token>" — sem digitar nada.
+  telegramMagicToken: text("telegram_magic_token"),
+  telegramMagicExpiraEm: timestamp("telegram_magic_expira_em", { withTimezone: true }),
+  telegramMagicUsadoEm: timestamp("telegram_magic_usado_em", { withTimezone: true }),
   asaasCustomerId: text("asaas_customer_id"),
   stripeCustomerId: text("stripe_customer_id"),
   codigoSemantico: text("codigo_semantico"),

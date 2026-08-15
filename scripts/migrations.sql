@@ -49,3 +49,29 @@ ALTER TABLE clients
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assinatura_solicitacoes_external_id_unique
   ON assinatura_solicitacoes (zapsign_external_id)
   WHERE zapsign_external_id IS NOT NULL;
+
+-- ── LINK MÁGICO DO TELEGRAM ────────────────────────────────────────────────
+-- Token de uso único, com validade, enviado no botão do e-mail de onboarding.
+-- O paciente toca no botão, o Telegram abre o bot e envia "/start <token>"
+-- sozinho — sem precisar digitar a senha de validação.
+-- telegram_magic_usado_em NULL = ainda não gasto; preenchido = já vinculou.
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS telegram_magic_token TEXT;
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS telegram_magic_expira_em TIMESTAMPTZ;
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS telegram_magic_usado_em TIMESTAMPTZ;
+
+-- Um token nunca pode pertencer a dois pacientes.
+-- NULL não colide em índice único no Postgres, então os pacientes sem token
+-- convivem sem conflito.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_magic_token
+  ON clients (telegram_magic_token)
+  WHERE telegram_magic_token IS NOT NULL;
+
+-- Um celular nunca pode pertencer a dois pacientes.
+-- Sem este índice, dois links mágicos tocados no MESMO aparelho criariam dois
+-- donos para o mesmo chat e o inbox passaria a misturar prontuários.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_chat_id
+  ON clients (telegram_chat_id)
+  WHERE telegram_chat_id IS NOT NULL;
