@@ -88,7 +88,7 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
       const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = update.message || update.edited_message || {};
+    const msg = String(err);
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -108,7 +108,7 @@ assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (r
       const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = update.message || update.edited_message || {};
+    const msg = String(err);
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -140,21 +140,6 @@ assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
 
-    const [toggle] = await db
-      .select()
-      .from(assinaturaTogglesAdminTable)
-      .where(eq(assinaturaTogglesAdminTable.id, 1));
-
-    const [toggle] = await db
-      .select()
-      .from(assinaturaTogglesAdminTable)
-      .where(eq(assinaturaTogglesAdminTable.id, 1));
-
-    const [toggles] = await db
-      .select()
-      .from(assinaturaTogglesAdminTable)
-      .where(eq(assinaturaTogglesAdminTable.id, 1))
-      .limit(1);
     const status = await consentimentoAtivo(pid, escopo);
     res.status(200).json(status);
   } catch (err) {
@@ -172,41 +157,20 @@ assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator,
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
 
-    const [toggle] = await db
-      .select()
-      .from(assinaturaTogglesAdminTable)
-      .where(eq(assinaturaTogglesAdminTable.id, 1));
-
-    const [toggle] = await db
-      .select()
-      .from(assinaturaTogglesAdminTable)
-      .where(eq(assinaturaTogglesAdminTable.id, 1));
-
-    const [toggles] = await db
-      .select()
-      .from(assinaturaTogglesAdminTable)
-      .where(eq(assinaturaTogglesAdminTable.id, 1))
-      .limit(1);
-    const rows = await db
-      .select()
-      .from(assinaturaSolicitacoesTable)
-      .where(
-        and(
-          eq(assinaturaSolicitacoesTable.id, id),
-          like(assinaturaSolicitacoesTable.escopo, "RAS_FAP_ENTREGA%"),
-        ),
-      )
-      .limit(1);
-  const trava = Boolean(req.body?.travaConsentimentoAtiva);
-  const trava = Boolean(req.body?.travaConsentimentoAtiva);
-  await db
-    .insert(assinaturaTogglesAdminTable)
-    .values({ id: 1, travaConsentimentoAtiva: trava })
-    .onConflictDoUpdate({
-      target: assinaturaTogglesAdminTable.id,
-      set: { travaConsentimentoAtiva: trava },
-    });
-  res.status(200).json({ travaConsentimentoAtiva: trava });
+    // Grava a trava de consentimento (toggle administrativo, linha única id=1).
+    const trava = Boolean(req.body?.travaConsentimentoAtiva);
+    await db
+      .insert(assinaturaTogglesAdminTable)
+      .values({ id: 1, travaConsentimentoAtiva: trava })
+      .onConflictDoUpdate({
+        target: assinaturaTogglesAdminTable.id,
+        set: { travaConsentimentoAtiva: trava },
+      });
+    res.status(200).json({ travaConsentimentoAtiva: trava, escopo });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "[assinatura] erro ao gravar trava de consentimento");
+    res.status(500).json({ error: "erro_consentimento_assert" });
+  }
 });
 
 // --- Onda 5: CONTEXTO DO PACIENTE (somente leitura) -----------------------
@@ -247,7 +211,7 @@ assinaturasRouter.post("/assinaturas/clausulas", requireCollaborator, async (req
     const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = update.message || update.edited_message || {};
+    const msg = String(err);
     if (msg.includes("codigo_ausente") || msg.includes("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -258,11 +222,11 @@ assinaturasRouter.post("/assinaturas/clausulas", requireCollaborator, async (req
 });
 
 assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, async (req, res): Promise<void> => {
-  try:
+  try {
     const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = update.message || update.edited_message || {};
+    const msg = String(err);
     if (msg.includes("clausula_nao_encontrada")) {
       res.status(404).json({ error: msg });
       return;
@@ -273,7 +237,7 @@ assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, 
 });
 
 assinaturasRouter.get("/assinaturas/templates", requireCollaborator, async (req, res): Promise<void> => {
-  try:
+  try {
     const templates = await listarTemplates();
     res.status(200).json({ templates });
   } catch (err) {
@@ -292,7 +256,7 @@ assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req
     const template = await upsertTemplate(body);
     res.status(200).json({ template });
   } catch (err) {
-    const msg = update.message || update.edited_message || {};
+    const msg = String(err);
     if (msg.includes("codigo_ausente") || msg.includes("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -303,7 +267,7 @@ assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req
 });
 
 assinaturasRouter.post("/assinaturas/processar-notificacoes", requireCollaborator, async (req, res): Promise<void> => {
-  try:
+  try {
     const r = await processarNotificacoes();
     res.status(200).json(r);
   } catch (err) {
@@ -409,7 +373,7 @@ assinaturasRouter.post("/assinaturas/:id/reenviar", requireCollaborator, async (
       const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = update.message || update.edited_message || {};
+    const msg = String(err);
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -785,5 +749,3 @@ assinaturasRouter.get("/cert/metadata", async (_req, res): Promise<void> => {
 });
 
 export default assinaturasRouter;
-
-    const travaConsentimentoAtiva = toggles?.travaConsentimentoAtiva ?? false;

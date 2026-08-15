@@ -89,11 +89,11 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
   const body = parsed.data;
 
   // Resolver nome e e-mail do paciente
-  const nomePaciente = body.nomePaciente ?? cliente.name;
-      const emailDestino = emailOverride ?? plano.emailDestino ?? null;
+  let nomePaciente = body.nomePaciente ?? "Paciente";
+  let emailDestino: string | null = body.email ?? null;
 
   if (body.clientId) {
-  const [cliente] = await db
+    const [cliente] = await db
     .select({ id: clientsTable.id, name: clientsTable.name, email: clientsTable.email })
     .from(clientsTable)
     .where(and(
@@ -180,7 +180,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
 
   let pdfBytes: Uint8Array;
-      const plano = await getPlanoById(id, EMPRESA_ID);
+  let plano: Awaited<ReturnType<typeof gerarDietaPdf>>["plano"];
   let signatureImageEmbedded = false;
   try {
     const resultado = await gerarDietaPdf(
@@ -347,7 +347,7 @@ const EnviarPdfEmailSchema = z.object({
 // POST /api/dieta/enviar-pdf-email — envia e-mail após revisão do CEO
 // -------------------------------------------------------------------------------
 router.post("/dieta/enviar-pdf-email", async (req, res): Promise<void> => {
-    const parsed = ReenviarSchema.safeParse(req.body ?? {});
+    const parsed = EnviarPdfEmailSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res
       .status(400)
@@ -370,7 +370,7 @@ router.post("/dieta/enviar-pdf-email", async (req, res): Promise<void> => {
     return;
   }
 
-      const emailDestino = emailOverride ?? plano.emailDestino ?? null;
+  const emailDestino = cliente.email ?? null;
   if (!emailDestino) {
     res.status(422).json({ error: "Cliente sem e-mail cadastrado." });
     return;
@@ -379,7 +379,7 @@ router.post("/dieta/enviar-pdf-email", async (req, res): Promise<void> => {
   const nomePaciente = body.nomePaciente ?? cliente.name;
   const caloriasAlvo = body.caloriasAlvo ?? 0;
 
-      const pdfBuffer = await readDietaPdf(plano.pdfStorageKey);
+  let pdfBuffer: Buffer;
   try {
     pdfBuffer = Buffer.from(body.pdfBase64, "base64");
     if (pdfBuffer.length === 0) throw new Error("PDF vazio");
@@ -388,13 +388,13 @@ router.post("/dieta/enviar-pdf-email", async (req, res): Promise<void> => {
     return;
   }
 
-      const primeiroNome = plano.nomePaciente.split(" ")[0];
+      const primeiroNome = nomePaciente.split(" ")[0];
       const doc: PaxterDoc = {
         titulo: "Seu Plano Nutricional Personalizado",
         paragrafos: [
           `Olá, ${primeiroNome}!`,
           "Segue o reenvio do seu Plano Alimentar Personalizado com base nos seus dados clínicos.",
-          `Meta energética: ${plano.caloriasAlvo ?? "—"} kcal/dia · Estratégia: ${plano.estrategia ?? "Personalizada"}`,
+          `Meta energética: ${body.caloriasAlvo ?? "—"} kcal/dia · Estratégia: ${body.estiloAlimentar ?? "Personalizada"}`,
           "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
           "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
         ],
@@ -407,11 +407,11 @@ router.post("/dieta/enviar-pdf-email", async (req, res): Promise<void> => {
 
       const emailResult = await sendGmailMessage({
         to: emailDestino,
-        subject: `Plano Nutricional Personalizado — ${plano.nomePaciente}`,
+        subject: `Plano Nutricional Personalizado — ${nomePaciente}`,
         html,
         attachments: [
           {
-            filename: `PlanoNutricional_${plano.nomePaciente.replace(/\s+/g, "_")}.pdf`,
+            filename: `PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}.pdf`,
             content: pdfBuffer,
             contentType: "application/pdf",
           },
