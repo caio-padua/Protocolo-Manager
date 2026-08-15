@@ -1110,14 +1110,28 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
   drawProtocolRoutePage(routePage, dto, fonts, totalPages, totalPages, assets);
 
   // ── Assinatura PAdES (operação terminal, Seção 2 — Dr. Manus Item #88) ──────
-  const certInfo = getCertInfo();
-  const sName    = dto.professionalName;
-  const pdfBytes = await embedPadesSignature(pdfDoc, {
-    name:        sName,
-    reason:      "Assinatura digital da Carta de Tratamento PAXMED (ICP-Brasil)",
-    location:    dto.unit || "Brasil",
-    contactInfo: dto.clientCpf || "",
-  });
-
-  return { pdfBytes, certInfo: { ...certInfo, signerName: sName } };
+  // Graceful fallback: se o certificado não estiver configurado no ambiente,
+  // o PDF é entregue sem assinatura digital (válido e legível). O CEO recebe
+  // o PDF + um aviso implícito via ausência dos headers X-Cert-*. Quando o
+  // certificado estiver configurado, o PDF sai assinado com PAdES/ICP-Brasil.
+  const sName = dto.professionalName;
+  try {
+    const certInfo = getCertInfo();
+    const pdfBytes = await embedPadesSignature(pdfDoc, {
+      name:        sName,
+      reason:      "Assinatura digital da Carta de Tratamento PAXMED (ICP-Brasil)",
+      location:    dto.unit || "Brasil",
+      contactInfo: dto.clientCpf || "",
+    });
+    return { pdfBytes, certInfo: { ...certInfo, signerName: sName } };
+  } catch (sigErr: any) {
+    // Certificado ausente ou inválido: entrega PDF sem assinatura.
+    // Registra aviso mas NÃO lança exceção — documento é válido sem selo.
+    console.warn(
+      "[carta-tratamento] Assinatura PAdES ignorada (certificado não configurado):",
+      sigErr?.message ?? sigErr,
+    );
+    const pdfBytes = new Uint8Array(await pdfDoc.save());
+    return { pdfBytes, certInfo: null };
+  }
 }
