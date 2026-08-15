@@ -128,7 +128,23 @@ router.post("/ras", async (req, res): Promise<void> => {
     });
 
   const empresaId = resolveEmpresaId(req);
-  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
+  const [ras] = await db.insert(rasTable).values({
+    sessionId: parsed.data.sessionId,
+    protocolId: session.protocolId,
+    clientId: session.clientId,
+    clientName: client?.name ?? "",
+    clientCpf: client?.cpf ?? "",
+    professionalName,
+    professionalCrm,
+    unit: session.unit ?? "Clínica Principal",
+    serviceDate: session.scheduledDate,
+    serviceType: session.serviceType,
+    substances,
+    observations: parsed.data.observations ?? null,
+    patientSignature: false,
+    professionalSignature: false,
+    empresaId,
+  }).returning();
 
   res.status(201).json(formatRAS(ras));
 });
@@ -149,7 +165,7 @@ router.get("/ras/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, params.data.id));
   if (!ras) {
     res.status(404).json({ error: "RAS not found" });
     return;

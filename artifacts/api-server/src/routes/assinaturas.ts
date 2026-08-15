@@ -64,7 +64,7 @@ assinaturaWebhookRouter.post("/webhooks/assinatura/:provedor", async (req, res):
   }
   try {
     const rawBody = Buffer.from(JSON.stringify(req.body ?? {}));
-      const resultado = await sendTelegram(chatIdCEO, repasse);
+    const resultado = await receberWebhook(provedor, rawBody, req.headers);
     if (resultado.unauthorized) { res.status(401).json({ error: "assinatura_invalida" }); return; }
     if (resultado.transient)    { res.status(503).json({ error: "falha_transitoria", eventoId: resultado.eventoId }); return; }
     res.status(200).json({ ok: true, duplicado: resultado.duplicado, eventoId: resultado.eventoId });
@@ -85,7 +85,7 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
-      const resultado = await sendTelegram(chatIdCEO, repasse);
+    const resultado = await enviarAssinatura(body);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
     const msg = String(err);
@@ -105,7 +105,7 @@ assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (r
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
-      const resultado = await sendTelegram(chatIdCEO, repasse);
+    const resultado = await enviarAssinatura({ ...body, templateCodigo: body.templateCodigo ?? "TCLE" });
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
     const msg = String(err);
@@ -293,7 +293,7 @@ assinaturasRouter.get("/assinaturas/solicitacoes-entrega", requireCollaborator, 
       .from(assinaturaSolicitacoesTable)
       .where(
         and(
-          eq(assinaturaSolicitacoesTable.id, id),
+          eq(assinaturaSolicitacoesTable.pacienteId, pid),
           like(assinaturaSolicitacoesTable.escopo, "RAS_FAP_ENTREGA%"),
         ),
       )
@@ -370,7 +370,15 @@ assinaturasRouter.post("/assinaturas/:id/reenviar", requireCollaborator, async (
         typeof s === "object" && s !== null && (s as Record<string, unknown>)["papel"] === "MEDICO",
     );
 
-      const resultado = await sendTelegram(chatIdCEO, repasse);
+
+    const resultado = await enviarAssinatura({
+      pacienteId: sol.pacienteId,
+      templateCodigo,
+      dados: dadosOriginais,
+      incluirMedico,
+      tipoDoc: "RAS",
+      escopo: sol.escopo ?? undefined,
+    });
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
     const msg = String(err);
@@ -551,7 +559,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
 
       // Avisa o paciente e o CEO do vínculo bem-sucedido.
       // Usa alvo.name (o cliente encontrado pela senha de validação).
-            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
+            const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
 
               const textoSlack = typeof texto === "string" && texto.length > 120
                 ? texto.slice(0, 120) + "…"

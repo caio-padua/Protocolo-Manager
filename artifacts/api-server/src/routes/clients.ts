@@ -223,6 +223,9 @@ router.post("/clients/bulk", async (req, res): Promise<void> => {
   res.json({ ok: true, affected: safeIds.length });
 });
 
+// ATENCAO: as rotas abaixo foram restauradas em 14/08/2026 apos um merge automatico
+// ter apagado o INSERT desta rota e transformado o PUT em um GET duplicado.
+// Nao substituir o db.insert por db.select aqui: esta rota CADASTRA paciente novo.
 router.post("/clients", async (req, res): Promise<void> => {
   const parsed = UpdateClientBody.partial().safeParse(req.body);
   if (!parsed.success) {
@@ -231,22 +234,8 @@ router.post("/clients", async (req, res): Promise<void> => {
   }
 
   const { preferredAgendaResourceIds, ...clientData } = parsed.data;
-  const empresaId = req.tenantContext.empresaId;
-  const [client] = await db
-    .select({
-      id: clientsTable.id,
-      name: clientsTable.name,
-      email: clientsTable.email,
-      telegramChatId: clientsTable.telegramChatId,
-      validationPassword: clientsTable.validationPassword,
-    })
-    .from(clientsTable)
-    .where(tenantFilter)
-    .limit(1);
-
-  const extraResult = await db.execute(
-    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
-  );
+  const empresaId = resolveEmpresaId(req);
+  const [client] = await db.insert(clientsTable).values({ ...clientData, empresaId }).returning();
   await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
   // Fire-and-forget: boas-vindas por WPP (não bloqueia a resposta)
@@ -260,35 +249,23 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db
-    .select({
-      id: clientsTable.id,
-      name: clientsTable.name,
-      email: clientsTable.email,
-      telegramChatId: clientsTable.telegramChatId,
-      validationPassword: clientsTable.validationPassword,
-    })
-    .from(clientsTable)
-    .where(tenantFilter)
-    .limit(1);
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, params.data.id));
+  if (!client) {
+    res.status(404).json({ error: "Client not found" });
+    return;
+  }
 
-  const extraResult = await db.execute(
-    sql`SELECT telegram_last_test_ok FROM clients WHERE id = ${client.id} LIMIT 1`
-  );
-  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
-  res.status(201).json(serializeClient(client, await getPreferredAgendas(client.id)));
-  // Fire-and-forget: boas-vindas por WPP (não bloqueia a resposta)
-  dispararBoasVindas(client.id, client.name, client.phone ?? null).catch(() => {});
+  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
-router.get("/clients/:id", async (req, res): Promise<void> => {
+router.put("/clients/:id", async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const parsed = UpdateClientBody.partial().safeParse(req.body);
+  const parsed = UpdateClientBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -310,6 +287,7 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
   await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
+
 
 router.patch("/clients/:id", async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);

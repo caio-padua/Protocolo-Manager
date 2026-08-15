@@ -140,7 +140,7 @@ export async function processarFilaVideo(): Promise<{ processadas: number; entre
           status: "gerando",
           heygenVideoId: videoId,
         });
-        logger.info({ fila: item.id, videoId: resultado.videoId }, "[avatar-worker] vídeo em geração");
+        logger.info({ fila: item.id, videoId }, "[avatar-worker] vídeo em geração");
         continue;
       }
 
