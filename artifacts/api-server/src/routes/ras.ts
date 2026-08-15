@@ -66,12 +66,26 @@ router.post("/ras", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!client) {
+    res.status(404).json({ error: "Client not found" });
+    return;
+  }
+
+  if (!client.email) {
+    res.status(422).json({ error: "O cliente não possui e-mail cadastrado. Atualize o cadastro antes de reenviar." });
+    return;
+  }
+
+  if (!(await isGmailConnected())) {
+    res.status(503).json({ error: "Gmail não está conectado. Configure a integração Gmail para reenviar por e-mail." });
+    return;
+  }
 
   let professionalName = "Profissional";
   let professionalCrm: string | null = null;
   if (session.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
+    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
     if (prof) {
       professionalName = prof.name;
       professionalCrm = prof.crm ?? null;
@@ -83,7 +97,7 @@ router.post("/ras", async (req, res): Promise<void> => {
 
   const dispApps = applications.filter(a => a.availability === "disp" && a.sessionNumber > 0);
 
-  const substanceMap: Record<number, typeof substancesTable.$inferSelect> = {};
+    const substanceMap = new Map(allSubstances.map(s => [s.name, s]));
   for (const app of dispApps) {
     if (!substanceMap[app.substanceId]) {
       const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
@@ -91,36 +105,30 @@ router.post("/ras", async (req, res): Promise<void> => {
     }
   }
 
-  const substances = dispApps.map(app => ({
-    substanceName: substanceMap[app.substanceId]?.name ?? "Substância",
-    dose: app.dose,
-    route: "IV",
-    sessionNumber: app.sessionNumber,
-    totalSessions: app.totalSessions,
-    lot: null,
-    validity: null,
-    appliedAt: app.appliedAt ?? null,
-    status: app.status,
-  }));
+    const substances = FICHAS_DEMO_SPECS.map(spec => {
+      const db = byName.get(spec.dbName);
+      const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
+      return {
+        substanceName: db?.name ?? spec.dbName,
+        dose: spec.dose,
+        route,
+        sessionNumber: spec.session,
+        totalSessions: spec.total,
+        lot: "DEMO-2026",
+        validity: "06/2027",
+        status: "Aplicado",
+        description: db?.description ?? undefined,
+        mainFunction: db?.mainFunction ?? undefined,
+        perceivedEffects: db?.perceivedEffects ?? undefined,
+        timeToEffect: db?.timeToEffect ?? undefined,
+        starRating: db?.starRating ?? undefined,
+        bodySystemEffects: (db?.bodySystemEffects as Record<string, string>) ?? undefined,
+        procedureType: db?.procedureType ?? undefined,
+      };
+    });
 
   const empresaId = resolveEmpresaId(req);
-  const [ras] = await db.insert(rasTable).values({
-    sessionId: parsed.data.sessionId,
-    protocolId: session.protocolId,
-    clientId: session.clientId,
-    clientName: client?.name ?? "",
-    clientCpf: client?.cpf ?? "",
-    professionalName,
-    professionalCrm,
-    unit: session.unit ?? "Clínica Principal",
-    serviceDate: session.scheduledDate,
-    serviceType: session.serviceType,
-    substances,
-    observations: parsed.data.observations ?? null,
-    patientSignature: false,
-    professionalSignature: false,
-    empresaId,
-  }).returning();
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
 
   res.status(201).json(formatRAS(ras));
 });
@@ -141,7 +149,7 @@ router.get("/ras/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, params.data.id));
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
   if (!ras) {
     res.status(404).json({ error: "RAS not found" });
     return;
@@ -197,18 +205,18 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
       substances: enrichedSubstances,
     });
 
-    const clientSlug = ras.clientName.replace(/\s+/g, "_");
+    const clientSlug = client.name.replace(/\s+/g, "_");
     const dateSlug = ras.serviceDate.replace(/-/g, "");
-    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
+    const filename = `RAS_FAP_${clientSlug}_${protocolId}.pdf`;
 
     (async () => {
       try {
         if (await isDriveConnected()) {
-          const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
           if (client) {
-            const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
-            const driveFileName = formatRASFileName(ras.serviceDate, client.name, client.cpf ?? "");
-            const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"], driveFileName, "application/pdf", Buffer.from(pdfBytes));
+    const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
             if (client.email) {
               await shareWithClient(result.fileId, client.email);
             }
@@ -249,7 +257,7 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
   }
 
   try {
-    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     if (!client) {
       res.status(404).json({ error: "Cliente nao encontrado" });
       return;
@@ -273,22 +281,22 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
     });
 
     const { pdfBytes } = await generateSignedRASPdf({
-      id: ras.id,
-      sessionId: ras.sessionId,
-      clientName: ras.clientName,
-      clientCpf: ras.clientCpf,
-      professionalName: ras.professionalName,
-      professionalCrm: ras.professionalCrm ?? null,
-      unit: ras.unit,
-      serviceDate: ras.serviceDate,
-      serviceType: ras.serviceType,
-      observations: ras.observations ?? null,
-      substances: enrichedSubstances,
+      id: 990017,
+      sessionId: 0,
+      clientName,
+      clientCpf,
+      professionalName: "Dra. Ana Beatriz Santos",
+      professionalCrm: "CRM-SP 123456",
+      unit: "Clinica Tatuape",
+      serviceDate: "2026-06-17",
+      serviceType: "clinic",
+      observations: null,
+      substances,
     });
 
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
-    const driveFileName = formatRASFileName(ras.serviceDate, client.name, client.cpf ?? "");
-    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"], driveFileName, "application/pdf", Buffer.from(pdfBytes));
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
 
     if (client.email) {
       await shareWithClient(result.fileId, client.email);
@@ -320,9 +328,19 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
+    return;
+  }
+
+  if (!client.email) {
+    res.status(422).json({ error: "O cliente não possui e-mail cadastrado. Atualize o cadastro antes de reenviar." });
+    return;
+  }
+
+  if (!(await isGmailConnected())) {
+    res.status(503).json({ error: "Gmail não está conectado. Configure a integração Gmail para reenviar por e-mail." });
     return;
   }
 
@@ -338,21 +356,30 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
-  const allSubstances = await db.select().from(substancesTable);
+    const allSubstances = await db.select().from(substancesTable);
   const substMap = new Map(allSubstances.map(s => [s.id, s]));
 
-  const substances = protocolItems.map(item => {
-    const sub = substMap.get(item.substanceId);
-    return {
-      name: sub?.name ?? `Substancia ${item.substanceId}`,
-      color: sub?.color ?? "yellow",
-      totalSessions: item.totalSessions,
-      frequencyDays: item.intervalDays,
-      startDate: item.startDate,
-      procedureType: sub?.procedureType ?? "iv",
-      dose: item.dose,
-    };
-  });
+    const substances = FICHAS_DEMO_SPECS.map(spec => {
+      const db = byName.get(spec.dbName);
+      const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
+      return {
+        substanceName: db?.name ?? spec.dbName,
+        dose: spec.dose,
+        route,
+        sessionNumber: spec.session,
+        totalSessions: spec.total,
+        lot: "DEMO-2026",
+        validity: "06/2027",
+        status: "Aplicado",
+        description: db?.description ?? undefined,
+        mainFunction: db?.mainFunction ?? undefined,
+        perceivedEffects: db?.perceivedEffects ?? undefined,
+        timeToEffect: db?.timeToEffect ?? undefined,
+        starRating: db?.starRating ?? undefined,
+        bodySystemEffects: (db?.bodySystemEffects as Record<string, string>) ?? undefined,
+        procedureType: db?.procedureType ?? undefined,
+      };
+    });
 
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
@@ -400,21 +427,29 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   try {
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
-      clientCpf: client.cpf ?? "",
-      clientPhone: client.phone ?? undefined,
-      clientAge,
-      professionalName,
-      nurseName: nurseName || undefined,
-      unit: protocol.unit ?? "Instituto Pádua",
-      startDate: protocol.startDate,
-      protocolNumber: protocol.id,
-      valorTratamento: `R$ ${(protocol.totalValue ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      substances,
-      sessions: physicalSessions,
-    });
+      clientCpf: client.cpf ?? "000.000.000-00",
+      clientPhone: client.phone ?? "",
+      clientAge: idadeAnos,
+      professionalName: "Dr. Caio Henrique Fernandes Padua",
+      nurseName: "Instituto Padua",
+      unit: "Instituto Padua — Clinica Avancada",
+      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      valorTratamento: undefined,
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+        frequencyDays: s.frequenciaDias,
+        startDate: s.inicio,
+        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
+        dose: s.dose,
+      })),
+      sessions: [],
+    }, "PREMIUM");
 
-    const pdfBuffer = Buffer.from(pdfBytes);
-    const driveFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
+  let pdfBuffer: Buffer;
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
     const clientSlug = client.name.replace(/\s+/g, "_");
     const filename = `RAS_FAP_${clientSlug}_${protocolId}.pdf`;
 
@@ -423,7 +458,7 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(pdfBuffer);
 
-    const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
 
     (async () => {
       try {
@@ -459,20 +494,20 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
 
       try {
         if (client.email && await isGmailConnected()) {
-          const emailResult = await sendProtocolEmail({
-            clientName: client.name,
-            clientEmail: client.email,
-            protocolTitle: protocol.title,
-            professionalName,
-            startDate: protocol.startDate,
-            substances: substances.map(s => ({
-              name: s.name,
-              color: s.color,
-              totalSessions: s.totalSessions,
-            })),
-            pdfBuffer,
-            pdfFileName: driveFileName,
-          });
+    const emailResult = await sendProtocolEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      protocolTitle: protocol.title,
+      professionalName,
+      startDate: protocol.startDate,
+      substances: substances.map(s => ({
+        name: s.name,
+        color: s.color,
+        totalSessions: s.totalSessions,
+      })),
+      pdfBuffer,
+      pdfFileName: driveFileName,
+    });
           if (emailResult.success) {
             console.log(`Protocol email sent to ${client.email}`);
           } else {
@@ -503,7 +538,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
@@ -531,21 +566,30 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
-  const allSubstances = await db.select().from(substancesTable);
+    const allSubstances = await db.select().from(substancesTable);
   const substMap = new Map(allSubstances.map(s => [s.id, s]));
 
-  const substances = protocolItems.map(item => {
-    const sub = substMap.get(item.substanceId);
-    return {
-      name: sub?.name ?? `Substancia ${item.substanceId}`,
-      color: sub?.color ?? "yellow",
-      totalSessions: item.totalSessions,
-      frequencyDays: item.intervalDays,
-      startDate: item.startDate,
-      procedureType: sub?.procedureType ?? "iv",
-      dose: item.dose,
-    };
-  });
+    const substances = FICHAS_DEMO_SPECS.map(spec => {
+      const db = byName.get(spec.dbName);
+      const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
+      return {
+        substanceName: db?.name ?? spec.dbName,
+        dose: spec.dose,
+        route,
+        sessionNumber: spec.session,
+        totalSessions: spec.total,
+        lot: "DEMO-2026",
+        validity: "06/2027",
+        status: "Aplicado",
+        description: db?.description ?? undefined,
+        mainFunction: db?.mainFunction ?? undefined,
+        perceivedEffects: db?.perceivedEffects ?? undefined,
+        timeToEffect: db?.timeToEffect ?? undefined,
+        starRating: db?.starRating ?? undefined,
+        bodySystemEffects: (db?.bodySystemEffects as Record<string, string>) ?? undefined,
+        procedureType: db?.procedureType ?? undefined,
+      };
+    });
 
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
@@ -593,21 +637,29 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   try {
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
-      clientCpf: client.cpf ?? "",
-      clientPhone: client.phone ?? undefined,
-      clientAge,
-      professionalName,
-      nurseName: nurseName || undefined,
-      unit: protocol.unit ?? "Instituto Pádua",
-      startDate: protocol.startDate,
-      protocolNumber: protocol.id,
-      valorTratamento: `R$ ${(protocol.totalValue ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      substances,
-      sessions: physicalSessions,
-    });
+      clientCpf: client.cpf ?? "000.000.000-00",
+      clientPhone: client.phone ?? "",
+      clientAge: idadeAnos,
+      professionalName: "Dr. Caio Henrique Fernandes Padua",
+      nurseName: "Instituto Padua",
+      unit: "Instituto Padua — Clinica Avancada",
+      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      valorTratamento: undefined,
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+        frequencyDays: s.frequenciaDias,
+        startDate: s.inicio,
+        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
+        dose: s.dose,
+      })),
+      sessions: [],
+    }, "PREMIUM");
 
-    const pdfBuffer = Buffer.from(pdfBytes);
-    const driveFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
+  let pdfBuffer: Buffer;
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
 
     const emailResult = await sendProtocolEmail({
       clientName: client.name,
@@ -842,29 +894,29 @@ router.get("/ras-fap-demo", async (req, res) => {
 
   try {
     const pdfBytes = await generatePhysicalRASPdf({
-      clientName,
-      clientCpf: "000.000.000-00",
-      clientPhone: "(11) 90000-0000",
-      clientAge: 42,
-      professionalName: "Dra. Ana Beatriz Santos",
-      nurseName: "Enf. Carlos Mendes",
-      unit: "Clinica Tatuape",
-      startDate: "2026-06-15",
-      protocolNumber: "DEMO-08",
-      valorTratamento: valor,
-      substances: demoSubs.map(s => ({
-        name: s.name,
-        color: s.color,
-        totalSessions: s.totalSessions,
-        frequencyDays: s.frequencyDays,
-        startDate: s.startDate,
-        procedureType: s.procedureType,
+      clientName: client.name,
+      clientCpf: client.cpf ?? "000.000.000-00",
+      clientPhone: client.phone ?? "",
+      clientAge: idadeAnos,
+      professionalName: "Dr. Caio Henrique Fernandes Padua",
+      nurseName: "Instituto Padua",
+      unit: "Instituto Padua — Clinica Avancada",
+      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      valorTratamento: undefined,
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+        frequencyDays: s.frequenciaDias,
+        startDate: s.inicio,
+        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
         dose: s.dose,
       })),
       sessions: [],
-    }, modo);
-    const pdfBuffer = Buffer.from(pdfBytes);
-    const driveFileName = `26.06.17 RAS FAP DEMO ${clientName}.pdf`;
+    }, "PREMIUM");
+  let pdfBuffer: Buffer;
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
 
     const send = req.query.send === "1";
     const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
@@ -884,30 +936,40 @@ router.get("/ras-fap-demo", async (req, res) => {
       ALLOWED_DEMO_RECIPIENTS.has(to);
 
     if (send && !authorizedSend) {
-      req.log.warn(`RAS FAP demo: tentativa de envio nao autorizada (to=${to || "vazio"})`);
+      req.log.warn(`RAS fichas demo: tentativa de envio nao autorizada (to=${to || "vazio"})`);
     }
 
     if (authorizedSend) {
       (async () => {
         try {
-          const doc: PaxterDoc = {
-            eyebrow: "Modelo de apresentacao",
-            titulo: "RAS FAP — Modelo Premium",
-            paragrafos: ["Demonstracao do modelo premium do RAS FAP (dados ficticios)."],
-            blocosHtml: demoBlocks(demoSubs, clientName, valor),
-            anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-            assunto: "Paxter | RAS FAP - Modelo Premium (Demonstracao)",
-          };
-          const envio = await enviarMensagemPaxter(doc, { email: to, nome: clientName }, ["EMAIL"], { baseUrl: absoluteBaseUrl(req) });
-          const r0 = envio.resultados[0];
-          if (r0?.sent) req.log.info(`RAS FAP demo email ${r0?.mock ? "mock" : "sent"} to ${to} (via=${r0?.via ?? "?"})`);
-          else req.log.warn(`RAS FAP demo email nao enviado: ${r0?.error ?? "sem provedor"}`);
-        } catch (err: any) {
-          req.log.error(`RAS FAP demo email error: ${err.message}`);
-        }
-        try {
-          if (await isDriveConnected()) {
-            const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+      const doc: PaxterDoc = {
+        eyebrow: `Olá, ${client.name.split(" ")[0]}`,
+        titulo: protocoloTitulo,
+        paragrafos: [],
+        blocosHtml: blocos,
+        anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+        assunto: `PAXTER | ${protocoloTitulo} — RAS FAP`,
+      };
+      const envio = await enviarMensagemPaxter(
+        doc,
+        { email: client.email!, nome: client.name },
+        ["EMAIL"],
+        { baseUrl: absoluteBaseUrl(req) },
+      );
+      const r0 = envio.resultados[0];
+      if (r0?.sent) {
+        rasEmailEnviado = true;
+        req.log.info(`RAS FAP entregue ${r0.mock ? "(mock)" : ""} para ${client.email}`);
+      } else {
+        req.log.warn(`RAS FAP entrega falhou para ${client.email}: ${r0?.error ?? "sem provedor"}`);
+      }
+    } catch (err: any) {
+      req.log.error(`RAS FAP entrega email error: ${err.message}`);
+    }
+
+    try {
+      if (await isDriveConnected()) {
+        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
             await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer);
             req.log.info(`RAS FAP demo uploaded to Drive: ${driveFileName}`);
           }
@@ -1031,8 +1093,8 @@ router.get("/ras-fichas-demo", async (req, res) => {
       observations: null,
       substances,
     });
-    const pdfBuffer = Buffer.from(pdfBytes);
-    const driveFileName = `26.06.17 RAS FICHAS DEMO ${clientName}.pdf`;
+  let pdfBuffer: Buffer;
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
 
     const emailItems = FICHAS_DEMO_SPECS.map(spec => {
       const db = byName.get(spec.dbName);
@@ -1070,24 +1132,34 @@ router.get("/ras-fichas-demo", async (req, res) => {
     if (authorizedSend) {
       (async () => {
         try {
-          const doc: PaxterDoc = {
-            eyebrow: "Modelo de apresentacao",
-            titulo: "RAS — Fichas de Substancia",
-            paragrafos: ["Demonstracao do modelo premium das fichas de substancia (dados ficticios)."],
-            blocosHtml: fichasBlocks(emailItems, clientName),
-            anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-            assunto: "Paxter | RAS - Fichas de Substancia (Modelo Premium)",
-          };
-          const envio = await enviarMensagemPaxter(doc, { email: to, nome: clientName }, ["EMAIL"], { baseUrl: absoluteBaseUrl(req) });
-          const r0 = envio.resultados[0];
-          if (r0?.sent) req.log.info(`RAS fichas demo email ${r0?.mock ? "mock" : "sent"} to ${to} (via=${r0?.via ?? "?"})`);
-          else req.log.warn(`RAS fichas demo email nao enviado: ${r0?.error ?? "sem provedor"}`);
-        } catch (err: any) {
-          req.log.error(`RAS fichas demo email error: ${err.message}`);
-        }
-        try {
-          if (await isDriveConnected()) {
-            const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+      const doc: PaxterDoc = {
+        eyebrow: `Olá, ${client.name.split(" ")[0]}`,
+        titulo: protocoloTitulo,
+        paragrafos: [],
+        blocosHtml: blocos,
+        anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+        assunto: `PAXTER | ${protocoloTitulo} — RAS FAP`,
+      };
+      const envio = await enviarMensagemPaxter(
+        doc,
+        { email: client.email!, nome: client.name },
+        ["EMAIL"],
+        { baseUrl: absoluteBaseUrl(req) },
+      );
+      const r0 = envio.resultados[0];
+      if (r0?.sent) {
+        rasEmailEnviado = true;
+        req.log.info(`RAS FAP entregue ${r0.mock ? "(mock)" : ""} para ${client.email}`);
+      } else {
+        req.log.warn(`RAS FAP entrega falhou para ${client.email}: ${r0?.error ?? "sem provedor"}`);
+      }
+    } catch (err: any) {
+      req.log.error(`RAS FAP entrega email error: ${err.message}`);
+    }
+
+    try {
+      if (await isDriveConnected()) {
+        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
             await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer);
             req.log.info(`RAS fichas demo uploaded to Drive: ${driveFileName}`);
           }
@@ -1469,4 +1541,3 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
 });
 
 export default router;
-

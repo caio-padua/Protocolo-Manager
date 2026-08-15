@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCollabToken } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,6 @@ import {
 // tabela de refeicoes (carro-chefe) -> salva prescricao. Fila de Indicacao
 // mostra o que o Cerebro (motor) sugeriu e ainda aguarda validacao humana.
 // -------------------------------------------------------------------------------
-
 const FATOR_ATIVIDADE: Record<string, number> = {
   sedentario: 1.2,
   leve: 1.375,
@@ -394,7 +393,7 @@ function MontarCardapio() {
   // FLUXO COM E-MAIL: gera o PDF → abre em nova aba → exibe painel de confirmação.
   // O e-mail SÓ é disparado quando o CEO clica "Confirmar envio" (ver confirmarEnvio abaixo).
   // NOTE: pdfWin é aberto SINCRONO (antes do fetch) para não ser bloqueado por popup blocker.
-  const pdfWinRef = { current: null as Window | null };
+  const pdfWinRef = useRef<Window | null>(null);
 
   const emitirPdf = useMutation({
     mutationFn: async () => {
@@ -421,15 +420,27 @@ function MontarCardapio() {
       if (kcalAlvo) body.caloriasAlvo = kcalAlvo;
       if (estiloAlimentar.trim()) body.estiloAlimentar = estiloAlimentar.trim();
 
+      // Garante que fetch nunca fica pendurado indefinidamente —
+      // servidor aborta em 120 s (DIETA_PDF_TIMEOUT_MS), cliente em 125 s.
+      const CLIENT_TIMEOUT_MS = 125_000;
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), CLIENT_TIMEOUT_MS);
+
       let r: Response;
       try {
         r = await fetch("/api/dieta/emitir-pdf", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
+          signal: ac.signal,
         });
+        clearTimeout(timer);
       } catch (fetchErr) {
+        clearTimeout(timer);
         pdfWinRef.current?.close();
+        if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
+          throw new Error("Timeout ao gerar plano nutricional — tente novamente.");
+        }
         throw fetchErr;
       }
 
