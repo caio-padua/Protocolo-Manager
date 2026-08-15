@@ -958,6 +958,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         throttled?: boolean;
         requiresVerification?: boolean;
         challengeId?: number;
+        codeSent?: boolean;
+        maskedPhone?: string;
         motivo?: string;
         mensagem?: string;
         tentativas?: number;
@@ -985,6 +987,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         sent?: boolean;
         via?: "whatsapp" | "telegram";
         maskedPhone?: string;
+        challengeId?: number;
         link?: string;
         error?: string;
       };
@@ -993,6 +996,8 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
         setCodeSent(true);
         setCodeSentVia(body.via ?? "whatsapp");
         setMaskedPhone(body.maskedPhone ?? "");
+        // Armazena o challengeId do reenvio para que verify-device use o código correto.
+        if (body.challengeId) setVerifyChallengeid(body.challengeId);
         setResendCooldown(60);
       } else if (res.status === 429) {
         // Rate limit do servidor: o cooldown ainda está ativo.
@@ -1011,15 +1016,18 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
     }
   };
 
-  // Auto-envia o código na primeira vez que requiresVerification se torna true.
+  // Quando concierge-offer reporta codeSent=true, espelha o estado visual sem
+  // chamar send-verification-code (que criaria um segundo desafio independente).
   const requiresVerification = offerQuery.data?.requiresVerification ?? false;
-  const codeSentRef = useRef(false);
+  const offerCodeSent = offerQuery.data?.codeSent ?? false;
+  const offerMaskedPhone = offerQuery.data?.maskedPhone ?? "";
   useEffect(() => {
-    if (!requiresVerification || codeSentRef.current) return;
-    codeSentRef.current = true;
-    void doSendCode();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requiresVerification]);
+    if (!offerCodeSent) return;
+    setCodeSent(true);
+    setCodeSentVia(offerMaskedPhone ? "whatsapp" : "telegram");
+    if (offerMaskedPhone) setMaskedPhone(offerMaskedPhone);
+    setResendCooldown(60);
+  }, [offerCodeSent, offerMaskedPhone]);
 
   // Cooldown de reenvio: decrementa 1s por tick enquanto resendCooldown > 0.
   useEffect(() => {
@@ -1991,7 +1999,7 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
                           const res = await fetch(`${BASE}/api/scheduling/verify-device`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ code: verifyCode, cpf: cpfDigitsOffer, challengeId: offerQuery.data?.challengeId ?? verifyChallengeid }),
+                            body: JSON.stringify({ code: verifyCode, cpf: cpfDigitsOffer, challengeId: verifyChallengeid ?? offerQuery.data?.challengeId }),
                           });
                           if (res.ok) {
                             // Código aceito — revalidar a oferta (o backend libera o dispositivo).

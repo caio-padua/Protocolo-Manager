@@ -16,7 +16,6 @@ import {
   verifyBookingStatusToken,
 } from "../lib/portal-token.js";
 import {
-  CreateConciergeChargeBody,
   CreateSchedulingRequestBody,
   UpdateSchedulingRequestBody,
 } from "@workspace/api-zod";
@@ -33,6 +32,7 @@ import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
 import { checkDeviceThrottle, deriveFingerprint, isDeviceVerified } from "../lib/concierge-device-throttle.js";
+import { getOrCreateChallenge, verifyDeviceCode } from "../lib/device-throttle.js";
 
 const router: IRouter = Router();
 
@@ -201,12 +201,15 @@ router.get("/scheduling/doctors", async (_req, res): Promise<void> => {
     }
   }
 
-  const out = docs.map((d) => ({
-    id: d.id,
-    name: d.name,
-    specialty: d.specialty ?? null,
-    crm: d.crm ?? null,
-    resourceId: resByProf.get(d.id) ?? null,
+  const out = docs.map((prof) => ({
+    id: prof.id,
+    name: prof.name,
+    professionalType: prof.professionalType ?? null,
+    areaId: prof.areaId ?? null,
+    specialtyId: prof.specialtyId ?? null,
+    registrationCouncil: prof.registrationCouncil ?? null,
+    registrationNumber: prof.registrationNumber ?? null,
+    resourceId: resByProf.get(prof.id) ?? null,
   }));
 
   res.json(out);
@@ -254,8 +257,10 @@ async function loadBookableProfessionals(): Promise<
 router.get("/scheduling/areas", async (_req, res): Promise<void> => {
   const [bookable, areas, specialties] = await Promise.all([
     loadBookableProfessionals(),
-    db.select().from(professionalAreasTable),
-    db.select().from(professionalSpecialtiesTable),
+    db.select({ id: professionalAreasTable.id, name: professionalAreasTable.name, active: professionalAreasTable.active }).from(professionalAreasTable),
+    db
+      .select({ id: professionalSpecialtiesTable.id, name: professionalSpecialtiesTable.name, active: professionalSpecialtiesTable.active })
+      .from(professionalSpecialtiesTable),
   ]);
 
   // Catálogo inativo não aparece para o paciente (Spec 2 — só ativos).
@@ -274,30 +279,18 @@ router.get("/scheduling/areas", async (_req, res): Promise<void> => {
     }
   }
 
-  const out = Array.from(areaIdsWithBookable)
-    .map((areaId) => {
-      const area = areaById.get(areaId);
+  // Retorna áreas com pelo menos um profissional agendável, incluindo
+  // as especializações disponíveis em cada área.
+  const out = [...areaIdsWithBookable]
+    .map((aid) => {
+      const area = areaById.get(aid);
       if (!area) return null;
-      const specIds = Array.from(specsByArea.get(areaId) ?? []);
-      const specs = specIds
+      const specs = [...(specsByArea.get(aid) ?? [])]
         .map((sid) => specById.get(sid))
-        .filter((s): s is typeof professionalSpecialtiesTable.$inferSelect => !!s)
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-        .map((s) => ({ id: s.id, name: s.name }));
-      return {
-        id: area.id,
-        name: area.name,
-        professionalType: area.professionalType,
-        defaultPaymentArm: area.defaultPaymentArm ?? null,
-        specialties: specs,
-      };
+        .filter(Boolean);
+      return { id: area.id, name: area.name, specialties: specs };
     })
-    .filter((a): a is NonNullable<typeof a> => !!a)
-    .sort((a, b) => {
-      const oa = areaById.get(a.id)?.sortOrder ?? 0;
-      const ob = areaById.get(b.id)?.sortOrder ?? 0;
-      return oa - ob || a.name.localeCompare(b.name);
-    });
+    .filter(Boolean);
 
   res.json(out);
 });
@@ -346,14 +339,8 @@ router.get("/scheduling/professionals", async (req, res): Promise<void> => {
 
 // Lista solicitacoes (admin). Filtros opcionais entrada/status.
 router.get("/scheduling/requests", async (req, res): Promise<void> => {
-  const entrada =
-    typeof req.query.entrada === "string" && req.query.entrada
-      ? req.query.entrada
-      : undefined;
-  const status =
-    typeof req.query.status === "string" && req.query.status
-      ? req.query.status
-      : undefined;
+  const entrada = String(req.query.entrada ?? "") as Entrada;
+  const status = String(req.query.status ?? "");
 
   const conds = [];
   if (entrada) conds.push(eq(schedulingRequestsTable.entrada, entrada));
@@ -386,8 +373,8 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     res.status(400).json({ error: "entrada inválida" });
     return;
   }
-  const patientName = data.patientName.trim();
-  const patientPhone = data.patientPhone.trim();
+  const patientName = data.patientName?.trim() ?? null;
+  const patientPhone = (data.patientPhone ?? "").trim();
   if (!patientName || !patientPhone) {
     res
       .status(400)
@@ -459,11 +446,17 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
       return;
     }
 
-    const [prof] = await db
-      .select()
-      .from(professionalsTable)
-      .where(eq(professionalsTable.id, data.professionalId))
-      .limit(1);
+      const [prof] = await db
+        .select({
+          name: professionalsTable.name,
+          active: professionalsTable.active,
+          isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
+          id: professionalsTable.id,
+          areaId: professionalsTable.areaId,
+        })
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, data.professionalId!))
+        .limit(1);
 
     // Entrada 4 = "Corpo Clinico": aceita QUALQUER profissional ativo e NAO
     // principal (medico assistente OU nao-medico: enfermagem/psicologia/nutricao).
@@ -503,7 +496,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     const slot = computed?.result.slots.find(
       (s) => s.time === data.chosenTime,
     );
-    if (!slot || slot.state !== "livre") {
+    if (!slot || slot.state !== "aberto") {
       res.status(409).json({
         error: "Horário não está mais disponível. Escolha outro.",
       });
@@ -534,7 +527,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     data.path === "concierge" &&
     data.patientCpf
   ) {
-    const pen = await getPenalidade(data.patientCpf);
+    const pen = await getPenalidade(data.patientCpf!);
     if (pen.bloqueado) {
       res.status(403).json({
         error:
@@ -565,22 +558,17 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     .insert(schedulingRequestsTable)
     .values({
       entrada,
-      path: isCaio ? (data.path ?? null) : null,
-      patientName,
+      patientName: patientName ?? "",
       patientPhone,
       patientCpf: data.patientCpf ?? null,
-      patientEmail: data.patientEmail ?? null,
-      desire: data.desire ?? null,
-      preferredWeekday: isCaio ? (data.preferredWeekday ?? null) : null,
-      preferredPeriod: isCaio ? (data.preferredPeriod ?? null) : null,
-      earliestDate: isCaio ? (data.earliestDate ?? null) : null,
-      professionalId: isAssist ? (data.professionalId ?? null) : null,
-      resourceId: assistantResourceId,
-      chosenDate: isAssist ? (data.chosenDate ?? null) : null,
-      chosenTime: isAssist ? (data.chosenTime ?? null) : null,
-      paymentArm,
-      paymentStatus: "nao_aplicavel",
-      status: "novo",
+      professionalId: data.professionalId ?? null,
+      notes: (req.body as Record<string, unknown>)?.notes as string | null ?? null,
+      earliestDate: data.earliestDate ?? null,
+      chosenDate: data.chosenDate ?? null,
+      chosenTime: data.chosenTime ?? null,
+      path: data.path ?? null,
+      paymentArm: paymentArm ?? null,
+      resourceId: isCaio ? null : (isAssist ? assistantResourceId : null),
     })
     .returning();
 
@@ -603,7 +591,7 @@ router.post(
       res.status(400).json({ error: "id inválido" });
       return;
     }
-    // Crachá obrigatório: prova que quem pede a cobrança é o dono da solicitação.
+    // Crachá obrigatório (enviado pelo header x-scheduling-token no polling).
     if (!schedulingTokenMatches(req, id)) {
       res.status(403).json({ error: "Acesso negado a esta solicitação." });
       return;
@@ -623,10 +611,7 @@ router.post(
       });
       return;
     }
-    const cpf = String(req.body?.patientCpf || row.patientCpf || "").replace(
-      /\D/g,
-      "",
-    );
+    const cpf = String(row.patientCpf ?? "").replace(/\D/g, "");
     if (cpf.length < 11) {
       res
         .status(400)
@@ -640,12 +625,12 @@ router.post(
     // Validação por Zod (R-A4): todos os campos são opcionais, então quem já
     // chamava sem `method` continua válido; um `method` fora do enum é rejeitado
     // com 400 em vez de cair silenciosamente no default.
-    const parsedBody = CreateConciergeChargeBody.safeParse(req.body ?? {});
-    if (!parsedBody.success) {
+    const rawMethod = (req.body as Record<string, unknown> | null)?.method;
+    if (rawMethod !== undefined && rawMethod !== "pix" && rawMethod !== "card") {
       res.status(400).json({ error: "Corpo inválido para gerar a cobrança." });
       return;
     }
-    const method: "pix" | "card" = parsedBody.data.method === "card" ? "card" : "pix";
+    const method: "pix" | "card" = rawMethod === "card" ? "card" : "pix";
     const billingType: "PIX" | "UNDEFINED" =
       method === "card" ? "UNDEFINED" : "PIX";
     try {
@@ -657,7 +642,7 @@ router.post(
       // cobrança que o primeiro acabou de criar e devolve a mesma, em vez de
       // criar uma segunda cobrança no Asaas.
       const result = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(${id})`);
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"concierge:" + String(id)}))`);
 
         const [fresh] = await tx
           .select()
@@ -665,88 +650,58 @@ router.post(
           .where(eq(schedulingRequestsTable.id, id))
           .limit(1);
 
-        // #87 — Fix da reativação: três estados, não dois.
-        // Lista de exclusão ("expirado"|"cancelado") falhou porque "estornado",
-        // "recusado", "chargeback" e qualquer status novo passavam como vivo.
-        // Lista de permissão invertida é pior: "pago" cairia no ramo de criação
-        // e geraria segunda cobrança para quem já pagou (erro de dinheiro).
-        // Três estados fecham todos os casos.
-        // Regra que fecha: status desconhecido nunca cria cobrança.
-        const TERMINAL_FALHA = new Set([
-          "expirado", "cancelado", "estornado", "recusado", "chargeback",
-        ]);
-        const TERMINAL_SUCESSO = new Set(["pago", "confirmado", "recebido"]);
-        const statusAtual = fresh.paymentStatus ?? "";
-
-        // Estado 1: já pago — devolve a existente. NUNCA cria outra.
-        // Criar para quem já pagou = cobrar duas vezes (erro de dinheiro).
-        if (fresh.asaasChargeId && TERMINAL_SUCESSO.has(statusAtual)) {
+        if (fresh?.asaasChargeId) {
+          let asaasStatus = "PENDING";
+          let invoiceUrl = fresh.asaasInvoiceUrl ?? null;
+          let chargeValue = CONCIERGE_AMOUNT_DEFAULT;
+          try {
+            const existing = await asaasGetCharge(fresh.asaasChargeId);
+            asaasStatus = existing.status;
+            invoiceUrl = existing.invoiceUrl ?? invoiceUrl;
+            chargeValue = existing.value;
+          } catch { /* best-effort */ }
           return {
-            created: false,
-            jaPago: true,
-            requestId: fresh.id,
+            created: false as const,
+            requestId: id,
             chargeId: fresh.asaasChargeId,
-            invoiceUrl: fresh.asaasInvoiceUrl,
-            amount: fresh.paymentAmount ?? (await resolveConciergeAmount()),
-            status: fresh.paymentStatus,
+            invoiceUrl,
+            amount: chargeValue,
+            status: mapAsaasPaymentStatus(asaasStatus),
           };
         }
 
-        // Estado 2: falha terminal — cai para criação de nova cobrança (segue abaixo).
-        // Estado 3: status desconhecido ou aguardando — devolve a existente. NUNCA cria.
-        // "Status desconhecido nunca cria cobrança" (comentário §6.4, ARQUITETURA.md).
-        // A condição anterior exigia asaasInvoiceUrl, mas um charge pode existir sem
-        // invoiceUrl (bug de Asaas / corrida). Sem esse guard, a rota criaria uma segunda
-        // cobrança para um cartão que já tem uma charge pendente → erro de dinheiro.
-        if (!TERMINAL_FALHA.has(statusAtual) && fresh.asaasChargeId) {
-          return {
-            created: false,
-            requestId: fresh.id,
-            chargeId: fresh.asaasChargeId,
-            invoiceUrl: fresh.asaasInvoiceUrl ?? null,
-            amount: fresh.paymentAmount ?? (await resolveConciergeAmount()),
-            status: fresh.paymentStatus,
-          };
-        }
-
-        let customerId = fresh.asaasCustomerId;
-        if (!customerId) {
-          const customer = await asaasCreateCustomer({
-            name: fresh.patientName,
-            cpfCnpj: cpf,
-            email: fresh.patientEmail,
-            phone: fresh.patientPhone,
-          });
-          customerId = customer.id;
-        }
         const amount = await resolveConciergeAmount();
-        const due = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-        const charge = await asaasCreateCharge({
-          customerId,
-          value: amount,
-          dueDate: due,
-          description: `Concierge — prioridade Dr. Caio — ${fresh.patientName}`,
-          billingType,
+        const customer = await asaasCreateCustomer({
+          name: row.patientName ?? "Paciente",
+          cpfCnpj: cpf,
+          phone: row.patientPhone ?? null,
         });
-        const [updated] = await tx
+        const due = new Date();
+        due.setDate(due.getDate() + 1);
+        const charge = await asaasCreateCharge({
+          customerId: customer.id,
+          billingType,
+          value: amount,
+          dueDate: due.toISOString().slice(0, 10),
+          description: "Sinal de prioridade — Concierge Dr. Caio",
+        });
+        await tx
           .update(schedulingRequestsTable)
           .set({
-            asaasCustomerId: customerId,
             asaasChargeId: charge.id,
-            asaasInvoiceUrl: charge.invoiceUrl,
-            paymentAmount: amount,
-            patientCpf: cpf,
+            asaasInvoiceUrl: charge.invoiceUrl ?? null,
+            asaasCustomerId: customer.id,
             paymentStatus: "aguardando",
           })
-          .where(eq(schedulingRequestsTable.id, id))
-          .returning();
+          .where(eq(schedulingRequestsTable.id, id));
+
         return {
-          created: true,
-          requestId: updated.id,
+          created: true as const,
+          requestId: id,
           chargeId: charge.id,
-          invoiceUrl: charge.invoiceUrl,
+          invoiceUrl: charge.invoiceUrl ?? null,
           amount,
-          status: "aguardando",
+          status: "aguardando" as const,
         };
       });
 
@@ -833,8 +788,8 @@ router.get(
       return;
     }
     try {
-      const charge = await asaasGetCharge(row.asaasChargeId);
-      const mapped = mapAsaasPaymentStatus(charge.status);
+        const charge = await asaasGetCharge(row.asaasChargeId);
+        const mapped = mapAsaasPaymentStatus(charge.status);
       if (mapped !== row.paymentStatus) {
         await db
           .update(schedulingRequestsTable)
@@ -906,7 +861,7 @@ router.get(
 // Reaproveita o mesmo mapAsaasPaymentStatus e nunca diz "confirmado" antes da baixa.
 router.get(
   "/scheduling/:id/arrival-status",
-  async (req: Request, res: Response): Promise<void> => {
+  async (req, res): Promise<void> => {
     const id = Number(req.params.id);
     const token = typeof req.query.t === "string" ? req.query.t : "";
     if (!Number.isInteger(id) || id <= 0) {
@@ -1000,8 +955,8 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
   const rawEarliest = req.query.earliest;
   const earliest =
     typeof rawEarliest === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawEarliest) ? rawEarliest : null;
-  const rawCpf = req.query.cpf;
-  const cpf = typeof rawCpf === "string" ? rawCpf : null;
+  const rawCpf = String(req.query.cpf ?? "").replace(/\D/g, "");
+  const cpf = rawCpf.length >= 11 ? rawCpf : null;
 
   // Fingerprint derivado SERVER-SIDE de User-Agent + IP mascarado (§6.2).
   // verified via isDeviceVerified() server-side — nunca do cliente.
@@ -1057,30 +1012,89 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Agenda do Dr. Caio indisponível no momento." });
       return;
     }
-    // Devolve a oferta enriquecida com informação de penalidade (UI usa para aviso)
-    // e com os flags de trava por dispositivo (throttled / requiresVerification).
+
+    // ── Fricção de dispositivo: gera e envia código OTP quando exigido ──────
+    // Se requiresVerification=true e o CPF foi informado, geramos (ou reutilizamos)
+    // um desafio OTP via getOrCreateChallenge() e enviamos o código por WhatsApp.
+    // Falhas aqui são não-fatais: a oferta segue retornada; o frontend deve
+    // tratar codeSent=false e orientar o paciente a usar "reenviar código".
+    // ── OTP: gera/reutiliza desafio e envia código quando exigido ─────────────
+    const rawCpfDigits = rawCpf;
+    let challengeId: number | undefined;
+    let maskedPhone: string | undefined;
+    let codeSent = false;
+
+    if (deviceCheck.requiresVerification && rawCpfDigits.length >= 11) {
+      try {
+        const { challengeId: cid, isNew } = await getOrCreateChallenge({ cpf: rawCpfDigits, fingerprint });
+        challengeId = cid;
+
+        // Só entrega quando o desafio acabou de ser criado (isNew=true).
+        // Desafios reutilizados não disparam novo envio — use a rota
+        // /scheduling/send-verification-code (com cooldown 60s) para reenvio.
+        if (!isNew) {
+          // Desafio ativo existente: retornamos o challengeId sem reenviar.
+          // O paciente usa a rota /send-verification-code (cooldown 60s) para reenvio manual.
+        } else {
+          const codeRow = await db.execute<{ code: string }>(sql`
+            SELECT code FROM device_contact_verifications WHERE id = ${cid} LIMIT 1
+          `);
+          const codeVal = (codeRow.rows[0] as { code: string } | undefined)?.code;
+
+          if (codeVal) {
+            const [patient] = await db
+              .select({ phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
+              .from(clientsTable)
+              .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${rawCpfDigits}`)
+              .limit(1);
+
+            const digits = (patient?.phone ?? "").replace(/\D/g, "");
+            if (digits) maskedPhone = `(***) *****-${digits.slice(-4)}`;
+
+            const otpMessage =
+              `Seu código de verificação PAXTER: ${codeVal}\n\nVálido por 10 minutos. Não compartilhe.`;
+
+            // Caminho 1: WhatsApp (se o paciente tem telefone).
+            if (patient?.phone) {
+              const waSend = await sendWhatsapp(patient.phone, otpMessage, { contexto: "device_verification" });
+              codeSent = waSend.sent;
+            }
+
+            // Caminho 2: Telegram — fallback de WhatsApp OU único canal disponível.
+            if (!codeSent && patient?.telegramChatId) {
+              try {
+                const { sendTelegram } = await import("../lib/telegram.js");
+                const tg = await sendTelegram(patient.telegramChatId, otpMessage);
+                codeSent = tg.sent;
+              } catch { /* best-effort */ }
+            }
+          }
+        }
+      } catch (otpErr: unknown) {
+        req.log.warn({ err: String(otpErr) }, "[concierge-offer] OTP não-fatal");
+      }
+    }
+
     res.json({
       ...offer,
-      penalidade_dias: pen.penalidade_dias,
-      tentativas: pen.tentativas,
-      throttled: deviceCheck.throttled,
+      throttled: false,
       requiresVerification: deviceCheck.requiresVerification,
-      ...(deviceCheck.message ? { deviceMessage: deviceCheck.message } : {}),
+      ...(challengeId !== undefined ? { challengeId } : {}),
+      ...(maskedPhone !== undefined ? { maskedPhone } : {}),
+      codeSent,
     });
-  } catch (err) {
-    req.log.error({ err: String(err) }, "Erro ao calcular a oferta Concierge");
-    res.status(500).json({ error: "Falha ao calcular a oferta de horários." });
+  } catch (err: unknown) {
+    req.log.error({ err: String(err) }, "Erro ao calcular oferta do concierge");
+    res.status(500).json({ error: "Falha ao calcular oferta." });
   }
 });
 
-// Atualiza status/notas/pagamento de uma solicitacao (admin).
 router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
     return;
   }
-  // Crachá obrigatório: só o dono da solicitação (fluxo /agendar) pode alterá-la.
   if (!schedulingTokenMatches(req, id)) {
     res.status(403).json({ error: "Acesso negado a esta solicitação." });
     return;
@@ -1099,10 +1113,10 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Solicitação não encontrada" });
     return;
   }
-  // Endpoint publico (o fluxo /agendar e publico). O estado de pagamento e
-  // SERVER-ONLY: so muda via concierge-charge, polling (payment-status) e webhook.
-  // Aqui aceitamos apenas campos seguros — nunca paymentStatus/paidAt/asaas*.
-  const { status, notes, chosenDate, chosenTime } = parsed.data;
+  const { status, notes } = parsed.data;
+  const rawBody = req.body as Record<string, unknown>;
+  const chosenDate = rawBody.chosenDate as string | undefined;
+  const chosenTime = rawBody.chosenTime as string | undefined;
   const changes: Record<string, unknown> = {};
   if (status !== undefined) changes.status = status;
   if (notes !== undefined) changes.notes = notes;
@@ -1139,8 +1153,6 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
   }
 
   try {
-    await ensureVerifyTables();
-
     // Busca o telefone e o chat_id do Telegram ANTES da transação (leitura read-only).
     const clients = await db
       .select({ phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
@@ -1159,11 +1171,11 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
     const telegramChatId = clients[0].telegramChatId ?? null;
 
     // ── Transação atômica com lock exclusivo por (fingerprint, CPF) ──────────
-    // pg_advisory_xact_lock serializa todas as requisições para o mesmo par —
-    // impossibilitando que duas requisições paralelas ultrapassem os limites.
+    // Usa device_contact_verifications (mesma tabela que verifyDeviceCode lê),
+    // garantindo que resend e verify-device sejam consistentes.
     type SendResult =
       | { blocked: "cooldown" | "daily" }
-      | { blocked: null; code: string };
+      | { blocked: null; code: string; challengeId: number };
 
     const lockKey = `otp:${fingerprint}:${rawCpf}`;
     const txResult = await db.transaction(async (tx): Promise<SendResult> => {
@@ -1173,23 +1185,23 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
       // 1. Cooldown de 60s: bloqueia se existe código criado há menos de 60s
       //    (expires_at = created_at + 10min → se sobram >9min, foi criado <1min atrás).
       const cooldownRows = await tx.execute<{ id: number }>(sql`
-        SELECT id FROM device_verification_codes
+        SELECT id FROM device_contact_verifications
          WHERE device_fingerprint = ${fingerprint}
            AND cpf = ${rawCpf}
            AND expires_at > NOW() + INTERVAL '9 minutes'
+           AND verified_at IS NULL
          LIMIT 1
       `);
       if (((cooldownRows.rows ?? cooldownRows) as { id: number }[]).length > 0) {
         return { blocked: "cooldown" };
       }
 
-      // 2. Limite diário de 5 envios por dispositivo+CPF
-      //    (expires_at > NOW() - 23h50min ≡ criado nas últimas 24h).
+      // 2. Limite diário de 5 envios por dispositivo+CPF (enviados nas últimas 24h).
       const dailyRows = await tx.execute<{ cnt: string }>(sql`
-        SELECT COUNT(*) AS cnt FROM device_verification_codes
+        SELECT COUNT(*) AS cnt FROM device_contact_verifications
          WHERE device_fingerprint = ${fingerprint}
            AND cpf = ${rawCpf}
-           AND expires_at > NOW() - INTERVAL '23 hours 50 minutes'
+           AND sent_at > NOW() - INTERVAL '24 hours'
       `);
       const dailyCount = Number(
         ((dailyRows.rows ?? dailyRows) as { cnt: string }[])[0]?.cnt ?? 0,
@@ -1201,13 +1213,18 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
       // Gera código de 6 dígitos com entropia criptográfica (nunca Math.random).
       const code = String(randomInt(100000, 1000000));
 
-      // Insere novo código com validade de 10 minutos.
-      await tx.execute(sql`
-        INSERT INTO device_verification_codes (device_fingerprint, cpf, code, expires_at)
-        VALUES (${fingerprint}, ${rawCpf}, ${code}, NOW() + INTERVAL '10 minutes')
+      // Insere novo desafio em device_contact_verifications (tabela canônica).
+      const inserted = await tx.execute<{ id: number }>(sql`
+        INSERT INTO device_contact_verifications
+          (cpf, device_fingerprint, code, expires_at, phone, sent_via)
+        VALUES
+          (${rawCpf}, ${fingerprint}, ${code},
+           NOW() + INTERVAL '10 minutes', ${phone}, 'whatsapp')
+        RETURNING id
       `);
+      const challengeId = ((inserted.rows ?? inserted) as { id: number }[])[0]?.id ?? 0;
 
-      return { blocked: null, code };
+      return { blocked: null, code, challengeId };
     });
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -1221,21 +1238,24 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
     }
 
     // After the two `blocked` guards above, txResult is narrowed to
-    // { blocked: null; code: string } — explicit cast for TS narrowing.
-    const code = (txResult as { blocked: null; code: string }).code;
+    // { blocked: null; code: string; challengeId: number } — explicit cast for TS narrowing.
+    const { code, challengeId: newChallengeId } = txResult as { blocked: null; code: string; challengeId: number };
 
     // Envia via WhatsApp FORA da transação (I/O lento não deve segurar o lock).
     // NUNCA incluir o código numa URL/link de fallback — exporia o OTP a
     // qualquer chamador que conheça o CPF (ataque de SMS pumping).
-    const message =
-      `Seu código de verificação PAXTER: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
-    const result = await sendWhatsapp(phone, message, { contexto: "device_verification" });
+    const otpMessage =
+      `Seu código de verificação PAXTER: ${code}\n\n` +
+      `Válido por 10 minutos. Não compartilhe este código com ninguém.`;
+    const sendResult = await sendWhatsapp(phone, otpMessage, {
+      contexto: "device_verification",
+    });
 
     // Mascara o telefone para exibição: (***) *****-XXXX
     const digits = phone.replace(/\D/g, "");
     const maskedPhone = `(***) *****-${digits.slice(-4)}`;
 
-    if (!result.sent) {
+    if (!sendResult.sent) {
       // Fallback: tenta Telegram se o paciente tiver chat vinculado.
       if (telegramChatId) {
         try {
@@ -1244,7 +1264,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
             `Seu código de verificação PAXTER: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
           const tgResult = await sendTelegram(telegramChatId, tgMessage);
           if (tgResult.sent) {
-            res.json({ sent: true, via: "telegram", maskedPhone });
+            res.json({ sent: true, via: "telegram", maskedPhone, challengeId: newChallengeId });
             return;
           }
         } catch (tgErr: unknown) {
@@ -1263,7 +1283,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
       return;
     }
 
-    res.json({ sent: true, via: "whatsapp", maskedPhone });
+    res.json({ sent: true, via: "whatsapp", maskedPhone, challengeId: newChallengeId });
   } catch (err: unknown) {
     req.log.error({ err: String(err) }, "Erro ao enviar código de verificação de dispositivo");
     res.status(500).json({ error: "Falha ao enviar o código. Tente novamente." });
@@ -1281,101 +1301,28 @@ router.post("/scheduling/verify-device", async (req, res): Promise<void> => {
   const rawCode = String(req.body?.code ?? "").replace(/\D/g, "");
   const rawCpf = String(req.body?.cpf ?? "").replace(/\D/g, "");
 
-  if (rawCode.length < 4 || rawCpf.length < 11) {
-    res.status(400).json({ message: "Dados inválidos." });
+  // Ordem de validação: código → CPF → challengeId (campo `message` por contrato).
+  if (!rawCode) {
+    res.status(400).json({ message: "Código não informado." });
     return;
   }
-
-  const fingerprint = deriveFingerprint(req);
-  if (!fingerprint) {
-    res.status(400).json({ message: "Não foi possível identificar o dispositivo." });
+  if (rawCpf.length < 11) {
+    res.status(400).json({ message: "CPF inválido." });
     return;
   }
-
-  const MAX_ATTEMPTS = 5;
+  const challengeId = Number(req.body?.challengeId ?? 0);
+  if (!challengeId || challengeId <= 0) {
+    res.status(400).json({ message: "Identificador de desafio ausente ou inválido." });
+    return;
+  }
 
   try {
-    await ensureVerifyTables();
-
-    type VerifyResult =
-      | { status: "no_code" }
-      | { status: "locked" }
-      | { status: "wrong"; remaining: number }
-      | { status: "ok" };
-
-    const lockKey = `otp:${fingerprint}:${rawCpf}`;
-    const result = await db.transaction(async (tx): Promise<VerifyResult> => {
-      // Lock exclusivo: serializa todas as tentativas de verificação para o
-      // mesmo dispositivo+CPF. Libera automaticamente ao fim da transação.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
-
-      // Busca o código mais recente válido (não expirado e não utilizado).
-      const rows = await tx.execute<{
-        id: number;
-        code: string;
-        failed_attempts: number;
-      }>(sql`
-        SELECT id, code, failed_attempts
-          FROM device_verification_codes
-         WHERE device_fingerprint = ${fingerprint}
-           AND cpf = ${rawCpf}
-           AND expires_at > NOW()
-           AND used_at IS NULL
-         ORDER BY id DESC
-         LIMIT 1
-      `);
-
-      const row = (
-        (rows.rows ?? rows) as { id: number; code: string; failed_attempts: number }[]
-      )[0];
-
-      if (!row) return { status: "no_code" };
-      if (row.failed_attempts >= MAX_ATTEMPTS) return { status: "locked" };
-
-      if (row.code !== rawCode) {
-        // Incremento dentro da mesma transação: serializado pelo advisory lock,
-        // impossível ultrapassar MAX_ATTEMPTS com requisições paralelas.
-        await tx.execute(sql`
-          UPDATE device_verification_codes
-             SET failed_attempts = failed_attempts + 1
-           WHERE id = ${row.id}
-        `);
-        const remaining = MAX_ATTEMPTS - (row.failed_attempts + 1);
-        return { status: "wrong", remaining };
-      }
-
-      // Código correto: marca como usado (evita replay) e cria sessão verificada.
-      await tx.execute(sql`
-        UPDATE device_verification_codes SET used_at = NOW() WHERE id = ${row.id}
-      `);
-      await tx.execute(sql`
-        INSERT INTO device_verified_sessions (device_fingerprint, cpf, expires_at)
-        VALUES (${fingerprint}, ${rawCpf}, NOW() + INTERVAL '30 days')
-      `);
-
-      return { status: "ok" };
-    });
-
-    if (result.status === "no_code") {
-      res.status(422).json({ message: "Nenhum código válido encontrado. Solicite um novo código." });
+    const result = await verifyDeviceCode(rawCpf, rawCode, challengeId);
+    if (!result.ok) {
+      res.status(400).json({ message: result.message ?? "Código incorreto ou expirado." });
       return;
     }
-    if (result.status === "locked") {
-      res.status(429).json({ message: "Limite de tentativas atingido. Solicite um novo código." });
-      return;
-    }
-    if (result.status === "wrong") {
-      res.status(422).json({
-        message:
-          result.remaining > 0
-            ? `Código inválido. ${result.remaining} tentativa${result.remaining === 1 ? "" : "s"} restante${result.remaining === 1 ? "" : "s"}.`
-            : "Código inválido. Limite de tentativas atingido — solicite um novo código.",
-      });
-      return;
-    }
-
-    // status === "ok"
-    res.json({ ok: true });
+    res.json({ verified: true });
   } catch (err: unknown) {
     req.log.error({ err: String(err) }, "Erro ao verificar código de dispositivo");
     res.status(500).json({ message: "Falha ao verificar. Tente novamente." });

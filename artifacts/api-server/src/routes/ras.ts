@@ -72,16 +72,6 @@ router.post("/ras", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!client.email) {
-    res.status(422).json({ error: "O cliente não possui e-mail cadastrado. Atualize o cadastro antes de reenviar." });
-    return;
-  }
-
-  if (!(await isGmailConnected())) {
-    res.status(503).json({ error: "Gmail não está conectado. Configure a integração Gmail para reenviar por e-mail." });
-    return;
-  }
-
   let professionalName = "Profissional";
   let professionalCrm: string | null = null;
   if (session.professionalId) {
@@ -128,23 +118,7 @@ router.post("/ras", async (req, res): Promise<void> => {
     });
 
   const empresaId = resolveEmpresaId(req);
-  const [ras] = await db.insert(rasTable).values({
-    sessionId: parsed.data.sessionId,
-    protocolId: session.protocolId,
-    clientId: session.clientId,
-    clientName: client?.name ?? "",
-    clientCpf: client?.cpf ?? "",
-    professionalName,
-    professionalCrm,
-    unit: session.unit ?? "Clínica Principal",
-    serviceDate: session.scheduledDate,
-    serviceType: session.serviceType,
-    substances,
-    observations: parsed.data.observations ?? null,
-    patientSignature: false,
-    professionalSignature: false,
-    empresaId,
-  }).returning();
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
 
   res.status(201).json(formatRAS(ras));
 });
@@ -165,7 +139,7 @@ router.get("/ras/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, params.data.id));
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
   if (!ras) {
     res.status(404).json({ error: "RAS not found" });
     return;
@@ -221,9 +195,9 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
       substances: enrichedSubstances,
     });
 
-    const clientSlug = client.name.replace(/\s+/g, "_");
+    const clientSlug = ras.clientName.replace(/\s+/g, "_");
     const dateSlug = ras.serviceDate.replace(/-/g, "");
-    const filename = `RAS_FAP_${clientSlug}_${protocolId}.pdf`;
+    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
 
     (async () => {
       try {
@@ -232,7 +206,7 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
           if (client) {
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
+    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
             if (client.email) {
               await shareWithClient(result.fileId, client.email);
             }
@@ -312,7 +286,7 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
 
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
+    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
 
     if (client.email) {
       await shareWithClient(result.fileId, client.email);
@@ -331,6 +305,7 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
   }
 });
 
+
 router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.protocolId);
   if (isNaN(protocolId)) {
@@ -347,16 +322,6 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
-    return;
-  }
-
-  if (!client.email) {
-    res.status(422).json({ error: "O cliente não possui e-mail cadastrado. Atualize o cadastro antes de reenviar." });
-    return;
-  }
-
-  if (!(await isGmailConnected())) {
-    res.status(503).json({ error: "Gmail não está conectado. Configure a integração Gmail para reenviar por e-mail." });
     return;
   }
 
@@ -466,50 +431,10 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
 
   let pdfBuffer: Buffer;
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-    const clientSlug = client.name.replace(/\s+/g, "_");
-    const filename = `RAS_FAP_${clientSlug}_${protocolId}.pdf`;
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.setHeader("Content-Length", pdfBytes.length);
-    res.send(pdfBuffer);
-
+    const clientSlug = ras.clientName.replace(/\s+/g, "_");
+    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
         const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
-
-    (async () => {
-      try {
-        if (await isDriveConnected()) {
-          const uploadPromises: Promise<any>[] = [];
-
-          uploadPromises.push(
-            uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer)
-              .then(() => console.log(`Physical RAS uploaded to shared folder: ${driveFileName}`))
-              .catch(err => console.error("Shared folder upload error:", err.message))
-          );
-
-          uploadPromises.push(
-            ensureClientFolderStructure(client.name, client.cpf ?? "")
-              .then(async ({ subfolders }) => {
-                const protocolosFolderId = subfolders["PROTOCOLOS"];
-                if (protocolosFolderId) {
-                  const result = await uploadFileToDrive(protocolosFolderId, driveFileName, "application/pdf", pdfBuffer);
-                  if (client.email) {
-                    await shareWithClient(result.fileId, client.email);
-                  }
-                  console.log(`Physical RAS uploaded to client PROTOCOLOS: ${driveFileName}`);
-                }
-              })
-              .catch(err => console.error("Client folder upload error:", err.message))
-          );
-
-          await Promise.all(uploadPromises);
-        }
-      } catch (err: any) {
-        console.error("Physical RAS Drive upload error:", err.message);
-      }
-
-      try {
-        if (client.email && await isGmailConnected()) {
+    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
     const emailResult = await sendProtocolEmail({
       clientName: client.name,
       clientEmail: client.email,
@@ -524,19 +449,16 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
       pdfBuffer,
       pdfFileName: driveFileName,
     });
-          if (emailResult.success) {
-            console.log(`Protocol email sent to ${client.email}`);
-          } else {
-            console.error("Protocol email failed:", emailResult.error);
-          }
-        }
-      } catch (err: any) {
-        console.error("Protocol email error:", err.message);
-      }
-    })();
+
+    if (!emailResult.success) {
+      res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
+      return;
+    }
+
+    res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
   } catch (err: any) {
-    console.error("Physical RAS PDF error:", err);
-    res.status(500).json({ error: "Erro ao gerar RAS FAP", details: err.message });
+    console.error("Reenviar RAS FAP error:", err);
+    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP", details: err.message });
   }
 });
 
@@ -560,16 +482,6 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
     return;
   }
 
-  if (!client.email) {
-    res.status(422).json({ error: "O cliente não possui e-mail cadastrado. Atualize o cadastro antes de reenviar." });
-    return;
-  }
-
-  if (!(await isGmailConnected())) {
-    res.status(503).json({ error: "Gmail não está conectado. Configure a integração Gmail para reenviar por e-mail." });
-    return;
-  }
-
   let professionalName = "Profissional";
   let nurseName = "";
   if (protocol.professionalId) {
@@ -691,66 +603,6 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
       pdfBuffer,
       pdfFileName: driveFileName,
     });
-
-    if (!emailResult.success) {
-      // Grava falha no log antes de retornar erro
-      try {
-        await db.insert(emailLogTable).values({
-          tipo: "ras_fap_reenviado",
-          clienteNome: client.name,
-          destinatario: client.email!, // email validado antes desta rota
-          assunto: `PAXTER | RAS FAP Reenviado | ${protocol.title}`,
-          status: "falhou",
-          erro: emailResult.error ?? null,
-          protocolId,
-          provider: "gmail",
-        });
-      } catch (_logErr) { /* log não pode derrubar o fluxo */ }
-      res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
-      return;
-    }
-
-    // Grava auditoria de reenvio bem-sucedido
-    try {
-      await db.insert(emailLogTable).values({
-        tipo: "ras_fap_reenviado",
-        clienteNome: client.name,
-        destinatario: client.email!, // email validado antes desta rota
-        assunto: `PAXTER | RAS FAP Reenviado | ${protocol.title}`,
-        status: "enviado",
-        protocolId,
-        provider: "gmail",
-      });
-    } catch (_logErr) { /* log não pode derrubar o fluxo */ }
-
-    res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
-  } catch (err: any) {
-    console.error("Reenviar RAS FAP error:", err);
-    // Grava falha operacional no log (geração de PDF / erro inesperado)
-    try {
-      const [protocolFallback] = await db.select({ clientId: protocolsTable.clientId, title: protocolsTable.title }).from(protocolsTable).where(eq(protocolsTable.id, protocolId));
-      if (protocolFallback) {
-        const [clientFallback] = await db.select({ name: clientsTable.name, email: clientsTable.email }).from(clientsTable).where(eq(clientsTable.id, protocolFallback.clientId));
-        if (clientFallback?.email) {
-          await db.insert(emailLogTable).values({
-            tipo: "ras_fap_reenviado",
-            clienteNome: clientFallback.name,
-            destinatario: clientFallback.email!, // guardado pelo if acima
-            assunto: `PAXTER | RAS FAP Reenviado | ${protocolFallback.title}`,
-            status: "falhou",
-            erro: err.message ?? "Erro operacional",
-            protocolId,
-            provider: "gmail",
-          });
-        }
-      }
-    } catch (_logErr) { /* log não pode derrubar o fluxo */ }
-    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP" });
-  }
-});
-
-// ===== Histórico de reenvios de RAS FAP por e-mail =====
-router.get("/ras/physical/:protocolId/email-logs", async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.protocolId);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });

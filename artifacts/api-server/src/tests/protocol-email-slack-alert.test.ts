@@ -106,13 +106,15 @@ vi.mock("../lib/email-service", () => ({
   sendCartaTratamentoEmail:    vi.fn().mockResolvedValue({ success: true }),
 }));
 
+const mockGeneratePhysicalRASPdf = vi.fn().mockResolvedValue(
+  new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+);
+
 vi.mock("../lib/pdf-signer", () => ({
   generateProtocolDocumentPdf: vi.fn().mockResolvedValue({
     pdfBytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
   }),
-  generatePhysicalRASPdf: vi.fn().mockResolvedValue(
-    new Uint8Array([0x25, 0x50, 0x44, 0x46]),
-  ),
+  generatePhysicalRASPdf: (...a: unknown[]) => mockGeneratePhysicalRASPdf(...a),
   getCertInfo: vi.fn().mockReturnValue(null),
 }));
 
@@ -340,6 +342,12 @@ describe("emit-document: exceção no bloco de e-mail dispara alerta no Slack", 
 
     mockSendProtocolEmail.mockRejectedValue(
       new Error("SMTP connection timeout"),
+    );
+
+    // Sem RAS FAP: se generatePhysicalRASPdf lança, rasFapBuffer fica undefined e
+    // o caminho de falha de e-mail usa postSlackAlert (não notifySlackRasFapFailure).
+    mockGeneratePhysicalRASPdf.mockRejectedValue(
+      new Error("RAS FAP unavailable in test"),
     );
   });
 
