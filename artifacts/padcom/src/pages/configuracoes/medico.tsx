@@ -3,7 +3,7 @@
 // isPrimaryDoctor=true diretamente no painel, sem acesso ao banco.
 
 import { useEffect, useState } from "react";
-import { Stethoscope, Save, AlertCircle, ShieldOff } from "lucide-react";
+import { Stethoscope, Save, AlertCircle, ShieldOff, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,6 +44,8 @@ export default function ConfigMedico() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Busca o médico principal ao montar (só depois de saber a permissão)
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function ConfigMedico() {
     if (!isCeo) { setLoading(false); return; }
 
     setLoading(true);
+    setFetchError(false);
     fetch(`${BASE}/api/professionals`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((data: unknown) => {
@@ -68,10 +71,10 @@ export default function ConfigMedico() {
         }
       })
       .catch(() => {
-        toast({ title: "Erro ao carregar médico responsável", variant: "destructive" });
+        setFetchError(true);
       })
       .finally(() => setLoading(false));
-  }, [permLoading, isCeo]);
+  }, [permLoading, isCeo, retryCount]);
 
   function setField(k: keyof Draft, v: string) {
     setDraft((d) => ({ ...d, [k]: v }));
@@ -148,6 +151,25 @@ export default function ConfigMedico() {
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
+      ) : fetchError ? (
+        <div className="panel-3d p-6 flex items-start gap-3 text-red-600">
+          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold">Não foi possível carregar o médico responsável</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Verifique sua conexão e tente novamente.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4 gap-2"
+              onClick={() => setRetryCount((c) => c + 1)}
+            >
+              <RefreshCw className="w-4 h-4" />
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
       ) : notFound ? (
         <div className="panel-3d p-6 flex items-start gap-3 text-amber-600">
           <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
