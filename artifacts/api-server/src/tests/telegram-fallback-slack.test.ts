@@ -200,6 +200,28 @@ describe("postTelegramReport — retry + fallback Slack após 3 falhas", () => {
     expect(hadTelegramFailedLog()).toBe(false);
   });
 
+  // ── 5. Modo MOCK (sem token no cofre) — 1 chamada, sem retry, sem fallback ─
+  it("modo MOCK: resolve sem erro com 1 chamada e sem fallback Slack", async () => {
+    // Simula ausência de token: sendTelegram retorna { mock: true }
+    sendTelegramMock.mockResolvedValue({ mock: true });
+
+    const resolvePromise = expect(
+      postTelegramReport("CHAT_123", makeReport(), "C_SLACK_FALLBACK"),
+    ).resolves.toBeUndefined();
+
+    await vi.runAllTimersAsync();
+    await resolvePromise;
+
+    // sendTelegram chamado exatamente 1 vez — sem retentativas
+    expect(sendTelegramMock).toHaveBeenCalledTimes(1);
+
+    // Nenhum fallback Slack acionado
+    expect(mockProxy).not.toHaveBeenCalled();
+
+    // Nenhum log de erro com telegramFailed
+    expect(hadTelegramFailedLog()).toBe(false);
+  });
+
   // ── 4. Telegram falha nas 2 primeiras e aceita na 3ª — sem fallback ───────
   it("não aciona fallback quando Telegram aceita na 3ª tentativa", async () => {
     sendTelegramMock
