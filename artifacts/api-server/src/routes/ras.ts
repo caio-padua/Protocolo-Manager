@@ -1433,16 +1433,16 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
         );
 
         // ── Quais códigos já foram despachados com sucesso? ───────────────
-        // Escopo scoped por clientId para dar idempotência por paciente.
-        // Faz join com template para obter o código; considera ENVIADO e CONCLUIDO.
+        // Usa zapsignExternalId (formato "ras-fap-{clientId}-{codigo}") como
+        // fonte de verdade. É determinístico, único por caderno e não depende do
+        // templateId (que pode ser null quando templates ainda não seedados).
+        // INNER JOIN perderia registros com templateId=null; tipoDoc da tabela
+        // tem colisões (CEND e TCLE têm o mesmo tipo_doc="TCLE").
         const escopoEntrega = `RAS_FAP_ENTREGA:${clientId}`;
+        const prefixoExtId = `ras-fap-${clientId}-`;
         const jaEnviados = await db
-          .select({ codigo: assinaturaTemplatesTable.codigo })
+          .select({ extId: assinaturaSolicitacoesTable.zapsignExternalId })
           .from(assinaturaSolicitacoesTable)
-          .innerJoin(
-            assinaturaTemplatesTable,
-            eq(assinaturaSolicitacoesTable.templateId, assinaturaTemplatesTable.id),
-          )
           .where(
             and(
               eq(assinaturaSolicitacoesTable.pacienteId, clientId),
@@ -1450,7 +1450,11 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
               inArray(assinaturaSolicitacoesTable.status as any, ["ENVIADO", "CONCLUIDO"] as any),
             ),
           );
-        const codigosJaEnviados = new Set(jaEnviados.map((r) => r.codigo));
+        const codigosJaEnviados = new Set(
+          jaEnviados
+            .map((r) => (r.extId?.startsWith(prefixoExtId) ? r.extId.slice(prefixoExtId.length) : null))
+            .filter((c): c is string => c !== null),
+        );
 
         // ── Faltantes = requeridos − já enviados ──────────────────────────
         const codigosFaltantes = [...codigosRequeridos].filter(

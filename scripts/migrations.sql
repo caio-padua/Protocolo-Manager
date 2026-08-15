@@ -40,3 +40,12 @@ ALTER TABLE clients
 -- Alimentado pelo endpoint POST /cockpit/:id/telegram-inbox/enviar.
 ALTER TABLE clients
   ADD COLUMN IF NOT EXISTS telegram_last_test_ok BOOLEAN;
+
+-- Unique partial index for assinatura_solicitacoes.zapsign_external_id.
+-- Enforces that only ONE provider envelope is created per deterministic external
+-- ID, even under concurrent requests (INSERT ... ON CONFLICT DO NOTHING relies on
+-- this index in enviarAssinatura). WHERE NOT NULL allows multiple rows without an
+-- external ID (e.g., drafts) to coexist without conflict.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assinatura_solicitacoes_external_id_unique
+  ON assinatura_solicitacoes (zapsign_external_id)
+  WHERE zapsign_external_id IS NOT NULL;

@@ -64,16 +64,9 @@ assinaturaWebhookRouter.post("/webhooks/assinatura/:provedor", async (req, res):
   }
   try {
     const rawBody = Buffer.from(JSON.stringify(req.body ?? {}));
-    const headers = req.headers as Record<string, string | string[] | undefined>;
-    const resultado = await receberWebhook(provedor, rawBody, headers);
-    if (resultado.unauthorized) {
-      res.status(401).json({ error: "assinatura_invalida" });
-      return;
-    }
-    if (resultado.transient) {
-      res.status(503).json({ error: "falha_transitoria", eventoId: resultado.eventoId });
-      return;
-    }
+      const resultado = await sendTelegram(chatIdCEO, repasse);
+    if (resultado.unauthorized) { res.status(401).json({ error: "assinatura_invalida" }); return; }
+    if (resultado.transient)    { res.status(503).json({ error: "falha_transitoria", eventoId: resultado.eventoId }); return; }
     res.status(200).json({ ok: true, duplicado: resultado.duplicado, eventoId: resultado.eventoId });
   } catch (err) {
     req.log.error({ err: String(err) }, "[assinatura] erro no webhook");
@@ -88,15 +81,14 @@ const assinaturasRouter: IRouter = Router();
 
 assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const body = (req.body || {}) as EnviarAssinaturaInput;
+    const body = (req.body || {}) as UpsertTemplateInput;
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
-      res.status(400).json({ error: "pacienteId_obrigatorio" });
-      return;
+      res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
     const resultado = await enviarAssinatura(body);
-    res.status(200).json(resultado);
+    res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = (err as Error).message || String(err);
+    const msg = (err as Error).message || "erro_interno";
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -109,15 +101,14 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
 // Atalho de conveniência para TCLE (Termo de Consentimento Livre e Esclarecido).
 assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const body = (req.body || {}) as EnviarAssinaturaInput;
+    const body = (req.body || {}) as UpsertTemplateInput;
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
-      res.status(400).json({ error: "pacienteId_obrigatorio" });
-      return;
+      res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
     const resultado = await enviarAssinatura({ ...body, templateCodigo: body.templateCodigo ?? "TCLE" });
-    res.status(200).json(resultado);
+    res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = (err as Error).message || String(err);
+    const msg = (err as Error).message || "erro_interno";
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -147,7 +138,13 @@ assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (
       res.status(400).json({ error: "pacienteId_obrigatorio" });
       return;
     }
-    const escopo = typeof req.query.escopo === "string" ? req.query.escopo : undefined;
+    const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
+
+    const [toggles] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1))
+      .limit(1);
     const status = await consentimentoAtivo(pid, escopo);
     res.status(200).json(status);
   } catch (err) {
@@ -158,40 +155,29 @@ assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (
 
 assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const pid = Number(req.body?.pacienteId ?? req.query.pacienteId);
+    const pid = Number(req.query.pacienteId);
     if (!Number.isInteger(pid) || pid <= 0) {
       res.status(400).json({ error: "pacienteId_obrigatorio" });
       return;
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
-    await assertConsentimento(pid, escopo);
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    if (err instanceof ConsentimentoPendenteError) {
-      res.status(409).json({ error: err.message, escopo: err.escopo });
-      return;
-    }
-    req.log.error({ err: String(err) }, "[assinatura] erro no assert consentimento");
-    res.status(500).json({ error: "erro_consentimento" });
-  }
-});
 
-// Toggle da trava (singleton id=1). GET status / PUT liga-desliga (aditivo).
-assinaturasRouter.get("/assinaturas/toggles", requireCollaborator, async (_req, res): Promise<void> => {
-  try {
-    const rows = await db
+    const [toggles] = await db
       .select()
       .from(assinaturaTogglesAdminTable)
       .where(eq(assinaturaTogglesAdminTable.id, 1))
       .limit(1);
-    const trava = Boolean(rows[0]?.travaConsentimentoAtiva ?? false);
-    res.status(200).json({ travaConsentimentoAtiva: trava });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-assinaturasRouter.put("/assinaturas/toggles", requireCollaborator, async (req, res): Promise<void> => {
+    const rows = await db
+      .select()
+      .from(assinaturaSolicitacoesTable)
+      .where(
+        and(
+          eq(assinaturaSolicitacoesTable.id, id),
+          like(assinaturaSolicitacoesTable.escopo, "RAS_FAP_ENTREGA%"),
+        ),
+      )
+      .limit(1);
+  const trava = Boolean(req.body?.travaConsentimentoAtiva);
   const trava = Boolean(req.body?.travaConsentimentoAtiva);
   await db
     .insert(assinaturaTogglesAdminTable)
@@ -206,7 +192,7 @@ assinaturasRouter.put("/assinaturas/toggles", requireCollaborator, async (req, r
 // --- Onda 5: CONTEXTO DO PACIENTE (somente leitura) -----------------------
 assinaturasRouter.get("/assinaturas/contexto/:pacienteId", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const pid = Number(req.params.pacienteId);
+    const pid = Number(req.query.pacienteId);
     if (!Number.isInteger(pid) || pid <= 0) {
       res.status(400).json({ error: "pacienteId_invalido" });
       return;
@@ -237,15 +223,11 @@ assinaturasRouter.get("/assinaturas/clausulas", requireCollaborator, async (req,
 
 assinaturasRouter.post("/assinaturas/clausulas", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const body = (req.body || {}) as UpsertClausulaInput;
-    if (!body.codigo || typeof body.codigo !== "string") {
-      res.status(400).json({ error: "codigo_obrigatorio" });
-      return;
-    }
-    const clausula = await upsertClausula(body);
+    const body = (req.body || {}) as UpsertTemplateInput;
+    const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = (err as Error).message || String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.includes("codigo_ausente") || msg.includes("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -256,11 +238,11 @@ assinaturasRouter.post("/assinaturas/clausulas", requireCollaborator, async (req
 });
 
 assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, async (req, res): Promise<void> => {
-  try {
+  try:
     const clausula = await desativarClausula(String(req.params.codigo));
     res.status(200).json({ clausula });
   } catch (err) {
-    const msg = (err as Error).message || String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.includes("clausula_nao_encontrada")) {
       res.status(404).json({ error: msg });
       return;
@@ -271,7 +253,7 @@ assinaturasRouter.delete("/assinaturas/clausulas/:codigo", requireCollaborator, 
 });
 
 assinaturasRouter.get("/assinaturas/templates", requireCollaborator, async (req, res): Promise<void> => {
-  try {
+  try:
     const templates = await listarTemplates();
     res.status(200).json({ templates });
   } catch (err) {
@@ -290,7 +272,7 @@ assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req
     const template = await upsertTemplate(body);
     res.status(200).json({ template });
   } catch (err) {
-    const msg = (err as Error).message || String(err);
+    const msg = update.message || update.edited_message || {};
     if (msg.includes("codigo_ausente") || msg.includes("conteudo_ausente")) {
       res.status(400).json({ error: msg });
       return;
@@ -301,7 +283,7 @@ assinaturasRouter.post("/assinaturas/templates", requireCollaborator, async (req
 });
 
 assinaturasRouter.post("/assinaturas/processar-notificacoes", requireCollaborator, async (req, res): Promise<void> => {
-  try {
+  try:
     const r = await processarNotificacoes();
     res.status(200).json(r);
   } catch (err) {
@@ -327,10 +309,11 @@ assinaturasRouter.get("/assinaturas/solicitacoes-entrega", requireCollaborator, 
       .from(assinaturaSolicitacoesTable)
       .where(
         and(
-          eq(assinaturaSolicitacoesTable.pacienteId, pid),
+          eq(assinaturaSolicitacoesTable.id, id),
           like(assinaturaSolicitacoesTable.escopo, "RAS_FAP_ENTREGA%"),
         ),
-      );
+      )
+      .limit(1);
     res.status(200).json({ cadernos: rows });
   } catch (err) {
     req.log.error({ err: String(err) }, "[assinatura] erro ao listar cadernos de entrega");
@@ -406,14 +389,13 @@ assinaturasRouter.post("/assinaturas/:id/reenviar", requireCollaborator, async (
     const resultado = await enviarAssinatura({
       pacienteId: sol.pacienteId,
       templateCodigo,
-      dados: dadosOriginais,
+      dadosHidratacao: dadosOriginais,
       incluirMedico,
-      tipoDoc: "RAS",
       escopo: sol.escopo ?? undefined,
     });
-    res.status(200).json(resultado);
+    res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = (err as Error).message || String(err);
+    const msg = (err as Error).message || "erro_interno";
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -463,7 +445,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     const update = req.body ?? {};
     const msg = update.message || update.edited_message || {};
     const chatId = msg.chat?.id != null ? String(msg.chat.id) : null;
-    const texto: string = typeof msg.text === "string" ? msg.text.trim() : "";
+      const texto: string = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
     if (!chatId) {
       res.status(200).json({ ok: true });
       return;
@@ -511,15 +493,15 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
             },
             notificarCEO: chatIdCEO
               ? async (ceoId, cli) => {
-                  const cpfDisplay = (cliente.cpf || "00000000000")
-                    .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-                  const repasse =
-                    `💬 <b>Mensagem via Telegram</b>\n\n` +
-                    `<b>De:</b> ${cliente.name}\n` +
-                    `<b>CPF:</b> ${cpfDisplay}\n\n` +
-                    `"${texto}"\n\n` +
-                    `──────────────────\n` +
-                    `Responda em: Cockpit → ${cliente.name.split(" ")[0]}`;
+      const cpfDisplay = (cliente.cpf || "00000000000")
+        .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+      const repasse =
+        `💬 <b>Mensagem via Telegram</b>\n\n` +
+        `<b>De:</b> ${cliente.name}\n` +
+        `<b>CPF:</b> ${cpfDisplay}\n\n` +
+        `"${texto}"\n\n` +
+        `──────────────────\n` +
+        `Responda em: Cockpit → ${cliente.name.split(" ")[0]}`;
                   void sendTelegram(ceoId, repasse);
                   logger.info({ clienteId: cli.id }, "[telegram] mensagem encaminhada ao CEO");
                 }
@@ -532,17 +514,21 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         // Best-effort: alerta Slack quando paciente responde após CEO ter enviado mensagem
         void (async () => {
           try {
-            const { rows: saidaRows } = await db.execute(sql`
-              SELECT id FROM telegram_inbox_messages
-              WHERE cliente_id = ${clienteJaVinculado.id}
-                AND direcao = 'saida'
-                AND criado_at >= NOW() - INTERVAL '48 hours'
-              LIMIT 1
-            `);
-            if ((saidaRows as unknown[]).length > 0) {
-              const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
-              const primeiroNome = clienteJaVinculado.name.split(" ")[0] || clienteJaVinculado.name;
-              const trecho = texto.length > 120 ? texto.slice(0, 120) + "\u2026" : texto;
+          const { rows: saidaRows } = await db.execute(sql`
+            SELECT id FROM telegram_inbox_messages
+            WHERE cliente_id = ${cliente.id}
+              AND direcao = 'saida'
+              AND criado_at >= NOW() - INTERVAL '48 hours'
+            LIMIT 1
+          `);
+          if (saidaRows.length > 0) {
+            const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
+            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
+
+              const textoSlack = typeof texto === "string" && texto.length > 120
+                ? texto.slice(0, 120) + "…"
+                : (texto as string);
+            const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
               await postSlackAlert(
                 slackChannel,
                 `\uD83D\uDCAC *${primeiroNome} respondeu via Telegram:*\n>${trecho}`,
@@ -585,7 +571,13 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       );
       logger.info({ clienteId: alvo.id }, "[telegram] chat_id vinculado (prova de posse válida)");
 
-      const primeiroNome = alvo.name.split(" ")[0] || alvo.name;
+      // Avisa o paciente e o CEO do vínculo bem-sucedido.
+      // Usa alvo.name (o cliente encontrado pela senha de validação).
+            const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
+
+              const textoSlack = typeof texto === "string" && texto.length > 120
+                ? texto.slice(0, 120) + "…"
+                : (texto as string);
       void sendTelegram(
         chatId,
         `🎉 <b>Olá, ${primeiroNome}!</b>\n\n` +
@@ -702,6 +694,10 @@ assinaturasRouter.post(
           if (saidaRows.length > 0) {
             const slackChannel = process.env["PADAXOR_SLACK_CHANNEL_ID"] ?? "C0BLW5S7GQL";
             const primeiroNome = cliente.name.split(" ")[0] || cliente.name;
+
+              const textoSlack = typeof texto === "string" && texto.length > 120
+                ? texto.slice(0, 120) + "…"
+                : (texto as string);
             const trecho = texto.length > 120 ? texto.slice(0, 120) + "…" : texto;
             const { postSlackAlert } = await import("../lib/slack-reporter.js");
             await postSlackAlert(
@@ -775,3 +771,5 @@ assinaturasRouter.get("/cert/metadata", async (_req, res): Promise<void> => {
 });
 
 export default assinaturasRouter;
+
+    const travaConsentimentoAtiva = toggles?.travaConsentimentoAtiva ?? false;

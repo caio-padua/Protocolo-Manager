@@ -215,29 +215,18 @@ export async function enviarAssinatura(
     signatarios.push(extra);
   }
 
-  // 6. Envelope no provedor.
+  // 6. Reserve the idempotency slot BEFORE creating the provider envelope.
+  // Inserting with status="RASCUNHO" first guarantees that of two concurrent
+  // requests racing for the same deterministic externalId, only ONE proceeds to
+  // call the external provider. The unique partial index on zapsign_external_id
+  // (WHERE NOT NULL) enforces this at the database level.
   const externalId =
     input.externalId || `${tipoDoc.toLowerCase()}-${input.pacienteId}-${Date.now()}`;
   const provedor = (toggles.provedorPrincipalCodigo || "zapsign") as ProvedorCodigo;
   const adapter = getAdapter(provedor);
-  const mock = !adapter.isConfigured();
-
-  const resultado = await adapter.createDocumentEnvelope({
-    templateCodigo: input.templateCodigo || tipoDoc,
-    conteudoHtml: htmlHidratado,
-    pdfBase64,
-    hashOriginal,
-    signatarios,
-    externalId,
-    // Paxter é dono da fila de notificação: ZapSign NÃO dispara WhatsApp sozinho.
-    enviarWhatsappAutomatico: false,
-    ordemAssinaturaAtiva: signatarios.length > 1,
-    metadata: { tipoDoc, pacienteId: input.pacienteId, ...(input.metadataExtra || {}) },
-  });
-
-  // 7. Persistir solicitação.
   const canais: string[] = input.canais || ["WHATSAPP"];
-  const insSol = await db
+
+  const resRow = await db
     .insert(assinaturaSolicitacoesTable)
     .values({
       pacienteId: input.pacienteId,
@@ -246,18 +235,76 @@ export async function enviarAssinatura(
       titulo: titulo ?? null,
       escopo: input.escopo?.trim() || null,
       provedorCodigo: provedor,
-      provedorEnvelopeId: resultado.envelopeId,
+      provedorEnvelopeId: null,           // filled below after envelope creation
       zapsignExternalId: externalId,
-      status: "ENVIADO",
+      status: "RASCUNHO",                 // sentinel: slot reserved, envelope pending
       dadosHidratacao: dados,
       hashOriginal,
       signatariosSnapshot: signatarios,
       canaisDistribuir: canais,
+      metadata: { ...(input.metadataExtra || {}) },
+    })
+    .onConflictDoNothing()
+    .returning({ id: assinaturaSolicitacoesTable.id });
+
+  // If the INSERT returned 0 rows, the unique index fired — a concurrent request
+  // already reserved this slot. Skip envelope creation and return the existing id.
+  if (resRow.length === 0) {
+    const [existente] = await db
+      .select({ id: assinaturaSolicitacoesTable.id })
+      .from(assinaturaSolicitacoesTable)
+      .where(eq(assinaturaSolicitacoesTable.zapsignExternalId, externalId))
+      .limit(1);
+    if (!existente) throw new Error(`conflict_sem_existente:${externalId}`);
+    return {
+      solicitacaoId: existente.id,
+      envelopeId: "",            // slot already owned by concurrent request
+      status: "RASCUNHO" as const,
+      mock: false,
+      links: [] as { url: string; email: string }[],
+      linkPaciente: undefined as string | undefined,
+    };
+  }
+  const solicitacaoId = resRow[0]!.id;
+
+  // 7. Create provider envelope — only ONE concurrent request ever reaches here
+  // for a given externalId, guaranteed by the DB reservation above.
+  // If the provider throws, we DELETE the RASCUNHO row so that future retries
+  // can reclaim the slot and attempt the envelope creation again.
+  // (Without this, a failed RASCUNHO would block all retries via ON CONFLICT.)
+  let resultado: Awaited<ReturnType<typeof adapter.createDocumentEnvelope>>;
+  try {
+    resultado = await adapter.createDocumentEnvelope({
+      templateCodigo: input.templateCodigo || tipoDoc,
+      conteudoHtml: htmlHidratado,
+      pdfBase64,
+      hashOriginal,
+      signatarios,
+      externalId,
+      // Paxter é dono da fila de notificação: ZapSign NÃO dispara WhatsApp sozinho.
+      enviarWhatsappAutomatico: false,
+      ordemAssinaturaAtiva: signatarios.length > 1,
+      metadata: { tipoDoc, pacienteId: input.pacienteId, ...(input.metadataExtra || {}) },
+    });
+  } catch (providerErr) {
+    // Release the RASCUNHO slot so the next retry can enter.
+    await db
+      .delete(assinaturaSolicitacoesTable)
+      .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
+    throw providerErr;
+  }
+  const mock = !adapter.isConfigured();
+
+  // 8. Update the reservation row with the real envelope data + mark ENVIADO.
+  await db
+    .update(assinaturaSolicitacoesTable)
+    .set({
+      provedorEnvelopeId: resultado.envelopeId,
+      status: "ENVIADO",
       metadata: { mock, ...(input.metadataExtra || {}) },
       enviadoEm: new Date(),
     })
-    .returning({ id: assinaturaSolicitacoesTable.id });
-  const solicitacaoId = insSol[0]!.id;
+    .where(eq(assinaturaSolicitacoesTable.id, solicitacaoId));
 
   // 8. Persistir signatários + casar link de assinatura por email.
   const linkPorEmail = new Map(
