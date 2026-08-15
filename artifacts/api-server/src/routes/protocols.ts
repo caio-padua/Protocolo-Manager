@@ -1152,15 +1152,34 @@ router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
     // Determine which substances are DISP (applied this week) vs PROX (coming next weeks)
     // All substances in this week are DISP; substancesTotal - items in this week for future weeks = PROX display only
     for (const app of weekData.substanceApplications) {
-      await db.insert(substanceApplicationsTable).values({
-        sessionId: session.id,
-        substanceId: app.substanceId,
-        dose: app.dose,
-        sessionNumber: app.sessionNumber,
-        totalSessions: app.totalSessions,
-        status: "pending",
-        availability: "disp",
-      });
+      try {
+        await db.insert(substanceApplicationsTable).values({
+          sessionId: session.id,
+          substanceId: app.substanceId,
+          dose: app.dose,
+          sessionNumber: app.sessionNumber,
+          totalSessions: app.totalSessions,
+          status: "pending",
+          availability: "disp",
+        });
+      } catch (insertErr: any) {
+        // Drizzle wraps pg errors: check both err.code and err.cause.code
+        if (insertErr?.code === "23505" || insertErr?.cause?.code === "23505") {
+          const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+          void postSlackAlert(
+            slackChannel,
+            `⚠️ *Aplicação duplicada recusada pelo banco* (DISP)\n` +
+            `Protocolo: *#${protocol.id}* | Sessão: *#${session.id}* (semana ${weekNumber}) | Substância ID: *${app.substanceId}* | Sessão nº ${app.sessionNumber}\n` +
+            `O motor de consolidação tentou inserir uma linha já existente. Nenhum dado foi corrompido — a duplicata foi bloqueada na origem.`,
+          );
+          res.status(409).json({
+            error: "duplicate_application",
+            message: `Aplicação duplicada detectada para a substância ${app.substanceId} na sessão ${session.id} (semana ${weekNumber}, nº ${app.sessionNumber}). O banco recusou o INSERT. Verifique o motor de consolidação.`,
+          });
+          return;
+        }
+        throw insertErr;
+      }
     }
 
     // Find substances that have future sessions — add them as PROX for visibility
@@ -1170,15 +1189,33 @@ router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
         // Check if this substance has any session at all and has remaining sessions
         const futureSessionExists = weekData.substanceApplications.length > 0;
         if (futureSessionExists) {
-          await db.insert(substanceApplicationsTable).values({
-            sessionId: session.id,
-            substanceId: item.substanceId,
-            dose: item.dose,
-            sessionNumber: 0,
-            totalSessions: item.totalSessions,
-            status: "pending",
-            availability: "prox",
-          });
+          try {
+            await db.insert(substanceApplicationsTable).values({
+              sessionId: session.id,
+              substanceId: item.substanceId,
+              dose: item.dose,
+              sessionNumber: 0,
+              totalSessions: item.totalSessions,
+              status: "pending",
+              availability: "prox",
+            });
+          } catch (insertErr: any) {
+            if (insertErr?.code === "23505" || insertErr?.cause?.code === "23505") {
+              const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+              void postSlackAlert(
+                slackChannel,
+                `⚠️ *Aplicação duplicada recusada pelo banco* (PROX)\n` +
+                `Protocolo: *#${protocol.id}* | Sessão: *#${session.id}* (semana ${weekNumber}) | Substância ID: *${item.substanceId}* | Sessão nº 0\n` +
+                `O motor de consolidação tentou inserir uma linha já existente. Nenhum dado foi corrompido — a duplicata foi bloqueada na origem.`,
+              );
+              res.status(409).json({
+                error: "duplicate_application",
+                message: `Aplicação duplicada detectada (PROX) para a substância ${item.substanceId} na sessão ${session.id} (semana ${weekNumber}). O banco recusou o INSERT. Verifique o motor de consolidação.`,
+              });
+              return;
+            }
+            throw insertErr;
+          }
         }
       }
     }
