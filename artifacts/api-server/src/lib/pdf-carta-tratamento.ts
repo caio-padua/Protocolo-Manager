@@ -1125,11 +1125,19 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
     });
     return { pdfBytes, certInfo: { ...certInfo, signerName: sName } };
   } catch (sigErr: any) {
-    // Certificado ausente ou inválido: entrega PDF sem assinatura.
-    // Registra aviso mas NÃO lança exceção — documento é válido sem selo.
+    const msg: string = sigErr?.message ?? String(sigErr);
+    // Fallback APENAS quando o certificado não está configurado no ambiente.
+    // Qualquer outro erro (certificado inválido, senha errada, falha de assinatura
+    // ou construção do PDF) é propagado — documento não é entregue sem aviso explícito.
+    const isMissingCert =
+      msg.includes("Certificado digital A1 nao configurado") ||
+      msg.includes("nao configurado");
+    if (!isMissingCert) {
+      throw sigErr;
+    }
     console.warn(
-      "[carta-tratamento] Assinatura PAdES ignorada (certificado não configurado):",
-      sigErr?.message ?? sigErr,
+      "[carta-tratamento] Certificado PAdES não configurado — PDF entregue sem assinatura digital:",
+      msg,
     );
     const pdfBytes = new Uint8Array(await pdfDoc.save());
     return { pdfBytes, certInfo: null };

@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Building2, Crown, Plus, RefreshCw, ChevronRight,
   HardDrive, Check, AlertCircle, Edit2, X, Save,
-  TrendingUp, Users, Landmark, Wifi, Sparkles, BadgeCheck
+  TrendingUp, Users, Landmark, Wifi, Sparkles, BadgeCheck, Info
 } from "lucide-react";
 import { ConsoleShell } from "@/pages/comunicacao/_shared";
 
@@ -60,6 +60,33 @@ const TIPOS_OPTIONS: { value: TipoLicenciamento; label: string }[] = [
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna o conjunto de IDs que podem ser empresa-mãe de uma nova empresa
+ * (ou de uma empresa existente com id=editandoId).
+ *
+ * Regra do backend (empresas.ts, linha ~400):
+ *   "Máximo permitido = 1, ou seja, o novo pai DEVE ser o próprio Platform Owner
+ *    (profundidade 0)."
+ *
+ * Portanto, apenas empresas com isPlatformOwner = true são mães válidas.
+ * A própria empresa não pode ser mãe de si mesma (bloqueada no backend também).
+ */
+function calcularPaisPermitidos(
+  hierarquia: HierarquiaResposta | null,
+  editandoId: number | null,
+  todasEmpresas: EmpresaFlat[]
+): Set<number> {
+  const permitidos = new Set<number>();
+  if (!hierarquia) return permitidos;
+
+  for (const e of todasEmpresas) {
+    if (e.isPlatformOwner && e.id !== editandoId) {
+      permitidos.add(e.id);
+    }
+  }
+  return permitidos;
+}
 
 function fmtBRL(val: string | number | null | undefined): string {
   if (!val) return "—";
@@ -249,9 +276,11 @@ const FORM_VAZIO: FormState = {
   valorMensalContrato: "", royaltyPercent: "30", status: "ATIVO",
 };
 
-function Modal({ inicial, todasEmpresas, onSalvar, onFechar, salvando }: {
+function Modal({ inicial, editandoId, todasEmpresas, hierarquia, onSalvar, onFechar, salvando }: {
   inicial: FormState | null;
+  editandoId: number | null;
   todasEmpresas: EmpresaFlat[];
+  hierarquia: HierarquiaResposta | null;
   onSalvar: (dados: FormState) => void;
   onFechar: () => void;
   salvando: boolean;
@@ -259,6 +288,21 @@ function Modal({ inicial, todasEmpresas, onSalvar, onFechar, salvando }: {
   const [form, setForm] = useState<FormState>(inicial ?? FORM_VAZIO);
   const set = (k: keyof FormState, v: string) => setForm(prev => ({ ...prev, [k]: v }));
   const precisaMae = form.tipoLicenciamento === "sub_unidade" || form.tipoLicenciamento === "licenciada_por_clinica";
+
+  // Compute which companies can be parents (only the Platform Owner)
+  const paisPermitidos = useMemo(
+    () => calcularPaisPermitidos(hierarquia, editandoId, todasEmpresas),
+    [hierarquia, editandoId, todasEmpresas]
+  );
+
+  // Tooltip reason for disabled options
+  function motivoBloqueio(e: EmpresaFlat): string {
+    if (editandoId !== null && e.id === editandoId) return "Uma empresa não pode ser mãe de si mesma.";
+    if (!paisPermitidos.has(e.id)) return "Apenas o Platform Owner pode ser empresa-mãe. Esta empresa já está em profundidade ≥ 1 — selecioná-la criaria profundidade 2, o que é bloqueado pelo sistema.";
+    return "";
+  }
+
+  const totalPermitidos = todasEmpresas.filter(e => paisPermitidos.has(e.id)).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,22,43,0.7)]">
@@ -323,16 +367,42 @@ function Modal({ inicial, todasEmpresas, onSalvar, onFechar, salvando }: {
           {/* Empresa mãe (condicional) */}
           {precisaMae && (
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Empresa Mãe *</label>
+              <div className="flex items-center gap-2 mb-1">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Empresa Mãe *</label>
+                <span className="text-[9px] text-[#647c97]">
+                  ({totalPermitidos} disponíve{totalPermitidos === 1 ? "l" : "is"})
+                </span>
+              </div>
+              {/* Regra explicada */}
+              <div className="concave-3d flex items-start gap-2 px-3 py-2 rounded mb-2"
+                style={{ borderLeft: "3px solid #45B8CC" }}>
+                <Info className="h-3.5 w-3.5 text-[#45B8CC] mt-0.5 shrink-0" />
+                <p className="text-[10px] text-[#647c97]">
+                  Apenas o <strong>Platform Owner</strong> pode ser empresa-mãe.
+                  A profundidade máxima permitida é <strong>1 nível</strong> — empresas que já têm
+                  uma mãe não podem ser mãe de outros.
+                </p>
+              </div>
               <select
                 value={form.empresaMaeId}
                 onChange={e => set("empresaMaeId", e.target.value)}
                 className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
               >
                 <option value="">— Selecione —</option>
-                {todasEmpresas.map(e => (
-                  <option key={e.id} value={String(e.id)}>{e.nome}</option>
-                ))}
+                {todasEmpresas.map(e => {
+                  const permitido = paisPermitidos.has(e.id);
+                  const motivo = motivoBloqueio(e);
+                  return (
+                    <option
+                      key={e.id}
+                      value={String(e.id)}
+                      disabled={!permitido}
+                      title={motivo || undefined}
+                    >
+                      {permitido ? e.nome : `🚫 ${e.nome} — ${motivo}`}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -710,7 +780,9 @@ export default function EmpresasLicenciadas() {
       {modalAberto && (
         <Modal
           inicial={formInicial}
+          editandoId={editandoId}
           todasEmpresas={empresasFlat}
+          hierarquia={hierarquia}
           onSalvar={handleSalvar}
           onFechar={() => setModalAberto(false)}
           salvando={salvando}

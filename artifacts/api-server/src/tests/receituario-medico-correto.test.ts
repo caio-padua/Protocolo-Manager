@@ -22,7 +22,7 @@ import { buildPrescricaoHtml } from "../lib/receituario-html.js";
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────────
 
-function makeParams(overrides: Partial<Parameters<typeof buildPrescricaoHtml>[0]> = {}) {
+function makeParams(overrides: Partial<Parameters<typeof buildPrescricaoHtml>[0]> = {}): Parameters<typeof buildPrescricaoHtml>[0] {
   return {
     medicoNome:         "Dra. Ana Lima",
     medicoCrm:          "CRM/SP 654321",
@@ -35,6 +35,7 @@ function makeParams(overrides: Partial<Parameters<typeof buildPrescricaoHtml>[0]
     pacienteEndereco:   "Av. Exemplo, 1 — São Paulo / SP",
     dataEmissao:        "2026-08-15",
     assetsBaseUrl:      "http://localhost/padcom",
+    tipoReceita:        "simples",
     formulas: [
       {
         numero:    1,
