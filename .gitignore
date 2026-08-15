@@ -76,3 +76,7 @@ docs/provas/
 # Nesta task os 1.157 anexos tambem sairam do INDICE (git rm --cached): continuam
 # no disco e no historico antigo, mas nao entram em nenhum commit novo.
 attached_assets/
+
+# Playwright test artifacts
+test-results/
+playwright-report/
