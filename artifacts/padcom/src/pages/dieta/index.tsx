@@ -1022,7 +1022,7 @@ function MontarCardapio() {
               {emitirPdf.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Gerando plano… (pode levar até 90 s)
+                  Gerando plano…
                 </>
               ) : (
                 <>
@@ -1032,6 +1032,20 @@ function MontarCardapio() {
               )}
             </Button>
           </div>
+
+          {emitirPdf.isPending && (
+            <div className="panel-3d-sub border-l-4 border-primary/60 px-4 py-3 flex items-start gap-3">
+              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+              <div className="space-y-0.5">
+                <p className="text-[12px] font-bold text-foreground">
+                  Gerando plano nutricional com IA — pode levar até 2 minutos.
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  O Claude está montando cardápio semanal, suplementação e tabela de acompanhamento. Aguarde sem fechar a aba.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ---- Painel de confirmação de e-mail (aparece após revisão do PDF) ---- */}
           {pendingEmail && (
