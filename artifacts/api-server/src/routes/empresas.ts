@@ -402,14 +402,42 @@ async function validarHierarquia(
     return "Não é possível criar sub-licenciado neste nível da hierarquia.";
   }
 
-  // PUT: a empresa editada ficaria em profundidade 1.
-  // Qualquer filho existente passaria para profundidade 2 → proibido.
+  // PUT: verificar recursivamente se algum descendente ficaria com profundidade > 1.
+  // A empresa editada ficaria em novaProf = check.profundidade + 1.
+  // Um descendente a N saltos dela ficaria em novaProf + N.
+  // Como novaProf ≤ 1, qualquer filho (N=1) já ficaria em novaProf+1 ≥ 2 → proibido.
+  // Verificamos recursivamente para listar todos os afetados (incluindo netos, bisnetos).
   if (empresaIdEditando !== undefined) {
-    const temFilhos = lista.some(e => e.empresaMaeId === empresaIdEditando);
-    if (temFilhos) {
+    const novaProf = check.profundidade + 1;
+
+    // Monta índice de filhos diretos para percorrer a árvore
+    const filhosPorPai = new Map<number, Array<{ id: number; nome: string }>>();
+    for (const e of lista) {
+      if (e.empresaMaeId !== null && e.empresaMaeId !== undefined) {
+        const arr = filhosPorPai.get(e.empresaMaeId) ?? [];
+        arr.push({ id: e.id, nome: e.nome });
+        filhosPorPai.set(e.empresaMaeId, arr);
+      }
+    }
+
+    // BFS: encontra todos os descendentes e calcula a nova profundidade de cada um
+    const afetados: string[] = [];
+    const fila: Array<{ id: number; nome: string; prof: number }> = (filhosPorPai.get(empresaIdEditando) ?? [])
+      .map(f => ({ id: f.id, nome: f.nome, prof: novaProf + 1 }));
+
+    while (fila.length > 0) {
+      const { id, nome, prof } = fila.shift()!;
+      if (prof > 1) afetados.push(nome);
+      for (const filho of (filhosPorPai.get(id) ?? [])) {
+        fila.push({ id: filho.id, nome: filho.nome, prof: prof + 1 });
+      }
+    }
+
+    if (afetados.length > 0) {
+      const lista422 = afetados.map(n => `"${n}"`).join(", ");
       return (
-        "Não é possível mover esta empresa para este nível porque seus " +
-        "sub-licenciados ficariam fora da hierarquia permitida (profundidade > 1)."
+        `Não é possível mover esta empresa: os seguintes sub-licenciados ficariam ` +
+        `fora da hierarquia permitida (profundidade > 1): ${lista422}.`
       );
     }
   }
