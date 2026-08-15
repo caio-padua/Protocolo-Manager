@@ -1211,6 +1211,7 @@ interface PlanoEmitido {
   emailDestino: string | null;
   emailEnviado: boolean;
   temPdf: boolean;
+  pdfExpirado: boolean;
   pdfBytes: number | null;
   emitidoEm: string;
 }
@@ -1247,7 +1248,7 @@ function HistoricoPlanos() {
     enabled: !!clienteId,
   });
 
-  // Estado do painel de reenvio com override de e-mail
+  // Estado do painel de reenvio com override de e-mail (task #219)
   const [reenviarModal, setReenviarModal] = useState<{
     plano: PlanoEmitido;
     email: string;
@@ -1409,11 +1410,15 @@ function HistoricoPlanos() {
                           Sem e-mail
                         </span>
                       )}
-                      {!p.temPdf && (
+                      {p.pdfExpirado ? (
+                        <span className="rounded bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                          PDF expirado
+                        </span>
+                      ) : !p.temPdf ? (
                         <span className="rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700">
                           PDF indisponível
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
@@ -1447,9 +1452,9 @@ function HistoricoPlanos() {
                     )}
                   </div>
 
-                  {/* Lado direito: ações */}
+                  {/* Lado direito: ações — ocultos quando PDF expirado */}
                   <div className="flex shrink-0 gap-2">
-                    {p.temPdf && (
+                    {p.temPdf && !p.pdfExpirado && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1460,7 +1465,7 @@ function HistoricoPlanos() {
                         Baixar PDF
                       </Button>
                     )}
-                    {p.temPdf && (
+                    {p.temPdf && !p.pdfExpirado && (
                       <Button
                         variant="outline"
                         size="sm"

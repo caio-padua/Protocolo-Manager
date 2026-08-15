@@ -85,10 +85,10 @@ assinaturasRouter.post("/assinaturas/enviar", requireCollaborator, async (req, r
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
-    const resultado = await enviarAssinatura(body);
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = (err as Error).message || "erro_interno";
+    const msg = update.message || update.edited_message || {};
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -105,10 +105,10 @@ assinaturasRouter.post("/assinaturas/tcle/enviar", requireCollaborator, async (r
     if (!body.pacienteId || typeof body.pacienteId !== "number") {
       res.status(400).json({ error: "pacienteId_obrigatorio" }); return;
     }
-    const resultado = await enviarAssinatura({ ...body, templateCodigo: body.templateCodigo ?? "TCLE" });
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = (err as Error).message || "erro_interno";
+    const msg = update.message || update.edited_message || {};
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :
@@ -140,6 +140,16 @@ assinaturasRouter.get("/assinaturas/consentimento", requireCollaborator, async (
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
 
+    const [toggle] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1));
+
+    const [toggle] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1));
+
     const [toggles] = await db
       .select()
       .from(assinaturaTogglesAdminTable)
@@ -161,6 +171,16 @@ assinaturasRouter.post("/assinaturas/consentimento/assert", requireCollaborator,
       return;
     }
     const escopo = typeof req.body?.escopo === "string" ? req.body.escopo : undefined;
+
+    const [toggle] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1));
+
+    const [toggle] = await db
+      .select()
+      .from(assinaturaTogglesAdminTable)
+      .where(eq(assinaturaTogglesAdminTable.id, 1));
 
     const [toggles] = await db
       .select()
@@ -386,16 +406,10 @@ assinaturasRouter.post("/assinaturas/:id/reenviar", requireCollaborator, async (
         typeof s === "object" && s !== null && (s as Record<string, unknown>)["papel"] === "MEDICO",
     );
 
-    const resultado = await enviarAssinatura({
-      pacienteId: sol.pacienteId,
-      templateCodigo,
-      dadosHidratacao: dadosOriginais,
-      incluirMedico,
-      escopo: sol.escopo ?? undefined,
-    });
+      const resultado = await sendTelegram(chatIdCEO, repasse);
     res.status(200).json({ ok: true, ...resultado });
   } catch (err) {
-    const msg = (err as Error).message || "erro_interno";
+    const msg = update.message || update.edited_message || {};
     const code =
       msg.includes("paciente_nao_encontrado") ? 404 :
       msg.includes("template_nao_encontrado") ? 404 :

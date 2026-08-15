@@ -174,6 +174,16 @@ export class ObjectStorageService {
     return buf;
   }
 
+  // Remove um objeto privado do storage. Silencioso se não existir.
+  async deletePrivateObject(relativePath: string): Promise<void> {
+    let dir = this.getPrivateObjectDir();
+    if (!dir.endsWith("/")) dir = `${dir}/`;
+    const fullPath = `${dir}${relativePath}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.delete({ ignoreNotFound: true });
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
@@ -308,6 +318,6 @@ async function signObjectURL({
     );
   }
 
-  const { signed_url: signedURL } = await response.json();
+  const { signed_url: signedURL } = await response.json() as { signed_url: string };
   return signedURL;
 }

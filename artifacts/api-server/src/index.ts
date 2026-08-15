@@ -20,6 +20,7 @@ import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
 import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
 import { startWebhookGuard } from "./lib/telegram-webhook-guard";
+import { purgeOldDietaPdfs } from "./lib/dieta-planos-storage";
 
 const rawPort = process.env["PORT"];
 
@@ -170,5 +171,19 @@ if (Number.isNaN(port) || port <= 0) {
       .catch((e) =>
         logger.error({ err: e }, "[device-throttle] Falha na limpeza de linhas antigas no boot"),
       );
+
+    // Limpeza de PDFs de planos nutricionais com mais de 180 dias: roda no boot
+    // e depois a cada 24h para não acumular no Object Storage.
+    function runPurgeDietaPdfs() {
+      purgeOldDietaPdfs()
+        .then((removed) =>
+          logger.info({ removed }, "[dieta-pdfs] Limpeza de PDFs antigos concluída"),
+        )
+        .catch((e) =>
+          logger.error({ err: e }, "[dieta-pdfs] Falha na limpeza de PDFs antigos"),
+        );
+    }
+    runPurgeDietaPdfs();
+    setInterval(runPurgeDietaPdfs, 24 * 60 * 60 * 1000);
   });
 })();

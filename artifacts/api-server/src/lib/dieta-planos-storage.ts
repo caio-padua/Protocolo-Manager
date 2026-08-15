@@ -7,7 +7,7 @@
  */
 
 import { db, dietaPlanosEmitidosTable } from "@workspace/db";
-import { sql, desc, eq, and } from "drizzle-orm";
+import { sql, desc, eq, and, lt, isNotNull } from "drizzle-orm";
 import { ObjectStorageService } from "./objectStorage";
 
 const storage = new ObjectStorageService();
@@ -65,6 +65,64 @@ export async function uploadDietaPdf(planoId: number, pdfBuffer: Buffer): Promis
 export async function readDietaPdf(storageKey: string): Promise<Buffer> {
   // storageKey é o caminho lógico retornado por savePrivateObject
   return storage.readPrivateObject(storageKey);
+}
+
+// ─── Limpeza de PDFs expirados ────────────────────────────────────────────────
+
+const RETENTION_DAYS = 180;
+
+/**
+ * Remove do Object Storage todos os PDFs de planos com mais de 180 dias e
+ * zera pdf_storage_key no banco (preservando o restante do registro histórico).
+ * Retorna o número de planos limpos.
+ */
+export async function purgeOldDietaPdfs(): Promise<number> {
+  await ensureDietaPlanosTable();
+
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+  // Busca todos os registros com PDF armazenado mais antigos que o cutoff
+  const stale = await db
+    .select({
+      id: dietaPlanosEmitidosTable.id,
+      pdfStorageKey: dietaPlanosEmitidosTable.pdfStorageKey,
+    })
+    .from(dietaPlanosEmitidosTable)
+    .where(
+      and(
+        lt(dietaPlanosEmitidosTable.emitidoEm, cutoff),
+        isNotNull(dietaPlanosEmitidosTable.pdfStorageKey),
+      ),
+    );
+
+  if (stale.length === 0) return 0;
+
+  const svc = new ObjectStorageService();
+  let removed = 0;
+
+  for (const row of stale) {
+    if (!row.pdfStorageKey) continue;
+    try {
+      // deletePrivateObject usa ignoreNotFound:true — só lança em erros reais (auth, rede, etc.)
+      await svc.deletePrivateObject(row.pdfStorageKey);
+    } catch (err) {
+      // Erro real de storage: mantém a chave no banco para retentar no próximo ciclo.
+      // Não conta como removido — a referência ainda pode apontar para o arquivo.
+      console.error(
+        `[dieta-pdfs] Falha ao deletar storage key ${row.pdfStorageKey} (plano #${row.id}):`,
+        err,
+      );
+      continue;
+    }
+    // Delete confirmado (ou arquivo já não existia): zera a chave no banco.
+    await db
+      .update(dietaPlanosEmitidosTable)
+      .set({ pdfStorageKey: null })
+      .where(eq(dietaPlanosEmitidosTable.id, row.id));
+    removed++;
+  }
+
+  return removed;
 }
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────

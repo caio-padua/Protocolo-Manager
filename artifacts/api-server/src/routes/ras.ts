@@ -1179,14 +1179,14 @@ router.get("/ras-fichas-demo", async (req, res) => {
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // POST /ras-fap/entregar-protocolo
 // Geração e envio do RAS FAP real para o paciente.
 // Na primeira entrega, o e-mail lista os RAS jurídicos relevantes ao protocolo.
 // Corpo: { clientId, substancias, titulo?, incluirCadernosJuridicos? }
 //   substancias[]: { nome, dose, via, sessoes, frequenciaDias, inicio, cor?, procedureType? }
 // Retorna 200 { queued: true, email } imediatamente; envio é assíncrono.
-// ============================================================================
+// ---------------------------------------------------------------------------
 function buildEntregaBlocks(
   substancias: Array<{ nome: string; dose: string; via: string; sessoes: number; frequenciaDias: number; inicio: string; cor?: string }>,
   clientName: string,
