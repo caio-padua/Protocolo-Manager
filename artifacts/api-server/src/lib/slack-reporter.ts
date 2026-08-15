@@ -824,25 +824,13 @@ export async function postSlackReport(channelId: string, report: LlmReport): Pro
   const blocks = formatarRelatorioSlack(report);
   const fallback = `PADAXOR LLMs — ${report.periodo}: ${report.totalChamadas} chamadas, ${usd(report.totalCustoUsd)}`;
 
-  let erro: string | undefined;
-  let ok = false;
-
-  try {
-    const data = await slackPost("/chat.postMessage", {
-      channel: channelId,
-      text:    fallback,
-      blocks,
-    });
-    if (!data.ok) throw new Error(`Slack postMessage erro: ${data.error ?? "desconhecido"}`);
-    ok = true;
-    logger.info({ channel: channelId }, "slack-reporter: relatório postado com sucesso");
-  } catch (e) {
-    erro = (e as Error).message;
-    throw e;   // propaga para o chamador (cron loga, mas não derruba o worker)
-  } finally {
-    // Grava histórico independente de sucesso ou falha
-    await salvarHistorico(report, "slack", ok, erro);
-  }
+  const data = await slackPost("/chat.postMessage", {
+    channel: channelId,
+    text:    fallback,
+    blocks,
+  });
+  if (!data.ok) throw new Error(`Slack postMessage erro: ${data.error ?? "desconhecido"}`);
+  logger.info({ channel: channelId }, "slack-reporter: relatório postado com sucesso");
 }
 
 // ---------------------------------------------------------------------------
@@ -1033,79 +1021,71 @@ export async function postTelegramReport(
 ): Promise<void> {
   const texto = formatarRelatorioTelegram(report);
   let ultimoErro: string | undefined;
-  let telegramOk = false;
 
-  try {
-    for (let tentativa = 1; tentativa <= TELEGRAM_MAX_TENTATIVAS; tentativa++) {
-      // Backoff antes das retentativas (1s na 2ª, 2s na 3ª)
-      if (tentativa > 1) {
-        await sleep((tentativa - 1) * 1000);
-        logger.info(
-          { chatId, tentativa, totalTentativas: TELEGRAM_MAX_TENTATIVAS },
-          "slack-reporter: Telegram retry",
-        );
-      }
-
-      const resultado = await sendTelegram(chatId, texto);
-
-      if (resultado.mock) {
-        logger.info({ chatId }, "slack-reporter: Telegram MOCK (sem token no cofre)");
-        telegramOk = true;
-        return; // finally roda antes de retornar
-      }
-
-      if (resultado.sent) {
-        logger.info(
-          { chatId, tentativa },
-          "slack-reporter: relatório postado no Telegram com sucesso",
-        );
-        telegramOk = true;
-        return; // finally roda antes de retornar
-      }
-
-      ultimoErro = resultado.error ?? "desconhecido";
-      logger.warn(
-        { chatId, tentativa, totalTentativas: TELEGRAM_MAX_TENTATIVAS, erro: ultimoErro },
-        `slack-reporter: Telegram falhou (tentativa ${tentativa}/${TELEGRAM_MAX_TENTATIVAS})`,
+  for (let tentativa = 1; tentativa <= TELEGRAM_MAX_TENTATIVAS; tentativa++) {
+    // Backoff antes das retentativas (1s na 2ª, 2s na 3ª)
+    if (tentativa > 1) {
+      await sleep((tentativa - 1) * 1000);
+      logger.info(
+        { chatId, tentativa, totalTentativas: TELEGRAM_MAX_TENTATIVAS },
+        "slack-reporter: Telegram retry",
       );
     }
 
-    // Todas as tentativas falharam — log estruturado + fallback no Slack
-    logger.error(
-      { chatId, telegramFailed: true, erro: ultimoErro, tentativas: TELEGRAM_MAX_TENTATIVAS },
-      "slack-reporter: Telegram offline após todas as tentativas — ativando fallback Slack",
-    );
+    const resultado = await sendTelegram(chatId, texto);
 
-    if (fallbackSlackChannelId) {
-      try {
-        await slackPost("/chat.postMessage", {
-          channel: fallbackSlackChannelId,
-          text: [
-            `⚠️ *PADAXOR — Telegram offline*`,
-            `O relatório horário de LLMs *não pôde ser entregue* ao Telegram após ${TELEGRAM_MAX_TENTATIVAS} tentativas.`,
-            `Erro: \`${ultimoErro}\``,
-            `Chat ID: \`${chatId}\``,
-            `_(O relatório do Slack foi enviado normalmente.)_`,
-          ].join("\n"),
-        });
-        logger.info(
-          { fallbackSlackChannelId, telegramFailed: true },
-          "slack-reporter: aviso de falha Telegram postado no Slack com sucesso",
-        );
-      } catch (slackErr) {
-        logger.error(
-          { err: (slackErr as Error).message, telegramFailed: true },
-          "slack-reporter: dupla falha — Telegram offline E aviso no Slack também falhou",
-        );
-      }
+    if (resultado.mock) {
+      logger.info({ chatId }, "slack-reporter: Telegram MOCK (sem token no cofre)");
+      return;
     }
 
-    // Lança para que o chamador saiba que o Telegram falhou
-    throw new Error(
-      `Telegram sendMessage falhou após ${TELEGRAM_MAX_TENTATIVAS} tentativas: ${ultimoErro}`,
+    if (resultado.sent) {
+      logger.info(
+        { chatId, tentativa },
+        "slack-reporter: relatório postado no Telegram com sucesso",
+      );
+      return;
+    }
+
+    ultimoErro = resultado.error ?? "desconhecido";
+    logger.warn(
+      { chatId, tentativa, totalTentativas: TELEGRAM_MAX_TENTATIVAS, erro: ultimoErro },
+      `slack-reporter: Telegram falhou (tentativa ${tentativa}/${TELEGRAM_MAX_TENTATIVAS})`,
     );
-  } finally {
-    // Grava histórico independente de sucesso ou falha (espelha postSlackReport)
-    await salvarHistorico(report, "telegram", telegramOk, ultimoErro);
   }
+
+  // Todas as tentativas falharam — log estruturado + fallback no Slack
+  logger.error(
+    { chatId, telegramFailed: true, erro: ultimoErro, tentativas: TELEGRAM_MAX_TENTATIVAS },
+    "slack-reporter: Telegram offline após todas as tentativas — ativando fallback Slack",
+  );
+
+  if (fallbackSlackChannelId) {
+    try {
+      await slackPost("/chat.postMessage", {
+        channel: fallbackSlackChannelId,
+        text: [
+          `⚠️ *PADAXOR — Telegram offline*`,
+          `O relatório horário de LLMs *não pôde ser entregue* ao Telegram após ${TELEGRAM_MAX_TENTATIVAS} tentativas.`,
+          `Erro: \`${ultimoErro}\``,
+          `Chat ID: \`${chatId}\``,
+          `_(O relatório do Slack foi enviado normalmente.)_`,
+        ].join("\n"),
+      });
+      logger.info(
+        { fallbackSlackChannelId, telegramFailed: true },
+        "slack-reporter: aviso de falha Telegram postado no Slack com sucesso",
+      );
+    } catch (slackErr) {
+      logger.error(
+        { err: (slackErr as Error).message, telegramFailed: true },
+        "slack-reporter: dupla falha — Telegram offline E aviso no Slack também falhou",
+      );
+    }
+  }
+
+  // Lança para que o chamador saiba que o Telegram falhou
+  throw new Error(
+    `Telegram sendMessage falhou após ${TELEGRAM_MAX_TENTATIVAS} tentativas: ${ultimoErro}`,
+  );
 }
