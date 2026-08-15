@@ -10,7 +10,7 @@ import { tituloProprio } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   Users, Search, Send, Loader2, CheckCircle2, XCircle,
-  Mic, Video, BarChart3, RefreshCw, User, X, RotateCcw,
+  Mic, Video, BarChart3, RefreshCw, User, X, RotateCcw, Gauge,
 } from "lucide-react";
 
 interface Avatar { id: number; nomeExibido: string; status: string; nivel?: string; }
@@ -36,6 +36,7 @@ interface Props {
 export function CampanhaAvatar({ avatares, apiBase }: Props) {
   const [avatarId,    setAvatarId]    = useState<number | null>(null);
   const [canal,       setCanal]       = useState<"VOICE" | "VIDEO">("VOICE");
+  const [velocidade,  setVelocidade]  = useState<"lenta" | "normal" | "rapida">("normal");
   const [texto,       setTexto]       = useState("");
   const [busca,       setBusca]       = useState("");
   const [resultsBusca, setResultsBusca] = useState<Cliente[]>([]);
@@ -106,6 +107,7 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
           avatarId,
           canal,
           texto,
+          velocidade,
           clienteIds: selecionados.map(c => c.id),
         }),
       });
@@ -283,6 +285,39 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
                      placeholder-white/30 focus:outline-none focus:border-gold/40 resize-none"
         />
         <p className="text-right text-xs text-white/30 mt-0.5">{texto.length}/3000</p>
+      </div>
+
+      {/* 5. Velocidade da campanha */}
+      <div>
+        <label className="block text-xs text-sky-300/70 mb-2 flex items-center gap-1.5">
+          <Gauge className="w-3.5 h-3.5" />
+          5. Velocidade da campanha
+        </label>
+        <div className="flex gap-2">
+          {([
+            { value: "lenta",  label: "Lenta",  desc: "5/min",  hint: "Menor pressão na API" },
+            { value: "normal", label: "Normal", desc: "10/min", hint: "Padrão recomendado"   },
+            { value: "rapida", label: "Rápida", desc: "25/min", hint: "Campanhas urgentes"   },
+          ] as const).map(v => (
+            <button
+              key={v.value}
+              onClick={() => setVelocidade(v.value)}
+              className={`flex-1 flex flex-col items-center py-2 px-1 rounded-lg border text-xs transition-all ${
+                velocidade === v.value
+                  ? "border-gold/60 bg-gold/10 text-gold"
+                  : "border-white/10 text-white/50 hover:border-white/20"
+              }`}
+            >
+              <span className="font-semibold">{v.label}</span>
+              <span className={`text-[10px] mt-0.5 ${velocidade === v.value ? "text-gold/70" : "text-white/30"}`}>
+                {v.desc}
+              </span>
+              <span className={`text-[9px] mt-0.5 ${velocidade === v.value ? "text-gold/50" : "text-white/20"}`}>
+                {v.hint}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Erro */}

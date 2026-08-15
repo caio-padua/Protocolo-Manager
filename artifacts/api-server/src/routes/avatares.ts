@@ -23,7 +23,7 @@ import { getAudioTemp, enviarVozManual } from "../lib/avatar-messenger";
 import { resumoUsoMes } from "../lib/avatar-metering";
 import { buscarHistoricoAvatar } from "../lib/avatar-envios";
 import { enviarMensagemPaxter } from "../lib/messaging/engine";
-import { criarCampanha, buscarProgressoCampanha, ensureCampanhaSchema } from "../lib/avatar-campanha-worker";
+import { criarCampanha, buscarProgressoCampanha, ensureCampanhaSchema, VELOCIDADE_LOTE } from "../lib/avatar-campanha-worker";
 import { logger }              from "../lib/logger";
 
 const router = Router();
@@ -380,6 +380,7 @@ const campanhaSchema = z.object({
   clienteIds:  z.array(z.number().int().positive()).min(1).max(500),
   texto:       z.string().min(1).max(3000),
   canal:       z.enum(["VOICE", "VIDEO"]),
+  velocidade:  z.enum(["lenta", "normal", "rapida"]).optional().default("normal"),
 });
 
 router.post("/api/avatares/campanha", async (req, res) => {
@@ -428,10 +429,11 @@ router.post("/api/avatares/campanha", async (req, res) => {
     await criarCampanha({
       campaignId,
       empresaId,
-      avatarId:  parsed.avatarId,
-      canal:     parsed.canal,
-      texto:     parsed.texto,
+      avatarId:    parsed.avatarId,
+      canal:       parsed.canal,
+      texto:       parsed.texto,
       clientes,
+      lotePorTick: VELOCIDADE_LOTE[parsed.velocidade],
     });
 
     logger.info(

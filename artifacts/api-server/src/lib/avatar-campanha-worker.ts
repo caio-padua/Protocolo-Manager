@@ -31,7 +31,13 @@ import { postSlackAlert } from "./slack-reporter";
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const MAX_TENTATIVAS = 3;  // tentativas totais antes de marcar 'erro' definitivo
-const LOTE_POR_TICK  = 10; // itens reivindicados por tick de cron (claim atômico)
+
+/** Mapeamento de velocidade → itens reivindicados por tick */
+export const VELOCIDADE_LOTE: Record<"lenta" | "normal" | "rapida", number> = {
+  lenta:  5,
+  normal: 10,
+  rapida: 25,
+};
 
 // ─── Garantia de schema ───────────────────────────────────────────────────────
 
@@ -50,6 +56,7 @@ export async function ensureCampanhaSchema(): Promise<void> {
       enviados        INTEGER NOT NULL DEFAULT 0,
       erros           INTEGER NOT NULL DEFAULT 0,
       status          TEXT NOT NULL DEFAULT 'em_andamento',
+      lote_por_tick   INTEGER NOT NULL DEFAULT 10,
       campanha_pai_id TEXT REFERENCES avatar_campanhas(id),
       criado_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       concluido_at    TIMESTAMPTZ
@@ -59,6 +66,11 @@ export async function ensureCampanhaSchema(): Promise<void> {
   await db.execute(sql.raw(`
     ALTER TABLE avatar_campanhas
     ADD COLUMN IF NOT EXISTS campanha_pai_id TEXT REFERENCES avatar_campanhas(id)
+  `));
+  // Adiciona lote_por_tick se a tabela já existia sem a coluna (idempotente)
+  await db.execute(sql.raw(`
+    ALTER TABLE avatar_campanhas
+    ADD COLUMN IF NOT EXISTS lote_por_tick INTEGER NOT NULL DEFAULT 10
   `));
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS avatar_campanha_itens (
@@ -106,11 +118,14 @@ export async function criarCampanha(opts: {
   texto:          string;
   clientes:       ClienteParaCampanha[];
   campanhaPaiId?: string | null;
+  lotePorTick?:   number;
 }): Promise<void> {
   await ensureCampanhaSchema();
 
+  const lotePorTick = opts.lotePorTick ?? VELOCIDADE_LOTE.normal;
+
   await db.execute(sql.raw(`
-    INSERT INTO avatar_campanhas (id, empresa_id, avatar_id, canal, texto, total, campanha_pai_id)
+    INSERT INTO avatar_campanhas (id, empresa_id, avatar_id, canal, texto, total, lote_por_tick, campanha_pai_id)
     VALUES (
       ${escapeStr(opts.campaignId)},
       ${opts.empresaId},
@@ -118,6 +133,7 @@ export async function criarCampanha(opts: {
       ${escapeStr(opts.canal)},
       ${escapeStr(opts.texto)},
       ${opts.clientes.length},
+      ${lotePorTick},
       ${opts.campanhaPaiId ? escapeStr(opts.campanhaPaiId) : "NULL"}
     )
   `));
@@ -231,52 +247,77 @@ async function resetarLeaseExpirado(): Promise<number> {
 }
 
 /**
- * Reivindica atomicamente até LOTE_POR_TICK itens pendentes.
- * Usa UPDATE ... RETURNING com FOR UPDATE SKIP LOCKED para que ticks
- * simultâneos não peguem os mesmos itens.
- * Status muda de 'pendente' → 'processando' e registra claimed_at = NOW().
- * Se o processo cair antes de marcarEnviado/marcarFalha, resetarLeaseExpirado()
- * no próximo tick devolve o item para 'pendente' automaticamente.
+ * Reivindica atomicamente itens pendentes, respeitando o lote_por_tick
+ * de cada campanha individualmente.
+ *
+ * Fluxo:
+ *  1. Busca campanhas ativas com seu lote_por_tick configurado.
+ *  2. Para cada campanha, reclama até lote_por_tick itens via
+ *     UPDATE ... FOR UPDATE SKIP LOCKED (claim exclusivo por item).
+ *  3. Retorna todos os itens reivindicados de todas as campanhas.
+ *
+ * Isso garante que uma campanha "Rápida" (25/tick) não bloqueia uma
+ * campanha "Lenta" (5/tick) que esteja rodando ao mesmo tempo.
  */
 async function reivindicarItens(): Promise<ItemReivindicado[]> {
-  // Subquery com FOR UPDATE SKIP LOCKED garante claim exclusivo por item
-  const result = await db.execute(sql.raw(`
-    WITH claimed AS (
-      UPDATE avatar_campanha_itens
-      SET status = 'processando', claimed_at = NOW()
-      WHERE id IN (
-        SELECT i.id
-        FROM avatar_campanha_itens i
-        JOIN avatar_campanhas c ON c.id = i.campanha_id
-        WHERE i.status = 'pendente'
-          AND i.tentativas < ${MAX_TENTATIVAS}
-          AND c.status = 'em_andamento'
-        ORDER BY i.id ASC
-        LIMIT ${LOTE_POR_TICK}
-        FOR UPDATE OF i SKIP LOCKED
-      )
-      RETURNING id
-    )
-    SELECT
-      i.id, i.campanha_id, i.cliente_id, i.telefone, i.email, i.nome, i.tentativas,
-      c.empresa_id, c.avatar_id, c.canal, c.texto
-    FROM claimed cl
-    JOIN avatar_campanha_itens i ON i.id = cl.id
-    JOIN avatar_campanhas c ON c.id = i.campanha_id
+  // Passo 1: buscar campanhas ativas e seus limites de lote
+  const campanhasAtivas = await db.execute(sql.raw(`
+    SELECT id, lote_por_tick
+    FROM avatar_campanhas
+    WHERE status = 'em_andamento'
   `));
-  return (result.rows as any[]).map(r => ({
-    id:         Number(r.id),
-    campanhaId: String(r.campanha_id),
-    clienteId:  Number(r.cliente_id),
-    telefone:   r.telefone  ?? null,
-    email:      r.email     ?? null,
-    nome:       r.nome      ?? null,
-    tentativas: Number(r.tentativas ?? 0),
-    empresaId:  Number(r.empresa_id),
-    avatarId:   Number(r.avatar_id),
-    canal:      String(r.canal),
-    texto:      String(r.texto),
-  }));
+
+  if (campanhasAtivas.rows.length === 0) return [];
+
+  // Passo 2: para cada campanha, reivindicar até lote_por_tick itens
+  const todosItens: ItemReivindicado[] = [];
+
+  for (const camp of campanhasAtivas.rows as any[]) {
+    const campanhaId  = String(camp.id);
+    const lotePorTick = Number(camp.lote_por_tick ?? VELOCIDADE_LOTE.normal);
+
+    const result = await db.execute(sql.raw(`
+      WITH claimed AS (
+        UPDATE avatar_campanha_itens
+        SET status = 'processando', claimed_at = NOW()
+        WHERE id IN (
+          SELECT i.id
+          FROM avatar_campanha_itens i
+          WHERE i.campanha_id = ${escapeStr(campanhaId)}
+            AND i.status = 'pendente'
+            AND i.tentativas < ${MAX_TENTATIVAS}
+          ORDER BY i.id ASC
+          LIMIT ${lotePorTick}
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id
+      )
+      SELECT
+        i.id, i.campanha_id, i.cliente_id, i.telefone, i.email, i.nome, i.tentativas,
+        c.empresa_id, c.avatar_id, c.canal, c.texto
+      FROM claimed cl
+      JOIN avatar_campanha_itens i ON i.id = cl.id
+      JOIN avatar_campanhas c ON c.id = i.campanha_id
+    `));
+
+    for (const r of result.rows as any[]) {
+      todosItens.push({
+        id:         Number(r.id),
+        campanhaId: String(r.campanha_id),
+        clienteId:  Number(r.cliente_id),
+        telefone:   r.telefone  ?? null,
+        email:      r.email     ?? null,
+        nome:       r.nome      ?? null,
+        tentativas: Number(r.tentativas ?? 0),
+        empresaId:  Number(r.empresa_id),
+        avatarId:   Number(r.avatar_id),
+        canal:      String(r.canal),
+        texto:      String(r.texto),
+      });
+    }
+  }
+
+  return todosItens;
 }
 
 async function marcarEnviado(id: number): Promise<void> {
