@@ -1,10 +1,19 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useGetCertificateStatus } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ShieldCheck, Upload, FileKey, BadgeCheck } from "lucide-react";
+import {
+  ShieldCheck,
+  ShieldAlert,
+  Upload,
+  FileKey,
+  BadgeCheck,
+  CalendarClock,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { ConsoleShell, IntegrationCard, ExplainRow } from "@/pages/comunicacao/_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 
@@ -13,6 +22,184 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 // Certificado A1 (ICP-Brasil, .pfx/.p12) — caso ESPECIAL (upload + senha, nao e
 // chave/valor revelavel), mas reformatado na moldura Padrao 18 para igualar as
 // demais telas de credencial. Status real do servidor; senha nunca volta.
+
+// ---------------------------------------------------------------------------
+// Hook: verifica o cert carregado EM TEMPO REAL via /api/protocols/carta-pdf-certcheck
+// Retorna subject, issuer, serial, validFrom, validTo quando o cert está ativo.
+// ---------------------------------------------------------------------------
+interface PadesOk {
+  ok: true;
+  message: string;
+  cert: { issuer: string; serial: string; validFrom: string; validTo: string };
+}
+interface PadesErr {
+  ok: false;
+  message: string;
+  details?: string;
+}
+type PadesStatus = PadesOk | PadesErr;
+
+function usePadesStatus() {
+  const [data, setData] = useState<PadesStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [httpError, setHttpError] = useState(false);
+  const [rev, setRev] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setHttpError(false);
+    const token = getCollabToken();
+    fetch(`${BASE}/api/protocols/carta-pdf-certcheck`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(async (r) => {
+        const body = (await r.json().catch(() => null)) as PadesStatus | null;
+        if (!alive) return;
+        if (body) {
+          setData(body);
+        } else {
+          setData({ ok: false, message: "Resposta inválida do servidor.", details: String(r.status) });
+        }
+        setHttpError(false);
+      })
+      .catch(() => {
+        if (alive) setHttpError(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [rev]);
+
+  const refetch = useCallback(() => setRev((v) => v + 1), []);
+  return { data, loading, httpError, refetch };
+}
+
+// ---------------------------------------------------------------------------
+// Formata datas ISO/UTC → DD/MM/AAAA pt-BR legível.
+// ---------------------------------------------------------------------------
+function fmtDate(raw: string | undefined): string {
+  if (!raw) return "—";
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+// ---------------------------------------------------------------------------
+// Painel de runtime PAdES — consulta a rota que efetivamente CARREGA o cert.
+// ---------------------------------------------------------------------------
+function PadesCertCard() {
+  const { data, loading, httpError, refetch } = usePadesStatus();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    refetch();
+    // pequeno delay visual para o spinner não piscar instantâneo
+    setTimeout(() => setRefreshing(false), 800);
+  }
+
+  const ok = data?.ok === true;
+  const certData = ok ? (data as PadesOk).cert : null;
+
+  return (
+    <IntegrationCard
+      icon={CalendarClock}
+      name="Assinatura PAdES — Verificação Ao Vivo"
+      accent="text-sky-600"
+      on={ok && !loading && !httpError}
+      pending={loading}
+      error={httpError}
+      labelOn="Cert ICP-Brasil: OK"
+      labelOff="Cert não configurado"
+    >
+      {/* Subtítulo */}
+      <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        Fonte:{" "}
+        <span className="font-semibold text-foreground/80">
+          /api/protocols/carta-pdf-certcheck
+        </span>
+      </p>
+
+      {/* Grid de dados */}
+      {loading ? (
+        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Consultando certificado…
+        </div>
+      ) : httpError ? (
+        <div className="concave-3d flex items-start gap-2 px-3 py-2 text-rose-700 dark:text-rose-400">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="text-[12px]">
+            Não foi possível contactar o servidor. Verifique se o serviço está no ar.
+          </p>
+        </div>
+      ) : data?.ok === false ? (
+        <div className="concave-3d flex items-start gap-2 px-3 py-2 text-rose-700 dark:text-rose-400">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold">{data.message}</p>
+            {data.details && (
+              <p className="mt-0.5 break-words font-mono text-[10px] opacity-80">{data.details}</p>
+            )}
+          </div>
+        </div>
+      ) : certData ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="concave-3d px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+              Emissor
+            </div>
+            <div
+              className="mt-1 truncate text-sm font-medium text-emerald-700 dark:text-emerald-400"
+              title={certData.issuer}
+            >
+              {certData.issuer || "—"}
+            </div>
+          </div>
+          <div className="concave-3d px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+              Válido desde
+            </div>
+            <div className="mt-1 text-sm font-semibold">{fmtDate(certData.validFrom)}</div>
+          </div>
+          <div className="concave-3d px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+              Vence em
+            </div>
+            <div className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              {fmtDate(certData.validTo)}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Mensagem de sucesso */}
+      {ok && !loading && data?.message && (
+        <div className="inline-flex items-center gap-2 text-[13px] text-emerald-600 dark:text-emerald-400">
+          <BadgeCheck className="h-4 w-4" />
+          {data.message}
+        </div>
+      )}
+
+      {/* Botão de re-verificação */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleRefresh}
+        disabled={loading || refreshing}
+        className="gap-2 self-start"
+      >
+        <RefreshCw className={`h-3.5 w-3.5 ${loading || refreshing ? "animate-spin" : ""}`} />
+        Re-verificar
+      </Button>
+    </IntegrationCard>
+  );
+}
+
 export default function ConfigCertificados() {
   const { toast } = useToast();
   const status = useGetCertificateStatus();
@@ -162,6 +349,11 @@ export default function ConfigCertificados() {
           </IntegrationCard>
         </section>
       )}
+
+      {/* ── Painel de saúde PAdES ao vivo ── */}
+      <section className="mt-2">
+        <PadesCertCard />
+      </section>
     </ConsoleShell>
   );
 }
