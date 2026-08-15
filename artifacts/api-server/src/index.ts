@@ -131,6 +131,9 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info({ port }, "Server listening");
     // startCronJobs() removido — roda no api-worker (evita duplicação com múltiplas réplicas)
     aquecerBannersAnimados();
+    // Carrega o cache do certificado (Object Storage / cofre) no boot.
+    // A verificação periódica de prazo vive no api-worker (Job 10 — cert-expiry-08h)
+    // para evitar alertas duplicados entre réplicas Railway.
     refreshCertCache().catch((e) =>
       logger.error({ err: e }, "Falha ao carregar cache do certificado"),
     );
@@ -185,5 +188,6 @@ if (Number.isNaN(port) || port <= 0) {
     }
     runPurgeDietaPdfs();
     setInterval(runPurgeDietaPdfs, 24 * 60 * 60 * 1000);
+
   });
 })();

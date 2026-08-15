@@ -59,6 +59,19 @@ export async function postSlackAlert(channelId: string, text: string): Promise<v
   }
 }
 
+/**
+ * Envia uma mensagem de alerta para o Slack e verifica `ok: false` na resposta.
+ * Lança `Error` se a API retornar `ok: false` — adequado para fluxos que precisam
+ * distinguir falha de rede de rejeição explícita da API Slack (ex.: canal inválido,
+ * token sem permissão). Usado como padrão no cert-expiry-alert.
+ */
+export async function postSlackAlertChecked(channelId: string, text: string): Promise<void> {
+  const result = await slackPost("chat.postMessage", { channel: channelId, text });
+  if (!result.ok) {
+    throw new Error(`Slack API rejeitou o alerta: ${result.error ?? "erro desconhecido"}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Constantes
 // ---------------------------------------------------------------------------

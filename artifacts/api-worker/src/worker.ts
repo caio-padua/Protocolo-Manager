@@ -286,7 +286,54 @@ export function startWorkerJobs(logger: pino.Logger): void {
   // registros acumulados antes do primeiro cron mensal.
   void runPurgaEventos("boot");
 
+  // ─── Job 10: Verificação diária do certificado ICP-Brasil (PAdES) ──────────
+  // Carrega o cache do certificado (Object Storage / cofre) e verifica o prazo.
+  // Se faltarem < 30 dias (menos de 30 dias exatos), envia alerta urgente ao CEO via Slack.
+  // Roda no boot do worker e diariamente às 08h BRT para não duplicar entre
+  // réplicas Railway (o setInterval do api-server foi removido; este worker é
+  // a única fonte de execução periódica, conforme a arquitetura da Onda 2).
+  async function runCertExpiryCheck(origem: "boot" | "cron") {
+    try {
+      const certSource = await import(
+        "../../api-server/src/lib/cert-source.js" as string
+      );
+      await certSource.refreshCertCache();
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Worker: falha ao carregar cache do certificado antes da verificação de prazo"
+      );
+      // Segue mesmo sem cache — o fallback de arquivo local ainda pode funcionar.
+    }
+
+    try {
+      const { checkCertExpiryAndAlert } = await import(
+        "../../api-server/src/lib/cert-expiry-alert.js" as string
+      );
+      await checkCertExpiryAndAlert();
+      logger.info(
+        { origem },
+        "Worker: verificação de prazo do certificado ICP-Brasil concluída"
+      );
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err), origem },
+        "Worker: falha na verificação de prazo do certificado ICP-Brasil"
+      );
+    }
+  }
+
+  // Verificação imediata no boot do worker.
+  void runCertExpiryCheck("boot");
+
+  // Cron diário às 08:00 BRT — garante alerta mesmo após o boot.
+  cron.schedule(
+    "0 8 * * *",
+    () => runCertExpiryCheck("cron"),
+    { timezone: "America/Sao_Paulo" }
+  );
+
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h"
   );
 }

@@ -12,7 +12,8 @@
   "dependencies": {
     "@workspace/db": "workspace:*",
     "node-cron": "^3.0.3",
-    "pino": "^9"
+    "pino": "^9",
+    "thread-stream": "3.1.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

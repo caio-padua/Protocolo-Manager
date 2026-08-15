@@ -992,14 +992,17 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     const info = getCertInfo();
+    const msRemaining = new Date(info.validTo).getTime() - Date.now();
+    const daysRemaining = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
     res.json({
       ok: true,
       message: "Certificado carregado com sucesso — assinatura PAdES disponível.",
       cert: {
-        issuer:    info.issuer,
-        serial:    info.serial,
-        validFrom: info.validFrom,
-        validTo:   info.validTo,
+        issuer:       info.issuer,
+        serial:       info.serial,
+        validFrom:    info.validFrom,
+        validTo:      info.validTo,
+        daysRemaining,
       },
     });
   } catch (err: any) {
