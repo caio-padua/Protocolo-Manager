@@ -27,6 +27,7 @@ import { sql }     from "drizzle-orm";
 import { enviarMensagemPaxter } from "./messaging/engine";
 import { logger }  from "./logger";
 import { postSlackAlert } from "./slack-reporter";
+import { brtDateTime } from "./brt";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -71,6 +72,12 @@ export async function ensureCampanhaSchema(): Promise<void> {
   await db.execute(sql.raw(`
     ALTER TABLE avatar_campanhas
     ADD COLUMN IF NOT EXISTS lote_por_tick INTEGER NOT NULL DEFAULT 10
+  `));
+  // Marcador persistente de alerta — TRUE quando o alerta de conclusão já foi disparado.
+  // Garante deduplicação atômica: apenas o UPDATE que vira de FALSE→TRUE dispara o Slack.
+  await db.execute(sql.raw(`
+    ALTER TABLE avatar_campanhas
+    ADD COLUMN IF NOT EXISTS alerta_enviado BOOLEAN NOT NULL DEFAULT FALSE
   `));
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS avatar_campanha_itens (
@@ -341,7 +348,8 @@ async function marcarFalha(id: number, tentativasAtuais: number, erro: string): 
 }
 
 async function recalcularCampanha(campanhaId: string): Promise<void> {
-  const result = await db.execute(sql.raw(`
+  // Passo 1 — atualiza contadores e status da campanha.
+  await db.execute(sql.raw(`
     UPDATE avatar_campanhas c
     SET
       enviados = sub.enviados,
@@ -366,31 +374,45 @@ async function recalcularCampanha(campanhaId: string): Promise<void> {
       GROUP BY campanha_id
     ) sub
     WHERE c.id = sub.campanha_id
-    RETURNING c.id, c.canal, c.total, c.enviados, c.erros, c.status, c.concluido_at
   `));
 
-  // Disparar alerta Slack quando a campanha ACABOU DE SER concluída com erros.
-  // Detectamos "acabou de ser" verificando que concluido_at foi atribuído agora
-  // (dentro dos últimos 10 segundos) — garante que o alerta dispara apenas uma vez.
-  const row = result.rows[0] as any;
-  if (
-    row &&
-    row.status === "concluida" &&
-    Number(row.erros) > 0 &&
-    row.concluido_at
-  ) {
-    const concluidoAt = new Date(row.concluido_at);
-    const agoraDiff   = Date.now() - concluidoAt.getTime();
-    if (agoraDiff < 10_000) {
-      // Campanha acabou de concluir — buscar os primeiros 5 clientes que falharam
-      void notificarCampanhaComErros(
-        campanhaId,
-        String(row.canal ?? ""),
-        Number(row.total   ?? 0),
-        Number(row.enviados ?? 0),
-        Number(row.erros    ?? 0),
-      ).catch((e: any) =>
-        logger.warn({ err: e?.message }, "[campanha-worker] falha ao enviar alerta Slack"),
+  // Passo 2 — Deduplicação atômica do alerta via UPDATE ... WHERE alerta_enviado = FALSE.
+  //
+  // Apenas o processo que vencer a corrida e mudar alerta_enviado FALSE→TRUE receberá
+  // uma linha no RETURNING. Ticks concorrentes ou reprocessamentos posteriores não
+  // recebem linha e não disparam o Slack. Isso é garantido pela serialização de
+  // UPDATEs no mesmo row pelo Postgres (sem janela temporal, sem CTE ambígua).
+  const claim = await db.execute(sql.raw(`
+    UPDATE avatar_campanhas
+    SET alerta_enviado = TRUE
+    WHERE id = ${escapeStr(campanhaId)}
+      AND status    = 'concluida'
+      AND alerta_enviado = FALSE
+    RETURNING id, canal, total, enviados, erros, concluido_at
+  `));
+
+  const row = claim.rows[0] as any;
+  if (!row) return; // Alerta já enviado ou campanha ainda em andamento
+
+  const erros      = Number(row.erros    ?? 0);
+  const enviados   = Number(row.enviados ?? 0);
+  const total      = Number(row.total    ?? 0);
+  const canal      = String(row.canal    ?? "");
+  const concluidoAt = new Date(row.concluido_at);
+
+  if (erros > 0) {
+    // Campanha concluiu com erros — notificar lista de falhos
+    void notificarCampanhaComErros(campanhaId, canal, total, enviados, erros).catch((e: any) =>
+      logger.warn({ err: e?.message }, "[campanha-worker] falha ao enviar alerta Slack de erros"),
+    );
+  } else {
+    // Campanha concluiu com 100% de sucesso — notificar somente se o toggle estiver ativo.
+    // Controlado por PADAXOR_ALERTA_CAMPANHA_SUCESSO (padrão = true).
+    // Para suprimir, defina PADAXOR_ALERTA_CAMPANHA_SUCESSO=false.
+    const alertaSucessoAtivo = process.env.PADAXOR_ALERTA_CAMPANHA_SUCESSO !== "false";
+    if (alertaSucessoAtivo) {
+      void notificarCampanhaSucesso(campanhaId, canal, total, enviados, concluidoAt).catch((e: any) =>
+        logger.warn({ err: e?.message }, "[campanha-worker] falha ao enviar alerta Slack de sucesso"),
       );
     }
   }
@@ -443,6 +465,35 @@ async function notificarCampanhaComErros(
   logger.info({ campanhaId, erros }, "[campanha-worker] alerta Slack de campanha com erros enviado");
 }
 
+/**
+ * Envia alerta Slack ao CEO quando uma campanha termina com 100% de sucesso (zero erros).
+ * Inclui: ID da campanha, canal, total enviados e horário de conclusão (BRT).
+ *
+ * Controlado por PADAXOR_ALERTA_CAMPANHA_SUCESSO (padrão = true).
+ * Para suprimir: definir PADAXOR_ALERTA_CAMPANHA_SUCESSO=false.
+ */
+async function notificarCampanhaSucesso(
+  campanhaId: string,
+  canal: string,
+  total: number,
+  enviados: number,
+  concluidoAt: Date,
+): Promise<void> {
+  const channelId = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
+
+  // Formatar o timestamp de conclusão em BRT usando o helper centralizado
+  // (America/Sao_Paulo, retorna "DD/MM/AAAA HH:MM")
+  const concluidoFmt = brtDateTime(concluidoAt);
+
+  const texto =
+    `:white_check_mark: *Campanha Avatar concluída com sucesso*\n` +
+    `*ID:* \`${campanhaId}\`  |  *Canal:* ${canal}\n` +
+    `*Total enviados:* ${enviados} de ${total}  ·  *Taxa de sucesso:* 100%\n` +
+    `*Horário de conclusão:* ${concluidoFmt} (BRT)`;
+
+  await postSlackAlert(channelId, texto);
+  logger.info({ campanhaId, enviados }, "[campanha-worker] alerta Slack de campanha com sucesso enviado");
+}
 export async function processarFilaCampanha(): Promise<{
   processadas:      number;
   enviadas:         number;
