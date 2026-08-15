@@ -1,3 +1,13 @@
+> ## ORDEM PERMANENTE — SATELITE DE CONHECIMENTO (14/08/2026)
+>
+> **Antes de implementar qualquer capacidade, leia a nota da capacidade no PADUA BRAIN.**
+> Nao reinvente. Se divergir, registre a decisao e o motivo.
+>
+> Satelite: `caio-padua/padua-segundo-cerebro` — leitura por raw:
+> `https://raw.githubusercontent.com/caio-padua/padua-segundo-cerebro/main/<caminho>`
+>
+> Regras completas: `.agents/ORDEM-PERMANENTE.md` (leitura obrigatoria)
+
 # Padcon Conect — Motor Clinico | Protocolos Injetaveis
 
 ## Overview
