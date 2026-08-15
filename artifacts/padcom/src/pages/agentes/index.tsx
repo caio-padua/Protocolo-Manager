@@ -2690,9 +2690,32 @@ function AbaIntegracoes() {
   const [dash,       setDash]       = useState<DashKPIs | null>(null);
   const [dashTick,   setDashTick]   = useState(0);
 
+  // Histórico do Monitor de LLMs
+  interface LlmHistReg {
+    id: number;
+    geradoEmBrt: string;
+    periodoHoras: number;
+    totalChamadas: number;
+    totalCustoUsd: number;
+    mudancasPlanilha: number;
+    canal: "slack" | "telegram" | "ambos" | "nenhum";
+    enviadoOk: boolean;
+    erro: string | null;
+  }
+  const [llmHist,      setLlmHist]      = useState<LlmHistReg[]>([]);
+  const [llmHistLoad,  setLlmHistLoad]  = useState(true);
+  const [llmHistDias,  setLlmHistDias]  = useState(7);
+
   const carregarDash = useCallback(async () => {
     const r = await apiFetch("/agentes-integracoes/dashboard");
     setDash(r);
+  }, []);
+
+  const carregarLlmHist = useCallback(async (dias: number) => {
+    setLlmHistLoad(true);
+    const r = await apiFetch(`/padaxor/slack/historico?dias=${dias}`);
+    setLlmHist(r?.registros ?? []);
+    setLlmHistLoad(false);
   }, []);
 
   useEffect(() => {
@@ -2737,6 +2760,9 @@ function AbaIntegracoes() {
     return () => clearInterval(id);
   }, []);
   useEffect(() => { carregarDash(); }, [dashTick, carregarDash]);
+
+  // Carregar histórico de LLMs ao montar e quando o filtro de dias muda
+  useEffect(() => { carregarLlmHist(llmHistDias); }, [llmHistDias, carregarLlmHist]);
 
   function copiar(texto: string, chave: string) {
     navigator.clipboard.writeText(texto);
@@ -3116,6 +3142,88 @@ function AbaIntegracoes() {
           </div>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════════════════
+          HISTÓRICO DO MONITOR DE LLMs
+      ══════════════════════════════════════════════════════ */}
+      <div className="panel-3d-sub rounded-[6px] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border flex items-center justify-between bg-muted/10">
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5" /> Histórico — Monitor de LLMs
+          </span>
+          <div className="flex items-center gap-2">
+            <select value={llmHistDias} onChange={e => setLlmHistDias(Number(e.target.value))}
+              className="text-[10px] bg-muted/40 border border-border rounded px-1.5 py-0.5">
+              <option value={1}>Último dia</option>
+              <option value={7}>7 dias</option>
+              <option value={30}>30 dias</option>
+              <option value={90}>90 dias</option>
+            </select>
+            <button onClick={() => carregarLlmHist(llmHistDias)}
+              className="btn-3d-soft px-2 py-0.5 text-[10px] flex items-center gap-1">
+              <RefreshCw className="w-2.5 h-2.5" /> Atualizar
+            </button>
+          </div>
+        </div>
+        <div className="p-4">
+          {llmHistLoad ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm justify-center py-6">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando histórico…
+            </div>
+          ) : llmHist.length === 0 ? (
+            <div className="text-center py-6 text-[11px] text-muted-foreground concave-3d rounded-[4px]">
+              Nenhum relatório gravado nos últimos {llmHistDias} dias.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: "rgba(69,184,204,0.08)" }}>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Data/Hora (BRT)</th>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Canal</th>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Status</th>
+                    <th className="text-right p-1.5 text-[9px] uppercase tracking-wider font-black">Chamadas IA</th>
+                    <th className="text-right p-1.5 text-[9px] uppercase tracking-wider font-black">Custo</th>
+                    <th className="text-right p-1.5 text-[9px] uppercase tracking-wider font-black">Δ Planilha</th>
+                    <th className="text-left p-1.5 text-[9px] uppercase tracking-wider font-black">Erro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {llmHist.map(r => (
+                    <tr key={r.id} className="hover:bg-muted/10">
+                      <td className="p-1.5 text-muted-foreground whitespace-nowrap">{r.geradoEmBrt}</td>
+                      <td className="p-1.5">
+                        <LlmCanalBadge canal={r.canal} />
+                      </td>
+                      <td className="p-1.5">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase"
+                          style={{
+                            backgroundColor: r.enviadoOk ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                            color:           r.enviadoOk ? "#22c55e"               : "#ef4444",
+                          }}>
+                          {r.enviadoOk ? "OK" : "FALHA"}
+                        </span>
+                      </td>
+                      <td className="p-1.5 text-right font-mono">{r.totalChamadas.toLocaleString("pt-BR")}</td>
+                      <td className="p-1.5 text-right font-mono text-emerald-400">
+                        U$ {Number(r.totalCustoUsd).toFixed(4)}
+                      </td>
+                      <td className="p-1.5 text-right font-mono">
+                        {r.mudancasPlanilha > 0
+                          ? <span className="text-amber-400">+{r.mudancasPlanilha}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="p-1.5 text-muted-foreground text-[10px] truncate max-w-[180px]" title={r.erro ?? ""}>
+                        {r.erro ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3158,6 +3266,31 @@ function ToggleItem({ label, ativo, disabled, onChange }: {
         : <ToggleLeft  className="w-4 h-4 text-muted-foreground" />}
       <span className={ativo ? "text-emerald-400 font-bold" : "text-muted-foreground"}>{label}</span>
     </button>
+  );
+}
+
+/**
+ * Badge visual para o campo `canal` da tabela llm_reports_history.
+ * Exibe label distinto e cor semântica para cada um dos 4 valores possíveis:
+ *   ambos    → verde   (ambos os canais entregaram)
+ *   slack    → ciano   (só Slack entregou)
+ *   telegram → azul    (só Telegram entregou)
+ *   nenhum   → vermelho com borda (erro — nenhum canal entregou)
+ */
+function LlmCanalBadge({ canal }: { canal: "slack" | "telegram" | "ambos" | "nenhum" }) {
+  const cfg: Record<string, { label: string; bg: string; color: string; border?: string }> = {
+    ambos:    { label: "Slack + Telegram", bg: "rgba(34,197,94,0.15)",   color: "#22c55e" },
+    slack:    { label: "Slack",            bg: "rgba(69,184,204,0.15)",  color: "#45B8CC" },
+    telegram: { label: "Telegram",         bg: "rgba(14,165,233,0.15)",  color: "#0ea5e9" },
+    nenhum:   { label: "Nenhum canal",     bg: "rgba(239,68,68,0.2)",    color: "#ef4444", border: "1px solid rgba(239,68,68,0.5)" },
+  };
+  const c = cfg[canal] ?? cfg["nenhum"];
+  return (
+    <span
+      className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase"
+      style={{ backgroundColor: c.bg, color: c.color, border: c.border }}>
+      {c.label}
+    </span>
   );
 }
 
