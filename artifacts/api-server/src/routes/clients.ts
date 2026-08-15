@@ -112,11 +112,9 @@ router.get("/clients", async (req, res): Promise<void> => {
 
   const empresaId = req.tenantContext.empresaId;
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  // Lista: filtra SÓ por empresa. Não existe "id" nesta rota (isso quebrou a busca em 14/08/2026).
-  const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
+  // Lista: filtra SÓ por empresa. Não existe "id" nesta rota.
+  const tenantFilter = eq(clientsTable.empresaId, empresaId);
 
   // tab = "ativos" | "desativados" | "apagados" | undefined (padrão = ativos)
   const tab = (req.query.tab as string) ?? "ativos";
@@ -240,56 +238,32 @@ router.post("/clients/bulk", async (req, res): Promise<void> => {
 // ter apagado o INSERT desta rota e transformado o PUT em um GET duplicado.
 // Nao substituir o db.insert por db.select aqui: esta rota CADASTRA paciente novo.
 router.post("/clients", async (req, res): Promise<void> => {
-  const parsed = UpdateClientBody.partial().safeParse(req.body);
+  const parsed = CreateClientBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const { preferredAgendaResourceIds, ...clientData } = parsed.data;
+  const clientData = parsed.data;
+  // preferredAgendaResourceIds e locationId podem estar presentes no body mas ausentes
+  // no tipo gerado pelo dist desatualizado do api-zod; ler diretamente do req.body.
+  const bodyExtra = req.body as { preferredAgendaResourceIds?: number[] | null; locationId?: number | null };
+  const preferredAgendaResourceIds = bodyExtra.preferredAgendaResourceIds ?? undefined;
+  const locationId = bodyExtra.locationId ?? undefined;
   const empresaId = req.tenantContext.empresaId;
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+  const [created] = await db
+    .insert(clientsTable)
+    .values({ ...clientData, empresaId, locationId })
+    .returning();
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const [client] = await db
-    .select({
-      id:               clientsTable.id,
-      name:             clientsTable.name,
-      email:            clientsTable.email,
-      telegramChatId:   clientsTable.telegramChatId,
-      validationPassword: clientsTable.validationPassword,
-    })
-    .from(clientsTable)
-    .where(tenantFilter)
-    .limit(1);
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
+  if (!created) {
+    res.status(500).json({ error: "Falha ao criar cliente" });
     return;
   }
 
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
-});
-
-router.put("/clients/:id", async (req, res): Promise<void> => {
-  const params = UpdateClientParams.safeParse(req.params);
-  const [client] = await db
-    .select({
-      id:               clientsTable.id,
-      name:             clientsTable.name,
-      email:            clientsTable.email,
-      telegramChatId:   clientsTable.telegramChatId,
-      validationPassword: clientsTable.validationPassword,
-    })
-    .from(clientsTable)
-    .where(tenantFilter)
-    .limit(1);
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
-    return;
-  }
-
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
+  await setPreferredAgendas(created.id, preferredAgendaResourceIds ?? undefined);
+  res.status(201).json(serializeClient(created, await getPreferredAgendas(created.id)));
 });
 
 router.put("/clients/:id", async (req, res): Promise<void> => {
@@ -305,7 +279,9 @@ router.put("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { preferredAgendaResourceIds, ...clientData } = parsed.data;
+  const empresaId = req.tenantContext.empresaId;
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+  const clientData = parsed.data;
   let client: ClientRow | undefined;
   if (Object.keys(clientData).length > 0) {
     [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
@@ -316,7 +292,6 @@ router.put("/clients/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
@@ -334,7 +309,9 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { preferredAgendaResourceIds, ...clientData } = parsed.data;
+  const empresaId = req.tenantContext.empresaId;
+  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
+  const clientData = parsed.data;
   let client: ClientRow | undefined;
   if (Object.keys(clientData).length > 0) {
     [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
@@ -345,7 +322,6 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-  await setPreferredAgendas(client.id, preferredAgendaResourceIds ?? undefined);
   res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
@@ -406,15 +382,14 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
   }
   const empresaId = req.tenantContext.empresaId;
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   const [client] = await db
     .select({
       id:               clientsTable.id,
       name:             clientsTable.name,
+      cpf:              clientsTable.cpf,
       email:            clientsTable.email,
       telegramChatId:   clientsTable.telegramChatId,
       validationPassword: clientsTable.validationPassword,
@@ -455,21 +430,14 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     try {
       // Link mágico: o paciente ativa em um toque, sem digitar a senha.
       // Se a emissão falhar, o e-mail ainda vai com o caminho da senha.
-    const linkMagico = await emitirLinkMagico(id);
-    const result = await db.execute(
-      sql`SELECT telegram_chat_id, telegram_vinculado_em
-          FROM clients
-          WHERE id = ${id} AND empresa_id = ${empresaId}
-          LIMIT 1`
-    );
-    if (result.success) {
-      res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
-    } else {
-      res.status(500).json({ error: "Falha no reenvio do e-mail" });
+      const linkMagico = await emitirLinkMagico(id);
+      if (linkMagico) emailEnviado = true;
+    } catch (err) {
+      console.warn("Email de onboarding falhou (não bloqueante):", err);
     }
-  } catch (err) {
-    res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
   }
+
+  res.json({ ok: true, code: senha, emailEnviado });
 });
 
 // ── DELETE /api/clients/:id/telegram ─────────────────────────────────────────
@@ -484,9 +452,7 @@ router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Pr
   }
   const empresaId = req.tenantContext.empresaId;
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   const tenantFilter = and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId));
 
   const [client] = await db
@@ -514,18 +480,8 @@ router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Pr
 
   try {
     // Cada reenvio emite um link mágico novo — o e-mail mais recente é o que vale.
-    const linkMagico = await emitirLinkMagico(id);
-    const result = await db.execute(
-      sql`SELECT telegram_chat_id, telegram_vinculado_em
-          FROM clients
-          WHERE id = ${id} AND empresa_id = ${empresaId}
-          LIMIT 1`
-    );
-    if (result.success) {
-      res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
-    } else {
-      res.status(500).json({ error: "Falha no reenvio do e-mail" });
-    }
+    await emitirLinkMagico(id);
+    res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
   } catch (err) {
     res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
   }
@@ -543,9 +499,7 @@ router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Pr
   }
   const empresaId = req.tenantContext.empresaId;
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   try {
     const result = await db.execute(
       sql`SELECT telegram_chat_id, telegram_vinculado_em
@@ -609,9 +563,7 @@ router.get("/clientes/:id/telegram-status", requireCollaborator, async (req, res
   }
   const empresaId = req.tenantContext.empresaId;
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
 
-  const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
   try {
     const result = await db.execute(
       sql`SELECT telegram_chat_id, telegram_vinculado_em

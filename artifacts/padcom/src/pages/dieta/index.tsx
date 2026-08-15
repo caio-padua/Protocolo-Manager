@@ -225,11 +225,36 @@ function MontarCardapio() {
   const [receitaPickerId, setReceitaPickerId] = useState<number | null>(null);
   const [receitaPickerRefeicao, setReceitaPickerRefeicao] = useState("almoco");
   const [receitaPickerPorcoes, setReceitaPickerPorcoes] = useState(1);
+  // Filtro de receitas por tipo de dieta do paciente
+  const [filtrarPorProtocolo, setFiltrarPorProtocolo] = useState(true);
+
+  // Busca a prescrição ativa do cliente selecionado para descobrir o protocoloId
+  const { data: prescricoesCliente } = useQuery<Array<{ id: number; status: string; protocoloId: number | null }>>({
+    queryKey: ["dieta", "prescricoes-cliente", clientId],
+    enabled: !!clientId,
+    queryFn: async () => {
+      const r = await fetch(`/api/dieta/prescricoes?clientId=${clientId}`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const protocoloIdDoCliente = useMemo(() => {
+    if (!prescricoesCliente) return null;
+    const ativa = prescricoesCliente.find((p) => p.status === "ativa" && p.protocoloId);
+    return ativa?.protocoloId ?? null;
+  }, [prescricoesCliente]);
+
+  // Protocolo efetivo para filtrar receitas (null = mostrar todas)
+  const protocoloFiltroEfetivo = filtrarPorProtocolo && protocoloIdDoCliente ? protocoloIdDoCliente : null;
 
   const { data: receitas } = useQuery<Receita[]>({
-    queryKey: ["dieta", "receitas", "todos"],
+    queryKey: ["dieta", "receitas", protocoloFiltroEfetivo],
     queryFn: async () => {
-      const r = await fetch("/api/dieta/receitas");
+      const url = protocoloFiltroEfetivo
+        ? `/api/dieta/receitas?protocoloId=${protocoloFiltroEfetivo}`
+        : "/api/dieta/receitas";
+      const r = await fetch(url);
       if (!r.ok) throw new Error("Falha ao carregar receitas");
       return r.json();
     },
@@ -282,6 +307,10 @@ function MontarCardapio() {
   function handleClientChange(newId: number | null) {
     clientIdRef.current = newId; // síncrono — antes do setState e de qualquer re-render
     setClientId(newId);
+    // Reativar o filtro de receitas por protocolo para o novo cliente
+    setFiltrarPorProtocolo(true);
+    // Limpar a receita selecionada para evitar seleção inválida com o novo filtro
+    setReceitaPickerId(null);
     if (pendingEmail !== null) {
       setPendingEmail(null);
       toast({
@@ -862,9 +891,29 @@ function MontarCardapio() {
           {/* ----- Painel de inserção de receita ----- */}
           {showReceitaPicker && (
             <div className="concave-3d mx-4 mb-4 p-3 space-y-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                Inserir receita no cardápio
-              </span>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Inserir receita no cardápio
+                </span>
+                {protocoloIdDoCliente && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltrarPorProtocolo((v) => !v);
+                      setReceitaPickerId(null);
+                    }}
+                    className={`flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-widest transition-colors ${
+                      filtrarPorProtocolo
+                        ? "bevel-3d text-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title={filtrarPorProtocolo ? "Clique para ver todas as receitas" : "Clique para filtrar pelo tipo de dieta do paciente"}
+                  >
+                    <Info className="h-3 w-3" />
+                    {filtrarPorProtocolo ? "Filtrado pelo tipo de dieta" : "Todas as receitas"}
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap items-end gap-3">
                 {/* Receita */}
                 <div className="flex-1 min-w-[200px] space-y-1">

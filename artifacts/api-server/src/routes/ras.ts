@@ -71,6 +71,10 @@ router.post("/ras", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Client not found" });
     return;
   }
+  if (!client.email) {
+    res.status(400).json({ error: "Cliente sem e-mail cadastrado" });
+    return;
+  }
 
   let professionalName = "Profissional";
   let professionalCrm: string | null = null;
@@ -86,15 +90,7 @@ router.post("/ras", async (req, res): Promise<void> => {
     .where(eq(substanceApplicationsTable.sessionId, session.id));
 
   const dispApps = applications.filter(a => a.availability === "disp" && a.sessionNumber > 0);
-
     const substanceMap = new Map(allSubstances.map(s => [s.name, s]));
-  for (const app of dispApps) {
-    if (!substanceMap[app.substanceId]) {
-      const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
-      if (s) substanceMap[app.substanceId] = s;
-    }
-  }
-
     const substances = FICHAS_DEMO_SPECS.map(spec => {
       const db = byName.get(spec.dbName);
       const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
@@ -197,15 +193,15 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
 
     const clientSlug = ras.clientName.replace(/\s+/g, "_");
     const dateSlug = ras.serviceDate.replace(/-/g, "");
-    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
+    const filename = driveFileName;
 
-    (async () => {
-      try {
-        if (await isDriveConnected()) {
+    const _agoraRas = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
           if (client) {
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
             if (client.email) {
               await shareWithClient(result.fileId, client.email);
@@ -284,8 +280,11 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
       substances,
     });
 
+    const agoraDrive = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
 
     if (client.email) {
@@ -314,14 +313,17 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   }
 
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
-  if (!protocol) {
-    res.status(404).json({ error: "Protocol not found" });
-    return;
-  }
 
+  const clientId = protocol.clientId;
+
+  const clientId = protocol.clientId;
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
+    return;
+  }
+  if (!client.email) {
+    res.status(400).json({ error: "Cliente sem e-mail cadastrado" });
     return;
   }
 
@@ -340,6 +342,39 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     const allSubstances = await db.select().from(substancesTable);
   const substMap = new Map(allSubstances.map(s => [s.id, s]));
 
+  const substancias = protocolItems.map(item => {
+    const sub = substMap.get(item.substanceId);
+    const via = sub?.procedureType === "im" ? "Intramuscular"
+      : sub?.procedureType === "implant" ? "Implante"
+      : "Endovenosa";
+    return {
+      nome: sub?.name ?? "Substância",
+      dose: item.dose,
+      via,
+      sessoes: item.totalSessions,
+      frequenciaDias: item.intervalDays,
+      inicio: item.startDate,
+      cor: sub?.color ?? "#c9a24f",
+      procedureType: sub?.procedureType ?? "iv",
+    };
+  });
+
+  const substancias = protocolItems.map(item => {
+    const sub = substMap.get(item.substanceId);
+    const via = sub?.procedureType === "im" ? "Intramuscular"
+      : sub?.procedureType === "implant" ? "Implante"
+      : "Endovenosa";
+    return {
+      nome: sub?.name ?? "Substância",
+      dose: item.dose,
+      via,
+      sessoes: item.totalSessions,
+      frequenciaDias: item.intervalDays,
+      inicio: item.startDate,
+      cor: sub?.color ?? "#c9a24f",
+      procedureType: sub?.procedureType ?? "iv",
+    };
+  });
     const substances = FICHAS_DEMO_SPECS.map(spec => {
       const db = byName.get(spec.dbName);
       const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
@@ -361,7 +396,6 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
         procedureType: db?.procedureType ?? undefined,
       };
     });
-
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
 
@@ -383,57 +417,39 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     let sessNurse: string | null = null;
     if (sess.professionalId) {
       const sp = allProfs.find(p => p.id === sess.professionalId);
-      if (sp && (sp.specialty ?? "").toLowerCase().includes("enf")) {
-        sessNurse = sp.name.split(" ").map(w => w[0]?.toUpperCase()).join(".");
-      }
-    }
-
-    physicalSessions.push({
-      number: sess.weekNumber,
-      scheduledDate: sess.scheduledDate,
-      effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
-      nurseName: sessNurse,
-      substanceStatuses,
-    });
-  }
-
-  let clientAge: number | undefined;
-  if (client.birthDate) {
-    const birth = new Date(client.birthDate);
-    const now = new Date();
-    clientAge = now.getFullYear() - birth.getFullYear();
-    if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) clientAge--;
-  }
-
-  try {
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
       clientPhone: client.phone ?? "",
-      clientAge,
-      professionalName,
-      nurseName,
+      clientAge: idadeAnos,
+      professionalName: "Dr. Caio Henrique Fernandes Padua",
+      nurseName: "Instituto Padua",
       unit: "Instituto Padua — Clinica Avancada",
-      startDate: protocol.startDate,
-      protocolNumber: `FAP-${protocol.id}`,
+      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
       valorTratamento: undefined,
-      substances: protocolItems.map(item => {
-        const sub = substMap.get(item.substanceId ?? 0);
-        return {
-          name: sub?.name ?? "",
-          color: sub?.color ?? "#c9a24f",
-          totalSessions: item.totalSessions ?? 1,
-          frequencyDays: item.frequencyDays ?? 7,
-          startDate: protocol.startDate,
-          procedureType: (sub?.procedureType ?? "injection") as "injection" | "implant",
-          dose: item.dose ?? "",
-        };
-      }),
-      sessions: physicalSessions,
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+        frequencyDays: s.frequenciaDias,
+        startDate: s.inicio,
+        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
+        dose: s.dose,
+      })),
+      sessions: [],
     }, "PREMIUM");
 
-    const driveFileName = formatPhysicalRASFileName(client.name);
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const filename = driveFileName;
+
+    const _agoraRas = new Date(Date.now() - 3 * 60 * 60 * 1000);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -454,14 +470,17 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   }
 
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
-  if (!protocol) {
-    res.status(404).json({ error: "Protocol not found" });
-    return;
-  }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  const clientId = protocol.clientId;
+
+  const clientId = protocol.clientId;
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
+    return;
+  }
+  if (!client.email) {
+    res.status(400).json({ error: "Cliente sem e-mail cadastrado" });
     return;
   }
 
@@ -477,8 +496,42 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
-  const allSubstances = await db.select().from(substancesTable);
+    const allSubstances = await db.select().from(substancesTable);
   const substMap = new Map(allSubstances.map(s => [s.id, s]));
+
+  const substancias = protocolItems.map(item => {
+    const sub = substMap.get(item.substanceId);
+    const via = sub?.procedureType === "im" ? "Intramuscular"
+      : sub?.procedureType === "implant" ? "Implante"
+      : "Endovenosa";
+    return {
+      nome: sub?.name ?? "Substância",
+      dose: item.dose,
+      via,
+      sessoes: item.totalSessions,
+      frequenciaDias: item.intervalDays,
+      inicio: item.startDate,
+      cor: sub?.color ?? "#c9a24f",
+      procedureType: sub?.procedureType ?? "iv",
+    };
+  });
+
+  const substancias = protocolItems.map(item => {
+    const sub = substMap.get(item.substanceId);
+    const via = sub?.procedureType === "im" ? "Intramuscular"
+      : sub?.procedureType === "implant" ? "Implante"
+      : "Endovenosa";
+    return {
+      nome: sub?.name ?? "Substância",
+      dose: item.dose,
+      via,
+      sessoes: item.totalSessions,
+      frequenciaDias: item.intervalDays,
+      inicio: item.startDate,
+      cor: sub?.color ?? "#c9a24f",
+      procedureType: sub?.procedureType ?? "iv",
+    };
+  });
 
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
@@ -501,57 +554,39 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
     let sessNurse: string | null = null;
     if (sess.professionalId) {
       const sp = allProfs.find(p => p.id === sess.professionalId);
-      if (sp && (sp.specialty ?? "").toLowerCase().includes("enf")) {
-        sessNurse = sp.name.split(" ").map(w => w[0]?.toUpperCase()).join(".");
-      }
-    }
-
-    physicalSessions.push({
-      number: sess.weekNumber,
-      scheduledDate: sess.scheduledDate,
-      effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
-      nurseName: sessNurse,
-      substanceStatuses,
-    });
-  }
-
-  let clientAge: number | undefined;
-  if (client.birthDate) {
-    const birth = new Date(client.birthDate);
-    const now = new Date();
-    clientAge = now.getFullYear() - birth.getFullYear();
-    if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) clientAge--;
-  }
-
-  try {
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
       clientPhone: client.phone ?? "",
-      clientAge,
-      professionalName,
-      nurseName,
+      clientAge: idadeAnos,
+      professionalName: "Dr. Caio Henrique Fernandes Padua",
+      nurseName: "Instituto Padua",
       unit: "Instituto Padua — Clinica Avancada",
-      startDate: protocol.startDate,
-      protocolNumber: `FAP-${protocol.id}`,
+      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
       valorTratamento: undefined,
-      substances: protocolItems.map(item => {
-        const sub = substMap.get(item.substanceId ?? 0);
-        return {
-          name: sub?.name ?? "",
-          color: sub?.color ?? "#c9a24f",
-          totalSessions: item.totalSessions ?? 1,
-          frequencyDays: item.frequencyDays ?? 7,
-          startDate: protocol.startDate,
-          procedureType: (sub?.procedureType ?? "injection") as "injection" | "implant",
-          dose: item.dose ?? "",
-        };
-      }),
-      sessions: physicalSessions,
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+        frequencyDays: s.frequenciaDias,
+        startDate: s.inicio,
+        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
+        dose: s.dose,
+      })),
+      sessions: [],
     }, "PREMIUM");
 
-    const pdfBuffer = Buffer.from(pdfBytes);
-    const driveFileName = formatPhysicalRASFileName(client.name);
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+
+  let pdfBuffer: Buffer;
+
+    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
 
     const emailResult = await sendProtocolEmail({
       clientName: client.name,
@@ -559,14 +594,11 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
       protocolTitle: protocol.title,
       professionalName,
       startDate: protocol.startDate,
-      substances: protocolItems.map(item => {
-        const sub = substMap.get(item.substanceId ?? 0);
-        return {
-          name: sub?.name ?? "",
-          color: sub?.color ?? "#c9a24f",
-          totalSessions: item.totalSessions ?? 1,
-        };
-      }),
+      substances: substancias.map(s => ({
+        name: s.nome,
+        color: s.cor ?? "#c9a24f",
+        totalSessions: s.sessoes,
+      })),
       pdfBuffer,
       pdfFileName: driveFileName,
     });
@@ -742,7 +774,7 @@ router.get("/ras-fap-demo", async (req, res) => {
     ? (temaParam as ModoRasFap)
     : "PREMIUM";
 
-  try {
+  const agoraDemo = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
@@ -765,9 +797,16 @@ router.get("/ras-fap-demo", async (req, res) => {
       })),
       sessions: [],
     }, "PREMIUM");
+
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
   let pdfBuffer: Buffer;
+
+    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
 
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const send = req.query.send === "1";
     const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
     const key = typeof req.query.key === "string" ? req.query.key : "";
@@ -820,8 +859,8 @@ router.get("/ras-fap-demo", async (req, res) => {
     try {
       if (await isDriveConnected()) {
         const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
-            await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer);
-            req.log.info(`RAS FAP demo uploaded to Drive: ${driveFileName}`);
+            await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileNameFapDemo, "application/pdf", pdfBuffer);
+            req.log.info(`RAS FAP demo uploaded to Drive: ${driveFileNameFapDemo}`);
           }
         } catch (err: any) {
           req.log.error(`RAS FAP demo Drive error: ${err.message}`);
@@ -943,21 +982,25 @@ router.get("/ras-fichas-demo", async (req, res) => {
       observations: null,
       substances,
     });
+
+    const agoraDrive = new Date(Date.now() - 3 * 60 * 60 * 1000);
   let pdfBuffer: Buffer;
+
+    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
 
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const emailItems = FICHAS_DEMO_SPECS.map(spec => {
-      const db = byName.get(spec.dbName);
+      const sub = byName.get(spec.dbName);
       return {
-        name: db?.name ?? spec.dbName,
+        name: sub?.name ?? spec.dbName,
         dose: spec.dose,
         via: spec.via,
         color: spec.color,
-        stars: db?.starRating ?? 5,
-        whatIs: firstSentence(db?.description),
+        stars: sub?.starRating ?? 5,
+        whatIs: firstSentence(sub?.description),
       };
     });
-
     const send = req.query.send === "1";
     const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
     const key = typeof req.query.key === "string" ? req.query.key : "";
@@ -1168,13 +1211,19 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
   const anoFull = agora.getUTCFullYear();
   const dataHojeBR = `${dd}/${mm}/${anoFull}`;
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+
+    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
   const protocoloTitulo = titulo ?? "Protocolo de Longevidade Personalizado";
+
+  const driveFileNameFapDemo = `${yyDemo}.${mmDemo}.${ddDemo} RAS FAP ${clientName.toUpperCase()}.pdf`;
 
   const idadeAnos = client.birthDate
     ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
     : undefined;
 
   let pdfBuffer: Buffer;
+
+    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
   try {
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
@@ -1198,6 +1247,10 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
       })),
       sessions: [],
     }, "PREMIUM");
+
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
     pdfBuffer = Buffer.from(pdfBytes);
   } catch (pdfErr: any) {
     res.status(500).json({ error: "Erro ao gerar RAS FAP PDF", details: pdfErr.message });
@@ -1395,3 +1448,27 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
 });
 
 export default router;
+
+    const mmDrive = String(agoraDrive.getUTCMonth() + 1).padStart(2, "0");
+
+  const yyDemo = String(agoraDemo.getUTCFullYear()).slice(2);
+
+  const ddDemo = String(agoraDemo.getUTCDate()).padStart(2, "0");
+
+    const ddDrive = String(agoraDrive.getUTCDate()).padStart(2, "0");
+
+  const mmDemo = String(agoraDemo.getUTCMonth() + 1).padStart(2, "0");
+
+    const yyFichas = String(agoraFichas.getUTCFullYear()).slice(2);
+
+    const _mmRas = String(_agoraRas.getUTCMonth() + 1).padStart(2, "0");
+
+    const mmFichas = String(agoraFichas.getUTCMonth() + 1).padStart(2, "0");
+
+    const yyDrive = String(agoraDrive.getUTCFullYear()).slice(2);
+
+    const _yyRas = String(_agoraRas.getUTCFullYear()).slice(2);
+
+    const _ddRas = String(_agoraRas.getUTCDate()).padStart(2, "0");
+
+    const ddFichas = String(agoraFichas.getUTCDate()).padStart(2, "0");
