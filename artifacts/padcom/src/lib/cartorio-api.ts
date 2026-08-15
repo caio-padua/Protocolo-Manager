@@ -18,11 +18,22 @@ export interface TimelineItem {
   pacienteNome: string | null;
   tipoDoc: string;
   titulo: string | null;
+  escopo: string | null;
   status: string;
   provedorCodigo: string | null;
   envelopeId: string | null;
   enviadoEm: string | null;
   concluidoEm: string | null;
+  criadoEm: string | null;
+}
+
+export interface SolicitacaoEntrega {
+  id: number;
+  titulo: string | null;
+  escopo: string | null;
+  status: string;
+  templateId: number | null;
+  enviadoEm: string | null;
   criadoEm: string | null;
 }
 
@@ -219,6 +230,23 @@ export async function enviarParaAssinatura(input: EnviarInput): Promise<EnviarRe
   const r = await authFetch("/api/assinaturas/enviar", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+  return jsonOrThrow<EnviarResult>(r);
+}
+
+export async function listarSolicitacoesEntrega(
+  pacienteId: number,
+): Promise<SolicitacaoEntrega[]> {
+  const r = await authFetch(
+    `/api/assinaturas/solicitacoes-entrega?pacienteId=${pacienteId}`,
+  );
+  const data = await jsonOrThrow<{ cadernos: SolicitacaoEntrega[] }>(r);
+  return data.cadernos;
+}
+
+export async function reenviarCaderno(solicitacaoId: number): Promise<EnviarResult> {
+  const r = await authFetch(`/api/assinaturas/${solicitacaoId}/reenviar`, {
+    method: "POST",
   });
   return jsonOrThrow<EnviarResult>(r);
 }

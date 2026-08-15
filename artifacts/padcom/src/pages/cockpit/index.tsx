@@ -33,11 +33,16 @@ import {
   TrendingUp,
   Wrench,
   Calendar,
+  BookOpen,
+  RotateCcw,
 } from "lucide-react";
 import {
   listarTimeline,
+  listarSolicitacoesEntrega,
+  reenviarCaderno,
   obterConsentimento,
   type TimelineItem,
+  type SolicitacaoEntrega,
   type ConsentimentoStatus,
 } from "@/lib/cartorio-api";
 import EvolucaoExamesPanel from "./panels/EvolucaoExamesPanel";
@@ -147,6 +152,28 @@ export default function Cockpit() {
     queryKey: ["cockpit-consentimento", clienteId],
     enabled: clienteId != null,
     queryFn: () => obterConsentimento(clienteId!),
+  });
+
+  const { data: cadernos, refetch: refetchCadernos } = useQuery<SolicitacaoEntrega[]>({
+    queryKey: ["cockpit-cadernos-entrega", clienteId],
+    enabled: clienteId != null,
+    queryFn: () => listarSolicitacoesEntrega(clienteId!),
+  });
+
+  const reenviar = useMutation<unknown, Error, number>({
+    mutationFn: (solicitacaoId: number) => reenviarCaderno(solicitacaoId),
+    onSuccess: () => {
+      toast({ title: "Caderno reenviado", description: "O caderno foi despachado novamente para assinatura." });
+      void refetchCadernos();
+    },
+    onError: (err) => {
+      const msg = err.message ?? "erro_desconhecido";
+      const label =
+        msg === "paciente_sem_canal" ? "O paciente não tem telefone nem e-mail cadastrado." :
+        msg === "template_nao_encontrado" ? "Modelo do caderno não encontrado." :
+        "Não foi possível reenviar o caderno.";
+      toast({ title: "Erro ao reenviar", description: label, variant: "destructive" });
+    },
   });
 
   const { data: clientes } = useQuery<ClienteOpt[]>({
@@ -548,6 +575,84 @@ export default function Cockpit() {
                         >
                           <ExternalLink className="h-3 w-3" /> PDF
                         </a>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* ── Cadernos da Entrega do Protocolo ── */}
+      {clienteId != null && (
+        <section className="panel-3d mt-4 rounded-lg p-4">
+          <div className="mb-3 flex items-center gap-2 border-b border-white/10 pb-2">
+            <BookOpen className="h-5 w-5" style={{ color: GOLD }} />
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+              Cadernos da Entrega
+            </h2>
+            <span className="ml-auto text-xs text-slate-400">
+              Consentimentos enviados via RAS FAP neste paciente
+            </span>
+          </div>
+
+          {!cadernos || cadernos.length === 0 ? (
+            <div className="text-sm text-slate-500">
+              Nenhum caderno de entrega encontrado para este paciente.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {cadernos.map((c) => {
+                const st = c.status.toUpperCase();
+                const concluido = st === "CONCLUIDO" || st === "ASSINADO";
+                const reenviavel = st === "REJEITADO" || st === "EXPIRADO";
+                const enviado = st === "ENVIADO" || st === "PARCIAL";
+                const badgeCls = concluido
+                  ? "bg-emerald-500/15 text-emerald-300"
+                  : reenviavel
+                    ? "bg-red-500/15 text-red-300"
+                    : enviado
+                      ? "bg-amber-500/15 text-amber-300"
+                      : "bg-slate-500/15 text-slate-400";
+
+                // Código legível do caderno: prefere o título, depois o escopo sem o prefixo.
+                const label =
+                  c.titulo ||
+                  (c.escopo
+                    ? c.escopo.replace(/^RAS_FAP_ENTREGA[:_]?/i, "Caderno ")
+                    : `Solicitação #${c.id}`);
+
+                return (
+                  <li
+                    key={c.id}
+                    className="panel-3d-sub flex items-center justify-between gap-3 rounded-md p-2 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="truncate font-medium">{label}</span>
+                      <span className="ml-2 text-xs text-slate-400">
+                        {c.enviadoEm
+                          ? `Enviado ${fmtDataCurta(c.enviadoEm)}`
+                          : `Criado ${fmtDataCurta(c.criadoEm)}`}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className={`rounded px-2 py-0.5 text-[11px] font-semibold uppercase ${badgeCls}`}>
+                        {c.status}
+                      </span>
+                      {reenviavel && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1 px-2 text-xs"
+                          style={{ color: GOLD_FORTE }}
+                          disabled={reenviar.isPending}
+                          onClick={() => reenviar.mutate(c.id)}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Reenviar
+                        </Button>
                       )}
                     </div>
                   </li>
