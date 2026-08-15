@@ -737,10 +737,30 @@ async function buildSuplementacaoPage(
   }
 
   // ─── Assinatura médica (sempre na última página) ──────────────────────────
-  // Reservar 68px acima do rodapé impresso (MB). Se não houver espaço, empurra
-  // o bloco logo acima do footer do header (mínimo visível).
-  const sigY = Math.max(y > MB + 70 ? y : MB + 70, MB + 70);
-  const { imageEmbedded: signatureImageEmbedded } = await buildRodapeAssinatura(page, fonts, pdfDoc, medico, sigY);
+  // O bloco de assinatura ocupa ~68 px. Se o espaço restante for insuficiente
+  // (y < MB + 80), abre-se uma nova página para não cortar nem sobrepor conteúdo.
+  let sigPage = page;
+  let sigY: number;
+
+  if (y < MB + 80) {
+    // Página extra exclusiva para a assinatura
+    const extraPageNum   = pageNum + 1;
+    const extraTotalPages = totalPages + 1;
+    sigPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    drawPageHeader(
+      sigPage, fonts,
+      "Plano Nutricional Personalizado",
+      input.nomePaciente,
+      extraPageNum,
+      extraTotalPages,
+    );
+    // Posicionar o bloco logo abaixo do cabeçalho da nova página
+    sigY = PAGE_H - 110;
+  } else {
+    sigY = Math.max(y, MB + 70);
+  }
+
+  const { imageEmbedded: signatureImageEmbedded } = await buildRodapeAssinatura(sigPage, fonts, pdfDoc, medico, sigY);
 
   return { page, signatureImageEmbedded };
 }
