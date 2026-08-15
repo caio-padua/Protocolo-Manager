@@ -44,6 +44,7 @@ import {
   BookOpen,
   ShoppingCart,
   Utensils,
+  Info,
 } from "lucide-react";
 
 // -------------------------------------------------------------------------------
@@ -1386,6 +1387,14 @@ function HistoricoPlanos() {
               <History className="h-3.5 w-3.5" />
               Planos emitidos — {(planos ?? []).length} {(planos ?? []).length === 1 ? "registro" : "registros"}
             </h2>
+          </div>
+
+          {/* Aviso de imutabilidade — documento jurídico congelado no momento da emissão */}
+          <div className="flex items-start gap-2 bg-amber-500/8 border-b border-amber-500/20 px-4 py-2.5">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+            <p className="text-[11px] text-amber-700 leading-relaxed">
+              Cada PDF é um documento imutável gerado no momento da emissão. Nome, CRM e dados do médico refletem o cadastro <b>naquela data</b> e não são atualizados retroativamente.
+            </p>
           </div>
 
           <div className="divide-y divide-border/40">
