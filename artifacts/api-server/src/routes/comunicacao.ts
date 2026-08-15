@@ -533,6 +533,16 @@ async function montarCanal(
     avisos.push(`${faltando} campo(s) ainda vazio(s) neste canal.`);
   }
 
+  // Aviso específico para Chat ID ausente no Telegram: o CEO precisa saber
+  // exatamente qual campo crítico falta, não só um contador genérico.
+  // Sem o Chat ID, NENHUM alerta chega ao CEO pelo Telegram.
+  if (canal === "telegram") {
+    const chatIdSlot = slots.find((s) => s.slot === "destinoCeo");
+    if (chatIdSlot && !chatIdSlot.isSet) {
+      avisos.unshift("Chat ID não configurado — o CEO não receberá alertas pelo Telegram.");
+    }
+  }
+
   return {
     canal,
     label: canal === "whatsapp" ? "WhatsApp" : "Telegram",
