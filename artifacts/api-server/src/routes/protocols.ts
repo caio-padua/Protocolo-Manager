@@ -880,12 +880,24 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       } catch (mailErr: any) {
         emailError = mailErr.message;
         console.error("[emit] Erro ao enviar e-mail:", mailErr.message);
-        const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
-        if (slackChannel) {
-          postSlackAlert(
-            slackChannel,
-            `🚨 *Falha ao enviar e-mail do protocolo* para *${client.name}* (Protocolo #${protocol.id}).\nErro: ${mailErr.message}`,
-          ).catch(() => {});
+        if (rasFapBuffer) {
+          // O RAS FAP estava pronto mas não pôde ser enviado junto com o e-mail.
+          await notifySlackRasFapFailure(
+            "email",
+            client.name,
+            protocol.id,
+            protocol.title,
+            mailErr.message,
+            process.env.PADAXOR_SLACK_CHANNEL_ID,
+          );
+        } else {
+          const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+          if (slackChannel) {
+            postSlackAlert(
+              slackChannel,
+              `🚨 *Falha ao enviar e-mail do protocolo* para *${client.name}* (Protocolo #${protocol.id}).\nErro: ${mailErr.message}`,
+            ).catch(() => {});
+          }
         }
       }
     }
