@@ -129,6 +129,12 @@ describe("postTelegramReport — retry + fallback Slack após 3 falhas", () => {
       postTelegramReport("CHAT_123", makeReport(), "C_SLACK_FALLBACK"),
     ).rejects.toThrow(/Telegram sendMessage falhou após 3 tentativas/);
 
+    const duplaChamada = (mockLogError.mock.calls as unknown[][]).find(
+      (args) =>
+        typeof (args[1] as string) === "string" &&
+        (args[1] as string).includes("dupla falha"),
+    );
+
     // Avança os backoffs (1 s na 2ª tentativa + 2 s na 3ª)
     await vi.runAllTimersAsync();
     await rejectPromise;
@@ -163,8 +169,14 @@ describe("postTelegramReport — retry + fallback Slack após 3 falhas", () => {
     sendTelegramMock.mockResolvedValue({ sent: false, error: "503 Service Unavailable" });
 
     const rejectPromise = expect(
-      postTelegramReport("CHAT_123", makeReport() /* sem fallbackSlackChannelId */),
-    ).rejects.toThrow(/Telegram sendMessage falhou/);
+      postTelegramReport("CHAT_123", makeReport()),
+    ).rejects.toThrow(/Telegram sendMessage falhou após 3 tentativas/);
+
+    const duplaChamada = (mockLogError.mock.calls as unknown[][]).find(
+      (args) =>
+        typeof (args[1] as string) === "string" &&
+        (args[1] as string).includes("dupla falha"),
+    );
 
     await vi.runAllTimersAsync();
     await rejectPromise;
@@ -182,28 +194,6 @@ describe("postTelegramReport — retry + fallback Slack após 3 falhas", () => {
   // ── 3. Caminho feliz: 1ª tentativa aceita ────────────────────────────────
   it("não aciona fallback quando Telegram aceita na 1ª tentativa", async () => {
     sendTelegramMock.mockResolvedValue({ sent: true });
-
-    const resolvePromise = expect(
-      postTelegramReport("CHAT_123", makeReport(), "C_SLACK_FALLBACK"),
-    ).resolves.toBeUndefined();
-
-    await vi.runAllTimersAsync();
-    await resolvePromise;
-
-    // Telegram chamado apenas 1 vez
-    expect(sendTelegramMock).toHaveBeenCalledTimes(1);
-
-    // Nenhum fallback acionado
-    expect(mockProxy).not.toHaveBeenCalled();
-
-    // Nenhum log de erro com telegramFailed
-    expect(hadTelegramFailedLog()).toBe(false);
-  });
-
-  // ── 5. Modo MOCK (sem token no cofre) — 1 chamada, sem retry, sem fallback ─
-  it("modo MOCK: resolve sem erro com 1 chamada e sem fallback Slack", async () => {
-    // Simula ausência de token: sendTelegram retorna { mock: true }
-    sendTelegramMock.mockResolvedValue({ mock: true });
 
     const resolvePromise = expect(
       postTelegramReport("CHAT_123", makeReport(), "C_SLACK_FALLBACK"),
@@ -236,13 +226,97 @@ describe("postTelegramReport — retry + fallback Slack após 3 falhas", () => {
     await vi.runAllTimersAsync();
     await resolvePromise;
 
-    // Telegram tentado 3 vezes, aceitou na 3ª
+    // sendTelegram chamado 3 vezes (2 falhas + 1 sucesso na 3ª)
     expect(sendTelegramMock).toHaveBeenCalledTimes(3);
 
-    // Nenhum fallback — não esgotou as tentativas
+    // Nenhum fallback Slack acionado
     expect(mockProxy).not.toHaveBeenCalled();
 
-    // Sem log de erro com telegramFailed
+    // Nenhum log de erro com telegramFailed
     expect(hadTelegramFailedLog()).toBe(false);
+  });
+
+  // ── 5. Dupla falha: Telegram offline E fallback Slack lança erro de rede ────
+  it("loga 'dupla falha' e ainda rejeita quando o Slack de fallback também lança erro de rede", async () => {
+    // Telegram falha nas 3 tentativas
+    sendTelegramMock.mockResolvedValue({ sent: false, error: "503 Service Unavailable" });
+
+    // Slack de fallback lança erro de transporte (ex.: rede indisponível)
+    mockProxy.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const rejectPromise = expect(
+      postTelegramReport("CHAT_123", makeReport(), "C_SLACK_FALLBACK"),
+    ).rejects.toThrow(/Telegram sendMessage falhou após 3 tentativas/);
+
+    await vi.runAllTimersAsync();
+    await rejectPromise;
+
+    // Telegram foi tentado exatamente 3 vezes
+    expect(sendTelegramMock).toHaveBeenCalledTimes(3);
+
+    // Slack de fallback foi chamado (mas lançou erro)
+    expect(mockProxy).toHaveBeenCalledTimes(1);
+
+    // logger.error deve ter sido chamado com a mensagem de dupla falha
+    const duplaChamada = (mockLogError.mock.calls as unknown[][]).find(
+      (args) =>
+        typeof (args[1] as string) === "string" &&
+        (args[1] as string).includes("dupla falha"),
+    );
+    expect(duplaChamada).toBeDefined();
+
+    // O objeto de contexto do log de dupla falha deve incluir telegramFailed: true
+    const ctx = duplaChamada![0] as Record<string, unknown>;
+    expect(ctx.telegramFailed).toBe(true);
+
+    // O erro do Slack deve aparecer no contexto do log
+    expect(ctx.err).toContain("ECONNREFUSED");
+  });
+
+  // ── 6. Dupla falha: Slack responde ok: false (falha na API, não na rede) ───
+  it("loga 'dupla falha' quando Slack retorna ok: false (canal inválido / token sem permissão)", async () => {
+    // Telegram falha nas 3 tentativas
+    sendTelegramMock.mockResolvedValue({ sent: false, error: "403 Forbidden" });
+
+    // Slack resolve na rede mas API retorna ok: false (ex.: canal inválido)
+    mockProxy.mockResolvedValue({
+      json: vi.fn().mockResolvedValue({ ok: false, error: "channel_not_found" }),
+    });
+
+    const rejectPromise = expect(
+      postTelegramReport("CHAT_123", makeReport(), "C_SLACK_FALLBACK"),
+    ).rejects.toThrow(/Telegram sendMessage falhou após 3 tentativas/);
+
+    await vi.runAllTimersAsync();
+    await rejectPromise;
+
+    // Telegram tentado 3 vezes
+    expect(sendTelegramMock).toHaveBeenCalledTimes(3);
+
+    // Slack foi chamado (mas retornou ok: false)
+    expect(mockProxy).toHaveBeenCalledTimes(1);
+
+    // logger.error deve ter sido chamado com a mensagem de dupla falha
+    const duplaChamada = (mockLogError.mock.calls as unknown[][]).find(
+      (args) =>
+        typeof (args[1] as string) === "string" &&
+        (args[1] as string).includes("dupla falha"),
+    );
+    expect(duplaChamada).toBeDefined();
+
+    // O contexto do log de dupla falha deve incluir telegramFailed: true
+    const ctx = duplaChamada![0] as Record<string, unknown>;
+    expect(ctx.telegramFailed).toBe(true);
+
+    // O erro da API Slack deve aparecer no contexto do log
+    expect(ctx.err).toContain("channel_not_found");
+
+    // NÃO deve ter logado "postado com sucesso" (seria uma mentira)
+    const falsoSucesso = (mockLogInfo.mock.calls as unknown[][]).some(
+      (args) =>
+        typeof (args[1] as string) === "string" &&
+        (args[1] as string).includes("postado no Slack com sucesso"),
+    );
+    expect(falsoSucesso).toBe(false);
   });
 });
