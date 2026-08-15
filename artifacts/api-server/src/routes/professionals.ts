@@ -499,6 +499,10 @@ router.post(
       res.status(400).json({ error: "Envie a imagem da assinatura no campo 'file'." });
       return;
     }
+    if (file.size === 0) {
+      res.status(400).json({ error: "Arquivo vazio. Envie uma imagem PNG ou JPEG válida." });
+      return;
+    }
     const [row] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, id));
     if (!row) {
       res.status(404).json({ error: "Profissional não encontrado" });

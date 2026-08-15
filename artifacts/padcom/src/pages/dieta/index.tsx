@@ -420,6 +420,9 @@ function MontarCardapio() {
         throw new Error((err as { error?: string }).error || "Falha ao gerar o plano nutricional.");
       }
 
+      // Verificar se a imagem de assinatura falhou ao ser embutida (cabeçalho do servidor)
+      const signatureImageFailed = r.headers.get("X-Signature-Image-Failed") === "true";
+
       // Resposta é sempre o PDF binário (enviarEmail: false)
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
@@ -456,6 +459,7 @@ function MontarCardapio() {
         estiloAlimentar: estiloAlimentar.trim() || undefined,
         querEnviarEmail: enviarEmail && !!clientId,
         usedFallbackDownload,
+        signatureImageFailed,
       };
     },
     onSuccess: (result) => {
@@ -463,6 +467,13 @@ function MontarCardapio() {
         ? "O plano nutricional foi baixado para o seu computador."
         : "O plano nutricional foi aberto em nova aba para revisão.";
       toast({ title: "PDF gerado!", description: desc });
+      if (result.signatureImageFailed) {
+        toast({
+          title: "Atenção: imagem de assinatura não carregada",
+          description: "A assinatura do médico está cadastrada, mas não foi possível embutir a imagem no PDF. O rodapé exibe linha tracejada para assinatura manuscrita.",
+          variant: "destructive",
+        });
+      }
       // Atualiza o Histórico de Planos imediatamente (mesmo que a aba já esteja montada)
       qc.invalidateQueries({ queryKey: ["dieta", "planos-emitidos"] });
       if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {

@@ -124,6 +124,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     .limit(1);
 
   let medicoAssinatura: import("../lib/dieta-pdf").MedicoAssinatura | null = null;
+  let signatureLoadFailed = false;
   if (medicoRow) {
     const crmFinal = medicoRow.registrationNumber ?? medicoRow.crm ?? "";
     if (medicoRow.nome && crmFinal) {
@@ -138,8 +139,12 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
           const [buf] = await file.download();
           signatureImageBytes = buf;
           signatureMime = medicoRow.signatureUrl.endsWith(".png") ? "image/png" : "image/jpeg";
-        } catch {
-          // Assinatura indisponível — continua sem imagem
+        } catch (err) {
+          signatureLoadFailed = true;
+          req.log?.warn?.(
+            { err, signatureUrl: medicoRow.signatureUrl },
+            "Falha ao baixar imagem de assinatura do médico — PDF usará linha tracejada no rodapé",
+          );
         }
       }
 
@@ -177,6 +182,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
 
   let pdfBytes: Uint8Array;
   let plano: Awaited<ReturnType<typeof gerarDietaPdf>>["plano"];
+  let signatureImageEmbedded = false;
   try {
     const resultado = await gerarDietaPdf(
       {
@@ -198,6 +204,7 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     );
     pdfBytes = resultado.pdfBytes;
     plano = resultado.plano;
+    signatureImageEmbedded = resultado.signatureImageEmbedded;
   } catch (err) {
     clearTimeout(timer);
     const isTimeout =
@@ -314,6 +321,15 @@ router.post("/dieta/emitir-pdf", async (req, res): Promise<void> => {
     `attachment; filename="PlanoNutricional_${nomePaciente.replace(/\s+/g, "_")}.pdf"`,
   );
   res.setHeader("Content-Length", pdfBytes.length.toString());
+
+  // Sinaliza ao CEO quando havia imagem cadastrada mas não foi possível embutir.
+  // signatureLoadFailed = erro ao baixar do Object Storage.
+  // !signatureImageEmbedded + signatureUrl = erro ao embutir no pdf-lib.
+  const hadSignatureUrl = !!medicoRow?.signatureUrl;
+  if (hadSignatureUrl && (signatureLoadFailed || !signatureImageEmbedded)) {
+    res.setHeader("X-Signature-Image-Failed", "true");
+  }
+
   res.send(Buffer.from(pdfBytes));
 });
 

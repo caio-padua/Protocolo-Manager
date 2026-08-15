@@ -336,7 +336,7 @@ async function buildRodapeAssinatura(
   pdfDoc: PDFDocument,
   medico: MedicoAssinatura | null | undefined,
   yStart: number,
-): Promise<number> {
+): Promise<{ y: number; imageEmbedded: boolean }> {
   const BLOCK_H = 64;
   const y = yStart;
 
@@ -357,6 +357,7 @@ async function buildRodapeAssinatura(
     x: ML + 8, y: y - 12, size: 6, font: fonts.regular, color: rgb(0.65, 0.65, 0.65),
   });
 
+  let imageEmbedded = false;
   if (medico?.signatureImageBytes && medico.signatureImageBytes.length > 0) {
     // Embutir imagem da assinatura
     try {
@@ -378,6 +379,7 @@ async function buildRodapeAssinatura(
         width: dims.width,
         height: dims.height,
       });
+      imageEmbedded = true;
     } catch {
       // Fallback: linha tracejada se a imagem não puder ser embebida
       page.drawLine({
@@ -435,7 +437,7 @@ async function buildRodapeAssinatura(
     });
   }
 
-  return y - BLOCK_H;
+  return { y: y - BLOCK_H, imageEmbedded };
 }
 async function buildCoverPage(
   pdfDoc: PDFDocument,
@@ -659,7 +661,7 @@ async function buildSuplementacaoPage(
   pageNum: number,
   totalPages: number,
   medico?: MedicoAssinatura | null,
-): Promise<PDFPage> {
+): Promise<{ page: PDFPage; signatureImageEmbedded: boolean }> {
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
   drawPageHeader(page, fonts, "Plano Nutricional Personalizado", input.nomePaciente, pageNum, totalPages);
 
@@ -738,9 +740,9 @@ async function buildSuplementacaoPage(
   // Reservar 68px acima do rodapé impresso (MB). Se não houver espaço, empurra
   // o bloco logo acima do footer do header (mínimo visível).
   const sigY = Math.max(y > MB + 70 ? y : MB + 70, MB + 70);
-  await buildRodapeAssinatura(page, fonts, pdfDoc, medico, sigY);
+  const { imageEmbedded: signatureImageEmbedded } = await buildRodapeAssinatura(page, fonts, pdfDoc, medico, sigY);
 
-  return page;
+  return { page, signatureImageEmbedded };
 }
 
 // ─── Ponto de entrada público ─────────────────────────────────────────────────
@@ -752,6 +754,11 @@ async function buildSuplementacaoPage(
 export interface DietaPdfResultado {
   pdfBytes: Uint8Array;
   plano: PlanoGerado;
+  /**
+   * true  = imagem de assinatura embebida com sucesso.
+   * false = fallback para linha tracejada (sem imagem cadastrada ou erro ao embutir).
+   */
+  signatureImageEmbedded: boolean;
 }
 
 export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal): Promise<DietaPdfResultado> {
@@ -789,8 +796,8 @@ export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal):
   }
 
   // Última página: Suplementação + Monitoramento + Assinatura
-  await buildSuplementacaoPage(pdfDoc, fonts, input, plano, pageNum, totalPages, input.medico);
+  const { signatureImageEmbedded } = await buildSuplementacaoPage(pdfDoc, fonts, input, plano, pageNum, totalPages, input.medico);
 
   const pdfBytes = await pdfDoc.save();
-  return { pdfBytes, plano };
+  return { pdfBytes, plano, signatureImageEmbedded };
 }
