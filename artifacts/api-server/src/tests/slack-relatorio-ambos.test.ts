@@ -1,15 +1,16 @@
 /**
  * slack-relatorio-ambos.test.ts
  *
- * Confirma que POST /api/padaxor/slack/relatorio grava um registro
- * canal='ambos' no histórico em TODOS os cenários — incluindo quando
- * ambos os canais falham (o registro deve preceder o retorno 500).
+ * Confirma que POST /api/padaxor/slack/relatorio grava exatamente 3 registros
+ * (canal='slack' + canal='telegram' + canal='ambos') quando o Telegram está
+ * configurado, e exatamente 2 registros (canal='slack' + canal='ambos') quando
+ * o Telegram está skipped (não configurado).
  *
  * Cenários cobertos:
- *   1. Ambos entregam            → salvarHistorico('ambos', true)  + HTTP 200
- *   2. Slack falha, Telegram ok  → salvarHistorico('ambos', false) + HTTP 200
- *   3. Ambos falham              → salvarHistorico('ambos', false) + HTTP 500
- *   4. Telegram não configurado  → salvarHistorico('ambos', true)  + HTTP 200
+ *   1. Ambos entregam            → 3 registros; ambos ok=true
+ *   2. Slack falha, Telegram ok  → 3 registros; slack ok=false, ambos ok=false
+ *   3. Ambos falham              → 3 registros gravados ANTES do HTTP 500
+ *   4. Telegram não configurado  → 2 registros (slack + ambos); sem telegram
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -88,17 +89,19 @@ function makeReport(overrides: Partial<LlmReport> = {}): LlmReport {
     totalChamadas:       5,
     mudancasPlanilha:    [],
     totalItensPlanilha:  0,
+    itensConcluidos:     [],
+    ultimoPreenchimento: null,
     ...overrides,
   };
 }
 
-const BODY_PADRAO = {
+const BODY_COM_TELEGRAM = {
   channelId:       "C_SLACK_TESTE",
   telegramChatId:  "123456789",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe("POST /api/padaxor/slack/relatorio — registro canal='ambos'", () => {
+describe("POST /api/padaxor/slack/relatorio — 3 registros por disparo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(reporter.buildLlmReport).mockResolvedValue(makeReport());
@@ -106,17 +109,37 @@ describe("POST /api/padaxor/slack/relatorio — registro canal='ambos'", () => {
   });
 
   // ── Cenário 1: ambos entregam ─────────────────────────────────────────────
-  it("grava salvarHistorico('ambos', true) e devolve HTTP 200 quando ambos entregam", async () => {
+  it("grava 3 registros (slack+telegram+ambos, todos ok=true) quando ambos entregam", async () => {
     vi.mocked(reporter.postSlackReport).mockResolvedValue(undefined);
     vi.mocked(reporter.postTelegramReport).mockResolvedValue(undefined);
 
     const res = await request(buildApp())
       .post("/api/padaxor/slack/relatorio")
-      .send(BODY_PADRAO);
+      .send(BODY_COM_TELEGRAM);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
 
+    // Exatamente 3 chamadas — sem duplicatas
+    expect(reporter.salvarHistorico).toHaveBeenCalledTimes(3);
+
+    // Registro 1: slack individual
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "slack",
+      true,
+      undefined,
+    );
+
+    // Registro 2: telegram individual
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "telegram",
+      true,
+      undefined,
+    );
+
+    // Registro 3: resumo consolidado
     expect(reporter.salvarHistorico).toHaveBeenCalledWith(
       expect.anything(),
       "ambos",
@@ -126,17 +149,36 @@ describe("POST /api/padaxor/slack/relatorio — registro canal='ambos'", () => {
   });
 
   // ── Cenário 2: Slack falha, Telegram ok ───────────────────────────────────
-  it("grava salvarHistorico('ambos', false) e devolve HTTP 200 quando só Slack falha", async () => {
+  it("grava 3 registros e marca slack=false/ambos=false quando só Slack falha", async () => {
     vi.mocked(reporter.postSlackReport).mockRejectedValue(new Error("Slack API timeout"));
     vi.mocked(reporter.postTelegramReport).mockResolvedValue(undefined);
 
     const res = await request(buildApp())
       .post("/api/padaxor/slack/relatorio")
-      .send(BODY_PADRAO);
+      .send(BODY_COM_TELEGRAM);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true); // Telegram entregou
 
+    expect(reporter.salvarHistorico).toHaveBeenCalledTimes(3);
+
+    // slack individual com erro
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "slack",
+      false,
+      expect.stringContaining("Slack API timeout"),
+    );
+
+    // telegram individual ok
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "telegram",
+      true,
+      undefined,
+    );
+
+    // ambos: false (slack falhou)
     expect(reporter.salvarHistorico).toHaveBeenCalledWith(
       expect.anything(),
       "ambos",
@@ -146,16 +188,31 @@ describe("POST /api/padaxor/slack/relatorio — registro canal='ambos'", () => {
   });
 
   // ── Cenário 3: ambos falham ───────────────────────────────────────────────
-  it("grava salvarHistorico('ambos', false) ANTES de retornar HTTP 500 quando ambos falham", async () => {
+  it("grava 3 registros ANTES de retornar HTTP 500 quando ambos falham", async () => {
     vi.mocked(reporter.postSlackReport).mockRejectedValue(new Error("Slack down"));
     vi.mocked(reporter.postTelegramReport).mockRejectedValue(new Error("Telegram down"));
 
     const res = await request(buildApp())
       .post("/api/padaxor/slack/relatorio")
-      .send(BODY_PADRAO);
+      .send(BODY_COM_TELEGRAM);
 
-    // Registro deve ter sido gravado mesmo com a resposta 500
-    expect(reporter.salvarHistorico).toHaveBeenCalledOnce();
+    // 3 registros gravados mesmo com HTTP 500
+    expect(reporter.salvarHistorico).toHaveBeenCalledTimes(3);
+
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "slack",
+      false,
+      expect.stringContaining("Slack down"),
+    );
+
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "telegram",
+      false,
+      expect.stringContaining("Telegram down"),
+    );
+
     expect(reporter.salvarHistorico).toHaveBeenCalledWith(
       expect.anything(),
       "ambos",
@@ -168,8 +225,7 @@ describe("POST /api/padaxor/slack/relatorio — registro canal='ambos'", () => {
   });
 
   // ── Cenário 4: Telegram não configurado ──────────────────────────────────
-  it("grava salvarHistorico('ambos', true) quando Telegram está ausente (skipped não é falha)", async () => {
-    // Garante que a variável de ambiente não interfere neste cenário
+  it("grava apenas 2 registros (slack + ambos) quando Telegram está skipped — sem registro telegram", async () => {
     vi.stubEnv("PADAXOR_TELEGRAM_CHAT_ID", "");
 
     vi.mocked(reporter.postSlackReport).mockResolvedValue(undefined);
@@ -183,13 +239,28 @@ describe("POST /api/padaxor/slack/relatorio — registro canal='ambos'", () => {
 
     expect(res.status).toBe(200);
 
+    // Exatamente 2 registros — sem telegram
+    expect(reporter.salvarHistorico).toHaveBeenCalledTimes(2);
+
+    expect(reporter.salvarHistorico).toHaveBeenCalledWith(
+      expect.anything(),
+      "slack",
+      true,
+      undefined,
+    );
+
     expect(reporter.salvarHistorico).toHaveBeenCalledWith(
       expect.anything(),
       "ambos",
-      true,   // Telegram skipped = ok, não falha
+      true,
       undefined,
     );
-    // Telegram não deve ter sido chamado
+
+    // Nenhum registro telegram
+    const calls = vi.mocked(reporter.salvarHistorico).mock.calls;
+    expect(calls.every(([, canal]) => canal !== "telegram")).toBe(true);
+
+    // postTelegramReport não foi chamado
     expect(reporter.postTelegramReport).not.toHaveBeenCalled();
   });
 });

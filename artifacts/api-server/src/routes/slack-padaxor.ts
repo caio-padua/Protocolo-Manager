@@ -108,10 +108,11 @@ router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Pro
       logger.warn("slack-relatorio: PADAXOR_TELEGRAM_CHAT_ID não configurado — Telegram ignorado");
     }
 
-    // ── Registro "ambos" — resumo dual-canal do disparo manual ─────────────
-    // Gravado ANTES do retorno de erro: mesmo quando ambos os canais falham,
-    // o CEO precisa ver o registro no histórico com enviado_ok=false.
-    // Mesma lógica do worker (runLlmMonitorJob): telegramSkipped não é falha.
+    // ── Registros individuais por canal + resumo "ambos" ──────────────────
+    // Gravados ANTES do retorno de erro: mesmo quando ambos os canais falham,
+    // o CEO precisa ver os registros no histórico.
+    // Regra: 1 registro slack + 1 telegram (se não skipped) + 1 ambos = 3 linhas.
+    // Quando Telegram skipped: 1 slack + 1 ambos = 2 linhas (sem registro telegram).
     const ambosOk = slackOk && (telegramOk || telegramSkipped);
     const descSlack = slackOk
       ? "Slack: OK"
@@ -122,7 +123,25 @@ router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Pro
         ? "Telegram: OK"
         : `Telegram: falhou — ${telegramErro ?? "erro desconhecido"}`;
     const erroStr = ambosOk ? undefined : `${descSlack} | ${descTelegram}`;
+
     try {
+      // Registro 1: canal individual Slack
+      await salvarHistorico(report, "slack", slackOk, slackOk ? undefined : slackErro);
+    } catch (saveErr: any) {
+      logger.warn({ err: saveErr }, "slack-relatorio: falha ao gravar registro 'slack'");
+    }
+
+    if (!telegramSkipped) {
+      try {
+        // Registro 2: canal individual Telegram (somente quando configurado)
+        await salvarHistorico(report, "telegram", telegramOk, telegramOk ? undefined : telegramErro);
+      } catch (saveErr: any) {
+        logger.warn({ err: saveErr }, "slack-relatorio: falha ao gravar registro 'telegram'");
+      }
+    }
+
+    try {
+      // Registro 3: resumo consolidado "ambos" — sempre gravado
       await salvarHistorico(report, "ambos", ambosOk, erroStr);
     } catch (saveErr: any) {
       logger.warn({ err: saveErr }, "slack-relatorio: falha ao gravar registro 'ambos'");
