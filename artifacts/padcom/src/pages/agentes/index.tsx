@@ -2657,7 +2657,7 @@ interface TrelloStatus {
 }
 interface WppStatus { configurado: boolean; instrucoes: string[] | null; }
 interface GitHubPatInfo {
-  status: "conectado" | "expirado_em_breve" | "erro" | "nao_configurado";
+  status: "conectado" | "expirado_em_breve" | "erro" | "nao_configurado" | "indisponivel";
   expira_em: string | null;
   login: string | null;
 }
@@ -3046,27 +3046,33 @@ function AbaIntegracoes() {
             <div className="flex items-center gap-2">
               <Key className="w-4 h-4" style={{
                 color: loading ? undefined
-                  : githubPat?.status === "conectado"        ? COR_OK
-                  : githubPat?.status === "expirado_em_breve"? COR_AVS
-                  : githubPat?.status === "nao_configurado"  ? "#6b7280"
+                  : !githubPat                                 ? COR_ERR
+                  : githubPat.status === "conectado"          ? COR_OK
+                  : githubPat.status === "expirado_em_breve"  ? COR_AVS
+                  : githubPat.status === "nao_configurado"    ? "#6b7280"
+                  : githubPat.status === "indisponivel"       ? COR_ERR
                   : COR_ERR,
               }} />
               <span className="font-bold text-sm">GitHub PAT</span>
               <span className="ml-auto text-[10px] font-black uppercase tracking-wider" style={{
                 color: loading ? undefined
-                  : githubPat?.status === "conectado"        ? COR_OK
-                  : githubPat?.status === "expirado_em_breve"? COR_AVS
-                  : githubPat?.status === "nao_configurado"  ? "#6b7280"
+                  : !githubPat                                 ? COR_ERR
+                  : githubPat.status === "conectado"          ? COR_OK
+                  : githubPat.status === "expirado_em_breve"  ? COR_AVS
+                  : githubPat.status === "nao_configurado"    ? "#6b7280"
+                  : githubPat.status === "indisponivel"       ? COR_ERR
                   : COR_ERR,
               }}>
                 {loading ? "…"
-                  : githubPat?.status === "conectado"         ? "CONECTADO"
-                  : githubPat?.status === "expirado_em_breve" ? "EXPIRA EM BREVE"
-                  : githubPat?.status === "nao_configurado"   ? "NÃO CONFIGURADO"
+                  : !githubPat                                 ? "INDISPONÍVEL"
+                  : githubPat.status === "conectado"           ? "CONECTADO"
+                  : githubPat.status === "expirado_em_breve"   ? "EXPIRA EM BREVE"
+                  : githubPat.status === "nao_configurado"     ? "NÃO CONFIGURADO"
+                  : githubPat.status === "indisponivel"        ? "INDISPONÍVEL"
                   : "ERRO"}
               </span>
             </div>
-            {!loading && githubPat && githubPat.status !== "nao_configurado" && (
+            {!loading && githubPat && githubPat.status !== "nao_configurado" && githubPat.status !== "indisponivel" && (
               <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-muted-foreground">
                 {githubPat.login && (
                   <span>Login: <span className="font-semibold text-foreground">{githubPat.login}</span></span>
@@ -3087,7 +3093,13 @@ function AbaIntegracoes() {
                 )}
               </div>
             )}
-            {!loading && (!githubPat || githubPat.status === "nao_configurado") && (
+            {!loading && githubPat?.status === "indisponivel" && (
+              <p className="text-[11px] text-rose-500 font-semibold">Não foi possível contactar a API do GitHub. Verifique a conectividade do servidor.</p>
+            )}
+            {!loading && !githubPat && (
+              <p className="text-[11px] text-rose-500 font-semibold">Não foi possível contactar a API. Verifique a conectividade do servidor.</p>
+            )}
+            {!loading && githubPat?.status === "nao_configurado" && (
               <p className="text-[11px] text-muted-foreground">Configure a variável GITHUB_PAT nos Secrets para habilitar integrações com o repositório.</p>
             )}
           </div>

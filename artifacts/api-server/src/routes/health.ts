@@ -101,7 +101,7 @@ async function checkZapSign(): Promise<StatusVal> {
  * `github-authentication-token-expiration` estiver presente na resposta.
  */
 export interface GitHubPatStatus {
-  status: StatusVal | "expirado_em_breve";
+  status: StatusVal | "expirado_em_breve" | "indisponivel";
   /** Data de expiração em ISO-8601 (quando disponível na resposta do GitHub) */
   expiraEm: string | null;
   /** Login GitHub associado ao token (quando válido) */
@@ -124,7 +124,11 @@ async function checkGitHubPat(): Promise<GitHubPatStatus> {
     });
 
     if (!r.ok) {
-      return { status: "erro", expiraEm: null, login: null };
+      // 401 = token inválido/revogado; 5xx/429 = GitHub indisponível ou rate-limit
+      if (r.status === 401 || r.status === 403) {
+        return { status: "erro", expiraEm: null, login: null };
+      }
+      return { status: "indisponivel", expiraEm: null, login: null };
     }
 
     // O GitHub retorna este header nos tokens com data de vencimento.
@@ -151,7 +155,8 @@ async function checkGitHubPat(): Promise<GitHubPatStatus> {
 
     return { status: "conectado", expiraEm, login };
   } catch {
-    return { status: "erro", expiraEm: null, login: null };
+    // Falha de rede ao contactar api.github.com — distingue de token inválido
+    return { status: "indisponivel", expiraEm: null, login: null };
   }
 }
 
