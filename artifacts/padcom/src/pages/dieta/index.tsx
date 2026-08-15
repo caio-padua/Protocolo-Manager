@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCollabToken } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
@@ -271,6 +271,10 @@ function MontarCardapio() {
     estiloAlimentar?: string;
     usedFallbackDownload?: boolean;
   } | null>(null);
+  // Checkbox obrigatório quando o PDF foi baixado (popup bloqueado)
+  const [reviewedFallback, setReviewedFallback] = useState(false);
+  // Resetar o checkbox sempre que o painel de confirmação mudar
+  useEffect(() => { setReviewedFallback(false); }, [pendingEmail]);
 
   // --- Handler síncrono de troca de cliente ---
   // Atualiza a ref ANTES de qualquer await, garantindo que onSuccess do emitirPdf
@@ -1082,10 +1086,21 @@ function MontarCardapio() {
                   {pendingEmail.estiloAlimentar ? <> · {pendingEmail.estiloAlimentar}</> : null}
                 </p>
               )}
+              {pendingEmail.usedFallbackDownload && (
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={reviewedFallback}
+                    onChange={(e) => setReviewedFallback(e.target.checked)}
+                    className="h-4 w-4 rounded accent-primary"
+                  />
+                  <span className="text-sm text-foreground">Já revisei o arquivo baixado</span>
+                </label>
+              )}
               <div className="flex items-center gap-2">
                 <Button
                   className="btn-3d"
-                  disabled={confirmarEnvio.isPending}
+                  disabled={confirmarEnvio.isPending || (!!pendingEmail.usedFallbackDownload && !reviewedFallback)}
                   onClick={() => confirmarEnvio.mutate()}
                 >
                   {confirmarEnvio.isPending ? (
