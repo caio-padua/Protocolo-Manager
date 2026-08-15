@@ -463,6 +463,8 @@ function MontarCardapio() {
         ? "O plano nutricional foi baixado para o seu computador."
         : "O plano nutricional foi aberto em nova aba para revisão.";
       toast({ title: "PDF gerado!", description: desc });
+      // Atualiza o Histórico de Planos imediatamente (mesmo que a aba já esteja montada)
+      qc.invalidateQueries({ queryKey: ["dieta", "planos-emitidos"] });
       if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {
         // Exibir painel de confirmação de envio
         setPendingEmail({
