@@ -461,6 +461,25 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     return;
   }
 
+  // ── Alerta preventivo: paciente sem e-mail cadastrado ────────────────────
+  // Enviado e aguardado ANTES de qualquer geração de PDF, upload ou outro
+  // efeito colateral, para que o CEO seja avisado antes da emissão.
+  if (!client.email) {
+    const slackChannel = process.env.PADAXOR_SLACK_CHANNEL_ID;
+    if (slackChannel) {
+      try {
+        await postSlackAlert(
+          slackChannel,
+          `⚠️ *Protocolo #${protocol.id} sendo emitido, mas o e-mail NÃO será enviado.*\nPaciente *${client.name}* não possui e-mail cadastrado.\nCadastre o e-mail do paciente e reenvie manualmente se necessário.`,
+        );
+      } catch (slackErr: any) {
+        console.error("[emit] Falha ao enviar alerta Slack (sem e-mail):", slackErr.message);
+      }
+    } else {
+      console.warn(`[emit] Paciente ${client.id} (${client.name}) não tem e-mail — e-mail do protocolo não será enviado. (Slack não configurado)`);
+    }
+  }
+
   let professionalName = "Profissional";
   let professionalCrm: string | null = null;
   let nurseName: string | undefined;
