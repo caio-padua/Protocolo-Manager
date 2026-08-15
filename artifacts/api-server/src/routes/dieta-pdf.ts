@@ -520,7 +520,16 @@ router.get(
 
 // -------------------------------------------------------------------------------
 // POST /api/dieta/planos-emitidos/:id/reenviar
+//
+// Body (optional): { email?: string }
+//   Se `email` for fornecido e válido, o reenvio vai para esse endereço em vez do
+//   cadastrado; o campo emailDestino do registro é atualizado para refletir o
+//   endereço realmente utilizado no reenvio.
 // -------------------------------------------------------------------------------
+const ReenviarSchema = z.object({
+  email: z.string().email("E-mail inválido").optional().nullable(),
+});
+
 router.post(
   "/dieta/planos-emitidos/:id/reenviar",
   requireCollaborator,
@@ -530,6 +539,14 @@ router.post(
       res.status(400).json({ error: "ID inválido" });
       return;
     }
+
+    const parsed = ReenviarSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0]?.message ?? "E-mail inválido" });
+      return;
+    }
+
+    const emailOverride = parsed.data.email ?? null;
 
     try {
       const plano = await getPlanoById(id, EMPRESA_ID);
@@ -542,9 +559,12 @@ router.post(
         return;
       }
 
-      const emailDestino = plano.emailDestino;
+      // Usar override quando fornecido; caso contrário, usar o e-mail gravado no registro
+      const emailDestino = emailOverride ?? plano.emailDestino ?? null;
       if (!emailDestino) {
-        res.status(422).json({ error: "Este plano não tem e-mail de destino" });
+        res
+          .status(422)
+          .json({ error: "Nenhum e-mail de destino disponível. Informe um endereço no campo de reenvio." });
         return;
       }
 
@@ -579,9 +599,13 @@ router.post(
       });
 
       if (emailResult.success) {
+        // Atualiza emailEnviado=true e, quando houve override, registra o novo destino
         await db
           .update(dietaPlanosEmitidosTable)
-          .set({ emailEnviado: true })
+          .set({
+            emailEnviado: true,
+            ...(emailOverride ? { emailDestino: emailOverride } : {}),
+          })
           .where(and(
             eq(dietaPlanosEmitidosTable.id, id),
             eq(dietaPlanosEmitidosTable.empresaId, EMPRESA_ID),

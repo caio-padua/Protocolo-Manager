@@ -1236,7 +1236,13 @@ function HistoricoPlanos() {
     enabled: !!clienteId,
   });
 
-  const [reenviando, setReenviando] = useState<number | null>(null);
+  // Estado do painel de reenvio com override de e-mail
+  const [reenviarModal, setReenviarModal] = useState<{
+    plano: PlanoEmitido;
+    email: string;
+  } | null>(null);
+  const [reenviando, setReenviando] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   async function handleDownload(plano: PlanoEmitido) {
     const token = getCollabToken();
@@ -1262,28 +1268,44 @@ function HistoricoPlanos() {
     }
   }
 
-  async function handleReenviar(plano: PlanoEmitido) {
-    if (!plano.emailDestino) {
-      toast({ title: "Sem e-mail cadastrado", description: "Este plano não tem e-mail de destino.", variant: "destructive" });
+  function openReenviarPanel(plano: PlanoEmitido) {
+    setReenviarModal({ plano, email: plano.emailDestino ?? "" });
+    setEmailError(null);
+  }
+
+  async function handleConfirmarReenvio() {
+    if (!reenviarModal) return;
+    const email = reenviarModal.email.trim();
+
+    // Validação básica de e-mail
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      setEmailError("Informe um e-mail válido antes de confirmar o envio.");
       return;
     }
-    setReenviando(plano.id);
+    setEmailError(null);
+    setReenviando(true);
     try {
       const token = getCollabToken();
-      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/reenviar`, {
+      const r = await fetch(`/api/dieta/planos-emitidos/${reenviarModal.plano.id}/reenviar`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ email }),
       });
       const d = await r.json();
       if (!r.ok || !d.ok) {
         throw new Error(d.error ?? "Falha ao reenviar");
       }
-      toast({ title: "E-mail reenviado", description: `Plano enviado para ${plano.emailDestino}` });
+      toast({ title: "E-mail reenviado", description: `Plano enviado para ${email}` });
+      setReenviarModal(null);
       refetch();
     } catch (e: unknown) {
       toast({ title: "Erro ao reenviar", description: (e as Error).message, variant: "destructive" });
     } finally {
-      setReenviando(null);
+      setReenviando(false);
     }
   }
 
@@ -1356,89 +1378,160 @@ function HistoricoPlanos() {
 
           <div className="divide-y divide-border/40">
             {(planos ?? []).map((p) => (
-              <div key={p.id} className="flex items-start justify-between gap-4 px-4 py-4">
-                {/* Lado esquerdo: info */}
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="concave-3d px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-primary">
-                      #{p.id}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatDate(p.emitidoEm)}
-                    </span>
-                    {p.emailEnviado ? (
-                      <span className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                        <CheckCircle2 className="h-3 w-3" /> E-mail enviado
+              <div key={p.id}>
+                <div className="flex items-start justify-between gap-4 px-4 py-4">
+                  {/* Lado esquerdo: info */}
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="concave-3d px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                        #{p.id}
                       </span>
-                    ) : (
-                      <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                        Sem e-mail
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatDate(p.emitidoEm)}
                       </span>
-                    )}
-                    {!p.temPdf && (
-                      <span className="rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700">
-                        PDF indisponível
-                      </span>
+                      {p.emailEnviado ? (
+                        <span className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" /> E-mail enviado
+                        </span>
+                      ) : (
+                        <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                          Sem e-mail
+                        </span>
+                      )}
+                      {!p.temPdf && (
+                        <span className="rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                          PDF indisponível
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                      {p.objetivo && (
+                        <span className="text-muted-foreground">
+                          <b className="text-foreground">Objetivo:</b> {p.objetivo}
+                        </span>
+                      )}
+                      {p.caloriasAlvo && (
+                        <span className="text-muted-foreground">
+                          <b className="text-foreground">Meta:</b> {p.caloriasAlvo} kcal/dia
+                        </span>
+                      )}
+                      {p.pesoKg && (
+                        <span className="text-muted-foreground">
+                          <b className="text-foreground">Peso:</b> {p.pesoKg} kg
+                        </span>
+                      )}
+                      {p.estrategia && (
+                        <span className="text-muted-foreground">
+                          <b className="text-foreground">Estratégia:</b> {p.estrategia}
+                        </span>
+                      )}
+                    </div>
+
+                    {p.emailDestino && (
+                      <p className="text-[11px] text-muted-foreground truncate max-w-xs">
+                        {p.emailDestino}
+                        {p.pdfBytes ? <span className="ml-2 opacity-60">· {formatBytes(p.pdfBytes)}</span> : null}
+                      </p>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-                    {p.objetivo && (
-                      <span className="text-muted-foreground">
-                        <b className="text-foreground">Objetivo:</b> {p.objetivo}
-                      </span>
+                  {/* Lado direito: ações */}
+                  <div className="flex shrink-0 gap-2">
+                    {p.temPdf && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bevel-3d gap-1.5"
+                        onClick={() => handleDownload(p)}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Baixar PDF
+                      </Button>
                     )}
-                    {p.caloriasAlvo && (
-                      <span className="text-muted-foreground">
-                        <b className="text-foreground">Meta:</b> {p.caloriasAlvo} kcal/dia
-                      </span>
-                    )}
-                    {p.pesoKg && (
-                      <span className="text-muted-foreground">
-                        <b className="text-foreground">Peso:</b> {p.pesoKg} kg
-                      </span>
-                    )}
-                    {p.estrategia && (
-                      <span className="text-muted-foreground">
-                        <b className="text-foreground">Estratégia:</b> {p.estrategia}
-                      </span>
+                    {p.temPdf && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bevel-3d gap-1.5"
+                        disabled={reenviando && reenviarModal?.plano.id === p.id}
+                        onClick={() =>
+                          reenviarModal?.plano.id === p.id
+                            ? setReenviarModal(null)
+                            : openReenviarPanel(p)
+                        }
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {reenviando && reenviarModal?.plano.id === p.id
+                          ? "Enviando…"
+                          : reenviarModal?.plano.id === p.id
+                          ? "Cancelar"
+                          : "Reenviar"}
+                      </Button>
                     )}
                   </div>
+                </div>
 
-                  {p.emailDestino && (
-                    <p className="text-[11px] text-muted-foreground truncate max-w-xs">
-                      {p.emailDestino}
-                      {p.pdfBytes ? <span className="ml-2 opacity-60">· {formatBytes(p.pdfBytes)}</span> : null}
+                {/* Painel inline de confirmação / override de e-mail */}
+                {reenviarModal?.plano.id === p.id && (
+                  <div className="mx-4 mb-4 panel-3d-sub border-l-4 border-primary p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-primary" />
+                      <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                        Confirmar destinatário e reenviar
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Confirme ou altere o e-mail de destino. O histórico registrará o endereço utilizado.
                     </p>
-                  )}
-                </div>
-
-                {/* Lado direito: ações */}
-                <div className="flex shrink-0 gap-2">
-                  {p.temPdf && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bevel-3d gap-1.5"
-                      onClick={() => handleDownload(p)}
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Baixar PDF
-                    </Button>
-                  )}
-                  {p.temPdf && p.emailDestino && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bevel-3d gap-1.5"
-                      disabled={reenviando === p.id}
-                      onClick={() => handleReenviar(p)}
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      {reenviando === p.id ? "Enviando…" : "Reenviar"}
-                    </Button>
-                  )}
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        E-mail de destino
+                      </label>
+                      <Input
+                        type="email"
+                        className="field-engraved"
+                        placeholder="paciente@exemplo.com"
+                        value={reenviarModal.email}
+                        onChange={(e) => {
+                          setReenviarModal((prev) => prev ? { ...prev, email: e.target.value } : prev);
+                          setEmailError(null);
+                        }}
+                        disabled={reenviando}
+                      />
+                      {emailError && (
+                        <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> {emailError}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        className="btn-3d gap-1.5"
+                        disabled={reenviando}
+                        onClick={handleConfirmarReenvio}
+                      >
+                        {reenviando ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Enviando…
+                          </>
+                        ) : (
+                          <>
+                            <SendHorizontal className="h-3.5 w-3.5" /> Confirmar envio
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={reenviando}
+                        onClick={() => setReenviarModal(null)}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
