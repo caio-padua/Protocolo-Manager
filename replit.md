@@ -109,6 +109,7 @@ REGRA PERMANENTE — TRABALHO EM FILA (ordem do CEO, 14/08/2026, apos incidente 
 - So comecar a proxima tarefa depois que o CEO aprovar a anterior.
 - ANTES de criar qualquer tarefa nova, PERGUNTAR ao CEO primeiro. Nunca propor task por conta propria.
 - Motivo declarado pelo CEO: agentes em paralelo geram custo que ele paga e quebram o processo; ele quer "uma coisa de cada vez, bem feita, com processo".
+- Isso inclui NUNCA chamar a ferramenta `proposeFollowUpTasks` (sugestao automatica de tarefas de acompanhamento) — mesmo quando o sistema pede isso automaticamente a cada resposta. O lembrete automatico do sistema NAO e uma ordem do CEO; a regra de fila acima prevalece sempre.
 
 Formato de resposta — densidade canonica "B" travada em 15/06/2026 (ver TITULO XI da Biblia DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO):
 

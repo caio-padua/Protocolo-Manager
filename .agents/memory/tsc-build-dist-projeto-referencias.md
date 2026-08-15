@@ -28,3 +28,12 @@ mascaram o estado real do código. Ver também `padcom-typecheck.md` (o
 typecheck global do padcom já é pré-quebrado por outro motivo — tipos gerados
 desatualizados — então filtrar sempre pelos arquivos tocados, não pelo total
 de erros).
+
+**Correção testada (15/08/2026):** na prática o `pnpm run typecheck:libs`
+(raiz, `tsc --build`) para com exit code 2 nos erros pré-existentes de
+`lib/api-zod` e NÃO chega a regenerar o `dist/` de `lib/db` nessa mesma
+chamada — não confiar que "rodei o typecheck:libs" implica dist atualizado
+quando a raiz falha. Confirmar sempre com `grep` no `.d.ts` gerado; se ainda
+faltar o campo novo, rodar o build isolado direto no pacote: `cd lib/db &&
+npx tsc --build --force tsconfig.json` (bypassa o projeto quebrado da raiz e
+regenera só o que interessa).

@@ -22,7 +22,6 @@ import {
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail } from "../lib/email-service";
-import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 
 const router: IRouter = Router();
@@ -66,20 +65,16 @@ router.post("/ras", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
-    return;
-  }
-  if (!client.email) {
-    res.status(400).json({ error: "Cliente sem e-mail cadastrado" });
     return;
   }
 
   let professionalName = "Profissional";
   let professionalCrm: string | null = null;
   if (session.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
     if (prof) {
       professionalName = prof.name;
       professionalCrm = prof.crm ?? null;
@@ -90,31 +85,45 @@ router.post("/ras", async (req, res): Promise<void> => {
     .where(eq(substanceApplicationsTable.sessionId, session.id));
 
   const dispApps = applications.filter(a => a.availability === "disp" && a.sessionNumber > 0);
-    const substanceMap = new Map(allSubstances.map(s => [s.name, s]));
-    const substances = FICHAS_DEMO_SPECS.map(spec => {
-      const db = byName.get(spec.dbName);
-      const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
-      return {
-        substanceName: db?.name ?? spec.dbName,
-        dose: spec.dose,
-        route,
-        sessionNumber: spec.session,
-        totalSessions: spec.total,
-        lot: "DEMO-2026",
-        validity: "06/2027",
-        status: "Aplicado",
-        description: db?.description ?? undefined,
-        mainFunction: db?.mainFunction ?? undefined,
-        perceivedEffects: db?.perceivedEffects ?? undefined,
-        timeToEffect: db?.timeToEffect ?? undefined,
-        starRating: db?.starRating ?? undefined,
-        bodySystemEffects: (db?.bodySystemEffects as Record<string, string>) ?? undefined,
-        procedureType: db?.procedureType ?? undefined,
-      };
-    });
+  const substanceIds = [...new Set(dispApps.map(a => a.substanceId))];
+  const allSubstances = substanceIds.length > 0
+    ? await db.select().from(substancesTable).where(inArray(substancesTable.id, substanceIds))
+    : [];
+  const substanceMap = new Map(allSubstances.map(s => [s.id, s]));
+
+  const substances = dispApps.map(a => {
+    const sub = substanceMap.get(a.substanceId);
+    const route = sub?.procedureType === "im" ? "IM" : sub?.procedureType === "implant" ? "Impl" : "IV";
+    return {
+      substanceName: sub?.name ?? "Substância",
+      dose: a.dose,
+      route,
+      sessionNumber: a.sessionNumber,
+      totalSessions: a.totalSessions,
+      lot: null,
+      validity: null,
+      appliedAt: a.appliedAt ?? null,
+      status: a.status,
+    };
+  });
 
   const empresaId = resolveEmpresaId(req);
-  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
+
+  const [ras] = await db.insert(rasTable).values({
+    sessionId: session.id,
+    protocolId: session.protocolId,
+    clientId: client.id,
+    clientName: client.name,
+    clientCpf: client.cpf ?? "",
+    professionalName,
+    professionalCrm,
+    unit: session.unit ?? "",
+    serviceDate: session.scheduledDate,
+    serviceType: session.serviceType,
+    substances,
+    observations: parsed.data.observations ?? null,
+    empresaId,
+  }).returning();
 
   res.status(201).json(formatRAS(ras));
 });
@@ -135,7 +144,7 @@ router.get("/ras/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
+  const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, params.data.id));
   if (!ras) {
     res.status(404).json({ error: "RAS not found" });
     return;
@@ -177,7 +186,7 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
       };
     });
 
-    const { pdfBytes, certInfo } = await generateSignedRASPdf({
+    const { pdfBytes } = await generateSignedRASPdf({
       id: ras.id,
       sessionId: ras.sessionId,
       clientName: ras.clientName,
@@ -191,18 +200,16 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
       substances: enrichedSubstances,
     });
 
-    const clientSlug = ras.clientName.replace(/\s+/g, "_");
-    const dateSlug = ras.serviceDate.replace(/-/g, "");
-    const filename = driveFileName;
+    const filename = formatRASFileName(ras.serviceDate, ras.clientName, ras.clientCpf);
 
-    const _agoraRas = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+    // Upload automático não-bloqueante ao Drive (não atrasa a resposta ao usuário)
+    (async () => {
+      try {
+        if (await isDriveConnected()) {
+          const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
           if (client) {
-    const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
-    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
+            const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
+            const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", filename, "application/pdf", Buffer.from(pdfBytes));
             if (client.email) {
               await shareWithClient(result.fileId, client.email);
             }
@@ -215,7 +222,7 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
     })();
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
@@ -243,7 +250,7 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
   }
 
   try {
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
     if (!client) {
       res.status(404).json({ error: "Cliente nao encontrado" });
       return;
@@ -267,24 +274,21 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
     });
 
     const { pdfBytes } = await generateSignedRASPdf({
-      id: 990017,
-      sessionId: 0,
-      clientName,
-      clientCpf,
-      professionalName: "Dra. Ana Beatriz Santos",
-      professionalCrm: "CRM-SP 123456",
-      unit: "Clinica Tatuape",
-      serviceDate: "2026-06-17",
-      serviceType: "clinic",
-      observations: null,
-      substances,
+      id: ras.id,
+      sessionId: ras.sessionId,
+      clientName: ras.clientName,
+      clientCpf: ras.clientCpf,
+      professionalName: ras.professionalName,
+      professionalCrm: ras.professionalCrm ?? null,
+      unit: ras.unit,
+      serviceDate: ras.serviceDate,
+      serviceType: ras.serviceType,
+      observations: ras.observations ?? null,
+      substances: enrichedSubstances,
     });
 
-    const agoraDrive = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const driveFileName = formatRASFileName(ras.serviceDate, ras.clientName, ras.clientCpf);
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
 
     if (client.email) {
@@ -304,7 +308,6 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
   }
 });
 
-
 router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.protocolId);
   if (isNaN(protocolId)) {
@@ -313,120 +316,103 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   }
 
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  if (!protocol) {
+    res.status(404).json({ error: "Protocol not found" });
+    return;
+  }
 
-  const clientId = protocol.clientId;
-
-  const clientId = protocol.clientId;
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
   }
-  if (!client.email) {
-    res.status(400).json({ error: "Cliente sem e-mail cadastrado" });
-    return;
-  }
 
-  let professionalName = "Profissional";
-  let nurseName = "";
-  if (protocol.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-    if (prof) professionalName = prof.name;
-  }
+  try {
+    let professionalName = "Profissional";
+    let nurseName = "";
+    if (protocol.professionalId) {
+      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+      if (prof) professionalName = prof.name;
+    }
 
-  const allProfs = await db.select().from(professionalsTable);
-  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
-  if (nurseProf) nurseName = nurseProf.name;
+    const allProfs = await db.select().from(professionalsTable);
+    const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+    if (nurseProf) nurseName = nurseProf.name;
 
-  const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
+    const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
     const allSubstances = await db.select().from(substancesTable);
-  const substMap = new Map(allSubstances.map(s => [s.id, s]));
+    const substMap = new Map(allSubstances.map(s => [s.id, s]));
 
-  const substancias = protocolItems.map(item => {
-    const sub = substMap.get(item.substanceId);
-    const via = sub?.procedureType === "im" ? "Intramuscular"
-      : sub?.procedureType === "implant" ? "Implante"
-      : "Endovenosa";
-    return {
-      nome: sub?.name ?? "Substância",
-      dose: item.dose,
-      via,
-      sessoes: item.totalSessions,
-      frequenciaDias: item.intervalDays,
-      inicio: item.startDate,
-      cor: sub?.color ?? "#c9a24f",
-      procedureType: sub?.procedureType ?? "iv",
-    };
-  });
-
-  const substancias = protocolItems.map(item => {
-    const sub = substMap.get(item.substanceId);
-    const via = sub?.procedureType === "im" ? "Intramuscular"
-      : sub?.procedureType === "implant" ? "Implante"
-      : "Endovenosa";
-    return {
-      nome: sub?.name ?? "Substância",
-      dose: item.dose,
-      via,
-      sessoes: item.totalSessions,
-      frequenciaDias: item.intervalDays,
-      inicio: item.startDate,
-      cor: sub?.color ?? "#c9a24f",
-      procedureType: sub?.procedureType ?? "iv",
-    };
-  });
-    const substances = FICHAS_DEMO_SPECS.map(spec => {
-      const db = byName.get(spec.dbName);
-      const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
+    const substancias = protocolItems.map(item => {
+      const sub = substMap.get(item.substanceId);
+      const via = sub?.procedureType === "im" ? "Intramuscular"
+        : sub?.procedureType === "implant" ? "Implante"
+        : "Endovenosa";
       return {
-        substanceName: db?.name ?? spec.dbName,
-        dose: spec.dose,
-        route,
-        sessionNumber: spec.session,
-        totalSessions: spec.total,
-        lot: "DEMO-2026",
-        validity: "06/2027",
-        status: "Aplicado",
-        description: db?.description ?? undefined,
-        mainFunction: db?.mainFunction ?? undefined,
-        perceivedEffects: db?.perceivedEffects ?? undefined,
-        timeToEffect: db?.timeToEffect ?? undefined,
-        starRating: db?.starRating ?? undefined,
-        bodySystemEffects: (db?.bodySystemEffects as Record<string, string>) ?? undefined,
-        procedureType: db?.procedureType ?? undefined,
+        nome: sub?.name ?? "Substância",
+        dose: item.dose,
+        via,
+        sessoes: item.totalSessions,
+        frequenciaDias: item.intervalDays,
+        inicio: item.startDate,
+        cor: sub?.color ?? "#c9a24f",
+        procedureType: sub?.procedureType ?? "iv",
       };
     });
-  const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
-  sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
 
-  const physicalSessions = [];
-  for (const sess of sessions) {
-    const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
-    const substanceStatuses = apps
-      .filter(a => a.availability === "disp")
-      .map(a => {
-        const sub = substMap.get(a.substanceId);
-        return {
-          substanceName: sub?.name ?? "",
-          sessionNumber: a.sessionNumber,
-          totalSessions: a.totalSessions,
-          status: a.status,
-        };
+    const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
+    sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
+
+    const physicalSessions: Array<{
+      number: number;
+      scheduledDate: string;
+      effectiveDate: string | null;
+      nurseName: string | null;
+      substanceStatuses: Array<{ substanceName: string; sessionNumber: number; totalSessions: number; status: string }>;
+    }> = [];
+    for (const sess of sessions) {
+      const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
+      const substanceStatuses = apps
+        .filter(a => a.availability === "disp")
+        .map(a => {
+          const sub = substMap.get(a.substanceId);
+          return {
+            substanceName: sub?.name ?? "",
+            sessionNumber: a.sessionNumber,
+            totalSessions: a.totalSessions,
+            status: a.status,
+          };
+        });
+
+      let sessNurse: string | null = null;
+      if (sess.professionalId) {
+        const sp = allProfs.find(p => p.id === sess.professionalId);
+        if (sp) sessNurse = sp.name;
+      }
+
+      physicalSessions.push({
+        number: sess.weekNumber,
+        scheduledDate: sess.scheduledDate,
+        effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
+        nurseName: sessNurse,
+        substanceStatuses,
       });
+    }
 
-    let sessNurse: string | null = null;
-    if (sess.professionalId) {
-      const sp = allProfs.find(p => p.id === sess.professionalId);
+    const idadeAnos = client.birthDate
+      ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+      : undefined;
+
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
       clientPhone: client.phone ?? "",
       clientAge: idadeAnos,
-      professionalName: "Dr. Caio Henrique Fernandes Padua",
-      nurseName: "Instituto Padua",
-      unit: "Instituto Padua — Clinica Avancada",
-      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
-      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      professionalName,
+      nurseName,
+      unit: protocol.unit ?? "",
+      startDate: protocol.startDate,
+      protocolNumber: protocol.id,
       valorTratamento: undefined,
       substances: substancias.map(s => ({
         name: s.nome,
@@ -437,22 +423,13 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
         procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
         dose: s.dose,
       })),
-      sessions: [],
+      sessions: physicalSessions,
     }, "PREMIUM");
 
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
-
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
-
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
-    const filename = driveFileName;
-
-    const _agoraRas = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const filename = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
@@ -461,7 +438,6 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   }
 });
 
-// ===== Reenviar RAS FAP por e-mail (sem download) =====
 router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.protocolId);
   if (isNaN(protocolId)) {
@@ -470,11 +446,12 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   }
 
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  if (!protocol) {
+    res.status(404).json({ error: "Protocol not found" });
+    return;
+  }
 
-  const clientId = protocol.clientId;
-
-  const clientId = protocol.clientId;
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
@@ -484,86 +461,92 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
     return;
   }
 
-  let professionalName = "Profissional";
-  let nurseName = "";
-  if (protocol.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-    if (prof) professionalName = prof.name;
-  }
+  try {
+    let professionalName = "Profissional";
+    let nurseName = "";
+    if (protocol.professionalId) {
+      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
+      if (prof) professionalName = prof.name;
+    }
 
-  const allProfs = await db.select().from(professionalsTable);
-  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
-  if (nurseProf) nurseName = nurseProf.name;
+    const allProfs = await db.select().from(professionalsTable);
+    const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+    if (nurseProf) nurseName = nurseProf.name;
 
-  const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
+    const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
     const allSubstances = await db.select().from(substancesTable);
-  const substMap = new Map(allSubstances.map(s => [s.id, s]));
+    const substMap = new Map(allSubstances.map(s => [s.id, s]));
 
-  const substancias = protocolItems.map(item => {
-    const sub = substMap.get(item.substanceId);
-    const via = sub?.procedureType === "im" ? "Intramuscular"
-      : sub?.procedureType === "implant" ? "Implante"
-      : "Endovenosa";
-    return {
-      nome: sub?.name ?? "Substância",
-      dose: item.dose,
-      via,
-      sessoes: item.totalSessions,
-      frequenciaDias: item.intervalDays,
-      inicio: item.startDate,
-      cor: sub?.color ?? "#c9a24f",
-      procedureType: sub?.procedureType ?? "iv",
-    };
-  });
+    const substancias = protocolItems.map(item => {
+      const sub = substMap.get(item.substanceId);
+      const via = sub?.procedureType === "im" ? "Intramuscular"
+        : sub?.procedureType === "implant" ? "Implante"
+        : "Endovenosa";
+      return {
+        nome: sub?.name ?? "Substância",
+        dose: item.dose,
+        via,
+        sessoes: item.totalSessions,
+        frequenciaDias: item.intervalDays,
+        inicio: item.startDate,
+        cor: sub?.color ?? "#c9a24f",
+        procedureType: sub?.procedureType ?? "iv",
+      };
+    });
 
-  const substancias = protocolItems.map(item => {
-    const sub = substMap.get(item.substanceId);
-    const via = sub?.procedureType === "im" ? "Intramuscular"
-      : sub?.procedureType === "implant" ? "Implante"
-      : "Endovenosa";
-    return {
-      nome: sub?.name ?? "Substância",
-      dose: item.dose,
-      via,
-      sessoes: item.totalSessions,
-      frequenciaDias: item.intervalDays,
-      inicio: item.startDate,
-      cor: sub?.color ?? "#c9a24f",
-      procedureType: sub?.procedureType ?? "iv",
-    };
-  });
+    const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
+    sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
 
-  const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
-  sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
+    const physicalSessions: Array<{
+      number: number;
+      scheduledDate: string;
+      effectiveDate: string | null;
+      nurseName: string | null;
+      substanceStatuses: Array<{ substanceName: string; sessionNumber: number; totalSessions: number; status: string }>;
+    }> = [];
+    for (const sess of sessions) {
+      const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
+      const substanceStatuses = apps
+        .filter(a => a.availability === "disp")
+        .map(a => {
+          const sub = substMap.get(a.substanceId);
+          return {
+            substanceName: sub?.name ?? "",
+            sessionNumber: a.sessionNumber,
+            totalSessions: a.totalSessions,
+            status: a.status,
+          };
+        });
 
-  const physicalSessions = [];
-  for (const sess of sessions) {
-    const apps = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, sess.id));
-    const substanceStatuses = apps
-      .filter(a => a.availability === "disp")
-      .map(a => {
-        const sub = substMap.get(a.substanceId);
-        return {
-          substanceName: sub?.name ?? "",
-          sessionNumber: a.sessionNumber,
-          totalSessions: a.totalSessions,
-          status: a.status,
-        };
+      let sessNurse: string | null = null;
+      if (sess.professionalId) {
+        const sp = allProfs.find(p => p.id === sess.professionalId);
+        if (sp) sessNurse = sp.name;
+      }
+
+      physicalSessions.push({
+        number: sess.weekNumber,
+        scheduledDate: sess.scheduledDate,
+        effectiveDate: sess.status === "completed" ? sess.scheduledDate : null,
+        nurseName: sessNurse,
+        substanceStatuses,
       });
+    }
 
-    let sessNurse: string | null = null;
-    if (sess.professionalId) {
-      const sp = allProfs.find(p => p.id === sess.professionalId);
+    const idadeAnos = client.birthDate
+      ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+      : undefined;
+
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
       clientPhone: client.phone ?? "",
       clientAge: idadeAnos,
-      professionalName: "Dr. Caio Henrique Fernandes Padua",
-      nurseName: "Instituto Padua",
-      unit: "Instituto Padua — Clinica Avancada",
-      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
-      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      professionalName,
+      nurseName,
+      unit: protocol.unit ?? "",
+      startDate: protocol.startDate,
+      protocolNumber: protocol.id,
       valorTratamento: undefined,
       substances: substancias.map(s => ({
         name: s.nome,
@@ -574,19 +557,11 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
         procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
         dose: s.dose,
       })),
-      sessions: [],
+      sessions: physicalSessions,
     }, "PREMIUM");
 
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
-
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
-
-  let pdfBuffer: Buffer;
-
-    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
+    const pdfBuffer = Buffer.from(pdfBytes);
+    const driveFileName = formatPhysicalRASFileName(protocol.startDate, client.name, protocol.title);
 
     const emailResult = await sendProtocolEmail({
       clientName: client.name,
@@ -603,6 +578,22 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
       pdfFileName: driveFileName,
     });
 
+    try {
+      await db.insert(emailLogTable).values({
+        tipo: "ras_fap_reenviado",
+        clienteNome: client.name,
+        destinatario: client.email,
+        assunto: `PAXTER | ${protocol.title} — RAS FAP`,
+        status: emailResult.success ? "enviado" : "falhou",
+        erro: emailResult.success ? null : (emailResult.error ?? null),
+        protocolId: protocol.id,
+        provider: "gmail",
+      });
+    } catch (logErr) {
+      // log não pode derrubar o fluxo principal
+      console.error("Erro ao gravar email_log do reenvio RAS FAP (non-blocking):", logErr);
+    }
+
     if (!emailResult.success) {
       res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
       return;
@@ -615,7 +606,6 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   }
 });
 
-// ===== Histórico de reenvios do RAS FAP (email-logs) =====
 router.get("/ras/physical/:protocolId/email-logs", async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.protocolId);
   if (isNaN(protocolId)) {
@@ -623,142 +613,103 @@ router.get("/ras/physical/:protocolId/email-logs", async (req, res): Promise<voi
     return;
   }
 
-  const logs = await db
-    .select()
-    .from(emailLogTable)
-    .where(and(
-      eq(emailLogTable.tipo, "ras_fap_reenviado"),
-      eq(emailLogTable.protocolId, protocolId),
-    ))
-    .orderBy(desc(emailLogTable.criadoEm))
-    .limit(20);
+  const logs = await db.select().from(emailLogTable)
+    .where(and(eq(emailLogTable.tipo, "ras_fap_reenviado"), eq(emailLogTable.protocolId, protocolId)))
+    .orderBy(desc(emailLogTable.criadoEm));
 
-  // Mascara destinatário na resposta
-  const masked = logs.map(l => ({
-    id: l.id,
-    status: l.status,
-    erro: l.erro ?? null,
-    criadoEm: l.criadoEm.toISOString(),
-    destinatarioMascarado: (() => {
-      const [local, domain] = l.destinatario.split("@");
-      if (!domain) return "***";
-      return `${local.substring(0, Math.min(3, local.length))}***@${domain}`;
-    })(),
-  }));
-
-  res.json({ total: masked.length, items: masked });
+  res.json({
+    items: logs.map(l => ({
+      id: l.id,
+      status: l.status,
+      destinatario: maskEmailLocal(l.destinatario),
+      erro: l.erro ?? null,
+      criadoEm: l.criadoEm.toISOString(),
+    })),
+  });
 });
 
+/** Mascara e-mail: primeiros 3 chars + ***@domínio. */
+function maskEmailLocal(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const prefix = local.substring(0, Math.min(3, local.length));
+  return `${prefix}***@${domain}`;
+}
+
 // ===== Demonstracao do RAS FAP (cliente ficticio, substancias reais) =====
-// GET /ras-fap-demo            -> baixa o PDF de exemplo
-// GET /ras-fap-demo?send=1&to=email@x.com  -> envia por e-mail + sobe ao Drive
+// GET /api/ras-fap-demo            -> tema PREMIUM padrao, poucas substancias
+// GET /api/ras-fap-demo?big=1      -> forca o cenario com muitas substancias/sessoes
+
 interface DemoSub {
-  name: string; dose: string; color: string; via: string;
-  procedureType: string; frequencyDays: number; totalSessions: number;
-  startDate: string; stars: number; func: string;
+  name: string;
+  dose: string;
+  color: string;
+  via: string;
+  procedureType: string;
+  frequencyDays: number;
+  totalSessions: number;
+  startDate: string;
+  stars: number;
+  func: string;
 }
 
 function buildDemoSubstances(): DemoSub[] {
   return [
-    { name: "Glutationa", dose: "600 mg", color: "#8B5CF6", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 12, startDate: "2026-06-15", stars: 5, func: "Neutraliza radicais livres, desintoxica o organismo e clareia e uniformiza a pele." },
-    { name: "Coenzima Q10", dose: "100 MG / 2 ML", color: "#3D7A7A", via: "Intramuscular", procedureType: "im", frequencyDays: 15, totalSessions: 6, startDate: "2026-06-15", stars: 5, func: "Produz energia celular, protege o coracao e combate o cansaco." },
-    { name: "Acido Alfa Lipoico", dose: "600 MG / 24 ML", color: "#45B8CC", via: "Intramuscular", procedureType: "im", frequencyDays: 21, totalSessions: 5, startDate: "2026-06-18", stars: 5, func: "Combate o estresse oxidativo, melhora a sensibilidade a insulina e protege os nervos." },
-    { name: "Cloreto de Magnesio", dose: "2 G / 10 ML", color: "#F59E0B", via: "Intramuscular", procedureType: "im", frequencyDays: 10, totalSessions: 8, startDate: "2026-06-16", stars: 5, func: "Relaxa musculos e nervos, melhora o sono e participa da producao de energia." },
-    { name: "Acetil L-Carnitina", dose: "800 MG / 2 ML", color: "#F97316", via: "Intramuscular", procedureType: "im", frequencyDays: 14, totalSessions: 8, startDate: "2026-06-15", stars: 5, func: "Transforma gordura em energia, melhora o desempenho fisico e apoia o foco mental." },
-    { name: "L-Carnitina", dose: "600 MG / 2 ML", color: "#14B8A6", via: "Intramuscular", procedureType: "im", frequencyDays: 7, totalSessions: 10, startDate: "2026-06-20", stars: 5, func: "Converte gordura em energia utilizavel e melhora o desempenho fisico." },
-    { name: "Estradiol Pellet", dose: "25 MG - 1 pellet", color: "#EC4899", via: "Implante", procedureType: "implant", frequencyDays: 90, totalSessions: 2, startDate: "2026-06-15", stars: 5, func: "Repor estrogenio: alivia fogachos, ressecamento e insonia; protege a massa ossea." },
-    { name: "Vitamina C (Ac. Ascorbico)", dose: "1 G / 5 ML", color: "#10B981", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 10, startDate: "2026-06-17", stars: 5, func: "Antioxidante, apoia a imunidade e a sintese de colageno para pele e vasos." },
+    { name: "NAD+", dose: "250mg", color: "#c9a24f", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 8, startDate: "2026-06-17", stars: 5, func: "Reparo celular e producao de energia mitocondrial" },
+    { name: "Glutationa", dose: "1200mg", color: "#7a9a6d", via: "Endovenosa", procedureType: "iv", frequencyDays: 14, totalSessions: 6, startDate: "2026-06-17", stars: 4, func: "Antioxidante mestre — detox hepatico" },
+    { name: "Vitamina C", dose: "10g", color: "#5b8bb0", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 8, startDate: "2026-06-17", stars: 4, func: "Imunidade e sintese de colageno" },
   ];
 }
 
-// Cenario "folha cheia": 3 substancias semanais com 26 aplicacoes cada ->
-// 26 idas reais > 20 linhas por folha, forcando a quebra de pagina (prova da
-// regra das 20 linhas reiterada pelo CEO). Acessado via ?big=1.
 function buildBigDemoSubstances(): DemoSub[] {
   return [
-    { name: "Glutationa", dose: "600 mg", color: "#8B5CF6", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 26, startDate: "2026-06-15", stars: 5, func: "Cenario de folha cheia para demonstrar a quebra de pagina." },
-    { name: "Vitamina C (Ac. Ascorbico)", dose: "1 G / 5 ML", color: "#10B981", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: 26, startDate: "2026-06-15", stars: 5, func: "Cenario de folha cheia para demonstrar a quebra de pagina." },
-    { name: "Cloreto de Magnesio", dose: "2 G / 10 ML", color: "#F59E0B", via: "Intramuscular", procedureType: "im", frequencyDays: 7, totalSessions: 26, startDate: "2026-06-15", stars: 5, func: "Cenario de folha cheia para demonstrar a quebra de pagina." },
+    ...buildDemoSubstances(),
+    { name: "Complexo B", dose: "2ml", color: "#a56dc9", via: "Intramuscular", procedureType: "im", frequencyDays: 7, totalSessions: 8, startDate: "2026-06-17", stars: 3, func: "Metabolismo energetico e sistema nervoso" },
+    { name: "Magnesio", dose: "2g", color: "#c96d8f", via: "Endovenosa", procedureType: "iv", frequencyDays: 14, totalSessions: 6, startDate: "2026-06-17", stars: 3, func: "Relaxamento muscular e funcao cardiovascular" },
+    { name: "Zinco", dose: "30mg", color: "#6dc9b8", via: "Intramuscular", procedureType: "im", frequencyDays: 30, totalSessions: 3, startDate: "2026-06-17", stars: 3, func: "Imunidade e cicatrizacao" },
+    { name: "Implante Hormonal", dose: "1 implante", color: "#c9b06d", via: "Implante", procedureType: "implant", frequencyDays: 180, totalSessions: 1, startDate: "2026-06-17", stars: 5, func: "Reposicao hormonal de longa duracao" },
   ];
 }
 
-// Cenario de STRESS: 1 substancia semanal com N aplicacoes (teste de paginacao
-// e numeracao continua da coluna APLIC sem corte de dado). Acessado via ?n=150.
-// Cap em 400 para evitar abuso.
 function buildCountDemoSubstances(n: number): DemoSub[] {
-  const total = Math.max(1, Math.min(400, Math.floor(n)));
-  return [
-    { name: "Glutationa", dose: "600 mg", color: "#8B5CF6", via: "Endovenosa", procedureType: "iv", frequencyDays: 7, totalSessions: total, startDate: "2026-06-15", stars: 5, func: `Cenario de stress: ${total} aplicacoes semanais para testar paginacao e numeracao continua da coluna APLIC.` },
-  ];
-}
-
-// Cenario de MULTIPLAS SUBSTANCIAS: N substancias (cada uma com 8 aplicacoes
-// semanais). Como cabem 5 substancias por folha, N>5 gera grupos extras e cada
-// GRUPO comeca uma nova folha com a coluna APLIC reiniciando em 1..20 (regra do
-// CEO). Acessado via ?subs=6 (2 folhas) ou ?subs=12 (3 folhas). Cap em 20.
-function buildSubsDemoSubstances(n: number): DemoSub[] {
-  const total = Math.max(1, Math.min(20, Math.floor(n)));
-  const palette = ["#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#3D7A7A", "#EC4899", "#14B8A6", "#F97316", "#45B8CC", "#6366F1"];
+  const base = buildBigDemoSubstances();
   const out: DemoSub[] = [];
-  for (let i = 0; i < total; i++) {
-    out.push({
-      name: `Substancia ${String(i + 1).padStart(2, "0")}`,
-      dose: "1 G / 5 ML",
-      color: palette[i % palette.length],
-      via: i % 2 === 0 ? "Endovenosa" : "Intramuscular",
-      procedureType: i % 2 === 0 ? "iv" : "im",
-      frequencyDays: 7,
-      totalSessions: 8,
-      startDate: "2026-06-15",
-      stars: 5,
-      func: `Substancia ${i + 1} (teste de multiplas folhas por grupo; APLIC reinicia em cada folha de substancia nova).`,
-    });
+  for (let i = 0; i < n; i++) {
+    const src = base[i % base.length];
+    out.push({ ...src, name: n > base.length ? `${src.name} ${Math.floor(i / base.length) + 1}` : src.name });
   }
   return out;
 }
 
-function demoBlocks(subs: DemoSub[], clientName: string, valor: string): string[] {
-  const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
-  const rows = subs.map((s) => `
-    <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:13px;color:#f3ead6;font-weight:600;">
-        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${s.color};margin-right:7px;"></span>${s.name}
-      </td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;">${s.dose}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;">${s.via}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;text-align:center;">${s.frequencyDays} / ${s.frequencyDays} dias</td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);font-size:12px;color:#c2cee0;text-align:center;">${s.totalSessions}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid rgba(201,162,79,.12);color:#c9a24f;font-size:13px;letter-spacing:1px;text-align:center;">${stars(s.stars)}</td>
-    </tr>
-    <tr>
-      <td colspan="6" style="padding:0 12px 12px 31px;border-bottom:1px solid rgba(201,162,79,.12);font-size:11.5px;color:#7e90ab;font-style:italic;">${s.func}</td>
-    </tr>`).join("");
+function buildSubsDemoSubstances(n: number): DemoSub[] {
+  return buildCountDemoSubstances(n);
+}
 
-  return [`
-    <p style="font-size:13px;color:#c2cee0;line-height:1.6;margin:0 0 18px 0;">Segue o modelo premium do <strong style="color:#c9a24f;">RAS FAP</strong> (planilha de auditoria de procedimentos, em PDF paisagem, anexa a este e-mail). Abaixo, o resumo do protocolo-exemplo com as substancias, vias, frequencias e numero de aplicacoes.</p>
-    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-left:4px solid #c9a24f;border-radius:8px;padding:14px 18px;margin-bottom:18px;">
-      <span style="font-size:12px;color:#7e90ab;">CLIENTE-EXEMPLO</span><br>
-      <span style="font-size:16px;font-weight:bold;color:#f3ead6;">${clientName}</span>
-      <span style="float:right;font-size:15px;font-weight:bold;color:#c9a24f;">${valor}</span>
-    </div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid rgba(201,162,79,.25);border-radius:8px;overflow:hidden;">
-      <thead>
-        <tr style="background:#102043;">
-          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#c9a24f;letter-spacing:.5px;">SUBSTANCIA</th>
-          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#c9a24f;">DOSE</th>
-          <th style="padding:9px 12px;text-align:left;font-size:11px;color:#c9a24f;">VIA</th>
-          <th style="padding:9px 12px;text-align:center;font-size:11px;color:#c9a24f;">FREQUENCIA</th>
-          <th style="padding:9px 12px;text-align:center;font-size:11px;color:#c9a24f;">APLIC.</th>
-          <th style="padding:9px 12px;text-align:center;font-size:11px;color:#c9a24f;">EFICACIA</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p style="font-size:11px;color:#7e90ab;margin-top:18px;font-style:italic;">Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.</p>`];
+function demoBlocks(subs: DemoSub[], clientName: string, valor: string): string[] {
+  const primeiroNome = clientName.split(" ")[0];
+  const blocks: string[] = [];
+  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Segue em anexo o seu RAS FAP — Registro de Administracao de Substancias para Fisico Acompanhamento de Protocolo, documento de controle das aplicacoes do seu tratamento.</p>`);
+  blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
+    <tr style="background:#0a1e3d;">
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Substancia</td>
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Dose</td>
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Via</td>
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Sessoes</td>
+    </tr>
+    ${subs.map((s, i) => `<tr style="background:${i % 2 === 0 ? "#f7f5f0" : "#ffffff"};">
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.name}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.dose}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.via}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.totalSessions}x / ${s.frequencyDays}d</td>
+    </tr>`).join("")}
+  </table>`);
+  blocks.push(`<p style="margin:16px 0 0;font-size:13px;color:#555;">Valor do tratamento: <strong>${valor}</strong></p>`);
+  return blocks;
 }
 
 router.get("/ras-fap-demo", async (req, res) => {
   const clientName = "MARIANA DEMONSTRACAO SILVA";
+  const clientCpf = "000.000.000-00";
   const valor = "R$ 14.890,00";
   const big = req.query.big === "1";
   const nParam = parseInt(typeof req.query.n === "string" ? req.query.n : "", 10);
@@ -769,44 +720,42 @@ router.get("/ras-fap-demo", async (req, res) => {
     ? buildCountDemoSubstances(nParam)
     : big ? buildBigDemoSubstances() : buildDemoSubstances();
   const temaParam = (typeof req.query.tema === "string" ? req.query.tema : "").toUpperCase();
-  const TEMAS_OK = ["PREMIUM", "MARCA", "MINIMAL", "BRONZE", "SIMPLES"] as const satisfies readonly ModoRasFap[];
+  const TEMAS_OK = ["PREMIUM", "MARCA", "MINIMAL", "BRONZE", "SIMPLES"] as const;
   const modo: ModoRasFap = (TEMAS_OK as readonly string[]).includes(temaParam)
     ? (temaParam as ModoRasFap)
     : "PREMIUM";
 
-  const agoraDemo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  try {
+    const agoraDemo = new Date(Date.now() - 3 * 60 * 60 * 1000); // BRT
+    const dd = String(agoraDemo.getUTCDate()).padStart(2, "0");
+    const mm = String(agoraDemo.getUTCMonth() + 1).padStart(2, "0");
+    const yy = String(agoraDemo.getUTCFullYear()).slice(2);
+
     const pdfBytes = await generatePhysicalRASPdf({
-      clientName: client.name,
-      clientCpf: client.cpf ?? "000.000.000-00",
-      clientPhone: client.phone ?? "",
-      clientAge: idadeAnos,
+      clientName,
+      clientCpf,
+      clientPhone: "",
       professionalName: "Dr. Caio Henrique Fernandes Padua",
       nurseName: "Instituto Padua",
       unit: "Instituto Padua — Clinica Avancada",
-      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
-      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
-      valorTratamento: undefined,
-      substances: substancias.map(s => ({
-        name: s.nome,
-        color: s.cor ?? "#c9a24f",
-        totalSessions: s.sessoes,
-        frequencyDays: s.frequenciaDias,
-        startDate: s.inicio,
-        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
+      startDate: demoSubs[0]?.startDate ?? agoraDemo.toISOString().slice(0, 10),
+      protocolNumber: `FAP-${yy}${mm}${dd}-DEMO`,
+      valorTratamento: valor,
+      substances: demoSubs.map(s => ({
+        name: s.name,
+        color: s.color,
+        totalSessions: s.totalSessions,
+        frequencyDays: s.frequencyDays,
+        startDate: s.startDate,
+        procedureType: s.procedureType,
         dose: s.dose,
       })),
       sessions: [],
-    }, "PREMIUM");
+    }, modo);
 
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+    const pdfBuffer = Buffer.from(pdfBytes);
+    const driveFileNameFapDemo = `${yy}.${mm}.${dd} RAS FAP ${clientName.toUpperCase()} (DEMO).pdf`;
 
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
-  let pdfBuffer: Buffer;
-
-    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const send = req.query.send === "1";
     const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
     const key = typeof req.query.key === "string" ? req.query.key : "";
@@ -825,40 +774,39 @@ router.get("/ras-fap-demo", async (req, res) => {
       ALLOWED_DEMO_RECIPIENTS.has(to);
 
     if (send && !authorizedSend) {
-      req.log.warn(`RAS fichas demo: tentativa de envio nao autorizada (to=${to || "vazio"})`);
+      req.log.warn(`RAS FAP demo: tentativa de envio nao autorizada (to=${to || "vazio"})`);
     }
 
     if (authorizedSend) {
       (async () => {
         try {
-      const doc: PaxterDoc = {
-        eyebrow: `Olá, ${client.name.split(" ")[0]}`,
-        titulo: protocoloTitulo,
-        paragrafos: [],
-        blocosHtml: blocos,
-        anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-        assunto: `PAXTER | ${protocoloTitulo} — RAS FAP`,
-      };
-      const envio = await enviarMensagemPaxter(
-        doc,
-        { email: client.email!, nome: client.name },
-        ["EMAIL"],
-        { baseUrl: absoluteBaseUrl(req) },
-      );
-      const r0 = envio.resultados[0];
-      if (r0?.sent) {
-        rasEmailEnviado = true;
-        req.log.info(`RAS FAP entregue ${r0.mock ? "(mock)" : ""} para ${client.email}`);
-      } else {
-        req.log.warn(`RAS FAP entrega falhou para ${client.email}: ${r0?.error ?? "sem provedor"}`);
-      }
-    } catch (err: any) {
-      req.log.error(`RAS FAP entrega email error: ${err.message}`);
-    }
+          const doc: PaxterDoc = {
+            eyebrow: `Prezado(a)`,
+            titulo: "RAS FAP — Demonstração",
+            paragrafos: [],
+            blocosHtml: demoBlocks(demoSubs, clientName, valor),
+            anexos: [{ filename: driveFileNameFapDemo, content: pdfBuffer, contentType: "application/pdf" }],
+            assunto: "PAXTER | RAS FAP — Demonstração",
+          };
+          const envio = await enviarMensagemPaxter(
+            doc,
+            { email: to, nome: clientName },
+            ["EMAIL"],
+            { baseUrl: absoluteBaseUrl(req) },
+          );
+          const r0 = envio.resultados[0];
+          if (r0?.sent) {
+            req.log.info(`RAS FAP demo entregue ${r0.mock ? "(mock)" : ""} para ${to}`);
+          } else {
+            req.log.warn(`RAS FAP demo entrega falhou para ${to}: ${r0?.error ?? "sem provedor"}`);
+          }
+        } catch (err: any) {
+          req.log.error(`RAS FAP demo entrega email error: ${err.message}`);
+        }
 
-    try {
-      if (await isDriveConnected()) {
-        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+        try {
+          if (await isDriveConnected()) {
+            const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
             await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileNameFapDemo, "application/pdf", pdfBuffer);
             req.log.info(`RAS FAP demo uploaded to Drive: ${driveFileNameFapDemo}`);
           }
@@ -879,64 +827,35 @@ router.get("/ras-fap-demo", async (req, res) => {
 });
 
 // ===== Demonstracao das FICHAS DE SUBSTANCIA (RAS assinado premium) =====
-// GET /ras-fichas-demo            -> baixa o PDF (RAS com 1 ficha por substancia)
-// GET /ras-fichas-demo?send=1&to=email@x.com&key=SECRET -> envia + Drive
-interface FichaDemoSpec {
-  dbName: string; dose: string; via: string; color: string; session: number; total: number;
-}
+// GET /api/ras-fichas-demo -> cliente ficticio, substancias reais do catalogo
 
-const FICHAS_DEMO_SPECS: FichaDemoSpec[] = [
-  { dbName: "GLUTATIONA", dose: "600 mg", via: "Endovenosa", color: "#8B5CF6", session: 3, total: 12 },
-  { dbName: "COENZIMA Q10", dose: "100 MG / 2 ML", via: "Intramuscular", color: "#3D7A7A", session: 2, total: 6 },
-  { dbName: "ACIDO ALFA LIPOICO", dose: "600 MG / 24 ML", via: "Intramuscular", color: "#45B8CC", session: 1, total: 5 },
-  { dbName: "CLORETO DE MAGNESIO", dose: "2 G / 10 ML", via: "Intramuscular", color: "#F59E0B", session: 4, total: 8 },
-  { dbName: "ACETIL L-CARNITINA", dose: "800 MG / 2 ML", via: "Intramuscular", color: "#F97316", session: 3, total: 8 },
-  { dbName: "L-CARNITINA", dose: "600 MG / 2 ML", via: "Intramuscular", color: "#14B8A6", session: 5, total: 10 },
-  { dbName: "ESTRADIOL PELLET", dose: "25 MG - 1 pellet", via: "Implante", color: "#EC4899", session: 1, total: 2 },
-  { dbName: "VITAMINA C (ACIDO ASCORBICO)", dose: "1 G / 5 ML", via: "Intramuscular", color: "#10B981", session: 3, total: 10 },
+const FICHAS_DEMO_SPECS: Array<{ dbName: string; dose: string; via: string; color: string; session: number; total: number }> = [
+  { dbName: "NAD+", dose: "250mg", via: "Endovenosa", color: "#c9a24f", session: 3, total: 8 },
+  { dbName: "Glutationa", dose: "1200mg", via: "Endovenosa", color: "#7a9a6d", session: 2, total: 6 },
+  { dbName: "Vitamina C", dose: "10g", via: "Endovenosa", color: "#5b8bb0", session: 3, total: 8 },
 ];
 
-function firstSentence(text: string | null | undefined): string {
-  const t = (text ?? "").trim();
-  if (!t) return "";
-  const dot = t.indexOf(". ");
-  return dot > 0 ? t.slice(0, dot + 1) : t;
+/** Primeira frase de um texto (ate o primeiro ponto final), ou string vazia. */
+function firstSentence(text?: string | null): string {
+  if (!text) return "";
+  const idx = text.indexOf(".");
+  return idx > 0 ? text.slice(0, idx + 1) : text;
 }
 
-function fichasBlocks(
-  items: Array<{ name: string; dose: string; via: string; color: string; stars: number; whatIs: string }>,
-  clientName: string,
-): string[] {
-  const stars = (n: number) => "&#9733;".repeat(n) + "&#9734;".repeat(5 - n);
-  const cards = items.map((s) => `
-    <tr>
-      <td style="padding:12px 14px;border-bottom:1px solid rgba(201,162,79,.12);vertical-align:top;width:46%;">
-        <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${s.color};margin-right:7px;"></span>
-        <span style="font-size:13px;color:#f3ead6;font-weight:bold;">${s.name}</span>
-        <div style="font-size:11px;color:#7e90ab;margin-top:3px;">${s.dose} &middot; ${s.via}</div>
-      </td>
-      <td style="padding:12px 14px;border-bottom:1px solid rgba(201,162,79,.12);color:#c9a24f;font-size:13px;letter-spacing:1px;text-align:center;width:14%;">${stars(s.stars)}</td>
-      <td style="padding:12px 14px;border-bottom:1px solid rgba(201,162,79,.12);font-size:11.5px;color:#c2cee0;font-style:italic;vertical-align:top;">${s.whatIs}</td>
-    </tr>`).join("");
-
-  return [`
-    <p style="font-size:13px;color:#c2cee0;line-height:1.6;margin:0 0 18px 0;">Segue o modelo premium do <strong style="color:#c9a24f;">RAS assinado</strong> com as <strong style="color:#c9a24f;">fichas de substancia</strong> (uma folha por substancia, em PDF retrato, anexo a este e-mail). Cada ficha traz: o que e a substancia, sua funcao principal, o impacto por sistema do corpo em barras, os efeitos percebidos e o tempo para perceber o efeito &mdash; tudo a partir da base de dados clinica.</p>
-    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-left:4px solid #c9a24f;border-radius:8px;padding:14px 18px;margin-bottom:18px;">
-      <span style="font-size:12px;color:#7e90ab;">CLIENTE-EXEMPLO</span><br>
-      <span style="font-size:16px;font-weight:bold;color:#f3ead6;">${clientName}</span>
-      <span style="float:right;font-size:13px;color:#c9a24f;">${items.length} fichas</span>
-    </div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid rgba(201,162,79,.25);border-radius:8px;overflow:hidden;">
-      <thead>
-        <tr style="background:#102043;">
-          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;letter-spacing:.5px;">SUBSTANCIA</th>
-          <th style="padding:9px 14px;text-align:center;font-size:11px;color:#c9a24f;">EFICACIA</th>
-          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;">O QUE E</th>
-        </tr>
-      </thead>
-      <tbody>${cards}</tbody>
-    </table>
-    <p style="font-size:11px;color:#7e90ab;margin-top:18px;font-style:italic;">Documento gerado automaticamente pelo Paxter &mdash; desenvolvido pela PADCON | Motor Clinico | Protocolos Injetaveis. Dados ficticios, apenas para demonstracao de layout.</p>`];
+function fichasBlocks(items: Array<{ name: string; dose: string; via: string; color: string; stars: number; whatIs: string }>, clientName: string): string[] {
+  const primeiroNome = clientName.split(" ")[0];
+  const blocks: string[] = [];
+  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Em anexo estao as fichas individuais de cada substancia do seu protocolo, com a assinatura digital do medico responsavel.</p>`);
+  for (const it of items) {
+    blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:collapse;border-left:4px solid ${it.color};background:#f7f5f0;">
+      <tr><td style="padding:12px 16px;">
+        <div style="font-size:14px;font-weight:700;color:#0a1e3d;">${it.name}</div>
+        <div style="font-size:12px;color:#666;margin-top:2px;">${it.dose} — ${it.via}</div>
+        ${it.whatIs ? `<div style="font-size:12px;color:#444;margin-top:6px;">${it.whatIs}</div>` : ""}
+      </td></tr>
+    </table>`);
+  }
+  return blocks;
 }
 
 router.get("/ras-fichas-demo", async (req, res) => {
@@ -948,7 +867,7 @@ router.get("/ras-fichas-demo", async (req, res) => {
     const byName = new Map(allSubstances.map(s => [s.name.toUpperCase().trim(), s]));
 
     const substances = FICHAS_DEMO_SPECS.map(spec => {
-      const db = byName.get(spec.dbName);
+      const db = byName.get(spec.dbName.toUpperCase().trim());
       const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
       return {
         substanceName: db?.name ?? spec.dbName,
@@ -983,15 +902,12 @@ router.get("/ras-fichas-demo", async (req, res) => {
       substances,
     });
 
-    const agoraDrive = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  let pdfBuffer: Buffer;
+    const pdfBuffer = Buffer.from(pdfBytes);
+    const protocoloTitulo = "Fichas de Substancias Demonstracao";
+    const driveFileName = formatRASFileName("2026-06-17", clientName, clientCpf);
 
-    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
     const emailItems = FICHAS_DEMO_SPECS.map(spec => {
-      const sub = byName.get(spec.dbName);
+      const sub = byName.get(spec.dbName.toUpperCase().trim());
       return {
         name: sub?.name ?? spec.dbName,
         dose: spec.dose,
@@ -1001,6 +917,7 @@ router.get("/ras-fichas-demo", async (req, res) => {
         whatIs: firstSentence(sub?.description),
       };
     });
+
     const send = req.query.send === "1";
     const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
     const key = typeof req.query.key === "string" ? req.query.key : "";
@@ -1025,34 +942,33 @@ router.get("/ras-fichas-demo", async (req, res) => {
     if (authorizedSend) {
       (async () => {
         try {
-      const doc: PaxterDoc = {
-        eyebrow: `Olá, ${client.name.split(" ")[0]}`,
-        titulo: protocoloTitulo,
-        paragrafos: [],
-        blocosHtml: blocos,
-        anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-        assunto: `PAXTER | ${protocoloTitulo} — RAS FAP`,
-      };
-      const envio = await enviarMensagemPaxter(
-        doc,
-        { email: client.email!, nome: client.name },
-        ["EMAIL"],
-        { baseUrl: absoluteBaseUrl(req) },
-      );
-      const r0 = envio.resultados[0];
-      if (r0?.sent) {
-        rasEmailEnviado = true;
-        req.log.info(`RAS FAP entregue ${r0.mock ? "(mock)" : ""} para ${client.email}`);
-      } else {
-        req.log.warn(`RAS FAP entrega falhou para ${client.email}: ${r0?.error ?? "sem provedor"}`);
-      }
-    } catch (err: any) {
-      req.log.error(`RAS FAP entrega email error: ${err.message}`);
-    }
+          const doc: PaxterDoc = {
+            eyebrow: `Prezado(a)`,
+            titulo: protocoloTitulo,
+            paragrafos: [],
+            blocosHtml: fichasBlocks(emailItems, clientName),
+            anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
+            assunto: `PAXTER | ${protocoloTitulo} — RAS`,
+          };
+          const envio = await enviarMensagemPaxter(
+            doc,
+            { email: to, nome: clientName },
+            ["EMAIL"],
+            { baseUrl: absoluteBaseUrl(req) },
+          );
+          const r0 = envio.resultados[0];
+          if (r0?.sent) {
+            req.log.info(`RAS fichas demo entregue ${r0.mock ? "(mock)" : ""} para ${to}`);
+          } else {
+            req.log.warn(`RAS fichas demo entrega falhou para ${to}: ${r0?.error ?? "sem provedor"}`);
+          }
+        } catch (err: any) {
+          req.log.error(`RAS fichas demo entrega email error: ${err.message}`);
+        }
 
-    try {
-      if (await isDriveConnected()) {
-        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
+        try {
+          if (await isDriveConnected()) {
+            const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
             await uploadToFolderById(SHARED_RAS_FOLDER_ID, driveFileName, "application/pdf", pdfBuffer);
             req.log.info(`RAS fichas demo uploaded to Drive: ${driveFileName}`);
           }
@@ -1072,110 +988,44 @@ router.get("/ras-fichas-demo", async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────
 // POST /ras-fap/entregar-protocolo
-// Geração e envio do RAS FAP real para o paciente.
-// Na primeira entrega, o e-mail lista os RAS jurídicos relevantes ao protocolo.
-// Corpo: { clientId, substancias, titulo?, incluirCadernosJuridicos? }
-//   substancias[]: { nome, dose, via, sessoes, frequenciaDias, inicio, cor?, procedureType? }
-// Retorna 200 { queued: true, email } imediatamente; envio é assíncrono.
-// ---------------------------------------------------------------------------
+//
+// Rota de producao (nao-demo): gera o RAS FAP real de um cliente a partir
+// das substancias do protocolo, envia por e-mail e salva no Drive
+// compartilhado. Apos a entrega confirmada por e-mail, despacha os
+// cadernos juridicos (TCLE/termos) ainda pendentes para aquele paciente,
+// de forma idempotente (nunca reenvia um caderno ja aceito/enviado).
+// ─────────────────────────────────────────────────────────────────────────
+
 function buildEntregaBlocks(
   substancias: Array<{ nome: string; dose: string; via: string; sessoes: number; frequenciaDias: number; inicio: string; cor?: string }>,
   clientName: string,
-  titulo: string,
+  protocoloTitulo: string,
   dataHojeBR: string,
   incluirCadernosJuridicos: boolean,
 ): string[] {
-  const primeiro = clientName.split(" ")[0] ?? clientName;
-  const cores: Record<string, string> = {
-    "COENZIMA Q10": "#3D7A7A",
-    "PQQ": "#c9a24f",
-    "TESTOSTERONA": "#7c9cf0",
-    "TIRZEPATIDA": "#45B8CC",
-    "PROGESTERONA": "#EC4899",
-    "GESTRINONA": "#8B5CF6",
-    "IMPLANTE": "#c9a24f",
-  };
-  function corDa(nome: string, explicit?: string): string {
-    if (explicit) return explicit;
-    const up = nome.toUpperCase();
-    for (const [k, v] of Object.entries(cores)) if (up.includes(k)) return v;
-    return "#7e90ab";
+  const primeiroNome = clientName.split(" ")[0];
+  const blocks: string[] = [];
+  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Seu protocolo "${protocoloTitulo}" foi emitido em ${dataHojeBR}. Segue em anexo o RAS FAP — documento de controle fisico das aplicacoes.</p>`);
+  blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
+    <tr style="background:#0a1e3d;">
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Substancia</td>
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Dose</td>
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Via</td>
+      <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Sessoes</td>
+    </tr>
+    ${substancias.map((s, i) => `<tr style="background:${i % 2 === 0 ? "#f7f5f0" : "#ffffff"};">
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.nome}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.dose}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.via}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.sessoes}x / ${s.frequenciaDias}d</td>
+    </tr>`).join("")}
+  </table>`);
+  if (incluirCadernosJuridicos) {
+    blocks.push(`<p style="margin:16px 0 0;font-size:13px;color:#555;">Em breve voce recebera tambem os termos de consentimento (TCLE) referentes as substancias do seu protocolo, para assinatura digital.</p>`);
   }
-  function freqLabel(dias: number): string {
-    if (dias === 0 || dias === 1) return "no ato";
-    if (dias === 7) return "a cada 7 dias";
-    if (dias === 15) return "a cada 15 dias";
-    if (dias === 30) return "a cada 30 dias";
-    if (dias >= 150) return "após 6 meses";
-    return `a cada ${dias} dias`;
-  }
-  const linhas = substancias.map(s => {
-    const cor = corDa(s.nome, s.cor);
-    return `
-      <tr>
-        <td style="padding:11px 14px;border-bottom:1px solid rgba(201,162,79,.10);vertical-align:top;">
-          <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${cor};margin-right:7px;vertical-align:middle;"></span>
-          <span style="font-size:13px;color:#f3ead6;font-weight:700;">${s.nome}</span>
-          <div style="font-size:11px;color:#7e90ab;margin-top:2px;">${s.dose} · ${s.via}</div>
-        </td>
-        <td style="padding:11px 14px;border-bottom:1px solid rgba(201,162,79,.10);text-align:center;font-size:13px;color:#c9a24f;font-weight:700;">${s.sessoes}</td>
-        <td style="padding:11px 14px;border-bottom:1px solid rgba(201,162,79,.10);font-size:12px;color:#c2cee0;">${freqLabel(s.frequenciaDias)}</td>
-      </tr>`;
-  }).join("");
-
-  const tabelaHtml = `
-    <table width="100%" cellpadding="0" cellspacing="0"
-      style="border-collapse:collapse;border:1px solid rgba(201,162,79,.25);border-radius:8px;overflow:hidden;margin-bottom:18px;">
-      <thead>
-        <tr style="background:#102043;">
-          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;letter-spacing:.5px;">SUBSTÂNCIA</th>
-          <th style="padding:9px 14px;text-align:center;font-size:11px;color:#c9a24f;width:80px;">SESSÕES</th>
-          <th style="padding:9px 14px;text-align:left;font-size:11px;color:#c9a24f;width:160px;">FREQUÊNCIA</th>
-        </tr>
-      </thead>
-      <tbody>${linhas}</tbody>
-    </table>`;
-
-  const avisoRAS = incluirCadernosJuridicos ? `
-    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-left:4px solid #c9a24f;border-radius:8px;padding:14px 18px;margin-top:16px;">
-      <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#c9a24f;">Documentos jurídicos incluídos nesta entrega</p>
-      <p style="margin:0;font-size:12px;color:#c2cee0;line-height:1.7;">
-        Junto ao RAS FAP em anexo, você receberá separadamente os Consentimentos Informados referentes ao seu protocolo:<br>
-        <strong style="color:#f3ead6;">CGLO</strong> (Consentimento Global) · <strong style="color:#f3ead6;">CIMU</strong> (Injetáveis IM) ·
-        <strong style="color:#f3ead6;">CSUB</strong> (Substâncias Especiais) · <strong style="color:#f3ead6;">CINC</strong> (GLP-1/Incretinas) ·
-        <strong style="color:#f3ead6;">CIMP</strong> (Implantes e Pellets) · <strong style="color:#f3ead6;">TCLE</strong> (Consentimento Livre e Esclarecido) ·
-        <strong style="color:#f3ead6;">RAS-JUR</strong> (Registro Jurídico).<br>
-        Leia, assine e devolva antes da primeira sessão.
-      </p>
-    </div>` : "";
-
-  const avisoApresentar = `
-    <div style="background:#0f1d3a;border:1px solid rgba(201,162,79,.25);border-radius:8px;padding:14px 18px;margin-top:16px;">
-      <p style="margin:0;font-size:12px;color:#c2cee0;line-height:1.6;">
-        <strong style="color:#c9a24f;">Importante:</strong>
-        Apresente o <strong style="color:#f3ead6;">RAS FAP</strong> em TODAS as sessões presenciais para rubrica da equipe de enfermagem.
-        Ele é o seu controle oficial de aplicações — guarde-o com cuidado.
-      </p>
-    </div>`;
-
-  return [`
-    <p style="font-size:15px;color:#c2cee0;margin:0 0 14px;line-height:1.7;">
-      ${primeiro}, o seu protocolo médico personalizado <strong style="color:#c9a24f;">${titulo}</strong>
-      foi elaborado pelo <strong style="color:#f3ead6;">Dr. Caio Henrique Fernandes Pádua</strong>
-      com início em <strong style="color:#c9a24f;">${dataHojeBR}</strong>.
-    </p>
-    <p style="font-size:15px;color:#c2cee0;margin:0 0 18px;line-height:1.7;">
-      O documento <strong style="color:#c9a24f;">RAS FAP</strong>
-      (Registro de Administração de Substâncias — Formulário de Auditoria de Procedimentos)
-      segue <strong style="color:#f3ead6;">em anexo</strong>, em formato PDF pronto para impressão.
-      Ele contém o cronograma completo das sessões e os espaços para rubrica presencial a cada aplicação.
-    </p>
-    ${tabelaHtml}
-    ${avisoApresentar}
-    ${avisoRAS}
-  `];
+  return blocks;
 }
 
 router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
@@ -1212,10 +1062,7 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
   const dataHojeBR = `${dd}/${mm}/${anoFull}`;
   const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
 
-    const protocoloTituloFichas = "Fichas de Substancias Demonstracao";
   const protocoloTitulo = titulo ?? "Protocolo de Longevidade Personalizado";
-
-  const driveFileNameFapDemo = `${yyDemo}.${mmDemo}.${ddDemo} RAS FAP ${clientName.toUpperCase()}.pdf`;
 
   const idadeAnos = client.birthDate
     ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
@@ -1223,7 +1070,6 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
 
   let pdfBuffer: Buffer;
 
-    const agoraFichas = new Date(Date.now() - 3 * 60 * 60 * 1000);
   try {
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
@@ -1248,9 +1094,6 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
       sessions: [],
     }, "PREMIUM");
 
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
-
-    const msg = err instanceof Error ? err.message : "Erro desconhecido";
     pdfBuffer = Buffer.from(pdfBytes);
   } catch (pdfErr: any) {
     res.status(500).json({ error: "Erro ao gerar RAS FAP PDF", details: pdfErr.message });
@@ -1448,27 +1291,3 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
 });
 
 export default router;
-
-    const mmDrive = String(agoraDrive.getUTCMonth() + 1).padStart(2, "0");
-
-  const yyDemo = String(agoraDemo.getUTCFullYear()).slice(2);
-
-  const ddDemo = String(agoraDemo.getUTCDate()).padStart(2, "0");
-
-    const ddDrive = String(agoraDrive.getUTCDate()).padStart(2, "0");
-
-  const mmDemo = String(agoraDemo.getUTCMonth() + 1).padStart(2, "0");
-
-    const yyFichas = String(agoraFichas.getUTCFullYear()).slice(2);
-
-    const _mmRas = String(_agoraRas.getUTCMonth() + 1).padStart(2, "0");
-
-    const mmFichas = String(agoraFichas.getUTCMonth() + 1).padStart(2, "0");
-
-    const yyDrive = String(agoraDrive.getUTCFullYear()).slice(2);
-
-    const _yyRas = String(_agoraRas.getUTCFullYear()).slice(2);
-
-    const _ddRas = String(_agoraRas.getUTCDate()).padStart(2, "0");
-
-    const ddFichas = String(agoraFichas.getUTCDate()).padStart(2, "0");
