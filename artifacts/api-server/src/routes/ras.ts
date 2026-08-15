@@ -410,55 +410,38 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
       clientPhone: client.phone ?? "",
-      clientAge: idadeAnos,
-      professionalName: "Dr. Caio Henrique Fernandes Padua",
-      nurseName: "Instituto Padua",
+      clientAge,
+      professionalName,
+      nurseName,
       unit: "Instituto Padua — Clinica Avancada",
-      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
-      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      startDate: protocol.startDate,
+      protocolNumber: `FAP-${protocol.id}`,
       valorTratamento: undefined,
-      substances: substancias.map(s => ({
-        name: s.nome,
-        color: s.cor ?? "#c9a24f",
-        totalSessions: s.sessoes,
-        frequencyDays: s.frequenciaDias,
-        startDate: s.inicio,
-        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
-        dose: s.dose,
-      })),
-      sessions: [],
+      substances: protocolItems.map(item => {
+        const sub = substMap.get(item.substanceId ?? 0);
+        return {
+          name: sub?.name ?? "",
+          color: sub?.color ?? "#c9a24f",
+          totalSessions: item.totalSessions ?? 1,
+          frequencyDays: item.frequencyDays ?? 7,
+          startDate: protocol.startDate,
+          procedureType: (sub?.procedureType ?? "injection") as "injection" | "implant",
+          dose: item.dose ?? "",
+        };
+      }),
+      sessions: physicalSessions,
     }, "PREMIUM");
 
-  let pdfBuffer: Buffer;
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
-    const clientSlug = ras.clientName.replace(/\s+/g, "_");
-    const filename = `RAS_${String(ras.id).padStart(6, "0")}_${clientSlug}_${dateSlug}.pdf`;
-        const SHARED_RAS_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep";
-    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
-    const emailResult = await sendProtocolEmail({
-      clientName: client.name,
-      clientEmail: client.email,
-      protocolTitle: protocol.title,
-      professionalName,
-      startDate: protocol.startDate,
-      substances: substances.map(s => ({
-        name: s.name,
-        color: s.color,
-        totalSessions: s.totalSessions,
-      })),
-      pdfBuffer,
-      pdfFileName: driveFileName,
-    });
+    const driveFileName = formatPhysicalRASFileName(client.name);
+    const filename = driveFileName;
 
-    if (!emailResult.success) {
-      res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
-      return;
-    }
-
-    res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBytes.length);
+    res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
-    console.error("Reenviar RAS FAP error:", err);
-    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP", details: err.message });
+    console.error("Physical RAS PDF generation error:", err);
+    res.status(500).json({ error: "Erro ao gerar RAS FAP", details: err.message });
   }
 });
 
@@ -476,7 +459,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
@@ -494,30 +477,8 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
-    const allSubstances = await db.select().from(substancesTable);
+  const allSubstances = await db.select().from(substancesTable);
   const substMap = new Map(allSubstances.map(s => [s.id, s]));
-
-    const substances = FICHAS_DEMO_SPECS.map(spec => {
-      const db = byName.get(spec.dbName);
-      const route = db?.procedureType === "im" ? "IM" : db?.procedureType === "implant" ? "Impl" : "IV";
-      return {
-        substanceName: db?.name ?? spec.dbName,
-        dose: spec.dose,
-        route,
-        sessionNumber: spec.session,
-        totalSessions: spec.total,
-        lot: "DEMO-2026",
-        validity: "06/2027",
-        status: "Aplicado",
-        description: db?.description ?? undefined,
-        mainFunction: db?.mainFunction ?? undefined,
-        perceivedEffects: db?.perceivedEffects ?? undefined,
-        timeToEffect: db?.timeToEffect ?? undefined,
-        starRating: db?.starRating ?? undefined,
-        bodySystemEffects: (db?.bodySystemEffects as Record<string, string>) ?? undefined,
-        procedureType: db?.procedureType ?? undefined,
-      };
-    });
 
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
@@ -567,27 +528,30 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
       clientName: client.name,
       clientCpf: client.cpf ?? "000.000.000-00",
       clientPhone: client.phone ?? "",
-      clientAge: idadeAnos,
-      professionalName: "Dr. Caio Henrique Fernandes Padua",
-      nurseName: "Instituto Padua",
+      clientAge,
+      professionalName,
+      nurseName,
       unit: "Instituto Padua — Clinica Avancada",
-      startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
-      protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
+      startDate: protocol.startDate,
+      protocolNumber: `FAP-${protocol.id}`,
       valorTratamento: undefined,
-      substances: substancias.map(s => ({
-        name: s.nome,
-        color: s.cor ?? "#c9a24f",
-        totalSessions: s.sessoes,
-        frequencyDays: s.frequenciaDias,
-        startDate: s.inicio,
-        procedureType: s.procedureType ?? (s.via.toLowerCase().includes("implant") ? "implant" : "injection"),
-        dose: s.dose,
-      })),
-      sessions: [],
+      substances: protocolItems.map(item => {
+        const sub = substMap.get(item.substanceId ?? 0);
+        return {
+          name: sub?.name ?? "",
+          color: sub?.color ?? "#c9a24f",
+          totalSessions: item.totalSessions ?? 1,
+          frequencyDays: item.frequencyDays ?? 7,
+          startDate: protocol.startDate,
+          procedureType: (sub?.procedureType ?? "injection") as "injection" | "implant",
+          dose: item.dose ?? "",
+        };
+      }),
+      sessions: physicalSessions,
     }, "PREMIUM");
 
-  let pdfBuffer: Buffer;
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+    const pdfBuffer = Buffer.from(pdfBytes);
+    const driveFileName = formatPhysicalRASFileName(client.name);
 
     const emailResult = await sendProtocolEmail({
       clientName: client.name,
@@ -595,14 +559,32 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
       protocolTitle: protocol.title,
       professionalName,
       startDate: protocol.startDate,
-      substances: substances.map(s => ({
-        name: s.name,
-        color: s.color,
-        totalSessions: s.totalSessions,
-      })),
+      substances: protocolItems.map(item => {
+        const sub = substMap.get(item.substanceId ?? 0);
+        return {
+          name: sub?.name ?? "",
+          color: sub?.color ?? "#c9a24f",
+          totalSessions: item.totalSessions ?? 1,
+        };
+      }),
       pdfBuffer,
       pdfFileName: driveFileName,
     });
+
+    if (!emailResult.success) {
+      res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
+      return;
+    }
+
+    res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
+  } catch (err: any) {
+    console.error("Reenviar RAS FAP error:", err);
+    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP", details: err.message });
+  }
+});
+
+// ===== Histórico de reenvios do RAS FAP (email-logs) =====
+router.get("/ras/physical/:protocolId/email-logs", async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.protocolId);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
