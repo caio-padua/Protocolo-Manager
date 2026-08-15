@@ -294,10 +294,19 @@ export default function ProtocolDetail() {
                         if (!resp.ok) {
                           throw new Error(body?.details || body?.error || "Erro ao emitir protocolo");
                         }
-                        toast({
-                          title: body?.emailSent ? "Protocolo emitido!" : "Protocolo enviado ao Drive",
-                          description: body?.message ?? "Concluído.",
-                        });
+                        if (body?.emailSent === false) {
+                          toast({
+                            title: "Protocolo salvo no Drive, mas o paciente não tem e-mail cadastrado — entrega incompleta",
+                            description: "Cadastre o e-mail do paciente e reenvie manualmente.",
+                            variant: "warning",
+                            duration: 8000,
+                          } as any);
+                        } else {
+                          toast({
+                            title: "Protocolo emitido!",
+                            description: body?.message ?? "Concluído.",
+                          });
+                        }
                         refetch();
                       } catch (err: any) {
                         toast({ title: "Erro ao emitir", description: err.message, variant: "destructive" });
