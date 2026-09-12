@@ -510,7 +510,7 @@ router.post("/api/avatares/campanha/:campaignId/reenviar-erros", async (req, res
 
     // Busca a campanha original verificando ownership
     const campanhaRows = await db.execute(sql`
-      SELECT id, empresa_id, avatar_id, canal, texto
+      SELECT id, empresa_id, avatar_id, canal, texto, status
       FROM avatar_campanhas
       WHERE id = ${campaignId}
         AND empresa_id = ${empresaId}
@@ -519,6 +519,14 @@ router.post("/api/avatares/campanha/:campaignId/reenviar-erros", async (req, res
       return res.status(404).json({ error: "Campanha não encontrada" });
     }
     const orig = campanhaRows.rows[0] as any;
+
+    // Guard: só permite reenvio quando a campanha original já terminou
+    if (orig.status !== "concluida") {
+      return res.status(400).json({
+        error: "Não é possível reenviar falhos enquanto a campanha ainda está em andamento. Aguarde a campanha concluir.",
+        status: orig.status,
+      });
+    }
 
     // Busca itens com erro da campanha original
     const itensRows = await db.execute(sql`
