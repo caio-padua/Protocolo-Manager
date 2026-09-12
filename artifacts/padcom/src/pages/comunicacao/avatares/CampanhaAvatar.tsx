@@ -4,6 +4,7 @@
  * Permite selecionar múltiplos clientes, escrever um script e disparar
  * para todos via campanha persistida no banco (retomada após restart).
  * Mostra barra de progresso em tempo real por polling no GET de campanha.
+ * Inclui seção de Histórico de Campanhas com rastreio original → reenvio.
  */
 import { useState, useEffect, useRef } from "react";
 import { tituloProprio } from "@/lib/utils";
@@ -11,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Users, Search, Send, Loader2, CheckCircle2, XCircle,
   Mic, Video, BarChart3, RefreshCw, User, X, RotateCcw, Gauge,
+  History, ChevronDown, ChevronUp, Link2,
 } from "lucide-react";
 
 interface Avatar { id: number; nomeExibido: string; status: string; nivel?: string; }
@@ -28,6 +30,19 @@ interface CampanhaProgresso {
   concluidoAt: string | null;
 }
 
+interface CampanhaHistorico {
+  id:            string;
+  canal:         string;
+  total:         number;
+  enviados:      number;
+  erros:         number;
+  pendentes:     number;
+  status:        string;
+  campanhaPaiId: string | null;
+  criadoAt:      string;
+  concluidoAt:   string | null;
+}
+
 interface Props {
   avatares: Avatar[];
   apiBase:  string;
@@ -41,10 +56,11 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
   const [busca,       setBusca]       = useState("");
   const [resultsBusca, setResultsBusca] = useState<Cliente[]>([]);
   const [selecionados, setSelecionados] = useState<Cliente[]>([]);
-  const [enviando,      setEnviando]      = useState(false);
-  const [campaignId,    setCampaignId]    = useState<string | null>(null);
-  const [erro,          setErro]          = useState<string | null>(null);
-  const [reenviando,    setReenviando]    = useState(false);
+  const [enviando,        setEnviando]        = useState(false);
+  const [campaignId,      setCampaignId]      = useState<string | null>(null);
+  const [erro,            setErro]            = useState<string | null>(null);
+  const [reenviando,      setReenviando]      = useState(false);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,6 +91,19 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
   function removerCliente(id: number) {
     setSelecionados(prev => prev.filter(c => c.id !== id));
   }
+
+  // Histórico de campanhas (recarrega quando abre o painel ou após novo disparo)
+  const { data: historicoDados, refetch: refetchHistorico } = useQuery<{
+    campanhas: CampanhaHistorico[];
+    total: number;
+  }>({
+    queryKey:  ["campanhas-historico"],
+    queryFn:   () =>
+      fetch(`${apiBase}/api/avatares/campanhas?limite=20`, { credentials: "include" })
+        .then(r => r.json()),
+    enabled:   historicoAberto,
+    staleTime: 30_000,
+  });
 
   // Polling do progresso (a cada 5s quando campanha ativa)
   const { data: progresso, refetch: refetchProgresso } = useQuery<CampanhaProgresso>({
@@ -117,6 +146,8 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
       // Limpa seleção após disparo
       setSelecionados([]);
       setTexto("");
+      // Atualiza histórico se estiver aberto
+      void refetchHistorico();
     } catch (e: any) {
       setErro(e?.message ?? "Erro de rede");
     } finally {
@@ -444,6 +475,152 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
           )}
         </div>
       )}
+
+      {/* ── Histórico de Campanhas ──────────────────────────────────────────── */}
+      <div className="panel-3d rounded-lg overflow-hidden">
+        {/* Cabeçalho clicável */}
+        <button
+          onClick={() => {
+            setHistoricoAberto(v => !v);
+            if (!historicoAberto) void refetchHistorico();
+          }}
+          className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold
+                     text-white/70 hover:text-white/90 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <History className="w-4 h-4 text-sky-400" />
+            Histórico de Campanhas
+            {historicoDados?.total ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-sky-900/40 border border-sky-700/30
+                               text-sky-300 text-[10px]">
+                {historicoDados.total}
+              </span>
+            ) : null}
+          </span>
+          {historicoAberto
+            ? <ChevronUp   className="w-3.5 h-3.5 opacity-50" />
+            : <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+          }
+        </button>
+
+        {historicoAberto && (
+          <div className="px-4 pb-4 space-y-2">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] text-white/30">
+                Clique em uma campanha para ver ou continuar o acompanhamento.
+              </p>
+              <button
+                onClick={() => void refetchHistorico()}
+                className="text-white/30 hover:text-white/60 transition-colors"
+                title="Recarregar histórico"
+              >
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
+
+            {!historicoDados ? (
+              <div className="flex items-center gap-2 text-xs text-white/40 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Carregando histórico…
+              </div>
+            ) : historicoDados.campanhas.length === 0 ? (
+              <p className="text-xs text-white/30 py-2">Nenhuma campanha encontrada.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {historicoDados.campanhas.map(c => {
+                  const isAtiva    = campaignId === c.id;
+                  const dataStr    = new Date(c.criadoAt).toLocaleString("pt-BR", {
+                    day: "2-digit", month: "2-digit", year: "2-digit",
+                    hour: "2-digit", minute: "2-digit",
+                  });
+                  const pctC       = c.total > 0
+                    ? Math.round(((c.enviados + c.erros) / c.total) * 100)
+                    : 0;
+                  const barColor   =
+                    c.status === "concluida" && c.erros === 0 ? "bg-emerald-500" :
+                    c.status === "concluida" && c.erros > 0  ? "bg-amber-500"   :
+                    "bg-sky-500";
+
+                  return (
+                    <li key={c.id}>
+                      <button
+                        onClick={() => setCampaignId(c.id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all
+                          ${isAtiva
+                            ? "border-gold/50 bg-gold/5"
+                            : "border-white/8 hover:border-white/20 bg-white/3 hover:bg-white/5"
+                          }`}
+                      >
+                        {/* Linha 1: id curto + canal + data */}
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono text-[10px] text-white/40 shrink-0">
+                              {c.id.slice(-8)}
+                            </span>
+                            <span className={`shrink-0 flex items-center gap-0.5 text-[10px] px-1.5 py-0.5
+                              rounded-full border ${
+                                c.canal === "VOICE"
+                                  ? "border-sky-700/40 text-sky-300 bg-sky-900/30"
+                                  : "border-purple-700/40 text-purple-300 bg-purple-900/30"
+                              }`}
+                            >
+                              {c.canal === "VOICE"
+                                ? <Mic   className="w-2.5 h-2.5" />
+                                : <Video className="w-2.5 h-2.5" />
+                              }
+                              {c.canal === "VOICE" ? "Voz" : "Vídeo"}
+                            </span>
+                            {/* Badge de reenvio */}
+                            {c.campanhaPaiId && (
+                              <span className="shrink-0 flex items-center gap-0.5 text-[10px]
+                                px-1.5 py-0.5 rounded-full border border-amber-700/40
+                                text-amber-300 bg-amber-900/20"
+                              >
+                                <Link2 className="w-2.5 h-2.5" />
+                                Reenvio de {c.campanhaPaiId.slice(-8)}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-white/30 shrink-0">{dataStr}</span>
+                        </div>
+
+                        {/* Linha 2: barra + contadores */}
+                        <div className="space-y-1">
+                          <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${barColor}`}
+                              style={{ width: `${pctC}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px]">
+                            <span className="text-white/40">{c.total} total</span>
+                            <span className="text-emerald-400">{c.enviados} ✓</span>
+                            {c.erros > 0 && (
+                              <span className="text-red-400">{c.erros} ✗</span>
+                            )}
+                            {c.pendentes > 0 && (
+                              <span className="text-sky-400">{c.pendentes} pend.</span>
+                            )}
+                            <span className={`ml-auto font-medium ${
+                              c.status === "concluida" && c.erros === 0 ? "text-emerald-400" :
+                              c.status === "concluida"                  ? "text-amber-400"   :
+                              "text-sky-400"
+                            }`}>
+                              {c.status === "concluida" ? "Concluída" :
+                               c.status === "em_andamento" ? "Em andamento" :
+                               c.status}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

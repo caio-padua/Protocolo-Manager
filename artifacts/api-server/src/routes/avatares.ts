@@ -569,6 +569,69 @@ router.post("/api/avatares/campanha/:campaignId/reenviar-erros", async (req, res
   }
 });
 
+// ─── GET /api/avatares/campanhas ─────────────────────────────────────────────
+// Lista paginada de campanhas da empresa (mais recentes primeiro).
+// Inclui campanha_pai_id para que a UI mostre o badge "Reenvio de XXXX".
+
+router.get("/api/avatares/campanhas", async (req, res) => {
+  try {
+    await ensureCampanhaSchema();
+    const empresaId = empresaIdFromReq(req);
+    const pagina    = Math.max(1, Number(req.query.pagina  ?? 1));
+    const limite    = Math.min(50, Math.max(1, Number(req.query.limite ?? 20)));
+    const offset    = (pagina - 1) * limite;
+
+    const rows = await db.execute(sql.raw(`
+      SELECT
+        c.id,
+        c.canal,
+        c.total,
+        c.status,
+        c.campanha_pai_id,
+        c.criado_at,
+        c.concluido_at,
+        COUNT(i.id) FILTER (WHERE i.status = 'enviado')                       AS enviados,
+        COUNT(i.id) FILTER (WHERE i.status = 'erro')                          AS erros,
+        COUNT(i.id) FILTER (WHERE i.status IN ('pendente','processando'))      AS pendentes
+      FROM avatar_campanhas c
+      LEFT JOIN avatar_campanha_itens i ON i.campanha_id = c.id
+      WHERE c.empresa_id = ${empresaId}
+      GROUP BY c.id
+      ORDER BY c.criado_at DESC
+      LIMIT ${limite} OFFSET ${offset}
+    `));
+
+    const totalRows = await db.execute(sql.raw(`
+      SELECT COUNT(*) AS total
+      FROM avatar_campanhas
+      WHERE empresa_id = ${empresaId}
+    `));
+
+    const campanhas = (rows.rows as any[]).map(r => ({
+      id:            String(r.id),
+      canal:         String(r.canal),
+      total:         Number(r.total),
+      enviados:      Number(r.enviados  ?? 0),
+      erros:         Number(r.erros     ?? 0),
+      pendentes:     Number(r.pendentes ?? 0),
+      status:        String(r.status),
+      campanhaPaiId: r.campanha_pai_id ? String(r.campanha_pai_id) : null,
+      criadoAt:      String(r.criado_at),
+      concluidoAt:   r.concluido_at ? String(r.concluido_at) : null,
+    }));
+
+    return res.json({
+      campanhas,
+      total:  Number((totalRows.rows[0] as any)?.total ?? 0),
+      pagina,
+      limite,
+    });
+  } catch (e: any) {
+    logger.error({ err: e?.message }, "avatares: erro ao listar campanhas");
+    return res.status(500).json({ error: e?.message ?? "Erro interno" });
+  }
+});
+
 // ─── GET /api/avatares/fila-video ────────────────────────────────────────────
 // Estado da fila de vídeos pendentes / em geração (painel CEO).
 
