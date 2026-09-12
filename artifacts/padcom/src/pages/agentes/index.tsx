@@ -3077,16 +3077,27 @@ function AbaIntegracoes() {
                 {githubPat.login && (
                   <span>Login: <span className="font-semibold text-foreground">{githubPat.login}</span></span>
                 )}
-                {githubPat.expira_em && (
+                {githubPat.expira_em && githubPat.status === "expirado_em_breve" && (() => {
+                  const msLeft = new Date(githubPat.expira_em!).getTime() - Date.now();
+                  const daysLeft = Math.max(0, Math.ceil(msLeft / 86_400_000));
+                  return (
+                    <span className="text-amber-500 font-bold text-[13px]">
+                      ⚠ Expira em {daysLeft} {daysLeft === 1 ? "dia" : "dias"}
+                    </span>
+                  );
+                })()}
+                {githubPat.expira_em && githubPat.status !== "expirado_em_breve" && (
                   <span>
                     Expira em:{" "}
-                    <span className={`font-semibold ${githubPat.status === "expirado_em_breve" ? "text-amber-500" : "text-foreground"}`}>
+                    <span className="font-semibold text-foreground">
                       {new Date(githubPat.expira_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
                     </span>
                   </span>
                 )}
-                {githubPat.status === "expirado_em_breve" && (
-                  <span className="text-amber-500 font-semibold">⚠ Renove o token antes de expirar para não perder acesso ao repositório.</span>
+                {githubPat.status === "expirado_em_breve" && githubPat.expira_em && (
+                  <span className="text-amber-400 text-[10px]">
+                    ({new Date(githubPat.expira_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })})
+                  </span>
                 )}
                 {githubPat.status === "erro" && (
                   <span className="text-red-500 font-semibold">Token inválido ou revogado. Configure GITHUB_PAT nos Secrets.</span>
