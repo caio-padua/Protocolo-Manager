@@ -476,11 +476,21 @@ function MsgModal({
 
 export default function RadarClinico() {
   const [pagina, setPagina] = useState(1);
-  const [protocoloStatus, setProtocoloStatus] = useState("all");
-  const [tempoAtivo, setTempoAtivo] = useState("");
-  const [faltaDias, setFaltaDias] = useState("");
-  const [substancia, setSubstancia] = useState("");
-  const [silencioDias, setSilencioDias] = useState("");
+  const [protocoloStatus, setProtocoloStatus] = useState(
+    () => localStorage.getItem("radar-protocoloStatus") ?? "all"
+  );
+  const [tempoAtivo, setTempoAtivo] = useState(
+    () => localStorage.getItem("radar-tempoAtivo") ?? ""
+  );
+  const [faltaDias, setFaltaDias] = useState(
+    () => localStorage.getItem("radar-faltaDias") ?? ""
+  );
+  const [substancia, setSubstancia] = useState(
+    () => localStorage.getItem("radar-substancia") ?? ""
+  );
+  const [silencioDias, setSilencioDias] = useState(
+    () => localStorage.getItem("radar-silencioDias") ?? ""
+  );
   // "urgencia" (padrão) = faltou DESC → silêncio DESC → A-Z
   const [ordenacao, setOrdenacao] = useState<"urgencia" | "az">(
     () => (localStorage.getItem("radar-ordenacao") as "urgencia" | "az") ?? "urgencia"
@@ -488,6 +498,26 @@ export default function RadarClinico() {
   const setOrdenacaoComPersistencia = (valor: "urgencia" | "az") => {
     localStorage.setItem("radar-ordenacao", valor);
     setOrdenacao(valor);
+  };
+  const setProtocoloStatusComPersistencia = (valor: string) => {
+    localStorage.setItem("radar-protocoloStatus", valor);
+    setProtocoloStatus(valor);
+  };
+  const setTempoAtivoComPersistencia = (valor: string) => {
+    localStorage.setItem("radar-tempoAtivo", valor);
+    setTempoAtivo(valor);
+  };
+  const setFaltaDiasComPersistencia = (valor: string) => {
+    localStorage.setItem("radar-faltaDias", valor);
+    setFaltaDias(valor);
+  };
+  const setSubstanciaComPersistencia = (valor: string) => {
+    localStorage.setItem("radar-substancia", valor);
+    setSubstancia(valor);
+  };
+  const setSilencioDiasComPersistencia = (valor: string) => {
+    localStorage.setItem("radar-silencioDias", valor);
+    setSilencioDias(valor);
   };
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -528,6 +558,11 @@ export default function RadarClinico() {
   });
 
   const resetFiltros = () => {
+    localStorage.removeItem("radar-protocoloStatus");
+    localStorage.removeItem("radar-tempoAtivo");
+    localStorage.removeItem("radar-faltaDias");
+    localStorage.removeItem("radar-substancia");
+    localStorage.removeItem("radar-silencioDias");
     setProtocoloStatus("all");
     setTempoAtivo("");
     setFaltaDias("");
@@ -650,7 +685,7 @@ export default function RadarClinico() {
               ].map(({ v, l }) => (
                 <button
                   key={v}
-                  onClick={() => { setProtocoloStatus(v); setPagina(1); }}
+                  onClick={() => { setProtocoloStatusComPersistencia(v); setPagina(1); }}
                   className={`text-[10px] font-bold py-1 px-2 rounded-[4px] text-left transition-all
                     ${protocoloStatus === v ? "bevel-3d text-[#c2a05a]" : "concave-3d text-muted-foreground hover:text-foreground"}`}
                 >
@@ -674,7 +709,7 @@ export default function RadarClinico() {
               ].map(({ v, l }) => (
                 <button
                   key={v}
-                  onClick={() => { setTempoAtivo(v); setPagina(1); }}
+                  onClick={() => { setTempoAtivoComPersistencia(v); setPagina(1); }}
                   className={`text-[10px] font-bold py-1 px-2 rounded-[4px] text-left transition-all
                     ${tempoAtivo === v ? "bevel-3d text-[#c2a05a]" : "concave-3d text-muted-foreground hover:text-foreground"}`}
                 >
@@ -698,7 +733,7 @@ export default function RadarClinico() {
               ].map(({ v, l }) => (
                 <button
                   key={v}
-                  onClick={() => { setFaltaDias(v); setPagina(1); }}
+                  onClick={() => { setFaltaDiasComPersistencia(v); setPagina(1); }}
                   className={`text-[10px] font-bold py-1 px-2 rounded-[4px] text-left transition-all
                     ${faltaDias === v ? "bevel-3d text-[#c2a05a]" : "concave-3d text-muted-foreground hover:text-foreground"}`}
                 >
@@ -723,7 +758,7 @@ export default function RadarClinico() {
               ].map(({ v, l }) => (
                 <button
                   key={v}
-                  onClick={() => { setSubstancia(v); setPagina(1); }}
+                  onClick={() => { setSubstanciaComPersistencia(v); setPagina(1); }}
                   className={`text-[10px] font-bold py-1 px-2 rounded-[4px] text-left transition-all
                     ${substancia === v ? "bevel-3d text-[#c2a05a]" : "concave-3d text-muted-foreground hover:text-foreground"}`}
                 >
@@ -747,7 +782,7 @@ export default function RadarClinico() {
               ].map(({ v, l }) => (
                 <button
                   key={v}
-                  onClick={() => { setSilencioDias(v); setPagina(1); }}
+                  onClick={() => { setSilencioDiasComPersistencia(v); setPagina(1); }}
                   className={`text-[10px] font-bold py-1 px-2 rounded-[4px] text-left transition-all
                     ${silencioDias === v ? "bevel-3d text-[#c2a05a]" : "concave-3d text-muted-foreground hover:text-foreground"}`}
                 >
