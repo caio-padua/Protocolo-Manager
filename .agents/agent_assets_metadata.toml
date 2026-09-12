@@ -35,234 +35,273 @@ id = "J6wH7DLw0tYOwzoNt5av7"
 uri = "file://PADCOM_TECHNICAL_BRIEFING.md"
 type = "text"
 title = "PADCOM - Briefing Técnico Completo para Projeto Paralelo"
+logical_id = "34688927-c5b7-4024-a054-ec3b533da136"
 
 [[outputs]]
 id = "mr_vXrs5kzJohZNLndLSJ"
 uri = "file://PADCOM_HANDOFF.md"
 type = "text"
 title = "PADCOM - Handoff para Projeto Paralelo"
+logical_id = "811d3a8c-0ada-4c2d-9810-18ad9f244f9f"
 
 [[outputs]]
 id = "kMgEqWr3pQgeBlKIa-hZK"
 uri = "file://screenshots/ras_fisico_exemplo.pdf"
 type = "pdf"
 title = "RAS Físico — Exemplo (Protocolo Anti-Aging Ricardo Almeida Ferreira)"
+logical_id = "e8af25d1-10c3-4bc8-b0ad-7d0eac4c5691"
 
 [[outputs]]
 id = "vaWiA_l1GiD5JaAdsBX61"
 uri = "file://screenshots/ras_fisico_v2.pdf"
 type = "pdf"
 title = "RAS Físico v2 — Células coloridas + Rubrica Paciente/ENF + Datas dd/mm/yy"
+logical_id = "2073ecae-e33b-460f-a866-660085e99f34"
 
 [[outputs]]
 id = "c3YYBAy4YEyAoJ0DQqD0h"
 uri = "file://PADCOM_FULL_TECHNICAL_DOC.md"
 type = "text"
 title = "PADCOM - Documentacao Tecnica Completa"
+logical_id = "6acce99a-d2f6-4a20-8458-df35ebe94ee5"
 
 [[outputs]]
 id = "_LAWW5-lDn6xXQmmgidPL"
 uri = "file://.local/exports/ras-teste-quebra-pagina.pdf"
 type = "pdf"
 title = "RAS assinado — teste de estresse (15 substancias, 19 paginas, sem pagina em branco)"
+logical_id = "152340ad-112c-42b4-9d7d-cff4df7d7ea7"
 
 [[outputs]]
 id = "Tg7bGpcC6MFTChiyK0Obd"
 uri = "file://attached_assets/demo_caio/Apresentacao_Premium_Protocolo_Caio.pdf"
 type = "pdf"
 title = "Apresentacao Premium do Protocolo (CAIO, protocolo DEMO id 15)"
+logical_id = "882383c9-e241-42dd-9551-1efac45b3ed1"
 
 [[outputs]]
 id = "Ja9y3s6Yr1jhSXcfkFkdI"
 uri = "file://attached_assets/demo_caio/RAS_FAP_Protocolo_Caio.pdf"
 type = "pdf"
 title = "RAS FAP (folha de impressao / auditoria)"
+logical_id = "70ba918a-a9a3-4127-98b8-4572bdcbd464"
 
 [[outputs]]
 id = "W1Vj1AxJkySXonEqoAnNU"
 uri = "file://attached_assets/demo_caio/anamnese_linha_do_tempo.png"
 type = "image"
 title = "Anamnese — 1a tela com a LINHA DO TEMPO (Etapa 1 de 14)"
+logical_id = "e596cbd2-e6fa-4a22-8b85-a1ab799a97f2"
 
 [[outputs]]
 id = "UDBu1boKmm2IexyBxiOYX"
 uri = "file://attached_assets/demo_caio/anamnese_video_ajuda.png"
 type = "image"
 title = "Anamnese — modal de VIDEO DE AJUDA por pergunta"
+logical_id = "0d219193-caec-4760-a8fc-32c90cd806ee"
 
 [[outputs]]
 id = "CsE3HnJPc3aMjE6OvyrJd"
 uri = "file://screenshots/tipografia-grife.jpg"
 type = "image"
 title = "Comparativo de 4 serifadas de grife (tela real, acabamento creme/dourado)"
+logical_id = "699ccc05-9bf2-49bc-b21e-d56b359c734e"
 
 [[outputs]]
 id = "lVr7hjD40X7WE7SiPROxF"
 uri = "file://artifacts/padcom/src/assets/brand/paxter-logo-hero.png"
 type = "image"
 title = "PAXTER — logo hero (imagem original aprovada, fiel ao anexo)"
+logical_id = "3090ceea-09a3-4848-9b35-b2452efbd1ee"
 
 [[outputs]]
 id = "JVqOMQpA-Vfr2fj0nSsM4"
 uri = "file://screenshots/paxter-logo-desktop.jpg"
 type = "image"
 title = "PAXTER — logo viva no site (desktop)"
+logical_id = "7d1827bc-1bc1-4924-b482-c3612f58bfc0"
 
 [[outputs]]
 id = "BhSUdtH8KHZd9_pxrXPk0"
 uri = "file://.agents/skills/skill-layout-paxter/references/marca/molde-paxter.png"
 type = "image"
 title = "Molde visual — Catálogo de logos PAXTER"
+logical_id = "805b0cdd-e5b0-4be6-8f44-10b615cc2371"
 
 [[outputs]]
 id = "mMat2mEePTDtzeUQvbte2"
 uri = "file://.agents/skills/skill-layout-paxter/references/marca/01-logo-sem-vidro-preto.png"
 type = "image"
 title = "01 — Logo sem vidro (fundo preto)"
+logical_id = "356e3897-4075-42f7-9cb3-6bb09a4aab33"
 
 [[outputs]]
 id = "lXWduYuHvwxpkpFXaO5Gv"
 uri = "file://.agents/skills/skill-layout-paxter/references/marca/02-logo-sem-vidro-branco.png"
 type = "image"
 title = "02 — Logo sem vidro (fundo branco)"
+logical_id = "bf31562e-d523-4e15-bc1e-9dba72778f3c"
 
 [[outputs]]
 id = "_-FD9BUujPyWQwOuLasXM"
 uri = "file://.agents/skills/skill-layout-paxter/references/marca/03-loginho-vidro-sistema.png"
 type = "image"
 title = "03 — Loginho com vidro (fundo do sistema)"
+logical_id = "afc04e33-b3e2-4cfb-b744-88b8c15bbbfd"
 
 [[outputs]]
 id = "QvE6U6ZvkEK_4_UYLhSd9"
 uri = "file://.agents/skills/skill-layout-paxter/references/marca/04-loginho-vidro-bege.png"
 type = "image"
 title = "04 — Loginho com vidro (fundo bege / anamnese)"
+logical_id = "7b9a99ca-8f73-47e0-a621-3e3d7ed25da6"
 
 [[outputs]]
 id = "orPp8acID-VyRVgFpeplV"
 uri = "file://screenshots/anamnese-1-terno.jpg"
 type = "image"
 title = "1 - TERNO (risca de giz + sarja)"
+logical_id = "7a71d171-d7ce-437b-a71c-728780170775"
 
 [[outputs]]
 id = "pOUolHS9Nc2iUYpSpHMYQ"
 uri = "file://screenshots/anamnese-2-marinho-escuro.jpg"
 type = "image"
 title = "2 - MARINHO ESCURO (navy mais fechado)"
+logical_id = "c55bd5f7-a4fb-4cab-a1b4-e7307e5765f6"
 
 [[outputs]]
 id = "2H7OuEPHU3BuuzpmCheNM"
 uri = "file://screenshots/anamnese-3-xadrez.jpg"
 type = "image"
 title = "3 - XADREZ (Principe de Gales + ouro)"
+logical_id = "4e941a1b-bb4d-4d70-89dd-564d69dc27ca"
 
 [[outputs]]
 id = "t0gwF4p-cgxeWURcFsX6w"
 uri = "file://screenshots/bevel-1-solido.jpg"
 type = "image"
 title = "Modelo 1 — Solido (navy fosco chapado)"
+logical_id = "2afe8770-dfe8-46d3-bf2a-7e93eefe6594"
 
 [[outputs]]
 id = "9D-T51AQyr5SdgsHvqFHw"
 uri = "file://screenshots/bevel-2-vidro.jpg"
 type = "image"
 title = "Modelo 2 — Vidro (envidracado translucido)"
+logical_id = "2686a77d-bad7-46d2-aa11-eaaad8478b0e"
 
 [[outputs]]
 id = "dGmjz58hHjx6NjzBzJrGO"
 uri = "file://screenshots/bevel-3-misto.jpg"
 type = "image"
 title = "Modelo 3 — Misto (navy solido + verniz no topo)"
+logical_id = "37ed0afe-2f4b-4341-ba4e-38634d8cd355"
 
 [[outputs]]
 id = "016oJa3rcTGyMHHxN7LrP"
 uri = "file://screenshots/fonte-1-cormorant.jpg"
 type = "image"
 title = "Modelo 1 — Cormorant Garamond (oficial da skill)"
+logical_id = "a97d1d6c-3837-441f-88b5-921a66e2513c"
 
 [[outputs]]
 id = "7MJ2W6Gt8BwHxRt4NCnwg"
 uri = "file://screenshots/fonte-2-cinzel.jpg"
 type = "image"
 title = "Modelo 2 — Cinzel (oficial da skill, igual ao logo)"
+logical_id = "0393ab29-0473-4103-91ec-9c5d89475f03"
 
 [[outputs]]
 id = "55yfYRKfTDXLpn1lSOG2y"
 uri = "file://screenshots/fonte-3-playfair.jpg"
 type = "image"
 title = "Modelo 3 — Playfair Display (editorial)"
+logical_id = "e6d66fc5-3c58-46cb-8ab0-5c7cf1d47665"
 
 [[outputs]]
 id = "fuoeTnqzYvYWcXtX1xPuw"
 uri = "file://screenshots/fonte-4-lora.jpg"
 type = "image"
 title = "Modelo 4 — Lora (mais legivel)"
+logical_id = "057f483a-ad50-43fa-aee5-ae11f1deb004"
 
 [[outputs]]
 id = "UroCHgizuA93aAqaKF_V5"
 uri = "file://cartas/2026-06-26_CLAUDE_master-loop-paxter.md"
 type = "text"
 title = "Carta ao Dr. Claude — Master Loop Paxter (6 ondas)"
+logical_id = "e08f4562-cc2f-4296-88ee-7e6fd0784445"
 
 [[outputs]]
 id = "B8BRWN7Z42AgHByEzTpiW"
 uri = "file://amostras-fabrica/01-solicitacao-de-exames.pdf"
 type = "pdf"
 title = "1) Solicitação de Exames (marca PAXTER)"
+logical_id = "a332bba4-a51c-4b2c-8c89-b1e31d646675"
 
 [[outputs]]
 id = "WfO3lLz9GsqD8R7VSVSN4"
 uri = "file://amostras-fabrica/02-receituario-instituto-padua.pdf"
 type = "pdf"
 title = "2) Receituário (marca Instituto Pádua)"
+logical_id = "5fc7802c-84c5-41c1-b57d-452e979f3d95"
 
 [[outputs]]
 id = "QAsVngAojrSyFwdKhJBC7"
 uri = "file://screenshots/email-paxter-v2.jpg"
 type = "image"
 title = "Amostra do e-mail PAXTER v2 (como vai chegar)"
+logical_id = "a6c4b39d-3e47-4dbe-854b-2322fdf9beec"
 
 [[outputs]]
 id = "nIPksIEoii9qrTz-fvOS-"
 uri = "file://screenshots/paxter-banner-final.png"
 type = "image"
 title = "Banner PAXTER 3D (WhatsApp/Telegram)"
+logical_id = "489e8782-9d45-4afc-819e-182b522fce41"
 
 [[outputs]]
 id = "CBPyn9YZm5eQ64WG3qMHB"
 uri = "file://.local/exports/protocolo-22-caio.pdf"
 type = "pdf"
 title = "Protocolo Completo — Dr. Caio (id 22, 12 páginas, real)"
+logical_id = "ecff13aa-23e9-493c-aafc-4874d9e3bbf5"
 
 [[outputs]]
 id = "2mr4x6Q0b4XeHAWelWHv0"
 uri = "file://artifacts/padcom/public/ras_fap_amostra.pdf"
 type = "pdf"
 title = "RAS FAP — Versão atual"
+logical_id = "0a8be5ef-e542-4363-b453-98418de1101f"
 
 [[outputs]]
 id = "k8NPBUxvMcXX6VWPHj7x1"
 uri = "file://exports/TEXTO PARA DESENVOLVIMENTO SITE PARXIS.txt"
 type = "text"
 title = "TEXTO PARA DESENVOLVIMENTO SITE PARXIS"
+logical_id = "48c5a88b-2e24-4982-992a-eeac55bd0243"
 
 [[outputs]]
 id = "nU2H4cVDQYMqQSUsbp84-"
 uri = "file://exports/carga-railway-20260727.zip"
 type = "unspecified"
 title = "Carga de dados para o Railway (27/07/2026)"
+logical_id = "a2a91a20-927c-4d90-aecd-77266a70f5f1"
 
 [[outputs]]
 id = "IkQMKpGSM72LLPDDT2K65"
 uri = "file://cartas/2026-07-27_DR-LOVABLE_vitrine-gate-leads.md"
 type = "text"
 title = "Carta ao Dr. Lovable — Portao de acesso + captacao de leads"
+logical_id = "f339d9a7-9fcd-4295-868c-ccc50654cf34"
 
 [[outputs]]
 id = "wwYhtWgZsatYUp_gCAynk"
 uri = "file://cartas/2026-07-27_DR-CODE_vitrine-gate-leads.md"
 type = "text"
 title = "Carta ao Dr. Code — Processo completo da onda portao-captacao"
+logical_id = "f1073834-deb5-4b30-8e01-2417cbd745dc"
 
 [[outputs]]
 id = "B3nA7GO9-zE2X1FIfSSGn"
@@ -270,6 +309,7 @@ uri = "file://tmp-preview/protocolo-carluccia-31.pdf"
 type = "pdf"
 title = "Protocolo Carlúcia — PDF Real (Motor Paxter)"
 description = "Protocolo 31 da Carlúcia gerado ao vivo pelo api-server. Inclui: radar de 7 dimensões (página 3), matrix de benefícios, fichas individuais de cada substância e seção financeira. CoQ10 IM · PQQ IM · Testosterona 200mg IM · Tirzepatida 5mg SC · Progesterona Pellet · Gestrinona Pellet — R$ 3.385,28."
+logical_id = "987fae97-a195-42c2-869d-52dd3cebcdc1"
 
 [[outputs]]
 id = "0n9968gdTUn0aJhb-bpiA"
@@ -277,6 +317,8 @@ uri = "file://tmp-preview/caderno-substancias-preview.html"
 type = "text"
 title = "Preview — Substâncias nos Cadernos Jurídicos"
 description = "Dados reais do protocolo 31 da Carlúcia. Uma substância por linha, dose limpa (sem ml), aplicações e frequência. Pellets com badge visual diferenciado."
+logical_id = "ac0ae7c8-c78e-4101-9b65-aaf4a594c7ff"
+content_type = "text/html"
 
 [[outputs]]
 id = "52O-iYF_CVkwuChsOb_d5"
@@ -284,6 +326,7 @@ uri = "file://tmp-preview/caderno-screenshot.jpg"
 type = "image"
 title = "Como fica o bloco de substâncias nos cadernos — imagem renderizada"
 description = "Screenshot do design real. Cabeçalho navy, barra dourada, 4 colunas alinhadas, marcador lateral dourado, pellets com badge, dose limpa."
+logical_id = "a69dd309-b8af-40a0-ab4d-5a28c53eb307"
 
 [[outputs]]
 id = "aPal6LvFafTa15hVN76UT"
@@ -291,6 +334,7 @@ uri = "file://docs/briefing-manus-protocolo-pdf.md"
 type = "text"
 title = "Carta ao Dr. Manus — Arquitetura do Protocolo PDF"
 description = "Briefing completo: onde estão os arquivos, como funciona a fiação de dados, estrutura de páginas, radar chart, cadernos jurídicos separados, oportunidades de melhoria e o rebrand PADAXOR."
+logical_id = "5fa92f3b-f18f-40ec-99c5-4bfb511c0492"
 
 [[outputs]]
 id = "4TfTd7G-gI3EIN5fQCD2H"
@@ -298,6 +342,7 @@ uri = "file://PlanoNutricional_exemplo.pdf"
 type = "pdf"
 title = "Plano Nutricional — Exemplo (validação do motor PDF)"
 description = "PDF gerado pelo motor real (Claude + pdf-lib) para validação do fluxo de emissão. Dado real removido por política de privacidade."
+logical_id = "72d7f4b6-02fe-4eda-baf1-7dcae8ee4f48"
 
 [[outputs]]
 id = "bPtOSr08jQFzZne9uce0f"
@@ -305,6 +350,7 @@ uri = "file://docs/PROTOCOLO_CARLUCIA_V2_LAYOUT.pdf"
 type = "pdf"
 title = "Protocolo Carlúcia — Layout Atualizado (melhorias Dr. Manus)"
 description = "PDF gerado com todas as melhorias: PADAXOR na capa e cabeçalhos, fichas navy/ouro, dose limpa sem '/2 ML', rótulos do radar em PT-BR, contorno dourado do radar."
+logical_id = "00a92f10-b741-4675-9744-eca34cd6bff2"
 
 [[outputs]]
 id = "242vzHTraJ7YYyb7tRvlY"
@@ -312,6 +358,7 @@ uri = "file://documentos/protocolo-31-carlucia-carta-premium.pdf"
 type = "pdf"
 title = "Protocolo 31 — Carta de Tratamento Premium (Carlucia Santos Fernandes)"
 description = "Documento de 11 páginas, assinado digitalmente com certificado ICP-Brasil. Contém capa, seis fichas de substância com grade fixa, página de perguntas para a consulta, resumo financeiro e folha de assinatura."
+logical_id = "a85456b4-be7e-4ed4-9a6d-7914cef9b1ea"
 
 [[outputs]]
 id = "x-ChshrIUOYNmfLE1Eb19"
@@ -319,6 +366,7 @@ uri = "file://documentos/protocolo-capa-preview-padaxor.pdf"
 type = "pdf"
 title = "Capa PADAXOR + PADCON — Pré-visualização"
 description = "Lockup PADAXOR no centro + loguinho PADCON Platform® no canto inferior esquerdo."
+logical_id = "c827b006-50ee-4ee5-8dfa-b5fadb68ccd3"
 
 [[outputs]]
 id = "HLYZU6FoMz-WaPXwtp3lJ"
@@ -326,6 +374,7 @@ uri = "file://documentos/comparativo-numerais-fontes.png"
 type = "image"
 title = "Algarismo nativo x algarismo adaptado — 13 fontes no PDF real"
 description = "Cada linha foi desenhada dentro de um PDF de verdade, usando o arquivo cru da fonte, sem pedir nenhuma correção. A linha vermelha é o Cormorant Garamond sem adaptação. A cinza é a versão que adaptei hoje. As verdes não precisam de adaptação nenhuma."
+logical_id = "7e86b178-9975-44dc-8d3e-4d4a49cc69f1"
 
 [[outputs]]
 id = "m6kcpDWQ64GMIvtZyHGyr"
@@ -333,6 +382,7 @@ uri = "file://documentos/quatro-candidatas-fontes.png"
 type = "image"
 title = "As quatro candidatas em contexto de documento"
 description = "Título, nome do paciente, valores e o teste de coluna, desenhados dentro de um PDF real sem pedir nenhuma correção à fonte. Traço verde alinha números em coluna; traço vermelho não alinha. A primeira linha é o Cormorant adaptado de hoje, para comparação."
+logical_id = "8889e0c5-f830-4c26-a8ea-ec3cf1c7d4cb"
 
 [[outputs]]
 id = "rKrpeWQTpVVFJO8FYIUT3"
@@ -340,6 +390,7 @@ uri = "file://docs/provas/CARTA_TRATAMENTO_CARLUCIA_protocolo_32.pdf"
 type = "pdf"
 title = "Carta de Tratamento Premium — CARLUCIA (protocolo 32)"
 description = "Nove paginas. Marca PAXMED, travessao correto, 3 de 8 sessoes feitas. Nada foi enviado a paciente."
+logical_id = "2ec7d6f8-6c12-4269-9b58-53a2d07d7e7c"
 
 [[outputs]]
 id = "PH7-itBDqSNWWcz18xMAA"
@@ -347,6 +398,8 @@ uri = "file://docs/provas/carta-carlucia-protocolo-32.html"
 type = "text"
 title = "Carta de Tratamento — CARLUCIA — as nove paginas para conferir"
 description = "As nove folhas em imagem, uma embaixo da outra. Abre direto, sem baixar nada. Nada foi enviado a paciente."
+logical_id = "3a62a002-8e3b-40b1-9826-cbd198c1eeae"
+content_type = "text/html"
 
 [[outputs]]
 id = "bF9nRreD-87JZg_Sm-RAr"
@@ -354,6 +407,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-1.png"
 type = "image"
 title = "Pagina 01 de 09 — Capa — PAXMED, 3 de 8 sessoes"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "b107600a-acf5-4d0a-a75a-089a23d888a7"
 
 [[outputs]]
 id = "-YbpdT3qoAQ96lZfNnIl9"
@@ -361,6 +415,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-2.png"
 type = "image"
 title = "Pagina 02 de 09 — Mapa de enfases — as seis substancias"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "2fdaed0a-d52b-4c2d-bd7f-0b36780bdd4b"
 
 [[outputs]]
 id = "PK9r0ktVytBkEoBmmrHtz"
@@ -368,6 +423,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-3.png"
 type = "image"
 title = "Pagina 03 de 09 — Folha 01 — Coenzima Q10"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "5302036f-3809-4320-b315-185b22996978"
 
 [[outputs]]
 id = "u6gKCnfy25YrlorKGtLT5"
@@ -375,6 +431,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-4.png"
 type = "image"
 title = "Pagina 04 de 09 — Folha 02 — PQQ"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "bb4cce3f-4a1a-4fd5-8f90-8a9206009b39"
 
 [[outputs]]
 id = "Icbkq9VCYe2MQ0eZrGQtu"
@@ -382,6 +439,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-5.png"
 type = "image"
 title = "Pagina 05 de 09 — Folha 03 — Tirzepatida"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "20cb6791-0b83-4129-89c1-b715977fc35e"
 
 [[outputs]]
 id = "OaoH-di4jbUKtkP95r4bF"
@@ -389,6 +447,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-6.png"
 type = "image"
 title = "Pagina 06 de 09 — Folha 04 — Progesterona pellet"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "9be6fe58-fad2-4738-8d6c-f786bac45dac"
 
 [[outputs]]
 id = "DUc2-iLaYH03eN-kPavRi"
@@ -396,6 +455,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-7.png"
 type = "image"
 title = "Pagina 07 de 09 — Folha 05 — Testosterona bioidentica"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "656e8a73-466a-488a-bc17-7337e690391b"
 
 [[outputs]]
 id = "nKZMMlYcZKXFqucuw5WxI"
@@ -403,6 +463,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-8.png"
 type = "image"
 title = "Pagina 08 de 09 — Folha 06 — Gestrinona pellet"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "82f1f9cd-0216-4a8e-88e0-435f2d82605b"
 
 [[outputs]]
 id = "RXlYfDMNQga6YmTpFuekT"
@@ -410,6 +471,7 @@ uri = "file://docs/provas/paginas/carta-carlucia-pagina-9.png"
 type = "image"
 title = "Pagina 09 de 09 — Roteiro do protocolo — barras de progresso"
 description = "Carta de Tratamento de CARLUCIA, protocolo 32. Imagem: abre direto, sem leitor de PDF."
+logical_id = "d7cd5b87-1c64-456f-bc64-2771687ad090"
 
 [[outputs]]
 id = "m1dro1E4MOQxRidSvH_Ty"
@@ -417,6 +479,7 @@ uri = "file://docs/provas/cifrao-tres-opcoes.png"
 type = "image"
 title = "O cifrao — as tres opcoes lado a lado, no card real do Painel"
 description = "Opcao A (maior, elevacao pequena), B (na linha de base) e C (atual, sobe menos). Recorte ampliado da tela Lei do Numeral."
+logical_id = "9aa86820-238f-48cc-a8e1-9cbc96a7f060"
 
 [[outputs]]
 id = "Hyk1Uy2UpKiASrg7iQMm9"
@@ -424,6 +487,7 @@ uri = "file://docs/preview/protocolo-padcon-50-porcento.png"
 type = "image"
 title = "Protocolo — bloco PADCON nas páginas internas a 50%"
 description = "Em cima: página interna inteira com o bloco no canto inferior direito. Embaixo, à esquerda: como está na capa (tamanho de referência). À direita: como ficou na página interna, exatamente metade."
+logical_id = "46a09f0b-0a0b-4a0d-9e63-10e155535af0"
 
 [[outputs]]
 id = "uUewQtMs_fV_W7mDlcywJ"
@@ -431,6 +495,7 @@ uri = "file://docs/preview/protocolo-capa-v2-subcapa.png"
 type = "image"
 title = "Protocolo Carlucia — Capa v2 + Subcapa biográfica"
 description = "Acima à esquerda: capa nova com logo Instituto Pádua no cabeçalho e no canto inferior esquerdo. À direita: subcapa biográfica (página 2) com suas credenciais e história em duas colunas. Abaixo: zoom do cabeçalho e do rodapé da capa."
+logical_id = "0ecce079-501d-43ad-b262-c7b4b74dad11"
 
 [[outputs]]
 id = "ChA8ZJC3pmgd8dSllEpFG"
@@ -438,6 +503,7 @@ uri = "file://docs/preview/protocolo-capa-v2-final.png"
 type = "image"
 title = "Protocolo Carlucia — Capa v2 + Subcapa biográfica (com acentos)"
 description = "Fileira 1: capa nova (esq.) e subcapa biográfica (dir.). Fileira 2: zoom do cabeçalho e rodapé da capa. Fileira 3: zoom da faixa navy e do corpo em duas colunas da subcapa."
+logical_id = "89842bb1-1630-41ad-83a2-961e1f47a292"
 
 [[outputs]]
 id = "EeZHI9USj3PjoJ549lthp"
@@ -445,6 +511,7 @@ uri = "file://docs/preview/subcapa-v3-curriculo-real.png"
 type = "image"
 title = "Subcapa biográfica v3 — dados reais do seu currículo"
 description = "Topo: página completa. Meio: zoom da faixa navy com seu nome e credenciais. Base: zoom das duas colunas — esquerda (Vocação, Formação, Mentoria Lair Ribeiro) e direita (GPS, Filosofia, frase símbolo)."
+logical_id = "02c26e8d-90a7-4c3d-add8-b813e2c8c0f4"
 
 [[outputs]]
 id = "mG5Z_OjQoJmjM_NLs3CaT"
@@ -452,6 +519,7 @@ uri = "file://docs/preview/capa-gamma-foto-titulo.png"
 type = "image"
 title = "Capa v3 — Foto do Dr. Caio + Título grande (estilo Gamma)"
 description = "Fileira 1: tela do Gamma (referência) vs nossa nova capa. Fileira 2: zoom da zona central com título grande e foto. Fileira 3: zoom do bloco título + ID compacto."
+logical_id = "dd917520-008e-4a38-a305-046d79a4efb1"
 
 [[outputs]]
 id = "3HXsYQ0df6Z-iEfBxhQcX"
@@ -459,6 +527,7 @@ uri = "file://docs/preview/protocolo32-3paginas.png"
 type = "image"
 title = "Protocolo 32 — Capa + Subcapa + 1ª Substância (motor real, dados reais)"
 description = "Fileira 1: Capa com foto do Dr. Caio e título grande | Subcapa biográfica. Fileira 2: Primeira página de substância. PDF completo gerado via GET /api/protocols/32/document-pdf — 13 páginas, 3,3 MB, sem mock."
+logical_id = "268e1f0d-06d8-4ac9-9140-aeda091df5bf"
 
 [[outputs]]
 id = "MAUqTqigN2T4-2GA9ll4E"
@@ -466,3 +535,4 @@ uri = "file://screenshots/comunicacao-digital-simetria.png"
 type = "image"
 title = "Comunicação Digital — os dois cartões simétricos (tela real, logada)"
 description = "WhatsApp e Telegram com os mesmos 7 campos, na mesma ordem. O que o canal não usa aparece hachurado em cinza com o carimbo NÃO SE APLICA, e nunca some. A URL do webhook aparece na tela com olho de mostrar/ocultar."
+logical_id = "23d81319-03d3-4a5b-a1fc-2fb1654c5cdc"
