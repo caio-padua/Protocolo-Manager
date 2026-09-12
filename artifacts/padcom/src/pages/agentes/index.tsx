@@ -3091,6 +3091,17 @@ function AbaIntegracoes() {
                 {githubPat.status === "erro" && (
                   <span className="text-red-500 font-semibold">Token inválido ou revogado. Configure GITHUB_PAT nos Secrets.</span>
                 )}
+                {(githubPat.status === "expirado_em_breve" || githubPat.status === "erro") && (
+                  <a
+                    href="https://github.com/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Renovar no GitHub →
+                  </a>
+                )}
               </div>
             )}
             {!loading && githubPat?.status === "indisponivel" && (
