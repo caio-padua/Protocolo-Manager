@@ -174,6 +174,26 @@ export const ListSubstancesResponseItem = zod.object({
   categoryType: zod.string().nullish(),
   composicao: zod.string().nullish(),
   posologia: zod.string().nullish(),
+  isBlend: zod.boolean().optional(),
+  presentationQuantity: zod.number().nullish(),
+  presentationUnit: zod.string().nullish(),
+  ampouleVolumeMl: zod.number().nullish(),
+  components: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        substanceId: zod.number(),
+        componentSubstanceId: zod.number().nullish(),
+        sortOrder: zod.number(),
+        componentName: zod.string(),
+        doseValue: zod.number().nullish(),
+        doseUnit: zod.string().nullish(),
+        quantity: zod.number().nullish(),
+        quantityUnit: zod.string().nullish(),
+        notes: zod.string().nullish(),
+      }),
+    )
+    .optional(),
   createdAt: zod.string(),
 });
 export const ListSubstancesResponse = zod.array(ListSubstancesResponseItem);
@@ -217,6 +237,10 @@ export const CreateSubstanceBody = zod.object({
   categoryType: zod.string().nullish(),
   composicao: zod.string().nullish(),
   posologia: zod.string().nullish(),
+  isBlend: zod.boolean().optional(),
+  presentationQuantity: zod.number().nullish(),
+  presentationUnit: zod.string().nullish(),
+  ampouleVolumeMl: zod.number().nullish(),
 });
 
 /**
@@ -262,6 +286,10 @@ export const UpdateSubstanceBody = zod.object({
   categoryType: zod.string().nullish(),
   composicao: zod.string().nullish(),
   posologia: zod.string().nullish(),
+  isBlend: zod.boolean().optional(),
+  presentationQuantity: zod.number().nullish(),
+  presentationUnit: zod.string().nullish(),
+  ampouleVolumeMl: zod.number().nullish(),
 });
 
 export const UpdateSubstanceResponse = zod.object({
@@ -301,8 +329,89 @@ export const UpdateSubstanceResponse = zod.object({
   categoryType: zod.string().nullish(),
   composicao: zod.string().nullish(),
   posologia: zod.string().nullish(),
+  isBlend: zod.boolean().optional(),
+  presentationQuantity: zod.number().nullish(),
+  presentationUnit: zod.string().nullish(),
+  ampouleVolumeMl: zod.number().nullish(),
+  components: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        substanceId: zod.number(),
+        componentSubstanceId: zod.number().nullish(),
+        sortOrder: zod.number(),
+        componentName: zod.string(),
+        doseValue: zod.number().nullish(),
+        doseUnit: zod.string().nullish(),
+        quantity: zod.number().nullish(),
+        quantityUnit: zod.string().nullish(),
+        notes: zod.string().nullish(),
+      }),
+    )
+    .optional(),
   createdAt: zod.string(),
 });
+
+/**
+ * @summary List blend components
+ */
+export const ListSubstanceBlendComponentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListSubstanceBlendComponentsResponseItem = zod.object({
+  id: zod.number(),
+  substanceId: zod.number(),
+  componentSubstanceId: zod.number().nullish(),
+  sortOrder: zod.number(),
+  componentName: zod.string(),
+  doseValue: zod.number().nullish(),
+  doseUnit: zod.string().nullish(),
+  quantity: zod.number().nullish(),
+  quantityUnit: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+export const ListSubstanceBlendComponentsResponse = zod.array(
+  ListSubstanceBlendComponentsResponseItem,
+);
+
+/**
+ * @summary Replace blend components
+ */
+export const UpdateSubstanceBlendComponentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSubstanceBlendComponentsBody = zod.object({
+  isBlend: zod.boolean().optional(),
+  components: zod.array(
+    zod.object({
+      componentSubstanceId: zod.number().nullish(),
+      componentName: zod.string(),
+      doseValue: zod.number().nullish(),
+      doseUnit: zod.string().nullish(),
+      quantity: zod.number().nullish(),
+      quantityUnit: zod.string().nullish(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+});
+
+export const UpdateSubstanceBlendComponentsResponseItem = zod.object({
+  id: zod.number(),
+  substanceId: zod.number(),
+  componentSubstanceId: zod.number().nullish(),
+  sortOrder: zod.number(),
+  componentName: zod.string(),
+  doseValue: zod.number().nullish(),
+  doseUnit: zod.string().nullish(),
+  quantity: zod.number().nullish(),
+  quantityUnit: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+export const UpdateSubstanceBlendComponentsResponse = zod.array(
+  UpdateSubstanceBlendComponentsResponseItem,
+);
 
 /**
  * @summary List all protocols

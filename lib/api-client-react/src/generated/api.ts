@@ -145,6 +145,7 @@ import type {
   SncrRange,
   StockItem,
   Substance,
+  SubstanceBlendComponent,
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
   UpdateProfessionalBody,
@@ -152,6 +153,7 @@ import type {
   UpdateSchedulingRequestBody,
   UpdateSessionBody,
   UpdateSiteContentBody,
+  UpdateSubstanceBlendComponentsBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -836,6 +838,189 @@ export const useUpdateSubstance = <
   TContext
 > => {
   return useMutation(getUpdateSubstanceMutationOptions(options));
+};
+
+/**
+ * @summary List blend components
+ */
+export const getListSubstanceBlendComponentsUrl = (id: number) => {
+  return `/api/substances/${id}/components`;
+};
+
+export const listSubstanceBlendComponents = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SubstanceBlendComponent[]> => {
+  return customFetch<SubstanceBlendComponent[]>(
+    getListSubstanceBlendComponentsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSubstanceBlendComponentsQueryKey = (id: number) => {
+  return [`/api/substances/${id}/components`] as const;
+};
+
+export const getListSubstanceBlendComponentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSubstanceBlendComponents>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSubstanceBlendComponents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSubstanceBlendComponentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSubstanceBlendComponents>>
+  > = ({ signal }) =>
+    listSubstanceBlendComponents(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSubstanceBlendComponents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSubstanceBlendComponentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSubstanceBlendComponents>>
+>;
+export type ListSubstanceBlendComponentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List blend components
+ */
+
+export function useListSubstanceBlendComponents<
+  TData = Awaited<ReturnType<typeof listSubstanceBlendComponents>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSubstanceBlendComponents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSubstanceBlendComponentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Replace blend components
+ */
+export const getUpdateSubstanceBlendComponentsUrl = (id: number) => {
+  return `/api/substances/${id}/components`;
+};
+
+export const updateSubstanceBlendComponents = async (
+  id: number,
+  updateSubstanceBlendComponentsBody: UpdateSubstanceBlendComponentsBody,
+  options?: RequestInit,
+): Promise<SubstanceBlendComponent[]> => {
+  return customFetch<SubstanceBlendComponent[]>(
+    getUpdateSubstanceBlendComponentsUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateSubstanceBlendComponentsBody),
+    },
+  );
+};
+
+export const getUpdateSubstanceBlendComponentsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSubstanceBlendComponents>>,
+    TError,
+    { id: number; data: BodyType<UpdateSubstanceBlendComponentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSubstanceBlendComponents>>,
+  TError,
+  { id: number; data: BodyType<UpdateSubstanceBlendComponentsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateSubstanceBlendComponents"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSubstanceBlendComponents>>,
+    { id: number; data: BodyType<UpdateSubstanceBlendComponentsBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSubstanceBlendComponents(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSubstanceBlendComponentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSubstanceBlendComponents>>
+>;
+export type UpdateSubstanceBlendComponentsMutationBody =
+  BodyType<UpdateSubstanceBlendComponentsBody>;
+export type UpdateSubstanceBlendComponentsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Replace blend components
+ */
+export const useUpdateSubstanceBlendComponents = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSubstanceBlendComponents>>,
+    TError,
+    { id: number; data: BodyType<UpdateSubstanceBlendComponentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSubstanceBlendComponents>>,
+  TError,
+  { id: number; data: BodyType<UpdateSubstanceBlendComponentsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateSubstanceBlendComponentsMutationOptions(options));
 };
 
 /**

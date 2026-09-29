@@ -1,2 +1,3 @@
 export * from "./generated/api";
-export * from "./generated/types";
+// generated/api já expõe os schemas e tipos usados pelas rotas. Reexportar
+// generated/types também cria colisões (por exemplo, *Body) no barrel.

@@ -708,6 +708,19 @@ export type SubstanceBodySystemEffects = { [key: string]: number } | null;
 
 export type SubstanceCategoryMeters = { [key: string]: number } | null;
 
+export interface SubstanceBlendComponent {
+  id: number;
+  substanceId: number;
+  componentSubstanceId?: number | null;
+  sortOrder: number;
+  componentName: string;
+  doseValue?: number | null;
+  doseUnit?: string | null;
+  quantity?: number | null;
+  quantityUnit?: string | null;
+  notes?: string | null;
+}
+
 export interface Substance {
   id: number;
   name: string;
@@ -745,6 +758,11 @@ export interface Substance {
   categoryType?: string | null;
   composicao?: string | null;
   posologia?: string | null;
+  isBlend?: boolean;
+  presentationQuantity?: number | null;
+  presentationUnit?: string | null;
+  ampouleVolumeMl?: number | null;
+  components?: SubstanceBlendComponent[];
   createdAt: string;
 }
 
@@ -792,6 +810,20 @@ export interface CreateSubstanceBody {
   categoryType?: string | null;
   composicao?: string | null;
   posologia?: string | null;
+  isBlend?: boolean;
+  presentationQuantity?: number | null;
+  presentationUnit?: string | null;
+  ampouleVolumeMl?: number | null;
+}
+
+export interface SubstanceBlendComponentInput {
+  componentSubstanceId?: number | null;
+  componentName: string;
+  doseValue?: number | null;
+  doseUnit?: string | null;
+  quantity?: number | null;
+  quantityUnit?: string | null;
+  notes?: string | null;
 }
 
 export type ProtocolStatus =
@@ -2086,6 +2118,11 @@ export interface BudgetSeedResult {
 export type ListClientsParams = {
   search?: string;
   status?: string;
+};
+
+export type UpdateSubstanceBlendComponentsBody = {
+  isBlend?: boolean;
+  components: SubstanceBlendComponentInput[];
 };
 
 export type ListProtocolsParams = {

@@ -11,6 +11,7 @@ import { runSeedDieta } from "./lib/seed-dieta";
 import { ensureDietaReceitasSchema } from "./lib/ensure-dieta-receitas-schema";
 import { ensurePesquisasSchema } from "./lib/ensure-pesquisas-schema";
 import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applications-unique";
+import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schema";
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
@@ -76,6 +77,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("substance_applications: índice único (session_id, substance_id, session_number) garantido antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir índice único de substance_applications — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureSubstanceBlendsSchema();
+    logger.info("substance blends: schema e correção segura da ADEK garantidos antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir schema de blends — abortando boot");
     process.exit(1);
   }
 

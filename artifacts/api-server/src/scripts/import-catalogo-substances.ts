@@ -6,21 +6,23 @@ import { db, catalogoItensTable, substancesTable } from "@workspace/db";
 // Regra de ouro: o deposito guarda 100% do dado; aqui so trazemos para operar,
 // sem perder nenhum campo da origem (todos foram espelhados em substances).
 //
-// Escopo: substancias aplicaveis (injetaveis EV/IM + implantes). Formulas vao
+// Escopo: substancias aplicaveis (injetaveis EV/IM/SC + implantes). Formulas vao
 // para a caixinha de Prescricao; exames e protocolos tem natureza propria e nao
 // sao substancias.
 
-const CATEGORIAS_SUBSTANCIA = ["injetavel_ev", "injetavel_im", "implante"] as const;
+const CATEGORIAS_SUBSTANCIA = ["injetavel_ev", "injetavel_im", "injetavel_sc", "implante"] as const;
 
 const PROCEDURE_BY_CATEGORIA: Record<string, string> = {
   injetavel_ev: "iv",
   injetavel_im: "im",
+  injetavel_sc: "sc",
   implante: "implant",
 };
 
 const DURATION_BY_PROCEDURE: Record<string, number> = {
   iv: 30,
   im: 15,
+  sc: 15,
   implant: 60,
 };
 
@@ -29,6 +31,7 @@ const DURATION_BY_PROCEDURE: Record<string, number> = {
 const COLOR_BY_PROCEDURE: Record<string, string> = {
   iv: "#45B8CC",
   im: "#3D7A7A",
+  sc: "#2B9DB3",
   implant: "#2E5E5E",
 };
 

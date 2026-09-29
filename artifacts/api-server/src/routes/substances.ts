@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, substancesTable } from "@workspace/db";
+import { db, substancesTable, substanceBlendComponentsTable } from "@workspace/db";
 import {
   CreateSubstanceBody,
   UpdateSubstanceParams,
@@ -22,9 +22,119 @@ function formatSubstance(s: typeof substancesTable.$inferSelect) {
   };
 }
 
+function serializeComponent(component: typeof substanceBlendComponentsTable.$inferSelect) {
+  return {
+    id: component.id,
+    substanceId: component.substanceId,
+    componentSubstanceId: component.componentSubstanceId ?? null,
+    sortOrder: component.sortOrder,
+    componentName: component.componentName,
+    doseValue: component.doseValue ?? null,
+    doseUnit: component.doseUnit ?? null,
+    quantity: component.quantity ?? null,
+    quantityUnit: component.quantityUnit ?? null,
+    notes: component.notes ?? null,
+  };
+}
+
 router.get("/substances", async (_req, res): Promise<void> => {
   const substances = await db.select().from(substancesTable);
-  res.json(substances.map(formatSubstance));
+  const components = await db.select().from(substanceBlendComponentsTable);
+  const bySubstance = new Map<number, ReturnType<typeof serializeComponent>[]>();
+  for (const component of components) {
+    const current = bySubstance.get(component.substanceId) ?? [];
+    current.push(serializeComponent(component));
+    bySubstance.set(component.substanceId, current);
+  }
+  res.json(substances.map((substance) => ({
+    ...formatSubstance(substance),
+    components: (bySubstance.get(substance.id) ?? []).sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
+    ),
+  })));
+});
+
+router.get("/substances/:id/components", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const components = await db
+    .select()
+    .from(substanceBlendComponentsTable)
+    .where(eq(substanceBlendComponentsTable.substanceId, id));
+  res.json(components
+    .map(serializeComponent)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id));
+});
+
+router.put("/substances/:id/components", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [substance] = await db
+    .select({ id: substancesTable.id })
+    .from(substancesTable)
+    .where(eq(substancesTable.id, id));
+  if (!substance) {
+    res.status(404).json({ error: "Substance not found" });
+    return;
+  }
+
+  const rawComponents = Array.isArray(req.body?.components) ? req.body.components : null;
+  if (!rawComponents) {
+    res.status(400).json({ error: "components must be an array" });
+    return;
+  }
+  try {
+    const components = rawComponents.map((component: any, index: number) => {
+      const componentName = String(component?.componentName ?? "").trim();
+      if (!componentName) throw new Error(`Component ${index + 1} needs a name`);
+      const numberOrNull = (value: unknown) => {
+        if (value === null || value === undefined || value === "") return null;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) throw new Error(`Invalid numeric value in component ${index + 1}`);
+        return parsed;
+      };
+      return {
+        substanceId: id,
+        componentSubstanceId: numberOrNull(component?.componentSubstanceId),
+        sortOrder: index + 1,
+        componentName,
+        doseValue: numberOrNull(component?.doseValue),
+        doseUnit: component?.doseUnit ? String(component.doseUnit).trim() : null,
+        quantity: numberOrNull(component?.quantity),
+        quantityUnit: component?.quantityUnit ? String(component.quantityUnit).trim() : null,
+        notes: component?.notes ? String(component.notes).trim() : null,
+      };
+    });
+    const isBlend = typeof req.body?.isBlend === "boolean"
+      ? req.body.isBlend
+      : components.length > 0;
+
+    await db.transaction(async (tx) => {
+      await tx.delete(substanceBlendComponentsTable)
+        .where(eq(substanceBlendComponentsTable.substanceId, id));
+      if (components.length > 0) {
+        await tx.insert(substanceBlendComponentsTable).values(components);
+      }
+      await tx.update(substancesTable)
+        .set({ isBlend })
+        .where(eq(substancesTable.id, id));
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message ?? "Could not save blend components" });
+    return;
+  }
+
+  const saved = await db
+    .select()
+    .from(substanceBlendComponentsTable)
+    .where(eq(substanceBlendComponentsTable.substanceId, id));
+  res.json(saved.map(serializeComponent));
 });
 
 router.post("/substances", async (req, res): Promise<void> => {
@@ -68,6 +178,7 @@ const PATCHABLE_FIELDS = [
   "physicalPerformance", "muscleStrength", "mentalClarity", "skinHairNails", "immuneSupport",
   "contraindications", "scientificEvidence", "categoryType",
   "categoryMeters", "pricePerUnit", "composicao", "posologia",
+  "isBlend", "presentationQuantity", "presentationUnit", "ampouleVolumeMl",
 ] as const;
 
 router.patch("/substances/:id", async (req, res): Promise<void> => {

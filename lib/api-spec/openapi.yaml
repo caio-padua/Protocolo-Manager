@@ -194,6 +194,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/Substance"
 
+  /substances/{id}/components:
+    get:
+      operationId: listSubstanceBlendComponents
+      tags: [substances]
+      summary: List blend components
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Blend components
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SubstanceBlendComponent"
+    put:
+      operationId: updateSubstanceBlendComponents
+      tags: [substances]
+      summary: Replace blend components
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [components]
+              properties:
+                isBlend:
+                  type: boolean
+                components:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/SubstanceBlendComponentInput"
+      responses:
+        "200":
+          description: Updated blend components
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SubstanceBlendComponent"
+
   # PROTOCOLS
   /protocols:
     get:
@@ -3627,6 +3681,21 @@ components:
         posologia:
           type: string
           nullable: true
+        isBlend:
+          type: boolean
+        presentationQuantity:
+          type: number
+          nullable: true
+        presentationUnit:
+          type: string
+          nullable: true
+        ampouleVolumeMl:
+          type: number
+          nullable: true
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubstanceBlendComponent"
         createdAt:
           type: string
       required:
@@ -3741,11 +3810,78 @@ components:
         posologia:
           type: string
           nullable: true
+        isBlend:
+          type: boolean
+        presentationQuantity:
+          type: number
+          nullable: true
+        presentationUnit:
+          type: string
+          nullable: true
+        ampouleVolumeMl:
+          type: number
+          nullable: true
       required:
         - name
         - category
         - color
         - stockQuantity
+
+    SubstanceBlendComponent:
+      type: object
+      properties:
+        id:
+          type: integer
+        substanceId:
+          type: integer
+        componentSubstanceId:
+          type: integer
+          nullable: true
+        sortOrder:
+          type: integer
+        componentName:
+          type: string
+        doseValue:
+          type: number
+          nullable: true
+        doseUnit:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+        quantityUnit:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [id, substanceId, sortOrder, componentName]
+
+    SubstanceBlendComponentInput:
+      type: object
+      properties:
+        componentSubstanceId:
+          type: integer
+          nullable: true
+        componentName:
+          type: string
+        doseValue:
+          type: number
+          nullable: true
+        doseUnit:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+        quantityUnit:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [componentName]
 
     Protocol:
       type: object

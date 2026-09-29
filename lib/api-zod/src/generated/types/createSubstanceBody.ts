@@ -44,4 +44,8 @@ export interface CreateSubstanceBody {
   categoryType?: string | null;
   composicao?: string | null;
   posologia?: string | null;
+  isBlend?: boolean;
+  presentationQuantity?: number | null;
+  presentationUnit?: string | null;
+  ampouleVolumeMl?: number | null;
 }

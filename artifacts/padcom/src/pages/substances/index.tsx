@@ -116,7 +116,10 @@ export default function Substances() {
             const bodyEffects = substance.bodySystemEffects && typeof substance.bodySystemEffects === "object"
               ? Object.entries(substance.bodySystemEffects as Record<string, number>).sort((a, b) => (b[1] as number) - (a[1] as number))
               : [];
-            const hasBlend = parseComposicao(substance.composicao).length > 0;
+             const structuredComponents = Array.isArray(substance.components)
+               ? substance.components
+               : [];
+             const hasBlend = Boolean(substance.isBlend) || structuredComponents.length > 0;
 
             return (
               <div
@@ -134,7 +137,7 @@ export default function Substances() {
                     onClick={() => toggleDetails(substance)}
                   >
                     <CardHeader className="pb-2">
-                      <div className="flex justify-between items-start gap-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-1">
                             <div
@@ -156,6 +159,12 @@ export default function Substances() {
                                 {hasBlend && (
                                   <span className="concave-3d px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary">
                                     BLEND
+                                  </span>
+                                )}
+                                {hasBlend && (substance.presentationQuantity || substance.ampouleVolumeMl) && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                                    {substance.presentationQuantity ?? "—"} {substance.presentationUnit || "un."}
+                                    {substance.ampouleVolumeMl ? ` · ${substance.ampouleVolumeMl} mL` : ""}
                                   </span>
                                 )}
                               </div>
@@ -257,7 +266,12 @@ export default function Substances() {
                 {isOpen && (
                   <div className="px-6 pb-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 border-t pt-5">
                     <CategoryMetersShowcase meters={substance.categoryMeters} />
-                    {hasBlend && <BlendComposition composicao={substance.composicao} />}
+                     {hasBlend && (
+                       <BlendComposition
+                         composicao={substance.composicao}
+                         structuredComponents={structuredComponents}
+                       />
+                     )}
 
                     {substance.mainFunction && (
                       <div className="panel-3d-sub border-l-4 border-primary/40 p-4">

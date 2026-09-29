@@ -5,6 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { SubstanceBlendComponent } from "./substanceBlendComponent";
 import type { SubstanceBodySystemEffects } from "./substanceBodySystemEffects";
 import type { SubstanceCategoryMeters } from "./substanceCategoryMeters";
 
@@ -45,5 +46,10 @@ export interface Substance {
   categoryType?: string | null;
   composicao?: string | null;
   posologia?: string | null;
+  isBlend?: boolean;
+  presentationQuantity?: number | null;
+  presentationUnit?: string | null;
+  ampouleVolumeMl?: number | null;
+  components?: SubstanceBlendComponent[];
   createdAt: string;
 }

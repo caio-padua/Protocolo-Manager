@@ -56,6 +56,10 @@ export const substancesTable = pgTable("substances", {
   posologiaEstruturada: jsonb("posologia_estruturada"),
   concentrationMg: text("concentration_mg"),
   volumeAmpola: text("volume_ampola"),
+  isBlend: boolean("is_blend").notNull().default(false),
+  presentationQuantity: real("presentation_quantity"),
+  presentationUnit: text("presentation_unit"),
+  ampouleVolumeMl: real("ampoule_volume_ml"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

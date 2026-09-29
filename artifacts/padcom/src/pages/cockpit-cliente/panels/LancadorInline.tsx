@@ -133,7 +133,7 @@ export default function LancadorInline({
   const substanciasFiltradas = useMemo(() => {
     const lista = substances ?? [];
     if (tipo === "implante") return lista.filter((s) => s.procedureType === "implant");
-    return lista.filter((s) => s.procedureType === "iv" || s.procedureType === "im");
+    return lista.filter((s) => s.procedureType === "iv" || s.procedureType === "im" || s.procedureType === "sc");
   }, [substances, tipo]);
 
   const selectedProfessional = professionals?.find((p) => String(p.id) === professionalId);

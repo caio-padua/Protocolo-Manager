@@ -10,8 +10,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Star, X, Plus, Activity, Gem, Beaker, Syringe, Droplet, Info, Sparkles, ShieldAlert,
+  Star, X, Plus, Trash2, Activity, Gem, Beaker, Syringe, Droplet, Info, Sparkles, ShieldAlert,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
 
 const NULLABLE_TEXT = "";
@@ -292,6 +293,143 @@ const TEXTAREAS_SAFETY: { key: string; label: string }[] = [
 
 const ALL_TEXTAREAS = [...TEXTAREAS_DESC, ...TEXTAREAS_BENEFIT, ...TEXTAREAS_SAFETY];
 
+type BlendComponentDraft = {
+  componentName: string;
+  doseValue: string | number | null;
+  doseUnit: string;
+  quantity: string | number | null;
+  quantityUnit: string;
+  notes: string;
+};
+
+function legacyComponents(composicao: string | null | undefined): BlendComponentDraft[] {
+  if (!composicao) return [];
+  return composicao
+    .split(/[,;]/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((componentName) => ({
+      componentName,
+      doseValue: null,
+      doseUnit: "",
+      quantity: null,
+      quantityUnit: "",
+      notes: "Importado da composição textual; confirme a dose.",
+    }));
+}
+
+function componentFromApi(component: any): BlendComponentDraft {
+  return {
+    componentName: component.componentName ?? "",
+    doseValue: component.doseValue ?? null,
+    doseUnit: component.doseUnit ?? "",
+    quantity: component.quantity ?? null,
+    quantityUnit: component.quantityUnit ?? "",
+    notes: component.notes ?? "",
+  };
+}
+
+function BlendComponentEditor({
+  components,
+  setComponents,
+}: {
+  components: BlendComponentDraft[];
+  setComponents: (next: BlendComponentDraft[]) => void;
+}) {
+  const update = (index: number, key: keyof BlendComponentDraft, value: string) => {
+    setComponents(components.map((component, i) => (
+      i === index ? { ...component, [key]: value } : component
+    )));
+  };
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider">Ativos da apresentação</p>
+          <p className="text-xs text-muted-foreground">
+            Dose desconhecida deve ficar vazia; não use zero como substituto.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setComponents([
+            ...components,
+            { componentName: "", doseValue: null, doseUnit: "", quantity: null, quantityUnit: "", notes: "" },
+          ])}
+        >
+          <Plus className="h-4 w-4 mr-1" /> Ativo
+        </Button>
+      </div>
+
+      {components.length === 0 && (
+        <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
+          Nenhum ativo estruturado. Adicione cada componente separadamente.
+        </div>
+      )}
+
+      {components.map((component, index) => (
+        <div key={index} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Componente {index + 1}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              aria-label={`Remover componente ${index + 1}`}
+              onClick={() => setComponents(components.filter((_, i) => i !== index))}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="col-span-2 sm:col-span-2">
+              <Input
+                placeholder="Nome do ativo"
+                value={component.componentName}
+                onChange={(e) => update(index, "componentName", e.target.value)}
+              />
+            </div>
+            <Input
+              type="number"
+              placeholder="Dose"
+              value={component.doseValue ?? ""}
+              onChange={(e) => update(index, "doseValue", e.target.value)}
+            />
+            <Input
+              placeholder="Unidade (mg, UI...)"
+              value={component.doseUnit}
+              onChange={(e) => update(index, "doseUnit", e.target.value)}
+            />
+            <Input
+              placeholder="Qtd. / amp."
+              type="number"
+              value={component.quantity ?? ""}
+              onChange={(e) => update(index, "quantity", e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="Unidade da quantidade (ampola, frasco...)"
+              value={component.quantityUnit}
+              onChange={(e) => update(index, "quantityUnit", e.target.value)}
+            />
+            <Input
+              placeholder="Observação opcional"
+              value={component.notes}
+              onChange={(e) => update(index, "notes", e.target.value)}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SubstanceEditForm({
   substance,
   onClose,
@@ -302,6 +440,8 @@ export function SubstanceEditForm({
   const queryClient = useQueryClient();
   const update = useUpdateSubstance();
   const [form, setForm] = useState<Record<string, any>>({});
+  const [components, setComponents] = useState<BlendComponentDraft[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("ident");
 
   useEffect(() => {
@@ -312,7 +452,11 @@ export function SubstanceEditForm({
       const cm = substance.categoryMeters && typeof substance.categoryMeters === "object"
         ? (substance.categoryMeters as Record<string, number>)
         : {};
-      setForm({ ...substance, bodySystemEffects: { ...bse }, categoryMeters: { ...cm } });
+       setForm({ ...substance, bodySystemEffects: { ...bse }, categoryMeters: { ...cm } });
+       const structured = Array.isArray(substance.components)
+         ? substance.components.map(componentFromApi)
+         : [];
+       setComponents(structured.length > 0 ? structured : legacyComponents(substance.composicao));
       setActiveSection("ident");
     }
   }, [substance]);
@@ -321,7 +465,7 @@ export function SubstanceEditForm({
 
   if (!substance) return null;
 
-  const onSave = () => {
+  const onSave = async () => {
     const payload: Record<string, any> = {
       name: emptyToNull(form.name) ?? substance.name,
       category: emptyToNull(form.category) ?? substance.category,
@@ -343,20 +487,38 @@ export function SubstanceEditForm({
       posologia: emptyToNull(form.posologia),
       concentrationMg: emptyToNull(form.concentrationMg),
       volumeAmpola: emptyToNull(form.volumeAmpola),
+      isBlend: Boolean(form.isBlend),
+      presentationQuantity: numOrNull(form.presentationQuantity),
+      presentationUnit: emptyToNull(form.presentationUnit),
+      ampouleVolumeMl: numOrNull(form.ampouleVolumeMl),
     };
     for (const { key } of ALL_TEXTAREAS) payload[key] = emptyToNull(form[key]);
 
-    update.mutate(
-      { id: substance.id, data: payload as any },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListSubstancesQueryKey() });
-          toast.success("Substância atualizada");
-          onClose();
-        },
-        onError: (e: any) => toast.error("Erro ao salvar", { description: String(e?.message ?? e) }),
-      },
-    );
+    setIsSaving(true);
+    try {
+      await update.mutateAsync({ id: substance.id, data: payload as any });
+      const response = await fetch(`/api/substances/${substance.id}/components`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isBlend: Boolean(form.isBlend),
+          components: form.isBlend
+            ? components.filter((component) => component.componentName.trim())
+            : [],
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error ?? "Não foi possível salvar a composição");
+      }
+      await queryClient.invalidateQueries({ queryKey: getListSubstancesQueryKey() });
+      toast.success("Substância atualizada");
+      onClose();
+    } catch (e: any) {
+      toast.error("Erro ao salvar", { description: String(e?.message ?? e) });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const is = (id: string) => activeSection === id;
@@ -422,9 +584,10 @@ export function SubstanceEditForm({
                 <Field label="Procedimento">
                   <Select value={form.procedureType ?? "iv"} onValueChange={(v) => setField("procedureType", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                     <SelectContent>
                       <SelectItem value="iv">Endovenoso (IV) — 30 min</SelectItem>
                       <SelectItem value="im">Intramuscular (IM) — 15 min</SelectItem>
+                       <SelectItem value="sc">Subcutâneo (SC) — 15 min</SelectItem>
                       <SelectItem value="implant">Implante — 60 min</SelectItem>
                     </SelectContent>
                   </Select>
@@ -445,18 +608,60 @@ export function SubstanceEditForm({
               accent={{ bg: "bg-sky-500/10", text: "text-sky-600", band: "bg-sky-500/5", ring: "ring-sky-400/60 border-sky-300/50 shadow-sky-500/10" }}
             >
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="Concentração (mg)">
+                <Field label="Concentração legada (mg)">
                   <Input
                     placeholder="ex.: 500mg"
                     value={form.concentrationMg ?? ""}
                     onChange={(e) => setField("concentrationMg", e.target.value)}
                   />
                 </Field>
-                <Field label="Volume da Ampola (mL)">
+                <Field label="Volume legado da ampola">
                   <Input
                     placeholder="ex.: 10mL"
                     value={form.volumeAmpola ?? ""}
                     onChange={(e) => setField("volumeAmpola", e.target.value)}
+                  />
+                </Field>
+                <div className="col-span-2 sm:col-span-3 rounded-lg border border-amber-300/50 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider">É um blend?</p>
+                      <p className="text-xs text-muted-foreground">
+                        Mantém um item comercial e detalha os ativos abaixo.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(form.isBlend)}
+                      onCheckedChange={(checked) => setField("isBlend", checked)}
+                      aria-label="É um blend"
+                    />
+                  </div>
+                </div>
+                <Field label="Quantidade da apresentação">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="ex.: 1"
+                    value={form.presentationQuantity ?? ""}
+                    onChange={(e) => setField("presentationQuantity", e.target.value)}
+                  />
+                </Field>
+                <Field label="Unidade da apresentação">
+                  <Input
+                    placeholder="ex.: ampola"
+                    value={form.presentationUnit ?? ""}
+                    onChange={(e) => setField("presentationUnit", e.target.value)}
+                  />
+                </Field>
+                <Field label="Volume final da ampola (mL)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="ex.: 2"
+                    value={form.ampouleVolumeMl ?? ""}
+                    onChange={(e) => setField("ampouleVolumeMl", e.target.value)}
                   />
                 </Field>
                 <Field label="Dose padrão">
@@ -488,16 +693,24 @@ export function SubstanceEditForm({
             <SectionCard
               icon={Droplet}
               title="Composição do Blend"
-              subtitle="Separe os ativos por vírgula. Ex.: L-CARNITINA 1 G, INOSITOL 500 MG."
+               subtitle="Cada ativo deve ter sua própria linha, dose e unidade. O texto antigo fica preservado abaixo."
               active={is("composicao")}
               onActivate={go("composicao")}
               accent={{ bg: "bg-amber-500/10", text: "text-amber-600", band: "bg-amber-500/5", ring: "ring-amber-400/60 border-amber-300/50 shadow-amber-500/10" }}
             >
-              <Textarea
-                value={form.composicao ?? ""}
-                onChange={(e) => setField("composicao", e.target.value)}
-                rows={2}
-              />
+              <div className="space-y-4">
+                {Boolean(form.isBlend) && (
+                  <BlendComponentEditor components={components} setComponents={setComponents} />
+                )}
+                <Field label="Composição textual legada (backup)">
+                  <Textarea
+                    value={form.composicao ?? ""}
+                    onChange={(e) => setField("composicao", e.target.value)}
+                    rows={2}
+                    placeholder="Preservada para conferência; prefira as linhas estruturadas."
+                  />
+                </Field>
+              </div>
             </SectionCard>
 
             {/* 4 — IMPACTO NOS SISTEMAS */}
@@ -596,11 +809,11 @@ export function SubstanceEditForm({
           </div>
 
       <div className="mt-5 flex flex-row justify-end gap-2 border-t pt-4">
-        <Button variant="outline" onClick={onClose} disabled={update.isPending}>
+        <Button variant="outline" onClick={onClose} disabled={update.isPending || isSaving}>
           Cancelar
         </Button>
-        <Button onClick={onSave} disabled={update.isPending}>
-          {update.isPending ? "Salvando..." : "Salvar alterações"}
+        <Button onClick={onSave} disabled={update.isPending || isSaving}>
+          {update.isPending || isSaving ? "Salvando..." : "Salvar alterações"}
         </Button>
       </div>
     </div>

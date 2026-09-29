@@ -5,12 +5,14 @@ import {
 
 export function getProcedureLabel(type: string | null): string {
   if (type === "im") return "Intramuscular";
+  if (type === "sc") return "Subcutâneo";
   if (type === "implant") return "Implante";
   return "Endovenoso";
 }
 
 export function getProcedureColor(type: string | null): string {
   if (type === "im") return "bg-blue-100 text-blue-700 border-blue-200";
+  if (type === "sc") return "bg-cyan-100 text-cyan-700 border-cyan-200";
   if (type === "implant") return "bg-purple-100 text-purple-700 border-purple-200";
   return "bg-amber-100 text-amber-700 border-amber-200";
 }
@@ -89,6 +91,15 @@ export interface BlendComponent {
   dose: string;
 }
 
+export interface StructuredBlendComponent {
+  componentName: string;
+  doseValue?: number | null;
+  doseUnit?: string | null;
+  quantity?: number | null;
+  quantityUnit?: string | null;
+  notes?: string | null;
+}
+
 const DOSE_REGEX = /(\d[\d.,]*\s*(?:mg|mcg|ug|µg|g|ml|ui|kui|amp|%|comp|cps|cap)\b.*)$/i;
 
 export function parseComposicao(composicao: string | null | undefined): BlendComponent[] {
@@ -106,8 +117,21 @@ export function parseComposicao(composicao: string | null | undefined): BlendCom
     });
 }
 
-export function BlendComposition({ composicao }: { composicao: string | null | undefined }) {
-  const components = parseComposicao(composicao);
+export function BlendComposition({
+  composicao,
+  structuredComponents,
+}: {
+  composicao: string | null | undefined;
+  structuredComponents?: StructuredBlendComponent[];
+}) {
+  const components = structuredComponents && structuredComponents.length > 0
+    ? structuredComponents.map((component) => ({
+      name: component.componentName,
+      dose: component.doseValue != null
+        ? `${Number(component.doseValue).toLocaleString("pt-BR")} ${component.doseUnit ?? ""}`.trim()
+        : "",
+    }))
+    : parseComposicao(composicao);
   if (components.length === 0) return null;
 
   return (
@@ -120,7 +144,7 @@ export function BlendComposition({ composicao }: { composicao: string | null | u
         <span className="text-xs text-muted-foreground">({components.length} ativos)</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {components.map((c, i) => (
+            {components.map((c, i) => (
           <div
             key={`${c.name}-${i}`}
             className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
