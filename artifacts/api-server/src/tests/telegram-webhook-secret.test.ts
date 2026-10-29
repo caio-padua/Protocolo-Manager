@@ -13,11 +13,15 @@
  *   C3. Segredo errado no cabeçalho → 200 + nada gravado
  *   C4. Cabeçalho completamente ausente → 200 + nada gravado
  *   C5. Resposta não vaza o motivo de rejeição (corpo idêntico ao caminho feliz)
+ *   C6. Falha técnica do cofre → 200 + ERROR específico sem credenciais
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // ── Mocks OBRIGATORIAMENTE antes dos imports das rotas ───────────────────────
+vi.mock("../lib/logger.js", () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+}));
 
 // Previne o throw "DATABASE_URL must be set" em lib/db/src/index.ts
 vi.mock("@workspace/db", () => {
@@ -128,6 +132,9 @@ vi.mock("drizzle-orm", () => ({
 import express from "express";
 import request from "supertest";
 import { telegramWebhookRouter } from "../routes/assinaturas.js";
+import { logger } from "../lib/logger.js";
+import { db } from "@workspace/db";
+import { sendTelegram } from "../lib/telegram.js";
 
 // ── Constantes de teste ───────────────────────────────────────────────────────
 
@@ -207,6 +214,8 @@ describe("POST /webhooks/telegram — validação do segredo", () => {
       .send(PAYLOAD_VALIDO);
 
     expect(mockProcessarWebhookInbox).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith("[telegram] webhook ignorado: segredo ausente ou divergente");
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it("C2 — segredo ausente no cofre: comportamento idêntico mesmo sem cabeçalho", async () => {
@@ -291,5 +300,35 @@ describe("POST /webhooks/telegram — validação do segredo", () => {
     expect(resAusente.body).not.toHaveProperty("motivo");
     expect(resErrado.body).not.toHaveProperty("error");
     expect(resErrado.body).not.toHaveProperty("motivo");
+  });
+
+  it("C6 — cofre indisponível: responde 200 e registra ERROR distinto sem vazar dados", async () => {
+    const selectSpy = vi.spyOn(db, "select");
+    mockGetSecret.mockRejectedValueOnce(Object.assign(
+      new Error(`DB offline; credentials=${SEGREDO_CORRETO}`),
+      { code: "ECONNREFUSED" },
+    ));
+    try {
+      const res = await request(buildApp())
+        .post("/webhooks/telegram")
+        .set("x-telegram-bot-api-secret-token", SEGREDO_CORRETO)
+        .send(PAYLOAD_VALIDO);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect(logger.error).toHaveBeenCalledExactlyOnceWith({
+        secretKey: "telegram.webhookSecret",
+        errorType: "Error",
+        errorCode: "ECONNREFUSED",
+      }, "[telegram] falha técnica ao consultar cofre; update não processado");
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(selectSpy).not.toHaveBeenCalled();
+      expect(mockProcessarWebhookInbox).not.toHaveBeenCalled();
+      expect(sendTelegram).not.toHaveBeenCalled();
+      expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(SEGREDO_CORRETO);
+      expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(PAYLOAD_VALIDO.message.text);
+    } finally {
+      selectSpy.mockRestore();
+    }
   });
 });

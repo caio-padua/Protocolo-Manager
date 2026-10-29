@@ -443,7 +443,20 @@ function mensagemBoasVindasTelegram(nomeCompleto: string): string {
 telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void> => {
   try {
     // Defesa 1 — origem. Fail-closed: sem segredo no cofre, ninguém vincula.
-    const segredoEsperado = await getSecret("telegram.webhookSecret");
+    let segredoEsperado: string | null;
+    try {
+      segredoEsperado = await getSecret("telegram.webhookSecret");
+    } catch (err) {
+      // Não registrar o erro bruto: mensagens do driver podem conter credenciais.
+      const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
+      logger.error({
+        secretKey: "telegram.webhookSecret",
+        errorType: err instanceof Error ? err.constructor.name : typeof err,
+        errorCode: typeof code === "string" && /^[A-Z0-9_]{2,40}$/.test(code) ? code : undefined,
+      }, "[telegram] falha técnica ao consultar cofre; update não processado");
+      res.status(200).json({ ok: true });
+      return;
+    }
     const segredoRecebido = req.header("x-telegram-bot-api-secret-token") || "";
     if (!segredoEsperado || segredoRecebido !== segredoEsperado) {
       logger.warn("[telegram] webhook ignorado: segredo ausente ou divergente");
