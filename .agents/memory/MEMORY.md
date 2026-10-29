@@ -131,3 +131,4 @@
 - [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicionar-item.mjs); token do Sheets vem do conector google-drive.
 - [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color é enum de nomes.
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.
+- [JPEG enviado — decodificar e regravar sem EXIF](jpeg-upload-decode-reencode.md) — validar pixels com decoder JavaScript puro; regravar remove EXIF/GPS; decoder nativo pode derrubar o Node 24.

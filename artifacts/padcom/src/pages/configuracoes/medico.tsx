@@ -2,8 +2,8 @@
 // Permite que o CEO edite nome, CRM e especialidade do médico com
 // isPrimaryDoctor=true diretamente no painel, sem acesso ao banco.
 
-import { useEffect, useState } from "react";
-import { Stethoscope, Save, AlertCircle, ShieldOff, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Stethoscope, Save, AlertCircle, ShieldOff, RefreshCw, Camera, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,6 +46,41 @@ export default function ConfigMedico() {
   const [notFound, setNotFound] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(true);
+  const [photoError, setPhotoError] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function loadDoctorPhoto() {
+    setPhotoLoading(true);
+    setPhotoError(false);
+    try {
+      const response = await fetch(`${BASE}/api/settings/doctor-photo`, {
+        headers: authHeaders(),
+        cache: "no-store",
+      });
+      if (response.status === 404) {
+        setPhotoUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return null;
+        });
+        return;
+      }
+      if (!response.ok) throw new Error("Não foi possível carregar a foto atual.");
+      const blobUrl = URL.createObjectURL(await response.blob());
+      setPhotoUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return blobUrl;
+      });
+    } catch (error) {
+      setPhotoError(true);
+      throw error;
+    } finally {
+      setPhotoLoading(false);
+    }
+  }
 
   // Busca o médico principal ao montar (só depois de saber a permissão)
   useEffect(() => {
@@ -75,6 +110,52 @@ export default function ConfigMedico() {
       })
       .finally(() => setLoading(false));
   }, [permLoading, isCeo, retryCount]);
+
+  useEffect(() => {
+    if (!permLoading && isCeo) {
+      void loadDoctorPhoto().catch(() => {
+        toast({ title: "Não foi possível carregar a foto atual", variant: "destructive" });
+      });
+    }
+    return () => {
+      setPhotoUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+    };
+  }, [permLoading, isCeo]);
+
+  async function uploadDoctorPhoto() {
+    if (!selectedPhoto) {
+      toast({ title: "Selecione uma imagem JPEG" });
+      return;
+    }
+    setPhotoUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", selectedPhoto);
+      const response = await fetch(`${BASE}/api/settings/doctor-photo`, {
+        method: "POST",
+        headers: authHeaders(),
+        body,
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error((error as { error?: string }).error ?? "Falha ao enviar a foto.");
+      }
+      await loadDoctorPhoto();
+      setSelectedPhoto(null);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+      toast({ title: "Foto da capa atualizada" });
+    } catch (error: unknown) {
+      toast({
+        title: error instanceof Error ? error.message : "Falha ao enviar a foto",
+        variant: "destructive",
+      });
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
 
   function setField(k: keyof Draft, v: string) {
     setDraft((d) => ({ ...d, [k]: v }));
@@ -148,6 +229,70 @@ export default function ConfigMedico() {
           Qualquer alteração aqui reflete no próximo documento gerado.
         </p>
       </header>
+
+      <SettingsPanel icon={Camera} title="Foto da Capa do Protocolo">
+        <div className="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] gap-4 items-stretch">
+          <div className="concave-3d min-h-[210px] p-2 flex items-center justify-center overflow-hidden">
+            {photoLoading ? (
+              <Skeleton className="w-full h-[190px]" />
+            ) : photoError ? (
+              <div className="text-center text-red-600 px-3">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm font-medium">Foto indisponível</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-2"
+                  onClick={() => void loadDoctorPhoto().catch(() => undefined)}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : photoUrl ? (
+              <img
+                src={photoUrl}
+                alt="Foto atual do médico na capa do protocolo"
+                className="w-full h-[190px] object-cover rounded-[6px]"
+              />
+            ) : (
+              <div className="text-center text-muted-foreground px-3">
+                <Camera className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">Sem foto cadastrada</p>
+                <p className="text-xs mt-1">A capa continuará sendo gerada normalmente.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="panel-3d-sub p-4 flex flex-col justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold">Trocar a foto do médico</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Envie uma imagem JPEG de até 5 MB. A próxima capa gerada já usará a nova foto.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <Input
+                ref={photoInputRef}
+                type="file"
+                accept=".jpg,.jpeg,image/jpeg"
+                className="field-engraved min-h-10"
+                onChange={(event) => setSelectedPhoto(event.target.files?.[0] ?? null)}
+                disabled={photoUploading}
+              />
+              <Button
+                className="btn-3d w-full gap-2"
+                onClick={uploadDoctorPhoto}
+                disabled={!selectedPhoto || photoUploading}
+              >
+                {photoUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {photoUploading ? "Enviando…" : "Atualizar foto da capa"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </SettingsPanel>
 
       {loading ? (
         <Skeleton className="h-64 w-full" />
