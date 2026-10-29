@@ -274,6 +274,7 @@ onboardingRouter.get("/minha-config", async (req: Request, res: Response): Promi
 // ── GET /api/onboarding/stats ─────────────────────────────────────────────────
 // Agrega os últimos 30 dias escopo por empresa do CEO logado.
 onboardingRouter.get("/stats", async (req: Request, res: Response): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const empresaId = req.tenantContext?.empresaId ?? 5;
   try {
     const [totalRow, porDevice, porSecao, pacientesRow, pacientesLista] = await Promise.all([

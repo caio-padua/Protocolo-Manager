@@ -665,8 +665,11 @@ function PainelOnboarding() {
     setLoading(true);
     setErro(null);
     const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-    fetch(`${base}/api/onboarding/stats`)
-      .then((r) => r.json())
+    fetch(`${base}/api/onboarding/stats`, { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error("Erro ao carregar dados de onboarding.");
+        return r.json();
+      })
       .then((d: OnboardingStats) => {
         if (d.ok) setStats(d);
         else setErro("Erro ao carregar dados de onboarding.");
