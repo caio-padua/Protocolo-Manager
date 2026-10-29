@@ -42,6 +42,9 @@ export interface FormulaEmissao {
 }
 
 export interface EmitirParams {
+  /** Explicit identity from authorized callers; legacy callers remain separately audited. */
+  medicoId?: number;
+  clinicaId?: number;
   patient: {
     nome: string;
     cpf?: string;
@@ -237,8 +240,8 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   const certMeta: CertDocMeta | null = readCertMetaSync();
 
   // 3. Carrega médico e clínica do banco (padrão: Dr. Caio=6, Instituto Padua=8)
-  const medicoId = (params as any).medicoId ?? 6;
-  const clinicaId = (params as any).clinicaId ?? 8;
+  const medicoId = params.medicoId ?? 6;
+  const clinicaId = params.clinicaId ?? 8;
 
   const [medico] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, medicoId));
   const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, clinicaId));
@@ -343,9 +346,9 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   let emailSent = false;
   const emailRecipients = params.emailTo
     ? (Array.isArray(params.emailTo) ? params.emailTo : [params.emailTo])
-    : ["drcaiohenriquepadua@gmail.com"];
+    : [];
 
-  try {
+  if (emailRecipients.length > 0) try {
     const emailHtml = buildEmailHtml({
       pacienteNome: params.patient.nome,
       medicoNome,

@@ -36,6 +36,8 @@ import { htmlToPngBase64 } from "../lib/puppeteer-capture";
 import { emitirReceituarioPdf, garantirTabelaTokens } from "../lib/receituario-motor.js";
 import { sql } from "drizzle-orm";
 import { moduleGuard } from "../middleware/moduleGuard";
+import { requireCollaborator } from "./collaborator";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 
 const router = Router();
 router.use(moduleGuard("protocolos"));
@@ -546,25 +548,26 @@ router.post("/receituario/gerar-demo", async (req, res): Promise<void> => {
 // MOTOR ÚNICO — wrapper que delega para emitirReceituarioPdf().
 // Aceita: { patient, formulas, tipoReceita?, modeloId? }
 // O modelo ativo (faixas_paxter ou classico_anvisa) é lido do banco automaticamente.
-router.post("/receituario/emitir-prescricao", async (req, res): Promise<void> => {
+router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const { patient, formulas, tipoReceita = "especial", modeloId } = req.body ?? {};
+    const { clientId, formulas, tipoReceita = "especial", modeloId } = req.body ?? {};
+    const identity = await resolveClinicalEmitter(req, clientId);
+    if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
 
-    if (!patient?.nome?.trim() || !Array.isArray(formulas) || formulas.length === 0) {
-      res.status(400).json({ error: "patient.nome e formulas[] são obrigatórios" });
+    if (!Array.isArray(formulas) || formulas.length === 0) {
+      res.status(400).json({ error: "formulas[] são obrigatórias" });
       return;
     }
 
-    const emailTo: string[] = ["drcaiohenriquepadua@gmail.com"];
-    if (patient.email && typeof patient.email === "string") emailTo.push(patient.email);
-
     const result = await emitirReceituarioPdf({
-      patient,
+      medicoId: identity.professional.id,
+      clinicaId: identity.clinic.id,
+      patient: { nome: identity.client.name, cpf: identity.client.cpf ?? undefined,
+        telefone: identity.client.phone ?? undefined, email: identity.client.email ?? undefined },
       formulas,
       tipoReceita: tipoReceita as "especial" | "simples",
       modeloId: modeloId ?? undefined,
-      driveFolder: DEMO_DRIVE_FOLDER_ID,
-      emailTo,
+      emailTo: [],
     });
 
     res.json({
@@ -578,6 +581,10 @@ router.post("/receituario/emitir-prescricao", async (req, res): Promise<void> =>
       tipoMotor: result.tipoMotor,
     });
   } catch (err) {
+    if (err instanceof ClinicalIdentityError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     req.log.error({ err }, "emitir-prescricao: erro geral");
     res.status(500).json({ error: "Falha ao gerar receituário" });
   }
@@ -586,6 +593,11 @@ router.post("/receituario/emitir-prescricao", async (req, res): Promise<void> =>
 // ── POST /api/receituario/assinar-imagem-pdf ──────────────────────────────────
 // Recebe PNG base64 capturado pelo html2canvas do motor ReceituarioPreview.
 // Cria PDF A4 a partir do PNG, assina ICP-Brasil, sobe ao Drive e envia e-mail.
+// Interdição temporária: a implementação antiga abaixo aceita imagem, destinatário
+// e nome livres. Preservar o código, mas não executar até homologação clínica.
+router.post("/receituario/assinar-imagem-pdf", requireCollaborator, (_req, res) => {
+  res.status(503).json({ error: "Assinatura visual suspensa até validar identidade, certificado e destinatário." });
+});
 router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> => {
   try {
     const { pngBase64, patientName, fileName, patientEmail } = req.body ?? {};
@@ -725,21 +737,22 @@ router.get("/receituario/preview-html", async (req, res): Promise<void> => {
 // MOTOR ÚNICO — lookup de dados do cliente no banco + delega para emitirReceituarioPdf().
 // Aceita: { clientId, formulas[], tipoReceita?, modeloId?, driveFolder? }
 // Também aceita: { patient: {...}, formulas[], ... } sem clientId (compatibilidade)
-router.post("/receituario/emitir-cliente", async (req, res): Promise<void> => {
+router.post("/receituario/emitir-cliente", requireCollaborator, async (req, res): Promise<void> => {
   try {
-    const { clientId, patient: patientRaw, formulas, tipoReceita = "especial", modeloId, driveFolder } = req.body ?? {};
+    const { clientId, formulas, tipoReceita = "especial", modeloId } = req.body ?? {};
+    const identity = await resolveClinicalEmitter(req, clientId);
+    if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
 
     if (!Array.isArray(formulas) || formulas.length === 0) {
       res.status(400).json({ error: "formulas[] obrigatório e não-vazio" });
       return;
     }
 
-    // ── Resolve dados do paciente (por clientId OU por patient direto) ────────
+    // Resolve only the verified client's record; free-form patient input cannot authorize emission.
     let patientData: { nome: string; cpf?: string; dataNascimento?: string; telefone?: string; endereco?: string; email?: string };
-    let resolvedDriveFolder: string = driveFolder ?? DEMO_DRIVE_FOLDER_ID;
-
-    if (clientId) {
-      const [cliente] = await db.select().from(clientsTable).where(eq(clientsTable.id, Number(clientId)));
+    let resolvedDriveFolder: string | undefined;
+    {
+      const [cliente] = await db.select().from(clientsTable).where(eq(clientsTable.id, identity.client.id));
       if (!cliente) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
       patientData = {
@@ -755,28 +768,20 @@ router.post("/receituario/emitir-cliente", async (req, res): Promise<void> => {
       const fichaClinica = (cliente as any).fichaClinica ?? {};
       resolvedDriveFolder =
         fichaClinica?.drive_subpastas?.["03 PRESCRICOES/RECEITAS"] ??
-        fichaClinica?.drive_subpastas?.["03 PRESCRICOES"] ??
-        driveFolder ??
-        DEMO_DRIVE_FOLDER_ID;
-    } else if (patientRaw?.nome?.trim()) {
-      patientData = patientRaw;
-    } else {
-      res.status(400).json({ error: "clientId ou patient.nome é obrigatório" });
-      return;
+        fichaClinica?.drive_subpastas?.["03 PRESCRICOES"];
     }
-
-    const emailTo: string[] = ["drcaiohenriquepadua@gmail.com"];
-    if (patientData.email) emailTo.push(patientData.email);
 
     req.log.info({ clientId, modeloId, tipoReceita }, "emitir-cliente: delegando ao motor único");
 
     const result = await emitirReceituarioPdf({
+      medicoId: identity.professional.id,
+      clinicaId: identity.clinic.id,
       patient:     patientData,
       formulas,
       tipoReceita: tipoReceita as "especial" | "simples",
       modeloId:    modeloId ?? undefined,
       driveFolder: resolvedDriveFolder,
-      emailTo,
+      emailTo: [],
     });
 
     req.log.info({ fileName: result.fileName, driveUrl: result.driveUrl, tipoMotor: result.tipoMotor }, "emitir-cliente: OK");
@@ -792,6 +797,10 @@ router.post("/receituario/emitir-cliente", async (req, res): Promise<void> => {
       tipoMotor:   result.tipoMotor,
     });
   } catch (err) {
+    if (err instanceof ClinicalIdentityError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     req.log.error({ err }, "emitir-cliente: erro geral");
     res.status(500).json({ error: "Falha ao emitir receita do cliente" });
   }

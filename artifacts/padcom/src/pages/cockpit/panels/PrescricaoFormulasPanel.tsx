@@ -39,6 +39,8 @@ import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/a
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
 import { PrescricoesEmitidas } from "../../prescricao/PrescricoesEmitidas";
+import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
+import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 
 // ===========================================================================
 // PAINEL: PRESCRICAO DE FORMULAS (client-scoped) — extraido de prescricao/index.tsx.
@@ -76,6 +78,7 @@ interface ClientData {
 
 export default function PrescricaoFormulasPanel({ clientId }: { clientId: number }) {
   const { toast } = useToast();
+  const identity = useClinicalIdentity(clientId);
 
   const [duracao, setDuracao] = useState("30");
   const [cid, setCid] = useState("");
@@ -100,14 +103,8 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
     isLoading: clientLoading,
     isError: clientError,
     refetch: refetchClient,
-  } = useQuery<ClientData>({
-    queryKey: ["cockpit-prescricao-client", clientId],
-    queryFn: async () => {
-      const r = await fetch(`${BASE}/api/clients/${clientId}`);
-      if (!r.ok) throw new Error("Falha ao carregar cliente");
-      return r.json();
-    },
-  });
+  } = { data: identity.data?.client, isLoading: identity.isPending,
+    isError: identity.isError, refetch: identity.refetch };
 
   const {
     data: dbFormulas,
@@ -142,7 +139,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
     mutation: {
       onSuccess: (res) => {
         setEmitResult(res);
-        toast({ title: `Receitas emitidas! (${res.recipes.length})`, description: "PDFs gerados e enviados à farmácia." });
+        toast({ title: `Receitas geradas (${res.recipes.length})`, description: "Confira os documentos e o resultado de cada envio." });
       },
       onError: (error) => toast({ title: "Erro ao emitir receitas", description: error.message, variant: "destructive" }),
     },
@@ -338,6 +335,10 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
   };
 
   const handleEmit = () => {
+    if (!identity.data?.canPrescribe || identity.isFetching || identity.isError) {
+      toast({ title: "Identidade clínica pendente", description: identity.data?.issue ?? identity.error?.message, variant: "destructive" });
+      return;
+    }
     if (!client?.name?.trim()) {
       toast({ title: "Cliente sem nome — não é possível emitir", variant: "destructive" });
       return;
@@ -354,9 +355,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
         clientCpf: client.cpf || null,
         clientPhone: client.phone || null,
         clientEmail: client.email || null,
-        professionalName: "Dr. Caio Henrique Pádua",
-        professionalCrm: "125475",
-        professionalUf: "SP",
+        professionalId: identity.data.professional.id,
         durationDays: duracao || null,
         cid: cid || null,
         items: buildItems(),
@@ -384,7 +383,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
     return (
       <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-red-400">
         <span className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 flex-shrink-0" /> Falha ao carregar o cliente.
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {identity.error?.message ?? "Não foi possível validar a identidade clínica."}
         </span>
         <button
           type="button"
@@ -415,6 +414,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
 
   return (
     <div className="space-y-4">
+      <ClinicalIdentityPanel identity={identity} />
       <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
@@ -809,7 +809,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                     </button>
                     <button
                       onClick={handleEmit}
-                      disabled={emitMutation.isPending}
+                      disabled={emitMutation.isPending || !identity.data?.canPrescribe || identity.isFetching || identity.isError}
                       className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                       style={{ color: GOLD }}
                     >
@@ -819,7 +819,8 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                     {/* ── Motor Único (lê modelo ativo do banco) ── */}
                     <button
                       onClick={() => { void handleEmitirMotorUnico(); }}
-                      disabled={emitirMotorUnicoLoading}
+                      disabled
+                      title="Emissão alternativa suspensa até a homologação da assinatura e dos envios"
                       className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                     >
                       {emitirMotorUnicoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
@@ -828,7 +829,8 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                     {/* ── PDF Visual (Puppeteer server-side) ── */}
                     <button
                       onClick={() => { void handleGerarPdfVisual(); }}
-                      disabled={gerarPdfVisualLoading}
+                      disabled
+                      title="PDF visual alternativo suspenso até a homologação da assinatura e dos envios"
                       className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
                     >
                       {gerarPdfVisualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}

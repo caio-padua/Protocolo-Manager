@@ -38,6 +38,7 @@ import {
 import { templateLembretePrescricao } from "../lib/lembrete-templates";
 import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 
 /**
  * Monta a mensagem do lembrete pelo motor RICO (Mensageria PAXMED) — períodos ×
@@ -193,7 +194,42 @@ router.get("/prescriptions/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/prescriptions/emit", async (req, res): Promise<void> => {
+router.get("/clinical-context/:clientId", requireCollaborator, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    res.json(await resolveClinicalEmitter(req, Number(req.params.clientId)));
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promise<void> => {
+  let identity;
+  try {
+    identity = await resolveClinicalEmitter(req, req.body?.clientId);
+    if (req.body?.professionalId != null && req.body.professionalId !== identity.professional.id) {
+      throw new ClinicalIdentityError(403, "O prescritor deve ser o médico autenticado.");
+    }
+    if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+  // Browser fields are presentation only. Persist the verified registry snapshot.
+  req.body = {
+    ...req.body,
+    clientId: identity.client.id, clientName: identity.client.name, clientCpf: identity.client.cpf,
+    clientPhone: identity.client.phone, clientEmail: identity.client.email,
+    professionalId: identity.professional.id, professionalName: identity.professional.name,
+    professionalCrm: identity.professional.crm, professionalUf: identity.professional.uf,
+  };
   const parsed = EmitPrescriptionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -202,10 +238,10 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
   const body = parsed.data;
   const items = body.items as PrescriptionItemInput[];
   const batchDate = todayBR();
-  const uf = (body.professionalUf || "SP").toUpperCase();
+  const uf = identity.professional.uf!;
 
   // 1) Persiste prescrição + itens.
-  const empresaId = resolveEmpresaId(req);
+  const empresaId = identity.clinic.empresaId;
   const resolvedClientId = await resolvePrescriptionClient(body, empresaId);
   if (resolvedClientId === null) {
     res.status(422).json({
@@ -464,10 +500,13 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
       dose:      it.dose ?? undefined,
     }));
 
-    const emailDestinatarios: string[] = ["drcaiohenriquepadua@gmail.com"];
+    // Only the verified client's own address; never copy a fixed personal mailbox.
+    const emailDestinatarios: string[] = [];
     if (body.clientEmail) emailDestinatarios.push(body.clientEmail);
 
     const motorResult = await emitirReceituarioPdf({
+      medicoId: identity.professional.id,
+      clinicaId: identity.clinic.id,
       patient: {
         nome:          body.clientName,
         cpf:           body.clientCpf ?? undefined,

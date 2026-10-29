@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-request-pdf";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
+import { requireCollaborator } from "./collaborator";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 
 const router: IRouter = Router();
 
@@ -56,7 +58,7 @@ const EmitSchema = z.object({
   items: z.array(ItemSchema).min(1),
 });
 
-router.post("/exam-requests/emit", async (req, res): Promise<void> => {
+router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promise<void> => {
   const parsed = EmitSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() });
@@ -64,23 +66,21 @@ router.post("/exam-requests/emit", async (req, res): Promise<void> => {
   }
   const body = parsed.data;
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, body.clientId));
-  if (!client) {
-    res.status(404).json({ error: "Cliente não encontrado" });
-    return;
-  }
-
-  let professional: typeof professionalsTable.$inferSelect | undefined;
-  if (body.professionalId) {
-    [professional] = await db
-      .select()
-      .from(professionalsTable)
-      .where(eq(professionalsTable.id, body.professionalId));
-    if (!professional) {
-      res.status(404).json({ error: "Médico solicitante não encontrado" });
+  let identity;
+  try {
+    identity = await resolveClinicalEmitter(req, body.clientId);
+    if (body.professionalId != null && body.professionalId !== identity.professional.id) {
+      throw new ClinicalIdentityError(403, "O solicitante deve ser o médico autenticado.");
+    }
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
       return;
     }
+    throw error;
   }
+  const client = identity.client;
+  const professional = { ...identity.professional, crm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / ") };
 
   // Montar os "trabalhos" de PDF.
   // ONDA 0 (bug critico): exames de IMAGEM saem 1 PDF por exame (cada imagem

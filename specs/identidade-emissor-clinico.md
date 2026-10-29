@@ -47,5 +47,8 @@ Revisao separada antes de declarar esta entrega tecnica verificada.
 
 ## Reversao
 
+Primeira entrega implementada no ambiente de desenvolvimento. Os testes automatizados
+com objetos sinteticos nao homologam documentos clinicos nem resolvem as pendencias
+de assinatura, envios automaticos de receitas e rotas antigas de receituario.
 Reverter somente o commit desta entrega por checkpoint autorizado; nenhuma
 alteracao destrutiva ou migracao de banco faz parte do plano.

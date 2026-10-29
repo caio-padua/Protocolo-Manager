@@ -203,7 +203,12 @@ function Router() {
             
             <Route path="/substances" component={Substances} />
 
-            <Route path="/prescricao" component={() => <Prescricao />} />
+            <Route path="/prescricao" component={() => {
+              const id = new URLSearchParams(window.location.search).get("clientId");
+              return id && /^[1-9]\d*$/.test(id)
+                ? <Redirect to={`/cockpit/${id}/prescricao`} replace />
+                : <Prescricao />;
+            }} />
             
             <Route path="/protocols" component={Protocols} />
             <Route path="/protocols/new" component={() => <NewProtocol />} />

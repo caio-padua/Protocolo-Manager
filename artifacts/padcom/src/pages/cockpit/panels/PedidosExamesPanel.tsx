@@ -11,7 +11,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { BASE } from "../../comunicacao/_shared";
-import { getCollabProfessional } from "@/lib/collab-auth";
+import { getCollabToken } from "@/lib/collab-auth";
+import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
+import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 
 // ===========================================================================
 // PAINEL: PEDIDOS DE EXAMES (client-scoped) — extraido de consulta/index.tsx.
@@ -85,15 +87,10 @@ function classifyTipo(modalidade: string | null, material: string | null, grupo:
 }
 
 export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
-  const [profissionais, setProfissionais] = useState<ProfOption[]>([]);
-  const [professionalId, setProfessionalId] = useState<string>(() => {
-    const p = getCollabProfessional();
-    return p ? String(p.id) : "";
-  });
+  const identity = useClinicalIdentity(clientId);
   const [exams, setExams] = useState<Exam[]>([]);
   const [carregandoExams, setCarregandoExams] = useState(true);
   const [erroExams, setErroExams] = useState(false);
-  const [erroProfissionais, setErroProfissionais] = useState(false);
   const [busca, setBusca] = useState("");
   const [cart, setCart] = useState<Record<number, CartItem>>({});
   const [observacao, setObservacao] = useState("");
@@ -103,18 +100,6 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
   const [emitErro, setEmitErro] = useState<string | null>(null);
 
-  const carregarProfissionais = useCallback(() => {
-    setErroProfissionais(false);
-    fetch(`${BASE}/api/professionals`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("professionals"))))
-      .then((d: ProfOption[]) =>
-        setProfissionais(Array.isArray(d) ? [...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")) : []),
-      )
-      .catch(() => {
-        setProfissionais([]);
-        setErroProfissionais(true);
-      });
-  }, []);
 
   const carregarExams = useCallback(() => {
     setCarregandoExams(true);
@@ -130,9 +115,8 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   }, []);
 
   useEffect(() => {
-    carregarProfissionais();
     carregarExams();
-  }, [carregarProfissionais, carregarExams]);
+  }, [carregarExams]);
 
   // Trocar de cliente limpa o carrinho e o resultado da emissao anterior.
   useEffect(() => {
@@ -174,17 +158,16 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   };
 
   const emitir = async () => {
-    if (cartList.length === 0) return;
+    if (cartList.length === 0 || !identity.data || identity.isFetching || identity.isError) return;
     setEmitindo(true);
     setEmitErro(null);
     setEmitResult(null);
     try {
       const r = await fetch(`${BASE}/api/exam-requests/emit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getCollabToken() ?? ""}` },
         body: JSON.stringify({
           clientId,
-          professionalId: professionalId ? Number(professionalId) : undefined,
           observacao: observacao.trim() || undefined,
           sendEmail,
           sendWhatsapp,
@@ -300,27 +283,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
           )}
         </div>
 
-        <select
-          className="concave-3d h-10 w-full rounded-md bg-transparent px-2 text-sm"
-          value={professionalId}
-          onChange={(e) => setProfessionalId(e.target.value)}
-        >
-          <option value="">Médico solicitante (opcional)…</option>
-          {profissionais.map((p) => (
-            <option key={p.id} value={String(p.id)}>
-              {p.name}
-              {p.crm ? ` — CRM ${p.crm}` : ""}
-            </option>
-          ))}
-        </select>
-        {erroProfissionais && (
-          <p className="flex items-center gap-1.5 text-xs text-amber-400">
-            <AlertTriangle className="h-3.5 w-3.5" /> Falha ao carregar médicos.{" "}
-            <button type="button" onClick={() => carregarProfissionais()} className="underline">
-              Tentar novamente
-            </button>
-          </p>
-        )}
+        <ClinicalIdentityPanel identity={identity} />
 
         <textarea
           className="concave-3d min-h-[64px] w-full rounded-md bg-transparent px-3 py-2 text-sm"
@@ -343,7 +306,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
         <button
           type="button"
           onClick={() => void emitir()}
-          disabled={cartList.length === 0 || emitindo}
+          disabled={cartList.length === 0 || emitindo || !identity.data || identity.isFetching || identity.isError}
           className="btn-3d-soft inline-flex h-11 w-full items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide disabled:opacity-60"
         >
           {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
