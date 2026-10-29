@@ -1,23 +1,16 @@
 ---
-name: Git push/fetch — fallback de autenticação HTTPS
-description: Quando o git via terminal (ou o painel Git do Replit) falha com "Invalid username or token", como diagnosticar e destravar usando o secret GITHUB_PAT.
+name: Git — autenticação gerenciada e sincronização
+description: Usar primeiro o transporte gerenciado do Replit e verificar leitura e escrita separadamente, sem manipular tokens.
 ---
 
-Sintoma: `git fetch`/`git push` para um remoto GitHub HTTPS falha com "remote: Invalid username or token. Password authentication is not supported for Git operations." — tanto no painel Git do Replit quanto em comandos git manuais no shell.
+Priorizar o transporte de Git já configurado pelo Replit, sem ler, imprimir ou injetar credenciais pessoais.
 
-Causas possíveis, checar NESTA ORDEM:
-1. Branch divergente + mudanças não commitadas no working tree (git recusa sincronizar sozinho). Resolver primeiro: commitar tudo, só depois mexer em credencial.
-2. Credencial de ambiente (GIT_ASKPASS, é o que o painel Git do Replit usa por trás) expirada/inválida — sintoma persiste mesmo com working tree limpo.
+**Why:** Houve falhas históricas de autenticação pessoal, mas em 29/10/2026 o transporte gerenciado por `github.replit.internal` permitiu buscar e enviar alterações normalmente, sem acessar segredos.
+A afirmação antiga de que só o painel visual permite envio deixou de corresponder ao ambiente observado.
+Leitura de um repositório público, sozinha, nunca comprova autorização de escrita.
 
-Fallback que funcionou neste projeto: existe um secret `GITHUB_PAT` separado da integração GitHub gerenciada pelo Replit. Para usar sem nunca expor o valor:
-```
-AUTH_HEADER="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_PAT" | base64 -w0)"
-git -c http.extraHeader="$AUTH_HEADER" push origin main
-```
-`-c` é escopado ao comando (nunca grava o token em `.git/config`). Testar primeiro com `ls-remote` (read-only) antes de `push`.
-
-**Por quê:** GITHUB_PAT resolveu quando a credencial de ambiente (GIT_ASKPASS) estava quebrada — ou seja, são DOIS mecanismos de autenticação independentes neste ambiente; consertar um pelo terminal não conserta automaticamente o outro (o painel visual do Replit).
-
-**Como aplicar:** se o usuário reportar erro recorrente no botão de sync do painel Git do Replit mesmo depois do terminal sincronizar, a integração GitHub gerenciada provavelmente precisa ser reconectada (ProposeIntegration com o connection id do GitHub) — GITHUB_PAT não conserta o painel, só destrava comandos manuais.
-
-**Atualização (15/08/2026):** neste repositório o `GITHUB_PAT` passou a ser rejeitado pelo próprio GitHub com "invalid credentials" em `push` (testado com header `Bearer` e `token`, mesma falha nos dois) mesmo com `git fetch`/`ls-remote` funcionando normalmente (leitura de repo público não prova autenticação de escrita). Não insistir tentando mais formatos de header quando as duas variantes padrão já falharam identicamente — é sinal de token expirado/revogado/sem escopo para este repo, não erro de sintaxe do comando. Nesse estado, o painel Git do Replit (que usa a integração GitHub OAuth gerenciada, não o secret) é o único caminho de push que resta; não há workaround de terminal.
+**How to apply:** Verificar árvore de trabalho e divergência antes de sincronizar.
+Usar apenas envio normal autorizado, sem forçar ou reescrever o histórico.
+Se a ferramenta pedir uma autorização adicional para modificar os metadados de Git, seguir a instrução explícita da ferramenta somente dentro do escopo autorizado pelo usuário.
+Comparar o identificador local com o ramo remoto depois do envio.
+Se houver falha de autenticação, consultar as instruções de integrações para reconectar o acesso gerenciado; não repetir variantes de cabeçalhos nem acessar tokens manualmente.

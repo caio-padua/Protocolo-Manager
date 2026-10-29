@@ -41,7 +41,10 @@ Existem riscos comprovados de acesso, preservacao de exames e coerencia entre im
 Base local examinada: commit `0905670297d9b11e4e51c34ed6c0645c519a28e0`.
 Base remota consultada pela integracao oficial do GitHub: `288640aa7c7992b48e06dfe26fbdc2867a921570`.
 Na coleta inicial, a arvore de trabalho estava limpa e o ramo local estava um commit adiante do remoto conhecido.
-Esses identificadores descrevem a coleta, nao comprovam que a sincronizacao posterior foi realizada.
+Esses identificadores descrevem a coleta inicial.
+A primeira entrega desta auditoria foi posteriormente sincronizada no commit `8af24c211f81d6fd3912dcc0b1e3a75d2cf2746d`, com identificadores local e remoto iguais.
+O envio utilizou o transporte gerenciado do Replit, sem acessar ou manipular segredos.
+Sincronizar o GitHub nao publica a aplicacao nem atualiza o banco de producao.
 
 | Verificacao | Resultado | Limite da conclusao |
 | --- | --- | --- |
@@ -342,7 +345,7 @@ Discordancias fundamentadas devem ser registradas; nao sao aprovacao por cortesi
 - Validade da assinatura e conferencia visual de documentos clinicos completos.
 - Teste autenticado das telas de receitas, pedidos e resultados.
 - Sincronizacao da planilha, limitada por erro 429 observado no ambiente.
-- Prova final de sincronizacao do GitHub, a ser verificada separadamente apos registrar os artefatos.
+- Atualizacoes posteriores devem repetir a comparacao entre o ramo local e o remoto; a primeira entrega deste relatorio ja teve sincronizacao comprovada.
 
 Nao houve aprovacao de prontidao clinica.
 Nao foi realizada emissao real para demonstracao.
