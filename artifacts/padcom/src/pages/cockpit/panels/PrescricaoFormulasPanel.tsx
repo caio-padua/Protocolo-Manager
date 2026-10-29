@@ -143,7 +143,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
         setEmitResult(res);
         toast({ title: `Receitas emitidas! (${res.recipes.length})`, description: "PDFs gerados e enviados à farmácia." });
       },
-      onError: () => toast({ title: "Erro ao emitir receitas", variant: "destructive" }),
+      onError: (error) => toast({ title: "Erro ao emitir receitas", description: error.message, variant: "destructive" }),
     },
   });
 
@@ -348,6 +348,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
     }
     emitMutation.mutate({
       data: {
+        clientId,
         clientName: client.name.trim(),
         clientCpf: client.cpf || null,
         clientPhone: client.phone || null,

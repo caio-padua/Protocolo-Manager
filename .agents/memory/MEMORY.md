@@ -132,3 +132,4 @@
 - [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color é enum de nomes.
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.
 - [JPEG enviado — decodificar e regravar sem EXIF](jpeg-upload-decode-reencode.md) — validar pixels com decoder JavaScript puro; regravar remove EXIF/GPS; decoder nativo pode derrubar o Node 24.
+- [Prescrição — vínculo seguro](prescricao-vinculo-seguro.md) — nunca inferir por nome; conflito CPF/e-mail exige seleção humana, não primeiro resultado.

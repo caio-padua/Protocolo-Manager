@@ -128,10 +128,17 @@ export default function PrescricaoPage(
 
   // Auto-fill: quando o médico seleciona um cliente no picker, busca os dados completos
   useEffect(() => {
+    if (clientId) return;
+    let cancelled = false;
+    setPatient({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
     if (!selectedClientId) return;
     fetch(`${BASE}/api/clients/${selectedClientId}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Falha ao carregar cliente");
+        return r.json();
+      })
       .then((c: ClientData) => {
+        if (cancelled) return;
         setPatient({
           nome: c.name ?? "",
           cpf: c.cpf ?? "",
@@ -141,7 +148,8 @@ export default function PrescricaoPage(
         });
       })
       .catch(() => {});
-  }, [selectedClientId]);
+    return () => { cancelled = true; };
+  }, [selectedClientId, clientId]);
 
   // Roteamento p/ farmácias + emissão
   const { toast } = useToast();
@@ -163,7 +171,7 @@ export default function PrescricaoPage(
         setEmitResult(res);
         toast({ title: `Receitas emitidas! (${res.recipes.length})`, description: "PDFs gerados e enviados à farmácia." });
       },
-      onError: () => toast({ title: "Erro ao emitir receitas", variant: "destructive" }),
+      onError: (error) => toast({ title: "Erro ao emitir receitas", description: error.message, variant: "destructive" }),
     },
   });
 
@@ -259,6 +267,7 @@ export default function PrescricaoPage(
     }
     emitMutation.mutate({
       data: {
+        clientId: clientId ?? selectedClientId,
         clientName: patient.nome.trim(),
         clientCpf: patient.cpf || null,
         clientPhone: patient.telefone || null,

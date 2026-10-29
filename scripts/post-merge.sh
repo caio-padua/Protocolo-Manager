@@ -30,3 +30,5 @@ fi
 echo "[post-merge] aplicando scripts/migrations.sql"
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f scripts/migrations.sql
 echo "[post-merge] migrações aplicadas com sucesso"
+echo "[post-merge] recuperando vínculos inequívocos de prescrições"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f scripts/backfill-prescription-clients.sql

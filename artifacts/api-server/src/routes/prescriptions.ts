@@ -35,6 +35,7 @@ import {
 } from "../lib/lembrete-periodo";
 import { templateLembretePrescricao } from "../lib/lembrete-templates";
 import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
+import { resolvePrescriptionClient } from "../lib/prescription-client";
 
 /**
  * Monta a mensagem do lembrete pelo motor RICO (Mensageria PAXMED) — períodos ×
@@ -203,6 +204,15 @@ router.post("/prescriptions/emit", async (req, res): Promise<void> => {
 
   // 1) Persiste prescrição + itens.
   const empresaId = resolveEmpresaId(req);
+  const resolvedClientId = await resolvePrescriptionClient(body, empresaId);
+  if (resolvedClientId === null) {
+    res.status(422).json({
+      error: "Não foi possível vincular a prescrição a um único paciente. Selecione um paciente cadastrado e confira nome, CPF, e-mail e telefone com o cadastro antes de emitir.",
+    });
+    return;
+  }
+  // Todos os consumidores abaixo (persistência, lembretes e alertas) usam o vínculo validado.
+  body.clientId = resolvedClientId;
   const [prescription] = await db
     .insert(prescriptionsTable)
     .values({
@@ -733,40 +743,28 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
     return;
   }
 
+  const empresaId = resolveEmpresaId(req);
   const [pres] = await db
     .select()
     .from(prescriptionsTable)
-    .where(eq(prescriptionsTable.id, id));
+    .where(and(eq(prescriptionsTable.id, id), eq(prescriptionsTable.empresaId, empresaId)));
   if (!pres) {
     res.status(404).json({ error: "Prescrição não encontrada" });
     return;
   }
 
-  // Resolver clientId e telefone — tenta o registro direto, depois busca pelo CPF.
-  let clientId = pres.clientId ?? null;
-  let clientPhone = pres.clientPhone ?? null;
-
-  if ((!clientId || !clientPhone) && pres.clientCpf) {
-    const cpfDigits = pres.clientCpf.replace(/\D/g, "");
-    const [cli] = await db
-      .select({ id: clientsTable.id, phone: clientsTable.phone })
-      .from(clientsTable)
-      .where(
-        sql`REGEXP_REPLACE(${clientsTable.cpf}, '[^0-9]', '', 'g') = ${cpfDigits}`,
-      )
-      .limit(1);
-    if (cli) {
-      clientId   = clientId   ?? cli.id;
-      clientPhone = clientPhone ?? cli.phone ?? null;
-    }
-  }
+  // Mesma proteção da emissão: nunca escolher o primeiro CPF ou outra empresa.
+  const clientId = await resolvePrescriptionClient(pres, empresaId);
 
   if (!clientId) {
     res.status(422).json({
-      error: "clientId não encontrado — vincule o paciente à prescrição ou forneça um CPF válido",
+      error: "Paciente não identificado com segurança. Confira o vínculo e os dados da prescrição com o cadastro antes de reenviar.",
     });
     return;
   }
+  const [client] = await db.select({ phone: clientsTable.phone }).from(clientsTable)
+    .where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, empresaId)));
+  const clientPhone = client?.phone ?? null;
 
   // Itens da prescrição
   const itens = await db
