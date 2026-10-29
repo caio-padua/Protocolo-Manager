@@ -1142,6 +1142,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConciergeOffer"
+        "403":
+          description: CPF suspenso do Concierge. Corpo inclui code CONCIERGE_BLOCKED, blocked true, motivo, tentativas e mensagem para orientar a Via Comum.
 
   /catalog-options:
     get:

@@ -4522,7 +4522,7 @@ export const getGetConciergeOfferQueryKey = (
 
 export const getGetConciergeOfferQueryOptions = <
   TData = Awaited<ReturnType<typeof getConciergeOffer>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   params?: GetConciergeOfferParams,
   options?: {
@@ -4553,7 +4553,7 @@ export const getGetConciergeOfferQueryOptions = <
 export type GetConciergeOfferQueryResult = NonNullable<
   Awaited<ReturnType<typeof getConciergeOffer>>
 >;
-export type GetConciergeOfferQueryError = ErrorType<unknown>;
+export type GetConciergeOfferQueryError = ErrorType<void>;
 
 /**
  * @summary Real Concierge time offer (confronts the real agenda before payment)
@@ -4561,7 +4561,7 @@ export type GetConciergeOfferQueryError = ErrorType<unknown>;
 
 export function useGetConciergeOffer<
   TData = Awaited<ReturnType<typeof getConciergeOffer>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   params?: GetConciergeOfferParams,
   options?: {

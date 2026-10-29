@@ -23,6 +23,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { postSlackAlertChecked } from "../lib/slack-reporter.js";
+
+vi.mock("../lib/slack-reporter.js", () => ({ postSlackAlertChecked: vi.fn().mockResolvedValue(undefined) }));
 
 // ── Hoisted mocks (precisam estar disponíveis nas factories de vi.mock) ────────
 
@@ -216,8 +219,34 @@ const FAKE_ROW = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("POST /scheduling/requests — trava de bloqueio Concierge (Guard #159)", () => {
+  it.each([
+    ["POST", "pendente"], ["GET", "pendente"],
+    ["POST", "erro"], ["GET", "erro"],
+    ["POST", "sem configuração"], ["GET", "sem configuração"],
+  ])("%s mantém 403 com Slack %s", async (method, state) => {
+    mockGetPenalidade.mockResolvedValue({ bloqueado: true, penalidade_dias: 0, tentativas: 3 });
+    vi.mocked(apiZod.CreateSchedulingRequestBody.safeParse).mockReturnValue({
+      success: true, data: bodyConciergeCpf(CPF_BLOQUEADO),
+    } as any);
+    if (state === "pendente") {
+      vi.mocked(postSlackAlertChecked).mockImplementation(() => new Promise(() => {}));
+    } else {
+      vi.mocked(postSlackAlertChecked).mockRejectedValue(new Error(state));
+    }
+    const app = buildApp();
+    const pending = method === "POST"
+      ? request(app).post("/scheduling/requests").send(bodyConciergeCpf(CPF_BLOQUEADO))
+      : request(app).get(`/scheduling/concierge-offer?cpf=${CPF_BLOQUEADO}`);
+    const res = await pending.timeout({ response: 1500 }).expect(403);
+    expect(res.body.code).toBe("CONCIERGE_BLOCKED");
+    expect(postSlackAlertChecked).toHaveBeenCalledTimes(1);
+    expect(mockDbInsertReturning).not.toHaveBeenCalled();
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(postSlackAlertChecked).mockResolvedValue(undefined);
     mockRegistrarFalha.mockResolvedValue(undefined);
     mockCheckDeviceThrottle.mockResolvedValue({
       allowed: true, remaining: 49, throttled: false, requiresVerification: false,
@@ -251,6 +280,10 @@ describe("POST /scheduling/requests — trava de bloqueio Concierge (Guard #159)
       .expect(403);
 
     expect(res.body.code).toBe("CONCIERGE_BLOCKED");
+    expect(postSlackAlertChecked).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining("POST /scheduling/requests"),
+    );
     expect(res.body.error).toMatch(/suspens/i);
 
     // Não deve ter chegado ao INSERT

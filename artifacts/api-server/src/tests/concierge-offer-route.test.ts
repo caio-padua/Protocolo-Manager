@@ -24,6 +24,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { postSlackAlertChecked } from "../lib/slack-reporter.js";
+
+vi.mock("../lib/slack-reporter.js", () => ({ postSlackAlertChecked: vi.fn().mockResolvedValue(undefined) }));
 
 // ── Mocks de módulos pesados (declarados ANTES dos imports do router) ─────────
 
@@ -165,6 +168,7 @@ const FP_MOCK = "abc123def456ab78";
 describe("GET /scheduling/concierge-offer — trava de escassez (Concierge)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(postSlackAlertChecked).mockResolvedValue(undefined);
     mockRegistrarFalha.mockResolvedValue(undefined);
     // Por padrão: fingerprint estável, não verificado, device livre.
     mockDeriveFingerprint.mockReturnValue(FP_MOCK);
@@ -183,8 +187,13 @@ describe("GET /scheduling/concierge-offer — trava de escassez (Concierge)", ()
     const app = buildApp();
     const res = await request(app)
       .get(`/scheduling/concierge-offer?cpf=${CPF_BLOQUEADO}&weekday=3&period=manha&earliest=2026-09-01`)
-      .expect(200);
+      .expect(403);
 
+    expect(res.body.code).toBe("CONCIERGE_BLOCKED");
+    expect(postSlackAlertChecked).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining("GET /scheduling/concierge-offer"),
+    );
     expect(res.body.blocked).toBe(true);
     expect(res.body.motivo).toBe("concierge_bloqueado");
     expect(res.body.tentativas).toBe(3);
@@ -216,6 +225,7 @@ describe("GET /scheduling/concierge-offer — trava de escassez (Concierge)", ()
     const diffDias  = (effective.getTime() - original.getTime()) / 86_400_000;
 
     expect(diffDias).toBe(7);
+    expect(postSlackAlertChecked).not.toHaveBeenCalled();
   });
 
   it("Cenário 8b — CPF com 2 falhas → earliestDate offsetada +30 dias", async () => {

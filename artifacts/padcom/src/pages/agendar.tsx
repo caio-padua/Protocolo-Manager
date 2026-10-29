@@ -952,6 +952,11 @@ function DrCaioFlow({ onBack, title, payTextConcierge, payLink, theme }: { onBac
       const res = await fetch(
         `${BASE}/api/scheduling/concierge-offer?${params.toString()}`,
       );
+      if (res.status === 403) {
+        const blocked = await res.json();
+        if (blocked.code === "CONCIERGE_BLOCKED" && blocked.blocked === true) return blocked;
+        throw new Error("Falha ao buscar oferta");
+      }
       if (!res.ok) throw new Error("Falha ao buscar oferta");
       return res.json() as Promise<{
         blocked?: boolean;

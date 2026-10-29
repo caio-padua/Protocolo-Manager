@@ -31,6 +31,7 @@ import { computeConciergeOffer } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
+import { notifyConciergeBlocked } from "../lib/concierge-block-alert.js";
 import { checkDeviceThrottle, deriveFingerprint, isDeviceVerified } from "../lib/concierge-device-throttle.js";
 import { getOrCreateChallenge, verifyDeviceCode } from "../lib/device-throttle.js";
 
@@ -529,6 +530,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
   ) {
     const pen = await getPenalidade(data.patientCpf!);
     if (pen.bloqueado) {
+      void notifyConciergeBlocked(data.patientCpf, pen.tentativas, "POST /scheduling/requests");
       res.status(403).json({
         error:
           "Este CPF está suspenso do canal Concierge. Utilize a via comum para agendar.",
@@ -982,8 +984,10 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
     // ── Trava de escassez: verifica penalidade do CPF ANTES de calcular a oferta ──
     const pen = await getPenalidade(cpf);
     if (pen.bloqueado) {
+      void notifyConciergeBlocked(cpf ?? "", pen.tentativas, "GET /scheduling/concierge-offer");
       // 4ª+ tentativa: concierge indisponível — redireciona para via normal.
-      res.json({
+      res.status(403).json({
+        code: "CONCIERGE_BLOCKED",
         blocked: true,
         motivo: "concierge_bloqueado",
         tentativas: pen.tentativas,
