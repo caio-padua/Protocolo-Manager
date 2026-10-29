@@ -12,6 +12,7 @@
  *  4. PAYMENT_OVERDUE de sreq com path≠concierge → registrarFalha() NÃO é chamado
  *  5. PAYMENT_OVERDUE onde só paymentsTable tem linha (sem sreq) → registrarFalha() NÃO chamado
  *  6. PAYMENT_REFUNDED de um sreq concierge → registrarFalha() chamado
+ * 14. PAYMENT_REFUNDED de sreq com path≠concierge → registrarFalha() NÃO chamado
  * 12. PAYMENT_REFUNDED sem nenhum sreq vinculado → registrarFalha() NÃO chamado
  *  7. Token inválido no header             → 401, registrarFalha() NÃO chamado
  *  8. PAYMENT_OVERDUE com ambas as tabelas tendo linha → registrarFalha() chamado uma vez
@@ -275,6 +276,17 @@ describe("POST /asaas/webhook — gatilho de penalidade concierge", () => {
     expect(res.status).toBe(200);
     expect(mockRegistrarFalha).toHaveBeenCalledTimes(1);
     expect(mockRegistrarFalha).toHaveBeenCalledWith(PATIENT_CPF, expect.any(String), SREQ_CONCIERGE.id);
+  });
+
+  // ── Cenário 14: PAYMENT_REFUNDED, sreq com path diferente ────────────────
+  it("Cenário 14 — PAYMENT_REFUNDED com sreq path≠concierge → registrarFalha NÃO é chamado", async () => {
+    setupSelectMocks(null, SREQ_NORMAL);
+
+    const res = await postWebhook(app, "PAYMENT_REFUNDED");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockRegistrarFalha).not.toHaveBeenCalled();
   });
 
   // ── Cenário 12: PAYMENT_REFUNDED sem nenhum sreq vinculado ───────────────
