@@ -38,6 +38,7 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
+import { PrescricoesEmitidas } from "../../prescricao/PrescricoesEmitidas";
 
 // ===========================================================================
 // PAINEL: PRESCRICAO DE FORMULAS (client-scoped) — extraido de prescricao/index.tsx.
@@ -414,6 +415,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
 
   return (
     <div className="space-y-4">
+      <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paciente</p>

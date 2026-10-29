@@ -27,6 +27,7 @@ import {
   type ClinicaDataBind,
 } from "@/components/receituario/ReceituarioPreview";
 import { loadReceituarioConfig } from "@/lib/arabesques/receituario-config";
+import { PrescricoesEmitidas } from "./PrescricoesEmitidas";
 
 const NAVY = "#16284a";
 const OURO = "#c9a24e";
@@ -586,6 +587,8 @@ export default function PrescricaoPage(
           <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>
         </div>
       )}
+
+      <PrescricoesEmitidas clientId={clientId ?? selectedClientId} emissionId={emitResult?.prescriptionId} />
 
       {/* PAINEL — FAIXA ORNAMENTAL DO RECEITUÁRIO */}
       <section className="no-print">

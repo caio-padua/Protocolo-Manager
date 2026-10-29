@@ -11,10 +11,12 @@ import {
   catalogoFormulasTable,
   lembretesPrescricaoTable,
   clientsTable,
+  professionalsTable,
   type LembretePeriodoJson,
 } from "@workspace/db";
 import { eq, desc, asc, and, sql } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
+import { requireCollaborator } from "./collaborator";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
@@ -895,16 +897,30 @@ router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void
  * mesmo casco navy, mesmos cartões de substância.
  * Destinatários: CEO sempre + e-mail do paciente quando cadastrado.
  */
-router.post("/prescriptions/:id/reenviar-email", async (req, res): Promise<void> => {
+router.post("/prescriptions/:id/reenviar-email", requireCollaborator, async (req, res): Promise<void> => {
+  const [actor] = await db.select({ isPrimaryDoctor: professionalsTable.isPrimaryDoctor })
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, req.collaborator!.professionalId));
+  if (!actor?.isPrimaryDoctor) {
+    res.status(403).json({ error: "Somente o CEO pode reenviar o receituário por e-mail." });
+    return;
+  }
   const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
+  if (!Number.isSafeInteger(id) || id <= 0) {
     res.status(400).json({ error: "id inválido" });
     return;
   }
 
-  const [pres] = await db.select().from(prescriptionsTable).where(eq(prescriptionsTable.id, id));
+  const [pres] = await db.select().from(prescriptionsTable).where(and(
+    eq(prescriptionsTable.id, id),
+    eq(prescriptionsTable.empresaId, resolveEmpresaId(req)),
+  ));
   if (!pres) {
     res.status(404).json({ error: "Prescrição não encontrada" });
+    return;
+  }
+  if (pres.status !== "emitted") {
+    res.status(422).json({ error: "Somente prescrições emitidas podem ser reenviadas." });
     return;
   }
 
