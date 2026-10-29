@@ -2247,6 +2247,159 @@ export function drawPremiumCover(
   pg.drawText(footTxt, { x: MARGIN, y: 22, size: 5.5, font: pf.manReg, color: MIST_P, opacity: 0.6 });
 }
 
+const SUBSTANCE_SUMMARY_CARD_H = 104;
+const SUBSTANCE_SUMMARY_ROWS = 6;
+const SUBSTANCE_SUMMARY_PER_PAGE = SUBSTANCE_SUMMARY_ROWS * 2;
+
+function truncateSummaryText(value: string | undefined, maxChars: number): string {
+  const normalized = safeTxt(value).replace(/\s+/g, " ").trim();
+  if (!normalized) return EMPTY_SHORT;
+  if (normalized.length <= maxChars) return normalized;
+  return normalized.slice(0, Math.max(1, maxChars - 1)).trimEnd() + "\u2026";
+}
+
+function truncateSummaryTextToWidth(
+  value: string | undefined,
+  font: PDFFont,
+  size: number,
+  maxWidth: number,
+  maxChars?: number,
+): string {
+  let text = safeTxt(value).replace(/\s+/g, " ").trim();
+  if (!text) return EMPTY_SHORT;
+  if (maxChars && text.length > maxChars) {
+    text = text.slice(0, Math.max(1, maxChars - 1)).trimEnd() + "\u2026";
+  }
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+
+  const ellipsis = "\u2026";
+  while (text.length > 1 && font.widthOfTextAtSize(text.replace(/\u2026$/, "") + ellipsis, size) > maxWidth) {
+    text = text.replace(/\u2026$/, "").slice(0, -1).trimEnd();
+  }
+  return text.replace(/\u2026$/, "") + ellipsis;
+}
+
+/**
+ * Página-resumo visual das substâncias. Fica separada da capa para preservar a
+ * composição premium e pagina sem cortar cards quando o protocolo for extenso.
+ */
+export function drawSubstanceSummaryPages(
+  pdfDoc: PDFDocument,
+  allPages: PDFPage[],
+  substances: ProtocolDocSubstance[],
+  pf: PremiumFonts,
+): void {
+  if (substances.length === 0) return;
+
+  const gapX = 12;
+  const gapY = 10;
+  const cardW = (CONTENT_W - gapX) / 2;
+  const cardsTopY = PAGE_H - 112;
+
+  for (let offset = 0; offset < substances.length; offset += SUBSTANCE_SUMMARY_PER_PAGE) {
+    const pg = newDocPage(pdfDoc, allPages);
+    pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
+    pg.drawRectangle({ x: 0, y: PAGE_H - 86, width: PAGE_W, height: 86, color: NAVY_P });
+    pg.drawRectangle({ x: MARGIN, y: PAGE_H - 89, width: CONTENT_W, height: 3, color: GOLD_P });
+
+    pg.drawText("SUBST\u00c2NCIAS DO SEU PROTOCOLO", {
+      x: MARGIN,
+      y: PAGE_H - 48,
+      size: 20,
+      font: pf.cgBold,
+      color: IVORY_P,
+    });
+    const pageIndex = Math.floor(offset / SUBSTANCE_SUMMARY_PER_PAGE) + 1;
+    const pageCount = Math.ceil(substances.length / SUBSTANCE_SUMMARY_PER_PAGE);
+    if (pageCount > 1) {
+      const pageLabel = `${pageIndex} DE ${pageCount}`;
+      pg.drawText(pageLabel, {
+        x: PAGE_W - MARGIN - pf.manBold.widthOfTextAtSize(pageLabel, 6),
+        y: PAGE_H - 48,
+        size: 6,
+        font: pf.manBold,
+        color: GOLD_P,
+      });
+    }
+    pg.drawText("Uma vis\u00e3o r\u00e1pida dos componentes escolhidos para o seu cuidado.", {
+      x: MARGIN,
+      y: PAGE_H - 66,
+      size: 7,
+      font: pf.manReg,
+      color: MIST_P,
+    });
+
+    const pageSubs = substances.slice(offset, offset + SUBSTANCE_SUMMARY_PER_PAGE);
+    for (let i = 0; i < pageSubs.length; i++) {
+      const sub = pageSubs[i];
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = MARGIN + col * (cardW + gapX);
+      const y = cardsTopY - SUBSTANCE_SUMMARY_CARD_H - row * (SUBSTANCE_SUMMARY_CARD_H + gapY);
+
+      pg.drawRectangle({
+        x,
+        y,
+        width: cardW,
+        height: SUBSTANCE_SUMMARY_CARD_H,
+        color: NAVY_P,
+        borderColor: GOLD_P,
+        borderWidth: 0.55,
+        borderOpacity: 0.35,
+      });
+
+      const avatarX = x + 27;
+      const avatarY = y + SUBSTANCE_SUMMARY_CARD_H - 29;
+      pg.drawCircle({ x: avatarX, y: avatarY, size: 15, color: getSubstanceColor(sub.color) });
+      const initial = safeTxt(sub.name).trim().charAt(0).toUpperCase() || "?";
+      const initialW = pf.manBold.widthOfTextAtSize(initial, 10);
+      pg.drawText(initial, {
+        x: avatarX - initialW / 2,
+        y: avatarY - 3.5,
+        size: 10,
+        font: pf.manBold,
+        color: NAVY_P,
+      });
+
+      const textX = x + 50;
+      const textW = cardW - 60;
+      const nameSize = 12;
+      const name = truncateSummaryTextToWidth(safeTxt(sub.name).toUpperCase(), pf.cgBold, nameSize, textW);
+      pg.drawText(name, {
+        x: textX,
+        y: y + SUBSTANCE_SUMMARY_CARD_H - 25,
+        size: nameSize,
+        font: pf.cgBold,
+        color: GOLD_P,
+      });
+
+      pg.drawText(truncateSummaryTextToWidth(sub.dose, pf.manBold, 8, textW), {
+        x: textX,
+        y: y + SUBSTANCE_SUMMARY_CARD_H - 45,
+        size: 8,
+        font: pf.manBold,
+        color: IVORY_P,
+      });
+
+      pg.drawLine({
+        start: { x: x + 12, y: y + 45 },
+        end: { x: x + cardW - 12, y: y + 45 },
+        thickness: 0.35,
+        color: GOLD_P,
+        opacity: 0.25,
+      });
+      pg.drawText(truncateSummaryTextToWidth(sub.description, pf.manReg, 6.5, cardW - 24, 80), {
+        x: x + 12,
+        y: y + 25,
+        size: 6.5,
+        font: pf.manReg,
+        color: MIST_P,
+      });
+    }
+
+  }
+}
+
 // ── Subcapa biográfica (página 2) ─────────────────────────────────────────────
 // Apresenta o médico responsável pelo protocolo: bloco navy no topo com nome e
 // credenciais, corpo marfim com a história em duas colunas. Não recebe o
@@ -2257,7 +2410,7 @@ function drawSubcapaPage(
   data: ProtocolDocumentData,
   pf: PremiumFonts,
   paduaWordmark: EmbeddedPng | null,
-): void {
+): PDFPage {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P });
 
@@ -2419,6 +2572,7 @@ function drawSubcapaPage(
     end:   { x: MARGIN + COL_W + COL_GAP / 2, y: FLOOR + 12 },
     thickness: 0.5, color: GOLD_P, opacity: 0.25,
   });
+  return pg;
 }
 
 // ── Checkpoint B: Header e footer premium para páginas internas ───────────────
@@ -2497,8 +2651,11 @@ export async function buildProtocolDocumentLayout(
   // ── Checkpoint B: Capa premium PAXMED ──────────────────────────────────────
   drawPremiumCover(pdfDoc, allPages, data, pf, symbolImg, wordmarkImg, padconSymbol, padconWords, paduaWordmark, drCaioPhoto);
 
-  // ── Checkpoint B2: Subcapa biográfica do médico (página 2) ─────────────────
-  drawSubcapaPage(pdfDoc, allPages, data, pf, paduaWordmark);
+  // ── Checkpoint B1: Resumo visual das substâncias (2 colunas, paginado) ──────
+  drawSubstanceSummaryPages(pdfDoc, allPages, data.substances, pf);
+
+  // ── Checkpoint B2: Subcapa biográfica do médico ─────────────────────────────
+  const subcapaPage = drawSubcapaPage(pdfDoc, allPages, data, pf, paduaWordmark);
 
   // ── Checkpoint C+D: Uma ficha A4 por substância + overflow interno ───────────
   // (overflow é gerenciado dentro de drawSubstancePremiumPage)
@@ -2830,11 +2987,11 @@ export async function buildProtocolDocumentLayout(
 
   // ── Header + footer premium em todas as páginas internas (pula capa) ──────────
   // index 0 = capa (sem header/footer)
-  // index 1 = subcapa biográfica (tem cabeçalho próprio; só recebe footer)
-  // index 2+ = fichas, perguntas, cronograma, pagamentos, assinatura
+  // subcapa biográfica tem cabeçalho próprio e pode mudar de índice quando há
+  // uma ou mais páginas-resumo; por isso a exclusão usa a referência da página.
   for (let i = 0; i < allPages.length; i++) {
     if (i === 0) continue;
-    if (i !== 1) drawPremiumHeaderBrand(allPages[i], pf);
+    if (allPages[i] !== subcapaPage) drawPremiumHeaderBrand(allPages[i], pf);
     drawPremiumFooter(allPages[i], pf, i + 1, allPages.length, qrImg, padconSymbol, padconWords);
   }
 }

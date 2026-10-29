@@ -19,6 +19,7 @@ import {
   drawPadconMark,
   drawPremiumFooter,
   drawPremiumCover,
+  drawSubstanceSummaryPages,
 } from "../lib/pdf-signer.js";
 import {
   buildCartaTratamentoDto,
@@ -170,6 +171,53 @@ describe("lógica financeira — saldo e card label", () => {
     expect(cardCell).toBe("Master final 5678");
   });
 
+});
+
+describe("resumo visual de substâncias", () => {
+  it("não cria página quando o protocolo não tem substâncias", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const allPages: PDFPage[] = [];
+
+    drawSubstanceSummaryPages(pdfDoc, allPages, [], makePremiumFonts(reg, bold) as any);
+
+    expect(allPages).toHaveLength(0);
+  });
+
+  it("cria cards em duas colunas e pagina após 12 substâncias", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const reg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const allPages: PDFPage[] = [];
+    const drawText = vi.spyOn(PDFPage.prototype, "drawText");
+    const substances = Array.from({ length: 13 }, (_, i) => makeSub({
+      name: i === 0 ? "w".repeat(100) : `Substancia ${i + 1}`,
+      dose: i === 0 ? "W".repeat(100) : "500mg",
+      description: "Descricao clinica ".repeat(8),
+    }));
+
+    drawSubstanceSummaryPages(pdfDoc, allPages, substances as any, makePremiumFonts(reg, bold) as any);
+
+    expect(allPages).toHaveLength(2);
+    expect(drawText.mock.calls.some(([text]) => text === "SUBSTÂNCIAS DO SEU PROTOCOLO")).toBe(true);
+    const descriptionCalls = drawText.mock.calls
+      .map(([text]) => String(text))
+      .filter((text) => text.startsWith("Descricao clinica"));
+    expect(descriptionCalls).toHaveLength(13);
+    expect(descriptionCalls.every((text) => text.length <= 80)).toBe(true);
+    const longNameCall = drawText.mock.calls.find(([text, options]) =>
+      String(text).startsWith("WWW") && options?.size === 12
+    );
+    const longDoseCall = drawText.mock.calls.find(([text, options]) =>
+      String(text).startsWith("WWW") && options?.size === 8
+    );
+    expect(longNameCall).toBeDefined();
+    expect(longDoseCall).toBeDefined();
+    expect(bold.widthOfTextAtSize(String(longNameCall![0]), 12)).toBeLessThanOrEqual((595.28 - 72 - 12) / 2 - 60);
+    expect(bold.widthOfTextAtSize(String(longDoseCall![0]), 8)).toBeLessThanOrEqual((595.28 - 72 - 12) / 2 - 60);
+    drawText.mockRestore();
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
