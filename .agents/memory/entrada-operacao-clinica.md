@@ -7,7 +7,7 @@ description: Objetivo de entrada em uso real e coexistência com o sistema clín
 
 Em 29/10/2026, o proprietário informou que o PAXTER nunca havia entrado em operação clínica e determinou prepará-lo para atendimento real, mantendo em paralelo o sistema clínico que já utiliza.
 
-As prioridades declaradas são receitas e exames; esclarecer se exames inclui solicitação, leitura de resultados ou ambos antes de fechar esse escopo.
+As prioridades confirmadas são receitas, pedidos de exames e trabalho com resultados de exames, incluindo recebimento, extração e conferência.
 
 **Why:** Existência de código e tarefas integradas não significa que a plataforma já tenha sido usada ou homologada em atendimento.
 

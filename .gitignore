@@ -80,3 +80,6 @@ attached_assets/
 # Playwright test artifacts
 test-results/
 playwright-report/
+
+# Relatorios renderizados e outros resultados gerados; fontes ficam versionadas.
+/generated-artifacts/
