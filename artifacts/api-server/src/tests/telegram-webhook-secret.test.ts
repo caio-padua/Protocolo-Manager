@@ -16,7 +16,7 @@
  *   C6. Falha técnica do cofre → 200 + ERROR específico sem credenciais
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 // ── Mocks OBRIGATORIAMENTE antes dos imports das rotas ───────────────────────
 vi.mock("../lib/logger.js", () => ({
@@ -46,7 +46,7 @@ vi.mock("@workspace/db", () => {
   }
 
   const dbMock = {
-    select:  () => makeChain([]),  // sem clientes vinculados por padrão
+    select:  vi.fn(() => makeChain([])),  // sem clientes vinculados por padrão
     execute: vi.fn().mockResolvedValue({ rows: [] }),
   };
   return {
@@ -155,6 +155,10 @@ const PAYLOAD_VALIDO = {
 function buildApp() {
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.log = logger;
+    next();
+  });
   app.use(telegramWebhookRouter);
   return app;
 }
@@ -330,5 +334,111 @@ describe("POST /webhooks/telegram — validação do segredo", () => {
     } finally {
       selectSpy.mockRestore();
     }
+  });
+});
+
+describe("POST /webhooks/telegram — senha de validação com match único", () => {
+  const SENHA = "SENHA-TESTE-42";
+  const CHAT_ID = 123456789;
+  const CLIENTES = [
+    { id: 42, name: "Paciente Um", vp: SENHA },
+    { id: 43, name: "Paciente Dois", vp: SENHA },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("PADAXOR_TELEGRAM_CHAT_ID", "CEO_TESTE");
+    mockGetSecret.mockResolvedValue(SEGREDO_CORRETO);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(db.select).mockReset();
+  });
+
+  function mockClientes(clientes: typeof CLIENTES) {
+    // Primeira consulta: chat ainda não vinculado.
+    // Segunda consulta: todos os candidatos à senha (await direto em from()).
+    vi.mocked(db.select)
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      } as unknown as ReturnType<typeof db.select>)
+      .mockReturnValueOnce({
+        from: vi.fn().mockResolvedValue(clientes),
+      } as unknown as ReturnType<typeof db.select>);
+  }
+
+  function enviarSenha(chatId = CHAT_ID) {
+    return request(buildApp())
+      .post("/webhooks/telegram")
+      .set("x-telegram-bot-api-secret-token", SEGREDO_CORRETO)
+      .send({
+        ...PAYLOAD_VALIDO,
+        message: {
+          ...PAYLOAD_VALIDO.message,
+          chat: { id: chatId, type: "private" },
+          text: `  ${SENHA.toLowerCase()}  `,
+        },
+      });
+  }
+
+  it.each([CHAT_ID, CHAT_ID + 1])(
+    "colisão: recusa o vínculo do chat %s sem UPDATE nem boas-vindas",
+    async (chatId) => {
+      mockClientes(CLIENTES);
+
+      const res = await enviarSenha(chatId);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      // Prova que a busca de candidatos ocorreu, evitando um falso positivo
+      // caso o texto do Telegram seja ignorado antes da verificação de colisão.
+      expect(db.select).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "[telegram] vínculo recusado: senha de validação ambígua (colisão)",
+      );
+      expect(db.execute).not.toHaveBeenCalled();
+      expect(sendTelegram).not.toHaveBeenCalled();
+      expect(mockProcessarWebhookInbox).not.toHaveBeenCalled();
+      expect(logger.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it("match único: grava o chat no paciente correto e envia boas-vindas", async () => {
+    mockClientes([CLIENTES[0], { ...CLIENTES[1], vp: "OUTRA-SENHA" }]);
+
+    const res = await enviarSenha();
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(db.execute).toHaveBeenCalledOnce();
+    const query = vi.mocked(db.execute).mock.calls[0][0] as unknown as {
+      strings: readonly string[];
+      values: unknown[];
+    };
+    expect(query.strings.join("?").replace(/\s+/g, " ").trim()).toBe(
+      "UPDATE clients SET telegram_chat_id = ?, telegram_vinculado_em = now() WHERE id = ?",
+    );
+    expect(query.values).toEqual([String(CHAT_ID), CLIENTES[0].id]);
+    expect(sendTelegram).toHaveBeenCalledTimes(2);
+    expect(sendTelegram).toHaveBeenCalledWith(
+      String(CHAT_ID),
+      expect.stringContaining("Olá, Paciente!"),
+    );
+    expect(sendTelegram).toHaveBeenCalledWith(
+      String(CHAT_ID),
+      expect.stringContaining("Seu Telegram está agora vinculado"),
+    );
+    expect(sendTelegram).toHaveBeenCalledWith(
+      "CEO_TESTE",
+      expect.stringContaining(CLIENTES[0].name),
+    );
+    expect(mockProcessarWebhookInbox).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
   });
 });

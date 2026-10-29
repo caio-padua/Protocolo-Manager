@@ -470,7 +470,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     // ATENÇÃO: o texto do paciente vem em message.text — é o formato do Telegram.
     // Um merge já trocou isto por req.body.texto e deixou TODA a entrada do
     // Telegram muda (nada vinculava, nada chegava ao inbox). Não trocar.
-      const texto: string = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
+    const texto: string = typeof msg.text === "string" ? msg.text.trim() : "";
     if (!chatId) {
       res.status(200).json({ ok: true });
       return;
