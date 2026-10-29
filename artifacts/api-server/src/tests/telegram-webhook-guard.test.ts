@@ -13,6 +13,7 @@
  *   9. runGuardCycle() NÃO envia Telegram ao CEO quando chatId ausente
  *  10. checkWebhookHealth() retorna healthy:false quando fetchError está presente
  *  11. checkWebhookHealth() retorna healthy:false quando mock:true (token ausente)
+ *  12. token presente só no cofre hidrata o env e consulta getWebhookInfo de verdade
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -362,5 +363,71 @@ describe("runGuardCycle — modo MOCK (token ausente)", () => {
 
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockLogInfo).toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bloco 7 — integração Telegram + cofre cifrado
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("checkWebhookHealth — token presente apenas no cofre", () => {
+  it("consulta getWebhookInfo e detecta webhook inativo sem cair em mock:true", async () => {
+    const hadTelegramToken = Object.prototype.hasOwnProperty.call(
+      process.env,
+      "TELEGRAM_BOT_TOKEN",
+    );
+    const originalTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
+
+    vi.resetModules();
+    vi.doUnmock("../lib/telegram");
+
+    const getSecretFromVault = vi.fn().mockResolvedValue("TOKEN_SOMENTE_NO_COFRE");
+    vi.doMock("../lib/secure-settings", () => ({
+      getSecret: getSecretFromVault,
+    }));
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            url: "",
+            has_custom_certificate: false,
+            pending_update_count: 0,
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    delete process.env.TELEGRAM_BOT_TOKEN;
+
+    try {
+      const { checkWebhookHealth: checkWithRealTelegramModule } =
+        await import("../lib/telegram-webhook-guard");
+
+      const result = await checkWithRealTelegramModule();
+
+      expect(getSecretFromVault).toHaveBeenCalledWith("telegram.botToken");
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "https://api.telegram.org/botTOKEN_SOMENTE_NO_COFRE/getWebhookInfo",
+      );
+      expect(result.healthy).toBe(false);
+      expect(result.url).toBe("");
+      expect(result.mock).not.toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+      if (hadTelegramToken) {
+        process.env.TELEGRAM_BOT_TOKEN = originalTelegramToken;
+      } else {
+        delete process.env.TELEGRAM_BOT_TOKEN;
+      }
+      vi.doUnmock("../lib/secure-settings");
+      vi.doMock("../lib/telegram", () => ({
+        getWebhookInfo: mockGetWebhookInfo,
+        sendTelegram: mockSendTelegram,
+      }));
+      vi.resetModules();
+    }
   });
 });
