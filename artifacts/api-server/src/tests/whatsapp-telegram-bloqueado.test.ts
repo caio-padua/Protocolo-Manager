@@ -25,7 +25,11 @@ const mockDbUpdate = vi.fn();
 vi.mock("@workspace/db", () => ({
   db: {
     select: () => ({ from: () => ({ where: () => ({ limit: () => mockDbSelect() }) }) }),
-    insert: () => ({ values: () => ({ returning: () => mockDbInsert() }) }),
+    insert: () => ({
+      values: (values: Record<string, unknown>) => ({
+        returning: () => mockDbInsert(values),
+      }),
+    }),
     update: () => ({ set: () => ({ where: () => mockDbUpdate() }) }),
   },
   whatsappMensagensLogTable: { id: "id", clienteId: "client_id", via: "via", status: "status", criadoEm: "criado_em" },
@@ -146,7 +150,16 @@ describe("sendWhatsapp — registro de espelho Telegram bloqueado", () => {
     expect(result.sent).toBe(false);
     expect(result.error).toBe("twilio_63016");
     expect(mockDbSelect).toHaveBeenCalled();
-    expect(mockDbInsert).toHaveBeenCalledTimes(2); // WA queued + Telegram bloqueado
+    await vi.waitFor(() => expect(mockDbInsert).toHaveBeenCalledTimes(2));
+    expect(mockDbInsert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        clienteId: 42,
+        via: "telegram",
+        status: "bloqueado",
+        errorCode: "twilio_63016",
+      }),
+    );
   });
 
   it("sem clienteId: nunca registra bloqueio (sem espelho possível)", async () => {
