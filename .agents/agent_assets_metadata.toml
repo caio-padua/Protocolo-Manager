@@ -314,7 +314,7 @@ logical_id = "987fae97-a195-42c2-869d-52dd3cebcdc1"
 [[outputs]]
 id = "0n9968gdTUn0aJhb-bpiA"
 uri = "file://tmp-preview/caderno-substancias-preview.html"
-type = "text"
+type = "html"
 title = "Preview — Substâncias nos Cadernos Jurídicos"
 description = "Dados reais do protocolo 31 da Carlúcia. Uma substância por linha, dose limpa (sem ml), aplicações e frequência. Pellets com badge visual diferenciado."
 logical_id = "ac0ae7c8-c78e-4101-9b65-aaf4a594c7ff"
@@ -395,7 +395,7 @@ logical_id = "2ec7d6f8-6c12-4269-9b58-53a2d07d7e7c"
 [[outputs]]
 id = "PH7-itBDqSNWWcz18xMAA"
 uri = "file://docs/provas/carta-carlucia-protocolo-32.html"
-type = "text"
+type = "html"
 title = "Carta de Tratamento — CARLUCIA — as nove paginas para conferir"
 description = "As nove folhas em imagem, uma embaixo da outra. Abre direto, sem baixar nada. Nada foi enviado a paciente."
 logical_id = "3a62a002-8e3b-40b1-9826-cbd198c1eeae"
@@ -592,3 +592,17 @@ mtime_ms = 1789228721628
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4fd0b704-48ac-435b-b8e8-30d38b3e4c7e/a00e9067-7273-44cb-93fa-fb7d5cf68cc4"
 storage_version_token = "1789228858168876"
 content_type = "image/png"
+
+[[outputs]]
+id = "fRKS0dikuFO_yPiiYW3z2"
+uri = "file://generated-artifacts/entrada-operacao-20261029/PAXTER_RELATORIO_EQUIPE.pdf"
+type = "pdf"
+title = "PAXTER — Auditoria inicial e plano de operação"
+description = "Relatório técnico de nove páginas para Dr. Chat e equipe: evidências, bloqueadores, arquivos envolvidos, sequência de correções e critérios de liberação clínica."
+logical_id = "91a762f8-eefc-42c8-a89f-7c711297f7ba"
+content_hash = "sha256:35c412df24a557da856490e361a2e06448a04979d26ba5948bf1328bbcdfe9d0"
+size = 182645
+mtime_ms = 1793297753034
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/91a762f8-eefc-42c8-a89f-7c711297f7ba/bc51598e-49cf-4623-a07e-12ca479ddbdc"
+storage_version_token = "1793297776732321"
+content_type = "application/pdf"
