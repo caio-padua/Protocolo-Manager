@@ -16,6 +16,8 @@
  */
 
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 // ── Mock de @workspace/db (ANTES de qualquer import da lib) ──────────────────
 vi.mock("@workspace/db", () => ({
@@ -29,6 +31,7 @@ import {
   registrarFalha,
   resetarPenalidade,
   listPenalidades,
+  listAuditoriaResets,
 } from "../lib/concierge-penalidade";
 
 // Aliases curtos para os spies já tipados.
@@ -249,6 +252,36 @@ describe("resetarPenalidade", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // listPenalidades
 // ─────────────────────────────────────────────────────────────────────────────
+
+describe("listAuditoriaResets", () => {
+  it("consulta resets do mesmo CPF por resetado_at DESC e preserva o mais recente no índice 0", async () => {
+    const antigo = {
+      id: 2,
+      cpf_mascarado: "123.***.***-01",
+      resetado_por: "CEO",
+      resetado_at: "2026-08-12T11:00:00.000Z",
+      tentativas_anteriores: 3,
+    };
+    // IDs propositalmente fora da ordem temporal: a ordenação é pelo timestamp.
+    const recente = {
+      ...antigo,
+      id: 1,
+      resetado_at: "2026-08-13T11:00:00.000Z",
+      tentativas_anteriores: 2,
+    };
+    mockExec().mockResolvedValueOnce(qr([recente, antigo]));
+
+    const rows = await listAuditoriaResets(CPF_VALIDO);
+
+    expect(mockExec()).toHaveBeenCalledTimes(1);
+    const query = new PgDialect().sqlToQuery(mockExec().mock.calls[0][0] as SQL);
+    // Verifica a consulta real, não apenas a ordem previamente definida no mock.
+    expect(query.sql).toMatch(/WHERE\s+cpf\s*=\s*\$1\s+ORDER BY\s+resetado_at\s+DESC\b/i);
+    expect(query.params).toEqual([CPF_VALIDO]);
+    expect(rows).toEqual([recente, antigo]);
+    expect(Date.parse(rows[0].resetado_at)).toBeGreaterThan(Date.parse(rows[1].resetado_at));
+  });
+});
 
 describe("listPenalidades", () => {
   const RAW_ROW = {

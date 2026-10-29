@@ -237,6 +237,30 @@ describe("GET /api/admin/concierge-penalidade/:cpf/historico", () => {
     expect(penLib.listAuditoriaResets).toHaveBeenCalledWith(CPF_VALIDO);
   });
 
+  it("HTTP 200 devolve dois resets do mesmo CPF do mais recente ao mais antigo", async () => {
+    const resetAntigo = { ...ROW_RESET, id: 2 };
+    const resetRecente = {
+      ...ROW_RESET,
+      id: 1,
+      resetado_at: "2026-08-13T11:00:00.000Z",
+      tentativas_anteriores: 2,
+    };
+    vi.mocked(penLib.listAuditoriaResets).mockResolvedValue([resetRecente, resetAntigo]);
+
+    const res = await request(buildApp()).get(
+      `/api/admin/concierge-penalidade/${CPF_VALIDO}/historico`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.total).toBe(2);
+    expect(penLib.listAuditoriaResets).toHaveBeenCalledWith(CPF_VALIDO);
+    expect(res.body.rows).toEqual([resetRecente, resetAntigo]);
+    expect(Date.parse(res.body.rows[0].resetado_at)).toBeGreaterThan(
+      Date.parse(res.body.rows[1].resetado_at),
+    );
+  });
+
   it("HTTP 200 + rows=[] + total=0 quando CPF não tem resets", async () => {
     vi.mocked(penLib.listAuditoriaResets).mockResolvedValue([]);
 
