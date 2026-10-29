@@ -91,12 +91,16 @@ import type {
   EmitBody,
   EmitResult,
   ErrorResponse,
+  ExamDocumentDispatchInput,
+  ExamDocumentDispatchResult,
+  ExamRequestHistory,
   FinancialGoal,
   FinancialGoalInput,
   FinancialGoalsSummary,
   GenerateProtocolICS200,
   GetAgendaSlotsParams,
   GetConciergeOfferParams,
+  GetExamRequestHistoryParams,
   GetFinancialGoalsSummaryParams,
   GetReconciliationParams,
   HealthStatus,
@@ -164,6 +168,217 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Historico autorizado dos pedidos de exames do cliente
+ */
+export const getGetExamRequestHistoryUrl = (
+  clientId: number,
+  params?: GetExamRequestHistoryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exam-requests/${clientId}/history?${stringifiedParams}`
+    : `/api/exam-requests/${clientId}/history`;
+};
+
+export const getExamRequestHistory = async (
+  clientId: number,
+  params?: GetExamRequestHistoryParams,
+  options?: RequestInit,
+): Promise<ExamRequestHistory> => {
+  return customFetch<ExamRequestHistory>(
+    getGetExamRequestHistoryUrl(clientId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetExamRequestHistoryQueryKey = (
+  clientId: number,
+  params?: GetExamRequestHistoryParams,
+) => {
+  return [
+    `/api/exam-requests/${clientId}/history`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetExamRequestHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getExamRequestHistory>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params?: GetExamRequestHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getExamRequestHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetExamRequestHistoryQueryKey(clientId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getExamRequestHistory>>
+  > = ({ signal }) =>
+    getExamRequestHistory(clientId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getExamRequestHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetExamRequestHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getExamRequestHistory>>
+>;
+export type GetExamRequestHistoryQueryError = ErrorType<void>;
+
+/**
+ * @summary Historico autorizado dos pedidos de exames do cliente
+ */
+
+export function useGetExamRequestHistory<
+  TData = Awaited<ReturnType<typeof getExamRequestHistory>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params?: GetExamRequestHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getExamRequestHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetExamRequestHistoryQueryOptions(
+    clientId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Confirmar envio dos documentos existentes sem gerar novamente
+ */
+export const getSendExamRequestDocumentsUrl = () => {
+  return `/api/exam-requests/send`;
+};
+
+export const sendExamRequestDocuments = async (
+  examDocumentDispatchInput: ExamDocumentDispatchInput,
+  options?: RequestInit,
+): Promise<ExamDocumentDispatchResult> => {
+  return customFetch<ExamDocumentDispatchResult>(
+    getSendExamRequestDocumentsUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(examDocumentDispatchInput),
+    },
+  );
+};
+
+export const getSendExamRequestDocumentsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendExamRequestDocuments>>,
+    TError,
+    { data: BodyType<ExamDocumentDispatchInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendExamRequestDocuments>>,
+  TError,
+  { data: BodyType<ExamDocumentDispatchInput> },
+  TContext
+> => {
+  const mutationKey = ["sendExamRequestDocuments"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendExamRequestDocuments>>,
+    { data: BodyType<ExamDocumentDispatchInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendExamRequestDocuments(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendExamRequestDocumentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendExamRequestDocuments>>
+>;
+export type SendExamRequestDocumentsMutationBody =
+  BodyType<ExamDocumentDispatchInput>;
+export type SendExamRequestDocumentsMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirmar envio dos documentos existentes sem gerar novamente
+ */
+export const useSendExamRequestDocuments = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendExamRequestDocuments>>,
+    TError,
+    { data: BodyType<ExamDocumentDispatchInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendExamRequestDocuments>>,
+  TError,
+  { data: BodyType<ExamDocumentDispatchInput> },
+  TContext
+> => {
+  return useMutation(getSendExamRequestDocumentsMutationOptions(options));
+};
 
 /**
  * @summary Health check

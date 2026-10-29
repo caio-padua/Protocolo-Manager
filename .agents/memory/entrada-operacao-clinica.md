@@ -44,3 +44,12 @@ A carta complementar exige distinguir quem prepara, quem aprova e quem assina; o
 **Why:** Preencher automaticamente um nome fixo ou reaproveitar o medico principal nao comprova autoria nem autorizacao.
 
 **How to apply:** Identificar o emissor pelo acesso autenticado e cadastro verificado no servidor; apresentar os dados para conferencia, sem tratar campos enviados pelo navegador como autoridade de assinatura.
+
+## Pedidos de exames em conjunto
+
+O proprietario descreveu como dor prioritaria ter de solicitar cada exame cardiologico separadamente no sistema anterior.
+Quer marcar varios exames, gerar os pedidos na mesma acao, escolher e-mail, WhatsApp, Telegram ou combinacoes e consultar depois tudo o que foi emitido.
+
+**Why:** A prioridade e reduzir repeticao durante o atendimento sem retirar a escolha e a conferencia do medico.
+
+**How to apply:** Reutilizar o catalogo real; filtros por especialidade nao equivalem a recomendacao nem autorizam selecionar exames automaticamente; preservar documento e resultado dos envios, distinguindo geracao, aceite do provedor e entrega ao destinatario.

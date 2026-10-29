@@ -8,6 +8,79 @@
 import * as zod from "zod";
 
 /**
+ * @summary Historico autorizado dos pedidos de exames do cliente
+ */
+
+export const GetExamRequestHistoryParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const getExamRequestHistoryQueryOffsetDefault = 0;
+export const getExamRequestHistoryQueryOffsetMin = 0;
+
+export const GetExamRequestHistoryQueryParams = zod.object({
+  offset: zod.coerce
+    .number()
+    .min(getExamRequestHistoryQueryOffsetMin)
+    .default(getExamRequestHistoryQueryOffsetDefault),
+});
+
+export const GetExamRequestHistoryResponse = zod.object({
+  documents: zod.array(
+    zod.object({
+      id: zod.number(),
+      tipoLabel: zod.string(),
+      fileName: zod.string(),
+      examCount: zod.number(),
+      url: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  nextOffset: zod.number().nullable(),
+  dispatches: zod.array(
+    zod.object({
+      id: zod.number(),
+      channel: zod.string(),
+      state: zod.string(),
+      documentIds: zod.array(zod.number()),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Confirmar envio dos documentos existentes sem gerar novamente
+ */
+
+export const sendExamRequestDocumentsBodyDocumentIdsMax = 100;
+
+export const sendExamRequestDocumentsBodyChannelsMax = 3;
+
+export const SendExamRequestDocumentsBody = zod.object({
+  clientId: zod.number().min(1),
+  documentIds: zod
+    .array(zod.number().min(1))
+    .min(1)
+    .max(sendExamRequestDocumentsBodyDocumentIdsMax),
+  channels: zod
+    .array(zod.enum(["EMAIL", "WHATSAPP", "TELEGRAM"]))
+    .min(1)
+    .max(sendExamRequestDocumentsBodyChannelsMax),
+  confirmed: zod.literal(true),
+});
+
+export const SendExamRequestDocumentsResponse = zod.object({
+  results: zod.array(
+    zod.object({
+      channel: zod.enum(["EMAIL", "WHATSAPP", "TELEGRAM"]),
+      success: zod.boolean(),
+      auditId: zod.number(),
+      error: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

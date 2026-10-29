@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   Search,
@@ -14,6 +14,7 @@ import { BASE } from "../../comunicacao/_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
+import ExamRequestHistoryPanel from "./ExamRequestHistoryPanel";
 
 // ===========================================================================
 // PAINEL: PEDIDOS DE EXAMES (client-scoped) — extraido de consulta/index.tsx.
@@ -94,8 +95,11 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   const [busca, setBusca] = useState("");
   const [cart, setCart] = useState<Record<number, CartItem>>({});
   const [observacao, setObservacao] = useState("");
-  const [sendEmail, setSendEmail] = useState(false);
-  const [sendWhatsapp, setSendWhatsapp] = useState(false);
+  const [cardiacOnly, setCardiacOnly] = useState(false);
+  const [individualDocuments, setIndividualDocuments] = useState(true);
+  const [recentIds, setRecentIds] = useState<number[]>([]);
+  const activeClient = useRef(clientId);
+  activeClient.current = clientId;
   const [emitindo, setEmitindo] = useState(false);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
   const [emitErro, setEmitErro] = useState<string | null>(null);
@@ -123,20 +127,26 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
     setCart({});
     setEmitResult(null);
     setEmitErro(null);
+    setRecentIds([]);
+    setObservacao("");
   }, [clientId]);
 
   const examesFiltrados = useMemo(() => {
-    const term = busca.trim().toLowerCase();
-    const ativos = exams.filter((e) => e.ativo !== false && e.nomeExame);
+    const term = noAccents(busca.trim().toLowerCase());
+    const ativos = exams.filter((e) => {
+      if (e.ativo === false || !e.nomeExame) return false;
+      const text = noAccents([e.nomeExame, e.grupoPrincipal, e.subgrupo, e.modalidade].filter(Boolean).join(" ")).toUpperCase();
+      return !cardiacOnly || /CARDIO|ECOCARD|CORONARI|HOLTER|\bECG\b|\bMAPA\b|ERGOMETR|(?:ESCORE|SCORE).*CALCIO/.test(text);
+    });
     if (!term) return ativos.slice(0, 40);
     return ativos
       .filter((e) =>
         [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo]
           .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(term)),
+          .some((v) => noAccents(String(v).toLowerCase()).includes(term)),
       )
       .slice(0, 60);
-  }, [exams, busca]);
+  }, [exams, busca, cardiacOnly]);
 
   const cartList = useMemo(() => Object.values(cart), [cart]);
 
@@ -158,7 +168,8 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   };
 
   const emitir = async () => {
-    if (cartList.length === 0 || !identity.data || identity.isFetching || identity.isError) return;
+    if (emitindo || cartList.length === 0 || !identity.data || identity.isFetching || identity.isError) return;
+    const requestedClient = clientId;
     setEmitindo(true);
     setEmitErro(null);
     setEmitResult(null);
@@ -169,8 +180,9 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
         body: JSON.stringify({
           clientId,
           observacao: observacao.trim() || undefined,
-          sendEmail,
-          sendWhatsapp,
+          individualDocuments,
+          sendEmail: false,
+          sendWhatsapp: false,
           items: cartList.map((i) => ({
             nomeExame: i.nomeExame,
             codigoExame: i.codigoExame,
@@ -182,12 +194,14 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
       });
       const d = await r.json().catch(() => ({}) as Record<string, unknown>);
       if (!r.ok) throw new Error((d as { error?: string }).error ?? "Falha ao gerar solicitação");
+      if (activeClient.current !== requestedClient) return;
       setEmitResult(d as EmitResult);
+      setRecentIds((d as EmitResult).pdfs.map(pdf => pdf.id));
       setCart({});
     } catch (e) {
-      setEmitErro((e as Error).message);
+      if (activeClient.current === requestedClient) setEmitErro((e as Error).message);
     } finally {
-      setEmitindo(false);
+      if (activeClient.current === requestedClient) setEmitindo(false);
     }
   };
 
@@ -195,6 +209,10 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
     <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
       {/* Catalogo */}
       <div className="space-y-3">
+        <label className="concave-3d flex items-center gap-2 p-3 text-sm">
+          <input type="checkbox" checked={cardiacOnly} onChange={event => setCardiacOnly(event.target.checked)} disabled={emitindo} />
+          Mostrar exames cardiológicos
+        </label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -227,7 +245,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
               const tipo = classifyTipo(e.modalidade, e.materialOuSetor, e.grupoPrincipal);
               return (
                 <label key={e.id} className="flex cursor-pointer items-start gap-3 px-3 py-2 neon-hover">
-                  <input type="checkbox" checked={!!cart[e.id]} onChange={() => toggleExam(e)} className="mt-1" />
+                  <input type="checkbox" disabled={emitindo} checked={!!cart[e.id]} onChange={() => toggleExam(e)} className="mt-1" />
                   <span className="min-w-0">
                     <span className="block text-sm">{e.nomeExame}</span>
                     <span className="block text-xs text-muted-foreground">
@@ -292,16 +310,12 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
           onChange={(e) => setObservacao(e.target.value)}
         />
 
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} />
-            <Mail className="h-4 w-4 text-muted-foreground" /> Enviar por e-mail
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={sendWhatsapp} onChange={(e) => setSendWhatsapp(e.target.checked)} />
-            <MessageCircle className="h-4 w-4 text-muted-foreground" /> Enviar por WhatsApp
-          </label>
-        </div>
+        <label className="concave-3d flex items-start gap-2 p-3 text-sm">
+          <input type="checkbox" checked={individualDocuments} disabled={emitindo}
+            onChange={event => setIndividualDocuments(event.target.checked)} />
+          Gerar um documento por exame, todos na mesma ação.
+        </label>
+        <p className="text-xs text-muted-foreground">Gerar não envia mensagens; confira os documentos e escolha os canais no histórico abaixo.</p>
 
         <button
           type="button"
@@ -310,7 +324,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
           className="btn-3d-soft inline-flex h-11 w-full items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide disabled:opacity-60"
         >
           {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Emitir solicitação
+          Gerar pedidos de exames
         </button>
 
         {emitErro && (
@@ -326,7 +340,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
             {emitResult.pdfs.map((p) => (
               <a
                 key={p.id}
-                href={`${BASE}${p.url}`}
+                href={p.url.startsWith("http") ? p.url : `${BASE}${p.url}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 underline"
@@ -347,6 +361,11 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
           </div>
         )}
       </div>
+      <ExamRequestHistoryPanel key={`${clientId}-${identity.data?.professional.id ?? "sem-sessao"}`}
+        clientId={clientId} professionalId={identity.data?.professional.id}
+        email={identity.data?.client.email} phone={identity.data?.client.phone}
+        enabled={!!identity.data && !identity.isError && !identity.isFetching}
+        recentIds={recentIds} />
     </div>
   );
 }

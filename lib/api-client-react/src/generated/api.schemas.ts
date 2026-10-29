@@ -5,6 +5,75 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface ExamRequestHistoryDocument {
+  id: number;
+  tipoLabel: string;
+  fileName: string;
+  examCount: number;
+  url: string;
+  createdAt: string;
+}
+
+export interface ExamRequestDispatchRecord {
+  id: number;
+  channel: string;
+  state: string;
+  documentIds: number[];
+  createdAt: string;
+}
+
+export interface ExamRequestHistory {
+  documents: ExamRequestHistoryDocument[];
+  /** @nullable */
+  nextOffset: number | null;
+  dispatches: ExamRequestDispatchRecord[];
+}
+
+export type ExamDocumentDispatchInputChannelsItem =
+  (typeof ExamDocumentDispatchInputChannelsItem)[keyof typeof ExamDocumentDispatchInputChannelsItem];
+
+export const ExamDocumentDispatchInputChannelsItem = {
+  EMAIL: "EMAIL",
+  WHATSAPP: "WHATSAPP",
+  TELEGRAM: "TELEGRAM",
+} as const;
+
+export interface ExamDocumentDispatchInput {
+  /** @minimum 1 */
+  clientId: number;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  documentIds: number[];
+  /**
+   * @minItems 1
+   * @maxItems 3
+   */
+  channels: ExamDocumentDispatchInputChannelsItem[];
+  confirmed: boolean;
+}
+
+export type ExamDocumentChannelResultChannel =
+  (typeof ExamDocumentChannelResultChannel)[keyof typeof ExamDocumentChannelResultChannel];
+
+export const ExamDocumentChannelResultChannel = {
+  EMAIL: "EMAIL",
+  WHATSAPP: "WHATSAPP",
+  TELEGRAM: "TELEGRAM",
+} as const;
+
+export interface ExamDocumentChannelResult {
+  channel: ExamDocumentChannelResultChannel;
+  success: boolean;
+  auditId: number;
+  error?: string;
+}
+
+export interface ExamDocumentDispatchResult {
+  results: ExamDocumentChannelResult[];
+}
+
 export interface ErrorResponse {
   error: string;
 }
@@ -2114,6 +2183,13 @@ export interface BudgetSeedResult {
   catalogTotal: number;
   settingsCreated: boolean;
 }
+
+export type GetExamRequestHistoryParams = {
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+};
 
 export type ListClientsParams = {
   search?: string;

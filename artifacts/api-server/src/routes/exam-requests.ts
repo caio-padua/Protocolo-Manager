@@ -1,14 +1,17 @@
 import { Router, type IRouter, type Request } from "express";
 import { randomBytes } from "node:crypto";
-import { db, examRequestPdfsTable, clientsTable, professionalsTable } from "@workspace/db";
+import { db, examRequestPdfsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-request-pdf";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import dispatchRouter from "./exam-request-dispatch";
+import { brtDisplayDate, brtDateStr } from "../lib/brt";
 
 const router: IRouter = Router();
+router.use(dispatchRouter);
 
 // ---- Prescritor de Exames ----
 // Exames de IMAGEM saem em 1 PDF por exame (cada imagem separada, para o
@@ -21,14 +24,6 @@ const TIPO_LABEL: Record<string, string> = {
   IMAGEM: "Imagem",
   OUTROS: "Outros / Procedimentos",
 };
-
-function dateStamp(d: Date): { br: string; file: string } {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const yy = String(yyyy).slice(-2);
-  return { br: `${dd}/${mm}/${yyyy}`, file: `${yy}.${mm}.${dd}` };
-}
 
 function removeDiacritics(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -55,7 +50,8 @@ const EmitSchema = z.object({
   observacao: z.string().optional().nullable(),
   sendEmail: z.boolean().optional().default(false),
   sendWhatsapp: z.boolean().optional().default(false),
-  items: z.array(ItemSchema).min(1),
+  individualDocuments: z.boolean().optional().default(false),
+  items: z.array(ItemSchema).min(1).max(100),
 });
 
 router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promise<void> => {
@@ -94,8 +90,8 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
       grupoPrincipal: it.grupoPrincipal ?? null,
       preparo: it.preparo ?? null,
     };
-    if (it.tipo === "IMAGEM") {
-      jobs.push({ tipo: "IMAGEM", items: [item] });
+    if (body.individualDocuments || it.tipo === "IMAGEM") {
+      jobs.push({ tipo: it.tipo, items: [item] });
     } else {
       const arr = grouped.get(it.tipo) ?? [];
       arr.push(item);
@@ -106,8 +102,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
     jobs.push({ tipo, items });
   }
 
-  const now = new Date();
-  const stamp = dateStamp(now);
+  const stamp = { br: brtDisplayDate(), file: brtDateStr() };
   const safeName = removeDiacritics(client.name).toUpperCase().replace(/\s+/g, " ").trim();
 
   const created: Array<{
@@ -138,7 +133,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
     const pdfBuffer = Buffer.from(pdfBytes);
     // IMAGEM unica leva o NOME do exame no arquivo (1 PDF por exame); tipos
     // agrupados mantem o rotulo do tipo.
-    const isSingleImaging = tipo === "IMAGEM" && items.length === 1;
+    const isSingleImaging = (body.individualDocuments || tipo === "IMAGEM") && items.length === 1;
     const fileLabel = isSingleImaging
       ? `EXAME ${removeDiacritics(items[0].nomeExame).toUpperCase()}`
       : `EXAMES ${tipo}`;

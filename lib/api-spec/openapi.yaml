@@ -39,6 +39,41 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /exam-requests/{clientId}/history:
+    get:
+      operationId: getExamRequestHistory
+      tags: [prescriptions]
+      summary: Historico autorizado dos pedidos de exames do cliente
+      parameters:
+        - { name: clientId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Documentos preservados, sem os bytes dos arquivos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExamRequestHistory" }
+        "401": { description: Login obrigatorio }
+        "403": { description: Vinculo clinico nao autorizado }
+  /exam-requests/send:
+    post:
+      operationId: sendExamRequestDocuments
+      tags: [prescriptions]
+      summary: Confirmar envio dos documentos existentes sem gerar novamente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamDocumentDispatchInput" }
+      responses:
+        "200":
+          description: Resultado separado por canal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExamDocumentDispatchResult" }
+        "401": { description: Login obrigatorio }
+        "403": { description: Vinculo clinico nao autorizado }
+        "422": { description: Destino ou documento indisponivel }
   /healthz:
     get:
       operationId: healthCheck
@@ -2554,6 +2589,67 @@ paths:
 
 components:
   schemas:
+    ExamRequestHistoryDocument:
+      type: object
+      required: [id, tipoLabel, fileName, examCount, url, createdAt]
+      properties:
+        id: { type: integer }
+        tipoLabel: { type: string }
+        fileName: { type: string }
+        examCount: { type: integer }
+        url: { type: string }
+        createdAt: { type: string, format: date-time }
+    ExamRequestHistory:
+      type: object
+      required: [documents, nextOffset, dispatches]
+      properties:
+        documents:
+          type: array
+          items: { $ref: "#/components/schemas/ExamRequestHistoryDocument" }
+        nextOffset: { type: [integer, "null"] }
+        dispatches:
+          type: array
+          items: { $ref: "#/components/schemas/ExamRequestDispatchRecord" }
+    ExamRequestDispatchRecord:
+      type: object
+      required: [id, channel, state, documentIds, createdAt]
+      properties:
+        id: { type: integer }
+        channel: { type: string }
+        state: { type: string }
+        documentIds: { type: array, items: { type: integer } }
+        createdAt: { type: string, format: date-time }
+    ExamDocumentDispatchInput:
+      type: object
+      required: [clientId, documentIds, channels, confirmed]
+      properties:
+        clientId: { type: integer, minimum: 1 }
+        documentIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { type: integer, minimum: 1 }
+        channels:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { type: string, enum: [EMAIL, WHATSAPP, TELEGRAM] }
+        confirmed: { type: boolean, enum: [true] }
+    ExamDocumentChannelResult:
+      type: object
+      required: [channel, success, auditId]
+      properties:
+        channel: { type: string, enum: [EMAIL, WHATSAPP, TELEGRAM] }
+        success: { type: boolean }
+        auditId: { type: integer }
+        error: { type: string }
+    ExamDocumentDispatchResult:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/ExamDocumentChannelResult" }
     ErrorResponse:
       type: object
       required: [error]
