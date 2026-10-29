@@ -125,6 +125,7 @@
 // hint: Logic changed on both sides. Requires understanding intent of each change.
 - [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — PDF assinado abre em branco no chat e HTML abre como código no editor; entregar PNG por página; no app, abrir em aba nova, nunca baixar.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
+- [Fotos em PDF clínico sem metadados](pdf-foto-sem-metadados.md) — remover EXIF/XMP/IPTC/COM antes de embedJpg; PDF pode preservar JPEG bruto e vazar localização/aparelho.
 - [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
 - [Post-merge — migração falha em silêncio](post-merge-migracao-pg.md) — require('pg') na raiz do monorepo sempre falha (usar psql + scripts/migrations.sql); corrigir o script NÃO aplica a coluna, conferir no banco.
 - [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicionar-item.mjs); token do Sheets vem do conector google-drive.

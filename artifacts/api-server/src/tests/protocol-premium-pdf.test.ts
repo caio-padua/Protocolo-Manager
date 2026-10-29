@@ -20,6 +20,10 @@ import {
   drawPremiumFooter,
   drawPremiumCover,
 } from "../lib/pdf-signer.js";
+import {
+  buildCartaTratamentoDto,
+  buildCartaTratamentoLayout,
+} from "../lib/pdf-carta-tratamento.js";
 
 // Texto longo: ~700 chars — força overflow da coluna direita
 const TEXTO_LONGO =
@@ -440,5 +444,54 @@ describe("bloco PADCON — capa e páginas internas (regressão de geometria)", 
     expect(wrdCall!.height).toBeCloseTo(21, 5);
   });
 
+});
+
+describe("Carta de Tratamento Premium — capa compartilhada", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("usa título médico em 20pt e foto portrait à direita", async () => {
+    const textCalls: Array<{ text: string; size?: number }> = [];
+    const imageCalls: Array<{ x?: number; width?: number; height?: number }> = [];
+    const originalText = PDFPage.prototype.drawText;
+    const originalImage = PDFPage.prototype.drawImage;
+
+    vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text: string, opts: any) {
+      textCalls.push({ text, size: opts?.size });
+      return originalText.call(this, text, opts);
+    });
+    vi.spyOn(PDFPage.prototype, "drawImage").mockImplementation(function (this: PDFPage, image: any, opts: any) {
+      imageCalls.push({ x: opts?.x, width: opts?.width, height: opts?.height });
+      return originalImage.call(this, image, opts);
+    });
+
+    const dto = buildCartaTratamentoDto({
+      protocolId: 340,
+      protocolTitle: "Protocolo de Demonstração",
+      clientName: "Cliente de Demonstração",
+      clientCpf: "000.000.000-00",
+      professionalName: "Dr. Caio Henrique Fernandes Pádua",
+      professionalCrm: "CRM",
+      unit: "Instituto Pádua",
+      startDate: "2026-09-12",
+      substances: [{
+        name: "Substância de Demonstração",
+        dose: "1 dose",
+        color: "blue",
+        totalSessions: 4,
+        intervalDays: 7,
+        procedureType: "iv",
+      }],
+    });
+
+    const pdfDoc = await PDFDocument.create();
+    await buildCartaTratamentoLayout(pdfDoc, dto);
+    const pdfBytes = Buffer.from(await pdfDoc.save({ useObjectStreams: false }));
+
+    expect(textCalls.filter(({ size }) => size === 20).map(({ text }) => text).join(" "))
+      .toContain("CARTA DE TRATAMENTO M\u00c9DICO");
+    expect(imageCalls.some(({ x, height }) => (x ?? 0) > PAGE_W / 2 && (height ?? 0) >= 200)).toBe(true);
+    expect(pdfBytes.includes(Buffer.from("Exif"))).toBe(false);
+    expect(pdfBytes.includes(Buffer.from("iPhone"))).toBe(false);
+  });
 });
 

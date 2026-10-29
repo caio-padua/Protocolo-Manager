@@ -536,3 +536,59 @@ type = "image"
 title = "Comunicação Digital — os dois cartões simétricos (tela real, logada)"
 description = "WhatsApp e Telegram com os mesmos 7 campos, na mesma ordem. O que o canal não usa aparece hachurado em cinza com o carimbo NÃO SE APLICA, e nunca some. A URL do webhook aparece na tela com olho de mostrar/ocultar."
 logical_id = "23d81319-03d3-4a5b-a1fc-2fb1654c5cdc"
+
+[[outputs]]
+id = "qLblGAl5e7BXE6u9KoKXe"
+uri = "file://output/task-340/page-1.png"
+type = "image"
+title = "Página 1 de 4 — nova capa da Carta"
+description = "Capa compartilhada com título médico em 20 pontos, identificação compacta e foto do Dr. Caio à direita."
+logical_id = "c9b2d288-471f-42e3-8b1f-3c4de00e4059"
+content_hash = "sha256:f94dfb9bfe4ae61b24c00b381ca455be08d6cf83eca6f776b171cfb3a99767a4"
+size = 345743
+mtime_ms = 1789228721328
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c9b2d288-471f-42e3-8b1f-3c4de00e4059/51b97668-2a28-4e39-bbac-848c6ddc9a99"
+storage_version_token = "1789228856068428"
+content_type = "image/png"
+
+[[outputs]]
+id = "EPiSK3w-t91NsPuHMZ3Wb"
+uri = "file://output/task-340/page-2.png"
+type = "image"
+title = "Página 2 de 4 — mapa de ênfases"
+description = "Prévia visual do miolo preservado após a troca da capa."
+logical_id = "1b6f8a93-f86b-41b3-8be2-f3fd3da2033e"
+content_hash = "sha256:e823bd79e1b5e1e55c52c30da9bb9a18eedef2749c094d7bfadd1d58336e2613"
+size = 47940
+mtime_ms = 1789228721412
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/1b6f8a93-f86b-41b3-8be2-f3fd3da2033e/695b8d53-c831-4624-ac1d-5b33b26b10dd"
+storage_version_token = "1789228856893257"
+content_type = "image/png"
+
+[[outputs]]
+id = "18_XCKyR3IyUcWAmIsPtZ"
+uri = "file://output/task-340/page-3.png"
+type = "image"
+title = "Página 3 de 4 — ficha da substância"
+description = "Prévia visual da ficha clínica preservada."
+logical_id = "d851fbc1-b2eb-4ea6-a6e0-591981548608"
+content_hash = "sha256:a7fff36548b63310055062b8404cb06e4afb0b5d76d14796203b601d07d4a252"
+size = 100710
+mtime_ms = 1789228721544
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d851fbc1-b2eb-4ea6-a6e0-591981548608/357f2fb7-de98-47dd-a21f-a4be027f83bd"
+storage_version_token = "1789228857639438"
+content_type = "image/png"
+
+[[outputs]]
+id = "GL_7a9wS4SthjXjphIrbX"
+uri = "file://output/task-340/page-4.png"
+type = "image"
+title = "Página 4 de 4 — roteiro do protocolo"
+description = "Prévia visual da página final preservada."
+logical_id = "4fd0b704-48ac-435b-b8e8-30d38b3e4c7e"
+content_hash = "sha256:7c3a82407fed8f7d5f3134087d0469c7813b37b197ee89208d3f5889759727e1"
+size = 35211
+mtime_ms = 1789228721628
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4fd0b704-48ac-435b-b8e8-30d38b3e4c7e/a00e9067-7273-44cb-93fa-fb7d5cf68cc4"
+storage_version_token = "1789228858168876"
+content_type = "image/png"

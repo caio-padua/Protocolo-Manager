@@ -26,7 +26,14 @@ import {
   rgb, degrees,
   type Color, type PDFImage,
 } from "pdf-lib";
-import { embedPadesSignature, getCertInfo, drawPadconMark, PADCON_INNER_SCALE } from "./pdf-signer";
+import {
+  embedPadesSignature,
+  getCertInfo,
+  drawPadconMark,
+  drawPremiumCover,
+  stripJpegMetadata,
+  PADCON_INNER_SCALE,
+} from "./pdf-signer";
 
 // ─── A4 EM PONTOS ─────────────────────────────────────────────────────────────
 const PT      = 72 / 25.4;       // pontos por milímetro
@@ -92,6 +99,7 @@ export interface CartaAssets {
   clinicImg?:   PDFImage;
   padconSymbol?: PDFImage;
   padconWords?:  PDFImage;
+  drCaioPhoto?:  PDFImage;
 }
 
 export interface LetterSubstance {
@@ -938,11 +946,13 @@ async function loadAssets(pdfDoc: PDFDocument): Promise<CartaAssets> {
   const clinicBuf  = readAsset("padua-wordmark.png");
   const padconSymBuf = readAsset("padcon-symbol.png");
   const padconWrdBuf = readAsset("padcon-words.png");
+  const drCaioPhotoBuf = readAsset("dr-caio-photo.jpg");
   if (symbolBuf)  try { assets.symbolGlass = await pdfDoc.embedPng(symbolBuf); } catch { /**/ }
   if (wordmarkBuf) try { assets.wordmarkImg = await pdfDoc.embedPng(wordmarkBuf); } catch { /**/ }
   if (clinicBuf)  try { assets.clinicImg   = await pdfDoc.embedPng(clinicBuf);  } catch { /**/ }
   if (padconSymBuf) try { assets.padconSymbol = await pdfDoc.embedPng(padconSymBuf); } catch { /**/ }
   if (padconWrdBuf) try { assets.padconWords  = await pdfDoc.embedPng(padconWrdBuf); } catch { /**/ }
+  if (drCaioPhotoBuf) try { assets.drCaioPhoto = await pdfDoc.embedJpg(stripJpegMetadata(drCaioPhotoBuf)); } catch { /**/ }
   return assets;
 }
 
@@ -1076,6 +1086,67 @@ export function buildCartaTratamentoDto(raw: {
 
 // ─── GERADOR PRINCIPAL ────────────────────────────────────────────────────────
 
+/** Monta o documento sem assinar, permitindo validar visualmente o layout isolado. */
+export async function buildCartaTratamentoLayout(
+  pdfDoc: PDFDocument,
+  dto: CartaTratamentoData,
+): Promise<void> {
+  const [fonts, assets] = await Promise.all([loadFonts(pdfDoc), loadAssets(pdfDoc)]);
+  const totalPages = 1 + 1 + dto.substances.length + 1;
+
+  const allPages: PDFPage[] = [];
+  drawPremiumCover(
+    pdfDoc,
+    allPages,
+    {
+      protocolTitle: dto.protocolTitle,
+      clientName: dto.clientName,
+      clientCpf: dto.clientCpf,
+      professionalName: dto.professionalName,
+      professionalCrm: dto.professionalCrm,
+      unit: dto.unit,
+      startDate: dto.startDate,
+      totalValue: 0,
+      substances: dto.substances,
+      sessions: Array.from({ length: dto.totalSessions }),
+    },
+    {
+      cgReg: fonts.ebReg,
+      cgBold: fonts.ebBold,
+      cgSemiBold: fonts.ebSemi,
+      manReg: fonts.mrReg,
+      manBold: fonts.mrBold,
+    },
+    assets.symbolGlass ?? null,
+    assets.wordmarkImg ?? null,
+    assets.padconSymbol ?? null,
+    assets.padconWords ?? null,
+    assets.clinicImg ?? null,
+    assets.drCaioPhoto ?? null,
+    {
+      title: "CARTA DE TRATAMENTO M\u00c9DICO",
+      kicker: "DOCUMENTO CL\u00cdNICO INDIVIDUAL",
+      stats: [
+        { label: "SUBST\u00c2NCIAS", value: String(dto.substances.length) },
+        { label: "SESS\u00d5ES PREVISTAS", value: String(dto.totalSessions) },
+        { label: "P\u00c1GINAS DO DOCUMENTO", value: String(totalPages) },
+      ],
+    },
+  );
+
+  const mapPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  drawOverviewMapPage(mapPage, dto, fonts);
+  drawInternalFooter(mapPage, fonts, 2, totalPages, dto.clientName, assets);
+
+  dto.substances.forEach((sub, i) => {
+    const subPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    drawSubstanceDossierPage(subPage, sub, fonts, assets, totalPages, 3 + i, dto.clientName);
+  });
+
+  const routePage = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  drawProtocolRoutePage(routePage, dto, fonts, totalPages, totalPages, assets);
+}
+
 /**
  * generateProtocolLetterPdf
  *
@@ -1088,32 +1159,7 @@ export async function generateProtocolLetterPdf(dto: CartaTratamentoData): Promi
   pdfDoc.setAuthor("PAXMED — Clinical Intelligence System");
   pdfDoc.setCreator("PADCON");
 
-  // Carrega fontes e assets
-  const [fonts, assets] = await Promise.all([loadFonts(pdfDoc), loadAssets(pdfDoc)]);
-
-  // Calcula total de páginas: 1 capa + 1 mapa + N fichas + 1 roteiro
-  const totalPages = 1 + 1 + dto.substances.length + 1;
-
-  // ── Página 1: Capa ──────────────────────────────────────────────────────────
-  const coverPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  drawCoverPage(coverPage, dto, fonts, assets);
-
-  // ── Página 2: Mapa de ênfases ───────────────────────────────────────────────
-  const mapPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  // Rodapé usa totalPages correto
-  drawOverviewMapPage(mapPage, dto, fonts);
-  // Corrige o rodapé do mapa (que já foi desenhado com total=-1 como placeholder)
-  drawInternalFooter(mapPage, fonts, 2, totalPages, dto.clientName, assets);
-
-  // ── Páginas 3…N+2: Fichas de substância ────────────────────────────────────
-  dto.substances.forEach((sub, i) => {
-    const subPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
-    drawSubstanceDossierPage(subPage, sub, fonts, assets, totalPages, 3 + i, dto.clientName);
-  });
-
-  // ── Página final: Roteiro ───────────────────────────────────────────────────
-  const routePage = pdfDoc.addPage([PAGE_W, PAGE_H]);
-  drawProtocolRoutePage(routePage, dto, fonts, totalPages, totalPages, assets);
+  await buildCartaTratamentoLayout(pdfDoc, dto);
 
   // ── Assinatura PAdES (operação terminal, Seção 2 — Dr. Manus Item #88) ──────
   // Graceful fallback ONLY when the certificate is not configured in the environment.

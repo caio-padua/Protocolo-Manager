@@ -903,6 +903,26 @@ interface ProtocolDocumentData {
   payments: ProtocolDocPayment[];
 }
 
+export interface PremiumCoverData {
+  protocolTitle: string;
+  clientName: string;
+  clientCpf: string;
+  clientEmail?: string;
+  professionalName: string;
+  professionalCrm?: string | null;
+  unit: string;
+  startDate: string;
+  totalValue: number;
+  substances: unknown[];
+  sessions: unknown[];
+}
+
+export interface PremiumCoverOptions {
+  title?: string;
+  kicker?: string;
+  stats?: Array<{ label: string; value: string }>;
+}
+
 const PETROL = rgb(0.12, 0.33, 0.33);
 const PETROL_LIGHT = rgb(0.85, 0.93, 0.93);
 const PETROL_MID = rgb(0.18, 0.45, 0.45);
@@ -1342,11 +1362,65 @@ async function embedBrandPng(pdfDoc: PDFDocument, fileName: string): Promise<Emb
   return null; // todos os candidatos eram ENOENT → arquivo fisicamente ausente
 }
 
+/**
+ * Remove EXIF/XMP (APP1), IPTC (APP13) e comentários antes de incorporar JPEGs
+ * em documentos entregues a pacientes. Os pixels comprimidos permanecem
+ * intactos; somente os segmentos de metadados são descartados.
+ */
+export function stripJpegMetadata(input: Uint8Array): Buffer {
+  const source = Buffer.from(input);
+  if (source.length < 4 || source[0] !== 0xff || source[1] !== 0xd8) {
+    throw new Error("Imagem JPEG inválida: marcador SOI ausente.");
+  }
+
+  const chunks: Buffer[] = [source.subarray(0, 2)];
+  let offset = 2;
+
+  while (offset < source.length) {
+    if (source[offset] !== 0xff) {
+      throw new Error("Imagem JPEG inválida: marcador esperado antes dos dados.");
+    }
+
+    const markerStart = offset;
+    while (offset < source.length && source[offset] === 0xff) offset++;
+    if (offset >= source.length) throw new Error("Imagem JPEG inválida: marcador incompleto.");
+
+    const marker = source[offset++];
+    if (marker === 0xda) {
+      chunks.push(source.subarray(markerStart));
+      return Buffer.concat(chunks);
+    }
+    if (marker === 0xd9) {
+      chunks.push(source.subarray(markerStart, offset));
+      return Buffer.concat(chunks);
+    }
+
+    const standalone = marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7);
+    if (standalone) {
+      chunks.push(source.subarray(markerStart, offset));
+      continue;
+    }
+
+    if (offset + 2 > source.length) throw new Error("Imagem JPEG inválida: tamanho de segmento ausente.");
+    const segmentLength = source.readUInt16BE(offset);
+    if (segmentLength < 2 || offset + segmentLength > source.length) {
+      throw new Error("Imagem JPEG inválida: tamanho de segmento fora do arquivo.");
+    }
+
+    const segmentEnd = offset + segmentLength;
+    const isPrivateMetadata = marker === 0xe1 || marker === 0xed || marker === 0xfe;
+    if (!isPrivateMetadata) chunks.push(source.subarray(markerStart, segmentEnd));
+    offset = segmentEnd;
+  }
+
+  throw new Error("Imagem JPEG inválida: marcador SOS ausente.");
+}
+
 async function embedJpegAsset(pdfDoc: PDFDocument, fileName: string): Promise<EmbeddedPng | null> {
   for (const p of assetCandidates(fileName)) {
     try {
       const buf = await fs.promises.readFile(p);
-      return await pdfDoc.embedJpg(buf);
+      return await pdfDoc.embedJpg(stripJpegMetadata(buf));
     } catch (e: unknown) {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     }
@@ -1964,7 +2038,7 @@ export function drawPadconMark(
 export function drawPremiumCover(
   pdfDoc: PDFDocument,
   allPages: PDFPage[],
-  data: ProtocolDocumentData,
+  data: PremiumCoverData,
   pf: PremiumFonts,
   symbolImg: EmbeddedPng | null,
   wordmarkImg: EmbeddedPng | null,
@@ -1972,6 +2046,7 @@ export function drawPremiumCover(
   padconWords: EmbeddedPng | null,
   paduaWordmark: EmbeddedPng | null,
   drCaioPhoto: EmbeddedPng | null = null,
+  options: PremiumCoverOptions = {},
 ): void {
   const pg = newDocPage(pdfDoc, allPages);
   pg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: NAVY_P });
@@ -1989,7 +2064,7 @@ export function drawPremiumCover(
     pg.drawText(safeTxt(data.unit), { x: MARGIN, y: PAGE_H - 32, size: 8, font: pf.manBold, color: IVORY_P });
   }
   pg.drawText(safeTxt(data.professionalName), { x: MARGIN, y: PAGE_H - 60, size: 6.5, font: pf.manReg, color: MIST_P });
-  const docLbl = "CARTA DE TRATAMENTO";
+  const docLbl = options.title ?? "CARTA DE TRATAMENTO";
   pg.drawText(docLbl, { x: PAGE_W - MARGIN - pf.manBold.widthOfTextAtSize(docLbl, 7), y: PAGE_H - 36, size: 7, font: pf.manBold, color: GOLD_P });
   pg.drawLine({ start: { x: MARGIN, y: PAGE_H - 72 }, end: { x: PAGE_W - MARGIN, y: PAGE_H - 72 }, thickness: 0.5, color: GOLD_P, opacity: 0.3 });
 
@@ -2063,12 +2138,12 @@ export function drawPremiumCover(
   // Substitui "Carta do seu protocolo de cuidado" (13 pt centrado).
   // Agora: rótulo 5.5 pt dourado + protocolTitle em 20 pt ivory, até 3 linhas.
   let ty = PAGE_H - 338;  // 16 pt abaixo do separador
-  pg.drawText("PROTOCOLO CL\u00cdNICO PERSONALIZADO", {
+  pg.drawText(options.kicker ?? "PROTOCOLO CL\u00cdNICO PERSONALIZADO", {
     x: MARGIN, y: ty, size: 5.5, font: pf.manBold, color: GOLD_P,
   });
   ty -= 13;
 
-  const titleLines = wrapText(safeTxt(data.protocolTitle).toUpperCase(), pf.cgBold, 20, LEFT_W);
+  const titleLines = wrapText(safeTxt(options.title ?? data.protocolTitle).toUpperCase(), pf.cgBold, 20, LEFT_W);
   for (const ln of titleLines.slice(0, 3)) {
     if (ty < 360) break;
     pg.drawText(ln, { x: MARGIN, y: ty, size: 20, font: pf.cgBold, color: IVORY_P });
@@ -2107,11 +2182,13 @@ export function drawPremiumCover(
   // ── Stats row: 3 números em largura completa ──────────────────────────────
   const statY  = PAGE_H - 572;                   // = 270 pt
   const colW3  = CONTENT_W / 3;
-  const statCols = [
-    { lbl: "SUBST\u00c2NCIAS",        val: String(data.substances.length) },
-    { lbl: "SESS\u00d5ES PREVISTAS",  val: String(data.sessions.length) },
-    { lbl: "VALOR DO TRATAMENTO",     val: `R$ ${data.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
-  ];
+  const statCols = options.stats
+    ? options.stats.map(({ label, value }) => ({ lbl: label, val: value }))
+    : [
+        { lbl: "SUBST\u00c2NCIAS",        val: String(data.substances.length) },
+        { lbl: "SESS\u00d5ES PREVISTAS",  val: String(data.sessions.length) },
+        { lbl: "VALOR DO TRATAMENTO",     val: `R$ ${data.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
+      ];
   pg.drawRectangle({ x: MARGIN, y: statY - 44, width: CONTENT_W, height: 52, color: WHITE, opacity: 0.07 });
   for (let c = 0; c < statCols.length; c++) {
     const cx = MARGIN + c * colW3;
