@@ -1204,7 +1204,7 @@ export default function CadastroEmpresas() {
                     <FormField control={form.control} name="slug" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Slug (URL interna)</FormLabel>
-                        <FormControl><Input placeholder="instituto-padua" {...field} className="field-engraved font-mono text-[11px]" /></FormControl>
+                        <FormControl><Input placeholder="instituto-padua" {...field} onChange={(e) => field.onChange(e.target.value.toLowerCase())} className="field-engraved font-mono text-[11px]" /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
