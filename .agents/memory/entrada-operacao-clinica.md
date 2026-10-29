@@ -35,3 +35,12 @@ Mudanca de modulo ou cliente nao pode perder nem transferir rascunhos silenciosa
 **Why:** Repetir buscas durante atendimento aumenta retrabalho e risco de associar documento ao cliente errado.
 
 **How to apply:** Evoluir o Cockpit existente, mantendo clinica autenticada, cliente e atendimento como identidades distintas; protecao de rascunhos e isolamento sao requisitos de liberacao, nao melhorias opcionais posteriores.
+
+## Identidade automatica do profissional emissor
+
+O proprietario determinou que prescricoes e pedidos de exames reconhecam o profissional autenticado, sem exigir nova digitacao de nome ou selecao do proprio cadastro em cada modulo.
+A carta complementar exige distinguir quem prepara, quem aprova e quem assina; o certificado usado deve corresponder ao profissional autorizado.
+
+**Why:** Preencher automaticamente um nome fixo ou reaproveitar o medico principal nao comprova autoria nem autorizacao.
+
+**How to apply:** Identificar o emissor pelo acesso autenticado e cadastro verificado no servidor; apresentar os dados para conferencia, sem tratar campos enviados pelo navegador como autoridade de assinatura.
