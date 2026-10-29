@@ -28,6 +28,8 @@ const TIMEZONE = "America/Sao_Paulo";
 export interface ExecutarLembretesOptions {
   now?: Date;
   toleranciaMinutos?: number;
+  /** Máximo de lembretes processados simultaneamente por tick (padrão: 10). */
+  concorrencia?: number;
 }
 
 export interface LembreteEnvioResult {
@@ -304,6 +306,10 @@ export async function executarLembretesPeriodo(
 ): Promise<ExecutarLembretesResult> {
   const now = options.now ?? new Date();
   const tolerancia = options.toleranciaMinutos ?? 5;
+  const concorrencia = options.concorrencia ?? 10;
+  if (!Number.isSafeInteger(concorrencia) || concorrencia < 1) {
+    throw new RangeError("concorrencia deve ser um inteiro positivo");
+  }
 
   const lembretes = await carregarLembretesAtivos();
   const detalhes: LembreteEnvioResult[] = [];
@@ -313,16 +319,16 @@ export async function executarLembretesPeriodo(
 
   const local = partsParaTimezone(now, TIMEZONE);
 
-  for (const ctx of lembretes) {
+  async function processarLembrete(ctx: LembreteComContexto): Promise<void> {
     if (ctx.horariosEnvio.length === 0) {
       pulados += 1;
-      continue;
+      return;
     }
 
     const horarioMatch = horarioDentroDaJanela(ctx.horariosEnvio, local.horaMin, tolerancia);
     if (!horarioMatch) {
       pulados += 1;
-      continue;
+      return;
     }
 
     const janela = janelaKey(local.data, horarioMatch);
@@ -344,7 +350,7 @@ export async function executarLembretesPeriodo(
     if (!claim) {
       detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: true, jaEnviado: true });
       pulados += 1;
-      continue;
+      return;
     }
     const envioId = claim.id;
 
@@ -354,7 +360,7 @@ export async function executarLembretesPeriodo(
       const erro = "cliente sem telefone";
       await db.update(lembreteEnviosTable).set({ status: "FALHOU", erro }).where(eq(lembreteEnviosTable.id, envioId));
       detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro });
-      continue;
+      return;
     }
 
     // Gênero não existe hoje em `clients` → tratamento cai no primeiro nome.
@@ -439,6 +445,26 @@ export async function executarLembretesPeriodo(
       logger.warn({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, erro }, "[lembrete-periodo] falha no envio");
       detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro, whatsappLogId: resultado.logId });
     }
+  }
+
+  // Cada lote espera inclusive as rejeições: nenhuma chamada fica solta nem
+  // uma falha inesperada impede os próximos clientes de serem processados.
+  const erros: unknown[] = [];
+  for (let inicio = 0; inicio < lembretes.length; inicio += concorrencia) {
+    const lote = lembretes.slice(inicio, inicio + concorrencia);
+    const resultados = await Promise.allSettled(lote.map(processarLembrete));
+    resultados.forEach((resultado, indice) => {
+      if (resultado.status === "rejected") {
+        erros.push(resultado.reason);
+        logger.error(
+          { err: resultado.reason, lembreteId: lote[indice].id, clienteId: lote[indice].clienteId },
+          "[lembrete-periodo] erro ao processar cliente",
+        );
+      }
+    });
+  }
+  if (erros.length > 0) {
+    throw new AggregateError(erros, "Falha ao processar lembretes");
   }
 
   return { examinados: lembretes.length, enviados, falhas, pulados, detalhes };
