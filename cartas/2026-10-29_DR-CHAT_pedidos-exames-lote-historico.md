@@ -146,6 +146,7 @@ A colisao conhecida do exportador de tipos foi evitada ao preservar o contrato e
 | Envio real anonimo para a nova rota | 401, acesso recusado |
 | Consulta real anonima de identidade clinica | 401, acesso recusado |
 | Captura visual no Cockpit sem acesso | Painel carrega; identidade e emissao permanecem bloqueadas |
+| Captura em celular, largura de 430 pixels | Campos novos empilhados; cabecalho existente do Cockpit apresenta recorte horizontal e precisa de ajuste antes de homologar uso no celular |
 | Interface autenticada completa | NAO verificada nesta rodada |
 | Envio real aos tres provedores | NAO realizado |
 | Documento real de cliente, assinatura ou cobranca de teste | NAO realizado |
