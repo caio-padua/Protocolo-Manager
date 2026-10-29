@@ -14,6 +14,14 @@ import request from "supertest";
 import { onboardingRouter } from "../routes/onboarding.js";
 
 const app = express();
+app.use((req, _res, next) => {
+  req.tenantContext = {
+    empresaId: 5,
+    isPlatformOwner: true,
+    perfilPlataforma: "platform_owner",
+  };
+  next();
+});
 app.use("/api/onboarding", onboardingRouter);
 
 function nextStats(total: number) {

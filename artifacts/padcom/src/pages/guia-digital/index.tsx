@@ -86,17 +86,17 @@ function readTenant(): string | undefined {
 }
 
 // ── Evento de analytics — silencioso, nunca bloqueia o paciente ───────────────
-// tenant resolve empresa_id no servidor — nunca confiamos em valores do cliente.
+// tenantSlug resolve empresa_id no servidor — nunca enviamos o ID da empresa.
 function registrarEvento(device: string, secao: string): void {
   const client_id = readClientId();
-  const tenant    = readTenant();
+  const tenantSlug = readTenant();
   fetch(`${API_BASE}/api/onboarding/evento`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       device,
       secao,
-      ...(tenant    ? { tenant }    : {}),
+      ...(tenantSlug ? { tenantSlug } : {}),
       ...(client_id ? { client_id } : {}),
     }),
   }).catch(() => {/* silencioso */});

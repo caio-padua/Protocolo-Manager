@@ -202,21 +202,26 @@ Qualquer dúvida, estamos à disposição! 😊`;
 });
 
 // ── POST /api/onboarding/evento ───────────────────────────────────────────────
-// Público. tenant resolve empresa_id no servidor:
+// Público. tenantSlug resolve empresa_id no servidor (tenant é alias legado):
 //   - ausente → fallback empresa 5 (tráfego legado)
 //   - presente mas desconhecido → não grava (evita cross-tenant pollution)
 //   - client_id validado contra empresa resolvida antes de associar
 const eventoSchema = z.object({
-  tenant:    z.string().max(80).optional(),   // slug da clínica — resolve empresa_id no servidor
+  tenantSlug: z.string().trim().min(1).max(80).optional(),
+  tenant:    z.string().trim().min(1).max(80).optional(),
   device:    z.string().max(50),
   secao:     z.enum(SECOES_VALIDAS),
   client_id: z.number().int().positive().optional(),
-});
+}).refine(
+  ({ tenantSlug, tenant }) => !tenantSlug || !tenant || tenantSlug === tenant,
+  { message: "tenantSlug e tenant devem identificar a mesma clínica", path: ["tenantSlug"] },
+);
 
 onboardingPublicRouter.post("/evento", async (req: Request, res: Response): Promise<void> => {
   const parsed = eventoSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() }); return; }
-  const { tenant, device, secao, client_id } = parsed.data;
+  const { device, secao, client_id } = parsed.data;
+  const tenant = parsed.data.tenantSlug ?? parsed.data.tenant;
 
   let empresa_id: number | null = null;
   let validatedClientId: number | null = null;
@@ -275,7 +280,11 @@ onboardingRouter.get("/minha-config", async (req: Request, res: Response): Promi
 // Agrega os últimos 30 dias escopo por empresa do CEO logado.
 onboardingRouter.get("/stats", async (req: Request, res: Response): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
-  const empresaId = req.tenantContext?.empresaId ?? 5;
+  const empresaId = req.tenantContext?.empresaId;
+  if (!Number.isInteger(empresaId) || empresaId <= 0) {
+    res.status(403).json({ ok: false, error: "Contexto da clínica obrigatório." });
+    return;
+  }
   try {
     const [totalRow, porDevice, porSecao, pacientesRow, pacientesLista] = await Promise.all([
       db.execute(sqlRaw`SELECT COUNT(*)::int AS total FROM onboarding_eventos WHERE ts > NOW() - INTERVAL '30 days' AND empresa_id = ${empresaId}`),
