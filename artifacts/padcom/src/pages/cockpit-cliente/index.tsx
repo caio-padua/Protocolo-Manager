@@ -15,6 +15,7 @@ import {
 import { getCollabToken } from "@/lib/collab-auth";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
+import TelegramUnlinkButton from "./TelegramUnlinkButton";
 import { useToast } from "@/hooks/use-toast";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { Badge } from "@/components/ui/badge";
@@ -1089,7 +1090,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                           <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                             <Send className="w-3 h-3 text-primary" /> Telegram
                           </span>
-                          {(client as any).telegramChatId ? (
+                          {((client as any).telegramLinked ?? !!(client as any).telegramChatId) ? (
                             <div className="flex flex-col items-end gap-1">
                               <div className="flex items-center gap-2">
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -1097,6 +1098,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                                   ATIVO · …{String((client as any).telegramChatId).slice(-4)}
                                 </span>
                               </div>
+                              <TelegramUnlinkButton clientId={client.id} clientName={client.name} />
                               {(client as any).telegramLastTestOk === false && (
                                 <div
                                   className="flex items-center gap-1 bevel-3d px-2 py-0.5 text-amber-700 bg-amber-50 border border-amber-200 rounded"

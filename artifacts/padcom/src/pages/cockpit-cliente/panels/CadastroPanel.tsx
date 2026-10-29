@@ -8,6 +8,7 @@ import { Loader2, Pencil, FileText, FolderOpen, Phone, Mail, Calendar, MapPin, H
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
+import TelegramUnlinkButton from "../TelegramUnlinkButton";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 
@@ -78,7 +79,19 @@ export default function CadastroPanel({ clientId }: Props) {
                 <span className="font-bold text-sm text-right truncate max-w-[180px]">{row.value}</span>
               </div>
             ) : null)}
-            {client.address && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">Telegram</span>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {((client as typeof client & { telegramLinked?: boolean }).telegramLinked
+                    ?? !!(client as typeof client & { telegramChatId?: string | null }).telegramChatId) ? (
+                    <>
+                      <span className="bevel-3d bevel-3d-ok px-2 py-1 text-[10px] font-extrabold">ATIVO</span>
+                      <TelegramUnlinkButton clientId={client.id} clientName={client.name} />
+                    </>
+                  ) : <span className="text-xs text-muted-foreground">Não vinculado</span>}
+                </div>
+              </div>
+              {client.address && (
               <div className="pt-3 border-t">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-2">
                   <MapPin className="w-3 h-3 text-primary" /> Endereço

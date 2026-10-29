@@ -184,6 +184,7 @@ import express from "express";
 import request from "supertest";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import * as dbModule from "@workspace/db";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 // Importados dinâmicos para garantir que vi.mock() já está ativo
 const { default: clientsRouter }    = await import("../routes/clients");
@@ -263,6 +264,12 @@ describe("DELETE /clients/:id/telegram — desvinculação Telegram", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.message).toMatch(/removido/i);
+    const statement = vi.mocked(dbModule.db.execute).mock.calls[0][0];
+    const query = new PgDialect().sqlToQuery(statement as Parameters<PgDialect["sqlToQuery"]>[0]);
+    expect(query.sql).toMatch(/UPDATE clients\s+SET telegram_chat_id = NULL, telegram_vinculado_em = NULL/i);
+    expect(query.sql).toMatch(/WHERE id = \$1 AND empresa_id = \$2\s+RETURNING id/i);
+    expect(query.params[0]).toBe(42);
+    expect(query.params[1]).toBeDefined();
   });
 
   it("retorna 404 quando cliente não existe ou não pertence ao tenant", async () => {
@@ -283,6 +290,15 @@ describe("DELETE /clients/:id/telegram — desvinculação Telegram", () => {
       .set("Authorization", "Bearer mock-token");
 
     expect(res.status).toBe(400);
+  });
+
+  it("retorna 500 quando o banco falha", async () => {
+    vi.mocked(dbModule.db.execute).mockRejectedValueOnce(new Error("database unavailable"));
+    const res = await request(buildClientsApp())
+      .delete("/clients/42/telegram")
+      .set("Authorization", "Bearer mock-token");
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("erro_unlink_telegram");
   });
 
   it("retorna 400 para clientId zero", async () => {

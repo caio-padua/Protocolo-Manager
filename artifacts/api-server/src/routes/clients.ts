@@ -440,11 +440,8 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
   res.json({ ok: true, code: senha, emailEnviado });
 });
 
-// ── DELETE /api/clients/:id/telegram ─────────────────────────────────────────
-// Remove o vínculo Telegram do cliente (zera telegram_chat_id e telegram_vinculado_em).
-// Usar quando o paciente desvinculou o bot ou o CEO precisa resetar manualmente.
-// Requer colaborador autenticado; isola por tenant.
-router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Promise<void> => {
+// ── Reenvio do onboarding Telegram com a senha existente ────────────────────
+router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "clientId inválido" });
@@ -502,10 +499,10 @@ router.delete("/clients/:id/telegram", requireCollaborator, async (req, res): Pr
 
   try {
     const result = await db.execute(
-      sql`SELECT telegram_chat_id, telegram_vinculado_em
-          FROM clients
+      sql`UPDATE clients
+          SET telegram_chat_id = NULL, telegram_vinculado_em = NULL
           WHERE id = ${id} AND empresa_id = ${empresaId}
-          LIMIT 1`
+          RETURNING id`
     );
     if ((result.rows as unknown[]).length === 0) {
       res.status(404).json({ error: "Cliente não encontrado ou sem permissão" });
