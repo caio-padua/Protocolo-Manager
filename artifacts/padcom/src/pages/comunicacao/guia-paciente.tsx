@@ -67,26 +67,50 @@ function TelegramStatusBadge({ clientId }: { clientId: number }) {
 
   const recheck = useCallback(() => setTick((t) => t + 1), []);
 
-  const fetchStatus = useCallback(() => {
+  useEffect(() => {
+    const controller = new AbortController();
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let inFlight = false;
+    const fetchStatus = async () => {
+      if (inFlight || controller.signal.aborted) return;
+      inFlight = true;
+      try {
+        const response = await fetch(`${API_BASE}/api/clientes/${clientId}/telegram-status`, {
+          headers: authHeaders(),
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(String(response.status));
+        const data: TgStatus = await response.json();
+        if (controller.signal.aborted) return;
+        setStatus(data);
+        setErro(false);
+        if (data.vinculado === false && interval === null) {
+          interval = setInterval(fetchStatus, 30_000);
+        } else if (data.vinculado && interval !== null) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } catch {
+        if (!controller.signal.aborted) setErro(true);
+      } finally {
+        inFlight = false;
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+
     setLoading(true);
     setErro(false);
-    fetch(`${API_BASE}/api/clientes/${clientId}/telegram-status`, {
-      headers: authHeaders(),
-    })
-      .then((r) => r.ok ? r.json() as Promise<TgStatus> : Promise.reject(r.status))
-      .then((d) => setStatus(d))
-      .catch(() => setErro(true))
-      .finally(() => setLoading(false));
-  }, [clientId, authHeaders]);
-
-  useEffect(() => {
     setStatus(null);
     setActivationResult(null);
     setNoEmailWarning(false);
     setCountdown(0);
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
-    fetchStatus();
-  }, [clientId, tick, fetchStatus]);
+    void fetchStatus();
+    return () => {
+      controller.abort();
+      if (interval !== null) clearInterval(interval);
+    };
+  }, [clientId, tick, authHeaders]);
 
   useEffect(() => () => { if (countdownRef.current) clearInterval(countdownRef.current); }, []);
 
