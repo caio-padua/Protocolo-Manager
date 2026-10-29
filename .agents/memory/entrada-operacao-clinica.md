@@ -12,3 +12,26 @@ As prioridades confirmadas são receitas, pedidos de exames e trabalho com resul
 **Why:** Existência de código e tarefas integradas não significa que a plataforma já tenha sido usada ou homologada em atendimento.
 
 **How to apply:** Priorizar validação dos fluxos clínicos essenciais e uma entrada gradual; não pressupor substituição, integração ou migração automática do sistema anterior.
+
+## Retificacao do escopo pelo proprietario em 29/10/2026
+
+O proprietario informou que os cadastros de clientes e as formulas do Support Health ja foram importados para o PAXTER.
+Essa informacao e declaracao do proprietario, nao auditoria de integridade da importacao.
+O Support Health continua principal durante a transicao.
+O piloto usara clientes reais selecionados e conferencia medica antes de emitir, assinar ou encaminhar, somente apos homologacao controlada com dados sinteticos.
+Gerar documento nao autoriza envio.
+Instituto Padua e a clinica operacional; Baxter e Genesis podem ser usadas para homologacao sintetica, nunca como destino automatico de copias de clientes reais.
+
+**Why:** A autorizacao para preparar uso clinico supervisionado nao autoriza agentes a emitir documentos reais, enviar mensagens ou copiar dados clinicos como teste.
+
+**How to apply:** Auditar os dados existentes sem reimportacao automatica e manter emissao, assinatura e envio como operacoes explicitamente controladas.
+
+## Central de Atendimento como requisito da primeira operacao
+
+O proprietario determinou escolher o cliente uma unica vez por janela e conservar sua identidade entre prescricao, pedidos, recebimento de exames e evolucao.
+Duas abas do navegador devem poder trabalhar com clientes diferentes, sem compartilhamento silencioso da selecao.
+Mudanca de modulo ou cliente nao pode perder nem transferir rascunhos silenciosamente.
+
+**Why:** Repetir buscas durante atendimento aumenta retrabalho e risco de associar documento ao cliente errado.
+
+**How to apply:** Evoluir o Cockpit existente, mantendo clinica autenticada, cliente e atendimento como identidades distintas; protecao de rascunhos e isolamento sao requisitos de liberacao, nao melhorias opcionais posteriores.
