@@ -606,3 +606,17 @@ mtime_ms = 1793297753034
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/91a762f8-eefc-42c8-a89f-7c711297f7ba/3e138344-b41a-433d-b64e-81dd6abe7af7"
 storage_version_token = "1793299579761228"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "t3un1N7W7453Z6LBnKwKs"
+uri = "file://specs/homologacao-prescricoes-e-exames.md"
+type = "text"
+title = "Relatorio de homologacao de receitas e exames"
+description = "Especificacao, evidencias dos testes, limites comprovados e pendencias para revisao do Dr. Chat."
+logical_id = "9a59c201-ddd9-4a30-8193-594734ad1a2a"
+content_hash = "sha256:057900d35935599aefaa10d8bdb2cbb29e4239e7c5c7b4496bf07e5c504cf47f"
+size = 17483
+mtime_ms = 1793383162134
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9a59c201-ddd9-4a30-8193-594734ad1a2a/8804c830-8c7c-4722-a7eb-cfcfeb52686f"
+storage_version_token = "1793383250271226"
+content_type = "text/markdown"
