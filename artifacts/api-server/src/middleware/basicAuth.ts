@@ -57,6 +57,8 @@ const BYPASS_PREFIXES = [
   "/api/vitrine-contatos", // POST público (formulário de contato da homepage Parxis/Lovable); GET/PATCH com requireCollaborator interno
   "/api/collaborator/login", // login de médicos licenciados (site Lovable chama sem Basic Auth; rota tem hash próprio)
   "/api/collaborator/me",    // revalidação da sessão pelo navegador; exige Bearer via requireCollaborator
+  "/api/collaborator/google/session", // sessão Clerk validada pela rota; emite token de colaborador somente após vínculo
+  "/api/collaborator/google/link",    // exige simultaneamente sessão Clerk e token atual do colaborador
   // Onboarding do paciente — público (Guia Digital abre no browser do paciente sem auth):
   "/api/onboarding/evento",  // POST analytics — paciente dispara ao abrir seção
   "/api/onboarding/config",  // GET config de UI por ?tenant=slug — sem dado sensível

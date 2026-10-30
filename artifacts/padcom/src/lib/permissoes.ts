@@ -20,6 +20,8 @@ export interface Me {
   role: string;
   category: string;
   isPrimaryDoctor: boolean;
+  cpf: string | null;
+  googleLinked: boolean;
 }
 
 export interface Permissoes {

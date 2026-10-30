@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import {
   db,
   professionalsTable,
@@ -11,7 +12,7 @@ import {
   anamneseSessionAnswersTable,
   anamneseQuestionarioTable,
 } from "@workspace/db";
-import { eq, sql, desc, asc, and, inArray, isNotNull } from "drizzle-orm";
+import { eq, sql, desc, asc, and, inArray, isNotNull, isNull } from "drizzle-orm";
 import {
   createCollaboratorToken,
   verifyCollaboratorToken,
@@ -20,6 +21,7 @@ import {
   type CollaboratorClaims,
 } from "../lib/collaborator-auth.js";
 import { destinoPorPerfil } from "../lib/role-destino.js";
+import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
 
 const router: IRouter = Router();
 
@@ -59,6 +61,43 @@ async function usernameTaken(username: string, exceptId: number): Promise<boolea
 // mesmo se duas escritas correrem entre o pre-check e o UPDATE.
 function isUniqueViolation(e: unknown): boolean {
   return Boolean(e && typeof e === "object" && (e as { code?: string }).code === "23505");
+}
+
+function currentClerkUserId(req: Request): string | null {
+  try {
+    return getAuth(req).userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function clerkIdentityColumn(environment: "development" | "production") {
+  return environment === "production"
+    ? professionalsTable.clerkUserIdProd
+    : professionalsTable.clerkUserIdDev;
+}
+
+function sessionForProfessional(prof: {
+  id: number;
+  name: string;
+  role: string;
+  category: string;
+  isPrimaryDoctor: boolean;
+}) {
+  return {
+    token: createCollaboratorToken({ professionalId: prof.id, role: prof.role }),
+    professional: {
+      id: prof.id,
+      name: prof.name,
+      role: prof.role,
+      category: prof.category,
+      isPrimaryDoctor: prof.isPrimaryDoctor,
+    },
+    destino: destinoPorPerfil({
+      isPrimaryDoctor: prof.isPrimaryDoctor,
+      category: prof.category,
+    }),
+  };
 }
 
 async function recordAudit(entry: {
@@ -143,6 +182,182 @@ export function collaboratorGuard(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+// POST /api/collaborator/google/session — identidade Google vinculada ->
+// token normal do colaborador. Google nunca substitui a autorizacao interna.
+router.post("/collaborator/google/session", async (req, res): Promise<void> => {
+  const environment = resolveClerkEnvironmentForRequest(req);
+  if (!environment) {
+    res.status(503).json({
+      code: "google_auth_unavailable",
+      error: "O acesso Google nao esta configurado neste ambiente.",
+    });
+    return;
+  }
+
+  const clerkUserId = currentClerkUserId(req);
+  if (!clerkUserId) {
+    res.status(401).json({
+      code: "google_session_required",
+      error: "Entre com sua conta Google.",
+    });
+    return;
+  }
+
+  const identityColumn = clerkIdentityColumn(environment);
+  const [prof] = await db
+    .select()
+    .from(professionalsTable)
+    .where(eq(identityColumn, clerkUserId))
+    .limit(1);
+
+  if (!prof || !prof.active) {
+    await recordAudit({
+      professionalId: null,
+      professionalName: null,
+      action: "login_google_fail",
+      detail: { reason: "identity_unavailable", environment },
+      ip: clientIp(req),
+    });
+    res.status(403).json({
+      code: "google_account_unavailable",
+      error: "Esta conta Google nao esta vinculada a um acesso ativo.",
+    });
+    return;
+  }
+
+  await recordAudit({
+    professionalId: prof.id,
+    professionalName: prof.name,
+    action: "login_google_ok",
+    detail: { environment },
+    ip: clientIp(req),
+  });
+  res.json(sessionForProfessional(prof));
+});
+
+// POST /api/collaborator/google/link — exige, na mesma requisicao, sessao
+// Clerk e token atual do profissional. Nenhum identificador vem do navegador.
+router.post(
+  "/collaborator/google/link",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const claims = req.collaborator!;
+    const environment = resolveClerkEnvironmentForRequest(req);
+    if (!environment) {
+      res.status(503).json({
+        code: "google_auth_unavailable",
+        error: "O acesso Google nao esta configurado neste ambiente.",
+      });
+      return;
+    }
+
+    const clerkUserId = currentClerkUserId(req);
+    if (!clerkUserId) {
+      await recordAudit({
+        professionalId: claims.professionalId,
+        professionalName: null,
+        action: "google_link_fail",
+        detail: { reason: "missing_google_session", environment },
+        ip: clientIp(req),
+      });
+      res.status(401).json({
+        code: "google_session_required",
+        error: "Entre com sua conta Google.",
+      });
+      return;
+    }
+
+    const identityColumn = clerkIdentityColumn(environment);
+    const [prof] = await db
+      .select()
+      .from(professionalsTable)
+      .where(eq(professionalsTable.id, claims.professionalId))
+      .limit(1);
+
+    const rejectLink = async (reason: string, status: number): Promise<void> => {
+      await recordAudit({
+        professionalId: claims.professionalId,
+        professionalName: prof?.name ?? null,
+        action: "google_link_fail",
+        detail: { reason, environment },
+        ip: clientIp(req),
+      });
+      res.status(status).json({
+        code: "google_link_rejected",
+        error: "Esta conta Google nao pode ser vinculada a este acesso.",
+      });
+    };
+
+    if (!prof || !prof.active) {
+      await rejectLink("professional_unavailable", 403);
+      return;
+    }
+
+    const currentIdentity =
+      environment === "production" ? prof.clerkUserIdProd : prof.clerkUserIdDev;
+    if (currentIdentity && currentIdentity !== clerkUserId) {
+      await rejectLink("professional_already_linked", 409);
+      return;
+    }
+
+    const [owner] = await db
+      .select({ id: professionalsTable.id })
+      .from(professionalsTable)
+      .where(eq(identityColumn, clerkUserId))
+      .limit(1);
+    if (owner && owner.id !== prof.id) {
+      await rejectLink("google_identity_already_linked", 409);
+      return;
+    }
+
+    if (!currentIdentity) {
+      try {
+        const updated = await db
+          .update(professionalsTable)
+          .set(
+            environment === "production"
+              ? { clerkUserIdProd: clerkUserId }
+              : { clerkUserIdDev: clerkUserId },
+          )
+          .where(
+            and(
+              eq(professionalsTable.id, prof.id),
+              isNull(identityColumn),
+            ),
+          )
+          .returning({ id: professionalsTable.id });
+
+        if (updated.length === 0) {
+          const [current] = await db
+            .select({ identity: identityColumn })
+            .from(professionalsTable)
+            .where(eq(professionalsTable.id, prof.id))
+            .limit(1);
+          if (current?.identity !== clerkUserId) {
+            await rejectLink("concurrent_link_conflict", 409);
+            return;
+          }
+        }
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          await rejectLink("google_identity_already_linked", 409);
+          return;
+        }
+        throw error;
+      }
+    }
+
+    await recordAudit({
+      professionalId: prof.id,
+      professionalName: prof.name,
+      action: "google_link_ok",
+      detail: { environment },
+      ip: clientIp(req),
+    });
+    res.json(sessionForProfessional(prof));
+  },
+);
+
 // POST /api/collaborator/login — usuario + senha -> token de 12h.
 router.post("/collaborator/login", async (req, res): Promise<void> => {
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
@@ -209,6 +424,12 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
 // GET /api/collaborator/me — dados do colaborador logado.
 router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<void> => {
   const claims = req.collaborator!;
+  const environment = resolveClerkEnvironmentForRequest(req);
+  const identityColumn = environment === "production"
+    ? professionalsTable.clerkUserIdProd
+    : environment === "development"
+      ? professionalsTable.clerkUserIdDev
+      : sql<string | null>`NULL`;
   const [prof] = await db
     .select({
       id: professionalsTable.id,
@@ -216,6 +437,8 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
       role: professionalsTable.role,
       category: professionalsTable.category,
       isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
+      cpf: professionalsTable.cpf,
+      googleIdentity: identityColumn,
     })
     .from(professionalsTable)
     .where(eq(professionalsTable.id, claims.professionalId))
@@ -224,7 +447,8 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
     res.status(404).json({ error: "Colaborador não encontrado" });
     return;
   }
-  res.json({ professional: prof });
+  const { googleIdentity, ...professional } = prof;
+  res.json({ professional: { ...professional, googleLinked: Boolean(googleIdentity) } });
 });
 
 // GET /api/collaborator/bootstrap-status — informa se ainda nao existe nenhuma

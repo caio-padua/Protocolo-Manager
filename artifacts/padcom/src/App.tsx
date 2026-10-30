@@ -4,6 +4,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout/Layout";
+import { ClerkAppProvider } from "@/lib/clerk-app";
+import {
+  ClerkSignInPage,
+  ClerkSignUpPage,
+  GoogleLinkReturnPage,
+  GoogleLoginReturnPage,
+} from "@/pages/auth/clerk-pages";
 
 import Dashboard from "@/pages/dashboard";
 import Clients from "@/pages/clients";
@@ -146,6 +153,10 @@ function Router() {
     <Switch>
       {/* Rota pública de login — fora do Layout, sem CollaboratorGate */}
       <Route path="/login" component={LoginPage} />
+      <Route path="/sign-in/*?" component={ClerkSignInPage} />
+      <Route path="/sign-up/*?" component={ClerkSignUpPage} />
+      <Route path="/login/google-return" component={GoogleLoginReturnPage} />
+      <Route path="/login/google-link-return" component={GoogleLinkReturnPage} />
       <Route path="/portal"><Redirect to="/area" replace /></Route>
       <Route path="/consulta-receituario" component={ConsultaReceituario} />
       <Route path="/foto" component={Foto} />
@@ -352,7 +363,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <ClerkAppProvider>
+            <Router />
+          </ClerkAppProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

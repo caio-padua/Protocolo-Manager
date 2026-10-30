@@ -34,6 +34,10 @@ export const professionalsTable = pgTable(
     // (scrypt+salt), nunca texto puro. Nulo = colaborador ainda sem acesso.
     loginUsername: text("login_username"),
     passwordHash: text("password_hash"),
+    // Identidade Google gerenciada pela Replit. Desenvolvimento e producao
+    // usam cadastros de autenticacao separados, portanto os vinculos tambem.
+    clerkUserIdDev: text("clerk_user_id_dev"),
+    clerkUserIdProd: text("clerk_user_id_prod"),
     // Imagem da assinatura/rubrica do profissional (PNG/JPEG). Guardada no
     // Object Storage privado; aqui fica só o caminho. Nulo = sem assinatura.
     // Serve a dois caminhos (decisao 28/06/2026): upload direto agora e, no
@@ -65,6 +69,12 @@ export const professionalsTable = pgTable(
     uniqueIndex("professionals_login_username_lower_uk")
       .on(sql`lower(${t.loginUsername})`)
       .where(sql`${t.loginUsername} is not null`),
+    uniqueIndex("professionals_clerk_user_id_dev_uk")
+      .on(t.clerkUserIdDev)
+      .where(sql`${t.clerkUserIdDev} is not null`),
+    uniqueIndex("professionals_clerk_user_id_prod_uk")
+      .on(t.clerkUserIdProd)
+      .where(sql`${t.clerkUserIdProd} is not null`),
   ],
 );
 

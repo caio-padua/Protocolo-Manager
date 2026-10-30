@@ -2,6 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, Redirect } from "wouter";
 import { usePermissoes } from "@/lib/permissoes";
+import { useClerkActions } from "@/lib/clerk-app";
+import { clearCollabSession, getCollabToken } from "@/lib/collab-auth";
+import {
+  formatProfessionalCpf,
+  formatProfessionalInitials,
+  formatProfessionalName,
+  formatProfessionalRole,
+} from "@/lib/format-professional-identity";
 import {
   LayoutDashboard,
   LayoutTemplate,
@@ -66,6 +74,12 @@ import {
   Microscope,
   TrendingUp,
   BookOpen,
+  UserRound,
+  LogIn,
+  Link2,
+  Eye,
+  EyeOff,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaxterLogo } from "./PaxterLogo";
@@ -100,7 +114,7 @@ const navigation: NavEntry[] = [
     icon: Stethoscope,
     children: [
       { name: "Radar Clínico",       href: "/radar-clinico",   icon: Radar       },
-      { name: "Cockpit da Consulta", href: "/cockpit-cliente", icon: Stethoscope },
+      { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
@@ -242,7 +256,7 @@ const navigation: NavEntry[] = [
 const COLLAPSE_KEY = "paxter.sidebar.collapsed";
 
 // Href do Cockpit da Consulta — item que recebe o badge Telegram
-const COCKPIT_HREF = "/cockpit-cliente";
+const COCKPIT_HREF = "/cockpit";
 
 // Intervalo de polling do badge Telegram (em milissegundos)
 const BADGE_POLL_MS = 30_000;
@@ -321,8 +335,14 @@ const HREF_FERRAMENTA: Record<string, string> = {
 };
 
 export function Layout({ children }: LayoutProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { available: clerkAvailable, signOut: signOutGoogle } = useClerkActions();
   const { pode, me } = usePermissoes();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [cpfVisible, setCpfVisible] = useState(false);
+  const [profileActionBusy, setProfileActionBusy] = useState(false);
+  const [profileActionError, setProfileActionError] = useState<string | null>(null);
+  const hasCollaboratorSession = Boolean(getCollabToken());
 
   // Governanca por camada de tela: sessao de LICENCIADO nunca opera as telas
   // administrativas — toda rota sob o Layout redireciona para /licenciado.
@@ -410,6 +430,51 @@ export function Layout({ children }: LayoutProps) {
       /* localStorage indisponivel — segue sem persistir */
     }
   }, [collapsed]);
+
+  async function beginGoogleLink() {
+    if (!clerkAvailable) {
+      setProfileActionError("O acesso Google ainda não está configurado neste ambiente.");
+      return;
+    }
+    if (!getCollabToken()) {
+      navigate("/login?google=link-session-expired");
+      return;
+    }
+    setProfileActionBusy(true);
+    setProfileActionError(null);
+    try {
+      await signOutGoogle();
+      const returnTo = `${location}${window.location.search}`;
+      setSidebarOpen(false);
+      setProfileOpen(false);
+      navigate(`/sign-in?intent=link&returnTo=${encodeURIComponent(returnTo)}`);
+    } catch {
+      setProfileActionError(
+        "Não foi possível encerrar a conta Google atual. Tente novamente antes de vincular.",
+      );
+    } finally {
+      setProfileActionBusy(false);
+    }
+  }
+
+  async function switchCollaboratorUser() {
+    setProfileActionBusy(true);
+    setProfileActionError(null);
+    clearCollabSession();
+    try {
+      if (clerkAvailable) await signOutGoogle();
+      const returnTo = `?returnTo=${encodeURIComponent(`${location}${window.location.search}`)}`;
+      setSidebarOpen(false);
+      setProfileOpen(false);
+      navigate(`/login${returnTo}`, { replace: true });
+    } catch {
+      setProfileActionError(
+        "A conta Google não foi encerrada. A sessão do profissional foi removida; recarregue e tente novamente.",
+      );
+    } finally {
+      setProfileActionBusy(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -626,27 +691,160 @@ export function Layout({ children }: LayoutProps) {
             })}
           </nav>
 
-          {/* Rodape — usuario */}
-          <div className="p-3 border-t border-sidebar-border">
-            <div
-              className={`flex items-center ${collapsed ? "justify-center" : "gap-3"} px-2 py-2`}
-              title={collapsed ? "Dr. Padua — Administrador" : undefined}
-            >
-              <div
-                className="w-8 h-8 flex items-center justify-center text-xs font-bold bg-sidebar-primary/20 text-sidebar-primary border border-sidebar-primary/30 shrink-0"
-                style={{ borderRadius: "4px" }}
+          {/* Rodape — identidade profissional, acesso e troca de usuario */}
+          <div className="relative border-t border-sidebar-border p-2">
+            {profileOpen && hasCollaboratorSession ? (
+              <section
+                id="collaborator-profile-actions"
+                aria-label="Identidade e ações do colaborador"
+                className={`panel-3d-sub absolute bottom-full z-[70] mb-2 w-[calc(100%-1rem)] p-3 ${
+                  collapsed ? "md:left-full md:right-auto md:ml-2 md:bottom-2 md:w-64" : "left-2 right-2 md:left-2 md:right-2 md:w-auto"
+                }`}
               >
-                DP
-              </div>
-              {!collapsed && (
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium tracking-wide">Dr. Padua</span>
-                  <span className="text-[10px] text-sidebar-foreground/50 tracking-wide uppercase">
-                    Administrador
+                <div className="border-b border-sidebar-border/70 pb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-primary">
+                    Identidade profissional
+                  </p>
+                  <p className="mt-1 truncate text-xs font-medium text-sidebar-foreground">
+                    {me ? formatProfessionalName(me.name) : "Verificando cadastro…"}
+                  </p>
+                </div>
+
+                <div className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px]">
+                  <span className="text-sidebar-foreground/45">Cargo</span>
+                  <span className="truncate text-sidebar-foreground/80">
+                    {me ? formatProfessionalRole(me.role, me.category) : "—"}
+                  </span>
+                  <span
+                    className="text-sidebar-foreground/45"
+                    title="Cadastro de Pessoas Físicas"
+                  >
+                    CPF
+                  </span>
+                  <span className="flex min-w-0 items-center justify-between gap-2 text-sidebar-foreground/80">
+                    <span className="truncate font-mono">
+                      {formatProfessionalCpf(me?.cpf, cpfVisible)}
+                    </span>
+                    {me?.cpf ? (
+                      <button
+                        type="button"
+                        onClick={() => setCpfVisible((visible) => !visible)}
+                        aria-label={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
+                        title={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
+                        className="bevel-3d flex h-7 w-7 shrink-0 items-center justify-center text-sidebar-primary"
+                      >
+                        {cpfVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    ) : null}
+                  </span>
+                  <span className="text-sidebar-foreground/45">Validação</span>
+                  <span className="truncate text-sidebar-foreground/80">
+                    {me?.googleLinked ? "Google validado" : "Vínculo Google pendente"}
                   </span>
                 </div>
-              )}
-            </div>
+
+                {profileActionError ? (
+                  <p role="alert" className="mt-2 rounded-md bg-red-950/40 px-2 py-1.5 text-[11px] text-red-200">
+                    {profileActionError}
+                  </p>
+                ) : null}
+
+                <div className="mt-3 grid gap-2">
+                  {me && !me.googleLinked ? (
+                    <button
+                      type="button"
+                      disabled={profileActionBusy}
+                      onClick={() => void beginGoogleLink()}
+                      className="btn-3d flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] font-semibold disabled:opacity-60"
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      Vincular conta Google
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={profileActionBusy}
+                    onClick={() => void switchCollaboratorUser()}
+                    className="btn-3d-soft flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-60"
+                  >
+                    <UserRound className="h-3.5 w-3.5" />
+                    Trocar usuário
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
+            <button
+              type="button"
+              aria-expanded={profileOpen}
+              aria-controls={
+                profileOpen && hasCollaboratorSession
+                  ? "collaborator-profile-actions"
+                  : undefined
+              }
+              aria-label={
+                hasCollaboratorSession
+                  ? profileOpen
+                    ? "Fechar menu do colaborador"
+                    : "Abrir menu do colaborador"
+                  : "Entrar no sistema"
+              }
+              title={collapsed
+                ? me
+                  ? formatProfessionalName(me.name)
+                  : "Entrar no sistema"
+                : undefined}
+              onClick={() => {
+                setProfileActionError(null);
+                if (!hasCollaboratorSession) {
+                  navigate("/login");
+                  return;
+                }
+                setProfileOpen((open) => !open);
+              }}
+              className={`bevel-3d flex min-h-[54px] w-full items-center ${
+                collapsed ? "justify-center px-2" : "gap-3 px-2.5"
+              } py-2 text-left`}
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center border border-sidebar-primary/40 bg-sidebar-primary/15 text-xs font-bold text-sidebar-primary"
+                style={{ borderRadius: "4px" }}
+              >
+                {me ? (
+                  formatProfessionalInitials(me.name)
+                ) : hasCollaboratorSession ? (
+                  <UserRound className="h-4 w-4" />
+                ) : (
+                  <LogIn className="h-4 w-4" />
+                )}
+              </span>
+              {!collapsed ? (
+                <>
+                  <span className="grid min-w-0 flex-1 grid-rows-3 leading-tight">
+                    <span className="truncate text-xs font-semibold text-sidebar-foreground">
+                      {me
+                        ? formatProfessionalName(me.name)
+                        : hasCollaboratorSession
+                          ? "Verificando cadastro…"
+                          : "Entrar no sistema"}
+                    </span>
+                    <span className="truncate text-[10px] text-sidebar-foreground/55">
+                      {me ? formatProfessionalRole(me.role, me.category) : "Acesso profissional"}
+                    </span>
+                    <span className="truncate font-mono text-[10px] text-sidebar-foreground/45">
+                      {formatProfessionalCpf(me?.cpf)}
+                    </span>
+                  </span>
+                  {hasCollaboratorSession ? (
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-sidebar-foreground/50 transition-transform ${
+                        profileOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </button>
           </div>
         </div>
       </div>

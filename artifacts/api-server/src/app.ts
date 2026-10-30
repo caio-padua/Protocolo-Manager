@@ -2,12 +2,19 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import pinoHttp from "pino-http";
+import { clerkMiddleware } from "@clerk/express";
+import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { checkAiSetup } from "./lib/ai-central";
 import { tenantContextMiddleware } from "./middleware/tenantContext";
 import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
 import { basicAuthMiddleware } from "./middleware/basicAuth";
+import {
+  CLERK_PROXY_PATH,
+  clerkProxyMiddleware,
+  getClerkProxyHost,
+} from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
 
@@ -38,18 +45,30 @@ app.use(
   }),
 );
 
+// O proxy do Clerk precisa vir antes dos parsers, pois encaminha o corpo bruto.
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+
 // Ordem obrigatória:
 // 1. CORS primeiro — o preflight OPTIONS não carrega credencial;
 //    se o Basic Auth vier antes, o padcom leva 401 no preflight.
 // 2. Helmet — cabeçalhos de segurança HTTP.
 // 3. Body parsers — antes do Basic Auth para poder ler webhooks.
-// 4. Basic Auth — porta de entrada única do sistema.
-// 5. Rate limit — após o Basic Auth (rotas do paciente já passaram pelo bypass).
-// 6. Tenant context — só para as rotas autenticadas.
+// 4. Clerk — valida a sessão Google, sem substituir o token de colaborador.
+// 5. Basic Auth — porta de entrada única do sistema.
+// 6. Rate limit — após o Basic Auth (rotas do paciente já passaram pelo bypass).
+// 7. Tenant context — só para as rotas autenticadas.
 app.use(corsMiddleware);
 app.use(helmetMiddleware);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(
+  clerkMiddleware((req) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(req) ?? "",
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
+  })),
+);
 // Rota pública — serve o PDF de pré-visualização da capa sem autenticação.
 // Remove este bloco quando a tarefa de validação visual estiver concluída.
 app.get("/preview-capa.pdf", (_req, res) => {

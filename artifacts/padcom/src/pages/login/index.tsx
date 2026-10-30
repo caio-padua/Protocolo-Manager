@@ -17,6 +17,7 @@ import {
   type CollabProfessional,
 } from "@/lib/collab-auth";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
+import { clerkPublishableKey } from "@/lib/clerk-app";
 
 interface BootstrapStatus {
   needsBootstrap: boolean;
@@ -65,14 +66,26 @@ export default function LoginPage() {
 
   const isBootstrap = status?.needsBootstrap === true;
   const modoTeste = import.meta.env.DEV && !isBootstrap;
+  const googleStatus = new URLSearchParams(window.location.search).get("google");
 
   function getReturnTo(): string {
     try {
       const params = new URLSearchParams(window.location.search);
       const rt = params.get("returnTo");
-      if (rt && rt.startsWith("/") && !rt.startsWith("/login")) return rt;
+      if (
+        rt &&
+        rt.startsWith("/") &&
+        !rt.startsWith("//") &&
+        !rt.includes("\\") &&
+        !rt.startsWith("/login")
+      ) return rt;
     } catch { /* */ }
     return "/";
+  }
+
+  function beginGoogleLogin() {
+    const returnTo = getReturnTo();
+    navigate(`/sign-in?intent=login&returnTo=${encodeURIComponent(returnTo)}`);
   }
 
   async function quickEnter() {
@@ -153,6 +166,17 @@ export default function LoginPage() {
 
           {/* Corpo do card */}
           <div className="bg-white px-6 py-6">
+            {googleStatus === "unlinked" ? (
+              <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                Esta conta Google ainda não está vinculada ao seu cadastro profissional.
+                Entre com seu usuário e senha; depois, no rodapé do menu, escolha “Vincular Google”.
+              </div>
+            ) : null}
+            {googleStatus === "link-session-expired" ? (
+              <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                Sua sessão do sistema expirou. Entre com seu usuário e senha antes de vincular o Google.
+              </div>
+            ) : null}
             <form onSubmit={handleSubmit} className="space-y-4">
 
               {isBootstrap ? (
@@ -224,6 +248,32 @@ export default function LoginPage() {
                 {busy ? "Entrando…" : isBootstrap ? "Criar acesso" : "Entrar"}
               </Button>
             </form>
+
+            {!isBootstrap && status && clerkPublishableKey ? (
+              <div className="mt-5">
+                <div className="mb-4 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-[#16284a]/45">
+                  <span className="h-px flex-1 bg-[#16284a]/15" />
+                  <span>ou</span>
+                  <span className="h-px flex-1 bg-[#16284a]/15" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={beginGoogleLogin}
+                  className="w-full h-11 border-[#16284a]/25 bg-white text-[#16284a] hover:bg-[#f3f5f8] font-semibold"
+                  data-testid="button-entrar-google"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="mr-2 flex h-5 w-5 items-center justify-center rounded-full border border-[#16284a]/20 text-xs font-bold"
+                  >
+                    G
+                  </span>
+                  Continuar com Google
+                </Button>
+              </div>
+            ) : null}
 
             {/* Modo teste: só em DEV */}
             {modoTeste ? (

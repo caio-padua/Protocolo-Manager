@@ -15,6 +15,7 @@ import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applic
 import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schema";
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
+import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
@@ -42,6 +43,14 @@ if (Number.isNaN(port) || port <= 0) {
 // Boot sequenciado: migrações críticas rodam ANTES do listen para evitar
 // race condition entre requests e criação de tabelas auxiliares.
 (async () => {
+  try {
+    await ensureProfessionalClerkIdentitySchema();
+    logger.info("identidades Google por ambiente: schema pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir identidades Google — abortando boot");
+    process.exit(1);
+  }
+
   await ensureExamSetsTable();
   try {
     await ensurePhotoHistoryTable();
