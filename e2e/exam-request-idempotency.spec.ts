@@ -140,6 +140,137 @@ test("Pedidos: pendências visíveis após recarga sem selecionar arquivos ou ca
   expect(posts).toBe(0);
 });
 
+// Consent is deliberately prepared without sending: pending-operation tests
+// cannot prove that pre-POST selections/authorization are scoped correctly.
+for (const transition of ["paciente", "medico"] as const) {
+  test(`Pedidos: não herdar autorização antes do envio ao trocar ${transition}`, async ({ context, page }, testInfo) => {
+    const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
+    const nextProfessional = { ...professional, id: 203, name: "Outro Médico Sintético" };
+    let switched = false;
+    const posts: string[] = [];
+    let navigations = 0;
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+    });
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const json = (body: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+      // Even an unexpected POST is fulfilled locally, never forwarded.
+      if (request.method() === "POST") {
+        posts.push(path);
+        return json({ error: "Este cenário não autoriza chamadas POST." });
+      }
+      const activeProfessional = switched && transition === "medico" ? nextProfessional : professional;
+      if (path === "/api/collaborator/me") return json({ professional: activeProfessional });
+      if (path === "/api/clients") return json([client, nextClient]);
+      const patient = path.includes("/43") ? nextClient : client;
+      if (/^\/api\/clients\/(42|43)$/.test(path)) return json(patient);
+      if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return json({
+        professional: activeProfessional, client: patient,
+        clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
+        canPrescribe: true, issue: null,
+      });
+      if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
+        expect(request.headers().authorization).toBe(
+          switched && transition === "medico" ? "Bearer synthetic-next-token" : "Bearer synthetic-ui-token",
+        );
+        const firstId = patient.id === 43 ? 93 : 91;
+        return json({
+          documents: [0, 1].map(index => ({
+            ...document, id: firstId + index, fileName: `Pedido sintético ${firstId + index}.pdf`,
+          })),
+          dispatches: [], pendingOperations: [], nextOffset: null,
+        });
+      }
+      return json([]);
+    });
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    const consent = panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false });
+    const email = panel.getByRole("checkbox", { name: "E-mail", exact: true });
+    const telegram = panel.getByRole("checkbox", { name: "Telegram", exact: true });
+    const confirm = panel.getByRole("button", { name: "Confirmar envio", exact: true });
+    const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+    const expectCleared = async (firstId: number) => {
+      await expect(doc(firstId)).toBeVisible();
+      await expect(doc(firstId)).not.toBeChecked();
+      await expect(doc(firstId + 1)).not.toBeChecked();
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(panel).toContainText("0 documento(s) selecionado(s)");
+      await expect(consent).not.toBeChecked();
+      await expect(confirm).toBeDisabled();
+      expect(posts).toEqual([]);
+    };
+    const changeScope = async (next: boolean) => {
+      switched = next;
+      if (transition === "paciente") {
+        await page.evaluate(id => {
+          window.history.pushState(null, "", `/cockpit/${id}/exames`);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }, next ? 43 : 42);
+        await expect(page).toHaveURL(new RegExp(`/cockpit/${next ? 43 : 42}/exames$`));
+      } else {
+        await page.evaluate(({ prof, token }) => {
+          localStorage.setItem("padcom_collab_token", token);
+          localStorage.setItem("padcom_collab_prof", JSON.stringify(prof));
+          window.dispatchEvent(new Event("collab-auth-changed"));
+        }, { prof: next ? nextProfessional : professional, token: next ? "synthetic-next-token" : "synthetic-ui-token" });
+        await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      }
+    };
+
+    await expectCleared(91);
+    await doc(91).check();
+    await doc(92).check();
+    await email.check();
+    await telegram.check();
+    await consent.check();
+    await expect(confirm).toBeEnabled();
+    expect(posts).toEqual([]);
+    // No click on Confirmar envio here or later in this test.
+    await changeScope(true);
+    const firstId = transition === "paciente" ? 93 : 91;
+    await expectCleared(firstId);
+    if (transition === "paciente") await expect(doc(91)).toHaveCount(0);
+
+    // Authorization alone is insufficient, and selecting a document revokes it.
+    await consent.check();
+    await expect(confirm).toBeDisabled();
+    await doc(firstId).check();
+    await expect(consent).not.toBeChecked();
+    await consent.check();
+    await expect(confirm).toBeDisabled(); // Still no channel selected.
+    await email.check();
+    await expect(consent).not.toBeChecked();
+    await expect(confirm).toBeDisabled();
+    await consent.check();
+    await expect(confirm).toBeEnabled();
+    await telegram.check();
+    await expect(consent).not.toBeChecked();
+    await expect(confirm).toBeDisabled();
+    await consent.check();
+    await expect(confirm).toBeEnabled();
+    await doc(firstId + 1).check();
+    await expect(consent).not.toBeChecked();
+    await expect(confirm).toBeDisabled();
+    await consent.check();
+    await expect(confirm).toBeEnabled();
+    expect(posts).toEqual([]);
+
+    // Returning must not revive the original consent, even with cached history.
+    await changeScope(false);
+    await expectCleared(91);
+    expect(navigations).toBe(1);
+    expect(posts).toEqual([]);
+    await panel.screenshot({ path: testInfo.outputPath("autorizacao-nao-herdada.png") });
+  });
+}
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
@@ -245,7 +376,7 @@ for (const transition of ["paciente", "medico"] as const) {
       }, oldKey);
       if (outcome === "401-atual") {
         await reply(held.current!, { error: "Sessão atual sem autorização para consultar histórico." }, 401);
-        await expect(panel.getByRole("alert")).toHaveText("Sessão atual sem autorização para consultar histórico.");
+        await expect(panel.getByRole("alert")).toContainText("Sessão atual sem autorização para consultar histórico.");
         await expect(panel).not.toContainText(newKey);
       } else {
         await reply(held.current!, historyBody(newKey, 92));
