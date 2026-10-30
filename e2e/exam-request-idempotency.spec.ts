@@ -2760,6 +2760,198 @@ for (const currentOutcome of ["sucesso", "401"] as const) {
   }
 }
 
+||||||| base
+
+// Unlike manual refresh and clinic revalidation, this race holds the interval's
+// recovery GET after a 500 with cached pending operations, then changes patient.
+for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const) {
+  test(`Pedidos: isolar recuperação automática ao trocar paciente — ${outcome}`, async ({ context, page }, testInfo) => {
+    const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
+    const markers = { old: "pendencia-paciente-A", late: "recuperacao-atrasada-paciente-A", current: "pendencia-paciente-B" };
+    const errors = { initial: "Falha 500 ao atualizar paciente A.", late: "Recuperação de A sem autorização.", current: "Histórico de B sem autorização." };
+    const reads: Record<string, number[]> = { "42": [], "43": [] };
+    const methods: string[] = [];
+    const held: { recovery?: Route; current?: Route } = {};
+    let navigations = 0;
+    const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+      status, contentType: "application/json", body: JSON.stringify(body),
+    });
+    const historyBody = (key: string, id: number) => ({
+      documents: [{ ...document, id, fileName: `${key}.pdf` }],
+      dispatches: [], nextOffset: null,
+      pendingOperations: [{
+        operationKey: key, state: "needs_review", createdAt: document.createdAt,
+        documentIds: [id], channels: ["EMAIL"], results: [],
+      }],
+    });
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+      const originalFetch = window.fetch.bind(window);
+      (window as any).__automaticParsed = [];
+      window.fetch = async (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (!/\/exam-requests\/(42|43)\/history/.test(url)) return originalFetch(input, init);
+        // A canceled observer must not hide the race: let the body arrive and
+        // prove JSON parsing, not just receipt of response headers.
+        const uncancelledInput = input instanceof Request ? new Request(input, { signal: undefined }) : input;
+        const response = await originalFetch(uncancelledInput, { ...init, signal: undefined });
+        const originalJson = response.json.bind(response);
+        response.json = async () => {
+          const data = await originalJson();
+          (window as any).__automaticParsed.push({ patient: url.match(/exam-requests\/(\d+)/)![1], data });
+          return data;
+        };
+        return response;
+      };
+    });
+    // Intercept the entire API, including unexpected writes; never hit a
+    // patient's data, the real API, or a messaging provider.
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      methods.push(request.method());
+      if (request.method() !== "GET") return reply(route, { error: "Somente GET autorizado." }, 405);
+      if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
+      if (url.pathname === "/api/clients") return reply(route, [client, nextClient]);
+      const patient = url.pathname.includes("/43") ? nextClient : client;
+      if (/^\/api\/clients\/(42|43)$/.test(url.pathname)) return reply(route, patient);
+      if (/^\/api\/clinical-context\/(42|43)$/.test(url.pathname)) return reply(route, {
+        professional, client: patient, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
+        canPrescribe: true, issue: null,
+      });
+      const match = url.pathname.match(/^\/api\/exam-requests\/(42|43)\/history$/);
+      if (match) {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        reads[match[1]].push(Number(url.searchParams.get("offset")));
+        if (match[1] === "43") { held.current = route; return; }
+        if (reads["42"].length === 1) return reply(route, historyBody(markers.old, 91));
+        if (reads["42"].length === 2) return reply(route, { error: errors.initial }, 500);
+        expect(reads["42"]).toHaveLength(3);
+        held.recovery = route;
+        return;
+      }
+      return reply(route, []);
+    });
+    await page.clock.install();
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+    const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+    const consent = panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false });
+    const confirm = panel.getByRole("button", { name: "Confirmar envio", exact: true });
+    const pending = panel.getByRole("alert").filter({ hasText: "Envios pendentes de conferência" });
+    const error = panel.getByRole("alert").filter({ hasText: "Não foi possível atualizar o histórico:" });
+    await expect(doc(91)).toBeVisible();
+    await doc(91).check();
+    await panel.getByRole("checkbox", { name: "E-mail", exact: true }).check();
+    await consent.check();
+    await expect(confirm).toBeEnabled();
+    expect(reads).toEqual({ "42": [0], "43": [] });
+    // No manual refresh, focus, pagination or identity event triggers either GET.
+    await page.clock.fastForward(10_001);
+    await expect(error).toContainText(errors.initial);
+    await expect(pending).toContainText(markers.old);
+    await expect(pending).toContainText("Últimas pendências conhecidas");
+    await expect(panel.getByRole("status")).toHaveCount(0);
+    await expect(doc(91)).toHaveCount(0);
+    expect(reads).toEqual({ "42": [0, 0], "43": [] });
+    await page.clock.fastForward(10_001);
+    await expect.poll(() => !!held.recovery).toBe(true);
+    await expect(pending).toContainText(markers.old);
+    expect(await page.evaluate(() => (window as any).__automaticParsed.length)).toBe(2);
+    expect(reads).toEqual({ "42": [0, 0, 0], "43": [] });
+    // Same-document navigation preserves the cache and the outstanding fetch.
+    await page.evaluate(() => {
+      window.history.pushState(null, "", "/cockpit/43/exames");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await expect.poll(() => !!held.current).toBe(true);
+    await expect(draft).toContainText(nextClient.name);
+    await expect(draft).toContainText(professional.name);
+    await expect(draft).toContainText("Clínica Sintética");
+    await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+    await expect(panel).not.toContainText(markers.old);
+    await expect(error).toHaveCount(0);
+    await expect(pending).toHaveCount(0);
+    await expect(consent).not.toBeChecked();
+    await expect(confirm).toBeDisabled();
+    await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+    await reply(held.current!, outcome === "401-atual"
+      ? { error: errors.current } : historyBody(markers.current, 92), outcome === "401-atual" ? 401 : 200);
+    await expect.poll(() => page.evaluate(() => (window as any).__automaticParsed.length)).toBe(3);
+    if (outcome === "401-atual") {
+      await expect(error).toContainText(errors.current);
+      await expect(pending).toHaveCount(0);
+      await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+    } else {
+      await expect(doc(92)).toBeVisible();
+      await expect(pending).toContainText(markers.current);
+      await expect(error).toHaveCount(0);
+      await expect(doc(92)).not.toBeChecked();
+      // Fresh B consent must survive A's late success/error, just as A's old
+      // consent must not have carried over. Never click the send button.
+      await doc(92).check();
+      await panel.getByRole("checkbox", { name: "Telegram", exact: true }).check();
+      await consent.check();
+      await expect(confirm).toBeEnabled();
+    }
+    const snapshot = () => panel.evaluate(element => ({
+      text: element.textContent,
+      inputs: [...element.querySelectorAll("input")].map(input => ({
+        label: input.getAttribute("aria-label"), checked: input.checked, disabled: input.disabled,
+      })),
+      buttons: [...element.querySelectorAll("button")].map(button => ({
+        text: button.textContent, disabled: button.disabled,
+      })),
+    }));
+    const before = await snapshot();
+    await page.evaluate(forbidden => {
+      (window as any).__automaticLeaks = [];
+      const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]')!;
+      new MutationObserver(records => {
+        for (const key of forbidden) {
+          if (region.textContent?.includes(key) || records.some(record =>
+            [...record.addedNodes].some(node => node.textContent?.includes(key))
+            || (record.type === "characterData" && record.target.textContent?.includes(key)))) {
+            (window as any).__automaticLeaks.push(key);
+          }
+        }
+      }).observe(region, { subtree: true, childList: true, characterData: true, attributes: true });
+    }, [markers.old, markers.late, errors.initial, errors.late]);
+    const lateBody = outcome === "401-atrasado" ? { error: errors.late } : historyBody(markers.late, 95);
+    await reply(held.recovery!, lateBody, outcome === "401-atrasado" ? 401 : 200);
+    await expect.poll(() => page.evaluate(() => (window as any).__automaticParsed.length)).toBe(4);
+    expect(await page.evaluate(() => (window as any).__automaticParsed[3])).toEqual({ patient: "42", data: lateBody });
+    await page.evaluate(() => new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    expect(await snapshot()).toEqual(before);
+    expect(await page.evaluate(() => (window as any).__automaticLeaks)).toEqual([]);
+    for (const key of [markers.old, markers.late, errors.initial, errors.late]) await expect(panel).not.toContainText(key);
+    for (const id of [91, 95]) await expect(doc(id)).toHaveCount(0);
+    if (outcome === "401-atual") {
+      await expect(error).toContainText(errors.current);
+      await expect(consent).not.toBeChecked();
+      await expect(confirm).toBeDisabled();
+    } else {
+      await expect(doc(92)).toBeChecked();
+      await expect(pending).toContainText(markers.current);
+      await expect(error).toHaveCount(0);
+      await expect(consent).toBeChecked();
+      await expect(confirm).toBeEnabled();
+    }
+    expect(reads).toEqual({ "42": [0, 0, 0], "43": [0] });
+    expect([...new Set(methods)]).toEqual(["GET"]);
+    expect(methods.filter(method => method === "POST")).toEqual([]);
+    expect(navigations).toBe(1);
+    await expect(page).toHaveURL(/\/cockpit\/43\/exames$/);
+    await panel.screenshot({ path: testInfo.outputPath("recuperacao-automatica-paciente-isolado.png") });
+  });
+}
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
