@@ -38,7 +38,7 @@ async function kill(child: ChildProcess) {
 
 it.each(["before-audit-write", "after-first-channel-persist", "before-completed-response", "before-recovery-write",
   "between-telegram-batches", "after-first-batch-accepted"] as const)(
-  "recovers the durable reservation after SIGKILL at %s without contacting providers again", async crashPoint => {
+  "two restarted processes recover the durable reservation after SIGKILL at %s without contacting providers again", async crashPoint => {
   const children: ChildProcess[] = [];
   const directory = await mkdtemp(join(tmpdir(), "exam-dispatch-process-"));
   let postgres: Awaited<ReturnType<typeof isolatedPostgres>> | undefined;
@@ -85,10 +85,10 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
         },
       }],
     });
-    const start = async (crashPoint?: string) => {
+    const start = async (crashPoint?: string, replayRequestCount?: number) => {
       // Do not inherit database URLs, provider keys, NODE_OPTIONS or app config.
       const child = fork(entry, [JSON.stringify({
-        connection: postgres!.connection, providerUrl, crashPoint, documentCount: documents.length, multipart,
+        connection: postgres!.connection, providerUrl, crashPoint, documentCount: documents.length, multipart, replayRequestCount,
       })], {
         env: {}, execArgv: [], stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
@@ -177,7 +177,7 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
     expect(await interruptedRequest).toEqual({ interrupted: true });
 
     const reservation = async () => (await postgres!.execute(sql`
-      SELECT operation_key, request_hash, state, results FROM exam_request_dispatch_operations
+      SELECT * FROM exam_request_dispatch_operations
     `)).rows;
     const audit = async () => (await postgres!.execute(sql`
       SELECT id, detail FROM synthetic_dispatch_audits ORDER BY id
@@ -210,10 +210,30 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
         clientId: payload.clientId, documentIds: payload.documentIds });
     }
 
-    const restarted = await start();
-    expect(restarted.ready.pid).not.toBe(first.ready.pid);
-    for (const key of [payload.operationKey, "synthetic-other-window"]) {
-      const response = await send(restarted.ready.port, key);
+    const keys = [payload.operationKey, "synthetic-other-window"];
+    const restarted = await Promise.all([start(undefined, keys.length), start(undefined, keys.length)]);
+    expect(new Set([first.ready.pid, ...restarted.map(instance => instance.ready.pid)]).size).toBe(3);
+    expect(restarted[0].ready.port).not.toBe(restarted[1].ready.port);
+    // Starting either instance must not resume pending work automatically.
+    expect(providerCalls).toEqual(expectedCalls);
+    expect(await reservation()).toEqual(savedReservation);
+    expect(await audit()).toEqual(savedAudits);
+    const waiting = Promise.all(restarted.map(instance =>
+      waitForMessage(instance.child, "replays-waiting", instance.errors)));
+    // Consume all rejections immediately, even if a barrier fails before release.
+    const responses = Promise.allSettled(restarted.flatMap(instance =>
+      keys.map(key => send(instance.ready.port, key))));
+    const barriers = await waiting;
+    barriers.forEach((barrier, index) => {
+      expect(barrier.pid).toBe(restarted[index].ready.pid);
+      expect(barrier.operationKeys.slice().sort()).toEqual(keys.slice().sort());
+    });
+    for (const instance of restarted) instance.child.send({ type: "release-replays" });
+    const settled = await responses;
+    expect(settled).toHaveLength(4);
+    for (const result of settled) {
+      if (result.status === "rejected") throw result.reason;
+      const response = result.value;
       expect(response.status).toBe(200);
       const recovered = await response.json();
       if (completed) {
@@ -235,7 +255,11 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
       expect(await audit()).toEqual(savedAudits);
     }
     expect(first.errors()).toBe("");
-    expect(restarted.errors()).toBe("");
+    for (const instance of restarted) expect(instance.errors()).toBe("");
+    await Promise.all(restarted.map(instance => kill(instance.child)));
+    expect(providerCalls).toEqual(expectedCalls);
+    expect(await reservation()).toEqual(savedReservation);
+    expect(await audit()).toEqual(savedAudits);
   } finally {
     // All cleanup paths run even when another resource fails to close.
     try {
