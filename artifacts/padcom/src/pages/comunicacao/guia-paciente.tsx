@@ -8,8 +8,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Send, Copy, CheckCheck, Smartphone, Loader2, AlertCircle, CheckCircle2, MessageCircle, Key, RefreshCw } from "lucide-react";
-import { PaxterClientSelector } from "@/components/PaxterClientSelector";
-import { useListClients } from "@workspace/api-client-react";
+import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
 const API_BASE    = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -27,15 +26,38 @@ const GUIA_BASE: string = _siteBase
 // ── Config da empresa logada (para gerar link com ?tenant=slug) ───────────────
 interface MinhaConfig { slug: string | null; clinicaNome: string; }
 
-function useMinhaConfig(): MinhaConfig {
-  const [cfg, setCfg] = useState<MinhaConfig>({ slug: null, clinicaNome: "Instituto Pádua" });
+function useMinhaConfig() {
+  const [cfg, setCfg] = useState<MinhaConfig>({ slug: null, clinicaNome: "Carregando clínica…" });
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [clientes, setClientes] = useState<PaxterClientOption[]>([]);
   useEffect(() => {
-    fetch(`${API_BASE}/api/onboarding/minha-config`)
-      .then((r) => r.ok ? r.json() as Promise<MinhaConfig> : Promise.reject())
-      .then((d) => setCfg({ slug: d.slug ?? null, clinicaNome: d.clinicaNome || "Instituto Pádua" }))
-      .catch(() => {/* usa fallback silenciosamente */});
-  }, []);
-  return cfg;
+    const controller = new AbortController();
+    setReady(false);
+    setError(false);
+    const token = getCollabToken();
+    setClientes([]);
+    const options = {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    };
+    Promise.all([
+      fetch(`${API_BASE}/api/onboarding/minha-config`, options)
+        .then((r) => r.ok ? r.json() as Promise<MinhaConfig> : Promise.reject()),
+      fetch(`${API_BASE}/api/onboarding/clientes`, options)
+        .then((r) => r.ok ? r.json() as Promise<PaxterClientOption[]> : Promise.reject()),
+    ])
+      .then(([d, clients]) => {
+        if (controller.signal.aborted) return;
+        setCfg({ slug: d.slug ?? null, clinicaNome: d.clinicaNome });
+        setClientes(clients);
+        setReady(true);
+      })
+      .catch(() => { if (!controller.signal.aborted) setError(true); });
+    return () => controller.abort();
+  }, [attempt]);
+  return { ...cfg, clientes, ready, error, retry: () => setAttempt((n) => n + 1) };
 }
 
 // ── Badge de status Telegram ──────────────────────────────────────────────────
@@ -295,9 +317,8 @@ type EnvioResult = {
 };
 
 export default function GuiaPaciente() {
-  const { data: clientes } = useListClients();
   const { toast } = useToast();
-  const { slug, clinicaNome } = useMinhaConfig();
+  const { slug, clinicaNome, clientes, ready: clinicaReady, error: clinicaError, retry: retryClinica } = useMinhaConfig();
 
   const [clientId, setClientId] = useState<number | null>(null);
 
@@ -368,15 +389,19 @@ export default function GuiaPaciente() {
 
   // ── Enviar guia ─────────────────────────────────────────────────────────
   async function enviar(canais: Canal[]) {
-    if (!clientId || !selected || loading || countdown > 0) return;
+    if (!clinicaReady || !clientId || !selected || loading || countdown > 0) return;
     setLoading(true);
     setResultados([]);
     setLimiteDiario(null);
     try {
+      const token = getCollabToken();
       const res = await fetch(`${API_BASE}/api/onboarding/enviar-guia`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, canais, guiaUrl }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ clientId, canais, guiaUrl, tenantSlug: slug ?? undefined }),
       });
 
       // ── 429: cooldown de 60s ──
@@ -429,6 +454,20 @@ export default function GuiaPaciente() {
       </div>
 
       {/* ── Seletor de paciente ── */}
+      {!clinicaReady && (
+        <div className="panel-3d rounded-xl p-5 space-y-3" role={clinicaError ? "alert" : "status"}>
+          <p className="text-sm text-primary">
+            {clinicaError
+              ? "Não foi possível confirmar sua clínica. O envio está bloqueado para evitar uma identificação incorreta."
+              : "Confirmando a clínica do colaborador…"}
+          </p>
+          {clinicaError && (
+            <button className="btn-3d-soft px-4 py-2 text-sm" onClick={retryClinica}>
+              Tentar novamente
+            </button>
+          )}
+        </div>
+      )}
       <div className="panel-3d rounded-xl p-5 space-y-4">
         <div>
           <label className="block text-primary text-xs font-black uppercase tracking-widest mb-2">
@@ -439,6 +478,7 @@ export default function GuiaPaciente() {
             value={clientId}
             onChange={handleClientChange}
             placeholder="Selecionar cliente…"
+            disabled={!clinicaReady}
           />
         </div>
 
@@ -476,6 +516,7 @@ export default function GuiaPaciente() {
           <span className="flex-1 text-xs text-muted-foreground break-all font-mono">{guiaUrl}</span>
           <button
             onClick={copiarLink}
+            disabled={!clinicaReady}
             className="btn-3d-soft flex items-center gap-1.5 px-3 py-2 text-xs font-black uppercase"
           >
             {copiado ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -519,7 +560,7 @@ export default function GuiaPaciente() {
             {/* WhatsApp */}
             <button
               onClick={() => enviar(["WHATSAPP"])}
-              disabled={loading || !selected.phone || countdown > 0}
+              disabled={!clinicaReady || loading || !selected.phone || countdown > 0}
               className="btn-3d flex items-center justify-center gap-2 py-3 text-sm font-black uppercase tracking-wider disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -529,7 +570,7 @@ export default function GuiaPaciente() {
             {/* WhatsApp + Telegram */}
             <button
               onClick={() => enviar(["WHATSAPP", "TELEGRAM"])}
-              disabled={loading || !selected.phone || countdown > 0}
+              disabled={!clinicaReady || loading || !selected.phone || countdown > 0}
               className="btn-3d-soft flex items-center justify-center gap-2 py-3 text-sm font-black uppercase tracking-wider disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

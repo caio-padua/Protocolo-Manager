@@ -93,3 +93,7 @@ CREATE TABLE IF NOT EXISTS personal_exam_sets (
 );
 CREATE INDEX IF NOT EXISTS personal_exam_sets_owner
   ON personal_exam_sets (professional_id, location_id, empresa_id);
+
+-- Vínculo explícito do colaborador à empresa, já existente na base original.
+-- Não inferir nem sobrescrever vínculos ao instalar em outra clínica.
+ALTER TABLE professionals ADD COLUMN IF NOT EXISTS empresa_id INTEGER;

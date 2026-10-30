@@ -14,10 +14,11 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { db, clientsTable } from "@workspace/db";
-import { eq, sql as sqlRaw } from "drizzle-orm";
+import { and, eq, isNull, sql as sqlRaw } from "drizzle-orm";
 import { sendWhatsapp } from "../lib/whatsapp.js";
 import { sendTelegram } from "../lib/telegram.js";
 import { z } from "zod";
+import { resolveOnboardingClinic } from "../lib/onboarding-clinic.js";
 
 export const onboardingRouter = Router();
 
@@ -111,6 +112,7 @@ const bodySchema = z.object({
   clientId: z.number().int().positive(),
   canais:   z.array(z.enum(["WHATSAPP", "TELEGRAM"])).min(1),
   guiaUrl:  z.string().url(),
+  tenantSlug: z.string().trim().min(1).max(80).toLowerCase().optional(),
 });
 
 onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promise<void> => {
@@ -120,8 +122,23 @@ onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promi
     return;
   }
 
-  const { clientId, guiaUrl } = parsed.data;
+  const { clientId, guiaUrl, tenantSlug } = parsed.data;
   const canais = [...new Set(parsed.data.canais)];
+
+  const clinic = await resolveOnboardingClinic(req, res);
+  if (!clinic) return;
+  if (tenantSlug && tenantSlug !== clinic.slug) {
+    res.status(403).json({ ok: false, error: "Clínica não autorizada para este colaborador." });
+    return;
+  }
+  const guiaLink = new URL(guiaUrl);
+  const linkTenant = guiaLink.searchParams.get("tenant");
+  if (linkTenant && linkTenant !== clinic.slug) {
+    res.status(403).json({ ok: false, error: "O link do guia pertence a outra clínica." });
+    return;
+  }
+  // Fill an omitted tenant from the authenticated clinic, never the global fallback.
+  if (clinic.slug) guiaLink.searchParams.set("tenant", clinic.slug);
 
   const agora = Date.now();
   const canalBloqueado = canais.find((canal) => agora - (sendCooldowns.get(`${clientId}:${canal}`) ?? 0) < COOLDOWN_MS);
@@ -132,9 +149,11 @@ onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promi
 
   const [cliente] = await db
     .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
-    .from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    .from(clientsTable).where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, clinic.id))).limit(1);
 
   if (!cliente) { res.status(404).json({ ok: false, error: "Paciente não encontrado" }); return; }
+
+  const clinicaNome = !tenantSlug && clinic.id === 5 ? "Instituto Pádua" : clinic.nome;
 
   const canaisReservados: { canal: string; diaBrt: string }[] = [];
   for (const canal of canais) {
@@ -150,7 +169,7 @@ onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promi
   for (const canal of canais) sendCooldowns.set(`${clientId}:${canal}`, agora);
 
   const primeiroNome = cliente.name.split(" ")[0];
-  const mensagem = `🏥 *Instituto Pádua — Seu Guia Digital*
+  const mensagem = `🏥 *${clinicaNome} — Seu Guia Digital*
 
 Olá, ${primeiroNome}! 👋
 
@@ -158,7 +177,7 @@ Preparamos um passo a passo especial para você instalar o aplicativo no celular
 
 É bem simples! Clique no link abaixo e siga as instruções na tela:
 
-👉 ${guiaUrl}
+👉 ${guiaLink.toString()}
 
 Qualquer dúvida, estamos à disposição! 😊`;
 
@@ -264,12 +283,26 @@ onboardingPublicRouter.get("/config", async (req: Request, res: Response): Promi
 });
 
 // ── GET /api/onboarding/minha-config ─────────────────────────────────────────
+// The general /clients list still uses the legacy global tenant context.
+// This picker must use the same actual membership as configuration and sending.
+onboardingRouter.get("/clientes", async (req: Request, res: Response): Promise<void> => {
+  const clinic = await resolveOnboardingClinic(req, res);
+  if (!clinic) return;
+  const clients = await db.select({
+    id: clientsTable.id, name: clientsTable.name, cpf: clientsTable.cpf,
+    phone: clientsTable.phone, photoUrl: clientsTable.photoUrl,
+  }).from(clientsTable).where(and(
+    eq(clientsTable.empresaId, clinic.id),
+    eq(clientsTable.status, "active"),
+    isNull(clientsTable.deletedAt),
+  )).orderBy(clientsTable.name);
+  res.json(clients);
+});
+
 onboardingRouter.get("/minha-config", async (req: Request, res: Response): Promise<void> => {
-  const empresaId = req.tenantContext?.empresaId ?? 5;
   try {
-    const result = await db.execute(sqlRaw`SELECT nome, slug, telegram_bot_username, area_url FROM empresas WHERE id = ${empresaId} LIMIT 1`);
-    const row = result.rows[0] as { nome: string; slug: string | null; telegram_bot_username: string | null; area_url: string | null } | undefined;
-    if (!row) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
+    const row = await resolveOnboardingClinic(req, res);
+    if (!row) return;
     res.json({ clinicaNome: row.nome, slug: row.slug ?? null, botHandle: row.telegram_bot_username ?? null, areaUrl: row.area_url ?? null });
   } catch (err) {
     res.status(500).json({ error: String(err) });

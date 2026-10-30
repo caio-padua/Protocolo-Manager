@@ -40,6 +40,7 @@ import { pool } from "@workspace/db";
 type Canal = "WHATSAPP" | "TELEGRAM";
 let connection: Awaited<ReturnType<typeof pool.connect>>;
 let server: Server | undefined;
+let token: string;
 
 async function restartServer() {
   if (server) {
@@ -50,6 +51,8 @@ async function restartServer() {
   }
   vi.resetModules();
   const { onboardingRouter } = await import("../routes/onboarding.js");
+  const { createCollaboratorToken } = await import("../lib/collaborator-auth.js");
+  token = createCollaboratorToken({ professionalId: 42, role: "admin" });
   const app = express();
   app.use(express.json());
   app.use("/api/onboarding", onboardingRouter);
@@ -62,7 +65,7 @@ async function restartServer() {
 }
 
 function send(canais: Canal[]) {
-  return request(server!).post("/api/onboarding/enviar-guia").send({
+  return request(server!).post("/api/onboarding/enviar-guia").set("Authorization", `Bearer ${token}`).send({
     clientId: 42,
     canais,
     guiaUrl: "https://example.com/guia-digital?c=42",
@@ -85,6 +88,7 @@ beforeAll(async () => {
     const { sql } = dialect.sqlToQuery(query);
     // Suppress the unrelated boot migrations; never touch persistent tables.
     if (/^\s*(CREATE|ALTER)\b/i.test(sql)) return { rows: [] };
+    if (sql.includes("FROM professionals p")) return { rows: [{ id: 5, nome: "Instituto Pádua", slug: null }] };
     if (!/^\s*(INSERT INTO|UPDATE)\s+onboarding_quota\b/i.test(sql)) {
       throw new Error("Unexpected database write in isolated quota test");
     }

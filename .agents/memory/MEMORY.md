@@ -27,7 +27,8 @@
 - [PDF: cursor de pagina unico contra paginas em branco](pdf-cursor-quebra-pagina.md) — gerador multi-pagina usa `let page`+`ensureSpace` reapontavel; `const page` por bloco quebra; pdf-lib nao avisa y fora da folha.
 - [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
 - [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico no lembrete.
-- [Governança multi-clínica: pausa com exceção](governanca-multiclinica-parada.md) — pausa geral mantida; autorizada apenas a segurança de clínica, colaborador e cliente no envio do guia.
+- [Governança multiclínica: pausa com exceção](governanca-multiclinica-parada.md) — pausa geral mantida; autorizado isolar clínica, colaborador e clientes no envio do Guia Digital.
+- [Separadores e verificação de conflitos](merge-marker-separators.md) — a integração automática pode interpretar sinais de igualdade em comentários como conflito; usar hífens decorativos.
 - [Seed runner mata servidor no boot](seed-runner-bundle-exit.md) — arquivo de seed com bloco `import.meta.url===argv[1]`+`process.exit` NÃO pode ser importado no entry (esbuild empacota e derruba o boot).
 - [Profissionais estratificados + Entrada 4](profissionais-estratificacao.md) — Entrada 4 = "Corpo Clínico", inclui não-médicos agendáveis; catálogo só ativo p/ paciente; 4 entradas nunca se misturam.
 - [Marca navy/ouro nas telas (padcom)](paxter-navy-gold-marca-telas.md) — chrome=navy/ouro (mata teal/#3D7A7A); STATUS sobrevive (verde=done, emerald NAO trocar em massa); toggle tema useScreenTheme.

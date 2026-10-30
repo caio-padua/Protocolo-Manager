@@ -34,3 +34,10 @@ Nao autoriza reabrir o projeto inteiro de licenciamento, centro de comando, perm
 Na ausencia de autorizacao verificavel ou diante de cliente de outra clinica, bloquear antes de chamar os canais de envio.
 Conferir o caminho autorizado, combinacoes proibidas e ausencia de contexto sem disparar mensagens clinicas reais como teste.
 A autorizacao de escopo nao comprova implementacao nem envio de resposta a uma conversa de tarefa isolada.
+## Exceção autorizada: isolamento do envio do Guia Digital
+
+O responsável pelo produto autorizou em 29/10/2026 corrigir o vínculo entre colaborador e clínica no fluxo do Guia Digital, incluindo os bloqueios de envio entre empresas.
+
+**Why:** o produto será comercializado para outras clínicas; apresentar uma marca diferente ou permitir contatos entre bases não é aceitável.
+
+**How to apply:** essa autorização cobre identificar a clínica pela associação real do colaborador, carregar seus próprios clientes e conferir essa associação no envio do guia; não equivale a concluir a governança multiclínica de todas as ferramentas.
