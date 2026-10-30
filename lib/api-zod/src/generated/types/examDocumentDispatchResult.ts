@@ -6,7 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ExamDocumentChannelResult } from "./examDocumentChannelResult";
+import type { ExamDocumentDispatchResultState } from "./examDocumentDispatchResultState";
 
 export interface ExamDocumentDispatchResult {
+  operationKey: string;
+  state: ExamDocumentDispatchResultState;
+  replayed: boolean;
+  needsReview: boolean;
+  message?: string;
   results: ExamDocumentChannelResult[];
 }

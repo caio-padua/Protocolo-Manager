@@ -137,6 +137,7 @@ export * from "./examDocumentChannelResultChannel";
 export * from "./examDocumentDispatchInput";
 export * from "./examDocumentDispatchInputChannelsItem";
 export * from "./examDocumentDispatchResult";
+export * from "./examDocumentDispatchResultState";
 export * from "./examRequestDispatchRecord";
 export * from "./examRequestHistory";
 export * from "./examRequestHistoryDocument";

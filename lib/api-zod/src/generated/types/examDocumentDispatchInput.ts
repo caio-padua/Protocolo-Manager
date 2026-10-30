@@ -8,6 +8,12 @@
 import type { ExamDocumentDispatchInputChannelsItem } from "./examDocumentDispatchInputChannelsItem";
 
 export interface ExamDocumentDispatchInput {
+  /**
+   * @minLength 16
+   * @maxLength 128
+   * @pattern ^[a-zA-Z0-9:_-]+$
+   */
+  operationKey: string;
   /** @minimum 1 */
   clientId: number;
   /**

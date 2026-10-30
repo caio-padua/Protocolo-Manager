@@ -7,6 +7,10 @@ import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-e
 import { enviarMensagemPaxter, type PaxterCanal, type PaxterDoc } from "../lib/messaging/index.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url";
 import { renderWhatsappCaption } from "../lib/messaging/render-text";
+import {
+  DispatchKeyConflict, findDispatchOperation, reserveDispatchOperation, saveDispatchOperation,
+  dispatchOperationResponse, type DispatchScope, type ChannelResult,
+} from "../lib/exam-dispatch-operation";
 
 const router = Router();
 const labels: Record<string, string> = { SANGUE: "Sangue / Laboratorial", IMAGEM: "Imagem", OUTROS: "Outros / Procedimentos" };
@@ -70,6 +74,7 @@ router.get("/exam-requests/:clientId/history", requireCollaborator, async (req, 
 });
 
 router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   const parsed = SendExamRequestDocumentsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Confirme arquivos e canais antes de enviar." }); return; }
   const body = parsed.data;
@@ -78,8 +83,17 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
   if (!Number.isSafeInteger(body.clientId) || !documentIds.every(id => Number.isSafeInteger(id) && id > 0)) {
     res.status(400).json({ error: "Identificadores inválidos." }); return;
   }
+  let ownedScope: DispatchScope | undefined;
+  const results: ChannelResult[] = [];
   try {
     const identity = await resolveClinicalEmitter(req, body.clientId);
+    const scope: DispatchScope = {
+      operationKey: body.operationKey, professionalId: identity.professional.id,
+      empresaId: identity.clinic.empresaId, clinicId: identity.clinic.id,
+      clientId: identity.client.id, documentIds, channels,
+    };
+    const previous = await findDispatchOperation(scope);
+    if (previous) { res.json(dispatchOperationResponse(previous, true)); return; }
     const rows = await db.select().from(examRequestPdfsTable)
       .where(and(eq(examRequestPdfsTable.clientId, identity.client.id), inArray(examRequestPdfsTable.id, documentIds)));
     if (rows.length !== documentIds.length) {
@@ -104,19 +118,24 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
       anexos: rows.map(row => ({ filename: row.fileName, content: Buffer.from(row.pdfData, "base64"), contentType: "application/pdf" })),
     };
     const compactBatches = messageBatches(doc);
+    const reservation = await reserveDispatchOperation(scope);
+    if (!reservation.owned) {
+      res.json(dispatchOperationResponse(reservation.operation, true)); return;
+    }
+    ownedScope = scope;
     // Persist every intended channel before contacting any provider.
     const audits = await db.insert(collaboratorAuditTable).values(channels.map(channel => ({
       professionalId: identity.professional.id, action: "exam_request_dispatch", method: "POST",
       path: "/exam-requests/send",
       detail: { clientId: identity.client.id, empresaId: identity.clinic.empresaId, clinicId: identity.clinic.id,
-        documentIds, channel, state: "requested", traceId: req.id },
+        documentIds, channel, state: "requested", traceId: req.id, operationKey: scope.operationKey },
     }))).returning({ id: collaboratorAuditTable.id, detail: collaboratorAuditTable.detail });
     const reservations = channels.map(channel => {
       const audit = audits.find(a => (a.detail as { channel?: string })?.channel === channel);
       if (!audit) throw new Error("Não foi possível registrar o envio.");
       return { channel, audit };
     });
-    const results = [];
+    let needsReview = false;
     for (const { channel, audit } of reservations) {
       let success = false;
       let error: string | undefined;
@@ -130,7 +149,9 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
           });
           const outcome = delivery.resultados[0];
           success = !!outcome?.sent && !outcome.mock && !outcome.skipped && outcome.via !== "mock";
-          state = success ? "provider_accepted" : outcome?.mock ? "simulated" : "failed";
+          // A non-accepted response can hide a transport failure in the messaging
+          // adapter. Conservatively require review unless explicitly simulated/skipped.
+          state = success ? "provider_accepted" : outcome?.mock ? "simulated" : outcome?.skipped ? "failed" : "unknown";
           if (!success) {
             error = outcome?.mock ? "Canal não configurado; envio não realizado." : "O provedor não confirmou o envio.";
             break;
@@ -143,6 +164,7 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
         state = "unknown";
       }
       if (!success && acceptedMessages) error = `${acceptedMessages} de ${batches.length} mensagens aceitas; não reenvie o lote inteiro sem conferir.`;
+      if (state === "unknown" || (!success && acceptedMessages > 0)) needsReview = true;
       try {
         await db.update(collaboratorAuditTable).set({
           detail: { ...(audit.detail as object), state, acceptedMessages, plannedMessages: batches.length },
@@ -150,11 +172,23 @@ router.post("/exam-requests/send", requireCollaborator, async (req, res) => {
       } catch {
         success = false;
         error = "Resultado sem confirmação de auditoria; não repita automaticamente.";
+        needsReview = true;
       }
       results.push({ channel, success, auditId: audit.id, ...(error ? { error } : {}) });
+      // Preserve completed channels if a later provider call or process stops.
+      // Failure here stops the remaining channels instead of losing more results.
+      await saveDispatchOperation(scope, "in_progress", results);
     }
-    res.json({ results });
+    const state = needsReview ? "needs_review" : "completed";
+    await saveDispatchOperation(scope, state, results);
+    res.json(dispatchOperationResponse({ ...reservation.operation, state, results }, false));
   } catch (error) {
+    if (ownedScope) {
+      // No provider retry, even if both the result write and this best-effort
+      // update fail: the durable in_progress reservation remains blocking.
+      try { await saveDispatchOperation(ownedScope, "needs_review", results); } catch { /* reservation retained */ }
+    }
+    if (error instanceof DispatchKeyConflict) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof ClinicalIdentityError) { res.status(error.status).json({ error: error.message }); return; }
     throw error;
   }

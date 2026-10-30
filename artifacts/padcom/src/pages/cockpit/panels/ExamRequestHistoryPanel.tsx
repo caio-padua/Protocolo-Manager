@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ExamRequestHistory, ExamDocumentDispatchResult } from "@workspace/api-client-react";
 import { getCollabToken } from "@/lib/collab-auth";
 import { BASE } from "../../comunicacao/_shared";
+import { examDispatchKey } from "@/lib/exam-dispatch-key";
 
 type Channel = "EMAIL" | "WHATSAPP" | "TELEGRAM";
 const labels: Record<Channel, string> = { EMAIL: "E-mail", WHATSAPP: "WhatsApp", TELEGRAM: "Telegram" };
@@ -37,6 +38,9 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<ExamDocumentDispatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const sendingRef = useRef(false);
+  const contextRef = useRef({ clientId, professionalId });
+  contextRef.current = { clientId, professionalId };
   const history = useQuery<ExamRequestHistory>({
     queryKey: ["exam-request-history", professionalId, clientId, offset, recentIds],
     enabled, retry: false, staleTime: 0,
@@ -47,8 +51,8 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
     },
   });
   useEffect(() => {
-    setSelected(recentIds); setOffset(0); setConfirmed(false); setResult(null);
-  }, [recentIds]);
+    setSelected(recentIds); setOffset(0); setConfirmed(false); setResult(null); setError(null);
+  }, [recentIds, clientId, professionalId]);
   const toggleDocument = (id: number) => {
     setSelected(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
     setConfirmed(false); setResult(null);
@@ -58,17 +62,21 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
     setConfirmed(false); setResult(null);
   };
   const send = async () => {
-    if (!enabled || sending || !confirmed || !selected.length || !channels.length) return;
+    if (!enabled || sendingRef.current || (!confirmed && !result) || !selected.length || !channels.length) return;
+    sendingRef.current = true;
     setSending(true); setError(null); setResult(null);
     try {
+      const operationKey = await examDispatchKey(professionalId, clientId, selected, channels);
       const data = await api<ExamDocumentDispatchResult>("/exam-requests/send", {
-        method: "POST", body: JSON.stringify({ clientId, documentIds: selected, channels, confirmed: true }),
+        method: "POST", body: JSON.stringify({ operationKey, clientId, documentIds: selected, channels, confirmed: true }),
       });
+      if (clientId !== contextRef.current.clientId || professionalId !== contextRef.current.professionalId) return;
       setResult(data); setConfirmed(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Falha ao enviar.");
+      if (clientId !== contextRef.current.clientId || professionalId !== contextRef.current.professionalId) return;
+      setError(`${reason instanceof Error ? reason.message : "Falha ao enviar."} Se o envio chegou a iniciar, confirme novamente a mesma seleção para consultar a operação anterior, sem reenviar.`);
       setConfirmed(false);
-    } finally { setSending(false); void history.refetch(); }
+    } finally { sendingRef.current = false; setSending(false); void history.refetch(); }
   };
   if (!enabled) return null;
   return (
@@ -132,6 +140,12 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
       </fieldset>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {result && <div className="concave-3d space-y-2 p-3 text-sm" role="status">
+        <p className="font-semibold">{result.replayed ? "Operação anterior" : "Operação registrada"}</p>
+        <p>{result.message}</p>
+        <p className="break-all text-xs">Operação: {result.operationKey}</p>
+        {result.needsReview && <p role="alert">Confira o histórico e o provedor. Uma consulta não inicia outro envio.</p>}
+        <button type="button" className="btn-3d-soft px-3 py-2 text-xs" disabled={sending}
+          onClick={() => void send()}>Consultar esta operação</button>
         {result.results.map(item => <p key={item.channel}>
           <strong>{labels[item.channel]}:</strong> {item.success ? "Aceito pelo provedor; entrega ao destinatário ainda não confirmada." : item.error || "Não enviado."}
           <span className="block text-xs text-muted-foreground">Registro de auditoria: {item.auditId}</span>

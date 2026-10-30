@@ -1,10 +1,11 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { isolatedPostgres } from "./helpers/isolated-postgres";
 
 const mock = vi.hoisted(() => ({
   rows: [] as any[][], insert: vi.fn(), update: vi.fn(), send: vi.fn(), generate: vi.fn(), identity: vi.fn(),
-  writes: [] as any[], nextId: 1,
+  writes: [] as any[], nextId: 1, execute: vi.fn(),
 }));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
@@ -15,7 +16,7 @@ vi.mock("@workspace/db", async () => ({
       for (const method of ["from", "where", "limit", "offset", "orderBy"]) chain[method] = () => chain;
       return chain;
     },
-    insert: mock.insert, update: mock.update,
+    insert: mock.insert, update: mock.update, execute: mock.execute,
   },
 }));
 vi.mock("../routes/collaborator", () => ({
@@ -32,18 +33,24 @@ vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send })
 import router from "../routes/exam-requests";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { renderTelegramCaption } from "../lib/messaging/render-text";
+import { reserveDispatchOperation, type DispatchScope } from "../lib/exam-dispatch-operation";
 const app = express().use(express.json()).use("/api", router);
 const authorization = { Authorization: "Bearer synthetic-test" };
-const payload = { clientId: 101, documentIds: [91], channels: ["EMAIL", "TELEGRAM"], confirmed: true };
+const payload = { operationKey: "synthetic-operation-573", clientId: 101, documentIds: [91], channels: ["EMAIL", "TELEGRAM"], confirmed: true };
 const document = { id: 91, clientId: 101, tipo: "OUTROS", token: "a".repeat(48), fileName: "Exame sintetico.pdf",
   examCount: 1, pdfData: Buffer.from("NOT A REAL PDF").toString("base64"), createdAt: new Date("2026-10-29T15:00:00Z") };
 
+let postgres: Awaited<ReturnType<typeof isolatedPostgres>>;
+let scopeNumber = 0;
+beforeAll(async () => { postgres = await isolatedPostgres(); }, 30_000);
+afterAll(async () => { await postgres?.stop(); });
 beforeEach(() => {
   vi.clearAllMocks(); mock.rows = []; mock.writes = []; mock.nextId = 1;
+  mock.execute.mockImplementation(postgres.execute);
   mock.identity.mockResolvedValue({
     client: { id: 101, name: "Cliente Sintetico", email: "synthetic@example.invalid", phone: "00000000000", cpf: null },
     professional: { id: 202, name: "Medico Sintetico", crm: "000", uf: "SP" },
-    clinic: { id: 303, empresaId: 404 },
+    clinic: { id: 303 + scopeNumber++, empresaId: 404 },
   });
   mock.generate.mockResolvedValue(Buffer.from("NOT A REAL PDF"));
   mock.send.mockImplementation(async (_doc, _destination, channels) => ({
@@ -160,4 +167,148 @@ it("generates one file per selected exam in one request without messaging", asyn
   expect(response.body.pdfs).toHaveLength(2);
   expect(mock.generate).toHaveBeenCalledTimes(2);
   expect(mock.send).not.toHaveBeenCalled();
+});
+
+const send = (body = payload) => request(app).post("/api/exam-requests/send").set(authorization).send(body);
+const available = () => { mock.rows = [[document], [{ telegramChatId: "synthetic-chat" }]]; };
+
+it("requires an operation key before reserving or contacting providers", async () => {
+  expect((await send({ ...payload, operationKey: undefined } as any)).status).toBe(400);
+  expect(mock.execute).not.toHaveBeenCalled();
+  expect(mock.send).not.toHaveBeenCalled();
+});
+it("replays the saved result and audit ids without contacting providers again", async () => {
+  available();
+  const first = await send();
+  const previous = await send();
+  expect(previous.status).toBe(200);
+  expect(previous.body).toMatchObject({ replayed: true, state: "completed", results: first.body.results });
+  expect(previous.body.message).toContain("Nenhuma mensagem foi reenviada");
+  expect(mock.send).toHaveBeenCalledTimes(2);
+  expect(mock.insert).toHaveBeenCalledTimes(1);
+});
+it("recognizes unordered sets and a second window using another key", async () => {
+  available();
+  const first = await send();
+  const previous = await send({ ...payload, operationKey: "another-window-operation", channels: ["TELEGRAM", "EMAIL", "EMAIL"], documentIds: [91, 91] });
+  expect(previous.body).toMatchObject({ replayed: true, operationKey: first.body.operationKey, results: first.body.results });
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("rejects key reuse with different documents, channels or patient", async () => {
+  available(); await send();
+  for (const change of [{ channels: ["EMAIL"] }, { documentIds: [92] }, { clientId: 102 }]) {
+    if (change.clientId) {
+      const identity = await mock.identity();
+      mock.identity.mockResolvedValue({ ...identity, client: { ...identity.client, id: 102 } });
+    }
+    expect((await send({ ...payload, ...change })).status).toBe(409);
+  }
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("returns the reserved operation while the first request is waiting on a provider", async () => {
+  available();
+  let release!: () => void;
+  let started!: () => void;
+  const waiting = new Promise<void>(resolve => { started = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  mock.send.mockImplementationOnce(async () => {
+    started(); await gate;
+    return { resultados: [{ sent: true, via: "email" }] };
+  });
+  const first = send().then(response => response);
+  await waiting;
+  const duplicate = await send();
+  expect(duplicate.body).toMatchObject({ replayed: true, state: "in_progress", needsReview: true, results: [] });
+  expect(mock.send).toHaveBeenCalledTimes(1);
+  release();
+  expect((await first).body.state).toBe("completed");
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("allows only one provider owner under concurrent PostgreSQL reservations with equal or different keys", async () => {
+  const scope: DispatchScope = {
+    professionalId: 202, empresaId: 404, clinicId: 10000 + scopeNumber,
+    clientId: 101, documentIds: [91], channels: ["EMAIL"], operationKey: payload.operationKey,
+  };
+  const provider = vi.fn(async () => undefined);
+  const attempts = await Promise.all(Array.from({ length: 20 }, async (_, index) => {
+    const reservation = await reserveDispatchOperation({ ...scope, operationKey: index % 2 ? `second-window-key-${index}` : scope.operationKey });
+    if (reservation.owned) await provider();
+    return reservation;
+  }));
+  expect(attempts.filter(value => value.owned)).toHaveLength(1);
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(new Set(attempts.map(value => value.operation.operation_key)).size).toBe(1);
+});
+it("never retries an unknown provider outcome", async () => {
+  available();
+  mock.send.mockRejectedValueOnce(new Error("synthetic connection lost after acceptance"));
+  const first = await send();
+  expect(first.body).toMatchObject({ state: "needs_review", needsReview: true });
+  expect((await send()).body).toMatchObject({ replayed: true, state: "needs_review", results: first.body.results });
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("rejects concurrent reuse of one key for different contents in PostgreSQL", async () => {
+  const scope: DispatchScope = {
+    professionalId: 202, empresaId: 404, clinicId: 20000 + scopeNumber,
+    clientId: 101, documentIds: [91], channels: ["EMAIL"], operationKey: payload.operationKey,
+  };
+  const outcomes = await Promise.allSettled([
+    reserveDispatchOperation(scope), reserveDispatchOperation({ ...scope, documentIds: [92] }),
+  ]);
+  expect(outcomes.filter(outcome => outcome.status === "fulfilled")).toHaveLength(1);
+  expect(outcomes.filter(outcome => outcome.status === "rejected")).toHaveLength(1);
+  const rejected = outcomes.find(outcome => outcome.status === "rejected") as PromiseRejectedResult;
+  expect(rejected.reason.constructor.name).toBe("DispatchKeyConflict");
+});
+it("treats swallowed transport failures as unknown rather than retryable", async () => {
+  available();
+  mock.send.mockResolvedValue({ resultados: [{ sent: false, erro: "timeout" }] });
+  expect((await send()).body.state).toBe("needs_review");
+  await send();
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("retains a blocking reservation if the audit fails before any provider call", async () => {
+  available();
+  mock.insert.mockImplementationOnce(() => { throw new Error("synthetic audit offline"); });
+  expect((await send()).status).toBe(500);
+  expect((await send()).body).toMatchObject({ replayed: true, state: "needs_review" });
+  expect(mock.send).not.toHaveBeenCalled();
+});
+it("requires review if provider acceptance cannot be written to channel audit", async () => {
+  available();
+  mock.update.mockReturnValue({ set: () => ({ where: async () => { throw new Error("synthetic write failure"); } }) });
+  const first = await send();
+  expect(first.body).toMatchObject({ state: "needs_review", needsReview: true });
+  await send();
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("keeps the reservation blocking even when all final operation writes fail", async () => {
+  available();
+  mock.execute.mockImplementation(async query => {
+    // SQL content detection without including any patient data.
+    const { PgDialect } = await import("drizzle-orm/pg-core");
+    if (new PgDialect().sqlToQuery(query).sql.includes("UPDATE exam_request_dispatch_operations")) throw new Error("synthetic store offline");
+    return postgres.execute(query);
+  });
+  expect((await send()).status).toBe(500);
+  expect((await send()).body).toMatchObject({ replayed: true, state: "in_progress", needsReview: true });
+  expect(mock.send).toHaveBeenCalledTimes(1);
+});
+it("checks authorization again before exposing an existing operation", async () => {
+  available(); await send();
+  mock.identity.mockRejectedValue(new ClinicalIdentityError(403, "Vínculo removido"));
+  expect((await send()).status).toBe(403);
+  expect(mock.send).toHaveBeenCalledTimes(2);
+});
+it("does not share operation results across authorized professionals or clinics", async () => {
+  available(); await send();
+  const identity = await mock.identity();
+  for (const changed of [
+    { ...identity, professional: { ...identity.professional, id: 203 } },
+    { ...identity, clinic: { id: 9999, empresaId: 8888 } },
+  ]) {
+    mock.identity.mockResolvedValue(changed); available();
+    expect((await send()).body.replayed).toBe(false);
+  }
+  expect(mock.send).toHaveBeenCalledTimes(6);
 });

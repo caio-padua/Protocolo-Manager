@@ -67,12 +67,13 @@ paths:
             schema: { $ref: "#/components/schemas/ExamDocumentDispatchInput" }
       responses:
         "200":
-          description: Resultado separado por canal
+          description: Operacao persistida e resultado separado por canal; repeticoes nao reenviam
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExamDocumentDispatchResult" }
         "401": { description: Login obrigatorio }
         "403": { description: Vinculo clinico nao autorizado }
+        "409": { description: Chave de operacao reutilizada com conteudo diferente }
         "422": { description: Destino ou documento indisponivel }
   /receituario/assinar-imagem-pdf:
     post:
@@ -2686,8 +2687,9 @@ components:
         createdAt: { type: string, format: date-time }
     ExamDocumentDispatchInput:
       type: object
-      required: [clientId, documentIds, channels, confirmed]
+      required: [operationKey, clientId, documentIds, channels, confirmed]
       properties:
+        operationKey: { type: string, minLength: 16, maxLength: 128, pattern: '^[a-zA-Z0-9:_-]+$' }
         clientId: { type: integer, minimum: 1 }
         documentIds:
           type: array
@@ -2710,8 +2712,13 @@ components:
         error: { type: string }
     ExamDocumentDispatchResult:
       type: object
-      required: [results]
+      required: [operationKey, state, replayed, needsReview, results]
       properties:
+        operationKey: { type: string }
+        state: { type: string, enum: [in_progress, completed, needs_review] }
+        replayed: { type: boolean }
+        needsReview: { type: boolean }
+        message: { type: string }
         results:
           type: array
           items: { $ref: "#/components/schemas/ExamDocumentChannelResult" }

@@ -51,12 +51,23 @@ export const GetExamRequestHistoryResponse = zod.object({
 /**
  * @summary Confirmar envio dos documentos existentes sem gerar novamente
  */
+export const sendExamRequestDocumentsBodyOperationKeyMin = 16;
+export const sendExamRequestDocumentsBodyOperationKeyMax = 128;
+
+export const sendExamRequestDocumentsBodyOperationKeyRegExp = new RegExp(
+  "^[a-zA-Z0-9:_-]+$",
+);
 
 export const sendExamRequestDocumentsBodyDocumentIdsMax = 100;
 
 export const sendExamRequestDocumentsBodyChannelsMax = 3;
 
 export const SendExamRequestDocumentsBody = zod.object({
+  operationKey: zod
+    .string()
+    .min(sendExamRequestDocumentsBodyOperationKeyMin)
+    .max(sendExamRequestDocumentsBodyOperationKeyMax)
+    .regex(sendExamRequestDocumentsBodyOperationKeyRegExp),
   clientId: zod.number().min(1),
   documentIds: zod
     .array(zod.number().min(1))
@@ -70,6 +81,11 @@ export const SendExamRequestDocumentsBody = zod.object({
 });
 
 export const SendExamRequestDocumentsResponse = zod.object({
+  operationKey: zod.string(),
+  state: zod.enum(["in_progress", "completed", "needs_review"]),
+  replayed: zod.boolean(),
+  needsReview: zod.boolean(),
+  message: zod.string().optional(),
   results: zod.array(
     zod.object({
       channel: zod.enum(["EMAIL", "WHATSAPP", "TELEGRAM"]),

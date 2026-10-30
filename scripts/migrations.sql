@@ -75,3 +75,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_magic_token
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_chat_id
   ON clients (telegram_chat_id)
   WHERE telegram_chat_id IS NOT NULL;
+
+-- Impede reenvio duplicado de pedidos, inclusive em duas janelas simultâneas.
+\ir migrations/exam-request-dispatch-operations.sql

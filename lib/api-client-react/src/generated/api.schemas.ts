@@ -39,6 +39,12 @@ export const ExamDocumentDispatchInputChannelsItem = {
 } as const;
 
 export interface ExamDocumentDispatchInput {
+  /**
+   * @minLength 16
+   * @maxLength 128
+   * @pattern ^[a-zA-Z0-9:_-]+$
+   */
+  operationKey: string;
   /** @minimum 1 */
   clientId: number;
   /**
@@ -70,7 +76,21 @@ export interface ExamDocumentChannelResult {
   error?: string;
 }
 
+export type ExamDocumentDispatchResultState =
+  (typeof ExamDocumentDispatchResultState)[keyof typeof ExamDocumentDispatchResultState];
+
+export const ExamDocumentDispatchResultState = {
+  in_progress: "in_progress",
+  completed: "completed",
+  needs_review: "needs_review",
+} as const;
+
 export interface ExamDocumentDispatchResult {
+  operationKey: string;
+  state: ExamDocumentDispatchResultState;
+  replayed: boolean;
+  needsReview: boolean;
+  message?: string;
   results: ExamDocumentChannelResult[];
 }
 
