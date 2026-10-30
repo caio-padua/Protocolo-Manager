@@ -66,7 +66,8 @@ beforeEach(async () => {
   await connection.query(`
     CREATE TEMP TABLE empresas (
       id INT PRIMARY KEY, nome TEXT, slug TEXT,
-      telegram_bot_username TEXT, area_url TEXT
+      telegram_bot_username TEXT, area_url TEXT,
+      ativa BOOLEAN DEFAULT true, status TEXT DEFAULT 'ATIVO'
     ) ON COMMIT DROP;
     CREATE TEMP TABLE professionals (
       id INT PRIMARY KEY, empresa_id INT, active BOOLEAN
@@ -80,7 +81,7 @@ beforeEach(async () => {
       client_id INT, canal TEXT, dia_brt DATE, enviados INT,
       PRIMARY KEY (client_id, canal, dia_brt)
     ) ON COMMIT DROP;
-    INSERT INTO empresas VALUES
+    INSERT INTO empresas (id, nome, slug, telegram_bot_username, area_url) VALUES
       (5, 'Instituto Pádua', NULL, NULL, NULL),
       (12, 'Clínica Licenciada', 'licenciada', '@LicenciadaBot', 'https://example.com/area'),
       (13, 'Outra Clínica', 'outra', NULL, NULL);
@@ -195,6 +196,8 @@ describe("Guia: clínica autorizada pela identidade do colaborador", () => {
     "UPDATE pg_temp.professionals SET active = false WHERE id = 101",
     "UPDATE pg_temp.professionals SET empresa_id = NULL WHERE id = 101",
     "UPDATE pg_temp.professionals SET empresa_id = 999 WHERE id = 101",
+    "UPDATE pg_temp.empresas SET ativa = false WHERE id = 12",
+    "UPDATE pg_temp.empresas SET status = 'SUSPENSO' WHERE id = 12",
   ])("revalida vínculo no banco mesmo com token válido: %s", async (sql) => {
     await connection.query(sql);
     await send().expect(403);

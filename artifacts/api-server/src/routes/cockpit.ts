@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
+import { requireMessageClinic } from "../middleware/messageClinic";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import {
   db,
@@ -33,7 +34,7 @@ import { inboxRouter } from "./telegram-inbox";
 const router = Router();
 router.use(moduleGuard("cockpit"));
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // COCKPIT DA CONSULTA — ONDA E do Master Loop Paxter.
 //
 // O Cockpit e BURRO: ele so consolida e exibe o DTO (Data Transfer Object,
@@ -44,7 +45,7 @@ router.use(moduleGuard("cockpit"));
 // O motor de calculo NAO e alterado por estetica (linha vermelha): o Cockpit so
 // LE o resultado de computeMotor e re-deriva as doencas acesas com o MESMO
 // gatilhoBate para puxar os itens amarrados (item_doenca).
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 type ItemFuturo = { id: number; nome: string; ref: string | null; peso: number };
 
@@ -354,11 +355,11 @@ router.post("/mensageria/processar", async (_req, res): Promise<void> => {
   res.json({ ok: true, info: "motor rico ativo — cron interno gerencia os disparos" });
 });
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // INBOX TELEGRAM — montado a partir de routes/telegram-inbox.ts
 // As 3 rotas (badge, listar, marcar-lidas) vivem naquele arquivo para
 // que possam ser testadas com escopo mínimo de dependências (supertest).
-// ============================================================================
+// ----------------------------------------------------------------------------
 // 5) badge + listar + marcar-lidas: delegados ao inboxRouter (routes/telegram-inbox.ts)
 // Testados de forma isolada via supertest (task 110).
 router.use(inboxRouter);
@@ -366,7 +367,7 @@ router.use(inboxRouter);
 // 6-A) POST /cockpit/:clientId/telegram-inbox/enviar
 // Envia uma mensagem de texto do CEO ao paciente via Telegram e registra no log.
 // Requer token de colaborador. Só funciona se o paciente tem telegramChatId.
-router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, async (req, res): Promise<void> => {
+router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
   const clienteId = Number(req.params.clientId);
   if (!Number.isFinite(clienteId) || clienteId <= 0) {
     res.status(400).json({ error: "clientId invalido" });
@@ -383,9 +384,9 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
     return;
   }
 
-  const empresaId = resolveEmpresaId(req);
+  const empresaId = req.messageEmpresaId!;
 
-  // Busca cliente e verifica pertencimento ao tenant
+  // Clínica verificada no servidor, nunca autorizada por query/body.
   const [cliente] = await db
     .select({ id: clientsTable.id, telegramChatId: clientsTable.telegramChatId })
     .from(clientsTable)
@@ -411,7 +412,7 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, asy
   if (!resultado.mock) {
     const testOk = resultado.sent;
     try {
-      await db.execute(sql`UPDATE clients SET telegram_last_test_ok = ${testOk} WHERE id = ${clienteId}`);
+      await db.execute(sql`UPDATE clients SET telegram_last_test_ok = ${testOk} WHERE id = ${clienteId} AND empresa_id = ${empresaId}`);
     } catch (e: unknown) {
       console.warn("[cockpit/enviar] falha ao persistir telegram_last_test_ok:", e);
     }

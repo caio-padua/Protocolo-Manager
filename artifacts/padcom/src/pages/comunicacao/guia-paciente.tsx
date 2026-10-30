@@ -395,12 +395,15 @@ export default function GuiaPaciente() {
     setLimiteDiario(null);
     try {
       const token = getCollabToken();
+      if (!token) {
+        const mensagem = "Faça login de colaborador antes de enviar o guia.";
+        setResultados(canais.map((canal) => ({ canal, ok: false, mensagem })));
+        toast({ title: "Envio bloqueado", description: mensagem, variant: "destructive" });
+        return;
+      }
       const res = await fetch(`${API_BASE}/api/onboarding/enviar-guia`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ clientId, canais, guiaUrl, tenantSlug: slug ?? undefined }),
       });
 
@@ -420,17 +423,13 @@ export default function GuiaPaciente() {
         return;
       }
 
+      const data = await res.json() as { ok: boolean; resultados?: EnvioResult[]; error?: string };
       if (!res.ok) {
-        const data = await res.json() as { error?: string };
-        toast({
-          title: "Guia não enviado",
-          description: data.error ?? "Não foi possível autorizar o envio.",
-          variant: "destructive",
-        });
+        const mensagem = data.error ?? "Não foi possível autorizar o envio do guia.";
+        setResultados(canais.map((canal) => ({ canal, ok: false, mensagem })));
+        toast({ title: "Envio bloqueado", description: mensagem, variant: "destructive" });
         return;
       }
-
-      const data = await res.json() as { ok: boolean; resultados: EnvioResult[] };
       setResultados(data.resultados ?? []);
       if (data.ok) {
         iniciarCountdown(); // bloquear reenvio imediato mesmo no sucesso

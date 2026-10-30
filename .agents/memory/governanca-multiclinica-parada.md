@@ -48,3 +48,13 @@ O CEO autorizou somente a correção de segurança no envio do guia: vincular o 
 **Why:** a clínica informada pelo navegador não pode conceder acesso; a autorização não reabre licenciamento nem permite alterar cobranças.
 
 **How to apply:** manter a correção local ao envio do guia e verificar caminhos permitidos e proibidos com os provedores de mensagens simulados, sem mensagens reais aos clientes.
+## Exceção restrita: segurança dos envios
+
+O CEO autorizou somente retomar o vínculo autenticado colaborador–clínica e a validação
+do cliente antes do envio do guia, incluindo a proteção do envio direto pelo Telegram.
+O navegador não pode conceder acesso informando uma clínica.
+Não reabrir licenciamento, não alterar cobranças nem ampliar esta autorização para uma reforma geral.
+
+**Why:** a proteção de envio não pode depender de um contexto de clínica simulado ou de privilégio legado.
+
+**How to apply:** correções de segurança destes envios podem avançar; o restante da governança continua pausado.
