@@ -2436,11 +2436,39 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         // No refresh/pagination click, focus event, or navigation triggers it.
         const currentAlert = panel.getByRole("alert").filter({ hasText: "Não foi possível atualizar o histórico:" });
         const knownPending = panel.getByRole("alert").filter({ hasText: "Envios pendentes de conferência" });
-        await expect(currentAlert).toContainText(currentError);
+        const staleWarning = "Últimas pendências conhecidas; não foi possível reconfirmar a situação atual.";
+        const failedRecoveryCycles = switchDuringRecovery ? 0 : 2;
+        for (let cycle = 1; cycle <= failedRecoveryCycles; cycle++) {
+          held.recovery = undefined;
+          await expect(currentAlert).toContainText(currentError);
+          await expect(knownPending).toContainText(staleWarning);
+          expect(await page.evaluate(() => document.visibilityState)).toBe("visible");
+          await page.clock.fastForward(10_001);
+          await expect.poll(() => !!held.recovery).toBe(true);
+          expect(offsets.return).toEqual(Array(cycle + 1).fill(0));
+          // Retain the last known pending operation even while retrying.
+          await expect(knownPending).toContainText(markers.first);
+          await expect(knownPending).toContainText(staleWarning);
+          await cleared();
+          await reply(held.recovery!, { error: currentError }, 500);
+          await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5 + cycle);
+          await expect(currentAlert).toContainText(currentError);
+          await expect(currentAlert).toContainText("Isso não confirma falha no envio nem libera as reservas.");
+          await expect(knownPending).toContainText(markers.first);
+          await expect(knownPending).toContainText(staleWarning);
+          await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+          await expect(panel.getByText("Nenhum pedido registrado para este cliente.", { exact: true })).toHaveCount(0);
+          await expect(panel).not.toContainText(markers.fresh);
+          await expect(panel.getByRole("status")).toHaveCount(0);
+          await cleared();
+          expect(posts).toEqual([]);
+        }
+        held.recovery = undefined;
         await page.clock.fastForward(10_001);
         await expect.poll(() => !!held.recovery).toBe(true);
-        expect(offsets.return).toEqual([0, 0]);
+        expect(offsets.return).toEqual(Array(failedRecoveryCycles + 2).fill(0));
         await expect(knownPending).toContainText(markers.first);
+        await expect(knownPending).toContainText(staleWarning);
         await cleared();
         if (switchDuringRecovery) {
           // This is the interval's offset-zero recovery, NOT the old pagination
@@ -2510,7 +2538,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0, 0] });
         } else {
           await reply(held.recovery!, historyBody(markers.fresh, 95, 20));
-          await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
+          await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(8);
           await expect(doc(95)).toBeVisible();
           await expect(doc(95)).not.toBeChecked();
           await expect(currentAlert).toHaveCount(0);
@@ -2521,7 +2549,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           }
           for (const id of [91, 92, 93, 94]) await expect(doc(id)).toHaveCount(0);
           await cleared();
-          expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0, 0] });
+          expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0, 0, 0, 0] });
         }
       }
       expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
