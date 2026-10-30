@@ -1300,6 +1300,217 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   }
 }
 
+// A second scope change must isolate B's pagination just as it isolated A.
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  for (const outcome of ["sucesso-atrasado", "401-atrasado", "403-atrasado", "rede-atrasada"] as const) {
+    test(`Pedidos: segunda troca A→B→C isola paginação de B — ${transition} — ${outcome}`, async ({ context, page }, testInfo) => {
+      const clinic = (index: number) => ({
+        id: transition === "empresa" ? 303 : 303 + index,
+        empresaId: transition === "clinica" ? 404 : 404 + index,
+        name: `Clínica ${["A", "B", "C"][index]} sintética`,
+      });
+      let stage: "A" | "B" | "C" = "A";
+      const offsets: Record<typeof stage, number[]> = { A: [], B: [], C: [] };
+      const methods: string[] = [];
+      const held: { identity?: Route; pageB?: Route; firstC?: Route } = {};
+      const markers = { A: "A-exclusiva", B: "B-exclusiva", lateB: "B-pagina-atrasada",
+        C: "C-exclusiva", pageC: "C-pagina-20", errorB: "Erro exclusivo da paginação de B." };
+      const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+        status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      const identityBody = (index: number) => ({
+        professional, client, clinic: clinic(index), canPrescribe: true, issue: null,
+      });
+      const historyBody = (key: string, id: number, nextOffset: number | null) => ({
+        documents: [{ ...document, id, fileName: `${key}.pdf` }], dispatches: [], nextOffset,
+        pendingOperations: [{
+          operationKey: key, state: "needs_review", createdAt: document.createdAt,
+          documentIds: [id], channels: ["EMAIL"], results: [],
+        }],
+      });
+      await context.addInitScript(() => {
+        localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+        const originalFetch = window.fetch.bind(window);
+        (window as any).__secondSwitchParsed = 0;
+        (window as any).__secondSwitchFailed = 0;
+        window.fetch = async (input, init) => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (!/\/exam-requests\/42\/history/.test(url)) return originalFetch(input, init);
+          // Cancellation must not prevent the deliberately late response from
+          // reaching the query function, otherwise isolation is not exercised.
+          let response: Response;
+          try {
+            response = await originalFetch(input, { ...init, signal: undefined });
+          } catch (error) {
+            (window as any).__secondSwitchFailed++;
+            throw error;
+          }
+          const originalJson = response.json.bind(response);
+          response.json = async () => {
+            const data = await originalJson();
+            (window as any).__secondSwitchParsed++;
+            return data;
+          };
+          return response;
+        };
+      });
+      await context.route("**/api/**", async route => {
+        const request = route.request();
+        const url = new URL(request.url());
+        methods.push(request.method());
+        if (request.method() !== "GET") return reply(route, { error: "Nenhuma escrita autorizada." }, 405);
+        if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
+        if (url.pathname === "/api/clients") return reply(route, [client]);
+        if (url.pathname === "/api/clients/42") return reply(route, client);
+        if (url.pathname === "/api/clinical-context/42") {
+          expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+          if (stage !== "A") { held.identity = route; return; }
+          return reply(route, identityBody(0));
+        }
+        if (url.pathname === "/api/exam-requests/42/history") {
+          expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+          const offset = Number(url.searchParams.get("offset"));
+          offsets[stage].push(offset);
+          if (stage === "A") return reply(route, historyBody(markers.A, 91, 20));
+          if (stage === "B") {
+            if (offset === 20) { held.pageB = route; return; }
+            expect(offset).toBe(0);
+            return reply(route, historyBody(markers.B, 92, 20));
+          }
+          if (!held.firstC) { held.firstC = route; return; }
+          expect([0, 20]).toContain(offset);
+          return reply(route, offset === 20
+            ? historyBody(markers.pageC, 95, null) : historyBody(markers.C, 94, 20));
+        }
+        return reply(route, []);
+      });
+      await page.goto("/cockpit/42/exames");
+      const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+      const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+      const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+      const older = panel.getByRole("button", { name: "Mais antigos", exact: true });
+      const newer = panel.getByRole("button", { name: "Mais recentes", exact: true });
+      const refresh = panel.getByRole("button", { name: "Atualizar histórico", exact: true });
+      const assertPage = async (key: string, id: number) => {
+        await expect(panel.getByText(`${key}.pdf`, { exact: true })).toBeVisible();
+        await expect(panel.getByRole("alert")).toHaveCount(1);
+        await expect(panel.getByRole("alert")).toContainText(key);
+        await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(1);
+        await expect(doc(id)).toBeVisible();
+        await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+        await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+      };
+      const switchTo = async (next: "B" | "C", index: number) => {
+        stage = next;
+        held.identity = undefined;
+        await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+        await expect.poll(() => !!held.identity).toBe(true);
+        await expect(panel).toBeHidden();
+        await reply(held.identity!, identityBody(index));
+        await expect(draft).toContainText(clinic(index).name);
+        await expect(draft).toContainText(client.name);
+        await expect(draft).toContainText(professional.name);
+      };
+      await assertPage(markers.A, 91);
+      await switchTo("B", 1);
+      await assertPage(markers.B, 92);
+      expect(offsets.B).toEqual([0]);
+      await older.click();
+      await expect.poll(() => !!held.pageB).toBe(true);
+      await expect(older).toBeDisabled();
+      expect(offsets.B).toEqual([0, 20]);
+
+      // Arm the leak observer while C's identity gate is closed, before the
+      // first C render, so transient B documents/pendings/errors also fail.
+      stage = "C";
+      held.identity = undefined;
+      await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+      await expect.poll(() => !!held.identity).toBe(true);
+      await expect(panel).toBeHidden();
+      await page.evaluate(forbidden => {
+        (window as any).__secondSwitchLeaks = [];
+        new MutationObserver(records => {
+          const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+          for (const key of forbidden) {
+            const leaked = (node: Node) => {
+              const element = node instanceof Element ? node : node.parentElement;
+              return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
+                && !!node.textContent?.includes(key);
+            };
+            if (region?.textContent?.includes(key) || records.some(record =>
+              [...record.addedNodes].some(leaked) || (record.type === "characterData" && leaked(record.target)))) {
+              (window as any).__secondSwitchLeaks.push(key);
+            }
+          }
+        }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+      }, [markers.A, markers.B, markers.lateB, markers.errorB, "Não foi possível atualizar o histórico"]);
+      await reply(held.identity!, identityBody(2));
+      await expect(draft).toContainText(clinic(2).name);
+      await expect.poll(() => !!held.firstC).toBe(true);
+      expect(offsets.C).toEqual([0]);
+      await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+      await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+      await expect(panel.getByRole("alert")).toHaveCount(0);
+      await expect(newer).toBeDisabled();
+      await expect(older).toBeDisabled();
+      await reply(held.firstC!, historyBody(markers.C, 94, 20));
+      await assertPage(markers.C, 94);
+      await expect(newer).toBeDisabled();
+      await expect(older).toBeEnabled();
+      await expect(refresh).toBeEnabled();
+      await expect.poll(() => page.evaluate(() => (window as any).__secondSwitchParsed)).toBe(3);
+      await panel.evaluate(element => {
+        const baseline = element.outerHTML;
+        (window as any).__secondSwitchControlChanges = [];
+        const observer = new MutationObserver(() => {
+          if (!element.isConnected || element.outerHTML !== baseline) {
+            (window as any).__secondSwitchControlChanges.push("Histórico/controles de C alterados");
+          }
+        });
+        observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+        (window as any).__stopSecondSwitchObserver = () => observer.disconnect();
+      });
+      // Only after C is fully rendered, release the outstanding B page.
+      if (outcome === "rede-atrasada") {
+        await held.pageB!.abort("failed");
+        await expect.poll(() => page.evaluate(() => (window as any).__secondSwitchFailed)).toBe(1);
+      } else {
+        await reply(held.pageB!, outcome === "sucesso-atrasado"
+          ? historyBody(markers.lateB, 93, null) : { error: markers.errorB },
+        outcome === "401-atrasado" ? 401 : outcome === "403-atrasado" ? 403 : 200);
+        await expect.poll(() => page.evaluate(() => (window as any).__secondSwitchParsed)).toBe(4);
+      }
+      await page.evaluate(() => new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await assertPage(markers.C, 94);
+      await expect(newer).toBeDisabled();
+      await expect(older).toBeEnabled();
+      await expect(refresh).toBeEnabled();
+      await expect(draft).toContainText(clinic(2).name);
+      expect(offsets.C).toEqual([0]);
+      expect(await page.evaluate(() => (window as any).__secondSwitchControlChanges)).toEqual([]);
+      await page.evaluate(() => (window as any).__stopSecondSwitchObserver());
+      // Exercise C's controls too: stale B nextOffset=null must not terminate C
+      // or change its next request, and returning must request C's offset zero.
+      await older.click();
+      await assertPage(markers.pageC, 95);
+      await expect(newer).toBeEnabled();
+      await expect(older).toBeDisabled();
+      await newer.click();
+      await assertPage(markers.C, 94);
+      await expect(refresh).toBeEnabled();
+      await expect(newer).toBeDisabled();
+      await expect(older).toBeEnabled();
+      expect(offsets).toEqual({ A: [0], B: [0, 20], C: [0, 20, 0] });
+      expect(await page.evaluate(() => (window as any).__secondSwitchLeaks)).toEqual([]);
+      expect([...new Set(methods)]).toEqual(["GET"]);
+      await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      await panel.screenshot({ path: testInfo.outputPath("segunda-troca-clinica-isolada.png") });
+    });
+  }
+}
+
 // A → B → A → B must restart cached scopes at zero, never revive an editor.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
