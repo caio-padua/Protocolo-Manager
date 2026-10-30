@@ -35,3 +35,15 @@ para contornar a falta de permissão.
 Trocar Git pela interface de programação do mesmo acesso não acrescenta permissões.
 Uma conexão anunciada como pronta também pode ter a credencial retida no contexto;
 isso não significa que a conta esteja desconectada.
+
+## Redirecionamento automático do transporte
+
+**Why:** O Git pode redirecionar `github.com` ao proxy gerenciado por uma regra
+`url.*.insteadOf`. Informar a URL pública, sozinho, não garante usar a credencial
+alternativa; o destino efetivo pode continuar sendo o proxy sem `workflow`.
+
+**How to apply:** Se o proprietário autorizou a alternativa do cofre e suas
+permissões foram verificadas, usar a ferramenta de autenticação no processo de
+envio e ajustar o redirecionamento apenas nessa chamada. Não alterar o remoto ou
+a configuração persistente, nem embutir credenciais na URL. Depois comparar os
+identificadores local e remoto e atualizar a referência de acompanhamento.
