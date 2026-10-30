@@ -38,12 +38,22 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<ExamDocumentDispatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState === "visible");
+  useEffect(() => {
+    const onVisibilityChange = () => setPageVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
   const sendingRef = useRef(false);
   const contextRef = useRef({ clientId, professionalId });
   contextRef.current = { clientId, professionalId };
   const history = useQuery<ExamRequestHistory>({
     queryKey: ["exam-request-history", professionalId, clientId, offset, recentIds],
-    enabled, retry: false, staleTime: 0,
+    enabled: enabled && pageVisible, retry: false, staleTime: 0,
+    // Only re-read history. Elapsed time never changes a reservation or starts a send.
+    refetchInterval: query => enabled && pageVisible && query.state.data?.pendingOperations.length
+      ? 10_000 : false,
+    refetchIntervalInBackground: false,
     queryFn: async ({ signal }) => {
       const data = await api<ExamRequestHistory>(`/exam-requests/${clientId}/history?offset=${offset}`, { signal });
       if (!Array.isArray(data.documents)) throw new Error("O histórico retornou um formato inesperado.");
@@ -87,9 +97,10 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
         <button type="button" className="btn-3d-soft px-3 py-2 text-xs" disabled={history.isFetching || sending}
           onClick={() => void history.refetch()}>Atualizar histórico</button>
       </div>
-      {!history.isPending && !history.error && !!history.data?.pendingOperations.length && (
+      {!history.isPending && !!history.data?.pendingOperations.length && (
         <div className="bevel-3d paxter-alert-amber space-y-3 p-3 text-sm" role="alert">
           <h4 className="font-bold uppercase">Envios pendentes de conferência</h4>
+          {history.isError && <p>Últimas pendências conhecidas; não foi possível reconfirmar a situação atual.</p>}
           <p>Estas operações podem estar em andamento ou ter sido interrompidas. Confira o provedor antes de repetir.
             As reservas continuam protegidas, sem expiração e sem reenvio automático.</p>
           <ul className="space-y-3">
@@ -114,7 +125,12 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
         </div>
       )}
       {history.isPending ? <p role="status">Carregando histórico…</p> : history.error ? (
-        <p role="alert" className="text-sm text-red-600">{history.error.message}</p>
+        <p role="alert" className="text-sm text-red-600">
+          Não foi possível atualizar o histórico: {history.error.message} Isso não confirma falha no envio
+          nem libera as reservas. {history.data?.pendingOperations.length
+            ? "A consulta será tentada novamente enquanto este painel estiver visível."
+            : "Use Atualizar histórico para tentar novamente."}
+        </p>
       ) : (
         <div className="concave-3d overflow-x-auto">
           <table className="w-full text-left text-sm">
