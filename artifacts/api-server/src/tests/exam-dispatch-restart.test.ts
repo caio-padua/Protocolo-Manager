@@ -33,7 +33,7 @@ async function kill(child: ChildProcess) {
   return exited;
 }
 
-it.each(["before-audit-write", "after-first-channel-persist"] as const)(
+it.each(["before-audit-write", "after-first-channel-persist", "before-completed-response"] as const)(
   "recovers the durable reservation after SIGKILL at %s without contacting providers again", async crashPoint => {
   const children: ChildProcess[] = [];
   const directory = await mkdtemp(join(tmpdir(), "exam-dispatch-process-"));
@@ -100,11 +100,17 @@ it.each(["before-audit-write", "after-first-channel-persist"] as const)(
     );
     const barrier = await atWrite;
     const partial = crashPoint === "after-first-channel-persist";
-    expect(barrier).toMatchObject(partial
-      ? { pid: first.ready.pid, state: "in_progress",
-        results: [{ channel: "EMAIL", success: true, auditId: expect.any(Number) }] }
-      : { pid: first.ready.pid, state: "provider_accepted", acceptedMessages: 1 });
-    expect(providerCalls).toEqual([["EMAIL"]]);
+    const completed = crashPoint === "before-completed-response";
+    expect(barrier.pid).toBe(first.ready.pid);
+    if (completed) {
+      expect(barrier.body).toMatchObject({ state: "completed", replayed: false, needsReview: false });
+    } else {
+      expect(barrier).toMatchObject(partial
+        ? { state: "in_progress", results: [{ channel: "EMAIL", success: true, auditId: expect.any(Number) }] }
+        : { state: "provider_accepted", acceptedMessages: 1 });
+    }
+    const expectedProviderCalls = completed ? [["EMAIL"], ["TELEGRAM"]] : [["EMAIL"]];
+    expect(providerCalls).toEqual(expectedProviderCalls);
     expect(await kill(first.child)).toEqual([null, "SIGKILL"]);
     expect(await interruptedRequest).toEqual({ interrupted: true });
 
@@ -119,13 +125,15 @@ it.each(["before-audit-write", "after-first-channel-persist"] as const)(
     expect(savedAudits).toHaveLength(2);
     expect(savedAudits.map((row: any) => row.detail.channel)).toEqual(["EMAIL", "TELEGRAM"]);
     expect(new Set(savedAudits.map((row: any) => row.id)).size).toBe(2);
-    const expectedResults = partial
-      ? [{ channel: "EMAIL", success: true, auditId: savedAudits[0].id }] : [];
+    const expectedResults = completed
+      ? savedAudits.map((row: any) => ({ channel: row.detail.channel, success: true, auditId: row.id }))
+      : partial ? [{ channel: "EMAIL", success: true, auditId: savedAudits[0].id }] : [];
     expect(savedReservation).toEqual([expect.objectContaining({
-      operation_key: payload.operationKey, state: "in_progress", results: expectedResults,
+      operation_key: payload.operationKey, state: completed ? "completed" : "in_progress", results: expectedResults,
     })]);
     expect(savedAudits.map((row: any) => row.detail.state))
-      .toEqual([partial ? "provider_accepted" : "requested", "requested"]);
+      .toEqual([partial || completed ? "provider_accepted" : "requested", completed ? "provider_accepted" : "requested"]);
+    if (completed) expect(barrier.body.results).toEqual(expectedResults);
     if (partial) {
       expect(barrier.results).toEqual(expectedResults);
       expect(savedAudits[0].detail).toMatchObject({ acceptedMessages: 1, plannedMessages: 1 });
@@ -141,12 +149,19 @@ it.each(["before-audit-write", "after-first-channel-persist"] as const)(
       const response = await send(restarted.ready.port, key);
       expect(response.status).toBe(200);
       const recovered = await response.json();
-      expect(recovered).toMatchObject({
-        operationKey: payload.operationKey, replayed: true, state: "in_progress", needsReview: true,
-        message: expect.stringContaining("Nenhum novo envio foi iniciado"),
-      });
+      if (completed) {
+        expect(recovered).toEqual({
+          ...barrier.body, replayed: true,
+          message: "Operação anterior recuperada. Nenhuma mensagem foi reenviada.",
+        });
+      } else {
+        expect(recovered).toMatchObject({
+          operationKey: payload.operationKey, replayed: true, state: "in_progress", needsReview: true,
+          message: expect.stringContaining("Nenhum novo envio foi iniciado"),
+        });
+      }
       expect(recovered.results).toEqual(expectedResults);
-      expect(providerCalls).toEqual([["EMAIL"]]);
+      expect(providerCalls).toEqual(expectedProviderCalls);
       expect(await reservation()).toEqual(savedReservation);
       expect(await audit()).toEqual(savedAudits);
     }
