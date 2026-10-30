@@ -2187,6 +2187,60 @@ export const SendPharmacyBatchResponse = zod.object({
 });
 
 /**
+ * @summary Destinatários e histórico autorizados pelo vínculo clínico
+ */
+export const GetPrescriptionDeliveryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetPrescriptionDeliveryResponse = zod.object({
+  targets: zod.array(
+    zod.object({
+      channel: zod.enum(["email", "whatsapp", "telegram"]),
+      recipient: zod.string(),
+      label: zod.string(),
+      pharmacyId: zod.number().optional(),
+    }),
+  ),
+  history: zod.array(
+    zod.object({
+      id: zod.number(),
+      channel: zod.string(),
+      status: zod.string(),
+      detail: zod.string().nullable(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Envio único com destinatário e canal explicitamente confirmados
+ */
+export const CreatePrescriptionDeliveryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreatePrescriptionDeliveryBody = zod.object({
+  confirmed: zod.literal(true),
+  channel: zod.enum(["email", "whatsapp", "telegram"]),
+  recipient: zod.string().min(1),
+  pharmacyId: zod.number().min(1).optional(),
+});
+
+export const CreatePrescriptionDeliveryResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["accepted", "failed", "unknown"]),
+  accepted: zod.boolean(),
+  error: zod.string().nullable(),
+  target: zod.object({
+    channel: zod.enum(["email", "whatsapp", "telegram"]),
+    recipient: zod.string(),
+    label: zod.string(),
+    pharmacyId: zod.number().optional(),
+  }),
+});
+
+/**
  * @summary List prescriptions
  */
 export const ListPrescriptionsResponseItem = zod.object({

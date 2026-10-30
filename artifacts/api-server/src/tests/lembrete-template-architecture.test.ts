@@ -10,7 +10,7 @@ const template = "templateLembretePrescricao";
 // Existing exceptions only: runtime fallbacks and the non-sending demo gallery.
 // Counts are intentional: a new direct call even in these files must fail.
 const allowedCalls: Record<string, number> = {
-  "routes/prescriptions.ts": 1,
+  "lib/prescription-reminder-message.ts": 1,
   "lib/lembrete-periodo.ts": 2,
   "routes/lembretes.ts": 1,
   "routes/demo-galeria.ts": 1,

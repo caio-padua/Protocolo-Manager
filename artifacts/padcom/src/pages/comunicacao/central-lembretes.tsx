@@ -20,6 +20,12 @@ import {
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "./_shared";
 
+function reminderFetch(url: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Authorization", `Bearer ${localStorage.getItem("padcom_collab_token") ?? ""}`);
+  return fetch(url, { ...init, headers });
+}
+
 // ===========================================================================
 // CENTRAL DE LEMBRETES — painel único de gestão do lembrete de prescrição por
 // cliente (motor por período, Mensageria PAXMED). Aqui o CEO vê TODOS os clientes
@@ -77,7 +83,7 @@ function estadoLuz(l: LembreteResumo): { cls: string; label: string; color: stri
   if (!l.ativo) {
     return {
       cls: "paxter-led-amber",
-      label: l.ativoManual === false ? "Desligado à mão" : "Sem fórmulas",
+      label: l.ativoManual === false ? "Desligado à mão" : "Aguardando autorização",
       color: "text-amber-700 dark:text-amber-400",
     };
   }
@@ -88,7 +94,7 @@ function estadoLuz(l: LembreteResumo): { cls: string; label: string; color: stri
 function seloEnvio(u: UltimoEnvio): { label: string; cls: string } {
   if (!u) return { label: "—", cls: "text-muted-foreground" };
   const s = (u.status || "").toUpperCase();
-  if (s === "ENVIADO") return { label: "ENVIADO", cls: "text-emerald-700 dark:text-emerald-400" };
+  if (s === "ENVIADO") return { label: "ACEITO PELO PROVEDOR", cls: "text-emerald-700 dark:text-emerald-400" };
   if (s === "FALHOU") return { label: "FALHOU", cls: "text-rose-700 dark:text-rose-400" };
   if (s === "SEM_TWILIO") return { label: "SEM TWILIO", cls: "text-amber-700 dark:text-amber-400" };
   return { label: s || "PENDENTE", cls: "text-amber-700 dark:text-amber-400" };
@@ -122,9 +128,18 @@ export default function CentralLembretes() {
   const [salvandoPeriodos, setSalvandoPeriodos] = useState(false);
   const [msgEditor, setMsgEditor] = useState<string>("");
 
+  function confirmSchedule(clienteId: number) {
+    const row = lista?.find(l => l.clienteId === clienteId);
+    if (!row?.telefone) {
+      setMsgEditor("Cadastre e confira o telefone antes de autorizar lembretes."); return null;
+    }
+    if (!window.confirm(`Autorizar lembretes recorrentes por WhatsApp para ${row.nome}, telefone ${row.telefone}, nos horários cadastrados? Nenhuma cópia ou áudio será enviado.`)) return null;
+    return { confirmed: true, channel: "whatsapp", recipient: row.telefone };
+  }
+
   const carregar = useCallback(() => {
     setLoading(true);
-    return fetch(`${BASE}/api/lembretes`)
+    return reminderFetch(`${BASE}/api/lembretes`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("lista"))))
       .then((d: { lembretes: LembreteResumo[] }) => {
         setLista(d.lembretes);
@@ -156,7 +171,7 @@ export default function CentralLembretes() {
     let alive = true;
     setMsgEditor("");
     setPreviaLoading(true);
-    fetch(`${BASE}/api/lembretes/${selId}/preview`)
+    reminderFetch(`${BASE}/api/lembretes/${selId}/preview`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview"))))
       .then((d: { mensagem: string }) => {
         if (alive) setPrevia(d.mensagem);
@@ -168,7 +183,7 @@ export default function CentralLembretes() {
         if (alive) setPreviaLoading(false);
       });
 
-    fetch(`${BASE}/api/lembretes/${selId}`)
+    reminderFetch(`${BASE}/api/lembretes/${selId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("detalhe"))))
       .then((d: { lembrete: DetalheLembrete }) => {
         if (!alive) return;
@@ -191,7 +206,7 @@ export default function CentralLembretes() {
   // Recarrega a prévia após salvar edição (mantém a mensagem em dia).
   const recarregarPrevia = useCallback((clienteId: number) => {
     setPreviaLoading(true);
-    fetch(`${BASE}/api/lembretes/${clienteId}/preview`)
+    reminderFetch(`${BASE}/api/lembretes/${clienteId}/preview`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview"))))
       .then((d: { mensagem: string }) => setPrevia(d.mensagem))
       .catch(() => setPrevia(""))
@@ -224,17 +239,24 @@ export default function CentralLembretes() {
   // PATCH do override manual (Opção B): true (forçar ligado), false (desligar),
   // null (voltar ao automático — segue as fórmulas).
   async function definirManual(clienteId: number, valor: boolean | null) {
+    const consent = valor === false ? {} : confirmSchedule(clienteId);
+    if (!consent) return;
     setSalvando(clienteId);
     try {
-      const r = await fetch(`${BASE}/api/lembretes/${clienteId}`, {
+      const r = await reminderFetch(`${BASE}/api/lembretes/${clienteId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ativoManual: valor }),
+        body: JSON.stringify({ ativoManual: valor === null ? true : valor, ...consent }),
       });
       if (r.ok) {
         const d = (await r.json()) as { lembrete: DetalheLembrete };
         aplicarDetalhe(d.lembrete);
+      } else {
+        const data = await r.json().catch(() => null);
+        setMsgEditor(data?.error || "Não foi possível alterar os lembretes.");
       }
+    } catch {
+      setMsgEditor("Falha ao alterar os lembretes; ativação não confirmada.");
     } finally {
       setSalvando(null);
     }
@@ -251,10 +273,12 @@ export default function CentralLembretes() {
     setSalvandoHorarios(true);
     setMsgEditor("");
     try {
-      const r = await fetch(`${BASE}/api/lembretes/${selId}`, {
+      const consent = detalhe?.ativo ? confirmSchedule(selId) : {};
+      if (!consent) return;
+      const r = await reminderFetch(`${BASE}/api/lembretes/${selId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ horariosEnvio: editHorarios }),
+        body: JSON.stringify({ horariosEnvio: editHorarios, ...consent }),
       });
       if (r.ok) {
         const d = (await r.json()) as { lembrete: DetalheLembrete };
@@ -326,10 +350,12 @@ export default function CentralLembretes() {
       }),
     }));
     try {
-      const r = await fetch(`${BASE}/api/lembretes/${selId}`, {
+      const consent = detalhe?.ativo ? confirmSchedule(selId) : {};
+      if (!consent) return;
+      const r = await reminderFetch(`${BASE}/api/lembretes/${selId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ periodos: limpo }),
+        body: JSON.stringify({ periodos: limpo, ...consent }),
       });
       if (r.ok) {
         const d = (await r.json()) as { lembrete: DetalheLembrete };
@@ -385,7 +411,7 @@ export default function CentralLembretes() {
 
   const totalAtivos = lista.filter((l) => l.ativo).length;
   const totalManualOff = lista.filter((l) => l.ativoManual === false).length;
-  const ligadoDetalhe = detalhe ? detalhe.ativoManual !== false && detalhe.periodos.length > 0 : false;
+  const ligadoDetalhe = detalhe?.ativo === true;
 
   return (
     <ConsoleShell
@@ -512,13 +538,13 @@ export default function CentralLembretes() {
                         }}
                         disabled={salvando === l.clienteId}
                         className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide disabled:opacity-50"
-                        title="Voltar ao automático (segue as fórmulas)"
+                        title="Revisar e autorizar os lembretes recorrentes"
                       >
-                        <RotateCcw className="h-3.5 w-3.5" /> Automático
+                        <RotateCcw className="h-3.5 w-3.5" /> Autorizar agenda
                       </button>
                     ) : (
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Automático
+                        Exige autorização
                       </span>
                     )}
                   </div>
@@ -543,7 +569,7 @@ export default function CentralLembretes() {
                       Lembrete ligado
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      O comando manual vence o automático. Sem fórmulas, nunca dispara.
+                      Salvar fórmulas não ativa envios. Confirme o telefone e autorize os horários para ligar a agenda.
                     </p>
                   </div>
                   <button

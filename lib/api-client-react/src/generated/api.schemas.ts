@@ -1640,6 +1640,72 @@ export interface CreatePharmacyBody {
   active?: boolean;
 }
 
+export type ClinicalDeliveryTargetChannel =
+  (typeof ClinicalDeliveryTargetChannel)[keyof typeof ClinicalDeliveryTargetChannel];
+
+export const ClinicalDeliveryTargetChannel = {
+  email: "email",
+  whatsapp: "whatsapp",
+  telegram: "telegram",
+} as const;
+
+export interface ClinicalDeliveryTarget {
+  channel: ClinicalDeliveryTargetChannel;
+  recipient: string;
+  label: string;
+  pharmacyId?: number;
+}
+
+export type ClinicalDeliveryInputChannel =
+  (typeof ClinicalDeliveryInputChannel)[keyof typeof ClinicalDeliveryInputChannel];
+
+export const ClinicalDeliveryInputChannel = {
+  email: "email",
+  whatsapp: "whatsapp",
+  telegram: "telegram",
+} as const;
+
+export interface ClinicalDeliveryInput {
+  confirmed: boolean;
+  channel: ClinicalDeliveryInputChannel;
+  /** @minLength 1 */
+  recipient: string;
+  /** @minimum 1 */
+  pharmacyId?: number;
+}
+
+export interface ClinicalDeliveryAttempt {
+  id: number;
+  channel: string;
+  status: string;
+  /** @nullable */
+  detail: string | null;
+  createdAt: string;
+}
+
+export interface ClinicalDeliveryContext {
+  targets: ClinicalDeliveryTarget[];
+  history: ClinicalDeliveryAttempt[];
+}
+
+export type ClinicalDeliveryResultStatus =
+  (typeof ClinicalDeliveryResultStatus)[keyof typeof ClinicalDeliveryResultStatus];
+
+export const ClinicalDeliveryResultStatus = {
+  accepted: "accepted",
+  failed: "failed",
+  unknown: "unknown",
+} as const;
+
+export interface ClinicalDeliveryResult {
+  id: number;
+  status: ClinicalDeliveryResultStatus;
+  accepted: boolean;
+  /** @nullable */
+  error: string | null;
+  target: ClinicalDeliveryTarget;
+}
+
 export interface PrescriptionItemInput {
   name: string;
   ativos?: string | null;

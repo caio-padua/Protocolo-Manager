@@ -1,9 +1,6 @@
 // ROTA da CENTRAL DE LEMBRETES — gestão do lembrete de prescrição por cliente.
 //
-// Conteúdo rico (periodos) é JSONB; por isso NÃO usa OpenAPI/Orval (espelha a
-// mensagens-catalogo). Admin single-tenant atrás do proxy: as escritas seguem
-// abertas, igual à tela irmã (Carta → PATCH /mensagens-catalogo). Não é PII nem
-// credencial; o perímetro é o proxy (ver memória "admin-api-sem-auth").
+// Conteúdo rico é JSONB. Leituras e escritas exigem colaborador e vínculo clínico.
 //
 // Opção A (riqueza): a prévia usa montarMensagemPaxmed com os periodos reais.
 // Opção B (override manual): PATCH grava ativoManual; ativo efetivo nunca dispara
@@ -18,13 +15,23 @@ import {
   type LembretePeriodoJson,
   type LembreteFormulaJson,
 } from "@workspace/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
 import { templateLembretePrescricao, montarSaudacao } from "../lib/lembrete-templates";
 import { partsParaTimezone } from "../lib/lembrete-periodo";
+import { requireCollaborator } from "./collaborator";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { clinicalClientFilter, recordReminderConsent, reminderConsentFilter } from "../lib/reminder-consent";
 
 const router: IRouter = Router();
 router.use(moduleGuard("comunicacao"));
+router.use("/lembretes", requireCollaborator);
+router.use("/lembretes/:clienteId", requireCollaborator, async (req, _res, next) => {
+  try {
+    await resolveClinicalEmitter(req, Number(req.params.clienteId));
+    next();
+  } catch (error) { next(error); }
+});
 
 const TIMEZONE = "America/Sao_Paulo";
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -48,12 +55,12 @@ function proximaJanelaHoje(horarios: string[], agora: Date): string | null {
 }
 
 // GET /api/lembretes — lista todos os lembretes reais (leitura livre).
-router.get("/lembretes", async (_req, res) => {
+router.get("/lembretes", async (req, res) => {
   const rows = await db
     .select({
       clienteId: lembretesPrescricaoTable.clienteId,
       lembreteId: lembretesPrescricaoTable.id,
-      ativo: lembretesPrescricaoTable.ativo,
+      ativo: sql<boolean>`${lembretesPrescricaoTable.ativo} AND ${reminderConsentFilter()}`,
       ativoManual: lembretesPrescricaoTable.ativoManual,
       periodos: lembretesPrescricaoTable.periodos,
       horariosEnvio: lembretesPrescricaoTable.horariosEnvio,
@@ -62,6 +69,7 @@ router.get("/lembretes", async (_req, res) => {
     })
     .from(lembretesPrescricaoTable)
     .innerJoin(clientsTable, eq(clientsTable.id, lembretesPrescricaoTable.clienteId))
+    .where(clinicalClientFilter(req.collaborator!.professionalId))
     .orderBy(clientsTable.name);
 
   const agora = new Date();
@@ -105,7 +113,7 @@ async function carregarDetalhe(clienteId: number) {
     .select({
       lembreteId: lembretesPrescricaoTable.id,
       clienteId: lembretesPrescricaoTable.clienteId,
-      ativo: lembretesPrescricaoTable.ativo,
+      ativo: sql<boolean>`${lembretesPrescricaoTable.ativo} AND ${reminderConsentFilter()}`,
       ativoManual: lembretesPrescricaoTable.ativoManual,
       periodos: lembretesPrescricaoTable.periodos,
       horariosEnvio: lembretesPrescricaoTable.horariosEnvio,
@@ -133,7 +141,7 @@ router.get("/lembretes/:clienteId", async (req, res) => {
   }
   const detalhe = await carregarDetalhe(clienteId);
   if (!detalhe) return res.status(404).json({ error: "lembrete não encontrado" });
-  res.json({ lembrete: detalhe });
+  return res.json({ lembrete: detalhe });
 });
 
 // GET /api/lembretes/:clienteId/preview — mensagem REAL (leitura livre).
@@ -162,7 +170,7 @@ router.get("/lembretes/:clienteId/preview", async (req, res) => {
       periodos: detalhe.periodos,
     });
   }
-  res.json({ mensagem });
+  return res.json({ mensagem });
 });
 
 // Sanitiza um array de LembreteFormulaJson vindo do cliente (só campos conhecidos).
@@ -277,7 +285,16 @@ router.patch("/lembretes/:clienteId", async (req, res) => {
 
   // ativo efetivo: nunca dispara lembrete vazio; desligar à mão sempre vence.
   const temFormulas = contarFormulas(periodos) > 0;
-  set.ativo = temFormulas && ativoManual !== false;
+  set.ativo = temFormulas && ativoManual !== false && (body.ativoManual === true || atual.ativo);
+  if (set.ativo) {
+    const identity = await resolveClinicalEmitter(req, clienteId);
+    if (body.confirmed !== true || body.channel !== "whatsapp" ||
+        !atual.telefone || body.recipient !== atual.telefone) {
+      return res.status(400).json({ error: "Confirme o WhatsApp e o telefone atual para autorizar os lembretes recorrentes." });
+    }
+    await recordReminderConsent({ clientId: clienteId, recipient: atual.telefone,
+      actorId: identity.professional.id, empresaId: identity.clinic.empresaId, locationId: identity.clinic.id });
+  }
 
   await db
     .update(lembretesPrescricaoTable)
@@ -285,7 +302,14 @@ router.patch("/lembretes/:clienteId", async (req, res) => {
     .where(eq(lembretesPrescricaoTable.clienteId, clienteId));
 
   const detalhe = await carregarDetalhe(clienteId);
-  res.json({ lembrete: detalhe });
+  return res.json({ lembrete: detalhe });
 });
 
+router.use((error: unknown, _req: import("express").Request, res: import("express").Response,
+  next: import("express").NextFunction) => {
+  if (error instanceof ClinicalIdentityError) {
+    res.status(error.status).json({ error: error.message }); return;
+  }
+  next(error);
+});
 export default router;

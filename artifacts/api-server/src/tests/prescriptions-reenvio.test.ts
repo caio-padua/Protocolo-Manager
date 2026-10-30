@@ -1,99 +1,40 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import express from "express";
-import request from "supertest";
+import { describe, expect, it, vi } from "vitest";
+import { auditedDelivery, confirmedTarget, type DeliveryTarget } from "../lib/clinical-delivery";
 
-const mock = vi.hoisted(() => ({ rows: [] as unknown[][], where: vi.fn(), emit: vi.fn() }));
-vi.mock("@workspace/db", () => {
-  const table = (name: string) => new Proxy({}, { get: (_, key) => `${name}.${String(key)}` });
-  return {
-    db: { select: () => {
-      const rows = mock.rows.shift() ?? [];
-      const chain: any = { then: (resolve: any, reject: any) => Promise.resolve(rows).then(resolve, reject) };
-      for (const method of ["from", "orderBy", "limit"]) chain[method] = () => chain;
-      chain.where = (condition: unknown) => { mock.where(condition); return chain; };
-      return chain;
-    } },
-    ...Object.fromEntries(["prescriptionsTable", "prescriptionItemsTable", "recipesTable", "pharmaciesTable",
-      "dispatchLogTable", "catalogoItensTable", "catalogoFormulasTable", "lembretesPrescricaoTable",
-      "clientsTable", "professionalsTable"].map((name) => [name, table(name)])),
-  };
-});
-vi.mock("drizzle-orm", () => ({
-  eq: (column: unknown, value: unknown) => ({ column, value }),
-  and: (...conditions: unknown[]) => conditions,
-  desc: vi.fn(), asc: vi.fn(), sql: vi.fn(),
-}));
-vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
-vi.mock("../middleware/tenantContext", () => ({ resolveEmpresaId: () => 5 }));
-vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (req: any, res: any, next: () => void) => {
-    if (!req.headers.authorization) return res.status(401).json({ error: "Login obrigatório" });
-    req.collaborator = { professionalId: 1 };
-    next();
-  },
-}));
-vi.mock("../lib/receituario-motor.js", () => ({ emitirReceituarioPdf: mock.emit }));
-vi.mock("../lib/desmembramento", () => ({ planDesmembramento: vi.fn() }));
-vi.mock("../lib/sncr", () => ({ consumeSncrNumber: vi.fn() }));
-vi.mock("../lib/prescription-pdf", () => ({ generateRecipePdf: vi.fn() }));
-vi.mock("../lib/google-drive", () => ({ ensurePharmacyDayFolder: vi.fn(), uploadFileToDrive: vi.fn() }));
-vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: vi.fn() }));
-vi.mock("../lib/telegram", () => ({ sendTelegram: vi.fn() }));
-vi.mock("../lib/anvisa-catalog", () => ({ recipeTypeForControlledClass: vi.fn() }));
-vi.mock("../lib/sncr-alerts", () => ({ handleSncrAlert: vi.fn() }));
-vi.mock("../lib/messaging/base-url.js", () => ({ baseUrlFromEnv: () => "https://example.com" }));
-vi.mock("../lib/lembrete-periodo", () => ({ sincronizarLembretePrescricao: vi.fn() }));
-vi.mock("../lib/lembrete-templates", () => ({ templateLembretePrescricao: vi.fn() }));
-vi.mock("../lib/mensageria-paxmed", () => ({ montarMensagemPaxmed: vi.fn() }));
-
-import router from "../routes/prescriptions";
-const app = express();
-app.use(express.json(), router);
-const post = () => request(app).post("/prescriptions/71/reenviar-email").set("Authorization", "Bearer test");
-
-beforeEach(() => {
-  mock.rows = [];
-  mock.where.mockClear();
-  mock.emit.mockReset();
-});
-
-describe("Reenvio de prescrição", () => {
-  it("exige login antes de consultar ou enviar", async () => {
-    expect((await request(app).post("/prescriptions/71/reenviar-email")).status).toBe(401);
-    expect(mock.where).not.toHaveBeenCalled();
-    expect(mock.emit).not.toHaveBeenCalled();
+const target: DeliveryTarget = { channel: "email", recipient: "patient@example.invalid", label: "Paciente sintético" };
+describe("contrato de confirmação do reenvio", () => {
+  it("exige confirmação literal e não escolhe canal ou destinatário padrão", () => {
+    for (const body of [{}, { confirmed: "true" }, { confirmed: 1 }, { ...target, confirmed: true }]) {
+      expect(() => confirmedTarget(body, [target])).toThrow();
+    }
+    expect(confirmedTarget({ confirmed: true, channel: target.channel, recipient: target.recipient }, [target])).toEqual(target);
   });
-  it("rejeita colaborador que não é CEO", async () => {
-    mock.rows = [[{ isPrimaryDoctor: false }]];
-    expect((await post()).status).toBe(403);
-    expect(mock.where).toHaveBeenCalledTimes(1);
-    expect(mock.emit).not.toHaveBeenCalled();
+  it("recusa contato antigo, farmácia errada e cópias extras", () => {
+    const body = { confirmed: true, channel: "email", recipient: target.recipient };
+    expect(() => confirmedTarget({ ...body, recipient: "old@example.invalid" }, [target])).toThrow();
+    expect(() => confirmedTarget({ ...body, pharmacyId: 22 }, [target])).toThrow();
+    expect(() => confirmedTarget({ ...body, cc: "owner@example.invalid" }, [target])).toThrow();
   });
-  it("consulta a prescrição por ID e empresa; ausência no escopo não envia", async () => {
-    mock.rows = [[{ isPrimaryDoctor: true }], []];
-    expect((await post()).status).toBe(404);
-    expect(mock.where).toHaveBeenLastCalledWith([
-      { column: "prescriptionsTable.id", value: 71 },
-      { column: "prescriptionsTable.empresaId", value: 5 },
-    ]);
-    expect(mock.emit).not.toHaveBeenCalled();
+  it("registra tentativa antes do provedor e grava erro exato da recusa", async () => {
+    const events: string[] = [];
+    const finish = vi.fn(async () => { events.push("finish"); });
+    const result = await auditedDelivery(async () => { events.push("start"); return 7; },
+      async () => { events.push("provider"); return { accepted: false, error: "recusado" }; }, finish);
+    expect(events).toEqual(["start", "provider", "finish"]);
+    expect(result).toMatchObject({ id: 7, status: "failed", accepted: false, error: "recusado" });
+    expect(finish).toHaveBeenCalledWith(7, "failed", "recusado");
   });
-  it("rejeita rascunho antes de gerar PDF", async () => {
-    mock.rows = [[{ isPrimaryDoctor: true }], [{ status: "draft" }]];
-    expect((await post()).status).toBe(422);
-    expect(mock.emit).not.toHaveBeenCalled();
+  it("falha inicial de auditoria interrompe antes de enviar", async () => {
+    const provider = vi.fn();
+    await expect(auditedDelivery(async () => { throw new Error("offline"); }, provider, vi.fn())).rejects.toThrow("offline");
+    expect(provider).not.toHaveBeenCalled();
   });
-  it("envia as fórmulas persistidas e retorna os destinatários", async () => {
-    mock.rows = [[{ isPrimaryDoctor: true }], [{
-      status: "emitted", clientName: "Teste", clientEmail: "patient@example.com",
-    }], [{ name: "Fórmula persistida", posologia: "1 ao dia" }]];
-    mock.emit.mockResolvedValue({ emailSent: true, fileName: "receita.pdf" });
-    const response = await post();
-    expect(response.status).toBe(200);
-    expect(response.body.destinatarios).toContain("patient@example.com");
-    expect(response.body.emailSent).toBe(true);
-    expect(mock.emit).toHaveBeenCalledWith(expect.objectContaining({
-      formulas: [expect.objectContaining({ nome: "Fórmula persistida", posologia: "1 ao dia" })],
-    }));
+  it("exceção do provedor não vira sucesso e não vaza credenciais na mensagem", async () => {
+    const finish = vi.fn().mockResolvedValue(undefined);
+    const result = await auditedDelivery(async () => 7,
+      async () => { throw new Error("sensitive provider response"); }, finish);
+    expect(result.status).toBe("failed");
+    expect(result.error).not.toContain("sensitive");
+    expect(finish).toHaveBeenCalledWith(7, "failed", expect.any(String));
   });
 });

@@ -16,12 +16,12 @@ import {
   type LembretePeriodoJson,
   type LembreteFormulaJson,
 } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { sendWhatsapp } from "./whatsapp";
 import { montarSaudacao, templateLembretePrescricao, type Genero } from "./lembrete-templates";
 import { montarMensagemPaxmed } from "./mensageria-paxmed";
-import { enviarVozAvatarWhatsapp, gerarScriptLembrete } from "./avatar-messenger";
+import { reminderConsentFilter } from "./reminder-consent";
 
 const TIMEZONE = "America/Sao_Paulo";
 
@@ -134,6 +134,7 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
       and(
         eq(lembretesPrescricaoTable.ativo, true),
         eq(clientsTable.status, "active"),
+        reminderConsentFilter(),
       ),
     );
 
@@ -285,20 +286,25 @@ export async function sincronizarLembretePrescricao(
   const horarios = [...horariosSet].sort();
   const periodos = [...porSigla.values()];
   const temItens = periodos.length > 0;
-  // Override manual (Opção B): desligar à mão SEMPRE vence; ligar/nulo segue os itens.
-  const ativoEfetivo = temItens && existente?.ativoManual !== false;
+  // Content changes never authorize a new schedule or revoke a still-valid one.
+  // Evaluate current consent and current manual state atomically on the conflict
+  // row: a concurrent manual deactivation must never be overwritten by this sync.
+  const manterAtivo = temItens ? sql<boolean>`${lembretesPrescricaoTable.ativo}
+    AND ${lembretesPrescricaoTable.ativoManual} IS DISTINCT FROM FALSE
+    AND EXISTS (SELECT 1 FROM ${clientsTable}
+      WHERE ${clientsTable.id} = ${clienteId} AND ${reminderConsentFilter()})` : false;
 
   // Upsert atômico por cliente (unique em cliente_id): sem corrida de 2 lembretes.
   // ativoManual NÃO é tocado aqui (preserva a decisão manual do CEO).
   const [linha] = await db
     .insert(lembretesPrescricaoTable)
-    .values({ clienteId, periodos, horariosEnvio: horarios, ativo: ativoEfetivo })
+    .values({ clienteId, periodos, horariosEnvio: horarios, ativo: false })
     .onConflictDoUpdate({
       target: lembretesPrescricaoTable.clienteId,
-      set: { periodos, horariosEnvio: horarios, ativo: ativoEfetivo, updatedAt: new Date() },
+      set: { periodos, horariosEnvio: horarios, ativo: manterAtivo, updatedAt: new Date() },
     })
-    .returning({ id: lembretesPrescricaoTable.id });
-  return { lembreteId: linha.id, periodos: periodos.length, horarios, formulas, ativo: ativoEfetivo };
+    .returning({ id: lembretesPrescricaoTable.id, ativo: lembretesPrescricaoTable.ativo });
+  return { lembreteId: linha.id, periodos: periodos.length, horarios, formulas, ativo: linha.ativo };
 }
 
 export async function executarLembretesPeriodo(
@@ -401,6 +407,7 @@ export async function executarLembretesPeriodo(
       resultado = await sendWhatsapp(ctx.clienteTelefone, mensagem, {
         contexto: "lembrete_prescricao",
         clienteId: ctx.clienteId,
+        mirrorTelegram: false,
       });
     } catch (err) {
       resultado = { sent: false, via: "link", link: "", error: err instanceof Error ? err.message : String(err) };
@@ -414,18 +421,7 @@ export async function executarLembretesPeriodo(
         .where(eq(lembreteEnviosTable.id, envioId));
       detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: true, whatsappLogId: resultado.logId });
 
-      // ── AVATAR DE VOZ (best-effort, nunca bloqueia o tick) ──────────────────
-      // Se a clínica tem um avatar ativo com ElevenLabs configurado, envia um
-      // áudio da voz do médico logo após a mensagem de texto.
-      if (ctx.empresaId && ctx.clienteTelefone) {
-        const script = gerarScriptLembrete(ctx.clienteNome, ctx.periodos);
-        void enviarVozAvatarWhatsapp(
-          ctx.empresaId,
-          ctx.clienteTelefone,
-          script,
-          { clienteId: ctx.clienteId, contexto: "lembrete_prescricao_voz" },
-        );
-      }
+      // A text authorization does not authorize an extra voice message.
     } else if (resultado.via === "link" && !resultado.error) {
       // Twilio não configurado: não é falha de entrega, é ausência de canal.
       // Marca SEM_TWILIO (não conta como falha; fica separado na tela de status).

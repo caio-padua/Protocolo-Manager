@@ -304,7 +304,7 @@ export default function CartaEncantamento() {
   // Popula o dropdown "Cliente real" com os clientes que têm lembrete.
   useEffect(() => {
     let alive = true;
-    fetch(`${BASE}/api/lembretes`)
+    fetch(`${BASE}/api/lembretes`, { headers: { Authorization: `Bearer ${localStorage.getItem("padcom_collab_token") ?? ""}` } })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("lembretes"))))
       .then((d: { lembretes: { clienteId: number; nome: string }[] }) => {
         if (alive) setClientesReais(d.lembretes.map((l) => ({ clienteId: l.clienteId, nome: l.nome })));
@@ -325,7 +325,7 @@ export default function CartaEncantamento() {
     }
     let alive = true;
     setPreviaRealLoading(true);
-    fetch(`${BASE}/api/lembretes/${clienteRealId}/preview`)
+    fetch(`${BASE}/api/lembretes/${clienteRealId}/preview`, { headers: { Authorization: `Bearer ${localStorage.getItem("padcom_collab_token") ?? ""}` } })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview"))))
       .then((d: { mensagem: string }) => {
         if (alive) setPreviaReal(d.mensagem);

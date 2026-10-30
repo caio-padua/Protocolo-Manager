@@ -38,7 +38,7 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
-import { PrescricoesEmitidas } from "../../prescricao/PrescricoesEmitidas";
+import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 
@@ -899,16 +899,13 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <a
+                            <PrescriptionPdfLink
                               href={`${BASE}${rec.pdfUrl}`}
-                              target="_blank"
-                              rel="noreferrer"
                               className="flex items-center gap-1 text-xs font-semibold hover:underline"
-                              style={{ color: GOLD }}
                             >
                               <FileText className="h-3.5 w-3.5" />
                               Abrir PDF
-                            </a>
+                            </PrescriptionPdfLink>
                             {rec.driveWebViewLink && (
                               <a
                                 href={rec.driveWebViewLink}

@@ -67,6 +67,7 @@ export interface EmitirResult {
   driveUrl: string | null;
   driveId: string | null;
   emailSent: boolean;
+  emailError?: string | null;
   modeloUsado: string;
   tipoMotor: TipoModelo;
   consultaToken: string;   // token curto (8 hex) para a página de consulta pública
@@ -344,6 +345,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
 
   // 7. E-mail (best-effort)
   let emailSent = false;
+  let emailError: string | null = null;
   const emailRecipients = params.emailTo
     ? (Array.isArray(params.emailTo) ? params.emailTo : [params.emailTo])
     : [];
@@ -372,7 +374,9 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       }],
     });
     emailSent = mailResult.success;
+    if (!emailSent) emailError = mailResult.error || "Serviço de e-mail não aceitou o envio.";
   } catch (e) {
+    emailError = "Falha ao consultar o serviço de e-mail; envio não confirmado.";
     logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: e-mail falhou");
   }
 
@@ -399,7 +403,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
     logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: falha ao salvar token");
   }
 
-  return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, modeloUsado: modelo.nome, tipoMotor: modelo.tipo, consultaToken, consultaUrl };
+  return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, emailError, modeloUsado: modelo.nome, tipoMotor: modelo.tipo, consultaToken, consultaUrl };
 }
 
 // ── HTML do e-mail de receituário — padrão Paxter terno/navy ─────────────────

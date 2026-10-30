@@ -95,13 +95,16 @@ async function sendMail(to: string | null, subject: string, html: string): Promi
 }
 
 // Dispara os efeitos colaterais. Best-effort, nunca lança.
-export async function handleSncrAlert(input: SncrAlertInput): Promise<void> {
+export async function handleSncrAlert(
+  input: SncrAlertInput,
+  options: { notifyEmail?: boolean } = {},
+): Promise<void> {
   try {
     const exhausted = input.status === "exhausted" || input.status === "no_range";
 
     if (exhausted) {
       // Escalonamento ao CEO + cartões para adm e médico.
-      await sendMail(
+      if (options.notifyEmail !== false) await sendMail(
         ceoEmail(),
         `Paxter | URGENTE | SNCR esgotado ${input.controlledType}/${input.uf}`,
         buildHtml(input, true),
@@ -124,7 +127,7 @@ export async function handleSncrAlert(input: SncrAlertInput): Promise<void> {
       });
     } else {
       // low: e-mail para administração + cartão interno.
-      await sendMail(
+      if (options.notifyEmail !== false) await sendMail(
         adminEmail(),
         `Paxter | SNCR acabando | ${input.controlledType}/${input.uf}`,
         buildHtml(input, false),

@@ -1,6 +1,5 @@
 // Agendamento do envio noturno em lote para farmácias (22:00 BRT).
 import cron from "node-cron";
-import { sendNightlyPharmacyBatch } from "./pharmacy-email";
 import { executarLembretesPeriodo } from "./lembrete-periodo";
 import { logger } from "./logger";
 import { processarReceituarioDiario } from "./receituario-worker";
@@ -13,19 +12,7 @@ export function startCronJobs(): void {
   if (started) return;
   started = true;
 
-  // 22:00 todos os dias, fuso de São Paulo.
-  cron.schedule(
-    "0 22 * * *",
-    () => {
-      logger.info("Disparando lote noturno de farmácias (22:00 BRT)");
-      sendNightlyPharmacyBatch().catch((err) => {
-        logger.error({ err: err?.message }, "Falha no lote noturno de farmácias");
-      });
-    },
-    { timezone: "America/Sao_Paulo" },
-  );
-
-  logger.info("Cron de lote noturno de farmácias agendado para 22:00 BRT");
+  // Farmácias recebem somente envios individuais confirmados na prescrição.
 
   // Tick do motor de lembrete por período: a cada minuto (fuso BRT). Cada
   // lembrete só dispara no horário marcado ou até 5 min depois (nunca antes);

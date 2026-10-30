@@ -6,71 +6,28 @@ import {
   prescriptionItemsTable,
   recipesTable,
   pharmaciesTable,
-  dispatchLogTable,
   catalogoItensTable,
   catalogoFormulasTable,
-  lembretesPrescricaoTable,
-  clientsTable,
-  professionalsTable,
-  type LembretePeriodoJson,
 } from "@workspace/db";
-import { eq, desc, asc, and, sql } from "drizzle-orm";
-import { resolveEmpresaId } from "../middleware/tenantContext";
+import { eq, desc, asc } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
-import { generateRecipePdf } from "../lib/prescription-pdf";
-import { ensurePharmacyDayFolder, uploadFileToDrive } from "../lib/google-drive";
-import { sendWhatsapp } from "../lib/whatsapp";
-import { sendTelegram } from "../lib/telegram";
-import { recipeTypeForControlledClass } from "../lib/anvisa-catalog";
 import { handleSncrAlert } from "../lib/sncr-alerts";
+import { generateRecipePdf } from "../lib/prescription-pdf";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
 import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
-import { baseUrlFromEnv } from "../lib/messaging/base-url.js";
 // ── Motor de lembretes por período (portado do IHE) ──
-import {
-  sincronizarLembretePrescricao,
-  type ItemLembretePrescricao,
-  type PeriodoAntigo,
-} from "../lib/lembrete-periodo";
-import { templateLembretePrescricao } from "../lib/lembrete-templates";
-import { montarMensagemPaxmed } from "../lib/mensageria-paxmed";
+import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
+import { mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
-
-/**
- * Monta a mensagem do lembrete pelo motor RICO (Mensageria PAXMED) — períodos ×
- * dia-da-semana × semana-do-mês + versículo de sábado + fala do Dr. Caio +
- * elogio + assinatura. Falha-segura: catálogo vazio ou erro cai no template
- * simples, exatamente como o motor oficial em lembrete-periodo.ts.
- *
- * REGRA: nenhuma rota deve chamar templateLembretePrescricao direto — esse é o
- * FALLBACK, não a mensagem principal. Sempre passar por aqui.
- */
-async function montarMensagemLembrete(
-  clienteNome: string,
-  periodos: LembretePeriodoJson[],
-  agora: Date,
-): Promise<string> {
-  try {
-    const primeiroNome = (clienteNome || "").trim().split(/\s+/)[0] || clienteNome;
-    const rica = await montarMensagemPaxmed({ nome: primeiroNome, agora, periodos });
-    if (rica) return rica;
-  } catch {
-    // catálogo indisponível — cai no template simples abaixo
-  }
-  return templateLembretePrescricao({
-    clienteNome,
-    clienteGenero: "nao_informado",
-    periodos,
-    agora,
-  });
-}
+import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } from "./prescription-delivery";
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
+router.use(deliveryRouter);
 
 function todayBR(): string {
   const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -84,52 +41,6 @@ function dateBRfull(): string {
   return `${day}/${month}/${brt.getUTCFullYear()}`;
 }
 
-// Converte o texto livre do campo `periodo` de prescription_items
-// (ex.: "À Tarde; 2h Antes do Jantar") nos valores canônicos (PeriodoAntigo)
-// que sincronizarLembretePrescricao aceita. Sem match → padrão de fórmula.
-function mapPeriodosTextoToCanonicos(texto: string): PeriodoAntigo[] {
-  const norm = (s: string) =>
-    s.trim().toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
-
-  const MAP: Record<string, PeriodoAntigo> = {
-    "jejum":              "jejum",
-    "ao acordar":         "manha",
-    "inicio da manha":    "manha",
-    "manha":              "manha",
-    "meio da manha":      "meio_manha",
-    "meio manha":         "meio_manha",
-    "almoco":             "almoco",
-    "antes do almoco":    "almoco",
-    "2h antes do almoco": "almoco",
-    "inicio da tarde":    "tarde",
-    "a tarde":            "tarde",
-    "tarde":              "tarde",
-    "meio tarde":         "meio_tarde",
-    "meio da tarde":      "meio_tarde",
-    "noite":              "noite",
-    "antes do jantar":    "noite",
-    "2h antes do jantar": "noite",
-    "final da noite":     "final_noite",
-    "final noite":        "final_noite",
-    "ceia":               "ceia",
-  };
-
-  if (!texto.trim()) return ["manha", "noite"]; // padrão para fórmula
-  const result = texto
-    .split(";")
-    .map((p) => MAP[norm(p)])
-    .filter((p): p is PeriodoAntigo => !!p);
-  return result.length > 0 ? result : ["manha", "noite"];
-}
-
-// Trunca a mensagem no último parágrafo vazio antes de `max` chars (padrão 1.450).
-// Evita erro 21617 do Twilio (limite de 1.600 chars no WhatsApp).
-function truncarMensagemWhatsapp(msg: string, max = 1450): string {
-  if (msg.length <= max) return msg;
-  const corte = msg.lastIndexOf("\n\n", max);
-  return (corte > 0 ? msg.slice(0, corte) : msg.slice(0, max - 5)) + "\n\n(…)";
-}
-
 router.post("/prescriptions/preview", async (req, res): Promise<void> => {
   const parsed = PreviewPrescriptionBody.safeParse(req.body);
   if (!parsed.success) {
@@ -140,10 +51,9 @@ router.post("/prescriptions/preview", async (req, res): Promise<void> => {
   res.json(plans);
 });
 
-router.get("/prescriptions", async (req, res): Promise<void> => {
-  const empresaId = resolveEmpresaId(req);
+router.get("/prescriptions", requireCollaborator, async (req, res): Promise<void> => {
   const rows = await db.select().from(prescriptionsTable)
-    .where(eq(prescriptionsTable.empresaId, empresaId))
+    .where(authorizedPrescriptionFilter(req.collaborator!.professionalId))
     .orderBy(desc(prescriptionsTable.createdAt)).limit(200);
   res.json(
     rows.map((p) => ({
@@ -159,17 +69,13 @@ router.get("/prescriptions", async (req, res): Promise<void> => {
   );
 });
 
-router.get("/prescriptions/:id", async (req, res): Promise<void> => {
+router.get("/prescriptions/:id", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
     return;
   }
-  const [p] = await db.select().from(prescriptionsTable).where(eq(prescriptionsTable.id, id));
-  if (!p) {
-    res.status(404).json({ error: "Prescrição não encontrada" });
-    return;
-  }
+  const { pres: p } = await authorizedPrescription(req, id);
   const recipes = await db.select().from(recipesTable).where(eq(recipesTable.prescriptionId, id));
   res.json({
     id: p.id,
@@ -292,31 +198,15 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     })),
   );
 
-  // 1c) Motor de lembretes — sincronizar prescrição por período (idempotente).
-  // Mapeia o campo livre `periodo` dos itens aos 9 períodos canônicos (JE…CE)
-  // e faz upsert em lembretes_prescricao. Fail-safe: nunca bloqueia a emissão.
-  let lembretePeriodos: LembretePeriodoJson[] | null = null;
-  if (body.clientId) {
-    try {
-      const itensLembrete: ItemLembretePrescricao[] = items.map((it) => ({
-        tipo: "formula" as const,
-        nome: it.name,
-        ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
-        dose: it.dose ?? undefined,
-        // posologia OMITIDA: o campo do receituário é verboso (para a farmácia).
-        // O lembrete para o paciente deve conter apenas nome + dose — conciso.
-        periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
-      }));
-      await sincronizarLembretePrescricao(body.clientId, itensLembrete);
-      const [lembrete] = await db
-        .select({ periodos: lembretesPrescricaoTable.periodos })
-        .from(lembretesPrescricaoTable)
-        .where(eq(lembretesPrescricaoTable.clienteId, body.clientId))
-        .limit(1);
-      lembretePeriodos = (lembrete?.periodos as LembretePeriodoJson[]) ?? null;
-    } catch (err) {
-      req.log?.warn({ err }, "[prescriptions/emit] falha ao sincronizar lembrete — emissão não interrompida");
-    }
+  // Conteúdo preparado, mas nunca ativa a agenda nem autoriza destinatários.
+  try {
+    await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
+      tipo: "formula" as const, nome: it.name,
+      ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
+      dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
+    })));
+  } catch (err) {
+    req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
   }
 
   // 2) Desmembra.
@@ -328,7 +218,6 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
   const emittedRecipes: any[] = [];
   const sncrAlerts: any[] = [];
-  const sncrSideEffects: Parameters<typeof handleSncrAlert>[0][] = [];
 
   for (const plan of plans) {
     // 2a) SNCR (somente controlado isolado que exige numeração).
@@ -350,42 +239,12 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       if (consume.status === "consumed" && consume.low) {
         const message = `Atenção: restam ${consume.remaining} números SNCR para ${controlledType} (${uf}). Solicite novo talão.`;
         sncrAlerts.push({ controlledType, status: "low", remaining: consume.remaining, message });
-        sncrSideEffects.push({
-          status: "low",
-          controlledType,
-          uf,
-          remaining: consume.remaining,
-          prescriptionId: prescription.id,
-          clientId: body.clientId ?? null,
-          professionalName: body.professionalName ?? null,
-          message,
-        });
       } else if (consume.status === "exhausted") {
         const message = `Numeração SNCR ESGOTADA para ${controlledType} (${uf}). Receita emitida SEM número — providencie novo talão com urgência.`;
         sncrAlerts.push({ controlledType, status: "exhausted", remaining: 0, message });
-        sncrSideEffects.push({
-          status: "exhausted",
-          controlledType,
-          uf,
-          remaining: 0,
-          prescriptionId: prescription.id,
-          clientId: body.clientId ?? null,
-          professionalName: body.professionalName ?? null,
-          message,
-        });
       } else if (consume.status === "no_range") {
         const message = `Sem intervalo SNCR cadastrado para ${controlledType} (${uf}). Receita emitida SEM número.`;
         sncrAlerts.push({ controlledType, status: "no_range", remaining: null, message });
-        sncrSideEffects.push({
-          status: "no_range",
-          controlledType,
-          uf,
-          remaining: null,
-          prescriptionId: prescription.id,
-          clientId: body.clientId ?? null,
-          professionalName: body.professionalName ?? null,
-          message,
-        });
       }
     }
 
@@ -440,16 +299,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     //     (o id ja torna o nome unico; protege PDFs anteriores do mesmo dia).
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;
-    if (pharmacy) {
-      try {
-        const { dayFolderId } = await ensurePharmacyDayFolder(pharmacy.name, batchDate);
-        const up = await uploadFileToDrive(dayFolderId, fileName, "application/pdf", pdfBuffer, true);
-        driveFileId = up.fileId;
-        driveWebViewLink = up.webViewLink;
-      } catch (err) {
-        req.log.warn({ err }, "Falha ao subir receita ao Drive");
-      }
-    }
+    // Nenhum upload para pasta compartilhada de farmácia durante a emissão.
 
     // 2e) Atualiza a receita com o nome final + vinculo do Drive (best-effort:
     //     a receita ja esta persistida com pdfData e e baixavel via
@@ -477,6 +327,14 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     });
   }
 
+  // Preserve internal regulatory warnings without notifying any external recipient.
+  for (const alert of sncrAlerts) {
+    await handleSncrAlert({
+      ...alert, uf, prescriptionId: prescription.id, clientId: body.clientId,
+      professionalName: body.professionalName ?? null,
+    }, { notifyEmail: false });
+  }
+
   // 2.5) MOTOR ÚNICO — cópia visual assinada para o PACIENTE (best-effort).
   //      O M3 acima gera o PDF regulatório que vai para a farmácia.
   //      O motor único gera o PDF visual (modelo ativo do banco) que vai ao paciente.
@@ -494,15 +352,14 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     const formulasParaMotor = items.map((it) => ({
       nome:      it.name,
       ativos:    it.ativos ?? undefined,
-      posologia: it.posologia ?? undefined,
+      posologia: it.posologia ?? "",
       via:       it.via ?? undefined,
       forma:     it.observacao ?? undefined,
       dose:      it.dose ?? undefined,
     }));
 
-    // Only the verified client's own address; never copy a fixed personal mailbox.
+    // Generation only: email is a separate confirmed delivery action.
     const emailDestinatarios: string[] = [];
-    if (body.clientEmail) emailDestinatarios.push(body.clientEmail);
 
     const motorResult = await emitirReceituarioPdf({
       medicoId: identity.professional.id,
@@ -531,8 +388,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     req.log.warn({ err: motorErr instanceof Error ? motorErr.message : String(motorErr) }, "prescriptions/emit: motor único falhou — receita M3 regulatória intacta");
   }
 
-  // 3) WhatsApp às FARMÁCIAS (best-effort, uma mensagem por farmácia).
-  //    A receita é roteada à farmácia de manipulação, não ao cliente.
+  // Entregas são ações separadas, confirmadas por destinatário.
   const pharmacyDispatches: Array<{
     pharmacyId: number;
     pharmacyName: string;
@@ -541,110 +397,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     whatsappLink: string | null;
   }> = [];
 
-  const distinctPharmacyIds = [
-    ...new Set(
-      emittedRecipes
-        .map((r) => r.pharmacyId)
-        .filter((id): id is number => typeof id === "number"),
-    ),
-  ];
-
-  for (const pid of distinctPharmacyIds) {
-    const pharmacy = pharmMap.get(pid);
-    if (!pharmacy) continue;
-    const recipeCount = emittedRecipes.filter((r) => r.pharmacyId === pid).length;
-    const target = (pharmacy.whatsapp || pharmacy.phone || "").trim();
-
-    let sent = false;
-    let link: string | null = null;
-    let detail = "Sem WhatsApp/telefone cadastrado na farmácia";
-    if (target) {
-      const msg =
-        `Olá, equipe ${pharmacy.name}. O Instituto Padua emitiu ${recipeCount} receita(s) ` +
-        `para o(a) cliente ${body.clientName}. O lote completo com os PDFs segue por e-mail/Drive. ` +
-        `Em caso de urgência, retornar por este contato.`;
-      try {
-        const wa = await sendWhatsapp(target, msg);
-        sent = wa.sent;
-        link = wa.link;
-        detail = wa.error ?? (wa.sent ? "Enviado via Twilio à farmácia" : "Link de fallback gerado");
-      } catch (err) {
-        req.log.warn({ err, pharmacyId: pid }, "Falha ao enviar WhatsApp à farmácia");
-        detail = "Falha no envio do WhatsApp";
-      }
-    }
-
-    try {
-      await db.insert(dispatchLogTable).values({
-        prescriptionId: prescription.id,
-        pharmacyId: pid,
-        channel: "whatsapp",
-        status: sent ? "sent" : target ? "link_only" : "skipped",
-        recipeCount,
-        detail,
-        batchDate,
-      });
-    } catch (err) {
-      req.log.warn({ err, pharmacyId: pid }, "Falha ao registrar dispatch WhatsApp");
-    }
-
-    pharmacyDispatches.push({
-      pharmacyId: pid,
-      pharmacyName: pharmacy.name,
-      recipeCount,
-      sent,
-      whatsappLink: link,
-    });
-  }
-
-  // 4) Efeitos colaterais dos alertas SNCR (best-effort, não bloqueia).
-  for (const alert of sncrSideEffects) {
-    await handleSncrAlert(alert);
-  }
-
-  // 4b) Motor de lembretes — disparo imediato ao emitir (fire-and-forget).
-  // Canal preferido: Telegram (quando telegramChatId vinculado) + WhatsApp em paralelo.
-  // Cópia ao CEO via Telegram sempre que o PADAXOR_TELEGRAM_CHAT_ID estiver configurado.
-  if (lembretePeriodos && lembretePeriodos.length > 0) {
-    const mensagemLembrete = truncarMensagemWhatsapp(
-      await montarMensagemLembrete(body.clientName, lembretePeriodos, new Date()),
-    );
-
-    // WhatsApp (paralelo, fire-and-forget)
-    if (body.clientPhone) {
-      sendWhatsapp(body.clientPhone, mensagemLembrete, {
-        contexto: "lembrete_prescricao",
-        clienteId: body.clientId ?? undefined,
-      }).catch((err) =>
-        req.log?.warn({ err }, "[prescriptions/emit] whatsapp lembrete — falhou silenciosamente"),
-      );
-    }
-
-    // Telegram ao paciente + cópia ao CEO (fire-and-forget)
-    if (body.clientId) {
-      db.select({ telegramChatId: clientsTable.telegramChatId })
-        .from(clientsTable)
-        .where(eq(clientsTable.id, body.clientId))
-        .limit(1)
-        .then(async ([cli]) => {
-          if (cli?.telegramChatId) {
-            await sendTelegram(cli.telegramChatId, mensagemLembrete).catch((e) =>
-              req.log?.warn({ err: e }, "[prescriptions/emit] telegram paciente — falhou"),
-            );
-          }
-          const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
-          if (ceoChatId) {
-            const msgCeo = `Copia CEO - Emissao #${prescription.id} - ${body.clientName}\n\n${mensagemLembrete}`;
-            await sendTelegram(ceoChatId, truncarMensagemWhatsapp(msgCeo, 3800)).catch((e) =>
-              req.log?.warn({ err: e }, "[prescriptions/emit] telegram CEO — falhou"),
-            );
-          }
-        })
-        .catch((e) =>
-          req.log?.warn({ err: e }, "[prescriptions/emit] telegram lembrete — erro ao buscar chatId"),
-        );
-    }
-  }
+  // Alertas SNCR são exibidos no retorno; não há cópia externa implícita.
 
   res.status(201).json({
     prescriptionId:      prescription.id,
@@ -657,7 +410,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 });
 
 // PDF binário (fora do OpenAPI — acesso direto por link).
-router.get("/recipes/:id/pdf", async (req, res): Promise<void> => {
+router.get("/recipes/:id/pdf", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
@@ -668,6 +421,7 @@ router.get("/recipes/:id/pdf", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Receita/PDF não encontrado" });
     return;
   }
+  await authorizedPrescription(req, recipe.prescriptionId);
   const buf = Buffer.from(recipe.pdfData, "base64");
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${recipe.fileName ?? `receita-${id}.pdf`}"`);
@@ -773,257 +527,12 @@ router.get("/prescription-formulas", async (_req, res): Promise<void> => {
   res.json(formulas);
 });
 
-// POST /prescriptions/:id/enviar-lembrete
-// Dispara o motor de lembretes para uma prescrição já emitida.
-// Útil para reenvio manual ou quando a emissão original não tinha clientId.
-// Fluxo: sincroniza lembretes_prescricao → templateLembretePrescricao → sendWhatsapp.
-router.post("/prescriptions/:id/enviar-lembrete", async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (Number.isNaN(id)) {
-    res.status(400).json({ error: "id inválido" });
-    return;
+router.use((error: unknown, _req: import("express").Request, res: import("express").Response,
+  next: import("express").NextFunction) => {
+  if (error instanceof ClinicalIdentityError) {
+    res.status(error.status).json({ error: error.message }); return;
   }
-
-  const empresaId = resolveEmpresaId(req);
-  const [pres] = await db
-    .select()
-    .from(prescriptionsTable)
-    .where(and(eq(prescriptionsTable.id, id), eq(prescriptionsTable.empresaId, empresaId)));
-  if (!pres) {
-    res.status(404).json({ error: "Prescrição não encontrada" });
-    return;
-  }
-
-  // Mesma proteção da emissão: nunca escolher o primeiro CPF ou outra empresa.
-  const clientId = await resolvePrescriptionClient(pres, empresaId);
-
-  if (!clientId) {
-    res.status(422).json({
-      error: "Paciente não identificado com segurança. Confira o vínculo e os dados da prescrição com o cadastro antes de reenviar.",
-    });
-    return;
-  }
-  const [client] = await db.select({ phone: clientsTable.phone }).from(clientsTable)
-    .where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, empresaId)));
-  const clientPhone = client?.phone ?? null;
-
-  // Itens da prescrição
-  const itens = await db
-    .select()
-    .from(prescriptionItemsTable)
-    .where(eq(prescriptionItemsTable.prescriptionId, id));
-
-  if (itens.length === 0) {
-    res.status(422).json({ error: "Prescrição sem itens" });
-    return;
-  }
-
-  // Sincronizar lembrete (idempotente — cria ou atualiza)
-  const itensLembrete: ItemLembretePrescricao[] = itens.map((it) => ({
-    tipo: "formula" as const,
-    nome: it.name,
-    ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
-    dose: it.dose ?? undefined,
-    // posologia OMITIDA: verbosa do receituário (para farmácia), não para o paciente.
-    periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
-  }));
-
-  const sync = await sincronizarLembretePrescricao(clientId, itensLembrete);
-
-  // Ler os períodos recém-gravados
-  const [lembrete] = await db
-    .select({ periodos: lembretesPrescricaoTable.periodos })
-    .from(lembretesPrescricaoTable)
-    .where(eq(lembretesPrescricaoTable.clienteId, clientId))
-    .limit(1);
-
-  const lembretePeriodos = (lembrete?.periodos as LembretePeriodoJson[]) ?? [];
-
-  if (lembretePeriodos.length === 0) {
-    res.status(422).json({
-      error: "Nenhum período canônico mapeado — verifique o campo 'periodo' dos itens",
-      itens: itens.map((it) => ({ nome: it.name, periodo: it.periodo })),
-    });
-    return;
-  }
-
-  // Montar mensagem pelo motor oficial e enviar via sendWhatsapp
-  const mensagem = truncarMensagemWhatsapp(
-    await montarMensagemLembrete(pres.clientName, lembretePeriodos, new Date()),
-  );
-
-  // Canal de entrega — decisão do CEO por chamada. "ambos" mantém o
-  // comportamento histórico; "telegram" não toca no WhatsApp do paciente.
-  // Valor inválido é REJEITADO: silenciar os dois canais seria pior que falhar.
-  const canal = (req.body?.canal as string | undefined) ?? "ambos";
-  if (canal !== "ambos" && canal !== "whatsapp" && canal !== "telegram") {
-    res.status(400).json({
-      error: `canal inválido: "${canal}" — use "ambos", "whatsapp" ou "telegram"`,
-    });
-    return;
-  }
-  const usarWhatsapp = canal === "ambos" || canal === "whatsapp";
-  const usarTelegram = canal === "ambos" || canal === "telegram";
-
-  let whatsappResult = null;
-  if (clientPhone && usarWhatsapp) {
-    whatsappResult = await sendWhatsapp(clientPhone, mensagem, {
-      contexto: "lembrete_prescricao",
-      clienteId: clientId,
-    });
-  }
-
-  // Telegram: ao paciente (se telegramChatId vinculado) + cópia ao CEO (sempre).
-  // Canal preferido pelo CEO (14/08/2026). WhatsApp mantido como canal paralelo.
-  const telegramResults: { destino: string; sent: boolean; error?: string | null }[] = [];
-
-  const [cliTelegram] = usarTelegram
-    ? await db
-        .select({ telegramChatId: clientsTable.telegramChatId })
-        .from(clientsTable)
-        .where(eq(clientsTable.id, clientId))
-        .limit(1)
-    : [undefined];
-
-  if (!usarTelegram) {
-    // canal=whatsapp — nada a fazer no Telegram
-  } else if (cliTelegram?.telegramChatId) {
-    const rt = await sendTelegram(cliTelegram.telegramChatId, mensagem);
-    telegramResults.push({ destino: `paciente (ID ${clientId})`, sent: rt.sent, error: rt.error ?? null });
-  } else {
-    telegramResults.push({
-      destino: "paciente",
-      sent: false,
-      error: "telegram_chat_id nao vinculado — paciente precisa enviar /start ao @Paduaclinica_bot",
-    });
-  }
-
-  // Cópia ao CEO é entrega por Telegram — segue o mesmo canal escolhido.
-  const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
-  if (usarTelegram && ceoChatId) {
-    const msgCeo = `Copia CEO - Prescricao #${id} - ${pres.clientName}\n\n${mensagem}`;
-    const rc = await sendTelegram(ceoChatId, truncarMensagemWhatsapp(msgCeo, 3800));
-    telegramResults.push({ destino: "CEO", sent: rc.sent, error: rc.error ?? null });
-  }
-
-  res.json({
-    ok: true,
-    prescriptionId: id,
-    clientId,
-    clientPhone: clientPhone ?? "não encontrado",
-    sync: {
-      lembreteId:  sync.lembreteId,
-      periodos:    sync.periodos,
-      horarios:    sync.horarios,
-      formulas:    sync.formulas,
-      ativo:       sync.ativo,
-    },
-    canal,
-    whatsapp: !usarWhatsapp
-      ? { sent: false, via: null, error: null, motivo: `não enviado — canal="${canal}"` }
-      : whatsappResult
-      ? { sent: whatsappResult.sent, via: whatsappResult.via, error: whatsappResult.error ?? null }
-      : { sent: false, via: null, error: "telefone não encontrado — mensagem não enviada" },
-    telegram: telegramResults,
-    mensagemPreview: mensagem.slice(0, 300) + (mensagem.length > 300 ? "…" : ""),
-  });
-});
-
-// ── Teste de template de e-mail (CEO only — remove após confirmar visual) ──────
-/**
- * Reenvia o e-mail do receituário de uma prescrição JÁ EMITIDA, com as fórmulas
- * reais do banco (não dados de teste). Usa o mesmo motor da emissão — mesmo PDF,
- * mesmo casco navy, mesmos cartões de substância.
- * Destinatários: CEO sempre + e-mail do paciente quando cadastrado.
- */
-router.post("/prescriptions/:id/reenviar-email", requireCollaborator, async (req, res): Promise<void> => {
-  const [actor] = await db.select({ isPrimaryDoctor: professionalsTable.isPrimaryDoctor })
-    .from(professionalsTable)
-    .where(eq(professionalsTable.id, req.collaborator!.professionalId));
-  if (!actor?.isPrimaryDoctor) {
-    res.status(403).json({ error: "Somente o CEO pode reenviar o receituário por e-mail." });
-    return;
-  }
-  const id = Number(req.params.id);
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    res.status(400).json({ error: "id inválido" });
-    return;
-  }
-
-  const [pres] = await db.select().from(prescriptionsTable).where(and(
-    eq(prescriptionsTable.id, id),
-    eq(prescriptionsTable.empresaId, resolveEmpresaId(req)),
-  ));
-  if (!pres) {
-    res.status(404).json({ error: "Prescrição não encontrada" });
-    return;
-  }
-  if (pres.status !== "emitted") {
-    res.status(422).json({ error: "Somente prescrições emitidas podem ser reenviadas." });
-    return;
-  }
-
-  const itens = await db
-    .select()
-    .from(prescriptionItemsTable)
-    .where(eq(prescriptionItemsTable.prescriptionId, id))
-    .orderBy(prescriptionItemsTable.orderIndex);
-
-  if (itens.length === 0) {
-    res.status(422).json({ error: "Prescrição sem itens — nada a enviar" });
-    return;
-  }
-
-  const destinatarios: string[] = ["drcaiohenriquepadua@gmail.com"];
-  if (pres.clientEmail) destinatarios.push(pres.clientEmail);
-
-  const result = await emitirReceituarioPdf({
-    patient: {
-      nome:     pres.clientName,
-      cpf:      pres.clientCpf ?? undefined,
-      telefone: pres.clientPhone ?? undefined,
-      email:    pres.clientEmail ?? undefined,
-    },
-    formulas: itens.map((it) => ({
-      nome:      it.name,
-      ativos:    it.ativos ?? undefined,
-      posologia: it.posologia ?? "",   // FormulaEmissao.posologia é obrigatória
-      via:       it.via ?? undefined,
-      forma:     it.observacao ?? undefined,
-      dose:      it.dose ?? undefined,
-    })),
-    tipoReceita:   "especial",
-    emailTo:       destinatarios,
-    assetsBaseUrl: baseUrlFromEnv(),
-  });
-
-  res.json({
-    ok: true,
-    prescriptionId: id,
-    paciente: pres.clientName,
-    destinatarios,
-    emailSent: result.emailSent,
-    fileName: result.fileName,
-    modeloUsado: result.modeloUsado,
-    formulasEnviadas: itens.length,
-  });
-});
-
-router.post("/prescriptions/test-email-receituario", async (req, res): Promise<void> => {
-  const emailTo = (req.body?.emailTo as string) ?? "drcaiohenriquepadua@gmail.com";
-  const baseUrl = baseUrlFromEnv();
-  const result = await emitirReceituarioPdf({
-    patient: { nome: "CARLUCIA SANTOS FERNANDES", cpf: "012.345.678-90", telefone: "(62) 98269-6656" },
-    formulas: [
-      { nome: "Sibutramina 5mg",        dose: "5mg",        via: "VO", posologia: "1 cap a tarde (14h)" },
-      { nome: "Vitamina D3 50.000UI",   dose: "50.000UI",   via: "VO", posologia: "1 cap por semana" },
-      { nome: "Metformina 500mg",       dose: "500mg",      via: "VO", posologia: "1 cap nas refeicoes" },
-      { nome: "Oxacarbazepina 600mg",   dose: "600mg",      via: "VO", posologia: "1 cap ao deitar" },
-    ],
-    emailTo:         [emailTo],
-    assetsBaseUrl:   baseUrl,
-  });
-  res.json({ ok: true, emailSent: result.emailSent, modeloUsado: result.modeloUsado });
+  next(error);
 });
 
 export default router;

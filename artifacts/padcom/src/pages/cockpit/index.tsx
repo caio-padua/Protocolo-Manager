@@ -56,8 +56,8 @@ import { ReceituarioAlertaPanel } from "./panels/ReceituarioAlertaPanel";
 // Consolida a consulta em 3 colunas: PASSADO (historico), PRESENTE (Cerebro:
 // escore/doencas vivas) e FUTURO (prescricao sugerida em blocos expansiveis).
 // Os accordions sao BURROS: so renderizam o DTO que o Cerebro monta. O botao
-// "Finalizar e Emitir Tudo" gera o PDF, aprova os orcamentos e dispara a
-// mensageria inteligente (lembretes por periodo/dia).
+// "Finalizar e Emitir Tudo" aprova orçamentos e prepara conteúdo clínico.
+// Envios e autorização da agenda são ações separadas e confirmadas.
 // ============================================================================
 
 const GOLD = "#c2a05a";
@@ -120,9 +120,9 @@ interface ClienteOpt {
 interface EmitirResp {
   ok: boolean;
   orcamentosAprovados: number;
-  lembretes: { agendados: number; porTipo: { formula: number; exame: number; injetavel: number } };
+  lembretes: { formulas: number; periodos: number; horarios: string[]; ativo: boolean };
   pdfUrl: string;
-  whatsapp: { sent: boolean; via: string; link: string };
+  messaging: { automaticSend: false; requiresRecipientConfirmation: true };
 }
 
 function moeda(cents: number): string {
@@ -198,18 +198,23 @@ export default function Cockpit() {
 
   const emitir = useMutation<EmitirResp>({
     mutationFn: async () => {
-      const r = await fetch(`/api/cockpit/${clienteId}/emitir`, { method: "POST" });
-      if (!r.ok) throw new Error("falha ao emitir");
+      const r = await fetch(`${import.meta.env.BASE_URL}api/cockpit/${clienteId}/emitir`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("padcom_collab_token") ?? ""}` },
+      });
+      if (!r.ok) {
+        const error = await r.json().catch(() => null);
+        throw new Error(error?.error || "Falha ao finalizar a consulta.");
+      }
       return r.json();
     },
     onSuccess: (res) => {
       toast({
         title: "Consulta finalizada e emitida",
-        description: `${res.orcamentosAprovados} orcamento(s) aprovado(s) | ${res.lembretes.agendados} lembrete(s) agendado(s) | WhatsApp ${res.whatsapp.via === "twilio" ? "enviado" : "link gerado"}.`,
+        description: `${res.orcamentosAprovados} orçamento(s) aprovado(s). Conteúdo preparado em ${res.lembretes.periodos} período(s). Nenhuma mensagem enviada nesta finalização. ${res.lembretes.ativo ? "Agenda recorrente previamente autorizada mantida." : "Agenda inativa; revise e autorize na Central de Lembretes."}`,
       });
-      if (res.whatsapp.via === "link" && res.whatsapp.link) window.open(res.whatsapp.link, "_blank");
     },
-    onError: () => toast({ title: "Erro ao emitir", variant: "destructive" }),
+    onError: (error) => toast({ title: "Erro ao finalizar", description: error.message, variant: "destructive" }),
   });
 
   const resumoDocs = useMemo(() => {
@@ -735,7 +740,9 @@ export default function Cockpit() {
             Ultima emissao:
           </span>
           <span>{emitir.data.orcamentosAprovados} orcamento(s) aprovado(s)</span>
-          <span>{emitir.data.lembretes.agendados} lembrete(s) agendado(s)</span>
+          <span>Conteúdo preparado em {emitir.data.lembretes.periodos} período(s).</span>
+          <span>{emitir.data.lembretes.ativo ? "Agenda previamente autorizada mantida." : "Agenda inativa; exige autorização."}</span>
+          <span>Nenhuma mensagem enviada nesta finalização.</span>
           <a href={emitir.data.pdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline" style={{ color: GOLD }}>
             <ExternalLink className="h-3 w-3" /> Abrir PDF da consulta
           </a>

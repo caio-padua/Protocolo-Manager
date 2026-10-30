@@ -238,6 +238,18 @@ describe("sendWhatsapp — espelho Telegram dispara somente após confirmação 
     expect(mockSendTelegram).toHaveBeenCalledWith("TELEGRAM_CHAT_999", "Olá");
   });
 
+  it("envio clínico com canal confirmado não espelha para Telegram", async () => {
+    mockFetch.mockResolvedValueOnce(twilioAccepted("SM_EXPLICIT_CHANNEL"))
+      .mockResolvedValue(twilioStatusDelivered());
+    const promise = sendWhatsapp("11999990000", "Orientação clínica", {
+      clienteId: 1, contexto: "lembrete_prescricao", mirrorTelegram: false,
+    });
+    await vi.runAllTimersAsync();
+    expect((await promise).sent).toBe(true);
+    await flushMicrotasks();
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+  });
+
   // ── Extra: sem clienteId → espelho nunca é tentado ────────────────────────
   it("nunca tenta espelhar para Telegram quando clienteId não é fornecido", async () => {
     mockFetch

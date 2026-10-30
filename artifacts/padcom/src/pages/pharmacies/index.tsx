@@ -3,7 +3,6 @@ import {
   useCreatePharmacy,
   useUpdatePharmacy,
   useDeletePharmacy,
-  useSendPharmacyBatch,
 } from "@workspace/api-client-react";
 import type { Pharmacy } from "@workspace/api-client-react";
 import { CardContent } from "@/components/ui/card";
@@ -62,18 +61,6 @@ export default function Pharmacies() {
     mutation: {
       onSuccess: () => { toast({ title: "Farmácia removida." }); refetch(); },
       onError: () => toast({ title: "Erro ao remover farmácia", variant: "destructive" }),
-    },
-  });
-  const batchMutation = useSendPharmacyBatch({
-    mutation: {
-      onSuccess: (res) => {
-        toast({
-          title: "Lote enviado!",
-          description: `${res.emailsSent} e-mail(s) para ${res.pharmacies} farmácia(s), ${res.recipesSent} receita(s).`,
-        });
-        refetch();
-      },
-      onError: () => toast({ title: "Erro ao enviar lote", variant: "destructive" }),
     },
   });
 
@@ -153,15 +140,9 @@ export default function Pharmacies() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            className="btn-3d-soft"
-            onClick={() => batchMutation.mutate({ data: {} })}
-            disabled={batchMutation.isPending}
-            title="Envia agora o lote de receitas pendentes por e-mail (mesmo conteúdo do envio noturno automático das 22h)."
-          >
-            <Send className="h-4 w-4 mr-2" />
-            {batchMutation.isPending ? "Enviando..." : "Enviar lote agora"}
-          </Button>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Envio de receitas somente após confirmar o canal e a farmácia na prescrição do Cockpit. Não há lote noturno automático.
+          </p>
           <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeDialog())}>
             <DialogTrigger asChild>
               <Button className="btn-3d" onClick={openCreate}>

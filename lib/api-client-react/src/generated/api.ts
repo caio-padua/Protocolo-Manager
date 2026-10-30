@@ -62,6 +62,9 @@ import type {
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
   Client,
+  ClinicalDeliveryContext,
+  ClinicalDeliveryInput,
+  ClinicalDeliveryResult,
   ClinicsSettings,
   CompanySettings,
   ConciergeChargeResult,
@@ -5567,6 +5570,189 @@ export const useSendPharmacyBatch = <
   TContext
 > => {
   return useMutation(getSendPharmacyBatchMutationOptions(options));
+};
+
+/**
+ * @summary Destinatários e histórico autorizados pelo vínculo clínico
+ */
+export const getGetPrescriptionDeliveryUrl = (id: number) => {
+  return `/api/prescriptions/${id}/delivery`;
+};
+
+export const getPrescriptionDelivery = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ClinicalDeliveryContext> => {
+  return customFetch<ClinicalDeliveryContext>(
+    getGetPrescriptionDeliveryUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPrescriptionDeliveryQueryKey = (id: number) => {
+  return [`/api/prescriptions/${id}/delivery`] as const;
+};
+
+export const getGetPrescriptionDeliveryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrescriptionDelivery>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPrescriptionDelivery>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPrescriptionDeliveryQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPrescriptionDelivery>>
+  > = ({ signal }) =>
+    getPrescriptionDelivery(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrescriptionDelivery>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrescriptionDeliveryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrescriptionDelivery>>
+>;
+export type GetPrescriptionDeliveryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Destinatários e histórico autorizados pelo vínculo clínico
+ */
+
+export function useGetPrescriptionDelivery<
+  TData = Awaited<ReturnType<typeof getPrescriptionDelivery>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPrescriptionDelivery>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrescriptionDeliveryQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Envio único com destinatário e canal explicitamente confirmados
+ */
+export const getCreatePrescriptionDeliveryUrl = (id: number) => {
+  return `/api/prescriptions/${id}/delivery`;
+};
+
+export const createPrescriptionDelivery = async (
+  id: number,
+  clinicalDeliveryInput: ClinicalDeliveryInput,
+  options?: RequestInit,
+): Promise<ClinicalDeliveryResult> => {
+  return customFetch<ClinicalDeliveryResult>(
+    getCreatePrescriptionDeliveryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(clinicalDeliveryInput),
+    },
+  );
+};
+
+export const getCreatePrescriptionDeliveryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPrescriptionDelivery>>,
+    TError,
+    { id: number; data: BodyType<ClinicalDeliveryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPrescriptionDelivery>>,
+  TError,
+  { id: number; data: BodyType<ClinicalDeliveryInput> },
+  TContext
+> => {
+  const mutationKey = ["createPrescriptionDelivery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPrescriptionDelivery>>,
+    { id: number; data: BodyType<ClinicalDeliveryInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createPrescriptionDelivery(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePrescriptionDeliveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPrescriptionDelivery>>
+>;
+export type CreatePrescriptionDeliveryMutationBody =
+  BodyType<ClinicalDeliveryInput>;
+export type CreatePrescriptionDeliveryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Envio único com destinatário e canal explicitamente confirmados
+ */
+export const useCreatePrescriptionDelivery = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPrescriptionDelivery>>,
+    TError,
+    { id: number; data: BodyType<ClinicalDeliveryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPrescriptionDelivery>>,
+  TError,
+  { id: number; data: BodyType<ClinicalDeliveryInput> },
+  TContext
+> => {
+  return useMutation(getCreatePrescriptionDeliveryMutationOptions(options));
 };
 
 /**

@@ -31,7 +31,13 @@ export interface BatchResult {
 }
 
 // Envia o lote noturno. Pode ser chamado pelo cron ou manualmente via rota.
-export async function sendNightlyPharmacyBatch(forDate?: string): Promise<BatchResult> {
+export async function sendNightlyPharmacyBatch(_forDate?: string): Promise<BatchResult> {
+  return { pharmacies: 0, recipesSent: 0, emailsSent: 0,
+    errors: ["Envio automático desativado. Confirme cada destinatário na prescrição."] };
+}
+
+// Implementação histórica preservada, sem chamador/export: não é autorização de envio.
+async function legacyUnconfirmedBatch(forDate?: string): Promise<BatchResult> {
   const result: BatchResult = { pharmacies: 0, recipesSent: 0, emailsSent: 0, errors: [] };
   const dateStr = forDate || todayBR();
 

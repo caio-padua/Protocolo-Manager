@@ -115,6 +115,8 @@ export interface SendWhatsappOptions {
   contexto?: string;
   /** Cliente associado (para o rastreio). */
   clienteId?: number;
+  /** Explicit single-channel clinical sends must not mirror into an unconfirmed channel. */
+  mirrorTelegram?: boolean;
 }
 
 /**
@@ -373,7 +375,7 @@ export async function sendWhatsapp(
     // Espelho Telegram: só dispara APÓS o Twilio confirmar aceitação da mensagem
     // (2xx sem error_code e sem falha assíncrona). Falhas do WhatsApp não chegam
     // ao paciente via Telegram de forma silenciosa.
-    if (opts.clienteId) void espelharParaTelegram(opts.clienteId, phone, message, opts.contexto);
+    if (opts.clienteId && opts.mirrorTelegram !== false) void espelharParaTelegram(opts.clienteId, phone, message, opts.contexto);
 
     return { sent: true, via: "twilio", link, logId };
   } catch (err: any) {
@@ -406,9 +408,9 @@ async function registrarTelegramBloqueado(
   phone: string,
   message: string,
   whatsappError: string,
-  opts: Pick<SendWhatsappOptions, "contexto" | "clienteId">,
+  opts: Pick<SendWhatsappOptions, "contexto" | "clienteId" | "mirrorTelegram">,
 ): Promise<void> {
-  if (!opts.clienteId) return;
+  if (!opts.clienteId || opts.mirrorTelegram === false) return;
   try {
     // Só registra se o paciente tem chatId — sem chatId o espelho nunca seria
     // tentado, e um badge "Telegram bloqueado" seria enganoso.

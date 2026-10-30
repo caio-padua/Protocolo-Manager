@@ -1351,6 +1351,45 @@ paths:
                 $ref: "#/components/schemas/BatchResult"
 
   # PRESCRIPTIONS
+  /prescriptions/{id}/delivery:
+    get:
+      operationId: getPrescriptionDelivery
+      tags: [prescriptions]
+      summary: Destinatários e histórico autorizados pelo vínculo clínico
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Destinatários atuais e resultados por canal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalDeliveryContext"
+    post:
+      operationId: createPrescriptionDelivery
+      tags: [prescriptions]
+      summary: Envio único com destinatário e canal explicitamente confirmados
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClinicalDeliveryInput"
+      responses:
+        "200":
+          description: Aceitação pelo provedor não comprova entrega ao destinatário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalDeliveryResult"
   /prescriptions:
     get:
       operationId: listPrescriptions
@@ -5442,6 +5481,51 @@ components:
       required:
         - name
 
+    ClinicalDeliveryTarget:
+      type: object
+      required: [channel, recipient, label]
+      properties:
+        channel: { type: string, enum: [email, whatsapp, telegram] }
+        recipient: { type: string }
+        label: { type: string }
+        pharmacyId: { type: integer }
+    ClinicalDeliveryInput:
+      type: object
+      additionalProperties: false
+      required: [confirmed, channel, recipient]
+      properties:
+        confirmed: { type: boolean, enum: [true] }
+        channel: { type: string, enum: [email, whatsapp, telegram] }
+        recipient: { type: string, minLength: 1 }
+        pharmacyId: { type: integer, minimum: 1 }
+    ClinicalDeliveryAttempt:
+      type: object
+      required: [id, channel, status, detail, createdAt]
+      properties:
+        id: { type: integer }
+        channel: { type: string }
+        status: { type: string }
+        detail: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+    ClinicalDeliveryContext:
+      type: object
+      required: [targets, history]
+      properties:
+        targets:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalDeliveryTarget" }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicalDeliveryAttempt" }
+    ClinicalDeliveryResult:
+      type: object
+      required: [id, status, accepted, error, target]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [accepted, failed, unknown] }
+        accepted: { type: boolean }
+        error: { type: [string, "null"] }
+        target: { $ref: "#/components/schemas/ClinicalDeliveryTarget" }
     PrescriptionItemInput:
       type: object
       properties:

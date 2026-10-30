@@ -27,7 +27,7 @@ import {
   type ClinicaDataBind,
 } from "@/components/receituario/ReceituarioPreview";
 import { loadReceituarioConfig } from "@/lib/arabesques/receituario-config";
-import { PrescricoesEmitidas } from "./PrescricoesEmitidas";
+import { PrescricoesEmitidas, PrescriptionPdfLink } from "./PrescricoesEmitidas";
 
 const NAVY = "#16284a";
 const OURO = "#c9a24e";
@@ -1060,9 +1060,9 @@ export default function PrescricaoPage(
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <a href={`${import.meta.env.BASE_URL}${rec.pdfUrl.replace(/^\//, "")}`} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
+                          <PrescriptionPdfLink href={`${import.meta.env.BASE_URL}${rec.pdfUrl.replace(/^\//, "")}`} className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
                             <FileText className="w-3.5 h-3.5" />Abrir PDF
-                          </a>
+                          </PrescriptionPdfLink>
                           {rec.driveWebViewLink && (
                             <a href={rec.driveWebViewLink} target="_blank" rel="noreferrer" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
                               <ExternalLink className="w-3.5 h-3.5" />Drive
@@ -1116,9 +1116,7 @@ export default function PrescricaoPage(
                               Modelo: {(emitResult as any).pacientePdfMotorUnico.modeloUsado}
                               {" · "}
                               Motor: {(emitResult as any).pacientePdfMotorUnico.tipoMotor}
-                              {(emitResult as any).pacientePdfMotorUnico.emailSent
-                                ? " · E-mail enviado ao paciente"
-                                : " · E-mail não enviado"}
+                              {" · Documento gerado — nenhum e-mail enviado automaticamente"}
                             </p>
                           </div>
                           {(emitResult as any).pacientePdfMotorUnico.driveUrl && (

@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-const mock = vi.hoisted(() => ({ results: [] as any[][], insert: vi.fn(), send: vi.fn(), generate: vi.fn(), values: vi.fn() }));
+const mock = vi.hoisted(() => ({ results: [] as any[][], insert: vi.fn(), send: vi.fn(), generate: vi.fn(), values: vi.fn(), alert: vi.fn() }));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
   db: {
@@ -13,6 +13,7 @@ vi.mock("@workspace/db", async () => ({
       return chain;
     } }),
     insert: mock.insert,
+    update: () => ({ set: () => ({ where: async () => [] }) }),
   },
 }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: any, _s: any, next: any) => next() }));
@@ -23,7 +24,7 @@ vi.mock("../lib/google-drive", () => ({ ensurePharmacyDayFolder: mock.generate, 
 vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: mock.send }));
 vi.mock("../lib/telegram", () => ({ sendTelegram: mock.send }));
 vi.mock("../lib/anvisa-catalog", () => ({ recipeTypeForControlledClass: vi.fn() }));
-vi.mock("../lib/sncr-alerts", () => ({ handleSncrAlert: mock.send }));
+vi.mock("../lib/sncr-alerts", () => ({ handleSncrAlert: mock.alert }));
 vi.mock("../lib/receituario-motor.js", () => ({ emitirReceituarioPdf: mock.send }));
 vi.mock("../lib/messaging/base-url.js", () => ({ baseUrlFromEnv: () => "" }));
 vi.mock("../lib/lembrete-periodo", () => ({ sincronizarLembretePrescricao: mock.generate }));
@@ -41,7 +42,7 @@ const client = { id: 71, name: "Cliente sintetico", cpf: null, email: null, phon
 const location = { id: 31, name: "Clinica sintetica", empresaId: 21, active: "true" };
 const token = () => createCollaboratorToken({ professionalId: 41, role: "executor" });
 const body = { clientId: 71, clientName: "Nome enviado nao confiavel", items: [] };
-beforeEach(() => { vi.clearAllMocks(); mock.results = []; });
+beforeEach(() => { vi.clearAllMocks(); mock.results = []; mock.alert.mockResolvedValue(undefined); });
 function noEffects() {
   expect(mock.insert).not.toHaveBeenCalled();
   expect(mock.send).not.toHaveBeenCalled();
@@ -100,4 +101,30 @@ it("prescricao autorizada grava identidade canonica e passa ids corretos ao moto
   expect(mock.send).toHaveBeenCalledWith(expect.objectContaining({
     medicoId: 41, clinicaId: 31, emailTo: [], patient: expect.objectContaining({ nome: client.name }),
   }));
+});
+it.each([
+  { status: "consumed", low: true, remaining: 4, number: "1234", expected: "low" },
+  { status: "exhausted", low: true, remaining: 0, number: null, expected: "exhausted" },
+  { status: "no_range", low: true, remaining: null, number: null, expected: "no_range" },
+])("emissão preserva cartões SNCR $expected sem destinatários externos", async sncr => {
+  mock.results = [[professional], [client], [location], [{ id: 1 }], [client], [], []];
+  mock.values.mockReturnValue({ returning: async () => [{ id: 101 }] });
+  mock.insert.mockReturnValue({ values: mock.values });
+  const plan = { needsSncr: true, recipeType: "controlado_isolado", anvisaType: "A",
+    pharmacyId: null, title: "Receita sintética", items: [] };
+  mock.generate.mockImplementation((arg: any) => {
+    if (Array.isArray(arg)) return [plan];
+    if (typeof arg === "number") return Promise.resolve({ ativo: false });
+    if ("controlledType" in arg) return Promise.resolve({ ...sncr, rangeId: 1 });
+    return Promise.resolve(new Uint8Array([1, 2, 3]));
+  });
+  mock.send.mockResolvedValue({ fileName: "sintetico.pdf", emailSent: false });
+  const result = await request(app).post("/prescriptions/emit").set("Authorization", `Bearer ${token()}`)
+    .send({ ...body, items: [{ name: "Fórmula sintética", isControlled: true, anvisaType: "A" }] });
+  expect(result.status).toBe(201);
+  expect(mock.alert).toHaveBeenCalledWith(expect.objectContaining({
+    status: sncr.expected, controlledType: "A", uf: "SP", clientId: 71, prescriptionId: 101,
+  }), { notifyEmail: false });
+  expect(mock.send).toHaveBeenCalledTimes(1);
+  expect(mock.send).toHaveBeenCalledWith(expect.objectContaining({ emailTo: [] }));
 });

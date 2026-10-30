@@ -26,7 +26,8 @@ import {
   type ItemLembretePrescricao,
 } from "../lib/lembrete-periodo";
 import { enriquecerItemFormula } from "../lib/formula-manipulada";
-import { sendWhatsapp, registrarLogMensagem } from "../lib/whatsapp";
+import { registrarLogMensagem } from "../lib/whatsapp";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { sendTelegram } from "../lib/telegram";
 import { inboxRouter } from "./telegram-inbox";
 const router = Router();
@@ -270,23 +271,23 @@ router.get("/cockpit/:clientId/pdf", async (req, res): Promise<void> => {
 });
 
 // 3) POST /cockpit/:clientId/emitir — "Finalizar e Emitir Tudo".
-//    Aprova orcamentos, agenda lembretes e dispara o resumo na mensageria.
-router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
+//    Aprova orçamentos e prepara conteúdo, sem autorizar mensagens.
+router.post("/cockpit/:clientId/emitir", requireCollaborator, async (req, res): Promise<void> => {
   const clienteId = Number(req.params.clientId);
   if (!Number.isInteger(clienteId)) {
     res.status(400).json({ error: "clientId invalido" });
     return;
   }
-  const empresaId = resolveEmpresaId(req);
-  const [cliente] = await db
-    .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone })
-    .from(clientsTable)
-    .where(and(eq(clientsTable.id, clienteId), eq(clientsTable.empresaId, empresaId)))
-    .limit(1);
-  if (!cliente) {
-    res.status(404).json({ error: "cliente nao encontrado" });
-    return;
+  let identity;
+  try {
+    identity = await resolveClinicalEmitter(req, clienteId);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message }); return;
+    }
+    throw error;
   }
+  const cliente = identity.client;
 
   const respostas = await carregarRespostas(clienteId);
   const presente = await computeMotor(respostas);
@@ -322,10 +323,7 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
   for (const ex of presente.exames.slice(0, 10))
     itensLembrete.push({ tipo: "exame", nome: ex });
 
-  // Efeitos colaterais externos isolados (Onda H): uma falha de servico externo
-  // (mensageria/Twilio/ZapSign) NAO pode derrubar a emissao nem perder a
-  // aprovacao dos orcamentos. Cada chamada roda via Promise.allSettled e degrada
-  // com graca. Lembretes vem antes do WhatsApp porque o resumo cita a contagem.
+  // Preparar o conteúdo não autoriza a agenda nem deve impedir a finalização.
   let lembretes = { formulas: 0, periodos: 0, horarios: [] as string[], ativo: false };
   const [lembRes] = await Promise.allSettled([sincronizarLembretePrescricao(clienteId, itensLembrete)]);
   if (lembRes.status === "fulfilled") {
@@ -339,28 +337,13 @@ router.post("/cockpit/:clientId/emitir", async (req, res): Promise<void> => {
     req.log.error({ err: String(lembRes.reason) }, "[cockpit] falha ao sincronizar lembretes");
   }
 
-  // c) ENVIAR RESUMO p/ MENSAGERIA (WhatsApp; fallback link quando sem Twilio).
-  const resumoMsg =
-    `PAXTER | ${cliente.name}: consulta finalizada. Grade ${presente.gradeGlobal}. ` +
-    `${aprovados} orcamento(s) aprovado(s), lembretes em ${lembretes.periodos} periodo(s) do dia. ` +
-    `Em breve voce recebera os lembretes das suas formulas, exames e injetaveis.`;
-  let whatsapp: { sent: boolean; via: string; link: string } = { sent: false, via: "link", link: "" };
-  if (cliente.phone) {
-    const [waRes] = await Promise.allSettled([sendWhatsapp(cliente.phone, resumoMsg)]);
-    if (waRes.status === "fulfilled") {
-      whatsapp = { sent: waRes.value.sent, via: waRes.value.via, link: waRes.value.link };
-    } else {
-      req.log.error({ err: String(waRes.reason) }, "[cockpit] falha ao enviar WhatsApp");
-    }
-  }
-
   res.json({
     ok: true,
     cliente: { id: cliente.id, nome: cliente.name },
     orcamentosAprovados: aprovados,
     lembretes,
     pdfUrl: `/api/cockpit/${clienteId}/pdf`,
-    whatsapp,
+    messaging: { automaticSend: false, requiresRecipientConfirmation: true },
   });
 });
 

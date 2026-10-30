@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, pharmaciesTable, dispatchLogTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
-import { CreatePharmacyBody, SendPharmacyBatchBody } from "@workspace/api-zod";
+import { eq, desc, and } from "drizzle-orm";
+import { CreatePharmacyBody } from "@workspace/api-zod";
 import { ensurePharmacyFolder } from "../lib/google-drive";
-import { sendNightlyPharmacyBatch } from "../lib/pharmacy-email";
+import { requireCollaborator } from "./collaborator";
+import { authorizedPrescriptionFilter } from "./prescription-delivery";
+import { prescriptionsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -94,16 +96,17 @@ router.delete("/pharmacies/:id", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-router.post("/pharmacies/send-batch", async (req, res): Promise<void> => {
-  const parsed = SendPharmacyBatchBody.safeParse(req.body ?? {});
-  const date = parsed.success ? parsed.data?.date ?? undefined : undefined;
-  const result = await sendNightlyPharmacyBatch(date ?? undefined);
-  res.json(result);
+router.post("/pharmacies/send-batch", requireCollaborator, async (_req, res): Promise<void> => {
+  res.status(410).json({ error: "Lote automático desativado. Confirme a farmácia e o canal em cada prescrição no Cockpit." });
 });
 
-router.get("/dispatch/log", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(dispatchLogTable).orderBy(desc(dispatchLogTable.createdAt)).limit(200);
-  res.json(rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })));
+router.get("/dispatch/log", requireCollaborator, async (req, res): Promise<void> => {
+  const rows = await db.select({ log: dispatchLogTable }).from(dispatchLogTable)
+    .innerJoin(prescriptionsTable, and(eq(prescriptionsTable.id, dispatchLogTable.prescriptionId),
+      eq(prescriptionsTable.empresaId, dispatchLogTable.empresaId)))
+    .where(authorizedPrescriptionFilter(req.collaborator!.professionalId))
+    .orderBy(desc(dispatchLogTable.createdAt)).limit(200);
+  res.json(rows.map(({ log }) => ({ ...log, createdAt: log.createdAt.toISOString() })));
 });
 
 export default router;
