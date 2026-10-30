@@ -24,9 +24,26 @@ const document = {
 };
 let selections = 0;
 export const db = {
-  execute(query: SQL) {
+  async execute(query: SQL) {
     const compiled = dialect.sqlToQuery(query);
-    return pool.query(compiled.sql, compiled.params);
+    const result = await pool.query(compiled.sql, compiled.params);
+    if (configuration.crashPoint === "after-first-channel-persist"
+      && /^\s*UPDATE exam_request_dispatch_operations\b/.test(compiled.sql)) {
+      // The real SQL has committed. Hold its return so the real route cannot
+      // start the next channel before the parent kills the process.
+      const saved = await pool.query("SELECT state, results FROM exam_request_dispatch_operations");
+      const operation = saved.rows[0];
+      if (result.rowCount !== 1 || saved.rows.length !== 1
+        || operation.state !== "in_progress" || operation.results.length !== 1) {
+        throw new Error("Expected exactly one persisted channel before crash");
+      }
+      process.send!({
+        type: "after-first-channel-persist", pid: process.pid,
+        state: operation.state, results: operation.results,
+      });
+      await new Promise(() => {});
+    }
+    return result;
   },
   select() {
     const rows = selections++ === 0 ? [document] : [{ telegramChatId: "synthetic-chat" }];
@@ -48,8 +65,8 @@ export const db = {
     } }) };
   },
   update() {
-    return { set: (value: any) => ({ where: async () => {
-      if (configuration.crashBeforeAuditWrite) {
+    return { set: (value: any) => ({ where: async (condition: SQL) => {
+      if (configuration.crashPoint === "before-audit-write") {
         // The simulated provider has returned sent:true to the real route.
         // Block at the first result write, outside the route's error handling;
         // the parent now kills this entire process, not just the request.
@@ -59,7 +76,10 @@ export const db = {
         });
         await new Promise(() => {});
       }
-      await pool.query("UPDATE synthetic_dispatch_audits SET detail = $1::jsonb", [JSON.stringify(value.detail)]);
+      // Preserve the real route's per-channel audit ID predicate.
+      const predicate = dialect.sqlToQuery(condition);
+      await pool.query("UPDATE synthetic_dispatch_audits SET detail = $1::jsonb WHERE id = $2",
+        [JSON.stringify(value.detail), predicate.params[0]]);
     } }) };
   },
 };
@@ -75,8 +95,8 @@ export async function resolveClinicalEmitter() {
     professional: { id: 202 }, clinic: { id: 303, empresaId: 404 },
   };
 }
-export async function enviarMensagemPaxter() {
-  const response = await fetch(configuration.providerUrl, { method: "POST", body: "synthetic-message" });
+export async function enviarMensagemPaxter(_doc: unknown, _destination: unknown, channels: string[]) {
+  const response = await fetch(configuration.providerUrl, { method: "POST", body: JSON.stringify({ channels }) });
   if (!response.ok) throw new Error("Synthetic provider refused");
   return response.json();
 }

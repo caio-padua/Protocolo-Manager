@@ -33,16 +33,20 @@ async function kill(child: ChildProcess) {
   return exited;
 }
 
-it("recovers the durable reservation after SIGKILL and restart without contacting providers again", async () => {
+it.each(["before-audit-write", "after-first-channel-persist"] as const)(
+  "recovers the durable reservation after SIGKILL at %s without contacting providers again", async crashPoint => {
   const children: ChildProcess[] = [];
   const directory = await mkdtemp(join(tmpdir(), "exam-dispatch-process-"));
   let postgres: Awaited<ReturnType<typeof isolatedPostgres>> | undefined;
-  let providerCalls = 0;
+  const providerCalls: string[][] = [];
   const provider = createServer((req, res) => {
-    providerCalls++;
-    req.resume();
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ resultados: [{ sent: true, via: "synthetic-local-provider" }] }));
+    let body = "";
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", () => {
+      providerCalls.push(JSON.parse(body).channels);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ resultados: [{ sent: true, via: "synthetic-local-provider" }] }));
+    });
   });
   try {
     postgres = await isolatedPostgres();
@@ -68,9 +72,9 @@ it("recovers the durable reservation after SIGKILL and restart without contactin
         },
       }],
     });
-    const start = async (crashBeforeAuditWrite: boolean) => {
+    const start = async (crashPoint?: string) => {
       // Do not inherit database URLs, provider keys, NODE_OPTIONS or app config.
-      const child = fork(entry, [JSON.stringify({ connection: postgres!.connection, providerUrl, crashBeforeAuditWrite })], {
+      const child = fork(entry, [JSON.stringify({ connection: postgres!.connection, providerUrl, crashPoint })], {
         env: {}, execArgv: [], stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
       children.push(child);
@@ -88,17 +92,19 @@ it("recovers the durable reservation after SIGKILL and restart without contactin
       method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer synthetic-test" },
       body: JSON.stringify({ ...payload, operationKey }), signal: AbortSignal.timeout(10_000),
     });
-    const first = await start(true);
-    const atWrite = waitForMessage(first.child, "before-audit-write", first.errors);
+    const first = await start(crashPoint);
+    const atWrite = waitForMessage(first.child, crashPoint, first.errors);
     // Attach rejection handling immediately: SIGKILL must sever this HTTP call.
     const interruptedRequest = send(first.ready.port).then(
       response => ({ response, interrupted: false }), () => ({ interrupted: true }),
     );
     const barrier = await atWrite;
-    expect(barrier).toMatchObject({
-      pid: first.ready.pid, state: "provider_accepted", acceptedMessages: 1,
-    });
-    expect(providerCalls).toBe(1);
+    const partial = crashPoint === "after-first-channel-persist";
+    expect(barrier).toMatchObject(partial
+      ? { pid: first.ready.pid, state: "in_progress",
+        results: [{ channel: "EMAIL", success: true, auditId: expect.any(Number) }] }
+      : { pid: first.ready.pid, state: "provider_accepted", acceptedMessages: 1 });
+    expect(providerCalls).toEqual([["EMAIL"]]);
     expect(await kill(first.child)).toEqual([null, "SIGKILL"]);
     expect(await interruptedRequest).toEqual({ interrupted: true });
 
@@ -110,25 +116,40 @@ it("recovers the durable reservation after SIGKILL and restart without contactin
     `)).rows;
     const savedReservation = await reservation();
     const savedAudits = await audit();
-    expect(savedReservation).toEqual([expect.objectContaining({
-      operation_key: payload.operationKey, state: "in_progress", results: [],
-    })]);
     expect(savedAudits).toHaveLength(2);
-    expect(savedAudits.map((row: any) => row.detail.state)).toEqual(["requested", "requested"]);
+    expect(savedAudits.map((row: any) => row.detail.channel)).toEqual(["EMAIL", "TELEGRAM"]);
+    expect(new Set(savedAudits.map((row: any) => row.id)).size).toBe(2);
+    const expectedResults = partial
+      ? [{ channel: "EMAIL", success: true, auditId: savedAudits[0].id }] : [];
+    expect(savedReservation).toEqual([expect.objectContaining({
+      operation_key: payload.operationKey, state: "in_progress", results: expectedResults,
+    })]);
+    expect(savedAudits.map((row: any) => row.detail.state))
+      .toEqual([partial ? "provider_accepted" : "requested", "requested"]);
+    if (partial) {
+      expect(barrier.results).toEqual(expectedResults);
+      expect(savedAudits[0].detail).toMatchObject({ acceptedMessages: 1, plannedMessages: 1 });
+    }
+    for (const row of savedAudits) {
+      expect(row.detail).toMatchObject({ operationKey: payload.operationKey,
+        clientId: payload.clientId, documentIds: payload.documentIds });
+    }
 
-    const restarted = await start(false);
+    const restarted = await start();
     expect(restarted.ready.pid).not.toBe(first.ready.pid);
     for (const key of [payload.operationKey, "synthetic-other-window"]) {
       const response = await send(restarted.ready.port, key);
       expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({
-        operationKey: payload.operationKey, replayed: true, state: "in_progress", needsReview: true, results: [],
+      const recovered = await response.json();
+      expect(recovered).toMatchObject({
+        operationKey: payload.operationKey, replayed: true, state: "in_progress", needsReview: true,
         message: expect.stringContaining("Nenhum novo envio foi iniciado"),
       });
+      expect(recovered.results).toEqual(expectedResults);
+      expect(providerCalls).toEqual([["EMAIL"]]);
+      expect(await reservation()).toEqual(savedReservation);
+      expect(await audit()).toEqual(savedAudits);
     }
-    expect(providerCalls).toBe(1); // Counts both processes, including any later channel.
-    expect(await reservation()).toEqual(savedReservation);
-    expect(await audit()).toEqual(savedAudits);
     expect(first.errors()).toBe("");
     expect(restarted.errors()).toBe("");
   } finally {
