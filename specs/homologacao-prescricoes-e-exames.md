@@ -1,7 +1,7 @@
 # Especificacao: homologacao isolada de prescricoes e pedidos de exames
 
 Data: 30/10/2026
-Estado: UNIDADE A IMPLEMENTADA; HOMOLOGACAO GLOBAL BLOQUEADA
+Estado: UNIDADE A IMPLEMENTADA; HOMOLOGACAO SINTETICA DE RECEITAS EM EXECUCAO; HOMOLOGACAO GLOBAL BLOQUEADA
 Prioridade: P0 para uma primeira liberacao clinica controlada
 Ordem de origem: ordem executiva recebida em 30/10/2026
 Revisao de auditoria de referencia: 4eb4ca2d3103b3070b516c7d27aac155e90545bd
@@ -92,6 +92,27 @@ e corrigida sem uma unidade autorizada propria.
 Para cada cliente-modelo, selecionar tres formulacoes sinteticas existentes no
 catalogo isolado, conferir substancias, dose, unidade, via, frequencia e
 orientacao e gerar tres receitas pelo motor regulatorio normal.
+
+#### Unidade de execucao atual: seis receitas sinteticas
+
+Esta etapa verifica somente a emissao por servidor e a persistencia de seis
+receitas, sem declarar concluida a jornada visual do Cockpit.
+
+1. Usar somente PostgreSQL descartavel criado para o teste; nenhum acesso a
+   `DATABASE_URL` ou a registros da base principal.
+2. Criar dois clientes-modelo com os nomes exatos da ordem, identificadores novos
+   e dados de contato vazios; criar medico e clinica sinteticos.
+3. Emitir tres formularios sinteticos por cliente pela rota normal, usando um
+   documento separado por formulacao e sem substancias ou orientacoes terapeuticas.
+4. Incluir em cada PDF a frase exata `HOMOLOGAÇÃO — DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA`.
+5. Confirmar a assinatura criptografica, os registros de receita e itens, a
+   recuperacao autenticada do historico e a igualdade dos bytes recuperados.
+6. Simular falhas antes e durante a geracao e confirmar ausencia de registros
+   parciais; confirmar que o mesmo pedido repetido nao duplica documentos.
+7. Substituir por simulacoes todas as integracoes externas e confirmar zero
+   envios, uploads ou chamadas a pacientes, farmacias e laboratorios.
+8. Registrar separadamente qualquer limitacao de catalogo, interface,
+   certificado real ou revisao independente que esta unidade nao consiga provar.
 
 Os PDFs finais devem:
 

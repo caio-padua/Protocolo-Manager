@@ -12,6 +12,7 @@ import {
 import { eq, desc, asc } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
+import { brtDisplayDate, brtISODate } from "../lib/brt";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
 import { handleSncrAlert } from "../lib/sncr-alerts";
@@ -31,15 +32,11 @@ router.use(moduleGuard("protocolos"));
 router.use(deliveryRouter);
 
 function todayBR(): string {
-  const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  return brt.toISOString().slice(0, 10);
+  return brtISODate();
 }
 
 function dateBRfull(): string {
-  const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const day = String(brt.getUTCDate()).padStart(2, "0");
-  const month = String(brt.getUTCMonth() + 1).padStart(2, "0");
-  return `${day}/${month}/${brt.getUTCFullYear()}`;
+  return brtDisplayDate();
 }
 
 router.post("/prescriptions/preview", async (req, res): Promise<void> => {
@@ -150,7 +147,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   const batchDate = todayBR();
   const uf = identity.professional.uf!;
 
-  // 1) Persiste prescrição + itens.
+  // Validates the patient before any prescription record is written.
   const empresaId = identity.clinic.empresaId;
   const resolvedClientId = await resolvePrescriptionClient(body, empresaId);
   if (resolvedClientId === null) {
@@ -159,71 +156,60 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     });
     return;
   }
-  // Todos os consumidores abaixo (persistência, lembretes e alertas) usam o vínculo validado.
+  // Todos os consumidores abaixo usam o vínculo validado.
   body.clientId = resolvedClientId;
-  const [prescription] = await db
-    .insert(prescriptionsTable)
-    .values({
-      clientId: body.clientId ?? null,
-      clientName: body.clientName,
-      clientCpf: body.clientCpf ?? null,
-      clientPhone: body.clientPhone ?? null,
-      clientEmail: body.clientEmail ?? null,
-      professionalId: body.professionalId ?? null,
-      professionalName: body.professionalName ?? null,
-      professionalCrm: body.professionalCrm ?? null,
-      professionalUf: body.professionalUf ?? null,
-      durationDays: body.durationDays ?? null,
-      cid: body.cid ?? null,
-      message: body.message ?? null,
-      status: "emitted",
-      emittedAt: new Date(),
-      empresaId,
-    })
-    .returning();
-
-  await db.insert(prescriptionItemsTable).values(
-    items.map((it, idx) => ({
-      prescriptionId: prescription.id,
-      orderIndex: idx,
-      name: it.name,
-      ativos: it.ativos ?? null,
-      posologia: it.posologia ?? null,
-      dose: it.dose ?? null,
-      via: it.via ?? null,
-      frequencia: it.frequencia ?? null,
-      periodo: it.periodo ?? null,
-      observacao: it.observacao ?? null,
-      category: it.category ?? null,
-      internalColor: it.internalColor ?? null,
-      isControlled: it.isControlled ?? false,
-      anvisaType: it.anvisaType ?? null,
-      pharmacyId: it.pharmacyId ?? null,
-    })),
-  );
-
-  // Conteúdo preparado, mas nunca ativa a agenda nem autoriza destinatários.
-  try {
-    await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
-      tipo: "formula" as const, nome: it.name,
-      ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
-      dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
-    })));
-  } catch (err) {
-    req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
-  }
-
-  // 2) Desmembra.
   const plans = planDesmembramento(items);
 
   // Mapa de farmácias para nome/tipo.
   const pharmRows = await db.select().from(pharmaciesTable);
   const pharmMap = new Map(pharmRows.map((p) => [p.id, p]));
 
-  const emittedRecipes: any[] = [];
-  const sncrAlerts: any[] = [];
+  const { prescription, emittedRecipes, sncrAlerts } = await db.transaction(async (tx) => {
+    const [prescription] = await tx
+      .insert(prescriptionsTable)
+      .values({
+        clientId: body.clientId ?? null,
+        clientName: body.clientName,
+        clientCpf: body.clientCpf ?? null,
+        clientPhone: body.clientPhone ?? null,
+        clientEmail: body.clientEmail ?? null,
+        professionalId: body.professionalId ?? null,
+        professionalName: body.professionalName ?? null,
+        professionalCrm: body.professionalCrm ?? null,
+        professionalUf: body.professionalUf ?? null,
+        durationDays: body.durationDays ?? null,
+        cid: body.cid ?? null,
+        message: body.message ?? null,
+        status: "emitted",
+        emittedAt: new Date(),
+        empresaId,
+      })
+      .returning();
+    if (!prescription) throw new Error("A prescrição não foi persistida.");
 
-  for (const plan of plans) {
+    await tx.insert(prescriptionItemsTable).values(
+      items.map((it, idx) => ({
+        prescriptionId: prescription.id,
+        orderIndex: idx,
+        name: it.name,
+        ativos: it.ativos ?? null,
+        posologia: it.posologia ?? null,
+        dose: it.dose ?? null,
+        via: it.via ?? null,
+        frequencia: it.frequencia ?? null,
+        periodo: it.periodo ?? null,
+        observacao: it.observacao ?? null,
+        category: it.category ?? null,
+        internalColor: it.internalColor ?? null,
+        isControlled: it.isControlled ?? false,
+        anvisaType: it.anvisaType ?? null,
+        pharmacyId: it.pharmacyId ?? null,
+      })),
+    );
+
+    const emittedRecipes: any[] = [];
+    const sncrAlerts: any[] = [];
+    for (const plan of plans) {
     // 2a) SNCR (somente controlado isolado que exige numeração).
     let sncrNumber: string | null = null;
     let sncrStatus: string | null = null;
@@ -235,7 +221,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         uf,
         controlledType,
         prescriptionId: prescription.id,
-      });
+      }, tx);
       sncrNumber = consume.number;
       sncrStatus = consume.status;
       sncrRangeId = consume.rangeId;
@@ -277,7 +263,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     // 2c) Persiste receita PRIMEIRO para obter um id estavel — o id entra no nome
     //     do arquivo, garantindo unicidade (sem colisao/sobrescrita no Drive
     //     para mesmo cliente/tipo/dia).
-    const [recipe] = await db
+    const [recipe] = await tx
       .insert(recipesTable)
       .values({
         prescriptionId: prescription.id,
@@ -309,7 +295,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     //     a receita ja esta persistida com pdfData e e baixavel via
     //     /api/recipes/:id/pdf mesmo se este update falhar).
     try {
-      await db
+      await tx
         .update(recipesTable)
         .set({ fileName, driveFileId, driveWebViewLink })
         .where(eq(recipesTable.id, recipe.id));
@@ -329,14 +315,31 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       driveWebViewLink,
       pdfUrl: `/api/recipes/${recipe.id}/pdf`,
     });
+    }
+    return { prescription, emittedRecipes, sncrAlerts };
+  });
+
+  // Reminders and alerts are attempted only after the clinical documents commit.
+  try {
+    await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
+      tipo: "formula" as const, nome: it.name,
+      ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
+      dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
+    })));
+  } catch (err) {
+    req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
   }
 
   // Preserve internal regulatory warnings without notifying any external recipient.
   for (const alert of sncrAlerts) {
-    await handleSncrAlert({
-      ...alert, uf, prescriptionId: prescription.id, clientId: body.clientId,
-      professionalName: body.professionalName ?? null,
-    }, { notifyEmail: false });
+    try {
+      await handleSncrAlert({
+        ...alert, uf, prescriptionId: prescription.id, clientId: body.clientId,
+        professionalName: body.professionalName ?? null,
+      }, { notifyEmail: false });
+    } catch (err) {
+      req.log.warn({ err, prescriptionId: prescription.id }, "Falha ao registrar alerta regulatório interno");
+    }
   }
 
   // 2.5) MOTOR ÚNICO — cópia visual assinada para o PACIENTE (best-effort).

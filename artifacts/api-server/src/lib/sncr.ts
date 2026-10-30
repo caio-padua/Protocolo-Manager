@@ -5,6 +5,7 @@ import { db, sncrRangesTable, sncrLogTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 
 export const SNCR_LOW_THRESHOLD = 50;
+type SncrTransaction = Pick<typeof db, "select" | "insert" | "update">;
 
 export interface ConsumeResult {
   number: string | null;
@@ -41,71 +42,85 @@ function buildConditions(professionalId: number | null | undefined, uf: string, 
   return and(...conds);
 }
 
-// Consome o próximo número de forma transacional. Best-effort: sempre retorna,
-// nunca lança por falta de intervalo.
-export async function consumeSncrNumber(opts: {
+async function consumeSncrNumberInTransaction(
+  tx: SncrTransaction,
+  opts: {
   professionalId?: number | null;
   uf: string;
   controlledType: string;
   recipeId?: number | null;
   prescriptionId?: number | null;
-}): Promise<ConsumeResult> {
+  },
+): Promise<ConsumeResult> {
   const { professionalId, uf, controlledType, recipeId, prescriptionId } = opts;
+  const ranges = await tx
+    .select()
+    .from(sncrRangesTable)
+    .where(buildConditions(professionalId, uf, controlledType))
+    .orderBy(asc(sncrRangesTable.id))
+    .for("update");
 
-  try {
-    return await db.transaction(async (tx) => {
-      const ranges = await tx
-        .select()
-        .from(sncrRangesTable)
-        .where(buildConditions(professionalId, uf, controlledType))
-        .orderBy(asc(sncrRangesTable.id))
-        .for("update");
+  const usable = ranges.find((r) => r.nextNumber <= r.endNumber);
 
-      const usable = ranges.find((r) => r.nextNumber <= r.endNumber);
-
-      if (!usable) {
-        // Sem intervalo cadastrado OU todos esgotados.
-        const status = ranges.length === 0 ? "no_range" : "exhausted";
-        await tx.insert(sncrLogTable).values({
-          rangeId: ranges[0]?.id ?? null,
-          recipeId: recipeId ?? null,
-          prescriptionId: prescriptionId ?? null,
-          number: null,
-          professionalId: professionalId ?? null,
-          uf,
-          controlledType,
-          status,
-        });
-        return { number: null, rangeId: ranges[0]?.id ?? null, status, remaining: 0, low: true };
-      }
-
-      const consumed = usable.nextNumber;
-      const newNext = consumed + 1;
-      await tx
-        .update(sncrRangesTable)
-        .set({ nextNumber: newNext })
-        .where(eq(sncrRangesTable.id, usable.id));
-
-      await tx.insert(sncrLogTable).values({
-        rangeId: usable.id,
-        recipeId: recipeId ?? null,
-        prescriptionId: prescriptionId ?? null,
-        number: consumed,
-        professionalId: professionalId ?? null,
-        uf,
-        controlledType,
-        status: "consumed",
-      });
-
-      const remaining = usable.endNumber - newNext + 1;
-      return {
-        number: String(consumed),
-        rangeId: usable.id,
-        status: "consumed",
-        remaining: Math.max(0, remaining),
-        low: remaining <= SNCR_LOW_THRESHOLD,
-      };
+  if (!usable) {
+    // Sem intervalo cadastrado OU todos esgotados.
+    const status = ranges.length === 0 ? "no_range" : "exhausted";
+    await tx.insert(sncrLogTable).values({
+      rangeId: ranges[0]?.id ?? null,
+      recipeId: recipeId ?? null,
+      prescriptionId: prescriptionId ?? null,
+      number: null,
+      professionalId: professionalId ?? null,
+      uf,
+      controlledType,
+      status,
     });
+    return { number: null, rangeId: ranges[0]?.id ?? null, status, remaining: 0, low: true };
+  }
+
+  const consumed = usable.nextNumber;
+  const newNext = consumed + 1;
+  await tx
+    .update(sncrRangesTable)
+    .set({ nextNumber: newNext })
+    .where(eq(sncrRangesTable.id, usable.id));
+
+  await tx.insert(sncrLogTable).values({
+    rangeId: usable.id,
+    recipeId: recipeId ?? null,
+    prescriptionId: prescriptionId ?? null,
+    number: consumed,
+    professionalId: professionalId ?? null,
+    uf,
+    controlledType,
+    status: "consumed",
+  });
+
+  const remaining = usable.endNumber - newNext + 1;
+  return {
+    number: String(consumed),
+    rangeId: usable.id,
+    status: "consumed",
+    remaining: Math.max(0, remaining),
+    low: remaining <= SNCR_LOW_THRESHOLD,
+  };
+}
+
+// Consome o próximo número na transação da emissão, quando fornecida.
+// Best-effort: a ausência de intervalo nunca lança nem interrompe a emissão.
+export async function consumeSncrNumber(
+  opts: {
+    professionalId?: number | null;
+    uf: string;
+    controlledType: string;
+    recipeId?: number | null;
+    prescriptionId?: number | null;
+  },
+  transaction?: SncrTransaction,
+): Promise<ConsumeResult> {
+  try {
+    if (transaction) return await consumeSncrNumberInTransaction(transaction, opts);
+    return await db.transaction((tx) => consumeSncrNumberInTransaction(tx, opts));
   } catch {
     // Falha inesperada: nunca bloqueia a emissão.
     return { number: null, rangeId: null, status: "no_range", remaining: null, low: true };
