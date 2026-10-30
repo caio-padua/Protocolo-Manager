@@ -906,7 +906,7 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
 });
 
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
-  for (const { mode, outcome } of [
+  for (const scenario of [
     ...(["sucesso-atrasado", "401-atrasado", "403-atrasado", "rede-atrasada"] as const).map(
       outcome => ({ mode: "paginacao" as const, outcome }),
     ),
@@ -916,6 +916,15 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     ...(["erro-atual-401-atrasado", "erro-atual-403-atrasado", "erro-atual-500-atrasado", "erro-atual-rede-atrasada"] as const).map(
       outcome => ({ mode: "paginacao" as const, outcome }),
     ),
+    ...([401, 403] as const).flatMap(currentStatus =>
+      (["401-atrasado", "403-atrasado", "500-atrasado", "rede-atrasada"] as const)
+        .filter(outcome => outcome !== `${currentStatus}-atrasado`)
+        .map(outcome => ({
+          mode: "paginacao" as const,
+          outcome: `recusa-atual-${currentStatus}-${outcome}`,
+          currentStatus,
+        })),
+    ),
     ...(["documents", "pendingOperations"] as const).flatMap(missingField =>
       (["401-atrasado", "403-atrasado", "500-atrasado", "rede-atrasada"] as const).map(
         failure => ({ mode: "paginacao" as const,
@@ -923,10 +932,13 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       ),
     ),
   ]) {
+  const { mode, outcome } = scenario;
   test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition} (${mode}) — ${outcome}`, async ({ context, page }, testInfo) => {
     const missingField = outcome.startsWith("formato-atual-sem-documents-") ? "documents"
       : outcome.startsWith("formato-atual-sem-pendingOperations-") ? "pendingOperations" : null;
-    const currentFailure = outcome.startsWith("erro-atual-") || missingField !== null;
+    const currentStatus = "currentStatus" in scenario ? scenario.currentStatus
+      : outcome.startsWith("erro-atual-") ? 503 : 200;
+    const currentFailure = currentStatus !== 200 || missingField !== null;
     const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
     const nextClinic = {
       id: transition === "empresa" ? 303 : 304,
@@ -941,6 +953,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     const oldError = "Erro exclusivo da consulta de histórico da clínica anterior.";
     const currentError = missingField === "documents" ? "O histórico retornou um formato inesperado."
       : missingField === "pendingOperations" ? "Não foi possível conferir as operações pendentes. Atualize o histórico."
+      : currentStatus === 401 || currentStatus === 403
+      ? `Acesso recusado ao histórico da clínica atual B (${currentStatus}). Revalide a autorização.`
       : "Histórico indisponível exclusivamente no contexto clínico atual B.";
     const oldMarkers = [oldKey, oldPageKey, delayedPageKey, oldError,
       ...(currentFailure ? [] : ["Não foi possível atualizar o histórico"])];
@@ -1111,7 +1125,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     if (missingField) delete currentBody[missingField];
     await reply(held.current!, missingField ? currentBody
       : currentFailure ? { error: currentError } : currentBody,
-      currentFailure && !missingField ? 503 : 200);
+      currentStatus);
     await expect(panel.getByRole("alert")).toContainText(currentFailure ? currentError : newKey);
     if (currentFailure) {
       await expect(panel.getByRole("alert")).toContainText("Isso não confirma falha no envio");
@@ -1255,6 +1269,16 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       });
       await panel.getByRole("button", { name: "Atualizar histórico" }).click();
       await expect.poll(() => offsets.current).toEqual([0, 0]);
+      // A retry is not proof of authorization. Keep B's response held and
+      // verify that no document or inherited consent appears before its 200.
+      await expect(panel.getByRole("button", { name: "Atualizar histórico" })).toBeDisabled();
+      await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+      await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toHaveCount(0);
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+      expect(await page.evaluate(() => (window as any).__clinicHistoryLeaks)).toEqual([]);
+      expect(await page.evaluate(() => (window as any).__clinicConsentLeaks)).toEqual([]);
+      expect(posts).toEqual([]);
       await reply(held.current!, historyBody(newKey, 92));
       await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
       await expect(panel.getByRole("alert")).toContainText(newKey);
