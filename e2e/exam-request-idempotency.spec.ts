@@ -2198,7 +2198,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 // A cached scope must restart at offset zero, not revive its previous editor.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
-    for (const currentOutcome of ["sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica"] as const) {
+    for (const currentOutcome of ["sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual"] as const) {
     test(`Pedidos: voltar à clínica em cache reinicia histórico — ${transition} — ${delivery} — ${currentOutcome}`, async ({ context, page }, testInfo) => {
       const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
       const clinicB = {
@@ -2391,11 +2391,18 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // Fail the NEW offset-zero request, not the old offset-40 response.
       const currentError = currentOutcome === "401-atual"
         ? "Sessão atual sem autorização para atualizar o histórico de A."
+        : currentOutcome === "rede-atual" ? "Failed to fetch"
         : "Servidor indisponível ao atualizar o histórico atual de A.";
-      await reply(held.returned!, currentOutcome === "sucesso"
-        ? historyBody(markers.fresh, 95, 20) : { error: currentError },
-      currentOutcome === "sucesso" ? 200 : currentOutcome === "401-atual" ? 401 : 500);
-      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5);
+      if (currentOutcome === "rede-atual") {
+        await held.returned!.abort("failed");
+      } else {
+        await reply(held.returned!, currentOutcome === "sucesso"
+          ? historyBody(markers.fresh, 95, 20) : { error: currentError },
+        currentOutcome === "sucesso" ? 200 : currentOutcome === "401-atual" ? 401 : 500);
+      }
+      // A transport failure has no JSON body; the old page still parsed normally.
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed))
+        .toBe(currentOutcome === "rede-atual" ? 4 : 5);
       if (currentOutcome === "sucesso") {
         await expect(doc(95)).toBeVisible();
         await expect(panel.getByRole("alert")).toContainText(markers.fresh);
