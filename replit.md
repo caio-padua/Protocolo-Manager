@@ -25,7 +25,7 @@ mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
 | Conhecimento | Dono (arquivo) | Quando consultar |
 |---|---|---|
 | Método de trabalho, conduta, decisões de diretriz, COMO O CEO PEDE (Art. 6º-A) | `.agents/skills/paxter-loop/CODIGO-PAXTER.md` (arquitetura viva em artigos) | Antes de toda tarefa não-trivial |
-| Loop Especificar→Construir→Revisar | `.agents/skills/paxter-loop/SKILL.md` | Ao iniciar funcionalidade não-trivial |
+| Loop de oito fases, antecipação e integridade | `.agents/skills/paxter-loop/SKILL.md` | Ao iniciar funcionalidade não-trivial |
 | Sistema de design (3D, tokens, padrões, controles) | `.agents/skills/skill-layout-paxter/SKILL.md` + `references/` | Antes de criar/redesenhar QUALQUER tela |
 | Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
 | Funcionalidades e estrutura detalhada (telas, rotas, schemas, integrações Google, portal do cliente) | `docs/PADCOM-FUNCIONALIDADES.md` | Ao mexer numa funcionalidade existente |
@@ -85,8 +85,10 @@ Quando ele expirar, `git push origin` falha com "Invalid username or token" sem 
 5. Reinicie o workflow `artifacts/api-server: API Server` para recarregar o secret.
 6. Confirme: `GET /api/health` deve retornar `integracoes.github_pat = "conectado"`.
 
-**Nota**: o push pelo shell (`git push origin`) falha mesmo com PAT válido se o git local não tiver
-a credencial configurada. O método aprovado de push é o painel Git do Replit (botão de push na aba Git).
+**Nota atualizada em 29/10/2026**: a sincronização autorizada pode usar o transporte
+gerenciado já configurado, sem ler ou injetar credenciais. Conferir revisão remota
+após o envio; não presumir sucesso pelo commit local. A operação de integração
+que usa a chave pessoal é distinta desse transporte.
 
 ## Estrutura (resumo)
 
@@ -112,10 +114,23 @@ a credencial configurada. O método aprovado de push é o painel Git do Replit (
 
 ## Preferencias do Usuario (Dr. Caio) — Como me comunicar
 
-Metodo de trabalho (decisao do CEO, 19/06/2026): para QUALQUER funcionalidade nao-trivial, seguir o **Paxter Loop** (skill `paxter-loop`) — Especificar (spec escrita em `specs/<nome>.md`) -> Construir (so o que esta na spec) -> Revisar com o architect ate aprovar sem pendencia. O CEO aciona por fala ("rode o loop", "spec isso", "pode buildar", "manda revisar").
+Metodo vigente (29/10/2026): seguir o **PAXTER Loop**:
+DESENHAR -> ESPECIFICAR -> PREVER FALHAS -> CONSTRUIR -> REVISAR -> TESTAR -> HOMOLOGAR -> APRENDER.
+Fonte canonica: `.agents/skills/paxter-loop/CODIGO-PAXTER.md`, artigos 75 a 82.
+Descoberta impeditiva exige atualizar especificacao e testes, corrigir a causa e
+revalidar; escopo inicial nao autoriza ignorar riscos da entrega.
+Sem evidencia ou com impeditivo: BLOQUEADO, nao homologado.
+Testes de seguranca, concorrencia e regressao usam dados sinteticos e ambientes
+isolados, com provedores simulados. Dados reais somente com autorizacao supervisionada.
+Suplemento vigente: `DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO_26.10.29.md`;
+versao antiga preservada. Historico nao concede autorizacao.
+Verificacao documental: `pnpm run check:paxter-governance` e
+`pnpm run test:paxter-governance`; esses comandos nao homologam o sistema clinico.
 
 REGRA PERMANENTE — TRABALHO EM FILA (ordem do CEO, 14/08/2026, apos incidente de agentes em paralelo):
 - SEMPRE uma tarefa de cada vez, em fila, com encadeamento. NUNCA criar nem executar tarefas em paralelo.
+- Revisao independente sequencial; uma implementacao por vez. Excecao somente
+  com nova autorizacao expressa. Regra documental nao para agentes preexistentes.
 - So comecar a proxima tarefa depois que o CEO aprovar a anterior.
 - ANTES de criar qualquer tarefa nova, PERGUNTAR ao CEO primeiro. Nunca propor task por conta propria.
 - Motivo declarado pelo CEO: agentes em paralelo geram custo que ele paga e quebram o processo; ele quer "uma coisa de cada vez, bem feita, com processo".

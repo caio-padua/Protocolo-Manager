@@ -1,0 +1,26 @@
+name: PAXTER governance
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Test normative divergence detection
+        run: node --test scripts/tests/paxter-governance.test.mjs
+      - name: Verify current governance and record content digests
+        run: node scripts/paxter-governance.mjs --json > "$RUNNER_TEMP/paxter-governance.json"
+      - name: Preserve evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paxter-governance-${{ github.sha }}
+          path: ${{ runner.temp }}/paxter-governance.json
+          if-no-files-found: warn

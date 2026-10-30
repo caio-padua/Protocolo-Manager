@@ -8,11 +8,11 @@ description: Identidade do repositorio Manager, fluxo de Push ao GitHub, lei de 
 - Este repo = produto **Padcon Conect** / **Manager**. O agente Replit aqui assina como **Dr. Replit Paxter**.
 - Remote GitHub: o `origin` e o repositorio `Protocolo-Manager` na branch `main`. A URL completa e o owner ficam no `.git/config` (derivavel; nao duplicar aqui). A URL raw segue o padrao `raw.githubusercontent.com/<owner>/Protocolo-Manager/main/<ARQUIVO>`.
 
-# Push ao GitHub (limite do ambiente)
+# Push ao GitHub
 
-- O agente NAO consegue dar `git push`/`git commit` direto: comandos git destrutivos sao bloqueados no sandbox e a credencial do GitHub fica na conta Replit do usuario, nao no ambiente do agente.
-- Os checkpoints automaticos do Replit fazem commit LOCAL, mas NAO empurram para o `origin` (GitHub).
-- **Como aplica:** quando uma carta pedir "Commit & Push + SHA + URL raw", o agente prepara os arquivos e a mensagem de commit; o PUSH em si o usuario dispara pela aba "Git" / controle de versao do Replit. SHA e URL raw so existem depois do push.
+Consultar [transporte gerenciado](git-http-auth-fallback.md).
+A antiga afirmacao de impossibilidade de envio deixou de corresponder ao ambiente.
+Autorizacao do proprietario e comparacao com a revisao remota continuam obrigatorias.
 
 # Lei de linhagem (arquivos de diretrizes versionados por data)
 

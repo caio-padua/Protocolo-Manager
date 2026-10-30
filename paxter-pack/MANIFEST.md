@@ -1,17 +1,17 @@
-# Paxter Pack — MANIFEST (selo de certificacao)
+# Paxter Pack — MANIFEST (registros por arquivo; atualização parcial)
 
 > NAO EDITAR A MAO. Gerado por `pnpm --filter @workspace/scripts run paxter:pack`.
 > Fonte viva = `.agents/skills/`. Este pack e um ESPELHO gerado dela.
 
 - **Pack**: Paxter Pack
-- **Versao**: 1.1.0
-- **Gerado em**: 26/06/2026
+- **Versao originaria do pack completo**: 1.1.0
+- **Geracao originaria do pack completo**: 26/06/2026
 - **Arquivos**: 17
 
 | Arquivo (relativo a skills/) | SHA-256 (16) | Linhas |
 |---|---|---|
-| `paxter-loop/CODIGO-PAXTER.md` | 760bfbfab27fde07 | 347 |
-| `paxter-loop/SKILL.md` | 98af0bbb4e93ad7d | 118 |
+| `paxter-loop/CODIGO-PAXTER.md` | 3ef2fd60cc3d6001 | 610 |
+| `paxter-loop/SKILL.md` | f69b9c117a7a3dcf | 160 |
 | `skill-layout-paxter/references/alinhamento-espacamento.md` | 34bd3efb266da32c | 61 |
 | `skill-layout-paxter/references/componentes-3d.md` | aa1afa7efcb2f116 | 101 |
 | `skill-layout-paxter/references/grade-imaginaria.md` | cce028fbf41aa240 | 256 |
@@ -28,4 +28,6 @@
 | `skill-layout-paxter/references/revisao-final.md` | d4ae5b2e4166ece4 | 43 |
 | `skill-layout-paxter/SKILL.md` | a3e3fd21a0579a5c | 407 |
 
-RESUMO EM 1 LINHA: este selo certifica o conteudo das skills Paxter na versao 1.1.0; a auditoria compara qualquer sistema contra estes hashes.
+RESUMO EM 1 LINHA: atualização parcial do loop; NÃO constitui recertificação integral do pack ou das demais skills.
+
+> Governança do loop: sincronização parcial por `node scripts/paxter-governance.mjs --sync`; demais skills não recertificadas.

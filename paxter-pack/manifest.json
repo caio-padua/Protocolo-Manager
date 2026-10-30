@@ -6,13 +6,13 @@
   "files": [
     {
       "path": "paxter-loop/CODIGO-PAXTER.md",
-      "sha256": "760bfbfab27fde0761ee5dcadf1c4690bd331db60f717ba374648a4bd9504cd2",
-      "lines": 347
+      "sha256": "3ef2fd60cc3d6001741ecb153968f274ce34a3a69909d08090392653a2b4c7ee",
+      "lines": 610
     },
     {
       "path": "paxter-loop/SKILL.md",
-      "sha256": "98af0bbb4e93ad7d4ca4ccb3f5cab822b2acabea0be5030f1d24c9f8901f2ddb",
-      "lines": 118
+      "sha256": "f69b9c117a7a3dcf2f05198278d20c3f8660fee50e947a899e44311400654a1e",
+      "lines": 160
     },
     {
       "path": "skill-layout-paxter/references/alinhamento-espacamento.md",
@@ -89,5 +89,13 @@
       "sha256": "a3e3fd21a0579a5c6d1a52e0b779d7bfcbd054a325820db95c01d60d4cb3c4d1",
       "lines": 407
     }
-  ]
+  ],
+  "governanceSync": {
+    "source": ".agents/skills/paxter-loop",
+    "certificationScope": "paxter-loop-only",
+    "scope": [
+      "paxter-loop/CODIGO-PAXTER.md",
+      "paxter-loop/SKILL.md"
+    ]
+  }
 }

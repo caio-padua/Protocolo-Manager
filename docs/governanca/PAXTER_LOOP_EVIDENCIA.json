@@ -1,0 +1,45 @@
+{
+  "scope": "governanca-documental",
+  "revision": "a296016fd3a3e3b03e39a3ac8ae6ca3f0348aad8",
+  "limitation": "Não certifica comportamento clínico, auditoria integral ou autorização de publicação.",
+  "files": [
+    {
+      "path": ".agents/skills/paxter-loop/CODIGO-PAXTER.md",
+      "sha256": "3ef2fd60cc3d6001741ecb153968f274ce34a3a69909d08090392653a2b4c7ee"
+    },
+    {
+      "path": ".agents/skills/paxter-loop/SKILL.md",
+      "sha256": "f69b9c117a7a3dcf2f05198278d20c3f8660fee50e947a899e44311400654a1e"
+    },
+    {
+      "path": "replit.md",
+      "sha256": "fd37593c5c755860faa8e825c1c8f17e2563be844d452a9d1e22a8be51104f46"
+    },
+    {
+      "path": "DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO_26.06.15.md",
+      "sha256": "ba2003d0f544b98c751752472cdc6c664b0bbb13af1aa4c7628210768d149e79"
+    },
+    {
+      "path": "DIRETRIZES_CENTRAIS_E_PRE_REQUISITOS_CEO_DR_CAIO_26.10.29.md",
+      "sha256": "8f2049577648b7fe90864c333be16919df2d2b21d78cdee5bffd85c36d170d8b"
+    },
+    {
+      "path": "paxter-pack/skills/paxter-loop/CODIGO-PAXTER.md",
+      "sha256": "3ef2fd60cc3d6001741ecb153968f274ce34a3a69909d08090392653a2b4c7ee"
+    },
+    {
+      "path": "paxter-pack/skills/paxter-loop/SKILL.md",
+      "sha256": "f69b9c117a7a3dcf2f05198278d20c3f8660fee50e947a899e44311400654a1e"
+    },
+    {
+      "path": "paxter-pack/manifest.json",
+      "sha256": "f66ef15d1e20ac5f263031de472163d4404ff603264a57d01bcd8bf7abfaeb1e"
+    },
+    {
+      "path": "paxter-pack/MANIFEST.md",
+      "sha256": "eba8a35297cf8628cb2a1671d4d68f6792985176578e44ef22d7f4b424cba403"
+    }
+  ],
+  "passed": true,
+  "issues": []
+}
