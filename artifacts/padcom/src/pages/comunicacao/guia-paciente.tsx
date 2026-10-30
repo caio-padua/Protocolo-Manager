@@ -420,6 +420,16 @@ export default function GuiaPaciente() {
         return;
       }
 
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        toast({
+          title: "Guia não enviado",
+          description: data.error ?? "Não foi possível autorizar o envio.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const data = await res.json() as { ok: boolean; resultados: EnvioResult[] };
       setResultados(data.resultados ?? []);
       if (data.ok) {

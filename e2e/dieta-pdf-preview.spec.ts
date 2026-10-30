@@ -1,4 +1,5 @@
 /**
+ * Task #291 — Confirm that inserting a recipe respects the IF window and warns before saving
  * Task #223 — Confirmar que o PDF abre na nova aba antes de o CEO poder enviar o e-mail
  * Task #244 — Confirmar que o painel de e-mail mostra o nome correto do paciente
  *             quando o popup foi bloqueado
@@ -283,6 +284,80 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
 
       // ── 12. Botão "Gerar PDF para Revisão" fica desabilitado (duplo envio) ─
       await expect(gerarBtn).toBeDisabled();
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Task #291 — inserirReceita fora da janela de JI: aviso e salvamento bloqueado
+  // ---------------------------------------------------------------------------
+  test(
+    "inserir receita em refeição fora da janela de jejum: avisa e bloqueia salvamento",
+    async ({ page }) => {
+      // Sobrescreve o mock de receitas para retornar 1 receita com 1 ingrediente.
+      // Playwright usa ordem LIFO nas rotas, então este override vence o beforeEach.
+      await page.route("**/api/dieta/receitas", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: 1,
+              nome: "Omelete Fit",
+              porcoes: 1,
+              tipos: [],
+              ingredientes: [
+                { alimentoId: 99, alimentoNome: "Ovo", quantidadeG: 120 },
+              ],
+            },
+          ]),
+        })
+      );
+
+      // ── 1. Navega para a página de Dieta ─────────────────────────────────
+      await page.goto("/dieta");
+      await expect(page.getByText("Órgão Dieta")).toBeVisible({ timeout: 10_000 });
+
+      // ── 2. Ativa o Jejum Intermitente (padrão: 12:00–20:00) ──────────────
+      // O toggle usa role=switch implícito via aria-checked; clicar ativa.
+      const jejumToggle = page.locator('[aria-checked]').filter({ hasText: /jejum/i });
+      // O toggle pode ser o elemento pai ou o próprio div; usar o botão clicável.
+      await page.locator('[aria-checked="false"]').first().click();
+      // Confirma que o toggle ficou ativo (aria-checked="true")
+      await expect(page.locator('[aria-checked="true"]').first()).toBeVisible({ timeout: 3_000 });
+
+      // ── 3. Abre o painel "Inserir receita" ───────────────────────────────
+      await page.getByRole("button", { name: /Inserir receita/i }).click();
+      await expect(page.getByText("Inserir receita no cardápio")).toBeVisible({ timeout: 3_000 });
+
+      // ── 4. Seleciona a receita "Omelete Fit" ─────────────────────────────
+      // O Select usa SelectTrigger com placeholder "Selecionar receita…"
+      await page.getByRole("combobox").filter({ hasText: /Selecionar receita/i }).click();
+      await page.getByRole("option", { name: /Omelete Fit/i }).click();
+
+      // ── 5. Muda a refeição para "Café da manhã" (08:00 — fora de 12:00–20:00)
+      // O segundo combobox no painel é o seletor de refeição (padrão = Almoço)
+      await page.getByRole("combobox").filter({ hasText: /Almoço/i }).click();
+      await page.getByRole("option", { name: /Café da manhã/i }).click();
+
+      // ── 6. Clica "Inserir" ────────────────────────────────────────────────
+      await page.getByRole("button", { name: /^Inserir$/i }).click();
+
+      // ── 7. Toast destrutivo com aviso de jejum ────────────────────────────
+      // O toast usa variant="destructive" e title "⚠️ Refeição fora do jejum".
+      // getByText pode resolver 2 nós (title + aria-live span) → .first() evita strict-mode.
+      await expect(page.getByText(/Refeição fora do jejum/i).first()).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByText(/Café da manhã/i).first()).toBeVisible();
+
+      // ── 8. Banner amber aparece na tabela ────────────────────────────────
+      await expect(
+        page.getByText(/Há refeições fora da janela de jejum/i)
+      ).toBeVisible({ timeout: 5_000 });
+
+      // ── 9. Botão "Salvar prescrição" permanece desabilitado ───────────────
+      // algumForaJanela=true → podeSalvar=false → disabled
+      await expect(
+        page.getByRole("button", { name: /Salvar prescrição/i })
+      ).toBeDisabled();
     }
   );
 });

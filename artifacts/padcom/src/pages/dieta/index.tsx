@@ -264,11 +264,12 @@ function MontarCardapio() {
     const receita = (receitas ?? []).find((r) => r.id === receitaPickerId);
     if (!receita) return;
     const ref = REFEICOES.find((r) => r.key === receitaPickerRefeicao);
+    const horaMeal = ref?.hora ?? "13:00";
     const escala = receitaPickerPorcoes / (receita.porcoes || 1);
     const novas: ItemLinha[] = receita.ingredientes.map((ing) => ({
       uid: crypto.randomUUID(),
       refeicao: receitaPickerRefeicao,
-      horario: ref?.hora ?? "13:00",
+      horario: horaMeal,
       alimentoId: ing.alimentoId,
       quantidadeG: Math.round(ing.quantidadeG * escala),
     }));
@@ -276,10 +277,22 @@ function MontarCardapio() {
     setShowReceitaPicker(false);
     setReceitaPickerId(null);
     setReceitaPickerPorcoes(1);
-    toast({
-      title: "Receita inserida",
-      description: `${receita.nome} — ${novas.length} ingrediente(s) adicionado(s) ao cardápio.`,
-    });
+
+    // Warn immediately if IF is active and this meal falls outside the window
+    const foraJanelaAgora =
+      jejum && !dentroDaJanela(horaMeal, janelaIni, janelaFim);
+    if (foraJanelaAgora) {
+      toast({
+        title: "⚠️ Refeição fora do jejum",
+        description: `${receita.nome} foi adicionada em "${ref?.label ?? receitaPickerRefeicao}" (${horaMeal}), que está fora da janela ${janelaIni}–${janelaFim}. Ajuste o horário ou a janela para liberar o salvamento.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Receita inserida",
+        description: `${receita.nome} — ${novas.length} ingrediente(s) adicionado(s) ao cardápio.`,
+      });
+    }
   }
 
   // --- Emissão de PDF ---

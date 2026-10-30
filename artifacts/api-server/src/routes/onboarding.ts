@@ -140,18 +140,19 @@ onboardingRouter.post("/enviar-guia", async (req: Request, res: Response): Promi
   // Fill an omitted tenant from the authenticated clinic, never the global fallback.
   if (clinic.slug) guiaLink.searchParams.set("tenant", clinic.slug);
 
+  const [cliente] = await db
+    .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
+    .from(clientsTable).where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, clinic.id))).limit(1);
+
+  // Inexistente e outra clínica são indistinguíveis, antes de cooldown e quota.
+  if (!cliente) { res.status(404).json({ ok: false, error: "Cliente não encontrado." }); return; }
+
   const agora = Date.now();
   const canalBloqueado = canais.find((canal) => agora - (sendCooldowns.get(`${clientId}:${canal}`) ?? 0) < COOLDOWN_MS);
   if (canalBloqueado) {
     res.status(429).json({ ok: false, error: "Aguarde 60 segundos antes de reenviar.", motivo: "cooldown", canal: canalBloqueado });
     return;
   }
-
-  const [cliente] = await db
-    .select({ id: clientsTable.id, name: clientsTable.name, phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
-    .from(clientsTable).where(and(eq(clientsTable.id, clientId), eq(clientsTable.empresaId, clinic.id))).limit(1);
-
-  if (!cliente) { res.status(404).json({ ok: false, error: "Paciente não encontrado" }); return; }
 
   const clinicaNome = !tenantSlug && clinic.id === 5 ? "Instituto Pádua" : clinic.nome;
 

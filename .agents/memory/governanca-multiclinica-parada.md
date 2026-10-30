@@ -41,3 +41,10 @@ O responsável pelo produto autorizou em 29/10/2026 corrigir o vínculo entre co
 **Why:** o produto será comercializado para outras clínicas; apresentar uma marca diferente ou permitir contatos entre bases não é aceitável.
 
 **How to apply:** essa autorização cobre identificar a clínica pela associação real do colaborador, carregar seus próprios clientes e conferir essa associação no envio do guia; não equivale a concluir a governança multiclínica de todas as ferramentas.
+## Exceção restrita autorizada em 29/10/2026
+
+O CEO autorizou somente a correção de segurança no envio do guia: vincular o colaborador à clínica autenticada, validar o pertencimento do cliente e bloquear combinações não autorizadas antes de enviar.
+
+**Why:** a clínica informada pelo navegador não pode conceder acesso; a autorização não reabre licenciamento nem permite alterar cobranças.
+
+**How to apply:** manter a correção local ao envio do guia e verificar caminhos permitidos e proibidos com os provedores de mensagens simulados, sem mensagens reais aos clientes.
