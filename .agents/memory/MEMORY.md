@@ -114,6 +114,7 @@
 - [Git — transporte gerenciado](git-http-auth-fallback.md) — proxy do Replit permite sincronizar sem acessar tokens; verificar divergência antes e comparar versões local e remota depois.
 - [Sync do painel Git interrompido deixa rebase travada](git-panel-rebase-travada.md) — "DIRTY_WORKTREE"/"GitHub travado" sem causa óbvia = rebase interativa órfã do botão Sync; `git status --short` esconde isso, só o completo mostra; `rebase --abort` é seguro.
 - [Log do Vite pode mostrar erro já resolvido](vite-hmr-log-durante-merge.md) — burst de escrita (merge de task agent) gera "Failed to reload" transitório; conferir arquivo/tela atual antes de "corrigir" bug fantasma.
+- [Cache Vite após alinhar React](vite-cache-react-peer.md) — após atualizar React/React DOM, erro de versão pode persistir no otimizador Vite; confirmar a origem resolvida e limpar apenas o cache do artefato.
 - ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro nome.
 - [unidadeCompraEquivalenteG — dual propósito](unidade-compra-equivalente-g.md) — 1 campo cobre conversão de embalagem E rendimento de cocção, na mesma base que kcal100g já usa; robô de preços deve preencher assim.
 - [drizzle-kit push pode propor DROP destrutivo por drift](drizzle-push-drift-destrutivo.md) — drift preexistente faz push de mudança aditiva pequena arrastar DROP de colunas com dados reais; preferir SQL bruto.

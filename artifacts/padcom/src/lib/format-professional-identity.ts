@@ -1,5 +1,15 @@
 const titlePrefixes = new Set(["dr", "dra", "doutor", "doutora"]);
 const surnameParticles = new Set(["da", "das", "de", "do", "dos", "e"]);
+const surnameSuffixes = new Set([
+  "filho",
+  "filha",
+  "junior",
+  "júnior",
+  "neto",
+  "neta",
+  "sobrinho",
+  "sobrinha",
+]);
 
 function wordsWithoutTitle(name: string | null | undefined): string[] {
   const words = (name ?? "").trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
@@ -14,7 +24,8 @@ export function formatProfessionalName(name: string | null | undefined): string 
   if (words.length === 0) return "Profissional";
   if (words.length <= 2) return words.join(" ");
 
-  let surnameStart = words.length - 1;
+  const lastWord = words.at(-1)?.toLocaleLowerCase("pt-BR") ?? "";
+  let surnameStart = surnameSuffixes.has(lastWord) ? words.length - 2 : words.length - 1;
   while (
     surnameStart > 1 &&
     surnameParticles.has(words[surnameStart - 1].toLocaleLowerCase("pt-BR"))

@@ -1,7 +1,7 @@
 # Especificacao — Identidade do profissional, menu e acesso Google
 
 Data: 30/10/2026
-Estado: EM CONSTRUCAO
+Estado: IMPLEMENTADO; HOMOLOGACAO DO GOOGLE PENDENTE
 
 ## Objetivo
 
@@ -17,7 +17,7 @@ Exibir a identidade do colaborador autenticado no rodape do menu lateral, oferec
 6. Nao criar profissionais automaticamente, nao vincular por semelhanca de nome e nao selecionar um profissional pelo identificador enviado pelo navegador.
 7. Mostrar no rodape do menu o primeiro nome, as iniciais dos nomes intermediarios e o sobrenome, sem titulo profissional. Exemplo: “Caio H. F. Padua”.
 8. Mostrar a funcao do profissional na segunda linha e o CPF na terceira linha. O CPF fica mascarado por padrao e pode ser revelado por acao explicita. CPF ausente aparece como “—”.
-9. Tornar o bloco inferior do menu interativo: sem sessao, oferecer entrada; com sessao, permitir vincular Google, trocar de usuario e sair. Trocar de usuario encerra tanto a sessao do colaborador quanto a sessao Google.
+9. Tornar o bloco inferior do menu interativo: sem sessao, oferecer entrada; com sessao, permitir vincular Google e trocar de usuario. Trocar de usuario encerra tanto a sessao do colaborador quanto a sessao Google.
 10. Atualizar o link do Cockpit para a rota canonica `/cockpit`; manter as demais rotas atuais.
 11. Registrar tentativas de vinculo e logins Google na auditoria sem gravar senhas, cookies, tokens ou dados secretos.
 12. Seguir o layout Paxter existente: sidebar navy, relevo 3D existente, slots fixos, alinhamentos verticais estaveis, acessibilidade por teclado e alvos utilizaveis no celular.
@@ -53,10 +53,21 @@ Exibir a identidade do colaborador autenticado no rodape do menu lateral, oferec
 3. Conta Google nao vinculada, sessao PADCOM ausente, usuario inativo, identificador repetido e conflitos de vinculo sao recusados.
 4. Testes usam exclusivamente profissionais e contas sinteticas; nao acessam nem alteram cadastros clinicos reais.
 5. O rodape mostra nome formatado, funcao e CPF mascarado; o controle de revelar/ocultar funciona.
-6. Entrada, troca de usuario e saida funcionam em desktop e celular; a sessao Google e a sessao do colaborador sao encerradas na troca.
+6. A entrada e a troca de usuario funcionam em desktop e celular; a sessao Google e a sessao do colaborador sao encerradas na troca.
 7. Os links do menu continuam validos e o Cockpit usa a rota canonica.
 8. Revisao independente sequencial, testes de servidor, verificacao visual e logs sem erros inesperados.
 9. Se o provedor Google nao puder ser habilitado pelo agente, a implementacao fica identificada como bloqueada para o teste OAuth real; nao declarar homologacao completa.
+
+## Evidencias e pendencias
+
+- Implementacao da interface, rotas e validacao de identidade concluida.
+- Testes sinteticos: 5 casos de identidade visual e 13 casos de autenticacao e vinculacao.
+- Verificacao de interface com dados ficticios em computador e celular: nome, cargo, CPF mascarado, validacao Google e troca de usuario visiveis; sem login real nem dados clinicos.
+- Teste ponta a ponta da Dieta: 3 casos aprovados depois da limpeza do cache antigo do Vite.
+- Builds de PADCOM e do servidor aprovados; avisos preexistentes de tamanho de pacote e de propriedades duplicadas permanecem fora do escopo.
+- Habilitar o provedor Google no painel de autenticacao da Replit, em desenvolvimento e producao, e testar o retorno OAuth real.
+- A tela autenticada ainda depende de sessao real para verificacao visual; nao foi criada excecao de autenticacao para esse teste.
+- A revisao independente prevista pelo PAXTER Loop nao ficou disponivel neste ambiente; foi feita conferência direta do codigo, sem declarar revisao independente.
 
 ## Linhas vermelhas
 
