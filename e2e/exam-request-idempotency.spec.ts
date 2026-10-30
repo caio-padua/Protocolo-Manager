@@ -956,9 +956,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       : currentStatus === 401 || currentStatus === 403
       ? `Acesso recusado ao histórico da clínica atual B (${currentStatus}). Revalide a autorização.`
       : "Histórico indisponível exclusivamente no contexto clínico atual B.";
-    const oldMarkers = [oldKey, oldPageKey, delayedPageKey, oldError,
-      ...(currentFailure ? [] : ["Não foi possível atualizar o histórico"])];
+    const oldMarkers = [oldKey, oldPageKey, delayedPageKey, oldError];
     const offsets: { original: number[]; current: number[] } = { original: [], current: [] };
+    let currentPageReads = 0;
     let switched = false;
     let refreshing = false;
     let currentHistoryReleased = false;
@@ -1030,6 +1030,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         if (switched) {
           if (!currentHistoryReleased) { held.current = route; return; }
           expect([0, 20]).toContain(offset);
+          if (mode === "paginacao" && offset === 20 && ++currentPageReads === 1) {
+            return reply(route, { error: currentError }, 500);
+          }
           return reply(route, offset === 20
             ? historyBody(newPageKey, 95) : historyBody(newKey, 92, 20));
         }
@@ -1234,7 +1237,25 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     expect(offsets.current).toEqual([0]);
     if (!currentFailure) {
     await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+    if (mode === "paginacao") {
+    await expect(panel.getByRole("alert")).toHaveCount(1);
+    await expect(panel.getByRole("alert")).toContainText(`Não foi possível atualizar o histórico: ${currentError}`);
+    await expect(panel.getByRole("alert")).toContainText("Use Atualizar histórico para tentar novamente.");
+    await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+    await expect(panel.getByRole("alert").getByRole("listitem")).toHaveCount(0);
+    await expect(panel).not.toContainText(newKey);
+    await expect(panel).not.toContainText(newPageKey);
+    for (const marker of oldMarkers) await expect(panel).not.toContainText(marker);
+    await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeEnabled();
+    await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
+    await expect(panel.getByRole("button", { name: "Atualizar histórico" })).toBeEnabled();
+    expect(offsets.current).toEqual([0, 20]);
+    await panel.screenshot({ path: testInfo.outputPath("historico-clinica-atual-erro.png") });
+    await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+    }
     await expect(panel.getByText(`${newPageKey}.pdf`, { exact: true })).toBeVisible();
+    await expect(panel).not.toContainText(currentError);
+    await expect(panel).not.toContainText("Não foi possível atualizar o histórico");
     await expect(panel.getByRole("alert")).toHaveCount(1);
     await expect(panel.getByRole("alert").getByRole("listitem")).toHaveCount(1);
     await expect(panel.getByRole("alert")).toContainText(`Operação: ${newPageKey}`);
@@ -1244,7 +1265,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
     await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeEnabled();
-    expect(offsets.current).toEqual([0, 20]);
+    expect(offsets.current).toEqual(mode === "paginacao" ? [0, 20, 20] : [0, 20]);
     await panel.getByRole("button", { name: "Mais recentes", exact: true }).click();
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
     await expect(panel.getByRole("alert")).toHaveCount(1);
@@ -1256,8 +1277,11 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     await expect(panel.getByText(`${newPageKey}.pdf`, { exact: true })).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
     await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeEnabled();
-    expect(offsets.current).toEqual([0, 20, 0]);
+    expect(offsets.current).toEqual(mode === "paginacao" ? [0, 20, 20, 0] : [0, 20, 0]);
+    expect(currentPageReads).toBe(mode === "paginacao" ? 2 : 0);
+    await expect(panel).not.toContainText(currentError);
     }
+    for (const marker of oldMarkers) await expect(panel).not.toContainText(marker);
     expect(offsets.original).toEqual(mode === "paginacao" ? [0, 20, 40] : [0, 0]);
     expect(await page.evaluate(() => (window as any).__clinicHistoryLeaks)).toEqual([]);
     if (currentFailure) {
