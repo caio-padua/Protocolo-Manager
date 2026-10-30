@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
 import {
   Search,
@@ -41,6 +41,9 @@ import { BASE } from "../../comunicacao/_shared";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
+import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
+import { useClinicalDraft } from "@/hooks/use-clinical-draft";
+import { emptyPrescriptionDraft, prescriptionDraftSchema } from "./clinical-draft-schemas";
 
 // ===========================================================================
 // PAINEL: PRESCRICAO DE FORMULAS (client-scoped) — extraido de prescricao/index.tsx.
@@ -77,17 +80,25 @@ interface ClientData {
 }
 
 export default function PrescricaoFormulasPanel({ clientId }: { clientId: number }) {
-  const { toast } = useToast();
   const identity = useClinicalIdentity(clientId);
+  return <ClinicalDraftGate identity={identity} clientId={clientId} kind="prescription">
+    {scope => <PrescriptionEditor key={scope} scope={scope} clientId={clientId} identity={identity} />}
+  </ClinicalDraftGate>;
+}
 
-  const [duracao, setDuracao] = useState("30");
-  const [cid, setCid] = useState("");
-  const [selected, setSelected] = useState<SelectedFormula[]>([]);
+function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; identity: IdentityQuery; scope: string }) {
+  const { toast } = useToast();
+  const draft = useClinicalDraft(scope, prescriptionDraftSchema, emptyPrescriptionDraft);
+  const { duracao, cid, selected, defaultPharmacyId, routing } = draft.value;
+  const setDuracao = draft.field("duracao");
+  const setCid = draft.field("cid");
+  const setSelected = draft.field("selected");
+  const setDefaultPharmacyId = draft.field("defaultPharmacyId");
+  const setRouting = draft.field("routing");
+
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
 
-  const [defaultPharmacyId, setDefaultPharmacyId] = useState<number | null>(null);
-  const [routing, setRouting] = useState<Record<string, RouteState>>({});
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
   // ── Motor Único (emite PDF com o modelo ativo do banco) ───────────────────
@@ -120,28 +131,24 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
     },
   });
 
-  // Trocar de cliente limpa a receita e o resultado anterior.
-  useEffect(() => {
-    setSelected([]);
-    setRouting({});
-    setDefaultPharmacyId(null);
-    setPreviewPlans(null);
-    setEmitResult(null);
-  }, [clientId]);
-
   const previewMutation = usePreviewPrescription({
     mutation: {
-      onSuccess: (res) => setPreviewPlans(res),
-      onError: () => toast({ title: "Erro ao gerar prévia do desmembramento", variant: "destructive" }),
+      onSuccess: (res) => { if (draft.isCurrent()) setPreviewPlans(res); },
+      onError: () => { if (draft.isCurrent()) toast({ title: "Erro ao gerar prévia do desmembramento", variant: "destructive" }); },
     },
   });
   const emitMutation = useEmitPrescription({
     mutation: {
       onSuccess: (res) => {
+        if (!draft.isCurrent()) return;
+        if (!Array.isArray(res.recipes) || !res.recipes.length) {
+          toast({ title: "Emissão sem documentos confirmados — rascunho preservado", variant: "destructive" });
+          return;
+        }
         setEmitResult(res);
         toast({ title: `Receitas geradas (${res.recipes.length})`, description: "Confira os documentos e o resultado de cada envio." });
       },
-      onError: (error) => toast({ title: "Erro ao emitir receitas", description: error.message, variant: "destructive" }),
+      onError: (error) => { if (draft.isCurrent()) toast({ title: "Erro ao emitir receitas — rascunho preservado", description: error.message, variant: "destructive" }); },
     },
   });
 
@@ -335,6 +342,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
   };
 
   const handleEmit = () => {
+    if (draft.pending || emitMutation.isPending) return;
     if (!identity.data?.canPrescribe || identity.isFetching || identity.isError) {
       toast({ title: "Identidade clínica pendente", description: identity.data?.issue ?? identity.error?.message, variant: "destructive" });
       return;
@@ -348,6 +356,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
       toast({ title: err, variant: "destructive" });
       return;
     }
+    const snapshot = draft.value;
     emitMutation.mutate({
       data: {
         clientId,
@@ -360,7 +369,9 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
         cid: cid || null,
         items: buildItems(),
       },
-    });
+    }, { onSuccess: res => {
+      if (Array.isArray(res.recipes) && res.recipes.length) draft.complete(snapshot);
+    } });
   };
 
   const idade = client?.birthDate
@@ -414,6 +425,11 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
 
   return (
     <div className="space-y-4">
+      <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0">
+        <ClinicalDraftNotice draft={draft} identity={identity} />
+      </fieldset>
+      {emitMutation.isError && <p role="alert" className="text-sm text-red-400">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
+      {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0 space-y-4">
       <ClinicalIdentityPanel identity={identity} />
       <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
@@ -538,13 +554,14 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
             {selected.length > 0 && (
               <button
                 onClick={() => {
-                  setSelected([]);
-                  setPreviewPlans(null);
-                  setEmitResult(null);
+                  if (draft.discard()) {
+                    setPreviewPlans(null);
+                    setEmitResult(null);
+                  }
                 }}
                 className="flex items-center gap-1 text-xs font-semibold text-red-400 hover:opacity-80"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Limpar
+                <Trash2 className="h-3.5 w-3.5" /> Descartar rascunho
               </button>
             )}
           </div>
@@ -868,7 +885,12 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                     </div>
                   )}
 
-                  {/* Resultado da emissão */}
+                </>
+              )}
+            </div>
+          )}
+
+                  {/* Resultado independe do formulário, que fica vazio após o sucesso. */}
                   {emitResult && (
                     <div className="space-y-3">
                       {emitResult.sncrAlerts.length > 0 && (
@@ -953,12 +975,9 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
                       )}
                     </div>
                   )}
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
+      </fieldset>}
     </div>
   );
 }

@@ -15,6 +15,9 @@ import { getCollabToken } from "@/lib/collab-auth";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 import ExamRequestHistoryPanel from "./ExamRequestHistoryPanel";
+import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
+import { useClinicalDraft } from "@/hooks/use-clinical-draft";
+import { emptyExamDraft, examDraftSchema } from "./clinical-draft-schemas";
 
 // ===========================================================================
 // PAINEL: PEDIDOS DE EXAMES (client-scoped) — extraido de consulta/index.tsx.
@@ -89,14 +92,22 @@ function classifyTipo(modalidade: string | null, material: string | null, grupo:
 
 export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   const identity = useClinicalIdentity(clientId);
+  return <ClinicalDraftGate identity={identity} clientId={clientId} kind="exams">
+    {scope => <ExamsEditor key={scope} scope={scope} clientId={clientId} identity={identity} />}
+  </ClinicalDraftGate>;
+}
+
+function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity: IdentityQuery; scope: string }) {
+  const draft = useClinicalDraft(scope, examDraftSchema, emptyExamDraft);
+  const { cart, observacao, individualDocuments } = draft.value;
+  const setCart = draft.field("cart");
+  const setObservacao = draft.field("observacao");
+  const setIndividualDocuments = draft.field("individualDocuments");
   const [exams, setExams] = useState<Exam[]>([]);
   const [carregandoExams, setCarregandoExams] = useState(true);
   const [erroExams, setErroExams] = useState(false);
   const [busca, setBusca] = useState("");
-  const [cart, setCart] = useState<Record<number, CartItem>>({});
-  const [observacao, setObservacao] = useState("");
   const [cardiacOnly, setCardiacOnly] = useState(false);
-  const [individualDocuments, setIndividualDocuments] = useState(true);
   const [recentIds, setRecentIds] = useState<number[]>([]);
   const activeClient = useRef(clientId);
   activeClient.current = clientId;
@@ -121,15 +132,6 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   useEffect(() => {
     carregarExams();
   }, [carregarExams]);
-
-  // Trocar de cliente limpa o carrinho e o resultado da emissao anterior.
-  useEffect(() => {
-    setCart({});
-    setEmitResult(null);
-    setEmitErro(null);
-    setRecentIds([]);
-    setObservacao("");
-  }, [clientId]);
 
   const examesFiltrados = useMemo(() => {
     const term = noAccents(busca.trim().toLowerCase());
@@ -168,8 +170,9 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
   };
 
   const emitir = async () => {
-    if (emitindo || cartList.length === 0 || !identity.data || identity.isFetching || identity.isError) return;
+    if (draft.pending || emitindo || cartList.length === 0 || !identity.data || identity.isFetching || identity.isError) return;
     const requestedClient = clientId;
+    const snapshot = draft.value;
     setEmitindo(true);
     setEmitErro(null);
     setEmitResult(null);
@@ -194,19 +197,26 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
       });
       const d = await r.json().catch(() => ({}) as Record<string, unknown>);
       if (!r.ok) throw new Error((d as { error?: string }).error ?? "Falha ao gerar solicitação");
-      if (activeClient.current !== requestedClient) return;
+      if (!Array.isArray(d.pdfs) || !d.pdfs.length || !d.email || !d.whatsapp) {
+        throw new Error("O servidor não confirmou os documentos gerados. Confira o histórico antes de tentar novamente");
+      }
+      if (!draft.isCurrent() || activeClient.current !== requestedClient) return;
       setEmitResult(d as EmitResult);
       setRecentIds((d as EmitResult).pdfs.map(pdf => pdf.id));
-      setCart({});
+      draft.complete(snapshot);
     } catch (e) {
-      if (activeClient.current === requestedClient) setEmitErro((e as Error).message);
+      if (draft.isCurrent() && activeClient.current === requestedClient) setEmitErro(`${(e as Error).message} — rascunho preservado.`);
     } finally {
-      if (activeClient.current === requestedClient) setEmitindo(false);
+      if (draft.isCurrent() && activeClient.current === requestedClient) setEmitindo(false);
     }
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div className="space-y-3">
+      <fieldset disabled={emitindo} className="min-w-0">
+        <ClinicalDraftNotice draft={draft} identity={identity} />
+      </fieldset>
+      {!draft.pending && <fieldset disabled={emitindo} className="grid min-w-0 gap-5 lg:grid-cols-[1fr_360px]">
       {/* Catalogo */}
       <div className="space-y-3">
         <label className="concave-3d flex items-center gap-2 p-3 text-sm">
@@ -366,6 +376,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
         email={identity.data?.client.email} phone={identity.data?.client.phone}
         enabled={!!identity.data && !identity.isError && !identity.isFetching}
         recentIds={recentIds} />
+      </fieldset>}
     </div>
   );
 }
