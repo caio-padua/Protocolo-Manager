@@ -5,6 +5,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import type { RequestHandler } from "express";
 import { syntheticDispatchDocuments } from "./exam-dispatch-documents";
+import { syntheticDispatchDocuments as multipartDispatchDocuments } from "./exam-dispatch-fixtures";
 export { clientsTable } from "../../../../../lib/db/src/schema/clients";
 export { collaboratorAuditTable } from "../../../../../lib/db/src/schema/collaborator-audit";
 export { examRequestPdfsTable } from "../../../../../lib/db/src/schema/exam-requests";
@@ -18,7 +19,8 @@ if (configuration.connection.host !== "127.0.0.1" || configuration.connection.us
 }
 export const pool = new Pool(configuration.connection);
 const dialect = new PgDialect();
-const documents = syntheticDispatchDocuments(configuration.documentCount ?? 1);
+const documents = configuration.multipart ? multipartDispatchDocuments(true)
+  : syntheticDispatchDocuments(configuration.documentCount ?? 1);
 let selections = 0;
 let operationWriteAttempts = 0;
 export const db = {
@@ -113,7 +115,16 @@ export async function resolveClinicalEmitter() {
   };
 }
 let acceptedMessages = 0;
+let acceptedTelegramMessages = 0;
 export async function enviarMensagemPaxter(doc: unknown, _destination: unknown, channels: string[]) {
+  if (configuration.crashPoint === "after-first-batch-accepted"
+    && channels[0] === "TELEGRAM" && acceptedTelegramMessages === 1) {
+    // The real route consumed the first sent:true and advanced to its next
+    // batch. Stop BEFORE that next provider call or any channel result write.
+    process.send!({ type: "after-first-batch-accepted", pid: process.pid,
+      state: "provider_accepted", acceptedMessages: acceptedTelegramMessages, nextBatch: doc });
+    await new Promise(() => {});
+  }
   if (configuration.crashPoint === "between-telegram-batches" && acceptedMessages === 1) {
     // The real route consumed the first sent:true response and advanced its
     // messageBatches loop. Stop BEFORE contacting the provider for batch two.
@@ -127,5 +138,6 @@ export async function enviarMensagemPaxter(doc: unknown, _destination: unknown, 
   if (!response.ok) throw new Error("Synthetic provider refused");
   const result = await response.json();
   if (result.resultados[0]?.sent === true) acceptedMessages++;
+  if (channels[0] === "TELEGRAM" && result.resultados[0]?.sent === true) acceptedTelegramMessages++;
   return result;
 }
