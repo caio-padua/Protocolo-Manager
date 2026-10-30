@@ -907,7 +907,9 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
 
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const { mode, outcome } of [
-    { mode: "paginacao", outcome: "sucesso-atrasado" } as const,
+    ...(["sucesso-atrasado", "401-atrasado", "403-atrasado", "rede-atrasada"] as const).map(
+      outcome => ({ mode: "paginacao" as const, outcome }),
+    ),
     ...(["sucesso-atrasado", "401-atrasado", "500-atrasado"] as const).map(
       outcome => ({ mode: "atualizacao" as const, outcome }),
     ),
@@ -953,11 +955,18 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
       const originalFetch = window.fetch.bind(window);
       (window as any).__parsedHistory = 0;
+      (window as any).__failedHistory = 0;
       window.fetch = async (input, init) => {
         const url = input instanceof Request ? input.url : String(input);
         if (!/\/exam-requests\/42\/history/.test(url)) return originalFetch(input, init);
         // Deliver the old body even if React Query cancels its original query.
-        const response = await originalFetch(input, { ...init, signal: undefined });
+        let response: Response;
+        try {
+          response = await originalFetch(input, { ...init, signal: undefined });
+        } catch (error) {
+          (window as any).__failedHistory++;
+          throw error;
+        }
         const originalJson = response.json.bind(response);
         response.json = async () => {
           const data = await originalJson();
@@ -1051,12 +1060,52 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     await expect(panel.getByRole("alert")).toContainText(newKey);
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 3 : 2);
+    if (mode === "paginacao") {
+      // Arm B's controls, but never submit. An old auth error must neither
+      // revoke B's permission nor clear B's freshly granted consent.
+      await panel.getByRole("checkbox", { name: "Selecionar documento 92 para envio" }).check();
+      await panel.getByRole("checkbox", { name: "E-mail", exact: true }).check();
+      await panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false }).check();
+      await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeEnabled();
+      await page.evaluate(() => {
+        const panel = document.querySelector('[aria-label="Histórico de pedidos de exames"]')!;
+        const draft = document.querySelector('[aria-label="Rascunho clínico"]')!;
+        const snapshot = () => JSON.stringify({
+          text: panel.textContent, identity: draft.textContent,
+          connected: panel.isConnected && draft.isConnected,
+          controls: [...panel.querySelectorAll("button, input")].map(node => {
+            const control = node as HTMLInputElement;
+            return [control.textContent, control.getAttribute("aria-label"),
+              control.disabled, control.checked, control.getAttribute("aria-checked")];
+          }),
+        });
+        const baseline = snapshot();
+        (window as any).__clinicControlChanges = [];
+        new MutationObserver(records => {
+          if (snapshot() !== baseline || records.some(record =>
+            record.type === "attributes" && panel.contains(record.target)
+            && ["disabled", "checked", "aria-checked", "hidden"].includes(record.attributeName!)
+            && record.oldValue !== (record.target as Element).getAttribute(record.attributeName!))) {
+            (window as any).__clinicControlChanges.push("Histórico ou controles de B alterados");
+          }
+        }).observe(document.body, {
+          subtree: true, childList: true, characterData: true, attributes: true, attributeOldValue: true,
+        });
+      });
+    }
     // Identity and B's history have succeeded. Any failure here belongs only
     // to A's outstanding history query, not to identity revalidation.
     const oldBody = mode === "paginacao" ? historyBody(delayedPageKey, 94) : historyBody(oldKey, 91);
-    await reply(held.old!, outcome === "sucesso-atrasado" ? oldBody : { error: oldError },
-      outcome === "401-atrasado" ? 401 : outcome === "500-atrasado" ? 500 : 200);
-    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 4 : 3);
+    if (outcome === "rede-atrasada") {
+      await held.old!.abort("failed");
+      await expect.poll(() => page.evaluate(() => (window as any).__failedHistory)).toBe(1);
+      expect(await page.evaluate(() => (window as any).__parsedHistory)).toBe(3);
+    } else {
+      await reply(held.old!, outcome === "sucesso-atrasado" ? oldBody : { error: oldError },
+        outcome === "401-atrasado" ? 401 : outcome === "403-atrasado" ? 403 : outcome === "500-atrasado" ? 500 : 200);
+      await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 4 : 3);
+      expect(await page.evaluate(() => (window as any).__failedHistory)).toBe(0);
+    }
     await page.evaluate(() => new Promise<void>(resolve =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await expect(panel).not.toContainText(oldKey);
@@ -1070,8 +1119,18 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     await expect(draft).toContainText(nextClinic.name);
     await expect(draft).toContainText(client.name);
     await expect(draft).toContainText(professional.name);
-    await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
-    await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+    if (mode === "paginacao") {
+      await expect(panel.getByRole("checkbox", { name: "Selecionar documento 92 para envio" })).toBeChecked();
+      await expect(panel.getByRole("checkbox", { name: "E-mail", exact: true })).toBeChecked();
+      await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).toBeChecked();
+      await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeEnabled();
+      await expect(panel.getByRole("button", { name: "Atualizar histórico" })).toBeEnabled();
+      await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
+      expect(await page.evaluate(() => (window as any).__clinicControlChanges)).toEqual([]);
+    } else {
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+    }
     await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
     expect(offsets.current).toEqual([0]);
     expect(await page.evaluate(() => (window as any).__clinicHistoryLeaks)).toEqual([]);
