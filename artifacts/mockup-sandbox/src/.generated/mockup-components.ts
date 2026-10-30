@@ -3,6 +3,7 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/acompanhamento/Cockpit.tsx": () => import("../components/mockups/acompanhamento/Cockpit.tsx"),
   "./components/mockups/acompanhamento/Exames.tsx": () => import("../components/mockups/acompanhamento/Exames.tsx"),
+  "./components/mockups/area-cliente/AreaCliente.tsx": () => import("../components/mockups/area-cliente/AreaCliente.tsx"),
   "./components/mockups/anamnese-escura/BevelMisto.tsx": () => import("../components/mockups/anamnese-escura/BevelMisto.tsx"),
   "./components/mockups/anamnese-escura/BevelSolido.tsx": () => import("../components/mockups/anamnese-escura/BevelSolido.tsx"),
   "./components/mockups/anamnese-escura/BevelVidro.tsx": () => import("../components/mockups/anamnese-escura/BevelVidro.tsx"),
@@ -22,7 +23,6 @@ export const modules: ModuleMap = {
   "./components/mockups/anamnese-paxter/AnamneseV3.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV3.tsx"),
   "./components/mockups/anamnese-paxter/AnamneseV4.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV4.tsx"),
   "./components/mockups/anamnese-paxter/AnamneseV5.tsx": () => import("../components/mockups/anamnese-paxter/AnamneseV5.tsx"),
-  "./components/mockups/area-cliente/AreaCliente.tsx": () => import("../components/mockups/area-cliente/AreaCliente.tsx"),
   "./components/mockups/cadastro/SubcadastroExames.tsx": () => import("../components/mockups/cadastro/SubcadastroExames.tsx"),
   "./components/mockups/client-tabs/ModeloA.tsx": () => import("../components/mockups/client-tabs/ModeloA.tsx"),
   "./components/mockups/client-tabs/ModeloB.tsx": () => import("../components/mockups/client-tabs/ModeloB.tsx"),
