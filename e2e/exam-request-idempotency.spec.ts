@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Route } from "@playwright/test";
 
 const client = { id: 42, name: "Cliente Sintético", email: "synthetic@example.invalid",
   phone: "00000000000", cpf: "", status: "active", birthDate: null, photoUrl: null };
@@ -139,3 +139,136 @@ test("Pedidos: pendências visíveis após recarga sem selecionar arquivos ou ca
   await expect(warning).toHaveCount(0);
   expect(posts).toBe(0);
 });
+
+// Transition contract: render A's pending operation, hold a refresh, switch scope
+// without reloading, then settle B before releasing A (success or 401). B must
+// never render A's cached/late data or error, including when B itself returns 401.
+for (const transition of ["paciente", "medico"] as const) {
+  for (const outcome of ["sucesso-atrasado", "401-atrasado", "401-atual"] as const) {
+    test(`Pedidos: isolar pendências ao trocar ${transition} — ${outcome}`, async ({ context, page }, testInfo) => {
+      const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
+      const nextProfessional = { ...professional, id: 203, name: "Outro Médico Sintético" };
+      const oldKey = "pendencia-exclusiva-do-contexto-anterior";
+      const newKey = "pendencia-exclusiva-do-contexto-atual";
+      let switched = false;
+      let refreshing = false;
+      let posts = 0;
+      const held: { old?: Route; current?: Route } = {};
+      const historyBody = (operationKey: string, id: number) => ({
+        documents: [{ ...document, id, fileName: `${operationKey}.pdf` }],
+        dispatches: [], nextOffset: null,
+        pendingOperations: [{
+          operationKey, state: "needs_review", createdAt: document.createdAt,
+          documentIds: [id], channels: ["EMAIL"], results: [],
+        }],
+      });
+      const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+        status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      await context.addInitScript(() => {
+        localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+        // Force late responses to arrive even after React Query cancels the old
+        // observer. Otherwise a test can pass solely because fetch was aborted.
+        const originalFetch = window.fetch.bind(window);
+        (window as any).__settledHistory = 0;
+        window.fetch = async (input, init) => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (!/\/exam-requests\/\d+\/history/.test(url)) return originalFetch(input, init);
+          const response = await originalFetch(input, { ...init, signal: undefined });
+          (window as any).__settledHistory++;
+          return response;
+        };
+      });
+      // No request reaches the API, a real patient, or a messaging provider.
+      await context.route("**/api/**", async route => {
+        const request = route.request();
+        const path = new URL(request.url()).pathname;
+        if (request.method() === "POST") posts++;
+        const activeProfessional = switched && transition === "medico" ? nextProfessional : professional;
+        if (path === "/api/collaborator/me") return reply(route, { professional: activeProfessional });
+        if (path === "/api/clients") return reply(route, [client, nextClient]);
+        const patient = path.includes("/43") ? nextClient : client;
+        if (/^\/api\/clients\/(42|43)$/.test(path)) return reply(route, patient);
+        if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return reply(route, {
+          professional: activeProfessional, client: patient,
+          clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
+          canPrescribe: true, issue: null,
+        });
+        if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
+          expect(request.headers().authorization).toBe(
+            switched && transition === "medico" ? "Bearer synthetic-next-token" : "Bearer synthetic-ui-token",
+          );
+          if (switched) { held.current = route; return; }
+          if (refreshing) { held.old = route; return; }
+          return reply(route, historyBody(oldKey, 91));
+        }
+        return reply(route, []);
+      });
+      await page.goto("/cockpit/42/exames");
+      const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+      await expect(panel.getByRole("alert")).toContainText(oldKey);
+      refreshing = true;
+      await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+      await expect.poll(() => !!held.old).toBe(true);
+      switched = true;
+      if (transition === "paciente") {
+        // Wouter's same-document navigation preserves the query cache and the
+        // outstanding fetch; page.goto/reload would erase the race being tested.
+        await page.evaluate(() => {
+          window.history.pushState(null, "", "/cockpit/43/exames");
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+        await expect(page).toHaveURL(/\/cockpit\/43\/exames$/);
+      } else {
+        // Same event and storage contract as setCollabSession, without logout,
+        // reload, or a real professional's credentials.
+        await page.evaluate(prof => {
+          localStorage.setItem("padcom_collab_token", "synthetic-next-token");
+          localStorage.setItem("padcom_collab_prof", JSON.stringify(prof));
+          window.dispatchEvent(new Event("collab-auth-changed"));
+        }, nextProfessional);
+        await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      }
+      await expect.poll(() => !!held.current).toBe(true);
+      await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+      await expect(panel).not.toContainText(oldKey);
+      await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+      // Watch every subsequent DOM update as well as the final state, so a
+      // transient reappearance cannot be hidden by a later successful render.
+      await page.evaluate(key => {
+        (window as any).__historyLeaks = [];
+        new MutationObserver(() => {
+          const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+          if (region?.textContent?.includes(key)) (window as any).__historyLeaks.push(key);
+        }).observe(document.body, { subtree: true, childList: true, characterData: true });
+      }, oldKey);
+      if (outcome === "401-atual") {
+        await reply(held.current!, { error: "Sessão atual sem autorização para consultar histórico." }, 401);
+        await expect(panel.getByRole("alert")).toHaveText("Sessão atual sem autorização para consultar histórico.");
+        await expect(panel).not.toContainText(newKey);
+      } else {
+        await reply(held.current!, historyBody(newKey, 92));
+        await expect(panel.getByRole("alert")).toContainText(newKey);
+        await expect(panel.getByRole("checkbox", { name: "Selecionar documento 92 para envio" })).toBeVisible();
+      }
+      if (outcome === "401-atrasado") {
+        await reply(held.old!, { error: "Erro de autenticação exclusivo da sessão anterior." }, 401);
+      } else {
+        await reply(held.old!, historyBody(oldKey, 91));
+      }
+      await expect.poll(() => page.evaluate(() => (window as any).__settledHistory)).toBe(3);
+      // Let React Query's scheduled notifications and the DOM observer finish.
+      await page.evaluate(() => new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await expect(panel).not.toContainText(oldKey);
+      await expect(panel).not.toContainText("Erro de autenticação exclusivo da sessão anterior.");
+      await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+      await expect(panel.getByRole("alert")).toContainText(outcome === "401-atual"
+        ? "Sessão atual sem autorização para consultar histórico." : newKey);
+      expect(await page.evaluate(() => (window as any).__historyLeaks)).toEqual([]);
+      expect(posts).toBe(0);
+      await panel.screenshot({ path: testInfo.outputPath("historico-contexto-isolado.png") });
+    });
+  }
+}
