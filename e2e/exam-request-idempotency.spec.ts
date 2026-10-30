@@ -906,8 +906,13 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
 });
 
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
-  for (const mode of ["atualizacao", "paginacao"] as const) {
-  test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition} (${mode})`, async ({ context, page }, testInfo) => {
+  for (const { mode, outcome } of [
+    { mode: "paginacao", outcome: "sucesso-atrasado" } as const,
+    ...(["sucesso-atrasado", "401-atrasado", "500-atrasado"] as const).map(
+      outcome => ({ mode: "atualizacao" as const, outcome }),
+    ),
+  ]) {
+  test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition} (${mode}) — ${outcome}`, async ({ context, page }, testInfo) => {
     const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
     const nextClinic = {
       id: transition === "empresa" ? 303 : 304,
@@ -918,15 +923,16 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     const newKey = "pendencia-exclusiva-da-clinica-atual";
     const oldPageKey = `${oldKey}-pagina-20`;
     const delayedPageKey = `${oldKey}-pagina-40`;
-    const oldMarkers = [oldKey, oldPageKey, delayedPageKey];
+    const oldError = "Erro exclusivo da consulta de histórico da clínica anterior.";
+    const oldMarkers = [oldKey, oldPageKey, delayedPageKey, oldError, "Não foi possível atualizar o histórico"];
     const offsets: { original: number[]; current: number[] } = { original: [], current: [] };
     let switched = false;
     let refreshing = false;
     let navigations = 0;
     const posts: string[] = [];
     const held: { identity?: Route; old?: Route; current?: Route } = {};
-    const reply = (route: Route, body: unknown) => route.fulfill({
-      contentType: "application/json", body: JSON.stringify(body),
+    const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+      status, contentType: "application/json", body: JSON.stringify(body),
     });
     const identityBody = (clinic: typeof originalClinic) => ({
       professional, client, clinic, canPrescribe: true, issue: null,
@@ -1021,7 +1027,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
               && !element.closest("[hidden]") && !!node.textContent?.includes(key);
           };
           if ((region && !region.closest("[hidden]") && region.textContent?.includes(key))
-            || records.some(record => [...record.addedNodes].some(leaked))) {
+            || records.some(record => [...record.addedNodes].some(leaked)
+              || (record.type === "characterData" && leaked(record.target)))) {
             (window as any).__clinicHistoryLeaks.push(key);
           }
         }
@@ -1044,16 +1051,25 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     await expect(panel.getByRole("alert")).toContainText(newKey);
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 3 : 2);
-    await reply(held.old!, mode === "paginacao" ? historyBody(delayedPageKey, 94) : historyBody(oldKey, 91));
+    // Identity and B's history have succeeded. Any failure here belongs only
+    // to A's outstanding history query, not to identity revalidation.
+    const oldBody = mode === "paginacao" ? historyBody(delayedPageKey, 94) : historyBody(oldKey, 91);
+    await reply(held.old!, outcome === "sucesso-atrasado" ? oldBody : { error: oldError },
+      outcome === "401-atrasado" ? 401 : outcome === "500-atrasado" ? 500 : 200);
     await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 4 : 3);
     await page.evaluate(() => new Promise<void>(resolve =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await expect(panel).not.toContainText(oldKey);
+    await expect(panel).not.toContainText(oldError);
     for (const id of [91, 93, 94]) {
       await expect(panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio` })).toHaveCount(0);
     }
     await expect(panel.getByRole("alert")).toContainText(newKey);
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
+    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 92 para envio" })).toBeVisible();
+    await expect(draft).toContainText(nextClinic.name);
+    await expect(draft).toContainText(client.name);
+    await expect(draft).toContainText(professional.name);
     await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
     await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
