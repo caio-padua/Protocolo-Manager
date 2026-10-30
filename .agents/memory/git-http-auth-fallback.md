@@ -27,3 +27,6 @@ permissão `workflow`, necessária para criar ou alterar verificações automát
 **How to apply:** Quando essa for a recusa, solicitar reautorização pela integração
 que permita reconectar, incluindo `workflow`. Não forçar envio, remover a
 verificação ou reescrever commits para contornar a falta de permissão.
+Trocar Git pela interface de programação do mesmo acesso não acrescenta permissões.
+Uma conexão anunciada como pronta também pode ter a credencial retida no contexto;
+isso não significa que a conta esteja desconectada.
