@@ -1539,7 +1539,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 // A cached scope must restart at offset zero, not revive its previous editor.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
-    for (const currentOutcome of ["sucesso", "401-atual", "500-atual"] as const) {
+    for (const currentOutcome of ["sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica"] as const) {
     test(`Pedidos: voltar à clínica em cache reinicia histórico — ${transition} — ${delivery} — ${currentOutcome}`, async ({ context, page }, testInfo) => {
       const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
       const clinicB = {
@@ -1552,7 +1552,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
       const methods: string[] = [];
       const posts: string[] = [];
-      const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route } = {};
+      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica";
+      const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
         status, contentType: "application/json", body: JSON.stringify(body),
@@ -1611,13 +1612,18 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           const offset = Number(url.searchParams.get("offset"));
           offsets[stage].push(offset);
           if (stage === "B") { held.historyB = route; return; }
-          if (stage === "return") { held.returned = route; return; }
+          if (stage === "return") {
+            if (automaticRecovery && offsets.return.length > 1) held.recovery = route;
+            else held.returned = route;
+            return;
+          }
           if (offset === 40) { held.oldPage = route; return; }
           return reply(route, offset === 20
             ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
         }
         return reply(route, []);
       });
+      if (automaticRecovery) await page.clock.install();
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
       const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
@@ -1754,6 +1760,31 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       }
       await cleared();
       expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0] });
+      if (automaticRecovery) {
+        // Only the panel's 10-second pending-operation interval may recover A.
+        // No refresh/pagination click, focus event, or navigation triggers it.
+        const currentAlert = panel.getByRole("alert").filter({ hasText: "Não foi possível atualizar o histórico:" });
+        const knownPending = panel.getByRole("alert").filter({ hasText: "Envios pendentes de conferência" });
+        await expect(currentAlert).toContainText(currentError);
+        await page.clock.fastForward(10_001);
+        await expect.poll(() => !!held.recovery).toBe(true);
+        expect(offsets.return).toEqual([0, 0]);
+        await expect(knownPending).toContainText(markers.first);
+        await cleared();
+        await reply(held.recovery!, historyBody(markers.fresh, 95, 20));
+        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
+        await expect(doc(95)).toBeVisible();
+        await expect(doc(95)).not.toBeChecked();
+        await expect(currentAlert).toHaveCount(0);
+        await expect(knownPending).toContainText(markers.fresh);
+        await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
+        for (const marker of [markers.first, markers.b, markers.page20, markers.page40]) {
+          await expect(panel).not.toContainText(marker);
+        }
+        for (const id of [91, 92, 93, 94]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+        expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0, 0] });
+      }
       expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
       expect([...new Set(methods)]).toEqual(["GET"]);
       expect(posts).toEqual([]);
