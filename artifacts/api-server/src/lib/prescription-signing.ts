@@ -16,6 +16,7 @@ export interface PrescriptionSigner {
   password: string;
   meta: { assinante: string; cpf: string; ac: string; serial: string; validTo: string };
 }
+export type ClinicalPdfKind = "Receituario" | "Solicitacao de exames";
 const validated = new WeakSet<PrescriptionSigner>();
 const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 
@@ -101,13 +102,19 @@ export function assertPrescriptionSigner(signer?: PrescriptionSigner): asserts s
 }
 
 export async function signPrescriptionPdf(doc: PDFDocument, signer?: PrescriptionSigner): Promise<Uint8Array> {
+  return signClinicalPdf(doc, signer, "Receituario");
+}
+
+export async function signClinicalPdf(
+  doc: PDFDocument, signer: PrescriptionSigner | undefined, kind: ClinicalPdfKind,
+): Promise<Uint8Array> {
   assertPrescriptionSigner(signer);
   // A certificate can expire between rendering the document and embedding its signature.
   inspectPrescriptionCertificate(signer.buffer, signer.password, signer.identity.professional.cpf);
   const { professional, client, clinic } = signer.identity;
-  doc.setSubject(`Receituario;medico=${professional.id};cliente=${client.id};clinica=${clinic.id};empresa=${clinic.empresaId}`);
+  doc.setSubject(`${kind};medico=${professional.id};cliente=${client.id};clinica=${clinic.id};empresa=${clinic.empresaId}`);
   doc.setAuthor(professional.name);
-  pdflibAddPlaceholder({ pdfDoc: doc, reason: "Receituário médico", contactInfo: "",
+  pdflibAddPlaceholder({ pdfDoc: doc, reason: kind, contactInfo: "",
     name: signer.meta.assinante, location: clinic.name, signatureLength: 16384 });
   return new Uint8Array(await new SignPdf().sign(
     Buffer.from(await doc.save({ useObjectStreams: false })),
@@ -116,5 +123,11 @@ export async function signPrescriptionPdf(doc: PDFDocument, signer?: Prescriptio
 }
 
 export async function signExistingPrescriptionPdf(bytes: Uint8Array, signer: PrescriptionSigner): Promise<Uint8Array> {
-  return signPrescriptionPdf(await PDFDocument.load(bytes), signer);
+  return signExistingClinicalPdf(bytes, signer, "Receituario");
+}
+
+export async function signExistingClinicalPdf(
+  bytes: Uint8Array, signer: PrescriptionSigner, kind: ClinicalPdfKind,
+): Promise<Uint8Array> {
+  return signClinicalPdf(await PDFDocument.load(bytes), signer, kind);
 }

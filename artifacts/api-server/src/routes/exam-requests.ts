@@ -7,6 +7,7 @@ import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-reques
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { resolvePrescriptionSigner, signExistingClinicalPdf, type PrescriptionSigner } from "../lib/prescription-signing";
 import dispatchRouter from "./exam-request-dispatch";
 import examSetsRouter from "./exam-sets";
 import { brtDisplayDate, brtDateStr } from "../lib/brt";
@@ -65,11 +66,18 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
   const body = parsed.data;
 
   let identity;
+  let signer: PrescriptionSigner;
   try {
     identity = await resolveClinicalEmitter(req, body.clientId);
     if (body.professionalId != null && body.professionalId !== identity.professional.id) {
       throw new ClinicalIdentityError(403, "O solicitante deve ser o médico autenticado.");
     }
+    if (!identity.canPrescribe) {
+      throw new ClinicalIdentityError(422, identity.issue ?? "O médico autenticado não pode solicitar exames.");
+    }
+    // Validate the authenticated doctor's certificate before rendering or storing
+    // any exam document. A browser-supplied doctor ID is never a signing authority.
+    signer = await resolvePrescriptionSigner(identity);
   } catch (error) {
     if (error instanceof ClinicalIdentityError) {
       res.status(error.status).json({ error: error.message });
@@ -121,7 +129,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
 
   for (const { tipo, items } of jobs) {
     const tipoLabel = TIPO_LABEL[tipo] ?? tipo;
-    const pdfBytes = await generateExamRequestPdf({
+    const unsignedPdfBytes = await generateExamRequestPdf({
       tipo,
       tipoLabel,
       clientName: client.name,
@@ -132,6 +140,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
       observacao: body.observacao ?? null,
       items,
     });
+    const pdfBytes = await signExistingClinicalPdf(unsignedPdfBytes, signer, "Solicitacao de exames");
     const pdfBuffer = Buffer.from(pdfBytes);
     // IMAGEM unica leva o NOME do exame no arquivo (1 PDF por exame); tipos
     // agrupados mantem o rotulo do tipo.

@@ -1,16 +1,18 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import forge from "node-forge";
 import { PDFDocument } from "pdf-lib";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sql } from "drizzle-orm";
 import express from "express";
 import request from "supertest";
+import { isolatedPostgres } from "./helpers/isolated-postgres";
 
 const mock = vi.hoisted(() => ({
   getJson: vi.fn(), getSecret: vi.fn(), read: vi.fn(), globalBuffer: vi.fn(), globalPasswords: vi.fn(),
-  rows: [] as any[][], execute: vi.fn(), upload: vi.fn(), email: vi.fn(),
+  rows: [] as any[][], execute: vi.fn(), upload: vi.fn(), email: vi.fn(), insert: vi.fn(), sendPaxter: vi.fn(),
 }));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
@@ -22,6 +24,7 @@ vi.mock("@workspace/db", async () => ({
       return chain;
     } }),
     execute: mock.execute,
+    insert: mock.insert,
   },
 }));
 vi.mock("../lib/secure-settings", () => ({ getJsonSetting: mock.getJson, getSecret: mock.getSecret }));
@@ -29,6 +32,7 @@ vi.mock("../lib/cert-source", () => ({ getCertBufferSync: mock.globalBuffer, get
 vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: class { readPrivateObject = mock.read; } }));
 vi.mock("../lib/google-drive", () => ({ uploadToFolderById: mock.upload }));
 vi.mock("../lib/google-gmail", () => ({ sendGmailMessage: mock.email }));
+vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.sendPaxter }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: any, next: any) => next() }));
 vi.mock("../lib/receituario-worker", () => ({ liberarSlot: vi.fn(), processarReceituarioDiario: vi.fn() }));
 import { inspectPrescriptionCertificate, resolvePrescriptionSigner, signPrescriptionPdf,
@@ -36,7 +40,9 @@ import { inspectPrescriptionCertificate, resolvePrescriptionSigner, signPrescrip
 import { generatePdfFromPngBase64, generateReceituarioPdfV2, generateReceituarioPdf } from "../lib/receituario-pdf";
 import { validateClinicalIdentity } from "../lib/clinical-emitter";
 import prescriptionRouter from "../routes/receituario";
+import examRequestRouter from "../routes/exam-requests";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
+import { examRequestPdfsTable } from "../../../../lib/db/src/schema/exam-requests";
 
 const identity: PrescriptionIdentity = {
   professional: { id: 41, name: "MEDICO SINTETICO", cpf: "12345678901", crm: "12345", uf: "SP" },
@@ -47,10 +53,11 @@ const password = "synthetic-test-only";
 let pfx: Buffer;
 let cert: forge.pki.Certificate;
 let key: forge.pki.rsa.PrivateKey;
+let postgres: Awaited<ReturnType<typeof isolatedPostgres>>;
 function pack(c = cert, k = key) {
   return Buffer.from(forge.asn1.toDer(forge.pkcs12.toPkcs12Asn1(k, [c], password, { algorithm: "3des" })).getBytes(), "binary");
 }
-beforeAll(() => {
+beforeAll(async () => {
   const pair = forge.pki.rsa.generateKeyPair(2048);
   key = pair.privateKey;
   cert = forge.pki.createCertificate();
@@ -63,7 +70,21 @@ beforeAll(() => {
   cert.setExtensions([{ name: "basicConstraints", cA: false }, { name: "keyUsage", digitalSignature: true }]);
   cert.sign(key, forge.md.sha256.create());
   pfx = pack();
-});
+  postgres = await isolatedPostgres();
+  await postgres.execute(sql`CREATE TABLE exam_request_pdfs (
+    id SERIAL PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    client_id INTEGER NOT NULL,
+    professional_id INTEGER,
+    tipo TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    exam_count INTEGER NOT NULL DEFAULT 0,
+    observacao TEXT,
+    pdf_data TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+}, 30_000);
+afterAll(async () => { await postgres?.stop(); });
 beforeEach(() => {
   vi.clearAllMocks();
   mock.getJson.mockResolvedValue(null);
@@ -71,6 +92,146 @@ beforeEach(() => {
   mock.globalPasswords.mockReturnValue([password]);
   mock.rows = [];
   mock.execute.mockResolvedValue({ rows: [{ id: 2, tipo: "classico_anvisa", nome: "SINTETICO", config: {} }] });
+  mock.insert.mockImplementation(() => { throw new Error("Persistencia de teste sem PostgreSQL isolado"); });
+});
+
+function queueExamIdentity(clientId: number, clientName: string) {
+  mock.rows.push(
+    [{ id: 41, name: identity.professional.name, cpf: identity.professional.cpf, active: true,
+      professionalType: "medico", crm: "12345", registrationNumber: null, registrationCouncil: "CRM/SP" }],
+    [{ ...identity.client, id: clientId, name: clientName, status: "active", locationId: 31, empresaId: 21 }],
+    [{ ...identity.clinic, active: "true" }],
+    [{ id: 1, professionalId: 41, locationId: 31 }],
+  );
+}
+
+it("emite e recupera pedidos sinteticos assinados para dois clientes em PostgreSQL descartavel", async () => {
+  const app = express().use(express.json()).use("/api", examRequestRouter);
+  const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
+  const persisted: any[] = [];
+  mock.insert.mockImplementation((table: any) => {
+    expect(table).toBe(examRequestPdfsTable);
+    return {
+      values: (values: any) => ({
+        returning: async () => {
+          persisted.push(values);
+          const result = await postgres.execute(sql`
+            INSERT INTO exam_request_pdfs
+              (token, client_id, professional_id, tipo, file_name, exam_count, observacao, pdf_data)
+            VALUES
+              (${values.token}, ${values.clientId}, ${values.professionalId}, ${values.tipo},
+               ${values.fileName}, ${values.examCount}, ${values.observacao}, ${values.pdfData})
+            RETURNING id
+          `);
+          return result.rows;
+        },
+      }),
+    };
+  });
+
+  const disclaimer = "HOMOLOGACAO - DOCUMENTO DE TESTE - SEM VALIDADE CLINICA";
+  const patients = [
+    { id: 71, name: "CLIENTE MODELO A" },
+    { id: 72, name: "CLIENTE MODELO B" },
+  ];
+  let expectedPdfCount = 0;
+
+  for (const patient of patients) {
+    const operations = [
+      { tipo: "SANGUE", count: 4, expectedFiles: 1 },
+      { tipo: "IMAGEM", count: 3, expectedFiles: 3 },
+      { tipo: "IMAGEM", count: 2, expectedFiles: 2 },
+    ] as const;
+
+    for (const [operationIndex, operation] of operations.entries()) {
+      queueExamIdentity(patient.id, patient.name);
+      const response = await request(app).post("/api/exam-requests/emit").set("Authorization", authorization).send({
+        clientId: patient.id,
+        observacao: disclaimer,
+        items: Array.from({ length: operation.count }, (_, index) => ({
+          nomeExame: `EXAME SINTETICO ${patient.id}-${operationIndex + 1}-${index + 1}`,
+          tipo: operation.tipo,
+        })),
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.pdfs).toHaveLength(operation.expectedFiles);
+      expectedPdfCount += operation.expectedFiles;
+
+      for (const emitted of response.body.pdfs) {
+        const [stored] = (await postgres.execute(sql`
+          SELECT id, token, client_id, professional_id, file_name, pdf_data
+          FROM exam_request_pdfs
+          WHERE id = ${emitted.id}
+        `)).rows;
+        expect(stored).toBeTruthy();
+        expect(stored.client_id).toBe(patient.id);
+        expect(stored.professional_id).toBe(41);
+        expect(persisted.find((row) => row.token === stored.token)?.observacao).toBe(disclaimer);
+
+        // Exercise the same read route a patient receives, using only the
+        // synthetic row just written to the disposable PostgreSQL instance.
+        mock.rows = [[{
+          token: stored.token,
+          pdfData: stored.pdf_data,
+          fileName: stored.file_name,
+        }]];
+        const download = await request(app).get(`/api/exam-requests/file/${stored.token}`);
+        expect(download.status).toBe(200);
+        const bytes = Buffer.from(download.body);
+        expect(bytes.toString("base64")).toBe(stored.pdf_data);
+        verify(bytes);
+        const signedPdf = await PDFDocument.load(bytes);
+        expect(signedPdf.getAuthor()).toBe(identity.professional.name);
+        expect(signedPdf.getSubject()).toBe(
+          `Solicitacao de exames;medico=41;cliente=${patient.id};clinica=31;empresa=21`,
+        );
+      }
+    }
+  }
+
+  expect(expectedPdfCount).toBe(14);
+  expect(persisted).toHaveLength(14);
+  expect(mock.sendPaxter).not.toHaveBeenCalled();
+  expect(mock.email).not.toHaveBeenCalled();
+  expect(mock.upload).not.toHaveBeenCalled();
+}, 120_000);
+
+it("bloqueia pedido entre clinicas antes de assinar ou persistir", async () => {
+  const app = express().use(express.json()).use("/api", examRequestRouter);
+  const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
+  mock.rows = [
+    [{ id: 41, name: identity.professional.name, cpf: identity.professional.cpf, active: true,
+      professionalType: "medico", crm: "12345", uf: "SP" }],
+    [{ ...identity.client, id: 72, name: "CLIENTE DE OUTRA CLINICA", status: "active", locationId: 32, empresaId: 22 }],
+    [{ id: 32, name: "OUTRA CLINICA", empresaId: 22, active: "true" }],
+    [],
+  ];
+
+  const response = await request(app).post("/api/exam-requests/emit").set("Authorization", authorization).send({
+    clientId: 72,
+    items: [{ nomeExame: "EXAME SINTETICO", tipo: "SANGUE" }],
+  });
+
+  expect(response.status).toBe(403);
+  expect(mock.insert).not.toHaveBeenCalled();
+  expect(mock.sendPaxter).not.toHaveBeenCalled();
+});
+
+it("bloqueia pedido sem certificado valido antes de persistir", async () => {
+  const app = express().use(express.json()).use("/api", examRequestRouter);
+  const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
+  queueExamIdentity(71, "CLIENTE MODELO");
+  mock.globalBuffer.mockReturnValue(Buffer.from("CERTIFICADO INVALIDO DE TESTE"));
+
+  const response = await request(app).post("/api/exam-requests/emit").set("Authorization", authorization).send({
+    clientId: 71,
+    items: [{ nomeExame: "EXAME SINTETICO", tipo: "SANGUE" }],
+  });
+
+  expect(response.status).toBe(422);
+  expect(mock.insert).not.toHaveBeenCalled();
+  expect(mock.sendPaxter).not.toHaveBeenCalled();
 });
 
 function verify(bytes: Uint8Array, tamper = false) {

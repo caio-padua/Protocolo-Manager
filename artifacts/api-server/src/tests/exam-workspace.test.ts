@@ -31,6 +31,10 @@ vi.mock("../lib/clinical-emitter", async () => {
 });
 vi.mock("../lib/exam-request-pdf", () => ({ generateExamRequestPdf: mock.generate }));
 vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send }));
+vi.mock("../lib/prescription-signing", () => ({
+  resolvePrescriptionSigner: vi.fn().mockResolvedValue({}),
+  signExistingClinicalPdf: vi.fn(async (bytes: Uint8Array) => bytes),
+}));
 
 import router from "../routes/exam-requests";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
@@ -57,7 +61,7 @@ beforeEach(() => {
   mock.identity.mockResolvedValue({
     client: { id: 101, name: "Cliente Sintetico", email: "synthetic@example.invalid", phone: "00000000000", cpf: null },
     professional: { id: 202, name: "Medico Sintetico", crm: "000", uf: "SP" },
-    clinic: { id: 303 + scopeNumber++, empresaId: 404 },
+    clinic: { id: 303 + scopeNumber++, empresaId: 404 }, canPrescribe: true, issue: null,
   });
   mock.generate.mockResolvedValue(Buffer.from("NOT A REAL PDF"));
   mock.send.mockImplementation(async (_doc, _destination, channels) => ({
