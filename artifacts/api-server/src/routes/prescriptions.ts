@@ -23,6 +23,7 @@ import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
 import { mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionSigner } from "../lib/prescription-signing";
 import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } from "./prescription-delivery";
 
 const router: IRouter = Router();
@@ -115,12 +116,15 @@ router.get("/clinical-context/:clientId", requireCollaborator, async (req, res):
 
 router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promise<void> => {
   let identity;
+  let signer: PrescriptionSigner;
   try {
     identity = await resolveClinicalEmitter(req, req.body?.clientId);
     if (req.body?.professionalId != null && req.body.professionalId !== identity.professional.id) {
       throw new ClinicalIdentityError(403, "O prescritor deve ser o médico autenticado.");
     }
     if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
+    // Certificate authorization precedes persistence, regulatory numbering and delivery.
+    signer = await resolvePrescriptionSigner(identity);
   } catch (error) {
     if (error instanceof ClinicalIdentityError) {
       res.status(error.status).json({ error: error.message });
@@ -250,7 +254,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
     // 2b) Gera PDF.
     const pharmacy = plan.pharmacyId != null ? pharmMap.get(plan.pharmacyId) : undefined;
-    const pdfBytes = await generateRecipePdf(plan, {
+    const pdfBytes = await signExistingPrescriptionPdf(await generateRecipePdf(plan, {
       clientName: body.clientName,
       clientCpf: body.clientCpf ?? null,
       professionalName: body.professionalName ?? null,
@@ -263,7 +267,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       pharmacyType: pharmacy?.type ?? null,
       sncrNumber,
       sncrStatus,
-    });
+    }), signer);
     const pdfBuffer = Buffer.from(pdfBytes);
     const pdfBase64 = pdfBuffer.toString("base64");
 
@@ -362,6 +366,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     const emailDestinatarios: string[] = [];
 
     const motorResult = await emitirReceituarioPdf({
+      identity,
       medicoId: identity.professional.id,
       clinicaId: identity.clinic.id,
       patient: {

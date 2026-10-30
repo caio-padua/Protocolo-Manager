@@ -15,7 +15,8 @@
  * GET  /api/receituario/alertas              — slots próximos (Cockpit)
  */
 import { Router } from "express";
-import { getCertInfo } from "../lib/pdf-signer.js";
+import { z } from "zod";
+import { SignVisualPrescriptionBody } from "@workspace/api-zod";
 import {
   db,
   receitasAgendadasTable,
@@ -54,7 +55,7 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
   try {
     await garantirTabelaTokens();
     const rows = await db.execute(sql`
-      SELECT token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url
+      SELECT token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url, cert_meta
       FROM receituario_tokens
       WHERE token = ${token.toUpperCase().trim()}
       LIMIT 1
@@ -66,25 +67,8 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Documento não encontrado" });
       return;
     }
-    let certMeta = null;
-    try {
-      const info = getCertInfo();
-      const cnFull = info.subject.split(",").find((p: string) => p.trim().startsWith("CN="))?.replace(/CN=/, "").trim() ?? "";
-      const titular = cnFull.split(":")[0].trim();
-      const issuerCN = info.issuer.split(",").find((p: string) => p.trim().startsWith("CN="))?.replace(/CN=/, "").trim() ?? info.issuer;
-      certMeta = {
-        titular,
-        cpf: info.cpf,
-        serial: ("00" + info.serial).slice(-20).toUpperCase(),
-        validFrom: info.validFrom,
-        validTo:   info.validTo,
-        issuer:    issuerCN,
-        algoritmo: "SHA-256 com RSA (2048 bits)",
-        padrao:    "PAdES — PDF Advanced Electronic Signatures",
-        tipo:      "Certificado Digital A1",
-        raiz:      "ICP-Brasil (ITI — Instituto de Tecnologia da Informação)",
-      };
-    } catch { /* best-effort: cert metadata não bloqueia validação */ }
+    // Only the issuance snapshot describes this document, not today's certificate.
+    const certMeta = row.cert_meta ?? null;
 
     res.json({
       paciente:    row.paciente,
@@ -101,6 +85,9 @@ router.get("/receituario/consulta", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Erro interno" });
   }
 });
+
+// All remaining receituário routes are staff-only.
+router.use("/receituario", requireCollaborator);
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -497,6 +484,10 @@ const DEMO_DRIVE_FOLDER_ID = "1v1eNJeRUBSR5wBucuBLnzkpGKHsrlnep"; // pasta PAXTE
 
 // ── POST /api/receituario/gerar-demo ─────────────────────────────────────────
 // MOTOR ÚNICO — gera receita de demonstração usando o modelo ativo do banco.
+router.post("/receituario/gerar-demo", (_req, res): void => {
+  res.status(422).json({ error: "Demo assinada bloqueada: homologação usa somente certificados sintéticos em testes." });
+});
+/* DEMO LEGADA — não assinar com certificado clínico em demonstrações.
 router.post("/receituario/gerar-demo", async (req, res): Promise<void> => {
   try {
     const { modeloId } = req.body ?? {};
@@ -544,6 +535,7 @@ router.post("/receituario/gerar-demo", async (req, res): Promise<void> => {
   }
 });
 
+*/
 // ── POST /api/receituario/emitir-prescricao ──────────────────────────────────
 // MOTOR ÚNICO — wrapper que delega para emitirReceituarioPdf().
 // Aceita: { patient, formulas, tipoReceita?, modeloId? }
@@ -561,6 +553,7 @@ router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, r
 
     const result = await emitirReceituarioPdf({
       medicoId: identity.professional.id,
+      identity,
       clinicaId: identity.clinic.id,
       patient: { nome: identity.client.name, cpf: identity.client.cpf ?? undefined,
         telefone: identity.client.phone ?? undefined, email: identity.client.email ?? undefined },
@@ -591,13 +584,36 @@ router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, r
 });
 
 // ── POST /api/receituario/assinar-imagem-pdf ──────────────────────────────────
-// Recebe PNG base64 capturado pelo html2canvas do motor ReceituarioPreview.
-// Cria PDF A4 a partir do PNG, assina ICP-Brasil, sobe ao Drive e envia e-mail.
-// Interdição temporária: a implementação antiga abaixo aceita imagem, destinatário
-// e nome livres. Preservar o código, mas não executar até homologação clínica.
-router.post("/receituario/assinar-imagem-pdf", requireCollaborator, (_req, res) => {
-  res.status(503).json({ error: "Assinatura visual suspensa até validar identidade, certificado e destinatário." });
+// URL histórica preservada, contrato homologado: clientId + fórmulas.
+// O servidor renderiza a identidade autorizada e retorna PDF assinado sem envio.
+// Pixels livres nunca comprovam a identidade clínica do documento.
+// Orval emits plain numbers for OpenAPI integer; reinforce safe IDs at the boundary.
+const visualPrescriptionBody = SignVisualPrescriptionBody.extend({
+  clientId: z.number().int().positive().safe(),
+  modeloId: z.number().int().positive().safe().optional(),
+}).strict();
+router.post("/receituario/assinar-imagem-pdf", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const parsed = visualPrescriptionBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Informe clientId e fórmulas. Imagens, destinatários e identidades livres não são aceitos." });
+      return;
+    }
+    const identity = await resolveClinicalEmitter(req, parsed.data.clientId);
+    if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
+    const result = await emitirReceituarioPdf({ ...parsed.data, identity,
+      patient: { nome: identity.client.name }, emailTo: [] });
+    res.json({ ok: true, pdfBase64: Buffer.from(result.pdf).toString("base64"),
+      fileName: result.fileName, driveUrl: result.driveUrl, driveId: result.driveId, emailSent: false });
+  } catch (err) {
+    if (err instanceof ClinicalIdentityError) {
+      res.status(err.status).json({ error: err.message }); return;
+    }
+    req.log.error({ err }, "assinar-imagem-pdf: falha na assinatura");
+    res.status(500).json({ error: "Falha ao assinar receituário." });
+  }
 });
+/* IMPLEMENTAÇÃO LEGADA INTERDITADA — somente referência, nunca registrar esta rota.
 router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> => {
   try {
     const { pngBase64, patientName, fileName, patientEmail } = req.body ?? {};
@@ -691,29 +707,31 @@ router.post("/receituario/assinar-imagem-pdf", async (req, res): Promise<void> =
   }
 });
 
+*/
 // ── GET /api/receituario/preview-html ─────────────────────────────────────────
 // Serve o HTML da receita diretamente para inspeção visual (dev only)
 router.get("/receituario/preview-html", async (req, res): Promise<void> => {
   try {
-    const clientId = Number(req.query.clientId ?? 11);
+    const clientId = Number(req.query.clientId);
+    const identity = await resolveClinicalEmitter(req, clientId);
     const [cliente] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-    const [medico]  = await db.select().from(professionalsTable).where(eq(professionalsTable.isPrimaryDoctor, true));
-    const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, 8));
+    const [medico]  = await db.select().from(professionalsTable).where(eq(professionalsTable.id, identity.professional.id));
+    const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, identity.clinic.id));
 
     const assetsBaseUrl = "http://localhost:80/padcom";
     const dataEmissao   = new Date().toISOString().slice(0, 10);
     const crmRqe = (medico as any)?.registrationNumber ?? (medico as any)?.crm ?? "CRM SP 123456";
 
     const html = buildPrescricaoHtml({
-      medicoNome: medico?.name ?? "Dr. Caio Henrique Fernandes Pádua",
+      medicoNome: identity.professional.name,
       medicoCrm:  crmRqe,
       clinicaNome: clinica?.name ?? "Instituto Padua",
       clinicaEndereco: (clinica as any)?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP",
-      pacienteNome: cliente?.name ?? "CARLUCIA SANTOS FERNANDES",
-      pacienteCpf:  cliente?.cpf ?? "024.862.801-11",
-      pacienteNascimento: "30/01/1988",
-      pacienteTelefone:   cliente?.phone ?? "(62) 98269-6656",
-      pacienteEndereco:   cliente?.address ?? "Rua Guaxupé, 327, Vila Formosa, São Paulo - SP",
+      pacienteNome: identity.client.name,
+      pacienteCpf:  cliente?.cpf ?? "",
+      pacienteNascimento: cliente?.birthDate ?? undefined,
+      pacienteTelefone:   cliente?.phone ?? "",
+      pacienteEndereco:   cliente?.address ?? "",
       formulas: [{
         numero: 1,
         nome: "Bupropiona + Topiramato Manipulado",
@@ -729,6 +747,7 @@ router.get("/receituario/preview-html", async (req, res): Promise<void> => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(html);
   } catch (err) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     res.status(500).json({ error: String((err as Error).message) });
   }
 });
@@ -775,6 +794,7 @@ router.post("/receituario/emitir-cliente", requireCollaborator, async (req, res)
 
     const result = await emitirReceituarioPdf({
       medicoId: identity.professional.id,
+      identity,
       clinicaId: identity.clinic.id,
       patient:     patientData,
       formulas,

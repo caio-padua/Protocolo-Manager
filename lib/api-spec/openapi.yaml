@@ -74,6 +74,32 @@ paths:
         "401": { description: Login obrigatorio }
         "403": { description: Vinculo clinico nao autorizado }
         "422": { description: Destino ou documento indisponivel }
+  /receituario/assinar-imagem-pdf:
+    post:
+      operationId: signVisualPrescription
+      summary: Render and sign an authorized prescription on the server without dispatch
+      tags: [prescriptions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisualPrescriptionInput"
+      responses:
+        "200":
+          description: Signed PDF, no implicit email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignedVisualPrescription"
+        "400":
+          description: Invalid request or arbitrary raster/identity supplied
+        "401":
+          description: Staff authentication required
+        "403":
+          description: Doctor not authorized for this patient and clinic
+        "422":
+          description: Missing or invalid doctor certificate or medical registration
   /healthz:
     get:
       operationId: healthCheck
@@ -2398,7 +2424,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AnamneseSessionState"
 
-  # ====================== CONFIGURACOES (anti-hardcode) ======================
+  # CONFIGURACOES (anti-hardcode)
   /settings/company:
     get:
       operationId: getCompanySettings
@@ -2532,7 +2558,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CertificateStatus"
 
-  # ====================== CONCILIACAO (Front B) ======================
+  # CONCILIACAO (Front B)
   /reconciliation:
     get:
       operationId: getReconciliation
@@ -2555,7 +2581,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReconciliationResult"
 
-  # ====================== METAS & CRESCIMENTO (Front C) ======================
+  # METAS & CRESCIMENTO (Front C)
   /financial-goals:
     get:
       operationId: listFinancialGoals
@@ -2689,6 +2715,67 @@ components:
         results:
           type: array
           items: { $ref: "#/components/schemas/ExamDocumentChannelResult" }
+    VisualPrescriptionInput:
+      type: object
+      additionalProperties: false
+      required: [clientId, formulas]
+      properties:
+        clientId:
+          type: integer
+          minimum: 1
+        formulas:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/VisualPrescriptionFormula"
+        tipoReceita:
+          type: string
+          enum: [especial, simples]
+        modeloId:
+          type: integer
+          minimum: 1
+    VisualPrescriptionFormula:
+      type: object
+      additionalProperties: false
+      required: [nome, posologia]
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 500
+        posologia:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        ativos:
+          type: string
+          maxLength: 5000
+        via:
+          type: string
+          maxLength: 200
+        forma:
+          type: string
+          maxLength: 500
+        dose:
+          type: string
+          maxLength: 200
+    SignedVisualPrescription:
+      type: object
+      required: [ok, pdfBase64, fileName, emailSent]
+      properties:
+        ok:
+          type: boolean
+        pdfBase64:
+          type: string
+        fileName:
+          type: string
+        emailSent:
+          type: boolean
+        driveUrl:
+          type: ["string", "null"]
+        driveId:
+          type: ["string", "null"]
     ErrorResponse:
       type: object
       required: [error]

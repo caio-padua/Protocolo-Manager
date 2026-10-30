@@ -36,7 +36,6 @@ function makeParams(overrides: Partial<Parameters<typeof buildPrescricaoHtml>[0]
     tipoReceita:        "simples" as const,
     dataEmissao:        "2026-08-15",
     assetsBaseUrl:      "http://localhost/padcom",
-    tipoReceita:        "simples",
     formulas: [
       {
         numero:    1,
@@ -59,11 +58,12 @@ describe("buildPrescricaoHtml — reflete médico passado como parâmetro", () =
 
   it("o HTML contém o nome do médico fornecido", () => {
     const html = buildPrescricaoHtml(makeParams({
+      medicoNome: "Dra. Ana Lima",
       medicoCrm: "CRM/SP 100200",
       medicoRqe: undefined,
     }));
     expect(html).toContain("CRM/SP 100200");
-    expect(html).toContain("RQE 3456");
+    expect(html).toContain("Dra. Ana Lima");
   });
 
   it("CRM sem RQE não inclui label RQE no HTML", () => {
@@ -72,7 +72,7 @@ describe("buildPrescricaoHtml — reflete médico passado como parâmetro", () =
       medicoRqe: undefined,
     }));
     expect(html).toContain("CRM/SP 100200");
-    expect(html).toContain("RQE 3456");
+    expect(html).not.toContain("RQE 3456");
   });
 
   it("CRM sem RQE não inclui label RQE no HTML", () => {
@@ -81,7 +81,7 @@ describe("buildPrescricaoHtml — reflete médico passado como parâmetro", () =
       medicoRqe: undefined,
     }));
     expect(html).toContain("CRM/SP 100200");
-    expect(html).toContain("RQE 3456");
+    expect(html).not.toContain("RQE 3456");
   });
 
   it("CRM sem RQE não inclui label RQE no HTML", () => {
@@ -102,8 +102,8 @@ describe("buildPrescricaoHtml — reflete médico passado como parâmetro", () =
 describe("buildPrescricaoHtml — atualização do médico reflete no HTML", () => {
 
   it("HTML antes e depois da edição diferem no nome do médico", () => {
-    const htmlAntes  = buildPrescricaoHtml(makeParams({ medicoCrm: "CRM/SP 000001" }));
-    const htmlDepois = buildPrescricaoHtml(makeParams({ medicoCrm: "CRM/MG 999999" }));
+    const htmlAntes  = buildPrescricaoHtml(makeParams({ medicoNome: "Dr. Jose Antigo", medicoCrm: "CRM/SP 000001" }));
+    const htmlDepois = buildPrescricaoHtml(makeParams({ medicoNome: "Dra. Maria Nova", medicoCrm: "CRM/MG 999999" }));
 
     expect(htmlAntes).toContain("Dr. Jose Antigo");
     expect(htmlAntes).not.toContain("Dra. Maria Nova");
@@ -131,7 +131,7 @@ describe("buildPrescricaoHtml — atualização do médico reflete no HTML", () 
       medicoRqe: undefined,
     }));
     expect(html).toContain("CRM/SP 100200");
-    expect(html).toContain("RQE 3456");
+    expect(html).not.toContain("RQE 3456");
   });
 
   it("CRM sem RQE não inclui label RQE no HTML", () => {
@@ -140,7 +140,7 @@ describe("buildPrescricaoHtml — atualização do médico reflete no HTML", () 
       medicoRqe: undefined,
     }));
     expect(html).toContain("CRM/SP 100200");
-    expect(html).toContain("RQE 3456");
+    expect(html).not.toContain("RQE 3456");
   });
 
   it("CRM sem RQE não inclui label RQE no HTML", () => {
@@ -174,9 +174,8 @@ describe("receituario.ts — análise estática: sem lookup por id fixo", () => 
     source = readFileSync(alt, "utf-8");
   }
 
-  it("a rota usa isPrimaryDoctor=true para buscar o médico (não id=6)", () => {
-    // O código correto deve referenciar isPrimaryDoctor
-    expect(source).toContain("isPrimaryDoctor");
+  it("a rota resolve o médico autenticado com vínculo clínico", () => {
+    expect(source).toContain("resolveClinicalEmitter(req,");
   });
 
   it("a seção de lookup do médico não filtra por eq(professionalsTable.id, 6)", () => {
@@ -199,10 +198,10 @@ describe("receituario.ts — análise estática: sem lookup por id fixo", () => 
     expect(source).not.toMatch(/where\s*\(\s*eq\s*\(\s*professionalsTable\.id\s*,\s*6\s*\)/);
   });
 
-  it("a rota contém duas chamadas a isPrimaryDoctor (assinar-imagem-pdf e preview-html)", () => {
-    // Ambas as rotas devem consultar isPrimaryDoctor=true
-    const matches = source.match(/isPrimaryDoctor/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+  it("o preview consulta o médico do contexto validado e não o médico principal", () => {
+    const preview = source.split('router.get("/receituario/preview-html"')[1].split("// ── POST")[0];
+    expect(preview).toContain("identity.professional.id");
+    expect(preview).not.toContain("isPrimaryDoctor");
   });
 
 });

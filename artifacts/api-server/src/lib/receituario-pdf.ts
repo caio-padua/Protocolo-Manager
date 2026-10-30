@@ -5,10 +5,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
-import { SignPdf } from "@signpdf/signpdf";
-import { P12Signer } from "@signpdf/signer-p12";
-import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
-import { getCertBufferSync, getCertPasswordsSync, readCertMetaSync } from "./cert-source";
+import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
 import QRCode from "qrcode";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
@@ -67,7 +64,7 @@ function drawWrappedText(
   text: string,
   opts: {
     x: number; y: number; maxWidth: number;
-    font: ReturnType<PDFDocument["embedStandardFont"]> extends Promise<infer F> ? F : never;
+    font: PDFFont;
     size: number; color: ReturnType<typeof rgb>; lineHeight?: number;
   },
 ): number {
@@ -95,7 +92,8 @@ function drawWrappedText(
 }
 
 // ─── Gerador principal ────────────────────────────────────────────────────────
-export async function generateReceituarioPdf(data: ReceituarioData): Promise<Uint8Array> {
+export async function generateReceituarioPdf(data: ReceituarioData, signer?: PrescriptionSigner): Promise<Uint8Array> {
+  assertPrescriptionSigner(signer);
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -260,30 +258,7 @@ export async function generateReceituarioPdf(data: ReceituarioData): Promise<Uin
   });
 
   // ── Assinar com ICP-Brasil (PAdES) ────────────────────────────────────────
-  let pfxBuf: Buffer;
-  let password: string | undefined;
-  try {
-    pfxBuf  = getCertBufferSync();
-    password = getCertPasswordsSync()[0] ?? "";
-  } catch {
-    // Sem certificado disponível — devolve PDF sem assinatura (não derruba o fluxo)
-    return pdfDoc.save();
-  }
-
-  pdflibAddPlaceholder({
-    pdfDoc,
-    reason: "Receituário magistral assinado digitalmente — PAXTER",
-    contactInfo: "PAXTER Clinical Intelligence System",
-    name: safeTxt(data.professionalName) || "Médico Responsável",
-    location: "Brasil",
-    signatureLength: 16384,
-  });
-
-  const withPlaceholder = await pdfDoc.save({ useObjectStreams: false });
-  const signer  = new P12Signer(pfxBuf, { passphrase: password });
-  const signpdf = new SignPdf();
-  const signed  = await signpdf.sign(Buffer.from(withPlaceholder), signer);
-  return new Uint8Array(signed);
+  return signPrescriptionPdf(pdfDoc, signer);
 }
 
 // ─── V2: Layout ANVISA 4 Boxes ────────────────────────────────────────────────
@@ -338,39 +313,13 @@ export interface ReceituarioDataV2 {
   rodapeLinhas?: string[];
 }
 
-async function signPdfBytes(
-  pdfDoc: PDFDocument,
-  profName: string,
-): Promise<Uint8Array> {
-  let pfxBuf: Buffer;
-  let password: string;
-  try {
-    pfxBuf   = getCertBufferSync();
-    password = getCertPasswordsSync()[0] ?? "";
-  } catch {
-    return pdfDoc.save();
-  }
-  pdflibAddPlaceholder({
-    pdfDoc,
-    reason:      "Receituário assinado digitalmente — PAXTER",
-    contactInfo: "PAXTER Clinical Intelligence System",
-    name:        profName || "Médico Responsável",
-    location:    "Brasil",
-    signatureLength: 16384,
-  });
-  const withPlaceholder = await pdfDoc.save({ useObjectStreams: false });
-  const signer  = new P12Signer(pfxBuf, { passphrase: password });
-  const signpdf = new SignPdf();
-  const signed  = await signpdf.sign(Buffer.from(withPlaceholder), signer);
-  return new Uint8Array(signed);
-}
-
 // ── Gera PDF a partir de uma imagem PNG capturada do motor HTML ──────────────
 // Usada pela rota /assinar-imagem-pdf (motor html2canvas → PNG → este PDF → ICP-Brasil)
 export async function generatePdfFromPngBase64(
   pngBase64: string,
-  profName: string,
+  signer?: PrescriptionSigner,
 ): Promise<Uint8Array> {
+  assertPrescriptionSigner(signer);
   const pdfDoc   = await PDFDocument.create();
   const pngBytes = Buffer.from(pngBase64, "base64");
   const pngImage = await pdfDoc.embedPng(pngBytes);
@@ -388,10 +337,11 @@ export async function generatePdfFromPngBase64(
     height: Math.min(drawH, PAGE_H),
   });
 
-  return signPdfBytes(pdfDoc, profName);
+  return signPrescriptionPdf(pdfDoc, signer);
 }
 
-export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise<Uint8Array> {
+export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
+  assertPrescriptionSigner(signer);
   const pdfDoc   = await PDFDocument.create();
   const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -403,7 +353,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
   const ITI_VALIDATION_URL = "https://validar.iti.gov.br/";
   // QR aponta para a página de consulta do documento (quando disponível) ou para o ITI
   const qrTarget = data.consultaUrl ?? ITI_VALIDATION_URL;
-  const certMeta = readCertMetaSync(); // best-effort, null se cert não configurado
+  const certMeta = signer.meta;
   let certQrImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null = null;
   try {
     const qrBuf = await QRCode.toBuffer(qrTarget, {
@@ -1002,5 +952,5 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2): Promise
     }
   }
 
-  return signPdfBytes(pdfDoc, safeTxt(data.medicoName));
+  return signPrescriptionPdf(pdfDoc, signer);
 }

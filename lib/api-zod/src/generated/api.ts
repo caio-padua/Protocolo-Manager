@@ -81,6 +81,70 @@ export const SendExamRequestDocumentsResponse = zod.object({
 });
 
 /**
+ * @summary Render and sign an authorized prescription on the server without dispatch
+ */
+
+export const signVisualPrescriptionBodyFormulasItemNomeMax = 500;
+
+export const signVisualPrescriptionBodyFormulasItemPosologiaMax = 5000;
+
+export const signVisualPrescriptionBodyFormulasItemAtivosMax = 5000;
+
+export const signVisualPrescriptionBodyFormulasItemViaMax = 200;
+
+export const signVisualPrescriptionBodyFormulasItemFormaMax = 500;
+
+export const signVisualPrescriptionBodyFormulasItemDoseMax = 200;
+
+export const signVisualPrescriptionBodyFormulasMax = 100;
+
+export const SignVisualPrescriptionBody = zod.object({
+  clientId: zod.number().min(1),
+  formulas: zod
+    .array(
+      zod.object({
+        nome: zod
+          .string()
+          .min(1)
+          .max(signVisualPrescriptionBodyFormulasItemNomeMax),
+        posologia: zod
+          .string()
+          .min(1)
+          .max(signVisualPrescriptionBodyFormulasItemPosologiaMax),
+        ativos: zod
+          .string()
+          .max(signVisualPrescriptionBodyFormulasItemAtivosMax)
+          .optional(),
+        via: zod
+          .string()
+          .max(signVisualPrescriptionBodyFormulasItemViaMax)
+          .optional(),
+        forma: zod
+          .string()
+          .max(signVisualPrescriptionBodyFormulasItemFormaMax)
+          .optional(),
+        dose: zod
+          .string()
+          .max(signVisualPrescriptionBodyFormulasItemDoseMax)
+          .optional(),
+      }),
+    )
+    .min(1)
+    .max(signVisualPrescriptionBodyFormulasMax),
+  tipoReceita: zod.enum(["especial", "simples"]).optional(),
+  modeloId: zod.number().min(1).optional(),
+});
+
+export const SignVisualPrescriptionResponse = zod.object({
+  ok: zod.boolean(),
+  pdfBase64: zod.string(),
+  fileName: zod.string(),
+  emailSent: zod.boolean(),
+  driveUrl: zod.string().nullish(),
+  driveId: zod.string().nullish(),
+});
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

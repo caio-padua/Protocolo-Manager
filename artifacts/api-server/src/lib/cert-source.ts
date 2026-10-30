@@ -86,8 +86,8 @@ export function validatePfx(
     const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(buffer));
     const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
     const p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
-    const certBags = p12.getBags({ bagType: forge.oids.certBag });
-    const certBag = certBags[forge.oids.certBag];
+    const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+    const certBag = certBags[forge.pki.oids.certBag];
     let cpf: string | null = null;
     if (certBag && certBag.length && certBag[0].cert) {
       const cn = certBag[0].cert.subject.getField("CN");
@@ -109,20 +109,24 @@ export async function saveCertificate(
   password: string,
   cpf: string | null,
   updatedBy?: string,
+  professionalId?: number,
 ): Promise<CertMeta> {
   const svc = new ObjectStorageService();
   const objectPath = `certs/pfx/${randomUUID()}.pfx`;
   await svc.savePrivateObject(objectPath, buffer, "application/x-pkcs12");
-  await setSecret("certificate.password", password, updatedBy);
+  const prefix = professionalId ? `certificate.professional.${professionalId}` : "certificate";
+  await setSecret(`${prefix}.password`, password, updatedBy);
   const meta: CertMeta = {
     objectPath,
     fileName,
     cpf,
     updatedAt: new Date().toISOString(),
   };
-  await setJsonSetting("certificate.meta", meta);
-  cachedBuffer = buffer;
-  cachedVaultPassword = password;
+  await setJsonSetting(`${prefix}.meta`, meta);
+  if (!professionalId) {
+    cachedBuffer = buffer;
+    cachedVaultPassword = password;
+  }
   return meta;
 }
 
@@ -147,8 +151,8 @@ export function readCertMetaSync(): CertDocMeta | null {
       try { p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw); break; } catch { /* continua */ }
     }
     if (!p12) return null;
-    const certBags = p12.getBags({ bagType: forge.oids.certBag });
-    const bag = certBags[forge.oids.certBag];
+    const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+    const bag = certBags[forge.pki.oids.certBag];
     if (!bag?.length || !bag[0].cert) return null;
     const cert = bag[0].cert;
     const cn = cert.subject.getField("CN");
@@ -183,16 +187,17 @@ function formatCpf(raw: string | null): string | null {
 }
 
 // Status seguro para a tela (sem expor o arquivo nem a senha).
-export async function getCertificateStatus(): Promise<{
+export async function getCertificateStatus(professionalId?: number): Promise<{
   isSet: boolean;
   hasPassword: boolean;
   fileName: string | null;
   cpf: string | null;
   updatedAt: string | null;
 }> {
-  const meta = await getJsonSetting<CertMeta>("certificate.meta");
-  const vaultPw = await getSecret("certificate.password");
-  const hasPassword = Boolean(vaultPw || process.env.CERT_PASSWORD);
+  const prefix = professionalId ? `certificate.professional.${professionalId}` : "certificate";
+  const meta = await getJsonSetting<CertMeta>(`${prefix}.meta`);
+  const vaultPw = await getSecret(`${prefix}.password`);
+  const hasPassword = Boolean(vaultPw || (!professionalId && process.env.CERT_PASSWORD));
   if (meta?.objectPath) {
     return {
       isSet: true,
@@ -202,6 +207,7 @@ export async function getCertificateStatus(): Promise<{
       updatedAt: meta.updatedAt,
     };
   }
+  if (professionalId) return { isSet: false, hasPassword, fileName: null, cpf: null, updatedAt: null };
   // Fallback: arquivo local existente conta como "configurado".
   const fileExists = fs.existsSync(FILE_CERT_PATH);
   let localCpf: string | null = null;

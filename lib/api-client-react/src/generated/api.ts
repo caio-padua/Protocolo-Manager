@@ -144,6 +144,7 @@ import type {
   SchedulingRequest,
   SendBatchBody,
   Session,
+  SignedVisualPrescription,
   SimpleOk,
   SimulacaoInput,
   SimulacaoResultado,
@@ -161,6 +162,7 @@ import type {
   UpdateSessionBody,
   UpdateSiteContentBody,
   UpdateSubstanceBlendComponentsBody,
+  VisualPrescriptionInput,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -381,6 +383,93 @@ export const useSendExamRequestDocuments = <
   TContext
 > => {
   return useMutation(getSendExamRequestDocumentsMutationOptions(options));
+};
+
+/**
+ * @summary Render and sign an authorized prescription on the server without dispatch
+ */
+export const getSignVisualPrescriptionUrl = () => {
+  return `/api/receituario/assinar-imagem-pdf`;
+};
+
+export const signVisualPrescription = async (
+  visualPrescriptionInput: VisualPrescriptionInput,
+  options?: RequestInit,
+): Promise<SignedVisualPrescription> => {
+  return customFetch<SignedVisualPrescription>(getSignVisualPrescriptionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(visualPrescriptionInput),
+  });
+};
+
+export const getSignVisualPrescriptionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signVisualPrescription>>,
+    TError,
+    { data: BodyType<VisualPrescriptionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signVisualPrescription>>,
+  TError,
+  { data: BodyType<VisualPrescriptionInput> },
+  TContext
+> => {
+  const mutationKey = ["signVisualPrescription"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signVisualPrescription>>,
+    { data: BodyType<VisualPrescriptionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return signVisualPrescription(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignVisualPrescriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signVisualPrescription>>
+>;
+export type SignVisualPrescriptionMutationBody =
+  BodyType<VisualPrescriptionInput>;
+export type SignVisualPrescriptionMutationError = ErrorType<void>;
+
+/**
+ * @summary Render and sign an authorized prescription on the server without dispatch
+ */
+export const useSignVisualPrescription = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signVisualPrescription>>,
+    TError,
+    { data: BodyType<VisualPrescriptionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof signVisualPrescription>>,
+  TError,
+  { data: BodyType<VisualPrescriptionInput> },
+  TContext
+> => {
+  return useMutation(getSignVisualPrescriptionMutationOptions(options));
 };
 
 /**

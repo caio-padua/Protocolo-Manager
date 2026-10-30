@@ -33,6 +33,10 @@ function fmtBR(ymd: string): string {
 
 // ─── Motor de liberação de um slot ───────────────────────────────────────────
 export async function liberarSlot(slotId: number): Promise<void> {
+  // These legacy schedules have no authenticated prescriber/certificate provenance.
+  // Never mark released, sign with the primary doctor's certificate or send without it.
+  throw new Error("Receituário agendado sem vínculo de médico autenticado: emissão automática bloqueada.");
+  /* LEGADO INTERDITADO, preservado para migração não destrutiva.
   // 1. Carregar slot + agenda + cliente + médico responsável
   const [slot] = await db
     .select()
@@ -297,6 +301,7 @@ export async function liberarSlot(slotId: number): Promise<void> {
     .where(eq(receitasAgendadasSlotsTable.id, slotId));
 
   logger.info({ slotId }, "[receituario] slot marcado ENTREGUE");
+  */
 }
 
 // ─── Processamento diário (cron 06:00 BRT) ───────────────────────────────────

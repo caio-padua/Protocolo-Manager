@@ -61,12 +61,38 @@ it("assinatura por imagem nao aceita anonimo", async () => {
   expect(response.status).toBe(401);
   expect(mock.emit).not.toHaveBeenCalled();
 });
-it("assinatura por imagem fica suspensa mesmo autenticada antes de qualquer efeito", async () => {
+it("assinatura rejeita imagem e destinatário livres antes de qualquer efeito", async () => {
   const response = await request(app).post("/receituario/assinar-imagem-pdf")
     .set("Authorization", `Bearer ${token()}`).send({
       pngBase64: "aW1hZ2Vt", patientName: "Nome falso", patientEmail: "outro@example.invalid",
     });
-  expect(response.status).toBe(503);
-  expect(response.body.error).toContain("suspensa");
+  expect(response.status).toBe(400);
+  expect(response.body.error).toContain("Imagens");
+  expect(mock.emit).not.toHaveBeenCalled();
+});
+it("rota reaberta usa médico, paciente e clínica autorizados sem destinatários", async () => {
+  mock.rows = [[doctor], [client], [location], [{ id: 1 }]];
+  const response = await request(app).post("/receituario/assinar-imagem-pdf")
+    .set("Authorization", `Bearer ${token()}`).send({
+      clientId: 71, formulas: [{ nome: "Formula sintetica", posologia: "Uso sintetico" }],
+    });
+  expect(response.status).toBe(200);
+  expect(response.body.pdfBase64).toBe("AQ==");
+  expect(response.body.emailSent).toBe(false);
+  expect(mock.emit).toHaveBeenCalledWith(expect.objectContaining({
+    emailTo: [], identity: expect.objectContaining({
+      professional: expect.objectContaining({ id: 41 }),
+      client: expect.objectContaining({ id: 71 }),
+      clinic: expect.objectContaining({ id: 31 }),
+    }),
+  }));
+});
+it("rota reaberta impede outra clínica antes de chamar o motor", async () => {
+  mock.rows = [[doctor], [client], [{ ...location, empresaId: 99 }], [{ id: 1 }]];
+  const response = await request(app).post("/receituario/assinar-imagem-pdf")
+    .set("Authorization", `Bearer ${token()}`).send({
+      clientId: 71, formulas: [{ nome: "Formula sintetica", posologia: "Uso sintetico" }],
+    });
+  expect(response.status).toBe(403);
   expect(mock.emit).not.toHaveBeenCalled();
 });

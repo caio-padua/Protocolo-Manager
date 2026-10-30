@@ -15,7 +15,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { ConsoleShell, IntegrationCard, ExplainRow } from "@/pages/comunicacao/_shared";
-import { getCollabToken } from "@/lib/collab-auth";
+import { COLLAB_EVENT, getCollabProfessional, getCollabToken } from "@/lib/collab-auth";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -202,7 +202,16 @@ function PadesCertCard() {
 
 export default function ConfigCertificados() {
   const { toast } = useToast();
-  const status = useGetCertificateStatus();
+  const [professionalId, setProfessionalId] = useState(() => getCollabProfessional()?.id ?? null);
+  useEffect(() => {
+    const changed = () => setProfessionalId(getCollabProfessional()?.id ?? null);
+    window.addEventListener(COLLAB_EVENT, changed);
+    return () => window.removeEventListener(COLLAB_EVENT, changed);
+  }, []);
+  const status = useGetCertificateStatus({ query: {
+    queryKey: ["certificate-status", professionalId], enabled: !!professionalId,
+    staleTime: 30_000, refetchOnMount: "always",
+  } });
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
@@ -252,7 +261,7 @@ export default function ConfigCertificados() {
     <ConsoleShell
       icon={ShieldCheck}
       title="Certificados Digitais"
-      subtitle="Certificado A1 (ICP-Brasil) usado para assinar os PDFs com selo verde. Guardado cifrado, nunca exposto."
+      subtitle="Certificado A1 pessoal do médico autenticado. CPF e validade conferidos antes de assinar receitas; arquivo privado e senha cifrada."
     >
       {status.isLoading ? (
         <Skeleton className="h-72 w-full" />
@@ -260,7 +269,7 @@ export default function ConfigCertificados() {
         <section className="grid gap-4 lg:grid-cols-2">
           <IntegrationCard
             icon={ShieldCheck}
-            name="Certificado A1 Atual"
+            name="Meu Certificado A1"
             accent="text-emerald-600"
             on={configured}
             pending={status.isLoading}

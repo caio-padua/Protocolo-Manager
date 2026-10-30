@@ -29,8 +29,24 @@ Armadilhas (cada uma custou tempo):
   re-save) invalida a assinatura. Upload ao Google Drive deve enviar os bytes assinados
   intactos.
 
-**Senha do certificado (resolvido):** a senha do .pfx vem APENAS do secret
-`CERT_PASSWORD` (sem fallback no codigo; se faltar, o modulo lanca erro na carga).
-Os literais antigos foram removidos do fonte e tambem da documentacao
-(PADCOM_HANDOFF.md, PADCOM_TECHNICAL_BRIEFING.md). Nunca reescrever a senha em
-codigo ou .md — apontar sempre para o secret.
+**Receitas — propriedade do certificado:** um certificado global não é autorização
+para assinar em nome de qualquer médico. Certificado e CPF cadastral do médico
+autenticado precisam coincidir; o contexto inclui paciente e vínculo com a clínica.
+Sem proveniência do prescritor, fluxo legado deve falhar fechado, nunca assumir o
+médico principal. Imagem enviada pelo navegador não comprova identidade do conteúdo:
+renderizar a receita autorizada no servidor.
+
+**Why:** O cadastro passou a comportar vários médicos; herdar certificado do antigo
+médico único permite atribuir documentos a outro profissional.
+
+**How to apply:** Em novos caminhos de assinatura de receitas, resolver contexto
+clínico antes do certificado e não reutilizar implicitamente os assinadores globais
+de RAS/protocolo. Homologar com certificados sintéticos e diferenciar integridade
+CMS de confiança da cadeia ICP-Brasil e verificação de revogação.
+
+**Metadados históricos:** consulta de documento deve usar o retrato do certificado
+na emissão, não o certificado atualmente configurado.
+
+**Why:** Rotação ou troca de titular não pode alterar a autoria exibida de receita antiga.
+
+**How to apply:** Nunca reconstruir autoria histórica com o certificado global corrente.

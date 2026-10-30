@@ -29,6 +29,8 @@ import {
 import { loadReceituarioConfig } from "@/lib/arabesques/receituario-config";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "./PrescricoesEmitidas";
 
+import { getCollabToken } from "@/lib/collab-auth";
+
 const NAVY = "#16284a";
 const OURO = "#c9a24e";
 
@@ -423,12 +425,16 @@ export default function PrescricaoPage(
       }
     }
   };
-  // ── Motor real: captura o preview HTML → PNG → backend assina ICP-Brasil → Drive → email ──
+  // ── Emissão assinada no servidor, sem envio implícito ──
   const previewRef = useRef<HTMLDivElement>(null);
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
   const handleGerarReceituario = async () => {
     if (!selected.length) return;
+    if (!(clientId ?? selectedClientId)) {
+      toast({ title: "Selecione um cliente cadastrado antes de assinar", variant: "destructive" });
+      return;
+    }
     if (!patient.nome.trim()) {
       toast({ title: "Informe o nome do paciente antes de gerar", variant: "destructive" });
       return;
@@ -437,56 +443,43 @@ export default function PrescricaoPage(
       toast({ title: "Preview do motor não encontrado", description: "Rolar até o Modelo Visual antes de gerar", variant: "destructive" });
       return;
     }
+    // Reserve the tab during the user gesture; asynchronous window.open is blocked by browsers.
+    const pdfWindow = window.open("", "_blank");
+    if (!pdfWindow) {
+      toast({ title: "Permita abrir novas abas para visualizar a receita", variant: "destructive" });
+      return;
+    }
+    pdfWindow.opener = null;
     setGerandoPdf(true);
     try {
-      // 1. Captura o motor visual (ReceituarioPreview) como PNG em alta resolução
-      // Aguarda fontes + imagens carregarem (elimina captura com fonte fallback)
-      await document.fonts.ready;
-      await Promise.all(
-        Array.from(previewRef.current.querySelectorAll("img")).map(
-          (img) => img.complete ? Promise.resolve() : new Promise<void>((r) => { img.onload = () => r(); img.onerror = () => r(); })
-        )
-      );
-      const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-      const pngBase64 = canvas.toDataURL("image/png").split(",")[1];
-
-      // 2. Envia ao backend — assina ICP-Brasil, sobe ao Drive, envia e-mail
-      const today = new Date().toLocaleDateString("pt-BR");
-      const patientNameSlug = patient.nome.replace(/\s+/g, "_").toUpperCase();
-      const fileName = `${today.split("/").reverse().join(".")} RECEITUARIO ${patientNameSlug}.pdf`;
-
+      // Server renders the verified patient/doctor/clinic, never signs browser pixels.
       const resp = await fetch(`${BASE}/api/receituario/assinar-imagem-pdf`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getCollabToken() ?? ""}` },
         body: JSON.stringify({
-          pngBase64,
-          patientName: patient.nome,
-          fileName,
-          patientEmail: patient.email || undefined,
+          clientId: clientId ?? selectedClientId,
+          formulas: buildItems().map(it => ({
+            nome: it.name, ativos: it.ativos ?? undefined, posologia: it.posologia ?? "",
+            via: it.via ?? undefined, forma: it.observacao ?? undefined, dose: it.dose ?? undefined,
+          })),
         }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || "Falha ao assinar o receituário");
       }
-      const result = await resp.json() as { ok: boolean; driveUrl?: string; emailSent?: boolean };
+      const result = await resp.json() as { ok: boolean; pdfBase64: string };
+      if (!result.pdfBase64) throw new Error("Servidor não retornou o PDF assinado.");
+      const bytes = Uint8Array.from(atob(result.pdfBase64), c => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      pdfWindow.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
       toast({
-        title: "Receituário assinado e enviado!",
-        description: result.emailSent
-          ? "PDF enviado ao Drive e para drcaiohenriquepadua@gmail.com"
-          : result.driveUrl
-            ? "PDF salvo no Drive (e-mail com falha — verifique o Gmail)"
-            : "PDF gerado (Drive e e-mail com falha — verifique logs)",
+        title: "Receituário assinado",
+        description: "PDF aberto em nova aba. Nenhum e-mail foi enviado.",
       });
-      if (result.driveUrl) window.open(result.driveUrl, "_blank");
     } catch (err) {
+      pdfWindow.close();
       const msg = err instanceof Error ? err.message : "Erro desconhecido";
       toast({ title: "Erro ao gerar receituário", description: msg, variant: "destructive" });
     } finally {

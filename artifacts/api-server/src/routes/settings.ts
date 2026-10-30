@@ -20,6 +20,8 @@ import {
   type Matriz,
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
+import { ClinicalIdentityError } from "../lib/clinical-emitter";
+import { inspectPrescriptionCertificate } from "../lib/prescription-signing";
 import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
 import {
   getJsonSetting,
@@ -388,8 +390,8 @@ router.put("/settings/stripe", requireCollaborator, async (req, res): Promise<vo
 });
 
 // ------------------------------------------------------------- CERTIFICADO ---
-router.get("/settings/certificate", requireCollaborator, async (_req, res): Promise<void> => {
-  res.json(await getCertificateStatus());
+router.get("/settings/certificate", requireCollaborator, async (req, res): Promise<void> => {
+  res.json(await getCertificateStatus(req.collaborator!.professionalId));
 });
 
 // Upload do .pfx (multipart): campo "file" + "password" (+ opcional "cpf").
@@ -413,11 +415,20 @@ router.post(
       res.status(400).json({ error: "Nao foi possivel abrir o certificado com a senha informada." });
       return;
     }
-    const cpf =
-      (typeof req.body?.cpf === "string" && req.body.cpf.trim()) || check.cpf || null;
-    await saveCertificate(file.buffer, file.originalname || "certificado.pfx", password, cpf, actor(req));
-    await refreshCertCache();
-    res.json(await getCertificateStatus());
+    const professionalId = req.collaborator!.professionalId;
+    const [professional] = await db.select().from(professionalsTable)
+      .where(eq(professionalsTable.id, professionalId)).limit(1);
+    if (!professional?.active || professional.professionalType !== "medico") {
+      res.status(403).json({ error: "Somente o médico ativo pode cadastrar seu certificado." }); return;
+    }
+    try {
+      const meta = inspectPrescriptionCertificate(file.buffer, password, professional.cpf);
+      await saveCertificate(file.buffer, file.originalname || "certificado.pfx", password, meta.cpf, actor(req), professionalId);
+      res.json(await getCertificateStatus(professionalId));
+    } catch (err) {
+      if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
+      throw err;
+    }
   },
 );
 

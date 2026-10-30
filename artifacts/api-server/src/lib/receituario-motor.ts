@@ -7,7 +7,8 @@ import { randomBytes } from "crypto";
 import { db, professionalsTable, locationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { readCertMetaSync, type CertDocMeta } from "./cert-source.js";
+import { resolvePrescriptionSigner, type PrescriptionIdentity } from "./prescription-signing";
+import { ClinicalIdentityError } from "./clinical-emitter";
 import { buildPrescricaoHtml, type PrescricaoHtmlData } from "./receituario-html.js";
 import { htmlToPngBase64 } from "./puppeteer-capture.js";
 import { generatePdfFromPngBase64, generateReceituarioPdfV2, type ReceituarioDataV2 } from "./receituario-pdf.js";
@@ -42,6 +43,7 @@ export interface FormulaEmissao {
 }
 
 export interface EmitirParams {
+  identity?: PrescriptionIdentity;
   /** Explicit identity from authorized callers; legacy callers remain separately audited. */
   medicoId?: number;
   clinicaId?: number;
@@ -99,6 +101,7 @@ export async function garantirTabelaTokens(): Promise<void> {
         criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`ALTER TABLE receituario_tokens ADD COLUMN IF NOT EXISTS cert_meta JSONB`);
     _tokensGarantido = true;
   } catch (e) {
     logger.error({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: falha ao criar tabela de tokens");
@@ -225,6 +228,14 @@ export async function atualizarModelo(
 // ── Motor único ───────────────────────────────────────────────────────────────
 
 export async function emitirReceituarioPdf(params: EmitirParams): Promise<EmitirResult> {
+  if (!params.identity) throw new ClinicalIdentityError(422, "Emissão exige contexto clínico autenticado; fluxo legado bloqueado.");
+  const identity = params.identity;
+  const signer = await resolvePrescriptionSigner(identity);
+  // The patient printed in the signed document is always server-owned.
+  params = { ...params, medicoId: identity.professional.id, clinicaId: identity.clinic.id,
+    patient: { nome: identity.client.name, cpf: identity.client.cpf ?? undefined,
+      telefone: identity.client.phone ?? undefined, email: identity.client.email ?? undefined,
+      dataNascimento: identity.client.birthDate ?? undefined } };
   const dataHoje = hoje();
   const [y, m, d] = dataHoje.split("-");
 
@@ -238,17 +249,18 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   logger.info({ modeloId: modelo.id, tipo: modelo.tipo }, "receituario-motor: modelo selecionado");
 
   // 2. Lê certificado real do PFX (best-effort — null se não configurado)
-  const certMeta: CertDocMeta | null = readCertMetaSync();
+  const certMeta = signer.meta;
 
   // 3. Carrega médico e clínica do banco (padrão: Dr. Caio=6, Instituto Padua=8)
-  const medicoId = params.medicoId ?? 6;
-  const clinicaId = params.clinicaId ?? 8;
+  const medicoId = identity.professional.id;
+  const clinicaId = identity.clinic.id;
 
   const [medico] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, medicoId));
   const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, clinicaId));
 
-  const medicoNome = medico?.name ?? "Dr. Caio Henrique Fernandes Pádua";
-  const medicoCrm  = medico?.crm  ?? "CRM SP 123456";
+  if (!medico || !clinica) throw new ClinicalIdentityError(403, "Médico ou clínica indisponível.");
+  const medicoNome = identity.professional.name;
+  const medicoCrm  = `CRM/${identity.professional.uf} ${identity.professional.crm}`;
   const medicoRqe  = (medico as any)?.specialty ?? undefined;
   const clinicaNome = (clinica as any)?.nome_fantasia ?? clinica?.name ?? "Instituto Padua";
   const clinicaEnd  = clinica?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP";
@@ -283,7 +295,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       bandModel:   (modelo.config.bandModel as string) ?? "padua-01-floral-islamico",
       consultaUrl,
     };
-    pdfBytes = await generateReceituarioPdfV2(pdfData);
+    pdfBytes = await generateReceituarioPdfV2(pdfData, signer);
   } else {
     // Motor M4: Faixas Paxter (Puppeteer captura HTML = exatamente o preview)
     const assetsBase = params.assetsBaseUrl ?? "http://localhost:80/padcom";
@@ -317,7 +329,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
 
     const html = buildPrescricaoHtml(htmlData);
     const pngBase64 = await htmlToPngBase64(html);
-    pdfBytes = await generatePdfFromPngBase64(pngBase64, medicoNome);
+    pdfBytes = await generatePdfFromPngBase64(pngBase64, signer);
   }
 
   // 5. Nome do arquivo — padrão PAXTER
@@ -336,7 +348,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
         Buffer.from(pdfBytes),
       );
       driveUrl = result.webViewLink ?? null;
-      driveId  = result.id ?? null;
+      driveId  = result.fileId ?? null;
       logger.info({ driveUrl }, "receituario-motor: Drive upload OK");
     } catch (e) {
       logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: Drive upload falhou");
@@ -384,7 +396,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   try {
     await garantirTabelaTokens();
     await db.execute(sql`
-      INSERT INTO receituario_tokens (token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url, formulas)
+      INSERT INTO receituario_tokens (token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url, formulas, cert_meta)
       VALUES (
         ${consultaToken},
         ${params.patient.nome},
@@ -394,7 +406,9 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
         ${dataHoje},
         ${fileName},
         ${driveUrl},
-        ${JSON.stringify(params.formulas)}
+        ${JSON.stringify(params.formulas)},
+        ${JSON.stringify({ titular: signer.meta.assinante, cpf: signer.meta.cpf, serial: signer.meta.serial,
+          validTo: signer.meta.validTo, issuer: signer.meta.ac, padrao: "PAdES" })}
       )
       ON CONFLICT (token) DO NOTHING
     `);

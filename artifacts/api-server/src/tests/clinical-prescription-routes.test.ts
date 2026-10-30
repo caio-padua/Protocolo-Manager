@@ -20,6 +20,10 @@ vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: any, _s: a
 vi.mock("../lib/desmembramento", () => ({ planDesmembramento: mock.generate }));
 vi.mock("../lib/sncr", () => ({ consumeSncrNumber: mock.generate }));
 vi.mock("../lib/prescription-pdf", () => ({ generateRecipePdf: mock.generate }));
+vi.mock("../lib/prescription-signing", () => ({
+  resolvePrescriptionSigner: vi.fn().mockResolvedValue({}),
+  signExistingPrescriptionPdf: vi.fn().mockResolvedValue(new Uint8Array([1])),
+}));
 vi.mock("../lib/google-drive", () => ({ ensurePharmacyDayFolder: mock.generate, uploadFileToDrive: mock.generate }));
 vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: mock.send }));
 vi.mock("../lib/telegram", () => ({ sendTelegram: mock.send }));

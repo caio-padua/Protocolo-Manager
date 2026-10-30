@@ -74,6 +74,59 @@ export interface ExamDocumentDispatchResult {
   results: ExamDocumentChannelResult[];
 }
 
+export type VisualPrescriptionInputTipoReceita =
+  (typeof VisualPrescriptionInputTipoReceita)[keyof typeof VisualPrescriptionInputTipoReceita];
+
+export const VisualPrescriptionInputTipoReceita = {
+  especial: "especial",
+  simples: "simples",
+} as const;
+
+export interface VisualPrescriptionFormula {
+  /**
+   * @minLength 1
+   * @maxLength 500
+   */
+  nome: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  posologia: string;
+  /** @maxLength 5000 */
+  ativos?: string;
+  /** @maxLength 200 */
+  via?: string;
+  /** @maxLength 500 */
+  forma?: string;
+  /** @maxLength 200 */
+  dose?: string;
+}
+
+export interface VisualPrescriptionInput {
+  /** @minimum 1 */
+  clientId: number;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  formulas: VisualPrescriptionFormula[];
+  tipoReceita?: VisualPrescriptionInputTipoReceita;
+  /** @minimum 1 */
+  modeloId?: number;
+}
+
+export interface SignedVisualPrescription {
+  ok: boolean;
+  pdfBase64: string;
+  fileName: string;
+  emailSent: boolean;
+  /** @nullable */
+  driveUrl?: string | null;
+  /** @nullable */
+  driveId?: string | null;
+}
+
 export interface ErrorResponse {
   error: string;
 }

@@ -133,6 +133,11 @@ describe("entregas clínicas confirmadas (somente simulações)", () => {
       expect.any(String), expect.objectContaining({ mirrorTelegram: false }));
     if (channel === "email") expect(state.motor).toHaveBeenCalledWith(expect.objectContaining({
       medicoId: 41, clinicaId: 31, emailTo: [state.email],
+      identity: expect.objectContaining({
+        professional: expect.objectContaining({ id: 41 }),
+        client: expect.objectContaining({ id: 71 }),
+        clinic: expect.objectContaining({ id: 31, empresaId: 21 }),
+      }),
       formulas: [expect.objectContaining({ nome: "Fórmula sintética", posologia: "1 ao dia" })],
     }));
     const history = await get();

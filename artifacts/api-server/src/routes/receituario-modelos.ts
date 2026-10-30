@@ -23,6 +23,7 @@ import {
 } from "../lib/receituario-motor.js";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { requireCollaborator } from "./collaborator";
 
 const router = Router();
 
@@ -113,6 +114,10 @@ router.delete("/receituario-modelos/:id", async (req, res): Promise<void> => {
 
 // ── POST /api/receituario-modelos/emitir-teste ───────────────────────────────
 // Emite um PDF de DEMONSTRAÇÃO usando o modelo ativo. Não envia e-mail real.
+router.post("/receituario-modelos/emitir-teste", requireCollaborator, (_req, res): void => {
+  res.status(422).json({ error: "Demonstração assinada bloqueada. Homologação usa certificado sintético sem envio." });
+});
+/* DEMO ASSINADA LEGADA — referência não executável.
 router.post("/receituario-modelos/emitir-teste", async (req, res): Promise<void> => {
   try {
     const modeloId = req.body?.modeloId ? parseInt(req.body.modeloId, 10) : undefined;
@@ -156,4 +161,5 @@ router.post("/receituario-modelos/emitir-teste", async (req, res): Promise<void>
   }
 });
 
+*/
 export default router;

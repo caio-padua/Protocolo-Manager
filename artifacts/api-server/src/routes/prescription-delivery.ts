@@ -161,6 +161,7 @@ async function deliver(req: Request, res: import("express").Response) {
       }
       if (target.channel === "email") {
         const result = await emitirReceituarioPdf({
+          identity: ctx.identity,
           medicoId: ctx.pres.professionalId!, clinicaId: ctx.identity.clinic.id,
           patient: { nome: ctx.client.name, cpf: ctx.client.cpf ?? undefined,
             telefone: ctx.client.phone ?? undefined, email: ctx.client.email ?? undefined },

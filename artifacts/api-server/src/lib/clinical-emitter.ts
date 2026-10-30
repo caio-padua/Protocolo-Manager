@@ -43,7 +43,7 @@ export function validateClinicalIdentity(input: {
   }
   const registration = medicalRegistration(professional);
   return {
-    professional: { id: professional.id, name: professional.name, ...registration },
+    professional: { id: professional.id, name: professional.name, cpf: professional.cpf, ...registration },
     client: { id: client.id, name: client.name, cpf: client.cpf, email: client.email, phone: client.phone, birthDate: client.birthDate },
     clinic: { id: location.id, empresaId: client.empresaId, name: location.name },
     canPrescribe: !!registration.uf,
