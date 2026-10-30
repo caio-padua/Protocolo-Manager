@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { ClinicalIdentityPanel } from "./ClinicalIdentityPanel";
 import type { ClinicalIdentity, useClinicalIdentity } from "@/hooks/use-clinical-identity";
+import { ClinicalIdentityRequestError } from "@/hooks/use-clinical-identity";
 import type { useClinicalDraft } from "@/hooks/use-clinical-draft";
 
 export type IdentityQuery = ReturnType<typeof useClinicalIdentity>;
@@ -11,15 +12,17 @@ export function ClinicalDraftGate({ identity, clientId, kind, children }: {
 }) {
   const data = identity.data;
   const validated = useRef<ClinicalIdentity | null>(null);
+  const authorizationRefused = identity.isError && identity.error instanceof ClinicalIdentityRequestError
+    && [400, 401, 403, 404, 422].includes(identity.error.status);
   if (!identity.isFetching && !identity.isError && data?.canPrescribe
     && data.client.id === clientId && data.professional.id && data.clinic.id && data.clinic.empresaId) {
     validated.current = data;
   }
-  if (identity.isError || (data && !data.canPrescribe) || validated.current?.client.id !== clientId) {
+  if (authorizationRefused || (data && !data.canPrescribe) || validated.current?.client.id !== clientId) {
     validated.current = null;
   }
   const context = validated.current;
-  const checking = identity.isFetching || !data;
+  const checking = identity.isFetching || identity.isError || !data;
   const validationNotice = <div className="space-y-3">
       <ClinicalIdentityPanel identity={identity} />
       <p role="status" className="text-sm">Valide o médico, a clínica e o paciente para acessar o rascunho.</p>
@@ -30,7 +33,8 @@ export function ClinicalDraftGate({ identity, clientId, kind, children }: {
   return <div className="space-y-3">
     {checking && validationNotice}
     {/* Keep unsaved in-memory edits mounted during a background identity check.
-        Hide and disable them until authorization is confirmed; a refused or
+        Network/server failures keep the only in-memory copy mounted but hidden.
+        Hide and disable edits until authorization is confirmed; a refused or
         changed context removes/rekeys the editor instead. */}
     <fieldset className="min-w-0" hidden={checking} disabled={checking} aria-busy={checking}>
       {children(scope)}

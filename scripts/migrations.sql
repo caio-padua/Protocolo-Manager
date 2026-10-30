@@ -1,7 +1,7 @@
--- =============================================================================
+-- -----------------------------------------------------------------------------
 -- MIGRAÇÕES DE SCHEMA DO PROJETO
 -- Aplicado automaticamente a cada merge de task agent por scripts/post-merge.sh
--- =============================================================================
+-- -----------------------------------------------------------------------------
 --
 -- REGRAS DE ESCRITA (obrigatórias):
 --
@@ -21,7 +21,7 @@
 --      Há drift preexistente no schema: o push propõe DROP de colunas com
 --      dados reais. Schema muda por ALTER TABLE escrito aqui, à mão.
 --
--- =============================================================================
+-- -----------------------------------------------------------------------------
 
 
 -- Canal de entrega da mensagem.
@@ -78,3 +78,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS uniq_clients_telegram_chat_id
 
 -- Impede reenvio duplicado de pedidos, inclusive em duas janelas simultâneas.
 \ir migrations/exam-request-dispatch-operations.sql
+
+-- Personal selections are independent of issued documents; catalogue snapshots survive removal.
+CREATE TABLE IF NOT EXISTS personal_exam_sets (
+  id SERIAL PRIMARY KEY,
+  professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  location_id INTEGER NOT NULL REFERENCES locations(id),
+  empresa_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  items JSONB NOT NULL,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS personal_exam_sets_owner
+  ON personal_exam_sets (professional_id, location_id, empresa_id);

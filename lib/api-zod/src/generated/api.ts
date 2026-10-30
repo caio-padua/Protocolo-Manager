@@ -8,6 +8,98 @@
 import * as zod from "zod";
 
 /**
+ * @summary Personal exam selections scoped to the authenticated doctor and authorized client clinic
+ */
+
+export const ListPersonalExamSetsParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const ListPersonalExamSetsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  archived: zod.boolean(),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      code: zod.string().nullable(),
+      status: zod.enum(["available", "inactive", "removed"]),
+      exam: zod.record(zod.string(), zod.unknown()).nullable(),
+    }),
+  ),
+});
+export const ListPersonalExamSetsResponse = zod.array(
+  ListPersonalExamSetsResponseItem,
+);
+
+/**
+ * @summary Save a personal selection without issuing or sending documents
+ */
+
+export const CreatePersonalExamSetParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const createPersonalExamSetBodyNameMax = 120;
+
+export const createPersonalExamSetBodyExamIdsMax = 100;
+
+export const CreatePersonalExamSetBody = zod.object({
+  name: zod.string().min(1).max(createPersonalExamSetBodyNameMax),
+  examIds: zod
+    .array(zod.number().min(1))
+    .min(1)
+    .max(createPersonalExamSetBodyExamIdsMax),
+});
+
+/**
+ * @summary Rename, edit or archive a personal set without changing issued documents
+ */
+
+export const UpdatePersonalExamSetParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+  setId: zod.coerce.number().min(1),
+});
+
+export const updatePersonalExamSetBodyOneNameMax = 120;
+
+export const updatePersonalExamSetBodyOneExamIdsMax = 100;
+
+export const updatePersonalExamSetBodyTwoNameMax = 120;
+
+export const UpdatePersonalExamSetBody = zod.union([
+  zod.object({
+    name: zod.string().min(1).max(updatePersonalExamSetBodyOneNameMax),
+    examIds: zod
+      .array(zod.number().min(1))
+      .min(1)
+      .max(updatePersonalExamSetBodyOneExamIdsMax),
+  }),
+  zod.object({
+    name: zod.string().min(1).max(updatePersonalExamSetBodyTwoNameMax),
+  }),
+  zod.object({
+    archived: zod.literal(true),
+  }),
+]);
+
+export const UpdatePersonalExamSetResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  archived: zod.boolean(),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      code: zod.string().nullable(),
+      status: zod.enum(["available", "inactive", "removed"]),
+      exam: zod.record(zod.string(), zod.unknown()).nullable(),
+    }),
+  ),
+});
+
+/**
  * @summary Historico autorizado dos pedidos de exames do cliente
  */
 

@@ -11,6 +11,10 @@ export interface ClinicalIdentity {
   issue: string | null;
 }
 
+export class ClinicalIdentityRequestError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
+
 export function useClinicalIdentity(clientId: number | null | undefined) {
   // Token remains in the auth helper, never in a query key or a diagnostic.
   const [sessionVersion, setSessionVersion] = useState(0);
@@ -34,12 +38,15 @@ export function useClinicalIdentity(clientId: number | null | undefined) {
     retry: false,
     queryFn: async ({ signal }) => {
       const token = getCollabToken();
-      if (!token) throw new Error("Faça login de colaborador para identificar o médico.");
+      if (!token) throw new ClinicalIdentityRequestError("Faça login de colaborador para identificar o médico.", 401);
       const response = await fetch(`${BASE}/api/clinical-context/${clientId}`, {
         signal, headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new ClinicalIdentityRequestError(data.error || "Não foi possível validar a identidade clínica.", response.status);
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Não foi possível validar a identidade clínica.");
       return data;
     },
   });

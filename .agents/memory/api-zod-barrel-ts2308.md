@@ -24,3 +24,9 @@ sem perda real.
 o barrel; manter apenas o reexport de `./generated/api`. Não tentar `export type *` como
 band-aid. Se algum dia um consumidor precisar do tipo cru, importe direto de
 `./generated/types` no ponto de uso, não pelo barrel.
+
+**Armadilha do gerador:** uma execução de Orval pode recriar automaticamente o
+reexport de `generated/types` no barrel, mesmo que ele estivesse correto antes.
+**Why:** o gerador reconstrói exports de saída sem preservar essa restrição do projeto.
+**How to apply:** depois de regenerar o contrato, conferir esse efeito antes de
+compilar bibliotecas; não interpretar sua reaparição como uma decisão arquitetural.

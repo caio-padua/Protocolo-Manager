@@ -135,6 +135,7 @@
 - [Prescrição — vínculo seguro](prescricao-vinculo-seguro.md) — nunca inferir por nome; conflito CPF/e-mail exige seleção humana, não primeiro resultado.
 - [Entrada em operação clínica](entrada-operacao-clinica.md) — primeiro uso real em paralelo ao sistema anterior; receitas e exames são prioridades, sem pressupor migração.
 - [Destinatários implícitos em documentos clínicos](recibos-clinicos-copia-implicita.md) — ao habilitar vários médicos, cópia pessoal herdada vira vazamento entre clínicas; verificar chamador e padrão do motor.
+- [Rascunho e revalidação transitória](rascunho-revalidacao-transitoria.md) — falha temporária de identidade oculta/bloqueia o editor, sem apagar a única cópia em memória.
 - [Rascunhos clínicos e emissão incerta](rascunhos-clinicos-recuperacao.md) — recuperar edição não prova emissão; rascunho local não é backup nem sincronização entre aparelhos.
 - [Autonomia nos retornos das tarefas](autonomia-retornos-tarefas.md) — decidir questões técnicas de “Aguardando entrada” com foco comercial; ler a pergunta e confirmar o envio da resposta.
 - [Envio clínico com resultado incerto](envio-clinico-resultado-incerto.md) — reservas não expiram nem autorizam repetição automática; resposta perdida exige conferência, não nova chave.

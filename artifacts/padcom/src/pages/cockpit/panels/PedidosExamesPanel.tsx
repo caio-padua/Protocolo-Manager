@@ -18,15 +18,16 @@ import ExamRequestHistoryPanel from "./ExamRequestHistoryPanel";
 import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
 import { useClinicalDraft } from "@/hooks/use-clinical-draft";
 import { emptyExamDraft, examDraftSchema } from "./clinical-draft-schemas";
+import PersonalExamSets from "./PersonalExamSets";
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // PAINEL: PEDIDOS DE EXAMES (client-scoped) — extraido de consulta/index.tsx.
 // Catalogo + carrinho + medico solicitante + envio (e-mail/WhatsApp).
 // Consome apenas motores existentes:
 //   GET  /api/catalogos/exames    (catalogo)
 //   GET  /api/professionals       (medicos)
 //   POST /api/exam-requests/emit  (gera PDF + envio)
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 type Tipo = "SANGUE" | "IMAGEM" | "OUTROS";
 
@@ -216,9 +217,24 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
       <fieldset disabled={emitindo} className="min-w-0">
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
-      {!draft.pending && <fieldset disabled={emitindo} className="grid min-w-0 gap-5 lg:grid-cols-[1fr_360px]">
+      {!draft.pending && <fieldset disabled={emitindo} className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
       {/* Catalogo */}
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
+        {identity.data && !identity.isError && !identity.isFetching && (
+          <PersonalExamSets key={`${scope}-${identity.data.professional.id}-${identity.data.clinic.id}`}
+            clientId={clientId} professionalId={identity.data.professional.id} clinicId={identity.data.clinic.id}
+            exams={exams} selectedIds={cartList.map(item => item.id)}
+            disabled={emitindo || carregandoExams || erroExams || draft.pending}
+            onApply={selected => setCart(previous => {
+              const next = { ...previous };
+              for (const exam of selected) next[exam.id] = {
+                id: exam.id, nomeExame: exam.nomeExame!, codigoExame: exam.codigoExame,
+                grupoPrincipal: exam.grupoPrincipal, preparo: exam.preparo,
+                tipo: classifyTipo(exam.modalidade, exam.materialOuSetor, exam.grupoPrincipal),
+              };
+              return next;
+            })} />
+        )}
         <label className="concave-3d flex items-center gap-2 p-3 text-sm">
           <input type="checkbox" checked={cardiacOnly} onChange={event => setCardiacOnly(event.target.checked)} disabled={emitindo} />
           Mostrar exames cardiológicos

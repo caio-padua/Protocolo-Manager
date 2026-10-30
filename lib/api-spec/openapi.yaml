@@ -39,6 +39,90 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /exam-sets/{clientId}:
+    parameters:
+      - name: clientId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: listPersonalExamSets
+      tags: [prescriptions]
+      summary: Personal exam selections scoped to the authenticated doctor and authorized client clinic
+      responses:
+        "200":
+          description: Active and archived sets with current catalogue availability
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PersonalExamSet" }
+        "400": { description: Invalid client identifier }
+        "401": { description: Collaborator login required }
+        "403": { description: Doctor or clinic not authorized }
+        "422": { description: Invalid medical registration }
+    post:
+      operationId: createPersonalExamSet
+      tags: [prescriptions]
+      summary: Save a personal selection without issuing or sending documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PersonalExamSetWrite" }
+      responses:
+        "201":
+          description: Set saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PersonalExamSet" }
+        "400": { description: Invalid name or identifiers }
+        "401": { description: Collaborator login required }
+        "403": { description: Doctor or clinic not authorized }
+        "422": { description: Unavailable exams or invalid medical registration }
+  /exam-sets/{clientId}/{setId}:
+    parameters:
+      - name: clientId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: setId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    patch:
+      operationId: updatePersonalExamSet
+      tags: [prescriptions]
+      summary: Rename, edit or archive a personal set without changing issued documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: "#/components/schemas/PersonalExamSetWrite" }
+                - type: object
+                  additionalProperties: false
+                  required: [name]
+                  properties:
+                    name: { type: string, minLength: 1, maxLength: 120 }
+                - type: object
+                  additionalProperties: false
+                  required: [archived]
+                  properties:
+                    archived: { type: boolean, enum: [true] }
+      responses:
+        "200":
+          description: Updated set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PersonalExamSet" }
+        "400": { description: Invalid update }
+        "401": { description: Collaborator login required }
+        "403": { description: Doctor or clinic not authorized }
+        "404": { description: Set not found in authorized scope or archived }
+        "409": { description: Concurrent archive }
+        "422": { description: Unavailable new exams or invalid medical registration }
   /exam-requests/{clientId}/history:
     get:
       operationId: getExamRequestHistory
@@ -2655,6 +2739,38 @@ paths:
 
 components:
   schemas:
+    PersonalExamSetWrite:
+      type: object
+      additionalProperties: false
+      required: [name, examIds]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        examIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { type: integer, minimum: 1 }
+    PersonalExamSet:
+      type: object
+      required: [id, name, archived, items]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        archived: { type: boolean }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, name, code, status, exam]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              code: { type: [string, "null"] }
+              status: { type: string, enum: [available, inactive, removed] }
+              exam:
+                type: [object, "null"]
+                additionalProperties: true
     ExamRequestHistoryDocument:
       type: object
       required: [id, tipoLabel, fileName, examCount, url, createdAt]

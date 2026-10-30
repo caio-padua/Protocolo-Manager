@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 // startCronJobs migrado para api-worker (Onda 2 — evita duplicação em múltiplas réplicas)
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
+import { ensureExamSetsTable } from "./lib/exam-sets";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
@@ -41,6 +42,7 @@ if (Number.isNaN(port) || port <= 0) {
 // Boot sequenciado: migrações críticas rodam ANTES do listen para evitar
 // race condition entre requests e criação de tabelas auxiliares.
 (async () => {
+  await ensureExamSetsTable();
   try {
     await ensurePhotoHistoryTable();
     logger.info("client_photo_history: tabela pronta antes do listen");

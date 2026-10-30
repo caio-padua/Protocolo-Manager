@@ -124,6 +124,8 @@ import type {
   Payment,
   PaymentGatewaySettings,
   PaymentGatewayUpdate,
+  PersonalExamSet,
+  PersonalExamSetWrite,
   Pharmacy,
   Prescription,
   PrescriptionDetail,
@@ -156,6 +158,7 @@ import type {
   SubstanceBlendComponent,
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
+  UpdatePersonalExamSetBody,
   UpdateProfessionalBody,
   UpdateProtocolBody,
   UpdateSchedulingRequestBody,
@@ -173,6 +176,297 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Personal exam selections scoped to the authenticated doctor and authorized client clinic
+ */
+export const getListPersonalExamSetsUrl = (clientId: number) => {
+  return `/api/exam-sets/${clientId}`;
+};
+
+export const listPersonalExamSets = async (
+  clientId: number,
+  options?: RequestInit,
+): Promise<PersonalExamSet[]> => {
+  return customFetch<PersonalExamSet[]>(getListPersonalExamSetsUrl(clientId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPersonalExamSetsQueryKey = (clientId: number) => {
+  return [`/api/exam-sets/${clientId}`] as const;
+};
+
+export const getListPersonalExamSetsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPersonalExamSets>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPersonalExamSets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPersonalExamSetsQueryKey(clientId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPersonalExamSets>>
+  > = ({ signal }) =>
+    listPersonalExamSets(clientId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPersonalExamSets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPersonalExamSetsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPersonalExamSets>>
+>;
+export type ListPersonalExamSetsQueryError = ErrorType<void>;
+
+/**
+ * @summary Personal exam selections scoped to the authenticated doctor and authorized client clinic
+ */
+
+export function useListPersonalExamSets<
+  TData = Awaited<ReturnType<typeof listPersonalExamSets>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPersonalExamSets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPersonalExamSetsQueryOptions(clientId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save a personal selection without issuing or sending documents
+ */
+export const getCreatePersonalExamSetUrl = (clientId: number) => {
+  return `/api/exam-sets/${clientId}`;
+};
+
+export const createPersonalExamSet = async (
+  clientId: number,
+  personalExamSetWrite: PersonalExamSetWrite,
+  options?: RequestInit,
+): Promise<PersonalExamSet> => {
+  return customFetch<PersonalExamSet>(getCreatePersonalExamSetUrl(clientId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(personalExamSetWrite),
+  });
+};
+
+export const getCreatePersonalExamSetMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPersonalExamSet>>,
+    TError,
+    { clientId: number; data: BodyType<PersonalExamSetWrite> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPersonalExamSet>>,
+  TError,
+  { clientId: number; data: BodyType<PersonalExamSetWrite> },
+  TContext
+> => {
+  const mutationKey = ["createPersonalExamSet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPersonalExamSet>>,
+    { clientId: number; data: BodyType<PersonalExamSetWrite> }
+  > = (props) => {
+    const { clientId, data } = props ?? {};
+
+    return createPersonalExamSet(clientId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePersonalExamSetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPersonalExamSet>>
+>;
+export type CreatePersonalExamSetMutationBody = BodyType<PersonalExamSetWrite>;
+export type CreatePersonalExamSetMutationError = ErrorType<void>;
+
+/**
+ * @summary Save a personal selection without issuing or sending documents
+ */
+export const useCreatePersonalExamSet = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPersonalExamSet>>,
+    TError,
+    { clientId: number; data: BodyType<PersonalExamSetWrite> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPersonalExamSet>>,
+  TError,
+  { clientId: number; data: BodyType<PersonalExamSetWrite> },
+  TContext
+> => {
+  return useMutation(getCreatePersonalExamSetMutationOptions(options));
+};
+
+/**
+ * @summary Rename, edit or archive a personal set without changing issued documents
+ */
+export const getUpdatePersonalExamSetUrl = (
+  clientId: number,
+  setId: number,
+) => {
+  return `/api/exam-sets/${clientId}/${setId}`;
+};
+
+export const updatePersonalExamSet = async (
+  clientId: number,
+  setId: number,
+  updatePersonalExamSetBody: UpdatePersonalExamSetBody,
+  options?: RequestInit,
+): Promise<PersonalExamSet> => {
+  return customFetch<PersonalExamSet>(
+    getUpdatePersonalExamSetUrl(clientId, setId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updatePersonalExamSetBody),
+    },
+  );
+};
+
+export const getUpdatePersonalExamSetMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePersonalExamSet>>,
+    TError,
+    {
+      clientId: number;
+      setId: number;
+      data: BodyType<UpdatePersonalExamSetBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePersonalExamSet>>,
+  TError,
+  {
+    clientId: number;
+    setId: number;
+    data: BodyType<UpdatePersonalExamSetBody>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updatePersonalExamSet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePersonalExamSet>>,
+    {
+      clientId: number;
+      setId: number;
+      data: BodyType<UpdatePersonalExamSetBody>;
+    }
+  > = (props) => {
+    const { clientId, setId, data } = props ?? {};
+
+    return updatePersonalExamSet(clientId, setId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePersonalExamSetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePersonalExamSet>>
+>;
+export type UpdatePersonalExamSetMutationBody =
+  BodyType<UpdatePersonalExamSetBody>;
+export type UpdatePersonalExamSetMutationError = ErrorType<void>;
+
+/**
+ * @summary Rename, edit or archive a personal set without changing issued documents
+ */
+export const useUpdatePersonalExamSet = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePersonalExamSet>>,
+    TError,
+    {
+      clientId: number;
+      setId: number;
+      data: BodyType<UpdatePersonalExamSetBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePersonalExamSet>>,
+  TError,
+  {
+    clientId: number;
+    setId: number;
+    data: BodyType<UpdatePersonalExamSetBody>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdatePersonalExamSetMutationOptions(options));
+};
 
 /**
  * @summary Historico autorizado dos pedidos de exames do cliente

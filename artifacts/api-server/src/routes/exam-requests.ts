@@ -8,10 +8,12 @@ import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js"
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import dispatchRouter from "./exam-request-dispatch";
+import examSetsRouter from "./exam-sets";
 import { brtDisplayDate, brtDateStr } from "../lib/brt";
 
 const router: IRouter = Router();
 router.use(dispatchRouter);
+router.use(examSetsRouter);
 
 // ---- Prescritor de Exames ----
 // Exames de IMAGEM saem em 1 PDF por exame (cada imagem separada, para o

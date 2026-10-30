@@ -5,6 +5,50 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface PersonalExamSetWrite {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  examIds: number[];
+}
+
+export type PersonalExamSetItemsItemStatus =
+  (typeof PersonalExamSetItemsItemStatus)[keyof typeof PersonalExamSetItemsItemStatus];
+
+export const PersonalExamSetItemsItemStatus = {
+  available: "available",
+  inactive: "inactive",
+  removed: "removed",
+} as const;
+
+/**
+ * @nullable
+ */
+export type PersonalExamSetItemsItemExam = { [key: string]: unknown } | null;
+
+export type PersonalExamSetItemsItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  code: string | null;
+  status: PersonalExamSetItemsItemStatus;
+  /** @nullable */
+  exam: PersonalExamSetItemsItemExam;
+};
+
+export interface PersonalExamSet {
+  id: number;
+  name: string;
+  archived: boolean;
+  items: PersonalExamSetItemsItem[];
+}
+
 export interface ExamRequestHistoryDocument {
   id: number;
   tipoLabel: string;
@@ -2322,6 +2366,19 @@ export interface BudgetSeedResult {
   catalogTotal: number;
   settingsCreated: boolean;
 }
+
+export type UpdatePersonalExamSetBody =
+  | PersonalExamSetWrite
+  | {
+      /**
+       * @minLength 1
+       * @maxLength 120
+       */
+      name: string;
+    }
+  | {
+      archived: boolean;
+    };
 
 export type GetExamRequestHistoryParams = {
   /**
