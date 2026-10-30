@@ -1262,11 +1262,11 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const markers = {
         first: "A-inicial", page20: "A-antiga-20", page40: "A-atrasada-40",
         b: "B-exclusiva", fresh: "A-revalidada", bLate: "B-atrasada-20",
-        aLate: "A-retorno-atrasada-20", bFresh: "B-revalidada",
+        aLate: "A-retorno-atrasada-20", bFresh: "B-revalidada", bResumed: "B-retomada",
       };
-      type Stage = "initial" | "B" | "return" | "secondB";
+      type Stage = "initial" | "B" | "return" | "secondB" | "resumed";
       let stage: Stage = "initial";
-      const offsets: Record<Stage, number[]> = { initial: [], B: [], return: [], secondB: [] };
+      const offsets: Record<Stage, number[]> = { initial: [], B: [], return: [], secondB: [], resumed: [] };
       const methods: string[] = [];
       const posts: string[] = [];
       const held: {
@@ -1343,13 +1343,14 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
             else held.returned = route;
             return;
           }
-          if (stage === "secondB") { held.secondB = route; return; }
+          if (stage === "secondB" || stage === "resumed") { held.secondB = route; return; }
           if (offset === 40) { held.oldPage = route; return; }
           return reply(route, offset === 20
             ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
         }
         return reply(route, []);
       });
+      await page.clock.install();
       await page.goto("/cockpit/42/exames");
       const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
       const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
@@ -1369,6 +1370,16 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         await expect(consent).not.toBeChecked();
         await expect(confirm).toBeDisabled();
         await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
+      };
+      const visibility = async (value: "hidden" | "visible") => {
+        await page.evaluate(value => {
+          Object.defineProperty(document, "visibilityState", { configurable: true, value });
+          document.dispatchEvent(new Event("visibilitychange"));
+        }, value);
+        // Let React apply enabled/pageVisible before advancing the clock.
+        await page.evaluate(() => new Promise<void>(resolve =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        expect(await page.evaluate(() => document.visibilityState)).toBe(value);
       };
       await expect(doc(91)).toBeVisible();
       await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
@@ -1504,6 +1515,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 
       // Both previous visits left a paginated GET in flight. Force their JSON
       // to be consumed after returning to B, including the old B scope itself.
+      // Hide with all three requests in flight, then consume the old ones while
+      // hidden: returning to the tab must not reactivate those cached pages.
+      await visibility("hidden");
       await reply(held.bPage!, historyBody(markers.bLate, 96));
       await reply(held.aReturnPage!, historyBody(markers.aLate, 97));
       await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(7);
@@ -1513,6 +1527,13 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       await expect(panel.getByRole("alert")).toContainText(markers.b);
       for (const id of [91, 93, 94, 95, 96, 97]) await expect(doc(id)).toHaveCount(0);
       await cleared();
+      const beforeHidden = JSON.stringify(offsets);
+      await page.clock.fastForward(60_000);
+      expect(JSON.stringify(offsets)).toBe(beforeHidden);
+      await visibility("visible");
+      // The current offset-zero GET is still in flight; resuming deduplicates it.
+      expect(JSON.stringify(offsets)).toBe(beforeHidden);
+      await cleared();
 
       await reply(held.secondB!, historyBody(markers.bFresh, 98, 20));
       await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(8);
@@ -1521,11 +1542,43 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       for (const id of [91, 92, 93, 94, 95, 96, 97]) await expect(doc(id)).toHaveCount(0);
       await cleared();
       await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeEnabled();
-      expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 20], return: [0, 20], secondB: [0] });
+
+      // With B's pending operation loaded, prove an automatic read on resume
+      // (no refresh click/auth event), then the following ten-second poll.
+      stage = "resumed";
+      held.secondB = undefined;
+      await visibility("hidden");
+      const beforeResume = JSON.stringify(offsets);
+      await page.clock.fastForward(60_000);
+      expect(JSON.stringify(offsets)).toBe(beforeResume);
+      await visibility("visible");
+      await expect.poll(() => !!held.secondB).toBe(true);
+      expect(offsets.resumed).toEqual([0]);
+      await expect(draft).toContainText(clinicB.name);
+      await expect(doc(98)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.bFresh);
+      await cleared();
+      await reply(held.secondB!, historyBody(markers.bResumed, 99, 20));
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(9);
+      await expect(doc(99)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.bResumed);
+      await cleared();
+      held.secondB = undefined;
+      await page.clock.fastForward(10_001);
+      await expect.poll(() => !!held.secondB).toBe(true);
+      expect(offsets.resumed).toEqual([0, 0]);
+      await cleared();
+      await reply(held.secondB!, historyBody(markers.bResumed, 99, 20));
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(10);
+      for (const id of [91, 92, 93, 94, 95, 96, 97, 98]) await expect(doc(id)).toHaveCount(0);
+      await expect(doc(99)).toBeVisible();
+      await cleared();
+      expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 20], return: [0, 20], secondB: [0], resumed: [0, 0] });
       expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      await panel.screenshot({ path: testInfo.outputPath("retomada-clinica-cache-segura.png") });
       // The fourth visit can be prepared afresh, but must never send.
       await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
-      await prepare(98);
+      await prepare(99);
       expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
       expect([...new Set(methods)]).toEqual(["GET"]);
       expect(posts).toEqual([]);
