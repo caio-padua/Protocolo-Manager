@@ -13,7 +13,8 @@ Leitura de um repositório público, sozinha, nunca comprova autorização de es
 Usar apenas envio normal autorizado, sem forçar ou reescrever o histórico.
 Se a ferramenta pedir uma autorização adicional para modificar os metadados de Git, seguir a instrução explícita da ferramenta somente dentro do escopo autorizado pelo usuário.
 Comparar o identificador local com o ramo remoto depois do envio.
-Se houver falha de autenticação, consultar as instruções de integrações para reconectar o acesso gerenciado; não repetir variantes de cabeçalhos nem acessar tokens manualmente.
+Se houver falha de autenticação, consultar as instruções de integrações.
+Não extrair valores do cofre para a conversa, arquivos ou configuração persistente.
 
 ## Permissão adicional para automações
 
@@ -24,9 +25,13 @@ de histórico: conferir a recusa específica retornada pelo servidor.
 **Why:** A conexão antiga de GitHub pode ter permissão de repositório sem a
 permissão `workflow`, necessária para criar ou alterar verificações automáticas.
 
-**How to apply:** Quando essa for a recusa, solicitar reautorização pela integração
-que permita reconectar, incluindo `workflow`. Não forçar envio, remover a
-verificação ou reescrever commits para contornar a falta de permissão.
+**How to apply:** Quando essa for a recusa, conferir se existe outra credencial
+já autorizada no cofre, usando a skill de segredos para verificar somente existência.
+Com autorização do proprietário, a ferramenta pode consumi-la no próprio processo,
+sem revelar seu valor, persistir cabeçalhos ou alterar a configuração de Git.
+Na ausência de alternativa autorizada, solicitar reautorização da integração,
+incluindo `workflow`. Não forçar envio, remover a verificação ou reescrever commits
+para contornar a falta de permissão.
 Trocar Git pela interface de programação do mesmo acesso não acrescenta permissões.
 Uma conexão anunciada como pronta também pode ter a credencial retida no contexto;
 isso não significa que a conta esteja desconectada.
