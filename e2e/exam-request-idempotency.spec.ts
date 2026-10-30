@@ -905,9 +905,9 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
   await panel.screenshot({ path: testInfo.outputPath("nova-clinica-exige-consentimento.png") });
 });
 
-||||||| base
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
-  test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition}`, async ({ context, page }, testInfo) => {
+  for (const mode of ["atualizacao", "paginacao"] as const) {
+  test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition} (${mode})`, async ({ context, page }, testInfo) => {
     const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
     const nextClinic = {
       id: transition === "empresa" ? 303 : 304,
@@ -916,6 +916,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     };
     const oldKey = "pendencia-exclusiva-da-clinica-anterior";
     const newKey = "pendencia-exclusiva-da-clinica-atual";
+    const oldPageKey = `${oldKey}-pagina-20`;
+    const delayedPageKey = `${oldKey}-pagina-40`;
+    const oldMarkers = [oldKey, oldPageKey, delayedPageKey];
+    const offsets: { original: number[]; current: number[] } = { original: [], current: [] };
     let switched = false;
     let refreshing = false;
     let navigations = 0;
@@ -927,9 +931,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     const identityBody = (clinic: typeof originalClinic) => ({
       professional, client, clinic, canPrescribe: true, issue: null,
     });
-    const historyBody = (operationKey: string, id: number) => ({
+    const historyBody = (operationKey: string, id: number, nextOffset: number | null = null) => ({
       documents: [{ ...document, id, fileName: `${operationKey}.pdf` }],
-      dispatches: [], nextOffset: null,
+      dispatches: [], nextOffset,
       pendingOperations: [{
         operationKey, state: "needs_review", createdAt: document.createdAt,
         documentIds: [id], channels: ["EMAIL"], results: [],
@@ -974,9 +978,13 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       }
       if (path === "/api/exam-requests/42/history") {
         expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        const offset = Number(new URL(request.url()).searchParams.get("offset"));
+        offsets[switched ? "current" : "original"].push(offset);
         if (switched) { held.current = route; return; }
+        if (mode === "paginacao" && offset === 40) { held.old = route; return; }
         if (refreshing) { held.old = route; return; }
-        return reply(route, historyBody(oldKey, 91));
+        if (mode === "paginacao" && offset === 20) return reply(route, historyBody(oldPageKey, 93, 40));
+        return reply(route, historyBody(oldKey, 91, mode === "paginacao" ? 20 : null));
       }
       return reply(route, []);
     });
@@ -984,59 +992,79 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
     await expect(panel.getByRole("alert")).toContainText(oldKey);
     await expect(panel.getByText(`${oldKey}.pdf`, { exact: true })).toBeVisible();
-    refreshing = true;
-    await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+    if (mode === "paginacao") {
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect(panel.getByText(`${oldPageKey}.pdf`, { exact: true })).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(oldPageKey);
+      await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeEnabled();
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+    } else {
+      refreshing = true;
+      await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+    }
     await expect.poll(() => !!held.old).toBe(true);
+    expect(offsets.original).toEqual(mode === "paginacao" ? [0, 20, 40] : [0, 0]);
     switched = true;
     await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
     await expect.poll(() => !!held.identity).toBe(true);
     await expect(panel).toBeHidden();
     // Observe BEFORE identity B is released: cached A must not flash on the
     // first render of B, nor when either history response later settles.
-    await page.evaluate(key => {
+    await page.evaluate(keys => {
       (window as any).__clinicHistoryLeaks = [];
       new MutationObserver(records => {
         const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
-        const leaked = (node: Node) => {
-          const element = node instanceof Element ? node : node.parentElement;
-          return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
-            && !element.closest("[hidden]") && !!node.textContent?.includes(key);
-        };
-        if ((region && !region.closest("[hidden]") && region.textContent?.includes(key))
-          || records.some(record => [...record.addedNodes].some(leaked))) {
-          (window as any).__clinicHistoryLeaks.push(key);
+        for (const key of keys) {
+          const leaked = (node: Node) => {
+            const element = node instanceof Element ? node : node.parentElement;
+            return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
+              && !element.closest("[hidden]") && !!node.textContent?.includes(key);
+          };
+          if ((region && !region.closest("[hidden]") && region.textContent?.includes(key))
+            || records.some(record => [...record.addedNodes].some(leaked))) {
+            (window as any).__clinicHistoryLeaks.push(key);
+          }
         }
       }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
-    }, oldKey);
+    }, oldMarkers);
     await reply(held.identity!, identityBody(nextClinic));
     const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
     await expect(draft).toContainText(nextClinic.name);
     await expect(draft).toContainText(client.name);
     await expect(draft).toContainText(professional.name);
     await expect.poll(() => !!held.current).toBe(true);
+    expect(offsets.current).toEqual([0]);
     await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+    await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
     await expect(panel).not.toContainText(oldKey);
-    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+    for (const id of [91, 93, 94]) {
+      await expect(panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio` })).toHaveCount(0);
+    }
     await reply(held.current!, historyBody(newKey, 92));
     await expect(panel.getByRole("alert")).toContainText(newKey);
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
-    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(2);
-    await reply(held.old!, historyBody(oldKey, 91));
-    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(3);
+    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 3 : 2);
+    await reply(held.old!, mode === "paginacao" ? historyBody(delayedPageKey, 94) : historyBody(oldKey, 91));
+    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 4 : 3);
     await page.evaluate(() => new Promise<void>(resolve =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await expect(panel).not.toContainText(oldKey);
-    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+    for (const id of [91, 93, 94]) {
+      await expect(panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio` })).toHaveCount(0);
+    }
     await expect(panel.getByRole("alert")).toContainText(newKey);
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
     await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+    await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
+    expect(offsets.current).toEqual([0]);
     expect(await page.evaluate(() => (window as any).__clinicHistoryLeaks)).toEqual([]);
     await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
     expect(navigations).toBe(1);
     expect(posts).toEqual([]);
     await panel.screenshot({ path: testInfo.outputPath("historico-clinica-isolado.png") });
   });
+  }
 }
 
 // Transition contract: render A's pending operation, hold a refresh, switch scope
