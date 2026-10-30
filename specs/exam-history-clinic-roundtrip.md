@@ -15,6 +15,13 @@ Comprovar que A → B → A reinicia o histórico e a autorização sem misturar
 9. Conferir cache por `historyScope` e remontagem do `ExamsEditor` por `scope`; alterar produção somente se houver defeito impeditivo.
 
 ## Falhas previstas
+### Retorno com falha da consulta atual
+- Executar também 401 e 500 na **nova** consulta de A, offset 0, após A → B → A em cache, nas três transições e nos dois momentos de entrega da página antiga.
+- Manter a resposta antiga bem-sucedida: ela não é a falha sob teste.
+- Exigir erro atual explícito, sem estado vazio enganoso, sem documentos selecionáveis antigos, sem dados de B ou páginas 20/40, canais e consentimento vazios e envio desabilitado.
+- Pendências da página inicial de A podem permanecer apenas como últimas informações conhecidas, com aviso de que não foram reconfirmadas; erro não prova falha do envio nem libera reservas.
+- Manter interceptação sintética de toda `/api/**`, zero POSTs e captura do estado de erro. Conferir os dois painéis sem alterar produção salvo defeito impeditivo.
+
 | Risco | Causa | Barreira / evidência |
 | --- | --- | --- |
 | Retomar paginação antiga | Estado local não reiniciado | Offsets registrados por etapa e “Mais recentes” desabilitado |
@@ -24,7 +31,7 @@ Comprovar que A → B → A reinicia o histórico e a autorização sem misturar
 | Envio real | Interceptação incompleta | Bloqueio global de métodos diferentes de GET |
 
 ## Pronto
-Seis combinações passam no Chromium e a suíte existente continua passando. Captura sintética do retorno disponível nos resultados do teste. Revisão independente pelo fluxo de conclusão.
+Dezoito combinações passam no Chromium (sucesso, 401 atual e 500 atual em cada transição e momento de entrega), e a suíte existente continua passando. Captura sintética do retorno disponível nos resultados do teste. Revisão independente pelo fluxo de conclusão.
 
 ## Linhas vermelhas
 Sem banco, dados reais, provedores, envio, emissão ou mudanças de autenticação. A evidência é do frontend com respostas sintéticas, não da autorização real do servidor.
@@ -37,3 +44,11 @@ Sem banco, dados reais, provedores, envio, emissão ou mudanças de autenticaç�
 - Componentes de produção conferidos e preservados: consulta inclui `historyScope`; `ExamsEditor` usa `key={scope}` e transmite o escopo ao histórico.
 - Frontend iniciou normalmente. A captura independente da página inicial não comprova integração real: suas consultas retornam 502 com a API parada. A jornada alvo passou no navegador com respostas sintéticas.
 - Sem aprendizado durável novo para a memória: esta entrega comprova o contrato já documentado, sem alterar decisões de arquitetura.
+
+### Ampliação — falha atual no retorno em cache — 30/10/2026
+- `pnpm exec playwright test e2e/exam-request-idempotency.spec.ts --workers=2`: 77 aprovados, incluindo 12 novos casos de falha atual e as seis combinações de sucesso mantidas. O arquivo executa serialmente por sua configuração interna.
+- Erros 401/500 pertencem exclusivamente à nova consulta offset 0 de A. A página antiga offset 40 é entregue com sucesso e seu corpo é comprovadamente processado.
+- Em erro, a tabela de documentos não aparece; pendências iniciais são identificadas como últimas conhecidas, não reconfirmadas. Não aparecem B nem páginas 20/40; controles permanecem vazios e envio bloqueado.
+- Captura sintética de 500 conferida visualmente; todos os cenários mantêm somente GETs e zero POSTs. Identidade, paciente e consultas usam exclusivamente respostas interceptadas.
+- `ExamRequestHistoryPanel.tsx` e `PedidosExamesPanel.tsx` conferidos, sem necessidade de mudança. A captura independente da home não valida os dados: API deliberadamente parada, com respostas 502; os cenários-alvo foram verificados no navegador com API sintética.
+- `git diff --check` sem erros. Nenhuma decisão nova ou lição não derivável do código exigiu alteração da memória.
