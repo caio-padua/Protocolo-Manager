@@ -657,6 +657,113 @@ for (const transition of ["paciente", "medico"] as const) {
   });
 }
 
+// Revalidate the same session/patient/doctor, changing only the clinic scope.
+// Testing each identifier independently catches an incomplete draft scope key.
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  test(`Pedidos: revalidar ${transition} exige nova autorização sem envio`, async ({ context, page }, testInfo) => {
+    const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
+    const nextClinic = {
+      id: transition === "empresa" ? 303 : 304,
+      empresaId: transition === "clinica" ? 404 : 405,
+      name: "Novo contexto clínico sintético",
+    };
+    let activeClinic = originalClinic;
+    let holdIdentity = false;
+    let heldIdentity: Route | undefined;
+    const posts: string[] = [];
+    let navigations = 0;
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    });
+    const replyIdentity = (route: Route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ professional, client, clinic: activeClinic, canPrescribe: true, issue: null }),
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+    });
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const json = (body: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+      // Catch all POSTs, including emit/send: nothing may reach a real API.
+      if (request.method() === "POST") {
+        posts.push(path);
+        return json({ error: "Este cenário não autoriza chamadas POST." });
+      }
+      if (path === "/api/collaborator/me") return json({ professional });
+      if (path === "/api/clients") return json([client]);
+      if (path === "/api/clients/42") return json(client);
+      if (path === "/api/clinical-context/42") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        if (holdIdentity) { heldIdentity = route; return; }
+        return replyIdentity(route);
+      }
+      if (path === "/api/exam-requests/42/history") return json({
+        documents: [document, { ...document, id: 92, fileName: "Outro pedido sintético.pdf" }],
+        dispatches: [], pendingOperations: [], nextOffset: null,
+      });
+      return json([]);
+    });
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+    const consent = panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false });
+    const confirm = panel.getByRole("button", { name: "Confirmar envio", exact: true });
+    const prepareWithoutSending = async () => {
+      await doc(91).check();
+      await doc(92).check();
+      await panel.getByRole("checkbox", { name: "E-mail", exact: true }).check();
+      await panel.getByRole("checkbox", { name: "Telegram", exact: true }).check();
+      await consent.check();
+      await expect(confirm).toBeEnabled();
+      expect(posts).toEqual([]);
+    };
+    const expectCleared = async () => {
+      await expect(panel).toBeVisible();
+      await expect(doc(91)).not.toBeChecked();
+      await expect(doc(92)).not.toBeChecked();
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(panel).toContainText("0 documento(s) selecionado(s)");
+      await expect(consent).not.toBeChecked();
+      await expect(confirm).toBeDisabled();
+      expect(posts).toEqual([]);
+    };
+    const revalidate = async (clinic: typeof originalClinic) => {
+      activeClinic = clinic;
+      heldIdentity = undefined;
+      holdIdentity = true;
+      // Renew identity through the app's session event, without changing the
+      // stored token/professional, remounting the page, or navigating away.
+      // Focus refetch is disabled globally in this app.
+      await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+      await expect.poll(() => !!heldIdentity).toBe(true);
+      await expect(page.getByRole("button", { name: "Validar identidade", exact: true })).toBeVisible();
+      // The gate hides the editor and the history removes its send controls
+      // entirely while the current identity is unavailable.
+      await expect(panel).toBeHidden();
+      await expect(page.getByRole("button", { name: "Confirmar envio", exact: true, includeHidden: true })).toHaveCount(0);
+      expect(posts).toEqual([]);
+      holdIdentity = false;
+      await replyIdentity(heldIdentity!);
+      await expect(page.getByRole("region", { name: "Rascunho clínico", exact: true })).toContainText(clinic.name);
+      await expectCleared();
+      await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+    };
+
+    await expectCleared();
+    await prepareWithoutSending();
+    await revalidate(nextClinic);
+    // Even returning to the cached original clinic cannot restore consent.
+    await prepareWithoutSending();
+    await revalidate(originalClinic);
+    expect(navigations).toBe(1);
+    expect(posts).toEqual([]);
+    await panel.screenshot({ path: testInfo.outputPath("clinica-exige-nova-autorizacao.png") });
+  });
+}
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
