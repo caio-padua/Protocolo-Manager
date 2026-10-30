@@ -1249,22 +1249,30 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   }
 }
 
-// A cached scope must restart at offset zero, not revive its previous editor.
+// A → B → A → B must restart cached scopes at zero, never revive an editor.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
-    test(`Pedidos: voltar à clínica em cache reinicia histórico — ${transition} — ${delivery}`, async ({ context, page }, testInfo) => {
+    test(`Pedidos: voltar à clínica em cache reinicia histórico A → B → A → B — ${transition} — ${delivery}`, async ({ context, page }, testInfo) => {
       const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
       const clinicB = {
         id: transition === "empresa" ? 303 : 304,
         empresaId: transition === "clinica" ? 404 : 405,
         name: "Clínica B sintética",
       };
-      const markers = { first: "A-inicial", page20: "A-antiga-20", page40: "A-atrasada-40", b: "B-exclusiva", fresh: "A-revalidada" };
-      let stage: "initial" | "B" | "return" = "initial";
-      const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
+      const markers = {
+        first: "A-inicial", page20: "A-antiga-20", page40: "A-atrasada-40",
+        b: "B-exclusiva", fresh: "A-revalidada", bLate: "B-atrasada-20",
+        aLate: "A-retorno-atrasada-20", bFresh: "B-revalidada",
+      };
+      type Stage = "initial" | "B" | "return" | "secondB";
+      let stage: Stage = "initial";
+      const offsets: Record<Stage, number[]> = { initial: [], B: [], return: [], secondB: [] };
       const methods: string[] = [];
       const posts: string[] = [];
-      const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route } = {};
+      const held: {
+        identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route;
+        bPage?: Route; aReturnPage?: Route; secondB?: Route;
+      } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown) => route.fulfill({
         contentType: "application/json", body: JSON.stringify(body),
@@ -1308,7 +1316,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         methods.push(request.method());
         if (request.method() !== "GET") {
           if (request.method() === "POST") posts.push(url.pathname);
-          return reply(route, { error: "Somente GET autorizado neste cenário." });
+          return route.fulfill({
+            status: 405, contentType: "application/json",
+            body: JSON.stringify({ error: "Somente GET autorizado neste cenário." }),
+          });
         }
         if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
         if (url.pathname === "/api/clients") return reply(route, [client]);
@@ -1322,8 +1333,17 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
           const offset = Number(url.searchParams.get("offset"));
           offsets[stage].push(offset);
-          if (stage === "B") { held.historyB = route; return; }
-          if (stage === "return") { held.returned = route; return; }
+          if (stage === "B") {
+            if (offset === 20) held.bPage = route;
+            else held.historyB = route;
+            return;
+          }
+          if (stage === "return") {
+            if (offset === 20) held.aReturnPage = route;
+            else held.returned = route;
+            return;
+          }
+          if (stage === "secondB") { held.secondB = route; return; }
           if (offset === 40) { held.oldPage = route; return; }
           return reply(route, offset === 20
             ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
@@ -1359,7 +1379,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       await expect.poll(() => !!held.oldPage).toBe(true);
       expect(offsets.initial).toEqual([0, 20, 40]);
 
-      // Keep one observer through both transitions; change its forbidden scope
+      // Keep one observer through all transitions; change its forbidden scope
       // only while identity gating has removed the previous history from the DOM.
       await page.evaluate(() => {
         (window as any).__roundtripLeaks = [];
@@ -1379,13 +1399,26 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
               (window as any).__roundtripLeaks.push(key);
             }
           }
-          if ((window as any).__roundtripWatchReset && (region?.querySelector('input:checked')
-            || region?.textContent?.includes("1 documento(s) selecionado(s)"))) {
-            (window as any).__roundtripLeaks.push("seleção/consentimento herdado");
+          if ((window as any).__roundtripWatchReset) {
+            // Inspect inserted subtrees too: a contaminated panel can be added
+            // and removed within one observer batch, before the final DOM check.
+            const snapshots = [region, ...records.flatMap(record =>
+              [...record.addedNodes].filter((node): node is Element => node instanceof Element)
+                .flatMap(node => node.matches('[aria-label="Histórico de pedidos de exames"]')
+                  || node.closest('[aria-label="Histórico de pedidos de exames"]')
+                  ? [node] : [...node.querySelectorAll('[aria-label="Histórico de pedidos de exames"]')]))];
+            if (snapshots.some(node => node && (
+              node.matches('input:checked') || node.querySelector('input:checked')
+              || node.textContent?.includes("1 documento(s) selecionado(s)")
+              || [...node.querySelectorAll("button")].some(button =>
+                button.textContent === "Confirmar envio" && !button.disabled)
+            ))) {
+              (window as any).__roundtripLeaks.push("seleção/canais/consentimento herdado");
+            }
           }
         }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
       });
-      const revalidate = async (nextStage: "B" | "return", clinic: typeof clinicA, forbidden: string[]) => {
+      const revalidate = async (nextStage: Exclude<Stage, "initial">, clinic: typeof clinicA, forbidden: string[]) => {
         stage = nextStage;
         held.identity = undefined;
         await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
@@ -1405,7 +1438,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       expect(offsets.B).toEqual([0]);
       await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
       await cleared();
-      await reply(held.historyB!, historyBody(markers.b, 92));
+      await reply(held.historyB!, historyBody(markers.b, 92, 20));
       await expect(doc(92)).toBeVisible();
       await expect(panel.getByRole("alert")).toContainText(markers.b);
       await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(3);
@@ -1424,6 +1457,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       // Keep the forbidden-data observer running during intentional selection.
       await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
       await prepare(92);
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect.poll(() => !!held.bPage).toBe(true);
+      expect(offsets.B).toEqual([0, 20]);
       await revalidate("return", clinicA, [markers.b, markers.page20, markers.page40]);
       await expect.poll(() => !!held.returned).toBe(true);
       expect(offsets.return).toEqual([0]);
@@ -1441,7 +1477,55 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       await expect(panel.getByRole("alert")).toContainText(markers.fresh);
       for (const id of [91, 92, 93, 94]) await expect(doc(id)).toHaveCount(0);
       await cleared();
-      expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0] });
+      expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
+      await prepare(95);
+      // Explicitly opening A's offset 20 may legitimately display that page's
+      // cache while its refresh is held; it is forbidden again on entering B.
+      await page.evaluate(key => {
+        (window as any).__roundtripForbidden = (window as any).__roundtripForbidden
+          .filter((value: string) => value !== key);
+      }, markers.page20);
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect.poll(() => !!held.aReturnPage).toBe(true);
+      expect(offsets.return).toEqual([0, 20]);
+
+      await revalidate("secondB", clinicB, [
+        markers.first, markers.page20, markers.page40, markers.fresh, markers.aLate, markers.bLate,
+      ]);
+      await expect.poll(() => !!held.secondB).toBe(true);
+      expect(offsets.secondB).toEqual([0]);
+      // B is also genuinely cached: its original offset-zero document and
+      // pending-operation banner must render before the fresh GET is released.
+      await expect(doc(92)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.b);
+      for (const id of [91, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+      await cleared();
+
+      // Both previous visits left a paginated GET in flight. Force their JSON
+      // to be consumed after returning to B, including the old B scope itself.
+      await reply(held.bPage!, historyBody(markers.bLate, 96));
+      await reply(held.aReturnPage!, historyBody(markers.aLate, 97));
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(7);
+      await page.evaluate(() => new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await expect(doc(92)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.b);
+      for (const id of [91, 93, 94, 95, 96, 97]) await expect(doc(id)).toHaveCount(0);
+      await cleared();
+
+      await reply(held.secondB!, historyBody(markers.bFresh, 98, 20));
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(8);
+      await expect(doc(98)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.bFresh);
+      for (const id of [91, 92, 93, 94, 95, 96, 97]) await expect(doc(id)).toHaveCount(0);
+      await cleared();
+      await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeEnabled();
+      expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 20], return: [0, 20], secondB: [0] });
+      expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      // The fourth visit can be prepared afresh, but must never send.
+      await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
+      await prepare(98);
       expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
       expect([...new Set(methods)]).toEqual(["GET"]);
       expect(posts).toEqual([]);
