@@ -2783,7 +2783,7 @@ components:
         createdAt: { type: string, format: date-time }
     ExamRequestHistory:
       type: object
-      required: [documents, nextOffset, dispatches]
+      required: [documents, nextOffset, dispatches, pendingOperations]
       properties:
         documents:
           type: array
@@ -2792,6 +2792,23 @@ components:
         dispatches:
           type: array
           items: { $ref: "#/components/schemas/ExamRequestDispatchRecord" }
+        pendingOperations:
+          type: array
+          items: { $ref: "#/components/schemas/ExamRequestPendingOperation" }
+    ExamRequestPendingOperation:
+      type: object
+      required: [operationKey, state, createdAt, documentIds, channels, results]
+      properties:
+        operationKey: { type: string }
+        state: { type: string, enum: [in_progress, needs_review] }
+        createdAt: { type: string, format: date-time }
+        documentIds: { type: array, items: { type: integer } }
+        channels:
+          type: array
+          items: { type: string, enum: [EMAIL, WHATSAPP, TELEGRAM] }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/ExamDocumentChannelResult" }
     ExamRequestDispatchRecord:
       type: object
       required: [id, channel, state, documentIds, createdAt]

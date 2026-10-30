@@ -41,9 +41,10 @@ export async function findDispatchOperation(scope: DispatchScope): Promise<Dispa
 export async function reserveDispatchOperation(scope: DispatchScope) {
   const inserted = await db.execute(sql`
     INSERT INTO exam_request_dispatch_operations
-      (professional_id, empresa_id, clinic_id, operation_key, request_hash)
+      (professional_id, empresa_id, clinic_id, operation_key, request_hash, client_id, document_ids, channels)
     VALUES (${scope.professionalId}, ${scope.empresaId}, ${scope.clinicId},
-      ${scope.operationKey}, ${dispatchFingerprint(scope)})
+      ${scope.operationKey}, ${dispatchFingerprint(scope)}, ${scope.clientId},
+      ${JSON.stringify(scope.documentIds)}::jsonb, ${JSON.stringify(scope.channels)}::jsonb)
     ON CONFLICT DO NOTHING
     RETURNING operation_key, request_hash, state, results
   `);

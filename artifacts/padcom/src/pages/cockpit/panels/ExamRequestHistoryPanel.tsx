@@ -47,6 +47,7 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
     queryFn: async ({ signal }) => {
       const data = await api<ExamRequestHistory>(`/exam-requests/${clientId}/history?offset=${offset}`, { signal });
       if (!Array.isArray(data.documents)) throw new Error("O histórico retornou um formato inesperado.");
+      if (!Array.isArray(data.pendingOperations)) throw new Error("Não foi possível conferir as operações pendentes. Atualize o histórico.");
       return data;
     },
   });
@@ -74,18 +75,44 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
       setResult(data); setConfirmed(false);
     } catch (reason) {
       if (clientId !== contextRef.current.clientId || professionalId !== contextRef.current.professionalId) return;
-      setError(`${reason instanceof Error ? reason.message : "Falha ao enviar."} Se o envio chegou a iniciar, confirme novamente a mesma seleção para consultar a operação anterior, sem reenviar.`);
+      setError(`${reason instanceof Error ? reason.message : "Falha ao enviar."} Se o envio chegou a iniciar, atualize o histórico e confira as operações pendentes antes de tentar novamente.`);
       setConfirmed(false);
     } finally { sendingRef.current = false; setSending(false); void history.refetch(); }
   };
   if (!enabled) return null;
   return (
-    <section className="panel-3d-sub col-span-full space-y-4 p-4" aria-label="Histórico de pedidos de exames">
-      <div className="flex items-center justify-between gap-3">
+    <section className="panel-3d-sub col-span-full min-w-0 space-y-4 p-4" aria-label="Histórico de pedidos de exames">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <h3 className="bevel-3d px-3 py-2 text-sm font-bold uppercase tracking-wide">Pedidos anteriores e envio</h3>
         <button type="button" className="btn-3d-soft px-3 py-2 text-xs" disabled={history.isFetching || sending}
           onClick={() => void history.refetch()}>Atualizar histórico</button>
       </div>
+      {!history.isPending && !history.error && !!history.data?.pendingOperations.length && (
+        <div className="bevel-3d paxter-alert-amber space-y-3 p-3 text-sm" role="alert">
+          <h4 className="font-bold uppercase">Envios pendentes de conferência</h4>
+          <p>Estas operações podem estar em andamento ou ter sido interrompidas. Confira o provedor antes de repetir.
+            As reservas continuam protegidas, sem expiração e sem reenvio automático.</p>
+          <ul className="space-y-3">
+            {history.data.pendingOperations.map(operation => (
+              <li key={operation.operationKey} className="concave-3d space-y-1 p-3">
+                <p className="break-all text-xs font-semibold">Operação: {operation.operationKey}</p>
+                <p>{new Intl.DateTimeFormat("pt-BR", {
+                  dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
+                }).format(new Date(operation.createdAt))} · {operation.state === "needs_review"
+                  ? "Requer conferência" : "Sem conclusão registrada"}</p>
+                <p className="break-words">Documentos: {operation.documentIds.join(", ") || "Não disponíveis"}</p>
+                <p>Canais: {operation.channels.map(channel => labels[channel]).join(", ") || "Não disponíveis"}</p>
+                {operation.channels.map(channel => {
+                  const outcome = operation.results.find(item => item.channel === channel);
+                  return <p key={channel}><strong>{labels[channel]}:</strong> {outcome?.success
+                    ? "Aceito pelo provedor; entrega não confirmada."
+                    : outcome?.error || "Sem confirmação de resultado; confira antes de repetir."}</p>;
+                })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {history.isPending ? <p role="status">Carregando histórico…</p> : history.error ? (
         <p role="alert" className="text-sm text-red-600">{history.error.message}</p>
       ) : (

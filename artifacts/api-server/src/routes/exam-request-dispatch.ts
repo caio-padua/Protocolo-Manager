@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, clientsTable, collaboratorAuditTable, examRequestPdfsTable } from "@workspace/db";
-import { SendExamRequestDocumentsBody } from "@workspace/api-zod";
+import { GetExamRequestHistoryResponse, SendExamRequestDocumentsBody } from "@workspace/api-zod";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { enviarMensagemPaxter, type PaxterCanal, type PaxterDoc } from "../lib/messaging/index.js";
@@ -54,7 +54,33 @@ router.get("/exam-requests/:clientId/history", requireCollaborator, async (req, 
       sql`${collaboratorAuditTable.detail}->>'clientId' = ${String(identity.client.id)}`,
       sql`${collaboratorAuditTable.detail}->>'empresaId' = ${String(identity.clinic.empresaId)}`,
     )).orderBy(desc(collaboratorAuditTable.createdAt), desc(collaboratorAuditTable.id)).limit(20);
-    res.json({
+    // Reservation metadata survives a stop even before the first audit insert.
+    // Legacy rows are visible only when an audit proves the same clinical scope.
+    const pending = await db.execute(sql`
+      SELECT op.operation_key AS "operationKey", op.state, op.created_at AS "createdAt",
+        COALESCE(op.document_ids, legacy.document_ids, '[]'::jsonb) AS "documentIds",
+        COALESCE(op.channels, legacy.channels, '[]'::jsonb) AS channels, op.results
+      FROM exam_request_dispatch_operations op
+      LEFT JOIN LATERAL (
+        SELECT (array_agg(a.detail->'documentIds' ORDER BY a.id))[1] AS document_ids,
+          jsonb_agg(DISTINCT a.detail->>'channel') AS channels
+        FROM ${collaboratorAuditTable} a
+        WHERE a.professional_id = op.professional_id
+          AND a.action = 'exam_request_dispatch'
+          AND a.detail->>'operationKey' = op.operation_key
+          AND a.detail->>'empresaId' = ${String(identity.clinic.empresaId)}
+          AND a.detail->>'clinicId' = ${String(identity.clinic.id)}
+          AND a.detail->>'clientId' = ${String(identity.client.id)}
+      ) legacy ON op.client_id IS NULL
+      WHERE op.professional_id = ${identity.professional.id}
+        AND op.empresa_id = ${identity.clinic.empresaId}
+        AND op.clinic_id = ${identity.clinic.id}
+        AND (op.client_id = ${identity.client.id} OR (op.client_id IS NULL AND legacy.document_ids IS NOT NULL))
+        AND op.state IN ('in_progress', 'needs_review')
+      ORDER BY op.created_at DESC, op.operation_key
+    `);
+    res.json(GetExamRequestHistoryResponse.parse({
+      pendingOperations: pending.rows,
       documents: rows.slice(0, 20).map(row => ({
         id: row.id, tipoLabel: labels[row.tipo] ?? row.tipo, fileName: row.fileName,
         examCount: row.examCount, createdAt: row.createdAt,
@@ -66,7 +92,7 @@ router.get("/exam-requests/:clientId/history", requireCollaborator, async (req, 
         return { id: row.id, createdAt: row.createdAt, channel: detail.channel ?? "—",
           state: detail.state ?? "unknown", documentIds: detail.documentIds ?? [] };
       }),
-    });
+    }));
   } catch (error) {
     if (error instanceof ClinicalIdentityError) { res.status(error.status).json({ error: error.message }); return; }
     throw error;

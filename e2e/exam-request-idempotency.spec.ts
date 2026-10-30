@@ -36,7 +36,7 @@ for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhec
         professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
         canPrescribe: true, issue: null,
       });
-      if (path === "/api/exam-requests/42/history") return json({ documents: [document], dispatches: [], nextOffset: null });
+      if (path === "/api/exam-requests/42/history") return json({ documents: [document], dispatches: [], pendingOperations: [], nextOffset: null });
       if (path === "/api/exam-requests/send") {
         calls++;
         const body = route.request().postDataJSON();
@@ -69,7 +69,7 @@ for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhec
       panel = await selectAndConfirm(second);
       await expect(panel.getByText("Nenhuma mensagem foi reenviada.", { exact: false })).toBeVisible();
     } else if (scenario === "resposta-perdida") {
-      await expect(panel.getByRole("alert")).toContainText("mesma seleção");
+      await expect(panel.getByRole("alert")).toContainText("atualize o histórico");
       await panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false }).check();
       await panel.getByRole("button", { name: "Confirmar envio", exact: true }).click();
       await expect(panel.getByText("Operação anterior", { exact: true })).toBeVisible();
@@ -82,3 +82,60 @@ for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhec
     await panel.screenshot({ path: testInfo.outputPath("operacao-anterior.png") });
   });
 }
+
+test("Pedidos: pendências visíveis após recarga sem selecionar arquivos ou canais", async ({ context, page }, testInfo) => {
+  let posts = 0;
+  let pending = true;
+  await context.addInitScript(() => {
+    localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+    localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+  });
+  await context.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    if (route.request().method() === "POST") posts++;
+    if (path === "/api/collaborator/me") return json({ professional });
+    if (path === "/api/clients") return json([client]);
+    if (path === "/api/clients/42") return json(client);
+    if (path === "/api/clinical-context/42") return json({
+      professional, client, clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
+      canPrescribe: true, issue: null,
+    });
+    if (path === "/api/exam-requests/42/history") {
+      const older = new URL(route.request().url()).searchParams.get("offset") === "20";
+      return json({ documents: older ? [] : [document], dispatches: [], nextOffset: older ? null : 20,
+        pendingOperations: pending ? [{
+          operationKey: "synthetic-reserved-operation", state: "in_progress", createdAt: document.createdAt,
+          documentIds: [91, 92], channels: ["EMAIL", "TELEGRAM"],
+          results: [{ channel: "EMAIL", success: true, auditId: 808 }],
+        }, {
+          operationKey: "synthetic-review-operation", state: "needs_review", createdAt: document.createdAt,
+          documentIds: [93], channels: ["WHATSAPP"], results: [],
+        }] : [],
+      });
+    }
+    return json([]);
+  });
+  await page.goto("/cockpit/42/exames");
+  const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+  const warning = panel.getByRole("alert");
+  await expect(warning).toContainText("Envios pendentes de conferência");
+  await expect(warning).toContainText("Documentos: 91, 92");
+  await expect(warning).toContainText("Canais: E-mail, Telegram");
+  await expect(warning).toContainText("Aceito pelo provedor; entrega não confirmada.");
+  await expect(warning).toContainText("Sem confirmação de resultado");
+  await expect(warning).toContainText("Requer conferência");
+  await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+  await page.reload();
+  await expect(warning).toBeVisible();
+  await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+  await expect(panel.getByText("Nenhum pedido registrado", { exact: false })).toBeVisible();
+  await expect(warning).toContainText("synthetic-reserved-operation");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await panel.screenshot({ path: testInfo.outputPath("pendencias-mobile.png") });
+  pending = false;
+  await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+  await expect(warning).toHaveCount(0);
+  expect(posts).toBe(0);
+});

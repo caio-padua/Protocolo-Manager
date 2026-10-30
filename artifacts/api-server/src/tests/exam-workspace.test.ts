@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { isolatedPostgres } from "./helpers/isolated-postgres";
 
 const mock = vi.hoisted(() => ({
@@ -33,7 +35,7 @@ vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send })
 import router from "../routes/exam-requests";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { renderTelegramCaption } from "../lib/messaging/render-text";
-import { reserveDispatchOperation, type DispatchScope } from "../lib/exam-dispatch-operation";
+import { reserveDispatchOperation, saveDispatchOperation, type DispatchScope } from "../lib/exam-dispatch-operation";
 const app = express().use(express.json()).use("/api", router);
 const authorization = { Authorization: "Bearer synthetic-test" };
 const payload = { operationKey: "synthetic-operation-573", clientId: 101, documentIds: [91], channels: ["EMAIL", "TELEGRAM"], confirmed: true };
@@ -42,7 +44,12 @@ const document = { id: 91, clientId: 101, tipo: "OUTROS", token: "a".repeat(48),
 
 let postgres: Awaited<ReturnType<typeof isolatedPostgres>>;
 let scopeNumber = 0;
-beforeAll(async () => { postgres = await isolatedPostgres(); }, 30_000);
+beforeAll(async () => {
+  postgres = await isolatedPostgres();
+  await postgres.execute(sql`CREATE TABLE collaborator_audit (
+    id SERIAL PRIMARY KEY, professional_id INTEGER, action TEXT, detail JSONB
+  )`);
+}, 30_000);
 afterAll(async () => { await postgres?.stop(); });
 beforeEach(() => {
   vi.clearAllMocks(); mock.rows = []; mock.writes = []; mock.nextId = 1;
@@ -145,6 +152,74 @@ it("returns persisted dispatch history without revealing recipient addresses or 
   expect(response.body.dispatches[0]).toMatchObject({ id: 808, channel: "TELEGRAM", documentIds: [91] });
   expect(response.body.dispatches[0]).not.toHaveProperty("detail");
   expect(JSON.stringify(response.body)).not.toContain("private-internal");
+});
+it("shows an unaudited reservation and partial results without selection, including on older document pages", async () => {
+  const identity = await mock.identity();
+  const scope: DispatchScope = {
+    professionalId: identity.professional.id, empresaId: identity.clinic.empresaId,
+    clinicId: identity.clinic.id, clientId: identity.client.id,
+    operationKey: "synthetic-pending-operation", documentIds: [91, 92], channels: ["EMAIL", "TELEGRAM"],
+  };
+  await reserveDispatchOperation(scope);
+  const history = () => request(app).get("/api/exam-requests/101/history?offset=20").set(authorization);
+  const initial = await history();
+  expect(initial.status).toBe(200);
+  expect(initial.body.pendingOperations).toEqual([expect.objectContaining({
+    operationKey: scope.operationKey, documentIds: [91, 92], channels: ["EMAIL", "TELEGRAM"],
+    state: "in_progress", results: [], createdAt: expect.any(String),
+  })]);
+  const partial = [{ channel: "EMAIL", success: true, auditId: 808 }];
+  await saveDispatchOperation(scope, "needs_review", partial);
+  mock.execute.mockClear();
+  expect((await history()).body.pendingOperations[0]).toMatchObject({ state: "needs_review", results: partial });
+  expect((await history()).body.pendingOperations[0]).toMatchObject({ state: "needs_review", results: partial });
+  expect(mock.send).not.toHaveBeenCalled();
+  expect(mock.insert).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.execute.mock.calls.every(([query]) => !new PgDialect().sqlToQuery(query).sql.includes("UPDATE"))).toBe(true);
+  await saveDispatchOperation(scope, "completed", partial);
+  expect((await history()).body.pendingOperations).toEqual([]);
+});
+it("does not expose pending reservations across patient, professional, company or clinic boundaries", async () => {
+  const identity = await mock.identity();
+  const scope: DispatchScope = {
+    professionalId: identity.professional.id, empresaId: identity.clinic.empresaId,
+    clinicId: identity.clinic.id, clientId: identity.client.id,
+    operationKey: "synthetic-private-operation", documentIds: [91], channels: ["EMAIL"],
+  };
+  for (const change of [
+    { professionalId: 999 }, { empresaId: 999 }, { clinicId: 999 }, { clientId: 999 },
+  ]) await reserveDispatchOperation({ ...scope, ...change });
+  const response = await request(app).get("/api/exam-requests/101/history").set(authorization);
+  expect(response.status).toBe(200);
+  expect(response.body.pendingOperations).toEqual([]);
+  mock.identity.mockRejectedValue(new ClinicalIdentityError(403, "Vínculo removido"));
+  mock.execute.mockClear();
+  expect((await request(app).get("/api/exam-requests/101/history").set(authorization)).status).toBe(403);
+  expect(mock.execute).not.toHaveBeenCalled();
+});
+it("recovers legacy reservations only from matching authorized audit metadata", async () => {
+  const identity = await mock.identity();
+  await postgres.execute(sql`
+    INSERT INTO exam_request_dispatch_operations (professional_id, empresa_id, clinic_id, operation_key, request_hash)
+    VALUES (202, 404, ${identity.clinic.id}, 'synthetic-legacy', ${`legacy-${identity.clinic.id}`}),
+      (202, 404, ${identity.clinic.id}, 'synthetic-orphan', ${`orphan-${identity.clinic.id}`})
+  `);
+  for (const channel of ["EMAIL", "TELEGRAM"]) {
+    await postgres.execute(sql`INSERT INTO collaborator_audit (professional_id, action, detail)
+      VALUES (202, 'exam_request_dispatch', ${JSON.stringify({
+        operationKey: "synthetic-legacy", clientId: 101, clinicId: identity.clinic.id,
+        empresaId: 404, documentIds: [91], channel,
+      })}::jsonb)`);
+  }
+  const response = await request(app).get("/api/exam-requests/101/history").set(authorization);
+  expect(response.status).toBe(200);
+  expect(response.body.pendingOperations).toHaveLength(1);
+  expect(response.body.pendingOperations[0]).toMatchObject({
+    operationKey: "synthetic-legacy", documentIds: [91], channels: ["EMAIL", "TELEGRAM"],
+  });
+  mock.identity.mockResolvedValue({ ...identity, client: { ...identity.client, id: 102 } });
+  expect((await request(app).get("/api/exam-requests/102/history").set(authorization)).body.pendingOperations).toEqual([]);
 });
 it("preserves every link in a large Telegram batch rather than truncating the caption", async () => {
   const rows = Array.from({ length: 12 }, (_, i) => ({

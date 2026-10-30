@@ -66,11 +66,54 @@ export interface ExamRequestDispatchRecord {
   createdAt: string;
 }
 
+export type ExamRequestPendingOperationState =
+  (typeof ExamRequestPendingOperationState)[keyof typeof ExamRequestPendingOperationState];
+
+export const ExamRequestPendingOperationState = {
+  in_progress: "in_progress",
+  needs_review: "needs_review",
+} as const;
+
+export type ExamRequestPendingOperationChannelsItem =
+  (typeof ExamRequestPendingOperationChannelsItem)[keyof typeof ExamRequestPendingOperationChannelsItem];
+
+export const ExamRequestPendingOperationChannelsItem = {
+  EMAIL: "EMAIL",
+  WHATSAPP: "WHATSAPP",
+  TELEGRAM: "TELEGRAM",
+} as const;
+
+export type ExamDocumentChannelResultChannel =
+  (typeof ExamDocumentChannelResultChannel)[keyof typeof ExamDocumentChannelResultChannel];
+
+export const ExamDocumentChannelResultChannel = {
+  EMAIL: "EMAIL",
+  WHATSAPP: "WHATSAPP",
+  TELEGRAM: "TELEGRAM",
+} as const;
+
+export interface ExamDocumentChannelResult {
+  channel: ExamDocumentChannelResultChannel;
+  success: boolean;
+  auditId: number;
+  error?: string;
+}
+
+export interface ExamRequestPendingOperation {
+  operationKey: string;
+  state: ExamRequestPendingOperationState;
+  createdAt: string;
+  documentIds: number[];
+  channels: ExamRequestPendingOperationChannelsItem[];
+  results: ExamDocumentChannelResult[];
+}
+
 export interface ExamRequestHistory {
   documents: ExamRequestHistoryDocument[];
   /** @nullable */
   nextOffset: number | null;
   dispatches: ExamRequestDispatchRecord[];
+  pendingOperations: ExamRequestPendingOperation[];
 }
 
 export type ExamDocumentDispatchInputChannelsItem =
@@ -102,22 +145,6 @@ export interface ExamDocumentDispatchInput {
    */
   channels: ExamDocumentDispatchInputChannelsItem[];
   confirmed: boolean;
-}
-
-export type ExamDocumentChannelResultChannel =
-  (typeof ExamDocumentChannelResultChannel)[keyof typeof ExamDocumentChannelResultChannel];
-
-export const ExamDocumentChannelResultChannel = {
-  EMAIL: "EMAIL",
-  WHATSAPP: "WHATSAPP",
-  TELEGRAM: "TELEGRAM",
-} as const;
-
-export interface ExamDocumentChannelResult {
-  channel: ExamDocumentChannelResultChannel;
-  success: boolean;
-  auditId: number;
-  error?: string;
 }
 
 export type ExamDocumentDispatchResultState =

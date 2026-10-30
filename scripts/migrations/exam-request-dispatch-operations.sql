@@ -12,3 +12,9 @@ CREATE TABLE IF NOT EXISTS exam_request_dispatch_operations (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (professional_id, empresa_id, clinic_id, operation_key)
 );
+
+-- Nullable for older reservations: their patient must only be recovered from
+-- an authorized audit, never guessed from the opaque request fingerprint.
+ALTER TABLE exam_request_dispatch_operations ADD COLUMN IF NOT EXISTS client_id INTEGER;
+ALTER TABLE exam_request_dispatch_operations ADD COLUMN IF NOT EXISTS document_ids JSONB;
+ALTER TABLE exam_request_dispatch_operations ADD COLUMN IF NOT EXISTS channels JSONB;

@@ -7,10 +7,12 @@
  */
 import type { ExamRequestDispatchRecord } from "./examRequestDispatchRecord";
 import type { ExamRequestHistoryDocument } from "./examRequestHistoryDocument";
+import type { ExamRequestPendingOperation } from "./examRequestPendingOperation";
 
 export interface ExamRequestHistory {
   documents: ExamRequestHistoryDocument[];
   /** @nullable */
   nextOffset: number | null;
   dispatches: ExamRequestDispatchRecord[];
+  pendingOperations: ExamRequestPendingOperation[];
 }

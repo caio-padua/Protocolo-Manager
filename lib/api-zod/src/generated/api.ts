@@ -138,6 +138,23 @@ export const GetExamRequestHistoryResponse = zod.object({
       createdAt: zod.coerce.date(),
     }),
   ),
+  pendingOperations: zod.array(
+    zod.object({
+      operationKey: zod.string(),
+      state: zod.enum(["in_progress", "needs_review"]),
+      createdAt: zod.coerce.date(),
+      documentIds: zod.array(zod.number()),
+      channels: zod.array(zod.enum(["EMAIL", "WHATSAPP", "TELEGRAM"])),
+      results: zod.array(
+        zod.object({
+          channel: zod.enum(["EMAIL", "WHATSAPP", "TELEGRAM"]),
+          success: zod.boolean(),
+          auditId: zod.number(),
+          error: zod.string().optional(),
+        }),
+      ),
+    }),
+  ),
 });
 
 /**
