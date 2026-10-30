@@ -20,7 +20,7 @@ async function selectAndConfirm(page: Page) {
 // entry point that changes props on the SAME instance. The latter is essential:
 // a test relying solely on unmounting cannot detect a missing contextRef guard.
 for (const mount of ["cockpit", "mesma-instancia"] as const) {
-  for (const transition of ["paciente", "medico"] as const) {
+  for (const transition of ["paciente", "medico", "paciente-circular"] as const) {
     for (const outcome of ["sucesso-atrasado", "erro-atrasado"] as const) {
       test(`Pedidos: isolar resposta de envio ao trocar ${transition} — ${outcome} — ${mount}`, async ({ context, page }, testInfo) => {
         const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
@@ -30,6 +30,11 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
         const posts: { path: string; body: unknown; authorization?: string }[] = [];
         let heldSend: Route | undefined;
         let switched = false;
+        let returned = false;
+        const circular = transition === "paciente-circular";
+        // A retained instance accepts A's response after returning to A (the
+        // guard compares IDs). The real cockpit discards the unmounted receipt.
+        const acceptsReturnedResponse = circular && mount === "mesma-instancia";
         let currentReads = 0;
         const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
           status, contentType: "application/json", body: JSON.stringify(body),
@@ -91,7 +96,7 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
           if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
             if (switched) currentReads++;
             return reply(route, {
-              documents: [switched ? { ...document, id: 92, fileName: "Pedido do contexto atual.pdf" } : document],
+              documents: [switched && !returned ? { ...document, id: 92, fileName: "Pedido do contexto atual.pdf" } : document],
               dispatches: [], pendingOperations: [], nextOffset: null,
             });
           }
@@ -108,12 +113,11 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
           body: { clientId: 42, documentIds: [91], channels: ["EMAIL"], confirmed: true },
         });
         expect(oldBody.operationKey).toMatch(/^[a-f0-9]{64}$/);
+        await panel.evaluate(element => { (window as any).__originalPanel = element; });
         switched = true;
         if (mount === "mesma-instancia") {
-          // Saving the DOM node also proves React did not remount the section.
-          await panel.evaluate(element => { (window as any).__originalPanel = element; });
           await page.getByRole("button", { name: `Trocar ${transition === "medico" ? "médico" : "paciente"} sintético` }).click();
-        } else if (transition === "paciente") {
+        } else if (transition !== "medico") {
           await page.evaluate(() => {
             window.history.pushState(null, "", "/cockpit/43/exames");
             window.dispatchEvent(new PopStateEvent("popstate"));
@@ -132,18 +136,52 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
         if (mount === "mesma-instancia") {
           expect(await panel.evaluate(element => element === (window as any).__originalPanel)).toBe(true);
         }
+        if (circular) {
+          await expect(panel.getByRole("checkbox", { checked: true, name: /Selecionar documento/ })).toHaveCount(0);
+          await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).not.toBeChecked();
+          await expect(panel.getByRole("button", {
+            name: mount === "mesma-instancia" ? "Enviando…" : "Confirmar envio", exact: true,
+          })).toBeDisabled();
+          const readsBeforeReturn = currentReads;
+          returned = true;
+          if (mount === "mesma-instancia") {
+            await page.getByRole("button", { name: "Voltar ao paciente sintético" }).click();
+          } else {
+            await page.evaluate(() => {
+              window.history.pushState(null, "", "/cockpit/42/exames");
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            });
+            await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+          }
+          await expect.poll(() => currentReads).toBeGreaterThan(readsBeforeReturn);
+          await expect(panel.getByText(document.fileName, { exact: true })).toBeVisible();
+          await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).not.toBeChecked();
+          await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).not.toBeChecked();
+          await expect(panel.getByRole("status")).toHaveCount(0);
+          await expect(panel.getByRole("alert")).toHaveCount(0);
+          await expect(panel.getByRole("button", { name: "Consultar esta operação" })).toHaveCount(0);
+          await expect(panel.getByRole("button", {
+            name: mount === "mesma-instancia" ? "Enviando…" : "Confirmar envio", exact: true,
+          })).toBeDisabled();
+          expect(await panel.evaluate(element => element === (window as any).__originalPanel))
+            .toBe(mount === "mesma-instancia");
+          expect(posts).toHaveLength(1);
+        }
         // Observe transient DOM changes as well as the settled UI: no old
         // receipt/error/recovery button may flash in the new scope.
-        await page.evaluate(({ key, message, error }) => {
+        await page.evaluate(({ key, message, error, allowReceipt }) => {
           (window as any).__sendLeaks = [];
           new MutationObserver(() => {
             const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
             const text = region?.textContent ?? "";
-            if ([key, message, error, "Operação registrada", "Consultar esta operação"].some(value => text.includes(value))) {
+            if ((!allowReceipt && [key, message, error, "Operação registrada", "Consultar esta operação"].some(value => text.includes(value)))
+              || !!region?.querySelector<HTMLInputElement>('input[aria-label^="Selecionar documento"]:checked')
+              || [...(region?.querySelectorAll("label") ?? [])].some(label =>
+                label.textContent?.includes("Conferi os documentos") && label.querySelector<HTMLInputElement>("input")?.checked)) {
               (window as any).__sendLeaks.push(text);
             }
           }).observe(document.body, { subtree: true, childList: true, characterData: true });
-        }, { key: oldBody.operationKey, message: oldMessage, error: oldError });
+        }, { key: oldBody.operationKey, message: oldMessage, error: oldError, allowReceipt: acceptsReturnedResponse });
         if (outcome === "sucesso-atrasado") {
           await reply(heldSend!, {
             operationKey: oldBody.operationKey, replayed: false, state: "completed", needsReview: false,
@@ -155,12 +193,27 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
         await expect.poll(() => page.evaluate(() => (window as any).__settledSends)).toBe(1);
         await page.evaluate(() => new Promise<void>(resolve =>
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-        await expect(panel.getByRole("status")).toHaveCount(0);
-        await expect(panel.getByRole("alert")).toHaveCount(0);
-        await expect(panel.getByRole("button", { name: "Consultar esta operação" })).toHaveCount(0);
-        await expect(panel).not.toContainText(oldBody.operationKey);
-        await expect(panel).not.toContainText(oldMessage);
-        await expect(panel).not.toContainText(oldError);
+        if (acceptsReturnedResponse && outcome === "sucesso-atrasado") {
+          await expect(panel.getByRole("status")).toContainText(oldBody.operationKey);
+          await expect(panel.getByRole("status")).toContainText(oldMessage);
+          await expect(panel.getByRole("status")).toContainText("Operação registrada");
+          await expect(panel.getByRole("alert")).toHaveCount(0);
+          await expect(panel.getByRole("button", { name: "Consultar esta operação" })).toBeVisible();
+        } else if (acceptsReturnedResponse) {
+          await expect(panel.getByRole("alert")).toContainText(oldError);
+          await expect(panel.getByRole("alert")).toContainText("atualize o histórico");
+          await expect(panel.getByRole("status")).toHaveCount(0);
+          await expect(panel.getByRole("button", { name: "Consultar esta operação" })).toHaveCount(0);
+          await expect(panel).not.toContainText(oldBody.operationKey);
+        } else {
+          await expect(panel.getByRole("status")).toHaveCount(0);
+          await expect(panel.getByRole("alert")).toHaveCount(0);
+          await expect(panel.getByRole("button", { name: "Consultar esta operação" })).toHaveCount(0);
+          await expect(panel).not.toContainText(oldBody.operationKey);
+          await expect(panel).not.toContainText(oldMessage);
+          await expect(panel).not.toContainText(oldError);
+        }
+        await expect(panel.getByRole("checkbox", { checked: true, name: /Selecionar documento/ })).toHaveCount(0);
         await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).not.toBeChecked();
         await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
         // A normal history refresh must remain usable and must not consult or
@@ -168,9 +221,24 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
         const readsBeforeRefresh = currentReads;
         await panel.getByRole("button", { name: "Atualizar histórico" }).click();
         await expect.poll(() => currentReads).toBeGreaterThan(readsBeforeRefresh);
-        await expect(panel.getByText("Pedido do contexto atual.pdf", { exact: true })).toBeVisible();
+        await expect(panel.getByText(circular ? document.fileName : "Pedido do contexto atual.pdf", { exact: true })).toBeVisible();
         expect(await page.evaluate(() => (window as any).__sendLeaks)).toEqual([]);
         expect(posts).toHaveLength(1);
+        if (circular) {
+          // A receipt cannot stand in for a new selection and explicit consent.
+          await panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" }).check();
+          await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+          if (mount === "cockpit") {
+            await expect(panel.getByRole("checkbox", { name: "E-mail", exact: true })).not.toBeChecked();
+            await panel.getByRole("checkbox", { name: "E-mail", exact: true }).check();
+          } else {
+            await expect(panel.getByRole("checkbox", { name: "E-mail", exact: true })).toBeChecked();
+          }
+          await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+          await panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false }).check();
+          await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeEnabled();
+          expect(posts).toHaveLength(1); // Preparing new consent does not send.
+        }
         await panel.screenshot({ path: testInfo.outputPath("envio-contexto-isolado.png") });
       });
     }

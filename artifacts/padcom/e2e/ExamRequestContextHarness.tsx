@@ -14,6 +14,7 @@ function Harness() {
     <QueryClientProvider client={queryClient}>
       <p>Paciente {clientId} · Médico {professionalId}</p>
       <button onClick={() => setClientId(43)}>Trocar paciente sintético</button>
+      <button onClick={() => setClientId(42)}>Voltar ao paciente sintético</button>
       <button onClick={() => {
         localStorage.setItem("padcom_collab_token", "synthetic-next-token");
         setProfessionalId(203);
