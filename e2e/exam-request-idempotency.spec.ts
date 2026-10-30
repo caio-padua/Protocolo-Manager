@@ -16,6 +16,167 @@ async function selectAndConfirm(page: Page) {
   return panel;
 }
 
+// Cover both the real cockpit (which remounts the panel by scope) and a test-only
+// entry point that changes props on the SAME instance. The latter is essential:
+// a test relying solely on unmounting cannot detect a missing contextRef guard.
+for (const mount of ["cockpit", "mesma-instancia"] as const) {
+  for (const transition of ["paciente", "medico"] as const) {
+    for (const outcome of ["sucesso-atrasado", "erro-atrasado"] as const) {
+      test(`Pedidos: isolar resposta de envio ao trocar ${transition} — ${outcome} — ${mount}`, async ({ context, page }, testInfo) => {
+        const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
+        const nextProfessional = { ...professional, id: 203, name: "Outro Médico Sintético" };
+        const oldMessage = "Resposta exclusiva do envio anterior";
+        const oldError = "Erro exclusivo do envio anterior";
+        const posts: { path: string; body: unknown; authorization?: string }[] = [];
+        let heldSend: Route | undefined;
+        let switched = false;
+        let currentReads = 0;
+        const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+          status, contentType: "application/json", body: JSON.stringify(body),
+        });
+        await context.addInitScript(() => {
+          localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+          localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+          const originalFetch = window.fetch.bind(window);
+          (window as any).__settledSends = 0;
+          window.fetch = async (input, init) => {
+            const url = input instanceof Request ? input.url : String(input);
+            if (!url.endsWith("/exam-requests/send")) return originalFetch(input, init);
+            // Do not let cancellation hide a stale response. Count JSON parsing,
+            // not merely receipt of headers, before checking React's final state.
+            const response = await originalFetch(input, { ...init, signal: undefined });
+            const originalJson = response.json.bind(response);
+            response.json = async () => {
+              const data = await originalJson();
+              (window as any).__settledSends++;
+              return data;
+            };
+            return response;
+          };
+        });
+        if (mount === "mesma-instancia") {
+          // Keep Vite's normal React preamble; only replace the app entry point.
+          // No test route, switcher, or auth bypass is added to the shipped app.
+          await page.route("**/cockpit/42/exames", async route => {
+            const response = await route.fetch();
+            const html = await response.text();
+            expect(html).toContain('src="/src/main.tsx"');
+            await route.fulfill({ response, body: html.replace(
+              'src="/src/main.tsx"', 'src="/e2e/ExamRequestContextHarness.tsx"',
+            ) });
+          });
+        }
+        // Catch ALL API traffic; no request can reach patient data or providers.
+        await context.route("**/api/**", async route => {
+          const request = route.request();
+          const path = new URL(request.url()).pathname;
+          if (request.method() !== "GET") {
+            posts.push({ path, body: request.postDataJSON(), authorization: request.headers().authorization });
+            expect(request.method()).toBe("POST");
+            expect(path).toBe("/api/exam-requests/send");
+            expect(heldSend).toBeUndefined();
+            heldSend = route;
+            return;
+          }
+          const activeProfessional = switched && transition === "medico" ? nextProfessional : professional;
+          if (path === "/api/collaborator/me") return reply(route, { professional: activeProfessional });
+          if (path === "/api/clients") return reply(route, [client, nextClient]);
+          const patient = path.includes("/43") ? nextClient : client;
+          if (/^\/api\/clients\/(42|43)$/.test(path)) return reply(route, patient);
+          if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return reply(route, {
+            professional: activeProfessional, client: patient,
+            clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
+            canPrescribe: true, issue: null,
+          });
+          if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
+            if (switched) currentReads++;
+            return reply(route, {
+              documents: [switched ? { ...document, id: 92, fileName: "Pedido do contexto atual.pdf" } : document],
+              dispatches: [], pendingOperations: [], nextOffset: null,
+            });
+          }
+          return reply(route, []);
+        });
+        await page.goto("/cockpit/42/exames");
+        const panel = await selectAndConfirm(page);
+        await expect.poll(() => !!heldSend).toBe(true);
+        await expect(panel.getByRole("button", { name: "Enviando…", exact: true })).toBeDisabled();
+        expect(posts).toHaveLength(1);
+        const oldBody = posts[0].body as { operationKey: string };
+        expect(posts[0]).toMatchObject({
+          path: "/api/exam-requests/send", authorization: "Bearer synthetic-ui-token",
+          body: { clientId: 42, documentIds: [91], channels: ["EMAIL"], confirmed: true },
+        });
+        expect(oldBody.operationKey).toMatch(/^[a-f0-9]{64}$/);
+        switched = true;
+        if (mount === "mesma-instancia") {
+          // Saving the DOM node also proves React did not remount the section.
+          await panel.evaluate(element => { (window as any).__originalPanel = element; });
+          await page.getByRole("button", { name: `Trocar ${transition === "medico" ? "médico" : "paciente"} sintético` }).click();
+        } else if (transition === "paciente") {
+          await page.evaluate(() => {
+            window.history.pushState(null, "", "/cockpit/43/exames");
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          });
+          await expect(page).toHaveURL(/\/cockpit\/43\/exames$/);
+        } else {
+          await page.evaluate(prof => {
+            localStorage.setItem("padcom_collab_token", "synthetic-next-token");
+            localStorage.setItem("padcom_collab_prof", JSON.stringify(prof));
+            window.dispatchEvent(new Event("collab-auth-changed"));
+          }, nextProfessional);
+        }
+        await expect.poll(() => currentReads).toBeGreaterThan(0);
+        await expect(panel.getByText("Pedido do contexto atual.pdf", { exact: true })).toBeVisible();
+        await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+        if (mount === "mesma-instancia") {
+          expect(await panel.evaluate(element => element === (window as any).__originalPanel)).toBe(true);
+        }
+        // Observe transient DOM changes as well as the settled UI: no old
+        // receipt/error/recovery button may flash in the new scope.
+        await page.evaluate(({ key, message, error }) => {
+          (window as any).__sendLeaks = [];
+          new MutationObserver(() => {
+            const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+            const text = region?.textContent ?? "";
+            if ([key, message, error, "Operação registrada", "Consultar esta operação"].some(value => text.includes(value))) {
+              (window as any).__sendLeaks.push(text);
+            }
+          }).observe(document.body, { subtree: true, childList: true, characterData: true });
+        }, { key: oldBody.operationKey, message: oldMessage, error: oldError });
+        if (outcome === "sucesso-atrasado") {
+          await reply(heldSend!, {
+            operationKey: oldBody.operationKey, replayed: false, state: "completed", needsReview: false,
+            message: oldMessage, results: [{ channel: "EMAIL", success: true, auditId: 808 }],
+          });
+        } else {
+          await reply(heldSend!, { error: oldError }, 500);
+        }
+        await expect.poll(() => page.evaluate(() => (window as any).__settledSends)).toBe(1);
+        await page.evaluate(() => new Promise<void>(resolve =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        await expect(panel.getByRole("status")).toHaveCount(0);
+        await expect(panel.getByRole("alert")).toHaveCount(0);
+        await expect(panel.getByRole("button", { name: "Consultar esta operação" })).toHaveCount(0);
+        await expect(panel).not.toContainText(oldBody.operationKey);
+        await expect(panel).not.toContainText(oldMessage);
+        await expect(panel).not.toContainText(oldError);
+        await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).not.toBeChecked();
+        await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+        // A normal history refresh must remain usable and must not consult or
+        // replay the old send. Count every mutation, not just accepted sends.
+        const readsBeforeRefresh = currentReads;
+        await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+        await expect.poll(() => currentReads).toBeGreaterThan(readsBeforeRefresh);
+        await expect(panel.getByText("Pedido do contexto atual.pdf", { exact: true })).toBeVisible();
+        expect(await page.evaluate(() => (window as any).__sendLeaks)).toEqual([]);
+        expect(posts).toHaveLength(1);
+        await panel.screenshot({ path: testInfo.outputPath("envio-contexto-isolado.png") });
+      });
+    }
+  }
+}
+
 for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhecido"] as const) {
   test(`Pedidos: recuperar operação sem novo envio — ${scenario}`, async ({ context, page }, testInfo) => {
     let calls = 0;
@@ -377,6 +538,7 @@ for (const transition of ["paciente", "medico"] as const) {
       if (outcome === "401-atual") {
         await reply(held.current!, { error: "Sessão atual sem autorização para consultar histórico." }, 401);
         await expect(panel.getByRole("alert")).toContainText("Sessão atual sem autorização para consultar histórico.");
+        await expect(panel.getByRole("alert")).toContainText("Isso não confirma falha no envio");
         await expect(panel).not.toContainText(newKey);
       } else {
         await reply(held.current!, historyBody(newKey, 92));
