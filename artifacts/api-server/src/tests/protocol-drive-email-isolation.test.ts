@@ -34,8 +34,10 @@ vi.mock("../middleware/tenantContext", () => ({
 // O path deve bater com o import na rota: import { requireCollaborator } from "./collaborator"
 // Resolvido pelo Vitest como o módulo em src/routes/collaborator.ts
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (_req: any, res: any, _next: any) =>
-    res.status(401).json({ error: "Unauthorized" }),
+  requireCollaborator: (req: any, res: any, next: any) =>
+    req.headers.authorization === "Bearer test-collaborator"
+      ? next()
+      : res.status(401).json({ error: "Unauthorized" }),
 }));
 
 const makeTable = (name: string) => ({ __mockName: name });
@@ -60,10 +62,15 @@ vi.mock("@workspace/db", () => {
     paymentsTable:               makeT("payments"),
     assinaturaSolicitacoesTable: makeT("assinatura_solicitacoes"),
     assinaturaTemplatesTable:    makeT("assinatura_templates"),
+    rasTable:                    makeT("ras"),
+    emailLogTable:               makeT("email_log"),
   };
 });
 
 vi.mock("@workspace/api-zod", () => ({
+  ListRASQueryParams: { safeParse: (x: any) => ({ success: true, data: x }) },
+  CreateRASBody: { safeParse: (x: any) => ({ success: true, data: x }) },
+  GetRASParams: { safeParse: (x: any) => ({ success: true, data: x }) },
   ListProtocolsQueryParams:  { safeParse: (x: any) => ({ success: true, data: x }) },
   CreateProtocolBody:        { safeParse: (x: any) => ({ success: true, data: x }) },
   GetProtocolParams:         { safeParse: (x: any) => ({ success: true, data: x }) },
@@ -137,6 +144,7 @@ import * as emailSvc  from "../lib/email-service";
 import * as gmailLib  from "../lib/google-gmail";
 import * as pdfSigner from "../lib/pdf-signer";
 import protocolsRouter from "../routes/protocols";
+import rasRouter from "../routes/ras";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -212,7 +220,12 @@ class DbChain {
 function buildApp() {
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.tenantContext = { empresaId: 5, isPlatformOwner: false, perfilPlataforma: "recepcionista" };
+    next();
+  });
   app.use("/api", protocolsRouter);
+  app.use("/api", rasRouter);
   return app;
 }
 
@@ -223,6 +236,7 @@ function setupMocks() {
   vi.mocked(pdfSigner.generateProtocolDocumentPdf).mockResolvedValue({
     pdfBytes: FAKE_PDF_BYTES,
   } as any);
+  vi.mocked(pdfSigner.generatePhysicalRASPdf).mockResolvedValue(FAKE_PDF_BYTES as any);
   vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(true);
   vi.mocked(driveLib.isDriveConnected).mockResolvedValue(true);
   vi.mocked(driveLib.uploadToFolderById).mockResolvedValue({ fileId: "x1" } as any);
@@ -235,6 +249,55 @@ function setupMocks() {
     success: true, messageId: "msg-1",
   } as any);
 }
+
+describe("RAS físico — pré-visualização e entrega separadas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupMocks();
+    vi.mocked(db.insert).mockReturnValue({ values: vi.fn().mockResolvedValue([]) } as any);
+  });
+
+  it("abrir o documento devolve os bytes sem enviar e-mail ou acessar o Drive", async () => {
+    const response = await request(buildApp()).get("/api/ras/physical/99");
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/pdf/);
+    expect(response.body).toEqual(Buffer.from(FAKE_PDF_BYTES));
+    expect(emailSvc.sendProtocolEmail).not.toHaveBeenCalled();
+    expect(gmailLib.isGmailConnected).not.toHaveBeenCalled();
+    expect(driveLib.isDriveConnected).not.toHaveBeenCalled();
+    expect(driveLib.uploadFileToDrive).not.toHaveBeenCalled();
+  });
+
+  it("reenvio sem autenticação não gera documento nem envia mensagem", async () => {
+    const response = await request(buildApp()).post("/api/ras/physical/99/reenviar-email");
+    expect(response.status).toBe(401);
+    expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();
+    expect(emailSvc.sendProtocolEmail).not.toHaveBeenCalled();
+  });
+
+  it("reenvio autorizado envia os bytes gerados, sem exigir Drive", async () => {
+    const response = await request(buildApp())
+      .post("/api/ras/physical/99/reenviar-email")
+      .set("Authorization", "Bearer test-collaborator");
+    expect(response.status).toBe(200);
+    expect(emailSvc.sendProtocolEmail).toHaveBeenCalledOnce();
+    expect(emailSvc.sendProtocolEmail).toHaveBeenCalledWith(expect.objectContaining({
+      clientEmail: FAKE_CLIENT.email,
+      pdfBuffer: Buffer.from(FAKE_PDF_BYTES),
+    }));
+    expect(driveLib.isDriveConnected).not.toHaveBeenCalled();
+  });
+
+  it("Gmail desconectado impede a geração e o envio", async () => {
+    vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(false);
+    const response = await request(buildApp())
+      .post("/api/ras/physical/99/reenviar-email")
+      .set("Authorization", "Bearer test-collaborator");
+    expect(response.status).toBe(503);
+    expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();
+    expect(emailSvc.sendProtocolEmail).not.toHaveBeenCalled();
+  });
+});
 
 // ════════════════════════════════════════════════════════════════════════════
 // Bloco 1 — GET é pré-visualização pura: zero efeitos colaterais

@@ -145,6 +145,15 @@ describe("POST /scheduling/verify-device — rota", () => {
     expect(res.body.message).toMatch(/identificador de desafio/i);
   });
 
+  it.each([0, -1, 1.5, "Infinity", "inválido"])("challengeId inválido (%s) não chega ao motor", async (challengeId) => {
+    mockVerifyDeviceCode.mockClear();
+    const response = await request(buildApp())
+      .post("/scheduling/verify-device")
+      .send({ code: VALID_CODE, cpf: VALID_CPF, challengeId });
+    expect(response.status).toBe(400);
+    expect(mockVerifyDeviceCode).not.toHaveBeenCalled();
+  });
+
   it("A6 — challengeId=0 (inválido) → 400 Identificador de desafio ausente", async () => {
     const res = await request(buildApp())
       .post("/scheduling/verify-device")

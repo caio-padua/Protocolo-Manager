@@ -26,6 +26,12 @@ vi.mock("../middleware/moduleGuard", () => ({
   moduleGuard: () => (_req: any, _res: any, next: any) => next(),
 }));
 
+// Esta suíte verifica a entrega após autorização; a recusa sem autorização
+// é exercitada em protocol-drive-email-isolation.test.ts.
+vi.mock("../routes/collaborator", () => ({
+  requireCollaborator: (_req: any, _res: any, next: any) => next(),
+}));
+
 vi.mock("../middleware/tenantContext", () => ({
   resolveEmpresaId: () => 5,
   tenantContextMiddleware: (_req: any, _res: any, next: any) => next(),
@@ -112,6 +118,7 @@ import request from "supertest";
 import { db } from "@workspace/db";
 import * as driveLib  from "../lib/google-drive";
 import * as emailSvc  from "../lib/email-service";
+import * as gmailLib from "../lib/google-gmail";
 import * as pdfSigner from "../lib/pdf-signer";
 import rasRouter from "../routes/ras";
 
@@ -187,6 +194,10 @@ class DbChain {
 function buildApp() {
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.tenantContext = { empresaId: 5, isPlatformOwner: false, perfilPlataforma: "recepcionista" };
+    next();
+  });
   app.use("/api", rasRouter);
   return app;
 }
@@ -194,6 +205,7 @@ function buildApp() {
 // ── Configuração base dos mocks ───────────────────────────────────────────────
 
 function setupMocks() {
+  vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(true);
   vi.mocked(db.select).mockReturnValue(new DbChain([]) as any);
   vi.mocked(pdfSigner.generatePhysicalRASPdf).mockResolvedValue(FAKE_PDF_BYTES as any);
   vi.mocked(driveLib.isDriveConnected).mockResolvedValue(false);

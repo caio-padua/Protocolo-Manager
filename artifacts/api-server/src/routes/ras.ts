@@ -1,5 +1,6 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
+import { requireCollaborator } from "./collaborator";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, emailLogTable } from "@workspace/db";
@@ -22,10 +23,23 @@ import {
   formatPhysicalRASFileName,
 } from "../lib/google-drive";
 import { sendProtocolEmail } from "../lib/email-service";
+import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 
 const router: IRouter = Router();
 router.use(moduleGuard("ras"));
+
+// O contexto atual ainda não vincula a empresa ao token do colaborador.
+// Até esse vínculo existir, estas rotas não oferecem acesso entre empresas,
+// nem mesmo quando o contexto legado marca o solicitante como platform_owner.
+const requireRasTenant: RequestHandler = (req, res, next) => {
+  const empresaId = req.tenantContext?.empresaId;
+  if (!Number.isSafeInteger(empresaId) || empresaId <= 0 || req.query.empresaId !== undefined) {
+    res.status(403).json({ error: "Acesso entre empresas não autorizado." });
+    return;
+  }
+  next();
+};
 
 function formatRAS(r: typeof rasTable.$inferSelect) {
   return {
@@ -438,20 +452,21 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.protocolId);
+router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
+  const protocolId = parseInt(String(req.params.protocolId), 10);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
     return;
   }
 
-  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  const empresaId = req.tenantContext.empresaId;
+  const [protocol] = await db.select().from(protocolsTable).where(and(eq(protocolsTable.id, protocolId), eq(protocolsTable.empresaId, empresaId)));
   if (!protocol) {
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
+  const [client] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, protocol.clientId), eq(clientsTable.empresaId, empresaId)));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
@@ -462,6 +477,10 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   }
 
   try {
+    if (!(await isGmailConnected())) {
+      res.status(503).json({ error: "Gmail não está conectado." });
+      return;
+    }
     let professionalName = "Profissional";
     let nurseName = "";
     if (protocol.professionalId) {
@@ -606,13 +625,21 @@ router.post("/ras/physical/:protocolId/reenviar-email", async (req, res): Promis
   }
 });
 
-router.get("/ras/physical/:protocolId/email-logs", async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.protocolId);
+router.get("/ras/physical/:protocolId/email-logs", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
+  const protocolId = parseInt(String(req.params.protocolId), 10);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
     return;
   }
 
+  const [protocol] = await db.select().from(protocolsTable).where(and(
+    eq(protocolsTable.id, protocolId),
+    eq(protocolsTable.empresaId, req.tenantContext.empresaId),
+  ));
+  if (!protocol) {
+    res.status(404).json({ error: "Protocol not found" });
+    return;
+  }
   const logs = await db.select().from(emailLogTable)
     .where(and(eq(emailLogTable.tipo, "ras_fap_reenviado"), eq(emailLogTable.protocolId, protocolId)))
     .orderBy(desc(emailLogTable.criadoEm));

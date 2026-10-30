@@ -33,8 +33,7 @@ import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
 import { notifyConciergeBlocked } from "../lib/concierge-block-alert.js";
 import { checkDeviceThrottle, deriveFingerprint, isDeviceVerified } from "../lib/concierge-device-throttle.js";
-import { getOrCreateChallenge, verifyDeviceCode } from "../lib/device-throttle.js";
-
+import { verifyDeviceCode, getOrCreateChallenge } from "../lib/device-throttle.js";
 const router: IRouter = Router();
 
 // Valor padrao do sinal Concierge (R$). Configuravel por pay.conciergeValue.
@@ -1017,29 +1016,25 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
       return;
     }
 
-    // ── Fricção de dispositivo: gera e envia código OTP quando exigido ──────
-    // Se requiresVerification=true e o CPF foi informado, geramos (ou reutilizamos)
-    // um desafio OTP via getOrCreateChallenge() e enviamos o código por WhatsApp.
+    // ── OTP: gera/reutiliza desafio e envia código quando exigido ─────────────
+    // Quando o dispositivo precisa de verificação e o CPF é conhecido, emite
+    // (ou reutiliza) um desafio OTP para que o frontend exiba o campo de código.
     // Falhas aqui são não-fatais: a oferta segue retornada; o frontend deve
     // tratar codeSent=false e orientar o paciente a usar "reenviar código".
-    // ── OTP: gera/reutiliza desafio e envia código quando exigido ─────────────
-    const rawCpfDigits = rawCpf;
+    const cpfDigits = cpf ?? "";
     let challengeId: number | undefined;
     let maskedPhone: string | undefined;
     let codeSent = false;
 
-    if (deviceCheck.requiresVerification && rawCpfDigits.length >= 11) {
+    if (deviceCheck.requiresVerification && cpfDigits.length >= 11) {
       try {
-        const { challengeId: cid, isNew } = await getOrCreateChallenge({ cpf: rawCpfDigits, fingerprint });
+        const { challengeId: cid, isNew } = await getOrCreateChallenge({ cpf: cpfDigits, fingerprint: fingerprint ?? "" });
         challengeId = cid;
 
         // Só entrega quando o desafio acabou de ser criado (isNew=true).
-        // Desafios reutilizados não disparam novo envio — use a rota
+        // Desafios reutilizados não disparam novo envio — usar
         // /scheduling/send-verification-code (com cooldown 60s) para reenvio.
-        if (!isNew) {
-          // Desafio ativo existente: retornamos o challengeId sem reenviar.
-          // O paciente usa a rota /send-verification-code (cooldown 60s) para reenvio manual.
-        } else {
+        if (isNew) {
           const codeRow = await db.execute<{ code: string }>(sql`
             SELECT code FROM device_contact_verifications WHERE id = ${cid} LIMIT 1
           `);
@@ -1049,18 +1044,19 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
             const [patient] = await db
               .select({ phone: clientsTable.phone, telegramChatId: clientsTable.telegramChatId })
               .from(clientsTable)
-              .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${rawCpfDigits}`)
+              .where(sql`regexp_replace(coalesce(${clientsTable.cpf}, ''), '\D', '', 'g') = ${cpfDigits}`)
               .limit(1);
 
-            const digits = (patient?.phone ?? "").replace(/\D/g, "");
-            if (digits) maskedPhone = `(***) *****-${digits.slice(-4)}`;
+            const phoneDigits = (patient?.phone ?? "").replace(/\D/g, "");
+            if (phoneDigits) maskedPhone = `(***) *****-${phoneDigits.slice(-4)}`;
 
             const otpMessage =
-              `Seu código de verificação PAXTER: ${codeVal}\n\nVálido por 10 minutos. Não compartilhe.`;
+              `Seu código de verificação PAXTER: ${codeVal}\n\n` +
+              `Válido por 10 minutos. Não compartilhe este código com ninguém.`;
 
             // Caminho 1: WhatsApp (se o paciente tem telefone).
             if (patient?.phone) {
-              const waSend = await sendWhatsapp(patient.phone, otpMessage, { contexto: "device_verification" });
+              const waSend = await sendWhatsapp(patient.phone, otpMessage, { contexto: "device_verification" } as Parameters<typeof sendWhatsapp>[2]);
               codeSent = waSend.sent;
             }
 
@@ -1094,7 +1090,7 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
 });
 
 router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
+    const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
     return;
@@ -1113,6 +1109,7 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
     .from(schedulingRequestsTable)
     .where(eq(schedulingRequestsTable.id, id))
     .limit(1);
+
   if (!target) {
     res.status(404).json({ error: "Solicitação não encontrada" });
     return;
@@ -1144,7 +1141,9 @@ router.patch("/scheduling/requests/:id", async (req, res): Promise<void> => {
 // diário não possam ser ultrapassados por corridas. A geração do código e a
 // confirmação de envio também ocorrem dentro da seção crítica.
 router.post("/scheduling/send-verification-code", async (req, res): Promise<void> => {
-  const rawCpf = String(req.body?.cpf ?? "").replace(/\D/g, "");
+  const rawCpf  = String(req.body?.cpf  ?? "").replace(/\D/g, "");
+
+  const rawChallengeId = req.body?.challengeId;
   if (rawCpf.length < 11) {
     res.status(400).json({ error: "CPF inválido." });
     return;
@@ -1297,13 +1296,16 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
 // POST /scheduling/verify-device — valida o OTP e insere sessão verificada.
 // Após sucesso, isDeviceVerified() retorna true e a fricção é removida.
 //
-// SEGURANÇA: toda a lógica (leitura, checagem e incremento de tentativas,
-// marcação de uso e criação de sessão) ocorre dentro de uma única transação
-// com pg_advisory_xact_lock. Isso previne corridas de brute-force paralelas
-// que ultrapassariam o teto de 5 tentativas antes do lockout ser observado.
+// A lógica de DB (transação, advisory lock, throttle de tentativas) vive em
+// verifyDeviceCode() — lib/device-throttle.ts. Aqui a rota faz apenas:
+//   1. Validação de entrada (code / cpf / challengeId).
+//   2. Delegação ao lib.
+//   3. Serialização HTTP da resposta.
 router.post("/scheduling/verify-device", async (req, res): Promise<void> => {
   const rawCode = String(req.body?.code ?? "").replace(/\D/g, "");
-  const rawCpf = String(req.body?.cpf ?? "").replace(/\D/g, "");
+  const rawCpf  = String(req.body?.cpf  ?? "").replace(/\D/g, "");
+
+  const rawChallengeId = req.body?.challengeId;
 
   // Ordem de validação: código → CPF → challengeId (campo `message` por contrato).
   if (!rawCode) {
@@ -1314,16 +1316,17 @@ router.post("/scheduling/verify-device", async (req, res): Promise<void> => {
     res.status(400).json({ message: "CPF inválido." });
     return;
   }
-  const challengeId = Number(req.body?.challengeId ?? 0);
-  if (!challengeId || challengeId <= 0) {
-    res.status(400).json({ message: "Identificador de desafio ausente ou inválido." });
+  const challengeId = Number(rawChallengeId);
+
+  if (!Number.isSafeInteger(challengeId) || challengeId <= 0) {
+    res.status(400).json({ message: "Identificador de desafio ausente." });
     return;
   }
 
   try {
     const result = await verifyDeviceCode(rawCpf, rawCode, challengeId);
     if (!result.ok) {
-      res.status(400).json({ message: result.message ?? "Código incorreto ou expirado." });
+      res.status(400).json({ message: result.message });
       return;
     }
     res.json({ verified: true });

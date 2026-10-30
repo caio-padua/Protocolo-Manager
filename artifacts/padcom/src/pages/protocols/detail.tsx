@@ -63,7 +63,9 @@ export default function ProtocolDetail() {
   const fetchRasFapLogs = useCallback(async () => {
     if (!id) return;
     try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/email-logs`);
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/email-logs`, {
+        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      });
       if (resp.ok) {
         const data = await resp.json();
         setRasFapEmailLogs(data.items ?? []);
@@ -199,7 +201,10 @@ export default function ProtocolDetail() {
                   onClick={async () => {
                     setReenviarRasLoading(true);
                     try {
-                      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/reenviar-email`, { method: "POST" });
+                      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}/reenviar-email`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                      });
                       const body = await resp.json().catch(() => null);
                       if (!resp.ok) {
                         throw new Error(body?.error || "Erro ao reenviar RAS FAP");
