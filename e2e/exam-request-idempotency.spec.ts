@@ -923,6 +923,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     };
     const oldKey = "pendencia-exclusiva-da-clinica-anterior";
     const newKey = "pendencia-exclusiva-da-clinica-atual";
+    const newPageKey = "pendencia-pagina-20-exclusiva-da-clinica-atual";
     const oldPageKey = `${oldKey}-pagina-20`;
     const delayedPageKey = `${oldKey}-pagina-40`;
     const oldError = "Erro exclusivo da consulta de histórico da clínica anterior.";
@@ -930,6 +931,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     const offsets: { original: number[]; current: number[] } = { original: [], current: [] };
     let switched = false;
     let refreshing = false;
+    let currentHistoryReleased = false;
     let navigations = 0;
     const posts: string[] = [];
     const held: { identity?: Route; old?: Route; current?: Route } = {};
@@ -995,7 +997,12 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
         const offset = Number(new URL(request.url()).searchParams.get("offset"));
         offsets[switched ? "current" : "original"].push(offset);
-        if (switched) { held.current = route; return; }
+        if (switched) {
+          if (!currentHistoryReleased) { held.current = route; return; }
+          expect([0, 20]).toContain(offset);
+          return reply(route, offset === 20
+            ? historyBody(newPageKey, 95) : historyBody(newKey, 92, 20));
+        }
         if (mode === "paginacao" && offset === 40) { held.old = route; return; }
         if (refreshing) { held.old = route; return; }
         if (mode === "paginacao" && offset === 20) return reply(route, historyBody(oldPageKey, 93, 40));
@@ -1056,7 +1063,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     for (const id of [91, 93, 94]) {
       await expect(panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio` })).toHaveCount(0);
     }
-    await reply(held.current!, historyBody(newKey, 92));
+    currentHistoryReleased = true;
+    await reply(held.current!, historyBody(newKey, 92, 20));
     await expect(panel.getByRole("alert")).toContainText(newKey);
     await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(mode === "paginacao" ? 3 : 2);
@@ -1081,16 +1089,18 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         });
         const baseline = snapshot();
         (window as any).__clinicControlChanges = [];
-        new MutationObserver(records => {
+        const observer = new MutationObserver(records => {
           if (snapshot() !== baseline || records.some(record =>
             record.type === "attributes" && panel.contains(record.target)
             && ["disabled", "checked", "aria-checked", "hidden"].includes(record.attributeName!)
             && record.oldValue !== (record.target as Element).getAttribute(record.attributeName!))) {
             (window as any).__clinicControlChanges.push("Histórico ou controles de B alterados");
           }
-        }).observe(document.body, {
+        });
+        observer.observe(document.body, {
           subtree: true, childList: true, characterData: true, attributes: true, attributeOldValue: true,
         });
+        (window as any).__stopClinicControlObserver = () => observer.disconnect();
       });
     }
     // Identity and B's history have succeeded. Any failure here belongs only
@@ -1125,14 +1135,42 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).toBeChecked();
       await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeEnabled();
       await expect(panel.getByRole("button", { name: "Atualizar histórico" })).toBeEnabled();
-      await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
+      await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeEnabled();
       expect(await page.evaluate(() => (window as any).__clinicControlChanges)).toEqual([]);
+      // From here on, user-triggered pagination is expected to change B's UI.
+      // Keep the separate stale-A leak observer running throughout both clicks.
+      await page.evaluate(() => (window as any).__stopClinicControlObserver());
     } else {
       await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
       await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
     }
     await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
     expect(offsets.current).toEqual([0]);
+    await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+    await expect(panel.getByText(`${newPageKey}.pdf`, { exact: true })).toBeVisible();
+    await expect(panel.getByRole("alert")).toHaveCount(1);
+    await expect(panel.getByRole("alert").getByRole("listitem")).toHaveCount(1);
+    await expect(panel.getByRole("alert")).toContainText(`Operação: ${newPageKey}`);
+    await expect(panel.getByRole("alert")).toContainText("Documentos: 95");
+    await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(1);
+    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 95 para envio" })).toBeVisible();
+    await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
+    await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeEnabled();
+    expect(offsets.current).toEqual([0, 20]);
+    await panel.getByRole("button", { name: "Mais recentes", exact: true }).click();
+    await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
+    await expect(panel.getByRole("alert")).toHaveCount(1);
+    await expect(panel.getByRole("alert").getByRole("listitem")).toHaveCount(1);
+    await expect(panel.getByRole("alert")).toContainText(`Operação: ${newKey}`);
+    await expect(panel.getByRole("alert")).toContainText("Documentos: 92");
+    await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(1);
+    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 92 para envio" })).toBeVisible();
+    await expect(panel.getByText(`${newPageKey}.pdf`, { exact: true })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
+    await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeEnabled();
+    expect(offsets.current).toEqual([0, 20, 0]);
+    expect(offsets.original).toEqual(mode === "paginacao" ? [0, 20, 40] : [0, 0]);
     expect(await page.evaluate(() => (window as any).__clinicHistoryLeaks)).toEqual([]);
     await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
     expect(navigations).toBe(1);
