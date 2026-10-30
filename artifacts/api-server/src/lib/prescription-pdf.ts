@@ -33,6 +33,7 @@ export interface RecipePdfContext {
   pharmacyType?: string | null;
   sncrNumber?: string | null;
   sncrStatus?: string | null;
+  homologationNotice?: boolean;
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -63,7 +64,7 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
   const { font, fontBold, margem, larguraConteudo } = fab;
 
   const cabecalho: CabecalhoOpts = {
-    titulo: plan.title,
+    titulo: ctx.homologationNotice ? "DOCUMENTO DE TESTE" : plan.title,
     emissor: "instituto_padua",
   };
 
@@ -76,6 +77,28 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
       y = nova.y;
     }
   };
+
+  if (ctx.homologationNotice) {
+    const notice = "HOMOLOGAÇÃO — DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA";
+    const lines = wrapText(notice, fontBold, 11, larguraConteudo - 16);
+    const height = lines.length * 14 + 10;
+    ensureSpace(height + 8);
+    page.drawRectangle({
+      x: margem,
+      y: y - height,
+      width: larguraConteudo,
+      height,
+      color: rgb(1, 0.93, 0.93),
+      borderColor: ALERTA,
+      borderWidth: 1,
+    });
+    let noticeY = y - 15;
+    for (const line of lines) {
+      page.drawText(line, { x: margem + 8, y: noticeY, size: 11, font: fontBold, color: ALERTA });
+      noticeY -= 14;
+    }
+    y -= height + 10;
+  }
 
   const drawLine = (text: string, size: number, useFont: PDFFont, color = COR.tinta, indent = 0) => {
     ensureSpace(size + 4);
@@ -131,20 +154,22 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
   }
   y -= 6;
 
-  // Boilerplate legal
-  ensureSpace(HEADER_BOILERPLATE.length * 11 + 12);
-  page.drawRectangle({
-    x: margem,
-    y: y - HEADER_BOILERPLATE.length * 11 - 4,
-    width: larguraConteudo,
-    height: HEADER_BOILERPLATE.length * 11 + 8,
-    color: rgb(0.95, 0.96, 0.97),
-  });
-  for (const l of HEADER_BOILERPLATE) {
-    page.drawText(l, { x: margem + 6, y: y - 2, size: 7.5, font, color: COR.cinza });
-    y -= 11;
+  // Clinical boilerplate must not appear on a synthetic homologation document.
+  if (!ctx.homologationNotice) {
+    ensureSpace(HEADER_BOILERPLATE.length * 11 + 12);
+    page.drawRectangle({
+      x: margem,
+      y: y - HEADER_BOILERPLATE.length * 11 - 4,
+      width: larguraConteudo,
+      height: HEADER_BOILERPLATE.length * 11 + 8,
+      color: rgb(0.95, 0.96, 0.97),
+    });
+    for (const l of HEADER_BOILERPLATE) {
+      page.drawText(l, { x: margem + 6, y: y - 2, size: 7.5, font, color: COR.cinza });
+      y -= 11;
+    }
+    y -= 10;
   }
-  y -= 10;
 
   // Itens
   let idx = 1;

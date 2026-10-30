@@ -135,6 +135,7 @@
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.
 - [JPEG enviado — decodificar e regravar sem EXIF](jpeg-upload-decode-reencode.md) — validar pixels com decoder JavaScript puro; regravar remove EXIF/GPS; decoder nativo pode derrubar o Node 24.
 - [Prescrição — vínculo seguro](prescricao-vinculo-seguro.md) — nunca inferir por nome; conflito CPF/e-mail exige seleção humana, não primeiro resultado.
+- [Homologação clínica sintética](homologacao-documento-sintetico.md) — banner de teste destacado e supressão de boilerplate clínico contraditório em PDFs de homologação.
 - [Entrada em operação clínica](entrada-operacao-clinica.md) — primeiro uso real em paralelo ao sistema anterior; receitas e exames são prioridades, sem pressupor migração.
 - [Destinatários implícitos em documentos clínicos](recibos-clinicos-copia-implicita.md) — ao habilitar vários médicos, cópia pessoal herdada vira vazamento entre clínicas; verificar chamador e padrão do motor.
 - [Rascunho e revalidação transitória](rascunho-revalidacao-transitoria.md) — falha temporária de identidade oculta/bloqueia o editor, sem apagar a única cópia em memória.

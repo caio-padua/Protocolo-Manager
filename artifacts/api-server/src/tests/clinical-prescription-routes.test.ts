@@ -14,6 +14,17 @@ vi.mock("@workspace/db", async () => ({
     } }),
     insert: mock.insert,
     update: () => ({ set: () => ({ where: async () => [] }) }),
+    transaction: async (callback: (tx: any) => Promise<any>) => callback({
+      select: () => ({ from: () => {
+        const rows = mock.results.shift() ?? [];
+        const chain: any = { then: (yes: any, no: any) => Promise.resolve(rows).then(yes, no) };
+        chain.where = () => chain;
+        chain.limit = async () => rows;
+        return chain;
+      } }),
+      insert: mock.insert,
+      update: () => ({ set: () => ({ where: async () => [] }) }),
+    }),
   },
 }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: any, _s: any, next: any) => next() }));

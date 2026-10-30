@@ -1,7 +1,7 @@
 # Especificacao: homologacao isolada de prescricoes e pedidos de exames
 
 Data: 30/10/2026
-Estado: UNIDADE A IMPLEMENTADA; HOMOLOGACAO SINTETICA DE RECEITAS EM EXECUCAO; HOMOLOGACAO GLOBAL BLOQUEADA
+Estado: API SINTETICA DE RECEITAS VERIFICADA; REVISAO INDEPENDENTE PENDENTE; JORNADA CLINICA GLOBAL BLOQUEADA
 Prioridade: P0 para uma primeira liberacao clinica controlada
 Ordem de origem: ordem executiva recebida em 30/10/2026
 Revisao de auditoria de referencia: 4eb4ca2d3103b3070b516c7d27aac155e90545bd
@@ -45,15 +45,17 @@ localiza certificado pelo medico autenticado, assina os bytes da receita e
 persiste o PDF assinado. A rota de recuperacao de PDF tambem exige colaborador
 e valida a prescricao autorizada.
 
-Os testes existentes comprovam partes dessas regras com identidade e certificado
-sinteticos. Ainda nao comprovam, nesta ordem, duas jornadas visuais completas
-com seis prescricoes, persistencia isolada e reabertura de todos os arquivos.
+Uma etapa sintetica posterior comprovou seis emissoes pela rota HTTP, assinatura,
+persistencia isolada e reabertura autenticada dos PDFs. Ela usa resolvedor de
+identidade sintetico e nao comprova o login visual, o catalogo real nem a jornada
+completa do Cockpit.
 
 ### 3.2 Pedidos de exames
 
-`POST /exam-requests/emit` exige colaborador e resolve o vinculo entre medico,
-cliente e clinica. Em seguida, gera e persiste os PDFs, mas a rota atualmente
-nao chama o assinador criptografico. Este e um bloqueador P0 confirmado.
+`POST /exam-requests/emit` exige colaborador, resolve medico, cliente e clinica,
+valida o certificado do medico autenticado antes de renderizar e assina os PDFs
+antes da persistencia. A implementacao de assinatura pertence a uma unidade
+anterior e nao foi reexecutada nesta etapa de receitas.
 
 A rota tambem aceita informacoes de exames enviadas pelo navegador. A relacao
 entre os identificadores escolhidos na tela e o catalogo autorizado precisa ser
@@ -105,10 +107,13 @@ receitas, sem declarar concluida a jornada visual do Cockpit.
 3. Emitir tres formularios sinteticos por cliente pela rota normal, usando um
    documento separado por formulacao e sem substancias ou orientacoes terapeuticas.
 4. Incluir em cada PDF a frase exata `HOMOLOGAÇÃO — DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA`.
+   O aviso deve ficar visualmente destacado e o documento sintetico nao pode
+   herdar orientacoes padrao que sugiram avaliacao ou tratamento clinico.
 5. Confirmar a assinatura criptografica, os registros de receita e itens, a
    recuperacao autenticada do historico e a igualdade dos bytes recuperados.
 6. Simular falhas antes e durante a geracao e confirmar ausencia de registros
-   parciais; confirmar que o mesmo pedido repetido nao duplica documentos.
+   parciais. A protecao contra repeticao/idempotencia segue sem comprovacao nesta
+   unidade e continua bloqueando uma liberacao clinica.
 7. Substituir por simulacoes todas as integracoes externas e confirmar zero
    envios, uploads ou chamadas a pacientes, farmacias e laboratorios.
 8. Registrar separadamente qualquer limitacao de catalogo, interface,
@@ -189,20 +194,18 @@ Demonstrar o caminho autorizado e recusar, antes de gerar ou enviar:
 
 Sem executar etapas em paralelo:
 
-1. ESPECIFICAR: congelar as jornadas, os contratos atuais e os bloqueadores.
-2. UNIDADE A: garantir assinatura criptografica dos pedidos de exames com
-   certificado sintetico por medico; provar recusa antes de persistir.
-3. REVISAR E TESTAR A: revisar o diff e testar a unidade A antes de avancar.
-4. UNIDADE B: corrigir vinculos e recuperacao dos documentos de exame, mantendo
-   compatibilidade com registros existentes e tokens historicos.
-5. REVISAR E TESTAR B antes de avancar.
-6. UNIDADE C: compor a matriz executavel de duas jornadas em Cockpit, envolvendo
-   seis receitas e seis operacoes de exames, com PDFs individuais conforme a
-   regra de agrupamento.
-7. REVISAR E TESTAR C antes de avancar.
-8. HOMOLOGAR: assinalar cada requisito como satisfeito, falhou, nao testado ou
+1. ESPECIFICACAO: congelar as jornadas, os contratos atuais e os bloqueadores.
+2. UNIDADE A: assinatura sintetica dos pedidos de exames foi implementada e
+   testada em etapa anterior; esta execucao nao a reabriu.
+3. UNIDADE B: seis PDFs sinteticos de receita foram gerados, assinados,
+   persistidos e recuperados por API nesta execucao.
+4. REVISAO B: obrigatoria antes de avancar; esta pendente porque a ferramenta de
+   revisor independente esta indisponivel neste modo.
+5. PROXIMA UNIDADE, apos revisao: completar os bloqueios de catalogo, historico,
+   repeticao segura e jornadas visuais, uma unidade por vez.
+6. HOMOLOGAR: assinalar cada requisito como satisfeito, falhou, nao testado ou
    bloqueado. Apenas todos satisfeitos permitem HOMOLOGADA.
-9. APRENDER: registrar evidencias e recomendacoes, sem declarar validado o
+7. APRENDER: registrar evidencias e recomendacoes, sem declarar validado o
    certificado pessoal do CEO ou o uso clinico real.
 
 ## 8. Requisitos para uma base de teste
@@ -239,7 +242,58 @@ Sem executar etapas em paralelo:
 Aprovacao de testes unitarios ou captura simulada, sozinha, nao homologa a
 jornada de ponta a ponta. Falta de verificacao completa implica BLOQUEADO.
 
-## 10. Relatorio final obrigatorio
+## 10. Evidencia executada em 30/10/2026
+
+### 10.1 Resultado da etapa de receitas
+
+1. O build do servidor de API terminou com sucesso.
+2. Passaram 24 testes em dois arquivos: 14 testes de assinatura e emissao e
+   10 testes de rotas de prescricao.
+3. A etapa integrada criou seis prescricoes por HTTP, usando os dois nomes-modelo,
+   tres formularios sinteticos para cada um e um PostgreSQL descartavel.
+4. Os seis PDFs foram assinados com certificado autoassinado do medico sintetico,
+   validados por `pdfsig` como integridade da assinatura valida, e recuperados
+   com os mesmos bytes gravados.
+5. A leitura do PDF confirmou o aviso exato, o titulo "DOCUMENTO DE TESTE" e a
+   ausencia do texto clinico padrao de formulacao personalizada e avaliacao.
+6. A consulta autenticada do historico retornou cada receita e seus itens.
+7. Uma falha injetada na geracao do PDF reverteu toda a transacao, sem deixar
+   prescricoes, itens ou receitas parciais.
+8. Uma identidade sintetica sem certificado e um cliente de outra clinica foram
+   recusados antes de persistir.
+9. Os metodos de e-mail, armazenamento e mensageria foram simulados; a etapa nao
+   enviou mensagens nem arquivos a pacientes, farmacias ou laboratorios.
+10. Os seis arquivos de evidência estao em
+    `generated-artifacts/paxter-prescription-homologation/`.
+
+### 10.2 Limites da evidencia
+
+1. Esta etapa nao selecionou formularios do catalogo clinico real; os itens foram
+   sinteticos e informados pelo teste.
+2. A identidade foi fornecida por um resolvedor sintetico; nao foi validado o
+   login visual do medico nem a jornada completa do Cockpit.
+3. O historico foi consultado por rota no mesmo banco temporario; nao foi feito
+   teste de reinicio ou restauracao de banco.
+4. Repeticao de clique/requisicao, resultado incerto e idempotencia nao foram
+   homologados.
+5. Assinatura autoassinada comprova integridade criptografica no teste, nao a
+   confianca, validade juridica ou revogacao de um certificado real.
+6. A rota de exames continua sem assinatura criptografica comprovada. As telas
+   de exames, atestados e encaminhamentos nao foram homologadas nesta etapa.
+7. Nenhum fluxo foi testado visualmente; o servidor principal nao foi reiniciado
+   para evitar que o boot tocasse a base de desenvolvimento.
+8. A verificacao global de TypeScript falhou com 190 diagnosticos em 56 arquivos;
+   nenhum aponta para os arquivos alterados nesta etapa. O build e os testes
+   direcionados passaram.
+9. A revisao independente obrigatoria nao ocorreu: a ferramenta de revisor
+   separado esta indisponivel neste modo. Isso impede declarar a unidade
+   HOMOLOGADA, embora os testes direcionados tenham passado.
+
+Portanto, esta evidencia confirma uma unidade tecnica sintetica da API de
+receitas. Ela nao autoriza atendimento clinico real nem muda o estado
+HOMOLOGACAO GLOBAL BLOQUEADA.
+
+## 11. Relatorio final obrigatorio
 
 Ao final, listar a revisao exata, diff, todos os comandos e seus resultados,
 IDs dos clientes-modelo somente da base descartavel, documentos por tipo,
@@ -251,7 +305,7 @@ Nao declarar que o prazo, quantidade de testes ou integracao no GitHub substitui
 um criterio de aceite. Nao afirmar homologacao pessoal, assinatura real, entrega
 real ou liberacao clinica a partir de dados exclusivamente sinteticos.
 
-## 11. Melhorias fora do bloqueio imediato
+## 12. Melhorias fora do bloqueio imediato
 
 | Prioridade | Recomendacao | Razao |
 |---|---|---|
@@ -264,11 +318,11 @@ real ou liberacao clinica a partir de dados exclusivamente sinteticos.
 | Comercial futuro | Revisao global de multiempresa, cadastro governado e cobranca | Exige inventario, politica de operacao e unidade separada |
 | Comercial futuro | Validacao de cadeia e revogacao de certificado pessoal em ambiente de atendimento | Requer integracao e validacao real separada; certificado sintetico nao basta |
 
-## 12. Estado verificado em 30/10/2026
+## 13. Estado verificado em 30/10/2026
 
-### Implementado nesta unidade
+### Unidade anterior — assinatura de pedidos de exames
 
-1. A emissao de exames agora exige que o medico autenticado seja um medico ativo,
+1. A emissao de exames exige que o medico autenticado seja um medico ativo,
    tenha CRM e unidade federativa cadastrados, esteja vinculado a clinica do
    cliente e apresente certificado pertencente ao proprio CPF.
 2. A verificacao do certificado ocorre antes de gerar o PDF, gravar o pedido ou
@@ -277,7 +331,7 @@ real ou liberacao clinica a partir de dados exclusivamente sinteticos.
    O tipo e os identificadores do medico, cliente, clinica e empresa ficam nos
    metadados assinados. O motivo da assinatura identifica solicitacao de exames.
 4. O fluxo conserva o motivo antigo da assinatura das receitas.
-5. O novo teste exercita seis operacoes sinteticas para dois clientes-modelo:
+5. A evidencia da unidade anterior exercitou seis operacoes sinteticas para dois clientes-modelo:
    quatro itens laboratoriais agrupados por cliente, tres e depois dois itens de
    imagem separados. Isso produz doze arquivos assinados, nao quatorze.
 6. Os PDFs de teste sao persistidos em PostgreSQL temporario, recuperados pela
@@ -291,16 +345,16 @@ real ou liberacao clinica a partir de dados exclusivamente sinteticos.
    qualquer persistencia. Os canais de envio permanecem simulados e com zero
    chamadas.
 
-### Evidencias executadas
+### Evidencias da unidade anterior
 
 | Verificacao | Resultado |
 |---|---|
-| `vitest run src/tests/prescription-signing.test.ts` | 13 testes aprovados |
+| `vitest run src/tests/prescription-signing.test.ts` | 13 testes aprovados na execucao anterior; 14 nesta etapa |
 | `vitest run src/tests/exam-workspace.test.ts` | 31 testes aprovados |
 | `vitest run src/tests/clinical-emitter.test.ts` | 23 testes aprovados |
 | `vitest run src/tests/clinical-prescription-routes.test.ts` | 10 testes aprovados |
 | `pnpm --filter @workspace/api-server run build` | Compilacao aprovada |
-| `pnpm --filter @workspace/api-server run typecheck` | Nao aprovado: 190 diagnosticos em 56 arquivos; nenhum aponta para os arquivos alterados nesta entrega |
+| `pnpm --filter @workspace/api-server run typecheck` | Nao aprovado: 190 diagnosticos em 56 arquivos; nenhum aponta para os arquivos alterados nesta etapa |
 
 O teste de exame usa rotulos propositalmente sinteticos e uma identidade
 autenticada simulada. Somente os PDFs sao gravados no PostgreSQL temporario; a
@@ -308,11 +362,19 @@ relacao de cliente, medico e clinica ainda nao foi exercitada como uma jornada
 real completa sobre esse banco. Os itens sinteticos nao comprovam o catalogo
 clinico existente.
 
+### Unidade atual — seis prescricoes sinteticas
+
+Os resultados completos da etapa atual estao na secao 10. Em resumo: seis PDFs
+assinados e recuperados por rota em PostgreSQL descartavel; 24 testes passaram;
+uma falha de geracao reverteu toda a transacao; e as integracoes externas foram
+simuladas. O aviso de teste foi destacado e o texto clinico padrao foi removido
+dos PDFs sinteticos.
+
 ### Bloqueios que impedem a homologacao global
 
-1. A jornada de prescricoes nao foi repetida aqui ponta a ponta com seis
-   documentos, registros isolados, recuperacao dos arquivos e validacao das
-   entregas sem destinatario.
+1. A etapa atual comprovou somente a API de receitas com identidade sintetica;
+   nao comprovou o login visual, o catalogo real, nem as jornadas completas de
+   prescricoes e exames no Cockpit.
 2. A lista real de itens do catalogo de exames nao foi carregada e verificada
    nesta homologacao.
 3. O identificador de exame enviado pelo navegador ainda nao e conferido contra
@@ -325,13 +387,14 @@ clinico existente.
 6. A assinatura sintetica prova integridade criptografica dos bytes e
    correspondencia do titular de teste. Nao prova a cadeia de confianca,
    revogacao, validade regulatoria ou adequacao clinica de um certificado real.
-7. A revisao por um segundo agente nao ocorreu. O revisor e o agente de
-   implementacao estavam indisponiveis neste modo.
+7. A revisao por um segundo agente nao ocorreu porque a ferramenta de revisor
+   independente esta indisponivel neste modo.
 8. Atestados e encaminhamentos continuam fora desta ordem e nao estao liberados
    por esta mudanca.
 9. O fluxo visual do aplicativo nao foi atualizado nem confirmado em uma
    visualizacao autenticada. A verificacao desta unidade foi feita pelas rotas
    HTTP e pelo PDF recuperado, sem acessar uma sessao clinica real.
 
-Por esses motivos, a conclusao honesta desta entrega e: UNIDADE A APROVADA EM
-TESTES SINTETICOS; JORNADA CLINICA COMPLETA BLOQUEADA.
+Por esses motivos, a conclusao honesta desta entrega e: API DE RECEITAS
+VERIFICADA EM TESTES SINTETICOS; REVISAO INDEPENDENTE PENDENTE; JORNADA CLINICA
+COMPLETA BLOQUEADA.
