@@ -2198,7 +2198,11 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
 // A cached scope must restart at offset zero, not revive its previous editor.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
-    for (const currentOutcome of ["sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual"] as const) {
+    for (const currentOutcome of [
+      "sucesso", "401-atual", "500-atual", "500-atual-recuperacao-automatica", "rede-atual",
+      "500-recuperacao-troca-B-sucesso", "500-recuperacao-troca-B-401-atrasado",
+      "500-recuperacao-troca-B-recusada",
+    ] as const) {
     test(`Pedidos: voltar à clínica em cache reinicia histórico — ${transition} — ${delivery} — ${currentOutcome}`, async ({ context, page }, testInfo) => {
       const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
       const clinicB = {
@@ -2211,7 +2215,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
       const offsets: Record<"initial" | "B" | "return", number[]> = { initial: [], B: [], return: [] };
       const methods: string[] = [];
       const posts: string[] = [];
-      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica";
+      const switchDuringRecovery = currentOutcome.startsWith("500-recuperacao-troca-B");
+      const automaticRecovery = currentOutcome === "500-atual-recuperacao-automatica" || switchDuringRecovery;
       const held: { identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route; recovery?: Route } = {};
       let navigations = 0;
       const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
@@ -2437,19 +2442,87 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
         expect(offsets.return).toEqual([0, 0]);
         await expect(knownPending).toContainText(markers.first);
         await cleared();
-        await reply(held.recovery!, historyBody(markers.fresh, 95, 20));
-        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
-        await expect(doc(95)).toBeVisible();
-        await expect(doc(95)).not.toBeChecked();
-        await expect(currentAlert).toHaveCount(0);
-        await expect(knownPending).toContainText(markers.fresh);
-        await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
-        for (const marker of [markers.first, markers.b, markers.page20, markers.page40]) {
-          await expect(panel).not.toContainText(marker);
+        if (switchDuringRecovery) {
+          // This is the interval's offset-zero recovery, NOT the old pagination
+          // response (already parsed above) or an inactive-tab resumption.
+          const lateError = "Recuperação automática de A sem autorização.";
+          const bError = "Histórico atual de B recusado: autorização necessária.";
+          const bDenied = currentOutcome === "500-recuperacao-troca-B-recusada";
+          const lateDenied = currentOutcome === "500-recuperacao-troca-B-401-atrasado";
+          held.historyB = undefined;
+          await revalidate("B", clinicB, [
+            markers.first, markers.page20, markers.page40, markers.fresh, currentError, lateError,
+          ]);
+          await expect.poll(() => !!held.historyB).toBe(true);
+          expect(offsets.B).toEqual([0, 0]);
+          // B is genuinely cached, but its old selection and consent must not be.
+          await expect(doc(92)).toBeVisible();
+          await expect(knownPending).toContainText(markers.b);
+          await cleared();
+          await reply(held.historyB!, bDenied
+            ? { error: bError } : historyBody("B-atual-revalidada", 96), bDenied ? 401 : 200);
+          await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
+          if (bDenied) {
+            await expect(currentAlert).toContainText(bError);
+            await expect(knownPending).toContainText(markers.b);
+            await expect(knownPending).toContainText("Últimas pendências conhecidas");
+            await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+            await cleared();
+          } else {
+            await expect(doc(96)).toBeVisible();
+            await expect(knownPending).toContainText("B-atual-revalidada");
+            await expect(currentAlert).toHaveCount(0);
+            await cleared();
+            // Only fresh, explicit consent in B enables its send button; late A
+            // must neither restore A's consent nor erase B's current consent.
+            await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
+            await prepare(96);
+          }
+          const snapshotB = () => panel.evaluate(element => ({
+            text: element.textContent,
+            inputs: [...element.querySelectorAll("input")].map(input => ({
+              label: input.getAttribute("aria-label"), checked: input.checked, disabled: input.disabled,
+            })),
+            buttons: [...element.querySelectorAll("button")].map(button => ({
+              text: button.textContent, disabled: button.disabled,
+            })),
+          }));
+          const beforeLateRecovery = await snapshotB();
+          await reply(held.recovery!, lateDenied
+            ? { error: lateError } : historyBody(markers.fresh, 95, 20), lateDenied ? 401 : 200);
+          // The fetch wrapper strips cancellation and counts parsed JSON:
+          // prove A actually arrived before asserting B's settled UI.
+          await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(7);
+          await page.evaluate(() => new Promise<void>(resolve =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+          expect(await snapshotB()).toEqual(beforeLateRecovery);
+          await expect(draft).toContainText(clinicB.name);
+          for (const id of [91, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+          if (bDenied) {
+            await expect(currentAlert).toContainText(bError);
+            await cleared();
+          } else {
+            await expect(doc(96)).toBeChecked();
+            await expect(consent).toBeChecked();
+            await expect(confirm).toBeEnabled();
+            await expect(currentAlert).toHaveCount(0);
+          }
+          expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 0], return: [0, 0] });
+        } else {
+          await reply(held.recovery!, historyBody(markers.fresh, 95, 20));
+          await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
+          await expect(doc(95)).toBeVisible();
+          await expect(doc(95)).not.toBeChecked();
+          await expect(currentAlert).toHaveCount(0);
+          await expect(knownPending).toContainText(markers.fresh);
+          await expect(knownPending).not.toContainText("Últimas pendências conhecidas");
+          for (const marker of [markers.first, markers.b, markers.page20, markers.page40]) {
+            await expect(panel).not.toContainText(marker);
+          }
+          for (const id of [91, 92, 93, 94]) await expect(doc(id)).toHaveCount(0);
+          await cleared();
+          expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0, 0] });
         }
-        for (const id of [91, 92, 93, 94]) await expect(doc(id)).toHaveCount(0);
-        await cleared();
-        expect(offsets).toEqual({ initial: [0, 20, 40], B: [0], return: [0, 0] });
       }
       expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
       expect([...new Set(methods)]).toEqual(["GET"]);
