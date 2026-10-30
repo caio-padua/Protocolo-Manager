@@ -27,6 +27,8 @@ export async function isolatedPostgres() {
   await pool.query(migration);
   const dialect = new PgDialect();
   return {
+    // Only this disposable local cluster is passed to subprocess tests.
+    connection: { host: "127.0.0.1", port, user: "synthetic", database: "postgres" },
     execute: (query: SQL) => {
       const compiled = dialect.sqlToQuery(query);
       return pool.query(compiled.sql, compiled.params);
