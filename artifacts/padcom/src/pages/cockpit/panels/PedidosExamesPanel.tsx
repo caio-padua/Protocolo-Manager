@@ -388,6 +388,7 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
         )}
       </div>
       <ExamRequestHistoryPanel key={`${clientId}-${identity.data?.professional.id ?? "sem-sessao"}`}
+        historyScope={scope}
         clientId={clientId} professionalId={identity.data?.professional.id}
         email={identity.data?.client.email} phone={identity.data?.client.phone}
         enabled={!!identity.data && !identity.isError && !identity.isFetching}

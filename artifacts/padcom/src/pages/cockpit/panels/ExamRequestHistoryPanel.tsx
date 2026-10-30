@@ -27,8 +27,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-export default function ExamRequestHistoryPanel({ clientId, professionalId, enabled, email, phone, recentIds = emptyIds }: {
+export default function ExamRequestHistoryPanel({ clientId, professionalId, historyScope, enabled, email, phone, recentIds = emptyIds }: {
   clientId: number; professionalId?: number; enabled: boolean; recentIds?: number[];
+  historyScope?: string;
   email?: string | null; phone?: string | null;
 }) {
   const [offset, setOffset] = useState(0);
@@ -48,7 +49,7 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, enab
   const contextRef = useRef({ clientId, professionalId });
   contextRef.current = { clientId, professionalId };
   const history = useQuery<ExamRequestHistory>({
-    queryKey: ["exam-request-history", professionalId, clientId, offset, recentIds],
+    queryKey: ["exam-request-history", historyScope, professionalId, clientId, offset, recentIds],
     enabled: enabled && pageVisible, retry: false, staleTime: 0,
     // Only re-read history. Elapsed time never changes a reservation or starts a send.
     refetchInterval: query => enabled && pageVisible && query.state.data?.pendingOperations.length

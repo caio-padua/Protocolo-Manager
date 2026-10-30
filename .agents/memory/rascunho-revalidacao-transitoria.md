@@ -15,3 +15,15 @@ significar permitir continuar a operar com uma identidade não revalidada.
 **How to apply:** mudanças em guardas de sessão e recuperação de rascunhos devem
 testar falha de gravação local seguida de revalidação indisponível e recuperação,
 além de verificar que recusa explícita continua impedindo acesso.
+
+Remontar um editor por contexto não substitui o isolamento dos dados em cache.
+Paciente, médico e sessão iguais podem continuar iguais enquanto clínica ou
+empresa mudam; os dois identificadores devem ser tratados independentemente.
+
+**Why:** a preservação temporária do editor e o cache compartilhado têm ciclos
+de vida diferentes. A resposta anterior pode chegar depois da confirmação da
+nova clínica, mesmo quando o editor anterior já foi removido.
+
+**How to apply:** ao testar revalidação de clínica, reter a resposta antiga e
+entregá-la depois da nova, sem depender apenas do cancelamento da requisição.
+Observar também o primeiro render do novo contexto, não só o resultado final.

@@ -905,6 +905,140 @@ test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige au
   await panel.screenshot({ path: testInfo.outputPath("nova-clinica-exige-consentimento.png") });
 });
 
+||||||| base
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition}`, async ({ context, page }, testInfo) => {
+    const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
+    const nextClinic = {
+      id: transition === "empresa" ? 303 : 304,
+      empresaId: transition === "clinica" ? 404 : 405,
+      name: "Novo contexto clínico sintético",
+    };
+    const oldKey = "pendencia-exclusiva-da-clinica-anterior";
+    const newKey = "pendencia-exclusiva-da-clinica-atual";
+    let switched = false;
+    let refreshing = false;
+    let navigations = 0;
+    const posts: string[] = [];
+    const held: { identity?: Route; old?: Route; current?: Route } = {};
+    const reply = (route: Route, body: unknown) => route.fulfill({
+      contentType: "application/json", body: JSON.stringify(body),
+    });
+    const identityBody = (clinic: typeof originalClinic) => ({
+      professional, client, clinic, canPrescribe: true, issue: null,
+    });
+    const historyBody = (operationKey: string, id: number) => ({
+      documents: [{ ...document, id, fileName: `${operationKey}.pdf` }],
+      dispatches: [], nextOffset: null,
+      pendingOperations: [{
+        operationKey, state: "needs_review", createdAt: document.createdAt,
+        documentIds: [id], channels: ["EMAIL"], results: [],
+      }],
+    });
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+      const originalFetch = window.fetch.bind(window);
+      (window as any).__parsedHistory = 0;
+      window.fetch = async (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (!/\/exam-requests\/42\/history/.test(url)) return originalFetch(input, init);
+        // Deliver the old body even if React Query cancels its original query.
+        const response = await originalFetch(input, { ...init, signal: undefined });
+        const originalJson = response.json.bind(response);
+        response.json = async () => {
+          const data = await originalJson();
+          (window as any).__parsedHistory++;
+          return data;
+        };
+        return response;
+      };
+    });
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (request.method() === "POST") {
+        posts.push(path);
+        return reply(route, { error: "Nenhum POST autorizado neste cenário." });
+      }
+      if (path === "/api/collaborator/me") return reply(route, { professional });
+      if (path === "/api/clients") return reply(route, [client]);
+      if (path === "/api/clients/42") return reply(route, client);
+      if (path === "/api/clinical-context/42") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        if (switched) { held.identity = route; return; }
+        return reply(route, identityBody(originalClinic));
+      }
+      if (path === "/api/exam-requests/42/history") {
+        expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+        if (switched) { held.current = route; return; }
+        if (refreshing) { held.old = route; return; }
+        return reply(route, historyBody(oldKey, 91));
+      }
+      return reply(route, []);
+    });
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    await expect(panel.getByRole("alert")).toContainText(oldKey);
+    await expect(panel.getByText(`${oldKey}.pdf`, { exact: true })).toBeVisible();
+    refreshing = true;
+    await panel.getByRole("button", { name: "Atualizar histórico" }).click();
+    await expect.poll(() => !!held.old).toBe(true);
+    switched = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+    await expect.poll(() => !!held.identity).toBe(true);
+    await expect(panel).toBeHidden();
+    // Observe BEFORE identity B is released: cached A must not flash on the
+    // first render of B, nor when either history response later settles.
+    await page.evaluate(key => {
+      (window as any).__clinicHistoryLeaks = [];
+      new MutationObserver(records => {
+        const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+        const leaked = (node: Node) => {
+          const element = node instanceof Element ? node : node.parentElement;
+          return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
+            && !element.closest("[hidden]") && !!node.textContent?.includes(key);
+        };
+        if ((region && !region.closest("[hidden]") && region.textContent?.includes(key))
+          || records.some(record => [...record.addedNodes].some(leaked))) {
+          (window as any).__clinicHistoryLeaks.push(key);
+        }
+      }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+    }, oldKey);
+    await reply(held.identity!, identityBody(nextClinic));
+    const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+    await expect(draft).toContainText(nextClinic.name);
+    await expect(draft).toContainText(client.name);
+    await expect(draft).toContainText(professional.name);
+    await expect.poll(() => !!held.current).toBe(true);
+    await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+    await expect(panel).not.toContainText(oldKey);
+    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+    await reply(held.current!, historyBody(newKey, 92));
+    await expect(panel.getByRole("alert")).toContainText(newKey);
+    await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(2);
+    await reply(held.old!, historyBody(oldKey, 91));
+    await expect.poll(() => page.evaluate(() => (window as any).__parsedHistory)).toBe(3);
+    await page.evaluate(() => new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(panel).not.toContainText(oldKey);
+    await expect(panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" })).toHaveCount(0);
+    await expect(panel.getByRole("alert")).toContainText(newKey);
+    await expect(panel.getByText(`${newKey}.pdf`, { exact: true })).toBeVisible();
+    await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
+    expect(await page.evaluate(() => (window as any).__clinicHistoryLeaks)).toEqual([]);
+    await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+    expect(navigations).toBe(1);
+    expect(posts).toEqual([]);
+    await panel.screenshot({ path: testInfo.outputPath("historico-clinica-isolado.png") });
+  });
+}
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
