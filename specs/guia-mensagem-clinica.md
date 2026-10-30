@@ -33,3 +33,16 @@ O responsável autorizou corrigir o vínculo de autorização neste fluxo, após
 8. Migração somente aditiva para garantir a coluna de vínculo em instalações antigas; nunca inferir nem sobrescrever vínculos.
 9. O seletor deve carregar clientes ativos da mesma empresa autenticada por rota local ao guia, pois a lista geral ainda usa o contexto global legado.
 10. Enquanto configuração ou lista de clientes carregam ou falham, bloquear envio e oferecer nova tentativa, sem marca padrão silenciosa.
+
+## Conferência após integração — 29/10/2026
+
+Verificação executada na base principal, sem novos envios reais ou alterações em cobranças:
+
+- `pnpm --filter @workspace/api-server exec vitest run src/tests/onboarding-clinic-auth.test.ts src/tests/onboarding-message-branding.test.ts --reporter=dot`: 23 testes aprovados.
+- `pnpm exec playwright test e2e/guia-clinica-envio.spec.ts --workers=1 --reporter=line`: seis testes aprovados, distribuídos entre computador e celular.
+- Consulta sem autenticação a `/api/onboarding/minha-config` no servidor em execução: resposta 401.
+- Captura da tela real sem autenticação: aviso de impossibilidade de confirmar a clínica e seleção de cliente bloqueada.
+
+Os testes do servidor usam canais de mensagens simulados; os de autorização usam tokens assinados e consultas PostgreSQL em tabelas temporárias, com reversão ao final.
+Os testes de navegador interceptam as chamadas para simular a sessão, as configurações e os canais; não comprovam entrega externa nem acesso de um colaborador real na instalação.
+Esta conferência confirma os cenários testados do Guia Digital, não uma liberação clínica de todo o sistema nem uma publicação em produção.
