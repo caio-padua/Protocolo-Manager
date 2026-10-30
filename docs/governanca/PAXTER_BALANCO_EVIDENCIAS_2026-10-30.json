@@ -1,0 +1,1518 @@
+{
+  "schemaVersion": 1,
+  "dateBrazil": "30/10/2026",
+  "scope": "Entregas clinicas recentes, governanca e sincronizacao; nao auditoria integral.",
+  "auditedCodeRevision": "015c1a08e32f857e4510a0e6b50ef8ce2f6da4e4",
+  "revisionAtEvidenceCreation": "015c1a08e32f857e4510a0e6b50ef8ce2f6da4e4",
+  "evidenceNature": "Resumo filtrado de execucoes locais; nao prova assinada por terceiro. Reproduzir independentemente.",
+  "sources": [
+    {
+      "path": "artifacts/api-server/src/tests/clinical-delivery-routes.test.ts",
+      "sha256": "f3725a035b35b955f0268748bcddc6585ae905731b6bf4997b6bc0b8461ec10e"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/clinical-emitter.test.ts",
+      "sha256": "2eb364562c03e6f010da1e16441c695d2a29bf92977e30687ee04b0830363f41"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/clinical-legacy-routes.test.ts",
+      "sha256": "a96347f5c24837a50bc06ab4034bc0e94769f014cd670c72f9e1bc63e1721142"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/clinical-prescription-routes.test.ts",
+      "sha256": "12cda1e6fc88f3267068b3632fa2cef8b446368d10472f8b7e366b216177aadf"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/exam-workspace.test.ts",
+      "sha256": "1166a86849fc1514cf5b80ee476723efcdfe7a4c1ec5db82932b7481262716bd"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/onboarding-envio-autorizacao.test.ts",
+      "sha256": "eecc491182802fdc8a68d36938d125daea167d5409bce64e50da238be32bcc34"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/prescription-client.test.ts",
+      "sha256": "2851a2a091d9922217dc7feccdeff355bb4f3a45d7556047c184b5a23bb5c528"
+    },
+    {
+      "path": "artifacts/api-server/src/tests/prescription-signing.test.ts",
+      "sha256": "833d3f9336af704cb9562d9168efdfb9f5e1872e88247512c9e0a2ba5b1770aa"
+    },
+    {
+      "path": "e2e/exam-request-idempotency.spec.ts",
+      "sha256": "fe2f71eedd0a40e21aba561bc3319db1bf56d520a687a9030fe890a385ffe8c4"
+    },
+    {
+      "path": ".agents/skills/paxter-loop/CODIGO-PAXTER.md",
+      "sha256": "3ef2fd60cc3d6001741ecb153968f274ce34a3a69909d08090392653a2b4c7ee"
+    },
+    {
+      "path": ".agents/skills/paxter-loop/SKILL.md",
+      "sha256": "f69b9c117a7a3dcf2f05198278d20c3f8660fee50e947a899e44311400654a1e"
+    },
+    {
+      "path": "scripts/paxter-governance.mjs",
+      "sha256": "52653121b3dc6c0862dd50616a215a1cd541556182f6f6050016b7bd7df8f7b4"
+    },
+    {
+      "path": "scripts/tests/paxter-governance.test.mjs",
+      "sha256": "17b56ad55bfb323a711a4573273119bebccb3ee53005ade6e1b28c942f0699b7"
+    },
+    {
+      "path": ".github/workflows/paxter-governance.yml",
+      "sha256": "5fdc1165f1d784ec3e77ff3d2004b56e50a0125c81ca0c13c1812bb896e8b754"
+    },
+    {
+      "path": "artifacts/api-server/src/lib/clinical-emitter.ts",
+      "sha256": "d75843fd2c174c0deb6177b99c6934f6a9de2cb09039c5a966190b585fb2bbf2"
+    },
+    {
+      "path": "artifacts/api-server/src/lib/prescription-signing.ts",
+      "sha256": "1fa6d8001d97729c9cbe0903969a20734c1dbd5bb0a5a6e7b705b0b6cdc7c280"
+    },
+    {
+      "path": "artifacts/api-server/src/lib/exam-dispatch-operation.ts",
+      "sha256": "edd8a4766d41b10ec0137552de620342b5ce49f3bd6f1b8cec30f57cb5514410"
+    },
+    {
+      "path": "artifacts/api-server/src/routes/exam-requests.ts",
+      "sha256": "b6bdd323315b61cde64f2bb09dfc3104814f20feda5d937ec3425cca50b19063"
+    },
+    {
+      "path": "artifacts/api-server/src/routes/exam-request-dispatch.ts",
+      "sha256": "efd209870e085519696eaad5f624946b27acf5a6eba57fd50beeb7d0337b2143"
+    },
+    {
+      "path": "artifacts/api-server/src/routes/prescriptions.ts",
+      "sha256": "8acc8b397ea78c26deb9fafd2b84f11d005d15b5483a3db6152276105e4759d7"
+    },
+    {
+      "path": "artifacts/api-server/src/routes/prescription-delivery.ts",
+      "sha256": "c26ecd838943de8719bf4776965437d0c33813baed19f3c65d487ea78335302b"
+    },
+    {
+      "path": "artifacts/padcom/src/pages/cockpit/panels/PedidosExamesPanel.tsx",
+      "sha256": "bd1217cfb39155bd01163469190faade4ff84dc9b91ac8db205ee0d9fe9872c8"
+    },
+    {
+      "path": "artifacts/padcom/src/pages/cockpit/panels/ExamRequestHistoryPanel.tsx",
+      "sha256": "ebba9d1cf09101d3ae8e80f44c96418d1f55f592c8a3984aaf9b82599b5b385b"
+    },
+    {
+      "path": "artifacts/padcom/src/pages/cockpit-cliente/panels/DocumentosPanel.tsx",
+      "sha256": "c065da98cc357e7aca85d7966dab9d2e072822ff4bb8262e1d7bd39f2c396ce2"
+    }
+  ],
+  "governance": {
+    "command": "pnpm run check:paxter-governance && pnpm run test:paxter-governance",
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0,
+    "outputDigest": "554eeb378f29bcd77ba3eb04c19e2ae4cc87d2d74832dca044504c6a2dbc67e2"
+  },
+  "api": {
+    "command": "pnpm --filter @workspace/api-server exec vitest run src/tests/clinical-emitter.test.ts src/tests/clinical-prescription-routes.test.ts src/tests/clinical-legacy-routes.test.ts src/tests/prescription-client.test.ts src/tests/prescription-signing.test.ts src/tests/exam-workspace.test.ts src/tests/clinical-delivery-routes.test.ts src/tests/onboarding-envio-autorizacao.test.ts --maxWorkers=1 --no-file-parallelism --reporter=json --outputFile=/tmp/paxter-api-tests.json",
+    "passed": 152,
+    "failed": 0,
+    "skipped": 0,
+    "rawReportDigest": "adbd2b75f248762f52105cdfa25e86a646457ca7cfe63a6d9a4e7dd1b1bd1c2b",
+    "files": [
+      {
+        "path": "artifacts/api-server/src/tests/clinical-delivery-routes.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) delivery bloqueia anônimo antes de qualquer efeito",
+            "status": "passed",
+            "durationMs": 46.43141700000001
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) enviar-lembrete bloqueia anônimo antes de qualquer efeito",
+            "status": "passed",
+            "durationMs": 8.572652999999946
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) reenviar-email bloqueia anônimo antes de qualquer efeito",
+            "status": "passed",
+            "durationMs": 9.14376100000004
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) GET não expõe contatos sem autenticação",
+            "status": "passed",
+            "durationMs": 6.543505999999979
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) consulta exige vínculo e ignora empresa/profissional da query",
+            "status": "passed",
+            "durationMs": 13.082165000000032
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) bloqueia sem acesso sem envio",
+            "status": "passed",
+            "durationMs": 7.8744930000000295
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) bloqueia sem vínculo sem envio",
+            "status": "passed",
+            "durationMs": 6.463911999999937
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) bloqueia empresa divergente sem envio",
+            "status": "passed",
+            "durationMs": 7.4398920000001
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) bloqueia contato divergente sem envio",
+            "status": "passed",
+            "durationMs": 9.040101999999933
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rejeita ausência de confirmação/contato adulterado",
+            "status": "passed",
+            "durationMs": 9.909583999999995
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rejeita ausência de confirmação/contato adulterado",
+            "status": "passed",
+            "durationMs": 7.679061999999931
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rejeita ausência de confirmação/contato adulterado",
+            "status": "passed",
+            "durationMs": 6.827750000000151
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rejeita ausência de confirmação/contato adulterado",
+            "status": "passed",
+            "durationMs": 5.33233300000029
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rejeita ausência de confirmação/contato adulterado",
+            "status": "passed",
+            "durationMs": 7.3941970000000765
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) envia somente whatsapp e persiste aceitação (não entrega)",
+            "status": "passed",
+            "durationMs": 15.902366000000256
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) envia somente telegram e persiste aceitação (não entrega)",
+            "status": "passed",
+            "durationMs": 12.240174999999908
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) envia somente email e persiste aceitação (não entrega)",
+            "status": "passed",
+            "durationMs": 11.33484499999986
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) farmácia recebe apenas os PDFs associados a ela e a esta prescrição",
+            "status": "passed",
+            "durationMs": 8.313497000000098
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) outro médico não regenera documento com identidade de emissor errada",
+            "status": "passed",
+            "durationMs": 5.715898999999808
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) registra falha de WhatsApp: recusa",
+            "status": "passed",
+            "durationMs": 6.7463370000000396
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) registra falha de WhatsApp: link",
+            "status": "passed",
+            "durationMs": 6.485005999999885
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) registra falha de WhatsApp: exceção",
+            "status": "passed",
+            "durationMs": 7.023478999999952
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) não anuncia sucesso quando email recusa",
+            "status": "passed",
+            "durationMs": 6.974889000000076
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) não anuncia sucesso quando telegram recusa",
+            "status": "passed",
+            "durationMs": 5.411790999999994
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) Telegram sem token retorna simulação, nunca aceitação",
+            "status": "passed",
+            "durationMs": 6.589918000000125
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) não chama provedor se registro inicial falha",
+            "status": "passed",
+            "durationMs": 6.759544000000005
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) registro final falho preserva pending e retorna desconhecido",
+            "status": "passed",
+            "durationMs": 7.022690000000239
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) Cockpit inclui falhas do lembrete recorrente sem chamá-las de entrega",
+            "status": "passed",
+            "durationMs": 6.713064999999915
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) envio único inicialmente aceito passa a falha após retorno undelivered",
+            "status": "passed",
+            "durationMs": 11.000862000000325
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) envio único inicialmente aceito passa a falha após retorno failed",
+            "status": "passed",
+            "durationMs": 11.722309999999652
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) entrega posterior comprovada pelo provedor atualiza histórico",
+            "status": "passed",
+            "durationMs": 13.217703999999685
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) não reconcilia um retorno de destinatário diferente",
+            "status": "passed",
+            "durationMs": 11.438654999999926
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rota legada reenviar-email não envia por padrão",
+            "status": "passed",
+            "durationMs": 6.504339000000073
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rota legada enviar-lembrete não envia por padrão",
+            "status": "passed",
+            "durationMs": 8.005517000000054
+          },
+          {
+            "title": "entregas clínicas confirmadas (somente simulações) rota de teste arbitrário está desativada",
+            "status": "passed",
+            "durationMs": 5.773119999999835
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/clinical-emitter.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "cadastro e autorizacao clinica resolve o medico real do cadastro sem medico principal fixo",
+            "status": "passed",
+            "durationMs": 2.560465000000022
+          },
+          {
+            "title": "cadastro e autorizacao clinica aceita segundo medico com identidade propria",
+            "status": "passed",
+            "durationMs": 0.5807640000000447
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa profissional sem condicao active",
+            "status": "passed",
+            "durationMs": 0.7390689999999722
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa profissional sem condicao professionalType",
+            "status": "passed",
+            "durationMs": 0.5207419999999274
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa empresa",
+            "status": "passed",
+            "durationMs": 0.3344600000000355
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa local",
+            "status": "passed",
+            "durationMs": 0.24646800000004987
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa vinculo",
+            "status": "passed",
+            "durationMs": 0.3022550000000592
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa inativo",
+            "status": "passed",
+            "durationMs": 0.23050199999988763
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa clienteAusente",
+            "status": "passed",
+            "durationMs": 0.7745620000000599
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa empresaAusente",
+            "status": "passed",
+            "durationMs": 0.41012300000011237
+          },
+          {
+            "title": "cadastro e autorizacao clinica recusa profissionalAusente",
+            "status": "passed",
+            "durationMs": 1.055605999999898
+          },
+          {
+            "title": "cadastro e autorizacao clinica nao adivinha UF pela clinica",
+            "status": "passed",
+            "durationMs": 0.30589899999995396
+          },
+          {
+            "title": "cadastro e autorizacao clinica aceita conselho com UF explicita e registro em minusculas",
+            "status": "passed",
+            "durationMs": 0.162494999999808
+          },
+          {
+            "title": "cadastro e autorizacao clinica rejeita conselho diferente, numero ausente e UF divergente",
+            "status": "passed",
+            "durationMs": 0.43158999999991465
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados contexto anonimo nao consulta nem revela identidade",
+            "status": "passed",
+            "durationMs": 23.31874999999991
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados contexto usa o identificador autenticado e vinculo explicito",
+            "status": "passed",
+            "durationMs": 9.689820999999938
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados rejeita identificador 0",
+            "status": "passed",
+            "durationMs": 6.447009999999864
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados rejeita identificador -1",
+            "status": "passed",
+            "durationMs": 6.20289200000002
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados rejeita identificador 1.5",
+            "status": "passed",
+            "durationMs": 7.539945999999873
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados pedido anonimo nao gera arquivo nem envia nem grava",
+            "status": "passed",
+            "durationMs": 20.89845800000012
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados pedido com outro medico no corpo e rejeitado antes de efeitos",
+            "status": "passed",
+            "durationMs": 8.947257000000036
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados pedido sem vinculo e rejeitado antes de efeitos",
+            "status": "passed",
+            "durationMs": 7.432737999999972
+          },
+          {
+            "title": "rotas reais com banco e provedores isolados pedido autorizado usa medico e cliente reais, persiste seus ids e nao envia sem escolha",
+            "status": "passed",
+            "durationMs": 26.899957000000086
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/clinical-legacy-routes.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "emitir-prescricao rejeita anonimo e formulario sem cliente",
+            "status": "passed",
+            "durationMs": 51.061754000000064
+          },
+          {
+            "title": "emitir-cliente rejeita anonimo e formulario sem cliente",
+            "status": "passed",
+            "durationMs": 19.573633999999856
+          },
+          {
+            "title": "emitir-prescricao rejeita clinica de outra empresa",
+            "status": "passed",
+            "durationMs": 12.931804999999713
+          },
+          {
+            "title": "emitir-cliente rejeita clinica de outra empresa",
+            "status": "passed",
+            "durationMs": 9.051120999999966
+          },
+          {
+            "title": "emitir-prescricao passa o medico vinculado e nao copia email livre",
+            "status": "passed",
+            "durationMs": 11.32079799999974
+          },
+          {
+            "title": "emitir-cliente passa o medico vinculado e nao copia email livre",
+            "status": "passed",
+            "durationMs": 8.117545999999948
+          },
+          {
+            "title": "assinatura por imagem nao aceita anonimo",
+            "status": "passed",
+            "durationMs": 12.091161999999713
+          },
+          {
+            "title": "assinatura rejeita imagem e destinatário livres antes de qualquer efeito",
+            "status": "passed",
+            "durationMs": 10.51899000000003
+          },
+          {
+            "title": "rota reaberta usa médico, paciente e clínica autorizados sem destinatários",
+            "status": "passed",
+            "durationMs": 7.794133999999758
+          },
+          {
+            "title": "rota reaberta impede outra clínica antes de chamar o motor",
+            "status": "passed",
+            "durationMs": 7.240225999999893
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/clinical-prescription-routes.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "emissao anonima retorna 401 antes de gravar ou gerar",
+            "status": "passed",
+            "durationMs": 79.7633480000004
+          },
+          {
+            "title": "identidade explicita de outro medico retorna 403",
+            "status": "passed",
+            "durationMs": 10.42544399999997
+          },
+          {
+            "title": "ausencia de UF bloqueia antes de gravar, mesmo com UF falsificada no corpo",
+            "status": "passed",
+            "durationMs": 7.466143999999986
+          },
+          {
+            "title": "cliente de empresa diferente e rejeitado antes de gravar",
+            "status": "passed",
+            "durationMs": 7.23452000000043
+          },
+          {
+            "title": "contexto protegido nao revela dados sem login",
+            "status": "passed",
+            "durationMs": 8.854032000000188
+          },
+          {
+            "title": "contexto autenticado usa cadastro e nao identificadores da query",
+            "status": "passed",
+            "durationMs": 6.192425000000185
+          },
+          {
+            "title": "prescricao autorizada grava identidade canonica e passa ids corretos ao motor sem copia fixa",
+            "status": "passed",
+            "durationMs": 10.747499999999945
+          },
+          {
+            "title": "emissão preserva cartões SNCR 'low' sem destinatários externos",
+            "status": "passed",
+            "durationMs": 8.889740000000074
+          },
+          {
+            "title": "emissão preserva cartões SNCR 'exhausted' sem destinatários externos",
+            "status": "passed",
+            "durationMs": 8.040112000000136
+          },
+          {
+            "title": "emissão preserva cartões SNCR 'no_range' sem destinatários externos",
+            "status": "passed",
+            "durationMs": 9.302946000000247
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/exam-workspace.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "rejects anonymous history and dispatch before querying identity",
+            "status": "passed",
+            "durationMs": 41.702869000000646
+          },
+          {
+            "title": "rejects a missing or false confirmation before any send",
+            "status": "passed",
+            "durationMs": 15.862782000000152
+          },
+          {
+            "title": "rejects another clinic before retrieving documents",
+            "status": "passed",
+            "durationMs": 7.869511000000784
+          },
+          {
+            "title": "does not send when one requested document is unavailable",
+            "status": "passed",
+            "durationMs": 10.630080000000817
+          },
+          {
+            "title": "checks every selected destination before sending any channel",
+            "status": "passed",
+            "durationMs": 7.395566000001054
+          },
+          {
+            "title": "sends existing documents to confirmed channels and audits metadata without clinical content",
+            "status": "passed",
+            "durationMs": 19.162027000000307
+          },
+          {
+            "title": "refuses provider contact if the initial audit cannot be stored",
+            "status": "passed",
+            "durationMs": 18.292065000001458
+          },
+          {
+            "title": "reports simulation honestly, not as successful delivery",
+            "status": "passed",
+            "durationMs": 12.096516999999949
+          },
+          {
+            "title": "keeps independent channel results when a provider throws",
+            "status": "passed",
+            "durationMs": 13.91818400000011
+          },
+          {
+            "title": "lists persisted documents without returning PDF bytes and paginates",
+            "status": "passed",
+            "durationMs": 14.239745000000767
+          },
+          {
+            "title": "rejects invalid pagination instead of pretending history is empty",
+            "status": "passed",
+            "durationMs": 6.824518999999782
+          },
+          {
+            "title": "returns persisted dispatch history without revealing recipient addresses or raw audit detail",
+            "status": "passed",
+            "durationMs": 7.094315000000279
+          },
+          {
+            "title": "shows an unaudited reservation and partial results without selection, including on older document pages",
+            "status": "passed",
+            "durationMs": 35.78799699999945
+          },
+          {
+            "title": "does not expose pending reservations across patient, professional, company or clinic boundaries",
+            "status": "passed",
+            "durationMs": 16.19890900000064
+          },
+          {
+            "title": "recovers legacy reservations only from matching authorized audit metadata",
+            "status": "passed",
+            "durationMs": 18.827676999999312
+          },
+          {
+            "title": "preserves every link in a large Telegram batch rather than truncating the caption",
+            "status": "passed",
+            "durationMs": 11.264729000000443
+          },
+          {
+            "title": "generates one file per selected exam in one request without messaging",
+            "status": "passed",
+            "durationMs": 18.274310999999216
+          },
+          {
+            "title": "requires an operation key before reserving or contacting providers",
+            "status": "passed",
+            "durationMs": 8.76412100000016
+          },
+          {
+            "title": "replays the saved result and audit ids without contacting providers again",
+            "status": "passed",
+            "durationMs": 22.56568000000152
+          },
+          {
+            "title": "recognizes unordered sets and a second window using another key",
+            "status": "passed",
+            "durationMs": 19.12794500000018
+          },
+          {
+            "title": "rejects key reuse with different documents, channels or patient",
+            "status": "passed",
+            "durationMs": 39.920890000001236
+          },
+          {
+            "title": "returns the reserved operation while the first request is waiting on a provider",
+            "status": "passed",
+            "durationMs": 20.325979000001098
+          },
+          {
+            "title": "allows only one provider owner under concurrent PostgreSQL reservations with equal or different keys",
+            "status": "passed",
+            "durationMs": 74.3731829999997
+          },
+          {
+            "title": "never retries an unknown provider outcome",
+            "status": "passed",
+            "durationMs": 18.81865800000014
+          },
+          {
+            "title": "rejects concurrent reuse of one key for different contents in PostgreSQL",
+            "status": "passed",
+            "durationMs": 2.6348999999991065
+          },
+          {
+            "title": "treats swallowed transport failures as unknown rather than retryable",
+            "status": "passed",
+            "durationMs": 20.173736000000645
+          },
+          {
+            "title": "retains a blocking reservation if the audit fails before any provider call",
+            "status": "passed",
+            "durationMs": 17.394517000000633
+          },
+          {
+            "title": "requires review if provider acceptance cannot be written to channel audit",
+            "status": "passed",
+            "durationMs": 30.36004999999932
+          },
+          {
+            "title": "keeps the reservation blocking even when all final operation writes fail",
+            "status": "passed",
+            "durationMs": 18.25557099999969
+          },
+          {
+            "title": "checks authorization again before exposing an existing operation",
+            "status": "passed",
+            "durationMs": 17.83810799999992
+          },
+          {
+            "title": "does not share operation results across authorized professionals or clinics",
+            "status": "passed",
+            "durationMs": 30.987358000000313
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/onboarding-envio-autorizacao.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos envia pelos dois canais simulados ao cliente da clínica do colaborador",
+            "status": "passed",
+            "durationMs": 64.58733899999993
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos autoriza também outra clínica, sem fallback fixo para a clínica padrão",
+            "status": "passed",
+            "durationMs": 10.957145999999966
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega credencial ausente/inválida: undefined",
+            "status": "passed",
+            "durationMs": 10.129280000000108
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega credencial ausente/inválida: invalido",
+            "status": "passed",
+            "durationMs": 8.466300000000047
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega token assinado expirado",
+            "status": "passed",
+            "durationMs": 9.413594000000103
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega colaborador removido, inativo ou sem clínica: null",
+            "status": "passed",
+            "durationMs": 37.81691799999999
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega colaborador removido, inativo ou sem clínica: {\"empresa_id\":5,\"active\":false}",
+            "status": "passed",
+            "durationMs": 29.77798000000007
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega colaborador removido, inativo ou sem clínica: {\"empresa_id\":null,\"active\":true}",
+            "status": "passed",
+            "durationMs": 6.714582000000064
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega colaborador removido, inativo ou sem clínica: {\"empresa_id\":0,\"active\":true}",
+            "status": "passed",
+            "durationMs": 8.53056300000003
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega cliente de outra clínica apesar de corpo, query, cabeçalho e contexto legado",
+            "status": "passed",
+            "durationMs": 7.365334000000075
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega clínica divergente no corpo ou no link: {\"tenantSlug\":\"outra-clinica\"}",
+            "status": "passed",
+            "durationMs": 6.340332999999873
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos nega clínica divergente no corpo ou no link: {\"guiaUrl\":\"https://example.invalid/guia-digital?tenant=outra-clinica\"}",
+            "status": "passed",
+            "durationMs": 5.867858000000069
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos não permite que campos do navegador mudem a clínica autorizada",
+            "status": "passed",
+            "durationMs": 6.9648030000000745
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos cliente inexistente recebe a mesma negativa e não consome quota",
+            "status": "passed",
+            "durationMs": 6.659315000000106
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos vínculo alterado após login é relido, sem confiar no token antigo",
+            "status": "passed",
+            "durationMs": 6.621021000000155
+          },
+          {
+            "title": "Envio do guia — autenticação e pertencimento antes de efeitos falha ao consultar vínculo bloqueia antes de cliente, quota e provedores",
+            "status": "passed",
+            "durationMs": 7.0152069999999185
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/prescription-client.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "vínculo de prescrição valida ID e empresa no banco sem resgatar ID inválido por email",
+            "status": "passed",
+            "durationMs": 3.217354000000114
+          },
+          {
+            "title": "vínculo de prescrição rejeita ID inválido 0",
+            "status": "passed",
+            "durationMs": 0.592862999999852
+          },
+          {
+            "title": "vínculo de prescrição rejeita ID inválido -1",
+            "status": "passed",
+            "durationMs": 0.15490599999998267
+          },
+          {
+            "title": "vínculo de prescrição rejeita ID inválido 1.5",
+            "status": "passed",
+            "durationMs": 0.3625010000000657
+          },
+          {
+            "title": "vínculo de prescrição rejeita ID inválido NaN",
+            "status": "passed",
+            "durationMs": 0.12871900000004644
+          },
+          {
+            "title": "vínculo de prescrição mantém ID explícito válido",
+            "status": "passed",
+            "durationMs": 0.7128110000001016
+          },
+          {
+            "title": "vínculo de prescrição recusa CPF divergente do ID selecionado",
+            "status": "passed",
+            "durationMs": 0.3676599999998871
+          },
+          {
+            "title": "vínculo de prescrição normaliza CPF, e-mail e limita o resgate à empresa",
+            "status": "passed",
+            "durationMs": 0.7085540000000492
+          },
+          {
+            "title": "vínculo de prescrição aceita email único sem CPF",
+            "status": "passed",
+            "durationMs": 0.4390819999998712
+          },
+          {
+            "title": "vínculo de prescrição não resolve CPF/email que apontam a pacientes distintos",
+            "status": "passed",
+            "durationMs": 0.23514499999987493
+          },
+          {
+            "title": "vínculo de prescrição email não sobrepõe CPF divergente",
+            "status": "passed",
+            "durationMs": 0.23159399999985908
+          },
+          {
+            "title": "vínculo de prescrição dados vazios não consultam nem vinculam",
+            "status": "passed",
+            "durationMs": 0.46112799999991694
+          },
+          {
+            "title": "vínculo de prescrição recusa dados divergentes mesmo sem CPF cadastrado: {\"clientEmail\":\"other@test\"}",
+            "status": "passed",
+            "durationMs": 0.23756400000002031
+          },
+          {
+            "title": "vínculo de prescrição recusa dados divergentes mesmo sem CPF cadastrado: {\"clientPhone\":\"11999999999\"}",
+            "status": "passed",
+            "durationMs": 0.34218200000009347
+          },
+          {
+            "title": "vínculo de prescrição recusa dados divergentes mesmo sem CPF cadastrado: {\"clientName\":\"Outro paciente\"}",
+            "status": "passed",
+            "durationMs": 0.10335200000008626
+          },
+          {
+            "title": "vínculo de prescrição recusa dados divergentes mesmo sem CPF cadastrado: {\"clientCpf\":\"11122233344\"}",
+            "status": "passed",
+            "durationMs": 0.346025999999938
+          },
+          {
+            "title": "vínculo de prescrição contato ausente no cadastro não autoriza endereço fornecido",
+            "status": "passed",
+            "durationMs": 0.3119280000000799
+          },
+          {
+            "title": "vínculo de prescrição normaliza DDI, nome e email sem alterar identidade",
+            "status": "passed",
+            "durationMs": 0.24824000000012347
+          }
+        ]
+      },
+      {
+        "path": "artifacts/api-server/src/tests/prescription-signing.test.ts",
+        "status": "passed",
+        "cases": [
+          {
+            "title": "certificado por médico, sem acesso a certificados reais rota HTTP real gera assinatura válida para identidade autorizada sem enviar nem subir arquivos",
+            "status": "passed",
+            "durationMs": 1558.9515600000004
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais verifica CMS/ByteRange e vínculo assinado, e detecta adulteração",
+            "status": "passed",
+            "durationMs": 812.7311710000004
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais assina bytes do gerador regulatório sem devolver o PDF original não assinado",
+            "status": "passed",
+            "durationMs": 418.07822000000033
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais assina motor PNG e motor ANVISA com o mesmo titular validado",
+            "status": "passed",
+            "durationMs": 1453.2896279999995
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais rejeita senha, arquivo, CPF divergente/ausente, certificado vencido/futuro e chave divergente",
+            "status": "passed",
+            "durationMs": 170.06990700000006
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais prioriza o certificado específico e não usa global após falha no cofre",
+            "status": "passed",
+            "durationMs": 12.66724400000021
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais global só pode ser usado pelo titular e ausência falha explicitamente",
+            "status": "passed",
+            "durationMs": 18.464920999999777
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais nenhum gerador devolve PDF sem assinatura quando falta contexto",
+            "status": "passed",
+            "durationMs": 1.5893459999997503
+          },
+          {
+            "title": "certificado por médico, sem acesso a certificados reais bloqueia médico inativo/não médico, clínica divergente e ausência de vínculo",
+            "status": "passed",
+            "durationMs": 1.5973640000001978
+          }
+        ]
+      }
+    ]
+  },
+  "browser": {
+    "command": "PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/paxter-e2e-tests-final.json timeout 600s pnpm exec playwright test e2e/exam-request-idempotency.spec.ts --workers=1 --reporter=line,json",
+    "stats": {
+      "startTime": "2026-10-30T09:05:34.635Z",
+      "duration": 124152.031,
+      "expected": 50,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "globalErrors": 0,
+    "rawReportDigest": "12f34c153c89443d2857af225d9d66a48692440b9eab189a1246182f63a60af2",
+    "cases": [
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente — sucesso-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 4766
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente — erro-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2232
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar medico — sucesso-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2328
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar medico — erro-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2495
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente-circular — sucesso-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2501
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente-circular — erro-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2480
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente — sucesso-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1188
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente — erro-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 902
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar medico — sucesso-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 899
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar medico — erro-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 937
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente-circular — sucesso-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1042
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de envio ao trocar paciente-circular — erro-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1047
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar paciente — sucesso-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2191
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar paciente — erro-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2298
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar medico — sucesso-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2559
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar medico — erro-atrasado — cockpit",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2403
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar paciente — sucesso-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1294
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar paciente — erro-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1064
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar medico — sucesso-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1037
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar resposta de consulta ao trocar medico — erro-atrasado — mesma-instancia",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1107
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: recuperar operação sem novo envio — duas-janelas",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 4735
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: recuperar operação sem novo envio — resposta-perdida",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2256
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: recuperar operação sem novo envio — resultado-desconhecido",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2558
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: pendências visíveis após recarga sem selecionar arquivos ou canais",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 3522
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: não herdar autorização antes do envio ao trocar paciente",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2660
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: não herdar autorização antes do envio ao trocar medico",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2700
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: não restaurar seleção recém-gerada ao trocar paciente",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 3285
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: não restaurar seleção recém-gerada ao trocar medico",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 3140
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: revalidar clinica exige nova autorização sem envio",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2338
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: revalidar empresa exige nova autorização sem envio",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2345
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: revalidar clinica-e-empresa exige nova autorização sem envio",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2215
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige autorização",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2333
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica (paginacao) — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 2094
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica (atualizacao) — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1871
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica (atualizacao) — 401-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1834
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica (atualizacao) — 500-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1812
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar empresa (paginacao) — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1906
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar empresa (atualizacao) — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1727
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar empresa (atualizacao) — 401-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1681
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar empresa (atualizacao) — 500-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1735
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica-e-empresa (paginacao) — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1909
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica-e-empresa (atualizacao) — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1779
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica-e-empresa (atualizacao) — 401-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1853
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: histórico atrasado não reaparece ao revalidar clinica-e-empresa (atualizacao) — 500-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1745
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar pendências ao trocar paciente — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1658
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar pendências ao trocar paciente — 401-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1745
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar pendências ao trocar paciente — 401-atual",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1780
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar pendências ao trocar medico — sucesso-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1784
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar pendências ao trocar medico — 401-atrasado",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1953
+          }
+        ]
+      },
+      {
+        "title": "Pedidos: isolar pendências ao trocar medico — 401-atual",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "durationMs": 1670
+          }
+        ]
+      }
+    ],
+    "priorAttempt": "Interrompida pelo limite de 300 segundos da chamada; sem relatorio final, nao contabilizada como aprovada."
+  },
+  "remoteGovernance": {
+    "revision": "015c1a08e32f857e4510a0e6b50ef8ce2f6da4e4",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/caio-padua/Protocolo-Manager/actions/runs/41029677561",
+    "scope": "Somente governanca documental; nao executa estas suites clinicas."
+  },
+  "developmentReadOnlyChecks": {
+    "healthHttp": 200,
+    "anonymousClientReadHttp": 401,
+    "patientFieldsReturned": false,
+    "authenticatedUiVerified": false,
+    "screenshotPublished": false
+  },
+  "limitations": [
+    "Dados sinteticos e provedores simulados, salvo criptografia com certificado sintetico e PostgreSQL temporario proprio.",
+    "Nao valida certificado real, entrega real ou ambiente de producao.",
+    "Nao homologa todos os documentos nem todas as promessas historicas.",
+    "DocumentosPanel ainda contem identidade padrao; requer correcao e validacao.",
+    "Nao executa auditoria integral, build geral ou checagem global de tipos.",
+    "Mudancas posteriores ao marco precisam de analise de impacto e eventual revalidacao."
+  ]
+}
