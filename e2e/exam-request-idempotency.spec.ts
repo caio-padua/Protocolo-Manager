@@ -916,9 +916,17 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     ...(["erro-atual-401-atrasado", "erro-atual-403-atrasado", "erro-atual-500-atrasado", "erro-atual-rede-atrasada"] as const).map(
       outcome => ({ mode: "paginacao" as const, outcome }),
     ),
+    ...(["documents", "pendingOperations"] as const).flatMap(missingField =>
+      (["401-atrasado", "403-atrasado", "500-atrasado", "rede-atrasada"] as const).map(
+        failure => ({ mode: "paginacao" as const,
+          outcome: `formato-atual-sem-${missingField}-${failure}` as const, missingField }),
+      ),
+    ),
   ]) {
   test(`Pedidos: histórico atrasado não reaparece ao revalidar ${transition} (${mode}) — ${outcome}`, async ({ context, page }, testInfo) => {
-    const currentFailure = outcome.startsWith("erro-atual-");
+    const missingField = outcome.startsWith("formato-atual-sem-documents-") ? "documents"
+      : outcome.startsWith("formato-atual-sem-pendingOperations-") ? "pendingOperations" : null;
+    const currentFailure = outcome.startsWith("erro-atual-") || missingField !== null;
     const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
     const nextClinic = {
       id: transition === "empresa" ? 303 : 304,
@@ -931,7 +939,9 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     const oldPageKey = `${oldKey}-pagina-20`;
     const delayedPageKey = `${oldKey}-pagina-40`;
     const oldError = "Erro exclusivo da consulta de histórico da clínica anterior.";
-    const currentError = "Histórico indisponível exclusivamente no contexto clínico atual B.";
+    const currentError = missingField === "documents" ? "O histórico retornou um formato inesperado."
+      : missingField === "pendingOperations" ? "Não foi possível conferir as operações pendentes. Atualize o histórico."
+      : "Histórico indisponível exclusivamente no contexto clínico atual B.";
     const oldMarkers = [oldKey, oldPageKey, delayedPageKey, oldError,
       ...(currentFailure ? [] : ["Não foi possível atualizar o histórico"])];
     const offsets: { original: number[]; current: number[] } = { original: [], current: [] };
@@ -1046,9 +1056,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     await expect(panel).toBeHidden();
     // Observe BEFORE identity B is released: cached A must not flash on the
     // first render of B, nor when either history response later settles.
-    await page.evaluate(({ keys, watchConsent }) => {
+    await page.evaluate(({ keys, watchConsent, invalidMarker }) => {
       (window as any).__clinicHistoryLeaks = [];
       (window as any).__clinicConsentLeaks = [];
+      (window as any).__watchInvalidHistory = !!invalidMarker;
       new MutationObserver(records => {
         const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
         const inheritedConsent = (node: Node) => {
@@ -1065,7 +1076,8 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
             || (record.type === "attributes" && inheritedConsent(record.target))))) {
           (window as any).__clinicConsentLeaks.push("Autorização herdada de A");
         }
-        for (const key of keys) {
+        for (const key of [...keys,
+          ...((window as any).__watchInvalidHistory && invalidMarker ? [invalidMarker] : [])]) {
           const leaked = (node: Node) => {
             const element = node instanceof Element ? node : node.parentElement;
             return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
@@ -1078,7 +1090,7 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
           }
         }
       }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
-    }, { keys: oldMarkers, watchConsent: currentFailure });
+    }, { keys: oldMarkers, watchConsent: currentFailure, invalidMarker: missingField ? newKey : null });
     await reply(held.identity!, identityBody(nextClinic));
     const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
     await expect(draft).toContainText(nextClinic.name);
@@ -1095,11 +1107,18 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     // Successful B scenarios can paginate immediately. Failing B scenarios
     // retain the next GET so recovery is explicitly released by the test.
     currentHistoryReleased = !currentFailure;
-    await reply(held.current!, currentFailure ? { error: currentError } : historyBody(newKey, 92, 20),
-      currentFailure ? 503 : 200);
+    const currentBody: Partial<ReturnType<typeof historyBody>> = historyBody(newKey, 92, 20);
+    if (missingField) delete currentBody[missingField];
+    await reply(held.current!, missingField ? currentBody
+      : currentFailure ? { error: currentError } : currentBody,
+      currentFailure && !missingField ? 503 : 200);
     await expect(panel.getByRole("alert")).toContainText(currentFailure ? currentError : newKey);
     if (currentFailure) {
       await expect(panel.getByRole("alert")).toContainText("Isso não confirma falha no envio");
+      await expect(panel.getByRole("alert")).toHaveCount(1);
+      await expect(panel.getByRole("listitem")).toHaveCount(0);
+      await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+      await expect(panel).not.toContainText(newKey);
       await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
       await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeDisabled();
       await panel.screenshot({ path: testInfo.outputPath("erro-atual-clinica-B.png") });
@@ -1190,6 +1209,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     if (currentFailure) {
       await expect(panel.getByRole("button", { name: "Atualizar histórico" })).toBeEnabled();
       await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
+      await expect(panel.getByRole("alert")).toHaveCount(1);
+      await expect(panel.getByRole("listitem")).toHaveCount(0);
+      await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(0);
+      await expect(panel).not.toContainText(newKey);
       expect(await page.evaluate(() => (window as any).__clinicControlChanges)).toEqual([]);
       expect(await page.evaluate(() => (window as any).__clinicConsentLeaks)).toEqual([]);
     }
@@ -1226,6 +1249,10 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
     if (currentFailure) {
       // Recovery is a GET only, in B at offset zero. It must not restore A's
       // documents, channel selections, consent, or a send/consult operation.
+      await page.evaluate(() => {
+        (window as any).__stopClinicControlObserver();
+        (window as any).__watchInvalidHistory = false;
+      });
       await panel.getByRole("button", { name: "Atualizar histórico" }).click();
       await expect.poll(() => offsets.current).toEqual([0, 0]);
       await reply(held.current!, historyBody(newKey, 92));
