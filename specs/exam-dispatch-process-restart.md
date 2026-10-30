@@ -12,6 +12,8 @@ Provar que uma mensagem aceita pelo provedor simulado não é reenviada após qu
 6. Encerrar processos, servidor simulado, conexões e PostgreSQL mesmo quando uma asserção falhar. Limitar esperas para detectar travamentos.
 7. Cobrir também SIGKILL após persistir o resultado do primeiro canal (`EMAIL`) na auditoria e na operação, bloqueando o retorno da gravação antes de iniciar `TELEGRAM`.
 8. Nesse cenário, verificar no banco o resultado parcial com o ID da auditoria de e-mail, e as auditorias distintas: e-mail `provider_accepted` e Telegram `requested`. Após reiniciar no mesmo banco, ambas as repetições devem devolver exatamente o resultado parcial, exigir conferência e preservar integralmente reserva e auditorias, sem nenhum contato adicional com qualquer canal.
+9. Cobrir falha da primeira gravação da operação após o aceite e a atualização da auditoria de e-mail. Rejeitar essa gravação antes de executar SQL e bloquear a tentativa de recuperação `needs_review` também antes de executar SQL; sinalizar ambas as etapas e encerrar com SIGKILL.
+10. Nesse caso, a operação deve permanecer `in_progress` com resultados vazios, mas a auditoria de e-mail deve conservar `provider_accepted`, contagem de aceite e seu ID. Após reiniciar no mesmo PostgreSQL, repetir com a chave original e outra chave deve exigir conferência, preservar os mesmos registros e não contactar nenhum canal novamente. Não converter o aceite auditado em resultado persistido que não existe.
 
 ## Casos extremos
 - Processo encerra antes de sinalizar a etapa esperada: falhar com diagnóstico.

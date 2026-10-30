@@ -23,9 +23,29 @@ const document = {
   pdfData: Buffer.from("NOT A REAL PDF").toString("base64"),
 };
 let selections = 0;
+let operationWriteAttempts = 0;
 export const db = {
   async execute(query: SQL) {
     const compiled = dialect.sqlToQuery(query);
+    if (configuration.crashPoint === "before-recovery-write"
+      && /^\s*UPDATE exam_request_dispatch_operations\b/.test(compiled.sql)) {
+      const attempt = ++operationWriteAttempts;
+      const [state, serializedResults] = compiled.params;
+      const results = JSON.parse(serializedResults as string);
+      if (attempt === 1 && state === "in_progress") {
+        // Reject the per-channel operation write AFTER the real audit committed.
+        // The real route must catch this failure and attempt its recovery write.
+        process.send!({ type: "operation-write-failed", pid: process.pid, state, results, attempt });
+        throw new Error("Synthetic operation persistence failure");
+      }
+      if (attempt !== 2 || state !== "needs_review") {
+        throw new Error("Expected recovery write after failed per-channel persistence");
+      }
+      process.send!({ type: "before-recovery-write", pid: process.pid, state, results, attempt });
+      // Neither operation UPDATE reaches PostgreSQL. Hold before the recovery
+      // write so SIGKILL discards the only in-memory copy of the channel result.
+      await new Promise(() => {});
+    }
     const result = await pool.query(compiled.sql, compiled.params);
     if (configuration.crashPoint === "after-first-channel-persist"
       && /^\s*UPDATE exam_request_dispatch_operations\b/.test(compiled.sql)) {

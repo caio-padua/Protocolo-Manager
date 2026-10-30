@@ -33,7 +33,7 @@ async function kill(child: ChildProcess) {
   return exited;
 }
 
-it.each(["before-audit-write", "after-first-channel-persist", "before-completed-response"] as const)(
+it.each(["before-audit-write", "after-first-channel-persist", "before-completed-response", "before-recovery-write"] as const)(
   "recovers the durable reservation after SIGKILL at %s without contacting providers again", async crashPoint => {
   const children: ChildProcess[] = [];
   const directory = await mkdtemp(join(tmpdir(), "exam-dispatch-process-"));
@@ -94,20 +94,34 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
     });
     const first = await start(crashPoint);
     const atWrite = waitForMessage(first.child, crashPoint, first.errors);
+    const failedWrite = crashPoint === "before-recovery-write"
+      ? waitForMessage(first.child, "operation-write-failed", first.errors) : undefined;
+    // Install all listeners before sending; consume both together so a failed
+    // child cannot leave a rejected event waiter unhandled.
+    const atFailure = Promise.all([atWrite, failedWrite]);
     // Attach rejection handling immediately: SIGKILL must sever this HTTP call.
     const interruptedRequest = send(first.ready.port).then(
       response => ({ response, interrupted: false }), () => ({ interrupted: true }),
     );
-    const barrier = await atWrite;
+    const [barrier, failure] = await atFailure;
     const partial = crashPoint === "after-first-channel-persist";
     const completed = crashPoint === "before-completed-response";
+    const persistenceFailure = crashPoint === "before-recovery-write";
+    const auditAccepted = partial || persistenceFailure || completed;
     expect(barrier.pid).toBe(first.ready.pid);
     if (completed) {
       expect(barrier.body).toMatchObject({ state: "completed", replayed: false, needsReview: false });
     } else {
-      expect(barrier).toMatchObject(partial
+      expect(barrier).toMatchObject(persistenceFailure
+        ? { state: "needs_review", attempt: 2,
+          results: [{ channel: "EMAIL", success: true, auditId: expect.any(Number) }] }
+        : partial
         ? { state: "in_progress", results: [{ channel: "EMAIL", success: true, auditId: expect.any(Number) }] }
         : { state: "provider_accepted", acceptedMessages: 1 });
+    }
+    if (persistenceFailure) {
+      expect(failure).toEqual({ type: "operation-write-failed", pid: first.ready.pid,
+        state: "in_progress", results: barrier.results, attempt: 1 });
     }
     const expectedProviderCalls = completed ? [["EMAIL"], ["TELEGRAM"]] : [["EMAIL"]];
     expect(providerCalls).toEqual(expectedProviderCalls);
@@ -132,10 +146,10 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
       operation_key: payload.operationKey, state: completed ? "completed" : "in_progress", results: expectedResults,
     })]);
     expect(savedAudits.map((row: any) => row.detail.state))
-      .toEqual([partial || completed ? "provider_accepted" : "requested", completed ? "provider_accepted" : "requested"]);
+      .toEqual([auditAccepted ? "provider_accepted" : "requested", completed ? "provider_accepted" : "requested"]);
     if (completed) expect(barrier.body.results).toEqual(expectedResults);
-    if (partial) {
-      expect(barrier.results).toEqual(expectedResults);
+    if (partial || persistenceFailure) {
+      expect(barrier.results).toEqual([{ channel: "EMAIL", success: true, auditId: savedAudits[0].id }]);
       expect(savedAudits[0].detail).toMatchObject({ acceptedMessages: 1, plannedMessages: 1 });
     }
     for (const row of savedAudits) {
@@ -159,6 +173,7 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
           operationKey: payload.operationKey, replayed: true, state: "in_progress", needsReview: true,
           message: expect.stringContaining("Nenhum novo envio foi iniciado"),
         });
+        expect(recovered.message).toContain("confira antes de qualquer novo envio");
       }
       expect(recovered.results).toEqual(expectedResults);
       expect(providerCalls).toEqual(expectedProviderCalls);
