@@ -19,10 +19,13 @@ async function selectAndConfirm(page: Page) {
 // Cover both the real cockpit (which remounts the panel by scope) and a test-only
 // entry point that changes props on the SAME instance. The latter is essential:
 // a test relying solely on unmounting cannot detect a missing contextRef guard.
+for (const operation of ["envio", "consulta"] as const) {
 for (const mount of ["cockpit", "mesma-instancia"] as const) {
   for (const transition of ["paciente", "medico", "paciente-circular"] as const) {
+    // Preserve the existing round-trip send contract; consultation covers A→B.
+    if (operation === "consulta" && transition === "paciente-circular") continue;
     for (const outcome of ["sucesso-atrasado", "erro-atrasado"] as const) {
-      test(`Pedidos: isolar resposta de envio ao trocar ${transition} — ${outcome} — ${mount}`, async ({ context, page }, testInfo) => {
+      test(`Pedidos: isolar resposta de ${operation} ao trocar ${transition} — ${outcome} — ${mount}`, async ({ context, page }, testInfo) => {
         const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
         const nextProfessional = { ...professional, id: 203, name: "Outro Médico Sintético" };
         const oldMessage = "Resposta exclusiva do envio anterior";
@@ -113,6 +116,32 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
           body: { clientId: 42, documentIds: [91], channels: ["EMAIL"], confirmed: true },
         });
         expect(oldBody.operationKey).toMatch(/^[a-f0-9]{64}$/);
+        const expectedPosts = operation === "consulta" ? 2 : 1;
+        if (operation === "consulta") {
+          // First obtain a real UI receipt from the synthetic original send.
+          // Only the explicit recovery action may issue the second POST.
+          const originalSend = heldSend!;
+          heldSend = undefined;
+          await reply(originalSend, {
+            operationKey: oldBody.operationKey, replayed: false, state: "needs_review", needsReview: true,
+            message: oldMessage,
+            results: [{ channel: "EMAIL", success: false, auditId: 808, error: oldError }],
+          });
+          const receipt = panel.getByRole("status");
+          await expect(receipt).toContainText(oldBody.operationKey);
+          await expect(receipt).toContainText(oldMessage);
+          await expect(receipt.getByRole("alert")).toContainText("Confira o histórico e o provedor");
+          await expect(panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false })).not.toBeChecked();
+          expect(posts).toHaveLength(1);
+          await receipt.getByRole("button", { name: "Consultar esta operação", exact: true }).click();
+          await expect.poll(() => !!heldSend).toBe(true);
+          await expect(panel.getByRole("button", { name: "Enviando…", exact: true })).toBeDisabled();
+          await expect(panel.getByRole("status")).toHaveCount(0);
+          await expect(panel.getByRole("alert")).toHaveCount(0);
+          expect(posts).toHaveLength(2);
+          expect(posts[1]).toEqual(posts[0]);
+          expect(await page.evaluate(() => (window as any).__settledSends)).toBe(1);
+        }
         await panel.evaluate(element => { (window as any).__originalPanel = element; });
         switched = true;
         if (mount === "mesma-instancia") {
@@ -184,13 +213,13 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
         }, { key: oldBody.operationKey, message: oldMessage, error: oldError, allowReceipt: acceptsReturnedResponse });
         if (outcome === "sucesso-atrasado") {
           await reply(heldSend!, {
-            operationKey: oldBody.operationKey, replayed: false, state: "completed", needsReview: false,
+            operationKey: oldBody.operationKey, replayed: operation === "consulta", state: "completed", needsReview: false,
             message: oldMessage, results: [{ channel: "EMAIL", success: true, auditId: 808 }],
           });
         } else {
           await reply(heldSend!, { error: oldError }, 500);
         }
-        await expect.poll(() => page.evaluate(() => (window as any).__settledSends)).toBe(1);
+        await expect.poll(() => page.evaluate(() => (window as any).__settledSends)).toBe(expectedPosts);
         await page.evaluate(() => new Promise<void>(resolve =>
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         if (acceptsReturnedResponse && outcome === "sucesso-atrasado") {
@@ -223,7 +252,8 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
         await expect.poll(() => currentReads).toBeGreaterThan(readsBeforeRefresh);
         await expect(panel.getByText(circular ? document.fileName : "Pedido do contexto atual.pdf", { exact: true })).toBeVisible();
         expect(await page.evaluate(() => (window as any).__sendLeaks)).toEqual([]);
-        expect(posts).toHaveLength(1);
+        expect(posts).toHaveLength(expectedPosts);
+        if (operation === "consulta") expect(posts[1]).toEqual(posts[0]);
         if (circular) {
           // A receipt cannot stand in for a new selection and explicit consent.
           await panel.getByRole("checkbox", { name: "Selecionar documento 91 para envio" }).check();
@@ -239,10 +269,11 @@ for (const mount of ["cockpit", "mesma-instancia"] as const) {
           await expect(panel.getByRole("button", { name: "Confirmar envio", exact: true })).toBeEnabled();
           expect(posts).toHaveLength(1); // Preparing new consent does not send.
         }
-        await panel.screenshot({ path: testInfo.outputPath("envio-contexto-isolado.png") });
+        await panel.screenshot({ path: testInfo.outputPath(`${operation}-contexto-isolado.png`) });
       });
     }
   }
+}
 }
 
 for (const scenario of ["duas-janelas", "resposta-perdida", "resultado-desconhecido"] as const) {
