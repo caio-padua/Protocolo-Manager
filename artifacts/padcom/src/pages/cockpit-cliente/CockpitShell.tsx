@@ -27,6 +27,7 @@ const CREAM = "hsl(40 33% 96%)";
 const ABAS_VALIDAS: AbaId[] = [
   "prescricao","injetaveis","implantes","exames","evolucao",
   "anamnese","documentos","protocolos","dieta-treino","financeiro","cadastro",
+  "telegram",
 ];
 
 interface CockpitShellProps {

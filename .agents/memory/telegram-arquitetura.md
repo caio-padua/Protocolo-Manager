@@ -66,5 +66,5 @@ Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`
 - Emitir link para cadastro **já vinculado** é recusado (409) em todas as rotas de onboarding: link válido na caixa de e-mail de paciente ativo é chave sobrando.
 - `/start` de quem já está vinculado responde "já vinculado" e **não** entra no inbox clínico.
 
-**Why:** um merge trocou `msg.text` por `req.body?.texto` no webhook e deixou TODA a entrada do Telegram muda — sem um erro sequer no log. E a primeira versão do consumo deixava um link ainda válido roubar um chat já vinculado.
-**How to apply:** o texto do paciente vem SEMPRE de `message.text` (`req.body?.texto` só é legítimo na rota de teste `/telegram/test-inbox` — a mesma string existe nos dois lugares, conferir o contexto antes de editar). Mexeu em vínculo de chat? Só aceite como provado depois de simular dois chats e dois tokens disputando ao mesmo tempo.
+**Why:** credenciais de ativação não podem transferir um chat que já tem dono nem misturar históricos clínicos.
+**How to apply:** preservar as duas formas de ativação e verificar a exclusividade do vínculo mesmo sob solicitações simultâneas.

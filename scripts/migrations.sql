@@ -97,3 +97,9 @@ CREATE INDEX IF NOT EXISTS personal_exam_sets_owner
 -- Vínculo explícito do colaborador à empresa, já existente na base original.
 -- Não inferir nem sobrescrever vínculos ao instalar em outra clínica.
 ALTER TABLE professionals ADD COLUMN IF NOT EXISTS empresa_id INTEGER;
+
+-- Direção da mensagem no inbox Telegram do cockpit.
+-- Serve para distinguir mensagens enviadas pelo CEO ('saida') das recebidas
+-- do paciente ('entrada'), permitindo alertas Slack quando o paciente responde.
+ALTER TABLE telegram_inbox_messages
+  ADD COLUMN IF NOT EXISTS direcao TEXT NOT NULL DEFAULT 'entrada';

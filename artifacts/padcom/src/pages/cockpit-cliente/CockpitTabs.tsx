@@ -7,10 +7,11 @@
 import { useRef, useEffect, useState } from "react";
 import {
   FlaskConical, Syringe, Gem, ClipboardList, TrendingUp,
-  FileText, ClipboardCheck, Activity, DollarSign, User, Utensils,
+  FileText, ClipboardCheck, Activity, DollarSign, User, Utensils, MessageCircle,
 } from "lucide-react";
 
 export type AbaId =
+  | "telegram"
   | "prescricao" | "injetaveis" | "implantes" | "exames" | "evolucao"
   | "documentos" | "anamnese" | "protocolos" | "dieta-treino" | "financeiro" | "cadastro";
 
@@ -32,6 +33,7 @@ const ABAS: TabDef[] = [
   { id: "dieta-treino", rotulo: "Dieta e Treino",   Icon: Utensils       },
   { id: "financeiro",   rotulo: "Financeiro",       Icon: DollarSign     },
   { id: "cadastro",     rotulo: "Cadastro",         Icon: User           },
+  { id: "telegram",     rotulo: "Telegram",         Icon: MessageCircle  },
 ];
 
 const NAVY = "#16294a";

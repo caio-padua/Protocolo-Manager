@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "wouter";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -247,25 +247,56 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
   // ── Estado de resposta Telegram ───────────────────────────────────────────
   const [replyText, setReplyText] = useState("");
 
+  // ── Paginação do inbox Telegram ───────────────────────────────────────────
   // ── Telegram inbox — mensagens do cliente selecionado ─────────────────────
   const {
     data: inboxData,
     isLoading: inboxLoading,
+    isError: inboxError,
+    isFetchNextPageError: inboxOlderError,
+    hasNextPage: temMaisInbox,
+    isFetchingNextPage: carregandoMais,
+    fetchNextPage,
     refetch: refetchInbox,
-  } = useQuery<{ mensagens: { id: number; texto: string; recebidaEm: string; lida: boolean; direcao: string }[]; naoLidas: number }>({
+  } = useInfiniteQuery({
     queryKey: ["telegram-inbox", clienteId],
-    queryFn: async () => {
-      if (!clienteId) return { mensagens: [], naoLidas: 0 };
+    initialPageParam: 1,
+    retry: false,
+    queryFn: async ({ pageParam, signal }): Promise<{
+      mensagens: { id: number; texto: string; recebidaEm: string; lida: boolean; direcao: string }[];
+      naoLidas: number;
+      temMais: boolean;
+    }> => {
+      if (!clienteId) return { mensagens: [], naoLidas: 0, temMais: false };
       const token = getCollabToken();
-      const res = await fetch(`${apiBase}/cockpit/${clienteId}/telegram-inbox`, {
+      const res = await fetch(`${apiBase}/cockpit/${clienteId}/telegram-inbox?pagina=${pageParam}`, {
+        signal,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) return { mensagens: [], naoLidas: 0 };
+      if (!res.ok) throw new Error("Não foi possível carregar as mensagens.");
       return res.json();
     },
-    enabled: !!clienteId,
-    refetchInterval: aba === "telegram" ? 15_000 : false, // polling só quando a aba está aberta
+    getNextPageParam: (lastPage, _pages, lastPageParam) =>
+      lastPage.temMais ? lastPageParam + 1 : undefined,
+    enabled: !!clienteId && aba === "telegram",
+    refetchInterval: aba === "telegram" ? 15_000 : false,
+    // Voltar ao cliente começa novamente com as vinte mensagens recentes.
+    gcTime: 0,
   });
+
+  // A consulta mantém cada página isolada por cliente e só avança após sucesso.
+  // O deslocamento pode sobrepor mensagens se uma nova chegar entre consultas.
+  const mensagensInbox = useMemo(() => {
+    const unique = new Map<number, NonNullable<typeof inboxData>["pages"][number]["mensagens"][number]>();
+    for (const page of inboxData?.pages ?? []) {
+      for (const message of page.mensagens) {
+        if (!unique.has(message.id)) unique.set(message.id, message);
+      }
+    }
+    return [...unique.values()].sort((a, b) =>
+      a.recebidaEm.localeCompare(b.recebidaEm) || a.id - b.id,
+    );
+  }, [inboxData]);
 
   // ── Enviar resposta ao paciente via Telegram ─────────────────────────────
   const enviarResposta = useMutation({
@@ -281,13 +312,13 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Falha ao enviar");
-      return body;
+      return { ...body, clienteId };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setReplyText("");
-      refetchInbox();
+      queryClient.invalidateQueries({ queryKey: ["telegram-inbox", result.clienteId] });
       // Reinvalida o cliente para que telegramLastTestOk (badge âmbar) reflita o resultado imediatamente.
-      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(clienteId ?? 0) });
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(result.clienteId ?? 0) });
       toast({ title: "Mensagem enviada", description: "Resposta entregue ao paciente via Telegram." });
     },
     onError: (err: Error) => {
@@ -1257,12 +1288,25 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                     </Button>
                   </div>
 
+                  {inboxError && (
+                    <div role="alert" className="concave-3d p-3 mb-2 text-[12px]">
+                      <p>{inboxOlderError
+                        ? "Não foi possível carregar as mensagens antigas. O histórico já carregado foi preservado."
+                        : "Não foi possível atualizar as mensagens."}</p>
+                      <Button className="btn-3d-soft mt-2" onClick={() => {
+                        if (inboxOlderError) void fetchNextPage();
+                        else void refetchInbox();
+                      }}>
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  )}
                   {inboxLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-12 w-full" />
                       <Skeleton className="h-12 w-full" />
                     </div>
-                  ) : !inboxData || inboxData.mensagens.length === 0 ? (
+                  ) : mensagensInbox.length === 0 ? (
                     <div className="concave-3d p-6 text-center">
                       <MessageCircle className="mx-auto mb-2 h-7 w-7 text-muted-foreground/40" />
                       <p className="text-[12px] font-semibold text-muted-foreground">
@@ -1271,7 +1315,23 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {inboxData.mensagens.map((msg) => {
+                      {/* Botão "Ver mais antigas" — aparece acima das mensagens */}
+                      {temMaisInbox && (
+                        <div className="flex justify-center pb-1">
+                          <Button
+                            className="btn-3d-soft h-7 text-[10px] font-black px-3"
+                            disabled={carregandoMais}
+                            aria-busy={carregandoMais}
+                            onClick={() => { void fetchNextPage(); }}
+                          >
+                            {carregandoMais
+                              ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" />
+                              : null}
+                            Ver mais antigas
+                          </Button>
+                        </div>
+                      )}
+                      {mensagensInbox.map((msg) => {
                         const saida = msg.direcao === "saida";
                         return (
                           <div

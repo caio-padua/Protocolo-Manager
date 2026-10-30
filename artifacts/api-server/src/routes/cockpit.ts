@@ -425,8 +425,8 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
 
   // Registra envio no inbox com direcao='saida'
   await db.execute(sql`
-    INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao)
-    VALUES (${empresaId}, ${clienteId}, ${chatId}, ${texto}, NOW(), 'saida')
+    INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao, lida_em)
+    VALUES (${empresaId}, ${clienteId}, ${chatId}, ${texto}, NOW(), 'saida', NOW())
   `);
 
   // Registra no log unificado de mensagens (via='telegram') para o cockpit

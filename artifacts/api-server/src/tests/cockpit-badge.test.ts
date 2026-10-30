@@ -97,6 +97,14 @@ vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (_req: unknown, _res: unknown, next: () => void) => next(),
   collaboratorGuard:   (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
+// A rota real confirma o vínculo da clínica no banco; neste teste isolado
+// somente o envio e o registro são exercitados.
+vi.mock("../middleware/messageClinic", () => ({
+  requireMessageClinic: (req: { messageEmpresaId?: number }, _res: unknown, next: () => void) => {
+    req.messageEmpresaId = 5;
+    next();
+  },
+}));
 
 // ── Imports após os mocks ─────────────────────────────────────────────────────
 

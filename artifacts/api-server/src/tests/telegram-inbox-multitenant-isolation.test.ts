@@ -44,6 +44,7 @@ function makeMsgFixture(overrides: Partial<MensagemInbox> = {}): MensagemInbox {
     texto: TEXTO,
     recebidaEm: new Date("2026-08-10T10:00:00Z"),
     lidaEm: null,
+    direcao: "entrada",
     ...overrides,
   };
 }

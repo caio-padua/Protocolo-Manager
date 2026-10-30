@@ -23,6 +23,8 @@ export const telegramInboxTable = pgTable(
       .references(() => clientsTable.id, { onDelete: "cascade" }),
     chatId: text("chat_id").notNull(),
     texto: text("texto").notNull(),
+    /** "entrada" = paciente→bot  |  "saida" = CEO→paciente */
+    direcao: text("direcao").notNull().default("entrada"),
     recebidaEm: timestamp("recebida_em", { withTimezone: true }).notNull().defaultNow(),
     lidaEm: timestamp("lida_em", { withTimezone: true }), // NULL = não lida
   },

@@ -33,6 +33,8 @@ export interface MensagemInbox {
   texto: string;
   recebidaEm: Date;
   lidaEm: Date | null;
+  /** "entrada" = paciente → bot; "saida" = CEO → paciente. Default: "entrada". */
+  direcao: string;
 }
 
 // ── Etapa 1 — Webhook ─────────────────────────────────────────────────────────
@@ -146,8 +148,11 @@ export async function obterBadge(
 export interface ListarInboxDeps {
   /** Verifica se o cliente pertence ao tenant. Null = não encontrado / cross-tenant. */
   findClienteNoTenant: (clienteId: number, empresaId: number) => Promise<{ id: number } | null>;
-  /** Retorna as últimas 100 mensagens do cliente + tenant, ordenadas desc. */
-  listMensagens: (clienteId: number, empresaId: number) => Promise<MensagemInbox[]>;
+  /**
+   * Retorna mensagens do cliente + tenant, ordenadas desc.
+   * limit e offset implementam a paginação (padrão: limit=20, offset=0).
+   */
+  listMensagens: (clienteId: number, empresaId: number, limit: number, offset: number) => Promise<MensagemInbox[]>;
   /** Marca como lidas quando marcarLidas=true. */
   marcarComoLidas?: (clienteId: number, empresaId: number) => Promise<void>;
 }
@@ -161,31 +166,61 @@ export type ListarInboxResult =
         texto: string;
         recebidaEm: string;
         lida: boolean;
+        direcao?: string;
       }>;
       naoLidas: number;
+      /** true quando ainda há mensagens mais antigas além da página atual. */
+      temMais: boolean;
     };
 
+/** Tamanho de página padrão do inbox Telegram. */
+export const INBOX_PAGE_SIZE = 20;
 /**
  * listarInbox
  *
  * Implementa a lógica de GET /cockpit/:clientId/telegram-inbox.
  * naoLidas é calculado ANTES do marcar (idêntico à rota original).
+ * pagina é 1-based; tamanhoPagina padrão = INBOX_PAGE_SIZE.
  */
 export async function listarInbox(
-  params: { clienteId: number; empresaId: number; marcarLidas?: boolean },
+  params: {
+    clienteId: number;
+    empresaId: number;
+    marcarLidas?: boolean;
+    /** Página solicitada, 1-based (padrão: 1). */
+    pagina?: number;
+    /** Quantidade por página (padrão: INBOX_PAGE_SIZE). */
+    tamanhoPagina?: number;
+  },
   deps: ListarInboxDeps,
 ): Promise<ListarInboxResult> {
-  const { clienteId, empresaId, marcarLidas = false } = params;
+  const {
+    clienteId,
+    empresaId,
+    marcarLidas = false,
+    pagina = 1,
+    tamanhoPagina = INBOX_PAGE_SIZE,
+  } = params;
 
   const cliente = await deps.findClienteNoTenant(clienteId, empresaId);
   if (!cliente) {
     return { kind: "nao_encontrado" };
   }
 
-  const mensagens = await deps.listMensagens(clienteId, empresaId);
+  const pageSize = [20, 50, 100].includes(tamanhoPagina) ? tamanhoPagina : INBOX_PAGE_SIZE;
+  const safePagina = Number.isSafeInteger(pagina) && pagina >= 1
+    && pagina <= Math.floor(Number.MAX_SAFE_INTEGER / pageSize) ? pagina : 1;
+  const offset = (safePagina - 1) * pageSize;
 
-  // naoLidas calculado ANTES do marcar (comportamento idêntico à rota original)
-  const naoLidas = mensagens.filter((m) => m.lidaEm == null).length;
+  // Busca tamanhoPagina + 1 para detectar se há mais páginas sem COUNT extra
+  const rows = await deps.listMensagens(clienteId, empresaId, pageSize + 1, offset);
+  const temMais = rows.length > pageSize;
+  const mensagens = temMais ? rows.slice(0, pageSize) : rows;
+
+  // naoLidas calculado ANTES do marcar (comportamento idêntico à rota original).
+  // Só conta mensagens de ENTRADA não-lidas — saídas do CEO já entram com
+  // lida_em=NOW() e nunca devem inflar o badge do cockpit.
+  const naoLidas = mensagens.filter((m) => m.lidaEm == null && (m.direcao ?? "entrada") === "entrada").length;
 
   if (marcarLidas && deps.marcarComoLidas) {
     await deps.marcarComoLidas(clienteId, empresaId);
@@ -198,8 +233,10 @@ export async function listarInbox(
       texto: m.texto,
       recebidaEm: m.recebidaEm.toISOString(),
       lida: m.lidaEm != null,
+      direcao: m.direcao ?? "entrada",
     })),
     naoLidas,
+    temMais,
   };
 }
 

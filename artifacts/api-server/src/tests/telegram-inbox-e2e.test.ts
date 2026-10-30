@@ -52,6 +52,7 @@ function makeMsgFixture(lidaEm: Date | null = null): MensagemInbox {
     texto: TEXTO,
     recebidaEm: new Date("2026-08-10T10:00:00Z"),
     lidaEm,
+    direcao: "entrada",
   };
 }
 
@@ -492,6 +493,7 @@ describe("Fluxo completo ponta a ponta (4 etapas encadeadas)", () => {
           texto: params.texto,
           recebidaEm: new Date(),
           lidaEm: null,
+          direcao: "entrada",
         });
         return { id };
       }),
@@ -517,11 +519,11 @@ describe("Fluxo completo ponta a ponta (4 etapas encadeadas)", () => {
     // ── Etapa 3: Inbox lista a mensagem ──────────────────────────────────────
     const listarDeps: ListarInboxDeps = {
       findClienteNoTenant: vi.fn().mockResolvedValue({ id: CLIENTE_ID }),
-      listMensagens: vi.fn().mockImplementation(async (clienteId, empresaId) =>
+      listMensagens: vi.fn().mockImplementation(async (clienteId, empresaId, limit, offset) =>
         inbox
           .filter((m) => m.clienteId === clienteId && m.empresaId === empresaId)
           .sort((a, b) => b.recebidaEm.getTime() - a.recebidaEm.getTime())
-          .slice(0, 100),
+          .slice(offset, offset + limit),
       ),
     };
 
@@ -562,5 +564,178 @@ describe("Fluxo completo ponta a ponta (4 etapas encadeadas)", () => {
     // Badge deve ser 0 após marcar
     const badgeDepois = await obterBadge({ empresaId: EMPRESA_ID }, badgeDeps);
     expect(badgeDepois.naoLidas).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paginação — listarInbox com pagina/temMais
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Gera N mensagens decrescentes (mais recente = id N, mais antiga = id 1). */
+function gerarMensagens(n: number): MensagemInbox[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: i + 1,
+    clienteId: CLIENTE_ID,
+    empresaId: EMPRESA_ID,
+    chatId: CHAT_ID,
+    texto: `Mensagem ${i + 1}`,
+    recebidaEm: new Date(2026, 0, i + 1), // Jan 1 … Jan N
+    lidaEm: null,
+    direcao: "entrada",
+  }));
+}
+
+function makeListarDepsComMensagens(todas: MensagemInbox[]): ListarInboxDeps {
+  // Simula a query real: DESC por recebidaEm, com limit e offset.
+  const ordenadas = [...todas].sort(
+    (a, b) => b.recebidaEm.getTime() - a.recebidaEm.getTime(),
+  );
+  return {
+    findClienteNoTenant: vi.fn().mockResolvedValue({ id: CLIENTE_ID }),
+    listMensagens: vi.fn().mockImplementation(
+      async (_cid, _eid, limit: number, offset: number) =>
+        ordenadas.slice(offset, offset + limit),
+    ),
+  };
+}
+
+describe("Paginação — listarInbox (pagina + temMais)", () => {
+  it("lote de cinquenta avança cinquenta registros sem consultar toda a tabela", async () => {
+    const deps = makeListarDepsComMensagens(gerarMensagens(76));
+    const first = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1, tamanhoPagina: 50 }, deps,
+    );
+    const second = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 2, tamanhoPagina: 50 }, deps,
+    );
+    expect(first.kind).toBe("ok");
+    expect(second.kind).toBe("ok");
+    if (first.kind !== "ok" || second.kind !== "ok") return;
+    expect(first.mensagens).toHaveLength(50);
+    expect(first.temMais).toBe(true);
+    expect(second.mensagens).toHaveLength(26);
+    expect(second.temMais).toBe(false);
+    expect(deps.listMensagens).toHaveBeenNthCalledWith(2, CLIENTE_ID, EMPRESA_ID, 51, 50);
+  });
+  beforeEach(() => vi.clearAllMocks());
+
+  it("página 1 com 21 mensagens: devolve 20 e temMais=true", async () => {
+    const deps = makeListarDepsComMensagens(gerarMensagens(21));
+
+    const result = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1 },
+      deps,
+    );
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    expect(result.mensagens).toHaveLength(20);
+    expect(result.temMais).toBe(true);
+  });
+
+  it("página 1 com exatamente 20 mensagens: devolve 20 e temMais=false", async () => {
+    const deps = makeListarDepsComMensagens(gerarMensagens(20));
+
+    const result = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1 },
+      deps,
+    );
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    expect(result.mensagens).toHaveLength(20);
+    expect(result.temMais).toBe(false);
+  });
+
+  it("página 2 de 25 mensagens: devolve 5 mais antigas e temMais=false", async () => {
+    // 25 mensagens. Página 1 = ids 25..6 (20 mais recentes). Página 2 = ids 5..1.
+    const deps = makeListarDepsComMensagens(gerarMensagens(25));
+
+    const result = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 2 },
+      deps,
+    );
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    expect(result.mensagens).toHaveLength(5);
+    expect(result.temMais).toBe(false);
+    // As 5 mais antigas (ids 1..5) devem estar presentes
+    const ids = result.mensagens.map((m) => m.id).sort((a, b) => a - b);
+    expect(ids).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("listMensagens recebe offset correto para página 2 (offset=20)", async () => {
+    const deps = makeListarDepsComMensagens(gerarMensagens(25));
+
+    await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 2 },
+      deps,
+    );
+
+    // limit deve ser tamanhoPagina+1=21, offset deve ser 20
+    expect(deps.listMensagens).toHaveBeenCalledWith(
+      CLIENTE_ID,
+      EMPRESA_ID,
+      21, // tamanhoPagina + 1
+      20, // offset = (pagina-1) * tamanhoPagina = 1 * 20
+    );
+  });
+
+  it("página 1 com 5 mensagens: devolve 5 e temMais=false", async () => {
+    const deps = makeListarDepsComMensagens(gerarMensagens(5));
+
+    const result = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1 },
+      deps,
+    );
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    expect(result.mensagens).toHaveLength(5);
+    expect(result.temMais).toBe(false);
+  });
+
+  it("ordem de exibição: mensagens da página 1 vêm em DESC (mais recente primeiro)", async () => {
+    // A lib devolve a ordem que a dep retorna (DESC). A UI é responsável por inverter.
+    const deps = makeListarDepsComMensagens(gerarMensagens(5));
+
+    const result = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1 },
+      deps,
+    );
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    // Mais recente (id 5, Jan 5) deve vir antes do mais antigo (id 1, Jan 1)
+    const ids = result.mensagens.map((m) => m.id);
+    expect(ids[0]).toBeGreaterThan(ids[ids.length - 1]);
+  });
+
+  // ── Regressão: mensagens de saída não inflam o badge ─────────────────────
+  it("naoLidas não conta mensagens de saída (direcao='saida')", async () => {
+    // 2 mensagens de entrada não-lidas + 1 de saída não-lida (CEO enviou)
+    const mensagens: MensagemInbox[] = [
+      { ...makeMsgFixture(null), id: 1, direcao: "entrada" },
+      { ...makeMsgFixture(null), id: 2, direcao: "saida" },  // saída do CEO — não conta
+      { ...makeMsgFixture(null), id: 3, direcao: "entrada" },
+    ];
+
+    const deps: ListarInboxDeps = {
+      findClienteNoTenant: vi.fn().mockResolvedValue({ id: CLIENTE_ID }),
+      listMensagens: vi.fn().mockResolvedValue(mensagens),
+    };
+
+    const result = await listarInbox(
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, pagina: 1 },
+      deps,
+    );
+
+    expect(result.kind).toBe("ok");
+    if (result.kind !== "ok") return;
+    // Só as 2 de entrada não-lidas devem contar; a de saída não
+    expect(result.naoLidas).toBe(2);
+    // Mas todas as 3 mensagens aparecem na listagem
+    expect(result.mensagens).toHaveLength(3);
   });
 });

@@ -52,6 +52,12 @@ vi.mock("../routes/collaborator", () => ({
   },
   collaboratorGuard: (_req: any, _res: any, next: any) => next(),
 }));
+vi.mock("../middleware/messageClinic", () => ({
+  requireMessageClinic: (req: any, _res: any, next: any) => {
+    req.messageEmpresaId = 5;
+    next();
+  },
+}));
 
 // drizzle-orm é puro (sem DB) — não precisa de mock
 // tenantContextMiddleware é puro (sem DB) — usamos o real
@@ -139,10 +145,42 @@ describe("GET /telegram-inbox/badge — HTTP layer", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("GET /cockpit/:clientId/telegram-inbox — HTTP layer", () => {
+  it.each(["20", "50", "100"])("permite quantidade %s com filtro recebido", async (quantidade) => {
+    vi.mocked(flow.listarInbox).mockResolvedValue({
+      kind: "ok", mensagens: [], naoLidas: 0, temMais: false,
+    });
+    const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox?quantidade=${quantidade}&direcao=entrada`);
+    expect(res.status).toBe(200);
+    expect(flow.listarInbox).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tamanhoPagina: Number(quantidade), empresaId: EMPRESA_ID }),
+      expect.anything(),
+    );
+  });
+  it.each(["quantidade=10000", "quantidade=0", "direcao=grave", "direcao=entrada&direcao=saida"])(
+    "rejeita filtro inválido %s", async (params) => {
+      const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox?${params}`);
+      expect(res.status).toBe(400);
+      expect(flow.listarInbox).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["NaN", "Infinity", "-1", "0", "1.5", "999999999999999999999"])(
+    "normaliza página inválida %s sem produzir OFFSET inseguro", async (pagina) => {
+      vi.mocked(flow.listarInbox).mockResolvedValue({
+        kind: "ok", mensagens: [], naoLidas: 0, temMais: false,
+      });
+      const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox?pagina=${pagina}`);
+      expect(res.status).toBe(200);
+      expect(flow.listarInbox).toHaveBeenLastCalledWith(
+        expect.objectContaining({ pagina: 1, clienteId: CLIENTE_ID, empresaId: EMPRESA_ID }),
+        expect.anything(),
+      );
+    },
+  );
   const LISTA_OK = {
     kind: "ok" as const,
     mensagens: [MSG_OK],
     naoLidas: 1,
+    temMais: false,
   };
 
   beforeEach(() => vi.clearAllMocks());
@@ -184,7 +222,7 @@ describe("GET /cockpit/:clientId/telegram-inbox — HTTP layer", () => {
     await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox`);
 
     expect(flow.listarInbox).toHaveBeenCalledWith(
-      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, marcarLidas: false },
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, marcarLidas: false, pagina: 1, tamanhoPagina: 20 },
       expect.any(Object),
     );
   });
@@ -195,7 +233,7 @@ describe("GET /cockpit/:clientId/telegram-inbox — HTTP layer", () => {
     await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox?marcar_lidas=1`);
 
     expect(flow.listarInbox).toHaveBeenCalledWith(
-      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, marcarLidas: true },
+      { clienteId: CLIENTE_ID, empresaId: EMPRESA_ID, marcarLidas: true, pagina: 1, tamanhoPagina: 20 },
       expect.any(Object),
     );
   });
@@ -276,6 +314,60 @@ describe("POST /cockpit/:clientId/telegram-inbox/marcar-lidas — HTTP layer", (
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Direção de mensagem — saida vs entrada
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("GET /cockpit/:clientId/telegram-inbox — campo direcao no DTO", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("mensagem de entrada (paciente→bot) tem direcao='entrada' no DTO", async () => {
+    vi.mocked(flow.listarInbox).mockResolvedValue({
+      kind: "ok",
+      mensagens: [{ ...MSG_OK, direcao: "entrada" }],
+      naoLidas: 1,
+      temMais: false,
+    });
+
+    const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.mensagens[0].direcao).toBe("entrada");
+  });
+
+  it("mensagem de saida (CEO→paciente) tem direcao='saida' no DTO e não se torna entrada", async () => {
+    vi.mocked(flow.listarInbox).mockResolvedValue({
+      kind: "ok",
+      mensagens: [{ ...MSG_OK, lida: true, direcao: "saida" }],
+      naoLidas: 0,
+      temMais: false,
+    });
+
+    const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.mensagens[0].direcao).toBe("saida");
+  });
+
+  it("mix de entrada e saida em paginas diferentes preserva direcao em cada item", async () => {
+    const msgEntrada = { ...MSG_OK, id: 1, direcao: "entrada" };
+    const msgSaida   = { ...MSG_OK, id: 2, lida: true, direcao: "saida" };
+
+    vi.mocked(flow.listarInbox).mockResolvedValue({
+      kind: "ok",
+      mensagens: [msgSaida, msgEntrada],
+      naoLidas: 1,
+      temMais: false,
+    });
+
+    const res = await request(buildApp()).get(`/cockpit/${CLIENTE_ID}/telegram-inbox`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.mensagens.find((m: any) => m.id === 2).direcao).toBe("saida");
+    expect(res.body.mensagens.find((m: any) => m.id === 1).direcao).toBe("entrada");
+  });
+});
+
 // Fluxo integrado HTTP: webhook → badge → lista → marcar-lidas → badge zero
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -294,6 +386,7 @@ describe("Fluxo HTTP completo ponta a ponta (4 etapas encadeadas)", () => {
       kind: "ok",
       mensagens: [MSG_OK],
       naoLidas: 1,
+      temMais: false,
     });
     const listar = await request(app).get(`/cockpit/${CLIENTE_ID}/telegram-inbox`);
     expect(listar.status).toBe(200);

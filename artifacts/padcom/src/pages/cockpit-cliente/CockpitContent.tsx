@@ -18,6 +18,7 @@ const ProtocolosPanel    = lazy(() => import("./panels/ProtocolosPanel"));
 const DietaTreinoPanel   = lazy(() => import("./panels/DietaTreinoPanel"));
 const FinanceiroPanel    = lazy(() => import("./panels/FinanceiroPanel"));
 const CadastroPanel      = lazy(() => import("./panels/CadastroPanel"));
+const TelegramPanel      = lazy(() => import("./panels/TelegramPanel"));
 
 function PanelSkeleton() {
   return (
@@ -48,6 +49,7 @@ export default function CockpitContent({ clientId, aba }: CockpitContentProps) {
       {aba === "dieta-treino" && <DietaTreinoPanel clientId={clientId} />}
       {aba === "financeiro"  && <FinanceiroPanel  clientId={clientId} />}
       {aba === "cadastro"    && <CadastroPanel    clientId={clientId} />}
+      {aba === "telegram"    && <TelegramPanel key={clientId} clientId={clientId} />}
     </Suspense>
   );
 }
