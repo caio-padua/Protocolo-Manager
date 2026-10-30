@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import type { RequestHandler } from "express";
+import { syntheticDispatchDocuments } from "./exam-dispatch-documents";
 export { clientsTable } from "../../../../../lib/db/src/schema/clients";
 export { collaboratorAuditTable } from "../../../../../lib/db/src/schema/collaborator-audit";
 export { examRequestPdfsTable } from "../../../../../lib/db/src/schema/exam-requests";
@@ -17,11 +18,7 @@ if (configuration.connection.host !== "127.0.0.1" || configuration.connection.us
 }
 export const pool = new Pool(configuration.connection);
 const dialect = new PgDialect();
-const document = {
-  id: 91, clientId: 101, tipo: "OUTROS", token: "a".repeat(48),
-  fileName: "Exame sintetico.pdf", examCount: 1,
-  pdfData: Buffer.from("NOT A REAL PDF").toString("base64"),
-};
+const documents = syntheticDispatchDocuments(configuration.documentCount ?? 1);
 let selections = 0;
 let operationWriteAttempts = 0;
 export const db = {
@@ -66,7 +63,7 @@ export const db = {
     return result;
   },
   select() {
-    const rows = selections++ === 0 ? [document] : [{ telegramChatId: "synthetic-chat" }];
+    const rows = selections++ === 0 ? documents : [{ telegramChatId: "synthetic-chat" }];
     const chain: any = { then: (yes: any, no: any) => Promise.resolve(rows).then(yes, no) };
     for (const method of ["from", "where", "limit"]) chain[method] = () => chain;
     return chain;
@@ -115,8 +112,20 @@ export async function resolveClinicalEmitter() {
     professional: { id: 202 }, clinic: { id: 303, empresaId: 404 },
   };
 }
-export async function enviarMensagemPaxter(_doc: unknown, _destination: unknown, channels: string[]) {
-  const response = await fetch(configuration.providerUrl, { method: "POST", body: JSON.stringify({ channels }) });
+let acceptedMessages = 0;
+export async function enviarMensagemPaxter(doc: unknown, _destination: unknown, channels: string[]) {
+  if (configuration.crashPoint === "between-telegram-batches" && acceptedMessages === 1) {
+    // The real route consumed the first sent:true response and advanced its
+    // messageBatches loop. Stop BEFORE contacting the provider for batch two.
+    process.send!({
+      type: "between-telegram-batches", pid: process.pid,
+      state: "provider_accepted", acceptedMessages, channels, pendingMessage: doc,
+    });
+    await new Promise(() => {});
+  }
+  const response = await fetch(configuration.providerUrl, { method: "POST", body: JSON.stringify({ channels, doc }) });
   if (!response.ok) throw new Error("Synthetic provider refused");
-  return response.json();
+  const result = await response.json();
+  if (result.resultados[0]?.sent === true) acceptedMessages++;
+  return result;
 }

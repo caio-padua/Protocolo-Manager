@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { sql } from "drizzle-orm";
 import { isolatedPostgres } from "./helpers/isolated-postgres";
+import { syntheticDispatchDocuments } from "./helpers/exam-dispatch-documents";
 
 // Bounded event waits, not sleeps. Listener is installed before the action that
 // produces the event, and an early exit reports the child's captured stderr.
@@ -33,17 +34,25 @@ async function kill(child: ChildProcess) {
   return exited;
 }
 
-it.each(["before-audit-write", "after-first-channel-persist", "before-completed-response", "before-recovery-write"] as const)(
+it.each(["before-audit-write", "after-first-channel-persist", "before-completed-response", "before-recovery-write", "between-telegram-batches"] as const)(
   "recovers the durable reservation after SIGKILL at %s without contacting providers again", async crashPoint => {
   const children: ChildProcess[] = [];
   const directory = await mkdtemp(join(tmpdir(), "exam-dispatch-process-"));
   let postgres: Awaited<ReturnType<typeof isolatedPostgres>> | undefined;
+  const withinTelegram = crashPoint === "between-telegram-batches";
+  const completed = crashPoint === "before-completed-response";
+  const persistenceFailure = crashPoint === "before-recovery-write";
+  const documents = syntheticDispatchDocuments(withinTelegram ? 12 : 1);
+  const expectedCalls = completed ? [["EMAIL"], ["TELEGRAM"]] : [withinTelegram ? ["TELEGRAM"] : ["EMAIL"]];
   const providerCalls: string[][] = [];
+  const providerMessages: { paragrafos: string[]; anexos?: unknown }[] = [];
   const provider = createServer((req, res) => {
     let body = "";
     req.on("data", chunk => { body += chunk; });
     req.on("end", () => {
-      providerCalls.push(JSON.parse(body).channels);
+      const request = JSON.parse(body);
+      providerCalls.push(request.channels);
+      providerMessages.push(request.doc);
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ resultados: [{ sent: true, via: "synthetic-local-provider" }] }));
     });
@@ -74,7 +83,9 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
     });
     const start = async (crashPoint?: string) => {
       // Do not inherit database URLs, provider keys, NODE_OPTIONS or app config.
-      const child = fork(entry, [JSON.stringify({ connection: postgres!.connection, providerUrl, crashPoint })], {
+      const child = fork(entry, [JSON.stringify({
+        connection: postgres!.connection, providerUrl, crashPoint, documentCount: documents.length,
+      })], {
         env: {}, execArgv: [], stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
       children.push(child);
@@ -85,8 +96,8 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
       return { child, ready, errors: () => errors };
     };
     const payload = {
-      operationKey: "synthetic-crash-operation", clientId: 101, documentIds: [91],
-      channels: ["EMAIL", "TELEGRAM"], confirmed: true,
+      operationKey: "synthetic-crash-operation", clientId: 101, documentIds: documents.map(doc => doc.id),
+      channels: withinTelegram ? ["TELEGRAM"] : ["EMAIL", "TELEGRAM"], confirmed: true,
     };
     const send = (port: number, operationKey = payload.operationKey) => fetch(`http://127.0.0.1:${port}/api/exam-requests/send`, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer synthetic-test" },
@@ -94,10 +105,10 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
     });
     const first = await start(crashPoint);
     const atWrite = waitForMessage(first.child, crashPoint, first.errors);
-    const failedWrite = crashPoint === "before-recovery-write"
+    const failedWrite = persistenceFailure
       ? waitForMessage(first.child, "operation-write-failed", first.errors) : undefined;
-    // Install all listeners before sending; consume both together so a failed
-    // child cannot leave a rejected event waiter unhandled.
+    // Consume both waiters together so an early exit cannot leave a rejection
+    // unhandled; all listeners are installed before sending the request.
     const atFailure = Promise.all([atWrite, failedWrite]);
     // Attach rejection handling immediately: SIGKILL must sever this HTTP call.
     const interruptedRequest = send(first.ready.port).then(
@@ -105,8 +116,6 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
     );
     const [barrier, failure] = await atFailure;
     const partial = crashPoint === "after-first-channel-persist";
-    const completed = crashPoint === "before-completed-response";
-    const persistenceFailure = crashPoint === "before-recovery-write";
     const auditAccepted = partial || persistenceFailure || completed;
     expect(barrier.pid).toBe(first.ready.pid);
     if (completed) {
@@ -123,8 +132,27 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
       expect(failure).toEqual({ type: "operation-write-failed", pid: first.ready.pid,
         state: "in_progress", results: barrier.results, attempt: 1 });
     }
-    const expectedProviderCalls = completed ? [["EMAIL"], ["TELEGRAM"]] : [["EMAIL"]];
-    expect(providerCalls).toEqual(expectedProviderCalls);
+    expect(providerCalls).toEqual(expectedCalls);
+    if (withinTelegram) {
+      expect(barrier.channels).toEqual(["TELEGRAM"]);
+      const accepted = providerMessages[0];
+      const pending = barrier.pendingMessage as typeof accepted;
+      expect(accepted.anexos).toBeUndefined();
+      expect(pending.anexos).toBeUndefined();
+      // Both batches contain complete, distinct links from this request, and
+      // at least one requested document has not reached the local provider.
+      const tokensIn = (message: typeof accepted) => documents
+        .filter(doc => message.paragrafos.some(paragraph => paragraph.endsWith(`/api/exam-requests/file/${doc.token}`)))
+        .map(doc => doc.token);
+      const acceptedTokens = tokensIn(accepted);
+      const pendingTokens = tokensIn(pending);
+      expect(acceptedTokens.length).toBeGreaterThan(0);
+      expect(acceptedTokens.length).toBeLessThan(documents.length);
+      expect(pendingTokens.length).toBeGreaterThan(0);
+      expect(pendingTokens.every(token => !acceptedTokens.includes(token))).toBe(true);
+      expect(accepted.paragrafos).toHaveLength(acceptedTokens.length + 1);
+      expect(pending.paragrafos).toHaveLength(pendingTokens.length + 1);
+    }
     expect(await kill(first.child)).toEqual([null, "SIGKILL"]);
     expect(await interruptedRequest).toEqual({ interrupted: true });
 
@@ -136,9 +164,9 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
     `)).rows;
     const savedReservation = await reservation();
     const savedAudits = await audit();
-    expect(savedAudits).toHaveLength(2);
-    expect(savedAudits.map((row: any) => row.detail.channel)).toEqual(["EMAIL", "TELEGRAM"]);
-    expect(new Set(savedAudits.map((row: any) => row.id)).size).toBe(2);
+    expect(savedAudits).toHaveLength(payload.channels.length);
+    expect(savedAudits.map((row: any) => row.detail.channel)).toEqual(payload.channels);
+    expect(new Set(savedAudits.map((row: any) => row.id)).size).toBe(payload.channels.length);
     const expectedResults = completed
       ? savedAudits.map((row: any) => ({ channel: row.detail.channel, success: true, auditId: row.id }))
       : partial ? [{ channel: "EMAIL", success: true, auditId: savedAudits[0].id }] : [];
@@ -146,7 +174,7 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
       operation_key: payload.operationKey, state: completed ? "completed" : "in_progress", results: expectedResults,
     })]);
     expect(savedAudits.map((row: any) => row.detail.state))
-      .toEqual([auditAccepted ? "provider_accepted" : "requested", completed ? "provider_accepted" : "requested"]);
+      .toEqual(payload.channels.map((_, index) => completed || (auditAccepted && index === 0) ? "provider_accepted" : "requested"));
     if (completed) expect(barrier.body.results).toEqual(expectedResults);
     if (partial || persistenceFailure) {
       expect(barrier.results).toEqual([{ channel: "EMAIL", success: true, auditId: savedAudits[0].id }]);
@@ -176,7 +204,8 @@ it.each(["before-audit-write", "after-first-channel-persist", "before-completed-
         expect(recovered.message).toContain("confira antes de qualquer novo envio");
       }
       expect(recovered.results).toEqual(expectedResults);
-      expect(providerCalls).toEqual(expectedProviderCalls);
+      expect(providerCalls).toEqual(expectedCalls);
+      expect(providerMessages).toHaveLength(expectedCalls.length);
       expect(await reservation()).toEqual(savedReservation);
       expect(await audit()).toEqual(savedAudits);
     }
