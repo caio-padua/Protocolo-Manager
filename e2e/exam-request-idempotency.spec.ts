@@ -500,6 +500,163 @@ for (const transition of ["paciente", "medico"] as const) {
   });
 }
 
+for (const transition of ["paciente", "medico"] as const) {
+  test(`Pedidos: não restaurar seleção recém-gerada ao trocar ${transition}`, async ({ context, page }, testInfo) => {
+    const nextClient = { ...client, id: 43, name: "Outro Cliente Sintético" };
+    const nextProfessional = { ...professional, id: 203, name: "Outro Médico Sintético" };
+    let switched = false;
+    let navigations = 0;
+    const emitted = new Set<boolean>();
+    const emitPosts: unknown[] = [];
+    const sendPosts: string[] = [];
+    const unexpectedPosts: string[] = [];
+    const ids = (next: boolean) => next ? [201, 202] : [101, 102];
+    const documents = (next: boolean) => emitted.has(next) ? ids(next).map(id => ({
+      ...document, id, fileName: `Pedido recém-gerado ${id}.pdf`,
+      url: `/api/exam-requests/file/synthetic-${id}`,
+    })) : [];
+    page.on("request", request => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+      if (request.method() === "POST" && /\/send(?:[/?]|$)/.test(new URL(request.url()).pathname)) {
+        sendPosts.push(request.url());
+      }
+    });
+    await context.addInitScript(() => {
+      localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+      localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+    });
+    // Every API response, including unexpected writes, stays entirely synthetic.
+    await context.route("**/api/**", async route => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      const json = (body: unknown, status = 200) => route.fulfill({
+        status, contentType: "application/json", body: JSON.stringify(body),
+      });
+      const activeProfessional = switched && transition === "medico" ? nextProfessional : professional;
+      const activeToken = switched && transition === "medico" ? "synthetic-next-token" : "synthetic-ui-token";
+      if (request.method() === "POST") {
+        if (path !== "/api/exam-requests/emit") {
+          unexpectedPosts.push(path);
+          return json({ error: "Envio proibido neste cenário." }, 403);
+        }
+        const body = request.postDataJSON();
+        expect(request.headers().authorization).toBe(`Bearer ${activeToken}`);
+        expect(body).toMatchObject({
+          clientId: switched && transition === "paciente" ? 43 : 42,
+          individualDocuments: true, sendEmail: false, sendWhatsapp: false,
+          items: [
+            { nomeExame: "Exame sintético Alfa" },
+            { nomeExame: "Exame sintético Beta" },
+          ],
+        });
+        expect(emitted.has(switched)).toBe(false);
+        emitted.add(switched);
+        emitPosts.push(body);
+        return json({
+          pdfs: documents(switched),
+          email: { attempted: false, success: false },
+          whatsapp: { attempted: false, success: false },
+        });
+      }
+      if (path === "/api/collaborator/me") return json({ professional: activeProfessional });
+      if (path === "/api/clients") return json([client, nextClient]);
+      const patient = path.includes("/43") ? nextClient : client;
+      if (/^\/api\/clients\/(42|43)$/.test(path)) return json(patient);
+      if (/^\/api\/clinical-context\/(42|43)$/.test(path)) return json({
+        professional: activeProfessional, client: patient,
+        clinic: { id: 303, empresaId: 404, name: "Clínica Sintética" },
+        canPrescribe: true, issue: null,
+      });
+      if (path === "/api/catalogos/exames") return json(["Alfa", "Beta"].map((name, index) => ({
+        id: 701 + index, nomeExame: `Exame sintético ${name}`, codigoExame: `SYN-${index}`,
+        grupoPrincipal: "Sintético", subgrupo: null, modalidade: null, materialOuSetor: null,
+        preparo: null, ativo: true,
+      })));
+      if (/^\/api\/exam-requests\/(42|43)\/history$/.test(path)) {
+        expect(request.headers().authorization).toBe(`Bearer ${activeToken}`);
+        return json({
+          documents: documents(transition === "paciente" ? patient.id === 43 : switched),
+          dispatches: [], pendingOperations: [], nextOffset: null,
+        });
+      }
+      return json([]);
+    });
+    await page.goto("/cockpit/42/exames");
+    const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+    const consent = panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false });
+    const confirm = panel.getByRole("button", { name: "Confirmar envio", exact: true });
+    const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+    const expectNoSend = () => {
+      expect(sendPosts).toEqual([]);
+      expect(unexpectedPosts).toEqual([]);
+    };
+    const expectCleared = async (next: boolean) => {
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole("status")).toHaveCount(0);
+      await expect(panel.getByRole("checkbox", { name: /^Selecionar documento/ })).toHaveCount(documents(next).length);
+      for (const item of documents(next)) await expect(doc(item.id)).not.toBeChecked();
+      await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+      await expect(panel).toContainText("0 documento(s) selecionado(s)");
+      await expect(consent).not.toBeChecked();
+      await expect(confirm).toBeDisabled();
+      expectNoSend();
+    };
+    const generateAndAuthorize = async (next: boolean) => {
+      await page.getByRole("checkbox", { name: /^Exame sintético Alfa/ }).check();
+      await page.getByRole("checkbox", { name: /^Exame sintético Beta/ }).check();
+      await page.getByRole("checkbox", { name: "Gerar um documento por exame", exact: false }).check();
+      await page.getByRole("button", { name: "Gerar pedidos de exames", exact: true }).click();
+      await expect(page.getByText("2 PDF(s) gerado(s)", { exact: true })).toBeVisible();
+      for (const id of ids(next)) await expect(doc(id)).toBeChecked();
+      await expect(panel).toContainText("2 documento(s) selecionado(s)");
+      await expect(consent).not.toBeChecked();
+      await expect(confirm).toBeDisabled();
+      for (const channel of ["E-mail", "WhatsApp", "Telegram"]) {
+        await panel.getByRole("checkbox", { name: channel, exact: true }).check();
+      }
+      await consent.check();
+      await expect(confirm).toBeEnabled();
+      expectNoSend();
+      // Deliberately do not click Confirmar envio.
+    };
+    const changeScope = async (next: boolean) => {
+      switched = next;
+      if (transition === "paciente") {
+        await page.evaluate(id => {
+          window.history.pushState(null, "", `/cockpit/${id}/exames`);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }, next ? 43 : 42);
+        await expect(page).toHaveURL(new RegExp(`/cockpit/${next ? 43 : 42}/exames$`));
+      } else {
+        await page.evaluate(({ prof, token }) => {
+          localStorage.setItem("padcom_collab_token", token);
+          localStorage.setItem("padcom_collab_prof", JSON.stringify(prof));
+          window.dispatchEvent(new Event("collab-auth-changed"));
+        }, { prof: next ? nextProfessional : professional, token: next ? "synthetic-next-token" : "synthetic-ui-token" });
+        await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      }
+      const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+      await expect(draft).toContainText(next && transition === "paciente" ? nextClient.name : client.name);
+      await expect(draft).toContainText(next && transition === "medico" ? nextProfessional.name : professional.name);
+      await expectCleared(next);
+      await expect(page.getByText("2 PDF(s) gerado(s)", { exact: true })).toHaveCount(0);
+    };
+    await expectCleared(false);
+    await generateAndAuthorize(false);
+    await changeScope(true);
+    for (const id of ids(false)) await expect(doc(id)).toHaveCount(0);
+    await generateAndAuthorize(true);
+    await changeScope(false);
+    for (const id of ids(true)) await expect(doc(id)).toHaveCount(0);
+    await changeScope(true);
+    await changeScope(false);
+    expect(emitPosts).toHaveLength(2);
+    expect(navigations).toBe(1);
+    expectNoSend();
+    await panel.screenshot({ path: testInfo.outputPath("pedidos-recentes-sem-autorizacao-herdada.png") });
+  });
+}
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
