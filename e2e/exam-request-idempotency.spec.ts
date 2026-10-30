@@ -795,6 +795,116 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   });
 }
 
+test("Pedidos: clínica recusada com 403 bloqueia envio e nova clínica exige autorização", async ({ context, page }, testInfo) => {
+  const originalClinic = { id: 303, empresaId: 404, name: "Clínica Sintética" };
+  const nextClinic = { id: 304, empresaId: 405, name: "Outra clínica sintética autorizada" };
+  const refusal = "Acesso negado à nova clínica sintética.";
+  let revalidating = false;
+  let heldIdentity: Route | undefined;
+  let navigations = 0;
+  const posts: string[] = [];
+  page.on("request", request => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+    if (request.method() === "POST" && new URL(request.url()).pathname.startsWith("/api/")) {
+      posts.push(request.url());
+    }
+  });
+  const reply = (route: Route, body: unknown, status = 200) => route.fulfill({
+    status, contentType: "application/json", body: JSON.stringify(body),
+  });
+  const identityBody = (clinic: typeof originalClinic) => ({
+    professional, client, clinic, canPrescribe: true, issue: null,
+  });
+  await context.addInitScript(() => {
+    localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+    localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+  });
+  // All APIs are synthetic; even an unexpected POST cannot send or emit.
+  await context.route("**/api/**", async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "POST") return reply(route, { error: "Envio proibido neste cenário." }, 403);
+    if (path === "/api/collaborator/me") return reply(route, { professional });
+    if (path === "/api/clients") return reply(route, [client]);
+    if (path === "/api/clients/42") return reply(route, client);
+    if (path === "/api/clinical-context/42") {
+      expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+      if (revalidating) { heldIdentity = route; return; }
+      return reply(route, identityBody(originalClinic));
+    }
+    if (path === "/api/exam-requests/42/history") return reply(route, {
+      documents: [document, { ...document, id: 92, fileName: "Outro pedido sintético.pdf" }],
+      dispatches: [], pendingOperations: [], nextOffset: null,
+    });
+    return reply(route, []);
+  });
+  await page.goto("/cockpit/42/exames");
+  const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+  const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+  const validate = page.getByRole("button", { name: "Validar identidade", exact: true });
+  const confirm = page.getByRole("button", { name: "Confirmar envio", exact: true });
+  const consent = page.getByRole("checkbox", { name: "Conferi os documentos", exact: false });
+  const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+  const channels = ["E-mail", "WhatsApp", "Telegram"];
+  const expectNoControls = async () => {
+    await expect(panel).toBeHidden();
+    await expect(page.getByRole("button", { name: "Confirmar envio", exact: true, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: /^Selecionar documento/, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: "Conferi os documentos", exact: false, includeHidden: true })).toHaveCount(0);
+    for (const channel of channels) {
+      await expect(page.getByRole("checkbox", { name: channel, exact: true, includeHidden: true })).toHaveCount(0);
+    }
+    expect(posts).toEqual([]);
+  };
+  await expect(draft).toContainText(originalClinic.name);
+  await doc(91).check();
+  await doc(92).check();
+  for (const channel of channels) await panel.getByRole("checkbox", { name: channel, exact: true }).check();
+  await consent.check();
+  await expect(confirm).toBeEnabled();
+  expect(posts).toEqual([]);
+  // Same patient, doctor, token and mounted page; only clinic authorization changes.
+  revalidating = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+  await expect.poll(() => !!heldIdentity).toBe(true);
+  await expect(validate).toBeVisible();
+  await expectNoControls();
+  await reply(heldIdentity!, { error: refusal }, 403);
+  await expect(page.getByRole("alert")).toContainText(refusal);
+  await expect(draft).toHaveCount(0);
+  await expectNoControls();
+  await page.screenshot({ path: testInfo.outputPath("clinica-recusada-sem-controles.png") });
+
+  heldIdentity = undefined;
+  await validate.click();
+  await expect.poll(() => !!heldIdentity).toBe(true);
+  await expectNoControls();
+  await reply(heldIdentity!, identityBody(nextClinic));
+  await expect(draft).toContainText(nextClinic.name);
+  await expect(draft).toContainText(client.name);
+  await expect(draft).toContainText(professional.name);
+  await expect(page.getByText(refusal, { exact: true })).toHaveCount(0);
+  await expect(panel).toBeVisible();
+  await expect(doc(91)).not.toBeChecked();
+  await expect(doc(92)).not.toBeChecked();
+  await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+  await expect(panel).toContainText("0 documento(s) selecionado(s)");
+  await expect(consent).not.toBeChecked();
+  await expect(confirm).toBeDisabled();
+  // Selecting documents/channels anew still cannot replace explicit consent.
+  await doc(91).check();
+  for (const channel of channels) await panel.getByRole("checkbox", { name: channel, exact: true }).check();
+  await expect(consent).not.toBeChecked();
+  await expect(confirm).toBeDisabled();
+  await consent.check();
+  await expect(confirm).toBeEnabled();
+  // Deliberately never click Confirmar envio, even after renewed consent.
+  await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+  expect(navigations).toBe(1);
+  expect(posts).toEqual([]);
+  await panel.screenshot({ path: testInfo.outputPath("nova-clinica-exige-consentimento.png") });
+});
+
 // Transition contract: render A's pending operation, hold a refresh, switch scope
 // without reloading, then settle B before releasing A (success or 401). B must
 // never render A's cached/late data or error, including when B itself returns 401.
