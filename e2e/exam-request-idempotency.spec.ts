@@ -1875,6 +1875,326 @@ for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   }
 }
 
+// Keep valid-empty revalidation independent of the tab-resume/polling journey:
+// stale pages must be consumed after the empty response, not while hidden.
+for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
+  for (const [delivery, outcome] of [
+    ["em-B", "preenchido"], ["em-B", "vazio"],
+    ["apos-retorno-A", "preenchido"], ["apos-retorno-A", "vazio"],
+  ] as const) {
+    test(`Pedidos: voltar à clínica em cache reinicia histórico A → B → A → B — ${transition} — ${delivery} — ${outcome}`, async ({ context, page }, testInfo) => {
+      const clinicA = { id: 303, empresaId: 404, name: "Clínica A sintética" };
+      const clinicB = {
+        id: transition === "empresa" ? 303 : 304,
+        empresaId: transition === "clinica" ? 404 : 405,
+        name: "Clínica B sintética",
+      };
+      const markers = {
+        first: "A-inicial", page20: "A-antiga-20", page40: "A-atrasada-40",
+        b: "B-exclusiva", fresh: "A-revalidada", bLate: "B-atrasada-20",
+        aLate: "A-retorno-atrasada-20", bFresh: "B-revalidada",
+      };
+      type Stage = "initial" | "B" | "return" | "secondB";
+      let stage: Stage = "initial";
+      const offsets: Record<Stage, number[]> = { initial: [], B: [], return: [], secondB: [] };
+      const methods: string[] = [];
+      const posts: string[] = [];
+      const held: {
+        identity?: Route; oldPage?: Route; historyB?: Route; returned?: Route;
+        bPage?: Route; aReturnPage?: Route; secondB?: Route;
+      } = {};
+      let navigations = 0;
+      const reply = (route: Route, body: unknown) => route.fulfill({
+        contentType: "application/json", body: JSON.stringify(body),
+      });
+      const historyBody = (key: string, id: number, nextOffset: number | null = null) => ({
+        documents: [{ ...document, id, fileName: `${key}.pdf` }],
+        dispatches: [], nextOffset,
+        pendingOperations: [{
+          operationKey: key, state: "needs_review", createdAt: document.createdAt,
+          documentIds: [id], channels: ["EMAIL"], results: [],
+        }],
+      });
+      const identityBody = (clinic: typeof clinicA) => ({
+        professional, client, clinic, canPrescribe: true, issue: null,
+      });
+      page.on("request", request => {
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations++;
+      });
+      await context.addInitScript(() => {
+        localStorage.setItem("padcom_collab_token", "synthetic-ui-token");
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 202, name: "Médico Sintético", role: "medico" }));
+        const originalFetch = window.fetch.bind(window);
+        (window as any).__roundtripParsed = 0;
+        window.fetch = async (input, init) => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (!/\/exam-requests\/42\/history/.test(url)) return originalFetch(input, init);
+          // Cancellation must not conceal a stale paginated response.
+          const response = await originalFetch(input, { ...init, signal: undefined });
+          const originalJson = response.json.bind(response);
+          response.json = async () => {
+            const data = await originalJson();
+            (window as any).__roundtripParsed++;
+            return data;
+          };
+          return response;
+        };
+      });
+      await context.route("**/api/**", async route => {
+        const request = route.request();
+        const url = new URL(request.url());
+        methods.push(request.method());
+        if (request.method() !== "GET") {
+          if (request.method() === "POST") posts.push(url.pathname);
+          return route.fulfill({
+            status: 405, contentType: "application/json",
+            body: JSON.stringify({ error: "Somente GET autorizado neste cenário." }),
+          });
+        }
+        if (url.pathname === "/api/collaborator/me") return reply(route, { professional });
+        if (url.pathname === "/api/clients") return reply(route, [client]);
+        if (url.pathname === "/api/clients/42") return reply(route, client);
+        if (url.pathname === "/api/clinical-context/42") {
+          expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+          if (stage !== "initial") { held.identity = route; return; }
+          return reply(route, identityBody(clinicA));
+        }
+        if (url.pathname === "/api/exam-requests/42/history") {
+          expect(request.headers().authorization).toBe("Bearer synthetic-ui-token");
+          const offset = Number(url.searchParams.get("offset"));
+          offsets[stage].push(offset);
+          if (stage === "B") {
+            if (offset === 20) held.bPage = route;
+            else held.historyB = route;
+            return;
+          }
+          if (stage === "return") {
+            if (offset === 20) held.aReturnPage = route;
+            else held.returned = route;
+            return;
+          }
+          if (stage === "secondB") { held.secondB = route; return; }
+          if (offset === 40) { held.oldPage = route; return; }
+          return reply(route, offset === 20
+            ? historyBody(markers.page20, 93, 40) : historyBody(markers.first, 91, 20));
+        }
+        return reply(route, []);
+      });
+      await page.goto("/cockpit/42/exames");
+      const panel = page.getByRole("region", { name: "Histórico de pedidos de exames" });
+      const draft = page.getByRole("region", { name: "Rascunho clínico", exact: true });
+      const doc = (id: number) => panel.getByRole("checkbox", { name: `Selecionar documento ${id} para envio`, exact: true });
+      const consent = panel.getByRole("checkbox", { name: "Conferi os documentos", exact: false });
+      const confirm = panel.getByRole("button", { name: "Confirmar envio", exact: true });
+      const prepare = async (id: number) => {
+        await doc(id).check();
+        await panel.getByRole("checkbox", { name: "E-mail", exact: true }).check();
+        await panel.getByRole("checkbox", { name: "Telegram", exact: true }).check();
+        await consent.check();
+        await expect(confirm).toBeEnabled();
+      };
+      const cleared = async () => {
+        await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+        await expect(panel).toContainText("0 documento(s) selecionado(s)");
+        await expect(consent).not.toBeChecked();
+        await expect(confirm).toBeDisabled();
+        await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeDisabled();
+      };
+      await expect(doc(91)).toBeVisible();
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect(doc(93)).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Mais recentes", exact: true })).toBeEnabled();
+      await prepare(93);
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect.poll(() => !!held.oldPage).toBe(true);
+      expect(offsets.initial).toEqual([0, 20, 40]);
+
+      // Keep one observer through all transitions; change its forbidden scope
+      // only while identity gating has removed the previous history from the DOM.
+      await page.evaluate(() => {
+        (window as any).__roundtripLeaks = [];
+        (window as any).__roundtripForbidden = [];
+        (window as any).__roundtripWatchReset = false;
+        new MutationObserver(records => {
+          const region = document.querySelector('[aria-label="Histórico de pedidos de exames"]');
+          for (const key of (window as any).__roundtripForbidden as string[]) {
+            const leaked = (node: Node) => {
+              const element = node instanceof Element ? node : node.parentElement;
+              return !!element?.closest('[aria-label="Histórico de pedidos de exames"]')
+                && !!node.textContent?.includes(key);
+            };
+            if (region?.textContent?.includes(key)
+              || records.some(record => [...record.addedNodes].some(leaked)
+                || (record.type === "characterData" && leaked(record.target)))) {
+              (window as any).__roundtripLeaks.push(key);
+            }
+          }
+          if ((window as any).__roundtripWatchReset) {
+            // Inspect inserted subtrees too: a contaminated panel can be added
+            // and removed within one observer batch, before the final DOM check.
+            const snapshots = [region, ...records.flatMap(record =>
+              [...record.addedNodes].filter((node): node is Element => node instanceof Element)
+                .flatMap(node => node.matches('[aria-label="Histórico de pedidos de exames"]')
+                  || node.closest('[aria-label="Histórico de pedidos de exames"]')
+                  ? [node] : [...node.querySelectorAll('[aria-label="Histórico de pedidos de exames"]')]))];
+            if (snapshots.some(node => node && (
+              node.matches('input:checked') || node.querySelector('input:checked')
+              || node.textContent?.includes("1 documento(s) selecionado(s)")
+              || [...node.querySelectorAll("button")].some(button =>
+                button.textContent === "Confirmar envio" && !button.disabled)
+            ))) {
+              (window as any).__roundtripLeaks.push("seleção/canais/consentimento herdado");
+            }
+          }
+        }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+      });
+      const revalidate = async (nextStage: Exclude<Stage, "initial">, clinic: typeof clinicA, forbidden: string[]) => {
+        stage = nextStage;
+        held.identity = undefined;
+        await page.evaluate(() => window.dispatchEvent(new Event("collab-auth-changed")));
+        await expect.poll(() => !!held.identity).toBe(true);
+        await expect(panel).toBeHidden();
+        await page.evaluate(keys => {
+          (window as any).__roundtripForbidden = keys;
+          (window as any).__roundtripWatchReset = true;
+        }, forbidden);
+        await reply(held.identity!, identityBody(clinic));
+        await expect(draft).toContainText(clinic.name);
+        await expect(draft).toContainText(client.name);
+        await expect(draft).toContainText(professional.name);
+      };
+      await revalidate("B", clinicB, [markers.first, markers.page20, markers.page40]);
+      await expect.poll(() => !!held.historyB).toBe(true);
+      expect(offsets.B).toEqual([0]);
+      await expect(panel.getByRole("status")).toHaveText("Carregando histórico…");
+      await cleared();
+      await reply(held.historyB!, historyBody(markers.b, 92, 20));
+      await expect(doc(92)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.b);
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(3);
+      const deliverOld = async (parsed: number) => {
+        await reply(held.oldPage!, historyBody(markers.page40, 94));
+        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(parsed);
+        await page.evaluate(() => new Promise<void>(resolve =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      };
+      if (delivery === "em-B") {
+        await deliverOld(4);
+        await expect(doc(92)).toBeVisible();
+        await cleared();
+      }
+      expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      // Keep the forbidden-data observer running during intentional selection.
+      await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
+      await prepare(92);
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect.poll(() => !!held.bPage).toBe(true);
+      expect(offsets.B).toEqual([0, 20]);
+      await revalidate("return", clinicA, [markers.b, markers.page20, markers.page40]);
+      await expect.poll(() => !!held.returned).toBe(true);
+      expect(offsets.return).toEqual([0]);
+      // A's initial page must already be in cache: inspect it BEFORE fulfilling
+      // its new offset-zero request. A loading-only test would miss cache leaks.
+      await expect(doc(91)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.first);
+      await cleared();
+      if (delivery === "apos-retorno-A") await deliverOld(4);
+      await expect(doc(91)).toBeVisible();
+      await cleared();
+      await reply(held.returned!, historyBody(markers.fresh, 95, 20));
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(5);
+      await expect(doc(95)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.fresh);
+      for (const id of [91, 92, 93, 94]) await expect(doc(id)).toHaveCount(0);
+      await cleared();
+      expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
+      await prepare(95);
+      // Explicitly opening A's offset 20 may legitimately display that page's
+      // cache while its refresh is held; it is forbidden again on entering B.
+      await page.evaluate(key => {
+        (window as any).__roundtripForbidden = (window as any).__roundtripForbidden
+          .filter((value: string) => value !== key);
+      }, markers.page20);
+      await panel.getByRole("button", { name: "Mais antigos", exact: true }).click();
+      await expect.poll(() => !!held.aReturnPage).toBe(true);
+      expect(offsets.return).toEqual([0, 20]);
+
+      await revalidate("secondB", clinicB, [
+        markers.first, markers.page20, markers.page40, markers.fresh, markers.aLate, markers.bLate,
+      ]);
+      await expect.poll(() => !!held.secondB).toBe(true);
+      expect(offsets.secondB).toEqual([0]);
+      // B is also genuinely cached: its original offset-zero document and
+      // pending-operation banner must render before the fresh GET is released.
+      await expect(doc(92)).toBeVisible();
+      await expect(panel.getByRole("alert")).toContainText(markers.b);
+      for (const id of [91, 93, 94, 95]) await expect(doc(id)).toHaveCount(0);
+      await cleared();
+
+      const emptyHistory = async () => {
+        await expect(panel.getByText("Nenhum pedido registrado para este cliente.", { exact: true })).toBeVisible();
+        await expect(panel.getByRole("checkbox", { name: /^Selecionar documento / })).toHaveCount(0);
+        await expect(panel.getByRole("alert")).toHaveCount(0);
+        for (const marker of Object.values(markers)) await expect(panel).not.toContainText(marker);
+        await cleared();
+        await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeDisabled();
+        // Neither button may restore an old page while the result is empty.
+        await expect(panel.getByRole("button", { name: "Atualizar histórico", exact: true })).toBeEnabled();
+      };
+      if (outcome === "vazio") {
+        await reply(held.secondB!, {
+          documents: [], dispatches: [], pendingOperations: [], nextOffset: null,
+        });
+        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(6);
+        await emptyHistory();
+        // Cached B was legitimate before revalidation, but cannot flash back
+        // after a successful empty response, even within a mutation batch.
+        await page.evaluate(key => {
+          (window as any).__roundtripForbidden.push(key);
+        }, markers.b);
+      }
+
+      // Both previous visits left a paginated GET in flight. Force their JSON
+      // to be consumed after returning to B, including the old B scope itself.
+      await reply(held.bPage!, historyBody(markers.bLate, 96));
+      await reply(held.aReturnPage!, historyBody(markers.aLate, 97));
+      await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(outcome === "vazio" ? 8 : 7);
+      await page.evaluate(() => new Promise<void>(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      if (outcome === "vazio") {
+        await emptyHistory();
+      } else {
+        await expect(doc(92)).toBeVisible();
+        await expect(panel.getByRole("alert")).toContainText(markers.b);
+        for (const id of [91, 93, 94, 95, 96, 97]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+
+        await reply(held.secondB!, historyBody(markers.bFresh, 98, 20));
+        await expect.poll(() => page.evaluate(() => (window as any).__roundtripParsed)).toBe(8);
+        await expect(doc(98)).toBeVisible();
+        await expect(panel.getByRole("alert")).toContainText(markers.bFresh);
+        for (const id of [91, 92, 93, 94, 95, 96, 97]) await expect(doc(id)).toHaveCount(0);
+        await cleared();
+        await expect(panel.getByRole("button", { name: "Mais antigos", exact: true })).toBeEnabled();
+      }
+      expect(offsets).toEqual({ initial: [0, 20, 40], B: [0, 20], return: [0, 20], secondB: [0] });
+      expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      // The fourth visit can be prepared afresh, but must never send.
+      if (outcome === "preenchido") {
+        await page.evaluate(() => { (window as any).__roundtripWatchReset = false; });
+        await prepare(98);
+      }
+      expect(await page.evaluate(() => (window as any).__roundtripLeaks)).toEqual([]);
+      expect([...new Set(methods)]).toEqual(["GET"]);
+      expect(posts).toEqual([]);
+      expect(navigations).toBe(1);
+      await expect(page).toHaveURL(/\/cockpit\/42\/exames$/);
+      await panel.screenshot({ path: testInfo.outputPath(`retorno-clinica-cache-${outcome}.png`) });
+    });
+  }
+}
+
 // A cached scope must restart at offset zero, not revive its previous editor.
 for (const transition of ["clinica", "empresa", "clinica-e-empresa"] as const) {
   for (const delivery of ["em-B", "apos-retorno-A"] as const) {
