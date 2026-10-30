@@ -1,7 +1,7 @@
 # Especificacao: homologacao isolada de prescricoes e pedidos de exames
 
 Data: 30/10/2026
-Estado: EM ESPECIFICACAO
+Estado: UNIDADE A IMPLEMENTADA; HOMOLOGACAO GLOBAL BLOQUEADA
 Prioridade: P0 para uma primeira liberacao clinica controlada
 Ordem de origem: ordem executiva recebida em 30/10/2026
 Revisao de auditoria de referencia: 4eb4ca2d3103b3070b516c7d27aac155e90545bd
@@ -242,3 +242,75 @@ real ou liberacao clinica a partir de dados exclusivamente sinteticos.
 | Curto prazo | Tela de estado do certificado pessoal | Distingue ausente, invalido, vencido e validado |
 | Comercial futuro | Revisao global de multiempresa, cadastro governado e cobranca | Exige inventario, politica de operacao e unidade separada |
 | Comercial futuro | Validacao de cadeia e revogacao de certificado pessoal em ambiente de atendimento | Requer integracao e validacao real separada; certificado sintetico nao basta |
+
+## 12. Estado verificado em 30/10/2026
+
+### Implementado nesta unidade
+
+1. A emissao de exames agora exige que o medico autenticado seja um medico ativo,
+   tenha CRM e unidade federativa cadastrados, esteja vinculado a clinica do
+   cliente e apresente certificado pertencente ao proprio CPF.
+2. A verificacao do certificado ocorre antes de gerar o PDF, gravar o pedido ou
+   chamar um canal de envio.
+3. O PDF de exames passa pelo assinador criptografico ja usado nas receitas.
+   O tipo e os identificadores do medico, cliente, clinica e empresa ficam nos
+   metadados assinados. O motivo da assinatura identifica solicitacao de exames.
+4. O fluxo conserva o motivo antigo da assinatura das receitas.
+5. O novo teste exercita seis operacoes sinteticas para dois clientes-modelo:
+   quatro itens laboratoriais agrupados por cliente, tres e depois dois itens de
+   imagem separados. Isso produz doze arquivos assinados, nao quatorze.
+6. Os PDFs de teste sao persistidos em PostgreSQL temporario, recuperados pela
+   rota do arquivo e comparados byte a byte. O teste valida o CMS, a faixa de
+   bytes e a identidade sintetica do certificado. CMS significa mensagem
+   criptografica assinada.
+7. Todos os PDFs da operacao sao assinados antes da primeira gravacao; a
+   persistencia usa uma transacao. Um teste faz a segunda gravacao falhar e
+   confirma que a transacao deixa o banco sem os novos arquivos.
+8. O teste recusa um vinculo entre clinicas e um certificado invalido antes de
+   qualquer persistencia. Os canais de envio permanecem simulados e com zero
+   chamadas.
+
+### Evidencias executadas
+
+| Verificacao | Resultado |
+|---|---|
+| `vitest run src/tests/prescription-signing.test.ts` | 13 testes aprovados |
+| `vitest run src/tests/exam-workspace.test.ts` | 31 testes aprovados |
+| `vitest run src/tests/clinical-emitter.test.ts` | 23 testes aprovados |
+| `vitest run src/tests/clinical-prescription-routes.test.ts` | 10 testes aprovados |
+| `pnpm --filter @workspace/api-server run build` | Compilacao aprovada |
+| `pnpm --filter @workspace/api-server run typecheck` | Nao aprovado: 190 diagnosticos em 56 arquivos; nenhum aponta para os arquivos alterados nesta entrega |
+
+O teste de exame usa rotulos propositalmente sinteticos e uma identidade
+autenticada simulada. Somente os PDFs sao gravados no PostgreSQL temporario; a
+relacao de cliente, medico e clinica ainda nao foi exercitada como uma jornada
+real completa sobre esse banco. Os itens sinteticos nao comprovam o catalogo
+clinico existente.
+
+### Bloqueios que impedem a homologacao global
+
+1. A jornada de prescricoes nao foi repetida aqui ponta a ponta com seis
+   documentos, registros isolados, recuperacao dos arquivos e validacao das
+   entregas sem destinatario.
+2. A lista real de itens do catalogo de exames nao foi carregada e verificada
+   nesta homologacao.
+3. O identificador de exame enviado pelo navegador ainda nao e conferido contra
+   uma linha ativa do catalogo no servidor.
+4. O link publico de arquivo de exame continua sem vencimento ou revogacao.
+   Tokens historicos nao foram alterados.
+5. As jornadas visuais, a troca de cliente enquanto uma requisicao esta
+   pendente, a trilha temporal completa e tentativas duplicadas nao foram
+   aprovadas por um teste de ponta a ponta.
+6. A assinatura sintetica prova integridade criptografica dos bytes e
+   correspondencia do titular de teste. Nao prova a cadeia de confianca,
+   revogacao, validade regulatoria ou adequacao clinica de um certificado real.
+7. A revisao por um segundo agente nao ocorreu. O revisor e o agente de
+   implementacao estavam indisponiveis neste modo.
+8. Atestados e encaminhamentos continuam fora desta ordem e nao estao liberados
+   por esta mudanca.
+9. O fluxo visual do aplicativo nao foi atualizado nem confirmado em uma
+   visualizacao autenticada. A verificacao desta unidade foi feita pelas rotas
+   HTTP e pelo PDF recuperado, sem acessar uma sessao clinica real.
+
+Por esses motivos, a conclusao honesta desta entrega e: UNIDADE A APROVADA EM
+TESTES SINTETICOS; JORNADA CLINICA COMPLETA BLOQUEADA.

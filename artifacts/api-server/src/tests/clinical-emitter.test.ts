@@ -13,10 +13,17 @@ vi.mock("@workspace/db", async () => ({
       limit: async () => mock.results.shift() ?? [],
     }) }) }),
     insert: mock.insert,
+    transaction: (callback: (tx: any) => Promise<any>) => callback({ insert: mock.insert }),
   },
 }));
 vi.mock("../lib/exam-request-pdf", () => ({ generateExamRequestPdf: mock.pdf }));
 vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send }));
+// This suite covers identity and clinic binding. Cryptographic signing is
+// exercised separately with a synthetic certificate in prescription-signing.test.ts.
+vi.mock("../lib/prescription-signing", () => ({
+  resolvePrescriptionSigner: vi.fn().mockResolvedValue({}),
+  signExistingClinicalPdf: vi.fn(async (bytes: Uint8Array) => bytes),
+}));
 import { medicalRegistration, validateClinicalIdentity, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { requireCollaborator } from "../routes/collaborator";
 import { createCollaboratorToken } from "../lib/collaborator-auth";

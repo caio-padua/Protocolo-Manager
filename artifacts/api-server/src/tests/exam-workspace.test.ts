@@ -19,6 +19,7 @@ vi.mock("@workspace/db", async () => ({
       return chain;
     },
     insert: mock.insert, update: mock.update, execute: mock.execute,
+    transaction: (callback: (tx: any) => Promise<any>) => callback({ insert: mock.insert }),
   },
 }));
 vi.mock("../routes/collaborator", () => ({

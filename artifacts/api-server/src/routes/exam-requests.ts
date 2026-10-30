@@ -126,6 +126,14 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
 
   const baseUrl = absoluteBaseUrl(req);
   const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+  const prepared: Array<{
+    tipo: string;
+    tipoLabel: string;
+    fileName: string;
+    examCount: number;
+    token: string;
+    pdfBuffer: Buffer;
+  }> = [];
 
   for (const { tipo, items } of jobs) {
     const tipoLabel = TIPO_LABEL[tipo] ?? tipo;
@@ -151,29 +159,46 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
     const fileName = `${stamp.file} ${fileLabel} ${safeName}.pdf`.replace(/\s+/g, " ");
     const token = randomBytes(24).toString("hex");
 
-    const [row] = await db
-      .insert(examRequestPdfsTable)
-      .values({
-        token,
-        clientId: client.id,
-        professionalId: professional?.id ?? null,
-        tipo,
-        fileName,
-        examCount: items.length,
-        observacao: body.observacao ?? null,
-        pdfData: pdfBuffer.toString("base64"),
-      })
-      .returning({ id: examRequestPdfsTable.id });
+    prepared.push({ tipo, tipoLabel, fileName, examCount: items.length, token, pdfBuffer });
+  }
 
+  // Finish rendering and signing every file before the first write. Persist the
+  // batch atomically so a partial multi-PDF order cannot be mistaken for success.
+  const saved = await db.transaction(async (tx) => {
+    const rows: Array<{ id: number; document: (typeof prepared)[number] }> = [];
+    for (const document of prepared) {
+      const [row] = await tx
+        .insert(examRequestPdfsTable)
+        .values({
+          token: document.token,
+          clientId: client.id,
+          professionalId: professional?.id ?? null,
+          tipo: document.tipo,
+          fileName: document.fileName,
+          examCount: document.examCount,
+          observacao: body.observacao ?? null,
+          pdfData: document.pdfBuffer.toString("base64"),
+        })
+        .returning({ id: examRequestPdfsTable.id });
+      rows.push({ id: row.id, document });
+    }
+    return rows;
+  });
+
+  for (const { id, document } of saved) {
     created.push({
-      id: row.id,
-      tipo,
-      tipoLabel,
-      fileName,
-      examCount: items.length,
-      url: `${baseUrl}/api/exam-requests/file/${token}`,
+      id,
+      tipo: document.tipo,
+      tipoLabel: document.tipoLabel,
+      fileName: document.fileName,
+      examCount: document.examCount,
+      url: `${baseUrl}/api/exam-requests/file/${document.token}`,
     });
-    attachments.push({ filename: fileName, content: pdfBuffer, contentType: "application/pdf" });
+    attachments.push({
+      filename: document.fileName,
+      content: document.pdfBuffer,
+      contentType: "application/pdf",
+    });
   }
 
   // Envio ao cliente via Motor Único de Envio Branded (Hermes Paxter):

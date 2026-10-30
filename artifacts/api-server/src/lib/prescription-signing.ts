@@ -112,9 +112,10 @@ export async function signClinicalPdf(
   // A certificate can expire between rendering the document and embedding its signature.
   inspectPrescriptionCertificate(signer.buffer, signer.password, signer.identity.professional.cpf);
   const { professional, client, clinic } = signer.identity;
+  const reason = kind === "Receituario" ? "Receituário médico" : "Solicitação de exames";
   doc.setSubject(`${kind};medico=${professional.id};cliente=${client.id};clinica=${clinic.id};empresa=${clinic.empresaId}`);
   doc.setAuthor(professional.name);
-  pdflibAddPlaceholder({ pdfDoc: doc, reason: kind, contactInfo: "",
+  pdflibAddPlaceholder({ pdfDoc: doc, reason, contactInfo: "",
     name: signer.meta.assinante, location: clinic.name, signatureLength: 16384 });
   return new Uint8Array(await new SignPdf().sign(
     Buffer.from(await doc.save({ useObjectStreams: false })),

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { createServer } from "node:net";
 import { createRequire } from "node:module";
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -33,9 +33,33 @@ export async function isolatedPostgres() {
       const compiled = dialect.sqlToQuery(query);
       return pool.query(compiled.sql, compiled.params);
     },
+    transaction: async (callback: (tx: { execute: (query: SQL) => Promise<any> }) => Promise<any>) => {
+      const client = await pool.connect();
+      const execute = (query: SQL) => {
+        const compiled = dialect.sqlToQuery(query);
+        return client.query(compiled.sql, compiled.params);
+      };
+      await client.query("BEGIN");
+      try {
+        const result = await callback({ execute });
+        await client.query("COMMIT");
+        return result;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
     stop: async () => {
       await pool.end();
       execFileSync("pg_ctl", ["-D", directory, "-w", "stop", "-m", "fast"], { stdio: "pipe" });
+      const tempRoot = `${resolve(tmpdir())}${sep}`;
+      const isolatedDirectory = resolve(directory);
+      if (!isolatedDirectory.startsWith(tempRoot)) {
+        throw new Error("Refusing to remove a PostgreSQL test directory outside the temporary folder.");
+      }
+      rmSync(isolatedDirectory, { recursive: true, force: true });
     },
   };
 }

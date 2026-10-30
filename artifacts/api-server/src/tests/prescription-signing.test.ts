@@ -12,7 +12,8 @@ import { isolatedPostgres } from "./helpers/isolated-postgres";
 
 const mock = vi.hoisted(() => ({
   getJson: vi.fn(), getSecret: vi.fn(), read: vi.fn(), globalBuffer: vi.fn(), globalPasswords: vi.fn(),
-  rows: [] as any[][], execute: vi.fn(), upload: vi.fn(), email: vi.fn(), insert: vi.fn(), sendPaxter: vi.fn(),
+  rows: [] as any[][], execute: vi.fn(), upload: vi.fn(), email: vi.fn(), insert: vi.fn(),
+  transaction: vi.fn(), sendPaxter: vi.fn(),
 }));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
@@ -25,6 +26,7 @@ vi.mock("@workspace/db", async () => ({
     } }),
     execute: mock.execute,
     insert: mock.insert,
+    transaction: mock.transaction,
   },
 }));
 vi.mock("../lib/secure-settings", () => ({ getJsonSetting: mock.getJson, getSecret: mock.getSecret }));
@@ -93,6 +95,7 @@ beforeEach(() => {
   mock.rows = [];
   mock.execute.mockResolvedValue({ rows: [{ id: 2, tipo: "classico_anvisa", nome: "SINTETICO", config: {} }] });
   mock.insert.mockImplementation(() => { throw new Error("Persistencia de teste sem PostgreSQL isolado"); });
+  mock.transaction.mockImplementation(() => { throw new Error("Transacao sintetica sem PostgreSQL isolado"); });
 });
 
 function queueExamIdentity(clientId: number, clientName: string) {
@@ -105,29 +108,39 @@ function queueExamIdentity(clientId: number, clientName: string) {
   );
 }
 
+function useIsolatedExamStore(persisted: any[], failAtInsert?: number) {
+  let insertCount = 0;
+  mock.transaction.mockImplementation((callback: (tx: any) => Promise<any>) => postgres.transaction((connection) => (
+    callback({
+      insert: (table: any) => ({
+        values: (values: any) => ({
+          returning: async () => {
+            expect(table).toBe(examRequestPdfsTable);
+            insertCount++;
+            if (insertCount === failAtInsert) throw new Error("Falha sintetica de persistencia");
+            persisted.push(values);
+            const result = await connection.execute(sql`
+              INSERT INTO exam_request_pdfs
+                (token, client_id, professional_id, tipo, file_name, exam_count, observacao, pdf_data)
+              VALUES
+                (${values.token}, ${values.clientId}, ${values.professionalId}, ${values.tipo},
+                 ${values.fileName}, ${values.examCount}, ${values.observacao}, ${values.pdfData})
+              RETURNING id
+            `);
+            return result.rows;
+          },
+        }),
+      }),
+    })
+  )));
+  return () => insertCount;
+}
+
 it("emite e recupera pedidos sinteticos assinados para dois clientes em PostgreSQL descartavel", async () => {
   const app = express().use(express.json()).use("/api", examRequestRouter);
   const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
   const persisted: any[] = [];
-  mock.insert.mockImplementation((table: any) => {
-    expect(table).toBe(examRequestPdfsTable);
-    return {
-      values: (values: any) => ({
-        returning: async () => {
-          persisted.push(values);
-          const result = await postgres.execute(sql`
-            INSERT INTO exam_request_pdfs
-              (token, client_id, professional_id, tipo, file_name, exam_count, observacao, pdf_data)
-            VALUES
-              (${values.token}, ${values.clientId}, ${values.professionalId}, ${values.tipo},
-               ${values.fileName}, ${values.examCount}, ${values.observacao}, ${values.pdfData})
-            RETURNING id
-          `);
-          return result.rows;
-        },
-      }),
-    };
-  });
+  useIsolatedExamStore(persisted);
 
   const disclaimer = "HOMOLOGACAO - DOCUMENTO DE TESTE - SEM VALIDADE CLINICA";
   const patients = [
@@ -156,6 +169,11 @@ it("emite e recupera pedidos sinteticos assinados para dois clientes em PostgreS
 
       expect(response.status).toBe(200);
       expect(response.body.pdfs).toHaveLength(operation.expectedFiles);
+      expect(response.body.pdfs.map((pdf: any) => pdf.examCount)).toEqual(
+        operation.tipo === "SANGUE"
+          ? [4]
+          : Array.from({ length: operation.expectedFiles }, () => 1),
+      );
       expectedPdfCount += operation.expectedFiles;
 
       for (const emitted of response.body.pdfs) {
@@ -190,12 +208,38 @@ it("emite e recupera pedidos sinteticos assinados para dois clientes em PostgreS
     }
   }
 
-  expect(expectedPdfCount).toBe(14);
-  expect(persisted).toHaveLength(14);
+  expect(expectedPdfCount).toBe(12);
+  expect(persisted).toHaveLength(12);
   expect(mock.sendPaxter).not.toHaveBeenCalled();
   expect(mock.email).not.toHaveBeenCalled();
   expect(mock.upload).not.toHaveBeenCalled();
 }, 120_000);
+
+it("reverte todo o lote se uma gravacao de PDF falhar", async () => {
+  const app = express().use(express.json()).use("/api", examRequestRouter);
+  const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
+  const persisted: any[] = [];
+  const attempts = useIsolatedExamStore(persisted, 2);
+  queueExamIdentity(71, "CLIENTE MODELO");
+  const before = await postgres.execute(sql`SELECT count(*)::int AS total FROM exam_request_pdfs`);
+  const totalBefore = before.rows[0].total;
+
+  const response = await request(app).post("/api/exam-requests/emit").set("Authorization", authorization).send({
+    clientId: 71,
+    items: [
+      { nomeExame: "IMAGEM SINTETICA A", tipo: "IMAGEM" },
+      { nomeExame: "IMAGEM SINTETICA B", tipo: "IMAGEM" },
+      { nomeExame: "IMAGEM SINTETICA C", tipo: "IMAGEM" },
+    ],
+  });
+
+  expect(response.status).toBe(500);
+  expect(attempts()).toBe(2);
+  const count = await postgres.execute(sql`SELECT count(*)::int AS total FROM exam_request_pdfs`);
+  expect(count.rows[0].total).toBe(totalBefore);
+  expect(persisted).toHaveLength(1);
+  expect(mock.sendPaxter).not.toHaveBeenCalled();
+}, 30_000);
 
 it("bloqueia pedido entre clinicas antes de assinar ou persistir", async () => {
   const app = express().use(express.json()).use("/api", examRequestRouter);
