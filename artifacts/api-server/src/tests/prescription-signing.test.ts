@@ -162,7 +162,8 @@ beforeAll(async () => {
     location_id INTEGER NOT NULL, professional_id INTEGER NOT NULL
   )`);
   await postgres.pool.query(`CREATE TABLE professionals (
-    id INTEGER PRIMARY KEY, active BOOLEAN NOT NULL, professional_type TEXT NOT NULL
+    id INTEGER PRIMARY KEY, active BOOLEAN NOT NULL, professional_type TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'executor', credential_version INTEGER NOT NULL DEFAULT 0
   )`);
   await postgres.pool.query(`CREATE TABLE prescriptions (
     id SERIAL PRIMARY KEY, client_id INTEGER, client_name TEXT NOT NULL, client_cpf TEXT,
@@ -213,6 +214,7 @@ beforeEach(() => {
 
 function queueExamIdentity(clientId: number, clientName: string) {
   mock.rows.push(
+    [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
     [{ id: 41, name: identity.professional.name, cpf: identity.professional.cpf, active: true,
       professionalType: "medico", crm: "12345", registrationNumber: null, registrationCouncil: "CRM/SP" }],
     [{ ...identity.client, id: clientId, name: clientName, status: "active", locationId: 31, empresaId: 21 }],
@@ -358,6 +360,7 @@ it("bloqueia pedido entre clinicas antes de assinar ou persistir", async () => {
   const app = express().use(express.json()).use("/api", examRequestRouter);
   const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
   mock.rows = [
+    [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
     [{ id: 41, name: identity.professional.name, cpf: identity.professional.cpf, active: true,
       professionalType: "medico", crm: "12345", uf: "SP" }],
     [{ ...identity.client, id: 72, name: "CLIENTE DE OUTRA CLINICA", status: "active", locationId: 32, empresaId: 22 }],
@@ -423,11 +426,14 @@ function verify(bytes: Uint8Array, tamper = false) {
 describe("certificado por médico, sem acesso a certificados reais", () => {
   it("rota HTTP real gera assinatura válida para identidade autorizada sem enviar nem subir arquivos", async () => {
     mock.rows = [
+      [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
+      [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
       [{ id: 41, name: identity.professional.name, cpf: identity.professional.cpf, active: true,
         professionalType: "medico", crm: "CRM/SP 12345" }],
       [{ ...identity.client, status: "active", locationId: 31, empresaId: 21 }],
       [{ ...identity.clinic, active: "true" }], [{ id: 1 }],
-      [{ id: 41, name: identity.professional.name }], [{ id: 31, name: identity.clinic.name }],
+      [{ id: 41, name: identity.professional.name }],
+      [{ id: 31, name: identity.clinic.name }],
     ];
     const app = express().use(express.json()).use((req, _res, next) => {
       req.log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any; next();

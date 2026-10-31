@@ -147,3 +147,4 @@
 - [Autonomia nos retornos das tarefas](autonomia-retornos-tarefas.md) — decidir questões técnicas de “Aguardando entrada” com foco comercial; ler a pergunta e confirmar o envio da resposta.
 - [Envio clínico com resultado incerto](envio-clinico-resultado-incerto.md) — reservas não expiram nem autorizam repetição automática; resposta perdida exige conferência, não nova chave.
 - [Comercialização multiempresa](comercializacao-multiempresa.md) — finalidade comercial exige isolamento real; correção local não certifica o sistema inteiro para várias clínicas.
+- [Fixtures de autenticação do colaborador](colaborador-auth-test-fixtures.md) — testes protegidos precisam simular sessão ativa completa e cada validação de autenticação executada na rota.

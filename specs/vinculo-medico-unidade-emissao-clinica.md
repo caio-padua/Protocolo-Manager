@@ -1,7 +1,7 @@
 # Especificação — Vínculo clínico do médico principal à unidade
 
 Data: 31/10/2026
-Estado: VÍNCULO APLICADO; VALIDAÇÃO NA SESSÃO AUTENTICADA PENDENTE
+Estado: VÍNCULO APLICADO; TESTES SINTÉTICOS APROVADOS; HOMOLOGAÇÃO PENDENTE
 
 ## Objetivo
 
@@ -25,9 +25,11 @@ Restabelecer a validação clínica do cadastro médico principal na unidade de 
 
 ## Verificação automatizada
 
-- Execução de dois arquivos de teste: 19 aprovados e 5 reprovados.
-- As cinco reprovações ocorreram no arquivo `prescription-signing.test.ts`; os testes receberam 401, 403 ou 500 onde esperavam outros estados.
-- A causa dessas reprovações ainda não foi isolada. Portanto, este resultado não certifica a emissão completa.
+- A primeira execução de dois arquivos de teste teve 19 aprovações e 5 reprovações.
+- A investigação isolou a causa: os dados sintéticos de alguns testes não representavam a consulta de sessão autenticada, que exige papel, estado ativo e versão de credencial.
+- Os dados sintéticos foram corrigidos sem remover nem enfraquecer verificações de autenticação ou vínculo clínico.
+- A reexecução passou nos dois arquivos: 24 testes aprovados, incluindo emissão sintética autorizada, recusa entre clínicas, certificado inválido, persistência e histórico.
+- A revisão independente não pôde ser executada neste ambiente; a homologação continua bloqueada.
 - O teste automatizado não acessou nem assinou documento de cliente real.
 
 ## Requisitos e limites
@@ -55,4 +57,4 @@ Restabelecer a validação clínica do cadastro médico principal na unidade de 
 2. Consulta posterior confirma o vínculo entre os mesmos registros. **Concluído.**
 3. Nenhuma outra associação ou dado clínico foi alterado. **Concluído pela operação executada.**
 4. O painel de identidade deixa de apresentar a recusa após nova validação, sem emitir documento. **Pendente: a sessão autenticada do usuário não está disponível para verificação automatizada.**
-5. Revisão independente e homologação clínica completa. **Pendente.**
+5. Revisão independente e homologação clínica completa. **Pendente: revisor independente indisponível e conferência visual autenticada não realizada.**
