@@ -29,11 +29,18 @@ export const professionalsTable = pgTable(
     // (exclusiva) da Entrada 4 (assistentes) sem depender do nome. Default false:
     // quem nao for marcado entra como assistente.
     isPrimaryDoctor: boolean("is_primary_doctor").notNull().default(false),
+    // Autoridade administrativa global da plataforma. Nao deriva de isPrimaryDoctor:
+    // a associacao inicial exige autorizacao explicita do CEO e fica persistida.
+    isPlatformOwner: boolean("is_platform_owner").notNull().default(false),
+    // Empresa principal do profissional; os vinculos adicionais continuam em locations.
+    empresaId: integer("empresa_id"),
     // Credenciais do Portao do Colaborador (Onda 8.2). Login por colaborador
     // para permitir auditoria de quem entrou e fez o que. Senha SEMPRE em hash
     // (scrypt+salt), nunca texto puro. Nulo = colaborador ainda sem acesso.
     loginUsername: text("login_username"),
     passwordHash: text("password_hash"),
+    // Incrementado ao trocar/resetar senha; tokens de sessoes anteriores ficam invalidos.
+    credentialVersion: integer("credential_version").notNull().default(0),
     // Identidade Google gerenciada pela Replit. Desenvolvimento e producao
     // usam cadastros de autenticacao separados, portanto os vinculos tambem.
     clerkUserIdDev: text("clerk_user_id_dev"),
@@ -75,6 +82,15 @@ export const professionalsTable = pgTable(
     uniqueIndex("professionals_clerk_user_id_prod_uk")
       .on(t.clerkUserIdProd)
       .where(sql`${t.clerkUserIdProd} is not null`),
+    uniqueIndex("professionals_platform_owner_singleton_uk")
+      .on(t.isPlatformOwner)
+      .where(sql`${t.isPlatformOwner} is true`),
+    uniqueIndex("professionals_email_normalized_uk")
+      .on(sql`lower(btrim(${t.email}))`)
+      .where(sql`${t.email} is not null and btrim(${t.email}) <> ''`),
+    uniqueIndex("professionals_cpf_digits_uk")
+      .on(sql`regexp_replace(${t.cpf}, '[^0-9]', '', 'g')`)
+      .where(sql`${t.cpf} is not null and regexp_replace(${t.cpf}, '[^0-9]', '', 'g') <> ''`),
   ],
 );
 

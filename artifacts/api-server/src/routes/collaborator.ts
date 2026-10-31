@@ -22,6 +22,7 @@ import {
 } from "../lib/collaborator-auth.js";
 import { destinoPorPerfil } from "../lib/role-destino.js";
 import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
+import { requirePlatformOwner } from "../middleware/tenantContext.js";
 
 const router: IRouter = Router();
 
@@ -83,9 +84,14 @@ function sessionForProfessional(prof: {
   role: string;
   category: string;
   isPrimaryDoctor: boolean;
+  credentialVersion?: number | null;
 }) {
   return {
-    token: createCollaboratorToken({ professionalId: prof.id, role: prof.role }),
+    token: createCollaboratorToken({
+      professionalId: prof.id,
+      role: prof.role,
+      credentialVersion: prof.credentialVersion ?? 0,
+    }),
     professional: {
       id: prof.id,
       name: prof.name,
@@ -97,6 +103,31 @@ function sessionForProfessional(prof: {
       isPrimaryDoctor: prof.isPrimaryDoctor,
       category: prof.category,
     }),
+  };
+}
+
+async function authenticatedClaims(req: Request): Promise<CollaboratorClaims | null> {
+  const claims = readToken(req);
+  if (!claims) return null;
+  const [professional] = await db
+    .select({
+      id: professionalsTable.id,
+      role: professionalsTable.role,
+      active: professionalsTable.active,
+      credentialVersion: professionalsTable.credentialVersion,
+    })
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, claims.professionalId))
+    .limit(1);
+  if (
+    !professional ||
+    !professional.active ||
+    (professional.credentialVersion ?? 0) !== (claims.credentialVersion ?? 0)
+  ) return null;
+  return {
+    professionalId: professional.id,
+    role: professional.role,
+    credentialVersion: professional.credentialVersion ?? 0,
   };
 }
 
@@ -126,13 +157,16 @@ async function recordAudit(entry: {
 
 // Middleware: exige token de colaborador valido. Anexa req.collaborator.
 export function requireCollaborator(req: Request, res: Response, next: NextFunction): void {
-  const claims = readToken(req);
-  if (!claims) {
-    res.status(401).json({ error: "Acesso restrito: faça login de colaborador" });
-    return;
-  }
-  req.collaborator = claims;
-  next();
+  void authenticatedClaims(req)
+    .then((claims) => {
+      if (!claims) {
+        res.status(401).json({ error: "Acesso restrito: faça login de colaborador" });
+        return;
+      }
+      req.collaborator = claims;
+      next();
+    })
+    .catch(next);
 }
 
 // Guarda central: protege as ESCRITAS da Central de Cadastro (site-content e
@@ -152,34 +186,37 @@ export function collaboratorGuard(req: Request, res: Response, next: NextFunctio
     next();
     return;
   }
-  const claims = readToken(req);
-  if (!claims) {
-    res.status(401).json({ error: "Acesso restrito: faça login de colaborador" });
-    return;
-  }
-  req.collaborator = claims;
-  const method = req.method;
-  const ip = clientIp(req);
-  res.on("finish", () => {
-    if (res.statusCode >= 400) return;
-    void (async () => {
-      const [prof] = await db
-        .select({ name: professionalsTable.name })
-        .from(professionalsTable)
-        .where(eq(professionalsTable.id, claims.professionalId))
-        .limit(1);
-      await recordAudit({
-        professionalId: claims.professionalId,
-        professionalName: prof?.name ?? null,
-        action: "write",
-        method,
-        path,
-        detail: { role: claims.role, status: res.statusCode },
-        ip,
+  void authenticatedClaims(req)
+    .then((claims) => {
+      if (!claims) {
+        res.status(401).json({ error: "Acesso restrito: faça login de colaborador" });
+        return;
+      }
+      req.collaborator = claims;
+      const method = req.method;
+      const ip = clientIp(req);
+      res.on("finish", () => {
+        if (res.statusCode >= 400) return;
+        void (async () => {
+          const [prof] = await db
+            .select({ name: professionalsTable.name })
+            .from(professionalsTable)
+            .where(eq(professionalsTable.id, claims.professionalId))
+            .limit(1);
+          await recordAudit({
+            professionalId: claims.professionalId,
+            professionalName: prof?.name ?? null,
+            action: "write",
+            method,
+            path,
+            detail: { role: claims.role, status: res.statusCode },
+            ip,
+          });
+        })();
       });
-    })();
-  });
-  next();
+      next();
+    })
+    .catch(next);
 }
 
 // POST /api/collaborator/google/session — identidade Google vinculada ->
@@ -360,41 +397,52 @@ router.post(
 
 // POST /api/collaborator/login — usuario + senha -> token de 12h.
 router.post("/collaborator/login", async (req, res): Promise<void> => {
-  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+  const identifierInput =
+    typeof req.body?.identifier === "string"
+      ? req.body.identifier
+      : typeof req.body?.username === "string"
+        ? req.body.username
+        : "";
+  const identifier = identifierInput.trim();
   const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!username || !password) {
-    res.status(400).json({ error: "Usuário e senha são obrigatórios" });
+  if (!identifier || !password) {
+    res.status(400).json({ error: "E-mail, CPF ou usuário atual e senha são obrigatórios" });
     return;
   }
-  const [prof] = await db
+  const normalizedIdentifier = identifier.toLowerCase();
+  const cpfDigits = identifier.replace(/[^0-9]/g, "");
+  const matches = await db
     .select()
     .from(professionalsTable)
-    .where(sql`lower(${professionalsTable.loginUsername}) = lower(${username})`)
-    .orderBy(asc(professionalsTable.id))
-    .limit(1);
+    .where(sql`
+      (
+        ${normalizedIdentifier} <> ''
+        AND lower(btrim(coalesce(${professionalsTable.email}, ''))) = ${normalizedIdentifier}
+      )
+      OR (
+        ${cpfDigits} <> ''
+        AND regexp_replace(coalesce(${professionalsTable.cpf}, ''), '[^0-9]', '', 'g') = ${cpfDigits}
+      )
+      OR (
+        nullif(btrim(coalesce(${professionalsTable.email}, '')), '') IS NULL
+        AND nullif(regexp_replace(coalesce(${professionalsTable.cpf}, ''), '[^0-9]', '', 'g'), '') IS NULL
+        AND lower(btrim(coalesce(${professionalsTable.loginUsername}, ''))) = ${normalizedIdentifier}
+      )
+    `)
+    .limit(2);
+  const prof = matches.length === 1 ? matches[0] : null;
   const senhaConfere = prof ? verifyPassword(password, prof.passwordHash) : false;
   const ok = prof && prof.active && senhaConfere;
   if (!ok) {
-    // Distingue as tres causas de recusa. A resposta ao cliente continua
-    // generica; isto e so para a auditoria, que e interna.
-    // Nunca registrar a senha — apenas o comprimento recebido.
+    // Nao guardar o identificador (e-mail/CPF/usuario), a senha ou seu tamanho.
     await recordAudit({
       professionalId: null,
       professionalName: null,
       action: "login_fail",
-      detail: {
-        username,
-        motivo: !prof
-          ? "usuario_nao_encontrado"
-          : !prof.active
-            ? "usuario_inativo"
-            : "senha_incorreta",
-        senhaLen: password.length,
-      },
+      detail: { reason: matches.length > 1 ? "ambiguous_identifier" : "invalid_credentials" },
       ip: clientIp(req),
     });
-    // Mensagem generica: nao revela se o usuario existe.
-    res.status(401).json({ error: "Usuário ou senha inválidos" });
+    res.status(401).json({ error: "Credenciais inválidas" });
     return;
   }
   await recordAudit({
@@ -403,22 +451,7 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
     action: "login_ok",
     ip: clientIp(req),
   });
-  const token = createCollaboratorToken({ professionalId: prof.id, role: prof.role });
-  res.json({
-    token,
-    professional: {
-      id: prof.id,
-      name: prof.name,
-      role: prof.role,
-      category: prof.category,
-      isPrimaryDoctor: prof.isPrimaryDoctor,
-    },
-    // Destino pronto para o site publico redirecionar (mapa em lib/role-destino.ts).
-    destino: destinoPorPerfil({
-      isPrimaryDoctor: prof.isPrimaryDoctor,
-      category: prof.category,
-    }),
-  });
+  res.json(sessionForProfessional(prof));
 });
 
 // GET /api/collaborator/me — dados do colaborador logado.
@@ -438,6 +471,7 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
       category: professionalsTable.category,
       isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
       cpf: professionalsTable.cpf,
+      email: professionalsTable.email,
       crm: professionalsTable.crm,
       registrationCouncil: professionalsTable.registrationCouncil,
       registrationNumber: professionalsTable.registrationNumber,
@@ -458,6 +492,90 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
     professional: {
       ...professional,
       googleLinked: Boolean(googleIdentity),
+    },
+  });
+});
+
+// POST /api/collaborator/change-password — altera somente a senha da sessao.
+// A nova versao invalida todos os tokens emitidos antes da troca.
+router.post("/collaborator/change-password", requireCollaborator, async (req, res): Promise<void> => {
+  const claims = req.collaborator!;
+  const currentPassword =
+    typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+  const newPassword =
+    typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+
+  if (newPassword.length < 12 || newPassword.length > 128) {
+    res.status(400).json({ error: "A nova senha deve ter entre 12 e 128 caracteres." });
+    return;
+  }
+  if (!currentPassword || currentPassword.length > 512 || currentPassword === newPassword) {
+    res.status(400).json({ error: "Confira a senha atual e escolha uma nova senha diferente." });
+    return;
+  }
+
+  const [professional] = await db
+    .select()
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, claims.professionalId))
+    .limit(1);
+  if (!professional || !professional.active || !professional.passwordHash) {
+    res.status(409).json({ error: "Esta conta ainda não pode alterar a senha por este fluxo." });
+    return;
+  }
+  if (!verifyPassword(currentPassword, professional.passwordHash)) {
+    await recordAudit({
+      professionalId: professional.id,
+      professionalName: professional.name,
+      action: "password_change_fail",
+      detail: { reason: "current_password_invalid" },
+      ip: clientIp(req),
+    });
+    res.status(401).json({ error: "A senha atual não confere." });
+    return;
+  }
+
+  const nextCredentialVersion = (professional.credentialVersion ?? 0) + 1;
+  const updated = await db
+    .update(professionalsTable)
+    .set({
+      passwordHash: hashPassword(newPassword),
+      credentialVersion: nextCredentialVersion,
+    })
+    .where(
+      and(
+        eq(professionalsTable.id, professional.id),
+        eq(professionalsTable.credentialVersion, professional.credentialVersion ?? 0),
+      ),
+    )
+    .returning({ id: professionalsTable.id });
+
+  if (updated.length !== 1) {
+    res.status(409).json({ error: "A conta mudou durante a operação. Entre novamente e tente de novo." });
+    return;
+  }
+
+  const token = createCollaboratorToken({
+    professionalId: professional.id,
+    role: professional.role,
+    credentialVersion: nextCredentialVersion,
+  });
+  await recordAudit({
+    professionalId: professional.id,
+    professionalName: professional.name,
+    action: "password_changed",
+    detail: { priorSessionsInvalidated: true },
+    ip: clientIp(req),
+  });
+  res.json({
+    ok: true,
+    token,
+    professional: {
+      id: professional.id,
+      name: professional.name,
+      role: professional.role,
+      category: professional.category,
+      isPrimaryDoctor: professional.isPrimaryDoctor,
     },
   });
 });
@@ -536,7 +654,11 @@ router.post("/collaborator/bootstrap", async (req, res): Promise<void> => {
 
 // POST /api/collaborator/credentials — define/reseta usuario+senha de um
 // profissional. Exige colaborador logado.
-router.post("/collaborator/credentials", requireCollaborator, async (req, res): Promise<void> => {
+router.post(
+  "/collaborator/credentials",
+  requireCollaborator,
+  requirePlatformOwner,
+  async (req, res): Promise<void> => {
   const professionalId = Number(req.body?.professionalId);
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
@@ -560,7 +682,11 @@ router.post("/collaborator/credentials", requireCollaborator, async (req, res): 
   try {
     await db
       .update(professionalsTable)
-      .set({ loginUsername: username, passwordHash: hashPassword(password) })
+      .set({
+        loginUsername: username,
+        passwordHash: hashPassword(password),
+        credentialVersion: sql`${professionalsTable.credentialVersion} + 1`,
+      })
       .where(eq(professionalsTable.id, professionalId));
   } catch (e) {
     if (isUniqueViolation(e)) {
@@ -585,7 +711,8 @@ router.post("/collaborator/credentials", requireCollaborator, async (req, res): 
     ip: clientIp(req),
   });
   res.json({ ok: true });
-});
+  },
+);
 
 // GET /api/collaborator/audit — ultimos eventos (quem entrou e fez o que).
 router.get("/collaborator/audit", requireCollaborator, async (req, res): Promise<void> => {

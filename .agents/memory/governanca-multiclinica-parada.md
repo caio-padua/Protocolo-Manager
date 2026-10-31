@@ -51,11 +51,12 @@ O CEO autorizou somente a correção de segurança no envio do guia: vincular o 
 
 O CEO autorizou em 30/10/2026 a retomada do isolamento completo entre clinicas, com execucao sequencial.
 O acesso atual deve ser preservado ate que cada cadastro profissional tenha e-mail ou CPF preenchidos.
-O acesso global do proprietario deve ser vinculado explicitamente a um cadastro verificado, sem inferir
-essa autoridade de um parametro do navegador.
+O CEO confirmou que o cadastro atual de Medico Principal deve receber acesso global. A autoridade precisa
+ser registrada separadamente do marcador clinico e conferida no servidor.
 
-**Why:** a troca imediata do identificador de acesso bloquearia as contas existentes sem e-mail ou CPF.
+**Why:** a troca imediata do identificador de acesso bloquearia as contas existentes sem e-mail ou CPF;
+usar o marcador clinico em toda requisicao como autoridade global confundiria identidade assistencial e administrativa.
 
 **How to apply:** manter o login atual durante a transicao; depois que o cadastro receber e-mail ou CPF,
-permitir o novo identificador e deixar de aceitar o login antigo para essa conta. A troca de empresa e o
-acesso global precisam ser conferidos no servidor.
+permitir o novo identificador e deixar de aceitar o login antigo para essa conta. Vincular a autoridade
+global uma unica vez e conferir a troca de empresa no servidor.

@@ -103,3 +103,53 @@ ALTER TABLE professionals ADD COLUMN IF NOT EXISTS empresa_id INTEGER;
 -- do paciente ('entrada'), permitindo alertas Slack quando o paciente responde.
 ALTER TABLE telegram_inbox_messages
   ADD COLUMN IF NOT EXISTS direcao TEXT NOT NULL DEFAULT 'entrada';
+
+-- Identidade administrativa e revogacao de sessoes do colaborador.
+-- A autoridade global fica separada do marcador clinico de Medico Principal.
+ALTER TABLE professionals
+  ADD COLUMN IF NOT EXISTS is_platform_owner BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE professionals
+  ADD COLUMN IF NOT EXISTS credential_version INTEGER NOT NULL DEFAULT 0;
+
+-- Garante um unico proprietario global e identificadores de login sem colisao.
+-- Se houver e-mails ou CPFs duplicados, esta migracao para sem alterar esses dados.
+CREATE UNIQUE INDEX IF NOT EXISTS professionals_platform_owner_singleton_uk
+  ON professionals (is_platform_owner)
+  WHERE is_platform_owner IS TRUE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS professionals_email_normalized_uk
+  ON professionals (lower(btrim(email)))
+  WHERE email IS NOT NULL AND btrim(email) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS professionals_cpf_digits_uk
+  ON professionals (regexp_replace(cpf, '[^0-9]', '', 'g'))
+  WHERE cpf IS NOT NULL AND regexp_replace(cpf, '[^0-9]', '', 'g') <> '';
+
+-- Vincula a conta indicada pelo CEO sem inferir esse poder em requisicoes.
+-- Se nao houver dono, exige exatamente um Medico Principal; caso contrario para.
+DO $$
+DECLARE
+  owner_count INTEGER;
+  primary_count INTEGER;
+BEGIN
+  SELECT count(*) INTO owner_count
+  FROM professionals
+  WHERE is_platform_owner IS TRUE;
+
+  IF owner_count = 0 THEN
+    SELECT count(*) INTO primary_count
+    FROM professionals
+    WHERE is_primary_doctor IS TRUE;
+
+    IF primary_count <> 1 THEN
+      RAISE EXCEPTION
+        'Permissao global nao vinculada: esperado exatamente um Medico Principal; encontrados %',
+        primary_count;
+    END IF;
+
+    UPDATE professionals
+    SET is_platform_owner = TRUE
+    WHERE is_primary_doctor IS TRUE;
+  END IF;
+END $$;

@@ -1,7 +1,7 @@
 # Especificacao — Identidade, acesso e isolamento entre clinicas
 
 Data: 30/10/2026
-Estado: EM ESPECIFICACAO — bloqueada pela identificacao segura do acesso global da plataforma
+Estado: EM CONSTRUCAO — unidade de identidade e acesso em andamento
 Responsavel: Dr. Replit Paxter
 
 ## 1. Objetivo
@@ -13,7 +13,7 @@ Preparar o Padcon Conect para que profissionais usem um cadastro canonico, acess
 1. O CEO autorizou ativar o isolamento completo entre clinicas.
 2. O CEO escolheu preservar o acesso atual ate que os cadastros tenham e-mail ou CPF preenchidos.
 3. O acesso Google permanece como alternativa adicional, somente para identidade Google vinculada ao cadastro profissional.
-4. O CEO e a autoridade global da plataforma, mas a conta profissional que recebera essa autoridade ainda precisa ser identificada por um vinculo verificavel no servidor.
+4. O CEO confirmou que seu acesso global deve usar o cadastro atual de Médico Principal. A permissão global será gravada em um campo administrativo separado; o sistema não a inferirá do marcador clínico em cada requisição.
 5. Esta autorizacao nao permite alterar cobrancas, tarifas, pagamentos reais, contratos comerciais, nem publicar o sistema ou sincronizar o GitHub.
 6. Nenhum teste de seguranca pode usar prontuarios ou enviar mensagens reais.
 7. Migracoes devem ser aditivas e nao destrutivas; nao usar DROP, TRUNCATE ou apagamento de dados.
@@ -43,7 +43,7 @@ Preparar o Padcon Conect para que profissionais usem um cadastro canonico, acess
 2. A sessao de colaborador deve obter a identidade e seus vinculos do servidor; `empresaId`, `locationId` ou `role` enviados pelo navegador nao concedem acesso.
 3. A participacao de profissionais em clinicas deve suportar varios vinculos sem duplicar o cadastro profissional.
 4. A empresa ativa escolhida por uma pessoa deve ser uma associacao previamente autorizada e conferida no servidor em cada requisicao.
-5. A autoridade do proprietario da plataforma deve vir de um registro de acesso protegido e verificavel; nao inferir autoridade global de `isPrimaryDoctor`, nome, cargo recebido do cliente ou empresaId informado pelo navegador.
+5. A autoridade do proprietario da plataforma deve vir de um registro de acesso protegido e verificavel; o cadastro de Médico Principal será vinculado explicitamente uma única vez, sem inferir autoridade global do marcador `isPrimaryDoctor` em cada requisição.
 6. Uma requisicao sem empresa autorizada deve falhar fechada. A troca de empresa deve atualizar o contexto da sessao e nao reaproveitar dados do contexto anterior.
 7. Todo dado clinico, arquivo, busca, fila, job e integracao deve aplicar o mesmo escopo de empresa. As unidades continuam subordinadas a sua empresa.
 8. A arquitetura deve respeitar colunas e migracoes existentes; qualquer campo ausente sera adicionado de forma aditiva, sem substituir o banco ou apagar dados.
@@ -107,6 +107,6 @@ Cada unidade deve ser revisada, testada e aceita antes de iniciar a seguinte. Ne
 9. Ha revisao independente, evidencias de banco, rotas, tela e logs; nenhuma falha impeditiva permanece.
 10. O sistema nao sera declarado homologado nem seguro para operacao multiclínica ate todos os itens acima passarem.
 
-## 11. Pergunta bloqueadora
+## 11. Decisao do CEO
 
-O banco de desenvolvimento nao tem profissional ligado a empresa proprietaria da plataforma. A escolha de qual registro pode receber acesso global precisa ser explicita; nao se deve inferir isso de cargo, nome, perfil clinico ou parametro do navegador.
+O CEO escolheu o cadastro atual de Médico Principal para receber a permissão global de plataforma. A associação deve ser registrada em um campo administrativo separado e aplicada somente quando houver exatamente um cadastro marcado como Médico Principal no ambiente migrado; se houver zero ou mais de um, a migração deve parar sem conceder acesso.
