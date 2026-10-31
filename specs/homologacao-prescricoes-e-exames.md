@@ -398,3 +398,22 @@ dos PDFs sinteticos.
 Por esses motivos, a conclusao honesta desta entrega e: API DE RECEITAS
 VERIFICADA EM TESTES SINTETICOS; REVISAO INDEPENDENTE PENDENTE; JORNADA CLINICA
 COMPLETA BLOQUEADA.
+
+## 14. Reexecucao local em 31/10/2026
+
+1. A primeira reexecucao de `clinical-prescription-routes.test.ts` terminou com
+   4 testes aprovados e 6 falhas, todas recebendo 403 antes dos efeitos esperados.
+2. A leitura do fluxo mostrou que `requireCollaborator` consulta o profissional
+   autenticado antes de `resolveClinicalEmitter`, mas os casos autorizados do
+   teste nao reservavam uma resposta sintetica para essa consulta.
+3. A falha era do arranjo de dados do teste, nao uma alteracao da regra da rota:
+   o teste agora fornece primeiro a resposta sintetica da autenticacao.
+4. Nova execucao de `clinical-prescription-routes.test.ts`: 10 de 10 testes
+   aprovados, incluindo bloqueios de identidade, UF e cliente de outra empresa,
+   e caminho autorizado; geracao e envio continuam simulados.
+5. Execucao de `exam-workspace.test.ts`: 31 de 31 testes aprovados em PostgreSQL
+   temporario; integracoes externas permanecem simuladas.
+6. Nenhuma base principal, dado real, paciente real ou canal externo foi usado.
+7. Essas evidencias cobrem rotas e persistencia sintetica, nao o fluxo visual
+   autenticado no Cockpit. A revisao independente continua pendente; por isso,
+   a jornada clinica completa segue bloqueada para homologacao e uso real.

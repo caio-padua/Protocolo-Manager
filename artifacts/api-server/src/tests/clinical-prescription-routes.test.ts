@@ -57,7 +57,12 @@ const client = { id: 71, name: "Cliente sintetico", cpf: null, email: null, phon
 const location = { id: 31, name: "Clinica sintetica", empresaId: 21, active: "true" };
 const token = () => createCollaboratorToken({ professionalId: 41, role: "executor" });
 const body = { clientId: 71, clientName: "Nome enviado nao confiavel", items: [] };
+const authenticatedProfessional = { id: 41, role: "executor", active: true, credentialVersion: 0 };
 beforeEach(() => { vi.clearAllMocks(); mock.results = []; mock.alert.mockResolvedValue(undefined); });
+function setAuthenticatedQueryResults(...results: any[][]) {
+  // requireCollaborator reads the authenticated account before clinical identity queries.
+  mock.results = [[authenticatedProfessional], ...results];
+}
 function noEffects() {
   expect(mock.insert).not.toHaveBeenCalled();
   expect(mock.send).not.toHaveBeenCalled();
@@ -68,19 +73,19 @@ it("emissao anonima retorna 401 antes de gravar ou gerar", async () => {
   noEffects();
 });
 it("identidade explicita de outro medico retorna 403", async () => {
-  mock.results = [[professional], [client], [location], [{ id: 1 }]];
+  setAuthenticatedQueryResults([professional], [client], [location], [{ id: 1 }]);
   const response = await request(app).post("/prescriptions/emit").set("Authorization", `Bearer ${token()}`)
     .send({ ...body, professionalId: 42 });
   expect(response.status).toBe(403); noEffects();
 });
 it("ausencia de UF bloqueia antes de gravar, mesmo com UF falsificada no corpo", async () => {
-  mock.results = [[{ ...professional, crm: "12345" }], [client], [location], [{ id: 1 }]];
+  setAuthenticatedQueryResults([{ ...professional, crm: "12345" }], [client], [location], [{ id: 1 }]);
   const response = await request(app).post("/prescriptions/emit").set("Authorization", `Bearer ${token()}`)
     .send({ ...body, professionalUf: "SP" });
   expect(response.status).toBe(422); expect(response.body.error).toContain("federativa"); noEffects();
 });
 it("cliente de empresa diferente e rejeitado antes de gravar", async () => {
-  mock.results = [[professional], [{ ...client, empresaId: 22 }], [location], [{ id: 1 }]];
+  setAuthenticatedQueryResults([professional], [{ ...client, empresaId: 22 }], [location], [{ id: 1 }]);
   expect((await request(app).post("/prescriptions/emit").set("Authorization", `Bearer ${token()}`).send(body)).status).toBe(403);
   noEffects();
 });
@@ -89,7 +94,7 @@ it("contexto protegido nao revela dados sem login", async () => {
   expect(response.status).toBe(401); expect(response.body.professional).toBeUndefined(); noEffects();
 });
 it("contexto autenticado usa cadastro e nao identificadores da query", async () => {
-  mock.results = [[professional], [client], [location], [{ id: 1 }]];
+  setAuthenticatedQueryResults([professional], [client], [location], [{ id: 1 }]);
   const response = await request(app).get("/clinical-context/71?professionalId=42&empresaId=22")
     .set("Authorization", `Bearer ${token()}`);
   expect(response.status).toBe(200); expect(response.body.professional.id).toBe(41);
@@ -97,8 +102,8 @@ it("contexto autenticado usa cadastro e nao identificadores da query", async () 
   expect(response.headers["cache-control"]).toBe("no-store"); noEffects();
 });
 it("prescricao autorizada grava identidade canonica e passa ids corretos ao motor sem copia fixa", async () => {
-  // Four context lookups + safe client resolver + reminder lookup + pharmacies.
-  mock.results = [[professional], [client], [location], [{ id: 1 }], [client], [], []];
+  // Authentication lookup + four identity lookups + client resolver + reminder + pharmacies.
+  setAuthenticatedQueryResults([professional], [client], [location], [{ id: 1 }], [client], [], []);
   mock.values.mockReturnValue({ returning: async () => [{ id: 101 }] });
   mock.insert.mockReturnValue({ values: mock.values });
   mock.generate.mockReturnValue([]);
@@ -122,7 +127,7 @@ it.each([
   { status: "exhausted", low: true, remaining: 0, number: null, expected: "exhausted" },
   { status: "no_range", low: true, remaining: null, number: null, expected: "no_range" },
 ])("emissão preserva cartões SNCR $expected sem destinatários externos", async sncr => {
-  mock.results = [[professional], [client], [location], [{ id: 1 }], [client], [], []];
+  setAuthenticatedQueryResults([professional], [client], [location], [{ id: 1 }], [client], [], []);
   mock.values.mockReturnValue({ returning: async () => [{ id: 101 }] });
   mock.insert.mockReturnValue({ values: mock.values });
   const plan = { needsSncr: true, recipeType: "controlado_isolado", anvisaType: "A",
