@@ -4,10 +4,10 @@ export type ScreenTheme = "dark" | "light";
 
 const KEY = "paxter.theme";
 
-function readTheme(): ScreenTheme {
-  if (typeof window === "undefined") return "light";
-  const v = window.localStorage.getItem(KEY);
-  return v === "dark" || v === "light" ? v : "light";
+function readTheme(storageKey: string, defaultTheme: ScreenTheme): ScreenTheme {
+  if (typeof window === "undefined") return defaultTheme;
+  const v = window.localStorage.getItem(storageKey);
+  return v === "dark" || v === "light" ? v : defaultTheme;
 }
 
 /**
@@ -15,16 +15,19 @@ function readTheme(): ScreenTheme {
  * Aplica a classe `.dark` no wrapper da tela — os tokens `.dark` do index.css
  * fazem o resto. Persiste em localStorage (`paxter.theme`).
  */
-export function useScreenTheme() {
-  const [theme, setThemeState] = useState<ScreenTheme>(readTheme);
+export function useScreenTheme(
+  defaultTheme: ScreenTheme = "light",
+  storageKey = KEY,
+) {
+  const [theme, setThemeState] = useState<ScreenTheme>(() => readTheme(storageKey, defaultTheme));
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(KEY, theme);
+      window.localStorage.setItem(storageKey, theme);
     } catch {
       /* localStorage indisponivel — ignora */
     }
-  }, [theme]);
+  }, [storageKey, theme]);
 
   const setTheme = useCallback((t: ScreenTheme) => setThemeState(t), []);
   const toggle = useCallback(

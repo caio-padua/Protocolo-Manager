@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlaskConical,
@@ -277,7 +278,7 @@ export default function ExamesCliente() {
 
   // Colaboradores (conferentes). Todos podem conferir; o padrao e o colaborador logado.
   useEffect(() => {
-    fetch(`${BASE}/api/professionals`)
+    fetch(`${BASE}/api/professionals`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d: ProfOption[]) =>
         setProfissionais(

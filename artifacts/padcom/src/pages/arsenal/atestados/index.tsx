@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useEffect, useMemo, useState, type ElementType } from "react";
 import { tituloProprio } from "@/lib/utils";
 import {
@@ -76,7 +77,7 @@ export default function AtestadosPage() {
   const { data: profissionais = [] } = useQuery<ProfessionalRow[]>({
     queryKey: ["atestado-profissionais"],
     queryFn: async () => {
-      const r = await fetch(`${API}/professionals`);
+      const r = await fetch(`${API}/professionals`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar profissionais");
       return r.json();
     },

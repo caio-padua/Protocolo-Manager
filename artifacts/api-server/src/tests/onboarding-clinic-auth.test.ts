@@ -33,7 +33,13 @@ const app = express();
 app.use(express.json());
 // Reproduce the global legacy fallback: onboarding must NOT trust it.
 app.use((req, _res, next) => {
-  req.tenantContext = { empresaId: 5, isPlatformOwner: true, perfilPlataforma: "platform_owner" };
+  req.tenantContext = {
+    empresaId: 5,
+    isPlatformOwner: true,
+    perfilPlataforma: "platform_owner",
+    authenticated: true,
+    professionalId: 1,
+  };
   next();
 });
 app.use("/api/onboarding", onboardingRouter);

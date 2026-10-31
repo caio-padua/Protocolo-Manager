@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Share2, User, Stethoscope, FileText, Send, Eye, Download, ExternalLink,
@@ -101,7 +102,7 @@ export default function EncaminhamentosPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setClientes(Array.isArray(d) ? d : []))
       .catch(() => setClientes([]));
-    fetch(`${BASE}/api/professionals`)
+    fetch(`${BASE}/api/professionals`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setProfissionais(Array.isArray(d) ? d : []))
       .catch(() => setProfissionais([]));

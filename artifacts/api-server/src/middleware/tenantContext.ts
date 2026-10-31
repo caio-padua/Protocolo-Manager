@@ -46,7 +46,11 @@ declare global {
  * A empresa enviada pelo navegador é uma seleção, nunca uma concessão de acesso.
  */
 export function tenantContextMiddleware(req: Request, res: Response, next: NextFunction): void {
-  void resolveTenantContext(req, res).then(next).catch(next);
+  void resolveTenantContext(req, res)
+    .then(() => {
+      if (!res.headersSent) next();
+    })
+    .catch(next);
 }
 
 async function resolveTenantContext(req: Request, res: Response): Promise<void> {

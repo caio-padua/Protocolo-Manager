@@ -12,7 +12,7 @@ import {
   anamneseSessionAnswersTable,
   anamneseQuestionarioTable,
 } from "@workspace/db";
-import { eq, sql, desc, asc, and, inArray, isNotNull, isNull } from "drizzle-orm";
+import { eq, sql, desc, asc, and, inArray, isNull } from "drizzle-orm";
 import {
   createCollaboratorToken,
   verifyCollaboratorToken,
@@ -76,6 +76,24 @@ function clerkIdentityColumn(environment: "development" | "production") {
   return environment === "production"
     ? professionalsTable.clerkUserIdProd
     : professionalsTable.clerkUserIdDev;
+}
+
+export function normalizeCpf(raw: string): string {
+  return raw.replace(/[^0-9]/g, "");
+}
+
+export function isValidCpf(raw: string): boolean {
+  const cpf = normalizeCpf(raw);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  const digit = (length: number): number => {
+    let sum = 0;
+    for (let i = 0; i < length; i += 1) {
+      sum += Number(cpf[i]) * (length + 1 - i);
+    }
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+  return digit(9) === Number(cpf[9]) && digit(10) === Number(cpf[10]);
 }
 
 function sessionForProfessional(prof: {
@@ -410,7 +428,8 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
     return;
   }
   const normalizedIdentifier = identifier.toLowerCase();
-  const cpfDigits = identifier.replace(/[^0-9]/g, "");
+  const rawCpfDigits = normalizeCpf(identifier);
+  const cpfDigits = rawCpfDigits.length === 11 ? rawCpfDigits : "";
   const matches = await db
     .select()
     .from(professionalsTable)
@@ -496,6 +515,114 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
   });
 });
 
+// PUT /api/collaborator/me/identity — atualiza identificadores apenas da sessao.
+router.put(
+  "/collaborator/me/identity",
+  requireCollaborator,
+  async (req, res): Promise<void> => {
+    const claims = req.collaborator!;
+    const currentPassword =
+      typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+    const emailInput = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const cpfInput = typeof req.body?.cpf === "string" ? req.body.cpf.trim() : "";
+    const email = emailInput ? emailInput.toLowerCase() : null;
+    const cpf = cpfInput ? normalizeCpf(cpfInput) : null;
+
+    if (!email && !cpf) {
+      res.status(400).json({ error: "Informe pelo menos um e-mail ou CPF." });
+      return;
+    }
+    if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      res.status(400).json({ error: "Informe um e-mail válido." });
+      return;
+    }
+    if (cpf && !isValidCpf(cpf)) {
+      res.status(400).json({ error: "Informe um CPF válido com 11 dígitos." });
+      return;
+    }
+    if (!currentPassword || currentPassword.length > 512) {
+      res.status(400).json({ error: "Confirme sua senha atual para alterar os identificadores." });
+      return;
+    }
+
+    const [professional] = await db
+      .select()
+      .from(professionalsTable)
+      .where(eq(professionalsTable.id, claims.professionalId))
+      .limit(1);
+    if (!professional || !professional.active || !professional.passwordHash) {
+      res.status(409).json({ error: "Esta conta ainda não pode alterar os identificadores por este fluxo." });
+      return;
+    }
+    if (!verifyPassword(currentPassword, professional.passwordHash)) {
+      res.status(401).json({ error: "A senha atual não confere." });
+      return;
+    }
+
+    const nextCredentialVersion = (professional.credentialVersion ?? 0) + 1;
+    try {
+      const [updated] = await db
+        .update(professionalsTable)
+        .set({
+          ...(email ? { email } : {}),
+          ...(cpf ? { cpf } : {}),
+          credentialVersion: nextCredentialVersion,
+        })
+        .where(
+          and(
+            eq(professionalsTable.id, professional.id),
+            eq(professionalsTable.credentialVersion, professional.credentialVersion ?? 0),
+          ),
+        )
+        .returning({
+          id: professionalsTable.id,
+          email: professionalsTable.email,
+          cpf: professionalsTable.cpf,
+        });
+
+      if (!updated) {
+        res.status(409).json({ error: "O cadastro mudou durante a operação. Entre novamente e tente de novo." });
+        return;
+      }
+
+      const token = createCollaboratorToken({
+        professionalId: professional.id,
+        role: professional.role,
+        credentialVersion: nextCredentialVersion,
+      });
+      await recordAudit({
+        professionalId: professional.id,
+        professionalName: professional.name,
+        action: "identity_updated",
+        detail: {
+          emailUpdated: Boolean(email),
+          cpfUpdated: Boolean(cpf),
+          priorSessionsInvalidated: true,
+        },
+        ip: clientIp(req),
+      });
+      res.json({
+        token,
+        professional: {
+          id: professional.id,
+          name: professional.name,
+          role: professional.role,
+          category: professional.category,
+          isPrimaryDoctor: professional.isPrimaryDoctor,
+          cpf: updated.cpf,
+          email: updated.email,
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ error: "Este e-mail ou CPF já está vinculado a outro cadastro." });
+        return;
+      }
+      throw error;
+    }
+  },
+);
+
 // POST /api/collaborator/change-password — altera somente a senha da sessao.
 // A nova versao invalida todos os tokens emitidos antes da troca.
 router.post("/collaborator/change-password", requireCollaborator, async (req, res): Promise<void> => {
@@ -580,77 +707,23 @@ router.post("/collaborator/change-password", requireCollaborator, async (req, re
   });
 });
 
-// GET /api/collaborator/bootstrap-status — informa se ainda nao existe nenhuma
-// credencial (primeiro acesso) e lista profissionais para escolher.
-router.get("/collaborator/bootstrap-status", async (_req, res): Promise<void> => {
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(professionalsTable)
-    .where(isNotNull(professionalsTable.passwordHash));
-  const needsBootstrap = Number(count) === 0;
-  const staff = needsBootstrap
-    ? await db
-        .select({ id: professionalsTable.id, name: professionalsTable.name, role: professionalsTable.role })
-        .from(professionalsTable)
-        .where(eq(professionalsTable.active, true))
-        .orderBy(professionalsTable.name)
-    : [];
-  res.json({ needsBootstrap, staff });
+// O primeiro acesso nao pode ser reivindicado anonimamente por um cadastro
+// escolhido no navegador. A provisao inicial exige operacao administrativa
+// revisada; a rota de credenciais atende novas contas depois da autenticacao.
+router.get("/collaborator/bootstrap-status", (_req, res): void => {
+  res.json({ needsBootstrap: false, staff: [] });
 });
 
-// POST /api/collaborator/bootstrap — cria a PRIMEIRA credencial. So funciona
-// enquanto nenhum profissional tiver senha; depois fica desligado.
-router.post("/collaborator/bootstrap", async (req, res): Promise<void> => {
-  const professionalId = Number(req.body?.professionalId);
-  const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!Number.isInteger(professionalId) || !username || password.length < 6) {
-    res.status(400).json({ error: "Profissional, usuário e senha (mínimo 6 caracteres) são obrigatórios" });
-    return;
-  }
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(professionalsTable)
-    .where(isNotNull(professionalsTable.passwordHash));
-  if (Number(count) > 0) {
-    res.status(409).json({ error: "Primeiro acesso já foi configurado. Use o login." });
-    return;
-  }
-  const [prof] = await db
-    .select()
-    .from(professionalsTable)
-    .where(eq(professionalsTable.id, professionalId))
-    .limit(1);
-  if (!prof) {
-    res.status(404).json({ error: "Profissional não encontrado" });
-    return;
-  }
-  if (await usernameTaken(username, professionalId)) {
-    res.status(409).json({ error: "Este usuário já está em uso. Escolha outro." });
-    return;
-  }
-  try {
-    await db
-      .update(professionalsTable)
-      .set({ loginUsername: username, passwordHash: hashPassword(password), active: true })
-      .where(eq(professionalsTable.id, professionalId));
-  } catch (e) {
-    if (isUniqueViolation(e)) {
-      res.status(409).json({ error: "Este usuário já está em uso. Escolha outro." });
-      return;
-    }
-    throw e;
-  }
-  await recordAudit({
-    professionalId: prof.id,
-    professionalName: prof.name,
-    action: "login_ok",
-    detail: { bootstrap: true },
-    ip: clientIp(req),
-  });
-  const token = createCollaboratorToken({ professionalId: prof.id, role: prof.role });
-  res.status(201).json({ token, professional: { id: prof.id, name: prof.name, role: prof.role } });
-});
+router.post(
+  "/collaborator/bootstrap",
+  requireCollaborator,
+  requirePlatformOwner,
+  (_req, res): void => {
+    res.status(410).json({
+      error: "A criação pública do primeiro acesso foi desativada. Use a administração autenticada.",
+    });
+  },
+);
 
 // POST /api/collaborator/credentials — define/reseta usuario+senha de um
 // profissional. Exige colaborador logado.
@@ -715,7 +788,7 @@ router.post(
 );
 
 // GET /api/collaborator/audit — ultimos eventos (quem entrou e fez o que).
-router.get("/collaborator/audit", requireCollaborator, async (req, res): Promise<void> => {
+router.get("/collaborator/audit", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const rows = await db
     .select()

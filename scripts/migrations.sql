@@ -126,30 +126,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS professionals_cpf_digits_uk
   ON professionals (regexp_replace(cpf, '[^0-9]', '', 'g'))
   WHERE cpf IS NOT NULL AND regexp_replace(cpf, '[^0-9]', '', 'g') <> '';
 
--- Vincula a conta indicada pelo CEO sem inferir esse poder em requisicoes.
--- Se nao houver dono, exige exatamente um Medico Principal; caso contrario para.
-DO $$
-DECLARE
-  owner_count INTEGER;
-  primary_count INTEGER;
-BEGIN
-  SELECT count(*) INTO owner_count
-  FROM professionals
-  WHERE is_platform_owner IS TRUE;
-
-  IF owner_count = 0 THEN
-    SELECT count(*) INTO primary_count
-    FROM professionals
-    WHERE is_primary_doctor IS TRUE;
-
-    IF primary_count <> 1 THEN
-      RAISE EXCEPTION
-        'Permissao global nao vinculada: esperado exatamente um Medico Principal; encontrados %',
-        primary_count;
-    END IF;
-
-    UPDATE professionals
-    SET is_platform_owner = TRUE
-    WHERE is_primary_doctor IS TRUE;
-  END IF;
-END $$;
+-- Atribuicao de proprietario nao e feita por migracao: cada clinica licenciada
+-- pode ter seu proprio Medico Principal. O perfil escolhido pelo CEO foi
+-- marcado explicitamente apenas no banco de desenvolvimento; producao exige
+-- mapeamento operacional revisado, sem promover automaticamente um medico.

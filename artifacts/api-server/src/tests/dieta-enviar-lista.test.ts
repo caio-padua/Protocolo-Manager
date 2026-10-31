@@ -161,7 +161,13 @@ function buildApp() {
   app.use(express.json());
   // Injetar tenantContext (necessário para resolveEmpresaId no handler)
   app.use((req: any, _res: any, next: any) => {
-    req.tenantContext = { empresaId: 5, isPlatformOwner: false, perfilPlataforma: "admin" };
+    req.tenantContext = {
+      empresaId: 5,
+      isPlatformOwner: false,
+      perfilPlataforma: "admin",
+      authenticated: true,
+      professionalId: 1,
+    };
     next();
   });
   app.use("/api", dietaRouter);

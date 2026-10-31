@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
 import {
@@ -252,7 +253,7 @@ export default function ConsultaProntuario() {
 
   const carregarProfissionais = useCallback(() => {
     setErroProfissionais(false);
-    fetch(`${BASE}/api/professionals`)
+    fetch(`${BASE}/api/professionals`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("professionals"))))
       .then((d: ProfOption[]) =>
         setProfissionais(Array.isArray(d) ? [...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")) : []),

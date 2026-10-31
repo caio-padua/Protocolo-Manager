@@ -461,7 +461,9 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
   const fetchLinks = useCallback(async () => {
     const [locRes, lnkRes] = await Promise.all([
       fetch(`${BASE}/api/locations`),
-      fetch(`${BASE}/api/professionals/${professionalId}/locations`),
+      fetch(`${BASE}/api/professionals/${professionalId}/locations`, {
+        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      }),
     ]);
     const [locs, lnks] = await Promise.all([locRes.json(), lnkRes.json()]);
     setLocations(locs ?? []);

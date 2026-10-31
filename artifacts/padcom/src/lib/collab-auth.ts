@@ -21,6 +21,14 @@ export function getCollabToken(): string | null {
   }
 }
 
+export function collabAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = getCollabToken();
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export function getCollabProfessional(): CollabProfessional | null {
   try {
     const raw = localStorage.getItem(PROF_KEY);

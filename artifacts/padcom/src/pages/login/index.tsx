@@ -18,6 +18,8 @@ import {
 } from "@/lib/collab-auth";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { clerkPublishableKey } from "@/lib/clerk-app";
+import { useScreenTheme } from "@/components/theme/useScreenTheme";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface BootstrapStatus {
   needsBootstrap: boolean;
@@ -37,6 +39,7 @@ async function postJson(path: string, body: unknown): Promise<Response> {
 // Após autenticação, redireciona para `returnTo` (query param) ou para /.
 export default function LoginPage() {
   const [, navigate] = useLocation();
+  const { theme, toggle } = useScreenTheme("dark", "paxter.login-theme");
   const [status, setStatus] = useState<BootstrapStatus | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -65,7 +68,6 @@ export default function LoginPage() {
   }, []);
 
   const isBootstrap = status?.needsBootstrap === true;
-  const modoTeste = import.meta.env.DEV && !isBootstrap;
   const googleStatus = new URLSearchParams(window.location.search).get("google");
 
   function getReturnTo(): string {
@@ -88,24 +90,6 @@ export default function LoginPage() {
     navigate(`/sign-in?intent=login&returnTo=${encodeURIComponent(returnTo)}`);
   }
 
-  async function quickEnter() {
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await postJson("/api/collaborator/login", {
-        username: "00000000000",
-        password: "4000",
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data?.error ?? "Falha ao entrar."); setBusy(false); return; }
-      setCollabSession(data.token, data.professional);
-      navigate(getReturnTo(), { replace: true });
-    } catch {
-      setError("Erro de conexão. Tente novamente.");
-      setBusy(false);
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -120,7 +104,7 @@ export default function LoginPage() {
           password,
         });
       } else {
-        res = await postJson("/api/collaborator/login", { username, password });
+        res = await postJson("/api/collaborator/login", { identifier: username, password });
       }
       const data = await res.json();
       if (!res.ok) { setError(data?.error ?? "Credenciais incorretas."); setBusy(false); return; }
@@ -133,18 +117,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-[#f3ecdd] px-4 py-8">
+    <div className={`${theme === "dark" ? "dark bg-[#0f2440] text-[#f4e2a8]" : "bg-[#f3ecdd] text-[#16284a]"} relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 py-8`}>
       <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="absolute right-4 top-4 z-20">
+        <ThemeToggle theme={theme} onToggle={toggle} />
+      </div>
       <div className="relative z-10 flex w-full flex-col items-center">
 
       {/* ── Cabeçalho da marca ── */}
       <div className="flex flex-col items-center gap-3 mb-8 select-none">
         <PaxterSymbolGlass size={56} tone="dark" sharp />
         <div className="text-center">
-          <p className="text-[28px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none">
+          <p className="text-[28px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none dark:text-[#f4e2a8]">
             PADAXOR
           </p>
-          <p className="text-[11px] tracking-[0.22em] text-[#916f32] uppercase mt-1">
+          <p className="text-[11px] tracking-[0.22em] text-[#916f32] uppercase mt-1 dark:text-[#d9bd78]">
             Motor Clínico · PAWARDS
           </p>
         </div>
@@ -156,39 +143,39 @@ export default function LoginPage() {
 
           {/* Topbar do card */}
           <div className="login-card-topbar px-6 py-4 border-b border-border/60">
-            <h1 className="text-sm font-semibold uppercase tracking-widest text-[#16284a]">
+            <h1 className="text-sm font-semibold uppercase tracking-widest text-[#16284a] dark:text-[#f4e2a8]">
               {isBootstrap ? "Primeiro acesso" : "Acesso ao sistema"}
             </h1>
-            <p className="text-xs text-[#16284a]/65 mt-0.5">
+            <p className="text-xs text-[#16284a]/65 mt-0.5 dark:text-slate-300">
               {isBootstrap
                 ? "Crie a primeira credencial de acesso"
-                : "Entre com seu usuário e senha"}
+                : "Entre com seu e-mail, CPF ou usuário atual"}
             </p>
           </div>
 
           {/* Corpo do card */}
           <div className="login-card-body px-6 py-6">
             {googleStatus === "unlinked" ? (
-              <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
                 Esta conta Google ainda não está vinculada ao seu cadastro profissional.
-                Entre com seu usuário e senha; depois, no rodapé do menu, escolha “Vincular Google”.
+                Entre com seu e-mail, CPF ou usuário atual; depois, no rodapé do menu, escolha “Vincular Google”.
               </div>
             ) : null}
             {googleStatus === "link-session-expired" ? (
-              <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
-                Sua sessão do sistema expirou. Entre com seu usuário e senha antes de vincular o Google.
+                <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                Sua sessão do sistema expirou. Entre com seu e-mail, CPF ou usuário atual antes de vincular o Google.
               </div>
             ) : null}
             <form onSubmit={handleSubmit} className="space-y-4">
 
               {isBootstrap ? (
                 <div className="space-y-1.5">
-                  <Label htmlFor="prof" className="text-[#16284a] font-medium text-xs uppercase tracking-wide">
+                  <Label htmlFor="prof" className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
                     Profissional
                   </Label>
                   <Select value={professionalId} onValueChange={setProfessionalId}>
                     <SelectTrigger id="prof" data-testid="select-profissional"
-                  className="border-[#16284a]/30 bg-[#fffdf8] focus:ring-[#c2a05a]/50">
+                  className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]">
                       <SelectValue placeholder="Escolha o profissional" />
                     </SelectTrigger>
                     <SelectContent>
@@ -202,8 +189,8 @@ export default function LoginPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="username"
-                  className="text-[#16284a] font-medium text-xs uppercase tracking-wide">
-                  Usuário
+                  className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
+                  {isBootstrap ? "Usuário inicial" : "E-mail, CPF ou usuário atual"}
                 </Label>
                 <Input
                   id="username"
@@ -212,13 +199,19 @@ export default function LoginPage() {
                   autoComplete="username"
                   autoFocus={!isBootstrap}
                   data-testid="input-username"
-                  className="border-[#16284a]/30 bg-[#fffdf8] focus-visible:ring-[#c2a05a]/50"
+                  placeholder={isBootstrap ? "Crie seu usuário inicial" : "E-mail, CPF ou usuário atual"}
+                  className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] placeholder:text-slate-500 focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8] dark:placeholder:text-slate-400"
                 />
+                {!isBootstrap ? (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Cadastros ainda sem e-mail ou CPF continuam usando o usuário atual.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="password"
-                  className="text-[#16284a] font-medium text-xs uppercase tracking-wide">
+                  className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
                   Senha {isBootstrap ? "(mínimo 6 caracteres)" : ""}
                 </Label>
                 <Input
@@ -228,12 +221,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete={isBootstrap ? "new-password" : "current-password"}
                   data-testid="input-password"
-                  className="border-[#16284a]/30 bg-[#fffdf8] focus-visible:ring-[#c2a05a]/50"
+                  className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
                 />
               </div>
 
               {error ? (
-                <p className="text-sm text-red-600 bg-red-50 rounded-md px-3 py-2"
+                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-200"
                   data-testid="text-error">
                   {error}
                 </p>
@@ -251,22 +244,22 @@ export default function LoginPage() {
 
             {!isBootstrap && status && clerkPublishableKey ? (
               <div className="mt-5">
-                <div className="mb-4 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-[#16284a]/45">
-                  <span className="h-px flex-1 bg-[#16284a]/15" />
+                <div className="mb-4 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-[#16284a]/45 dark:text-slate-400">
+                  <span className="h-px flex-1 bg-[#16284a]/15 dark:bg-white/20" />
                   <span>ou</span>
-                  <span className="h-px flex-1 bg-[#16284a]/15" />
+                  <span className="h-px flex-1 bg-[#16284a]/15 dark:bg-white/20" />
                 </div>
                 <Button
                   type="button"
                   variant="outline"
                   disabled={busy}
                   onClick={beginGoogleLogin}
-                  className="btn-3d-soft w-full h-11 border-[#16284a]/25 text-[#16284a] font-semibold"
+                  className="btn-3d-soft w-full h-11 border-[#16284a]/25 text-[#16284a] font-semibold dark:border-[#c2a05a]/35 dark:text-[#f4e2a8]"
                   data-testid="button-entrar-google"
                 >
                   <span
                     aria-hidden="true"
-                    className="mr-2 flex h-5 w-5 items-center justify-center rounded-full border border-[#16284a]/20 text-xs font-bold"
+                    className="mr-2 flex h-5 w-5 items-center justify-center rounded-full border border-[#16284a]/20 text-xs font-bold dark:border-[#c2a05a]/45"
                   >
                     G
                   </span>
@@ -275,30 +268,11 @@ export default function LoginPage() {
               </div>
             ) : null}
 
-            {/* Modo teste: só em DEV */}
-            {modoTeste ? (
-              <div className="mt-5 border-t border-dashed border-amber-400/60 pt-4">
-                <div className="mb-2 inline-block rounded bg-amber-100 px-2 py-0.5
-                               text-[10px] font-bold uppercase tracking-widest text-amber-700">
-                  Modo Teste
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-amber-500 text-amber-700 hover:bg-amber-50 text-xs"
-                  disabled={busy}
-                  onClick={quickEnter}
-                  data-testid="button-entrar-sem-senha"
-                >
-                  {busy ? "Entrando…" : "ENTRAR SEM SENHA"}
-                </Button>
-              </div>
-            ) : null}
           </div>
         </div>
 
         {/* Rodapé discreto */}
-        <p className="text-center text-[10px] text-[#16284a]/55 mt-6 tracking-wider">
+        <p className="mt-6 text-center text-[10px] tracking-wider text-[#16284a]/55 dark:text-slate-400">
           PADAXOR © {new Date().getFullYear()} · PAWARDS Sistemas
         </p>
       </div>

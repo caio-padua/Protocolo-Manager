@@ -60,3 +60,26 @@ usar o marcador clinico em toda requisicao como autoridade global confundiria id
 **How to apply:** manter o login atual durante a transicao; depois que o cadastro receber e-mail ou CPF,
 permitir o novo identificador e deixar de aceitar o login antigo para essa conta. Vincular a autoridade
 global uma unica vez e conferir a troca de empresa no servidor.
+
+## Atribuicao de autoridade global
+
+O identificador de proprietario da plataforma deve ser atribuido explicitamente para cada ambiente; nao
+inferir `isPlatformOwner` a partir de `isPrimaryDoctor` nem promover automaticamente o unico medico principal.
+
+**Why:** uma clinica licenciada tambem pode ter seu proprio medico principal; inferir autoridade global
+por esse marcador transformaria identidade clinica em privilegio administrativo.
+
+**How to apply:** migracoes apenas criam a estrutura e os indices. A atribuicao do CEO deve ser feita
+por operacao revisada e verificacao em cada ambiente, sem alterar producao automaticamente.
+
+## Bootstrap de primeiro acesso
+
+Nao permitir que uma pessoa anonima escolha um cadastro profissional e reivindique a primeira senha.
+O endpoint publico de status nao pode enumerar nomes, cargos ou identificadores de profissionais; a
+provisao inicial deve ocorrer por um operador administrativo autenticado e verificado.
+
+**Why:** um cadastro escolhido pelo navegador poderia ser tomado antes da primeira senha ser definida.
+
+**How to apply:** desativar bootstrap anonimo e enumeracao publica. Se um ambiente nao tiver proprietario
+autenticado, interromper a provisao e usar um procedimento administrativo confiavel, nunca uma excecao
+aberta no endpoint publico.

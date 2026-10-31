@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,7 +67,7 @@ export default function CadastroEquipe() {
 
   const { data: professionals = [], isLoading } = useQuery<Professional[]>({
     queryKey: ["professionals"],
-    queryFn: async () => (await fetch(`${apiBase}/professionals`)).json(),
+    queryFn: async () => (await fetch(`${apiBase}/professionals`, { headers: collabAuthHeaders() })).json(),
   });
 
   const setField = (k: keyof FormState, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
@@ -87,7 +88,7 @@ export default function CadastroEquipe() {
       const url = editingId ? `${apiBase}/professionals/${editingId}` : `${apiBase}/professionals`;
       const res = await fetch(url, {
         method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -106,7 +107,10 @@ export default function CadastroEquipe() {
 
   const deleteMutation = useMutation({
     mutationFn: async (p: Professional) => {
-      const res = await fetch(`${apiBase}/professionals/${p.id}`, { method: "DELETE" });
+      const res = await fetch(`${apiBase}/professionals/${p.id}`, {
+        method: "DELETE",
+        headers: collabAuthHeaders(),
+      });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.error || "Erro ao apagar");
@@ -115,7 +119,7 @@ export default function CadastroEquipe() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["professionals"] });
-      toast.success("Profissional apagado.");
+      toast.success("Profissional desativado; histórico preservado.");
       setDeleteTarget(null);
     },
     onError: (e: Error) => {
@@ -345,7 +349,10 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
   });
   const { data: vinculos = [] } = useQuery<Vinculo[]>({
     queryKey: ["professional-locations", professional?.id],
-    queryFn: async () => (await fetch(`${apiBase}/professionals/${professional!.id}/locations`)).json(),
+    queryFn: async () => (await fetch(
+      `${apiBase}/professionals/${professional!.id}/locations`,
+      { headers: collabAuthHeaders() },
+    )).json(),
     enabled: open,
   });
 
@@ -355,7 +362,7 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
     mutationFn: async ({ locationId, agendaCalendarId }: { locationId: number; agendaCalendarId: number | null }) => {
       const res = await fetch(`${apiBase}/professionals/${professional!.id}/locations`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ locationId, agendaCalendarId }),
       });
       if (!res.ok) {
@@ -373,7 +380,10 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
 
   const removeMutation = useMutation({
     mutationFn: async (locationId: number) => {
-      const res = await fetch(`${apiBase}/professionals/${professional!.id}/locations/${locationId}`, { method: "DELETE" });
+      const res = await fetch(`${apiBase}/professionals/${professional!.id}/locations/${locationId}`, {
+        method: "DELETE",
+        headers: collabAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Erro ao remover vínculo");
       return res.json();
     },

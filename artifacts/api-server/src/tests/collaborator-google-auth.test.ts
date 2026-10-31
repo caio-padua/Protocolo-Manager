@@ -6,6 +6,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 const state = vi.hoisted(() => ({
   clerkUserId: null as string | null,
   professionals: [] as any[],
+  companies: [] as any[],
   audit: [] as any[],
   raceUpdateIdentity: null as string | null,
 }));
@@ -25,6 +26,10 @@ vi.mock("@workspace/db", async () => {
     [schema.professionalsTable.isPrimaryDoctor, "isPrimaryDoctor"],
     [schema.professionalsTable.active, "active"],
     [schema.professionalsTable.cpf, "cpf"],
+    [schema.professionalsTable.email, "email"],
+    [schema.professionalsTable.empresaId, "empresaId"],
+    [schema.professionalsTable.isPlatformOwner, "isPlatformOwner"],
+    [schema.professionalsTable.credentialVersion, "credentialVersion"],
     [schema.professionalsTable.crm, "crm"],
     [schema.professionalsTable.registrationCouncil, "registrationCouncil"],
     [schema.professionalsTable.registrationNumber, "registrationNumber"],
@@ -35,19 +40,39 @@ vi.mock("@workspace/db", async () => {
   ]);
 
   function queryRows(table: unknown, condition: unknown, fields?: Record<string, unknown>) {
-    if (table !== schema.professionalsTable) return [];
     const query = condition
       ? dialect.sqlToQuery(condition as never)
       : { sql: "", params: [] as unknown[] };
+    if (table === schema.empresasTable) {
+      let rows = [...state.companies];
+      if (query.params.length) rows = rows.filter((company) => company.id === Number(query.params[0]));
+      return rows;
+    }
+    if (table === schema.locationProfessionalsTable) return [];
+    if (table !== schema.professionalsTable) return [];
     let rows = [...state.professionals];
     if (query.sql.includes("clerk_user_id_dev")) {
       rows = rows.filter((p) => p.clerkUserIdDev === query.params[0]);
     } else if (query.sql.includes("clerk_user_id_prod")) {
       rows = rows.filter((p) => p.clerkUserIdProd === query.params[0]);
+    } else if (query.sql.includes("empresa_id")) {
+      rows = rows.filter((p) => Number(p.empresaId) === Number(query.params[0]));
+    } else if (query.params.some(Array.isArray)) {
+      const ids = query.params.find(Array.isArray) as number[];
+      rows = rows.filter((p) => ids.includes(p.id));
     } else if (query.sql.includes("login_username")) {
-      rows = rows.filter(
-        (p) => p.loginUsername?.toLowerCase() === String(query.params[0]).toLowerCase(),
-      );
+      const normalized = String(query.params[0] ?? "").toLowerCase();
+      const cpfDigits = String(query.params[2] ?? "");
+      rows = rows.filter((p) => {
+        const emailMatches = p.email?.trim().toLowerCase() === normalized;
+        const storedCpf = String(p.cpf ?? "").replace(/[^0-9]/g, "");
+        const cpfMatches = Boolean(cpfDigits) && storedCpf === cpfDigits;
+        const legacyMatches =
+          !p.email?.trim() &&
+          !storedCpf &&
+          p.loginUsername?.trim().toLowerCase() === normalized;
+        return emailMatches || cpfMatches || legacyMatches;
+      });
     } else if (query.sql.includes('"id"')) {
       rows = rows.filter((p) => p.id === Number(query.params[0]));
     }
@@ -75,6 +100,9 @@ vi.mock("@workspace/db", async () => {
             condition = value;
             return chain;
           },
+          innerJoin() {
+            return chain;
+          },
           limit() {
             return chain;
           },
@@ -91,24 +119,40 @@ vi.mock("@workspace/db", async () => {
     update: (table: unknown) => ({
       set: (values: Record<string, unknown>) => ({
         where: (condition: unknown) => ({
-          returning: async () => {
+          returning: async (fields?: Record<string, unknown>) => {
             const query = dialect.sqlToQuery(condition as never);
             const id = Number(query.params[0]);
             const prof = state.professionals.find((p) => p.id === id);
-            if (!prof || !query.sql.toUpperCase().includes("IS NULL")) return [];
-            if (state.raceUpdateIdentity) {
-              const field = query.sql.includes("clerk_user_id_prod")
-                ? "clerkUserIdProd"
-                : "clerkUserIdDev";
-              prof[field] = state.raceUpdateIdentity;
-              state.raceUpdateIdentity = null;
-              return [];
+            if (!prof) return [];
+            if (query.sql.toUpperCase().includes("IS NULL")) {
+              if (state.raceUpdateIdentity) {
+                const field = query.sql.includes("clerk_user_id_prod")
+                  ? "clerkUserIdProd"
+                  : "clerkUserIdDev";
+                prof[field] = state.raceUpdateIdentity;
+                state.raceUpdateIdentity = null;
+                return [];
+              }
+              const identityField =
+                "clerkUserIdProd" in values ? "clerkUserIdProd" : "clerkUserIdDev";
+              if (prof[identityField] != null) return [];
+              Object.assign(prof, values);
+              return [{ id: prof.id }];
             }
-            const identityField =
-              "clerkUserIdProd" in values ? "clerkUserIdProd" : "clerkUserIdDev";
-            if (prof[identityField] != null) return [];
+            if (
+              query.sql.includes("credential_version") &&
+              Number(prof.credentialVersion ?? 0) !== Number(query.params[1])
+            ) return [];
             Object.assign(prof, values);
-            return [{ id: prof.id }];
+            if (!fields) return [{ id: prof.id }];
+            return [
+              Object.fromEntries(
+                Object.entries(fields).map(([key, expression]) => [
+                  key,
+                  columnNames.has(expression) ? prof[columnNames.get(expression)!] : null,
+                ]),
+              ),
+            ];
           },
         }),
       }),
@@ -124,10 +168,18 @@ vi.mock("@workspace/db", async () => {
 });
 
 import router from "../routes/collaborator";
+import professionalsRouter from "../routes/professionals";
+import { tenantContextMiddleware, requirePlatformOwner } from "../middleware/tenantContext";
 import { createCollaboratorToken, hashPassword, verifyCollaboratorToken } from "../lib/collaborator-auth";
 import { resolveClerkEnvironment } from "../lib/clerk-environment";
 
-const app = express().use(express.json()).use(router);
+const app = express()
+  .use(express.json())
+  .use(tenantContextMiddleware)
+  .use(router)
+  .use(professionalsRouter)
+  .get("/test/tenant-context", (req, res) => res.json(req.tenantContext))
+  .get("/test/platform-owner", requirePlatformOwner, (_req, res) => res.json({ ok: true }));
 const originalPublishableKey = process.env.CLERK_PUBLISHABLE_KEY;
 
 function professional(overrides: Record<string, unknown> = {}) {
@@ -138,12 +190,17 @@ function professional(overrides: Record<string, unknown> = {}) {
     category: "medico",
     isPrimaryDoctor: true,
     active: true,
-    cpf: "12345678901",
+    cpf: "11144477735",
+    email: null,
+    empresaId: 5,
+    isPlatformOwner: false,
+    credentialVersion: 0,
     crm: "CRM 000000",
     registrationCouncil: "CRM",
     registrationNumber: "000000",
     loginUsername: "caio",
     passwordHash: null,
+    createdAt: new Date("2026-01-01T12:00:00.000Z"),
     clerkUserIdDev: null,
     clerkUserIdProd: null,
     ...overrides,
@@ -158,6 +215,10 @@ beforeEach(() => {
   process.env.CLERK_PUBLISHABLE_KEY = "pk_test_synthetic";
   state.clerkUserId = null;
   state.professionals = [professional()];
+  state.companies = [
+    { id: 5, ativa: true, status: "ATIVO" },
+    { id: 6, ativa: true, status: "ATIVO" },
+  ];
   state.audit = [];
   state.raceUpdateIdentity = null;
 });
@@ -281,7 +342,7 @@ describe("acesso Google vinculado ao colaborador", () => {
     expect(response.body.professional).toMatchObject({
       id: 41,
       name: "Caio Henrique Fernandes Padua",
-      cpf: "12345678901",
+      cpf: "11144477735",
       googleLinked: false,
     });
     expect(response.body.professional.clerkUserIdDev).toBeUndefined();
@@ -333,7 +394,7 @@ describe("acesso Google vinculado ao colaborador", () => {
     const response = await request(app)
       .get("/collaborator/me")
       .set("Authorization", `Bearer ${collaboratorToken(999)}`);
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(401);
   });
 
   it("falha fechada quando o ambiente Clerk nao pode ser identificado", async () => {
@@ -344,10 +405,248 @@ describe("acesso Google vinculado ao colaborador", () => {
 
   it("mantem funcionando o login atual por usuario e senha", async () => {
     state.professionals[0].passwordHash = hashPassword("synthetic-password");
+    state.professionals[0].cpf = null;
     const response = await request(app)
       .post("/collaborator/login")
       .send({ username: "caio", password: "synthetic-password" });
     expect(response.status).toBe(200);
     expect(verifyCollaboratorToken(response.body.token)?.professionalId).toBe(41);
+  });
+
+  it("aceita e-mail normalizado e CPF formatado como identificador", async () => {
+    state.professionals[0].passwordHash = hashPassword("synthetic-password");
+    state.professionals[0].email = "caio@example.test";
+    const byEmail = await request(app)
+      .post("/collaborator/login")
+      .send({ identifier: "CAIO@EXAMPLE.TEST", password: "synthetic-password" });
+    expect(byEmail.status).toBe(200);
+
+    const byCpf = await request(app)
+      .post("/collaborator/login")
+      .send({ identifier: "111.444.777-35", password: "synthetic-password" });
+    expect(byCpf.status).toBe(200);
+  });
+
+  it("desativa o usuário antigo depois que o cadastro recebe CPF ou e-mail", async () => {
+    state.professionals[0].passwordHash = hashPassword("synthetic-password");
+    const response = await request(app)
+      .post("/collaborator/login")
+      .send({ identifier: "caio", password: "synthetic-password" });
+    expect(response.status).toBe(401);
+    expect(JSON.stringify(state.audit)).not.toContain("caio");
+  });
+
+  it("troca a própria senha e invalida sessões anteriores sem aceitar alvo do navegador", async () => {
+    state.professionals[0].passwordHash = hashPassword("old-password");
+    state.professionals.push(
+      professional({ id: 42, name: "Outro Profissional", passwordHash: hashPassword("other-password") }),
+    );
+    const oldToken = collaboratorToken(41);
+    const response = await request(app)
+      .post("/collaborator/change-password")
+      .set("Authorization", `Bearer ${oldToken}`)
+      .send({
+        professionalId: 42,
+        currentPassword: "old-password",
+        newPassword: "new-synthetic-password",
+      });
+
+    expect(response.status).toBe(200);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(state.professionals[1].passwordHash).not.toBe("new-synthetic-password");
+    expect(verifyCollaboratorToken(response.body.token)?.credentialVersion).toBe(1);
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${oldToken}`)).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app)
+          .get("/collaborator/me")
+          .set("Authorization", `Bearer ${response.body.token}`)
+      ).status,
+    ).toBe(200);
+  });
+
+  it("recusa troca de senha com senha atual incorreta ou senha nova curta", async () => {
+    state.professionals[0].passwordHash = hashPassword("old-password");
+    const token = collaboratorToken();
+    const wrongCurrent = await request(app)
+      .post("/collaborator/change-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ currentPassword: "wrong", newPassword: "new-synthetic-password" });
+    const shortNew = await request(app)
+      .post("/collaborator/change-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ currentPassword: "old-password", newPassword: "short" });
+    expect(wrongCurrent.status).toBe(401);
+    expect(shortNew.status).toBe(400);
+    expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("atualiza e-mail e CPF somente na conta da sessão e encerra sessões anteriores", async () => {
+    state.professionals[0].passwordHash = hashPassword("old-password");
+    state.professionals[0].cpf = null;
+    state.professionals.push(
+      professional({
+        id: 42,
+        name: "Outro Profissional",
+        email: null,
+        cpf: null,
+        passwordHash: hashPassword("other-password"),
+      }),
+    );
+    const oldToken = collaboratorToken(41);
+    const response = await request(app)
+      .put("/collaborator/me/identity")
+      .set("Authorization", `Bearer ${oldToken}`)
+      .send({
+        professionalId: 42,
+        email: "CAIO@EXAMPLE.TEST",
+        cpf: "111.444.777-35",
+        currentPassword: "old-password",
+      });
+
+    expect(response.status).toBe(200);
+    expect(state.professionals[0]).toMatchObject({
+      email: "caio@example.test",
+      cpf: "11144477735",
+      credentialVersion: 1,
+    });
+    expect(state.professionals[1].email).toBeNull();
+    expect(state.professionals[1].cpf).toBeNull();
+    expect(verifyCollaboratorToken(response.body.token)?.credentialVersion).toBe(1);
+    expect(JSON.stringify(state.audit)).not.toContain("caio@example.test");
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${oldToken}`)).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app)
+          .get("/collaborator/me")
+          .set("Authorization", `Bearer ${response.body.token}`)
+      ).status,
+    ).toBe(200);
+  });
+
+  it("recusa CPF inválido ou identificadores sem confirmação da senha atual", async () => {
+    state.professionals[0].passwordHash = hashPassword("old-password");
+    const token = collaboratorToken();
+    const invalidCpf = await request(app)
+      .put("/collaborator/me/identity")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ cpf: "123", currentPassword: "old-password" });
+    const wrongPassword = await request(app)
+      .put("/collaborator/me/identity")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "caio@example.test", currentPassword: "wrong-password" });
+    expect(invalidCpf.status).toBe(400);
+    expect(wrongPassword.status).toBe(401);
+    expect(state.professionals[0].email).toBeNull();
+    expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("nao aceita que o navegador conceda outra clinica ao profissional", async () => {
+    const response = await request(app)
+      .get("/test/tenant-context?empresaId=6")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(403);
+  });
+
+  it("permite ao proprietario autenticado selecionar uma clinica ativa", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const response = await request(app)
+      .get("/test/tenant-context?empresaId=6")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      empresaId: 6,
+      isPlatformOwner: true,
+      authenticated: true,
+      professionalId: 41,
+    });
+    expect(
+      (await request(app).get("/test/platform-owner").set("Authorization", `Bearer ${collaboratorToken()}`)).status,
+    ).toBe(200);
+  });
+
+  it("nega acesso global sem sessão mesmo que o contexto anônimo tenha uma clínica padrão", async () => {
+    const response = await request(app).get("/test/platform-owner");
+    expect(response.status).toBe(403);
+  });
+
+  it("não revela profissionais nem permite reivindicar credenciais no bootstrap público", async () => {
+    const status = await request(app).get("/collaborator/bootstrap-status");
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual({ needsBootstrap: false, staff: [] });
+
+    const bootstrap = await request(app)
+      .post("/collaborator/bootstrap")
+      .send({ professionalId: 41, username: "attacker", password: "synthetic-password" });
+    expect(bootstrap.status).toBe(401);
+    expect(state.professionals[0].loginUsername).toBe("caio");
+  });
+
+  it("protege leitura e edição de profissionais sem sessão autenticada", async () => {
+    const requests = await Promise.all([
+      request(app).get("/professionals"),
+      request(app).get("/professionals/41"),
+      request(app).get("/professionals/41/locations"),
+      request(app).post("/professionals").send({ name: "Cadastro sintético" }),
+      request(app).put("/professionals/41").send({ email: "attacker@example.test" }),
+      request(app).delete("/professionals/41"),
+    ]);
+    expect(requests.map((response) => response.status)).toEqual([401, 401, 401, 401, 401, 401]);
+  });
+
+  it("omite CPF e e-mail do profissional para colaborador sem papel global", async () => {
+    state.professionals[0].email = "private@example.test";
+    const response = await request(app)
+      .get("/professionals")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0]).not.toHaveProperty("cpf");
+    expect(response.body[0]).not.toHaveProperty("email");
+  });
+
+  it("permite ao proprietário autenticado ler o cadastro privado da própria clínica", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    state.professionals[0].email = "owner@example.test";
+    const response = await request(app)
+      .get("/professionals?empresaId=5")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({
+      cpf: "11144477735",
+      email: "owner@example.test",
+    });
+  });
+
+  it("não permite que colaborador sem papel global crie, altere ou desative profissionais", async () => {
+    state.professionals[0].email = "current@example.test";
+    const token = `Bearer ${collaboratorToken()}`;
+    const [create, update, deactivate] = await Promise.all([
+      request(app).post("/professionals").set("Authorization", token).send({ name: "Cadastro sintético" }),
+      request(app).put("/professionals/41").set("Authorization", token).send({ email: "changed@example.test" }),
+      request(app).delete("/professionals/41").set("Authorization", token),
+    ]);
+    expect([create.status, update.status, deactivate.status]).toEqual([403, 403, 403]);
+    expect(state.professionals[0].email).toBe("current@example.test");
+    expect(state.professionals[0].active).toBe(true);
+  });
+
+  it("impede o proprietário de consultar profissional de outra clínica", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const response = await request(app)
+      .get("/professionals/41?empresaId=6")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(404);
+  });
+
+  it("restringe a auditoria de colaboradores ao proprietário da plataforma", async () => {
+    const response = await request(app)
+      .get("/collaborator/audit")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(403);
   });
 });

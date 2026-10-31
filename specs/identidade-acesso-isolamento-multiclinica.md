@@ -75,22 +75,22 @@ Preparar o Padcon Conect para que profissionais usem um cadastro canonico, acess
 
 ## 8. Evidencia de auditoria inicial
 
-1. O middleware de tenant atual atribui empresa fixa e autoridade global a todas as requisicoes; isso e um bloqueio de seguranca.
-2. O cadastro profissional ja e unico em `professionals`, mas os formularios de medico e Corpo Clinico nao oferecem os mesmos campos.
-3. A serializacao atual de profissionais inclui a linha inteira do banco; deve ser substituida por contratos explicitos, sem senha ou identificadores Google.
-4. A rota atual de credenciais aceita um identificador alvo vindo do navegador; nao pode ser reutilizada para autosservico.
-5. O banco consultado foi somente o ambiente de desenvolvimento: 12 empresas; 16 profissionais; os dois cadastros com senha nao tem e-mail nem CPF; os 16 profissionais estao vinculados a empresas, mas nenhum esta vinculado a empresa marcada como proprietaria da plataforma.
-6. A consulta retornou somente contagens agregadas. Nenhum nome, contato, documento ou prontuario foi lido.
-7. Ha 105 arquivos de rotas; 29 contêm referencias textuais a tenant/empresa. Essa contagem e apenas sinal de cobertura estatica, nao prova isolamento.
+1. A auditoria inicial encontrou contexto de empresa fixa, autoridade global indevida e bootstrap publico que permitia escolher um cadastro para reivindicar a primeira senha. O bootstrap anonimo e a enumeracao publica de profissionais foram desativados; a provisao inicial agora exige acesso administrativo autenticado.
+2. `professionals` continua sendo o cadastro canonico, mas os formularios de medico e Corpo Clinico ainda nao apresentam contrato completo de campos em comum.
+3. As rotas de listagem, detalhe e vinculos de profissionais agora exigem sessao e escopam os registros pela empresa autorizada; CPF, e-mail e dados contratuais nao sao retornados a colaboradores comuns. Operacoes administrativas exigem autoridade global autenticada.
+4. A exclusao de profissional passou a desativar a conta, revogar sessoes e preservar o historico. A rota de auditoria ficou restrita ao proprietario da plataforma; a cobertura das demais rotas ainda esta pendente.
+5. O banco consultado foi somente o ambiente de desenvolvimento: 16 profissionais e um unico Medico Principal. O cadastro global foi marcado explicitamente, sob a decisao do CEO; nao houve leitura de nomes, contatos, documentos ou prontuarios.
+6. A consulta retornou apenas contagens agregadas. Nenhum dado de producao foi consultado ou alterado.
+7. A auditoria estatica inicial contou 105 arquivos de rotas e referencias textuais em 29 deles. Essa contagem nao prova isolamento; cada rota, tarefa em segundo plano, arquivo e integracao ainda precisa de classificacao.
 
 ## 9. Unidades sequenciais
 
-1. **Unidade A — especificacao e decisao de identidade global:** fechar quem recebe o acesso global da plataforma e registrar as regras de transicao.
-2. **Unidade B — identidade e acesso:** serializadores seguros, login gradual por e-mail/CPF, troca de senha propria e contrato canonico de profissional.
-3. **Unidade C — contexto e vinculos:** identidade autenticada, empresa ativa autorizada e mudanca segura de contexto.
-4. **Unidade D — inventario e cobertura de rotas:** classificar rotas, jobs, arquivos e integracoes; corrigir cada fronteira de acesso sequencialmente.
-5. **Unidade E — migracao e isolamento:** migracao aditiva e escopo em cada tabela e caminho clinico.
-6. **Unidade F — verificacao e homologacao:** testes sinteticos de acesso permitido/proibido, concorrencia, persistencia, logs e revisao independente.
+1. **Unidade A — decisao de identidade global:** DECISAO REGISTRADA. O cadastro atual de Medico Principal recebe a autoridade global somente no ambiente revisado.
+2. **Unidade B — identidade e acesso:** BLOQUEADA PARA HOMOLOGACAO. Login gradual, troca de senha propria, atualizacao de identificadores, revogacao de sessoes, protecao do bootstrap e escopo das rotas de profissionais foram implementados e testados; revisao independente final e unificacao dos formularios profissionais ainda faltam.
+3. **Unidade C — contexto e vinculos:** BASE IMPLEMENTADA, NAO CONCLUIDA. O servidor identifica o colaborador e valida a empresa selecionada; a cobertura dos pontos de leitura, gravacao e efeitos externos ainda falta.
+4. **Unidade D — inventario e cobertura de rotas:** PENDENTE. Classificar e proteger rotas, tarefas em segundo plano, arquivos e integracoes.
+5. **Unidade E — migracao e isolamento:** PENDENTE. Verificar todas as tabelas e caminhos clinicos sem perda de vinculos.
+6. **Unidade F — verificacao e homologacao:** PENDENTE. Incluir testes sinteticos completos, revisao independente e homologacao das operacoes clinicas.
 
 Cada unidade deve ser revisada, testada e aceita antes de iniciar a seguinte. Nenhuma unidade concluida, isoladamente, certifica o sistema inteiro para uso multiclínica.
 
@@ -109,4 +109,16 @@ Cada unidade deve ser revisada, testada e aceita antes de iniciar a seguinte. Ne
 
 ## 11. Decisao do CEO
 
-O CEO escolheu o cadastro atual de Médico Principal para receber a permissão global de plataforma. A associação deve ser registrada em um campo administrativo separado e aplicada somente quando houver exatamente um cadastro marcado como Médico Principal no ambiente migrado; se houver zero ou mais de um, a migração deve parar sem conceder acesso.
+O CEO escolheu o cadastro atual de Médico Principal para receber a permissão global de plataforma. A autoridade fica em campo administrativo separado e nunca e inferida de `isPrimaryDoctor`. A migracao cria colunas e indices, mas nao promove automaticamente nenhum perfil. A atribuicao global e revisada por ambiente; isso evita conceder poder global ao Medico Principal de uma clinica licenciada.
+
+## 12. Evidencia da implementacao em 31/10/2026
+
+1. O banco de desenvolvimento tem 16 profissionais, um Medico Principal e um proprietario da plataforma; ambos sao o mesmo cadastro, conforme autorizado. Producao nao foi consultada ou alterada.
+2. A migracao aplicada no desenvolvimento adicionou campos e indices de forma aditiva. O arquivo de migracao nao atribui autoridade global automaticamente.
+3. Foram aprovados 33 testes focados de login, transicao de usuario, alteracao de senha, revogacao de sessao, contexto de empresa, bloqueio anonimo e isolamento de leitura/edicao de profissionais.
+4. O servidor recompilou e iniciou na porta 8080 apos as alteracoes. O teste completo de tipos continua falhando por erros preexistentes em outros arquivos; a ultima verificacao nao apontou erros nos arquivos de servidor alterados.
+5. O teste completo de tipos da interface tambem continua falhando por erros preexistentes; os arquivos de interface alterados nao apareceram entre os erros.
+6. A tela publica de login foi capturada apos o reinicio: tema escuro navy, risca de giz, ouro e campos legiveis. O console mostrou apenas avisos de ambiente de desenvolvimento.
+7. Nao foram executadas prescricoes reais, pedidos reais de exames ou mensagens a clientes.
+8. Nenhuma evidencia atual demonstra que todas as rotas clinicas estao isoladas. O sistema ainda nao pode ser declarado homologado para atendimento clinico nem comercializacao multiclínica.
+9. A revisao independente inicial encontrou bloqueios no bootstrap publico e nas rotas de profissionais; as correcoes foram aplicadas. A revisao independente final nao ficou disponivel nesta sessao, portanto a homologacao desta unidade continua bloqueada.

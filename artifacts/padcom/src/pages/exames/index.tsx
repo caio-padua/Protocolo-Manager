@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -180,7 +181,7 @@ export default function ExamesPage({
   const { data: professionals } = useQuery<Professional[]>({
     queryKey: ["/api/professionals"],
     queryFn: async () => {
-      const r = await fetch("/api/professionals");
+      const r = await fetch("/api/professionals", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar profissionais");
       return r.json();
     },

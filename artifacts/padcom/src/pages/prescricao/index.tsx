@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import {
   Search, Plus, X, Trash2, Copy, Printer, FileText, User, Stethoscope,
@@ -496,7 +497,7 @@ export default function PrescricaoPage(
     const medicoId = cfg.selectedMedicoId ?? 6;
     const clinicaId = cfg.selectedClinicaId ?? 8;
 
-    fetch(`${BASE}/api/professionals/${medicoId}`)
+    fetch(`${BASE}/api/professionals/${medicoId}`, { headers: collabAuthHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then((d: { name?: string; specialization?: string; crm?: string; phone?: string } | null) => {
         if (!d) return;

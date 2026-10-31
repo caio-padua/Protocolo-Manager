@@ -83,7 +83,13 @@ describe("GET /onboarding/stats — contexto do CEO", () => {
     const stats = express();
     stats.use((req, _res, next) => {
       if (empresaId !== undefined) {
-        req.tenantContext = { empresaId, isPlatformOwner: true, perfilPlataforma: "platform_owner" };
+        req.tenantContext = {
+          empresaId,
+          isPlatformOwner: true,
+          perfilPlataforma: "platform_owner",
+          authenticated: true,
+          professionalId: 1,
+        };
       }
       next();
     });

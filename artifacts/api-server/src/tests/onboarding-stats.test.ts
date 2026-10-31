@@ -19,6 +19,8 @@ app.use((req, _res, next) => {
     empresaId: 5,
     isPlatformOwner: true,
     perfilPlataforma: "platform_owner",
+    authenticated: true,
+    professionalId: 1,
   };
   next();
 });

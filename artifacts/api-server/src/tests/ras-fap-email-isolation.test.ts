@@ -195,7 +195,13 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    req.tenantContext = { empresaId: 5, isPlatformOwner: false, perfilPlataforma: "recepcionista" };
+    req.tenantContext = {
+      empresaId: 5,
+      isPlatformOwner: false,
+      perfilPlataforma: "recepcionista",
+      authenticated: true,
+      professionalId: 1,
+    };
     next();
   });
   app.use("/api", rasRouter);

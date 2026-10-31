@@ -1,3 +1,4 @@
+import { collabAuthHeaders } from "@/lib/collab-auth";
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIGURAÇÃO COMPLETA DO RECEITUÁRIO v2 — /configuracoes/receituario
 // Spec: specs/receituario-designer-v2.md  —  20/07/2026
@@ -181,7 +182,7 @@ export default function ConfigReceituario() {
 
   useEffect(() => {
     fetch(`${BASE}/api/locations`).then(r => r.json()).then((d: unknown) => { if (Array.isArray(d)) setLocationsList(d); }).catch(() => {});
-    fetch(`${BASE}/api/professionals`).then(r => r.json()).then((d: unknown) => { if (Array.isArray(d)) setProfsList(d); }).catch(() => {});
+    fetch(`${BASE}/api/professionals`, { headers: collabAuthHeaders() }).then(r => r.json()).then((d: unknown) => { if (Array.isArray(d)) setProfsList(d); }).catch(() => {});
   }, []);
 
   const selectedClinica = locationsList.find(l => l.id === (cfg.selectedClinicaId ?? 8));
