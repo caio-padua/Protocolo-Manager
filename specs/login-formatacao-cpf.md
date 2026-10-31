@@ -2,7 +2,7 @@
 
 ## Estado
 
-Bloqueado para homologação até revisão independente.
+Bloqueado para homologação: a revisão independente autorizada não está disponível neste ambiente.
 
 ## Problema observado
 
@@ -52,5 +52,5 @@ usuário legado, portanto não pode aplicar máscara indiscriminadamente.
 - A captura da tela móvel mostrou a máscara `000.000.000-00` com o tema navy e ouro.
 - A compilação do PADCOM terminou com sucesso; avisos já existentes em outra tela
   não foram alterados.
-- A revisão independente ainda não foi realizada; portanto, a entrega não está
-  homologada pelo PAXTER Loop.
+- A revisão independente foi autorizada, mas não pôde ser executada neste ambiente;
+  portanto, a entrega continua sem homologação pelo PAXTER Loop.
