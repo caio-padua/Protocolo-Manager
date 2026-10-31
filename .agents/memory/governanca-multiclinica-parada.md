@@ -3,24 +3,23 @@ name: Governanca/multi-clinica parada (braco pendente)
 description: Pausa geral da governanca multi-clinica, com excecao expressa para seguranca do envio do guia.
 ---
 
-# Braco multi-clinica / governanca: PARADO de proposito
+# Braco multi-clinica / governanca: retomado com autorizacao expressa
 
-Decisao do CEO Dr. Caio em 20/06/2026: o escopo grande (SaaS multi-clinicas, Centro de Comando,
-Area do Colaborador com RBAC por papel+escopo, validacao opcional de agendamento) esta GUARDADO
-como spec mas NAO deve ser construido agora.
-Essa pausa geral permanece vigente, ressalvada a autorizacao restrita abaixo.
+Decisao original do CEO Dr. Caio em 20/06/2026: o escopo grande de governanca e multiclínica ficou
+guardado como especificacao e nao deveria ser construido sem nova autorizacao.
+Em 30/10/2026, o CEO autorizou expressamente ativar o isolamento completo entre clinicas.
+Essa autorizacao retoma o isolamento e a identidade necessaria, mas nao autoriza alterar cobrancas,
+tarifas ou publicar/sincronizar o sistema.
 
 **Onde mora o escopo:** `specs/governanca-multiclinica-PENDENTE.md` (semente; retomar so por ordem
 expressa do CEO). Referencia visual: Canvas ENTREGA 7 (selo "7").
 
-**Why:** construir esse braco agora desviaria do foco combinado — operacionalizar AINDA HOJE o
-auto-reagendamento da cliente (`specs/auto-reagendamento-cliente.md`). O CEO priorizou entregar o
-operacional antes de abrir a frente arquitetural.
+**Why:** a pausa original protegia a prioridade operacional da epoca. A autorizacao posterior muda
+essa prioridade para preparar o isolamento completo entre clinicas, sem reabrir cobrancas.
 
-**How to apply:** se uma sessao futura cogitar implementar org layer / RBAC por escopo / centro de
-comando / validacao por funcionario, confirmar com o CEO ANTES — esta pausado, nao esquecido. A
-arquitetura escolhida (camada Organizacao acima de `locations`, isolamento por `organization_id`,
-RBAC = pessoa+papel+escopo, app unico de colaborador) ja esta decidida; nao re-litigar do zero.
+**How to apply:** implementar o isolamento em unidades sequenciais, com vinculos autenticados no
+servidor e testes sinteticos. `empresas` representa organizacoes e `locations` representa unidades
+fisicas. Nao inferir autoridade global nem usar empresaId do navegador para conceder acesso.
 
 ## Excecao autorizada em 29/10/2026: envio seguro do guia
 
@@ -48,13 +47,15 @@ O CEO autorizou somente a correção de segurança no envio do guia: vincular o 
 **Why:** a clínica informada pelo navegador não pode conceder acesso; a autorização não reabre licenciamento nem permite alterar cobranças.
 
 **How to apply:** manter a correção local ao envio do guia e verificar caminhos permitidos e proibidos com os provedores de mensagens simulados, sem mensagens reais aos clientes.
-## Exceção restrita: segurança dos envios
+## Regra vigente
 
-O CEO autorizou somente retomar o vínculo autenticado colaborador–clínica e a validação
-do cliente antes do envio do guia, incluindo a proteção do envio direto pelo Telegram.
-O navegador não pode conceder acesso informando uma clínica.
-Não reabrir licenciamento, não alterar cobranças nem ampliar esta autorização para uma reforma geral.
+O CEO autorizou em 30/10/2026 a retomada do isolamento completo entre clinicas, com execucao sequencial.
+O acesso atual deve ser preservado ate que cada cadastro profissional tenha e-mail ou CPF preenchidos.
+O acesso global do proprietario deve ser vinculado explicitamente a um cadastro verificado, sem inferir
+essa autoridade de um parametro do navegador.
 
-**Why:** a proteção de envio não pode depender de um contexto de clínica simulado ou de privilégio legado.
+**Why:** a troca imediata do identificador de acesso bloquearia as contas existentes sem e-mail ou CPF.
 
-**How to apply:** correções de segurança destes envios podem avançar; o restante da governança continua pausado.
+**How to apply:** manter o login atual durante a transicao; depois que o cadastro receber e-mail ou CPF,
+permitir o novo identificador e deixar de aceitar o login antigo para essa conta. A troca de empresa e o
+acesso global precisam ser conferidos no servidor.
