@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   companies: [] as any[],
   audit: [] as any[],
   raceUpdateIdentity: null as string | null,
+  failAudit: false,
 }));
 
 vi.mock("@clerk/express", () => ({
@@ -55,6 +56,8 @@ vi.mock("@workspace/db", async () => {
       rows = rows.filter((p) => p.clerkUserIdDev === query.params[0]);
     } else if (query.sql.includes("clerk_user_id_prod")) {
       rows = rows.filter((p) => p.clerkUserIdProd === query.params[0]);
+    } else if (query.sql.includes("is_primary_doctor")) {
+      rows = rows.filter((p) => p.isPrimaryDoctor === true && p.active === true);
     } else if (query.sql.includes("empresa_id")) {
       rows = rows.filter((p) => Number(p.empresaId) === Number(query.params[0]));
     } else if (query.params.some(Array.isArray)) {
@@ -91,7 +94,7 @@ vi.mock("@workspace/db", async () => {
     );
   }
 
-  const db = {
+  const db: Record<string, any> = {
     select: (fields?: Record<string, unknown>) => ({
       from: (table: unknown) => {
         let condition: unknown;
@@ -168,9 +171,21 @@ vi.mock("@workspace/db", async () => {
     }),
     insert: () => ({
       values: async (value: unknown) => {
+        if (state.failAudit) throw new Error("synthetic audit failure");
         state.audit.push(value);
       },
     }),
+  };
+  db.transaction = async (callback: (tx: Record<string, any>) => Promise<unknown>) => {
+    const previousProfessionals = structuredClone(state.professionals);
+    const previousAudit = structuredClone(state.audit);
+    try {
+      return await callback(db);
+    } catch (error) {
+      state.professionals = previousProfessionals;
+      state.audit = previousAudit;
+      throw error;
+    }
   };
 
   return { ...schema, db };
@@ -195,6 +210,8 @@ const app = express()
   .get("/test/tenant-context", (req, res) => res.json(req.tenantContext))
   .get("/test/platform-owner", requirePlatformOwner, (_req, res) => res.json({ ok: true }));
 const originalPublishableKey = process.env.CLERK_PUBLISHABLE_KEY;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalReplitDevDomain = process.env.REPLIT_DEV_DOMAIN;
 
 function professional(overrides: Record<string, unknown> = {}) {
   return {
@@ -235,11 +252,204 @@ beforeEach(() => {
   ];
   state.audit = [];
   state.raceUpdateIdentity = null;
+  state.failAudit = false;
 });
 
 afterAll(() => {
   if (originalPublishableKey === undefined) delete process.env.CLERK_PUBLISHABLE_KEY;
   else process.env.CLERK_PUBLISHABLE_KEY = originalPublishableKey;
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = originalNodeEnv;
+  if (originalReplitDevDomain === undefined) delete process.env.REPLIT_DEV_DOMAIN;
+  else process.env.REPLIT_DEV_DOMAIN = originalReplitDevDomain;
+});
+
+describe("recuperação única do médico principal no desenvolvimento", () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = "development";
+    process.env.REPLIT_DEV_DOMAIN = "preview.example.test";
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = "development";
+    process.env.REPLIT_DEV_DOMAIN = "preview.example.test";
+  });
+
+  function startRecovery(ip = "192.0.2.10") {
+    return request(app)
+      .post("/collaborator/dev-primary-recovery/start")
+      .set("X-Forwarded-For", ip)
+      .send({});
+  }
+
+  it("recupera somente o cadastro existente, invalida sessao anterior e entra como o mesmo medico", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    state.professionals[0].passwordHash = hashPassword("old-synthetic-password");
+    const oldToken = collaboratorToken();
+
+    const started = await startRecovery();
+    expect(started.status).toBe(200);
+    expect(started.body.challenge).toEqual(expect.any(String));
+    expect(started.body.expiresInSeconds).toBe(600);
+    expect(started.headers["cache-control"]).toContain("no-store");
+
+    const newPassword = "new-synthetic-password-2026";
+    const completed = await request(app)
+      .post("/collaborator/dev-primary-recovery/complete")
+      .send({ challenge: started.body.challenge, newPassword });
+
+    expect(completed.status).toBe(200);
+    expect(completed.body.professional.id).toBe(41);
+    expect(verifyPassword(newPassword, state.professionals[0].passwordHash)).toBe(true);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(state.professionals).toHaveLength(1);
+    expect(state.audit.at(-1)).toMatchObject({
+      professionalId: 41,
+      action: "dev_primary_password_recovered",
+      detail: { environment: "development", priorSessionsInvalidated: true },
+    });
+    expect(JSON.stringify(state.audit)).not.toContain(newPassword);
+    expect(JSON.stringify(state.audit)).not.toContain(state.professionals[0].passwordHash);
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${oldToken}`)).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app)
+          .get("/collaborator/me")
+          .set("Authorization", `Bearer ${completed.body.token}`)
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(app)
+          .post("/collaborator/login")
+          .send({ identifier: "111.444.777-35", password: newPassword })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(app)
+          .post("/collaborator/dev-primary-recovery/complete")
+          .send({ challenge: started.body.challenge, newPassword: "replay-synthetic-password" })
+      ).status,
+    ).toBe(401);
+  });
+
+  it("não abre o fluxo em produção nem altera a senha", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const existingHash = hashPassword("existing-synthetic-password");
+    state.professionals[0].passwordHash = existingHash;
+    process.env.NODE_ENV = "production";
+
+    const started = await startRecovery("192.0.2.11");
+    const completed = await request(app)
+      .post("/collaborator/dev-primary-recovery/complete")
+      .send({ challenge: "synthetic-token", newPassword: "new-synthetic-password" });
+
+    expect(started.status).toBe(404);
+    expect(completed.status).toBe(404);
+    expect(state.professionals[0].passwordHash).toBe(existingHash);
+    expect(state.professionals[0].credentialVersion).toBe(0);
+    expect(state.audit).toHaveLength(0);
+  });
+
+  it("falha fechada sem dono ativo unico e nao revela qual cadastro esta ausente", async () => {
+    const originalPasswordHash = hashPassword("existing-synthetic-password");
+    state.professionals[0].passwordHash = originalPasswordHash;
+
+    const withoutOwner = await startRecovery("192.0.2.12");
+    expect(withoutOwner.status).toBe(409);
+
+    state.professionals[0].isPlatformOwner = true;
+    state.professionals.push(professional({ id: 42, isPrimaryDoctor: true, isPlatformOwner: false }));
+    const duplicatedPrimary = await startRecovery("192.0.2.13");
+    expect(duplicatedPrimary.status).toBe(409);
+
+    state.professionals = [professional({ active: false, isPlatformOwner: true })];
+    const inactive = await startRecovery("192.0.2.14");
+    expect(inactive.status).toBe(409);
+    expect(state.professionals[0].passwordHash).toBeNull();
+  });
+
+  it("recusa senha curta sem alterar dados e permite concluir o mesmo desafio com senha válida", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const existingHash = hashPassword("existing-synthetic-password");
+    state.professionals[0].passwordHash = existingHash;
+    const started = await startRecovery("192.0.2.15");
+
+    const shortPassword = await request(app)
+      .post("/collaborator/dev-primary-recovery/complete")
+      .send({ challenge: started.body.challenge, newPassword: "short" });
+    expect(shortPassword.status).toBe(400);
+    expect(state.professionals[0].passwordHash).toBe(existingHash);
+    expect(state.professionals[0].credentialVersion).toBe(0);
+
+    const validPassword = await request(app)
+      .post("/collaborator/dev-primary-recovery/complete")
+      .send({ challenge: started.body.challenge, newPassword: "valid-synthetic-password" });
+    expect(validPassword.status).toBe(200);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+  });
+
+  it("recusa desafio vencido sem alterar senha ou sessao", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const existingHash = hashPassword("existing-synthetic-password");
+    state.professionals[0].passwordHash = existingHash;
+    const now = Date.now();
+    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      const started = await startRecovery("192.0.2.18");
+      dateNow.mockReturnValue(now + 10 * 60 * 1000 + 1);
+      const completed = await request(app)
+        .post("/collaborator/dev-primary-recovery/complete")
+        .send({ challenge: started.body.challenge, newPassword: "new-synthetic-password" });
+
+      expect(completed.status).toBe(401);
+      expect(state.professionals[0].passwordHash).toBe(existingHash);
+      expect(state.professionals[0].credentialVersion).toBe(0);
+      expect(state.audit).toHaveLength(0);
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
+  it("consome o desafio uma unica vez mesmo com duas conclusoes simultaneas", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const started = await startRecovery("192.0.2.16");
+    const challenge = started.body.challenge;
+
+    const results = await Promise.all([
+      request(app)
+        .post("/collaborator/dev-primary-recovery/complete")
+        .send({ challenge, newPassword: "first-synthetic-password" }),
+      request(app)
+        .post("/collaborator/dev-primary-recovery/complete")
+        .send({ challenge, newPassword: "second-synthetic-password" }),
+    ]);
+
+    expect(results.filter((result) => result.status === 200)).toHaveLength(1);
+    expect(results.some((result) => result.status === 409 || result.status === 401)).toBe(true);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(state.audit.filter((entry) => entry.action === "dev_primary_password_recovered")).toHaveLength(1);
+  });
+
+  it("reverte a senha e a sessao se a auditoria nao puder ser gravada", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const existingHash = hashPassword("existing-synthetic-password");
+    state.professionals[0].passwordHash = existingHash;
+    state.failAudit = true;
+    const started = await startRecovery("192.0.2.17");
+
+    const completed = await request(app)
+      .post("/collaborator/dev-primary-recovery/complete")
+      .send({ challenge: started.body.challenge, newPassword: "new-synthetic-password" });
+
+    expect(completed.status).toBe(500);
+    expect(state.professionals[0].passwordHash).toBe(existingHash);
+    expect(state.professionals[0].credentialVersion).toBe(0);
+    expect(state.audit).toHaveLength(0);
+  });
 });
 
 describe("acesso Google vinculado ao colaborador", () => {

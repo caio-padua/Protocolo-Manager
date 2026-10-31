@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { createHash, randomBytes } from "node:crypto";
 import { getAuth } from "@clerk/express";
 import {
   db,
@@ -25,6 +26,14 @@ import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
 import { requirePlatformOwner } from "../middleware/tenantContext.js";
 
 const router: IRouter = Router();
+const DEV_PRIMARY_RECOVERY_TTL_MS = 10 * 60 * 1000;
+const DEV_PRIMARY_RECOVERY_START_LIMIT = 10;
+const DEV_PRIMARY_RECOVERY_WINDOW_MS = 10 * 60 * 1000;
+const devPrimaryRecoveryChallenges = new Map<
+  string,
+  { professionalId: number; expiresAt: number; inProgress: boolean }
+>();
+const devPrimaryRecoveryStarts = new Map<string, number[]>();
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -45,6 +54,46 @@ function clientIp(req: Request): string {
   const fwd = req.headers["x-forwarded-for"];
   if (typeof fwd === "string" && fwd) return fwd.split(",")[0].trim();
   return req.ip ?? "";
+}
+
+function isDevelopmentRecoveryAvailable(): boolean {
+  return process.env.NODE_ENV === "development" &&
+    Boolean(process.env.REPLIT_DEV_DOMAIN?.trim());
+}
+
+function recoveryChallengeDigest(challenge: string): string {
+  return createHash("sha256").update(challenge).digest("hex");
+}
+
+function recoveryStartAllowed(ip: string): boolean {
+  const now = Date.now();
+  const recent = (devPrimaryRecoveryStarts.get(ip) ?? [])
+    .filter((startedAt) => now - startedAt < DEV_PRIMARY_RECOVERY_WINDOW_MS);
+  if (recent.length >= DEV_PRIMARY_RECOVERY_START_LIMIT) {
+    devPrimaryRecoveryStarts.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  devPrimaryRecoveryStarts.set(ip, recent);
+  return true;
+}
+
+async function findUniqueActivePrimaryDoctor() {
+  const candidates = await db
+    .select()
+    .from(professionalsTable)
+    .where(
+      and(
+        eq(professionalsTable.isPrimaryDoctor, true),
+        eq(professionalsTable.active, true),
+      ),
+    )
+    .limit(2);
+  if (
+    candidates.length !== 1 ||
+    !candidates[0].isPlatformOwner
+  ) return null;
+  return candidates[0];
 }
 
 // Verifica se o usuario (comparado sem diferenciar maiusculas) ja pertence a
@@ -471,6 +520,144 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
     ip: clientIp(req),
   });
   res.json(sessionForProfessional(prof));
+});
+
+// Recuperacao exclusiva do cadastro medico principal no preview privado de desenvolvimento.
+// A plataforma restringe o dominio .replit.dev ao proprietario e colaboradores autorizados.
+router.post("/collaborator/dev-primary-recovery/start", async (req, res): Promise<void> => {
+  if (!isDevelopmentRecoveryAvailable()) {
+    res.status(404).json({ error: "Não encontrado." });
+    return;
+  }
+  res.set("Cache-Control", "no-store");
+  if (!recoveryStartAllowed(clientIp(req))) {
+    res.status(429).json({ error: "Aguarde antes de iniciar outra recuperação." });
+    return;
+  }
+
+  for (const [digest, pending] of devPrimaryRecoveryChallenges) {
+    if (pending.expiresAt <= Date.now()) {
+      devPrimaryRecoveryChallenges.delete(digest);
+    }
+  }
+
+  const professional = await findUniqueActivePrimaryDoctor();
+  if (!professional) {
+    res.status(409).json({
+      error: "A recuperação não está disponível para este cadastro neste ambiente.",
+    });
+    return;
+  }
+
+  const challenge = randomBytes(32).toString("base64url");
+  const digest = recoveryChallengeDigest(challenge);
+  devPrimaryRecoveryChallenges.set(digest, {
+    professionalId: professional.id,
+    expiresAt: Date.now() + DEV_PRIMARY_RECOVERY_TTL_MS,
+    inProgress: false,
+  });
+  res.json({ challenge, expiresInSeconds: DEV_PRIMARY_RECOVERY_TTL_MS / 1000 });
+});
+
+router.post("/collaborator/dev-primary-recovery/complete", async (req, res): Promise<void> => {
+  if (!isDevelopmentRecoveryAvailable()) {
+    res.status(404).json({ error: "Não encontrado." });
+    return;
+  }
+  res.set("Cache-Control", "no-store");
+
+  const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  if (!challenge) {
+    res.status(401).json({ error: "A recuperação expirou. Inicie novamente." });
+    return;
+  }
+  if (newPassword.length < 12 || newPassword.length > 128) {
+    res.status(400).json({ error: "A senha deve ter entre 12 e 128 caracteres." });
+    return;
+  }
+
+  const challengeDigest = recoveryChallengeDigest(challenge);
+  const pending = devPrimaryRecoveryChallenges.get(challengeDigest);
+  if (!pending || pending.expiresAt <= Date.now()) {
+    devPrimaryRecoveryChallenges.delete(challengeDigest);
+    res.status(401).json({ error: "A recuperação expirou. Inicie novamente." });
+    return;
+  }
+  if (pending.inProgress) {
+    res.status(409).json({ error: "Esta recuperação já está sendo processada." });
+    return;
+  }
+
+  // Reserva sincrona antes de qualquer await para que duas requisicoes concorrentes
+  // com o mesmo desafio nao possam trocar a senha duas vezes.
+  pending.inProgress = true;
+  try {
+    const professional = await findUniqueActivePrimaryDoctor();
+    if (!professional || professional.id !== pending.professionalId) {
+      devPrimaryRecoveryChallenges.delete(challengeDigest);
+      res.status(409).json({
+        error: "O cadastro principal mudou. Inicie novamente a recuperação.",
+      });
+      return;
+    }
+
+    const previousCredentialVersion = professional.credentialVersion ?? 0;
+    const nextCredentialVersion = previousCredentialVersion + 1;
+    const nextPasswordHash = hashPassword(newPassword);
+
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(professionalsTable)
+        .set({
+          passwordHash: nextPasswordHash,
+          credentialVersion: nextCredentialVersion,
+        })
+        .where(
+          and(
+            eq(professionalsTable.id, professional.id),
+            eq(professionalsTable.credentialVersion, previousCredentialVersion),
+            eq(professionalsTable.active, true),
+            eq(professionalsTable.isPrimaryDoctor, true),
+            eq(professionalsTable.isPlatformOwner, true),
+          ),
+        )
+        .returning({ id: professionalsTable.id });
+
+      if (!updated) {
+        throw new Error("DEV_PRIMARY_RECOVERY_CONFLICT");
+      }
+
+      await tx.insert(collaboratorAuditTable).values({
+        professionalId: professional.id,
+        professionalName: professional.name,
+        action: "dev_primary_password_recovered",
+        method: "POST",
+        path: "/collaborator/dev-primary-recovery/complete",
+        detail: { environment: "development", priorSessionsInvalidated: true },
+        ip: clientIp(req),
+      });
+    });
+
+    devPrimaryRecoveryChallenges.delete(challengeDigest);
+    res.json(sessionForProfessional({
+      id: professional.id,
+      name: professional.name,
+      role: professional.role,
+      category: professional.category,
+      isPrimaryDoctor: professional.isPrimaryDoctor,
+      credentialVersion: nextCredentialVersion,
+    }));
+  } catch (error) {
+    devPrimaryRecoveryChallenges.delete(challengeDigest);
+    if (error instanceof Error && error.message === "DEV_PRIMARY_RECOVERY_CONFLICT") {
+      res.status(409).json({
+        error: "O cadastro mudou durante a recuperação. Inicie novamente.",
+      });
+      return;
+    }
+    throw error;
+  }
 });
 
 // GET /api/collaborator/me — dados do colaborador logado.

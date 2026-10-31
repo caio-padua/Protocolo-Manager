@@ -65,6 +65,10 @@ export default function LoginPage() {
   const [professionalId, setProfessionalId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [devRecoveryChallenge, setDevRecoveryChallenge] = useState<string | null>(null);
+  const [devRecoveryPassword, setDevRecoveryPassword] = useState("");
+  const [devRecoveryConfirmation, setDevRecoveryConfirmation] = useState("");
+  const [devRecoveryError, setDevRecoveryError] = useState<string | null>(null);
 
   // Se já tem sessão válida, redireciona sem mostrar o formulário.
   useEffect(() => {
@@ -134,6 +138,64 @@ export default function LoginPage() {
       navigate(getReturnTo(), { replace: true });
     } catch {
       setError("Erro de conexão. Tente novamente.");
+      setBusy(false);
+    }
+  }
+
+  async function startDevelopmentRecovery() {
+    setBusy(true);
+    setDevRecoveryError(null);
+    try {
+      const res = await postJson("/api/collaborator/dev-primary-recovery/start", {});
+      const data = await res.json();
+      if (!res.ok || typeof data?.challenge !== "string") {
+        setDevRecoveryError(data?.error ?? "Não foi possível iniciar a recuperação.");
+        return;
+      }
+      setDevRecoveryChallenge(data.challenge);
+    } catch {
+      setDevRecoveryError("Erro de conexão. Tente novamente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completeDevelopmentRecovery(e: React.FormEvent) {
+    e.preventDefault();
+    setDevRecoveryError(null);
+    if (devRecoveryPassword.length < 12 || devRecoveryPassword.length > 128) {
+      setDevRecoveryError("A senha deve ter entre 12 e 128 caracteres.");
+      return;
+    }
+    if (devRecoveryPassword !== devRecoveryConfirmation) {
+      setDevRecoveryError("As senhas não coincidem.");
+      return;
+    }
+    if (!devRecoveryChallenge) {
+      setDevRecoveryError("A recuperação expirou. Inicie novamente.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await postJson("/api/collaborator/dev-primary-recovery/complete", {
+        challenge: devRecoveryChallenge,
+        newPassword: devRecoveryPassword,
+      });
+      const data = await res.json();
+      if (!res.ok || typeof data?.token !== "string" || !data?.professional) {
+        setDevRecoveryError(data?.error ?? "Não foi possível concluir a recuperação.");
+        if (res.status === 401 || res.status === 409) setDevRecoveryChallenge(null);
+        return;
+      }
+      setCollabSession(data.token, data.professional);
+      setDevRecoveryChallenge(null);
+      setDevRecoveryPassword("");
+      setDevRecoveryConfirmation("");
+      navigate(getReturnTo(), { replace: true });
+    } catch {
+      setDevRecoveryError("Erro de conexão. Inicie novamente se a recuperação tiver expirado.");
+    } finally {
       setBusy(false);
     }
   }
@@ -289,6 +351,111 @@ export default function LoginPage() {
                   Continuar com Google
                 </Button>
               </div>
+            ) : null}
+
+            {!isBootstrap && import.meta.env.DEV ? (
+              <section className="mt-5 border-t border-[#16284a]/15 pt-4 dark:border-white/15"
+                aria-labelledby="dev-recovery-title">
+                {!devRecoveryChallenge ? (
+                  <>
+                    <h2 id="dev-recovery-title"
+                      className="text-xs font-semibold uppercase tracking-wide text-[#16284a] dark:text-[#f4e2a8]">
+                      Acesso de desenvolvimento
+                    </h2>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Recupera somente o cadastro único do médico principal neste ambiente privado.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={startDevelopmentRecovery}
+                      className="btn-3d-soft mt-3 w-full border-[#16284a]/25 text-[#16284a] dark:border-[#c2a05a]/35 dark:text-[#f4e2a8]"
+                      data-testid="button-recuperar-acesso-medico-principal"
+                    >
+                      {busy ? "Preparando recuperação…" : "Recuperar acesso do médico principal"}
+                    </Button>
+                  </>
+                ) : (
+                  <form onSubmit={completeDevelopmentRecovery} className="space-y-3">
+                    <div>
+                      <h2 id="dev-recovery-title"
+                        className="text-xs font-semibold uppercase tracking-wide text-[#16284a] dark:text-[#f4e2a8]">
+                        Defina sua nova senha
+                      </h2>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Use de 12 a 128 caracteres. Ao salvar, você entrará no cadastro existente do médico principal.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="dev-recovery-password"
+                        className="text-xs font-medium uppercase tracking-wide text-[#16284a] dark:text-slate-200">
+                        Nova senha
+                      </Label>
+                      <PasswordInput
+                        id="dev-recovery-password"
+                        value={devRecoveryPassword}
+                        onChange={(e) => setDevRecoveryPassword(e.target.value)}
+                        autoComplete="new-password"
+                        data-testid="input-dev-recovery-password"
+                        visibilityLabel="nova senha"
+                        visibilityTestId="toggle-dev-recovery-password"
+                        className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="dev-recovery-confirmation"
+                        className="text-xs font-medium uppercase tracking-wide text-[#16284a] dark:text-slate-200">
+                        Confirme a nova senha
+                      </Label>
+                      <PasswordInput
+                        id="dev-recovery-confirmation"
+                        value={devRecoveryConfirmation}
+                        onChange={(e) => setDevRecoveryConfirmation(e.target.value)}
+                        autoComplete="new-password"
+                        data-testid="input-dev-recovery-confirmation"
+                        visibilityLabel="confirmação da nova senha"
+                        visibilityTestId="toggle-dev-recovery-confirmation"
+                        className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
+                      />
+                    </div>
+                    {devRecoveryError ? (
+                      <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-200"
+                        role="alert" data-testid="text-dev-recovery-error">
+                        {devRecoveryError}
+                      </p>
+                    ) : null}
+                    <Button
+                      type="submit"
+                      disabled={busy}
+                      className="btn-3d-gold w-full font-semibold tracking-wider uppercase text-xs h-11"
+                      data-testid="button-salvar-nova-senha"
+                    >
+                      {busy ? "Salvando e entrando…" : "Salvar senha e entrar"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => {
+                        setDevRecoveryChallenge(null);
+                        setDevRecoveryPassword("");
+                        setDevRecoveryConfirmation("");
+                        setDevRecoveryError(null);
+                      }}
+                      className="w-full text-[#16284a] dark:text-slate-200"
+                    >
+                      Cancelar
+                    </Button>
+                  </form>
+                )}
+                {!devRecoveryChallenge && devRecoveryError ? (
+                  <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-200"
+                    role="alert" data-testid="text-dev-recovery-error">
+                    {devRecoveryError}
+                  </p>
+                ) : null}
+              </section>
             ) : null}
 
           </div>
