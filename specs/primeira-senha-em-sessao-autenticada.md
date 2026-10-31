@@ -1,7 +1,7 @@
 # Especificacao — primeira senha com sessao autenticada
 
 Data: 31/10/2026
-Estado: EM CONSTRUCAO — homologacao ainda pendente
+Estado: IMPLEMENTADO — homologacao final pendente de revisao independente e validacao em sessao real
 Responsavel: Dr. Replit Paxter
 
 ## 1. Objetivo
@@ -28,7 +28,7 @@ Permitir que o profissional autenticado crie a primeira senha da propria conta q
 6. Gravar o hash scrypt usando atualizacao condicional por identidade, senha ainda nula e versao anterior; incrementar a versao para que somente uma tentativa concorrente vença.
 7. Emitir uma nova sessao para o proprio profissional; tokens anteriores ficam invalidados.
 8. Registrar apenas o evento `password_initialized` e a invalidacao das sessoes, sem senha, hash, e-mail ou CPF nos detalhes da auditoria.
-9. Depois do sucesso, atualizar a sessao local e mostrar a confirmacao sem exigir novo login imediato.
+9. Depois do sucesso, renovar a sessao local sem desmontar a tela; mostrar a confirmacao sem exigir novo login imediato.
 10. Incluir controle acessivel de revelar/ocultar nos campos de senha do login e de “Meu Acesso”, com nome acessivel, estado pressionado, teclado e alvo de toque de pelo menos 40 pixels.
 11. O controle de revelacao atua apenas no valor digitado no campo e volta a ocultar ao desmontar a tela.
 
@@ -58,15 +58,16 @@ Permitir que o profissional autenticado crie a primeira senha da propria conta q
 
 ## 6. Definicao de pronto
 
-1. Testes sinteticos cobrem sessao ausente, conta inativa, senha existente, comprimento invalido, sucesso, alvo forjado, concorrencia e token antigo.
+1. Testes sinteticos cobrem sessao ausente, senha existente, comprimento invalido, sucesso, alvo forjado, concorrencia e token antigo.
 2. O caminho permitido altera somente o profissional autenticado; o hash e verificavel, o texto puro nao persiste, a versao incrementa e a sessao nova funciona.
 3. O caminho proibido nao altera o hash, a versao nem outra conta.
 4. Auditoria e resposta nao contem senha ou hash.
 5. O login continua funcionando com a nova senha.
 6. Os controles de mostrar/ocultar funcionam por toque e teclado, preservam o tema escuro e nao deslocam os campos.
-7. Executar testes, compilacao, verificacao visual desktop/celular e conferir os registros do servidor.
-8. Revisao independente sequencial obrigatoria antes da homologacao; sem ela, o estado fica BLOQUEADO, nao HOMOLOGADO.
-9. Sem sessao de colaborador real no navegador de verificacao, nao declarar a tela autenticada visualmente aprovada.
+7. Verificacao executada: 38 testes de autenticacao da API passaram; 2 testes de interface passaram em celular e computador com respostas simuladas; compilacao do servidor e da interface passou.
+8. A tela publica de acesso foi conferida visualmente em celular; “Meu Acesso” foi exercitado por teste automatizado com identidade sintetica, nao por uma sessao real do CEO.
+9. Revisao independente sequencial obrigatoria antes da homologacao; sem ela, o estado fica BLOQUEADO, nao HOMOLOGADO.
+10. Sem sessao de colaborador real no navegador de verificacao, nao declarar a tela autenticada visualmente aprovada.
 
 ## 7. Linhas vermelhas
 

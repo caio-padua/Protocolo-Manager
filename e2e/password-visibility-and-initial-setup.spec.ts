@@ -92,8 +92,17 @@ test("Meu Acesso cria primeira senha apenas na conta da sessão", async ({ page 
   await expect(password).toHaveAttribute("type", "text");
   await expect(reveal).toHaveAttribute("aria-pressed", "true");
 
+  const initialPasswordRequest = page.waitForRequest((request) =>
+    request.url().endsWith("/api/collaborator/initial-password"),
+  );
+  await page.getByTestId("toggle-password-visibility-initial").click();
   await page.getByRole("button", { name: "Criar primeira senha" }).click();
-  await expect(page.getByRole("status")).toContainText("Primeira senha cadastrada");
+  const request = await initialPasswordRequest;
+  expect(request.postDataJSON()).toEqual({ newPassword: "synthetic-first-password" });
+  expect((await request.response())?.status()).toBe(200);
+  await expect(
+    page.getByText("Primeira senha cadastrada. As outras sessões foram encerradas.", { exact: true }),
+  ).toBeVisible();
   expect(submittedBody).toEqual({ newPassword: "synthetic-first-password" });
   await expect(page.getByRole("button", { name: "Salvar nova senha" })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("padcom_collab_token"))).toBe(

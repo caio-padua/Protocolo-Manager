@@ -172,7 +172,7 @@ export default function MeuAcesso() {
         setPasswordError(result.error ?? "Não foi possível alterar a senha.");
         return;
       }
-      setCollabSession(result.token, result.professional);
+      setCollabSession(result.token, result.professional, { notify: false });
       setProfile((current) => current ? { ...current, hasPassword: true } : current);
       setCurrentPassword("");
       setNewPassword("");
@@ -228,7 +228,7 @@ export default function MeuAcesso() {
         setPasswordError(result.error ?? "Não foi possível criar a primeira senha.");
         return;
       }
-      setCollabSession(result.token, result.professional);
+      setCollabSession(result.token, result.professional, { notify: false });
       setProfile((current) => current ? { ...current, hasPassword: true } : current);
       setNewPassword("");
       setConfirmPassword("");

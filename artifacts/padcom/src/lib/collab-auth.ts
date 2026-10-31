@@ -38,14 +38,20 @@ export function getCollabProfessional(): CollabProfessional | null {
   }
 }
 
-export function setCollabSession(token: string, prof: CollabProfessional): void {
+export function setCollabSession(
+  token: string,
+  prof: CollabProfessional,
+  options: { notify?: boolean } = {},
+): void {
   try {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(PROF_KEY, JSON.stringify(prof));
   } catch {
     /* ignore */
   }
-  window.dispatchEvent(new Event(COLLAB_EVENT));
+  if (options.notify !== false) {
+    window.dispatchEvent(new Event(COLLAB_EVENT));
+  }
 }
 
 export function clearCollabSession(): void {
