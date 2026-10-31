@@ -707,6 +707,83 @@ router.post("/collaborator/change-password", requireCollaborator, async (req, re
   });
 });
 
+// POST /api/collaborator/initial-password — cria a primeira senha da propria sessao.
+// Nunca aceita um profissional-alvo enviado pelo navegador.
+router.post("/collaborator/initial-password", requireCollaborator, async (req, res): Promise<void> => {
+  const claims = req.collaborator!;
+  const newPassword =
+    typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+
+  if (newPassword.length < 12 || newPassword.length > 128) {
+    res.status(400).json({ error: "A senha deve ter entre 12 e 128 caracteres." });
+    return;
+  }
+
+  const [professional] = await db
+    .select()
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, claims.professionalId))
+    .limit(1);
+  if (!professional || !professional.active) {
+    res.status(403).json({ error: "A conta autenticada não está ativa." });
+    return;
+  }
+  if (professional.passwordHash) {
+    res.status(409).json({
+      error: "Esta conta já possui senha. Este fluxo só cadastra a primeira senha.",
+    });
+    return;
+  }
+
+  const previousCredentialVersion = professional.credentialVersion ?? 0;
+  const nextCredentialVersion = previousCredentialVersion + 1;
+  const [updated] = await db
+    .update(professionalsTable)
+    .set({
+      passwordHash: hashPassword(newPassword),
+      credentialVersion: nextCredentialVersion,
+    })
+    .where(
+      and(
+        eq(professionalsTable.id, professional.id),
+        isNull(professionalsTable.passwordHash),
+        eq(professionalsTable.credentialVersion, previousCredentialVersion),
+      ),
+    )
+    .returning({ id: professionalsTable.id });
+
+  if (!updated) {
+    res.status(409).json({
+      error: "A conta mudou durante a operação. Atualize a tela e tente novamente.",
+    });
+    return;
+  }
+
+  const token = createCollaboratorToken({
+    professionalId: professional.id,
+    role: professional.role,
+    credentialVersion: nextCredentialVersion,
+  });
+  await recordAudit({
+    professionalId: professional.id,
+    professionalName: professional.name,
+    action: "password_initialized",
+    detail: { priorSessionsInvalidated: true },
+    ip: clientIp(req),
+  });
+  res.json({
+    ok: true,
+    token,
+    professional: {
+      id: professional.id,
+      name: professional.name,
+      role: professional.role,
+      category: professional.category,
+      isPrimaryDoctor: professional.isPrimaryDoctor,
+    },
+  });
+});
+
 // O primeiro acesso nao pode ser reivindicado anonimamente por um cadastro
 // escolhido no navegador. A provisao inicial exige operacao administrativa
 // revisada; a rota de credenciais atende novas contas depois da autenticacao.

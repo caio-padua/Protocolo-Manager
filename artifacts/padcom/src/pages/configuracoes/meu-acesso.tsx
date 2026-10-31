@@ -4,6 +4,7 @@ import { KeyRound, RefreshCw, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   clearCollabSession,
   getCollabToken,
@@ -184,6 +185,61 @@ export default function MeuAcesso() {
     }
   }
 
+  async function initializePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError(null);
+    setPasswordMessage(null);
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      setPasswordError("A senha precisa ter entre 12 e 128 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("A confirmação não corresponde à nova senha.");
+      return;
+    }
+    const token = getCollabToken();
+    if (!token) {
+      setPasswordError("Sua sessão expirou. Entre novamente antes de criar a senha.");
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      const response = await fetch("/api/collaborator/initial-password", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ newPassword }),
+      });
+      const result = await response.json() as {
+        ok?: boolean;
+        token?: string;
+        professional?: CollabProfessional;
+        error?: string;
+      };
+      if (response.status === 401) {
+        clearCollabSession();
+        setPasswordError(result.error ?? "Sua sessão expirou. Entre novamente.");
+        return;
+      }
+      if (!response.ok || !result.token || !result.professional) {
+        setPasswordError(result.error ?? "Não foi possível criar a primeira senha.");
+        return;
+      }
+      setCollabSession(result.token, result.professional);
+      setProfile((current) => current ? { ...current, hasPassword: true } : current);
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage("Primeira senha cadastrada. As outras sessões foram encerradas.");
+    } catch {
+      setPasswordError("Falha de conexão. A senha não foi confirmada como cadastrada.");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   async function updateLoginIdentity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIdentityError(null);
@@ -357,9 +413,11 @@ export default function MeuAcesso() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="identity-current-password">Confirme com sua senha atual</Label>
-                      <Input
+                        <PasswordInput
                         id="identity-current-password"
-                        type="password"
+                          data-testid="input-identity-current-password"
+                          visibilityLabel="senha atual"
+                          visibilityTestId="toggle-password-visibility-identity"
                         autoComplete="current-password"
                         value={identityPassword}
                         onChange={(event) => setIdentityPassword(event.target.value)}
@@ -394,9 +452,11 @@ export default function MeuAcesso() {
                     <form className="space-y-3" onSubmit={changePassword}>
                       <div className="space-y-1.5">
                         <Label htmlFor="current-password">Senha atual</Label>
-                        <Input
+                        <PasswordInput
                           id="current-password"
-                          type="password"
+                          data-testid="input-current-password"
+                          visibilityLabel="senha atual"
+                          visibilityTestId="toggle-password-visibility-current"
                           autoComplete="current-password"
                           value={currentPassword}
                           onChange={(event) => setCurrentPassword(event.target.value)}
@@ -407,9 +467,11 @@ export default function MeuAcesso() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label htmlFor="new-password">Nova senha</Label>
-                          <Input
+                          <PasswordInput
                             id="new-password"
-                            type="password"
+                            data-testid="input-new-password"
+                            visibilityLabel="nova senha"
+                            visibilityTestId="toggle-password-visibility-new"
                             autoComplete="new-password"
                             value={newPassword}
                             onChange={(event) => setNewPassword(event.target.value)}
@@ -420,9 +482,11 @@ export default function MeuAcesso() {
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="confirm-password">Confirmar nova senha</Label>
-                          <Input
+                          <PasswordInput
                             id="confirm-password"
-                            type="password"
+                            data-testid="input-confirm-password"
+                            visibilityLabel="confirmacao da nova senha"
+                            visibilityTestId="toggle-password-visibility-confirm"
                             autoComplete="new-password"
                             value={confirmPassword}
                             onChange={(event) => setConfirmPassword(event.target.value)}
@@ -448,9 +512,57 @@ export default function MeuAcesso() {
                       </Button>
                     </form>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Esta conta ainda não tem senha configurada. O primeiro acesso deve ser liberado pelo fluxo autorizado.
-                    </p>
+                    <form className="space-y-3" onSubmit={initializePassword}>
+                      <p className="text-sm text-muted-foreground">
+                        Sua sessão autenticada permite criar uma senha somente porque esta conta ainda não tem uma.
+                      </p>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="new-password">Criar senha</Label>
+                        <PasswordInput
+                          id="new-password"
+                          data-testid="input-initial-password"
+                          visibilityLabel="nova senha"
+                          visibilityTestId="toggle-password-visibility-initial"
+                          autoComplete="new-password"
+                          value={newPassword}
+                          onChange={(event) => setNewPassword(event.target.value)}
+                          required
+                          minLength={12}
+                          maxLength={128}
+                          disabled={passwordBusy}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="confirm-password">Confirmar senha</Label>
+                        <PasswordInput
+                          id="confirm-password"
+                          data-testid="input-initial-password-confirm"
+                          visibilityLabel="confirmacao da nova senha"
+                          visibilityTestId="toggle-password-visibility-initial-confirm"
+                          autoComplete="new-password"
+                          value={confirmPassword}
+                          onChange={(event) => setConfirmPassword(event.target.value)}
+                          required
+                          minLength={12}
+                          maxLength={128}
+                          disabled={passwordBusy}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Use pelo menos 12 caracteres. Ao salvar, as outras sessões serão encerradas.
+                      </p>
+                      {passwordError ? (
+                        <p className="text-sm text-destructive" role="alert">{passwordError}</p>
+                      ) : null}
+                      {passwordMessage ? (
+                        <p className="text-sm text-emerald-700 dark:text-emerald-300" role="status">
+                          {passwordMessage}
+                        </p>
+                      ) : null}
+                      <Button type="submit" className="btn-3d-gold" disabled={passwordBusy}>
+                        {passwordBusy ? "Cadastrando..." : "Criar primeira senha"}
+                      </Button>
+                    </form>
                   )}
                 </div>
               </section>

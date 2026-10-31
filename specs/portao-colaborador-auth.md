@@ -22,13 +22,15 @@ foi emitido pelo sistema e não foi adulterado).
 | Sessão | Token HMAC assinado (escopo "collab"), validade 12 horas, carrega professionalId + role |
 | Papel (role) | Vem do `professionals.role` (ex.: medico_01, enfermeira_01, adm_01) — base da auditoria por papel |
 
-## Primeiro acesso (bootstrap)
+## Bootstrap publico — regra historica desativada
 
-Problema do ovo-e-galinha: sem ninguém logado, ninguém cadastra a primeira senha.
+A primeira proposta permitia escolher um profissional no navegador e criar a credencial sem uma sessao
+autenticada. Essa possibilidade foi desativada por seguranca e nao pode ser reaberta.
 
-Passo A (sistema sem nenhuma senha cadastrada) -> Passo B (tela "Criar primeiro acesso": escolher um
-profissional + definir usuário e senha) -> Passo C (endpoint de bootstrap só funciona enquanto NÃO
-existir nenhuma credencial) -> Passo D (a partir daí, o bootstrap fica desligado e o acesso é só por login).
+O fluxo atual de primeira senha e restrito a uma sessao autenticada e a conta dessa propria sessao,
+somente se ainda nao houver senha. A especificacao vigente e
+`specs/primeira-senha-em-sessao-autenticada.md`. Uma senha existente nao pode ser redefinida por esse
+fluxo; a recuperacao de uma senha esquecida exige uma jornada separada.
 
 ## Auditoria (a razão da opção B)
 
@@ -62,7 +64,8 @@ Regra: toda ESCRITA nas rotas protegidas gera um registro `write` com o professi
 |---|---|---|
 | POST /api/collaborator/login | usuário+senha → token | não (gera o token) |
 | GET /api/collaborator/me | dados do colaborador logado | sim |
-| POST /api/collaborator/bootstrap | cria a 1ª credencial (só se nenhuma existir) | não (auto-desliga) |
+| POST /api/collaborator/bootstrap | rota desativada; recusa bootstrap público | sim |
+| POST /api/collaborator/initial-password | cria a primeira senha da identidade autenticada sem senha | sim |
 | POST /api/collaborator/credentials | define/reseta usuário+senha de um profissional | sim |
 | GET /api/collaborator/audit | últimos eventos de auditoria | sim |
 

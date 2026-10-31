@@ -124,6 +124,15 @@ vi.mock("@workspace/db", async () => {
             const id = Number(query.params[0]);
             const prof = state.professionals.find((p) => p.id === id);
             if (!prof) return [];
+            if ("passwordHash" in values && query.sql.toUpperCase().includes("IS NULL")) {
+              const expectedVersion = Number(query.params[1]);
+              if (
+                prof.passwordHash != null ||
+                Number(prof.credentialVersion ?? 0) !== expectedVersion
+              ) return [];
+              Object.assign(prof, values);
+              return [{ id: prof.id }];
+            }
             if (query.sql.toUpperCase().includes("IS NULL")) {
               if (state.raceUpdateIdentity) {
                 const field = query.sql.includes("clerk_user_id_prod")
@@ -170,7 +179,12 @@ vi.mock("@workspace/db", async () => {
 import router from "../routes/collaborator";
 import professionalsRouter from "../routes/professionals";
 import { tenantContextMiddleware, requirePlatformOwner } from "../middleware/tenantContext";
-import { createCollaboratorToken, hashPassword, verifyCollaboratorToken } from "../lib/collaborator-auth";
+import {
+  createCollaboratorToken,
+  hashPassword,
+  verifyCollaboratorToken,
+  verifyPassword,
+} from "../lib/collaborator-auth";
 import { resolveClerkEnvironment } from "../lib/clerk-environment";
 
 const app = express()
@@ -352,7 +366,12 @@ describe("acesso Google vinculado ao colaborador", () => {
   it("mostra o usuario e o status da senha apenas para a identidade da sessao", async () => {
     state.professionals[0].passwordHash = hashPassword("synthetic-password");
     state.professionals.push(
-      professional({ id: 42, name: "Outro Profissional", loginUsername: "outro" }),
+      professional({
+        id: 42,
+        name: "Outro Profissional",
+        loginUsername: "outro",
+        cpf: "22233344455",
+      }),
     );
 
     const response = await request(app)
@@ -481,6 +500,104 @@ describe("acesso Google vinculado ao colaborador", () => {
     expect(wrongCurrent.status).toBe(401);
     expect(shortNew.status).toBe(400);
     expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("recusa a primeira senha sem sessao de colaborador", async () => {
+    const response = await request(app)
+      .post("/collaborator/initial-password")
+      .send({ newPassword: "synthetic-first-password" });
+    expect(response.status).toBe(401);
+    expect(state.professionals[0].passwordHash).toBeNull();
+    expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("valida o comprimento da primeira senha antes de gravar", async () => {
+    const token = collaboratorToken();
+    const shortPassword = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newPassword: "curta" });
+    const longPassword = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newPassword: "x".repeat(129) });
+
+    expect(shortPassword.status).toBe(400);
+    expect(longPassword.status).toBe(400);
+    expect(state.professionals[0].passwordHash).toBeNull();
+    expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("cria a primeira senha somente para a conta da sessao e invalida tokens antigos", async () => {
+    state.professionals.push(
+      professional({
+        id: 42,
+        name: "Outro Profissional",
+        loginUsername: "outro",
+        cpf: "22233344455",
+      }),
+    );
+    const originalToken = collaboratorToken(41);
+    const newPassword = "synthetic-first-password";
+    const response = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${originalToken}`)
+      .send({ professionalId: 42, newPassword });
+
+    expect(response.status).toBe(200);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(verifyPassword(newPassword, state.professionals[0].passwordHash)).toBe(true);
+    expect(state.professionals[1].passwordHash).toBeNull();
+    expect(state.professionals[1].credentialVersion).toBe(0);
+    expect(response.body.professional.passwordHash).toBeUndefined();
+    expect(JSON.stringify(state.audit)).toContain("password_initialized");
+    expect(JSON.stringify(state.audit)).not.toContain(newPassword);
+    expect(JSON.stringify(state.audit)).not.toContain(state.professionals[0].passwordHash);
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${originalToken}`)).status,
+    ).toBe(401);
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${response.body.token}`)).status,
+    ).toBe(200);
+
+    const login = await request(app)
+      .post("/collaborator/login")
+      .send({ identifier: "111.444.777-35", password: newPassword });
+    expect(login.status).toBe(200);
+    expect(verifyCollaboratorToken(login.body.token)?.professionalId).toBe(41);
+  });
+
+  it("nao redefine uma senha existente pela rota de primeira senha", async () => {
+    const existingHash = hashPassword("existing-synthetic-password");
+    state.professionals[0].passwordHash = existingHash;
+    const response = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${collaboratorToken()}`)
+      .send({ newPassword: "new-synthetic-password" });
+
+    expect(response.status).toBe(409);
+    expect(state.professionals[0].passwordHash).toBe(existingHash);
+    expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("permite somente uma gravacao em duas tentativas concorrentes", async () => {
+    const token = collaboratorToken();
+    const results = await Promise.all([
+      request(app)
+        .post("/collaborator/initial-password")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ newPassword: "synthetic-first-password-one" }),
+      request(app)
+        .post("/collaborator/initial-password")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ newPassword: "synthetic-first-password-two" }),
+    ]);
+
+    expect(results.filter((result) => result.status === 200)).toHaveLength(1);
+    expect(results.some((result) => result.status === 409 || result.status === 401)).toBe(true);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(verifyPassword("synthetic-first-password-one", state.professionals[0].passwordHash) ||
+      verifyPassword("synthetic-first-password-two", state.professionals[0].passwordHash)).toBe(true);
   });
 
   it("atualiza e-mail e CPF somente na conta da sessão e encerra sessões anteriores", async () => {

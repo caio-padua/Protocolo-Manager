@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -200,7 +201,7 @@ export default function LoginPage() {
                   autoFocus={!isBootstrap}
                   data-testid="input-username"
                   placeholder={isBootstrap ? "Crie seu usuário inicial" : "E-mail, CPF ou usuário atual"}
-                  className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] placeholder:text-slate-500 focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8] dark:placeholder:text-slate-400"
+                  className="h-10 border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] placeholder:text-slate-500 focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8] dark:placeholder:text-slate-400"
                 />
                 {!isBootstrap ? (
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -214,13 +215,14 @@ export default function LoginPage() {
                   className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
                   Senha {isBootstrap ? "(mínimo 6 caracteres)" : ""}
                 </Label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete={isBootstrap ? "new-password" : "current-password"}
                   data-testid="input-password"
+                  visibilityLabel="senha"
+                  visibilityTestId="toggle-password-visibility-login"
                   className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
                 />
               </div>
