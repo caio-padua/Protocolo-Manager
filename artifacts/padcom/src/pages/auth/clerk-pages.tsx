@@ -28,22 +28,25 @@ function safeReturnTo(): string {
 
 function AuthFrame({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-[100dvh] bg-[#0f1d38] flex flex-col items-center justify-center px-4 py-8">
-      <div className="mb-7 flex flex-col items-center gap-3 select-none">
-        <PaxterSymbolGlass size={58} tone="dark" sharp />
-        <div className="text-center">
-          <p className="text-[24px] font-bold tracking-[0.18em] text-white uppercase leading-none">
-            PAXTER
-          </p>
-          <p className="text-[10px] tracking-[0.22em] text-[#c2a05a]/80 uppercase mt-1">
-            Clinical Intelligence System
-          </p>
+    <main className="relative isolate min-h-[100dvh] overflow-hidden bg-[#f3ecdd] px-4 py-8 text-[#16284a]">
+      <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="relative z-10 flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center">
+        <div className="mb-7 flex flex-col items-center gap-3 select-none">
+          <PaxterSymbolGlass size={52} tone="dark" sharp />
+          <div className="text-center">
+            <p className="text-[24px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none">
+              PAXTER
+            </p>
+            <p className="text-[10px] tracking-[0.22em] text-[#916f32] uppercase mt-1">
+              Clinical Intelligence System
+            </p>
+          </div>
         </div>
+        <div className="w-full max-w-[440px]">{children}</div>
+        <p className="mt-6 text-center text-[10px] text-[#16284a]/55">
+          O acesso clínico continua protegido pelo cadastro do profissional.
+        </p>
       </div>
-      <div className="w-full max-w-[440px]">{children}</div>
-      <p className="mt-6 text-center text-[10px] text-white/40">
-        O acesso clínico continua protegido pelo cadastro do profissional.
-      </p>
     </main>
   );
 }
@@ -74,7 +77,7 @@ export function ClerkSignInPage() {
 
   return (
     <AuthFrame>
-      <p className="mb-3 text-center text-xs text-white/70">
+      <p className="mb-3 text-center text-xs text-[#16284a]/70">
         Use a opção Google abaixo. Seu usuário e senha continuam no acesso principal.
       </p>
       <SignIn
@@ -83,12 +86,6 @@ export function ClerkSignInPage() {
         signUpUrl={`${clerkBasePath}/sign-up`}
         forceRedirectUrl={callbackUrl}
         fallbackRedirectUrl={callbackUrl}
-        appearance={{
-          elements: {
-            cardBox:
-              "bg-[#16284a] rounded-2xl w-[440px] max-w-full overflow-hidden border border-[#c2a05a]/30 shadow-2xl",
-          },
-        }}
       />
     </AuthFrame>
   );

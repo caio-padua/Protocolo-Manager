@@ -1,6 +1,7 @@
 import { ClerkProvider, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
+import { ptBR } from "@clerk/localizations";
 import { useLocation } from "wouter";
 import { createContext, useContext, type ReactNode } from "react";
 
@@ -52,35 +53,49 @@ const clerkAppearance = {
   },
   variables: {
     colorPrimary: "#c2a05a",
-    colorForeground: "#ffffff",
-    colorMutedForeground: "#b7c0d1",
-    colorDanger: "#fca5a5",
-    colorBackground: "#16284a",
-    colorInput: "#0f1d38",
-    colorInputForeground: "#ffffff",
+    colorForeground: "#16284a",
+    colorMutedForeground: "#59677f",
+    colorDanger: "#b42318",
+    colorBackground: "#f3ecdd",
+    colorInput: "#fffdf8",
+    colorInputForeground: "#16284a",
     colorNeutral: "#77849a",
     fontFamily: "Inter, sans-serif",
-    borderRadius: "0.75rem",
+    borderRadius: "6px",
   },
   elements: {
     rootBox: "w-full flex justify-center",
     cardBox:
-      "bg-[#16284a] rounded-2xl w-[440px] max-w-full overflow-hidden border border-[#c2a05a]/30 shadow-2xl",
+      "panel-3d-sub rounded-[6px] w-[440px] max-w-full overflow-hidden border border-[#c2a05a]/40",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "text-white",
-    headerSubtitle: "text-white/70",
+    headerTitle: "text-[#16284a]",
+    headerSubtitle: "text-[#16284a]/70",
     socialButtonsBlockButton:
-      "bg-[#0f1d38] border border-white/20 text-white hover:bg-[#1b3158]",
-    socialButtonsBlockButtonText: "text-white",
-    formFieldLabel: "text-white/85",
-    formFieldInput: "bg-[#0f1d38] text-white border-white/20",
-    formButtonPrimary: "bg-[#c2a05a] text-[#16284a] hover:bg-[#d4b66b] font-semibold",
-    dividerLine: "bg-white/20",
-    dividerText: "text-white/55",
-    footerActionText: "text-white/65",
-    footerActionLink: "text-[#d5b66a] hover:text-white",
-    alertText: "text-red-200",
+      "btn-3d-soft !bg-[#fffdf8] !border-[#16284a]/20 !text-[#16284a] hover:!bg-white",
+    socialButtonsBlockButtonText: "!text-[#16284a]",
+    formFieldLabel: "text-[#16284a]/85",
+    formFieldInput:
+      "!bg-[#fffdf8] !text-[#16284a] !border-[#16284a]/25 placeholder:text-[#59677f]",
+    formButtonPrimary: "btn-3d-gold",
+    dividerLine: "bg-[#16284a]/15",
+    dividerText: "text-[#16284a]/55",
+    footerActionText: "text-[#16284a]/65",
+    footerActionLink: "text-[#916f32] hover:text-[#16284a]",
+    alertText: "text-red-700",
+  },
+};
+
+const paxterPortuguese = {
+  ...ptBR,
+  signIn: {
+    ...ptBR.signIn!,
+    start: {
+      ...ptBR.signIn!.start!,
+      title: "Acessar o PAXTER",
+      subtitle: "Use sua conta Google vinculada ao cadastro profissional.",
+      subtitleCombined: "Entre para continuar no PAXTER.",
+    },
   },
 };
 
@@ -107,6 +122,7 @@ export function ClerkAppProvider({ children }: { children: ReactNode }) {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to))}
       appearance={clerkAppearance}
+      localization={paxterPortuguese}
     >
       <ClerkActionsBridge>{children}</ClerkActionsBridge>
     </ClerkProvider>

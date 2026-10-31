@@ -25,6 +25,9 @@ vi.mock("@workspace/db", async () => {
     [schema.professionalsTable.isPrimaryDoctor, "isPrimaryDoctor"],
     [schema.professionalsTable.active, "active"],
     [schema.professionalsTable.cpf, "cpf"],
+    [schema.professionalsTable.crm, "crm"],
+    [schema.professionalsTable.registrationCouncil, "registrationCouncil"],
+    [schema.professionalsTable.registrationNumber, "registrationNumber"],
     [schema.professionalsTable.loginUsername, "loginUsername"],
     [schema.professionalsTable.passwordHash, "passwordHash"],
     [schema.professionalsTable.clerkUserIdDev, "clerkUserIdDev"],
@@ -53,7 +56,11 @@ vi.mock("@workspace/db", async () => {
       Object.fromEntries(
         Object.entries(fields).map(([key, expression]) => [
           key,
-          columnNames.has(expression) ? row[columnNames.get(expression)!] : null,
+          key === "hasPassword"
+            ? Boolean(row.passwordHash)
+            : columnNames.has(expression)
+              ? row[columnNames.get(expression)!]
+              : null,
         ]),
       ),
     );
@@ -132,6 +139,9 @@ function professional(overrides: Record<string, unknown> = {}) {
     isPrimaryDoctor: true,
     active: true,
     cpf: "12345678901",
+    crm: "CRM 000000",
+    registrationCouncil: "CRM",
+    registrationNumber: "000000",
     loginUsername: "caio",
     passwordHash: null,
     clerkUserIdDev: null,
@@ -276,6 +286,54 @@ describe("acesso Google vinculado ao colaborador", () => {
     });
     expect(response.body.professional.clerkUserIdDev).toBeUndefined();
     expect(response.body.professional.clerkUserIdProd).toBeUndefined();
+  });
+
+  it("mostra o usuario e o status da senha apenas para a identidade da sessao", async () => {
+    state.professionals[0].passwordHash = hashPassword("synthetic-password");
+    state.professionals.push(
+      professional({ id: 42, name: "Outro Profissional", loginUsername: "outro" }),
+    );
+
+    const response = await request(app)
+      .get("/collaborator/me?professionalId=42")
+      .set("Authorization", `Bearer ${collaboratorToken(41)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.professional).toMatchObject({
+      id: 41,
+      name: "Caio Henrique Fernandes Padua",
+      crm: "CRM 000000",
+      registrationCouncil: "CRM",
+      registrationNumber: "000000",
+      loginUsername: "caio",
+      hasPassword: true,
+      active: true,
+    });
+    expect(response.body.professional.passwordHash).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain(state.professionals[0].passwordHash);
+  });
+
+  it("nao informa senha quando nao existe credencial cadastrada", async () => {
+    const response = await request(app)
+      .get("/collaborator/me")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.professional.hasPassword).toBe(false);
+    expect(response.body.professional.passwordHash).toBeUndefined();
+  });
+
+  it("recusa a consulta da identidade sem sessao de colaborador", async () => {
+    const response = await request(app).get("/collaborator/me");
+    expect(response.status).toBe(401);
+  });
+
+  it("nao encontra nem troca a identidade quando o profissional da sessao nao existe", async () => {
+    state.professionals = [];
+    const response = await request(app)
+      .get("/collaborator/me")
+      .set("Authorization", `Bearer ${collaboratorToken(999)}`);
+    expect(response.status).toBe(404);
   });
 
   it("falha fechada quando o ambiente Clerk nao pode ser identificado", async () => {

@@ -133,16 +133,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1d38] flex flex-col items-center justify-center px-4">
+    <div className="relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-[#f3ecdd] px-4 py-8">
+      <div className="leva-fabric pointer-events-none" aria-hidden="true" />
+      <div className="relative z-10 flex w-full flex-col items-center">
 
       {/* ── Cabeçalho da marca ── */}
       <div className="flex flex-col items-center gap-3 mb-8 select-none">
-        <PaxterSymbolGlass size={64} tone="dark" sharp />
+        <PaxterSymbolGlass size={56} tone="dark" sharp />
         <div className="text-center">
-          <p className="text-[28px] font-bold tracking-[0.18em] text-white uppercase leading-none">
+          <p className="text-[28px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none">
             PADAXOR
           </p>
-          <p className="text-[11px] tracking-[0.22em] text-[#c2a05a]/80 uppercase mt-1">
+          <p className="text-[11px] tracking-[0.22em] text-[#916f32] uppercase mt-1">
             Motor Clínico · PAWARDS
           </p>
         </div>
@@ -150,14 +152,14 @@ export default function LoginPage() {
 
       {/* ── Card de login ── */}
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+        <div className="panel-3d-sub overflow-hidden">
 
           {/* Topbar do card */}
-          <div className="bg-[#16284a] px-6 py-4 border-b border-white/10">
-            <h1 className="text-sm font-semibold uppercase tracking-widest text-[#c2a05a]">
+          <div className="login-card-topbar px-6 py-4 border-b border-border/60">
+            <h1 className="text-sm font-semibold uppercase tracking-widest text-[#16284a]">
               {isBootstrap ? "Primeiro acesso" : "Acesso ao sistema"}
             </h1>
-            <p className="text-xs text-white/50 mt-0.5">
+            <p className="text-xs text-[#16284a]/65 mt-0.5">
               {isBootstrap
                 ? "Crie a primeira credencial de acesso"
                 : "Entre com seu usuário e senha"}
@@ -165,7 +167,7 @@ export default function LoginPage() {
           </div>
 
           {/* Corpo do card */}
-          <div className="bg-white px-6 py-6">
+          <div className="login-card-body px-6 py-6">
             {googleStatus === "unlinked" ? (
               <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
                 Esta conta Google ainda não está vinculada ao seu cadastro profissional.
@@ -186,7 +188,7 @@ export default function LoginPage() {
                   </Label>
                   <Select value={professionalId} onValueChange={setProfessionalId}>
                     <SelectTrigger id="prof" data-testid="select-profissional"
-                      className="border-[#16284a]/30 focus:ring-[#c2a05a]/50">
+                  className="border-[#16284a]/30 bg-[#fffdf8] focus:ring-[#c2a05a]/50">
                       <SelectValue placeholder="Escolha o profissional" />
                     </SelectTrigger>
                     <SelectContent>
@@ -210,7 +212,7 @@ export default function LoginPage() {
                   autoComplete="username"
                   autoFocus={!isBootstrap}
                   data-testid="input-username"
-                  className="border-[#16284a]/30 focus-visible:ring-[#c2a05a]/50"
+                  className="border-[#16284a]/30 bg-[#fffdf8] focus-visible:ring-[#c2a05a]/50"
                 />
               </div>
 
@@ -226,7 +228,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete={isBootstrap ? "new-password" : "current-password"}
                   data-testid="input-password"
-                  className="border-[#16284a]/30 focus-visible:ring-[#c2a05a]/50"
+                  className="border-[#16284a]/30 bg-[#fffdf8] focus-visible:ring-[#c2a05a]/50"
                 />
               </div>
 
@@ -241,9 +243,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={busy}
                 data-testid="button-entrar"
-                className="w-full bg-[#16284a] hover:bg-[#0f1d38] text-white font-semibold
-                           tracking-wider uppercase text-xs h-11 rounded-lg mt-1
-                           shadow-md shadow-[#16284a]/40 transition-all"
+                className="btn-3d-gold w-full font-semibold tracking-wider uppercase text-xs h-11 mt-1"
               >
                 {busy ? "Entrando…" : isBootstrap ? "Criar acesso" : "Entrar"}
               </Button>
@@ -261,7 +261,7 @@ export default function LoginPage() {
                   variant="outline"
                   disabled={busy}
                   onClick={beginGoogleLogin}
-                  className="w-full h-11 border-[#16284a]/25 bg-white text-[#16284a] hover:bg-[#f3f5f8] font-semibold"
+                  className="btn-3d-soft w-full h-11 border-[#16284a]/25 text-[#16284a] font-semibold"
                   data-testid="button-entrar-google"
                 >
                   <span
@@ -298,9 +298,10 @@ export default function LoginPage() {
         </div>
 
         {/* Rodapé discreto */}
-        <p className="text-center text-[10px] text-white/30 mt-6 tracking-wider">
+        <p className="text-center text-[10px] text-[#16284a]/55 mt-6 tracking-wider">
           PADAXOR © {new Date().getFullYear()} · PAWARDS Sistemas
         </p>
+      </div>
       </div>
     </div>
   );

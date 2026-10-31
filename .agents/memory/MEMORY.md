@@ -61,6 +61,7 @@
 - [Marcacao de consulta: pele por tema](marcacao-pele-por-tema.md) — travado 01/07/2026: CLARO=Editorial (marcacao-fusao), ESCURO=Carteira concierge (marcacao-concierge); detalhe em specs/marcacao-consulta.md.
 - [Idempotencia doc clinico por paciente](idempotencia-documento-clinico-por-paciente.md) — hash global mistura prontuarios: chave e (cliente,hash); consumo clinico so le docs conferidos.
 - [Token de colaborador p/ curl](collab-token-curl-regen.md) — token = base64url("collab:id:role:exp:sig") com sig HMAC em HEX; some no restart, regerar; ler createCollaboratorToken antes.
+- [Senha profissional nunca é exibida](acesso-profissional-senha-nao-reversivel.md) — mostrar apenas usuário e existência de senha; qualquer redefinição exige fluxo próprio, autorizado e sem alvo escolhido pelo navegador.
 - [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open.
 - [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico.
 - PADTEAM hub 5 abas + raw SQL — módulo de equipe remota: hub único /padteam (5 abas); 8 tabelas via raw SQL; 10 posições seed no boot; Trello fail-graceful sem secrets.

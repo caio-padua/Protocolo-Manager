@@ -438,6 +438,12 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
       category: professionalsTable.category,
       isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
       cpf: professionalsTable.cpf,
+      crm: professionalsTable.crm,
+      registrationCouncil: professionalsTable.registrationCouncil,
+      registrationNumber: professionalsTable.registrationNumber,
+      loginUsername: professionalsTable.loginUsername,
+      hasPassword: sql<boolean>`${professionalsTable.passwordHash} IS NOT NULL`,
+      active: professionalsTable.active,
       googleIdentity: identityColumn,
     })
     .from(professionalsTable)
@@ -448,7 +454,12 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
     return;
   }
   const { googleIdentity, ...professional } = prof;
-  res.json({ professional: { ...professional, googleLinked: Boolean(googleIdentity) } });
+  res.json({
+    professional: {
+      ...professional,
+      googleLinked: Boolean(googleIdentity),
+    },
+  });
 });
 
 // GET /api/collaborator/bootstrap-status — informa se ainda nao existe nenhuma
