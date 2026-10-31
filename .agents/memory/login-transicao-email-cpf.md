@@ -5,6 +5,8 @@ description: Regra aprovada para migrar login de colaborador sem bloquear contas
 
 # Transicao de login
 
+Na tela de entrada, a mascara do CPF e apenas visual: aplicar somente a entradas numericas de ate onze digitos e remover os separadores antes de enviar o CPF completo. Isso preserva e-mail e usuarios legados numericos.
+
 Manter o login atual de uma conta enquanto os campos de e-mail e CPF estiverem vazios. Depois que o cadastro canonico receber um identificador, a entrada por senha deve aceitar e-mail ou CPF normalizado e deixar de aceitar o identificador antigo para aquela conta. A pessoa pode atualizar seus proprios identificadores com senha atual; e-mail e CPF precisam ser unicos depois da normalizacao.
 
 Troca de senha ou identificador incrementa a versao da credencial e invalida as sessoes anteriores. A auditoria registra somente o tipo de alteracao, nunca o identificador ou senha em claro.

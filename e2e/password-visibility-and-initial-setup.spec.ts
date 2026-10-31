@@ -1,5 +1,40 @@
 import { test, expect } from "@playwright/test";
 
+test("login formata CPF sem alterar e-mail ou identificador enviado", async ({ page }) => {
+  let submittedIdentifier: string | undefined;
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/collaborator/bootstrap-status") {
+      return route.fulfill({ json: { needsBootstrap: false, staff: [] } });
+    }
+    if (path === "/api/collaborator/login" && request.method() === "POST") {
+      submittedIdentifier = request.postDataJSON()?.identifier;
+      return route.fulfill({
+        status: 401,
+        json: { error: "Credenciais inválidas" },
+      });
+    }
+    return route.fulfill({ json: {} });
+  });
+
+  await page.setViewportSize({ width: 402, height: 874 });
+  await page.goto("/login");
+  const identifier = page.getByTestId("input-username");
+
+  await identifier.fill("98765432100");
+  await expect(identifier).toHaveValue("987.654.321-00");
+  await page.screenshot({ path: "/tmp/padcom-login-cpf-mask-proof.png" });
+  await identifier.fill("medico@example.test");
+  await expect(identifier).toHaveValue("medico@example.test");
+
+  await identifier.fill("98765432100");
+  await page.getByTestId("input-password").fill("synthetic-login-password");
+  await page.getByTestId("button-entrar").click();
+  await expect(page.getByTestId("text-error")).toHaveText("Credenciais inválidas");
+  expect(submittedIdentifier).toBe("98765432100");
+});
+
 test("login mostra e oculta a senha digitada em celular e computador", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;

@@ -35,6 +35,24 @@ async function postJson(path: string, body: unknown): Promise<Response> {
   });
 }
 
+function formatLoginIdentifier(value: string): string {
+  if (/[a-z@]/i.test(value)) return value;
+  const digits = value.replace(/\D/g, "");
+  if (digits.length > 11) return value;
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  }
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function loginIdentifierForRequest(value: string): string {
+  return /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(value)
+    ? value.replace(/\D/g, "")
+    : value;
+}
+
 // Página de login dedicada do Padaxor (Item 11 — Onda 8.3).
 // Vive em /login, fora do Layout, sem CollaboratorGate.
 // Após autenticação, redireciona para `returnTo` (query param) ou para /.
@@ -105,7 +123,10 @@ export default function LoginPage() {
           password,
         });
       } else {
-        res = await postJson("/api/collaborator/login", { identifier: username, password });
+        res = await postJson("/api/collaborator/login", {
+          identifier: loginIdentifierForRequest(username),
+          password,
+        });
       }
       const data = await res.json();
       if (!res.ok) { setError(data?.error ?? "Credenciais incorretas."); setBusy(false); return; }
@@ -196,7 +217,7 @@ export default function LoginPage() {
                 <Input
                   id="username"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => setUsername(formatLoginIdentifier(e.target.value))}
                   autoComplete="username"
                   autoFocus={!isBootstrap}
                   data-testid="input-username"
