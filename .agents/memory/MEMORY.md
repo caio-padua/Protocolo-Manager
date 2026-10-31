@@ -44,6 +44,7 @@
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn.
 - Painel de Domínios — padrões visuais — LED sempre à esquerda do card selecionado; bevel-3d badge flutuante para subtítulos de seção; painel comercial = KPIs+modelo+tabela de preços.
 - [LoginScreen: classes de tema (login-card-topbar/body/btn-3d-gold)](login-screen-classes-tema.md) — painel de login usa 3 classes próprias no index.css; sharp=true no PaxterSymbolGlass elimina curvatura do vidro.
+- [Solicitação de acesso com aprovação](login-solicitacao-acesso-aprovacao.md) — profissionais sem conta só recebem acesso após aprovação explícita da clínica responsável.
 - [Webhook assinatura: idempotencia + invalido](webhook-assinatura-idempotencia.md) — eventId determinístico (nunca new Date()); assinatura inválida NÃO marca processado=true; só expor provedor cabeado (404 nos demais).
 - **Concierge** — [gate server-only + HMAC](concierge-pagamento-gate-servidor.md) · [trava de escassez por CPF](concierge-penalidade.md) · [peso por desfecho v2](concierge-penalidade-arquitetura.md) · [piso de 3 meses so na vaga da fila](concierge-janela-natural.md)
 - [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por origem antes de abrir a outras fontes).
