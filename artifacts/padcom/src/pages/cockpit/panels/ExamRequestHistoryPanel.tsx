@@ -4,6 +4,7 @@ import type { ExamRequestHistory, ExamDocumentDispatchResult } from "@workspace/
 import { getCollabToken } from "@/lib/collab-auth";
 import { BASE } from "../../comunicacao/_shared";
 import { examDispatchKey } from "@/lib/exam-dispatch-key";
+import ClinicalHistoryToggle from "@/components/ClinicalHistoryToggle";
 
 type Channel = "EMAIL" | "WHATSAPP" | "TELEGRAM";
 const labels: Record<Channel, string> = { EMAIL: "E-mail", WHATSAPP: "WhatsApp", TELEGRAM: "Telegram" };
@@ -32,6 +33,7 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, hist
   historyScope?: string;
   email?: string | null; phone?: string | null;
 }) {
+  const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -50,9 +52,9 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, hist
   contextRef.current = { clientId, professionalId };
   const history = useQuery<ExamRequestHistory>({
     queryKey: ["exam-request-history", historyScope, professionalId, clientId, offset, recentIds],
-    enabled: enabled && pageVisible, retry: false, staleTime: 0,
+    enabled: enabled && open && pageVisible, retry: false, staleTime: 0,
     // Only re-read history. Elapsed time never changes a reservation or starts a send.
-    refetchInterval: query => enabled && pageVisible && query.state.data?.pendingOperations.length
+    refetchInterval: query => enabled && open && pageVisible && query.state.data?.pendingOperations.length
       ? 10_000 : false,
     refetchIntervalInBackground: false,
     queryFn: async ({ signal }) => {
@@ -93,6 +95,21 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, hist
   if (!enabled) return null;
   return (
     <section className="panel-3d-sub col-span-full min-w-0 space-y-4 p-4" aria-label="Histórico de pedidos de exames">
+      <ClinicalHistoryToggle
+        label="Histórico de pedidos de exames"
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) {
+            setSelected([]);
+            setChannels([]);
+            setConfirmed(false);
+            setResult(null);
+            setError(null);
+          }
+        }}
+      />
+      {open && <>
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <h3 className="bevel-3d px-3 py-2 text-sm font-bold uppercase tracking-wide">Pedidos anteriores e envio</h3>
         <button type="button" className="btn-3d-soft px-3 py-2 text-xs" disabled={history.isFetching || sending}
@@ -148,7 +165,8 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, hist
                 }).format(new Date(doc.createdAt))}</td>
                 <td className="p-3"><p className="font-semibold">{doc.tipoLabel}</p><p className="max-w-sm truncate text-xs" title={doc.fileName}>{doc.fileName}</p></td>
                 <td className="p-3">{doc.examCount}</td>
-                <td className="p-3"><a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn-3d-soft inline-block px-3 py-2 text-xs">Abrir</a></td>
+                <td className="p-3"><a href={doc.url.startsWith("http") ? doc.url : `${BASE}${doc.url}`}
+                  target="_blank" rel="noopener noreferrer" className="btn-3d-soft inline-block px-3 py-2 text-xs">Abrir</a></td>
               </tr>
             ))}</tbody>
           </table>
@@ -211,6 +229,7 @@ export default function ExamRequestHistoryPanel({ clientId, professionalId, hist
           </tr>)}</tbody>
         </table>
       </div>}
+      </>}
     </section>
   );
 }

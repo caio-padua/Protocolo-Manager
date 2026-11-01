@@ -3,9 +3,11 @@ import {
   FileSignature, Share2, Stethoscope, CheckCircle2, Send,
   Download, ExternalLink, Layers, Clock, CalendarDays,
 } from "lucide-react";
-import { useListClients, useListProfessionals } from "@workspace/api-client-react";
 import { CidPicker } from "@/components/CidPicker";
 import { useToast } from "@/hooks/use-toast";
+import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
+import { getCollabToken } from "@/lib/collab-auth";
+import ClinicalHistoryToggle from "@/components/ClinicalHistoryToggle";
 import {
   VARIAVEIS_DOC, aplicarVariaveis, montarValores,
 } from "@/lib/doc-variaveis";
@@ -20,8 +22,6 @@ const NAVY = "#16294a";
 const OURO = "#9a7b32";
 
 const API = import.meta.env.BASE_URL + "api";
-
-const PROF_DEFAULT = { nome: "Dr. Caio Henrique Pádua", crm: "125475", uf: "SP" };
 
 const TIPOS_ATESTADO: { value: string; label: string }[] = [
   { value: "comparecimento", label: "Comparecimento" },
@@ -62,13 +62,9 @@ interface EncaminhamentoRow {
 
 export default function DocumentosPanel({ clientId }: { clientId: number }) {
   const { toast } = useToast();
-
-  const { data: clients } = useListClients();
-  const { data: profissionais = [] } = useListProfessionals();
-  const cliente = useMemo(
-    () => (clients ?? []).find((c) => c.id === clientId) ?? null,
-    [clients, clientId],
-  );
+  const identity = useClinicalIdentity(clientId);
+  const cliente = identity.data?.client ?? null;
+  const profissional = identity.data?.professional ?? null;
 
   return (
     <div className="space-y-5">
@@ -76,36 +72,77 @@ export default function DocumentosPanel({ clientId }: { clientId: number }) {
         <AtestadoInline
           clientId={clientId}
           cliente={cliente}
-          profissionais={profissionais}
+          profissional={profissional}
+          identityReady={Boolean(identity.data) && !identity.isError && !identity.isFetching}
           toast={toast}
         />
         <EncaminhamentoInline
           clientId={clientId}
           cliente={cliente}
-          profissionais={profissionais}
+          profissional={profissional}
+          identityReady={Boolean(identity.data) && !identity.isError && !identity.isFetching}
           toast={toast}
         />
       </div>
+      {identity.isError && <p role="alert" className="text-sm text-destructive">
+        Não foi possível validar o médico, o cliente e a clínica. Atualize a identidade antes de emitir documentos.
+      </p>}
     </div>
   );
 }
 
 type ClienteLike = { id: number; name: string; cpf?: string | null; phone?: string | null; email?: string | null } | null;
-type ProfLike = { id: number; name: string; crm?: string | null };
+type ProfLike = { id: number; name: string; crm?: string | null; uf?: string | null } | null;
 type ToastFn = ReturnType<typeof useToast>["toast"];
+
+function authHeaders(json = false): Record<string, string> {
+  const token = getCollabToken();
+  if (!token) throw new Error("Faça login de colaborador para continuar.");
+  return {
+    ...(json ? { "Content-Type": "application/json" } : {}),
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+async function openClinicalPdf(path: string, download = false) {
+  const tab = download ? null : window.open("about:blank", "_blank");
+  if (tab) tab.opener = null;
+  try {
+    const response = await fetch(path, { headers: authHeaders() });
+    if (!response.ok) throw new Error("Não foi possível abrir o PDF autorizado.");
+    const url = URL.createObjectURL(await response.blob());
+    if (download) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = path.split("/").pop()?.split("?")[0] || "documento-clinico.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } else if (tab) {
+      tab.location.href = url;
+    } else {
+      URL.revokeObjectURL(url);
+      throw new Error("Permita abrir uma nova aba para visualizar o documento.");
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    tab?.close();
+    throw error;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // ATESTADO INLINE
 // ---------------------------------------------------------------------------
 function AtestadoInline({
-  clientId, cliente, profissionais, toast,
+  clientId, cliente, profissional, identityReady, toast,
 }: {
   clientId: number;
   cliente: ClienteLike;
-  profissionais: ProfLike[];
+  profissional: ProfLike;
+  identityReady: boolean;
   toast: ToastFn;
 }) {
-  const [professionalId, setProfessionalId] = useState<number | null>(null);
   const [tipo, setTipo] = useState("comparecimento");
   const [dias, setDias] = useState("");
   const [dataInicio, setDataInicio] = useState("");
@@ -117,8 +154,8 @@ function AtestadoInline({
   const [observacao, setObservacao] = useState("");
   const [emitindo, setEmitindo] = useState(false);
   const [historico, setHistorico] = useState<AtestadoRow[]>([]);
-
-  const profSel = useMemo(() => profissionais.find((p) => p.id === professionalId) ?? null, [profissionais, professionalId]);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [historicoErro, setHistoricoErro] = useState("");
 
   useEffect(() => {
     fetch(`${API}/document-templates?tipo=atestado`)
@@ -127,26 +164,41 @@ function AtestadoInline({
       .catch(() => setModelos([]));
   }, []);
 
-  const carregarHistorico = () => {
-    fetch(`${API}/atestados?clientId=${clientId}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setHistorico(Array.isArray(d) ? d : []))
-      .catch(() => setHistorico([]));
-  };
-  useEffect(carregarHistorico, [clientId]);
+  useEffect(() => {
+    if (!historicoAberto) {
+      setHistorico([]);
+      setHistoricoErro("");
+      return;
+    }
+    let ativo = true;
+    setHistoricoErro("");
+    fetch(`${API}/atestados?clientId=${clientId}`, { headers: authHeaders() })
+      .then(async (response) => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || "Não foi possível carregar o histórico.");
+        }
+        return response.json();
+      })
+      .then((data) => { if (ativo) setHistorico(Array.isArray(data) ? data : []); })
+      .catch((error: unknown) => {
+        if (ativo) setHistoricoErro(error instanceof Error ? error.message : "Falha ao carregar o histórico.");
+      });
+    return () => { ativo = false; };
+  }, [clientId, historicoAberto]);
 
   const valores = useMemo(
     () =>
       montarValores({
         cliente: { nome: cliente?.name, cpf: cliente?.cpf },
         profissional: {
-          nome: profSel?.name ?? PROF_DEFAULT.nome,
-          crm: profSel?.crm ?? PROF_DEFAULT.crm,
-          uf: PROF_DEFAULT.uf,
+          nome: profissional?.name,
+          crm: profissional?.crm,
+          uf: profissional?.uf,
         },
         extras: { dias, cid, finalidade },
       }),
-    [cliente, profSel, dias, cid, finalidade],
+    [cliente, profissional, dias, cid, finalidade],
   );
 
   function aplicarModelo(id: number | null) {
@@ -161,8 +213,8 @@ function AtestadoInline({
   }
 
   async function emitir() {
-    if (!cliente) {
-      toast({ title: "Cliente não carregado", variant: "destructive" });
+    if (!cliente || !profissional || !identityReady) {
+      toast({ title: "Identidade clínica não validada", description: "Confira o vínculo do médico, da clínica e do cliente.", variant: "destructive" });
       return;
     }
     const corpoAplicado = aplicarVariaveis(corpo, valores);
@@ -174,17 +226,17 @@ function AtestadoInline({
     try {
       const criar = await fetch(`${API}/atestados`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(true),
         body: JSON.stringify({
           clientId,
           clientName: cliente.name,
           clientCpf: cliente.cpf ?? null,
           clientPhone: cliente.phone ?? null,
           clientEmail: cliente.email ?? null,
-          professionalId: professionalId ?? null,
-          professionalName: profSel?.name ?? PROF_DEFAULT.nome,
-          professionalCrm: profSel?.crm ?? PROF_DEFAULT.crm,
-          professionalUf: PROF_DEFAULT.uf,
+          professionalId: profissional.id,
+          professionalName: profissional.name,
+          professionalCrm: profissional.crm ?? null,
+          professionalUf: profissional.uf ?? null,
           tipo,
           dias: dias.trim() ? Number(dias) : null,
           dataInicio: dataInicio.trim() || null,
@@ -197,13 +249,13 @@ function AtestadoInline({
       if (!criar.ok) throw new Error("Falha ao criar o atestado");
       const criado = await criar.json();
 
-      const emit = await fetch(`${API}/atestados/${criado.id}/emitir`, { method: "POST" });
+      const emit = await fetch(`${API}/atestados/${criado.id}/emitir`, { method: "POST", headers: authHeaders() });
       if (!emit.ok) throw new Error("Falha ao emitir o atestado");
       const emitido = await emit.json();
 
       toast({ title: "Atestado emitido!", description: "PDF gerado com sucesso." });
-      window.open(`${API}/atestados/${emitido.id}/pdf`, "_blank");
-      carregarHistorico();
+      await openClinicalPdf(`${API}/atestados/${emitido.id}/pdf`);
+      setHistoricoAberto(true);
     } catch (err) {
       toast({
         title: "Erro ao emitir atestado",
@@ -219,20 +271,12 @@ function AtestadoInline({
     <section className="panel-3d space-y-4 p-5">
       <BlockTitle icon={FileSignature}>Atestado</BlockTitle>
 
-      <div>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#647c97]">Profissional</label>
-        <select
-          className="field-engraved h-10 w-full px-3"
-          value={professionalId ?? ""}
-          onChange={(e) => setProfessionalId(e.target.value ? Number(e.target.value) : null)}
-        >
-          <option value="">{`${PROF_DEFAULT.nome} — CRM ${PROF_DEFAULT.crm}/${PROF_DEFAULT.uf} (padrão)`}</option>
-          {profissionais.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}{p.crm ? ` — CRM ${p.crm}` : ""}
-            </option>
-          ))}
-        </select>
+      <div className="screen-3d rounded-md p-3">
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Profissional autenticado</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">{profissional?.name ?? "Identidade em validação"}</p>
+        <p className="text-xs text-muted-foreground">
+          {profissional?.crm ? `CRM ${profissional.crm}${profissional.uf ? `/${profissional.uf}` : ""}` : "Registro profissional não disponível"}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -323,7 +367,7 @@ function AtestadoInline({
         <button
           type="button"
           onClick={emitir}
-          disabled={emitindo}
+      disabled={emitindo || !identityReady}
           className="btn-3d inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           style={{ background: NAVY }}
         >
@@ -352,14 +396,14 @@ function AtestadoInline({
 // ENCAMINHAMENTO INLINE
 // ---------------------------------------------------------------------------
 function EncaminhamentoInline({
-  clientId, cliente, profissionais, toast,
+  clientId, cliente, profissional, identityReady, toast,
 }: {
   clientId: number;
   cliente: ClienteLike;
-  profissionais: ProfLike[];
+  profissional: ProfLike;
+  identityReady: boolean;
   toast: ToastFn;
 }) {
-  const [profId, setProfId] = useState<number | null>(null);
   const [especialidade, setEspecialidade] = useState("");
   const [profDestino, setProfDestino] = useState("");
   const [urgencia, setUrgencia] = useState("eletivo");
@@ -370,8 +414,8 @@ function EncaminhamentoInline({
   const [corpo, setCorpo] = useState("");
   const [emitindo, setEmitindo] = useState(false);
   const [historico, setHistorico] = useState<EncaminhamentoRow[]>([]);
-
-  const profissional = useMemo(() => profissionais.find((p) => p.id === profId) ?? null, [profissionais, profId]);
+  const [historicoAberto, setHistoricoAberto] = useState(false);
+  const [historicoErro, setHistoricoErro] = useState("");
 
   useEffect(() => {
     fetch(`${API}/document-templates?tipo=encaminhamento`)
@@ -380,13 +424,35 @@ function EncaminhamentoInline({
       .catch(() => setModelos([]));
   }, []);
 
-  const carregarHistorico = () => {
-    fetch(`${API}/encaminhamentos?clientId=${clientId}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setHistorico(Array.isArray(d) ? d : []))
-      .catch(() => setHistorico([]));
-  };
-  useEffect(carregarHistorico, [clientId]);
+  useEffect(() => {
+    if (!historicoAberto) {
+      setHistorico([]);
+      setHistoricoErro("");
+      return;
+    }
+    let ativo = true;
+    setHistoricoErro("");
+    let headers: Record<string, string>;
+    try {
+      headers = authHeaders();
+    } catch (error) {
+      setHistoricoErro(error instanceof Error ? error.message : "Faça login de colaborador.");
+      return;
+    }
+    fetch(`${API}/encaminhamentos?clientId=${clientId}`, { headers })
+      .then(async (response) => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || "Não foi possível carregar o histórico.");
+        }
+        return response.json();
+      })
+      .then((data) => { if (ativo) setHistorico(Array.isArray(data) ? data : []); })
+      .catch((error: unknown) => {
+        if (ativo) setHistoricoErro(error instanceof Error ? error.message : "Falha ao carregar o histórico.");
+      });
+    return () => { ativo = false; };
+  }, [clientId, historicoAberto]);
 
   const valores = () =>
     montarValores({
@@ -412,8 +478,8 @@ function EncaminhamentoInline({
   );
 
   async function emitir() {
-    if (!cliente) {
-      toast({ title: "Cliente não carregado", variant: "destructive" });
+    if (!cliente || !profissional || !identityReady) {
+      toast({ title: "Identidade clínica não validada", description: "Confira o vínculo do médico, da clínica e do cliente.", variant: "destructive" });
       return;
     }
     if (!especialidade.trim()) {
@@ -428,17 +494,17 @@ function EncaminhamentoInline({
     try {
       const criar = await fetch(`${API}/encaminhamentos`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(true),
         body: JSON.stringify({
           clientId,
           clientName: cliente.name,
           clientCpf: cliente.cpf ?? null,
           clientPhone: cliente.phone ?? null,
           clientEmail: cliente.email ?? null,
-          professionalId: profId ?? null,
-          professionalName: profissional?.name ?? null,
-          professionalCrm: profissional?.crm ?? null,
-          professionalUf: "SP",
+          professionalId: profissional.id,
+          professionalName: profissional.name,
+          professionalCrm: profissional.crm ?? null,
+          professionalUf: profissional.uf ?? null,
           especialidadeDestino: especialidade.trim(),
           profissionalDestino: profDestino.trim() || null,
           urgencia,
@@ -450,13 +516,13 @@ function EncaminhamentoInline({
       if (!criar.ok) throw new Error("Falha ao criar o encaminhamento");
       const criado = await criar.json();
 
-      const emit = await fetch(`${API}/encaminhamentos/${criado.id}/emitir`, { method: "POST" });
+      const emit = await fetch(`${API}/encaminhamentos/${criado.id}/emitir`, { method: "POST", headers: authHeaders() });
       if (!emit.ok) throw new Error("Falha ao emitir o encaminhamento");
       const emitido = await emit.json();
 
       toast({ title: "Encaminhamento emitido!", description: "PDF gerado com sucesso." });
-      window.open(`${API}/encaminhamentos/${emitido.id}/pdf`, "_blank");
-      carregarHistorico();
+      await openClinicalPdf(`${API}/encaminhamentos/${emitido.id}/pdf`);
+      setHistoricoAberto(true);
     } catch (err) {
       toast({
         title: "Erro ao emitir encaminhamento",
@@ -568,7 +634,7 @@ function EncaminhamentoInline({
         <button
           type="button"
           onClick={emitir}
-          disabled={emitindo}
+          disabled={emitindo || !identityReady}
           className="btn-3d inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           style={{ background: NAVY }}
         >

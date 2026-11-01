@@ -31,9 +31,10 @@ Não foi encontrada uma ferramenta de emissão de Laudos nesta rota do Cockpit. 
 5. Cada documento terá ações visíveis e separadas: **Abrir**, **Baixar** e **Reenviar PDF emitido**.
 6. A ação de reenviar não será acionada ao abrir a lista ou o arquivo. Ela exigirá a escolha explícita de um destinatário, canal e confirmação final.
 7. Os canais disponíveis devem respeitar os contatos autorizados e existentes: e-mail, WhatsApp e Telegram. Um canal indisponível não pode aparecer como opção válida.
-8. Ao trocar o cliente, a lista, os documentos selecionados, o destinatário, a confirmação e o resultado anterior devem ser limpos. Respostas atrasadas do cliente anterior não podem preencher a tela.
-9. Abrir o documento deve usar a sessão autenticada e abrir em nova aba. Baixar deve ser uma ação distinta, com nome de arquivo legível.
-10. Manter a tipografia e o vocabulário visual já aprovados para o Cockpit, sem alterar o seletor de clientes.
+8. E-mail recebe o PDF anexado; WhatsApp e Telegram recebem um link aleatório, restrito ao mesmo PDF e válido por sete dias.
+9. Ao trocar o cliente, a lista, os documentos selecionados, o destinatário, a confirmação e o resultado anterior devem ser limpos. Respostas atrasadas do cliente anterior não podem preencher a tela.
+10. Abrir o documento deve usar a sessão autenticada e abrir em nova aba. Baixar deve ser uma ação distinta, com nome de arquivo legível.
+11. Manter a tipografia e o vocabulário visual já aprovados para o Cockpit, sem alterar o seletor de clientes.
 
 ## 4. Requisitos de segurança e integridade clínica
 
@@ -49,6 +50,7 @@ Não foi encontrada uma ferramenta de emissão de Laudos nesta rota do Cockpit. 
 10. Resultados incertos, falhas depois do início do envio e respostas perdidas devem permanecer para conferência humana. Não permitir repetição automática ou por uma nova chave que contorne uma operação pendente.
 11. Os caminhos permitidos e proibidos devem ser testados com provedores simulados. Os testes não podem chamar WhatsApp, Telegram, e-mail real, farmácias ou clientes.
 12. Preservar todos os registros existentes. Nenhuma exclusão, limpeza, substituição de banco ou mudança de cobrança faz parte desta especificação.
+13. O link público de compartilhamento deve usar token aleatório não enumerável, consultar somente o documento e o tipo vinculados ao token, recusar links expirados e não armazenar em cache.
 
 ## 5. Impacto previsto
 
@@ -65,6 +67,7 @@ Não foi encontrada uma ferramenta de emissão de Laudos nesta rota do Cockpit. 
 | Cliente de outra clínica ou médico sem vínculo ativo | Recusar antes de listar, abrir, baixar, emitir ou enviar. |
 | Identificador do navegador divergente do registro | Recusar e registrar a tentativa sem expor conteúdo. |
 | Registro histórico sem vínculo de cliente verificável | Não abrir nem reenviar; mostrar estado de conferência, sem inferir a identidade. |
+| Link de compartilhamento expirado | Retornar acesso negado sem revelar se outro documento ou cliente existe. |
 | Falha ao carregar histórico | Exibir erro e opção de tentar novamente; não afirmar que está vazio. |
 | PDF ausente ou documento não emitido | Bloquear abrir, baixar e reenviar; não regenerar silenciosamente. |
 | Destinatário ausente ou contato alterado | Pedir nova conferência; não reaproveitar confirmação anterior. |
@@ -94,9 +97,10 @@ Não foi encontrada uma ferramenta de emissão de Laudos nesta rota do Cockpit. 
 5. Testes demonstram acesso autorizado e rejeição de acesso anônimo, cliente incorreto, clínica incorreta e documento fora do escopo.
 6. Testes demonstram que a troca de cliente limpa estado e que operação incerta não dispara novo envio automaticamente.
 7. Testes simulados demonstram zero mensagens reais e registro dos resultados por canal.
-8. Falhas de consulta não aparecem como listas vazias.
-9. Interface passa a revisão visual Paxter em celular e computador, incluindo alinhamentos e áreas de toque.
-10. A revisão independente e todas as verificações exigidas pelo PAXTER Loop estão concluídas. Sem isso, o estado final é BLOQUEADO ou PARCIAL, nunca “100%”.
+8. Link compartilhado funciona antes de sete dias e falha depois de expirado; link nunca permite trocar o identificador do documento.
+9. Falhas de consulta não aparecem como listas vazias.
+10. Interface passa a revisão visual Paxter em celular e computador, incluindo alinhamentos e áreas de toque.
+11. A revisão independente e todas as verificações exigidas pelo PAXTER Loop estão concluídas. Sem isso, o estado final é BLOQUEADO ou PARCIAL, nunca “100%”.
 
 ## 9. Fora de escopo
 

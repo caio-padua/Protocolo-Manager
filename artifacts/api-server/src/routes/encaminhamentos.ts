@@ -1,11 +1,30 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { db, referralsTable, insertReferralSchema, clientsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { gerarEncaminhamentoPdf, type UrgenciaEncaminhamento } from "../lib/encaminhamento-pdf";
 import { ensureClientFolderStructure, uploadFileToDrive, removeDiacritics } from "../lib/google-drive";
 import { aplicarVariaveis, montarValoresDoc } from "../lib/doc-variaveis";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { requireCollaborator } from "./collaborator";
 
 const router: IRouter = Router();
+router.use(requireCollaborator);
+
+async function identityForClient(req: Request, res: Response, clientId: number | null | undefined) {
+  if (clientId == null) {
+    res.status(404).json({ error: "Encaminhamento sem vínculo de cliente verificável." });
+    return null;
+  }
+  try {
+    return await resolveClinicalEmitter(req, clientId);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return null;
+    }
+    throw error;
+  }
+}
 
 function dateBRfull(): string {
   const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -45,27 +64,23 @@ function serialize(r: typeof referralsTable.$inferSelect) {
 
 // GET /api/encaminhamentos?clientId= — lista (ordem desc por id).
 router.get("/encaminhamentos", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const clientIdRaw = req.query.clientId;
-  let rows: (typeof referralsTable.$inferSelect)[];
-  if (typeof clientIdRaw === "string" && clientIdRaw.trim()) {
-    const clientId = Number(clientIdRaw);
-    if (Number.isNaN(clientId)) {
-      res.status(400).json({ error: "clientId inválido" });
-      return;
-    }
-    rows = await db
-      .select()
-      .from(referralsTable)
-      .where(eq(referralsTable.clientId, clientId))
-      .orderBy(desc(referralsTable.id));
-  } else {
-    rows = await db.select().from(referralsTable).orderBy(desc(referralsTable.id)).limit(200);
+  const clientId = typeof clientIdRaw === "string" ? Number(clientIdRaw) : NaN;
+  if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+    res.status(400).json({ error: "Informe um cliente válido para consultar os encaminhamentos." });
+    return;
   }
+  if (!await identityForClient(req, res, clientId)) return;
+  const rows = await db.select().from(referralsTable)
+    .where(eq(referralsTable.clientId, clientId))
+    .orderBy(desc(referralsTable.id));
   res.json(rows.map(serialize));
 });
 
 // GET /api/encaminhamentos/:id
 router.get("/encaminhamentos/:id", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
@@ -76,6 +91,7 @@ router.get("/encaminhamentos/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Encaminhamento não encontrado" });
     return;
   }
+  if (!await identityForClient(req, res, row.clientId)) return;
   res.json(serialize(row));
 });
 
@@ -86,9 +102,26 @@ router.post("/encaminhamentos", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const identity = await identityForClient(req, res, parsed.data.clientId);
+  if (!identity) return;
+  if (parsed.data.professionalId != null && parsed.data.professionalId !== identity.professional.id) {
+    res.status(403).json({ error: "O profissional do documento deve ser o colaborador autenticado." });
+    return;
+  }
   const [row] = await db
     .insert(referralsTable)
-    .values({ ...parsed.data, status: "draft" })
+    .values({
+      ...parsed.data,
+      clientName: identity.client.name,
+      clientCpf: identity.client.cpf,
+      clientPhone: identity.client.phone,
+      clientEmail: identity.client.email,
+      professionalId: identity.professional.id,
+      professionalName: identity.professional.name,
+      professionalCrm: identity.professional.crm,
+      professionalUf: identity.professional.uf,
+      status: "draft",
+    })
     .returning();
   res.status(201).json(serialize(row));
 });
@@ -105,14 +138,30 @@ router.put("/encaminhamentos/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Encaminhamento não encontrado" });
     return;
   }
+  const identity = await identityForClient(req, res, existing.clientId);
+  if (!identity) return;
+  if (existing.professionalId !== identity.professional.id) {
+    res.status(403).json({ error: "Somente o profissional emissor pode editar este rascunho." });
+    return;
+  }
+  if (existing.status !== "draft") {
+    res.status(409).json({ error: "Encaminhamentos emitidos não podem ser alterados." });
+    return;
+  }
   const parsed = insertReferralSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if ((parsed.data.clientId != null && parsed.data.clientId !== existing.clientId) ||
+      (parsed.data.professionalId != null && parsed.data.professionalId !== identity.professional.id)) {
+    res.status(403).json({ error: "Não é permitido trocar o cliente ou o profissional do documento." });
+    return;
+  }
+  const { especialidadeDestino, profissionalDestino, motivo, resumoClinico, urgencia, corpo, observacao } = parsed.data;
   const [updated] = await db
     .update(referralsTable)
-    .set(parsed.data)
+    .set({ especialidadeDestino, profissionalDestino, motivo, resumoClinico, urgencia, corpo, observacao })
     .where(eq(referralsTable.id, id))
     .returning();
   res.json(serialize(updated));
@@ -130,46 +179,77 @@ router.post("/encaminhamentos/:id/emitir", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Encaminhamento não encontrado" });
     return;
   }
+  const identity = await identityForClient(req, res, row.clientId);
+  if (!identity) return;
+  if (row.professionalId !== identity.professional.id) {
+    res.status(403).json({ error: "O documento pertence a outro profissional." });
+    return;
+  }
+  if (row.status === "emitted" && row.pdfData) {
+    res.json(serialize(row));
+    return;
+  }
+  if (row.status !== "draft") {
+    res.status(409).json({ error: "Somente um rascunho pode ser emitido." });
+    return;
+  }
 
   // Substitui variáveis {{...}} no servidor (rede de segurança — idempotente se a
   // tela já resolveu). Corpo final vai ao PDF e ao registro para ficarem iguais.
-  const corpoFinal = aplicarVariaveis(row.corpo, montarValoresDoc(row));
+  const documento = {
+    ...row,
+    clientName: identity.client.name,
+    clientCpf: identity.client.cpf,
+    clientPhone: identity.client.phone,
+    clientEmail: identity.client.email,
+    professionalId: identity.professional.id,
+    professionalName: identity.professional.name,
+    professionalCrm: identity.professional.crm,
+    professionalUf: identity.professional.uf,
+  };
+  const corpoFinal = aplicarVariaveis(documento.corpo, montarValoresDoc(documento));
   const pdfBytes = await gerarEncaminhamentoPdf({
-    clientName: row.clientName,
-    clientCpf: row.clientCpf,
-    clientPhone: row.clientPhone,
-    clientEmail: row.clientEmail,
-    professionalName: row.professionalName,
-    professionalCrm: row.professionalCrm,
-    professionalUf: row.professionalUf,
-    especialidadeDestino: row.especialidadeDestino,
-    profissionalDestino: row.profissionalDestino,
-    urgencia: (row.urgencia as UrgenciaEncaminhamento) ?? "eletivo",
-    motivo: row.motivo,
-    resumoClinico: row.resumoClinico,
+    clientName: documento.clientName,
+    clientCpf: documento.clientCpf,
+    clientPhone: documento.clientPhone,
+    clientEmail: documento.clientEmail,
+    professionalName: documento.professionalName,
+    professionalCrm: documento.professionalCrm,
+    professionalUf: documento.professionalUf,
+    especialidadeDestino: documento.especialidadeDestino,
+    profissionalDestino: documento.profissionalDestino,
+    urgencia: (documento.urgencia as UrgenciaEncaminhamento) ?? "eletivo",
+    motivo: documento.motivo,
+    resumoClinico: documento.resumoClinico,
     corpo: corpoFinal,
     dateBR: dateBRfull(),
   });
   const pdfBuffer = Buffer.from(pdfBytes);
   const pdfBase64 = pdfBuffer.toString("base64");
 
-  const safeClient = removeDiacritics(row.clientName).replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase();
+  const safeClient = removeDiacritics(documento.clientName).replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase();
   const fileName = `ENCAMINHAMENTO ${safeClient} #${row.id}.pdf`.replace(/\s+/g, " ");
 
   // Persiste PDF + status ANTES do Drive: a emissão nunca depende do upload.
   const [emitido] = await db
     .update(referralsTable)
-    .set({ pdfData: pdfBase64, corpo: corpoFinal, fileName, status: "emitted", emittedAt: new Date() })
+    .set({
+      clientName: documento.clientName, clientCpf: documento.clientCpf,
+      clientPhone: documento.clientPhone, clientEmail: documento.clientEmail,
+      professionalId: documento.professionalId, professionalName: documento.professionalName,
+      professionalCrm: documento.professionalCrm, professionalUf: documento.professionalUf,
+      pdfData: pdfBase64, corpo: corpoFinal, fileName, status: "emitted", emittedAt: new Date(),
+    })
     .where(eq(referralsTable.id, id))
     .returning();
 
   // Drive best-effort: nunca derruba a emissão. Nome único com id (não apaga homônimos).
   let driveFileId: string | null = null;
   let driveWebViewLink: string | null = null;
-  if (row.clientId != null) {
+  if (documento.clientId != null) {
     try {
-      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, row.clientId));
-      const cpf = (client?.cpf ?? row.clientCpf ?? "").trim();
+      const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, documento.clientId!));
+      const cpf = (client?.cpf ?? documento.clientCpf ?? "").trim();
       if (client && cpf) {
         const structure = await ensureClientFolderStructure(client.name, cpf);
         const folderId = structure.subfolders["ATESTADOS"] ?? structure.clientFolderId;
@@ -191,6 +271,7 @@ router.post("/encaminhamentos/:id/emitir", async (req, res): Promise<void> => {
 
 // GET /api/encaminhamentos/:id/pdf — devolve o PDF (base64 ou regenera).
 router.get("/encaminhamentos/:id/pdf", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
@@ -201,32 +282,16 @@ router.get("/encaminhamentos/:id/pdf", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Encaminhamento não encontrado" });
     return;
   }
-
-  let buf: Buffer;
-  if (row.pdfData) {
-    buf = Buffer.from(row.pdfData, "base64");
-  } else {
-    const pdfBytes = await gerarEncaminhamentoPdf({
-      clientName: row.clientName,
-      clientCpf: row.clientCpf,
-      clientPhone: row.clientPhone,
-      clientEmail: row.clientEmail,
-      professionalName: row.professionalName,
-      professionalCrm: row.professionalCrm,
-      professionalUf: row.professionalUf,
-      especialidadeDestino: row.especialidadeDestino,
-      profissionalDestino: row.profissionalDestino,
-      urgencia: (row.urgencia as UrgenciaEncaminhamento) ?? "eletivo",
-      motivo: row.motivo,
-      resumoClinico: row.resumoClinico,
-      corpo: row.corpo,
-      dateBR: dateBRfull(),
-    });
-    buf = Buffer.from(pdfBytes);
+  if (!await identityForClient(req, res, row.clientId)) return;
+  if (row.status !== "emitted" || !row.pdfData) {
+    res.status(404).json({ error: "Encaminhamento emitido ou PDF não encontrado." });
+    return;
   }
+  const buf = Buffer.from(row.pdfData, "base64");
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${row.fileName ?? `encaminhamento-${id}.pdf`}"`);
+  const mode = req.query.download === "1" ? "attachment" : "inline";
+  res.setHeader("Content-Disposition", `${mode}; filename="${row.fileName ?? `encaminhamento-${id}.pdf`}"`);
   res.send(buf);
 });
 
