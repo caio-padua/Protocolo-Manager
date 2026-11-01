@@ -208,7 +208,7 @@ function Cela({
   if (!cell || cell.value == null) {
     const vazio = (
       <div
-        className="flex w-full shrink-0 items-center justify-center py-1.5 text-[12px] text-[#b3bccb]"
+        className="flex w-full shrink-0 items-center justify-center py-1.5 text-[12px] text-muted-foreground"
         style={{ width: COL_W }}
       >
         —

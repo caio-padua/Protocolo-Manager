@@ -117,7 +117,7 @@ export default function Injetaveis({
 
   if (isLoading || aguardandoFiltro) {
     return (
-      <div className="flex items-center gap-2 py-6 text-sm text-slate-400">
+      <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Carregando protocolos…
       </div>
     );
@@ -125,7 +125,7 @@ export default function Injetaveis({
 
   if (isError) {
     return (
-      <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-red-400">
+      <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-destructive">
         <span className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" /> Falha ao carregar os protocolos do cliente.
         </span>
@@ -144,7 +144,7 @@ export default function Injetaveis({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
           {lista.length} protocolo(s) de {rotuloTipo} deste cliente
         </p>
         {!ocultarBotaoNovo && (
@@ -161,8 +161,8 @@ export default function Injetaveis({
 
       {lista.length === 0 ? (
         <div className="concave-3d flex flex-col items-center justify-center gap-2 rounded-md py-10 text-center">
-          <Syringe className="h-8 w-8 text-slate-500" />
-          <p className="text-sm text-slate-400">
+          <Syringe className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
             Nenhum protocolo de {rotuloTipo} para este cliente.
           </p>
           {!ocultarBotaoNovo && (
@@ -242,7 +242,7 @@ export default function Injetaveis({
 
                 <div className="p-4">
                   {/* ── ZONA META: linha única com ícones ouro ──────────────── */}
-                  <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-semibold text-slate-400">
+                  <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] font-semibold text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5 shrink-0" style={{ color: GOLD }} />
                       Início {fmtData(protocol.startDate)}
@@ -256,19 +256,19 @@ export default function Injetaveis({
                       {protocol.serviceType === "homecare" ? "Nurse Care Domiciliar" : "Clínica"}
                     </span>
                     {protocol.professionalName && (
-                      <span className="text-slate-300">Prof.: {protocol.professionalName}</span>
+                      <span className="text-foreground">Prof.: {protocol.professionalName}</span>
                     )}
                   </div>
 
                   {/* ── BARRA DE PROGRESSO ──────────────────────────────────── */}
                   <div className="mb-4">
-                    <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                       <span>Progresso do protocolo</span>
                       <span style={{ color: progressPct === 100 ? "#4ade80" : GOLD_FORTE }}>
                         {progressPct}%
                       </span>
                     </div>
-                    <div className="h-2.5 overflow-hidden rounded-[3px] bg-white/10 shadow-inner">
+                    <div className="h-2.5 overflow-hidden rounded-[3px] bg-muted shadow-inner">
                       <div
                         className="h-full rounded-[3px] transition-all duration-500"
                         style={{
@@ -294,8 +294,8 @@ export default function Injetaveis({
                       >
                         Substâncias do protocolo
                       </span>
-                      <span className="text-[10px] font-bold text-slate-400">
-                        <span className="text-emerald-400">{totalAppliedSubst}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        <span className="text-emerald-700">{totalAppliedSubst}</span>
                         /{protocol.items.length} com aplicação
                       </span>
                     </div>

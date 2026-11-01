@@ -392,7 +392,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   }
   if (clientError) {
     return (
-      <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-red-400">
+      <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-destructive">
         <span className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" /> {identity.error?.message ?? "Não foi possível validar a identidade clínica."}
         </span>
@@ -408,7 +408,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   }
   if (formulasError) {
     return (
-      <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-red-400">
+      <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-destructive">
         <span className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" /> Falha ao carregar o catálogo de fórmulas.
         </span>
@@ -424,11 +424,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   }
 
   return (
-      <div className="cockpit-prescricao-visual space-y-4">
+    <div className="cockpit-prescricao-visual space-y-4">
       <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0">
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
-      {emitMutation.isError && <p role="alert" className="text-sm text-red-400">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
+      {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
       {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0 space-y-4">
       <ClinicalIdentityPanel identity={identity} />
       <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
@@ -559,7 +559,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     setEmitResult(null);
                   }
                 }}
-                className="flex items-center gap-1 text-xs font-semibold text-red-400 hover:opacity-80"
+                className="flex items-center gap-1 text-xs font-semibold text-destructive hover:opacity-80"
               >
                 <Trash2 className="h-3.5 w-3.5" /> Descartar rascunho
               </button>
@@ -579,7 +579,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
                       <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
                     </div>
-                    <button onClick={() => removeFormula(f.id)} className="text-red-400 hover:opacity-80">
+                    <button onClick={() => removeFormula(f.id)} className="text-destructive hover:opacity-80">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -650,7 +650,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             />
                             <button
                               onClick={() => removeTomada(f.id, ti)}
-                              className="col-span-1 flex justify-center text-red-400 hover:opacity-80"
+                              className="col-span-1 flex justify-center text-destructive hover:opacity-80"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -688,7 +688,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               </h3>
 
               {!pharmacies?.length ? (
-                <div className="bevel-3d flex items-center gap-2 rounded-md px-3 py-2 text-xs text-amber-300">
+                <div className="bevel-3d flex items-center gap-2 rounded-md px-3 py-2 text-xs text-amber-700">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
                   Nenhuma farmácia cadastrada. Cadastre em Farmácias antes de emitir.
                 </div>
@@ -756,7 +756,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                                 onChange={(e) => setRoute(f.id, { isControlled: e.target.checked })}
                                 className="h-4 w-4 accent-amber-500"
                               />
-                              <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
+                              <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
                               Controlado
                             </label>
                             {r.isControlled && (
@@ -786,7 +786,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               </div>
                             )}
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-white/10 pt-2">
+                          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
                             <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                               <Layers className="h-3 w-3" />
                               Cor interna
@@ -804,7 +804,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             </select>
                             {r.internalColor && (
                               <span
-                                className="h-3.5 w-3.5 shrink-0 rounded-[2px] border border-white/20"
+                                className="h-3.5 w-3.5 shrink-0 rounded-[2px] border border-input"
                                 style={{ background: INTERNAL_COLORS.find((c) => c.value === r.internalColor)?.hex }}
                               />
                             )}
@@ -865,7 +865,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                         <div key={i} className="panel-3d-sub flex items-start gap-3 rounded-md p-3">
                           {plan.anvisaColor ? (
                             <span
-                              className="mt-0.5 h-3 w-3 shrink-0 rounded-[2px] border border-white/20"
+                              className="mt-0.5 h-3 w-3 shrink-0 rounded-[2px] border border-input"
                               style={{ background: plan.anvisaColor }}
                             />
                           ) : (
@@ -898,7 +898,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           {emitResult.sncrAlerts.map((a, i) => (
                             <div
                               key={i}
-                              className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${a.status === "exhausted" ? "border-red-500/40 bg-red-500/10 text-red-300" : "border-amber-400/40 bg-amber-500/10 text-amber-300"}`}
+                              className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${a.status === "exhausted" ? "border-red-500/40 bg-red-500/10 text-red-700" : "border-amber-400/40 bg-amber-500/10 text-amber-700"}`}
                             >
                               <AlertTriangle className="h-4 w-4 shrink-0" />
                               {a.message}

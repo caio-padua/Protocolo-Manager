@@ -605,6 +605,31 @@ acao primaria disponivel; verde-SUCESSO esmeralda cheio (`btn-3d-ok`) = aceito/f
 NUNCA usa o verde-sucesso cheio: marca o recomendado por MOLDURA + selo em relevo, senao o cliente
 acha que ja aceitou (decisao do CEO no redesenho dos cards de pagamento da Apresentacao).
 
+### 4.4 Padrao 23 — Tipografia comum no Cockpit, fluxo proprio por ferramenta
+
+- A tela autonoma de Prescricao no menu lateral e a referencia de tipografia,
+  contraste, componentes e tratamento visual claro do Cockpit.
+- Todas as abas usam Inter na operacao; EB Garamond fica em titulos, nomes e
+  valores que pertencem a essa fonte; Lora continua exclusiva das perguntas de
+  leitura da anamnese.
+- Usar navy/ouro como cores de marca, relevo Paxter e tokens semanticos para
+  texto, campos, bordas e estados. Nao levar texto claro de tema escuro para
+  superficies claras.
+- Cada ferramenta conserva sua organizacao funcional. A disposicao da Prescricao
+  nao deve ser copiada para fluxos distintos; a mesma ferramenta dentro e fora do
+  Cockpit deve manter a maior paridade possivel.
+- Preservar o seletor de cliente ja estabelecido e seu modo atual de busca.
+- Escopar ajustes ao conteudo do Cockpit; nao alterar estilos globais, selecao de
+  cliente, autorizacao ou logica clinica por razao visual.
+
+**Why:** em 01/11/2026, o CEO aprovou a tela autonoma de Prescricao como modelo
+visual, mas escolheu manter a estrutura propria de cada ferramenta e preservar
+o seletor de cliente atual.
+
+**How to apply:** aplicar este padrao ao harmonizar as doze abas ativas do
+Cockpit; reutilizar a tela original embutida quando isso preservar o fluxo e as
+validacoes existentes.
+
 Nota tecnica (relevo 3D vence Tailwind): as classes de relevo (`bevel-3d`, `panel-3d`, etc.) ficam
 SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do Tailwind. Para tingir
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use

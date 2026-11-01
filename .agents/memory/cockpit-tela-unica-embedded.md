@@ -21,6 +21,14 @@ tela real (bug histórico). Fonte única elimina o retrabalho de manter duas UIs
 **How to apply:** ao consolidar qualquer tela num cockpit, torne as props embedded/clientId
 OPCIONAIS (rota solta continua sem elas), e proteja toda navegação de sucesso com o guard embedded.
 
+## Regra visual aprovada para o Cockpit
+
+A tela autônoma de Prescrição é a referência para tipografia, contraste, cores e componentes visuais do Cockpit. Cada ferramenta mantém a própria organização funcional; só a mesma ferramenta deve manter paridade estrutural entre as versões autônoma e embutida. O seletor de cliente e sua busca atual não devem ser alterados durante a harmonização visual.
+
+**Why:** em 01/11/2026, o CEO aprovou a Prescrição como modelo visual, mas escolheu explicitamente “tipografia comum, layout próprio” para evitar que ferramentas com fluxos diferentes recebam a mesma disposição de campos.
+
+**How to apply:** herdar o vocabulário visual Paxter no conteúdo do Cockpit e reutilizar a tela original quando isso não remover validações nem mudar contratos clínicos.
+
 **Armadilha de revisão:** um requisito específico do CEO pode sobrepor a regra geral. Ex.: a aba
 Exames deve mostrar os blocos EM COLUNAS (bifurcação intencional por `embedded`) — o architect
 sinalizou isso como "não idêntico" e pediu unificar, mas isso CONTRADIZ o pedido explícito. Antes de

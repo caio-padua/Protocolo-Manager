@@ -1,7 +1,7 @@
 # Especificação — Paridade visual das ferramentas no Cockpit
 
 Data: 01/11/2026
-Estado: ESPECIFICADO — construção pendente de revisão
+Estado: EM CONSTRUÇÃO — referência visual aprovada; homologação pendente
 
 ## 1. Objetivo
 
@@ -36,8 +36,12 @@ alterado.
 
 ## 3. Fonte visual e arquitetura
 
-- Para cada ferramenta que possui tela autônoma, a tela autônoma é a referência
-  visual vinculante.
+- A tela autônoma de Prescrição, acessada pelo menu lateral, é a referência
+  principal de tipografia, contraste, componentes e tratamento visual claro.
+- Replicar esse vocabulário visual nas doze abas, sem copiar a disposição de
+  campos de uma ferramenta para outra quando os fluxos forem diferentes.
+- Quando uma aba representar a mesma ferramenta autônoma, manter a maior
+  paridade possível entre as duas apresentações.
 - Quando a tela autônoma já aceita modo embutido, o Cockpit deve reutilizar esse
   componente e fornecer `clientId`, preservando os motores e eliminando drift.
 - Quando ainda não aceita modo embutido, harmonizar a camada visual no painel
@@ -49,6 +53,8 @@ alterado.
   semânticos.
 - Os painéis devem compartilhar tokens e componentes de apresentação, sem
   introduzir cópias de regras clínicas ou de chamadas de serviço.
+- O seletor de cliente e seu modo de busca já foram estabelecidos e não serão
+  alterados nesta etapa.
 
 ## 4. Regras visuais obrigatórias
 
@@ -58,8 +64,9 @@ alterado.
   estados e foco, sem trocar o significado.
 - Relevo: manter `panel-3d`, `panel-3d-sub`, `bevel-3d`, `concave-3d`,
   `field-engraved` e botões Paxter apropriados à intenção.
-- Organização: mesmos rótulos, alinhamentos, colunas e hierarquia da tela
-  autônoma correspondente; posições fixas e linhas-guia imaginárias.
+- Organização: cada ferramenta mantém seu fluxo próprio; ferramentas iguais
+  mantêm rótulos, alinhamentos, colunas e hierarquia equivalentes; posições
+  fixas e linhas-guia imaginárias em todo o Cockpit.
 - Responsividade: comparar celular de aproximadamente 402 pixels com desktop
   de aproximadamente 1.280 pixels; não aceitar corte ou rolagem horizontal
   indevida.

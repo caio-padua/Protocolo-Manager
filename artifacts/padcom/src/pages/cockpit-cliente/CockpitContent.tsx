@@ -37,7 +37,7 @@ interface CockpitContentProps {
 
 export default function CockpitContent({ clientId, aba }: CockpitContentProps) {
   return (
-    <div className="cockpit-content" data-cockpit-tab={aba}>
+    <div className="cockpit-content font-sans text-foreground" data-cockpit-tab={aba}>
       <Suspense fallback={<PanelSkeleton />}>
         {aba === "prescricao"  && <PrescricaoPanel  clientId={clientId} />}
         {aba === "injetaveis"  && <InjetaveisPanel  clientId={clientId} />}

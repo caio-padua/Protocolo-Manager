@@ -253,7 +253,7 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
             <Loader2 className="h-4 w-4 animate-spin" /> Carregando catálogo…
           </div>
         ) : erroExams ? (
-          <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-red-400">
+          <div className="bevel-3d flex items-center justify-between gap-2 px-3 py-3 text-sm text-destructive">
             <span className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" /> Falha ao carregar o catálogo de exames.
             </span>
@@ -266,7 +266,7 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
             </button>
           </div>
         ) : (
-          <div className="max-h-[420px] divide-y divide-white/10 overflow-y-auto rounded-md border border-white/10">
+          <div className="max-h-[420px] divide-y divide-border overflow-y-auto rounded-md border border-border">
             {examesFiltrados.map((e) => {
               const tipo = classifyTipo(e.modalidade, e.materialOuSetor, e.grupoPrincipal);
               return (
@@ -316,7 +316,7 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
                         return n;
                       })
                     }
-                    className="text-muted-foreground hover:text-red-400"
+                    className="text-muted-foreground hover:text-destructive"
                     aria-label="Remover"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -354,13 +354,13 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
         </button>
 
         {emitErro && (
-          <div className="bevel-3d flex items-start gap-2 px-3 py-2 text-xs text-red-400">
+          <div className="bevel-3d flex items-start gap-2 px-3 py-2 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {emitErro}
           </div>
         )}
         {emitResult && (
           <div className="bevel-3d space-y-1 px-3 py-2 text-xs">
-            <p className="flex items-center gap-1.5 font-semibold text-emerald-400">
+            <p className="flex items-center gap-1.5 font-semibold text-emerald-700">
               <CheckCircle2 className="h-4 w-4" /> {emitResult.pdfs.length} PDF(s) gerado(s)
             </p>
             {emitResult.pdfs.map((p) => (
@@ -375,12 +375,12 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
               </a>
             ))}
             {emitResult.email.attempted && (
-              <p className={emitResult.email.success ? "text-emerald-400" : "text-amber-400"}>
+              <p className={emitResult.email.success ? "text-emerald-700" : "text-amber-700"}>
                 E-mail: {emitResult.email.success ? "enviado" : `falhou (${emitResult.email.error})`}
               </p>
             )}
             {emitResult.whatsapp.attempted && (
-              <p className={emitResult.whatsapp.success ? "text-emerald-400" : "text-amber-400"}>
+              <p className={emitResult.whatsapp.success ? "text-emerald-700" : "text-amber-700"}>
                 WhatsApp: {emitResult.whatsapp.success ? "enviado" : `falhou (${emitResult.whatsapp.error})`}
               </p>
             )}
