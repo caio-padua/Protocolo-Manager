@@ -37,19 +37,21 @@ interface CockpitContentProps {
 
 export default function CockpitContent({ clientId, aba }: CockpitContentProps) {
   return (
-    <Suspense fallback={<PanelSkeleton />}>
-      {aba === "prescricao"  && <PrescricaoPanel  clientId={clientId} />}
-      {aba === "injetaveis"  && <InjetaveisPanel  clientId={clientId} />}
-      {aba === "implantes"   && <ImplantesPanel   clientId={clientId} />}
-      {aba === "exames"      && <ExamesPanel      clientId={clientId} />}
-      {aba === "evolucao"    && <EvolucaoPanel    clientId={clientId} />}
-      {aba === "anamnese"    && <AnamnesePanel    clientId={clientId} />}
-      {aba === "documentos"  && <DocumentosPanel  clientId={clientId} />}
-      {aba === "protocolos"  && <ProtocolosPanel  clientId={clientId} />}
-      {aba === "dieta-treino" && <DietaTreinoPanel clientId={clientId} />}
-      {aba === "financeiro"  && <FinanceiroPanel  clientId={clientId} />}
-      {aba === "cadastro"    && <CadastroPanel    clientId={clientId} />}
-      {aba === "telegram"    && <TelegramPanel key={clientId} clientId={clientId} />}
-    </Suspense>
+    <div className="cockpit-content" data-cockpit-tab={aba}>
+      <Suspense fallback={<PanelSkeleton />}>
+        {aba === "prescricao"  && <PrescricaoPanel  clientId={clientId} />}
+        {aba === "injetaveis"  && <InjetaveisPanel  clientId={clientId} />}
+        {aba === "implantes"   && <ImplantesPanel   clientId={clientId} />}
+        {aba === "exames"      && <ExamesPanel      clientId={clientId} />}
+        {aba === "evolucao"    && <EvolucaoPanel    clientId={clientId} />}
+        {aba === "anamnese"    && <AnamnesePanel    clientId={clientId} />}
+        {aba === "documentos"  && <DocumentosPanel  clientId={clientId} />}
+        {aba === "protocolos"  && <ProtocolosPanel  clientId={clientId} />}
+        {aba === "dieta-treino" && <DietaTreinoPanel clientId={clientId} />}
+        {aba === "financeiro"  && <FinanceiroPanel  clientId={clientId} />}
+        {aba === "cadastro"    && <CadastroPanel    clientId={clientId} />}
+        {aba === "telegram"    && <TelegramPanel key={clientId} clientId={clientId} />}
+      </Suspense>
+    </div>
   );
 }

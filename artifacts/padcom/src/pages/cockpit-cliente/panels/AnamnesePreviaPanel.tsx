@@ -255,7 +255,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
   return (
     <div className="space-y-5">
       {/* Lista de sessoes (historico) */}
-      <div className="rounded-md border bg-white p-4 shadow-sm" style={{ borderColor: "#d8cfbc" }}>
+      <div className="panel-3d-sub p-4">
         <div
           className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em]"
           style={{ color: NAVY }}
@@ -305,8 +305,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
           {/* Achados / Recusas / Observacoes */}
           <div className="grid gap-4 lg:grid-cols-3">
             <div
-              className="rounded-md border bg-white p-4 shadow-sm"
-              style={{ borderColor: "#d8cfbc" }}
+              className="panel-3d-sub p-4"
             >
               <div
                 className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em]"
@@ -340,8 +339,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
               )}
             </div>
             <div
-              className="rounded-md border bg-white p-4 shadow-sm"
-              style={{ borderColor: "#d8cfbc" }}
+              className="panel-3d-sub p-4"
             >
               <div
                 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em]"
@@ -365,8 +363,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
               )}
             </div>
             <div
-              className="rounded-md border bg-white p-4 shadow-sm"
-              style={{ borderColor: "#d8cfbc" }}
+              className="panel-3d-sub p-4"
             >
               <div
                 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em]"
@@ -392,8 +389,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
 
           {/* Respostas por bloco */}
           <div
-            className="rounded-md border bg-white p-4 shadow-sm"
-            style={{ borderColor: "#d8cfbc" }}
+            className="panel-3d-sub p-4"
           >
             <div
               className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"

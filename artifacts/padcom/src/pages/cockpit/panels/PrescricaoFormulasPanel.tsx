@@ -380,12 +380,12 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   const totalInterno = useMemo(() => selected.reduce((sum, s) => sum + (s.preco || 0), 0), [selected]);
 
   const inputCls =
-    "concave-3d rounded-md bg-transparent px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-[#c2a05a]/40";
+    "concave-3d rounded-md bg-transparent px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-[#c2a05a]/40";
 
   // ---- Estados de carregamento / erro do cliente + catálogo ----
   if (clientLoading || formulasLoading) {
     return (
-      <div className="flex items-center gap-2 py-8 text-sm text-slate-400">
+      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Carregando prescrição…
       </div>
     );
@@ -424,7 +424,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   }
 
   return (
-    <div className="space-y-4">
+      <div className="cockpit-prescricao-visual space-y-4">
       <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0">
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
@@ -434,16 +434,16 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paciente</p>
-        <div className="mt-1 text-lg font-semibold text-slate-100">{client?.name ? tituloProprio(client.name) : ""}</div>
-        <div className="text-xs text-slate-400">
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</p>
+        <div className="mt-1 text-lg font-semibold text-foreground">{client?.name ? tituloProprio(client.name) : ""}</div>
+        <div className="text-xs text-muted-foreground">
           {[client?.cpf ? `CPF ${client.cpf}` : null, idade ? `${idade} anos` : null, client?.phone, client?.email]
             .filter(Boolean)
             .join(" · ") || "sem dados de contato"}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="concave-3d flex items-center gap-2 rounded-md px-3 py-1.5">
-            <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-slate-400">
+            <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               Duração:
             </label>
             <input
@@ -452,7 +452,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               value={duracao}
               onChange={(e) => setDuracao(e.target.value)}
             />
-            <span className="text-xs text-slate-400">dias</span>
+            <span className="text-xs text-muted-foreground">dias</span>
           </div>
           <input
             className={`min-w-[220px] flex-1 ${inputCls}`}
@@ -470,7 +470,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             <FileText className="h-4 w-4" /> Catálogo ({filtered.length})
           </h3>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               className={`w-full pl-9 ${inputCls}`}
               placeholder="Buscar fórmula…"
@@ -481,7 +481,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           <div className="flex flex-wrap gap-1.5">
             <button
               onClick={() => setActiveCategory("all")}
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold ${activeCategory === "all" ? "btn-3d-soft" : "text-slate-400 hover:text-slate-200"}`}
+              className={`rounded-md px-2.5 py-1 text-xs font-semibold ${activeCategory === "all" ? "btn-3d-soft" : "text-muted-foreground hover:text-foreground"}`}
             >
               Todas <span className="opacity-70">{stats.all}</span>
             </button>
@@ -493,7 +493,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                 <button
                   key={c.id}
                   onClick={() => setActiveCategory(c.id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold ${active ? "btn-3d-soft" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold ${active ? "btn-3d-soft" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <span className="max-w-[140px] truncate">{c.label}</span> <span className="opacity-70">{n}</span>
                 </button>
@@ -513,8 +513,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           {cat.label}
                         </span>
                       )}
-                      <h4 className="text-sm font-semibold text-slate-100">{f.name}</h4>
-                      <p className="mt-0.5 line-clamp-2 font-mono text-[11px] text-slate-400">
+                      <h4 className="text-sm font-semibold text-foreground">{f.name}</h4>
+                      <p className="mt-0.5 line-clamp-2 font-mono text-[11px] text-muted-foreground">
                         {f.body.split("\n").slice(0, 2).join(" • ")}
                       </p>
                     </div>
@@ -540,7 +540,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               );
             })}
             {filtered.length === 0 && (
-              <p className="py-8 text-center text-sm text-slate-500">Nenhuma fórmula encontrada.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma fórmula encontrada.</p>
             )}
           </div>
         </div>
@@ -567,7 +567,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           </div>
 
           {selected.length === 0 ? (
-            <div className="concave-3d flex items-center justify-center rounded-md py-10 text-center text-sm text-slate-500">
+            <div className="concave-3d flex items-center justify-center rounded-md py-10 text-center text-sm text-muted-foreground">
               Adicione fórmulas do catálogo ao lado.
             </div>
           ) : (
@@ -576,8 +576,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                 <div key={f.id} className="panel-3d-sub overflow-hidden rounded-md">
                   <div className="concave-3d flex items-center justify-between gap-2 px-3 py-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-slate-400">#{idx + 1}</span>
-                      <span className="truncate text-sm font-semibold text-slate-100">{f.name}</span>
+                      <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
+                      <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
                     </div>
                     <button onClick={() => removeFormula(f.id)} className="text-red-400 hover:opacity-80">
                       <X className="h-4 w-4" />
@@ -585,7 +585,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                   </div>
                   <div className="space-y-3 p-3">
                     <div>
-                      <label className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                      <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                         Ativos (edite mg / adicione / retire)
                       </label>
                       <textarea
@@ -597,7 +597,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                           <Clock className="h-3.5 w-3.5" />
                           Tomadas
                         </label>
@@ -619,7 +619,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               className={`col-span-2 text-center font-mono !px-1 !py-2 ${inputCls}`}
                             >
                               {[1, 2, 3, 4, 5, 6].map((n) => (
-                                <option key={n} value={n} className="bg-[#16284a]">
+                                <option key={n} value={n} className="bg-background text-foreground">
                                   {n}
                                 </option>
                               ))}
@@ -630,7 +630,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               className={`col-span-2 !px-1 !py-2 ${inputCls}`}
                             >
                               {VIAS.map((v) => (
-                                <option key={v} value={v} className="bg-[#16284a]">
+                                <option key={v} value={v} className="bg-background text-foreground">
                                   {v}
                                 </option>
                               ))}
@@ -671,7 +671,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
           {selected.length > 0 && (
             <div className="concave-3d flex items-center justify-between gap-2 rounded-md px-3 py-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 Total estimado — uso interno
               </span>
               <span className="font-mono text-base font-bold" style={{ color: GOLD }}>
@@ -695,20 +695,20 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
               ) : (
                 <>
                   <div className="concave-3d flex flex-wrap items-center gap-2 rounded-md px-3 py-2">
-                    <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                    <label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                       <Building2 className="h-3.5 w-3.5" />
                       Farmácia padrão:
                     </label>
                     <select
-                      className="concave-3d rounded-md bg-transparent px-3 py-1.5 text-sm text-slate-100"
+                      className="concave-3d rounded-md bg-transparent px-3 py-1.5 text-sm text-foreground"
                       value={defaultPharmacyId ?? ""}
                       onChange={(e) => changeDefaultPharmacy(e.target.value ? Number(e.target.value) : null)}
                     >
-                      <option value="" className="bg-[#16284a]">
+                      <option value="" className="bg-background text-foreground">
                         — selecione —
                       </option>
                       {pharmacies.map((p) => (
-                        <option key={p.id} value={p.id} className="bg-[#16284a]">
+                        <option key={p.id} value={p.id} className="bg-background text-foreground">
                           {p.name}
                         </option>
                       ))}
@@ -723,10 +723,10 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       return (
                         <div key={f.id} className="panel-3d-sub rounded-md p-3">
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-slate-400">#{idx + 1}</span>
-                            <span className="truncate text-sm font-semibold text-slate-100">{f.name}</span>
+                            <span className="font-mono text-xs font-bold text-muted-foreground">#{idx + 1}</span>
+                            <span className="truncate text-sm font-semibold text-foreground">{f.name}</span>
                             {sncrFlag && (
-                              <span className="ml-auto flex shrink-0 items-center gap-1 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                              <span className="ml-auto flex shrink-0 items-center gap-1 rounded-sm border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                                 <AlertTriangle className="h-3 w-3" />
                                 {sncrFlag === "low" ? "SNCR ACABANDO" : sncrFlag === "exhausted" ? "SNCR ESGOTADO" : "SEM INTERVALO SNCR"}
                               </span>
@@ -735,21 +735,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           <div className="grid grid-cols-1 items-center gap-2 md:grid-cols-12">
                             <div className="md:col-span-5">
                               <select
-                                className="concave-3d w-full rounded-md bg-transparent px-2 py-2 text-xs text-slate-100"
+                                className="concave-3d w-full rounded-md bg-transparent px-2 py-2 text-xs text-foreground"
                                 value={r.pharmacyId ?? ""}
                                 onChange={(e) => setRoute(f.id, { pharmacyId: e.target.value ? Number(e.target.value) : null })}
                               >
-                                <option value="" className="bg-[#16284a]">
+                                <option value="" className="bg-background text-foreground">
                                   Usar farmácia padrão
                                 </option>
                                 {(r.isControlled && r.anvisaType ? pharmaciesForType(r.anvisaType) : pharmacies).map((p) => (
-                                  <option key={p.id} value={p.id} className="bg-[#16284a]">
+                                  <option key={p.id} value={p.id} className="bg-background text-foreground">
                                     {p.name}
                                   </option>
                                 ))}
                               </select>
                             </div>
-                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-200 md:col-span-3">
+                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-foreground md:col-span-3">
                               <input
                                 type="checkbox"
                                 checked={r.isControlled}
@@ -762,15 +762,15 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             {r.isControlled && (
                               <div className="flex items-center gap-2 md:col-span-4">
                                 <select
-                                  className="w-full rounded-md border border-amber-400/40 bg-transparent px-2 py-2 text-xs text-slate-100"
+                                  className="field-engraved w-full rounded-md border border-amber-400/40 bg-transparent px-2 py-2 text-xs text-foreground"
                                   value={r.anvisaType}
                                   onChange={(e) => setRoute(f.id, { anvisaType: e.target.value })}
                                 >
-                                  <option value="" className="bg-[#16284a]">
+                                  <option value="" className="bg-background text-foreground">
                                     Tipo Anvisa…
                                   </option>
                                   {ANVISA_CONTROLLED_CLASSES.map((c) => (
-                                    <option key={c.value} value={c.value} className="bg-[#16284a]">
+                                    <option key={c.value} value={c.value} className="bg-background text-foreground">
                                       {c.label}
                                     </option>
                                   ))}
@@ -787,17 +787,17 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                             )}
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-white/10 pt-2">
-                            <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                               <Layers className="h-3 w-3" />
                               Cor interna
                             </label>
                             <select
-                              className="concave-3d rounded-md bg-transparent px-2 py-1.5 text-xs text-slate-100"
+                              className="concave-3d rounded-md bg-transparent px-2 py-1.5 text-xs text-foreground"
                               value={r.internalColor}
                               onChange={(e) => setRoute(f.id, { internalColor: e.target.value })}
                             >
                               {INTERNAL_COLORS.map((c) => (
-                                <option key={c.value} value={c.value} className="bg-[#16284a]">
+                                <option key={c.value} value={c.value} className="bg-background text-foreground">
                                   {c.label}
                                 </option>
                               ))}
@@ -869,11 +869,11 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                               style={{ background: plan.anvisaColor }}
                             />
                           ) : (
-                            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           )}
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-100">{plan.title}</p>
-                            <p className="text-xs text-slate-400">
+                            <p className="text-sm font-semibold text-foreground">{plan.title}</p>
+                            <p className="text-xs text-muted-foreground">
                               {plan.items.length} fórmula(s)
                               {plan.anvisaColorName ? ` · Receituário ${plan.anvisaColorName}` : ""}
                               {plan.needsSncr ? " · exige nº SNCR" : ""}
@@ -914,8 +914,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       {emitResult.recipes.map((rec) => (
                         <div key={rec.id} className="panel-3d-sub flex flex-wrap items-center justify-between gap-2 rounded-md p-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-100">{rec.title}</p>
-                            <p className="text-xs text-slate-400">
+                        <p className="text-sm font-semibold text-foreground">{rec.title}</p>
+                            <p className="text-xs text-muted-foreground">
                               {rec.anvisaColorName ? `Receituário ${rec.anvisaColorName}` : "Manipulação"}
                               {rec.sncrNumber ? ` · SNCR nº ${rec.sncrNumber}` : ""}
                             </p>
@@ -953,8 +953,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                           {emitResult.pharmacyDispatches.map((d) => (
                             <div key={d.pharmacyId} className="panel-3d-sub flex flex-wrap items-center justify-between gap-2 rounded-md p-3">
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-100">{d.pharmacyName}</p>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-sm font-semibold text-foreground">{d.pharmacyName}</p>
+                                <p className="text-xs text-muted-foreground">
                                   {d.recipeCount} receita(s) · {d.sent ? "enviado automaticamente" : "envio manual"}
                                 </p>
                               </div>
