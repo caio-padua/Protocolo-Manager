@@ -24,8 +24,17 @@ const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 export function validatePrescriptionCertificate(
   buffer: Buffer, password: string, identity: PrescriptionIdentity, now = new Date(),
 ): PrescriptionSigner {
-  if (!identity.canPrescribe || !/^\d{11}$/.test(digits(identity.professional.cpf))) {
-    throw new ClinicalIdentityError(422, "Informe CPF e CRM/UF do médico antes de assinar.");
+  if (!identity.canPrescribe) {
+    throw new ClinicalIdentityError(
+      422,
+      "O cadastro profissional precisa ter CRM com unidade federativa antes de assinar.",
+    );
+  }
+  if (!/^\d{11}$/.test(digits(identity.professional.cpf))) {
+    throw new ClinicalIdentityError(
+      422,
+      "O cadastro profissional está sem CPF com onze dígitos. Atualize em Meu Acesso > E-mail e CPF para entrar.",
+    );
   }
   const meta = inspectPrescriptionCertificate(buffer, password, identity.professional.cpf, now);
   const signer = { identity, buffer, password, meta };

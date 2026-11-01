@@ -460,6 +460,14 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     expect(loaded.getAuthor()).toBe(identity.professional.name);
     expect(loaded.getSubject()).toContain("medico=41;cliente=71;clinica=31;empresa=21");
   });
+  it("informa que o CPF precisa ser cadastrado no Meu Acesso", () => {
+    const identityWithoutCpf = {
+      ...identity,
+      professional: { ...identity.professional, cpf: null },
+    };
+    expect(() => validatePrescriptionCertificate(pfx, password, identityWithoutCpf))
+      .toThrow("O cadastro profissional está sem CPF com onze dígitos. Atualize em Meu Acesso > E-mail e CPF para entrar.");
+  });
   it("assina bytes do gerador regulatório sem devolver o PDF original não assinado", async () => {
     const signer = validatePrescriptionCertificate(pfx, password, identity);
     const doc = await PDFDocument.create();
