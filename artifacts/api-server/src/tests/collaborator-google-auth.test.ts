@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { createHmac } from "node:crypto";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 const state = vi.hoisted(() => ({
@@ -14,6 +15,13 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@clerk/express", () => ({
   getAuth: () => ({ userId: state.clerkUserId }),
+}));
+
+vi.mock("../lib/messaging/engine.js", () => ({
+  enviarMensagemPaxter: vi.fn(async () => ({
+    resultados: [{ canal: "EMAIL", sent: true, via: "test-double", mock: false }],
+    algumEnviado: true,
+  })),
 }));
 
 vi.mock("@workspace/db", async () => {
@@ -50,9 +58,40 @@ vi.mock("@workspace/db", async () => {
       return rows;
     }
     if (table === schema.locationProfessionalsTable) return [];
+    if (table === schema.collaboratorAuditTable) {
+      let rows = [...state.audit];
+      if (query.sql.includes("professional_id")) {
+        const professionalId = query.params.find((value) => typeof value === "number");
+        if (professionalId !== undefined) {
+          rows = rows.filter((event) => event.professionalId === professionalId);
+        }
+      }
+      const actions = query.params.find(Array.isArray) as string[] | undefined;
+      if (actions) rows = rows.filter((event) => actions.includes(event.action));
+      rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return fields
+        ? rows.map((row) => Object.fromEntries(
+            Object.keys(fields).map((key) => [key, row[key]]),
+          ))
+        : rows;
+    }
     if (table !== schema.professionalsTable) return [];
     let rows = [...state.professionals];
-    if (query.sql.includes("clerk_user_id_dev")) {
+    if (query.sql.includes('"active" = true') && query.sql.includes("login_username")) {
+      const candidates = query.params
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.toLowerCase());
+      rows = rows.filter((p) => {
+        const email = String(p.email ?? "").trim().toLowerCase();
+        const cpf = String(p.cpf ?? "").replace(/[^0-9]/g, "");
+        const username = String(p.loginUsername ?? "").trim().toLowerCase();
+        return candidates.some((candidate) =>
+          (email && candidate === email) ||
+          (cpf.length === 11 && candidate === cpf) ||
+          (!email && !cpf && username && candidate === username),
+        );
+      });
+    } else if (query.sql.includes("clerk_user_id_dev")) {
       rows = rows.filter((p) => p.clerkUserIdDev === query.params[0]);
     } else if (query.sql.includes("clerk_user_id_prod")) {
       rows = rows.filter((p) => p.clerkUserIdProd === query.params[0]);
@@ -110,6 +149,9 @@ vi.mock("@workspace/db", async () => {
             return chain;
           },
           orderBy() {
+            return chain;
+          },
+          for() {
             return chain;
           },
           then(resolve: (value: unknown[]) => unknown, reject: (reason: unknown) => unknown) {
@@ -172,7 +214,11 @@ vi.mock("@workspace/db", async () => {
     insert: () => ({
       values: async (value: unknown) => {
         if (state.failAudit) throw new Error("synthetic audit failure");
-        state.audit.push(value);
+        state.audit.push({
+          ...(value as Record<string, unknown>),
+          id: state.audit.length + 1,
+          createdAt: new Date(),
+        });
       },
     }),
   };
@@ -201,6 +247,7 @@ import {
   verifyPassword,
 } from "../lib/collaborator-auth";
 import { resolveClerkEnvironment } from "../lib/clerk-environment";
+import { enviarMensagemPaxter } from "../lib/messaging/engine.js";
 
 const app = express()
   .use(express.json())
@@ -212,6 +259,7 @@ const app = express()
 const originalPublishableKey = process.env.CLERK_PUBLISHABLE_KEY;
 const originalNodeEnv = process.env.NODE_ENV;
 const originalReplitDevDomain = process.env.REPLIT_DEV_DOMAIN;
+const originalSessionSecret = process.env.SESSION_SECRET;
 
 function professional(overrides: Record<string, unknown> = {}) {
   return {
@@ -262,6 +310,155 @@ afterAll(() => {
   else process.env.NODE_ENV = originalNodeEnv;
   if (originalReplitDevDomain === undefined) delete process.env.REPLIT_DEV_DOMAIN;
   else process.env.REPLIT_DEV_DOMAIN = originalReplitDevDomain;
+  if (originalSessionSecret === undefined) delete process.env.SESSION_SECRET;
+  else process.env.SESSION_SECRET = originalSessionSecret;
+});
+
+describe("recuperação de senha profissional por e-mail", () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = "development";
+    process.env.REPLIT_DEV_DOMAIN = "preview.example.test";
+    process.env.SESSION_SECRET = "synthetic-recovery-test-secret-only";
+    state.professionals = [
+      professional({
+        email: "doctor@example.test",
+        passwordHash: hashPassword("old-synthetic-password"),
+      }),
+    ];
+    vi.mocked(enviarMensagemPaxter).mockClear();
+  });
+
+  it("responde sem revelar a conta, usa o e-mail cadastrado e invalida o link após o uso", async () => {
+    const oldSession = collaboratorToken();
+    const knownRequest = await request(app)
+      .post("/collaborator/password-recovery/request")
+      .send({
+        identifier: "doctor@example.test",
+        email: "attacker@example.test",
+      });
+    const unknownRequest = await request(app)
+      .post("/collaborator/password-recovery/request")
+      .send({ identifier: "missing@example.test" });
+    const forgedDestination = await request(app)
+      .post("/collaborator/password-recovery/request")
+      .send({
+        identifier: "missing@example.test",
+        email: "doctor@example.test",
+      });
+
+    expect(knownRequest.status).toBe(202);
+    expect(unknownRequest.status).toBe(202);
+    expect(forgedDestination.status).toBe(202);
+    expect(knownRequest.body).toEqual(unknownRequest.body);
+    expect(unknownRequest.body).toEqual(forgedDestination.body);
+    expect(enviarMensagemPaxter).toHaveBeenCalledTimes(1);
+    const [message, destination] = vi.mocked(enviarMensagemPaxter).mock.calls[0] as unknown as [
+      { botao?: { url: string } },
+      { email?: string },
+    ];
+    expect(destination.email).toBe("doctor@example.test");
+    expect(message.botao?.url).toContain("recoveryToken=");
+    const recoveryToken = new URL(message.botao!.url).searchParams.get("recoveryToken");
+    expect(recoveryToken).toBeTruthy();
+
+    const newPassword = "new-synthetic-password-2026";
+    const completed = await request(app)
+      .post("/collaborator/password-recovery/complete")
+      .send({ recoveryToken, newPassword });
+    expect(completed.status).toBe(200);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(verifyPassword(newPassword, state.professionals[0].passwordHash)).toBe(true);
+    expect(state.audit.at(-1)).toMatchObject({
+      professionalId: 41,
+      action: "password_recovered",
+      detail: { priorSessionsInvalidated: true },
+    });
+    expect(JSON.stringify(state.audit)).not.toContain(newPassword);
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${oldSession}`)).status,
+    ).toBe(401);
+    expect(
+      (await request(app)
+        .get("/collaborator/me")
+        .set("Authorization", `Bearer ${completed.body.token}`)).status,
+    ).toBe(200);
+
+    const replay = await request(app)
+      .post("/collaborator/password-recovery/complete")
+      .send({ recoveryToken, newPassword: "another-synthetic-password" });
+    expect(replay.status).toBe(401);
+  });
+
+  it("recusa token expirado e não altera senha nem versão de credenciais", async () => {
+    await request(app)
+      .post("/collaborator/password-recovery/request")
+      .send({ identifier: "doctor@example.test" });
+    const [message] = vi.mocked(enviarMensagemPaxter).mock.calls[0] as unknown as [
+      { botao?: { url: string } },
+    ];
+    const token = new URL(message.botao!.url).searchParams.get("recoveryToken")!;
+    const [payload] = token.split(".");
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    claims.expiresAt = Date.now() - 1;
+    const expiredPayload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+    const expiredSignature = createHmac("sha256", process.env.SESSION_SECRET!)
+      .update(expiredPayload)
+      .digest("base64url");
+    const existingHash = state.professionals[0].passwordHash;
+
+    const response = await request(app)
+      .post("/collaborator/password-recovery/complete")
+      .send({
+        recoveryToken: `${expiredPayload}.${expiredSignature}`,
+        newPassword: "new-synthetic-password-2026",
+      });
+
+    expect(response.status).toBe(401);
+    expect(state.professionals[0].passwordHash).toBe(existingHash);
+    expect(state.professionals[0].credentialVersion).toBe(0);
+    expect(state.audit).toHaveLength(0);
+  });
+
+  it("mostra somente o histórico do profissional autenticado", async () => {
+    state.audit = [
+      {
+        id: 1,
+        professionalId: 41,
+        action: "identity_updated",
+        detail: {
+          emailUpdated: true,
+          cpfUpdated: true,
+          email: "private@example.test",
+          cpf: "11144477735",
+        },
+        createdAt: new Date("2026-10-30T12:00:00.000Z"),
+      },
+      {
+        id: 2,
+        professionalId: 42,
+        action: "password_changed",
+        detail: {},
+        createdAt: new Date("2026-10-30T13:00:00.000Z"),
+      },
+    ];
+
+    const response = await request(app)
+      .get("/collaborator/me/history?professionalId=42")
+      .set("Authorization", `Bearer ${collaboratorToken(41)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.events).toHaveLength(1);
+    expect(response.body.events[0]).toMatchObject({
+      action: "identity_updated",
+      label: "Identificadores de acesso atualizados",
+      changes: [
+        { field: "E-mail de acesso", before: "Valor protegido", after: "Valor protegido" },
+        { field: "CPF", before: "Valor protegido", after: "Valor protegido" },
+      ],
+    });
+    expect(JSON.stringify(response.body)).not.toContain("private@example.test");
+    expect(JSON.stringify(response.body)).not.toContain("11144477735");
+  });
 });
 
 describe("recuperação única do médico principal no desenvolvimento", () => {

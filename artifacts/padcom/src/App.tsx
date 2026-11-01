@@ -63,7 +63,6 @@ import ConfigAssinatura from "@/pages/configuracoes/assinatura";
 import ConfigPagamentos from "@/pages/configuracoes/pagamentos";
 import ConfigReceituario from "@/pages/configuracoes/receituario";
 import ConfigMedico from "@/pages/configuracoes/medico";
-import MeuAcesso from "@/pages/configuracoes/meu-acesso";
 import ModeloReceituario from "@/pages/modelo-receituario";
 import FinanceiroConciliacao from "@/pages/financeiro/conciliacao";
 import FinanceiroMetas from "@/pages/financeiro/metas";
@@ -301,7 +300,9 @@ function Router() {
                   <Route path="/configuracoes/pagamentos" component={ConfigPagamentos} />
                   <Route path="/configuracoes/receituario" component={ConfigReceituario} />
                   <Route path="/configuracoes/medico" component={ConfigMedico} />
-                  <Route path="/configuracoes/meu-acesso" component={MeuAcesso} />
+                  <Route path="/configuracoes/meu-acesso">
+                    <Redirect to="/professionals?selfAccess=1" />
+                  </Route>
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>

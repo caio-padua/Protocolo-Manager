@@ -232,7 +232,7 @@ const navigation: NavEntry[] = [
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
       { name: "Médico Responsável", href: "/configuracoes/medico", icon: Stethoscope },
-      { name: "Meu Acesso", href: "/configuracoes/meu-acesso", icon: UserRound },
+      { name: "Meu Perfil", href: "/professionals?selfAccess=1", icon: UserRound },
       { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
       { name: "Modelo de Receituários", href: "/modelo-receituario", icon: LayoutTemplate },
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
@@ -762,6 +762,18 @@ export function Layout({ children }: LayoutProps) {
                       Vincular conta Google
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    disabled={profileActionBusy || !me}
+                    onClick={() => {
+                      setProfileOpen(false);
+                      navigate("/professionals?selfAccess=1");
+                    }}
+                    className="btn-3d-soft flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-60"
+                  >
+                    <UserRound className="h-3.5 w-3.5" />
+                    Abrir meu cadastro
+                  </button>
                   <button
                     type="button"
                     disabled={profileActionBusy}

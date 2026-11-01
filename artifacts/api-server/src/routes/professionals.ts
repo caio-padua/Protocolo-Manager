@@ -4,7 +4,12 @@ import { randomUUID } from "node:crypto";
 import { db, professionalsTable, locationProfessionalsTable, locationsTable, agendaCalendarsTable, professionalAreasTable, professionalSpecialtiesTable } from "@workspace/db";
 import { CreateProfessionalBody } from "@workspace/api-zod";
 import { eq, and, inArray, isNull, or, sql } from "drizzle-orm";
-import { isValidCpf, normalizeCpf, requireCollaborator } from "./collaborator.js";
+import {
+  isValidCpf,
+  normalizeCpf,
+  recordOwnProfessionalProfileChange,
+  requireCollaborator,
+} from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 
@@ -167,7 +172,7 @@ router.patch(
     // Confirma que o ator é o médico principal — consulta o banco, nunca confia
     // apenas na claim do token.
     const [actor] = await db
-      .select({ id: professionalsTable.id, isPrimaryDoctor: professionalsTable.isPrimaryDoctor })
+      .select()
       .from(professionalsTable)
       .where(eq(professionalsTable.id, actorId))
       .limit(1);
@@ -188,16 +193,31 @@ router.patch(
       return;
     }
 
-    const [updated] = await db
-      .update(professionalsTable)
-      .set({
-        ...(name !== undefined ? { name: String(name).trim() } : {}),
-        ...(crm !== undefined ? { crm: crm ?? null } : {}),
-        ...(specialty !== undefined ? { specialty: specialty ?? null } : {}),
-      })
-      .where(eq(professionalsTable.id, actor.id))
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, actor.id))
+        .for("update")
+        .limit(1);
+      if (!current?.isPrimaryDoctor) return [undefined];
+      const [saved] = await tx
+        .update(professionalsTable)
+        .set({
+          ...(name !== undefined ? { name: String(name).trim() } : {}),
+          ...(crm !== undefined ? { crm: crm ?? null } : {}),
+          ...(specialty !== undefined ? { specialty: specialty ?? null } : {}),
+        })
+        .where(eq(professionalsTable.id, actor.id))
+        .returning();
+      if (saved) await recordOwnProfessionalProfileChange(tx, req, current, saved);
+      return [saved];
+    });
 
+    if (!updated) {
+      res.status(409).json({ error: "O cadastro profissional mudou durante a operação." });
+      return;
+    }
     res.json(formatProfessional(updated));
   },
 );
@@ -411,9 +431,17 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
     (active === false && row.active);
   let updated: typeof professionalsTable.$inferSelect | undefined;
   try {
-    [updated] = await db
-      .update(professionalsTable)
-      .set({
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, id))
+        .for("update")
+        .limit(1);
+      if (!current) return;
+      [updated] = await tx
+        .update(professionalsTable)
+        .set({
       ...(name !== undefined ? { name: String(name).trim() } : {}),
       ...(crm !== undefined ? { crm } : {}),
       ...(specialty !== undefined ? { specialty } : {}),
@@ -440,9 +468,11 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
       ...(credentialChanged
         ? { credentialVersion: sql`${professionalsTable.credentialVersion} + 1` }
         : {}),
-      })
-      .where(eq(professionalsTable.id, id))
-      .returning();
+        })
+        .where(eq(professionalsTable.id, id))
+        .returning();
+      if (updated) await recordOwnProfessionalProfileChange(tx, req, current, updated);
+    });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "E-mail ou CPF já está vinculado a outro cadastro." });

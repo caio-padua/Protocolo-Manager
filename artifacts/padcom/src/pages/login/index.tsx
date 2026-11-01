@@ -69,9 +69,21 @@ export default function LoginPage() {
   const [devRecoveryPassword, setDevRecoveryPassword] = useState("");
   const [devRecoveryConfirmation, setDevRecoveryConfirmation] = useState("");
   const [devRecoveryError, setDevRecoveryError] = useState<string | null>(null);
+  const [recoveryRequestMode, setRecoveryRequestMode] = useState(
+    () => new URLSearchParams(window.location.search).get("recover") === "1",
+  );
+  const [recoveryToken, setRecoveryToken] = useState(
+    () => new URLSearchParams(window.location.search).get("recoveryToken") ?? "",
+  );
+  const [recoveryIdentifier, setRecoveryIdentifier] = useState("");
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryConfirmation, setRecoveryConfirmation] = useState("");
 
   // Se já tem sessão válida, redireciona sem mostrar o formulário.
   useEffect(() => {
+    if (recoveryToken || recoveryRequestMode) return;
     const t = getCollabToken();
     if (!t) return;
     fetch("/api/collaborator/me", { headers: { Authorization: `Bearer ${t}` } })
@@ -81,7 +93,7 @@ export default function LoginPage() {
         navigate(dest, { replace: true });
       })
       .catch(() => clearCollabSession());
-  }, [navigate]);
+  }, [navigate, recoveryRequestMode, recoveryToken]);
 
   useEffect(() => {
     fetch("/api/collaborator/bootstrap-status")
@@ -111,6 +123,62 @@ export default function LoginPage() {
   function beginGoogleLogin() {
     const returnTo = getReturnTo();
     navigate(`/sign-in?intent=login&returnTo=${encodeURIComponent(returnTo)}`);
+  }
+
+  async function requestPasswordRecovery(e: React.FormEvent) {
+    e.preventDefault();
+    setRecoveryError(null);
+    setRecoveryNotice(null);
+    setBusy(true);
+    try {
+      const res = await postJson("/api/collaborator/password-recovery/request", {
+        identifier: loginIdentifierForRequest(recoveryIdentifier.trim()),
+      });
+      if (!res.ok) {
+        setRecoveryError("Não foi possível processar o pedido. Tente novamente.");
+        return;
+      }
+      const data = await res.json() as { message?: string };
+      setRecoveryNotice(
+        data.message ??
+          "Se houver uma conta ativa com esse identificador e e-mail cadastrado, enviaremos as instruções.",
+      );
+    } catch {
+      setRecoveryError("Erro de conexão. Verifique a rede e tente novamente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completePasswordRecovery(e: React.FormEvent) {
+    e.preventDefault();
+    setRecoveryError(null);
+    if (recoveryPassword.length < 12 || recoveryPassword.length > 128) {
+      setRecoveryError("Use uma senha entre 12 e 128 caracteres.");
+      return;
+    }
+    if (recoveryPassword !== recoveryConfirmation) {
+      setRecoveryError("As senhas não coincidem.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await postJson("/api/collaborator/password-recovery/complete", {
+        recoveryToken,
+        newPassword: recoveryPassword,
+      });
+      const data = await res.json();
+      if (!res.ok || typeof data?.token !== "string" || !data?.professional) {
+        setRecoveryError(data?.error ?? "O link não pode ser usado. Solicite uma nova recuperação.");
+        return;
+      }
+      setCollabSession(data.token, data.professional);
+      navigate(getReturnTo(), { replace: true });
+    } catch {
+      setRecoveryError("Erro de conexão. O link não foi confirmado; tente novamente.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -228,12 +296,22 @@ export default function LoginPage() {
           {/* Topbar do card */}
           <div className="login-card-topbar px-6 py-4 border-b border-border/60">
             <h1 className="text-sm font-semibold uppercase tracking-widest text-[#16284a] dark:text-[#f4e2a8]">
-              {isBootstrap ? "Primeiro acesso" : "Acesso ao sistema"}
+              {recoveryToken
+                ? "Criar nova senha"
+                : recoveryRequestMode
+                  ? "Recuperar acesso"
+                  : isBootstrap
+                    ? "Primeiro acesso"
+                    : "Acesso ao sistema"}
             </h1>
             <p className="text-xs text-[#16284a]/65 mt-0.5 dark:text-slate-300">
-              {isBootstrap
-                ? "Crie a primeira credencial de acesso"
-                : "Entre com seu e-mail, CPF ou usuário atual"}
+              {recoveryToken
+                ? "Defina uma senha nova para sua conta profissional"
+                : recoveryRequestMode
+                  ? "Informe seu e-mail, CPF ou usuário atual"
+                  : isBootstrap
+                    ? "Crie a primeira credencial de acesso"
+                    : "Entre com seu e-mail, CPF ou usuário atual"}
             </p>
           </div>
 
@@ -250,6 +328,89 @@ export default function LoginPage() {
                 Sua sessão do sistema expirou. Entre com seu e-mail, CPF ou usuário atual antes de vincular o Google.
               </div>
             ) : null}
+            {recoveryToken ? (
+              <form onSubmit={completePasswordRecovery} className="space-y-4">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  O link é de uso único. Use uma senha com pelo menos 12 caracteres.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="recovery-password" className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
+                    Nova senha
+                  </Label>
+                  <PasswordInput id="recovery-password" value={recoveryPassword}
+                    onChange={(event) => setRecoveryPassword(event.target.value)}
+                    autoComplete="new-password" required minLength={12} maxLength={128}
+                    visibilityLabel="nova senha" visibilityTestId="toggle-recovery-password"
+                    className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="recovery-confirmation" className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
+                    Confirmar nova senha
+                  </Label>
+                  <PasswordInput id="recovery-confirmation" value={recoveryConfirmation}
+                    onChange={(event) => setRecoveryConfirmation(event.target.value)}
+                    autoComplete="new-password" required minLength={12} maxLength={128}
+                    visibilityLabel="confirmação da nova senha" visibilityTestId="toggle-recovery-confirmation"
+                    className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]" />
+                </div>
+                {recoveryError ? (
+                  <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-200"
+                    role="alert">{recoveryError}</p>
+                ) : null}
+                <Button type="submit" disabled={busy}
+                  className="btn-3d-gold w-full font-semibold tracking-wider uppercase text-xs h-11">
+                  {busy ? "Salvando…" : "Salvar nova senha"}
+                </Button>
+                <Button type="button" variant="ghost" disabled={busy}
+                  onClick={() => {
+                    setRecoveryToken("");
+                    setRecoveryRequestMode(true);
+                    setRecoveryError(null);
+                    navigate("/login?recover=1", { replace: true });
+                  }}
+                  className="w-full text-[#16284a] dark:text-slate-200">
+                  Solicitar outro link
+                </Button>
+              </form>
+            ) : recoveryRequestMode ? (
+              <form onSubmit={requestPasswordRecovery} className="space-y-4">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Por segurança, a tela não confirma se o cadastro existe. O link só pode ser enviado ao e-mail já salvo no cadastro profissional.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="recovery-identifier" className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
+                    E-mail, CPF ou usuário atual
+                  </Label>
+                  <Input id="recovery-identifier" value={recoveryIdentifier}
+                    onChange={(event) => setRecoveryIdentifier(formatLoginIdentifier(event.target.value))}
+                    autoComplete="username" required maxLength={254}
+                    placeholder="E-mail, CPF ou usuário atual"
+                    className="h-10 border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]" />
+                </div>
+                {recoveryNotice ? (
+                  <p className="rounded-md border border-emerald-700/30 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+                    role="status">{recoveryNotice}</p>
+                ) : null}
+                {recoveryError ? (
+                  <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-200"
+                    role="alert">{recoveryError}</p>
+                ) : null}
+                <Button type="submit" disabled={busy}
+                  className="btn-3d-gold w-full font-semibold tracking-wider uppercase text-xs h-11">
+                  {busy ? "Processando…" : "Enviar instruções"}
+                </Button>
+                <Button type="button" variant="ghost" disabled={busy}
+                  onClick={() => {
+                    setRecoveryRequestMode(false);
+                    setRecoveryNotice(null);
+                    setRecoveryError(null);
+                    navigate("/login", { replace: true });
+                  }}
+                  className="w-full text-[#16284a] dark:text-slate-200">
+                  Voltar ao acesso
+                </Button>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
 
               {isBootstrap ? (
@@ -310,6 +471,18 @@ export default function LoginPage() {
                 />
               </div>
 
+              {!isBootstrap ? (
+                <button type="button"
+                  onClick={() => {
+                    setRecoveryRequestMode(true);
+                    setRecoveryNotice(null);
+                    setRecoveryError(null);
+                  }}
+                  className="text-xs font-semibold text-[#916f32] underline underline-offset-4 dark:text-[#e0c77d]">
+                  Esqueci minha senha
+                </button>
+              ) : null}
+
               {error ? (
                 <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-200"
                   data-testid="text-error">
@@ -326,8 +499,9 @@ export default function LoginPage() {
                 {busy ? "Entrando…" : isBootstrap ? "Criar acesso" : "Entrar"}
               </Button>
             </form>
+            )}
 
-            {!isBootstrap && status && clerkPublishableKey ? (
+            {!recoveryToken && !recoveryRequestMode && !isBootstrap && status && clerkPublishableKey ? (
               <div className="mt-5">
                 <div className="mb-4 flex items-center gap-3 text-[10px] uppercase tracking-[0.18em] text-[#16284a]/45 dark:text-slate-400">
                   <span className="h-px flex-1 bg-[#16284a]/15 dark:bg-white/20" />
@@ -353,7 +527,7 @@ export default function LoginPage() {
               </div>
             ) : null}
 
-            {!isBootstrap && import.meta.env.DEV ? (
+            {!recoveryToken && !recoveryRequestMode && !isBootstrap && import.meta.env.DEV ? (
               <section className="mt-5 border-t border-[#16284a]/15 pt-4 dark:border-white/15"
                 aria-labelledby="dev-recovery-title">
                 {!devRecoveryChallenge ? (

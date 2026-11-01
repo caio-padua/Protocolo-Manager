@@ -1,6 +1,14 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { createHash, randomBytes } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import { getAuth } from "@clerk/express";
+import type { PaxterDoc } from "../lib/messaging/types.js";
+import { enviarMensagemPaxter } from "../lib/messaging/engine.js";
+import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
 import {
   db,
   professionalsTable,
@@ -29,11 +37,18 @@ const router: IRouter = Router();
 const DEV_PRIMARY_RECOVERY_TTL_MS = 10 * 60 * 1000;
 const DEV_PRIMARY_RECOVERY_START_LIMIT = 10;
 const DEV_PRIMARY_RECOVERY_WINDOW_MS = 10 * 60 * 1000;
+const PASSWORD_RECOVERY_TTL_MS = 30 * 60 * 1000;
+const PASSWORD_RECOVERY_WINDOW_MS = 15 * 60 * 1000;
+const PASSWORD_RECOVERY_REQUEST_LIMIT = 4;
+const PASSWORD_RECOVERY_IP_LIMIT = 20;
 const devPrimaryRecoveryChallenges = new Map<
   string,
   { professionalId: number; expiresAt: number; inProgress: boolean }
 >();
 const devPrimaryRecoveryStarts = new Map<string, number[]>();
+const passwordRecoveryRequests = new Map<string, number[]>();
+const passwordRecoveryIpRequests = new Map<string, number[]>();
+const passwordRecoveryAccountRequests = new Map<string, number[]>();
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -63,6 +78,220 @@ function isDevelopmentRecoveryAvailable(): boolean {
 
 function recoveryChallengeDigest(challenge: string): string {
   return createHash("sha256").update(challenge).digest("hex");
+}
+
+interface PasswordRecoveryClaims {
+  professionalId: number;
+  credentialVersion: number;
+  expiresAt: number;
+  environment: "development" | "production";
+  nonce: string;
+}
+
+function passwordRecoveryEnvironment(): "development" | "production" {
+  return process.env.NODE_ENV === "production" ? "production" : "development";
+}
+
+function signPasswordRecoveryClaims(claims: PasswordRecoveryClaims): string | null {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null;
+  const encoded = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifyPasswordRecoveryToken(token: string): PasswordRecoveryClaims | null {
+  if (!token || token.length > 4096) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null;
+  const [encoded, signature] = parts;
+  const expected = createHmac("sha256", secret).update(encoded).digest();
+  let supplied: Buffer;
+  try {
+    supplied = Buffer.from(signature, "base64url");
+  } catch {
+    return null;
+  }
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as
+      Partial<PasswordRecoveryClaims>;
+    if (
+      !Number.isSafeInteger(claims.professionalId) ||
+      Number(claims.professionalId) <= 0 ||
+      !Number.isSafeInteger(claims.credentialVersion) ||
+      Number(claims.credentialVersion) < 0 ||
+      !Number.isSafeInteger(claims.expiresAt) ||
+      Number(claims.expiresAt) <= Date.now() ||
+      claims.environment !== passwordRecoveryEnvironment() ||
+      typeof claims.nonce !== "string" ||
+      claims.nonce.length < 20
+    ) return null;
+    return claims as PasswordRecoveryClaims;
+  } catch {
+    return null;
+  }
+}
+
+function allowRecoveryAttempt(
+  bucket: Map<string, number[]>,
+  key: string,
+  maxAttempts: number,
+): boolean {
+  const now = Date.now();
+  const recent = (bucket.get(key) ?? [])
+    .filter((startedAt) => now - startedAt < PASSWORD_RECOVERY_WINDOW_MS);
+  if (recent.length >= maxAttempts) {
+    bucket.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  bucket.set(key, recent);
+  return true;
+}
+
+function maskedAuditValue(value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (Array.isArray(value)) return value.map(String).join(", ").slice(0, 120) || "—";
+  return String(value).slice(0, 120);
+}
+
+const PROFESSIONAL_HISTORY_FIELDS = {
+  name: "Nome completo",
+  role: "Cargo",
+  category: "Categoria",
+  professionalType: "Tipo profissional",
+  registrationCouncil: "Conselho profissional",
+  registrationNumber: "Número de registro",
+  crm: "Registro médico",
+  specialty: "Especialidade",
+  unit: "Unidade principal",
+  serviceTypes: "Tipos de atendimento",
+  active: "Conta ativa",
+} as const;
+
+/**
+ * Persiste somente diferenças de campos profissionais não secretos, e apenas
+ * quando o profissional autenticado está alterando o próprio cadastro.
+ */
+export async function recordOwnProfessionalProfileChange(
+  tx: any,
+  req: Request,
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): Promise<void> {
+  const actorId = req.collaborator?.professionalId;
+  const targetId = Number(next.id ?? previous.id);
+  if (!actorId || actorId !== targetId) return;
+
+  const changes: Record<string, { before: string; after: string }> = {};
+  for (const [key, label] of Object.entries(PROFESSIONAL_HISTORY_FIELDS)) {
+    const before = previous[key];
+    const after = next[key];
+    if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) continue;
+    changes[label] = {
+      before: maskedAuditValue(before),
+      after: maskedAuditValue(after),
+    };
+  }
+  for (const key of ["email", "cpf"] as const) {
+    if (key in next && String(previous[key] ?? "") !== String(next[key] ?? "")) {
+      changes[key === "email" ? "E-mail de acesso" : "CPF"] = {
+        before: "Valor protegido",
+        after: "Valor protegido",
+      };
+    }
+  }
+  if (!Object.keys(changes).length) return;
+
+  const [actor] = await tx
+    .select({ name: professionalsTable.name })
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, actorId))
+    .limit(1);
+  await tx.insert(collaboratorAuditTable).values({
+    professionalId: actorId,
+    professionalName: actor?.name ?? null,
+    action: "professional_profile_updated",
+    method: req.method,
+    path: req.path,
+    detail: { changes },
+    ip: clientIp(req),
+  });
+}
+
+const ACCOUNT_HISTORY_ACTIONS = [
+  "identity_updated",
+  "password_changed",
+  "password_initialized",
+  "password_recovered",
+  "professional_profile_updated",
+] as const;
+
+function serializeOwnAccountHistoryEvent(row: {
+  id: number;
+  action: string;
+  detail: unknown;
+  createdAt: Date;
+}): {
+  id: number;
+  action: string;
+  label: string;
+  createdAt: string;
+  changes: { field: string; before: string; after: string }[];
+} | null {
+  const labels: Record<string, string> = {
+    identity_updated: "Identificadores de acesso atualizados",
+    password_changed: "Senha alterada",
+    password_initialized: "Primeira senha cadastrada",
+    password_recovered: "Senha redefinida por recuperação",
+    professional_profile_updated: "Dados profissionais atualizados",
+  };
+  const label = labels[row.action];
+  if (!label) return null;
+  const detail = row.detail && typeof row.detail === "object"
+    ? row.detail as Record<string, unknown>
+    : {};
+  const changes: { field: string; before: string; after: string }[] = [];
+
+  if (row.action === "professional_profile_updated") {
+    const storedChanges = detail.changes && typeof detail.changes === "object"
+      ? detail.changes as Record<string, unknown>
+      : {};
+    const allowedLabels = new Set([
+      ...Object.values(PROFESSIONAL_HISTORY_FIELDS),
+      "E-mail de acesso",
+      "CPF",
+    ]);
+    for (const [field, rawChange] of Object.entries(storedChanges)) {
+      if (!allowedLabels.has(field) || !rawChange || typeof rawChange !== "object") continue;
+      const change = rawChange as Record<string, unknown>;
+      const protectedField = field === "E-mail de acesso" || field === "CPF";
+      changes.push({
+        field,
+        before: protectedField ? "Valor protegido" : maskedAuditValue(change.before),
+        after: protectedField ? "Valor protegido" : maskedAuditValue(change.after),
+      });
+    }
+  } else if (row.action === "identity_updated") {
+    if (detail.emailUpdated === true) {
+      changes.push({ field: "E-mail de acesso", before: "Valor protegido", after: "Valor protegido" });
+    }
+    if (detail.cpfUpdated === true) {
+      changes.push({ field: "CPF", before: "Valor protegido", after: "Valor protegido" });
+    }
+  }
+
+  return {
+    id: row.id,
+    action: row.action,
+    label,
+    createdAt: row.createdAt.toISOString(),
+    changes,
+  };
 }
 
 function recoveryStartAllowed(ip: string): boolean {
@@ -522,6 +751,220 @@ router.post("/collaborator/login", async (req, res): Promise<void> => {
   res.json(sessionForProfessional(prof));
 });
 
+const PASSWORD_RECOVERY_GENERIC_RESPONSE = {
+  message: "Se houver uma conta ativa com esse identificador e e-mail cadastrado, enviaremos as instruções.",
+};
+
+// Solicitação pública de recuperação. A resposta é sempre igual para impedir
+// que a tela seja usada para descobrir quais identificadores existem.
+router.post("/collaborator/password-recovery/request", async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  const rawIdentifier = typeof req.body?.identifier === "string"
+    ? req.body.identifier.trim()
+    : "";
+  if (!rawIdentifier || rawIdentifier.length > 254) {
+    res.status(202).json(PASSWORD_RECOVERY_GENERIC_RESPONSE);
+    return;
+  }
+
+  const normalized = rawIdentifier.toLowerCase();
+  const ipKey = createHash("sha256").update(req.ip ?? "unknown").digest("hex");
+  const identifierKey = createHash("sha256")
+    .update(`${ipKey}:${normalized}`)
+    .digest("hex");
+  if (
+    !allowRecoveryAttempt(passwordRecoveryRequests, identifierKey, PASSWORD_RECOVERY_REQUEST_LIMIT) ||
+    !allowRecoveryAttempt(passwordRecoveryIpRequests, ipKey, PASSWORD_RECOVERY_IP_LIMIT)
+  ) {
+    res.status(202).json(PASSWORD_RECOVERY_GENERIC_RESPONSE);
+    return;
+  }
+
+  const digits = normalizeCpf(rawIdentifier);
+  const canMatchCpf = digits.length === 11;
+  const [matches] = await Promise.all([
+    db
+      .select()
+      .from(professionalsTable)
+      .where(sql`
+        ${professionalsTable.active} = true
+        AND (
+          (${rawIdentifier.includes("@")} AND lower(btrim(coalesce(${professionalsTable.email}, ''))) = ${normalized})
+          OR (${canMatchCpf} AND regexp_replace(coalesce(${professionalsTable.cpf}, ''), '[^0-9]', '', 'g') = ${digits})
+          OR (
+            lower(btrim(coalesce(${professionalsTable.loginUsername}, ''))) = ${normalized}
+            AND coalesce(btrim(${professionalsTable.email}), '') = ''
+            AND regexp_replace(coalesce(${professionalsTable.cpf}, ''), '[^0-9]', '', 'g') = ''
+          )
+        )
+      `)
+      .limit(2),
+  ]);
+  const professional = matches.length === 1 ? matches[0] : null;
+  const email = professional?.email?.trim();
+  if (
+    professional &&
+    !allowRecoveryAttempt(
+      passwordRecoveryAccountRequests,
+      String(professional.id),
+      PASSWORD_RECOVERY_REQUEST_LIMIT,
+    )
+  ) {
+    res.status(202).json(PASSWORD_RECOVERY_GENERIC_RESPONSE);
+    return;
+  }
+  if (
+    !professional ||
+    !email ||
+    email.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !process.env.SESSION_SECRET
+  ) {
+    res.status(202).json(PASSWORD_RECOVERY_GENERIC_RESPONSE);
+    return;
+  }
+
+  const recoveryToken = signPasswordRecoveryClaims({
+    professionalId: professional.id,
+    credentialVersion: professional.credentialVersion ?? 0,
+    expiresAt: Date.now() + PASSWORD_RECOVERY_TTL_MS,
+    environment: passwordRecoveryEnvironment(),
+    nonce: randomBytes(24).toString("base64url"),
+  });
+  if (!recoveryToken) {
+    res.status(202).json(PASSWORD_RECOVERY_GENERIC_RESPONSE);
+    return;
+  }
+
+  const recoveryUrl = new URL("/login", absoluteBaseUrl(req));
+  recoveryUrl.searchParams.set("recoveryToken", recoveryToken);
+  const doc: PaxterDoc = {
+    eyebrow: "SEGURANÇA DA CONTA",
+    titulo: "Redefinição de senha",
+    paragrafos: [
+      "Foi solicitada a criação de uma nova senha para o seu acesso profissional.",
+      "O link é pessoal, vale por 30 minutos e funciona uma única vez.",
+      "Se você não solicitou esta alteração, ignore esta mensagem.",
+    ],
+    botao: { label: "Criar nova senha", url: recoveryUrl.toString() },
+    notaRodape: "Não encaminhe este link. A equipe da clínica nunca pedirá sua senha.",
+    assunto: "Redefinição de senha — PAXTER",
+  };
+
+  try {
+    const result = await enviarMensagemPaxter(
+      doc,
+      { email, nome: professional.name },
+      ["EMAIL"],
+      { baseUrl: absoluteBaseUrl(req), contexto: "recuperacao_acesso_profissional" },
+    );
+    const emailResult = result.resultados.find((item) => item.canal === "EMAIL");
+    if (!emailResult?.sent || emailResult.mock) {
+      // Não registrar identificador, endereço, token ou erro do provedor.
+      console.warn("[collaborator] password recovery email not delivered");
+    }
+  } catch {
+    // A mesma resposta é devolvida tanto para entrega falha quanto para conta
+    // inexistente; não revelar dados nem confirmar envio não comprovado.
+    console.warn("[collaborator] password recovery email delivery failed");
+  }
+  res.status(202).json(PASSWORD_RECOVERY_GENERIC_RESPONSE);
+});
+
+router.post("/collaborator/password-recovery/complete", async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  const recoveryToken = typeof req.body?.recoveryToken === "string"
+    ? req.body.recoveryToken
+    : "";
+  const newPassword = typeof req.body?.newPassword === "string"
+    ? req.body.newPassword
+    : "";
+  if (newPassword.length < 12 || newPassword.length > 128) {
+    res.status(400).json({ error: "A nova senha deve ter entre 12 e 128 caracteres." });
+    return;
+  }
+  const claims = verifyPasswordRecoveryToken(recoveryToken);
+  if (!claims) {
+    res.status(401).json({ error: "O link é inválido ou expirou. Solicite uma nova recuperação." });
+    return;
+  }
+
+  try {
+    const nextCredentialVersion = claims.credentialVersion + 1;
+    const nextPasswordHash = hashPassword(newPassword);
+    const updatedProfessional = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          id: professionalsTable.id,
+          name: professionalsTable.name,
+          role: professionalsTable.role,
+          category: professionalsTable.category,
+          isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
+          active: professionalsTable.active,
+          credentialVersion: professionalsTable.credentialVersion,
+        })
+        .from(professionalsTable)
+        .where(eq(professionalsTable.id, claims.professionalId))
+        .for("update")
+        .limit(1);
+      if (
+        !current ||
+        !current.active ||
+        (current.credentialVersion ?? 0) !== claims.credentialVersion
+      ) {
+        throw new Error("PASSWORD_RECOVERY_INVALID");
+      }
+
+      const [updated] = await tx
+        .update(professionalsTable)
+        .set({
+          passwordHash: nextPasswordHash,
+          credentialVersion: nextCredentialVersion,
+        })
+        .where(
+          and(
+            eq(professionalsTable.id, claims.professionalId),
+            eq(professionalsTable.credentialVersion, claims.credentialVersion),
+          ),
+        )
+        .returning({
+          id: professionalsTable.id,
+          name: professionalsTable.name,
+          role: professionalsTable.role,
+          category: professionalsTable.category,
+          isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
+        });
+      if (!updated) throw new Error("PASSWORD_RECOVERY_INVALID");
+
+      await tx.insert(collaboratorAuditTable).values({
+        professionalId: updated.id,
+        professionalName: updated.name,
+        action: "password_recovered",
+        method: "POST",
+        path: "/collaborator/password-recovery/complete",
+        detail: { priorSessionsInvalidated: true },
+        ip: clientIp(req),
+      });
+      return updated;
+    });
+
+    res.json({
+      ...sessionForProfessional({
+        ...updatedProfessional,
+        credentialVersion: nextCredentialVersion,
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "PASSWORD_RECOVERY_INVALID") {
+      res.status(401).json({
+        error: "O link é inválido, já foi usado ou expirou. Solicite uma nova recuperação.",
+      });
+      return;
+    }
+    throw error;
+  }
+});
+
 // Recuperacao exclusiva do cadastro medico principal no preview privado de desenvolvimento.
 // A plataforma restringe o dominio .replit.dev ao proprietario e colaboradores autorizados.
 router.post("/collaborator/dev-primary-recovery/start", async (req, res): Promise<void> => {
@@ -702,6 +1145,30 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
   });
 });
 
+// Histórico pessoal: a identidade vem da sessão; nenhum ID-alvo é aceito.
+router.get("/collaborator/me/history", requireCollaborator, async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  const rows = await db
+    .select({
+      id: collaboratorAuditTable.id,
+      action: collaboratorAuditTable.action,
+      detail: collaboratorAuditTable.detail,
+      createdAt: collaboratorAuditTable.createdAt,
+    })
+    .from(collaboratorAuditTable)
+    .where(and(
+      eq(collaboratorAuditTable.professionalId, req.collaborator!.professionalId),
+      inArray(collaboratorAuditTable.action, [...ACCOUNT_HISTORY_ACTIONS]),
+    ))
+    .orderBy(desc(collaboratorAuditTable.createdAt))
+    .limit(100);
+  res.json({
+    events: rows
+      .map((row) => serializeOwnAccountHistoryEvent(row))
+      .filter((event): event is NonNullable<typeof event> => event !== null),
+  });
+});
+
 // PUT /api/collaborator/me/identity — atualiza identificadores apenas da sessao.
 router.put(
   "/collaborator/me/identity",
@@ -748,45 +1215,51 @@ router.put(
 
     const nextCredentialVersion = (professional.credentialVersion ?? 0) + 1;
     try {
-      const [updated] = await db
-        .update(professionalsTable)
-        .set({
-          ...(email ? { email } : {}),
-          ...(cpf ? { cpf } : {}),
-          credentialVersion: nextCredentialVersion,
-        })
-        .where(
-          and(
-            eq(professionalsTable.id, professional.id),
-            eq(professionalsTable.credentialVersion, professional.credentialVersion ?? 0),
-          ),
-        )
-        .returning({
-          id: professionalsTable.id,
-          email: professionalsTable.email,
-          cpf: professionalsTable.cpf,
+      let updated: { id: number; email: string | null; cpf: string | null } | undefined;
+      await db.transaction(async (tx) => {
+        [updated] = await tx
+          .update(professionalsTable)
+          .set({
+            ...(email ? { email } : {}),
+            ...(cpf ? { cpf } : {}),
+            credentialVersion: nextCredentialVersion,
+          })
+          .where(
+            and(
+              eq(professionalsTable.id, professional.id),
+              eq(professionalsTable.credentialVersion, professional.credentialVersion ?? 0),
+            ),
+          )
+          .returning({
+            id: professionalsTable.id,
+            email: professionalsTable.email,
+            cpf: professionalsTable.cpf,
+          });
+        if (!updated) throw new Error("COLLABORATOR_IDENTITY_CONFLICT");
+
+        await tx.insert(collaboratorAuditTable).values({
+          professionalId: professional.id,
+          professionalName: professional.name,
+          action: "identity_updated",
+          method: req.method,
+          path: req.path,
+          detail: {
+            emailUpdated: Boolean(email && email !== professional.email),
+            cpfUpdated: Boolean(cpf && cpf !== professional.cpf),
+            priorSessionsInvalidated: true,
+          },
+          ip: clientIp(req),
         });
+      });
 
       if (!updated) {
         res.status(409).json({ error: "O cadastro mudou durante a operação. Entre novamente e tente de novo." });
         return;
       }
-
       const token = createCollaboratorToken({
         professionalId: professional.id,
         role: professional.role,
         credentialVersion: nextCredentialVersion,
-      });
-      await recordAudit({
-        professionalId: professional.id,
-        professionalName: professional.name,
-        action: "identity_updated",
-        detail: {
-          emailUpdated: Boolean(email),
-          cpfUpdated: Boolean(cpf),
-          priorSessionsInvalidated: true,
-        },
-        ip: clientIp(req),
       });
       res.json({
         token,
@@ -803,6 +1276,10 @@ router.put(
     } catch (error) {
       if (isUniqueViolation(error)) {
         res.status(409).json({ error: "Este e-mail ou CPF já está vinculado a outro cadastro." });
+        return;
+      }
+      if (error instanceof Error && error.message === "COLLABORATOR_IDENTITY_CONFLICT") {
+        res.status(409).json({ error: "O cadastro mudou durante a operação. Entre novamente e tente de novo." });
         return;
       }
       throw error;
@@ -850,36 +1327,44 @@ router.post("/collaborator/change-password", requireCollaborator, async (req, re
   }
 
   const nextCredentialVersion = (professional.credentialVersion ?? 0) + 1;
-  const updated = await db
-    .update(professionalsTable)
-    .set({
-      passwordHash: hashPassword(newPassword),
-      credentialVersion: nextCredentialVersion,
-    })
-    .where(
-      and(
-        eq(professionalsTable.id, professional.id),
-        eq(professionalsTable.credentialVersion, professional.credentialVersion ?? 0),
-      ),
-    )
-    .returning({ id: professionalsTable.id });
-
-  if (updated.length !== 1) {
-    res.status(409).json({ error: "A conta mudou durante a operação. Entre novamente e tente de novo." });
-    return;
+  try {
+    await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(professionalsTable)
+        .set({
+          passwordHash: hashPassword(newPassword),
+          credentialVersion: nextCredentialVersion,
+        })
+        .where(
+          and(
+            eq(professionalsTable.id, professional.id),
+            eq(professionalsTable.credentialVersion, professional.credentialVersion ?? 0),
+          ),
+        )
+        .returning({ id: professionalsTable.id });
+      if (updated.length !== 1) throw new Error("COLLABORATOR_PASSWORD_CONFLICT");
+      await tx.insert(collaboratorAuditTable).values({
+        professionalId: professional.id,
+        professionalName: professional.name,
+        action: "password_changed",
+        method: req.method,
+        path: req.path,
+        detail: { priorSessionsInvalidated: true },
+        ip: clientIp(req),
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "COLLABORATOR_PASSWORD_CONFLICT") {
+      res.status(409).json({ error: "A conta mudou durante a operação. Entre novamente e tente de novo." });
+      return;
+    }
+    throw error;
   }
 
   const token = createCollaboratorToken({
     professionalId: professional.id,
     role: professional.role,
     credentialVersion: nextCredentialVersion,
-  });
-  await recordAudit({
-    professionalId: professional.id,
-    professionalName: professional.name,
-    action: "password_changed",
-    detail: { priorSessionsInvalidated: true },
-    ip: clientIp(req),
   });
   res.json({
     ok: true,
@@ -924,39 +1409,47 @@ router.post("/collaborator/initial-password", requireCollaborator, async (req, r
 
   const previousCredentialVersion = professional.credentialVersion ?? 0;
   const nextCredentialVersion = previousCredentialVersion + 1;
-  const [updated] = await db
-    .update(professionalsTable)
-    .set({
-      passwordHash: hashPassword(newPassword),
-      credentialVersion: nextCredentialVersion,
-    })
-    .where(
-      and(
-        eq(professionalsTable.id, professional.id),
-        isNull(professionalsTable.passwordHash),
-        eq(professionalsTable.credentialVersion, previousCredentialVersion),
-      ),
-    )
-    .returning({ id: professionalsTable.id });
-
-  if (!updated) {
-    res.status(409).json({
-      error: "A conta mudou durante a operação. Atualize a tela e tente novamente.",
+  try {
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(professionalsTable)
+        .set({
+          passwordHash: hashPassword(newPassword),
+          credentialVersion: nextCredentialVersion,
+        })
+        .where(
+          and(
+            eq(professionalsTable.id, professional.id),
+            isNull(professionalsTable.passwordHash),
+            eq(professionalsTable.credentialVersion, previousCredentialVersion),
+          ),
+        )
+        .returning({ id: professionalsTable.id });
+      if (!updated) throw new Error("COLLABORATOR_INITIAL_PASSWORD_CONFLICT");
+      await tx.insert(collaboratorAuditTable).values({
+        professionalId: professional.id,
+        professionalName: professional.name,
+        action: "password_initialized",
+        method: req.method,
+        path: req.path,
+        detail: { priorSessionsInvalidated: true },
+        ip: clientIp(req),
+      });
     });
-    return;
+  } catch (error) {
+    if (error instanceof Error && error.message === "COLLABORATOR_INITIAL_PASSWORD_CONFLICT") {
+      res.status(409).json({
+        error: "A conta mudou durante a operação. Atualize a tela e tente novamente.",
+      });
+      return;
+    }
+    throw error;
   }
 
   const token = createCollaboratorToken({
     professionalId: professional.id,
     role: professional.role,
     credentialVersion: nextCredentialVersion,
-  });
-  await recordAudit({
-    professionalId: professional.id,
-    professionalName: professional.name,
-    action: "password_initialized",
-    detail: { priorSessionsInvalidated: true },
-    ip: clientIp(req),
   });
   res.json({
     ok: true,

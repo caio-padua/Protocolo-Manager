@@ -51,8 +51,10 @@ import {
 } from "lucide-react";
 import { tituloProprio } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import AccountAccessPanel from "./AccountAccessPanel";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -597,12 +599,17 @@ function initials(name: string): string {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Professionals() {
+  const [location, navigate] = useLocation();
   const { data: professionals, isLoading, refetch } = useListProfessionals();
   const { data: areas } = useListProfessionalAreas();
   const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [sessionProfessionalId, setSessionProfessionalId] = useState<number | null>(null);
+  const [sessionIdentityLoaded, setSessionIdentityLoaded] = useState(false);
+  const selfAccessLaunchHandled = useRef(false);
+  const isSelfEditing = editingId !== null && editingId === sessionProfessionalId;
   const [editingSignatureUrl, setEditingSignatureUrl] = useState<string | null>(null);
   const [editingPhotoUrl, setEditingPhotoUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("dados");
@@ -705,6 +712,66 @@ export default function Professionals() {
     });
     setOpen(true);
   };
+
+  useEffect(() => {
+    let mounted = true;
+    const token = getCollabToken();
+    if (!token) {
+      setSessionIdentityLoaded(true);
+      return () => { mounted = false; };
+    }
+    void fetch("/api/collaborator/me", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Não foi possível validar a conta da sessão.");
+        const result = await response.json() as { professional?: { id?: number } };
+        if (mounted && Number.isInteger(result.professional?.id)) {
+          setSessionProfessionalId(result.professional!.id!);
+        }
+      })
+      .catch(() => {
+        if (mounted) setSessionProfessionalId(null);
+      })
+      .finally(() => {
+        if (mounted) setSessionIdentityLoaded(true);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("selfAccess") === "1";
+    if (
+      !requested ||
+      selfAccessLaunchHandled.current ||
+      !sessionIdentityLoaded ||
+      isLoading ||
+      !professionals
+    ) return;
+    selfAccessLaunchHandled.current = true;
+    const ownProfessional = sessionProfessionalId == null
+      ? undefined
+      : professionals.find((professional) => professional.id === sessionProfessionalId);
+    if (ownProfessional) {
+      openEdit(ownProfessional);
+    } else {
+      toast({
+        title: "Cadastro próprio não localizado nesta clínica",
+        description: "A ficha não foi aberta. A sessão não recebeu acesso a outro cadastro.",
+        variant: "destructive",
+      });
+    }
+    navigate("/professionals", { replace: true });
+  }, [
+    location,
+    navigate,
+    professionals,
+    isLoading,
+    sessionIdentityLoaded,
+    sessionProfessionalId,
+    toast,
+  ]);
 
   const toggleService = (value: string) => {
     setForm((f) => {
@@ -969,7 +1036,13 @@ export default function Professionals() {
                       onChange={(e) => set("email", e.target.value)}
                       placeholder="nome@clinica.com.br"
                       className="field-engraved"
+                      disabled={editingId !== null && (!sessionIdentityLoaded || isSelfEditing)}
                     />
+                    {isSelfEditing ? (
+                      <p className="text-[10px] leading-relaxed text-muted-foreground">
+                        Para proteger seu acesso, altere este e-mail na seção “Acesso à própria conta”.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1042,7 +1115,8 @@ export default function Professionals() {
 
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">CPF (contratos / NF)</Label>
-                        <Input value={form.cpf} onChange={(e) => set("cpf", e.target.value)} placeholder="000.000.000-00" className="field-engraved" />
+                        <Input value={form.cpf} onChange={(e) => set("cpf", e.target.value)} placeholder="000.000.000-00" className="field-engraved"
+                          disabled={editingId !== null && (!sessionIdentityLoaded || isSelfEditing)} />
                       </div>
 
                       {form.nurseType === "home" && (
@@ -1098,6 +1172,18 @@ export default function Professionals() {
                     Salve para liberar as abas <strong>VÍNCULOS</strong> e <strong>DOCUMENTOS</strong>.
                   </p>
                 )}
+                {isSelfEditing && editingId !== null ? (
+                  <AccountAccessPanel
+                    professionalId={editingId}
+                    onIdentityUpdated={(identity) => {
+                      setForm((current) => ({
+                        ...current,
+                        email: identity.email ?? "",
+                        cpf: identity.cpf ?? "",
+                      }));
+                    }}
+                  />
+                ) : null}
               </TabsContent>
 
               {/* ── Aba: Vínculos ── */}
