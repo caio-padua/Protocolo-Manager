@@ -1,4 +1,5 @@
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { PrescriptionPdfLink } from "@/pages/prescricao/PrescricoesEmitidas";
 import { useEffect, useMemo, useState, type ElementType } from "react";
 import { tituloProprio } from "@/lib/utils";
 import {
@@ -117,7 +118,7 @@ export default function AtestadosPage() {
     queryKey: ["atestados", clientId],
     enabled: clientId != null,
     queryFn: async () => {
-      const r = await fetch(`${API}/atestados?clientId=${clientId}`);
+      const r = await fetch(`${API}/atestados?clientId=${clientId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar histórico");
       return r.json();
     },
@@ -166,7 +167,7 @@ export default function AtestadosPage() {
       // 1) Cria o registro (corpo JÁ com variáveis aplicadas).
       const criar = await fetch(`${API}/atestados`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
           clientName: clienteSel.name,
@@ -190,12 +191,11 @@ export default function AtestadosPage() {
       const criado: Atestado = await criar.json();
 
       // 2) Emite (gera PDF + sobe ao Drive best-effort).
-      const emit = await fetch(`${API}/atestados/${criado.id}/emitir`, { method: "POST" });
+      const emit = await fetch(`${API}/atestados/${criado.id}/emitir`, { method: "POST", headers: collabAuthHeaders() });
       if (!emit.ok) throw new Error("Falha ao emitir o atestado");
-      const emitido: Atestado = await emit.json();
+      await emit.json();
 
       toast({ title: "Atestado emitido!", description: "PDF gerado com sucesso." });
-      window.open(`${API}/atestados/${emitido.id}/pdf`, "_blank");
       refetchHistorico();
     } catch (err) {
       toast({
@@ -417,14 +417,11 @@ export default function AtestadosPage() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <a
+                        <PrescriptionPdfLink
                           href={`${API}/atestados/${a.id}/pdf`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="bevel-3d inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900"
-                        >
+                          className="bevel-3d inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900">
                           <Download className="h-3.5 w-3.5" /> PDF
-                        </a>
+                        </PrescriptionPdfLink>
                         {a.driveWebViewLink && (
                           <a
                             href={a.driveWebViewLink}

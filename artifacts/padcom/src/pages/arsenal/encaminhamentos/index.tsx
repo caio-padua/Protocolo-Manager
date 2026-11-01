@@ -1,4 +1,5 @@
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { PrescriptionPdfLink } from "@/pages/prescricao/PrescricoesEmitidas";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Share2, User, Stethoscope, FileText, Send, Eye, Download, ExternalLink,
@@ -117,7 +118,7 @@ export default function EncaminhamentosPage() {
       setLista([]);
       return;
     }
-    fetch(`${BASE}/api/encaminhamentos?clientId=${clientId}`)
+    fetch(`${BASE}/api/encaminhamentos?clientId=${clientId}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setLista(Array.isArray(d) ? d : []))
       .catch(() => setLista([]));
@@ -178,7 +179,7 @@ export default function EncaminhamentosPage() {
       const corpoFinal = aplicarVariaveis(corpo, valores());
       const createRes = await fetch(`${BASE}/api/encaminhamentos`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
           clientName: cliente.name,
@@ -200,12 +201,11 @@ export default function EncaminhamentosPage() {
       if (!createRes.ok) throw new Error("create");
       const created = await createRes.json();
 
-      const emitRes = await fetch(`${BASE}/api/encaminhamentos/${created.id}/emitir`, { method: "POST" });
+      const emitRes = await fetch(`${BASE}/api/encaminhamentos/${created.id}/emitir`, { method: "POST", headers: collabAuthHeaders() });
       if (!emitRes.ok) throw new Error("emit");
       const emitted = await emitRes.json();
 
       toast({ title: "Encaminhamento emitido!", description: emitted.driveWebViewLink ? "PDF gerado e enviado ao Drive." : "PDF gerado." });
-      window.open(`${BASE}${emitted.pdfUrl}`, "_blank");
       carregarLista();
     } catch {
       toast({ title: "Erro ao emitir encaminhamento", variant: "destructive" });
@@ -369,14 +369,11 @@ export default function EncaminhamentosPage() {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <a
+                    <PrescriptionPdfLink
                       href={`${BASE}${e.pdfUrl}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-3d-soft inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold"
-                    >
+                      className="btn-3d-soft inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold">
                       <Download className="h-3.5 w-3.5" />Baixar PDF
-                    </a>
+                    </PrescriptionPdfLink>
                     {e.driveWebViewLink && (
                       <a
                         href={e.driveWebViewLink}

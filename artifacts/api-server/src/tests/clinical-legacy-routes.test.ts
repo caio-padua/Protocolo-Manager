@@ -20,7 +20,8 @@ const app = express().use(express.json()).use((req, _res, next) => {
   next();
 }).use(legacyRouter);
 const token = () => createCollaboratorToken({ professionalId: 41, role: "executor" });
-const doctor = { id: 41, name: "Medico sintetico", active: true, professionalType: "medico", crm: "CRM/SP 12345" };
+const doctor = { id: 41, name: "Medico sintetico", active: true, role: "executor",
+  credentialVersion: 0, professionalType: "medico", crm: "CRM/SP 12345" };
 const client = { id: 71, name: "Cliente sintetico", status: "active", empresaId: 21, locationId: 31, email: "teste@example.invalid" };
 const location = { id: 31, name: "Clinica sintetica", empresaId: 21, active: "true" };
 const payload = { clientId: 71, patient: { nome: "Nome falso", email: "outro@example.invalid" },
@@ -33,19 +34,20 @@ beforeEach(() => {
 it.each(["emitir-prescricao", "emitir-cliente"])("%s rejeita anonimo e formulario sem cliente", async action => {
   const endpoint = `/receituario/${action}`;
   expect((await request(app).post(endpoint).send(payload)).status).toBe(401);
+  mock.rows = [[doctor], [doctor]];
   const response = await request(app).post(endpoint).set("Authorization", `Bearer ${token()}`)
     .send({ patient: payload.patient, formulas: payload.formulas });
   expect(response.status).toBe(400);
   expect(mock.emit).not.toHaveBeenCalled();
 });
 it.each(["emitir-prescricao", "emitir-cliente"])("%s rejeita clinica de outra empresa", async action => {
-  mock.rows = [[doctor], [client], [{ ...location, empresaId: 99 }], [{ id: 1 }]];
+  mock.rows = [[doctor], [doctor], [doctor], [client], [{ ...location, empresaId: 99 }], [{ id: 1 }]];
   const response = await request(app).post(`/receituario/${action}`)
     .set("Authorization", `Bearer ${token()}`).send(payload);
   expect(response.status).toBe(403); expect(mock.emit).not.toHaveBeenCalled();
 });
 it.each(["emitir-prescricao", "emitir-cliente"])("%s passa o medico vinculado e nao copia email livre", async action => {
-  mock.rows = [[doctor], [client], [location], [{ id: 1 }], [client]];
+  mock.rows = [[doctor], [doctor], [doctor], [client], [location], [{ id: 1 }], [client]];
   const response = await request(app).post(`/receituario/${action}`)
     .set("Authorization", `Bearer ${token()}`).send(payload);
   expect(response.status).toBe(200);
@@ -62,6 +64,7 @@ it("assinatura por imagem nao aceita anonimo", async () => {
   expect(mock.emit).not.toHaveBeenCalled();
 });
 it("assinatura rejeita imagem e destinatário livres antes de qualquer efeito", async () => {
+  mock.rows = [[doctor], [doctor]];
   const response = await request(app).post("/receituario/assinar-imagem-pdf")
     .set("Authorization", `Bearer ${token()}`).send({
       pngBase64: "aW1hZ2Vt", patientName: "Nome falso", patientEmail: "outro@example.invalid",
@@ -71,7 +74,7 @@ it("assinatura rejeita imagem e destinatário livres antes de qualquer efeito", 
   expect(mock.emit).not.toHaveBeenCalled();
 });
 it("rota reaberta usa médico, paciente e clínica autorizados sem destinatários", async () => {
-  mock.rows = [[doctor], [client], [location], [{ id: 1 }]];
+  mock.rows = [[doctor], [doctor], [doctor], [client], [location], [{ id: 1 }]];
   const response = await request(app).post("/receituario/assinar-imagem-pdf")
     .set("Authorization", `Bearer ${token()}`).send({
       clientId: 71, formulas: [{ nome: "Formula sintetica", posologia: "Uso sintetico" }],
@@ -88,7 +91,7 @@ it("rota reaberta usa médico, paciente e clínica autorizados sem destinatário
   }));
 });
 it("rota reaberta impede outra clínica antes de chamar o motor", async () => {
-  mock.rows = [[doctor], [client], [{ ...location, empresaId: 99 }], [{ id: 1 }]];
+  mock.rows = [[doctor], [doctor], [doctor], [client], [{ ...location, empresaId: 99 }], [{ id: 1 }]];
   const response = await request(app).post("/receituario/assinar-imagem-pdf")
     .set("Authorization", `Bearer ${token()}`).send({
       clientId: 71, formulas: [{ nome: "Formula sintetica", posologia: "Uso sintetico" }],

@@ -14,7 +14,7 @@ import { BASE } from "../../comunicacao/_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
-import ExamRequestHistoryPanel from "./ExamRequestHistoryPanel";
+import ExamDocumentHistoryPanel from "./ExamDocumentHistoryPanel";
 import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
 import { useClinicalDraft } from "@/hooks/use-clinical-draft";
 import { emptyExamDraft, examDraftSchema } from "./clinical-draft-schemas";
@@ -387,12 +387,10 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
           </div>
         )}
       </div>
-      <ExamRequestHistoryPanel key={`${clientId}-${identity.data?.professional.id ?? "sem-sessao"}`}
+      <ExamDocumentHistoryPanel key={`${clientId}-${identity.data?.professional.id ?? "sem-sessao"}`}
         historyScope={scope}
-        clientId={clientId} professionalId={identity.data?.professional.id}
-        email={identity.data?.client.email} phone={identity.data?.client.phone}
-        enabled={!!identity.data && !identity.isError && !identity.isFetching}
-        recentIds={recentIds} />
+        clientId={clientId}
+        enabled={!!identity.data && !identity.isError && !identity.isFetching} />
       </fieldset>}
     </div>
   );

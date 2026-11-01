@@ -1,9 +1,26 @@
 # PAXTER LOOP — Histórico de documentos do Cockpit
 
 **Data:** 01/11/2026  
-**Estado:** ESPECIFICAÇÃO — implementação ainda não iniciada  
-**Escopo:** rota atual `/cockpit/:clientId/:aba`  
+**Estado:** IMPLEMENTADO PARCIALMENTE — NÃO HOMOLOGADO PARA USO CLÍNICO REAL
+**Escopo:** rota atual `/cockpit/:clientId/:aba`
 **Execução:** sequencial, uma unidade por vez; sem envios reais durante os testes
+
+## 0. Resultado verificado em 01/11/2026
+
+- A implementação das unidades A, B e C está no repositório local; nenhuma alteração foi enviada ao GitHub.
+- Atestados e Encaminhamentos agora exigem sessão de colaborador e validação de identidade clínica no servidor; as telas autônomas receberam os cabeçalhos de autenticação necessários para continuar funcionando.
+- Prescrição, Exames, Atestados e Encaminhamentos têm histórico recolhível no Cockpit; Prescrições foi movido para o final de sua tela.
+- Abrir e baixar usam uma rota autenticada que revalida cliente, médico e clínica. O reenvio usa os bytes persistidos do PDF, registra cada canal e impede repetição automática com resultado incerto.
+- E-mail recebe o PDF como anexo. WhatsApp e Telegram recebem link aleatório de sete dias; o registro guarda o resumo criptográfico do PDF e o link só serve esse arquivo enquanto ele corresponder ao original.
+- O histórico de reenvios mostra canal, destino mascarado e resultado sem expor token ou chave de operação.
+- Quarenta e sete testes sintéticos passaram: 23 de identidade clínica, 10 de rotas legadas e 14 do novo fluxo; nenhum provedor real foi chamado.
+- As filas de autenticação dos testes legados foram corrigidas para representar as validações repetidas da sessão atual, sem remover autenticação do código de produção.
+- A checagem estática também encontrou e corrigiu os dois atalhos antigos de emissão de Prescrição, que liam campos inexistentes e podiam enviar nome e posologia vazios.
+- As compilações de API e PADCOM passaram; o verificador global de tipos ainda aponta erros fora dos arquivos desta mudança.
+- A revisão independente exigida pelo ciclo não ficou disponível nesta sessão. Houve revisão manual, mas ela não substitui a revisão independente.
+- A captura visual autenticada não foi possível; o navegador de homologação não possui sessão no sistema. Portanto, a aparência autenticada em celular e computador não está homologada.
+- Não foi encontrada ferramenta de emissão de Laudos no Cockpit. Os links antigos de emissão inicial de Exames fora do novo histórico ainda não foram migrados para a política de sete dias.
+- **Conclusão:** o código está implementado e compilado, mas a homologação permanece BLOQUEADA; não declarar 100% nem liberar como produção clínica.
 
 ## 1. Objetivo
 

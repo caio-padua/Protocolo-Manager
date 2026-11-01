@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, type ElementType } from "react";
 import {
   FileSignature, Share2, Stethoscope, CheckCircle2, Send,
-  Download, ExternalLink, Layers, Clock, CalendarDays,
+  Download, Layers, Clock, CalendarDays, Eye,
 } from "lucide-react";
 import { CidPicker } from "@/components/CidPicker";
 import { useToast } from "@/hooks/use-toast";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { getCollabToken } from "@/lib/collab-auth";
 import ClinicalHistoryToggle from "@/components/ClinicalHistoryToggle";
+import ClinicalDocumentResendForm from "@/components/ClinicalDocumentResendForm";
 import {
   VARIAVEIS_DOC, aplicarVariaveis, montarValores,
 } from "@/lib/doc-variaveis";
@@ -104,7 +105,7 @@ function authHeaders(json = false): Record<string, string> {
   };
 }
 
-async function openClinicalPdf(path: string, download = false) {
+async function openClinicalPdf(path: string, download = false, fileName = "documento-clinico.pdf") {
   const tab = download ? null : window.open("about:blank", "_blank");
   if (tab) tab.opener = null;
   try {
@@ -114,7 +115,7 @@ async function openClinicalPdf(path: string, download = false) {
     if (download) {
       const link = document.createElement("a");
       link.href = url;
-      link.download = path.split("/").pop()?.split("?")[0] || "documento-clinico.pdf";
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -172,7 +173,14 @@ function AtestadoInline({
     }
     let ativo = true;
     setHistoricoErro("");
-    fetch(`${API}/atestados?clientId=${clientId}`, { headers: authHeaders() })
+    let headers: Record<string, string>;
+    try {
+      headers = authHeaders();
+    } catch (error) {
+      setHistoricoErro(error instanceof Error ? error.message : "Faça login de colaborador.");
+      return;
+    }
+    fetch(`${API}/atestados?clientId=${clientId}`, { headers })
       .then(async (response) => {
         if (!response.ok) {
           const data = await response.json().catch(() => null);
@@ -254,8 +262,12 @@ function AtestadoInline({
       const emitido = await emit.json();
 
       toast({ title: "Atestado emitido!", description: "PDF gerado com sucesso." });
-      await openClinicalPdf(`${API}/atestados/${emitido.id}/pdf`);
       setHistoricoAberto(true);
+      try {
+          await openClinicalPdf(`${API}/clinical-documents/atestado/${emitido.id}/pdf`);
+      } catch (error) {
+        toast({ title: "Atestado emitido", description: error instanceof Error ? error.message : "O PDF foi emitido, mas não abriu nesta aba." });
+      }
     } catch (err) {
       toast({
         title: "Erro ao emitir atestado",
@@ -376,18 +388,23 @@ function AtestadoInline({
         </button>
       </div>
 
-      <HistoricoDocs
-        titulo="Últimos atestados"
-        vazio="Nenhum atestado emitido para este cliente."
-        itens={historico.map((a) => ({
-          id: a.id,
-          rotulo: TIPOS_ATESTADO.find((t) => t.value === a.tipo)?.label ?? a.tipo,
-          status: a.status,
-          emittedAt: a.emittedAt,
-          driveWebViewLink: a.driveWebViewLink,
-          pdfUrl: `${API}/atestados/${a.id}/pdf`,
-        }))}
-      />
+      <ClinicalHistoryToggle label="Histórico de atestados emitidos" open={historicoAberto} onOpenChange={setHistoricoAberto} />
+      {historicoAberto && <div className="space-y-3">
+        {historicoErro && <p role="alert" className="text-sm text-destructive">{historicoErro}</p>}
+        <HistoricoDocs
+          titulo="Atestados anteriores"
+          vazio="Nenhum atestado emitido para este cliente."
+          clientId={clientId}
+          documentType="atestado"
+          itens={historico.map((a) => ({
+            id: a.id,
+            rotulo: TIPOS_ATESTADO.find((t) => t.value === a.tipo)?.label ?? a.tipo,
+            status: a.status,
+            emittedAt: a.emittedAt,
+            pdfUrl: `${API}/clinical-documents/atestado/${a.id}/pdf`,
+          }))}
+        />
+      </div>}
     </section>
   );
 }
@@ -521,8 +538,12 @@ function EncaminhamentoInline({
       const emitido = await emit.json();
 
       toast({ title: "Encaminhamento emitido!", description: "PDF gerado com sucesso." });
-      await openClinicalPdf(`${API}/encaminhamentos/${emitido.id}/pdf`);
       setHistoricoAberto(true);
+      try {
+          await openClinicalPdf(`${API}/clinical-documents/encaminhamento/${emitido.id}/pdf`);
+      } catch (error) {
+        toast({ title: "Encaminhamento emitido", description: error instanceof Error ? error.message : "O PDF foi emitido, mas não abriu nesta aba." });
+      }
     } catch (err) {
       toast({
         title: "Erro ao emitir encaminhamento",
@@ -538,18 +559,12 @@ function EncaminhamentoInline({
     <section className="panel-3d space-y-4 p-5">
       <BlockTitle icon={Share2}>Encaminhamento</BlockTitle>
 
-      <div>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#647c97]">Profissional (origem)</label>
-        <select
-          className="field-engraved h-10 w-full px-3"
-          value={profId ?? ""}
-          onChange={(e) => setProfId(e.target.value ? Number(e.target.value) : null)}
-        >
-          <option value="">— selecione —</option>
-          {profissionais.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}{p.crm ? ` — CRM ${p.crm}` : ""}</option>
-          ))}
-        </select>
+      <div className="screen-3d rounded-md p-3">
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Profissional autenticado</p>
+        <p className="mt-1 text-sm font-semibold text-foreground">{profissional?.name ?? "Identidade em validação"}</p>
+        <p className="text-xs text-muted-foreground">
+          {profissional?.crm ? `CRM ${profissional.crm}${profissional.uf ? `/${profissional.uf}` : ""}` : "Registro profissional não disponível"}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -643,18 +658,23 @@ function EncaminhamentoInline({
         </button>
       </div>
 
-      <HistoricoDocs
-        titulo="Últimos encaminhamentos"
-        vazio="Nenhum encaminhamento para este cliente."
-        itens={historico.map((e) => ({
-          id: e.id,
-          rotulo: e.especialidadeDestino,
-          status: e.status,
-          emittedAt: e.emittedAt,
-          driveWebViewLink: e.driveWebViewLink,
-          pdfUrl: `${API}/encaminhamentos/${e.id}/pdf`,
-        }))}
-      />
+      <ClinicalHistoryToggle label="Histórico de encaminhamentos emitidos" open={historicoAberto} onOpenChange={setHistoricoAberto} />
+      {historicoAberto && <div className="space-y-3">
+        {historicoErro && <p role="alert" className="text-sm text-destructive">{historicoErro}</p>}
+        <HistoricoDocs
+          titulo="Encaminhamentos anteriores"
+          vazio="Nenhum encaminhamento emitido para este cliente."
+          clientId={clientId}
+          documentType="encaminhamento"
+          itens={historico.map((e) => ({
+            id: e.id,
+            rotulo: e.especialidadeDestino,
+            status: e.status,
+            emittedAt: e.emittedAt,
+            pdfUrl: `${API}/clinical-documents/encaminhamento/${e.id}/pdf`,
+          }))}
+        />
+      </div>}
     </section>
   );
 }
@@ -667,11 +687,16 @@ interface DocListItem {
   rotulo: string;
   status: string;
   emittedAt: string | null;
-  driveWebViewLink: string | null;
   pdfUrl: string;
 }
 
-function HistoricoDocs({ titulo, vazio, itens }: { titulo: string; vazio: string; itens: DocListItem[] }) {
+function HistoricoDocs({ titulo, vazio, clientId, documentType, itens }: {
+  titulo: string;
+  vazio: string;
+  clientId: number;
+  documentType: "atestado" | "encaminhamento";
+  itens: DocListItem[];
+}) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: OURO }}>
@@ -681,44 +706,51 @@ function HistoricoDocs({ titulo, vazio, itens }: { titulo: string; vazio: string
         <p className="text-sm text-[#647c97]">{vazio}</p>
       ) : (
         <ul className="space-y-2">
-          {itens.map((a) => (
-            <li key={a.id} className="concave-3d flex items-center justify-between rounded-md bg-white px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-[#16294a]">
-                  {a.rotulo}
-                  <span className="ml-2 text-xs text-[#647c97]">#{a.id}</span>
-                </p>
-                <p className="text-xs text-[#647c97]">
-                  {a.status === "emitted" ? "Emitido" : "Rascunho"}
-                  {a.emittedAt ? ` — ${new Date(a.emittedAt).toLocaleString("pt-BR")}` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <a
-                  href={a.pdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bevel-3d inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#647c97] hover:text-[#16294a]"
-                >
-                  <Download className="h-3.5 w-3.5" /> PDF
-                </a>
-                {a.driveWebViewLink && (
-                  <a
-                    href={a.driveWebViewLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bevel-3d inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#647c97] hover:text-[#16294a]"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> Drive
-                  </a>
-                )}
-              </div>
-            </li>
-          ))}
+          {itens.map((item) => <ClinicalDocumentHistoryRow
+            key={item.id} item={item} clientId={clientId} documentType={documentType}
+          />)}
         </ul>
       )}
     </div>
   );
+}
+
+function ClinicalDocumentHistoryRow({ item, clientId, documentType }: {
+  item: DocListItem;
+  clientId: number;
+  documentType: "atestado" | "encaminhamento";
+}) {
+  const [pdfError, setPdfError] = useState("");
+  return <li className="concave-3d space-y-3 rounded-md bg-white px-3 py-2">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-[#16294a]">
+          {item.rotulo}<span className="ml-2 text-xs text-[#647c97]">#{item.id}</span>
+        </p>
+        <p className="text-xs text-[#647c97]">
+          {item.status === "emitted" ? "Emitido" : "Rascunho"}
+          {item.emittedAt ? ` — ${new Date(item.emittedAt).toLocaleString("pt-BR")}` : ""}
+        </p>
+      </div>
+      {item.status === "emitted" && <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <button type="button" onClick={() => {
+          setPdfError("");
+          void openClinicalPdf(item.pdfUrl).catch((error) => setPdfError(error instanceof Error ? error.message : "Falha ao abrir o PDF."));
+        }} className="bevel-3d inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#647c97] hover:text-[#16294a]">
+          <Eye className="h-3.5 w-3.5" /> Abrir
+        </button>
+        <button type="button" onClick={() => {
+          setPdfError("");
+          void openClinicalPdf(`${item.pdfUrl}?download=1`, true, `${documentType}-${item.id}.pdf`)
+            .catch((error) => setPdfError(error instanceof Error ? error.message : "Falha ao baixar o PDF."));
+        }} className="bevel-3d inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#647c97] hover:text-[#16294a]">
+          <Download className="h-3.5 w-3.5" /> Baixar
+        </button>
+      </div>}
+    </div>
+    {pdfError && <p role="alert" className="text-xs text-destructive">{pdfError}</p>}
+    {item.status === "emitted" && <ClinicalDocumentResendForm clientId={clientId} documentType={documentType} documentId={item.id} />}
+  </li>;
 }
 
 function BlockTitle({ icon: Icon, children }: { icon: ElementType; children: React.ReactNode }) {

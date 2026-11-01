@@ -588,6 +588,22 @@ estilo novo por tela. Esta secao e a fonte-da-verdade para propagar o design Pax
 | Status on/off so LEITURA (VITRINE, LIMITES) | StatusChip — Padrao 4 | slot fixo `concave-3d w-[72px] shrink-0` + LED | SEMPRE presente (nunca aparece/some): LED aceso = ativo; apagado + `opacity-70` = inativo |
 | Selecionar 1 entre N (cenario, faixa) | cartao / `Button` `btn-3d-soft` | todos iguais; recomendado por MOLDURA + selo, NAO por cor de botao | a cor do botao nunca carrega "recomendado" nem "aceito" |
 
+### 4.2.1 Historico de documentos clinicos
+
+- Cada tipo de documento tem seu proprio `Switch` acessivel dentro de `ToggleWell`; o historico
+  inicia fechado e so consulta o servidor depois de aberto.
+- Erro de consulta e lista vazia sao estados diferentes; nunca esconder falha como "sem registros".
+- Cada linha do historico mantem identidade, data e acoes alinhadas em colunas estaveis; em celular,
+  as acoes podem quebrar para baixo sem sobrepor o nome ou o estado do documento.
+- Abrir e baixar usam rota autenticada que revalida profissional, cliente e clinica; nao reutilizar
+  link publico antigo nem token de arquivo sem prazo para o uso interno do Cockpit.
+- "Reenviar" abre uma area secundaria por documento, sem disparo automatico; exige canal marcado,
+  destinatario cadastrado e confirmacao explicita.
+- O reenvio transmite o PDF ja emitido, sem gerar ou assinar outro arquivo; e-mail recebe anexo,
+  WhatsApp e Telegram recebem link aleatorio com validade de sete dias.
+- O historico de tentativas exibe canal, destino mascarado e estado fiel: aceitacao do provedor
+  nunca deve ser apresentada como confirmacao de entrega.
+
 ### 4.3 Cor -> significado unico (nunca reaproveitar a cor para 2 sentidos)
 
 | Cor | Significado UNICO | Onde aparece |

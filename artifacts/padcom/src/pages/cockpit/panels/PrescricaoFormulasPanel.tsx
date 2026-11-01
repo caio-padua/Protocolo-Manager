@@ -257,6 +257,14 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       };
     });
 
+  const buildLegacyFormulaPayload = () =>
+    selected.map((formula) => ({
+      nome: formula.name,
+      ativos: formula.ativos,
+      posologia: formula.tomadas.map(tomadaToText).join("; ") || undefined,
+      via: [...new Set(formula.tomadas.map((tomada) => tomada.via).filter(Boolean))].join(", ") || "VO",
+    }));
+
   const validateRouting = (requirePharmacy: boolean): string | null => {
     for (const f of selected) {
       const r = getRoute(f.id);
@@ -281,11 +289,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("collab_token") ?? ""}` },
         body: JSON.stringify({
           clientId,
-          formulas: selected.map(f => ({
-            nome: f.formula,
-            posologia: f.posologia || undefined,
-            via: "oral",
-          })),
+          formulas: buildLegacyFormulaPayload(),
           tipoReceita: "especial",
         }),
       });
@@ -310,11 +314,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("collab_token") ?? ""}` },
         body: JSON.stringify({
           clientId,
-          formulas: selected.map(f => ({
-            nome: f.formula,
-            posologia: f.posologia || undefined,
-            via: "oral",
-          })),
+          formulas: buildLegacyFormulaPayload(),
           tipoReceita: "especial",
         }),
       });
@@ -431,7 +431,6 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
       {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0 space-y-4">
       <ClinicalIdentityPanel identity={identity} />
-      <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</p>
@@ -975,6 +974,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       )}
                     </div>
                   )}
+        <PrescricoesEmitidas clientId={clientId} emissionId={emitResult?.prescriptionId} />
         </div>
       </div>
       </fieldset>}

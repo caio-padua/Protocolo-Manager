@@ -31,7 +31,8 @@ import examRouter from "../routes/exam-requests";
 
 // Synthetic objects, isolated from the real database and external services.
 const professional = { id: 41, name: "Medico sintetico", professionalType: "medico",
-  active: true, crm: "CRM/SP 12345", registrationNumber: null, registrationCouncil: "CRM" } as any;
+  active: true, role: "executor", credentialVersion: 0, crm: "CRM/SP 12345",
+  registrationNumber: null, registrationCouncil: "CRM" } as any;
 const client = { id: 71, name: "Cliente sintetico", status: "active", empresaId: 21, locationId: 31 } as any;
 const location = { id: 31, name: "Clinica sintetica", empresaId: 21, active: "true" } as any;
 const valid = () => ({ professional: { ...professional }, client: { ...client }, location: { ...location }, linked: true });
@@ -89,13 +90,14 @@ describe("rotas reais com banco e provedores isolados", () => {
     expect((await request(app).get("/context/71")).status).toBe(401);
   });
   it("contexto usa o identificador autenticado e vinculo explicito", async () => {
-    mock.results = [[professional], [client], [location], [{ id: 1 }]];
+    mock.results = [[professional], [professional], [client], [location], [{ id: 1 }]];
     const response = await request(app).get("/context/71?empresaId=999").set("Authorization", `Bearer ${token()}`);
     expect(response.status).toBe(200);
     expect(response.body.professional.id).toBe(41);
     expect(response.body.clinic.empresaId).toBe(21);
   });
   it.each([0, -1, 1.5])("rejeita identificador %s", async id => {
+    mock.results = [[professional]];
     expect((await request(app).get(`/context/${id}`).set("Authorization", `Bearer ${token()}`)).status).toBe(400);
   });
   it("pedido anonimo nao gera arquivo nem envia nem grava", async () => {
@@ -104,7 +106,7 @@ describe("rotas reais com banco e provedores isolados", () => {
     expect(mock.insert).not.toHaveBeenCalled(); expect(mock.pdf).not.toHaveBeenCalled(); expect(mock.send).not.toHaveBeenCalled();
   });
   it("pedido com outro medico no corpo e rejeitado antes de efeitos", async () => {
-    mock.results = [[professional], [client], [location], [{ id: 1 }]];
+    mock.results = [[professional], [professional], [client], [location], [{ id: 1 }]];
     const response = await request(app).post("/exam-requests/emit").set("Authorization", `Bearer ${token()}`).send({
       clientId: 71, professionalId: 42, items: [{ nomeExame: "Exame sintetico", tipo: "SANGUE" }],
     });
@@ -112,7 +114,7 @@ describe("rotas reais com banco e provedores isolados", () => {
     expect(mock.insert).not.toHaveBeenCalled(); expect(mock.pdf).not.toHaveBeenCalled(); expect(mock.send).not.toHaveBeenCalled();
   });
   it("pedido sem vinculo e rejeitado antes de efeitos", async () => {
-    mock.results = [[professional], [client], [location], []];
+    mock.results = [[professional], [professional], [client], [location], []];
     const response = await request(app).post("/exam-requests/emit").set("Authorization", `Bearer ${token()}`).send({
       clientId: 71, items: [{ nomeExame: "Exame sintetico", tipo: "SANGUE" }],
     });
@@ -120,7 +122,7 @@ describe("rotas reais com banco e provedores isolados", () => {
     expect(mock.insert).not.toHaveBeenCalled(); expect(mock.pdf).not.toHaveBeenCalled(); expect(mock.send).not.toHaveBeenCalled();
   });
   it("pedido autorizado usa medico e cliente reais, persiste seus ids e nao envia sem escolha", async () => {
-    mock.results = [[professional], [client], [location], [{ id: 1 }]];
+    mock.results = [[professional], [professional], [client], [location], [{ id: 1 }]];
     mock.pdf.mockResolvedValue(new Uint8Array([1, 2, 3]));
     const values = vi.fn(() => ({ returning: async () => [{ id: 101 }] }));
     mock.insert.mockReturnValue({ values });
