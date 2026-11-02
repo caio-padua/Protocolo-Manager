@@ -29,6 +29,8 @@ tags:
     description: Farmácias de manipulação e roteamento de receitas
   - name: prescriptions
     description: Prescrições e desmembramento em receitas
+  - name: clinical-access
+    description: Permissões clínicas por unidade e aprovações médicas
   - name: sncr
     description: Numeração SNCR de medicamentos controlados
   - name: catalog-options
@@ -159,6 +161,169 @@ paths:
         "403": { description: Vinculo clinico nao autorizado }
         "409": { description: Chave de operacao reutilizada com conteudo diferente }
         "422": { description: Destino ou documento indisponivel }
+  /exam-requests/emit:
+    post:
+      operationId: emitExamRequest
+      tags: [prescriptions]
+      summary: Emitir pedido de exames com autorização clínica no servidor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamRequestEmitBody" }
+      responses:
+        "200": { description: Documentos emitidos e resultado de cada canal }
+        "400": { description: Dados inválidos }
+        "401": { description: Login obrigatório }
+        "403": { description: "Médico, cliente, clínica ou concessão sem autorização" }
+        "422": { description: Identidade profissional ou certificado indisponível }
+  /clinical-access/locations:
+    get:
+      operationId: listClinicalAccessLocations
+      tags: [clinical-access]
+      summary: Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos
+      responses:
+        "200":
+          description: Unidades permitidas para a sessão autenticada
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicalAccessLocation" }
+        "401": { description: Login obrigatório }
+        "403": { description: Sem unidade clínica autorizada }
+  /clinical-access/locations/{locationId}/professionals:
+    parameters:
+      - { name: locationId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: listClinicalProfessionalAccess
+      tags: [clinical-access]
+      summary: Listar profissionais vinculados e concessões da unidade autorizada
+      responses:
+        "200":
+          description: Profissionais e permissões da unidade
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicalProfessionalAccess" }
+        "401": { description: Login obrigatório }
+        "403": { description: Unidade não autorizada }
+  /clinical-access/locations/{locationId}/professionals/{professionalId}:
+    parameters:
+      - { name: locationId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      - { name: professionalId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    put:
+      operationId: updateClinicalProfessionalAccess
+      tags: [clinical-access]
+      summary: Atualizar acessos individuais de prescrição e exame
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicalAccessUpdate" }
+      responses:
+        "200":
+          description: Concessões atualizadas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalProfessionalAccess" }
+        "400": { description: Permissão incompatível com a função }
+        "401": { description: Login obrigatório }
+        "403": { description: Ator sem autorização de gestão nesta unidade }
+        "404": { description: Profissional sem vínculo à unidade }
+  /clinical-access/locations/{locationId}/professionals/{professionalId}/administration:
+    put:
+      operationId: updateClinicalProfessionalAdministration
+      tags: [clinical-access]
+      summary: Designar administrador local ou médico responsável
+      parameters:
+        - { name: locationId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: professionalId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicalAdministrationUpdate" }
+      responses:
+        "200":
+          description: Designações atualizadas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalProfessionalAccess" }
+        "400": { description: Designação inválida ou profissional não elegível }
+        "401": { description: Login obrigatório }
+        "403": { description: Somente proprietário global pode alterar estas designações }
+        "404": { description: Profissional sem vínculo à unidade }
+  /clinical-approvals:
+    get:
+      operationId: listClinicalApprovals
+      tags: [clinical-access]
+      summary: Listar pendências da unidade e solicitações próprias autorizadas
+      responses:
+        "200":
+          description: Fila autorizada, sem dados fora das unidades vinculadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicalApproval" }
+        "401": { description: Login obrigatório }
+    post:
+      operationId: createClinicalApproval
+      tags: [clinical-access]
+      summary: Salvar prescrição ou pedido de exames para conferência médica
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicalApprovalInput" }
+      responses:
+        "201":
+          description: Solicitação persistida sem assinar nem enviar documento
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalApproval" }
+        "400": { description: Dados clínicos inválidos }
+        "401": { description: Login obrigatório }
+        "403": { description: "Profissional, cliente, unidade ou função sem autorização" }
+        "409": { description: Chave repetida com conteúdo diferente }
+        "422": { description: Unidade sem médico responsável ativo }
+  /clinical-approvals/count:
+    get:
+      operationId: countClinicalApprovals
+      tags: [clinical-access]
+      summary: Contar pendências do médico responsável autenticado
+      responses:
+        "200":
+          description: Contagem de pendências, sem expor conteúdo clínico
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalApprovalCount" }
+        "401": { description: Login obrigatório }
+  /clinical-approvals/{id}/reject:
+    post:
+      operationId: rejectClinicalApproval
+      tags: [clinical-access]
+      summary: Rejeitar uma solicitação com motivo obrigatório
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicalApprovalRejection" }
+      responses:
+        "200":
+          description: Solicitação rejeitada e preservada no histórico
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalApproval" }
+        "400": { description: Motivo inválido }
+        "401": { description: Login obrigatório }
+        "403": { description: Somente o médico responsável atual pode rejeitar }
+        "404": { description: Solicitação fora do escopo autorizado }
+        "409": { description: Solicitação já decidida ou em processamento }
   /receituario/assinar-imagem-pdf:
     post:
       operationId: signVisualPrescription
@@ -5854,6 +6019,9 @@ components:
     EmitBody:
       type: object
       properties:
+        approvalRequestId:
+          type: integer
+          minimum: 1
         clientId:
           type: integer
           nullable: true
@@ -5896,6 +6064,132 @@ components:
       required:
         - clientName
         - items
+
+    ExamRequestEmitBody:
+      type: object
+      additionalProperties: false
+      properties:
+        approvalRequestId: { type: integer, minimum: 1 }
+        clientId: { type: integer, minimum: 1 }
+        professionalId: { type: ["integer", "null"], minimum: 1 }
+        observacao: { type: ["string", "null"] }
+        sendEmail: { type: boolean, default: false }
+        sendWhatsapp: { type: boolean, default: false }
+        individualDocuments: { type: boolean, default: false }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/ExamRequestEmitItem" }
+      required: [clientId, items]
+
+    ExamRequestEmitItem:
+      type: object
+      additionalProperties: false
+      properties:
+        nomeExame: { type: string, minLength: 1 }
+        codigoExame: { type: ["string", "null"] }
+        grupoPrincipal: { type: ["string", "null"] }
+        preparo: { type: ["string", "null"] }
+        tipo: { type: string, enum: [SANGUE, IMAGEM, OUTROS] }
+      required: [nomeExame, tipo]
+
+    ClinicalAccessLocation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        empresaId: { type: integer }
+        canManage: { type: boolean }
+        canReview: { type: boolean }
+      required: [id, name, empresaId, canManage, canReview]
+
+    ClinicalProfessionalAccess:
+      type: object
+      additionalProperties: false
+      properties:
+        professionalId: { type: integer }
+        name: { type: string }
+        professionalType: { type: ["string", "null"] }
+        category: { type: ["string", "null"] }
+        active: { type: boolean }
+        canPrescribe: { type: boolean }
+        canRequestExams: { type: boolean }
+        globalAllowsPrescribe: { type: boolean }
+        globalAllowsExamRequests: { type: boolean }
+        isClinicAdmin: { type: boolean }
+        isResponsibleDoctor: { type: boolean }
+      required: [professionalId, name, active, canPrescribe, canRequestExams, globalAllowsPrescribe, globalAllowsExamRequests, isClinicAdmin, isResponsibleDoctor]
+
+    ClinicalAccessUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        canPrescribe: { type: boolean }
+        canRequestExams: { type: boolean }
+      required: [canPrescribe, canRequestExams]
+
+    ClinicalAdministrationUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        isClinicAdmin: { type: boolean }
+        isResponsibleDoctor: { type: boolean }
+      required: [isClinicAdmin, isResponsibleDoctor]
+
+    ClinicalApprovalInput:
+      type: object
+      additionalProperties: false
+      properties:
+        requestKey: { type: string, minLength: 16, maxLength: 100 }
+        kind: { type: string, enum: [prescricao, pedido_exames] }
+        clientId: { type: integer, minimum: 1 }
+        payload:
+          type: object
+          additionalProperties: true
+      required: [requestKey, kind, clientId, payload]
+
+    ClinicalApproval:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [prescricao, pedido_exames] }
+        status: { type: string, enum: [pendente, processando, aprovado, rejeitado, conferir_resultado] }
+        clientId: { type: integer }
+        clientName: { type: string }
+        locationId: { type: integer }
+        locationName: { type: string }
+        empresaId: { type: integer }
+        preparedByProfessionalId: { type: integer }
+        preparedByName: { type: string }
+        responsibleDoctorName: { type: ["string", "null"] }
+        payload:
+          type: object
+          additionalProperties: true
+        resultDocumentIds:
+          type: array
+          items: { type: integer }
+        rejectionReason: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        canReview: { type: boolean }
+      required: [id, kind, status, clientId, clientName, locationId, locationName, empresaId, preparedByProfessionalId, preparedByName, payload, resultDocumentIds, createdAt, canReview]
+
+    ClinicalApprovalRejection:
+      type: object
+      additionalProperties: false
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+      required: [reason]
+
+    ClinicalApprovalCount:
+      type: object
+      additionalProperties: false
+      properties:
+        count: { type: integer, minimum: 0 }
+      required: [count]
 
     EmittedRecipe:
       type: object

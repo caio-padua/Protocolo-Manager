@@ -5,7 +5,8 @@
 // os DEFAULTS plausiveis e os helpers de leitura. O front (tela da matriz + o
 // menu que obedece) e o back (rotas de settings) importam daqui — sem copia.
 //
-// Papel = coluna `category` da tabela `professionals`. O CEO (isPrimaryDoctor)
+// Papel = coluna `category` da tabela `professionals`. O proprietário global
+// (isPlatformOwner)
 // nunca e uma coluna editavel: ele ve e faz tudo, e e o unico que altera a
 // matriz. Ferramentas com `soCeo` sao reservadas ao CEO (cadeado, nunca chave).
 // ============================================================================
@@ -60,6 +61,9 @@ export const GRUPOS: GrupoFerramentas[] = [
   {
     grupo: "Documentos",
     itens: [
+      { id: "prescricao", nome: "Prescrição" },
+      { id: "pedido_exames", nome: "Pedido de exames" },
+      { id: "aprovacoes_clinicas", nome: "Fila de aprovações clínicas", href: "/cadastros/governanca/aprovacoes" },
       { id: "atestado", nome: "Atestado" },
       { id: "encaminhamento", nome: "Encaminhamento" },
       { id: "laudo_saude", nome: "Laudo · Estado de Saúde" },
@@ -82,6 +86,7 @@ export const GRUPOS: GrupoFerramentas[] = [
       { id: "financeiro", nome: "Financeiro" },
       { id: "estoque", nome: "Estoque" },
       { id: "corpo_clinico", nome: "Corpo Clínico" },
+      { id: "gerenciar_liberacoes_clinicas", nome: "Gerenciar liberações clínicas" },
       { id: "governanca", nome: "Governança", soCeo: true, href: "/cadastros/governanca" },
     ],
   },
@@ -93,6 +98,11 @@ export type Matriz = Record<string, Record<string, boolean>>;
 // Papeis liberados por padrao em cada ferramenta (tabela de defaults da spec).
 // Ferramentas soCeo ficam OFF para todos (o CEO passa por fora da matriz).
 const DEFAULT_ON: Record<string, PapelId[]> = {
+  // A matriz define a função; a concessão individual por unidade ainda é exigida.
+  prescricao: ["medico", "enfermagem"],
+  pedido_exames: ["medico", "enfermagem"],
+  aprovacoes_clinicas: ["medico", "enfermagem"],
+  gerenciar_liberacoes_clinicas: ["administrativo"],
   exames_importar: ["medico", "enfermagem", "recepcao"],
   exames_triagem: ["medico", "enfermagem"],
   exames_faixas: ["medico"],

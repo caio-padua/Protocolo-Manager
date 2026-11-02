@@ -147,3 +147,96 @@ ALTER TABLE collaborator_audit
 
 CREATE INDEX IF NOT EXISTS collaborator_audit_subject_created_idx
   ON collaborator_audit (subject_professional_id, created_at);
+
+-- Permissões clínicas por unidade, pedidos de conferência e trilhas que não podem
+-- ser apagadas pela aplicação. Os acessos existentes começam desligados.
+CREATE TABLE IF NOT EXISTS clinical_access_grants (
+  id SERIAL PRIMARY KEY,
+  empresa_id INTEGER NOT NULL,
+  location_id INTEGER NOT NULL REFERENCES locations(id),
+  professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  can_prescribe BOOLEAN NOT NULL DEFAULT FALSE,
+  can_request_exams BOOLEAN NOT NULL DEFAULT FALSE,
+  is_clinic_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  is_responsible_doctor BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_by_professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT clinical_access_grants_positive_scope_ck
+    CHECK (empresa_id > 0 AND location_id > 0 AND professional_id > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS clinical_access_grants_professional_location_uk
+  ON clinical_access_grants (professional_id, location_id);
+CREATE UNIQUE INDEX IF NOT EXISTS clinical_access_grants_one_responsible_per_location_uk
+  ON clinical_access_grants (location_id)
+  WHERE is_responsible_doctor IS TRUE;
+CREATE INDEX IF NOT EXISTS clinical_access_grants_location_company_idx
+  ON clinical_access_grants (location_id, empresa_id);
+
+CREATE TABLE IF NOT EXISTS clinical_approval_requests (
+  id SERIAL PRIMARY KEY,
+  request_key TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('prescricao', 'pedido_exames')),
+  status TEXT NOT NULL DEFAULT 'pendente'
+    CHECK (status IN ('pendente', 'processando', 'aprovado', 'rejeitado', 'conferir_resultado')),
+  empresa_id INTEGER NOT NULL,
+  location_id INTEGER NOT NULL REFERENCES locations(id),
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  prepared_by_professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  payload JSONB NOT NULL,
+  result JSONB,
+  rejection_reason TEXT,
+  decided_by_professional_id INTEGER REFERENCES professionals(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at TIMESTAMPTZ,
+  CONSTRAINT clinical_approval_requests_positive_scope_ck
+    CHECK (empresa_id > 0 AND location_id > 0 AND client_id > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS clinical_approval_requests_requester_key_uk
+  ON clinical_approval_requests (prepared_by_professional_id, request_key);
+CREATE INDEX IF NOT EXISTS clinical_approval_requests_review_queue_idx
+  ON clinical_approval_requests (empresa_id, location_id, status, created_at);
+CREATE INDEX IF NOT EXISTS clinical_approval_requests_requester_history_idx
+  ON clinical_approval_requests (prepared_by_professional_id, created_at);
+
+CREATE TABLE IF NOT EXISTS clinical_approval_events (
+  id SERIAL PRIMARY KEY,
+  request_id INTEGER NOT NULL REFERENCES clinical_approval_requests(id),
+  actor_professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  event_type TEXT NOT NULL,
+  details JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS clinical_approval_events_request_timeline_idx
+  ON clinical_approval_events (request_id, created_at);
+
+CREATE TABLE IF NOT EXISTS clinical_access_audit (
+  id SERIAL PRIMARY KEY,
+  empresa_id INTEGER NOT NULL,
+  location_id INTEGER NOT NULL REFERENCES locations(id),
+  subject_professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  actor_professional_id INTEGER NOT NULL REFERENCES professionals(id),
+  before JSONB,
+  after JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS clinical_access_audit_scope_timeline_idx
+  ON clinical_access_audit (empresa_id, location_id, created_at);
+CREATE INDEX IF NOT EXISTS clinical_access_audit_subject_timeline_idx
+  ON clinical_access_audit (subject_professional_id, created_at);
+
+ALTER TABLE prescriptions
+  ADD COLUMN IF NOT EXISTS approval_request_id INTEGER;
+ALTER TABLE exam_request_pdfs
+  ADD COLUMN IF NOT EXISTS approval_request_id INTEGER;
+
+CREATE UNIQUE INDEX IF NOT EXISTS prescriptions_approval_request_unique
+  ON prescriptions (approval_request_id)
+  WHERE approval_request_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS exam_request_pdfs_approval_request_idx
+  ON exam_request_pdfs (approval_request_id)
+  WHERE approval_request_id IS NOT NULL;

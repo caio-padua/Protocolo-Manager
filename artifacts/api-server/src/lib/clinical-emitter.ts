@@ -31,15 +31,9 @@ export function validateClinicalIdentity(input: {
   linked: boolean;
 }) {
   const { professional, client, location, linked } = input;
-  if (!professional?.active || professional.professionalType !== "medico") {
+  validateClinicalMembership(input);
+  if (professional.professionalType !== "medico") {
     throw new ClinicalIdentityError(403, "O acesso autenticado não pertence a um médico ativo.");
-  }
-  if (!client || client.status !== "active" || !client.empresaId || !client.locationId) {
-    throw new ClinicalIdentityError(403, "Cliente indisponível para emissão clínica ou vínculo cadastral incompleto.");
-  }
-  if (!location || location.active !== "true" || location.id !== client.locationId ||
-      location.empresaId !== client.empresaId || !linked) {
-    throw new ClinicalIdentityError(403, "O médico não possui vínculo autorizado com a clínica deste cliente.");
   }
   const registration = medicalRegistration(professional);
   return {
@@ -51,7 +45,45 @@ export function validateClinicalIdentity(input: {
   };
 }
 
-export async function resolveClinicalEmitter(req: Request, clientId: unknown) {
+export function validateClinicalMembership(input: {
+  professional: typeof professionalsTable.$inferSelect | undefined;
+  client: typeof clientsTable.$inferSelect | undefined;
+  location: typeof locationsTable.$inferSelect | undefined;
+  linked: boolean;
+}) {
+  const { professional, client, location, linked } = input;
+  if (!professional?.active) {
+    throw new ClinicalIdentityError(403, "O acesso autenticado não pertence a um profissional ativo.");
+  }
+  if (!client || client.status !== "active" || !client.empresaId || !client.locationId) {
+    throw new ClinicalIdentityError(403, "Cliente indisponível para emissão clínica ou vínculo cadastral incompleto.");
+  }
+  if (!location || location.active !== "true" || location.id !== client.locationId ||
+      location.empresaId !== client.empresaId || !linked) {
+    throw new ClinicalIdentityError(403, "O profissional não possui vínculo autorizado com a clínica deste cliente.");
+  }
+  return {
+    professional: {
+      id: professional.id,
+      name: professional.name,
+      cpf: professional.cpf,
+      professionalType: professional.professionalType,
+      category: professional.category,
+      active: professional.active,
+    },
+    client: {
+      id: client.id,
+      name: client.name,
+      cpf: client.cpf,
+      email: client.email,
+      phone: client.phone,
+      birthDate: client.birthDate,
+    },
+    clinic: { id: location.id, empresaId: client.empresaId, name: location.name },
+  };
+}
+
+export async function resolveClinicalMember(req: Request, clientId: unknown) {
   if (!req.collaborator) throw new ClinicalIdentityError(401, "Faça login de colaborador.");
   if (typeof clientId !== "number" || !Number.isSafeInteger(clientId) || clientId <= 0) {
     throw new ClinicalIdentityError(400, "Selecione um cliente cadastrado.");
@@ -68,5 +100,19 @@ export async function resolveClinicalEmitter(req: Request, clientId: unknown) {
       .where(and(eq(locationProfessionalsTable.locationId, location.id),
         eq(locationProfessionalsTable.professionalId, req.collaborator.professionalId))).limit(1)
     : [];
-  return validateClinicalIdentity({ professional, client, location, linked: !!membership });
+  return validateClinicalMembership({ professional, client, location, linked: !!membership });
+}
+
+export async function resolveClinicalEmitter(req: Request, clientId: unknown) {
+  const member = await resolveClinicalMember(req, clientId);
+  if (member.professional.professionalType !== "medico") {
+    throw new ClinicalIdentityError(403, "O acesso autenticado não pertence a um médico ativo.");
+  }
+  const [professional] = await db.select().from(professionalsTable)
+    .where(eq(professionalsTable.id, member.professional.id)).limit(1);
+  const [client] = await db.select().from(clientsTable)
+    .where(eq(clientsTable.id, member.client.id)).limit(1);
+  const [location] = await db.select().from(locationsTable)
+    .where(eq(locationsTable.id, member.clinic.id)).limit(1);
+  return validateClinicalIdentity({ professional, client, location, linked: true });
 }

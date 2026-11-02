@@ -206,6 +206,235 @@ export const SendExamRequestDocumentsResponse = zod.object({
 });
 
 /**
+ * @summary Emitir pedido de exames com autorização clínica no servidor
+ */
+
+export const emitExamRequestBodySendEmailDefault = false;
+export const emitExamRequestBodySendWhatsappDefault = false;
+export const emitExamRequestBodyIndividualDocumentsDefault = false;
+export const emitExamRequestBodyItemsMax = 100;
+
+export const EmitExamRequestBody = zod.object({
+  approvalRequestId: zod.number().min(1).optional(),
+  clientId: zod.number().min(1),
+  professionalId: zod.number().min(1).nullish(),
+  observacao: zod.string().nullish(),
+  sendEmail: zod.boolean().default(emitExamRequestBodySendEmailDefault),
+  sendWhatsapp: zod.boolean().default(emitExamRequestBodySendWhatsappDefault),
+  individualDocuments: zod
+    .boolean()
+    .default(emitExamRequestBodyIndividualDocumentsDefault),
+  items: zod
+    .array(
+      zod.object({
+        nomeExame: zod.string().min(1),
+        codigoExame: zod.string().nullish(),
+        grupoPrincipal: zod.string().nullish(),
+        preparo: zod.string().nullish(),
+        tipo: zod.enum(["SANGUE", "IMAGEM", "OUTROS"]),
+      }),
+    )
+    .min(1)
+    .max(emitExamRequestBodyItemsMax),
+});
+
+/**
+ * @summary Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos
+ */
+export const ListClinicalAccessLocationsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  empresaId: zod.number(),
+  canManage: zod.boolean(),
+  canReview: zod.boolean(),
+});
+export const ListClinicalAccessLocationsResponse = zod.array(
+  ListClinicalAccessLocationsResponseItem,
+);
+
+/**
+ * @summary Listar profissionais vinculados e concessões da unidade autorizada
+ */
+
+export const ListClinicalProfessionalAccessParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+});
+
+export const ListClinicalProfessionalAccessResponseItem = zod.object({
+  professionalId: zod.number(),
+  name: zod.string(),
+  professionalType: zod.string().nullish(),
+  category: zod.string().nullish(),
+  active: zod.boolean(),
+  canPrescribe: zod.boolean(),
+  canRequestExams: zod.boolean(),
+  globalAllowsPrescribe: zod.boolean(),
+  globalAllowsExamRequests: zod.boolean(),
+  isClinicAdmin: zod.boolean(),
+  isResponsibleDoctor: zod.boolean(),
+});
+export const ListClinicalProfessionalAccessResponse = zod.array(
+  ListClinicalProfessionalAccessResponseItem,
+);
+
+/**
+ * @summary Atualizar acessos individuais de prescrição e exame
+ */
+
+export const UpdateClinicalProfessionalAccessParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+  professionalId: zod.coerce.number().min(1),
+});
+
+export const UpdateClinicalProfessionalAccessBody = zod.object({
+  canPrescribe: zod.boolean(),
+  canRequestExams: zod.boolean(),
+});
+
+export const UpdateClinicalProfessionalAccessResponse = zod.object({
+  professionalId: zod.number(),
+  name: zod.string(),
+  professionalType: zod.string().nullish(),
+  category: zod.string().nullish(),
+  active: zod.boolean(),
+  canPrescribe: zod.boolean(),
+  canRequestExams: zod.boolean(),
+  globalAllowsPrescribe: zod.boolean(),
+  globalAllowsExamRequests: zod.boolean(),
+  isClinicAdmin: zod.boolean(),
+  isResponsibleDoctor: zod.boolean(),
+});
+
+/**
+ * @summary Designar administrador local ou médico responsável
+ */
+
+export const UpdateClinicalProfessionalAdministrationParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+  professionalId: zod.coerce.number().min(1),
+});
+
+export const UpdateClinicalProfessionalAdministrationBody = zod.object({
+  isClinicAdmin: zod.boolean(),
+  isResponsibleDoctor: zod.boolean(),
+});
+
+export const UpdateClinicalProfessionalAdministrationResponse = zod.object({
+  professionalId: zod.number(),
+  name: zod.string(),
+  professionalType: zod.string().nullish(),
+  category: zod.string().nullish(),
+  active: zod.boolean(),
+  canPrescribe: zod.boolean(),
+  canRequestExams: zod.boolean(),
+  globalAllowsPrescribe: zod.boolean(),
+  globalAllowsExamRequests: zod.boolean(),
+  isClinicAdmin: zod.boolean(),
+  isResponsibleDoctor: zod.boolean(),
+});
+
+/**
+ * @summary Listar pendências da unidade e solicitações próprias autorizadas
+ */
+export const ListClinicalApprovalsResponseItem = zod.object({
+  id: zod.number(),
+  kind: zod.enum(["prescricao", "pedido_exames"]),
+  status: zod.enum([
+    "pendente",
+    "processando",
+    "aprovado",
+    "rejeitado",
+    "conferir_resultado",
+  ]),
+  clientId: zod.number(),
+  clientName: zod.string(),
+  locationId: zod.number(),
+  locationName: zod.string(),
+  empresaId: zod.number(),
+  preparedByProfessionalId: zod.number(),
+  preparedByName: zod.string(),
+  responsibleDoctorName: zod.string().nullish(),
+  payload: zod.record(zod.string(), zod.unknown()),
+  resultDocumentIds: zod.array(zod.number()),
+  rejectionReason: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  decidedAt: zod.coerce.date().nullish(),
+  canReview: zod.boolean(),
+});
+export const ListClinicalApprovalsResponse = zod.array(
+  ListClinicalApprovalsResponseItem,
+);
+
+/**
+ * @summary Salvar prescrição ou pedido de exames para conferência médica
+ */
+export const createClinicalApprovalBodyRequestKeyMin = 16;
+export const createClinicalApprovalBodyRequestKeyMax = 100;
+
+export const CreateClinicalApprovalBody = zod.object({
+  requestKey: zod
+    .string()
+    .min(createClinicalApprovalBodyRequestKeyMin)
+    .max(createClinicalApprovalBodyRequestKeyMax),
+  kind: zod.enum(["prescricao", "pedido_exames"]),
+  clientId: zod.number().min(1),
+  payload: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Contar pendências do médico responsável autenticado
+ */
+export const countClinicalApprovalsResponseCountMin = 0;
+
+export const CountClinicalApprovalsResponse = zod.object({
+  count: zod.number().min(countClinicalApprovalsResponseCountMin),
+});
+
+/**
+ * @summary Rejeitar uma solicitação com motivo obrigatório
+ */
+
+export const RejectClinicalApprovalParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const rejectClinicalApprovalBodyReasonMin = 3;
+export const rejectClinicalApprovalBodyReasonMax = 1000;
+
+export const RejectClinicalApprovalBody = zod.object({
+  reason: zod
+    .string()
+    .min(rejectClinicalApprovalBodyReasonMin)
+    .max(rejectClinicalApprovalBodyReasonMax),
+});
+
+export const RejectClinicalApprovalResponse = zod.object({
+  id: zod.number(),
+  kind: zod.enum(["prescricao", "pedido_exames"]),
+  status: zod.enum([
+    "pendente",
+    "processando",
+    "aprovado",
+    "rejeitado",
+    "conferir_resultado",
+  ]),
+  clientId: zod.number(),
+  clientName: zod.string(),
+  locationId: zod.number(),
+  locationName: zod.string(),
+  empresaId: zod.number(),
+  preparedByProfessionalId: zod.number(),
+  preparedByName: zod.string(),
+  responsibleDoctorName: zod.string().nullish(),
+  payload: zod.record(zod.string(), zod.unknown()),
+  resultDocumentIds: zod.array(zod.number()),
+  rejectionReason: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  decidedAt: zod.coerce.date().nullish(),
+  canReview: zod.boolean(),
+});
+
+/**
  * @summary Render and sign an authorized prescription on the server without dispatch
  */
 
@@ -2507,7 +2736,9 @@ export const PreviewPrescriptionResponse = zod.array(
 /**
  * @summary Emite a prescrição (desmembra, gera PDFs, Drive, WhatsApp)
  */
+
 export const EmitPrescriptionBody = zod.object({
+  approvalRequestId: zod.number().min(1).optional(),
   clientId: zod.number().nullish(),
   clientName: zod.string(),
   clientCpf: zod.string().nullish(),

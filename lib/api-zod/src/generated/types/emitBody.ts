@@ -8,6 +8,8 @@
 import type { PrescriptionItemInput } from "./prescriptionItemInput";
 
 export interface EmitBody {
+  /** @minimum 1 */
+  approvalRequestId?: number;
   clientId?: number | null;
   clientName: string;
   clientCpf?: string | null;

@@ -30,6 +30,7 @@ export * from "./motor";
 export * from "./mega-anamnese";
 export * from "./anamnese-v2";
 export * from "./exam-requests";
+export * from "./clinical-approvals";
 export * from "./exam-results";
 export * from "./exam-image";
 export * from "./catalog-options";

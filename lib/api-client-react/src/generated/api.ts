@@ -62,9 +62,17 @@ import type {
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
   Client,
+  ClinicalAccessLocation,
+  ClinicalAccessUpdate,
+  ClinicalAdministrationUpdate,
+  ClinicalApproval,
+  ClinicalApprovalCount,
+  ClinicalApprovalInput,
+  ClinicalApprovalRejection,
   ClinicalDeliveryContext,
   ClinicalDeliveryInput,
   ClinicalDeliveryResult,
+  ClinicalProfessionalAccess,
   ClinicsSettings,
   CompanySettings,
   ConciergeChargeResult,
@@ -96,6 +104,7 @@ import type {
   ErrorResponse,
   ExamDocumentDispatchInput,
   ExamDocumentDispatchResult,
+  ExamRequestEmitBody,
   ExamRequestHistory,
   FinancialGoal,
   FinancialGoalInput,
@@ -677,6 +686,844 @@ export const useSendExamRequestDocuments = <
   TContext
 > => {
   return useMutation(getSendExamRequestDocumentsMutationOptions(options));
+};
+
+/**
+ * @summary Emitir pedido de exames com autorização clínica no servidor
+ */
+export const getEmitExamRequestUrl = () => {
+  return `/api/exam-requests/emit`;
+};
+
+export const emitExamRequest = async (
+  examRequestEmitBody: ExamRequestEmitBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getEmitExamRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(examRequestEmitBody),
+  });
+};
+
+export const getEmitExamRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof emitExamRequest>>,
+    TError,
+    { data: BodyType<ExamRequestEmitBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof emitExamRequest>>,
+  TError,
+  { data: BodyType<ExamRequestEmitBody> },
+  TContext
+> => {
+  const mutationKey = ["emitExamRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof emitExamRequest>>,
+    { data: BodyType<ExamRequestEmitBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return emitExamRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EmitExamRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof emitExamRequest>>
+>;
+export type EmitExamRequestMutationBody = BodyType<ExamRequestEmitBody>;
+export type EmitExamRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Emitir pedido de exames com autorização clínica no servidor
+ */
+export const useEmitExamRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof emitExamRequest>>,
+    TError,
+    { data: BodyType<ExamRequestEmitBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof emitExamRequest>>,
+  TError,
+  { data: BodyType<ExamRequestEmitBody> },
+  TContext
+> => {
+  return useMutation(getEmitExamRequestMutationOptions(options));
+};
+
+/**
+ * @summary Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos
+ */
+export const getListClinicalAccessLocationsUrl = () => {
+  return `/api/clinical-access/locations`;
+};
+
+export const listClinicalAccessLocations = async (
+  options?: RequestInit,
+): Promise<ClinicalAccessLocation[]> => {
+  return customFetch<ClinicalAccessLocation[]>(
+    getListClinicalAccessLocationsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClinicalAccessLocationsQueryKey = () => {
+  return [`/api/clinical-access/locations`] as const;
+};
+
+export const getListClinicalAccessLocationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClinicalAccessLocations>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalAccessLocations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListClinicalAccessLocationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClinicalAccessLocations>>
+  > = ({ signal }) =>
+    listClinicalAccessLocations({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalAccessLocations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClinicalAccessLocationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClinicalAccessLocations>>
+>;
+export type ListClinicalAccessLocationsQueryError = ErrorType<void>;
+
+/**
+ * @summary Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos
+ */
+
+export function useListClinicalAccessLocations<
+  TData = Awaited<ReturnType<typeof listClinicalAccessLocations>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalAccessLocations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClinicalAccessLocationsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Listar profissionais vinculados e concessões da unidade autorizada
+ */
+export const getListClinicalProfessionalAccessUrl = (locationId: number) => {
+  return `/api/clinical-access/locations/${locationId}/professionals`;
+};
+
+export const listClinicalProfessionalAccess = async (
+  locationId: number,
+  options?: RequestInit,
+): Promise<ClinicalProfessionalAccess[]> => {
+  return customFetch<ClinicalProfessionalAccess[]>(
+    getListClinicalProfessionalAccessUrl(locationId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClinicalProfessionalAccessQueryKey = (
+  locationId: number,
+) => {
+  return [
+    `/api/clinical-access/locations/${locationId}/professionals`,
+  ] as const;
+};
+
+export const getListClinicalProfessionalAccessQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClinicalProfessionalAccess>>,
+  TError = ErrorType<void>,
+>(
+  locationId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClinicalProfessionalAccess>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListClinicalProfessionalAccessQueryKey(locationId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClinicalProfessionalAccess>>
+  > = ({ signal }) =>
+    listClinicalProfessionalAccess(locationId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!locationId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalProfessionalAccess>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClinicalProfessionalAccessQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClinicalProfessionalAccess>>
+>;
+export type ListClinicalProfessionalAccessQueryError = ErrorType<void>;
+
+/**
+ * @summary Listar profissionais vinculados e concessões da unidade autorizada
+ */
+
+export function useListClinicalProfessionalAccess<
+  TData = Awaited<ReturnType<typeof listClinicalProfessionalAccess>>,
+  TError = ErrorType<void>,
+>(
+  locationId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClinicalProfessionalAccess>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClinicalProfessionalAccessQueryOptions(
+    locationId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Atualizar acessos individuais de prescrição e exame
+ */
+export const getUpdateClinicalProfessionalAccessUrl = (
+  locationId: number,
+  professionalId: number,
+) => {
+  return `/api/clinical-access/locations/${locationId}/professionals/${professionalId}`;
+};
+
+export const updateClinicalProfessionalAccess = async (
+  locationId: number,
+  professionalId: number,
+  clinicalAccessUpdate: ClinicalAccessUpdate,
+  options?: RequestInit,
+): Promise<ClinicalProfessionalAccess> => {
+  return customFetch<ClinicalProfessionalAccess>(
+    getUpdateClinicalProfessionalAccessUrl(locationId, professionalId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(clinicalAccessUpdate),
+    },
+  );
+};
+
+export const getUpdateClinicalProfessionalAccessMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAccess>>,
+    TError,
+    {
+      locationId: number;
+      professionalId: number;
+      data: BodyType<ClinicalAccessUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateClinicalProfessionalAccess>>,
+  TError,
+  {
+    locationId: number;
+    professionalId: number;
+    data: BodyType<ClinicalAccessUpdate>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateClinicalProfessionalAccess"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAccess>>,
+    {
+      locationId: number;
+      professionalId: number;
+      data: BodyType<ClinicalAccessUpdate>;
+    }
+  > = (props) => {
+    const { locationId, professionalId, data } = props ?? {};
+
+    return updateClinicalProfessionalAccess(
+      locationId,
+      professionalId,
+      data,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateClinicalProfessionalAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateClinicalProfessionalAccess>>
+>;
+export type UpdateClinicalProfessionalAccessMutationBody =
+  BodyType<ClinicalAccessUpdate>;
+export type UpdateClinicalProfessionalAccessMutationError = ErrorType<void>;
+
+/**
+ * @summary Atualizar acessos individuais de prescrição e exame
+ */
+export const useUpdateClinicalProfessionalAccess = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAccess>>,
+    TError,
+    {
+      locationId: number;
+      professionalId: number;
+      data: BodyType<ClinicalAccessUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateClinicalProfessionalAccess>>,
+  TError,
+  {
+    locationId: number;
+    professionalId: number;
+    data: BodyType<ClinicalAccessUpdate>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getUpdateClinicalProfessionalAccessMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Designar administrador local ou médico responsável
+ */
+export const getUpdateClinicalProfessionalAdministrationUrl = (
+  locationId: number,
+  professionalId: number,
+) => {
+  return `/api/clinical-access/locations/${locationId}/professionals/${professionalId}/administration`;
+};
+
+export const updateClinicalProfessionalAdministration = async (
+  locationId: number,
+  professionalId: number,
+  clinicalAdministrationUpdate: ClinicalAdministrationUpdate,
+  options?: RequestInit,
+): Promise<ClinicalProfessionalAccess> => {
+  return customFetch<ClinicalProfessionalAccess>(
+    getUpdateClinicalProfessionalAdministrationUrl(locationId, professionalId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(clinicalAdministrationUpdate),
+    },
+  );
+};
+
+export const getUpdateClinicalProfessionalAdministrationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAdministration>>,
+    TError,
+    {
+      locationId: number;
+      professionalId: number;
+      data: BodyType<ClinicalAdministrationUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateClinicalProfessionalAdministration>>,
+  TError,
+  {
+    locationId: number;
+    professionalId: number;
+    data: BodyType<ClinicalAdministrationUpdate>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateClinicalProfessionalAdministration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAdministration>>,
+    {
+      locationId: number;
+      professionalId: number;
+      data: BodyType<ClinicalAdministrationUpdate>;
+    }
+  > = (props) => {
+    const { locationId, professionalId, data } = props ?? {};
+
+    return updateClinicalProfessionalAdministration(
+      locationId,
+      professionalId,
+      data,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateClinicalProfessionalAdministrationMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAdministration>>
+  >;
+export type UpdateClinicalProfessionalAdministrationMutationBody =
+  BodyType<ClinicalAdministrationUpdate>;
+export type UpdateClinicalProfessionalAdministrationMutationError =
+  ErrorType<void>;
+
+/**
+ * @summary Designar administrador local ou médico responsável
+ */
+export const useUpdateClinicalProfessionalAdministration = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClinicalProfessionalAdministration>>,
+    TError,
+    {
+      locationId: number;
+      professionalId: number;
+      data: BodyType<ClinicalAdministrationUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateClinicalProfessionalAdministration>>,
+  TError,
+  {
+    locationId: number;
+    professionalId: number;
+    data: BodyType<ClinicalAdministrationUpdate>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getUpdateClinicalProfessionalAdministrationMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Listar pendências da unidade e solicitações próprias autorizadas
+ */
+export const getListClinicalApprovalsUrl = () => {
+  return `/api/clinical-approvals`;
+};
+
+export const listClinicalApprovals = async (
+  options?: RequestInit,
+): Promise<ClinicalApproval[]> => {
+  return customFetch<ClinicalApproval[]>(getListClinicalApprovalsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListClinicalApprovalsQueryKey = () => {
+  return [`/api/clinical-approvals`] as const;
+};
+
+export const getListClinicalApprovalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClinicalApprovals>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalApprovals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListClinicalApprovalsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClinicalApprovals>>
+  > = ({ signal }) => listClinicalApprovals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalApprovals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClinicalApprovalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClinicalApprovals>>
+>;
+export type ListClinicalApprovalsQueryError = ErrorType<void>;
+
+/**
+ * @summary Listar pendências da unidade e solicitações próprias autorizadas
+ */
+
+export function useListClinicalApprovals<
+  TData = Awaited<ReturnType<typeof listClinicalApprovals>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalApprovals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClinicalApprovalsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Salvar prescrição ou pedido de exames para conferência médica
+ */
+export const getCreateClinicalApprovalUrl = () => {
+  return `/api/clinical-approvals`;
+};
+
+export const createClinicalApproval = async (
+  clinicalApprovalInput: ClinicalApprovalInput,
+  options?: RequestInit,
+): Promise<ClinicalApproval> => {
+  return customFetch<ClinicalApproval>(getCreateClinicalApprovalUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(clinicalApprovalInput),
+  });
+};
+
+export const getCreateClinicalApprovalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createClinicalApproval>>,
+    TError,
+    { data: BodyType<ClinicalApprovalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createClinicalApproval>>,
+  TError,
+  { data: BodyType<ClinicalApprovalInput> },
+  TContext
+> => {
+  const mutationKey = ["createClinicalApproval"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createClinicalApproval>>,
+    { data: BodyType<ClinicalApprovalInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createClinicalApproval(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateClinicalApprovalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createClinicalApproval>>
+>;
+export type CreateClinicalApprovalMutationBody =
+  BodyType<ClinicalApprovalInput>;
+export type CreateClinicalApprovalMutationError = ErrorType<void>;
+
+/**
+ * @summary Salvar prescrição ou pedido de exames para conferência médica
+ */
+export const useCreateClinicalApproval = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createClinicalApproval>>,
+    TError,
+    { data: BodyType<ClinicalApprovalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createClinicalApproval>>,
+  TError,
+  { data: BodyType<ClinicalApprovalInput> },
+  TContext
+> => {
+  return useMutation(getCreateClinicalApprovalMutationOptions(options));
+};
+
+/**
+ * @summary Contar pendências do médico responsável autenticado
+ */
+export const getCountClinicalApprovalsUrl = () => {
+  return `/api/clinical-approvals/count`;
+};
+
+export const countClinicalApprovals = async (
+  options?: RequestInit,
+): Promise<ClinicalApprovalCount> => {
+  return customFetch<ClinicalApprovalCount>(getCountClinicalApprovalsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getCountClinicalApprovalsQueryKey = () => {
+  return [`/api/clinical-approvals/count`] as const;
+};
+
+export const getCountClinicalApprovalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof countClinicalApprovals>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof countClinicalApprovals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getCountClinicalApprovalsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof countClinicalApprovals>>
+  > = ({ signal }) => countClinicalApprovals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof countClinicalApprovals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type CountClinicalApprovalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof countClinicalApprovals>>
+>;
+export type CountClinicalApprovalsQueryError = ErrorType<void>;
+
+/**
+ * @summary Contar pendências do médico responsável autenticado
+ */
+
+export function useCountClinicalApprovals<
+  TData = Awaited<ReturnType<typeof countClinicalApprovals>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof countClinicalApprovals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getCountClinicalApprovalsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Rejeitar uma solicitação com motivo obrigatório
+ */
+export const getRejectClinicalApprovalUrl = (id: number) => {
+  return `/api/clinical-approvals/${id}/reject`;
+};
+
+export const rejectClinicalApproval = async (
+  id: number,
+  clinicalApprovalRejection: ClinicalApprovalRejection,
+  options?: RequestInit,
+): Promise<ClinicalApproval> => {
+  return customFetch<ClinicalApproval>(getRejectClinicalApprovalUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(clinicalApprovalRejection),
+  });
+};
+
+export const getRejectClinicalApprovalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectClinicalApproval>>,
+    TError,
+    { id: number; data: BodyType<ClinicalApprovalRejection> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectClinicalApproval>>,
+  TError,
+  { id: number; data: BodyType<ClinicalApprovalRejection> },
+  TContext
+> => {
+  const mutationKey = ["rejectClinicalApproval"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectClinicalApproval>>,
+    { id: number; data: BodyType<ClinicalApprovalRejection> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return rejectClinicalApproval(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectClinicalApprovalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectClinicalApproval>>
+>;
+export type RejectClinicalApprovalMutationBody =
+  BodyType<ClinicalApprovalRejection>;
+export type RejectClinicalApprovalMutationError = ErrorType<void>;
+
+/**
+ * @summary Rejeitar uma solicitação com motivo obrigatório
+ */
+export const useRejectClinicalApproval = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectClinicalApproval>>,
+    TError,
+    { id: number; data: BodyType<ClinicalApprovalRejection> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectClinicalApproval>>,
+  TError,
+  { id: number; data: BodyType<ClinicalApprovalRejection> },
+  TContext
+> => {
+  return useMutation(getRejectClinicalApprovalMutationOptions(options));
 };
 
 /**

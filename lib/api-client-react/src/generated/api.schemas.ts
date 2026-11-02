@@ -1886,6 +1886,8 @@ export interface RecipePlan {
 }
 
 export interface EmitBody {
+  /** @minimum 1 */
+  approvalRequestId?: number;
   clientId?: number | null;
   clientName: string;
   clientCpf?: string | null;
@@ -1899,6 +1901,162 @@ export interface EmitBody {
   cid?: string | null;
   message?: string | null;
   items: PrescriptionItemInput[];
+}
+
+export type ExamRequestEmitItemTipo =
+  (typeof ExamRequestEmitItemTipo)[keyof typeof ExamRequestEmitItemTipo];
+
+export const ExamRequestEmitItemTipo = {
+  SANGUE: "SANGUE",
+  IMAGEM: "IMAGEM",
+  OUTROS: "OUTROS",
+} as const;
+
+export interface ExamRequestEmitItem {
+  /** @minLength 1 */
+  nomeExame: string;
+  /** @nullable */
+  codigoExame?: string | null;
+  /** @nullable */
+  grupoPrincipal?: string | null;
+  /** @nullable */
+  preparo?: string | null;
+  tipo: ExamRequestEmitItemTipo;
+}
+
+export interface ExamRequestEmitBody {
+  /** @minimum 1 */
+  approvalRequestId?: number;
+  /** @minimum 1 */
+  clientId: number;
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  professionalId?: number | null;
+  /** @nullable */
+  observacao?: string | null;
+  sendEmail?: boolean;
+  sendWhatsapp?: boolean;
+  individualDocuments?: boolean;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  items: ExamRequestEmitItem[];
+}
+
+export interface ClinicalAccessLocation {
+  id: number;
+  name: string;
+  empresaId: number;
+  canManage: boolean;
+  canReview: boolean;
+}
+
+export interface ClinicalProfessionalAccess {
+  professionalId: number;
+  name: string;
+  /** @nullable */
+  professionalType?: string | null;
+  /** @nullable */
+  category?: string | null;
+  active: boolean;
+  canPrescribe: boolean;
+  canRequestExams: boolean;
+  globalAllowsPrescribe: boolean;
+  globalAllowsExamRequests: boolean;
+  isClinicAdmin: boolean;
+  isResponsibleDoctor: boolean;
+}
+
+export interface ClinicalAccessUpdate {
+  canPrescribe: boolean;
+  canRequestExams: boolean;
+}
+
+export interface ClinicalAdministrationUpdate {
+  isClinicAdmin: boolean;
+  isResponsibleDoctor: boolean;
+}
+
+export type ClinicalApprovalInputKind =
+  (typeof ClinicalApprovalInputKind)[keyof typeof ClinicalApprovalInputKind];
+
+export const ClinicalApprovalInputKind = {
+  prescricao: "prescricao",
+  pedido_exames: "pedido_exames",
+} as const;
+
+export type ClinicalApprovalInputPayload = { [key: string]: unknown };
+
+export interface ClinicalApprovalInput {
+  /**
+   * @minLength 16
+   * @maxLength 100
+   */
+  requestKey: string;
+  kind: ClinicalApprovalInputKind;
+  /** @minimum 1 */
+  clientId: number;
+  payload: ClinicalApprovalInputPayload;
+}
+
+export type ClinicalApprovalKind =
+  (typeof ClinicalApprovalKind)[keyof typeof ClinicalApprovalKind];
+
+export const ClinicalApprovalKind = {
+  prescricao: "prescricao",
+  pedido_exames: "pedido_exames",
+} as const;
+
+export type ClinicalApprovalStatus =
+  (typeof ClinicalApprovalStatus)[keyof typeof ClinicalApprovalStatus];
+
+export const ClinicalApprovalStatus = {
+  pendente: "pendente",
+  processando: "processando",
+  aprovado: "aprovado",
+  rejeitado: "rejeitado",
+  conferir_resultado: "conferir_resultado",
+} as const;
+
+export type ClinicalApprovalPayload = { [key: string]: unknown };
+
+export interface ClinicalApproval {
+  id: number;
+  kind: ClinicalApprovalKind;
+  status: ClinicalApprovalStatus;
+  clientId: number;
+  clientName: string;
+  locationId: number;
+  locationName: string;
+  empresaId: number;
+  preparedByProfessionalId: number;
+  preparedByName: string;
+  /** @nullable */
+  responsibleDoctorName?: string | null;
+  payload: ClinicalApprovalPayload;
+  resultDocumentIds: number[];
+  /** @nullable */
+  rejectionReason?: string | null;
+  createdAt: string;
+  /** @nullable */
+  decidedAt?: string | null;
+  canReview: boolean;
+}
+
+export interface ClinicalApprovalRejection {
+  /**
+   * @minLength 3
+   * @maxLength 1000
+   */
+  reason: string;
+}
+
+export interface ClinicalApprovalCount {
+  /** @minimum 0 */
+  count: number;
 }
 
 export interface EmittedRecipe {

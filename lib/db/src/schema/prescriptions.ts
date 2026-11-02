@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +14,7 @@ export const prescriptionsTable = pgTable("prescriptions", {
   professionalName: text("professional_name"),
   professionalCrm: text("professional_crm"),
   professionalUf: text("professional_uf"),
+  approvalRequestId: integer("approval_request_id"),
   durationDays: text("duration_days"),
   cid: text("cid"),
   message: text("message"),
@@ -20,7 +22,11 @@ export const prescriptionsTable = pgTable("prescriptions", {
   empresaId: integer("empresa_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   emittedAt: timestamp("emitted_at", { withTimezone: true }),
-});
+}, (table) => ({
+  approvalRequestUnique: uniqueIndex("prescriptions_approval_request_unique")
+    .on(table.approvalRequestId)
+    .where(sql`${table.approvalRequestId} IS NOT NULL`),
+}));
 
 export const prescriptionItemsTable = pgTable("prescription_items", {
   id: serial("id").primaryKey(),

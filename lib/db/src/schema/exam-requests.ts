@@ -1,4 +1,5 @@
-import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { index, pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // PDFs de solicitacao de exames gerados pelo Prescritor de Exames (ONDA B).
 // Um registro por TIPO (SANGUE / IMAGEM / OUTROS): exames de tipos diferentes
@@ -11,12 +12,17 @@ export const examRequestPdfsTable = pgTable("exam_request_pdfs", {
   token: text("token").notNull().unique(),
   clientId: integer("client_id").notNull(),
   professionalId: integer("professional_id"),
+  approvalRequestId: integer("approval_request_id"),
   tipo: text("tipo").notNull(),
   fileName: text("file_name").notNull(),
   examCount: integer("exam_count").notNull().default(0),
   observacao: text("observacao"),
   pdfData: text("pdf_data").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  approvalRequestIndex: index("exam_request_pdfs_approval_request_idx")
+    .on(table.approvalRequestId)
+    .where(sql`${table.approvalRequestId} IS NOT NULL`),
+}));
 
 export type ExamRequestPdf = typeof examRequestPdfsTable.$inferSelect;

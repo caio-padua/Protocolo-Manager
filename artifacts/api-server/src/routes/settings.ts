@@ -508,7 +508,7 @@ router.put("/settings/exames", requireCollaborator, async (req, res): Promise<vo
 // -------------------------------------------------------------- GOVERNANCA ---
 // Matriz Ferramenta x Papel (quem pode o que). Fonte unica em app_settings,
 // chave `governanca.matriz`. GET semeia o default de forma NAO destrutiva (so
-// quando a chave nao existe). PUT so o CEO (isPrimaryDoctor) — senao 403.
+// quando a chave nao existe). PUT so o proprietário global (isPlatformOwner) — senao 403.
 async function governancaPayload(): Promise<{ matriz: Matriz; papeis: typeof PAPEIS; ferramentas: typeof GRUPOS }> {
   const stored = await getJsonSetting<Matriz>("governanca.matriz");
   const matriz = stored ? normalizeMatriz(stored) : permissoesDefault();
@@ -520,11 +520,11 @@ async function isCeo(req: Request): Promise<boolean> {
   const c = (req as { collaborator?: { professionalId?: number } }).collaborator;
   if (!c?.professionalId) return false;
   const [prof] = await db
-    .select({ isPrimaryDoctor: professionalsTable.isPrimaryDoctor })
+    .select({ isPlatformOwner: professionalsTable.isPlatformOwner })
     .from(professionalsTable)
     .where(eq(professionalsTable.id, c.professionalId))
     .limit(1);
-  return Boolean(prof?.isPrimaryDoctor);
+  return Boolean(prof?.isPlatformOwner);
 }
 
 router.get("/settings/governanca", requireCollaborator, async (_req, res): Promise<void> => {
