@@ -14,3 +14,9 @@ Troca de senha ou identificador incrementa a versao da credencial e invalida as 
 **Why:** a conferência agregada do banco de desenvolvimento mostrou contas com senha sem e-mail nem CPF; uma troca imediata bloquearia o acesso, e identificadores não podem ser inventados. Sessoes antigas tambem nao devem continuar validas depois de uma mudanca de credencial.
 
 **How to apply:** antes de habilitar a regra em cada ambiente, conferir apenas completude, normalização e unicidade dos identificadores. Aplicar as mudancas somente ao profissional autenticado e exigir senha atual. Nunca registrar senha, e-mail ou CPF em claro na auditoria.
+
+Uma mensagem "Erro de conexão" no login e na recuperação pode ser causada pelo início do Vite antes de a API terminar de escutar na porta local 8080; não prova senha inválida.
+
+**Why:** os registros do ambiente mostraram pedidos do navegador recusados com `ECONNREFUSED` durante o boot e a API passou a responder logo depois, enquanto a tela já estava visível.
+
+**How to apply:** conferir o fluxo de saúde público `/api/collaborator/bootstrap-status` e o estado do workflow da API. Se a resposta for HTTP 200, atualizar a tela e tentar a recuperação novamente; só investigar a senha após uma resposta HTTP de credenciais inválidas.
