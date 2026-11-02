@@ -14,9 +14,11 @@ O modelo empresarial pretendido é de empresas independentes, com uma relação 
 
 O CEO confirmou em 02/11/2026 que o vínculo usado no código semântico será uma classificação interna escolhida por ele. Esse vínculo não declara filial jurídica e não substitui a hierarquia de licenciamento.
 
+Em 02/11/2026, o CEO informou que os CNPJs presentes nos cadastros de desenvolvimento são fictícios e indicou preservar como identidade canônica Instituto Padua, Paduccia Clínica Médica e Clínica Padua. A decisão não autoriza inferir quais registros excluir nem dispensa conferir dependências antes de migrar referências.
+
 **Why:** A base de desenvolvimento mostra relações de licenciamento e empresa-mãe que não coincidem integralmente com a estrutura empresarial declarada pelo CEO. Além disso, o CNPJ cadastrado para Paduzzi tem raiz diferente do CNPJ do Instituto Padua, o que não confirma uma filial jurídica. O CEO distinguiu expressamente o vínculo interno do vínculo jurídico.
 
-**How to apply:** Manter separados o código semântico interno, a hierarquia de licenciamento do produto e a relação societária legal. O CEO pode definir o vínculo interno no código sem alterar os outros dois. Não reclassificar a relação jurídica sem documentos.
+**How to apply:** Manter separados o código semântico interno, a hierarquia de licenciamento do produto e a relação societária legal. O CEO pode definir o vínculo interno no código sem alterar os outros dois. Tratar os CNPJs atuais de desenvolvimento como sintéticos, sem reutilizá-los como dados oficiais; preservar a identidade Padua/Paduccia e verificar referências antes de consolidar registros. Não reclassificar a relação jurídica sem documentos.
 
 ## Código semântico por unidade clínica
 

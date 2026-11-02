@@ -1,6 +1,6 @@
 # PAXTER Loop — Cadastro de empresas, unidades e agendas
 
-**Estado:** UNIDADE 1 IMPLEMENTADA PARCIALMENTE — AGUARDANDO CORREÇÃO DO CNPJ E HOMOLOGAÇÃO
+**Estado:** UNIDADE 1 IMPLEMENTADA PARCIALMENTE — AGUARDANDO DEFINIÇÃO DA CONSOLIDAÇÃO E HOMOLOGAÇÃO
 **Data:** 02/11/2026  
 **Responsável:** Dr. Replit Paxter  
 **Unidade ativa:** 1 — código semântico da unidade clínica  
@@ -85,6 +85,8 @@ Essas opções são classificações internas selecionadas pelo CEO; não declar
 - Aplicar máscara e validação do Cadastro Nacional de Atividades Econômicas (CNAE) com sete algarismos e formato canônico `NN.NN-N-NN`.
 - Manter campos separados para endereço, número, complemento, bairro, cidade e unidade federativa.
 
+**Estado verificado em 02/11/2026:** o esquema já possui campos para CNAE e regime tributário, e a tela “Cadastro de Empresas” já tem seletor com os quatro regimes pedidos, além de uma opção extra “Isento”. A tela ainda inicia novas empresas com “Simples Nacional” pré-selecionado. O campo CNAE é texto livre, sem máscara ou validação dos sete algarismos. Na base de desenvolvimento, 0 das 12 empresas têm código CNAE e 0 das 12 têm regime tributário; 4 têm apenas descrição de CNAE. A planilha atualizada ainda não foi reconciliada nem importada. Esta unidade permanece pendente de ajuste e homologação.
+
 ### Unidade 3 — Um local de cadastro
 
 - Fazer de “Cadastro de Empresas” o ponto de entrada canônico.
@@ -92,6 +94,8 @@ Essas opções são classificações internas selecionadas pelo CEO; não declar
 - Manter o item “Clínicas & Locais” no menu; a rota antiga exibirá uma faixa discreta vermelha “DESABILITADA”.
 - Preservar registros e identificadores da rota antiga.
 - Não desabilitar telas de configuração operacional sem confirmar que fazem o mesmo cadastro.
+
+**Estado verificado em 02/11/2026:** “Cadastro de Empresas” e “Clínicas & Locais” continuam como rotas e itens separados no menu. A consolidação da interface ainda não foi feita.
 
 ### Unidade 4 — Profissional e várias agendas por unidade
 
@@ -189,11 +193,12 @@ Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação ant
 - Classificação e emissão têm validação de CEO no servidor; consultas têm autenticação e isolamento por empresa para colaboradores.
 - CNPJ duplicado, inválido, ausência de vínculo ou sequência fora do limite bloqueiam a emissão.
 - Após emissão, a classificação e o CNPJ da empresa ficam protegidos contra mudanças que invalidariam o código.
-- A inspeção encontrou três cadastros empresariais com o mesmo CNPJ completo: IDs 1, 4 e 5. O código permanece bloqueado para essas empresas até correção humana.
+- A inspeção encontrou os IDs 1, 4 e 5 com o mesmo CNPJ completo. Em 02/11/2026, o CEO confirmou que os CNPJs são fictícios, autorizou alterações e indicou preservar a identidade “Instituto Padua = Paduccia Clínica Médica = Clínica Padua”. Nenhum CNPJ foi alterado ainda; falta definir se os IDs 1 e 4 devem permanecer como empresas fictícias separadas ou ter referências migradas ao ID 5.
+- Qualquer exclusão dos IDs 1 e 4 depende de inventário de referências, apresentação do impacto e uma confirmação explícita adicional do CEO; não executar exclusão agora.
 - A ferramenta de revisão independente solicitada não estava disponível nesta execução. Foi feita revisão manual; por isso, o critério de revisão independente continua pendente.
 - Os 12 testes específicos passaram; a verificação das bibliotecas e as compilações do servidor e da interface passaram.
 - Ainda falta um teste concorrente integrado no banco para demonstrar duas emissões simultâneas; a proteção está implementada com transação e restrição única, mas essa evidência não foi produzida.
 - A verificação geral de TypeScript continua falhando em 173 diagnósticos já existentes; o único apontamento em arquivo alterado está em um trecho antigo e não relacionado da rota empresarial.
 - A imagem automática da página encontrou o acesso, mas não entrou na sessão; a tela autenticada não foi validada visualmente.
 - Uma inicialização registrou limite temporário de leituras no serviço de planilhas; na última inicialização, o dicionário estava atualizado e o servidor ficou ativo.
-- A unidade não está homologada e a etapa seguinte não deve começar antes da correção dos três cadastros e do aceite do CEO.
+- A unidade não está homologada; a etapa seguinte não deve começar antes de resolver a associação dos registros duplicados e obter o aceite do CEO.
