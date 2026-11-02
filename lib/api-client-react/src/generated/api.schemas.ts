@@ -5,6 +5,61 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export type EmpresaCodigoSemanticoInputVinculo =
+  (typeof EmpresaCodigoSemanticoInputVinculo)[keyof typeof EmpresaCodigoSemanticoInputVinculo];
+
+export const EmpresaCodigoSemanticoInputVinculo = {
+  propria: "propria",
+  filial_interna: "filial_interna",
+  licenciada_direta: "licenciada_direta",
+  licenciada_por_clinica: "licenciada_por_clinica",
+  independente: "independente",
+  parceira: "parceira",
+} as const;
+
+export interface EmpresaCodigoSemanticoInput {
+  vinculo: EmpresaCodigoSemanticoInputVinculo;
+}
+
+export interface EmpresaCodigoSemantico {
+  empresaId: number;
+  vinculo: string;
+  /**
+   * @minLength 4
+   * @maxLength 4
+   */
+  codigoVinculo: string;
+  /**
+   * @minLength 4
+   * @maxLength 4
+   */
+  codigoBase: string;
+}
+
+export interface LocationCodigoSemantico {
+  locationId: number;
+  empresaId: number;
+  /** @pattern ^[A-Z]{4}\.[A-Z]{4}\.[0-9]{4}\.[0-9]{4}$ */
+  codigo: string;
+  /**
+   * @minLength 4
+   * @maxLength 4
+   */
+  codigoBase: string;
+  /**
+   * @minLength 4
+   * @maxLength 4
+   */
+  codigoVinculo: string;
+  /** @pattern ^[0-9]{4}$ */
+  cnpjPrefixo: string;
+  /**
+   * @minimum 1
+   * @maximum 9999
+   */
+  sequencia: number;
+}
+
 export interface PersonalExamSetWrite {
   /**
    * @minLength 1

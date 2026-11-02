@@ -13,6 +13,7 @@ import {
   Phone, MapPin, CalendarCheck, Tag,
 } from "lucide-react";
 import { toast } from "sonner";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -228,7 +229,7 @@ export default function CadastroClinicas() {
       ].filter(Boolean);
       const body = { ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null };
       const url = editingId ? `${apiBase}/locations/${editingId}` : `${apiBase}/locations`;
-      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
       if (!res.ok) throw new Error("Erro ao salvar");
       return res.json();
     },
@@ -269,8 +270,9 @@ export default function CadastroClinicas() {
   // Nenhum valor de cidade ou estado é fixo no código.
   // Dentro de cada cidade com 3+ locais: sub-agrupamento por zona.
 
+  const ativas = useMemo(() => clinicas.filter((c) => c.active), [clinicas]);
+
   const grupos = useMemo(() => {
-    const ativas = clinicas.filter((c) => c.active);
     const map = new Map<string, Clinica[]>();
     for (const c of ativas) {
       const chave =

@@ -14,6 +14,10 @@ export const empresasTable = pgTable("empresas", {
   razaoSocial: text("razao_social"),             // razão social completa (para NF-e / documentos legais)
   nick: text("nick"),                            // apelido interno curto
   cnpj: text("cnpj"),
+  // Classificação semântica interna, escolhida pelo CEO; não altera licenciamento ou relação jurídica.
+  codigoVinculoSemantico: text("codigo_vinculo_semantico"),
+  // Prefixo congelado quando a empresa recebe o primeiro código de unidade.
+  codigoBaseSemantico: text("codigo_base_semantico"),
   tipo: text("tipo").notNull().default("clinic"),             // clinic | genesis_seed | telemedicina | enfermagem
   tipoUnidade: text("tipo_unidade"),             // CLINICA_OPERACIONAL | CLINICA_PARCEIRA | LABORATORIO_MESTRE
   status: text("status").notNull().default("ATIVO"),          // ATIVO | SUSPENSO | CANCELADO

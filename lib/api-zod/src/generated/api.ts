@@ -239,6 +239,88 @@ export const EmitExamRequestBody = zod.object({
 });
 
 /**
+ * @summary Define a classificação interna usada nos códigos das unidades da empresa
+ */
+
+export const UpdateCompanySemanticCodeClassificationParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const UpdateCompanySemanticCodeClassificationBody = zod.object({
+  vinculo: zod.enum([
+    "propria",
+    "filial_interna",
+    "licenciada_direta",
+    "licenciada_por_clinica",
+    "independente",
+    "parceira",
+  ]),
+});
+
+export const updateCompanySemanticCodeClassificationResponseCodigoVinculoMin = 4;
+export const updateCompanySemanticCodeClassificationResponseCodigoVinculoMax = 4;
+
+export const updateCompanySemanticCodeClassificationResponseCodigoBaseMin = 4;
+export const updateCompanySemanticCodeClassificationResponseCodigoBaseMax = 4;
+
+export const UpdateCompanySemanticCodeClassificationResponse = zod.object({
+  empresaId: zod.number(),
+  vinculo: zod.string(),
+  codigoVinculo: zod
+    .string()
+    .min(updateCompanySemanticCodeClassificationResponseCodigoVinculoMin)
+    .max(updateCompanySemanticCodeClassificationResponseCodigoVinculoMax),
+  codigoBase: zod
+    .string()
+    .min(updateCompanySemanticCodeClassificationResponseCodigoBaseMin)
+    .max(updateCompanySemanticCodeClassificationResponseCodigoBaseMax),
+});
+
+/**
+ * A empresa é lida do vínculo persistido da unidade. Não aceita empresa informada pelo navegador.
+ * @summary Emite o código semântico imutável para uma unidade clínica
+ */
+
+export const CreateLocationSemanticCodeParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const createLocationSemanticCodeResponseCodigoRegExp = new RegExp(
+  "^[A-Z]{4}\\.[A-Z]{4}\\.[0-9]{4}\\.[0-9]{4}$",
+);
+export const createLocationSemanticCodeResponseCodigoBaseMin = 4;
+export const createLocationSemanticCodeResponseCodigoBaseMax = 4;
+
+export const createLocationSemanticCodeResponseCodigoVinculoMin = 4;
+export const createLocationSemanticCodeResponseCodigoVinculoMax = 4;
+
+export const createLocationSemanticCodeResponseCnpjPrefixoRegExp = new RegExp(
+  "^[0-9]{4}$",
+);
+export const createLocationSemanticCodeResponseSequenciaMax = 9999;
+
+export const CreateLocationSemanticCodeResponse = zod.object({
+  locationId: zod.number(),
+  empresaId: zod.number(),
+  codigo: zod.string().regex(createLocationSemanticCodeResponseCodigoRegExp),
+  codigoBase: zod
+    .string()
+    .min(createLocationSemanticCodeResponseCodigoBaseMin)
+    .max(createLocationSemanticCodeResponseCodigoBaseMax),
+  codigoVinculo: zod
+    .string()
+    .min(createLocationSemanticCodeResponseCodigoVinculoMin)
+    .max(createLocationSemanticCodeResponseCodigoVinculoMax),
+  cnpjPrefixo: zod
+    .string()
+    .regex(createLocationSemanticCodeResponseCnpjPrefixoRegExp),
+  sequencia: zod
+    .number()
+    .min(1)
+    .max(createLocationSemanticCodeResponseSequenciaMax),
+});
+
+/**
  * @summary Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos
  */
 export const ListClinicalAccessLocationsResponseItem = zod.object({

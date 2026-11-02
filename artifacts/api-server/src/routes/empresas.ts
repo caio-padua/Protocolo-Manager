@@ -39,7 +39,10 @@ type EmpresaRow = typeof empresasTable.$inferSelect;
 function sanitizarEmpresa(row: EmpresaRow) {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) {
-    if (CAMPOS_CREDENCIAL.has(k)) {
+    if (k === "codigoVinculoSemantico" || k === "codigoBaseSemantico") {
+      // Classificação e base são expostas somente pelas rotas protegidas do módulo semântico.
+      continue;
+    } else if (CAMPOS_CREDENCIAL.has(k)) {
       // Retorna indicador booleano: o campo está configurado (true) ou vazio (false)
       // O front pode mostrar "✓ Configurado" sem expor o valor
       out[k + "Configurado"] = !!v;

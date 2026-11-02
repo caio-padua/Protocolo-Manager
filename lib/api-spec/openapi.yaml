@@ -177,6 +177,98 @@ paths:
         "401": { description: Login obrigatório }
         "403": { description: "Médico, cliente, clínica ou concessão sem autorização" }
         "422": { description: Identidade profissional ou certificado indisponível }
+  /empresas/{id}/codigo-semantico:
+    put:
+      operationId: updateCompanySemanticCodeClassification
+      tags: [empresas]
+      summary: Define a classificação interna usada nos códigos das unidades da empresa
+      security:
+        - collaboratorBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmpresaCodigoSemanticoInput"
+      responses:
+        "200":
+          description: Classificação interna salva
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpresaCodigoSemantico"
+        "400": { description: Classificação inválida }
+        "401": { description: Colaborador não autenticado }
+        "403": { description: Ação exclusiva do CEO }
+        "404": { description: Empresa não encontrada }
+
+  /locations/{id}/codigo-semantico:
+    post:
+      operationId: createLocationSemanticCode
+      tags: [locations]
+      summary: Emite o código semântico imutável para uma unidade clínica
+      description: A empresa é lida do vínculo persistido da unidade. Não aceita empresa informada pelo navegador.
+      security:
+        - collaboratorBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Código já existente ou recém-emitido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationCodigoSemantico"
+        "400": { description: Identificador inválido }
+        "401": { description: Colaborador não autenticado }
+        "403": { description: Ação exclusiva do CEO }
+        "404": { description: Unidade não encontrada }
+        "409": { description: "Empresa, CNPJ, classificação ou sequência inválida para emissão" }
+
+  /semantic-codes/companies:
+    get:
+      operationId: listSemanticCodeCompanies
+      tags: [semantic-codes]
+      summary: Lista classificações internas das empresas visíveis ao colaborador
+      security:
+        - collaboratorBearer: []
+      responses:
+        "200":
+          description: Empresas e estado de validação do código
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmpresaCodigoSemanticoLista"
+        "401": { description: Colaborador não autenticado }
+
+  /semantic-codes/locations:
+    get:
+      operationId: listSemanticCodeLocations
+      tags: [semantic-codes]
+      summary: Lista códigos das unidades autorizadas para o colaborador
+      security:
+        - collaboratorBearer: []
+      responses:
+        "200":
+          description: Unidades e seus códigos semânticos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LocationCodigoSemanticoLista"
+        "401": { description: Colaborador não autenticado }
+
   /clinical-access/locations:
     get:
       operationId: listClinicalAccessLocations
@@ -2903,7 +2995,70 @@ paths:
                 $ref: "#/components/schemas/FinancialGoalsSummary"
 
 components:
+  securitySchemes:
+    collaboratorBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC
   schemas:
+    EmpresaCodigoSemanticoInput:
+      type: object
+      additionalProperties: false
+      required: [vinculo]
+      properties:
+        vinculo:
+          type: string
+          enum:
+            - propria
+            - filial_interna
+            - licenciada_direta
+            - licenciada_por_clinica
+            - independente
+            - parceira
+    EmpresaCodigoSemantico:
+      type: object
+      required: [empresaId, vinculo, codigoVinculo, codigoBase]
+      properties:
+        empresaId: { type: integer }
+        vinculo: { type: string }
+        codigoVinculo: { type: string, minLength: 4, maxLength: 4 }
+        codigoBase: { type: string, minLength: 4, maxLength: 4 }
+    LocationCodigoSemantico:
+      type: object
+      required: [locationId, empresaId, codigo, codigoBase, codigoVinculo, cnpjPrefixo, sequencia]
+      properties:
+        locationId: { type: integer }
+        empresaId: { type: integer }
+        codigo: { type: string, pattern: "^[A-Z]{4}\\.[A-Z]{4}\\.[0-9]{4}\\.[0-9]{4}$" }
+        codigoBase: { type: string, minLength: 4, maxLength: 4 }
+        codigoVinculo: { type: string, minLength: 4, maxLength: 4 }
+        cnpjPrefixo: { type: string, pattern: "^[0-9]{4}$" }
+        sequencia: { type: integer, minimum: 1, maximum: 9999 }
+    EmpresaCodigoSemanticoLista:
+      type: object
+      required: [id, nome, cnpj, codigoVinculoSemantico, codigoBaseSemantico, ativa, cnpjValido, cnpjDuplicado, empresasComMesmoCnpj]
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+        cnpj: { type: [string, "null"] }
+        codigoVinculoSemantico: { type: [string, "null"] }
+        codigoBaseSemantico: { type: [string, "null"] }
+        ativa: { type: boolean }
+        cnpjValido: { type: boolean }
+        cnpjDuplicado: { type: boolean }
+        empresasComMesmoCnpj:
+          type: array
+          items: { type: string }
+    LocationCodigoSemanticoLista:
+      type: object
+      required: [locationId, name, empresaId, codigoSemantico, codigoSequencial, active]
+      properties:
+        locationId: { type: integer }
+        name: { type: string }
+        empresaId: { type: [integer, "null"] }
+        codigoSemantico: { type: [string, "null"] }
+        codigoSequencial: { type: integer, minimum: 1 }
+        active: { type: boolean }
     PersonalExamSetWrite:
       type: object
       additionalProperties: false

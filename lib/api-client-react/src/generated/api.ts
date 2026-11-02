@@ -101,6 +101,8 @@ import type {
   ESignatureUpdate,
   EmitBody,
   EmitResult,
+  EmpresaCodigoSemantico,
+  EmpresaCodigoSemanticoInput,
   ErrorResponse,
   ExamDocumentDispatchInput,
   ExamDocumentDispatchResult,
@@ -130,6 +132,7 @@ import type {
   ListSchedulingRequestsParams,
   ListSessionsParams,
   ListSiteContentParams,
+  LocationCodigoSemantico,
   Payment,
   PaymentGatewaySettings,
   PaymentGatewayUpdate,
@@ -772,6 +775,188 @@ export const useEmitExamRequest = <
   TContext
 > => {
   return useMutation(getEmitExamRequestMutationOptions(options));
+};
+
+/**
+ * @summary Define a classificação interna usada nos códigos das unidades da empresa
+ */
+export const getUpdateCompanySemanticCodeClassificationUrl = (id: number) => {
+  return `/api/empresas/${id}/codigo-semantico`;
+};
+
+export const updateCompanySemanticCodeClassification = async (
+  id: number,
+  empresaCodigoSemanticoInput: EmpresaCodigoSemanticoInput,
+  options?: RequestInit,
+): Promise<EmpresaCodigoSemantico> => {
+  return customFetch<EmpresaCodigoSemantico>(
+    getUpdateCompanySemanticCodeClassificationUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(empresaCodigoSemanticoInput),
+    },
+  );
+};
+
+export const getUpdateCompanySemanticCodeClassificationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCompanySemanticCodeClassification>>,
+    TError,
+    { id: number; data: BodyType<EmpresaCodigoSemanticoInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCompanySemanticCodeClassification>>,
+  TError,
+  { id: number; data: BodyType<EmpresaCodigoSemanticoInput> },
+  TContext
+> => {
+  const mutationKey = ["updateCompanySemanticCodeClassification"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCompanySemanticCodeClassification>>,
+    { id: number; data: BodyType<EmpresaCodigoSemanticoInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCompanySemanticCodeClassification(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCompanySemanticCodeClassificationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCompanySemanticCodeClassification>>
+>;
+export type UpdateCompanySemanticCodeClassificationMutationBody =
+  BodyType<EmpresaCodigoSemanticoInput>;
+export type UpdateCompanySemanticCodeClassificationMutationError =
+  ErrorType<void>;
+
+/**
+ * @summary Define a classificação interna usada nos códigos das unidades da empresa
+ */
+export const useUpdateCompanySemanticCodeClassification = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCompanySemanticCodeClassification>>,
+    TError,
+    { id: number; data: BodyType<EmpresaCodigoSemanticoInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCompanySemanticCodeClassification>>,
+  TError,
+  { id: number; data: BodyType<EmpresaCodigoSemanticoInput> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateCompanySemanticCodeClassificationMutationOptions(options),
+  );
+};
+
+/**
+ * A empresa é lida do vínculo persistido da unidade. Não aceita empresa informada pelo navegador.
+ * @summary Emite o código semântico imutável para uma unidade clínica
+ */
+export const getCreateLocationSemanticCodeUrl = (id: number) => {
+  return `/api/locations/${id}/codigo-semantico`;
+};
+
+export const createLocationSemanticCode = async (
+  id: number,
+  options?: RequestInit,
+): Promise<LocationCodigoSemantico> => {
+  return customFetch<LocationCodigoSemantico>(
+    getCreateLocationSemanticCodeUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCreateLocationSemanticCodeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createLocationSemanticCode>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createLocationSemanticCode>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["createLocationSemanticCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createLocationSemanticCode>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return createLocationSemanticCode(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateLocationSemanticCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createLocationSemanticCode>>
+>;
+
+export type CreateLocationSemanticCodeMutationError = ErrorType<void>;
+
+/**
+ * @summary Emite o código semântico imutável para uma unidade clínica
+ */
+export const useCreateLocationSemanticCode = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createLocationSemanticCode>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createLocationSemanticCode>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCreateLocationSemanticCodeMutationOptions(options));
 };
 
 /**

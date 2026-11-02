@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable } from "@workspace/db";
+import { requireCollaborator } from "./collaborator";
 
 const router: IRouter = Router();
 
@@ -176,7 +177,7 @@ router.get("/locations", async (_req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/locations", async (req, res): Promise<void> => {
+router.post("/locations", requireCollaborator, async (req, res): Promise<void> => {
   const { name, address, type, color, googleCalendarId, phone, cep, logradouro, numero, complemento, bairro, cidade, estado, zona } = req.body;
   if (!name) {
     res.status(400).json({ error: "name is required" });
@@ -216,6 +217,8 @@ router.post("/locations", async (req, res): Promise<void> => {
     cidade: geoCidade,
     estado: geoEstado,
     zona: geoZona,
+    // Empresa vem da identidade autenticada, nunca do corpo enviado pelo navegador.
+    empresaId: req.tenantContext.empresaId,
   }).returning();
 
   res.status(201).json(serializeLocation(loc));

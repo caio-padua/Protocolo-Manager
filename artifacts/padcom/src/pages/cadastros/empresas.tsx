@@ -16,6 +16,7 @@ import {
   FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import SemanticCodeManager from "./SemanticCodeManager";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -1006,6 +1007,8 @@ export default function CadastroEmpresas() {
             </Button>
           </div>
         </div>
+
+        <SemanticCodeManager />
 
         {/* Grade de cards — agrupamento geográfico data-bound */}
         {isLoading ? (

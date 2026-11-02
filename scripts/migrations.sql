@@ -240,3 +240,103 @@ CREATE UNIQUE INDEX IF NOT EXISTS prescriptions_approval_request_unique
 CREATE INDEX IF NOT EXISTS exam_request_pdfs_approval_request_idx
   ON exam_request_pdfs (approval_request_id)
   WHERE approval_request_id IS NOT NULL;
+
+-- Código semântico interno por unidade clínica.
+-- A classificação não representa propriedade legal, filial jurídica,
+-- licenciamento ou cobrança. O código emitido fica congelado na unidade.
+CREATE SEQUENCE IF NOT EXISTS locations_semantic_code_seq;
+
+ALTER TABLE empresas
+  ADD COLUMN IF NOT EXISTS codigo_vinculo_semantico TEXT;
+ALTER TABLE empresas
+  ADD COLUMN IF NOT EXISTS codigo_base_semantico TEXT;
+
+ALTER TABLE locations
+  ADD COLUMN IF NOT EXISTS codigo_semantico TEXT;
+ALTER TABLE locations
+  ADD COLUMN IF NOT EXISTS codigo_sequencial INTEGER;
+
+-- Numera unidades já cadastradas por ordem de criação; id técnico serve só
+-- como desempate determinístico e não compõe o código visível.
+WITH unidades_ordenadas AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id)::INTEGER AS numero
+  FROM locations
+  WHERE codigo_sequencial IS NULL
+)
+UPDATE locations AS l
+SET codigo_sequencial = u.numero
+FROM unidades_ordenadas AS u
+WHERE l.id = u.id;
+
+ALTER TABLE locations
+  ALTER COLUMN codigo_sequencial
+  SET DEFAULT nextval('locations_semantic_code_seq')::INTEGER;
+ALTER TABLE locations
+  ALTER COLUMN codigo_sequencial
+  SET NOT NULL;
+
+DO $$
+DECLARE
+  maior_numero INTEGER;
+BEGIN
+  SELECT COALESCE(MAX(codigo_sequencial), 0)
+    INTO maior_numero
+    FROM locations;
+
+  IF maior_numero = 0 THEN
+    PERFORM setval('locations_semantic_code_seq', 1, false);
+  ELSE
+    PERFORM setval(
+      'locations_semantic_code_seq',
+      GREATEST(maior_numero, (SELECT last_value FROM locations_semantic_code_seq)),
+      true
+    );
+  END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS locations_codigo_sequencial_unique
+  ON locations (codigo_sequencial)
+  WHERE codigo_sequencial IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS locations_codigo_semantico_unique
+  ON locations (codigo_semantico)
+  WHERE codigo_semantico IS NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'empresas_codigo_vinculo_semantico_check'
+      AND conrelid = 'empresas'::regclass
+  ) THEN
+    ALTER TABLE empresas
+      ADD CONSTRAINT empresas_codigo_vinculo_semantico_check
+      CHECK (
+        codigo_vinculo_semantico IS NULL
+        OR codigo_vinculo_semantico IN (
+          'propria', 'filial_interna', 'licenciada_direta',
+          'licenciada_por_clinica', 'independente', 'parceira'
+        )
+      );
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'empresas_codigo_base_semantico_check'
+      AND conrelid = 'empresas'::regclass
+  ) THEN
+    ALTER TABLE empresas
+      ADD CONSTRAINT empresas_codigo_base_semantico_check
+      CHECK (codigo_base_semantico IS NULL OR codigo_base_semantico ~ '^[A-Z]{4}$');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'locations_codigo_semantico_check'
+      AND conrelid = 'locations'::regclass
+  ) THEN
+    ALTER TABLE locations
+      ADD CONSTRAINT locations_codigo_semantico_check
+      CHECK (
+        codigo_semantico IS NULL
+        OR codigo_semantico ~ '^[A-Z]{4}\.[A-Z]{4}\.[0-9]{4}\.[0-9]{4}$'
+      );
+  END IF;
+END $$;

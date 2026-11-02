@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -25,6 +26,9 @@ export const locationsTable = pgTable("locations", {
   // NULL = pertence ao tenant padrão (Instituto Pádua). FK lógica → empresas.id.
   // Ativação completa do isolamento em onda futura (não quebra comportamento atual).
   empresaId: integer("empresa_id"),
+  // Código de leitura humana por unidade; a sequência é independente do id técnico.
+  codigoSemantico: text("codigo_semantico"),
+  codigoSequencial: integer("codigo_sequencial").notNull().default(sql`nextval('locations_semantic_code_seq')::integer`),
   // ── Dados jurídicos e certificado digital (adicionado 20/07/2026 via ALTER TABLE) ──
   cnpj: text("cnpj"),
   razaoSocial: text("razao_social"),
