@@ -19,10 +19,11 @@ Organizar os cadastros empresariais e das unidades clínicas, gerar códigos ras
 5. `CNPJ4` conterá os quatro primeiros números do Cadastro Nacional da Pessoa Jurídica (CNPJ) da empresa proprietária da unidade.
 6. `SEQ4` será o número sequencial e estável da unidade no sistema, com quatro posições, começando por `0001`. Não será o identificador técnico do banco nem o número da linha da planilha.
 7. “Única” significa que existe uma única empresa para aquele CNPJ completo. Não será inferido apenas pela raiz do CNPJ.
-8. O CEO determinou que os registros existentes sejam preservados nesta reconciliação. A marca `APAGAR` da planilha não autoriza exclusão, desativação, renomeação nem substituição de registro.
+8. Os registros existentes são preservados por padrão. A marca `APAGAR` da planilha, sozinha, não autoriza exclusão; cada exclusão exige pedido explícito e confirmação final do CEO após a análise de dependências. Em 02/11/2026, essa confirmação foi dada exclusivamente para o cadastro `x`, ID 9, no banco de desenvolvimento.
 9. O CEO autorizou padronizar cadastros novos e existentes com iniciais maiúsculas e sem acentos. A alteração em massa será registrada e limitada aos campos estruturados de cadastro.
 10. Nomes, endereços, campos fiscais e de contato da planilha atualizada devem ser considerados na consolidação.
 11. Cada código será atribuído a uma unidade física e guardará os blocos como fotografia do momento da emissão; mudanças futuras na empresa não reescrevem códigos antigos.
+12. PAXTER não é uma empresa médica existente; é um nome reservado para uma possível empresa futura. Os campos de empresa-mãe e hierarquia permanecem no esquema, mas não compõem o código semântico.
 
 ## 3. Modelo do código semântico
 
@@ -113,13 +114,14 @@ Essas opções são classificações internas selecionadas pelo CEO; não declar
 - Preservar a razão social oficial até haver confirmação de que o valor normalizado continua idêntico ao cadastro fiscal oficial.
 - Rodar prévia com contagens de alterações e conflitos antes da atualização.
 
-### Unidade 6 — Reconciliação sem exclusões
+### Unidade 6 — Reconciliação controlada, sem exclusões automáticas
 
 - Relacionar linhas por nome do sistema e CNPJ; nunca usar o número da linha como identificador do banco.
 - Mostrar divergências e itens sem correspondência para decisão explícita.
-- Preservar registros marcados `APAGAR`; a planilha serve como fonte de correção, não como autorização de exclusão.
+- Preservar por padrão registros marcados `APAGAR`; a planilha serve como fonte de correção, não como autorização de exclusão.
+- Excluir somente após pedido explícito, confirmação final do CEO, cópia de segurança e verificação das dependências; a autorização de um registro não se estende aos demais.
 - Não renomear nem reaproveitar registros sem correspondência exata; manter a linha pendente para decisão do CEO.
-- A empresa proprietária da plataforma também permanece preservada.
+- Não representar o proprietário da plataforma como empresa médica fictícia. Manter os campos técnicos existentes enquanto a identidade da plataforma e os cadastros clínicos são separados.
 
 ## 5. Limites e preservação
 
@@ -194,19 +196,21 @@ Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação ant
 - Classificação e emissão têm validação de CEO no servidor; consultas têm autenticação e isolamento por empresa para colaboradores.
 - CNPJ duplicado, inválido, ausência de vínculo ou sequência fora do limite bloqueiam a emissão.
 - Após emissão, a classificação e o CNPJ da empresa ficam protegidos contra mudanças que invalidariam o código.
-- Em 02/11/2026, o CEO confirmou que os CNPJs são fictícios, indicou preservar a identidade “Instituto Padua = Paduccia Clínica Médica = Clínica Padua” e determinou não apagar registros nesta etapa.
+- Em 02/11/2026, o CEO confirmou que os CNPJs da base de desenvolvimento são fictícios e indicou preservar a identidade “Instituto Padua = Paduccia Clínica Médica = Clínica Padua”. A regra continua sendo preservar; qualquer exclusão precisa de autorização individual e confirmação final.
 - A planilha foi lida diretamente do Google Drive. Foram atualizados, na base de desenvolvimento, os campos empresariais e fiscais correspondentes aos IDs 2, 3, 4, 5, 7, 8, 10, 11 e 12, com correspondência por nome e CNPJ anterior. Nenhum registro foi apagado.
-- O CNPJ do ID 4 foi substituído pelo valor da planilha. Os IDs 1, 6 e 9 permanecem intactos; os IDs 6 e 9 estavam marcados `APAGAR` na planilha, mas a instrução mais recente do CEO é preservá-los.
+- O CNPJ do ID 4 foi substituído pelo valor da planilha. O ID 9, `x`, foi excluído do banco de desenvolvimento após pedido explícito e confirmação final; a cópia de segurança anterior à exclusão foi preservada em `generated-artifacts/`.
+- O ID 6 ainda contém o registro legado “PAXTER SERVICOS LTDA”, mas o CEO esclareceu que não existe como empresa médica atual. O registro está marcado como ativo e proprietário da plataforma; os IDs 5, 7 e 8 ainda apontam para ele em `empresa_mae_id`. Essa estrutura conflita com a direção atual e requer reconciliação; nenhum desses vínculos foi alterado nesta etapa. Os campos do esquema devem ser preservados.
 - O nome fantasia “Clinica Padua” foi gravado na localização existente de Instituto Padua, ID 8, cuja empresa proprietária é o ID 5.
-- A linha “Instituto Padilha” não teve correspondência segura com a empresa “INSTITUTO INTEGRATIVO”, ID 1; nenhum registro foi renomeado e nenhuma empresa nova foi criada.
+- A linha “Instituto Padilha” não teve correspondência segura com “INSTITUTO INTEGRATIVO”, ID 1; nenhum registro existente foi renomeado. Após pedido do CEO, foi criado no banco de desenvolvimento o cadastro empresarial ID 13 e uma unidade vinculada, ID 21, usando os dados da linha da planilha. O cadastro contém CNAE `86.30-5-03`, regime `lucro_real`, CNPJ `33.143.134/0001-10` e os dados de endereço e contato fornecidos. O CNPJ passou na validação de dígitos verificadores.
+- A unidade de Instituto Padilha permanece sem código semântico. O código indicado na planilha não segue o formato aprovado. A relação com Instituto Padua também não foi aplicada: a instrução estrutural vigente identifica Paduzzi como a relação específica; a linha da planilha, isoladamente, não autoriza alterar essa hierarquia.
 - O CEP informado para Paduzzi Guarulhos na planilha (`05577-88`) tem sete algarismos. O sistema preservou o CEP já existente, sem completar o número por suposição.
 - Os regimes tributários e CNAEs foram preenchidos para nove empresas. A planilha contém códigos semânticos que não seguem o formato confirmado `BASE.VINC.CNPJ4.SEQ4`; esses códigos não foram importados.
 - A coluna “EMPRESA MAE” não foi aplicada à hierarquia existente: os valores da planilha conflitam com a estrutura relatada pelo CEO e podem alterar relações de licenciamento. Cobranças e vínculos de licenciamento não foram alterados.
 - A tela “Cadastro de Empresas” não possui campo próprio para todos os dados da planilha, especialmente nome fantasia e número do endereço. A recomendação visual está registrada, mas a consolidação dos campos e das telas ainda precisa ser construída.
 - A ferramenta de revisão independente solicitada não estava disponível nesta execução. Foi feita revisão manual; por isso, o critério de revisão independente continua pendente.
-- Os 12 testes específicos passaram; a verificação das bibliotecas e as compilações do servidor e da interface passaram.
+- Os 12 testes específicos da importação anterior passaram; eles não foram repetidos após a exclusão do ID 9 e a criação do ID 13/unidade 21. A criação foi conferida diretamente no banco, incluindo o vínculo entre a empresa e a unidade.
 - Ainda falta um teste concorrente integrado no banco para demonstrar duas emissões simultâneas; a proteção está implementada com transação e restrição única, mas essa evidência não foi produzida.
 - A verificação geral de TypeScript continua falhando em 173 diagnósticos já existentes; o único apontamento em arquivo alterado está em um trecho antigo e não relacionado da rota empresarial.
 - A imagem automática da página encontrou o acesso, mas não entrou na sessão; a tela autenticada não foi validada visualmente.
 - Uma inicialização registrou limite temporário de leituras no serviço de planilhas; na última inicialização, o dicionário estava atualizado e o servidor ficou ativo.
-- A unidade não está homologada. As divergências de correspondência, campos ausentes na tela e códigos semânticos da planilha permanecem pendentes; nenhuma exclusão pode ser feita neste escopo.
+- A unidade não está homologada. Permanecem pendentes a consolidação visual dos campos e das telas, a revisão independente e os testes próprios da nova inclusão. Nenhuma outra exclusão foi autorizada; o ID 6 continua preservado por ter três empresas vinculadas a ele.

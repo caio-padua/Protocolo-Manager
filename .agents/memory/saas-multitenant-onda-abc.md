@@ -10,15 +10,17 @@ Fase atual: single-tenant (empresa_id=5 fixo), middleware pronoto para upgrade.
 
 ## Estrutura empresarial desejada pelo CEO (02/11/2026)
 
-O modelo empresarial pretendido é de empresas independentes, com uma relação específica entre Instituto Padua e Paduzzi. A palavra “filial” ainda precisa ser confirmada contra os documentos societários; uma empresa do mesmo grupo não é automaticamente uma filial jurídica.
+O sistema é destinado a empresas médicas. PAXTER não é uma empresa existente nem uma clínica; é apenas um nome reservado para uma possível empresa futura, quando o sistema estiver pronto. Não registrar PAXTER como empresa médica, clínica ou empresa-mãe.
 
-O CEO confirmou em 02/11/2026 que o vínculo usado no código semântico será uma classificação interna escolhida por ele. Esse vínculo não declara filial jurídica e não substitui a hierarquia de licenciamento.
+O código semântico é por unidade e segue `BASE.VINC.CNPJ4.SEQ4`: `BASE` deriva do nome principal, `VINC` é uma classificação interna escolhida pelo CEO, `CNPJ4` são os quatro primeiros números do CNPJ e `SEQ4` é a sequência da unidade. O código não usa nem define empresa-mãe.
 
-Em 02/11/2026, o CEO informou que os CNPJs presentes nos cadastros de desenvolvimento são fictícios e indicou preservar como identidade canônica Instituto Padua, Paduccia Clínica Médica e Clínica Padua. A decisão não autoriza inferir quais registros excluir nem dispensa conferir dependências antes de migrar referências.
+Os campos de empresa-mãe e hierarquia existentes devem permanecer no esquema do banco de dados, mas não devem ser usados para compor o código semântico. A exclusão ou limpeza de valores já gravados exige escopo explícito, pois a lógica atual de licenciamento ainda consome essas relações.
 
-**Why:** A base de desenvolvimento mostra relações de licenciamento e empresa-mãe que não coincidem integralmente com a estrutura empresarial declarada pelo CEO. Além disso, o CNPJ cadastrado para Paduzzi tem raiz diferente do CNPJ do Instituto Padua, o que não confirma uma filial jurídica. O CEO distinguiu expressamente o vínculo interno do vínculo jurídico.
+Em 02/11/2026, o CEO informou que os CNPJs presentes nos cadastros de desenvolvimento são fictícios e indicou preservar como identidade canônica Instituto Padua, Paduccia Clínica Médica e Clínica Padua. Isso não autoriza inferir exclusões ou relações societárias.
 
-**How to apply:** Manter separados o código semântico interno, a hierarquia de licenciamento do produto e a relação societária legal. O CEO pode definir o vínculo interno no código sem alterar os outros dois. Tratar os CNPJs atuais de desenvolvimento como sintéticos, sem reutilizá-los como dados oficiais; preservar a identidade Padua/Paduccia e verificar referências antes de consolidar registros. Não reclassificar a relação jurídica sem documentos.
+**Why:** O CEO esclareceu que o registro chamado PAXTER não representa uma empresa médica existente. A base de desenvolvimento contém vínculos e campos de proprietário da plataforma que confundem a identidade técnica da plataforma com empresas clínicas.
+
+**How to apply:** Manter os campos existentes, separar a identidade de proprietário da plataforma dos cadastros de empresas médicas e aplicar o código semântico aprovado sem inferir hierarquia. Tratar os CNPJs de desenvolvimento como sintéticos. Antes de remover um registro técnico ou limpar vínculos legados, verificar dependências e pedir confirmação do CEO para o alcance exato.
 
 ## Código semântico por unidade clínica
 
