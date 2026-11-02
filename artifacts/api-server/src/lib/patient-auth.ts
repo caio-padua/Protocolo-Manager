@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 
 // Acesso leve do paciente (Bloco D). Senha SEMPRE com hash forte (scrypt nativo do
 // Node — zero dependencia nova). Formato guardado: `scrypt$<saltHex>$<hashHex>`.
@@ -26,22 +26,26 @@ export function verifyPassword(plain: string, stored: string | null | undefined)
   }
 }
 
-// Senha provisoria legivel: 8 caracteres sem simbolos ambiguos (sem I, O, 0, 1).
-// Uso unico — o paciente e OBRIGADO a trocar no 1o acesso (mustChangePassword).
+// Senha provisoria de uso unico, gerada segundo a politica global. O cliente e
+// OBRIGADO a definir uma senha propria no primeiro acesso (mustChangePassword).
 export function generateProvisionalPassword(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(8);
-  let out = "";
-  for (let i = 0; i < 8; i++) out += alphabet[bytes[i] % alphabet.length];
-  return out;
+  const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const symbols = "@!#$%*?";
+  const alphabet = `${uppercase}abcdefghjkmnpqrstuvwxyz${digits}${symbols}`;
+  const pick = (characters: string) => characters[randomInt(characters.length)]!;
+  const remaining = [pick(digits), pick(symbols)];
+  while (remaining.length < 11) remaining.push(pick(alphabet));
+
+  for (let index = remaining.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    [remaining[index], remaining[swapIndex]] = [remaining[swapIndex]!, remaining[index]!];
+  }
+
+  return `${pick(uppercase)}${remaining.join("")}`;
 }
 
 // Token opaco para o link "definir/recuperar acesso" (Bloco D, R14 / caso extremo 6).
 export function generateAccessToken(): string {
   return randomBytes(24).toString("hex");
-}
-
-// Regras minimas da nova senha definida pelo paciente no 1o acesso.
-export function isStrongEnough(plain: string): boolean {
-  return typeof plain === "string" && plain.trim().length >= 6;
 }

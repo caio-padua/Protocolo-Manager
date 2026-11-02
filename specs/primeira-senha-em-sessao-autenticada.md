@@ -21,7 +21,7 @@ Permitir que o profissional autenticado crie a primeira senha da propria conta q
 ## 3. Requisitos
 
 1. Na rota “Configuracoes → Meu Acesso”, mostrar “Criar minha senha” somente quando a resposta autenticada indicar que a conta nao tem senha.
-2. Solicitar senha nova e confirmacao; exigir de 12 a 128 caracteres e conferir a igualdade antes do envio.
+2. Solicitar senha nova e confirmacao; aplicar a política global de 10 a 128 caracteres, maiúscula inicial, número e caractere especial, e conferir a igualdade antes do envio.
 3. Criar `POST /api/collaborator/initial-password`, protegido por `requireCollaborator`.
 4. Obter o profissional exclusivamente de `req.collaborator.professionalId`; ignorar ou rejeitar qualquer identificador de alvo enviado pelo navegador.
 5. Confirmar conta ativa, senha ainda inexistente e versao de credencial atual no servidor.
@@ -47,7 +47,7 @@ Permitir que o profissional autenticado crie a primeira senha da propria conta q
 | Sessao ausente, expirada ou revogada | `requireCollaborator` | HTTP 401; nenhuma alteracao |
 | Conta inativa ou ausente | consulta pelo profissional da sessao | Recusa; nenhuma alteracao |
 | Conta ja tem senha | verificacao no servidor e atualizacao condicional | HTTP 409; hash existente preservado |
-| Senha curta ou longa demais | validacao no servidor | HTTP 400; nenhuma alteracao |
+| Senha que descumpre qualquer requisito global | validacao compartilhada no servidor | HTTP 400; nenhuma alteracao |
 | Tentativa enviada para outro profissional | alvo derivado somente da sessao | Nenhuma outra conta alterada |
 | Duas primeiras senhas concorrentes | `passwordHash IS NULL` e versao anterior na gravacao | Uma vence; a outra recebe conflito |
 | Banco falha antes da gravacao | operacao falha fechada | Nenhuma confirmacao falsa |

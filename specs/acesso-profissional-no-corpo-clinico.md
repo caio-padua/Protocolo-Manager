@@ -40,7 +40,7 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 2. A identidade-alvo das operações autenticadas vem exclusivamente da sessão atual.
 3. Alteração de e-mail ou CPF exige a senha atual e invalida sessões anteriores.
 4. Criar a primeira senha permanece permitido apenas quando a conta autenticada não possui senha.
-5. Alterar uma senha conhecida exige a senha atual, confirmação e o limite já usado pelo sistema.
+5. Alterar uma senha conhecida exige a senha atual, confirmação e a política global de 10 a 128 caracteres, maiúscula inicial, número e caractere especial.
 6. O controle de revelar senha mostra somente o texto digitado naquele campo.
 
 ### 4.2 Recuperação de senha esquecida

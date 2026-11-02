@@ -63,7 +63,8 @@ R10. E-mail no padrão de marca (E-mail Paxter v2: fundo navy "terno"; se listar
 
 ### Bloco D — Acesso do paciente (login + senha, troca no 1º acesso)
 R11. Login do paciente = CPF. [DEFAULT — confirmar.]
-R12. Paciente NOVO (ou existente SEM senha ativa): gerar senha provisória de uso único; o e-mail de chegada
+R12. Paciente NOVO (ou existente SEM senha ativa): gerar senha provisória de uso único que também obedeça à
+     política global de senha; o e-mail de chegada
      traz login (CPF) + senha provisória + link para `/area`.
 R13. No 1º acesso com a senha provisória, a `/area` OBRIGA a definir uma nova senha antes de qualquer outra
      ação (flag `mustChangePassword`).

@@ -16,7 +16,8 @@ import {
   agendaResourcesTable,
 } from "@workspace/db";
 import { verifyPortalToken, createPortalToken } from "../lib/portal-token";
-import { verifyPassword, hashPassword, isStrongEnough } from "../lib/patient-auth.js";
+import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
+import { verifyPassword, hashPassword } from "../lib/patient-auth.js";
 import { generateSignedRASPdf, generateProtocolDocumentPdf } from "../lib/pdf-signer";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
@@ -120,8 +121,8 @@ router.post("/area-paciente/trocar-senha", async (req: Request, res: Response): 
     if (!client || !client.passwordHash) { badCredentials(res); return; }
     if (!verifyPassword(currentPassword, client.passwordHash)) { badCredentials(res); return; }
 
-    if (!isStrongEnough(newPassword)) {
-      res.status(400).json({ error: "A nova senha precisa ter pelo menos 6 caracteres." });
+    if (!isAppPasswordValid(newPassword)) {
+      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
       return;
     }
     if (verifyPassword(newPassword, client.passwordHash)) {
@@ -158,8 +159,8 @@ router.post("/area-paciente/definir-senha", async (req: Request, res: Response):
     const token = typeof req.body?.token === "string" ? req.body.token : "";
     const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
     if (!token) { res.status(400).json({ error: "Link inválido ou expirado." }); return; }
-    if (!isStrongEnough(newPassword)) {
-      res.status(400).json({ error: "A senha precisa ter pelo menos 6 caracteres." });
+    if (!isAppPasswordValid(newPassword)) {
+      res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
       return;
     }
 

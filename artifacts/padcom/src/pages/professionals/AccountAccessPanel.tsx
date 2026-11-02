@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { formatCpfInput } from "@/lib/cpf";
+import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import {
   clearCollabSession,
   getCollabToken,
@@ -192,13 +193,8 @@ export default function AccountAccessPanel({
     event.preventDefault();
     setPasswordError(null);
     setPasswordMessage(null);
-    if (
-      newPassword.length < 10 ||
-      newPassword.length > 128 ||
-      !/^\p{Lu}/u.test(newPassword) ||
-      !/[\p{P}\p{S}]/u.test(newPassword)
-    ) {
-      setPasswordError("Use pelo menos 10 caracteres, comece com letra maiúscula e inclua um caractere especial.");
+    if (!isAppPasswordValid(newPassword)) {
+      setPasswordError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -330,7 +326,7 @@ export default function AccountAccessPanel({
           </div>
         ) : (
           <p className="text-[10px] text-muted-foreground">
-            Esta conta ainda não tem senha. Crie uma com pelo menos 10 caracteres, começando com maiúscula e contendo um caractere especial.
+            Esta conta ainda não tem senha. {PASSWORD_POLICY_MESSAGE}
           </p>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -341,7 +337,7 @@ export default function AccountAccessPanel({
               required minLength={10} maxLength={128} visibilityLabel="nova senha"
               visibilityTestId="toggle-own-new-password" className="field-engraved" />
             <p className="text-[10px] text-muted-foreground">
-              Pelo menos 10 caracteres, começa com letra maiúscula e inclui um caractere especial.
+              {PASSWORD_POLICY_MESSAGE}
             </p>
           </div>
           <div className="space-y-1.5">

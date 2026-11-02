@@ -1,5 +1,9 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import {
+  isAppPasswordValid,
+  PASSWORD_POLICY_MESSAGE,
+} from "@workspace/password-policy";
+import {
   createHash,
   createHmac,
   randomBytes,
@@ -313,19 +317,6 @@ function serializeAccountHistoryEvent(row: {
     changes,
   };
 }
-
-const PASSWORD_MIN_LENGTH = 10;
-const PASSWORD_MAX_LENGTH = 128;
-
-function isNewPasswordValid(password: string): boolean {
-  return password.length >= PASSWORD_MIN_LENGTH &&
-    password.length <= PASSWORD_MAX_LENGTH &&
-    /^\p{Lu}/u.test(password) &&
-    /[\p{P}\p{S}]/u.test(password);
-}
-
-const PASSWORD_POLICY_ERROR =
-  "A senha deve ter pelo menos 10 caracteres, começar com letra maiúscula e conter um caractere especial.";
 
 export async function getVerifiedGoogleEmail(clerkUserId: string): Promise<string | null> {
   const user = await clerkClient.users.getUser(clerkUserId);
@@ -962,8 +953,8 @@ router.post("/collaborator/password-recovery/complete", async (req, res): Promis
   const newPassword = typeof req.body?.newPassword === "string"
     ? req.body.newPassword
     : "";
-  if (!isNewPasswordValid(newPassword)) {
-    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
+  if (!isAppPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
     return;
   }
   const claims = verifyPasswordRecoveryToken(recoveryToken);
@@ -1101,8 +1092,8 @@ router.post("/collaborator/dev-primary-recovery/complete", async (req, res): Pro
     res.status(401).json({ error: "A recuperação expirou. Inicie novamente." });
     return;
   }
-  if (!isNewPasswordValid(newPassword)) {
-    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
+  if (!isAppPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
     return;
   }
 
@@ -1589,8 +1580,8 @@ router.post("/collaborator/change-password", requireCollaborator, async (req, re
   const newPassword =
     typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
 
-  if (!isNewPasswordValid(newPassword)) {
-    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
+  if (!isAppPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
     return;
   }
   if (!currentPassword || currentPassword.length > 512 || currentPassword === newPassword) {
@@ -1682,8 +1673,8 @@ router.post("/collaborator/initial-password", requireCollaborator, async (req, r
   const newPassword =
     typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
 
-  if (!isNewPasswordValid(newPassword)) {
-    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
+  if (!isAppPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_MESSAGE });
     return;
   }
 
@@ -1791,9 +1782,9 @@ router.post(
   const professionalId = Number(req.body?.professionalId);
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!Number.isInteger(professionalId) || !username || !isNewPasswordValid(password)) {
+  if (!Number.isInteger(professionalId) || !username || !isAppPasswordValid(password)) {
     res.status(400).json({
-      error: `Informe um profissional e um usuário válidos. ${PASSWORD_POLICY_ERROR}`,
+      error: `Informe um profissional e um usuário válidos. ${PASSWORD_POLICY_MESSAGE}`,
     });
     return;
   }

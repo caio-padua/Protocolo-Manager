@@ -32,6 +32,7 @@
     "@workspace/governanca": "workspace:*",
     "@workspace/integrations-anthropic-ai": "workspace:*",
     "@workspace/integrations-gemini-ai": "workspace:*",
+    "@workspace/password-policy": "workspace:*",
     "@workspace/posologia": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",

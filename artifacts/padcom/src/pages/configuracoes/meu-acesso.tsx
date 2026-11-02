@@ -16,6 +16,7 @@ import {
   formatProfessionalName,
   formatProfessionalRole,
 } from "@/lib/format-professional-identity";
+import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 
 interface AccountIdentity {
   name: string;
@@ -133,8 +134,8 @@ export default function MeuAcesso() {
     event.preventDefault();
     setPasswordError(null);
     setPasswordMessage(null);
-    if (newPassword.length < 12) {
-      setPasswordError("A nova senha precisa ter pelo menos 12 caracteres.");
+    if (!isAppPasswordValid(newPassword)) {
+      setPasswordError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -189,8 +190,8 @@ export default function MeuAcesso() {
     event.preventDefault();
     setPasswordError(null);
     setPasswordMessage(null);
-    if (newPassword.length < 12 || newPassword.length > 128) {
-      setPasswordError("A senha precisa ter entre 12 e 128 caracteres.");
+    if (!isAppPasswordValid(newPassword)) {
+      setPasswordError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -476,7 +477,7 @@ export default function MeuAcesso() {
                             value={newPassword}
                             onChange={(event) => setNewPassword(event.target.value)}
                             required
-                            minLength={12}
+                            minLength={10}
                             maxLength={128}
                           />
                         </div>
@@ -491,13 +492,13 @@ export default function MeuAcesso() {
                             value={confirmPassword}
                             onChange={(event) => setConfirmPassword(event.target.value)}
                             required
-                            minLength={12}
+                            minLength={10}
                             maxLength={128}
                           />
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Use pelo menos 12 caracteres. A troca encerra as sessões antigas em outros aparelhos.
+                        {PASSWORD_POLICY_MESSAGE} A troca encerra as sessões antigas em outros aparelhos.
                       </p>
                       {passwordError ? (
                         <p className="text-sm text-destructive" role="alert">{passwordError}</p>
@@ -527,7 +528,7 @@ export default function MeuAcesso() {
                           value={newPassword}
                           onChange={(event) => setNewPassword(event.target.value)}
                           required
-                          minLength={12}
+                          minLength={10}
                           maxLength={128}
                           disabled={passwordBusy}
                         />
@@ -543,13 +544,13 @@ export default function MeuAcesso() {
                           value={confirmPassword}
                           onChange={(event) => setConfirmPassword(event.target.value)}
                           required
-                          minLength={12}
+                          minLength={10}
                           maxLength={128}
                           disabled={passwordBusy}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Use pelo menos 12 caracteres. Ao salvar, as outras sessões serão encerradas.
+                        {PASSWORD_POLICY_MESSAGE} Ao salvar, as outras sessões serão encerradas.
                       </p>
                       {passwordError ? (
                         <p className="text-sm text-destructive" role="alert">{passwordError}</p>

@@ -14,7 +14,7 @@ Permitir que o responsavel do projeto recupere o acesso ao cadastro ativo e unic
 3. Se nao houver exatamente um alvo elegivel, a operacao falha fechada; o navegador nao pode enviar identificador, nome, CPF, usuario ou clinica para escolher o cadastro.
 4. O primeiro pedido cria um desafio aleatorio de uso unico, mantido somente em memoria, com validade maxima de 10 minutos.
 5. O desafio nao aparece em URL, nao e escrito em log e nao e persistido. Reiniciar o servidor invalida desafios pendentes.
-6. O formulario permite definir uma senha final de 12 a 128 caracteres, com confirmacao; a senha nunca e exibida novamente nem enviada a auditoria.
+6. O formulário permite definir uma senha final conforme a política global: de 10 a 128 caracteres, maiúscula inicial, pelo menos um número e um caractere especial; a senha nunca é exibida novamente nem enviada à auditoria.
 7. A conclusao atualiza somente a senha do cadastro-alvo, incrementa `credentialVersion` e invalida sessoes anteriores.
 8. A auditoria registra o evento de recuperacao sem senha, desafio, hash, CPF, e-mail ou usuario.
 9. Depois da recuperacao, emitir uma sessao normal do colaborador para o medico principal e abrir o destino solicitado pelo usuario.
@@ -41,7 +41,7 @@ Permitir que o responsavel do projeto recupere o acesso ao cadastro ativo e unic
 | Alvo inativo ou sem papel de proprietario | Revalidar na conclusao | 403/409; nenhuma conta alterada |
 | Desafio expirado ou inexistente | Prazo de 10 minutos | 401 generico |
 | Desafio repetido ou concorrente | Marcacao atomica de uso antes da escrita | Uma tentativa vence; demais recusadas |
-| Senha curta ou longa | Validacao no servidor | 400; hash e versao permanecem |
+| Senha fora da política global | Validação compartilhada no servidor | 400; hash e versão permanecem |
 | Falha na escrita/auditoria | Operacao transacional; falha fechada | Nenhuma confirmacao falsa |
 | Reinicio do servidor | Desafios nao persistidos | Desafio invalido; iniciar novamente |
 | Tentativa de trocar outro cadastro | Nenhum alvo aceito do navegador | Nenhum outro profissional alterado |

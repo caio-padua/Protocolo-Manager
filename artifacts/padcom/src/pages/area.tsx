@@ -14,6 +14,7 @@ import { ParxisWordmark } from "@/components/layout/paxter-fx/ParxisWordmark";
 import { PAXTER_SITE_URL } from "@/lib/brand";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -595,7 +596,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   // Troca obrigatoria no 1o acesso: mantem o CPF + a senha provisoria (password)
   // ja digitados e envia a nova.
   const handleChangePassword = useCallback(async () => {
-    if (newPassword.length < 6) { setError("A nova senha precisa ter pelo menos 6 caracteres"); return; }
+    if (!isAppPasswordValid(newPassword)) { setError(PASSWORD_POLICY_MESSAGE); return; }
     if (newPassword !== confirmPassword) { setError("As senhas não conferem"); return; }
     setLoading(true); setError("");
     try {
@@ -617,7 +618,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
 
   // Definir/recuperar senha pelo token do e-mail.
   const handleDefinePassword = useCallback(async () => {
-    if (newPassword.length < 6) { setError("A senha precisa ter pelo menos 6 caracteres"); return; }
+    if (!isAppPasswordValid(newPassword)) { setError(PASSWORD_POLICY_MESSAGE); return; }
     if (newPassword !== confirmPassword) { setError("As senhas não conferem"); return; }
     setLoading(true); setError("");
     try {
@@ -669,10 +670,12 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <div>
               <label className={LABEL_CLS}>NOVA SENHA</label>
               <input
-                type="password" placeholder="mínimo 6 caracteres" value={newPassword}
+                type="password" placeholder="10 a 128 caracteres; maiúscula, número e símbolo" value={newPassword}
                 onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
+                minLength={10} maxLength={128}
                 className={INPUT_CLS}
               />
+              <p className="text-muted-foreground text-xs mt-1">{PASSWORD_POLICY_MESSAGE}</p>
             </div>
             <div>
               <label className={LABEL_CLS}>REPITA A NOVA SENHA</label>
@@ -686,7 +689,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <LoginError message={error} />
             <button
               onClick={handleChangePassword}
-              disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
+              disabled={loading || !isAppPasswordValid(newPassword) || confirmPassword !== newPassword}
               className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest text-white"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}
@@ -715,10 +718,12 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <div>
               <label className={LABEL_CLS}>NOVA SENHA</label>
               <input
-                type="password" placeholder="mínimo 6 caracteres" value={newPassword}
+                type="password" placeholder="10 a 128 caracteres; maiúscula, número e símbolo" value={newPassword}
                 onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
+                minLength={10} maxLength={128}
                 className={INPUT_CLS}
               />
+              <p className="text-muted-foreground text-xs mt-1">{PASSWORD_POLICY_MESSAGE}</p>
             </div>
             <div>
               <label className={LABEL_CLS}>REPITA A NOVA SENHA</label>
@@ -732,7 +737,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
             <LoginError message={error} />
             <button
               onClick={handleDefinePassword}
-              disabled={loading || newPassword.length < 6 || confirmPassword.length < 6}
+              disabled={loading || !isAppPasswordValid(newPassword) || confirmPassword !== newPassword}
               className="btn-3d w-full h-12 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest text-white"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>SALVAR E ENTRAR <ChevronRight className="w-4 h-4" /></>}

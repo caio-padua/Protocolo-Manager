@@ -242,6 +242,9 @@ importers:
       '@workspace/integrations-gemini-ai':
         specifier: workspace:*
         version: link:../../lib/integrations-gemini-ai
+      '@workspace/password-policy':
+        specifier: workspace:*
+        version: link:../../lib/password-policy
       '@workspace/posologia':
         specifier: workspace:*
         version: link:../../lib/posologia
@@ -734,6 +737,9 @@ importers:
       '@workspace/governanca':
         specifier: workspace:*
         version: link:../../lib/governanca
+      '@workspace/password-policy':
+        specifier: workspace:*
+        version: link:../../lib/password-policy
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -1271,6 +1277,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.3.5
+
+  lib/password-policy: {}
 
   lib/posologia:
     devDependencies:

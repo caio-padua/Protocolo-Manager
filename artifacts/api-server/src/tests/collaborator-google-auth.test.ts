@@ -423,7 +423,7 @@ describe("recuperação de senha profissional por e-mail", () => {
 
     const replay = await request(app)
       .post("/collaborator/password-recovery/complete")
-      .send({ recoveryToken, newPassword: "Another-synthetic-password!" });
+      .send({ recoveryToken, newPassword: "Another-synthetic-password-2026!" });
     expect(replay.status).toBe(401);
   });
 
@@ -643,7 +643,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
       (
         await request(app)
           .post("/collaborator/dev-primary-recovery/complete")
-          .send({ challenge: started.body.challenge, newPassword: "Replay-synthetic-password!" })
+          .send({ challenge: started.body.challenge, newPassword: "Replay-synthetic-password-2026!" })
       ).status,
     ).toBe(401);
   });
@@ -657,7 +657,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
     const started = await startRecovery("192.0.2.11");
     const completed = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
-      .send({ challenge: "synthetic-token", newPassword: "New-synthetic-password!" });
+      .send({ challenge: "synthetic-token", newPassword: "New-synthetic-password-2026!" });
 
     expect(started.status).toBe(404);
     expect(completed.status).toBe(404);
@@ -699,7 +699,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
 
     const validPassword = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
-      .send({ challenge: started.body.challenge, newPassword: "Valid-synthetic-password!" });
+      .send({ challenge: started.body.challenge, newPassword: "Valid-synthetic-password-2026!" });
     expect(validPassword.status).toBe(200);
     expect(state.professionals[0].credentialVersion).toBe(1);
   });
@@ -715,7 +715,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
       dateNow.mockReturnValue(now + 10 * 60 * 1000 + 1);
       const completed = await request(app)
         .post("/collaborator/dev-primary-recovery/complete")
-        .send({ challenge: started.body.challenge, newPassword: "New-synthetic-password!" });
+        .send({ challenge: started.body.challenge, newPassword: "New-synthetic-password-2026!" });
 
       expect(completed.status).toBe(401);
       expect(state.professionals[0].passwordHash).toBe(existingHash);
@@ -734,10 +734,10 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
     const results = await Promise.all([
       request(app)
         .post("/collaborator/dev-primary-recovery/complete")
-        .send({ challenge, newPassword: "First-synthetic-password!" }),
+        .send({ challenge, newPassword: "First-synthetic-password-2026!" }),
       request(app)
         .post("/collaborator/dev-primary-recovery/complete")
-        .send({ challenge, newPassword: "Second-synthetic-password!" }),
+        .send({ challenge, newPassword: "Second-synthetic-password-2026!" }),
     ]);
 
     expect(results.filter((result) => result.status === 200)).toHaveLength(1);
@@ -755,7 +755,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
 
     const completed = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
-      .send({ challenge: started.body.challenge, newPassword: "New-synthetic-password!" });
+      .send({ challenge: started.body.challenge, newPassword: "New-synthetic-password-2026!" });
 
     expect(completed.status).toBe(500);
     expect(state.professionals[0].passwordHash).toBe(existingHash);
@@ -1029,7 +1029,7 @@ describe("acesso Google vinculado ao colaborador", () => {
       .send({
         professionalId: 42,
         currentPassword: "old-password",
-        newPassword: "New-synthetic-password!",
+        newPassword: "New-synthetic-password-2026!",
       });
 
     expect(response.status).toBe(200);
@@ -1054,7 +1054,7 @@ describe("acesso Google vinculado ao colaborador", () => {
     const wrongCurrent = await request(app)
       .post("/collaborator/change-password")
       .set("Authorization", `Bearer ${token}`)
-      .send({ currentPassword: "wrong", newPassword: "New-synthetic-password!" });
+      .send({ currentPassword: "wrong", newPassword: "New-synthetic-password-2026!" });
     const shortNew = await request(app)
       .post("/collaborator/change-password")
       .set("Authorization", `Bearer ${token}`)
@@ -1100,7 +1100,7 @@ describe("acesso Google vinculado ao colaborador", () => {
       }),
     );
     const originalToken = collaboratorToken(41);
-    const newPassword = "Synthetic-first-password!";
+    const newPassword = "Synthetic-first-password-2026!";
     const response = await request(app)
       .post("/collaborator/initial-password")
       .set("Authorization", `Bearer ${originalToken}`)
@@ -1135,7 +1135,7 @@ describe("acesso Google vinculado ao colaborador", () => {
     const response = await request(app)
       .post("/collaborator/initial-password")
       .set("Authorization", `Bearer ${collaboratorToken()}`)
-      .send({ newPassword: "New-synthetic-password!" });
+      .send({ newPassword: "New-synthetic-password-2026!" });
 
     expect(response.status).toBe(409);
     expect(state.professionals[0].passwordHash).toBe(existingHash);
@@ -1148,18 +1148,18 @@ describe("acesso Google vinculado ao colaborador", () => {
       request(app)
         .post("/collaborator/initial-password")
         .set("Authorization", `Bearer ${token}`)
-        .send({ newPassword: "Synthetic-first-password-one!" }),
+        .send({ newPassword: "Synthetic-first-password-one-2026!" }),
       request(app)
         .post("/collaborator/initial-password")
         .set("Authorization", `Bearer ${token}`)
-        .send({ newPassword: "Synthetic-first-password-two!" }),
+        .send({ newPassword: "Synthetic-first-password-two-2026!" }),
     ]);
 
     expect(results.filter((result) => result.status === 200)).toHaveLength(1);
     expect(results.some((result) => result.status === 409 || result.status === 401)).toBe(true);
     expect(state.professionals[0].credentialVersion).toBe(1);
-    expect(verifyPassword("Synthetic-first-password-one!", state.professionals[0].passwordHash) ||
-      verifyPassword("Synthetic-first-password-two!", state.professionals[0].passwordHash)).toBe(true);
+    expect(verifyPassword("Synthetic-first-password-one-2026!", state.professionals[0].passwordHash) ||
+      verifyPassword("Synthetic-first-password-two-2026!", state.professionals[0].passwordHash)).toBe(true);
   });
 
   it("atualiza e-mail e CPF somente na conta da sessão e encerra sessões anteriores", async () => {
@@ -1287,6 +1287,10 @@ describe("acesso Google vinculado ao colaborador", () => {
       .post("/collaborator/initial-password")
       .set("Authorization", `Bearer ${token}`)
       .send({ newPassword: "NoSpecial123" });
+    const missingNumber = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newPassword: "Abcdefgh!i" });
     const validTenCharacters = await request(app)
       .post("/collaborator/initial-password")
       .set("Authorization", `Bearer ${token}`)
@@ -1294,8 +1298,30 @@ describe("acesso Google vinculado ao colaborador", () => {
 
     expect(lowercaseStart.status).toBe(400);
     expect(missingSpecial.status).toBe(400);
+    expect(missingNumber.status).toBe(400);
     expect(validTenCharacters.status).toBe(200);
     expect(verifyPassword("A12345678!", state.professionals[0].passwordHash)).toBe(true);
+  });
+
+  it("bloqueia senha fora da política na rota administrativa sem gravar credenciais", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const originalUsername = state.professionals[0].loginUsername;
+    const originalPasswordHash = state.professionals[0].passwordHash;
+
+    const response = await request(app)
+      .post("/collaborator/credentials")
+      .set("Authorization", `Bearer ${collaboratorToken()}`)
+      .send({
+        professionalId: 41,
+        username: "new-synthetic-login",
+        password: "Abcdefgh!i",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("pelo menos um número");
+    expect(state.professionals[0].loginUsername).toBe(originalUsername);
+    expect(state.professionals[0].passwordHash).toBe(originalPasswordHash);
+    expect(state.audit).toHaveLength(0);
   });
 
   it("nao aceita que o navegador conceda outra clinica ao profissional", async () => {

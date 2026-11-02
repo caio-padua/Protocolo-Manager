@@ -21,6 +21,7 @@ import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGla
 import { clerkPublishableKey } from "@/lib/clerk-app";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 
 interface BootstrapStatus {
   needsBootstrap: boolean;
@@ -165,8 +166,8 @@ export default function LoginPage() {
   async function completePasswordRecovery(e: React.FormEvent) {
     e.preventDefault();
     setRecoveryError(null);
-    if (recoveryPassword.length < 12 || recoveryPassword.length > 128) {
-      setRecoveryError("Use uma senha entre 12 e 128 caracteres.");
+    if (!isAppPasswordValid(recoveryPassword)) {
+      setRecoveryError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (recoveryPassword !== recoveryConfirmation) {
@@ -196,6 +197,10 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (isBootstrap && !isAppPasswordValid(password)) {
+      setError(PASSWORD_POLICY_MESSAGE);
+      return;
+    }
     setBusy(true);
     try {
       let res: Response;
@@ -243,8 +248,8 @@ export default function LoginPage() {
   async function completeDevelopmentRecovery(e: React.FormEvent) {
     e.preventDefault();
     setDevRecoveryError(null);
-    if (devRecoveryPassword.length < 12 || devRecoveryPassword.length > 128) {
-      setDevRecoveryError("A senha deve ter entre 12 e 128 caracteres.");
+    if (!isAppPasswordValid(devRecoveryPassword)) {
+      setDevRecoveryError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (devRecoveryPassword !== devRecoveryConfirmation) {
@@ -343,7 +348,7 @@ export default function LoginPage() {
             {recoveryToken ? (
               <form onSubmit={completePasswordRecovery} className="space-y-4">
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  O link é de uso único. Use uma senha com pelo menos 12 caracteres.
+                  O link é de uso único. {PASSWORD_POLICY_MESSAGE}
                 </p>
                 <div className="space-y-1.5">
                   <Label htmlFor="recovery-password" className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
@@ -351,7 +356,7 @@ export default function LoginPage() {
                   </Label>
                   <PasswordInput id="recovery-password" value={recoveryPassword}
                     onChange={(event) => setRecoveryPassword(event.target.value)}
-                    autoComplete="new-password" required minLength={12} maxLength={128}
+                    autoComplete="new-password" required minLength={10} maxLength={128}
                     visibilityLabel="nova senha" visibilityTestId="toggle-recovery-password"
                     className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]" />
                 </div>
@@ -361,7 +366,7 @@ export default function LoginPage() {
                   </Label>
                   <PasswordInput id="recovery-confirmation" value={recoveryConfirmation}
                     onChange={(event) => setRecoveryConfirmation(event.target.value)}
-                    autoComplete="new-password" required minLength={12} maxLength={128}
+                    autoComplete="new-password" required minLength={10} maxLength={128}
                     visibilityLabel="confirmação da nova senha" visibilityTestId="toggle-recovery-confirmation"
                     className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]" />
                 </div>
@@ -469,7 +474,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="password"
                   className="text-[#16284a] font-medium text-xs uppercase tracking-wide dark:text-slate-200">
-                  Senha {isBootstrap ? "(mínimo 6 caracteres)" : ""}
+                  Senha {isBootstrap ? "(nova senha)" : ""}
                 </Label>
                 <PasswordInput
                   id="password"
@@ -479,8 +484,13 @@ export default function LoginPage() {
                   data-testid="input-password"
                   visibilityLabel="senha"
                   visibilityTestId="toggle-password-visibility-login"
+                  minLength={isBootstrap ? 10 : undefined}
+                  maxLength={isBootstrap ? 128 : undefined}
                   className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
                 />
+                {isBootstrap ? (
+                  <p className="text-xs text-muted-foreground">{PASSWORD_POLICY_MESSAGE}</p>
+                ) : null}
               </div>
 
               {!isBootstrap ? (
@@ -570,7 +580,7 @@ export default function LoginPage() {
                         Defina sua nova senha
                       </h2>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        Use de 12 a 128 caracteres. Ao salvar, você entrará no cadastro existente do médico principal.
+                        {PASSWORD_POLICY_MESSAGE} Ao salvar, você entrará no cadastro existente do médico principal.
                       </p>
                     </div>
                     <div className="space-y-1.5">
@@ -584,6 +594,8 @@ export default function LoginPage() {
                         onChange={(e) => setDevRecoveryPassword(e.target.value)}
                         autoComplete="new-password"
                         data-testid="input-dev-recovery-password"
+                        minLength={10}
+                        maxLength={128}
                         visibilityLabel="nova senha"
                         visibilityTestId="toggle-dev-recovery-password"
                         className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
@@ -600,6 +612,8 @@ export default function LoginPage() {
                         onChange={(e) => setDevRecoveryConfirmation(e.target.value)}
                         autoComplete="new-password"
                         data-testid="input-dev-recovery-confirmation"
+                        minLength={10}
+                        maxLength={128}
                         visibilityLabel="confirmação da nova senha"
                         visibilityTestId="toggle-dev-recovery-confirmation"
                         className="border-[#16284a]/30 bg-[#fffdf8] text-[#16284a] focus-visible:ring-[#c2a05a]/50 dark:border-[#c2a05a]/40 dark:bg-[#0b1d35] dark:text-[#f4e2a8]"
