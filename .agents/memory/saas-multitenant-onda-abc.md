@@ -12,9 +12,11 @@ Fase atual: single-tenant (empresa_id=5 fixo), middleware pronoto para upgrade.
 
 O modelo empresarial pretendido é de empresas independentes, com uma relação específica entre Instituto Padua e Paduzzi. A palavra “filial” ainda precisa ser confirmada contra os documentos societários; uma empresa do mesmo grupo não é automaticamente uma filial jurídica.
 
-**Why:** A base de desenvolvimento mostra relações de licenciamento e empresa-mãe que não coincidem integralmente com a estrutura empresarial declarada pelo CEO. Além disso, o CNPJ cadastrado para Paduzzi tem raiz diferente do CNPJ do Instituto Padua, o que não confirma uma filial jurídica.
+O CEO confirmou em 02/11/2026 que o vínculo usado no código semântico será uma classificação interna escolhida por ele. Esse vínculo não declara filial jurídica e não substitui a hierarquia de licenciamento.
 
-**How to apply:** Manter separadas a hierarquia de licenciamento do produto e a relação societária legal. Não reclassificar empresas nem gerar códigos definitivos com base apenas em `empresa_mae_id`, nome parecido ou vínculo comercial. Confirmar os documentos antes de alterar a árvore jurídica.
+**Why:** A base de desenvolvimento mostra relações de licenciamento e empresa-mãe que não coincidem integralmente com a estrutura empresarial declarada pelo CEO. Além disso, o CNPJ cadastrado para Paduzzi tem raiz diferente do CNPJ do Instituto Padua, o que não confirma uma filial jurídica. O CEO distinguiu expressamente o vínculo interno do vínculo jurídico.
+
+**How to apply:** Manter separados o código semântico interno, a hierarquia de licenciamento do produto e a relação societária legal. O CEO pode definir o vínculo interno no código sem alterar os outros dois. Não reclassificar a relação jurídica sem documentos.
 
 ## O que foi feito (ONDA A — 16/07/2026)
 
