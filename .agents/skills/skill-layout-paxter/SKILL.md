@@ -646,6 +646,20 @@ o seletor de cliente atual.
 Cockpit; reutilizar a tela original embutida quando isso preservar o fluxo e as
 validacoes existentes.
 
+### 4.5 Padrao 24 — Formulários do Corpo Clínico e ações no rodapé
+
+- A aba “Dados” é a referência visual para todas as abas do cadastro do profissional.
+- Usar a mesma fonte operacional, escala de rótulo, caixa alta, contraste, campo `field-engraved`, espaçamento e guias de alinhamento; não criar uma segunda pele visual para senha, Google ou histórico.
+- Campos de acesso permanecem organizados por assunto, mas sem painéis Concavos aninhados que não existam na aba “Dados”.
+- A ação principal de salvar o profissional fica no rodapé inferior direito da janela, fora da área rolável.
+- Ações independentes de identidade, senha e vínculo Google ficam no final do respectivo formulário, em uma linha alinhada à direita; não devem disparar o salvamento dos dados clínico-profissionais.
+- A alternância de disponibilidade de agenda não significa permissão de login nem cargo administrativo.
+- Reaproveitar os contratos e controles já existentes; mudança visual não altera credenciais, permissões, vínculos ou persistência.
+
+**Why:** em 01/11/2026, o CEO identificou que a área de senha e Google parecia um formulário diferente e que os botões de salvar não estavam no rodapé inferior direito.
+
+**How to apply:** usar este padrão ao alterar qualquer aba do diálogo de cadastro/edição do Corpo Clínico, em computador e celular.
+
 Nota tecnica (relevo 3D vence Tailwind): as classes de relevo (`bevel-3d`, `panel-3d`, etc.) ficam
 SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do Tailwind. Para tingir
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use

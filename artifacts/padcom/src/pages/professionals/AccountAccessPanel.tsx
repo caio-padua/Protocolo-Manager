@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { KeyRound, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -261,116 +260,118 @@ export default function AccountAccessPanel({
     return null;
   }
 
-  return (
-    <section className="panel-3d-sub mt-6 space-y-5 p-4 sm:p-5" aria-labelledby="account-access-title">
-      <div className="bevel-3d flex items-center gap-2 px-3 py-2">
-        <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-        <h3 id="account-access-title" className="text-[10px] font-black uppercase tracking-[0.16em]">
-          Acesso à própria conta
-        </h3>
-      </div>
+  const sectionTitleClass =
+    "pt-2 text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60";
+  const fieldLabelClass =
+    "text-[10px] font-black uppercase tracking-widest text-muted-foreground";
 
-      <p className="text-xs leading-relaxed text-muted-foreground">
+  return (
+    <section className="space-y-4 focus:outline-none" aria-labelledby="account-access-title">
+      <p id="account-access-title" className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
+        — Acesso à própria conta
+      </p>
+
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
         Estes controles só aparecem na ficha da pessoa autenticada. A senha nunca é exibida.
       </p>
 
-      <section className="concave-3d space-y-4 p-4" aria-labelledby="identity-title">
-        <h4 id="identity-title" className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-          <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Identificadores de acesso
-        </h4>
-        <form className="space-y-3" onSubmit={submitIdentity}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="own-account-email">E-mail principal — login, recuperação e Google</Label>
-              <Input id="own-account-email" type="email" autoComplete="email" maxLength={254}
-                value={email} onChange={(event) => setEmail(event.target.value)} className="field-engraved" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="own-account-secondary-email">E-mail secundário — contato opcional</Label>
-              <Input id="own-account-secondary-email" type="email" autoComplete="email" maxLength={254}
-                value={secondaryEmail} onChange={(event) => setSecondaryEmail(event.target.value)}
-                className="field-engraved" />
-              <p className="text-xs text-muted-foreground">Não permite entrar nem recuperar senha.</p>
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="own-account-cpf">Cadastro de Pessoas Físicas (CPF)</Label>
-              <Input id="own-account-cpf" inputMode="numeric" autoComplete="off" maxLength={14}
-                value={cpf} onChange={(event) => setCpf(formatCpfInput(event.target.value))}
-                placeholder="000.000.000-00" className="field-engraved" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            O link de recuperação será enviado somente ao e-mail salvo aqui. A alteração exige sua senha atual.
-          </p>
+      <p id="identity-title" className={sectionTitleClass}>— Identificadores de acesso</p>
+      <form className="space-y-4" onSubmit={submitIdentity}>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="own-identity-password">Confirme com sua senha atual</Label>
-            <PasswordInput id="own-identity-password" autoComplete="current-password"
-              value={identityPassword} onChange={(event) => setIdentityPassword(event.target.value)}
-              required maxLength={512} visibilityLabel="senha atual"
-              visibilityTestId="toggle-own-identity-password" className="field-engraved" />
+            <Label className={fieldLabelClass} htmlFor="own-account-email">E-mail principal — login, recuperação e Google</Label>
+            <Input id="own-account-email" type="email" autoComplete="email" maxLength={254}
+              value={email} onChange={(event) => setEmail(event.target.value)} className="field-engraved" />
           </div>
-          {identityError ? <p className="text-sm text-destructive" role="alert">{identityError}</p> : null}
-          {identityMessage ? <p className="text-sm text-emerald-700 dark:text-emerald-300" role="status">{identityMessage}</p> : null}
-          <Button type="submit" className="btn-3d-soft" disabled={identityBusy}>
+          <div className="space-y-1.5">
+            <Label className={fieldLabelClass} htmlFor="own-account-secondary-email">E-mail secundário — contato opcional</Label>
+            <Input id="own-account-secondary-email" type="email" autoComplete="email" maxLength={254}
+              value={secondaryEmail} onChange={(event) => setSecondaryEmail(event.target.value)}
+              className="field-engraved" />
+            <p className="text-[10px] text-muted-foreground">Não permite entrar nem recuperar senha.</p>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className={fieldLabelClass} htmlFor="own-account-cpf">Cadastro de Pessoas Físicas (CPF)</Label>
+            <Input id="own-account-cpf" inputMode="numeric" autoComplete="off" maxLength={14}
+              value={cpf} onChange={(event) => setCpf(formatCpfInput(event.target.value))}
+              placeholder="000.000.000-00" className="field-engraved" />
+          </div>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          O link de recuperação será enviado somente ao e-mail salvo aqui. A alteração exige sua senha atual.
+        </p>
+        <div className="space-y-1.5">
+          <Label className={fieldLabelClass} htmlFor="own-identity-password">Confirme com sua senha atual</Label>
+          <PasswordInput id="own-identity-password" autoComplete="current-password"
+            value={identityPassword} onChange={(event) => setIdentityPassword(event.target.value)}
+            required maxLength={512} visibilityLabel="senha atual"
+            visibilityTestId="toggle-own-identity-password" className="field-engraved" />
+        </div>
+        {identityError ? <p className="text-sm text-destructive" role="alert">{identityError}</p> : null}
+        {identityMessage ? <p className="text-sm text-emerald-700 dark:text-emerald-300" role="status">{identityMessage}</p> : null}
+        <div className="flex justify-end border-t border-border/30 pt-3">
+          <Button type="submit" className="btn-3d min-h-10" disabled={identityBusy}>
             {identityBusy ? "Salvando…" : "Salvar dados de acesso"}
           </Button>
-        </form>
-      </section>
+        </div>
+      </form>
 
-      <section className="concave-3d space-y-4 p-4" aria-labelledby="password-title">
-        <h4 id="password-title" className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-          <KeyRound className="h-3.5 w-3.5 text-primary" />
-          {profile.hasPassword ? "Alterar senha" : "Cadastrar primeira senha"}
-        </h4>
-        <form className="space-y-3" onSubmit={submitPassword}>
-          {profile.hasPassword ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="own-current-password">Senha atual</Label>
-              <PasswordInput id="own-current-password" autoComplete="current-password"
-                value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)}
-                required maxLength={512} visibilityLabel="senha atual"
-                visibilityTestId="toggle-own-current-password" className="field-engraved" />
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Esta conta ainda não tem senha. Crie uma com pelo menos 10 caracteres, começando com maiúscula e contendo um caractere especial.
-            </p>
-          )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="own-new-password">Nova senha</Label>
-              <PasswordInput id="own-new-password" autoComplete="new-password"
-                value={newPassword} onChange={(event) => setNewPassword(event.target.value)}
-                required minLength={10} maxLength={128} visibilityLabel="nova senha"
-                visibilityTestId="toggle-own-new-password" className="field-engraved" />
-              <p className="text-xs text-muted-foreground">
-                Pelo menos 10 caracteres, começa com letra maiúscula e inclui um caractere especial.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="own-confirm-password">Confirmar nova senha</Label>
-              <PasswordInput id="own-confirm-password" autoComplete="new-password"
-                value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)}
-                required minLength={10} maxLength={128} visibilityLabel="confirmação da nova senha"
-                visibilityTestId="toggle-own-confirm-password" className="field-engraved" />
-            </div>
+      <p id="password-title" className={sectionTitleClass}>
+        — {profile.hasPassword ? "Alterar senha" : "Cadastrar primeira senha"}
+      </p>
+      <form className="space-y-4" onSubmit={submitPassword}>
+        {profile.hasPassword ? (
+          <div className="space-y-1.5">
+            <Label className={fieldLabelClass} htmlFor="own-current-password">Senha atual</Label>
+            <PasswordInput id="own-current-password" autoComplete="current-password"
+              value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)}
+              required maxLength={512} visibilityLabel="senha atual"
+              visibilityTestId="toggle-own-current-password" className="field-engraved" />
           </div>
-          {passwordError ? <p className="text-sm text-destructive" role="alert">{passwordError}</p> : null}
-          {passwordMessage ? <p className="text-sm text-emerald-700 dark:text-emerald-300" role="status">{passwordMessage}</p> : null}
-          <Button type="submit" className="btn-3d-gold" disabled={passwordBusy}>
+        ) : (
+          <p className="text-[10px] text-muted-foreground">
+            Esta conta ainda não tem senha. Crie uma com pelo menos 10 caracteres, começando com maiúscula e contendo um caractere especial.
+          </p>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className={fieldLabelClass} htmlFor="own-new-password">Nova senha</Label>
+            <PasswordInput id="own-new-password" autoComplete="new-password"
+              value={newPassword} onChange={(event) => setNewPassword(event.target.value)}
+              required minLength={10} maxLength={128} visibilityLabel="nova senha"
+              visibilityTestId="toggle-own-new-password" className="field-engraved" />
+            <p className="text-[10px] text-muted-foreground">
+              Pelo menos 10 caracteres, começa com letra maiúscula e inclui um caractere especial.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className={fieldLabelClass} htmlFor="own-confirm-password">Confirmar nova senha</Label>
+            <PasswordInput id="own-confirm-password" autoComplete="new-password"
+              value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)}
+              required minLength={10} maxLength={128} visibilityLabel="confirmação da nova senha"
+              visibilityTestId="toggle-own-confirm-password" className="field-engraved" />
+          </div>
+        </div>
+        {passwordError ? <p className="text-sm text-destructive" role="alert">{passwordError}</p> : null}
+        {passwordMessage ? <p className="text-sm text-emerald-700 dark:text-emerald-300" role="status">{passwordMessage}</p> : null}
+        <div className="flex justify-end border-t border-border/30 pt-3">
+          <Button type="submit" className="btn-3d min-h-10" disabled={passwordBusy}>
             {passwordBusy ? "Salvando…" : profile.hasPassword ? "Alterar minha senha" : "Criar primeira senha"}
           </Button>
-        </form>
-      </section>
+        </div>
+      </form>
 
+      <p className={sectionTitleClass}>— Vínculo com Google</p>
       {profile.googleLinked ? (
-        <div className="concave-3d space-y-2 p-4" aria-live="polite">
-          <p className="text-sm font-semibold">Conta Google vinculada</p>
+        <div className="space-y-2" aria-live="polite">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            Conta Google vinculada
+          </p>
           {googleStatus === "loading" ? (
-            <p className="text-xs text-muted-foreground">Confirmando o e-mail Google…</p>
+            <p className="text-[10px] text-muted-foreground">Confirmando o e-mail Google…</p>
           ) : null}
           {googleStatus === "verified" ? (
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">
+            <p className="text-[10px] text-emerald-700 dark:text-emerald-300">
               E-mail Google confirmado: <strong>{googleEmail}</strong>
             </p>
           ) : null}
@@ -386,23 +387,25 @@ export default function AccountAccessPanel({
             </p>
           ) : null}
           {googleStatus === "unavailable" ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] text-muted-foreground">
               Não foi possível confirmar o e-mail Google agora. Tente novamente mais tarde.
             </p>
           ) : null}
         </div>
       ) : (
-        <div className="concave-3d p-4">
-          <p className="text-xs text-muted-foreground">
+        <div className="space-y-3">
+          <p className="text-[10px] text-muted-foreground">
             O e-mail confirmado da conta Google deve ser igual ao e-mail principal deste cadastro.
           </p>
-          <Button type="button" variant="outline" className="btn-3d-soft mt-3"
-            disabled={!email.trim()}
-            onClick={() => navigate(`/sign-in?intent=link&returnTo=${encodeURIComponent("/professionals?selfAccess=1")}`)}>
-            Vincular conta Google
-          </Button>
+          <div className="flex justify-end border-t border-border/30 pt-3">
+            <Button type="button" variant="outline" className="btn-3d-soft min-h-10"
+              disabled={!email.trim()}
+              onClick={() => navigate(`/sign-in?intent=link&returnTo=${encodeURIComponent("/professionals?selfAccess=1")}`)}>
+              Vincular conta Google
+            </Button>
+          </div>
           {!email.trim() ? (
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-[10px] text-muted-foreground">
               Cadastre primeiro o e-mail principal na seção acima.
             </p>
           ) : null}

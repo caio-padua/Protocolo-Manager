@@ -897,16 +897,16 @@ export default function Professionals() {
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="panel-3d max-w-2xl max-h-[92vh] overflow-y-auto">
-            <DialogHeader className="pb-2 border-b border-border/30">
+          <DialogContent className="panel-3d flex h-[92dvh] max-h-[92dvh] max-w-2xl flex-col overflow-hidden sm:h-[92vh] sm:max-h-[92vh]">
+            <DialogHeader className="shrink-0 pb-2 border-b border-border/30">
               <DialogTitle className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                 {editingId ? `Editar — ${form.name || "Profissional"}` : "Cadastrar Profissional"}
               </DialogTitle>
             </DialogHeader>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3 flex min-h-0 flex-1 flex-col">
               {/* Painel superior saliente — barra de abas como botões físicos */}
-              <TabsList className="panel-3d-sub w-full border-none h-auto p-2 flex flex-wrap gap-2 mb-5">
+              <TabsList className="panel-3d-sub w-full shrink-0 border-none h-auto p-2 flex flex-wrap gap-2 mb-4">
                 {[
                   { value: "dados", label: "DADOS", icon: User },
                   ...(isSelfEditing
@@ -930,6 +930,7 @@ export default function Professionals() {
                 ))}
               </TabsList>
 
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
               {/* ── Aba: Dados ── */}
               <TabsContent value="dados" className="space-y-4 focus:outline-none">
 
@@ -1213,13 +1214,6 @@ export default function Professionals() {
                   </Label>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button className="btn-3d-soft" onClick={closeDialog}>CANCELAR</Button>
-                  <Button className="btn-3d" onClick={handleSubmit} disabled={isPending}>
-                    {isPending ? "SALVANDO..." : editingId ? "SALVAR ALTERAÇÕES" : "CADASTRAR"}
-                  </Button>
-                </div>
-
                 {!editingId && (
                   <p className="text-[10px] text-muted-foreground font-medium text-center">
                     Salve para liberar as abas <strong>VÍNCULOS</strong> e <strong>DOCUMENTOS</strong>.
@@ -1286,6 +1280,16 @@ export default function Professionals() {
                   </div>
                 )}
               </TabsContent>
+              </div>
+
+              {activeTab === "dados" ? (
+                <div className="flex shrink-0 justify-end gap-3 border-t border-border/30 bg-background/95 pt-3">
+                  <Button className="btn-3d-soft min-h-10" onClick={closeDialog}>CANCELAR</Button>
+                  <Button className="btn-3d min-h-10" onClick={handleSubmit} disabled={isPending}>
+                    {isPending ? "SALVANDO..." : editingId ? "SALVAR ALTERAÇÕES" : "CADASTRAR"}
+                  </Button>
+                </div>
+              ) : null}
             </Tabs>
           </DialogContent>
         </Dialog>

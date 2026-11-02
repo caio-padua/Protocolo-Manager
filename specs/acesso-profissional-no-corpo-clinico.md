@@ -221,3 +221,64 @@ Esta revisão substitui qualquer regra anterior conflitante sobre visibilidade d
 7. A captura sem sessão recebeu respostas HTTP 401 e não verificou a ficha autenticada; nenhum atalho de autenticação foi criado.
 8. Nenhuma mensagem real foi enviada e não houve sincronização com GitHub.
 9. A revisão independente foi solicitada, mas a plataforma informou que o subagente arquiteto está indisponível nesta execução. Pelo PAXTER Loop, a entrega permanece **BLOQUEADA para homologação** até uma revisão independente sequencial.
+
+## 12. Correção visual e auditoria de cargos — 01/11/2026
+
+Estado: EM CONSTRUÇÃO — esta revisão não está homologada.
+
+### 12.1 Escopo autorizado
+
+1. Usar a aba “Dados” como referência visual para campos, rótulos, tipografia, cores, alinhamento e relevo da aba “Acesso”.
+2. Alinhar os botões de salvar à direita e ao final do respectivo conteúdo; na aba “Dados”, manter a ação principal no rodapé inferior direito do formulário.
+3. Renomear o item do menu lateral “Meu Perfil” para “Perfil do Administrador”, sem conceder privilégios novos.
+4. Auditar e registrar o que existe de cadastro funcional, credenciais de entrada, cargos, vínculos por clínica e autorização administrativa.
+5. Não criar, conceder nem ampliar privilégio de administrador de clínica até o CEO escolher entre acesso individual simples, administração local ou permissões por função.
+6. Não alterar licenciamento, cobranças, isolamento entre clínicas, dados clínicos ou acesso global do CEO.
+
+### 12.2 Fonte visual e geometria
+
+1. A aba “Dados” é a referência aprovada; não basta aplicar as mesmas cores se os rótulos, tamanhos, espaçamento e organização continuarem diferentes.
+2. Os campos da aba “Acesso” usam rótulos operacionais em Inter, na mesma escala visual da aba “Dados”, e campos `field-engraved`.
+3. Os grupos mantêm títulos de seção e espaçamento do Corpo Clínico, sem inserir caixas Concavas adicionais que não existam no formulário de referência.
+4. Cada ação de salvar fica numa linha própria no fim do formulário correspondente, alinhada à direita; o botão principal de edição fica no rodapé inferior direito da janela.
+5. Em celular, os campos podem empilhar sem perder a ordem e os botões permanecem visíveis, com área de toque adequada.
+6. O menu “Perfil do Administrador” continua abrindo o cadastro da própria pessoa autenticada; o nome do menu não concede autoridade de administrador.
+
+### 12.3 Auditoria encontrada — não confundir função com permissão
+
+1. O cadastro profissional possui categoria funcional, cargo/título textual, tipo médico/não médico, especialidade e situação ativa.
+2. As alternâncias “presencial” e “online” identificam tipos de atendimento; a alternância “ativo” controla disponibilidade na agenda, não login.
+3. Existe uma matriz compartilhada de ferramenta × função, salva em `governanca.matriz`, com cinco funções: médico, enfermagem, recepção, administrativo e financeiro; ela é editável na tela Governança.
+4. A função usada na matriz vem da categoria funcional do cadastro. “Cargo / Título” é texto livre e não concede permissão. A categoria “outro” não tem coluna na matriz.
+5. A matriz atualmente filtra o menu no navegador; não encontrei validação por ferramenta equivalente no servidor. `moduleGuard` controla módulo contratado da clínica, não a função individual.
+6. A matriz identifica CEO por `isPrimaryDoctor`, enquanto o controle de módulos usa `isPlatformOwner`; não unificar esses marcadores sem decisão explícita.
+7. O cadastro profissional já possui os campos de identidade e credenciais no mesmo registro, mas a lista de profissionais não expõe segredos e os controles de senha do painel só aparecem ao titular autenticado.
+8. Existe uma rota administrativa para provisionar credenciais, restrita ao proprietário da plataforma; isso não equivale a convite automático nem a administração local por clínica.
+9. O CEO escolheu permissões por função. Antes de passar a matriz existente a bloqueio no servidor, deve ser confirmado se os limites atuais da matriz/default são o contrato aprovado; cada rota e ação clínica precisa de mapa explícito e teste de negação.
+
+### 12.4 Falhas previstas e critérios de validação
+
+| Cenário | Proteção ou verificação |
+|---|---|
+| Botão aparece no meio ou antes dos campos | Confirmar posição no fim do formulário e alinhamento à direita. |
+| Aba “Acesso” volta a divergir da tipografia de “Dados” | Comparar rótulos, fonte, tamanho, cores, campos e espaçamento nas capturas. |
+| Alteração visual muda o envio de dados | Conferir que contratos, rotas e chamadas de salvamento continuam iguais. |
+| “Ativo” é confundido com acesso ao sistema | Manter a descrição explícita de disponibilidade na agenda e não reaproveitar a alternância. |
+| Nome “Perfil do Administrador” parece conceder poder | Confirmar que a rota continua levando à ficha própria e que as permissões do servidor não mudaram. |
+| Acesso de outro profissional é concedido pelo formulário | Testar que nenhum novo privilégio pode ser alterado antes da decisão do CEO. |
+| Celular corta campos ou botões | Capturar a janela em largura móvel e conferir rolagem e área de toque. |
+| A revisão independente não está disponível | Manter a entrega BLOQUEADA para homologação. |
+| Matriz de função é apenas visual | Não apresentar ocultação no menu como segurança; a próxima etapa deve validar cada ação sensível no servidor. |
+| Categoria “outro” ou função desconhecida chega ao servidor | Negar por padrão e exigir mapeamento explícito, sem fallback para acesso total. |
+
+### 12.5 Evidência desta etapa — 02/11/2026
+
+1. A aba “Acesso” foi reorganizada para usar a tipografia, os rótulos, os campos e o espaçamento da aba “Dados”; os blocos Concavos aninhados foram removidos.
+2. Os botões independentes de identidade, senha e vínculo Google estão alinhados à direita no final de cada formulário.
+3. As ações “Cancelar” e “Salvar alterações / Cadastrar” da aba “Dados” foram retiradas da área rolável e colocadas no rodapé inferior direito da janela.
+4. O item de menu foi renomeado para “Perfil do Administrador”; a rota e a autorização não foram alteradas.
+5. `pnpm --filter @workspace/padcom run build` terminou com sucesso. Permaneceram avisos já existentes de chaves `width` e `height` duplicadas em `preview-validacao.tsx` e de pacote JavaScript grande.
+6. `git diff --check` terminou sem erro e o fluxo `artifacts/padcom: web` reiniciou corretamente.
+7. Capturas em computador e celular carregaram a página, mas o navegador da verificação não tinha sessão profissional; o diálogo de edição e a aba autenticada não puderam ser homologados visualmente. Não foi removida nem contornada a autenticação.
+8. Nenhuma permissão, rota de servidor, credencial, dado clínico, cobrança, produção ou sincronização GitHub foi alterada nesta etapa.
+9. A revisão independente sequencial ainda é necessária. A etapa PAXTER permanece BLOQUEADA para homologação completa.
