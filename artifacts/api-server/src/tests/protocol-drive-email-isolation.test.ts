@@ -34,10 +34,13 @@ vi.mock("../middleware/tenantContext", () => ({
 // O path deve bater com o import na rota: import { requireCollaborator } from "./collaborator"
 // Resolvido pelo Vitest como o módulo em src/routes/collaborator.ts
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (req: any, res: any, next: any) =>
-    req.headers.authorization === "Bearer test-collaborator"
-      ? next()
-      : res.status(401).json({ error: "Unauthorized" }),
+  requireCollaborator: (req: any, res: any, next: any) => {
+    if (req.headers.authorization !== "Bearer test-collaborator") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    req.collaborator = { professionalId: 1, role: "executor", credentialVersion: 0 };
+    next();
+  },
 }));
 
 const makeTable = (name: string) => ({ __mockName: name });
@@ -64,6 +67,8 @@ vi.mock("@workspace/db", () => {
     assinaturaTemplatesTable:    makeT("assinatura_templates"),
     rasTable:                    makeT("ras"),
     emailLogTable:               makeT("email_log"),
+    locationProfessionalsTable:  makeT("location_professionals"),
+    locationsTable:              makeT("locations"),
   };
 });
 
@@ -175,12 +180,19 @@ const FAKE_CLIENT = {
   phone:     "11999990000",
   birthDate: "1990-05-15",
   empresaId: 5,
+  locationId: 31,
   status:    "active",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 };
 
 const FAKE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
+const FAKE_PROFESSIONAL = {
+  id: 1, name: "Médico sintético", cpf: "12345678900", active: true,
+  professionalType: "medico", category: "medico", specialty: "Cardiologia",
+};
+const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", empresaId: 5 };
+let clinicMembershipIsValid = true;
 
 // ── Thenable-chain mock para drizzle ─────────────────────────────────────────
 
@@ -196,7 +208,9 @@ class DbChain {
     switch (name) {
       case "protocols":             return new DbChain([FAKE_PROTOCOL]);
       case "clients":               return new DbChain([FAKE_CLIENT]);
-      case "professionals":         return new DbChain([]);
+      case "professionals":         return new DbChain([FAKE_PROFESSIONAL]);
+      case "locations":             return new DbChain([FAKE_LOCATION]);
+      case "location_professionals":return new DbChain(clinicMembershipIsValid ? [{ id: 1 }] : []);
       case "protocol_items":        return new DbChain([]);
       case "substances":            return new DbChain([]);
       case "sessions":              return new DbChain([]);
@@ -259,12 +273,28 @@ function setupMocks() {
 describe("RAS físico — pré-visualização e entrega separadas", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clinicMembershipIsValid = true;
     setupMocks();
     vi.mocked(db.insert).mockReturnValue({ values: vi.fn().mockResolvedValue([]) } as any);
   });
 
-  it("abrir o documento devolve os bytes sem enviar e-mail ou acessar o Drive", async () => {
+  it("nega PDF físico sem autenticação antes de gerar o documento", async () => {
     const response = await request(buildApp()).get("/api/ras/physical/99");
+    expect(response.status).toBe(401);
+    expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();
+  });
+
+  it("nega PDF físico quando o profissional não pertence à clínica", async () => {
+    clinicMembershipIsValid = false;
+    const response = await request(buildApp()).get("/api/ras/physical/99")
+      .set("Authorization", "Bearer test-collaborator");
+    expect(response.status).toBe(404);
+    expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();
+  });
+
+  it("abrir o documento devolve os bytes sem enviar e-mail ou acessar o Drive", async () => {
+    const response = await request(buildApp()).get("/api/ras/physical/99")
+      .set("Authorization", "Bearer test-collaborator");
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toMatch(/pdf/);
     expect(response.body).toEqual(Buffer.from(FAKE_PDF_BYTES));
@@ -312,17 +342,26 @@ describe("RAS físico — pré-visualização e entrega separadas", () => {
 describe("GET /api/protocols/:id/document-pdf — pré-visualização pura (sem efeitos colaterais)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clinicMembershipIsValid = true;
     setupMocks();
   });
 
-  it("retorna HTTP 200 com content-type application/pdf", async () => {
+  it("nega a pré-visualização sem autenticação e não gera PDF", async () => {
     const res = await request(buildApp()).get("/api/protocols/99/document-pdf");
+    expect(res.status).toBe(401);
+    expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf)).not.toHaveBeenCalled();
+  });
+
+  it("retorna HTTP 200 com content-type application/pdf", async () => {
+    const res = await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toMatch(/pdf/);
   });
 
   it("NÃO chama sendProtocolEmail — abrindo o PDF não dispara e-mail ao paciente", async () => {
-    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
 
     // Aguarda qualquer IIFE residual que pudesse rodar em background
     await new Promise(r => setTimeout(r, 300));
@@ -332,14 +371,16 @@ describe("GET /api/protocols/:id/document-pdf — pré-visualização pura (sem 
   });
 
   it("NÃO chama isDriveConnected — abrindo o PDF não acessa o Drive", async () => {
-    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
     await new Promise(r => setTimeout(r, 300));
 
     expect(vi.mocked(driveLib.isDriveConnected)).not.toHaveBeenCalled();
   });
 
   it("NÃO chama uploadToFolderById nem uploadFileToDrive", async () => {
-    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
     await new Promise(r => setTimeout(r, 300));
 
     expect(vi.mocked(driveLib.uploadToFolderById)).not.toHaveBeenCalled();
@@ -348,7 +389,8 @@ describe("GET /api/protocols/:id/document-pdf — pré-visualização pura (sem 
   });
 
   it("NÃO chama isGmailConnected — Gmail não é consultado na pré-visualização", async () => {
-    await request(buildApp()).get("/api/protocols/99/document-pdf");
+    await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
     await new Promise(r => setTimeout(r, 300));
 
     expect(vi.mocked(gmailLib.isGmailConnected)).not.toHaveBeenCalled();
@@ -371,12 +413,22 @@ describe("GET /api/protocols/:id/document-pdf — pré-visualização pura (sem 
       }),
     );
 
-    const res = await request(buildApp()).get("/api/protocols/99/document-pdf");
+    const res = await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
     expect(res.status).toBe(404);
 
     await new Promise(r => setTimeout(r, 300));
     expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
     expect(vi.mocked(driveLib.isDriveConnected)).not.toHaveBeenCalled();
+  });
+
+  it("nega profissional sem vínculo com a clínica antes de gerar PDF", async () => {
+    clinicMembershipIsValid = false;
+    const res = await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
+    expect(res.status).toBe(404);
+    expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf)).not.toHaveBeenCalled();
+    expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
   });
 });
 

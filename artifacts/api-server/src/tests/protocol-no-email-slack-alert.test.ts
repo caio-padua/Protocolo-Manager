@@ -24,7 +24,10 @@ vi.mock("../middleware/tenantContext", () => ({
 
 // requireCollaborator passthrough — expõe o fluxo completo do emit.
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (_req: any, _res: any, next: any) => next(),
+  requireCollaborator: (req: any, _res: any, next: any) => {
+    req.collaborator = { professionalId: 1, role: "executor", credentialVersion: 0 };
+    next();
+  },
 }));
 
 vi.mock("@workspace/db", () => {
@@ -50,6 +53,8 @@ vi.mock("@workspace/db", () => {
     assinaturaSolicitacoesTable: makeT("assinatura_solicitacoes"),
     assinaturaTemplatesTable:    makeT("assinatura_templates"),
     protocolEmissoesTable:       makeT("protocol_emissoes"),
+    locationProfessionalsTable:  makeT("location_professionals"),
+    locationsTable:              makeT("locations"),
     pool: { query: vi.fn().mockResolvedValue(undefined) },
   };
 });
@@ -156,12 +161,18 @@ const CLIENT_SEM_EMAIL = {
   phone:     "11988880000",
   birthDate: "1985-03-10",
   empresaId: 5,
+  locationId: 31,
   status:    "active",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 };
 
 const CLIENT_COM_EMAIL = { ...CLIENT_SEM_EMAIL, email: "carlos@example.com" };
+const FAKE_PROFESSIONAL = {
+  id: 1, name: "Médico sintético", cpf: "12345678900", active: true,
+  professionalType: "medico", category: "medico", specialty: "Cardiologia",
+};
+const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", empresaId: 5 };
 
 const FAKE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 
@@ -171,7 +182,9 @@ function makeDbChain(client: typeof CLIENT_SEM_EMAIL) {
   const rows: Record<string, any[]> = {
     protocols:              [FAKE_PROTOCOL],
     clients:                [client],
-    professionals:          [],
+    professionals:          [FAKE_PROFESSIONAL],
+    locations:              [FAKE_LOCATION],
+    location_professionals: [{ id: 1 }],
     protocol_items:         [],
     substances:             [],
     sessions:               [],

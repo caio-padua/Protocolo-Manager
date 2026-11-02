@@ -372,7 +372,7 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
 });
 
 router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.id);
+  const protocolId = Number.parseInt(String(req.params.id), 10);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
     return;
@@ -534,7 +534,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
 // paciente e despacha os cadernos jurídicos (idempotente por escopo).
 // Ação DISTINTA e INTENCIONAL — use apenas quando o CEO decidir entregar.
 router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.id);
+  const protocolId = Number.parseInt(String(req.params.id), 10);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
     return;
@@ -1550,7 +1550,7 @@ async function montarCartaDeTratamento(
 }
 
 router.get("/protocols/:id/carta-pdf", requireCollaborator, async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.id);
+  const protocolId = Number.parseInt(String(req.params.id), 10);
   if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
   try {

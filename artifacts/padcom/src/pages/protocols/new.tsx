@@ -14,6 +14,7 @@ import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDa
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getCollabToken } from "@/lib/collab-auth";
 
 const FREQUENCY_OPTIONS = [
   { value: "weekly", label: "Semanal (a cada 7 dias)", days: 7 },
@@ -249,7 +250,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
       const created = await createMutation.mutateAsync({ data: buildPayload() });
       createdId = created.id;
       await validateMutation.mutateAsync({ id: created.id });
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${created.id}`);
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${created.id}`, {
+        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      });
       if (!resp.ok) {
         const err = await resp.json().catch(() => null);
         throw new Error(err?.details || "Erro ao gerar RAS FAP");

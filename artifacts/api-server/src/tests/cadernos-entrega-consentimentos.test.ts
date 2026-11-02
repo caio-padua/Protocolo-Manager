@@ -88,6 +88,23 @@ vi.mock("../middleware/moduleGuard", () => ({
   moduleGuard: () => (_req: any, _res: any, next: any) => next(),
 }));
 
+// Esta suíte verifica idempotência com identidade já autenticada. Os cenários
+// de token inválido e vínculo negado são cobertos pelas suítes de isolamento.
+vi.mock("../routes/collaborator", () => ({
+  requireCollaborator: (req: any, _res: any, next: any) => {
+    req.collaborator = { professionalId: 999, role: "executor", credentialVersion: 0 };
+    next();
+  },
+}));
+
+vi.mock("../lib/clinical-emitter", () => ({
+  resolveClinicalMember: vi.fn(async (_req: unknown, clientId: number) => ({
+    professional: { id: 999 },
+    client: { id: clientId },
+    clinic: { id: 31, empresaId: 5, name: "Clínica sintética de teste" },
+  })),
+}));
+
 vi.mock("../lib/ras-fap", () => ({
   buildRasHtml:       vi.fn().mockReturnValue("<html/>"),
   buildEntregaHtml:   vi.fn().mockReturnValue(["<p>fake</p>"]),
@@ -130,6 +147,13 @@ function buildApp() {
   app.use(express.json());
   app.use((req: any, _res: any, next: any) => {
     req.log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+    req.tenantContext = {
+      empresaId: 5,
+      isPlatformOwner: false,
+      perfilPlataforma: "medico",
+      authenticated: true,
+      professionalId: 999,
+    };
     next();
   });
   app.use("/api", rasRouter);

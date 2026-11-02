@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Printer, FileDown, ShieldCheck, Loader2, FolderUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 interface CertInfo {
   subject: string;
@@ -31,7 +32,9 @@ export default function RASDetail() {
   });
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}api/ras/certificate-info`)
+    fetch(`${import.meta.env.BASE_URL}api/ras/certificate-info`, {
+      headers: collabAuthHeaders(),
+    })
       .then(r => r.ok ? r.json() : null)
       .then(setCertInfo)
       .catch(() => {});
@@ -40,7 +43,10 @@ export default function RASDetail() {
   async function uploadToDrive() {
     setUploading(true);
     try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/${id}/upload-drive`, { method: "POST" });
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/${id}/upload-drive`, {
+        method: "POST",
+        headers: collabAuthHeaders(),
+      });
       if (!resp.ok) {
         const err = await resp.json().catch(() => null);
         throw new Error(err?.error || "Erro ao enviar ao Drive");
@@ -57,7 +63,9 @@ export default function RASDetail() {
   async function downloadPdf() {
     setDownloading(true);
     try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/${id}/pdf`);
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/${id}/pdf`, {
+        headers: collabAuthHeaders(),
+      });
       if (!resp.ok) {
         const err = await resp.json().catch(() => null);
         throw new Error(err?.details || "Erro ao gerar PDF");

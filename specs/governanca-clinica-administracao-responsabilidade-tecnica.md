@@ -1,8 +1,8 @@
 # PAXTER Loop — Administração da clínica e responsabilidade técnica
 
 **Data:** 02/11/2026  
-**Status:** especificação iniciada; execução local ainda não homologada  
-**Escopo:** governança por clínica, identificação do responsável técnico e segurança das operações de protocolos relacionadas à auditoria recebida.
+**Status:** etapa 1 implementada localmente; aguardando revisão independente; ainda não homologada
+**Escopo:** governança por clínica, identificação do responsável técnico e segurança das rotas de protocolos e RAS/FAP que leem, criam, geram ou entregam documentos clínicos.
 
 ## 1. Objetivo
 
@@ -32,9 +32,15 @@
 
 2.4. A escolha do responsável técnico está restrita ao proprietário global. O fluxo ainda não permite que o administrador local escolha o médico da própria clínica.
 
-2.5. As rotas de criação, leitura, atualização e validação de protocolos consultam registros pelo identificador ou usam o contexto geral da empresa sem demonstrar validação completa da sessão, do vínculo do profissional e da unidade clínica em cada operação. Isso é uma lacuna de segurança confirmada por inspeção do código; não é prova de que houve acesso indevido.
+2.5. As rotas de protocolo já usam autenticação de colaborador e verificações de clínica em pontos centrais; o conjunto de testes desta etapa confirma apenas os caminhos cobertos, não uma certificação integral de todos os documentos.
 
 2.6. A auditoria anexada é estática e se refere a uma versão do GitHub. Ela não comprova o estado do banco nem a execução no ambiente atual.
+
+2.7. A rota `GET /ras/physical/:protocolId` não exigia autenticação nem associação do colaborador à clínica do cliente. A proteção local agora exige colaborador autenticado, contexto de clínica válido e vínculo do profissional com o cliente.
+
+2.8. O inventário local encontrou outras rotas RAS/FAP desprotegidas. A proteção local agora cobre listagem, criação, leitura, PDF, envio ao Drive, reenvio de e-mail, histórico de envios e entrega do RAS FAP. O vínculo clínico é verificado antes de gerar ou compartilhar documentos. As rotas de demonstração permanecem separadas e usam dados sintéticos.
+
+2.9. Os testes focados cobrem caminhos autorizados e negados, incluindo bloqueio antes de gerar PDF, gravar RAS, enviar e-mail ou acionar o Drive. As integrações externas são simuladas. A revisão independente ainda precisa confirmar o diff e a correspondência entre esta especificação e o código.
 
 ## 3. Regras de autorização
 
@@ -60,7 +66,7 @@
 
 | Etapa | Entrega | Critério para avançar |
 |---|---|---|
-| 1 | Fechar o isolamento por clínica das rotas de protocolos afetadas pela auditoria. | Testes autorizados e negativos com duas clínicas e dados sintéticos. |
+| 1 | Fechar autenticação e isolamento por clínica nas rotas de protocolos e RAS/FAP que leem, alteram, geram ou entregam dados clínicos. | Inventário revisado, testes autorizados e negativos com dados sintéticos; integrações externas simuladas; revisão independente aprovada. |
 | 2 | Ajustar a autorização para separar administrador local e médico responsável técnico. | Testes comprovam limites do proprietário global, do administrador e do profissional comum. |
 | 3 | Atualizar a governança e o cadastro do Corpo Clínico. | A seleção do responsável e a luz verde refletem o dado persistido, sem autoridade no navegador. |
 | 4 | Conferir o quadro real do Instituto Pádua e propor funções por vínculo e categoria. | Revisão individual dos profissionais e do ambiente de dados, sem concessões presumidas. |
@@ -101,7 +107,11 @@ As etapas são sequenciais. Não haverá agentes ou implementações concorrente
 
 6.8. A preparação por enfermagem permanece sem assinatura; a aprovação registra o médico emissor e o profissional preparador.
 
-6.9. Todos os testes usam registros sintéticos. Nenhum e-mail, WhatsApp ou Telegram é enviado.
+6.9. Listagem, criação, leitura, geração de PDF, upload para Drive e entrega de RAS/FAP exigem identidade autenticada e vínculo válido à clínica e ao cliente.
+
+6.10. Falha ou ausência de vínculo impede a geração do PDF, alteração de dados, upload e chamada a canais externos.
+
+6.11. Todos os testes usam registros sintéticos. Nenhum e-mail, WhatsApp ou Telegram é enviado.
 
 ## 7. Limites explícitos
 

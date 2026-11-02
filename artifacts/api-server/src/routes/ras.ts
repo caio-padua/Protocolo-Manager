@@ -1,4 +1,5 @@
 import { Router, type IRouter, type RequestHandler } from "express";
+import type { Request, Response } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
 import { eq, and, inArray, desc } from "drizzle-orm";
@@ -25,6 +26,7 @@ import {
 import { sendProtocolEmail } from "../lib/email-service";
 import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
+import { resolveClinicalMember } from "../lib/clinical-emitter";
 
 const router: IRouter = Router();
 router.use(moduleGuard("ras"));
@@ -34,12 +36,51 @@ router.use(moduleGuard("ras"));
 // nem mesmo quando o contexto legado marca o solicitante como platform_owner.
 const requireRasTenant: RequestHandler = (req, res, next) => {
   const empresaId = req.tenantContext?.empresaId;
-  if (!Number.isSafeInteger(empresaId) || empresaId <= 0 || req.query.empresaId !== undefined) {
+  if (!req.tenantContext?.authenticated || !req.collaborator ||
+      !Number.isSafeInteger(empresaId) || empresaId <= 0 || req.query.empresaId !== undefined) {
     res.status(403).json({ error: "Acesso entre empresas não autorizado." });
     return;
   }
   next();
 };
+
+async function canAccessRasClient(req: Request, clientId: number, empresaId: number): Promise<boolean> {
+  try {
+    const member = await resolveClinicalMember(req, clientId);
+    return member.clinic.empresaId === empresaId && member.clinic.empresaId === resolveEmpresaId(req);
+  } catch {
+    return false;
+  }
+}
+
+async function authorizeRasProtocol(
+  req: Request,
+  protocol: typeof protocolsTable.$inferSelect,
+  res: Response,
+): Promise<boolean> {
+  const empresaId = protocol.empresaId;
+  if (typeof empresaId !== "number" || empresaId <= 0 ||
+      !(await canAccessRasClient(req, protocol.clientId, empresaId))) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return false;
+  }
+  return true;
+}
+
+async function authorizeRasRecord(
+  req: Request,
+  ras: typeof rasTable.$inferSelect,
+  res: Response,
+): Promise<boolean> {
+  const empresaId = ras.empresaId;
+  if (typeof empresaId !== "number" || empresaId <= 0 ||
+      empresaId !== req.tenantContext.empresaId ||
+      !(await canAccessRasClient(req, ras.clientId, empresaId))) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return false;
+  }
+  return true;
+}
 
 function formatRAS(r: typeof rasTable.$inferSelect) {
   return {
@@ -51,7 +92,7 @@ function formatRAS(r: typeof rasTable.$inferSelect) {
   };
 }
 
-router.get("/ras", async (req, res): Promise<void> => {
+router.get("/ras", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const query = ListRASQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
@@ -63,10 +104,13 @@ router.get("/ras", async (req, res): Promise<void> => {
   if (query.data.clientId) rasRecords = rasRecords.filter(r => r.clientId === query.data.clientId);
   if (query.data.protocolId) rasRecords = rasRecords.filter(r => r.protocolId === query.data.protocolId);
 
-  res.json(rasRecords.map(formatRAS));
+  const authorizedRecords = await Promise.all(rasRecords.map(async (ras) =>
+    (await canAccessRasClient(req, ras.clientId, empresaId)) ? ras : null
+  ));
+  res.json(authorizedRecords.filter((ras) => ras !== null).map((ras) => formatRAS(ras)));
 });
 
-router.post("/ras", async (req, res): Promise<void> => {
+router.post("/ras", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const parsed = CreateRASBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -77,6 +121,23 @@ router.post("/ras", async (req, res): Promise<void> => {
   if (!session) {
     res.status(404).json({ error: "Session not found" });
     return;
+  }
+
+  const empresaId = resolveEmpresaId(req);
+  if (!(await canAccessRasClient(req, session.clientId, empresaId))) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return;
+  }
+  if (session.protocolId) {
+    const [protocol] = await db.select().from(protocolsTable).where(and(
+      eq(protocolsTable.id, session.protocolId),
+      eq(protocolsTable.clientId, session.clientId),
+      eq(protocolsTable.empresaId, empresaId),
+    ));
+    if (!protocol) {
+      res.status(404).json({ error: "Registro não encontrado" });
+      return;
+    }
   }
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
@@ -121,8 +182,6 @@ router.post("/ras", async (req, res): Promise<void> => {
     };
   });
 
-  const empresaId = resolveEmpresaId(req);
-
   const [ras] = await db.insert(rasTable).values({
     sessionId: session.id,
     protocolId: session.protocolId,
@@ -142,7 +201,7 @@ router.post("/ras", async (req, res): Promise<void> => {
   res.status(201).json(formatRAS(ras));
 });
 
-router.get("/ras/certificate-info", async (_req, res): Promise<void> => {
+router.get("/ras/certificate-info", requireCollaborator, requireRasTenant, async (_req, res): Promise<void> => {
   try {
     const info = getCertInfo();
     res.json(info);
@@ -151,7 +210,7 @@ router.get("/ras/certificate-info", async (_req, res): Promise<void> => {
   }
 });
 
-router.get("/ras/:id", async (req, res): Promise<void> => {
+router.get("/ras/:id", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const params = GetRASParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -163,12 +222,13 @@ router.get("/ras/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "RAS not found" });
     return;
   }
+  if (!(await authorizeRasRecord(req, ras, res))) return;
 
   res.json(formatRAS(ras));
 });
 
-router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
+  const id = Number.parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid RAS id" });
     return;
@@ -179,6 +239,7 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
     res.status(404).json({ error: "RAS not found" });
     return;
   }
+  if (!(await authorizeRasRecord(req, ras, res))) return;
 
   try {
     const formatted = formatRAS(ras);
@@ -245,8 +306,8 @@ router.get("/ras/:id/pdf", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
+  const id = Number.parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid RAS id" });
     return;
@@ -257,6 +318,7 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
     res.status(404).json({ error: "RAS not found" });
     return;
   }
+  if (!(await authorizeRasRecord(req, ras, res))) return;
 
   if (!(await isDriveConnected())) {
     res.status(503).json({ error: "Google Drive nao conectado" });
@@ -322,8 +384,8 @@ router.post("/ras/:id/upload-drive", async (req, res): Promise<void> => {
   }
 });
 
-router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
-  const protocolId = parseInt(req.params.protocolId);
+router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
+  const protocolId = Number.parseInt(String(req.params.protocolId), 10);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
     return;
@@ -334,6 +396,7 @@ router.get("/ras/physical/:protocolId", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!await authorizeRasProtocol(req, protocol, res)) return;
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
@@ -465,6 +528,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!(await authorizeRasProtocol(req, protocol, res))) return;
 
   const [client] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, protocol.clientId), eq(clientsTable.empresaId, empresaId)));
   if (!client) {
@@ -640,6 +704,7 @@ router.get("/ras/physical/:protocolId/email-logs", requireCollaborator, requireR
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!(await authorizeRasProtocol(req, protocol, res))) return;
   const logs = await db.select().from(emailLogTable)
     .where(and(eq(emailLogTable.tipo, "ras_fap_reenviado"), eq(emailLogTable.protocolId, protocolId)))
     .orderBy(desc(emailLogTable.criadoEm));
@@ -1055,7 +1120,7 @@ function buildEntregaBlocks(
   return blocks;
 }
 
-router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
+router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const { clientId, substancias, titulo, incluirCadernosJuridicos } = req.body as {
     clientId: number;
     titulo?: string;
@@ -1077,7 +1142,16 @@ router.post("/ras-fap/entregar-protocolo", async (req, res): Promise<void> => {
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+  if (!Number.isSafeInteger(clientId) ||
+      !(await canAccessRasClient(req, clientId, req.tenantContext.empresaId))) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return;
+  }
+
+  const [client] = await db.select().from(clientsTable).where(and(
+    eq(clientsTable.id, clientId),
+    eq(clientsTable.empresaId, req.tenantContext.empresaId),
+  ));
   if (!client) { res.status(404).json({ error: "Cliente nao encontrado" }); return; }
   if (!client.email) { res.status(400).json({ error: "Cliente sem e-mail cadastrado" }); return; }
 

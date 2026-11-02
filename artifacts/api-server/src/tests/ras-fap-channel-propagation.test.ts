@@ -29,7 +29,10 @@ vi.mock("../middleware/tenantContext", () => ({
 
 // requireCollaborator PERMITE a requisição (ao contrário do isolamento padrão)
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (_req: any, _res: any, next: any) => next(),
+  requireCollaborator: (req: any, _res: any, next: any) => {
+    req.collaborator = { professionalId: 1, role: "executor", credentialVersion: 0 };
+    next();
+  },
 }));
 
 vi.mock("@workspace/db", () => {
@@ -53,6 +56,8 @@ vi.mock("@workspace/db", () => {
     assinaturaSolicitacoesTable: makeT("assinatura_solicitacoes"),
     assinaturaTemplatesTable:    makeT("assinatura_templates"),
     protocolEmissoesTable:       makeT("protocol_emissoes"),
+    locationProfessionalsTable:  makeT("location_professionals"),
+    locationsTable:              makeT("locations"),
   };
 });
 
@@ -160,10 +165,17 @@ const FAKE_CLIENT = {
   phone:     "11999990000",
   birthDate: "1990-05-15",
   empresaId: 5,
+  locationId: 31,
   status:    "active",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 };
+
+const FAKE_PROFESSIONAL = {
+  id: 1, name: "Médico sintético", cpf: "12345678900", active: true,
+  professionalType: "medico", category: "medico", specialty: "Cardiologia",
+};
+const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", empresaId: 5 };
 
 const FAKE_PDF_BYTES  = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 const FAKE_RAS_BYTES  = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x52]); // "%PDFR"
@@ -183,7 +195,9 @@ class DbChain {
     switch (name) {
       case "protocols":               return new DbChain([FAKE_PROTOCOL]);
       case "clients":                 return new DbChain([FAKE_CLIENT]);
-      case "professionals":           return new DbChain([]);
+      case "professionals":           return new DbChain([FAKE_PROFESSIONAL]);
+      case "locations":               return new DbChain([FAKE_LOCATION]);
+      case "location_professionals":  return new DbChain([{ id: 1 }]);
       case "protocol_items":          return new DbChain([]);
       case "substances":              return new DbChain([]);
       case "sessions":                return new DbChain([]);

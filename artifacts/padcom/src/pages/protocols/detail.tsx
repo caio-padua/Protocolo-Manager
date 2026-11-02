@@ -169,7 +169,9 @@ export default function ProtocolDetail() {
                 onClick={async () => {
                   setPhysicalRasLoading(true);
                   try {
-                    const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}`);
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${id}`, {
+                      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                    });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
                       throw new Error(err?.details || "Erro ao gerar RAS FAP");
