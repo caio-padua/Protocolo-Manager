@@ -18,6 +18,14 @@ O CEO confirmou em 02/11/2026 que o vínculo usado no código semântico será u
 
 **How to apply:** Manter separados o código semântico interno, a hierarquia de licenciamento do produto e a relação societária legal. O CEO pode definir o vínculo interno no código sem alterar os outros dois. Não reclassificar a relação jurídica sem documentos.
 
+## Código semântico por unidade clínica
+
+Cada unidade clínica recebe seu próprio código `BASE.VINC.CNPJ4.SEQ4`; a sequência é global, estável e nunca reutilizada. O vínculo é uma classificação interna do CEO, sem efeito jurídico ou comercial. A base, o vínculo e o CNPJ precisam ficar coerentes com o código já emitido.
+
+**Why:** Um código por empresa não diferencia unidades distintas e não atende à rastreabilidade solicitada pelo CEO. A sequência precisa sobreviver a renomeações e não pode coincidir com o identificador técnico do banco.
+
+**How to apply:** Gerar a sequência na criação da unidade, mas só emitir o código quando o CEO confirmar a classificação e os dados fiscais. Proteger emissão e leitura por autenticação no servidor, derivar a empresa da sessão, impedir reutilização e bloquear emissão quando o CNPJ estiver duplicado ou inválido.
+
 ## O que foi feito (ONDA A — 16/07/2026)
 
 ### Schema pirâmide (empresas)

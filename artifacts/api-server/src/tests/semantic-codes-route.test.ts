@@ -4,9 +4,14 @@ const mocks = vi.hoisted(() => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),
+    transaction: vi.fn(),
   },
   empresasTable: { id: "empresas.id", cnpj: "empresas.cnpj" },
-  locationsTable: { id: "locations.id", codigoSemantico: "locations.codigo_semantico" },
+  locationsTable: {
+    id: "locations.id",
+    empresaId: "locations.empresa_id",
+    codigoSemantico: "locations.codigo_semantico",
+  },
 }));
 
 vi.mock("@workspace/db", () => mocks);
@@ -44,6 +49,7 @@ function queryResult(result: unknown) {
   const query: any = {
     from: vi.fn(() => query),
     where: vi.fn(() => query),
+    for: vi.fn(() => query),
     limit: vi.fn(async () => result),
     then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
       Promise.resolve(result).then(resolve, reject),
@@ -87,6 +93,7 @@ function queueSemanticCodeReads(companyList = [{ id: 5, cnpj: storedCompany.cnpj
   mocks.db.select
     .mockImplementationOnce(() => queryResult([storedLocation]))
     .mockImplementationOnce(() => queryResult([storedCompany]))
+    .mockImplementationOnce(() => queryResult([storedLocation]))
     .mockImplementationOnce(() => queryResult(companyList));
   const updateQuery: any = {
     set: vi.fn(() => updateQuery),
@@ -104,6 +111,9 @@ describe("rotas do código semântico", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.db.transaction.mockImplementation(async (callback: (tx: typeof mocks.db) => Promise<unknown>) =>
+      callback(mocks.db)
+    );
   });
   afterEach(async () => {
     if (server) await closeServer(server);
@@ -114,6 +124,14 @@ describe("rotas do código semântico", () => {
     const started = startTestServer();
     server = started.server;
     const response = await fetch(`${started.url}/locations/101/codigo-semantico`, { method: "POST" });
+    expect(response.status).toBe(401);
+    expect(mocks.db.select).not.toHaveBeenCalled();
+  });
+
+  it("recusa consulta de códigos sem identidade autenticada antes de consultar o banco", async () => {
+    const started = startTestServer();
+    server = started.server;
+    const response = await fetch(`${started.url}/semantic-codes/locations`);
     expect(response.status).toBe(401);
     expect(mocks.db.select).not.toHaveBeenCalled();
   });
@@ -142,7 +160,14 @@ describe("rotas do código semântico", () => {
       },
       body: JSON.stringify({ empresaId: 99 }),
     });
-    const body = await response.json();
+    const body = await response.json() as {
+      code?: string;
+      codigo?: string;
+      locationId?: number;
+      empresaId?: number;
+      cnpjPrefixo?: string;
+      sequencia?: number;
+    };
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       locationId: 101,
@@ -151,7 +176,7 @@ describe("rotas do código semântico", () => {
       cnpjPrefixo: "6386",
       sequencia: 1,
     });
-    expect(mocks.db.select).toHaveBeenCalledTimes(3);
+    expect(mocks.db.select).toHaveBeenCalledTimes(4);
   });
 
   it("bloqueia CNPJ repetido sem emitir código", async () => {
@@ -168,9 +193,28 @@ describe("rotas do código semântico", () => {
         "X-Test-Owner": "true",
       },
     });
-    const body = await response.json();
+    const body = await response.json() as { code?: string };
     expect(response.status).toBe(409);
     expect(body.code).toBe("CNPJ_DUPLICADO");
+    expect(mocks.db.update).not.toHaveBeenCalled();
+  });
+
+  it("impede mudar a classificação depois que a primeira unidade recebeu código", async () => {
+    mocks.db.select
+      .mockImplementationOnce(() => queryResult([storedCompany]))
+      .mockImplementationOnce(() => queryResult([{ id: 101 }]));
+    const started = startTestServer();
+    server = started.server;
+    const response = await fetch(`${started.url}/empresas/5/codigo-semantico`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer valid-collaborator",
+        "X-Test-Owner": "true",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ vinculo: "filial_interna" }),
+    });
+    expect(response.status).toBe(409);
     expect(mocks.db.update).not.toHaveBeenCalled();
   });
 });

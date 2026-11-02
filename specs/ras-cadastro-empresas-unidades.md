@@ -1,6 +1,6 @@
 # PAXTER Loop — Cadastro de empresas, unidades e agendas
 
-**Estado:** EM CONSTRUÇÃO — Unidade 1  
+**Estado:** UNIDADE 1 IMPLEMENTADA PARCIALMENTE — AGUARDANDO CORREÇÃO DO CNPJ E HOMOLOGAÇÃO
 **Data:** 02/11/2026  
 **Responsável:** Dr. Replit Paxter  
 **Unidade ativa:** 1 — código semântico da unidade clínica  
@@ -14,7 +14,7 @@ Organizar os cadastros empresariais e das unidades clínicas, gerar códigos ras
 
 1. O código semântico terá quatro blocos: `BASE.VINC.CNPJ4.SEQ4`.
 2. O código será **um por unidade clínica**, não um por empresa.
-3. `BASE` será formado automaticamente pelas quatro primeiras letras do nome principal da empresa, em maiúsculas e sem acentos.
+3. `BASE` será formado automaticamente por quatro letras do nome principal da empresa, em maiúsculas e sem acentos; prefixos genéricos podem ser ignorados.
 4. `VINC` será escolhido exclusivamente pelo CEO e representará uma classificação interna. Não altera a relação jurídica nem a hierarquia de licenciamento.
 5. `CNPJ4` conterá os quatro primeiros números do Cadastro Nacional da Pessoa Jurídica (CNPJ) da empresa proprietária da unidade.
 6. `SEQ4` será o número sequencial e estável da unidade no sistema, com quatro posições, começando por `0001`. Não será o identificador técnico do banco nem o número da linha da planilha.
@@ -44,25 +44,25 @@ PADU.PROU.6386.0001
 
 | Código | Significado mostrado ao usuário |
 |---|---|
-| `PROU` | Empresa do grupo do CEO — única para o CNPJ |
-| `PROF` | Empresa do grupo do CEO — filial, classificação interna |
-| `LICU` | Empresa licenciada — única para o CNPJ |
-| `LICF` | Empresa licenciada — filial, classificação interna |
-| `INDU` | Empresa independente — única para o CNPJ |
-| `INDF` | Empresa independente — filial, classificação interna |
+| `PROU` | Própria do grupo |
+| `FILU` | Unidade vinculada ao grupo |
+| `LICD` | Licenciada diretamente |
+| `LICI` | Licenciada por uma clínica |
+| `INDE` | Empresa independente |
+| `PARC` | Empresa parceira |
 
-“Filial” nesses códigos é uma classificação interna selecionada pelo CEO; não declara filial jurídica. O código não concede acesso, licença, permissão, cobrança ou vínculo clínico.
+Essas opções são classificações internas selecionadas pelo CEO; não declaram filial jurídica. O código não concede acesso, licença, permissão, cobrança ou vínculo clínico.
 
 ### 3.2 Geração e integridade
 
-1. A tela mostra o nome usado para calcular `BASE` e o código completo antes de salvar.
+1. A tela mostra a base congelada, a classificação e o código emitido.
 2. A empresa deve ter CNPJ válido para gerar o código. CNPJ ausente, inválido ou duplicado bloqueia a geração e informa o motivo.
 3. O vínculo `VINC` é escolhido pelo CEO no cadastro da empresa e aplicado às unidades dela.
-4. A unidade recebe a próxima sequência disponível em transação de banco, sem reutilizar número de unidade arquivada.
+4. A sequência da unidade é atribuída automaticamente por uma sequência nativa do banco de dados; códigos completos só são emitidos pelo CEO depois da validação.
 5. Criações simultâneas não podem receber a mesma sequência. O banco deve garantir unicidade do código completo.
-6. Se qualquer bloco mudar depois da emissão, o código anterior permanece no histórico e o novo código não pode ser atribuído a outra unidade.
-7. Contas licenciadas podem visualizar o código, mas não podem editar sua composição nem o vínculo.
-8. Mais de 9.999 unidades bloqueia a criação com erro explícito; nunca reduz nem recicla a sequência.
+6. A base, o vínculo e o CNPJ ficam protegidos contra alteração depois que a primeira unidade da empresa recebe código. O código emitido é imutável e não pode ser reutilizado.
+7. Colaboradores autenticados podem visualizar os códigos da própria empresa; somente o CEO consulta empresas/unidades de toda a plataforma e altera classificações ou emite códigos.
+8. A emissão bloqueia quando a sequência ultrapassa 9.999; nunca reduz nem recicla a sequência.
 9. A empresa vinculada a uma unidade vem do contexto autenticado no servidor. Somente o CEO pode selecionar uma empresa diferente; o identificador enviado pelo navegador não concede acesso.
 10. A classificação semântica e a emissão do código exigem autenticação do colaborador e validação de CEO no servidor. A proteção não pode existir apenas no botão da tela.
 
@@ -75,7 +75,7 @@ PADU.PROU.6386.0001
 - Atribuir números sequenciais por mecanismo independente do identificador técnico da unidade.
 - Exibir código e significado em leitura para os demais usuários autorizados.
 - Gerar automaticamente a sequência para novas unidades.
-- Não preencher códigos antigos por tentativa de correspondência.
+- Não preencher códigos semânticos antigos por tentativa de correspondência; a emissão final exige ação do CEO.
 
 ### Unidade 2 — Cadastro empresarial e fiscal
 
@@ -181,4 +181,19 @@ Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação ant
 
 ## 9. Estado da unidade ativa
 
-**Unidade 1 — EM CONSTRUÇÃO.** O CEO escolheu um código por unidade clínica. A inspeção encontrou rotas de unidade sem proteção local de colaborador; a emissão do código será feita em rotas protegidas, sem confiar no identificador de empresa vindo do navegador. Nenhum dado de cadastro foi alterado ou excluído nesta etapa.
+**Unidade 1 — implementação parcial; aguardando decisão e homologação do CEO.**
+
+- Migração aditiva aplicada somente ao banco de desenvolvimento.
+- As 17 unidades existentes receberam uma sequência estável e única; nenhuma empresa, classificação ou código semântico foi alterado ou emitido.
+- A associação empresa-unidade para novas unidades vem da sessão autenticada no servidor; o identificador enviado pelo navegador é ignorado.
+- Classificação e emissão têm validação de CEO no servidor; consultas têm autenticação e isolamento por empresa para colaboradores.
+- CNPJ duplicado, inválido, ausência de vínculo ou sequência fora do limite bloqueiam a emissão.
+- Após emissão, a classificação e o CNPJ da empresa ficam protegidos contra mudanças que invalidariam o código.
+- A inspeção encontrou três cadastros empresariais com o mesmo CNPJ completo: IDs 1, 4 e 5. O código permanece bloqueado para essas empresas até correção humana.
+- A ferramenta de revisão independente solicitada não estava disponível nesta execução. Foi feita revisão manual; por isso, o critério de revisão independente continua pendente.
+- Os 12 testes específicos passaram; a verificação das bibliotecas e as compilações do servidor e da interface passaram.
+- Ainda falta um teste concorrente integrado no banco para demonstrar duas emissões simultâneas; a proteção está implementada com transação e restrição única, mas essa evidência não foi produzida.
+- A verificação geral de TypeScript continua falhando em 173 diagnósticos já existentes; o único apontamento em arquivo alterado está em um trecho antigo e não relacionado da rota empresarial.
+- A imagem automática da página encontrou o acesso, mas não entrou na sessão; a tela autenticada não foi validada visualmente.
+- Uma inicialização registrou limite temporário de leituras no serviço de planilhas; na última inicialização, o dicionário estava atualizado e o servidor ficou ativo.
+- A unidade não está homologada e a etapa seguinte não deve começar antes da correção dos três cadastros e do aceite do CEO.

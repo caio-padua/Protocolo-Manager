@@ -123,17 +123,18 @@ export default function SemanticCodeManager() {
         id: company.id,
         data: { vinculo },
       });
-      await queryClient.invalidateQueries({ queryKey: ["empresas"] });
+      await queryClient.invalidateQueries({ queryKey: ["semantic-code-companies"] });
       toast.success("Classificação interna salva.");
     } catch (error) {
       toast.error(errorMessage(error));
     }
   }
 
-  async function issueCode(location: Location) {
+  async function issueCode(locationId: number) {
     try {
-      await codeMutation.mutateAsync({ id: location.id });
-      await queryClient.invalidateQueries({ queryKey: ["clinicas"] });
+      await codeMutation.mutateAsync({ id: locationId });
+      await queryClient.invalidateQueries({ queryKey: ["semantic-code-locations"] });
+      await queryClient.invalidateQueries({ queryKey: ["semantic-code-companies"] });
       toast.success("Código semântico da unidade emitido.");
     } catch (error) {
       toast.error(errorMessage(error));
@@ -174,6 +175,9 @@ export default function SemanticCodeManager() {
           <div className="space-y-2">
             <p className="text-[9px] font-black uppercase tracking-widest text-primary">Classificação da empresa</p>
             {companies.map((company) => {
+              const classificationLocked = locations.some(
+                (location) => location.empresaId === company.id && Boolean(location.codigoSemantico),
+              );
               const savedRelation = company.codigoVinculoSemantico && isRelationValue(company.codigoVinculoSemantico)
                 ? company.codigoVinculoSemantico
                 : "";
@@ -184,7 +188,9 @@ export default function SemanticCodeManager() {
                     <p className="truncate text-[11px] font-bold">{company.nome}</p>
                     <p className="text-[9px] text-muted-foreground">
                       {company.cnpj ?? (company.cnpjValido ? "CNPJ válido" : "CNPJ precisa de revisão")}
-                      {company.codigoBaseSemantico ? ` · Base congelada: ${company.codigoBaseSemantico}` : ""}
+                      {company.codigoBaseSemantico
+                        ? ` · Base congelada: ${company.codigoBaseSemantico}`
+                        : " · Base será congelada na primeira emissão"}
                     </p>
                     {company.cnpjDuplicado && (
                       <p className="mt-1 text-[9px] font-bold text-destructive">
@@ -192,7 +198,7 @@ export default function SemanticCodeManager() {
                       </p>
                     )}
                   </div>
-                  {isPlatformOwner ? (
+                  {isPlatformOwner && !classificationLocked ? (
                     <div className="flex gap-2">
                       <Select
                         value={selected}
@@ -228,6 +234,7 @@ export default function SemanticCodeManager() {
                   ) : (
                     <span className="text-[10px] font-bold text-muted-foreground">
                       {RELATIONS.find((item) => item.value === company.codigoVinculoSemantico)?.label ?? "Aguardando CEO"}
+                      {classificationLocked ? " · travada após emissão" : ""}
                     </span>
                   )}
                 </div>
@@ -270,7 +277,7 @@ export default function SemanticCodeManager() {
                     type="button"
                     className="btn-3d-soft h-8 px-3 text-[9px]"
                     disabled={codeMutation.isPending || !company || !company.ativa || !location.empresaId}
-                    onClick={() => void issueCode({ ...location, id: location.locationId } as Location & { id: number })}
+                    onClick={() => void issueCode(location.locationId)}
                   >
                     {codeMutation.isPending
                       ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />

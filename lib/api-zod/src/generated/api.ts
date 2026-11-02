@@ -321,6 +321,40 @@ export const CreateLocationSemanticCodeResponse = zod.object({
 });
 
 /**
+ * @summary Lista classificações internas das empresas visíveis ao colaborador
+ */
+export const ListSemanticCodeCompaniesResponseItem = zod.object({
+  id: zod.number(),
+  nome: zod.string(),
+  cnpj: zod.string().nullable(),
+  codigoVinculoSemantico: zod.string().nullable(),
+  codigoBaseSemantico: zod.string().nullable(),
+  ativa: zod.boolean(),
+  cnpjValido: zod.boolean(),
+  cnpjDuplicado: zod.boolean(),
+  empresasComMesmoCnpj: zod.array(zod.string()),
+});
+export const ListSemanticCodeCompaniesResponse = zod.array(
+  ListSemanticCodeCompaniesResponseItem,
+);
+
+/**
+ * @summary Lista códigos das unidades autorizadas para o colaborador
+ */
+
+export const ListSemanticCodeLocationsResponseItem = zod.object({
+  locationId: zod.number(),
+  name: zod.string(),
+  empresaId: zod.number().nullable(),
+  codigoSemantico: zod.string().nullable(),
+  codigoSequencial: zod.number().min(1),
+  active: zod.boolean(),
+});
+export const ListSemanticCodeLocationsResponse = zod.array(
+  ListSemanticCodeLocationsResponseItem,
+);
+
+/**
  * @summary Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos
  */
 export const ListClinicalAccessLocationsResponseItem = zod.object({

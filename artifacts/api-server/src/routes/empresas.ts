@@ -2,7 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
 import { empresasTable, cargosTable, colaboradoresTable, locationsTable, empresaContratosTable } from "@workspace/db/schema";
-import { eq, isNull, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics, driveDownloadFile } from "../lib/google-drive";
 import { google } from "googleapis";
 import { ai } from "@workspace/integrations-gemini-ai";
@@ -451,6 +451,19 @@ async function validarHierarquia(
 router.post("/empresas", async (req, res): Promise<void> => {
   const body = req.body;
   if (!body.nome) { res.status(400).json({ error: "nome é obrigatório" }); return; }
+  const cnpjDigits = String(body.cnpj ?? "").replace(/\D/g, "");
+  if (cnpjDigits.length === 14) {
+    const existingCompanies = await db.select({ id: empresasTable.id, cnpj: empresasTable.cnpj })
+      .from(empresasTable)
+      .where(isNotNull(empresasTable.cnpj));
+    const duplicate = existingCompanies.some((company) =>
+      company.cnpj?.replace(/\D/g, "") === cnpjDigits
+    );
+    if (duplicate) {
+      res.status(409).json({ error: "Já existe outro cadastro empresarial para este CNPJ completo." });
+      return;
+    }
+  }
 
   // ── Trava anti-pirâmide: rejeita empresaMaeId que criaria profundidade > 1 ──
   const errHierarquia = await validarHierarquia(body.empresaMaeId ?? null);
@@ -530,9 +543,59 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
   }
 
   try {
-    const [updated] = await db.update(empresasTable).set(updates).where(eq(empresasTable.id, id)).returning();
-    if (!updated) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
-    res.json(sanitizarEmpresa(updated));
+    const outcome = await db.transaction(async (tx) => {
+      if (req.body.cnpj !== undefined) {
+        const [company] = await tx.select({
+          id: empresasTable.id,
+          cnpj: empresasTable.cnpj,
+        }).from(empresasTable)
+          .where(eq(empresasTable.id, id))
+          .for("update")
+          .limit(1);
+        if (!company) return { status: 404 as const, error: "Empresa não encontrada" };
+
+        const currentCnpj = (company.cnpj ?? "").replace(/\D/g, "");
+        const nextCnpj = String(req.body.cnpj ?? "").replace(/\D/g, "");
+        const [issuedLocation] = await tx.select({ id: locationsTable.id })
+          .from(locationsTable)
+          .where(and(
+            eq(locationsTable.empresaId, id),
+            isNotNull(locationsTable.codigoSemantico),
+          ))
+          .limit(1);
+        if (issuedLocation && currentCnpj !== nextCnpj) {
+          return {
+            status: 409 as const,
+            error: "O CNPJ não pode ser alterado após a emissão de códigos semânticos imutáveis para esta empresa.",
+          };
+        }
+        if (nextCnpj.length === 14 && currentCnpj !== nextCnpj) {
+          const existingCompanies = await tx.select({
+            id: empresasTable.id,
+            cnpj: empresasTable.cnpj,
+          }).from(empresasTable).where(isNotNull(empresasTable.cnpj));
+          const duplicate = existingCompanies.some((other) =>
+            other.id !== id &&
+            other.cnpj?.replace(/\D/g, "") === nextCnpj
+          );
+          if (duplicate) {
+            return { status: 409 as const, error: "Já existe outro cadastro empresarial para este CNPJ completo." };
+          }
+        }
+      }
+
+      const [updated] = await tx.update(empresasTable)
+        .set(updates)
+        .where(eq(empresasTable.id, id))
+        .returning();
+      if (!updated) return { status: 404 as const, error: "Empresa não encontrada" };
+      return { status: 200 as const, data: sanitizarEmpresa(updated) };
+    });
+    if ("error" in outcome) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.json(outcome.data);
   } catch (e: any) {
     if (e?.code === "23505" && e?.constraint?.includes("slug")) {
       res.status(409).json({ error: "Slug já está em uso por outra empresa." });

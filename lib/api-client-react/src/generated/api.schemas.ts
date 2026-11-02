@@ -60,6 +60,33 @@ export interface LocationCodigoSemantico {
   sequencia: number;
 }
 
+export interface EmpresaCodigoSemanticoLista {
+  id: number;
+  nome: string;
+  /** @nullable */
+  cnpj: string | null;
+  /** @nullable */
+  codigoVinculoSemantico: string | null;
+  /** @nullable */
+  codigoBaseSemantico: string | null;
+  ativa: boolean;
+  cnpjValido: boolean;
+  cnpjDuplicado: boolean;
+  empresasComMesmoCnpj: string[];
+}
+
+export interface LocationCodigoSemanticoLista {
+  locationId: number;
+  name: string;
+  /** @nullable */
+  empresaId: number | null;
+  /** @nullable */
+  codigoSemantico: string | null;
+  /** @minimum 1 */
+  codigoSequencial: number;
+  active: boolean;
+}
+
 export interface PersonalExamSetWrite {
   /**
    * @minLength 1

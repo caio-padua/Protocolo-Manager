@@ -103,6 +103,7 @@ import type {
   EmitResult,
   EmpresaCodigoSemantico,
   EmpresaCodigoSemanticoInput,
+  EmpresaCodigoSemanticoLista,
   ErrorResponse,
   ExamDocumentDispatchInput,
   ExamDocumentDispatchResult,
@@ -133,6 +134,7 @@ import type {
   ListSessionsParams,
   ListSiteContentParams,
   LocationCodigoSemantico,
+  LocationCodigoSemanticoLista,
   Payment,
   PaymentGatewaySettings,
   PaymentGatewayUpdate,
@@ -958,6 +960,164 @@ export const useCreateLocationSemanticCode = <
 > => {
   return useMutation(getCreateLocationSemanticCodeMutationOptions(options));
 };
+
+/**
+ * @summary Lista classificações internas das empresas visíveis ao colaborador
+ */
+export const getListSemanticCodeCompaniesUrl = () => {
+  return `/api/semantic-codes/companies`;
+};
+
+export const listSemanticCodeCompanies = async (
+  options?: RequestInit,
+): Promise<EmpresaCodigoSemanticoLista[]> => {
+  return customFetch<EmpresaCodigoSemanticoLista[]>(
+    getListSemanticCodeCompaniesUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSemanticCodeCompaniesQueryKey = () => {
+  return [`/api/semantic-codes/companies`] as const;
+};
+
+export const getListSemanticCodeCompaniesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSemanticCodeCompanies>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSemanticCodeCompanies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSemanticCodeCompaniesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSemanticCodeCompanies>>
+  > = ({ signal }) => listSemanticCodeCompanies({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSemanticCodeCompanies>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSemanticCodeCompaniesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSemanticCodeCompanies>>
+>;
+export type ListSemanticCodeCompaniesQueryError = ErrorType<void>;
+
+/**
+ * @summary Lista classificações internas das empresas visíveis ao colaborador
+ */
+
+export function useListSemanticCodeCompanies<
+  TData = Awaited<ReturnType<typeof listSemanticCodeCompanies>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSemanticCodeCompanies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSemanticCodeCompaniesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Lista códigos das unidades autorizadas para o colaborador
+ */
+export const getListSemanticCodeLocationsUrl = () => {
+  return `/api/semantic-codes/locations`;
+};
+
+export const listSemanticCodeLocations = async (
+  options?: RequestInit,
+): Promise<LocationCodigoSemanticoLista[]> => {
+  return customFetch<LocationCodigoSemanticoLista[]>(
+    getListSemanticCodeLocationsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSemanticCodeLocationsQueryKey = () => {
+  return [`/api/semantic-codes/locations`] as const;
+};
+
+export const getListSemanticCodeLocationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSemanticCodeLocations>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSemanticCodeLocations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSemanticCodeLocationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSemanticCodeLocations>>
+  > = ({ signal }) => listSemanticCodeLocations({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSemanticCodeLocations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSemanticCodeLocationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSemanticCodeLocations>>
+>;
+export type ListSemanticCodeLocationsQueryError = ErrorType<void>;
+
+/**
+ * @summary Lista códigos das unidades autorizadas para o colaborador
+ */
+
+export function useListSemanticCodeLocations<
+  TData = Awaited<ReturnType<typeof listSemanticCodeLocations>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSemanticCodeLocations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSemanticCodeLocationsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Listar unidades em que o profissional pode gerir ou aprovar acessos clínicos

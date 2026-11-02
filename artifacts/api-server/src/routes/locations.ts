@@ -183,6 +183,10 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
     res.status(400).json({ error: "name is required" });
     return;
   }
+  if (!req.tenantContext.empresaId) {
+    res.status(403).json({ error: "A sessão não está vinculada a uma empresa. Nenhuma unidade foi criada." });
+    return;
+  }
 
   // Auto-preenchimento via ViaCEP: preenche bairro/cidade/estado quando omitidos no body
   let geoBairro  = bairro  ?? null;
