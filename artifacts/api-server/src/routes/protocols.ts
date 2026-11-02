@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable } from "@workspace/db";
+import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable, locationProfessionalsTable } from "@workspace/db";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
@@ -22,6 +22,7 @@ import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
 import { requireCollaborator } from "./collaborator";
 import { isGmailConnected } from "../lib/google-gmail";
+import { resolveClinicalMember } from "../lib/clinical-emitter";
 import {
   ListProtocolsQueryParams,
   CreateProtocolBody,
@@ -53,6 +54,63 @@ export async function ensureProtocolEmissoesTable(): Promise<void> {
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
+
+type ClinicalMember = Awaited<ReturnType<typeof resolveClinicalMember>>;
+
+async function authorizeProtocolClient(
+  req: import("express").Request,
+  clientId: unknown,
+  res: import("express").Response,
+): Promise<ClinicalMember | null> {
+  if (!req.collaborator) {
+    res.status(401).json({ error: "Acesso restrito: faça login de colaborador" });
+    return null;
+  }
+
+  try {
+    const member = await resolveClinicalMember(req, clientId);
+    if (member.clinic.empresaId !== resolveEmpresaId(req)) {
+      res.status(404).json({ error: "Registro não encontrado" });
+      return null;
+    }
+    return member;
+  } catch {
+    // Não confirmar a existência de clientes de outra clínica.
+    res.status(404).json({ error: "Registro não encontrado" });
+    return null;
+  }
+}
+
+async function authorizeProtocol(
+  req: import("express").Request,
+  protocol: typeof protocolsTable.$inferSelect,
+  res: import("express").Response,
+): Promise<ClinicalMember | null> {
+  const member = await authorizeProtocolClient(req, protocol.clientId, res);
+  if (!member) return null;
+  if (protocol.empresaId !== member.clinic.empresaId) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return null;
+  }
+  return member;
+}
+
+async function professionalLinkedToClinic(professionalId: number, locationId: number): Promise<boolean> {
+  const [professional] = await db.select({ id: professionalsTable.id, active: professionalsTable.active })
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, professionalId))
+    .limit(1);
+  if (!professional?.active) return false;
+
+  const [membership] = await db.select({ id: locationProfessionalsTable.id })
+    .from(locationProfessionalsTable)
+    .where(and(
+      eq(locationProfessionalsTable.professionalId, professionalId),
+      eq(locationProfessionalsTable.locationId, locationId),
+    ))
+    .limit(1);
+  return Boolean(membership);
+}
 
 async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelect) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
@@ -194,7 +252,7 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
   };
 }
 
-router.get("/protocols", async (req, res): Promise<void> => {
+router.get("/protocols", requireCollaborator, async (req, res): Promise<void> => {
   const query = ListProtocolsQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
@@ -220,11 +278,28 @@ router.get("/protocols", async (req, res): Promise<void> => {
       .where(tenantFilter);
   }
 
+  if (query.data.clientId) {
+    const member = await authorizeProtocolClient(req, query.data.clientId, res);
+    if (!member) return;
+    protocols = protocols.filter(protocol => protocol.empresaId === member.clinic.empresaId);
+  } else {
+    const visibility = await Promise.all(protocols.map(async protocol => {
+      try {
+        const member = await resolveClinicalMember(req, protocol.clientId);
+        return protocol.empresaId === member.clinic.empresaId &&
+          member.clinic.empresaId === empresaId;
+      } catch {
+        return false;
+      }
+    }));
+    protocols = protocols.filter((_protocol, index) => visibility[index]);
+  }
+
   const results = await Promise.all(protocols.map(buildProtocolResponse));
   res.json(results);
 });
 
-router.post("/protocols", async (req, res): Promise<void> => {
+router.post("/protocols", requireCollaborator, async (req, res): Promise<void> => {
   const parsed = CreateProtocolBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -232,10 +307,26 @@ router.post("/protocols", async (req, res): Promise<void> => {
   }
 
   const { items, ...protocolData } = parsed.data;
+  const member = await authorizeProtocolClient(req, protocolData.clientId, res);
+  if (!member) return;
+
+  if (protocolData.professionalId != null &&
+      !await professionalLinkedToClinic(protocolData.professionalId, member.clinic.id)) {
+    res.status(403).json({ error: "O profissional selecionado não está vinculado a esta clínica." });
+    return;
+  }
 
   // nurseId e nurseServiceFee chegam no body mas podem não estar no schema Zod; ler direto.
   const rawNurseId = req.body.nurseId != null ? parseInt(String(req.body.nurseId)) : null;
   const rawNurseServiceFee = req.body.nurseServiceFee != null ? parseFloat(String(req.body.nurseServiceFee)) : null;
+  if (req.body.nurseId != null && (!Number.isSafeInteger(rawNurseId) || rawNurseId! <= 0)) {
+    res.status(400).json({ error: "O profissional de enfermagem selecionado é inválido." });
+    return;
+  }
+  if (rawNurseId != null && !await professionalLinkedToClinic(rawNurseId, member.clinic.id)) {
+    res.status(403).json({ error: "O profissional de enfermagem não está vinculado a esta clínica." });
+    return;
+  }
 
   const totalSessions = Math.max(...items.map((i: { totalSessions: number }) => i.totalSessions), 0);
 
@@ -254,12 +345,11 @@ router.post("/protocols", async (req, res): Promise<void> => {
   const finalTotalValue =
     protocolData.totalValue && protocolData.totalValue > 0 ? protocolData.totalValue : computedBudget;
 
-  const empresaId = resolveEmpresaId(req);
   const [protocol] = await db.insert(protocolsTable).values({
     ...protocolData,
     totalValue: finalTotalValue,
     totalSessions,
-    empresaId,
+    empresaId: member.clinic.empresaId,
     ...(rawNurseId != null && !isNaN(rawNurseId) ? { nurseId: rawNurseId } : {}),
     ...(rawNurseServiceFee != null && !isNaN(rawNurseServiceFee) ? { nurseServiceFee: rawNurseServiceFee } : {}),
   }).returning();
@@ -281,7 +371,7 @@ router.post("/protocols", async (req, res): Promise<void> => {
   res.status(201).json(result);
 });
 
-router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
+router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.id);
   if (isNaN(protocolId)) {
     res.status(400).json({ error: "Invalid protocol id" });
@@ -293,6 +383,7 @@ router.get("/protocols/:id/document-pdf", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!await authorizeProtocol(req, protocol, res)) return;
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
@@ -454,6 +545,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!await authorizeProtocol(req, protocol, res)) return;
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
@@ -1013,7 +1105,7 @@ router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, r
   }
 });
 
-router.get("/protocols/:id", async (req, res): Promise<void> => {
+router.get("/protocols/:id", requireCollaborator, async (req, res): Promise<void> => {
   const params = GetProtocolParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1025,12 +1117,13 @@ router.get("/protocols/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!await authorizeProtocol(req, protocol, res)) return;
 
   const result = await buildProtocolResponse(protocol);
   res.json(result);
 });
 
-router.put("/protocols/:id", async (req, res): Promise<void> => {
+router.put("/protocols/:id", requireCollaborator, async (req, res): Promise<void> => {
   const params = UpdateProtocolParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1043,7 +1136,25 @@ router.put("/protocols/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [protocol] = await db.update(protocolsTable).set(parsed.data).where(eq(protocolsTable.id, params.data.id)).returning();
+  const [existing] = await db.select().from(protocolsTable)
+    .where(eq(protocolsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Protocol not found" });
+    return;
+  }
+  const member = await authorizeProtocol(req, existing, res);
+  if (!member) return;
+  if (parsed.data.professionalId != null &&
+      !await professionalLinkedToClinic(parsed.data.professionalId, member.clinic.id)) {
+    res.status(403).json({ error: "O profissional selecionado não está vinculado a esta clínica." });
+    return;
+  }
+
+  const [protocol] = await db.update(protocolsTable).set(parsed.data)
+    .where(and(
+      eq(protocolsTable.id, params.data.id),
+      eq(protocolsTable.empresaId, member.clinic.empresaId),
+    )).returning();
   if (!protocol) {
     res.status(404).json({ error: "Protocol not found" });
     return;
@@ -1054,7 +1165,7 @@ router.put("/protocols/:id", async (req, res): Promise<void> => {
 });
 
 // Validate protocol and auto-generate sessions with weekly consolidation logic
-router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
+router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Promise<void> => {
   const params = ValidateProtocolParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1066,6 +1177,7 @@ router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!await authorizeProtocol(req, protocol, res)) return;
 
   const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id));
 
@@ -1271,7 +1383,7 @@ router.post("/protocols/:id/validate", async (req, res): Promise<void> => {
 });
 
 // Generate ICS file content
-router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
+router.post("/protocols/:id/generate-ics", requireCollaborator, async (req, res): Promise<void> => {
   const params = GenerateProtocolICSParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1283,6 +1395,7 @@ router.post("/protocols/:id/generate-ics", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
+  if (!await authorizeProtocol(req, protocol, res)) return;
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
@@ -1436,11 +1549,17 @@ async function montarCartaDeTratamento(
   };
 }
 
-router.get("/protocols/:id/carta-pdf", async (req, res): Promise<void> => {
+router.get("/protocols/:id/carta-pdf", requireCollaborator, async (req, res): Promise<void> => {
   const protocolId = parseInt(req.params.id);
   if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
   try {
+    const [protocol] = await db.select().from(protocolsTable)
+      .where(eq(protocolsTable.id, protocolId));
+    if (!protocol || !await authorizeProtocol(req, protocol, res)) {
+      if (!res.headersSent) res.status(404).json({ error: "Registro não encontrado" });
+      return;
+    }
     const r = await montarCartaDeTratamento(protocolId);
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
     const { pdfBytes, certInfo, filename, client } = r.carta;
@@ -1489,6 +1608,13 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
       .from(protocolsTable)
       .where(eq(protocolsTable.id, protocolId));
     if (!protocoloPrevio) { res.status(404).json({ sent: false, error: "Protocolo não encontrado" }); return; }
+
+    const [fullProtocol] = await db.select().from(protocolsTable)
+      .where(eq(protocolsTable.id, protocolId));
+    if (!fullProtocol || !await authorizeProtocol(req, fullProtocol, res)) {
+      if (!res.headersSent) res.status(404).json({ sent: false, error: "Protocolo não encontrado" });
+      return;
+    }
 
     const empresaDoColaborador = resolveEmpresaId(req);
     if (protocoloPrevio.empresaId !== empresaDoColaborador) {

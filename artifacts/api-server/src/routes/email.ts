@@ -23,6 +23,8 @@ import {
 } from "../lib/email-service";
 import { getGmailAddress } from "../lib/google-gmail";
 import { emitirLinkMagico } from "../lib/telegram-magic-link";
+import { resolveEmpresaId } from "../middleware/tenantContext";
+import { resolveClinicalMember } from "../lib/clinical-emitter";
 
 const router: IRouter = Router();
 
@@ -577,7 +579,7 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
 });
 
 // POST /api/email/send-copy — envia PDF de protocolo para qualquer e-mail (cópia para médico/admin)
-router.post("/email/send-copy", async (req, res): Promise<void> => {
+router.post("/email/send-copy", requireCollaborator, async (req, res): Promise<void> => {
   const { to, protocolId } = req.body as { to?: string; protocolId?: number };
   if (!to || !protocolId) {
     res.status(400).json({ error: "Campos obrigatórios: to, protocolId" });
@@ -589,14 +591,39 @@ router.post("/email/send-copy", async (req, res): Promise<void> => {
     if (!gmailOk) { res.status(503).json({ error: "Gmail não conectado" }); return; }
 
     const [protocol] = await db
-      .select({ id: protocolsTable.id, title: protocolsTable.title })
+      .select({
+        id: protocolsTable.id,
+        title: protocolsTable.title,
+        clientId: protocolsTable.clientId,
+        empresaId: protocolsTable.empresaId,
+      })
       .from(protocolsTable)
       .where(eq(protocolsTable.id, protocolId))
       .limit(1);
     if (!protocol) { res.status(404).json({ error: "Protocolo não encontrado" }); return; }
 
+    try {
+      const member = await resolveClinicalMember(req, protocol.clientId);
+      if (protocol.empresaId !== member.clinic.empresaId ||
+          member.clinic.empresaId !== resolveEmpresaId(req)) {
+        res.status(404).json({ error: "Protocolo não encontrado" });
+        return;
+      }
+    } catch {
+      res.status(404).json({ error: "Protocolo não encontrado" });
+      return;
+    }
+
     // Gera o PDF via fetch interno
-    const pdfRes = await fetch(`http://localhost:${process.env.PORT ?? 8080}/api/protocols/${protocolId}/document-pdf`);
+    const authorization = req.headers.authorization;
+    const pdfRes = await fetch(
+      `http://localhost:${process.env.PORT ?? 8080}/api/protocols/${protocolId}/document-pdf`,
+      { headers: authorization ? { Authorization: authorization } : {} },
+    );
+    if (!pdfRes.ok) {
+      res.status(pdfRes.status).json({ error: "Não foi possível gerar a cópia autorizada do protocolo." });
+      return;
+    }
     const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
 
     const hoje = new Date().toLocaleDateString("pt-BR");
