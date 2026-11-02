@@ -282,3 +282,31 @@ Estado: EM CONSTRUÇÃO — esta revisão não está homologada.
 7. Capturas em computador e celular carregaram a página, mas o navegador da verificação não tinha sessão profissional; o diálogo de edição e a aba autenticada não puderam ser homologados visualmente. Não foi removida nem contornada a autenticação.
 8. Nenhuma permissão, rota de servidor, credencial, dado clínico, cobrança, produção ou sincronização GitHub foi alterada nesta etapa.
 9. A revisão independente sequencial ainda é necessária. A etapa PAXTER permanece BLOQUEADA para homologação completa.
+
+## 13. Decisão sobre permissões compartilhadas — 02/11/2026
+
+### 13.1 Decisão do CEO
+
+1. O CEO escolheu usar a mesma matriz de permissões para todas as clínicas.
+2. Essa escolha define regras de função compartilhadas; não mistura clientes, profissionais, documentos ou dados clínicos entre clínicas.
+3. A matriz continua global em `governanca.matriz`; não criar cópia da matriz por clínica nesta etapa.
+
+### 13.2 Gaps verificados antes de aplicar a matriz no servidor
+
+1. As cinco funções atuais são médico, enfermagem, recepção, administrativo e financeiro.
+2. A categoria “outro” existe no formulário, mas não possui coluna de permissão; deve ser negada por padrão em qualquer validação de servidor.
+3. A matriz possui ferramentas como atestado, encaminhamento, laudos e protocolo, mas não possui linhas explícitas para prescrição nem para pedido de exames no atendimento.
+4. As rotas existentes verificam sessão de colaborador e, em alguns casos, módulo contratado; não encontrei um guard de função que leia `governanca.matriz` nas ações do servidor.
+5. Para “Corpo Clínico”, a matriz deixa o menu visível para administrativo, mas as rotas de escrita exigem proprietário global; menu e permissão efetiva não correspondem.
+6. Há uma rota administrativa de credenciais, mas não encontrei no cadastro uma tela de convite/provisionamento para cada profissional. Não criar contas nem senhas por inferência nesta etapa.
+7. A identidade global de CEO deve continuar baseada na atribuição explícita de proprietário da plataforma, sem deduzir privilégio global da categoria, do cargo textual ou do marcador clínico.
+
+### 13.3 Próxima unidade de execução
+
+1. Confirmar as funções autorizadas para prescrever e solicitar exames; usar negação por padrão até essa decisão.
+2. Depois da decisão, ampliar o catálogo global de ferramentas apenas para ações explicitamente aprovadas.
+3. Aplicar cada regra no servidor em rotas de trabalho identificadas, verificando colaborador ativo, categoria permitida e autenticação válida.
+4. Manter os filtros de pertencimento e o contexto da clínica; a matriz compartilhada concede acesso a uma função, não a dados de outra clínica.
+5. Testar permissão aprovada, bloqueio de função não autorizada, categoria desconhecida, sessão ausente ou expirada e falha de leitura da matriz.
+6. Não declarar a autorização concluída só porque o menu escondeu uma opção.
+7. Manter o PAXTER BLOQUEADO até o teste integrado, a inspeção visual autenticada e a revisão independente sequencial.
