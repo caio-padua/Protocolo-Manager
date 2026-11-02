@@ -1,7 +1,7 @@
 # Especificação — acesso e histórico no cadastro do Corpo Clínico
 
 Data: 01/11/2026
-Estado: EM ESPECIFICAÇÃO
+Estado: BLOQUEADO PARA HOMOLOGAÇÃO — revisão independente e evidências de banco pendentes
 Responsável: Dr. Replit Paxter
 
 ## 1. Objetivo
@@ -48,12 +48,13 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 1. A tela de acesso oferece “Esqueci minha senha”.
 2. A solicitação aceita um identificador de login, mas não revela se ele existe.
 3. Se houver cadastro ativo e e-mail registrado, o sistema envia link temporário ao e-mail armazenado.
-4. O token aleatório é assinado com chave do servidor, não armazenado no banco, tem uso único, validade limitada e é vinculado à versão de credenciais da conta.
-5. O token só pode redefinir a senha enquanto estiver válido, não consumido, entregue e ligado à mesma versão de credenciais.
-6. A conclusão grava a nova senha, consome o token, incrementa a versão de credenciais e registra a auditoria numa transação.
-7. Todas as sessões e tokens de recuperação anteriores ficam inválidos após a redefinição.
-8. A mensagem de recuperação usa o motor de envio Hermes Paxter; nenhum envio de teste alcança um endereço real.
-9. Conta sem e-mail utilizável não recebe redefinição por esse fluxo. A interface mantém a opção de acesso Google já vinculada e orienta a usar uma sessão ativa ou o responsável autorizado pela clínica.
+4. O token aleatório é assinado com chave do servidor, não armazenado no banco, vale por 30 minutos e é vinculado ao ambiente e à versão de credenciais da conta.
+5. Ao abrir o link, a interface remove o token da barra de endereço e o mantém somente na memória da tela.
+6. A conclusão exige assinatura válida, prazo ativo, conta ativa e versão de credenciais igual; o incremento dessa versão torna o link inutilizável.
+7. A conclusão grava a nova senha, incrementa a versão de credenciais e registra a auditoria numa transação.
+8. Todas as sessões e links de recuperação anteriores ficam inválidos após a redefinição.
+9. A mensagem de recuperação usa o motor de envio Hermes Paxter; nenhum envio de teste alcança um endereço real.
+10. Conta sem e-mail utilizável não recebe redefinição por esse fluxo. A interface mantém a opção de acesso Google já vinculada e orienta a usar uma sessão ativa ou o responsável autorizado pela clínica.
 
 ### 4.3 Histórico próprio
 
@@ -63,6 +64,12 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 4. A consulta exige sessão válida e filtra exclusivamente pelo profissional autenticado.
 5. A interface não contém ação de apagar; a API não oferece exclusão do histórico.
 6. A aplicação oferece preservação contra exclusão pela própria tela e por rotas do produto; não promete imutabilidade contra um operador privilegiado do banco de dados.
+
+### 4.4 Limite operacional antes de escalar
+
+1. A limitação específica de pedidos de recuperação reside na memória do processo atual.
+2. O limite geral da aplicação também usa armazenamento local do processo.
+3. Esses limites não são compartilhados entre várias instâncias do servidor; antes de publicar várias instâncias, a proteção precisa ser movida para armazenamento compartilhado.
 
 ## 5. Registro profissional e tela “Médico Responsável”
 
@@ -78,7 +85,7 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 |---|---|
 | Interface | Área “Acesso à conta” e alternância de histórico dentro de “Dados”; link “Esqueci minha senha”; formulário de nova senha |
 | Servidor | Solicitação e conclusão da recuperação; histórico restrito à sessão; trilha de mudanças do próprio cadastro |
-| Banco | Nova tabela aditiva para resumos dos tokens e estado de entrega; trilha de auditoria existente permanece |
+| Banco | Nenhuma tabela nova; a versão da credencial e a trilha de auditoria existentes são atualizadas em transação; tokens não são persistidos |
 | Envio | Hermes Paxter, somente para o e-mail já cadastrado; nenhuma mensagem real durante os testes |
 | Navegação | Rota antiga encaminhada à ficha própria; menu antigo removido após validação de acesso |
 | Compatibilidade | Rotas de edição de profissional e médico principal preservadas |
@@ -91,8 +98,8 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 | Identificador inexistente | Resposta genérica idêntica | Não revelar existência |
 | Conta inativa ou sem e-mail | Resposta genérica | Nenhum link criado ou enviado |
 | Tentativa de direcionar a recuperação a outro e-mail | Destino lido do cadastro no servidor | Campo do navegador ignorado ou rejeitado |
-| Muitas solicitações | Limite por origem e intervalo por conta | Bloqueio temporário sem informar se a conta existe |
-| E-mail não configurado ou envio falha | Resultado honesto, token inutilizado e sem confirmação de entrega | Nenhuma redefinição falsa |
+| Muitas solicitações | Limite por origem e intervalo por conta, dentro do processo atual | Bloqueio temporário sem informar se a conta existe; não coordena várias instâncias |
+| E-mail não configurado ou envio falha | Resposta genérica; senha permanece igual; nenhum sucesso de envio é confirmado | Nenhuma redefinição falsa |
 | Token expirado, consumido ou alterado | Validação atômica de validade, consumo e versão | Recusa sem alterar senha |
 | Token repetido em duas requisições | Bloqueio transacional/condicional | Uma única redefinição vence |
 | Sessões antigas | Incremento da versão de credenciais | Tokens antigos recebem recusa |
@@ -109,16 +116,15 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 
 ## 8. Plano de verificação
 
-1. Testes unitários de geração, resumo, expiração, consumo e formato do link.
-2. Testes de integração com banco sintético e envio de e-mail simulado.
-3. Caminho permitido: solicitar, confirmar a chamada simulada, redefinir, verificar hash, versão e auditoria, e autenticar com a nova senha.
-4. Caminhos proibidos: conta ausente, conta inativa, e-mail forjado, senha fraca, token expirado, token usado, token de versão antiga, identidade forjada e sessão ausente.
-5. Concorrência: duas conclusões do mesmo token; exatamente uma pode alterar a senha.
-6. Privacidade: respostas, auditoria, logs e histórico não contêm senha, hash, token bruto, CPF completo ou e-mail completo.
-7. Persistência: consulta de banco comprova evento e estado; a tabela de tokens contém apenas resumos criptográficos.
-8. Visual: capturas em celular e computador; controles principais exercitados em ambas as larguras; nenhuma autenticação temporária de teste é adicionada.
-9. Logs: inicialização sem erro e sem mensagens inesperadas.
-10. Revisão independente sequencial antes da homologação; se indisponível, manter o estado BLOQUEADO para homologação.
+1. Testes de rota com estado de banco simulado e envio de e-mail substituído por função de teste.
+2. Caminho permitido: solicitar, confirmar o destinatário cadastrado, redefinir, verificar hash, versão e auditoria, e autenticar com a nova senha.
+3. Caminhos proibidos: conta ausente, destino forjado, token expirado e reutilizado, identidade alheia no histórico.
+4. Concorrência: duas conclusões simultâneas do mesmo token; exatamente uma pode alterar a senha.
+5. Privacidade: respostas e histórico não incluem senha, hash, token bruto, CPF completo ou e-mail completo.
+6. A persistência ainda precisa ser conferida em banco de desenvolvimento isolado com cadastro sintético; os testes atuais não acessam o banco real.
+7. Capturas públicas podem verificar somente a tela de recuperação; a ficha autenticada exige sessão válida e não pode ser conferida por um navegador sem login.
+8. Logs após reinício dos serviços devem confirmar inicialização sem erro inesperado.
+9. Revisão independente sequencial antes da homologação; se indisponível, manter o estado BLOQUEADO para homologação.
 
 ## 9. Critério de conclusão
 
@@ -128,3 +134,18 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 4. A rota antiga não causa bloqueio de acesso para nenhum perfil que já a utilizava.
 5. A interface conserva o padrão do Corpo Clínico em celular e computador.
 6. Revisão independente sequencial aprova a implementação; caso contrário, reportar como implementada, mas não homologada.
+
+## 10. Evidência atual e pendências de homologação
+
+1. A suíte `collaborator-google-auth.test.ts` passou com 49 testes, incluindo recuperação autorizada, endereço cadastrado, pedido genérico, link expirado, repetição, duas conclusões simultâneas e histórico sem acesso cruzado.
+2. A suíte usa estado de banco simulado e substitui o motor de e-mail; não prova gravação no banco ativo nem entrega externa.
+3. A compilação do servidor terminou com sucesso.
+4. A compilação do aplicativo terminou com sucesso, mas mostrou avisos preexistentes de propriedades duplicadas em uma tela de validação fora desta entrega e de bloco JavaScript grande.
+5. A conferência de tipos global continua falhando em arquivos diversos do repositório; os erros visíveis nos arquivos alterados estão fora das linhas modificadas, mas o repositório não pode ser declarado sem erros.
+6. A tela pública de solicitação de recuperação foi capturada em celular e computador.
+7. A tela autenticada da ficha própria não foi capturada, pois o navegador de validação não possui sessão; não foi criado atalho de autenticação.
+8. Os dois serviços foram reiniciados e o servidor registrou “Server listening”; existem avisos de configuração de desenvolvimento que não foram alterados nesta tarefa.
+9. Nenhum e-mail real foi enviado e nenhum teste alterou cadastro clínico real.
+10. A revisão independente foi tentada, mas a plataforma informou que a revisão automatizada não está disponível nesta execução; a etapa permanece bloqueada até revisão sequencial por outra pessoa.
+11. O limite de recuperação está na memória do processo; antes de executar várias instâncias em produção, deve usar armazenamento compartilhado e ser retestado.
+12. Não houve envio ao GitHub.

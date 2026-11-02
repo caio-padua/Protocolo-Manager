@@ -419,6 +419,33 @@ describe("recuperação de senha profissional por e-mail", () => {
     expect(state.audit).toHaveLength(0);
   });
 
+  it("permite somente uma conclusão quando o mesmo link chega em duas requisições simultâneas", async () => {
+    await request(app)
+      .post("/collaborator/password-recovery/request")
+      .send({ identifier: "doctor@example.test" });
+    const [message] = vi.mocked(enviarMensagemPaxter).mock.calls[0] as unknown as [
+      { botao?: { url: string } },
+    ];
+    const recoveryToken = new URL(message.botao!.url).searchParams.get("recoveryToken")!;
+
+    const responses = await Promise.all([
+      request(app)
+        .post("/collaborator/password-recovery/complete")
+        .send({ recoveryToken, newPassword: "first-synthetic-password-2026" }),
+      request(app)
+        .post("/collaborator/password-recovery/complete")
+        .send({ recoveryToken, newPassword: "second-synthetic-password-2026" }),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
+    expect(state.professionals[0].credentialVersion).toBe(1);
+    expect(state.audit.filter((event) => event.action === "password_recovered")).toHaveLength(1);
+    expect(
+      verifyPassword("first-synthetic-password-2026", state.professionals[0].passwordHash) ||
+      verifyPassword("second-synthetic-password-2026", state.professionals[0].passwordHash),
+    ).toBe(true);
+  });
+
   it("mostra somente o histórico do profissional autenticado", async () => {
     state.audit = [
       {

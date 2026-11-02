@@ -81,6 +81,18 @@ export default function LoginPage() {
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [recoveryConfirmation, setRecoveryConfirmation] = useState("");
 
+  useEffect(() => {
+    if (!recoveryToken) return;
+    const currentUrl = new URL(window.location.href);
+    if (!currentUrl.searchParams.has("recoveryToken")) return;
+    currentUrl.searchParams.delete("recoveryToken");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+    );
+  }, [recoveryToken]);
+
   // Se já tem sessão válida, redireciona sem mostrar o formulário.
   useEffect(() => {
     if (recoveryToken || recoveryRequestMode) return;
