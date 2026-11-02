@@ -182,7 +182,7 @@ router.get("/provisionamento/dry-run", async (req, res): Promise<void> => {
       ativa: true,
       isPlatformOwner: false,
       status: "ativo",
-      tipoLicenciamento: "saas_basico",
+      tipoLicenciamento: "independente",
       driveFolderEmpresaId: "(preenchido após passo 2 — setup-drive)",
       emailGeral: `${slug}@padaxor.com.br`,
       createdAt: new Date().toISOString(),

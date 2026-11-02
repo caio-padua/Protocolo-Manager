@@ -9,12 +9,7 @@ export type EmpresaCodigoSemanticoInputVinculo =
   (typeof EmpresaCodigoSemanticoInputVinculo)[keyof typeof EmpresaCodigoSemanticoInputVinculo];
 
 export const EmpresaCodigoSemanticoInputVinculo = {
-  propria: "propria",
-  filial_interna: "filial_interna",
-  licenciada_direta: "licenciada_direta",
-  licenciada_por_clinica: "licenciada_por_clinica",
   independente: "independente",
-  parceira: "parceira",
 } as const;
 
 export interface EmpresaCodigoSemanticoInput {

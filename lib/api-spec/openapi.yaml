@@ -3009,12 +3009,7 @@ components:
         vinculo:
           type: string
           enum:
-            - propria
-            - filial_interna
-            - licenciada_direta
-            - licenciada_por_clinica
             - independente
-            - parceira
     EmpresaCodigoSemantico:
       type: object
       required: [empresaId, vinculo, codigoVinculo, codigoBase]

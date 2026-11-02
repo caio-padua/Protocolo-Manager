@@ -228,7 +228,7 @@ router.post("/prova-de-valor/exportar-pdf", async (req: Request, res: Response):
 // ─── GET /api/prova-de-valor/por-empresa ─────────────────────────────────────
 //
 // Retorna, por empresa, os mesmos 6 KPIs + tempo economizado.
-// Só lista empresas ativas e não-platformOwner.
+// Só lista cadastros clínicos ativos; não classifica licenciamento nem relações entre empresas.
 //
 router.get("/prova-de-valor/por-empresa", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -240,11 +240,14 @@ router.get("/prova-de-valor/por-empresa", async (req: Request, res: Response): P
       return;
     }
 
-    // Busca todas as empresas ativas (exceto a plataforma dona)
+    // Busca empresas clínicas ativas; valores legados de licenciamento não participam.
     const empresasResult = await db.execute(sql`
-      SELECT id, nome, nick, tipo_licenciamento, tipo_relacionamento
+      SELECT id, nome, nick
       FROM empresas
-      WHERE ativa = true AND (is_platform_owner IS NULL OR is_platform_owner = false)
+      WHERE tipo = 'clinic'
+        AND ativa = true
+        AND status <> 'ARQUIVADA'
+        AND (is_platform_owner IS NULL OR is_platform_owner = false)
       ORDER BY CASE WHEN id = 5 THEN 0 ELSE 1 END, nome ASC
     `);
 
@@ -252,8 +255,6 @@ router.get("/prova-de-valor/por-empresa", async (req: Request, res: Response): P
       id: number;
       nome: string;
       nick: string | null;
-      tipo_licenciamento: string | null;
-      tipo_relacionamento: string | null;
     }>;
 
     const deISO  = de.toISOString();
@@ -317,16 +318,10 @@ router.get("/prova-de-valor/por-empresa", async (req: Request, res: Response): P
         const laudos   = Number((laudR.rows[0] as Record<string, unknown>)?.n ?? 0);
         const total    = receitas + documentos + lembretes + laudos + ia;
 
-        const tipoLic = emp.tipo_licenciamento ?? emp.tipo_relacionamento ?? "licenciada_direta";
-
         return {
           empresaId: eid,
           nome: emp.nick?.trim() || emp.nome,
           nomeCompleto: emp.nome,
-          tipoLicenciamento: tipoLic,
-          isPropria: tipoLic === "propria",
-          isLicenciada: tipoLic === "licenciada_direta",
-          isSublicenciada: tipoLic === "licenciada_por_clinica" || tipoLic === "sub_unidade",
           kpis: {
             receitasEmitidas:       receitas,
             documentosEntregues:    documentos,

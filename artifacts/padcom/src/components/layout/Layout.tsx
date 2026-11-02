@@ -217,8 +217,8 @@ const navigation: NavEntry[] = [
     name: "Configurações & Administração",
     icon: Settings,
     children: [
-      { name: "Empresas Licenciadas", href: "/cadastros/empresas-licenciadas", icon: Building2 },
       { name: "Cadastro de Empresas", href: "/cadastros/empresas", icon: Building2 },
+      { name: "Cadastro legado de empresas — desativado", href: "/cadastros/empresas-licenciadas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
       { name: "Clínicas & Locais", href: "/cadastros/clinicas", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
@@ -248,7 +248,7 @@ const navigation: NavEntry[] = [
       { name: "Leads da Vitrine", href: "/vitrine-leads", icon: Sparkles },
       { name: "PADTEAM — Equipe & Demandas", href: "/padteam", icon: Users },
       { name: "Agentes Virtuais", href: "/agentes", icon: Bot },
-      { name: "Hierarquia", href: "/hierarquia", icon: Network },
+      { name: "Visão de Empresas Independentes", href: "/hierarquia", icon: Network },
       { name: "Governança", href: "/cadastros/governanca", icon: Landmark },
     ],
   },

@@ -137,7 +137,7 @@ const GRUPOS: Grupo[] = [
     nome: "10 — CONFIGURAÇÕES & ADMINISTRAÇÃO",
     cor: { red: 0.949, green: 0.949, blue: 0.949 },
     telas: [
-      { num: 56, nome: "Empresas Licenciadas", funcao: "SaaS — clientes licenciados do sistema", menu: "✅", necessidade: "★★★★☆", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/cadastros/empresas-licenciadas` },
+      { num: 56, nome: "Cadastro legado de empresas — desativado", funcao: "Tela preservada sem novas gravações; o cadastro ativo está em Empresas", menu: "✅ (desativado)", necessidade: "★★★★☆", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/cadastros/empresas-licenciadas` },
       { num: 57, nome: "Empresa & Clínicas", funcao: "Dados da empresa principal (PADCOM)", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "Clínicas & Locais (aba)", link: `${BASE}/configuracoes/empresa` },
       { num: 58, nome: "Clínicas & Locais", funcao: "Cadastro das unidades físicas", menu: "✅", necessidade: "★★★★★", fusao: "★★★★☆", candidata: "Empresa & Clínicas", link: `${BASE}/cadastros/clinicas` },
       { num: 59, nome: "Corpo Clínico", funcao: "Profissionais, médicos e enfermeiros", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "PADTEAM", link: `${BASE}/professionals` },
@@ -161,7 +161,7 @@ const GRUPOS: Grupo[] = [
       { num: 71, nome: "CEO Command Center", funcao: "Dashboard executivo com KPIs em tempo real", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "Metas & Crescimento (aba)", link: `${BASE}/ceo/command-center` },
       { num: 72, nome: "PADTEAM — Equipe & Demandas", funcao: "Gestão de equipe remota e demandas internas", menu: "✅", necessidade: "★★★★☆", fusao: "★★★★☆", candidata: "Absorve Agentes + Hierarquia", link: `${BASE}/padteam` },
       { num: 73, nome: "Agentes Virtuais", funcao: "Configuração dos agentes de Inteligência Artificial", menu: "✅", necessidade: "★★★★☆", fusao: "★★★★★", candidata: "PADTEAM (aba Agentes)", link: `${BASE}/agentes` },
-      { num: 74, nome: "Hierarquia", funcao: "Organograma da empresa", menu: "✅", necessidade: "★★★★☆", fusao: "★★★★★", candidata: "PADTEAM (aba Organograma)", link: `${BASE}/hierarquia` },
+      { num: 74, nome: "Visão de Empresas Independentes", funcao: "Lista plana de empresas clínicas e unidades", menu: "✅", necessidade: "★★★★☆", fusao: "★★★★★", candidata: "—", link: `${BASE}/hierarquia` },
       { num: 75, nome: "Governança", funcao: "Matriz de permissões por papel de usuário", menu: "✅", necessidade: "★★★★★", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/cadastros/governanca` },
     ],
   },

@@ -1,5 +1,7 @@
 # SPEC — Empresas Licenciadas: Categoria VIVÊNCIA CEO
 
+> **SUPERSEDIDA EM 02/11/2026:** Não implementar classificação de empresa própria, filial ou licenciada. Consultar `specs/empresas-independentes-sem-hierarquia.md`.
+
 ## Objetivo
 Adicionar um 5º tipo de licenciamento: "Clínica Própria — Vivência CEO".
 Instituto Pádua (e qualquer clínica do próprio CEO) entra nessa categoria:

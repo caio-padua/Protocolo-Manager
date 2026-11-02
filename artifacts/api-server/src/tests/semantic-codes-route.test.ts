@@ -85,11 +85,20 @@ const storedCompany = {
   cnpj: "63.865.940/0001-63",
   ativa: true,
   status: "ATIVO",
+    tipo: "clinic",
+    isPlatformOwner: false,
   codigoBaseSemantico: "PADU",
-  codigoVinculoSemantico: "propria",
+  codigoVinculoSemantico: "independente",
 };
 
-function queueSemanticCodeReads(companyList = [{ id: 5, cnpj: storedCompany.cnpj }]) {
+function queueSemanticCodeReads(companyList = [{
+  id: 5,
+  cnpj: storedCompany.cnpj,
+  tipo: "clinic",
+  ativa: true,
+  status: "ATIVO",
+  isPlatformOwner: false,
+}]) {
   mocks.db.select
     .mockImplementationOnce(() => queryResult([storedLocation]))
     .mockImplementationOnce(() => queryResult([storedCompany]))
@@ -100,7 +109,7 @@ function queueSemanticCodeReads(companyList = [{ id: 5, cnpj: storedCompany.cnpj
     where: vi.fn(() => updateQuery),
     returning: vi.fn(async () => [{
       ...storedLocation,
-      codigoSemantico: "PADU.PROU.6386.0001",
+      codigoSemantico: "PADU.INDE.6386.0001",
     }]),
   };
   mocks.db.update.mockReturnValue(updateQuery);
@@ -111,6 +120,7 @@ describe("rotas do código semântico", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.db.select.mockReset();
     mocks.db.transaction.mockImplementation(async (callback: (tx: typeof mocks.db) => Promise<unknown>) =>
       callback(mocks.db)
     );
@@ -172,7 +182,7 @@ describe("rotas do código semântico", () => {
     expect(body).toMatchObject({
       locationId: 101,
       empresaId: 5,
-      codigo: "PADU.PROU.6386.0001",
+      codigo: "PADU.INDE.6386.0001",
       cnpjPrefixo: "6386",
       sequencia: 1,
     });
@@ -182,7 +192,14 @@ describe("rotas do código semântico", () => {
   it("bloqueia CNPJ repetido sem emitir código", async () => {
     queueSemanticCodeReads([
       { id: 5, cnpj: storedCompany.cnpj },
-      { id: 6, cnpj: "63865940000163" },
+      {
+        id: 6,
+        cnpj: "63865940000163",
+        tipo: "clinic",
+        ativa: true,
+        status: "ATIVO",
+        isPlatformOwner: false,
+      },
     ]);
     const started = startTestServer();
     server = started.server;
@@ -199,7 +216,39 @@ describe("rotas do código semântico", () => {
     expect(mocks.db.update).not.toHaveBeenCalled();
   });
 
-  it("impede mudar a classificação depois que a primeira unidade recebeu código", async () => {
+  it("não bloqueia código por CNPJ igual em empresa clínica inativa", async () => {
+    queueSemanticCodeReads([
+      {
+        id: 5,
+        cnpj: storedCompany.cnpj,
+        tipo: "clinic",
+        ativa: true,
+        status: "ATIVO",
+        isPlatformOwner: false,
+      },
+      {
+        id: 1,
+        cnpj: "63865940000163",
+        tipo: "clinic",
+        ativa: false,
+        status: "ATIVO",
+        isPlatformOwner: false,
+      },
+    ]);
+    const started = startTestServer();
+    server = started.server;
+    const response = await fetch(`${started.url}/locations/101/codigo-semantico`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-collaborator",
+        "X-Test-Owner": "true",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(mocks.db.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("recusa nova classificação de filial mesmo quando unidade já recebeu código", async () => {
     mocks.db.select
       .mockImplementationOnce(() => queryResult([storedCompany]))
       .mockImplementationOnce(() => queryResult([{ id: 101 }]));
@@ -214,7 +263,7 @@ describe("rotas do código semântico", () => {
       },
       body: JSON.stringify({ vinculo: "filial_interna" }),
     });
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(400);
     expect(mocks.db.update).not.toHaveBeenCalled();
   });
 });

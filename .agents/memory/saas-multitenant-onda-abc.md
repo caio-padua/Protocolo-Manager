@@ -8,19 +8,19 @@ description: Decisões e estado da migração multi-tenant (schema + middleware 
 Empresa_id em TODA tabela clínica — isolamento por tenant.
 Fase atual: single-tenant (empresa_id=5 fixo), middleware pronoto para upgrade.
 
-## Estrutura empresarial desejada pelo CEO (02/11/2026)
+## Estrutura empresarial vigente (02/11/2026)
 
-O sistema é destinado a empresas médicas. PAXTER não é uma empresa existente nem uma clínica; é apenas um nome reservado para uma possível empresa futura, quando o sistema estiver pronto. Não registrar PAXTER como empresa médica, clínica ou empresa-mãe.
+O sistema é destinado a empresas médicas. PAXTER não existe como empresa ou clínica atual; é somente um nome reservado para uma possível empresa futura. Os registros empresariais e vínculos encontrados no banco de desenvolvimento são simulações e não provam existência jurídica, propriedade, licenciamento ou dívida.
 
-O código semântico é por unidade e segue `BASE.VINC.CNPJ4.SEQ4`: `BASE` deriva do nome principal, `VINC` é uma classificação interna escolhida pelo CEO, `CNPJ4` são os quatro primeiros números do CNPJ e `SEQ4` é a sequência da unidade. O código não usa nem define empresa-mãe.
+O CEO autorizou remover toda a hierarquia empresarial ativa somente no banco de desenvolvimento: zerar `empresa_mae_id` e `parent_empresa_id`, desativar a árvore legada, impedir novas relações e arquivar — sem exclusão física — o registro simulado que apresenta PAXTER como empresa clínica. Os campos permanecem no esquema por compatibilidade.
 
-Os campos de empresa-mãe e hierarquia existentes devem permanecer no esquema do banco de dados, mas não devem ser usados para compor o código semântico. A exclusão ou limpeza de valores já gravados exige escopo explícito, pois a lógica atual de licenciamento ainda consome essas relações.
+A autoridade global pertence ao cadastro do profissional, não a um cadastro de empresa. Preservar o cadastro simulado Instituto Padua, suas unidades clínicas, profissionais e vínculos clínicos. Valores contratuais antigos podem ficar armazenados como histórico, mas nunca devem alimentar cobrança, repasse, totalização ou projeção.
 
-Em 02/11/2026, o CEO informou que os CNPJs presentes nos cadastros de desenvolvimento são fictícios e indicou preservar como identidade canônica Instituto Padua, Paduccia Clínica Médica e Clínica Padua. Isso não autoriza inferir exclusões ou relações societárias.
+O código semântico permanece por unidade e usa `BASE.VINC.CNPJ4.SEQ4`; `VINC` é uma classificação interna escolhida pelo CEO e não cria vínculo societário ou cobrança.
 
-**Why:** O CEO esclareceu que o registro chamado PAXTER não representa uma empresa médica existente. A base de desenvolvimento contém vínculos e campos de proprietário da plataforma que confundem a identidade técnica da plataforma com empresas clínicas.
+**Why:** O CEO esclareceu que PAXTER é uma marca futura e que os dados empresariais da base são fictícios. A separação evita que dados de teste sejam interpretados como clínica existente, empresa-mãe ou obrigação financeira.
 
-**How to apply:** Manter os campos existentes, separar a identidade de proprietário da plataforma dos cadastros de empresas médicas e aplicar o código semântico aprovado sem inferir hierarquia. Tratar os CNPJs de desenvolvimento como sintéticos. Antes de remover um registro técnico ou limpar vínculos legados, verificar dependências e pedir confirmação do CEO para o alcance exato.
+**How to apply:** Preservar colunas, registros de clínicas, unidades, profissionais e históricos. Limpar apenas os vínculos hierárquicos autorizados, arquivar o cadastro empresarial simulado de PAXTER e verificar que a autoridade global continua no profissional. Nunca aplicar essa limpeza em produção sem autorização específica.
 
 ## Código semântico por unidade clínica
 

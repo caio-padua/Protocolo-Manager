@@ -32,10 +32,6 @@ interface EmpresaKPI {
   empresaId: number;
   nome: string;
   nomeCompleto: string;
-  tipoLicenciamento: string;
-  isPropria: boolean;
-  isLicenciada: boolean;
-  isSublicenciada: boolean;
   kpis: KPIs;
   totalEventos: number;
 }
@@ -61,24 +57,6 @@ function fromInputDate(d: string): Date {
 
 function nfmt(n: number): string {
   return n.toLocaleString("pt-BR");
-}
-
-const TIPO_COR: Record<string, { badge: string; faixa: string }> = {
-  propria:              { badge: "text-emerald-400", faixa: "bg-emerald-500" },
-  licenciada_direta:    { badge: "text-cyan-400",    faixa: "bg-cyan-500"    },
-  licenciada_por_clinica: { badge: "text-amber-400", faixa: "bg-amber-500"  },
-  sub_unidade:          { badge: "text-amber-400",   faixa: "bg-amber-500"   },
-};
-
-function tipoCor(tipo: string) {
-  return TIPO_COR[tipo] ?? { badge: "text-slate-400", faixa: "bg-slate-500" };
-}
-
-function tipoLabel(emp: EmpresaKPI): string {
-  if (emp.isPropria)        return "PRÓPRIA";
-  if (emp.isSublicenciada)  return "SUB-LIC.";
-  if (emp.isLicenciada)     return "LICENCIADA";
-  return "—";
 }
 
 // ── Componente KPI Card (visão geral) ─────────────────────────────────────────
@@ -122,7 +100,6 @@ function KpiCard({ icon: Icon, label, valor, destaque = false }: {
 // ── Linha da tabela por clínica ───────────────────────────────────────────────
 
 function EmpresaRow({ emp, rank }: { emp: EmpresaKPI; rank: number }) {
-  const cor = tipoCor(emp.tipoLicenciamento);
   const k = emp.kpis;
   const total = emp.totalEventos;
 
@@ -132,13 +109,13 @@ function EmpresaRow({ emp, rank }: { emp: EmpresaKPI; rank: number }) {
       {/* Nome + tipo */}
       <td className="py-3 pl-4 pr-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`shrink-0 w-1 self-stretch rounded-full ${cor.faixa} opacity-70`} style={{ minHeight: "28px" }} />
+          <div className="shrink-0 w-1 self-stretch rounded-full bg-emerald-500 opacity-70" style={{ minHeight: "28px" }} />
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-tight leading-tight truncate text-foreground">
               {emp.nome}
             </div>
-            <div className={`text-[9px] font-bold uppercase tracking-widest ${cor.badge}`}>
-              {tipoLabel(emp)}
+            <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
+              EMPRESA INDEPENDENTE
             </div>
           </div>
         </div>
@@ -544,9 +521,7 @@ export default function ProvaDeValor() {
           {/* Legenda */}
           <div className="flex flex-wrap gap-3 items-center">
             {[
-              { faixa: "bg-emerald-500", label: "Própria (CEO)" },
-              { faixa: "bg-cyan-500",    label: "Licenciada direta" },
-              { faixa: "bg-amber-500",   label: "Sub-licenciada" },
+              { faixa: "bg-emerald-500", label: "Empresa clínica independente" },
             ].map((l) => (
               <div key={l.label} className="flex items-center gap-1.5">
                 <span className={`h-2 w-2 rounded-full ${l.faixa}`} />

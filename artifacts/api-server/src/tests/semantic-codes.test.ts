@@ -27,22 +27,16 @@ describe("códigos semânticos internos por unidade", () => {
   it("emite o código com quatro blocos e sequência independente", () => {
     expect(formatSemanticCode({
       base: "PADU",
-      relation: "propria",
+      relation: "independente",
       cnpj: "63.865.940/0001-63",
       sequence: 1,
-    })).toBe("PADU.PROU.6386.0001");
-    expect(formatSemanticCode({
-      base: "PADU",
-      relation: "filial_interna",
-      cnpj: "63.865.940/0001-63",
-      sequence: 42,
-    })).toBe("PADU.FILU.6386.0042");
+    })).toBe("PADU.INDE.6386.0001");
   });
 
   it("bloqueia sequência fora do tamanho de quatro dígitos", () => {
     expect(formatSemanticCode({
       base: "PADU",
-      relation: "propria",
+      relation: "independente",
       cnpj: "63.865.940/0001-63",
       sequence: 10000,
     })).toBeNull();
@@ -50,7 +44,10 @@ describe("códigos semânticos internos por unidade", () => {
 
   it("limita as classificações a valores semânticos conhecidos", () => {
     expect(isSemanticRelation("independente")).toBe(true);
+    expect(isSemanticRelation("propria")).toBe(false);
+    expect(isSemanticRelation("filial_interna")).toBe(false);
+    expect(isSemanticRelation("licenciada_direta")).toBe(false);
     expect(isSemanticRelation("UNICA")).toBe(false);
-    expect(Object.keys(SEMANTIC_RELATIONS)).toHaveLength(6);
+    expect(Object.keys(SEMANTIC_RELATIONS)).toEqual(["independente"]);
   });
 });

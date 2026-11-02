@@ -214,3 +214,16 @@ Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação ant
 - A imagem automática da página encontrou o acesso, mas não entrou na sessão; a tela autenticada não foi validada visualmente.
 - Uma inicialização registrou limite temporário de leituras no serviço de planilhas; na última inicialização, o dicionário estava atualizado e o servidor ficou ativo.
 - A unidade não está homologada. Permanecem pendentes a consolidação visual dos campos e das telas, a revisão independente e os testes próprios da nova inclusão. Nenhuma outra exclusão foi autorizada; o ID 6 continua preservado por ter três empresas vinculadas a ele.
+
+## 10. Decisão executiva supersedente — 02/11/2026
+
+Esta decisão atualiza as afirmações históricas desta especificação sobre licenciamento empresarial, vínculos reais e preservação de uma empresa PAXTER:
+
+1. PAXTER não é uma empresa ou clínica existente. É apenas um nome reservado pelo CEO para uma possível empresa futura; não deve ser apresentado como entidade atual nem usado para controlar clínicas.
+2. Os CNPJs e vínculos encontrados no banco de desenvolvimento são dados de simulação. Não comprovam existência jurídica, propriedade, licenciamento ou obrigação financeira.
+3. O sistema não deve manter hierarquia empresarial, empresa-mãe, sublicença ou cálculo/repasse de royalties. As colunas antigas permanecem por compatibilidade, sem uso operacional.
+4. A autoridade global permanece no cadastro da pessoa profissional. Não deve ser transferida para um cadastro de empresa.
+5. Instituto Padua é o cadastro clínico simulado que deve ser preservado nesta transição, junto às suas unidades, profissionais e referências clínicas.
+6. O registro simulado que contém o nome PAXTER deve ser arquivado, não apagado fisicamente, e retirado de seletores e listas de clínicas.
+7. Valores contratuais antigos podem permanecer armazenados como histórico, mas não podem gerar cobranças, projeções ou somas operacionais.
+8. A transição desta decisão só é considerada aplicada após revisão independente, testes, alteração transacional do banco de desenvolvimento e consultas de confirmação.

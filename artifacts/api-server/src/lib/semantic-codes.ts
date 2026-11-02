@@ -1,10 +1,5 @@
 export const SEMANTIC_RELATIONS = {
-  propria: { code: "PROU", label: "Própria do grupo" },
-  filial_interna: { code: "FILU", label: "Filial interna do grupo" },
-  licenciada_direta: { code: "LICD", label: "Licenciada direta" },
-  licenciada_por_clinica: { code: "LICI", label: "Licenciada por clínica" },
-  independente: { code: "INDE", label: "Empresa independente" },
-  parceira: { code: "PARC", label: "Parceira" },
+  independente: { code: "INDE", label: "Empresa clínica independente" },
 } as const;
 
 export type SemanticRelation = keyof typeof SEMANTIC_RELATIONS;

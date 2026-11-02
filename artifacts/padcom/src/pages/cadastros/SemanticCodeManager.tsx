@@ -13,12 +13,7 @@ import { collabAuthHeaders, getCollabToken, COLLAB_EVENT } from "@/lib/collab-au
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
 const RELATIONS = [
-  { value: "propria", code: "PROU", label: "Própria do grupo" },
-  { value: "filial_interna", code: "FILU", label: "Filial interna do grupo" },
-  { value: "licenciada_direta", code: "LICD", label: "Licenciada direta" },
-  { value: "licenciada_por_clinica", code: "LICI", label: "Licenciada por clínica" },
-  { value: "independente", code: "INDE", label: "Empresa independente" },
-  { value: "parceira", code: "PARC", label: "Parceira" },
+  { value: "independente", code: "INDE", label: "Empresa clínica independente" },
 ] as const;
 type RelationValue = (typeof RELATIONS)[number]["value"];
 

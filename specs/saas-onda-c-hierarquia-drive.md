@@ -1,5 +1,7 @@
 # SPEC C — Hierarquia Visual + Drive por Empresa
 
+> **SUPERSEDIDA EM 02/11/2026:** Não implementar hierarquia empresarial ou royalties. Consultar `specs/empresas-independentes-sem-hierarquia.md`.
+
 Data: 16/07/2026
 Autor: Dr. Replit Paxter
 Status: APROVADO PARA CONSTRUÇÃO

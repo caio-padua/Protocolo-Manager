@@ -1,6 +1,6 @@
 # PAXTER Loop — Empresas independentes sem hierarquia
 
-**Estado:** EM ESPECIFICAÇÃO  
+**Estado:** BLOQUEADO — implementação e testes passaram; falta revisão independente e conferência autenticada da tela.
 **Data:** 02/11/2026  
 **Responsável:** Dr. Replit Paxter  
 **Ambiente de dados autorizado:** banco de desenvolvimento do Replit  
@@ -135,4 +135,26 @@ Conferir tela, banco e registros
         ↓
 Solicitar homologação do CEO
 ```
+
+## 9. Cadastro empresarial e dados fiscais
+
+- A tela principal e única para criar/editar empresas clínicas é `Cadastro de Empresas` (`/cadastros/empresas`), por ser a tela completa com dados fiscais, endereço, contatos, documentos e códigos semânticos.
+- A rota antiga `/cadastros/empresas-licenciadas` permanece no menu e preservada, mas exibe uma faixa vermelha discreta de desativação e não permite novas gravações.
+- O formulário ativo aceita apenas empresa clínica; categoria de clínica/laboratório é descritiva e não cria relação de propriedade.
+- CNAE deve ter sete números e ser exibido no formato `00.00-0/00`. O servidor também normaliza separadores e recusa quantidade diferente.
+- Regime tributário é uma escolha obrigatória entre Simples Nacional, MEI, Lucro Presumido e Lucro Real. Valores faltantes não são preenchidos por suposição.
+- Informações comerciais antigas ficam apenas para consulta. A tela não recalcula nem permite alterar valores e contratos históricos.
+- O código semântico por unidade usa quatro blocos e, nesta etapa, aceita somente a classificação `INDE` de empresa clínica independente; valores de propriedade, filial e licenciamento são rejeitados.
+- A verificação de CNPJ duplicado para emitir código considera somente empresas clínicas ativas e não arquivadas; um cadastro inativo não bloqueia a unidade de uma clínica ativa.
+
+## 10. Evidências desta execução
+
+- **Código e testes:** quatro arquivos de teste passaram; 46 testes aprovados, incluindo caminhos autorizados, rejeições de hierarquia e emissão bloqueada por CNPJ duplicado ativo.
+- **Banco de desenvolvimento:** nenhuma empresa mantém `empresa_mae_id` ou `parent_empresa_id`; nenhuma relação da árvore permanece ativa; os campos de classificação legados foram normalizados para `independente`.
+- **Preservação:** o registro técnico PAXTER permanece no banco como arquivado, sem exclusão física; o profissional global continua com a permissão global; Instituto Padua continua ativa com 17 unidades.
+- **Dados fiscais:** 10 cadastros têm CNAE no formato `00.00-0/00`; 2 registros seguem sem CNAE e 2 sem regime, sem preenchimento inventado.
+- **Códigos das unidades:** nenhum código foi emitido nesta execução; o gerente de códigos permanece sujeito à escolha explícita do CEO.
+- **Interface:** a captura em `/cadastros/empresas` mostrou a tela de acesso porque o navegador de verificação não tinha sessão autenticada; a tela protegida não foi conferida visualmente.
+- **Registros do servidor:** as interfaces e a API reiniciaram; a API iniciou e passou a escutar na porta configurada. O log registrou avisos de configuração de desenvolvimento não relacionados às alterações empresariais.
+- **Revisão:** a revisão independente não estava disponível nesta sessão. Houve auditoria manual e correção de um caso em que empresa inativa podia bloquear código de empresa ativa; isso não substitui a revisão independente.
 

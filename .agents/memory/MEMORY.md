@@ -17,7 +17,8 @@
 - Precedência < vs ?? no for-loop — `i < arr.items?.length ?? arr.length` → `<` vence `??`; loop nunca roda. Sempre parentesize: `i < (arr.items?.length ?? arr.length)`.
 - [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta "R$" porque o R é letra.
 - [Lei das 4 fontes do Paxter](fonte-unica-eb-garamond.md) — EB Garamond principal (max 800), Inter operacional, Lora PERMANENTE na anamnese, Cardo secundaria so em PDF; Cormorant aposentado 13/08/2026.
-- [SaaS multiclínica](saas-multitenant-onda-abc.md) — isolamento técnico, licenciamento e relação societária são conceitos separados; hierarquia jurídica precisa de confirmação documental.
+- [SaaS multiclínica](saas-multitenant-onda-abc.md) — PAXTER é marca futura; vínculos empresariais atuais são simulações e a autoridade global pertence ao profissional.
+- [Restrição SQL do vínculo empresarial](empresa-check-relacionamento.md) — a restrição de valores pode existir no PostgreSQL sem estar declarada no esquema Drizzle; alinhar restrição, padrão e validação da aplicação.
 - [CEO Command Center + Pirâmide](ceo-command-center.md) — SSE /api/ceo/stream push 30s; moduleGuard fábrica fail-open; stockTable=stockItemsTable (nome real); scheduledDate é TEXT "YYYY-MM-DD" (eq, nunca range).
 - [PADCOM global typecheck is pre-broken](padcom-typecheck.md) — repo typecheck fails on stale generated/codegen types; validate by runtime/curl + screenshots, not tsc.
 - [api-zod barrel TS2308](api-zod-barrel-ts2308.md) — index.ts exporta SÓ generated/api; reexportar generated/types colide const zod x type homônimo; export type * não resolve.

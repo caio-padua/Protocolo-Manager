@@ -7,7 +7,7 @@ import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritic
 import { google } from "googleapis";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAiTenant, logAiUsage } from "../lib/ai-central";
-import { brtNow } from "../lib/brt";
+import { brtDateStr, brtNow } from "../lib/brt";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -39,7 +39,16 @@ type EmpresaRow = typeof empresasTable.$inferSelect;
 function sanitizarEmpresa(row: EmpresaRow) {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) {
-    if (k === "codigoVinculoSemantico" || k === "codigoBaseSemantico") {
+    if (
+      k === "codigoVinculoSemantico" ||
+      k === "codigoBaseSemantico" ||
+      k === "empresaMaeId" ||
+      k === "parentEmpresaId" ||
+      k === "tipoLicenciamento" ||
+      k === "tipoRelacionamento" ||
+      k === "podeSublicenciar" ||
+      k === "isPlatformOwner"
+    ) {
       // Classificação e base são expostas somente pelas rotas protegidas do módulo semântico.
       continue;
     } else if (CAMPOS_CREDENCIAL.has(k)) {
@@ -89,8 +98,6 @@ const CAMPOS_EMPRESA = [
   "driveFolderEmpresaId","driveContratoSocialId","driveAlvaraId","driveCrmId",
   // Módulos e contrato
   "modulosAtivos","tipoContrato","fatMetaMensal",
-  // Modalidade e valores antigos ficam registrados, mas não criam hierarquia nem cobrança.
-  "tipoLicenciamento","royaltyPercent","valorMensalContrato",
 ];
 
 // Campos que aceitam credencial no PUT (gravação — protegida pelo collaboratorGuard global)
@@ -258,8 +265,22 @@ router.post("/empresas/drive-import", async (req, res): Promise<void> => {
 });
 
 // ── GET /empresas/hierarquia — rota legada, resposta plana sem hierarquia ───────
-router.get("/empresas/hierarquia", async (req, res): Promise<void> => {
-  const companies = await db.select().from(empresasTable).orderBy(empresasTable.id);
+router.get("/empresas/hierarquia", async (_req, res): Promise<void> => {
+  const [companies, locations] = await Promise.all([
+    db.select().from(empresasTable).orderBy(empresasTable.id),
+    db.select({
+      name: locationsTable.name,
+      empresaId: locationsTable.empresaId,
+      active: locationsTable.active,
+    }).from(locationsTable),
+  ]);
+  const locationsByCompany = new Map<number, string[]>();
+  for (const location of locations) {
+    if (!location.empresaId || !location.active) continue;
+    const names = locationsByCompany.get(location.empresaId) ?? [];
+    names.push(location.name);
+    locationsByCompany.set(location.empresaId, names);
+  }
   const raizes = companies
     .filter((company) =>
       company.tipo === "clinic" &&
@@ -273,7 +294,7 @@ router.get("/empresas/hierarquia", async (req, res): Promise<void> => {
       status: company.status,
       donoNome: company.donoNome,
       driveFolderEmpresaId: company.driveFolderEmpresaId,
-      locations: [],
+      locations: locationsByCompany.get(company.id) ?? [],
       filhos: [],
     }));
   res.json({ raiz: null, raizes });
@@ -342,12 +363,25 @@ function validarSemHierarquia(body: Record<string, unknown>): string | null {
     return `O campo ${campoComValor} foi preservado no banco, mas vínculos entre empresas estão desativados.`;
   }
 
-  const modalidadeHierarquica = new Set(["sub_unidade", "licenciada_por_clinica"]);
   if (
-    modalidadeHierarquica.has(String(body.tipoLicenciamento ?? "")) ||
-    modalidadeHierarquica.has(String(body.tipoRelacionamento ?? ""))
+    "tipoLicenciamento" in body ||
+    "tipo_licenciamento" in body ||
+    "tipoRelacionamento" in body ||
+    "tipo_relacionamento" in body
   ) {
-    return "Classificações que criam vínculo entre empresas estão desativadas.";
+    return "Os campos legados de licenciamento e relacionamento não aceitam novas classificações.";
+  }
+  if (
+    "valorMensalContrato" in body ||
+    "valor_mensal_contrato" in body ||
+    "royaltyPercent" in body ||
+    "royalty_percent" in body ||
+    "tipoContrato" in body ||
+    "tipo_contrato" in body ||
+    "fatMetaMensal" in body ||
+    "fat_meta_mensal" in body
+  ) {
+    return "Dados comerciais históricos não podem ser alterados neste cadastro.";
   }
   if (body.isPlatformOwner === true || body.is_platform_owner === true) {
     return "A autoridade global pertence à conta do profissional, não a um cadastro de clínica.";
@@ -358,11 +392,50 @@ function validarSemHierarquia(body: Record<string, unknown>): string | null {
   return null;
 }
 
+function normalizarCnae(value: unknown): { value?: string | null; error?: string } {
+  if (value === undefined) return {};
+  if (value === null) return { value: null };
+  const text = String(value).trim();
+  if (!text) return { value: "" };
+  if (!/^[\d./\-\s]+$/.test(text)) {
+    return { error: "O CNAE aceita somente números e os separadores oficiais." };
+  }
+  const digits = text.replace(/\D/g, "");
+  if (digits.length !== 7) {
+    return { error: "O CNAE precisa conter exatamente sete números." };
+  }
+  return {
+    value: `${digits.slice(0, 2)}.${digits.slice(2, 4)}-${digits[4]}/${digits.slice(5)}`,
+  };
+}
+
+const REGIMES_TRIBUTARIOS_VALIDOS = new Set([
+  "simples_nacional",
+  "mei",
+  "lucro_presumido",
+  "lucro_real",
+]);
+
+function validarRegimeTributario(value: unknown, required: boolean): string | null {
+  if (value === undefined || value === null || value === "") {
+    return required ? "Selecione o regime tributário da empresa." : null;
+  }
+  return typeof value === "string" && REGIMES_TRIBUTARIOS_VALIDOS.has(value)
+    ? null
+    : "Regime tributário inválido. Selecione uma das quatro opções.";
+}
+
 router.post("/empresas", async (req, res): Promise<void> => {
   const body = req.body;
-  if (!body.nome) { res.status(400).json({ error: "nome é obrigatório" }); return; }
-  const errHierarquia = validarSemHierarquia(body);
+  const errHierarquia = validarSemHierarquia(body ?? {});
   if (errHierarquia) { res.status(422).json({ error: errHierarquia }); return; }
+  const cnae = normalizarCnae(body.cnae);
+  if (cnae.error) { res.status(422).json({ error: cnae.error }); return; }
+  if (body.cnae !== undefined) body.cnae = cnae.value;
+  if (!body.cnae) { res.status(422).json({ error: "Informe o CNAE principal da empresa." }); return; }
+  const erroRegime = validarRegimeTributario(body.regimeTributario, true);
+  if (erroRegime) { res.status(422).json({ error: erroRegime }); return; }
+  if (!body.nome) { res.status(400).json({ error: "nome é obrigatório" }); return; }
   if (body.tipo !== undefined && body.tipo !== "clinic") {
     res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
     return;
@@ -405,6 +478,8 @@ router.post("/empresas", async (req, res): Promise<void> => {
     tipo: body.tipo || "clinic",
     status: body.status || "ATIVO",
     ativa: body.ativa ?? true,
+    tipoLicenciamento: "independente",
+    tipoRelacionamento: "independente",
     isPlatformOwner: false,
     empresaMaeId: null,
     parentEmpresaId: null,
@@ -439,6 +514,11 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
 
   const errHierarquia = validarSemHierarquia(req.body ?? {});
   if (errHierarquia) { res.status(422).json({ error: errHierarquia }); return; }
+  const cnae = normalizarCnae(req.body?.cnae);
+  if (cnae.error) { res.status(422).json({ error: cnae.error }); return; }
+  if (req.body?.cnae !== undefined) req.body.cnae = cnae.value;
+  const erroRegime = validarRegimeTributario(req.body?.regimeTributario, req.body?.regimeTributario !== undefined);
+  if (erroRegime) { res.status(422).json({ error: erroRegime }); return; }
   if (req.body.tipo !== undefined && req.body.tipo !== "clinic") {
     res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
     return;
@@ -468,17 +548,22 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
 
   try {
     const outcome = await db.transaction(async (tx) => {
-      if (req.body.cnpj !== undefined) {
-        const [company] = await tx.select({
-          id: empresasTable.id,
-          cnpj: empresasTable.cnpj,
-        }).from(empresasTable)
-          .where(eq(empresasTable.id, id))
-          .for("update")
-          .limit(1);
-        if (!company) return { status: 404 as const, error: "Empresa não encontrada" };
+      const [currentCompany] = await tx.select({
+        id: empresasTable.id,
+        tipo: empresasTable.tipo,
+        status: empresasTable.status,
+        isPlatformOwner: empresasTable.isPlatformOwner,
+        cnpj: empresasTable.cnpj,
+      }).from(empresasTable)
+        .where(eq(empresasTable.id, id))
+        .for("update")
+        .limit(1);
+      if (!currentCompany || currentCompany.tipo !== "clinic" || currentCompany.status === "ARQUIVADA" || currentCompany.isPlatformOwner) {
+        return { status: 404 as const, error: "Empresa clínica não encontrada." };
+      }
 
-        const currentCnpj = (company.cnpj ?? "").replace(/\D/g, "");
+      if (req.body.cnpj !== undefined) {
+        const currentCnpj = (currentCompany.cnpj ?? "").replace(/\D/g, "");
         const nextCnpj = String(req.body.cnpj ?? "").replace(/\D/g, "");
         const [issuedLocation] = await tx.select({ id: locationsTable.id })
           .from(locationsTable)
@@ -553,7 +638,7 @@ router.delete("/empresas/:id", async (req, res): Promise<void> => {
       return { status: 409 as const, error: "A identidade global pertence ao cadastro do profissional; arquive o registro técnico por fluxo administrativo." };
     }
 
-    const dataFim = brtNow().toISOString().slice(0, 10);
+    const dataFim = brtDateStr();
     await tx.update(arvoreLicenciamentoTable)
       .set({
         ativo: false,

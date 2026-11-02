@@ -31,8 +31,8 @@ const router = Router();
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function empresaIdFromReq(req: any): number {
-  // CEO é sempre empresa_id = 5 (Instituto Pádua / empresa-mãe).
-  // Para a Onda atual, só a empresa-mãe opera avatares.
+  // O Instituto Pádua é apenas o tenant inicial de desenvolvimento deste módulo.
+  // A autoridade global do CEO pertence ao cadastro profissional, não a uma empresa-mãe.
   return Number(req.session?.user?.empresaId ?? 5);
 }
 

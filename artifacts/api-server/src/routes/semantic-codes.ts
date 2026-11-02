@@ -23,13 +23,19 @@ const router: IRouter = Router();
 
 router.get("/semantic-codes/companies", requireCollaborator, async (req, res): Promise<void> => {
   const allCompanies = await db.select().from(empresasTable);
+  const clinicalCompanies = allCompanies.filter((company) =>
+    company.tipo === "clinic" &&
+    company.ativa &&
+    company.status !== "ARQUIVADA" &&
+    !company.isPlatformOwner
+  );
   const visibleCompanies = req.tenantContext.isPlatformOwner
-    ? allCompanies
+    ? clinicalCompanies
     : req.tenantContext.empresaId
-      ? allCompanies.filter((company) => company.id === req.tenantContext.empresaId)
+      ? clinicalCompanies.filter((company) => company.id === req.tenantContext.empresaId)
       : [];
   const namesByCnpj = new Map<string, string[]>();
-  for (const company of allCompanies) {
+  for (const company of clinicalCompanies) {
     const digits = company.cnpj ? normalizeCnpj(company.cnpj) : "";
     if (digits.length !== 14) continue;
     namesByCnpj.set(digits, [...(namesByCnpj.get(digits) ?? []), company.nome]);
@@ -58,11 +64,20 @@ router.get("/semantic-codes/locations", requireCollaborator, async (req, res): P
     res.json([]);
     return;
   }
-  const locations = req.tenantContext.isPlatformOwner
-    ? await db.select().from(locationsTable)
-    : await db.select().from(locationsTable)
-      .where(eq(locationsTable.empresaId, req.tenantContext.empresaId));
-  res.json(locations.map((location) => ({
+  const companies = await db.select().from(empresasTable);
+  const visibleCompanyIds = new Set(companies
+    .filter((company) =>
+      company.tipo === "clinic" &&
+      company.status !== "ARQUIVADA" &&
+      company.ativa &&
+      !company.isPlatformOwner &&
+      (req.tenantContext.isPlatformOwner || company.id === req.tenantContext.empresaId)
+    )
+    .map((company) => company.id));
+  const locations = await db.select().from(locationsTable);
+  res.json(locations.filter((location) =>
+    location.empresaId !== null && visibleCompanyIds.has(location.empresaId)
+  ).map((location) => ({
     locationId: location.id,
     name: location.name,
     empresaId: location.empresaId,
@@ -91,6 +106,14 @@ router.put(
         .limit(1);
       if (!company) {
         return { status: 404, body: { error: "Empresa não encontrada." } };
+      }
+      if (
+        company.tipo !== "clinic" ||
+        company.isPlatformOwner ||
+        !company.ativa ||
+        company.status === "ARQUIVADA"
+      ) {
+        return { status: 409, body: { error: "Somente empresas clínicas ativas podem receber classificação semântica." } };
       }
 
       const [issuedLocation] = await tx.select({ id: locationsTable.id })
@@ -198,7 +221,12 @@ router.post(
         return { status: 200, body: saved.data };
       }
 
-      if (!company.ativa || company.status !== "ATIVO") {
+      if (
+        company.tipo !== "clinic" ||
+        company.isPlatformOwner ||
+        !company.ativa ||
+        company.status !== "ATIVO"
+      ) {
         return { status: 409, body: { code: "EMPRESA_INATIVA", error: "A empresa está inativa; o código não foi emitido." } };
       }
       if (!company.cnpj || !isValidCnpj(company.cnpj)) {
@@ -209,9 +237,17 @@ router.post(
       const companiesWithCnpj = await tx.select({
         id: empresasTable.id,
         cnpj: empresasTable.cnpj,
+        tipo: empresasTable.tipo,
+        status: empresasTable.status,
+        ativa: empresasTable.ativa,
+        isPlatformOwner: empresasTable.isPlatformOwner,
       }).from(empresasTable).where(isNotNull(empresasTable.cnpj));
       const duplicate = companiesWithCnpj.some((item) =>
         item.id !== company.id &&
+        item.tipo === "clinic" &&
+        item.ativa &&
+        item.status !== "ARQUIVADA" &&
+        !item.isPlatformOwner &&
         item.cnpj !== null &&
         normalizeCnpj(item.cnpj) === normalizedCnpj
       );

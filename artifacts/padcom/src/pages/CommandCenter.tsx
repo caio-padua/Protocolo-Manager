@@ -2,7 +2,7 @@
  * CEO Command Center — Tela Swipe entre Clínicas (Carta 07)
  *
  * Design: skill-layout-paxter — grade imaginária, bevel-3d (título), concave-3d (dados),
- * faixa lateral 4px + LED vela que respira (verde=própria, azul=licenciada, âmbar=sub, vermelho=inativa).
+ * faixa lateral 4px + LED vela que respira (verde=ativa, vermelho=inativa).
  * SEM faixa escura bg-primary no cabeçalho — segue padrão das telas internas.
  */
 
@@ -11,7 +11,7 @@ import {
   Building2, Users, Calendar, TrendingUp, AlertTriangle,
   Wifi, WifiOff, RefreshCw, ChevronLeft, ChevronRight,
   ShieldCheck, Package, CreditCard, MapPin, Phone, Hash,
-  BadgeCheck, Crown, Lock, BrainCircuit, DollarSign,
+  BadgeCheck, Lock, BrainCircuit, DollarSign,
   Smartphone, Apple, Monitor, LogIn, MessageCircle,
 } from "lucide-react";
 
@@ -36,14 +36,6 @@ interface EmpresaResumo {
   status: string;
   ativa: boolean;
   isAtiva: boolean;
-  isPropria: boolean;
-  isLicenciada: boolean;
-  isSublicenciada: boolean;
-  tipoLicenciamento: string;
-  tipoRelacionamento: string;
-  podeSublicenciar: boolean;
-  royaltyPercent: string | null;
-  valorMensalContrato: string | null;
 
   consultasHoje: number;
   clientesAtivos: number;
@@ -87,18 +79,12 @@ function enderecoResumido(e: EmpresaResumo): string {
   return partes.join(", ") || "—";
 }
 
-// ── LED Vela — configuração por tipo + status ─────────────────────────────────
-//
-// Verde  → isPropria (clínica do CEO)
-// Azul   → isLicenciada + ativa
-// Âmbar  → isSublicenciada
-// Vermelho → inativa
-//
+// ── LED Vela — indica somente o estado operacional ────────────────────────────
 interface LedConfig {
   faixaCor: string;          // classe bg-* para a faixa lateral (4px)
   ledClasses: string;        // classes paxter-led-* para o ponto que respira
-  tipoLabel: string;         // texto exibido no badge
-  tipoClasses: string;       // cor do texto do badge
+  tipoLabel: string;
+  tipoClasses: string;
 }
 
 function ledConfig(emp: EmpresaResumo): LedConfig {
@@ -110,28 +96,11 @@ function ledConfig(emp: EmpresaResumo): LedConfig {
       tipoClasses: "text-red-600",
     };
   }
-  if (emp.isPropria) {
-    return {
-      faixaCor: "bg-emerald-500",
-      ledClasses: "paxter-led paxter-led-green paxter-led-on",
-      tipoLabel: "PRÓPRIA",
-      tipoClasses: "text-emerald-700",
-    };
-  }
-  if (emp.isSublicenciada) {
-    return {
-      faixaCor: "bg-amber-500",
-      ledClasses: "paxter-led paxter-led-amber paxter-led-on",
-      tipoLabel: "SUB-LICENCIADA",
-      tipoClasses: "text-amber-700",
-    };
-  }
-  // licenciada_direta (padrão)
   return {
-    faixaCor: "bg-cyan-500",
-    ledClasses: "paxter-led paxter-led-on",
-    tipoLabel: "LICENCIADA",
-    tipoClasses: "text-cyan-700",
+    faixaCor: "bg-emerald-500",
+    ledClasses: "paxter-led paxter-led-green paxter-led-on",
+    tipoLabel: "EMPRESA INDEPENDENTE",
+    tipoClasses: "text-emerald-700",
   };
 }
 
@@ -161,35 +130,6 @@ function MetaField({
           } ${mono ? "tabular-nums font-mono" : ""}`}
         >
           {empty ? "—" : value}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ── BoolField — campo booleano com LED e rótulo explícito ─────────────────────
-function BoolField({
-  label,
-  valor,
-  corTrue = "text-emerald-700",
-  corFalse = "text-muted-foreground/50",
-}: {
-  label: string;
-  valor: boolean;
-  corTrue?: string;
-  corFalse?: string;
-}) {
-  return (
-    <div className="concave-3d px-2.5 py-2 flex items-center gap-2 min-w-0">
-      <span
-        className={`h-2 w-2 rounded-full shrink-0 ${valor ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
-      />
-      <div className="min-w-0">
-        <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none mb-0.5">
-          {label}
-        </div>
-        <span className={`text-[11px] font-black uppercase tracking-tight ${valor ? corTrue : corFalse}`}>
-          {valor ? "SIM" : "NÃO"}
         </span>
       </div>
     </div>
@@ -309,38 +249,16 @@ function EmpresaCard({ empresa, ativo }: { empresa: EmpresaResumo; ativo: boolea
           <MetaField label="E-MAIL" value={empresa.emailGeral} />
         </div>
 
-        {/* ── ZONA 4: FLAGS BOOLEANAS EXPLÍCITAS (CEO pediu variáveis claras) */}
-        <div className="mb-2">
-          <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1.5 pl-0.5">
-            CLASSIFICAÇÃO
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <BoolField
-              label="PRÓPRIA (CEO)"
-              valor={empresa.isPropria}
-              corTrue="text-emerald-700"
-            />
-            <BoolField
-              label="LICENCIADA"
-              valor={empresa.isLicenciada}
-              corTrue="text-cyan-700"
-            />
-            <BoolField
-              label="SUB-LICENCIADA"
-              valor={empresa.isSublicenciada}
-              corTrue="text-amber-700"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <BoolField
-              label="PODE SUB-LICENCIAR"
-              valor={empresa.podeSublicenciar}
-              corTrue="text-primary"
-            />
-            <MetaField
-              label="ROYALTY %"
-              value={empresa.royaltyPercent ? `${empresa.royaltyPercent}%` : null}
-            />
+        {/* ── ZONA 4: cadastro clínico independente ─────────────────────── */}
+        <div className="concave-3d mb-2 flex items-center gap-2 px-2.5 py-2">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+              RELAÇÃO EMPRESARIAL
+            </div>
+            <span className="text-[11px] font-black uppercase tracking-tight text-emerald-700">
+              Empresa independente — sem hierarquia ou repasse automático
+            </span>
           </div>
         </div>
 
@@ -928,9 +846,7 @@ export default function CommandCenter() {
           </div>
           {/* legenda LED */}
           {[
-            { cor: "bg-emerald-500", txt: "Própria" },
-            { cor: "bg-cyan-500",    txt: "Licenciada" },
-            { cor: "bg-amber-500",   txt: "Sub-licenciada" },
+            { cor: "bg-emerald-500", txt: "Empresa independente ativa" },
             { cor: "bg-red-500",     txt: "Inativa" },
           ].map((l) => (
             <div key={l.txt} className="flex items-center gap-1.5">

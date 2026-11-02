@@ -51,6 +51,8 @@ interface Colaborador {
 }
 
 // ── Schema do formulário ───────────────────────────────────────────────────────
+const REGIMES_TRIBUTARIOS = ["simples_nacional", "mei", "lucro_presumido", "lucro_real"] as const;
+
 const formSchema = z.object({
   // Identificação básica
   nome:            z.string().min(2, "Nome obrigatório"),
@@ -66,10 +68,11 @@ const formSchema = z.object({
   areaUrl:         z.string().optional(),
   timezone:        z.string().optional(),
   // Dados fiscais / jurídicos
-  cnae:            z.string().optional(),
+  cnae:            z.string().regex(/^\d{2}\.\d{2}-\d\/\d{2}$/, "Informe o CNAE completo no padrão 00.00-0/00"),
   cnaeDescricao:   z.string().optional(),
   naturezaJuridica:   z.string().optional(),
-  regimeTributario:   z.string().optional(),
+  regimeTributario: z.string().min(1, "Selecione o regime tributário")
+    .refine((value) => REGIMES_TRIBUTARIOS.includes(value as typeof REGIMES_TRIBUTARIOS[number]), "Selecione uma das quatro opções"),
   inscricaoEstadual:  z.string().optional(),
   inscricaoMunicipal: z.string().optional(),
   dataAbertura:    z.string().optional(),
@@ -138,18 +141,15 @@ const formSchema = z.object({
   // Google
   googleCalendarId:    z.string().optional(),
   googleDriveFolderId: z.string().optional(),
-  // Contrato PAXTER
-  tipoContrato:    z.string().optional(),
-  fatMetaMensal:   z.coerce.number().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
 const EMPTY: FormValues = {
   nome: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
-  tipoUnidade: "CLINICA_PARCEIRA", status: "ATIVO", ativa: true,
+  tipoUnidade: "CLINICA", status: "ATIVO", ativa: true,
   donoNome: "", slug: "", areaUrl: "", timezone: "America/Sao_Paulo",
   cnae: "", cnaeDescricao: "", naturezaJuridica: "Ltda",
-  regimeTributario: "simples_nacional", inscricaoEstadual: "",
+  regimeTributario: "", inscricaoEstadual: "",
   inscricaoMunicipal: "", dataAbertura: "", capitalSocial: "", optanteSimples: true,
   responsavelLegalNome: "", responsavelLegalCpf: "",
   contadorNome: "", contadorCrc: "", contadorEmail: "", contadorTelefone: "",
@@ -165,7 +165,6 @@ const EMPTY: FormValues = {
   telegramBotToken: "", telegramChatId: "", telegramBotUsername: "",
   zohoEmail: "", zohoStatus: "sugerido",
   googleCalendarId: "", googleDriveFolderId: "",
-  tipoContrato: "por_demanda", fatMetaMensal: undefined,
 };
 
 // ── Labels de referência ───────────────────────────────────────────────────────
@@ -176,15 +175,36 @@ const TIPO_LABELS: Record<string, string> = {
   enfermagem: "Enfermagem",
 };
 const TIPO_UNIDADE_LABELS: Record<string, string> = {
-  CLINICA_OPERACIONAL: "Operacional",
-  CLINICA_PARCEIRA: "Parceira",
-  LABORATORIO_MESTRE: "Laboratório-Mestre",
+  CLINICA: "Clínica",
+  CLINICA_OPERACIONAL: "Clínica",
+  CLINICA_PARCEIRA: "Clínica",
+  LABORATORIO: "Laboratório",
+  LABORATORIO_MESTRE: "Laboratório",
+  OUTRO: "Outro",
 };
 const CONTRATO_LABELS: Record<string, string> = {
-  por_demanda: "Por Demanda",
-  full: "Full (Mensalidade Fixa)",
-  pacote: "Pacote",
+  por_demanda: "Por Demanda — histórico",
+  full: "Mensalidade Fixa — histórico",
+  pacote: "Pacote — histórico",
 };
+
+function normalizarTipoUnidade(valor: string | null | undefined): string {
+  if (valor === "CLINICA_OPERACIONAL" || valor === "CLINICA_PARCEIRA") return "CLINICA";
+  if (valor === "LABORATORIO_MESTRE") return "LABORATORIO";
+  return valor || "";
+}
+
+function formatarCnae(valor: string): string {
+  const digitos = valor.replace(/\D/g, "").slice(0, 7);
+  if (digitos.length <= 2) return digitos;
+  if (digitos.length <= 4) return `${digitos.slice(0, 2)}.${digitos.slice(2)}`;
+  if (digitos.length === 5) return `${digitos.slice(0, 2)}.${digitos.slice(2, 4)}-${digitos[4]}`;
+  return `${digitos.slice(0, 2)}.${digitos.slice(2, 4)}-${digitos[4]}/${digitos.slice(5)}`;
+}
+
+function formatarCnaeExistente(valor: string): string {
+  return valor.replace(/\D/g, "").length === 7 ? formatarCnae(valor) : valor;
+}
 const STATUS_COLOR: Record<string, string> = {
   ATIVO: "text-emerald-600", SUSPENSO: "text-amber-600", CANCELADO: "text-red-600",
 };
@@ -278,7 +298,7 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
           )}
           {empresa.tipoContrato && (
             <div className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Contrato: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
+              Modelo comercial histórico: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
             </div>
           )}
         </div>
@@ -349,7 +369,7 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
         )}
         {empresa.tipoContrato && (
           <p className="text-[9px] text-muted-foreground/60 uppercase font-bold mt-0.5">
-            Contrato: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
+            Modelo histórico: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
           </p>
         )}
       </div>
@@ -455,7 +475,7 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
 // ── Tipos de documento (contratos da empresa) ─────────────────────────────────
 const DOC_TIPO_LABELS: Record<string, string> = {
   contrato_social:  "Contrato Social",
-  termo_licenca:    "Termo de Licença PAXTER",
+  termo_licenca:    "Documento de Licença Legado",
   acordo:           "Acordo Operacional",
   ata:              "Ata de Reunião",
   procuracao:       "Procuração",
@@ -890,27 +910,28 @@ export default function CadastroEmpresas() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      if (!r.ok) throw new Error("Erro ao salvar");
-      return r.json();
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Erro ao salvar empresa.");
+      return d;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["empresas"] });
       toast.success(editingId ? "Empresa atualizada!" : "Empresa cadastrada!");
       setFormOpen(false);
     },
-    onError: () => toast.error("Erro ao salvar empresa."),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(`${apiBase}/empresas/${id}`, { method: "DELETE" });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Erro ao apagar");
+      if (!r.ok) throw new Error(d.error || "Erro ao arquivar");
       return d;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["empresas"] });
-      toast.success("Empresa apagada.");
+      toast.success("Empresa arquivada. Os dados foram preservados.");
       setDeleteTarget(null);
       setDeleteConfirm("");
     },
@@ -922,11 +943,11 @@ export default function CadastroEmpresas() {
     setEditingId(e.id);
     form.reset({
       nome: e.nome, razaoSocial: e.razaoSocial || "", nick: e.nick || "", cnpj: e.cnpj || "",
-      tipo: e.tipo, tipoUnidade: e.tipoUnidade || "", status: e.status, ativa: e.ativa,
+      tipo: e.tipo, tipoUnidade: normalizarTipoUnidade(e.tipoUnidade), status: e.status, ativa: e.ativa,
       donoNome: e.donoNome || "", slug: e.slug || "", areaUrl: e.areaUrl || "", timezone: e.timezone || "America/Sao_Paulo",
-      cnae: e.cnae || "", cnaeDescricao: e.cnaeDescricao || "",
+      cnae: e.cnae ? formatarCnaeExistente(e.cnae) : "", cnaeDescricao: e.cnaeDescricao || "",
       naturezaJuridica: e.naturezaJuridica || "Ltda",
-      regimeTributario: e.regimeTributario || "simples_nacional",
+      regimeTributario: e.regimeTributario || "",
       inscricaoEstadual: e.inscricaoEstadual || "", inscricaoMunicipal: e.inscricaoMunicipal || "",
       dataAbertura: e.dataAbertura || "", capitalSocial: e.capitalSocial?.toString() || "",
       optanteSimples: e.optanteSimples ?? true,
@@ -956,7 +977,6 @@ export default function CadastroEmpresas() {
       telegramBotUsername: e.telegramBotUsername || "",
       zohoEmail: e.zohoEmail || "", zohoStatus: e.zohoStatus || "sugerido",
       googleCalendarId: e.googleCalendarId || "", googleDriveFolderId: e.googleDriveFolderId || "",
-      tipoContrato: e.tipoContrato || "por_demanda", fatMetaMensal: e.fatMetaMensal ?? undefined,
     });
     setFormOpen(true);
   };
@@ -992,9 +1012,9 @@ export default function CadastroEmpresas() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
             <div className="min-w-0">
-              <h1 className="text-2xl font-black tracking-tight uppercase">EMPRESAS LICENCIADAS</h1>
+              <h1 className="text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
               <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
-                Multi-tenant · {ativas.length} ativa{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativa{inativas.length !== 1 ? "s" : ""}
+                Cadastros clínicos · {ativas.length} ativa{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativa{inativas.length !== 1 ? "s" : ""}
               </p>
             </div>
           </div>
@@ -1175,9 +1195,9 @@ export default function CadastroEmpresas() {
                           <Select onValueChange={field.onChange} value={field.value || ""}>
                             <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
                             <SelectContent>
-                              <SelectItem value="CLINICA_OPERACIONAL">Operacional (clínica do CEO)</SelectItem>
-                              <SelectItem value="CLINICA_PARCEIRA">Parceira (licenciada)</SelectItem>
-                              <SelectItem value="LABORATORIO_MESTRE">Laboratório-Mestre</SelectItem>
+                              <SelectItem value="CLINICA">Clínica</SelectItem>
+                              <SelectItem value="LABORATORIO">Laboratório</SelectItem>
+                              <SelectItem value="OUTRO">Outro</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1251,28 +1271,25 @@ export default function CadastroEmpresas() {
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
-                    <Divider label="Contrato PAXTER" />
-                    <FormField control={form.control} name="tipoContrato" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Modelo de Contrato</FormLabel>
-                        <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
-                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="por_demanda">Por Demanda (pay-per-use)</SelectItem>
-                              <SelectItem value="full">Full (mensalidade fixa)</SelectItem>
-                              <SelectItem value="pacote">Pacote (módulos fechados)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="fatMetaMensal" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Meta Faturamento Mensal (R$)</FormLabel>
-                        <FormControl><Input type="number" placeholder="0" {...field} className="field-engraved" /></FormControl>
-                      </FormItem>
-                    )} />
+                    <Divider label="Dados comerciais históricos" />
+                    <div className="concave-3d space-y-2 p-3 text-[11px]">
+                      <p className="text-muted-foreground">
+                        Informações antigas preservadas apenas para consulta. Esta tela não cria cobranças
+                        e não permite alterar esses valores.
+                      </p>
+                      <p>
+                        Modelo registrado:{" "}
+                        <strong>{selectedEmpresa?.tipoContrato
+                          ? CONTRATO_LABELS[selectedEmpresa.tipoContrato] ?? selectedEmpresa.tipoContrato
+                          : "Sem registro"}</strong>
+                      </p>
+                      <p>
+                        Meta histórica de faturamento:{" "}
+                        <strong>{selectedEmpresa?.fatMetaMensal == null
+                          ? "Sem registro"
+                          : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedEmpresa.fatMetaMensal)}</strong>
+                      </p>
+                    </div>
                   </div>
                 </TabsContent>
 
@@ -1310,7 +1327,6 @@ export default function CadastroEmpresas() {
                               <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
                               <SelectItem value="lucro_real">Lucro Real</SelectItem>
                               <SelectItem value="mei">MEI</SelectItem>
-                              <SelectItem value="isento">Isento</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -1319,7 +1335,17 @@ export default function CadastroEmpresas() {
                     <FormField control={form.control} name="cnae" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">CNAE Principal</FormLabel>
-                        <FormControl><Input placeholder="8630-5/01" {...field} className="field-engraved font-mono" /></FormControl>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(event) => field.onChange(formatarCnae(event.target.value))}
+                            placeholder="86.30-5/01"
+                            inputMode="numeric"
+                            maxLength={10}
+                            className="field-engraved font-mono"
+                          />
+                        </FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cnaeDescricao" render={({ field }) => (
@@ -1769,11 +1795,11 @@ export default function CadastroEmpresas() {
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteConfirm(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest text-destructive">APAGAR EMPRESA</DialogTitle>
+            <DialogTitle className="text-[13px] font-black uppercase tracking-widest text-destructive">ARQUIVAR EMPRESA</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="concave-3d p-3 text-sm">
-              <p className="text-muted-foreground mb-2">Ação irreversível. Todos os cargos e colaboradores desta empresa também serão removidos. Digite o nome para confirmar:</p>
+              <p className="text-muted-foreground mb-2">A empresa sairá das listas ativas. O registro, as unidades e o histórico não serão apagados; os vínculos hierárquicos antigos serão desativados. Digite o nome para confirmar:</p>
               <p className="font-black text-foreground">{deleteTarget?.nome}</p>
             </div>
             <Input className="field-engraved" placeholder="Digite o nome exato"
@@ -1784,7 +1810,7 @@ export default function CadastroEmpresas() {
                 disabled={deleteConfirm !== deleteTarget?.nome || deleteMutation.isPending}
                 onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
                 {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                APAGAR
+                ARQUIVAR
               </Button>
             </DialogFooter>
           </div>

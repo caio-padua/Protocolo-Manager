@@ -247,14 +247,7 @@ export const UpdateCompanySemanticCodeClassificationParams = zod.object({
 });
 
 export const UpdateCompanySemanticCodeClassificationBody = zod.object({
-  vinculo: zod.enum([
-    "propria",
-    "filial_interna",
-    "licenciada_direta",
-    "licenciada_por_clinica",
-    "independente",
-    "parceira",
-  ]),
+  vinculo: zod.enum(["independente"]),
 });
 
 export const updateCompanySemanticCodeClassificationResponseCodigoVinculoMin = 4;
