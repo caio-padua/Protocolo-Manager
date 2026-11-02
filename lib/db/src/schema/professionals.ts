@@ -11,6 +11,7 @@ export const professionalsTable = pgTable(
     crm: text("crm"),
     specialty: text("specialty"),
     email: text("email"),
+    secondaryEmail: text("secondary_email"),
     phone: text("phone"),
     unit: text("unit"),
     serviceTypes: text("service_types").array().notNull().default(["clinic"]),

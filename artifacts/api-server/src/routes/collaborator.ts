@@ -5,7 +5,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
-import { getAuth } from "@clerk/express";
+import { clerkClient, getAuth } from "@clerk/express";
 import type { PaxterDoc } from "../lib/messaging/types.js";
 import { enviarMensagemPaxter } from "../lib/messaging/engine.js";
 import { absoluteBaseUrl } from "../lib/messaging/base-url.js";
@@ -13,6 +13,7 @@ import {
   db,
   professionalsTable,
   collaboratorAuditTable,
+  empresasTable,
   clientsTable,
   anamneseSessionsTable,
   anamneseFindingsTable,
@@ -21,7 +22,7 @@ import {
   anamneseSessionAnswersTable,
   anamneseQuestionarioTable,
 } from "@workspace/db";
-import { eq, sql, desc, asc, and, inArray, isNull } from "drizzle-orm";
+import { eq, sql, desc, asc, and, inArray, isNull, or } from "drizzle-orm";
 import {
   createCollaboratorToken,
   verifyCollaboratorToken,
@@ -152,11 +153,11 @@ function allowRecoveryAttempt(
   return true;
 }
 
-function maskedAuditValue(value: unknown): string {
+function historyValue(value: unknown): string {
   if (value == null || value === "") return "—";
   if (typeof value === "boolean") return value ? "Sim" : "Não";
-  if (Array.isArray(value)) return value.map(String).join(", ").slice(0, 120) || "—";
-  return String(value).slice(0, 120);
+  if (Array.isArray(value)) return value.map(String).join(", ") || "—";
+  return String(value);
 }
 
 const PROFESSIONAL_HISTORY_FIELDS = {
@@ -170,14 +171,22 @@ const PROFESSIONAL_HISTORY_FIELDS = {
   specialty: "Especialidade",
   unit: "Unidade principal",
   serviceTypes: "Tipos de atendimento",
+  email: "E-mail principal",
+  secondaryEmail: "E-mail secundário",
+  phone: "Telefone / WhatsApp",
+  cpf: "CPF",
+  cnpj: "CNPJ",
+  nurseType: "Regime de atuação",
+  contractType: "Tipo de contrato",
+  complemento: "Complemento da unidade",
   active: "Conta ativa",
 } as const;
 
 /**
- * Persiste somente diferenças de campos profissionais não secretos, e apenas
- * quando o profissional autenticado está alterando o próprio cadastro.
+ * Registra separadamente o profissional que realizou a mudança e o cadastro
+ * afetado. Os valores completos ficam limitados a campos permitidos e não secretos.
  */
-export async function recordOwnProfessionalProfileChange(
+export async function recordProfessionalProfileChange(
   tx: any,
   req: Request,
   previous: Record<string, unknown>,
@@ -185,7 +194,7 @@ export async function recordOwnProfessionalProfileChange(
 ): Promise<void> {
   const actorId = req.collaborator?.professionalId;
   const targetId = Number(next.id ?? previous.id);
-  if (!actorId || actorId !== targetId) return;
+  if (!actorId || !Number.isSafeInteger(targetId) || targetId <= 0) return;
 
   const changes: Record<string, { before: string; after: string }> = {};
   for (const [key, label] of Object.entries(PROFESSIONAL_HISTORY_FIELDS)) {
@@ -193,17 +202,9 @@ export async function recordOwnProfessionalProfileChange(
     const after = next[key];
     if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) continue;
     changes[label] = {
-      before: maskedAuditValue(before),
-      after: maskedAuditValue(after),
+      before: historyValue(before),
+      after: historyValue(after),
     };
-  }
-  for (const key of ["email", "cpf"] as const) {
-    if (key in next && String(previous[key] ?? "") !== String(next[key] ?? "")) {
-      changes[key === "email" ? "E-mail de acesso" : "CPF"] = {
-        before: "Valor protegido",
-        after: "Valor protegido",
-      };
-    }
   }
   if (!Object.keys(changes).length) return;
 
@@ -215,6 +216,9 @@ export async function recordOwnProfessionalProfileChange(
   await tx.insert(collaboratorAuditTable).values({
     professionalId: actorId,
     professionalName: actor?.name ?? null,
+    subjectProfessionalId: targetId,
+    subjectProfessionalName: String(next.name ?? previous.name ?? ""),
+    empresaId: req.tenantContext?.empresaId ?? null,
     action: "professional_profile_updated",
     method: req.method,
     path: req.path,
@@ -229,18 +233,27 @@ const ACCOUNT_HISTORY_ACTIONS = [
   "password_initialized",
   "password_recovered",
   "professional_profile_updated",
+  "google_link_ok",
 ] as const;
 
-function serializeOwnAccountHistoryEvent(row: {
+function serializeAccountHistoryEvent(row: {
   id: number;
   action: string;
   detail: unknown;
   createdAt: Date;
+  professionalName?: string | null;
+  subjectProfessionalName?: string | null;
+  empresaId?: number | null;
+  companyName?: string | null;
 }): {
   id: number;
   action: string;
   label: string;
   createdAt: string;
+  actorName: string | null;
+  subjectName: string | null;
+  empresaId: number | null;
+  companyName: string | null;
   changes: { field: string; before: string; after: string }[];
 } | null {
   const labels: Record<string, string> = {
@@ -249,6 +262,7 @@ function serializeOwnAccountHistoryEvent(row: {
     password_initialized: "Primeira senha cadastrada",
     password_recovered: "Senha redefinida por recuperação",
     professional_profile_updated: "Dados profissionais atualizados",
+    google_link_ok: "Conta Google vinculada",
   };
   const label = labels[row.action];
   if (!label) return null;
@@ -257,31 +271,33 @@ function serializeOwnAccountHistoryEvent(row: {
     : {};
   const changes: { field: string; before: string; after: string }[] = [];
 
-  if (row.action === "professional_profile_updated") {
+  if (row.action === "professional_profile_updated" || row.action === "identity_updated") {
     const storedChanges = detail.changes && typeof detail.changes === "object"
       ? detail.changes as Record<string, unknown>
       : {};
     const allowedLabels = new Set([
       ...Object.values(PROFESSIONAL_HISTORY_FIELDS),
       "E-mail de acesso",
-      "CPF",
     ]);
     for (const [field, rawChange] of Object.entries(storedChanges)) {
       if (!allowedLabels.has(field) || !rawChange || typeof rawChange !== "object") continue;
       const change = rawChange as Record<string, unknown>;
-      const protectedField = field === "E-mail de acesso" || field === "CPF";
       changes.push({
         field,
-        before: protectedField ? "Valor protegido" : maskedAuditValue(change.before),
-        after: protectedField ? "Valor protegido" : maskedAuditValue(change.after),
+        before: historyValue(change.before),
+        after: historyValue(change.after),
       });
     }
-  } else if (row.action === "identity_updated") {
-    if (detail.emailUpdated === true) {
-      changes.push({ field: "E-mail de acesso", before: "Valor protegido", after: "Valor protegido" });
-    }
-    if (detail.cpfUpdated === true) {
-      changes.push({ field: "CPF", before: "Valor protegido", after: "Valor protegido" });
+    if (!changes.length && row.action === "identity_updated") {
+      if (detail.emailUpdated === true) {
+        changes.push({ field: "E-mail principal", before: "Valor protegido", after: "Valor protegido" });
+      }
+      if (detail.secondaryEmailUpdated === true) {
+        changes.push({ field: "E-mail secundário", before: "Valor protegido", after: "Valor protegido" });
+      }
+      if (detail.cpfUpdated === true) {
+        changes.push({ field: "CPF", before: "Valor protegido", after: "Valor protegido" });
+      }
     }
   }
 
@@ -290,8 +306,35 @@ function serializeOwnAccountHistoryEvent(row: {
     action: row.action,
     label,
     createdAt: row.createdAt.toISOString(),
+    actorName: row.professionalName ?? null,
+    subjectName: row.subjectProfessionalName ?? row.professionalName ?? null,
+    empresaId: row.empresaId ?? null,
+    companyName: row.companyName ?? null,
     changes,
   };
+}
+
+const PASSWORD_MIN_LENGTH = 10;
+const PASSWORD_MAX_LENGTH = 128;
+
+function isNewPasswordValid(password: string): boolean {
+  return password.length >= PASSWORD_MIN_LENGTH &&
+    password.length <= PASSWORD_MAX_LENGTH &&
+    /^\p{Lu}/u.test(password) &&
+    /[\p{P}\p{S}]/u.test(password);
+}
+
+const PASSWORD_POLICY_ERROR =
+  "A senha deve ter pelo menos 10 caracteres, começar com letra maiúscula e conter um caractere especial.";
+
+export async function getVerifiedGoogleEmail(clerkUserId: string): Promise<string | null> {
+  const user = await clerkClient.users.getUser(clerkUserId);
+  const googleAccount = user.externalAccounts.find((account) =>
+    account.provider === "oauth_google" || account.provider === "google",
+  );
+  if (!googleAccount || googleAccount.verification?.status !== "verified") return null;
+  const email = googleAccount.emailAddress.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
 
 function recoveryStartAllowed(ip: string): boolean {
@@ -430,6 +473,9 @@ async function authenticatedClaims(req: Request): Promise<CollaboratorClaims | n
 async function recordAudit(entry: {
   professionalId: number | null;
   professionalName: string | null;
+  subjectProfessionalId?: number | null;
+  subjectProfessionalName?: string | null;
+  empresaId?: number | null;
   action: string;
   method?: string;
   path?: string;
@@ -440,6 +486,9 @@ async function recordAudit(entry: {
     await db.insert(collaboratorAuditTable).values({
       professionalId: entry.professionalId,
       professionalName: entry.professionalName ?? null,
+      subjectProfessionalId: entry.subjectProfessionalId ?? null,
+      subjectProfessionalName: entry.subjectProfessionalName ?? null,
+      empresaId: entry.empresaId ?? null,
       action: entry.action,
       method: entry.method ?? null,
       path: entry.path ?? null,
@@ -607,7 +656,11 @@ router.post(
       .where(eq(professionalsTable.id, claims.professionalId))
       .limit(1);
 
-    const rejectLink = async (reason: string, status: number): Promise<void> => {
+    const rejectLink = async (
+      reason: string,
+      status: number,
+      publicError = "Esta conta Google não pode ser vinculada a este acesso.",
+    ): Promise<void> => {
       await recordAudit({
         professionalId: claims.professionalId,
         professionalName: prof?.name ?? null,
@@ -617,12 +670,39 @@ router.post(
       });
       res.status(status).json({
         code: "google_link_rejected",
-        error: "Esta conta Google nao pode ser vinculada a este acesso.",
+        error: publicError,
       });
     };
 
     if (!prof || !prof.active) {
       await rejectLink("professional_unavailable", 403);
+      return;
+    }
+    let googleEmail: string | null;
+    try {
+      googleEmail = await getVerifiedGoogleEmail(clerkUserId);
+    } catch {
+      await rejectLink(
+        "google_provider_lookup_failed",
+        503,
+        "Não foi possível confirmar a conta Google agora. Tente novamente.",
+      );
+      return;
+    }
+    if (!googleEmail) {
+      await rejectLink(
+        "verified_google_email_required",
+        403,
+        "Entre com uma conta Google que tenha um e-mail confirmado.",
+      );
+      return;
+    }
+    if (!prof.email || prof.email.trim().toLowerCase() !== googleEmail) {
+      await rejectLink(
+        "google_email_mismatch",
+        409,
+        "O e-mail confirmado da conta Google deve ser igual ao e-mail principal do cadastro.",
+      );
       return;
     }
 
@@ -683,6 +763,9 @@ router.post(
     await recordAudit({
       professionalId: prof.id,
       professionalName: prof.name,
+      subjectProfessionalId: prof.id,
+      subjectProfessionalName: prof.name,
+      empresaId: req.tenantContext?.empresaId ?? null,
       action: "google_link_ok",
       detail: { environment },
       ip: clientIp(req),
@@ -879,8 +962,8 @@ router.post("/collaborator/password-recovery/complete", async (req, res): Promis
   const newPassword = typeof req.body?.newPassword === "string"
     ? req.body.newPassword
     : "";
-  if (newPassword.length < 12 || newPassword.length > 128) {
-    res.status(400).json({ error: "A nova senha deve ter entre 12 e 128 caracteres." });
+  if (!isNewPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
     return;
   }
   const claims = verifyPasswordRecoveryToken(recoveryToken);
@@ -939,6 +1022,9 @@ router.post("/collaborator/password-recovery/complete", async (req, res): Promis
       await tx.insert(collaboratorAuditTable).values({
         professionalId: updated.id,
         professionalName: updated.name,
+        subjectProfessionalId: updated.id,
+        subjectProfessionalName: updated.name,
+        empresaId: req.tenantContext?.empresaId ?? null,
         action: "password_recovered",
         method: "POST",
         path: "/collaborator/password-recovery/complete",
@@ -1015,8 +1101,8 @@ router.post("/collaborator/dev-primary-recovery/complete", async (req, res): Pro
     res.status(401).json({ error: "A recuperação expirou. Inicie novamente." });
     return;
   }
-  if (newPassword.length < 12 || newPassword.length > 128) {
-    res.status(400).json({ error: "A senha deve ter entre 12 e 128 caracteres." });
+  if (!isNewPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
     return;
   }
 
@@ -1121,10 +1207,12 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
       isPrimaryDoctor: professionalsTable.isPrimaryDoctor,
       cpf: professionalsTable.cpf,
       email: professionalsTable.email,
+      secondaryEmail: professionalsTable.secondaryEmail,
       crm: professionalsTable.crm,
       registrationCouncil: professionalsTable.registrationCouncil,
       registrationNumber: professionalsTable.registrationNumber,
       loginUsername: professionalsTable.loginUsername,
+      isPlatformOwner: professionalsTable.isPlatformOwner,
       hasPassword: sql<boolean>`${professionalsTable.passwordHash} IS NOT NULL`,
       active: professionalsTable.active,
       googleIdentity: identityColumn,
@@ -1145,29 +1233,139 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
   });
 });
 
-// Histórico pessoal: a identidade vem da sessão; nenhum ID-alvo é aceito.
+router.get("/collaborator/me/google-status", requireCollaborator, async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  const environment = resolveClerkEnvironmentForRequest(req);
+  if (!environment) {
+    res.status(503).json({ error: "Não foi possível confirmar o Google neste ambiente." });
+    return;
+  }
+  const identityColumn = clerkIdentityColumn(environment);
+  const [professional] = await db
+    .select({ email: professionalsTable.email, googleIdentity: identityColumn })
+    .from(professionalsTable)
+    .where(eq(professionalsTable.id, req.collaborator!.professionalId))
+    .limit(1);
+  if (!professional) {
+    res.status(404).json({ error: "Cadastro profissional não encontrado." });
+    return;
+  }
+  if (!professional.googleIdentity) {
+    res.json({ status: "not_linked", googleEmail: null, emailMatchesPrimary: false });
+    return;
+  }
+  try {
+    const googleEmail = await getVerifiedGoogleEmail(professional.googleIdentity);
+    if (!googleEmail) {
+      res.json({ status: "unverified_or_not_google", googleEmail: null, emailMatchesPrimary: false });
+      return;
+    }
+    const emailMatchesPrimary =
+      googleEmail === (professional.email ?? "").trim().toLowerCase();
+    res.json({
+      status: emailMatchesPrimary ? "verified" : "email_mismatch",
+      googleEmail,
+      emailMatchesPrimary,
+    });
+  } catch {
+    res.status(503).json({
+      status: "unavailable",
+      error: "O Google está vinculado, mas não foi possível confirmar o e-mail agora.",
+    });
+  }
+});
+
+// O titular consulta somente o próprio histórico; eventos antigos sem titular
+// explícito são reconhecidos apenas quando o ator era o próprio profissional.
 router.get("/collaborator/me/history", requireCollaborator, async (req, res): Promise<void> => {
   res.set("Cache-Control", "no-store");
+  const professionalId = req.collaborator!.professionalId;
   const rows = await db
     .select({
       id: collaboratorAuditTable.id,
       action: collaboratorAuditTable.action,
       detail: collaboratorAuditTable.detail,
       createdAt: collaboratorAuditTable.createdAt,
+      professionalName: collaboratorAuditTable.professionalName,
+      subjectProfessionalName: collaboratorAuditTable.subjectProfessionalName,
+      empresaId: collaboratorAuditTable.empresaId,
+      companyName: empresasTable.nome,
     })
     .from(collaboratorAuditTable)
+    .leftJoin(empresasTable, eq(collaboratorAuditTable.empresaId, empresasTable.id))
     .where(and(
-      eq(collaboratorAuditTable.professionalId, req.collaborator!.professionalId),
+      or(
+        eq(collaboratorAuditTable.subjectProfessionalId, professionalId),
+        and(
+          isNull(collaboratorAuditTable.subjectProfessionalId),
+          eq(collaboratorAuditTable.professionalId, professionalId),
+        ),
+      ),
       inArray(collaboratorAuditTable.action, [...ACCOUNT_HISTORY_ACTIONS]),
     ))
     .orderBy(desc(collaboratorAuditTable.createdAt))
     .limit(100);
   res.json({
     events: rows
-      .map((row) => serializeOwnAccountHistoryEvent(row))
+      .map((row) => serializeAccountHistoryEvent(row))
       .filter((event): event is NonNullable<typeof event> => event !== null),
   });
 });
+
+// A consulta de histórico de terceiros é exclusiva do CEO verificado no servidor.
+router.get(
+  "/professionals/:id/history",
+  requireCollaborator,
+  requirePlatformOwner,
+  async (req, res): Promise<void> => {
+    res.set("Cache-Control", "no-store");
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const professionalId = Number.parseInt(rawId ?? "", 10);
+    if (!Number.isSafeInteger(professionalId) || professionalId <= 0) {
+      res.status(400).json({ error: "Identificador de profissional inválido." });
+      return;
+    }
+    const [target] = await db
+      .select({ id: professionalsTable.id })
+      .from(professionalsTable)
+      .where(eq(professionalsTable.id, professionalId))
+      .limit(1);
+    if (!target) {
+      res.status(404).json({ error: "Profissional não encontrado." });
+      return;
+    }
+    const rows = await db
+      .select({
+        id: collaboratorAuditTable.id,
+        action: collaboratorAuditTable.action,
+        detail: collaboratorAuditTable.detail,
+        createdAt: collaboratorAuditTable.createdAt,
+        professionalName: collaboratorAuditTable.professionalName,
+        subjectProfessionalName: collaboratorAuditTable.subjectProfessionalName,
+        empresaId: collaboratorAuditTable.empresaId,
+        companyName: empresasTable.nome,
+      })
+      .from(collaboratorAuditTable)
+      .leftJoin(empresasTable, eq(collaboratorAuditTable.empresaId, empresasTable.id))
+      .where(and(
+        or(
+          eq(collaboratorAuditTable.subjectProfessionalId, professionalId),
+          and(
+            isNull(collaboratorAuditTable.subjectProfessionalId),
+            eq(collaboratorAuditTable.professionalId, professionalId),
+          ),
+        ),
+        inArray(collaboratorAuditTable.action, [...ACCOUNT_HISTORY_ACTIONS]),
+      ))
+      .orderBy(desc(collaboratorAuditTable.createdAt))
+      .limit(100);
+    res.json({
+      events: rows
+        .map((row) => serializeAccountHistoryEvent(row))
+        .filter((event): event is NonNullable<typeof event> => event !== null),
+    });
+  },
+);
 
 // PUT /api/collaborator/me/identity — atualiza identificadores apenas da sessao.
 router.put(
@@ -1181,13 +1379,28 @@ router.put(
     const cpfInput = typeof req.body?.cpf === "string" ? req.body.cpf.trim() : "";
     const email = emailInput ? emailInput.toLowerCase() : null;
     const cpf = cpfInput ? normalizeCpf(cpfInput) : null;
+    const secondaryEmailProvided =
+      req.body != null && Object.prototype.hasOwnProperty.call(req.body, "secondaryEmail");
+    const secondaryEmailInput = typeof req.body?.secondaryEmail === "string"
+      ? req.body.secondaryEmail.trim()
+      : "";
+    const secondaryEmail = secondaryEmailProvided
+      ? (secondaryEmailInput ? secondaryEmailInput.toLowerCase() : null)
+      : undefined;
 
-    if (!email && !cpf) {
-      res.status(400).json({ error: "Informe pelo menos um e-mail ou CPF." });
+    if (!email && !cpf && !secondaryEmailProvided) {
+      res.status(400).json({ error: "Informe um e-mail, CPF ou e-mail secundário." });
       return;
     }
     if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
       res.status(400).json({ error: "Informe um e-mail válido." });
+      return;
+    }
+    if (
+      secondaryEmail &&
+      (secondaryEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(secondaryEmail))
+    ) {
+      res.status(400).json({ error: "Informe um e-mail secundário válido." });
       return;
     }
     if (cpf && !isValidCpf(cpf)) {
@@ -1213,16 +1426,92 @@ router.put(
       return;
     }
 
-    const nextCredentialVersion = (professional.credentialVersion ?? 0) + 1;
+    if (email && email !== professional.email) {
+      const environment = resolveClerkEnvironmentForRequest(req);
+      const linkedGoogleUserId = environment === "production"
+        ? professional.clerkUserIdProd
+        : environment === "development"
+          ? professional.clerkUserIdDev
+          : null;
+      if (linkedGoogleUserId) {
+        let googleEmail: string | null;
+        try {
+          googleEmail = await getVerifiedGoogleEmail(linkedGoogleUserId);
+        } catch {
+          res.status(503).json({ error: "Não foi possível confirmar o e-mail Google agora." });
+          return;
+        }
+        if (googleEmail !== email) {
+          res.status(409).json({
+            error: "Antes de alterar o e-mail principal, ele precisa coincidir com o e-mail Google confirmado.",
+          });
+          return;
+        }
+      }
+    }
+
+    const changes: Record<string, { before: string; after: string }> = {};
+    if (email && email !== professional.email) {
+      changes["E-mail principal"] = {
+        before: historyValue(professional.email),
+        after: historyValue(email),
+      };
+    }
+    if (secondaryEmailProvided && secondaryEmail !== professional.secondaryEmail) {
+      changes["E-mail secundário"] = {
+        before: historyValue(professional.secondaryEmail),
+        after: historyValue(secondaryEmail),
+      };
+    }
+    if (cpf && cpf !== professional.cpf) {
+      changes.CPF = {
+        before: historyValue(professional.cpf),
+        after: historyValue(cpf),
+      };
+    }
+    if (!Object.keys(changes).length) {
+      const currentVersion = professional.credentialVersion ?? 0;
+      res.json({
+        token: createCollaboratorToken({
+          professionalId: professional.id,
+          role: professional.role,
+          credentialVersion: currentVersion,
+        }),
+        professional: {
+          id: professional.id,
+          name: professional.name,
+          role: professional.role,
+          category: professional.category,
+          isPrimaryDoctor: professional.isPrimaryDoctor,
+          cpf: professional.cpf,
+          email: professional.email,
+          secondaryEmail: professional.secondaryEmail,
+        },
+      });
+      return;
+    }
+
+    const credentialChanged = Boolean(
+      (email && email !== professional.email) ||
+      (cpf && cpf !== professional.cpf),
+    );
+    const nextCredentialVersion =
+      (professional.credentialVersion ?? 0) + (credentialChanged ? 1 : 0);
     try {
-      let updated: { id: number; email: string | null; cpf: string | null } | undefined;
+      let updated: {
+        id: number;
+        email: string | null;
+        cpf: string | null;
+        secondaryEmail: string | null;
+      } | undefined;
       await db.transaction(async (tx) => {
         [updated] = await tx
           .update(professionalsTable)
           .set({
             ...(email ? { email } : {}),
             ...(cpf ? { cpf } : {}),
-            credentialVersion: nextCredentialVersion,
+          ...(secondaryEmailProvided ? { secondaryEmail } : {}),
+          ...(credentialChanged ? { credentialVersion: nextCredentialVersion } : {}),
           })
           .where(
             and(
@@ -1234,19 +1523,22 @@ router.put(
             id: professionalsTable.id,
             email: professionalsTable.email,
             cpf: professionalsTable.cpf,
+            secondaryEmail: professionalsTable.secondaryEmail,
           });
         if (!updated) throw new Error("COLLABORATOR_IDENTITY_CONFLICT");
 
         await tx.insert(collaboratorAuditTable).values({
           professionalId: professional.id,
           professionalName: professional.name,
+          subjectProfessionalId: professional.id,
+          subjectProfessionalName: professional.name,
+          empresaId: req.tenantContext?.empresaId ?? null,
           action: "identity_updated",
           method: req.method,
           path: req.path,
           detail: {
-            emailUpdated: Boolean(email && email !== professional.email),
-            cpfUpdated: Boolean(cpf && cpf !== professional.cpf),
-            priorSessionsInvalidated: true,
+            changes,
+            priorSessionsInvalidated: credentialChanged,
           },
           ip: clientIp(req),
         });
@@ -1271,6 +1563,7 @@ router.put(
           isPrimaryDoctor: professional.isPrimaryDoctor,
           cpf: updated.cpf,
           email: updated.email,
+          secondaryEmail: updated.secondaryEmail,
         },
       });
     } catch (error) {
@@ -1296,8 +1589,8 @@ router.post("/collaborator/change-password", requireCollaborator, async (req, re
   const newPassword =
     typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
 
-  if (newPassword.length < 12 || newPassword.length > 128) {
-    res.status(400).json({ error: "A nova senha deve ter entre 12 e 128 caracteres." });
+  if (!isNewPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
     return;
   }
   if (!currentPassword || currentPassword.length > 512 || currentPassword === newPassword) {
@@ -1346,6 +1639,9 @@ router.post("/collaborator/change-password", requireCollaborator, async (req, re
       await tx.insert(collaboratorAuditTable).values({
         professionalId: professional.id,
         professionalName: professional.name,
+        subjectProfessionalId: professional.id,
+        subjectProfessionalName: professional.name,
+        empresaId: req.tenantContext?.empresaId ?? null,
         action: "password_changed",
         method: req.method,
         path: req.path,
@@ -1386,8 +1682,8 @@ router.post("/collaborator/initial-password", requireCollaborator, async (req, r
   const newPassword =
     typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
 
-  if (newPassword.length < 12 || newPassword.length > 128) {
-    res.status(400).json({ error: "A senha deve ter entre 12 e 128 caracteres." });
+  if (!isNewPasswordValid(newPassword)) {
+    res.status(400).json({ error: PASSWORD_POLICY_ERROR });
     return;
   }
 
@@ -1429,6 +1725,9 @@ router.post("/collaborator/initial-password", requireCollaborator, async (req, r
       await tx.insert(collaboratorAuditTable).values({
         professionalId: professional.id,
         professionalName: professional.name,
+        subjectProfessionalId: professional.id,
+        subjectProfessionalName: professional.name,
+        empresaId: req.tenantContext?.empresaId ?? null,
         action: "password_initialized",
         method: req.method,
         path: req.path,

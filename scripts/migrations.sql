@@ -130,3 +130,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS professionals_cpf_digits_uk
 -- pode ter seu proprio Medico Principal. O perfil escolhido pelo CEO foi
 -- marcado explicitamente apenas no banco de desenvolvimento; producao exige
 -- mapeamento operacional revisado, sem promover automaticamente um medico.
+
+-- E-mail secundário e identificação do titular/contexto da clínica no histórico
+-- profissional; preserva rastreabilidade sem substituir o ator que executou a mudança.
+ALTER TABLE professionals
+  ADD COLUMN IF NOT EXISTS secondary_email TEXT;
+
+ALTER TABLE collaborator_audit
+  ADD COLUMN IF NOT EXISTS subject_professional_id INTEGER;
+
+ALTER TABLE collaborator_audit
+  ADD COLUMN IF NOT EXISTS subject_professional_name TEXT;
+
+ALTER TABLE collaborator_audit
+  ADD COLUMN IF NOT EXISTS empresa_id INTEGER;
+
+CREATE INDEX IF NOT EXISTS collaborator_audit_subject_created_idx
+  ON collaborator_audit (subject_professional_id, created_at);

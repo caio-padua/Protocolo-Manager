@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,9 @@ export const collaboratorAuditTable = pgTable("collaborator_audit", {
   id: serial("id").primaryKey(),
   professionalId: integer("professional_id"), // nulo em login_fail
   professionalName: text("professional_name"),
+  subjectProfessionalId: integer("subject_professional_id"),
+  subjectProfessionalName: text("subject_professional_name"),
+  empresaId: integer("empresa_id"),
   action: text("action").notNull(), // 'login_ok' | 'login_fail' | 'write'
   method: text("method"), // GET/POST/PUT/PATCH/DELETE (nas escritas)
   path: text("path"),
@@ -18,7 +21,10 @@ export const collaboratorAuditTable = pgTable("collaborator_audit", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  index("collaborator_audit_subject_created_idx")
+    .on(t.subjectProfessionalId, t.createdAt),
+]);
 
 export const insertCollaboratorAuditSchema = createInsertSchema(
   collaboratorAuditTable,

@@ -1,7 +1,7 @@
 # Especificação — acesso e histórico no cadastro do Corpo Clínico
 
 Data: 01/11/2026
-Estado: BLOQUEADO PARA HOMOLOGAÇÃO — revisão independente e evidências de banco pendentes
+Estado: EM CONSTRUÇÃO — esta revisão ainda não foi homologada
 Responsável: Dr. Replit Paxter
 
 ## 1. Objetivo
@@ -149,3 +149,60 @@ Concentrar a administração da própria conta profissional na ficha corresponde
 10. A revisão independente foi tentada, mas a plataforma informou que a revisão automatizada não está disponível nesta execução; a etapa permanece bloqueada até revisão sequencial por outra pessoa.
 11. O limite de recuperação está na memória do processo; antes de executar várias instâncias em produção, deve usar armazenamento compartilhado e ser retestado.
 12. Não houve envio ao GitHub.
+
+## 11. Revisão autorizada em 01/11/2026 — Histórico, e-mails e organização das abas
+
+Esta revisão substitui qualquer regra anterior conflitante sobre visibilidade do histórico, localização dos controles de acesso, quantidade de e-mails e vínculo entre e-mail principal e Google. Ela não autoriza mudanças em cobrança, licenciamento, atendimento clínico ou publicação em produção.
+
+### 11.1 Organização da ficha
+
+1. As abas da ficha passam a ser “Dados”, “Acesso”, “Vínculos”, “Documentos” e “Histórico”.
+2. Os controles de conta saem da parte inferior de “Dados” e ficam dentro da aba “Acesso”.
+3. “Histórico” fica em aba própria e começa fechado; uma alternância explícita consulta e mostra os eventos.
+4. A ficha conserva o padrão visual original do Corpo Clínico e do sistema PAXTER, com hierarquia TDAH-friendly (adequada a pessoas com Transtorno do Déficit de Atenção com Hiperatividade), alinhamento por colunas e componentes 3D já aprovados.
+5. A ficha de outra pessoa não recebe controles de senha ou identidade da sessão atual.
+
+### 11.2 E-mails, Google e CPF
+
+1. E-mail principal é a fonte única do e-mail profissional e do identificador de entrada/recuperação.
+2. E-mail secundário é opcional e serve somente como contato; não pode autenticar, recuperar senha ou conceder acesso.
+3. O vínculo Google só é aceito quando o servidor confirma que o provedor é Google e que o e-mail verificado coincide com o e-mail principal cadastrado.
+4. E-mail, provedor e identidade não podem ser aceitos apenas porque o navegador os informou.
+5. Se o Google vinculado não corresponder ao e-mail principal, a interface mostra a divergência e não afirma que o vínculo está correto.
+6. O login Google não concede acesso ao Google Drive; o compartilhamento futuro exigirá autorização própria para o Drive e escopos específicos.
+7. O CPF recebe máscara brasileira durante a digitação; o banco conserva somente os algarismos e a apresentação mantém pontos e hífen.
+
+### 11.3 Senha
+
+1. Senha nova exige ao menos 10 caracteres, primeira letra maiúscula e ao menos um caractere especial.
+2. A senha atual continua sendo exigida em alteração de senha conhecida e de e-mail/CPF/e-mail secundário.
+3. A senha, o hash, o token de sessão, os tokens Google e os códigos de recuperação nunca entram no histórico.
+4. Os campos de senha mantêm o controle de revelar/ocultar somente o conteúdo digitado naquele campo.
+
+### 11.4 Histórico pessoal e administrativo
+
+1. A própria pessoa autenticada pode consultar somente o histórico do próprio cadastro.
+2. O CEO autenticado pode consultar o histórico de profissionais de qualquer clínica; a autorização é determinada no servidor pelo registro `isPlatformOwner`, nunca por um identificador enviado pelo navegador.
+3. Outros colaboradores não podem consultar o histórico de terceiros, mesmo que enviem outro identificador ou empresa no pedido.
+4. Cada evento distingue quem alterou (`ator`) de quem teve o cadastro alterado (`titular`), e registra a clínica/empresa de contexto quando ela existir.
+5. O histórico mostra valores anteriores e novos completos dos campos permitidos, incluindo e-mail principal, e-mail secundário e CPF.
+6. O histórico exclui senhas, hashes, tokens, códigos de recuperação, identificadores de autenticação Google, assinatura e demais segredos.
+7. Eventos antigos que já guardaram e-mail ou CPF como “Valor protegido” não podem ser reconstruídos; mudanças novas passam a registrar valores completos.
+8. A tela não oferece exclusão e a aplicação não cria uma rota para apagar eventos.
+
+### 11.5 Mudanças aditivas no banco e limites desta etapa
+
+1. A nova coluna de e-mail secundário e os campos necessários para identificar titular e clínica no histórico são adições não destrutivas.
+2. A migração deve ser idempotente, entrar em `scripts/migrations.sql` e nunca usar `db push`, `DROP`, `TRUNCATE` ou `DELETE`.
+3. Esta etapa não aplica migração nem alteração de cadastro em produção; produção depende de implantação/migração autorizada e verificada separadamente.
+4. Nenhum e-mail real, mensagem clínica ou alteração em cadastro clínico real pode ocorrer nos testes.
+
+### 11.6 Critérios de verificação desta revisão
+
+1. Testar histórico próprio permitido, CEO entre clínicas permitido, outro colaborador entre clínicas negado e identificador forjado negado.
+2. Testar e-mail principal igual ao Google verificado permitido; e-mail diferente, provedor que não é Google e e-mail não verificado negados.
+3. Testar e-mail secundário sem capacidade de login/recuperação, CPF formatado no campo e somente algarismos persistidos.
+4. Testar senha válida e cada regra inválida, em todas as rotas de criação, troca e recuperação.
+5. Confirmar que nenhum segredo aparece na resposta, trilha ou tela do histórico e que não existe exclusão de eventos.
+6. A migração só pode ser aplicada em banco de desenvolvimento identificado; os testes automatizados usam dados sintéticos e não enviam mensagens.
+7. Não declarar homologado sem teste das rotas permitidas/proibidas, reinício limpo dos serviços e revisão independente sequencial.
