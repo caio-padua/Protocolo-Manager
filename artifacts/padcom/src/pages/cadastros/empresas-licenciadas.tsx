@@ -1,596 +1,93 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import {
-  Building2, Crown, Plus, RefreshCw, ChevronRight,
-  HardDrive, Check, AlertCircle, Edit2, X, Save,
-  TrendingUp, Users, Landmark, Wifi, Sparkles, BadgeCheck, Info
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Building2, HardDrive, Pencil, Plus, RefreshCw, Save, X } from "lucide-react";
 import { ConsoleShell } from "@/pages/comunicacao/_shared";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// ── Tipos ──────────────────────────────────────────────────────────────────────
-
-type TipoLicenciamento = "propria" | "sub_unidade" | "licenciada_direta" | "licenciada_por_clinica" | "clinica_propria_vivencia";
-
-interface EmpresaNo {
+interface Empresa {
   id: number;
   nome: string;
-  tipoLicenciamento: TipoLicenciamento;
+  cnpj: string | null;
   status: string;
+  ativa: boolean;
   donoNome: string | null;
+  telefone: string | null;
+  emailGeral: string | null;
   valorMensalContrato: string | null;
   royaltyPercent: string | null;
-  isPlatformOwner: boolean;
   driveFolderEmpresaId: string | null;
-  empresaMaeId: number | null;
-  locations: string[];
-  filhos: EmpresaNo[];
 }
 
-interface HierarquiaResposta {
-  raiz?: EmpresaNo | null;
-  raizes?: EmpresaNo[];
+interface Formulario {
+  nome: string;
+  cnpj: string;
+  donoNome: string;
+  telefone: string;
+  emailGeral: string;
 }
 
-interface EmpresaFlat {
-  id: number; nome: string; cnpj: string | null; status: string;
-  tipoLicenciamento: string; empresaMaeId: number | null;
-  valorMensalContrato: string | null; royaltyPercent: string | null;
-  donoNome: string | null; telefone: string | null; emailGeral: string | null;
-  isPlatformOwner: boolean; driveFolderEmpresaId: string | null;
-  ativa: boolean;
-}
-
-// ── Constantes visuais ─────────────────────────────────────────────────────────
-
-const TIPO_META: Record<TipoLicenciamento, { label: string; cor: string; bg: string; borda: string }> = {
-  propria:                  { label: "Própria",             cor: "#3D7A7A", bg: "#e6f2f2", borda: "#3D7A7A" },
-  sub_unidade:              { label: "Sub-unidade",         cor: "#647c97", bg: "#eef2f7", borda: "#647c97" },
-  licenciada_direta:        { label: "Licenciada Direta",   cor: "#45B8CC", bg: "#e3f7fb", borda: "#45B8CC" },
-  licenciada_por_clinica:   { label: "Lic. por Clínica",   cor: "#c2a05a", bg: "#faf2e3", borda: "#c2a05a" },
-  clinica_propria_vivencia: { label: "Vivência CEO",        cor: "#7c3aed", bg: "#f3eeff", borda: "#7c3aed" },
+const FORMULARIO_VAZIO: Formulario = {
+  nome: "",
+  cnpj: "",
+  donoNome: "",
+  telefone: "",
+  emailGeral: "",
 };
 
-const TIPOS_OPTIONS: { value: TipoLicenciamento; label: string }[] = [
-  { value: "propria",                  label: "Própria (clínica do CEO)" },
-  { value: "sub_unidade",              label: "Sub-unidade (filial)" },
-  { value: "licenciada_direta",        label: "Licenciada Direta (paga ao PAXTER)" },
-  { value: "licenciada_por_clinica",   label: "Licenciada por Clínica (paga à mãe)" },
-  { value: "clinica_propria_vivencia", label: "Vivência CEO — Clínica própria, ISENTA de pagamento" },
-];
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-/**
- * Retorna o conjunto de IDs que podem ser empresa-mãe de uma nova empresa
- * (ou de uma empresa existente com id=editandoId).
- *
- * Regra do backend (empresas.ts, linha ~400):
- *   "Máximo permitido = 1, ou seja, o novo pai DEVE ser o próprio Platform Owner
- *    (profundidade 0)."
- *
- * Portanto, apenas empresas com isPlatformOwner = true são mães válidas.
- * A própria empresa não pode ser mãe de si mesma (bloqueada no backend também).
- */
-function calcularPaisPermitidos(
-  hierarquia: HierarquiaResposta | null,
-  editandoId: number | null,
-  todasEmpresas: EmpresaFlat[]
-): Set<number> {
-  const permitidos = new Set<number>();
-  if (!hierarquia) return permitidos;
-
-  for (const e of todasEmpresas) {
-    if (e.isPlatformOwner && e.id !== editandoId) {
-      permitidos.add(e.id);
-    }
-  }
-  return permitidos;
+function moeda(valor: string | null): string {
+  if (!valor) return "—";
+  const numero = Number(valor);
+  return Number.isFinite(numero)
+    ? numero.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    : "—";
 }
 
-function fmtBRL(val: string | number | null | undefined): string {
-  if (!val) return "—";
-  const n = typeof val === "string" ? parseFloat(val) : val;
-  return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function isIsento(tipo: string): boolean {
-  return tipo === "propria" || tipo === "clinica_propria_vivencia";
-}
-
-function calcReceita(nos: EmpresaNo[]): { direto: number; royalties: number } {
-  let direto = 0;
-  let royalties = 0;
-  for (const no of nos) {
-    if (!isIsento(no.tipoLicenciamento)) {
-      const val = parseFloat(no.valorMensalContrato ?? "0") || 0;
-      const pct = parseFloat(no.royaltyPercent ?? "30") || 30;
-      if (no.tipoLicenciamento === "licenciada_direta") direto += val;
-      if (no.tipoLicenciamento === "licenciada_por_clinica") royalties += (val * pct) / 100;
-    }
-    const sub = calcReceita(no.filhos);
-    direto += sub.direto;
-    royalties += sub.royalties;
-  }
-  return { direto, royalties };
-}
-
-function contarTenants(nos: EmpresaNo[]): number {
-  let n = 0;
-  for (const no of nos) {
-    n++;
-    n += contarTenants(no.filhos);
-  }
-  return n;
-}
-
-function aplanar(nos: EmpresaNo[]): EmpresaNo[] {
-  const acc: EmpresaNo[] = [];
-  for (const no of nos) { acc.push(no); acc.push(...aplanar(no.filhos)); }
-  return acc;
-}
-
-// ── Badge de tipo ──────────────────────────────────────────────────────────────
-
-function TipoBadge({ tipo }: { tipo: string }) {
-  const meta = TIPO_META[tipo as TipoLicenciamento] ?? { label: tipo, cor: "#647c97", bg: "#eee", borda: "#647c97" };
-  return (
-    <span
-      className="inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-      style={{ color: meta.cor, background: meta.bg, border: `1px solid ${meta.borda}` }}
-    >
-      {meta.label}
-    </span>
-  );
-}
-
-// ── Card de empresa no nó da pirâmide ──────────────────────────────────────────
-
-function EmpresaCard({ no, onDrive, onEdit }: {
-  no: EmpresaNo;
-  onDrive: (id: number) => void;
-  onEdit: (id: number) => void;
-}) {
-  const meta = TIPO_META[no.tipoLicenciamento as TipoLicenciamento] ?? TIPO_META.propria;
-  const semDrive = !no.driveFolderEmpresaId;
-
-  return (
-    <div
-      className="panel-3d min-w-[200px] max-w-[240px]"
-      style={{ borderLeft: `4px solid ${meta.borda}` }}
-    >
-      {/* Topo */}
-      <div className="bevel-3d flex items-center gap-2 px-3 py-2">
-        {no.tipoLicenciamento === "clinica_propria_vivencia"
-          ? <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#7c3aed]" />
-          : no.isPlatformOwner && <Crown className="h-3.5 w-3.5 shrink-0 text-[#c2a05a]" />
-        }
-        <span className="truncate text-[12px] font-bold text-[#16294a]">{no.nome}</span>
-      </div>
-      {/* Corpo */}
-      <div className="px-3 py-2 space-y-1">
-        <TipoBadge tipo={no.tipoLicenciamento} />
-        {no.tipoLicenciamento === "clinica_propria_vivencia" && (
-          <div className="flex items-center gap-1 mt-1">
-            <BadgeCheck className="h-3 w-3 text-emerald-600" />
-            <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-700">Isenta de pagamento</span>
-          </div>
-        )}
-        {no.donoNome && (
-          <div className="text-[10px] text-[#647c97]">
-            <span className="font-semibold">Responsável:</span> {no.donoNome}
-          </div>
-        )}
-        {no.valorMensalContrato && (
-          <div className="text-[10px] text-[#647c97]">
-            <span className="font-semibold">Plano:</span> {fmtBRL(no.valorMensalContrato)}/mês
-          </div>
-        )}
-        {no.locations.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {no.locations.slice(0, 3).map(l => (
-              <span key={l} className="concave-3d px-1.5 py-0.5 text-[9px] text-[#647c97]">{l}</span>
-            ))}
-            {no.locations.length > 3 && (
-              <span className="text-[9px] text-[#647c97]">+{no.locations.length - 3}</span>
-            )}
-          </div>
-        )}
-      </div>
-      {/* Ações */}
-      <div className="border-t border-[rgba(22,41,74,0.1)] px-3 py-2 flex items-center gap-2">
-        <button
-          onClick={() => onEdit(no.id)}
-          className="concave-3d inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-[#16294a]"
-        >
-          <Edit2 className="h-3 w-3" /> Editar
-        </button>
-        {semDrive ? (
-          <button
-            onClick={() => onDrive(no.id)}
-            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded"
-            style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }}
-          >
-            <HardDrive className="h-3 w-3" /> Drive
-          </button>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-[10px] text-[#3D7A7A]">
-            <Check className="h-3 w-3" /> Drive ✓
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Nó da pirâmide com filhos ──────────────────────────────────────────────────
-
-function PiramideNo({ no, nivel, onDrive, onEdit }: {
-  no: EmpresaNo; nivel: number;
-  onDrive: (id: number) => void;
-  onEdit: (id: number) => void;
+function Campo({
+  titulo,
+  valor,
+  alterar,
+  tipo = "text",
+}: {
+  titulo: string;
+  valor: string;
+  alterar: (valor: string) => void;
+  tipo?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-0">
-      <EmpresaCard no={no} onDrive={onDrive} onEdit={onEdit} />
-      {no.filhos.length > 0 && (
-        <>
-          {/* Linha descendente */}
-          <div className="w-px bg-[rgba(22,41,74,0.2)]" style={{ height: 20 }} />
-          {/* Linha horizontal */}
-          <div className="relative flex items-start">
-            {no.filhos.length > 1 && (
-              <div
-                className="absolute top-0 bg-[rgba(22,41,74,0.2)]"
-                style={{
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: `calc(${no.filhos.length - 1} * 260px)`,
-                  height: 1,
-                }}
-              />
-            )}
-            <div className="flex gap-4">
-              {no.filhos.map(filho => (
-                <PiramideNo key={filho.id} no={filho} nivel={nivel + 1} onDrive={onDrive} onEdit={onEdit} />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <label className="block space-y-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-[#647c97]">{titulo}</span>
+      <input
+        type={tipo}
+        value={valor}
+        onChange={(event) => alterar(event.target.value)}
+        className="concave-3d w-full rounded-md px-3 py-2 text-sm text-[#16294a] outline-none focus:ring-2 focus:ring-[#45B8CC]/40"
+      />
+    </label>
   );
 }
 
-// ── Modal de criação/edição ────────────────────────────────────────────────────
-
-interface FormState {
-  nome: string; cnpj: string; donoNome: string; telefone: string; emailGeral: string;
-  tipoLicenciamento: TipoLicenciamento; empresaMaeId: string;
-  valorMensalContrato: string; royaltyPercent: string; status: string;
-}
-
-const FORM_VAZIO: FormState = {
-  nome: "", cnpj: "", donoNome: "", telefone: "", emailGeral: "",
-  tipoLicenciamento: "licenciada_direta", empresaMaeId: "",
-  valorMensalContrato: "", royaltyPercent: "30", status: "ATIVO",
-};
-
-function Modal({ inicial, editandoId, todasEmpresas, hierarquia, onSalvar, onFechar, salvando }: {
-  inicial: FormState | null;
-  editandoId: number | null;
-  todasEmpresas: EmpresaFlat[];
-  hierarquia: HierarquiaResposta | null;
-  onSalvar: (dados: FormState) => void;
-  onFechar: () => void;
-  salvando: boolean;
-}) {
-  const [form, setForm] = useState<FormState>(inicial ?? FORM_VAZIO);
-  const set = (k: keyof FormState, v: string) => setForm(prev => ({ ...prev, [k]: v }));
-  const precisaMae = form.tipoLicenciamento === "sub_unidade" || form.tipoLicenciamento === "licenciada_por_clinica";
-
-  // Compute which companies can be parents (only the Platform Owner)
-  const paisPermitidos = useMemo(
-    () => calcularPaisPermitidos(hierarquia, editandoId, todasEmpresas),
-    [hierarquia, editandoId, todasEmpresas]
-  );
-
-  // Tooltip reason for disabled options
-  function motivoBloqueio(e: EmpresaFlat): string {
-    if (editandoId !== null && e.id === editandoId) return "Uma empresa não pode ser mãe de si mesma.";
-    if (!paisPermitidos.has(e.id)) return "Apenas o Platform Owner pode ser empresa-mãe. Esta empresa já está em profundidade ≥ 1 — selecioná-la criaria profundidade 2, o que é bloqueado pelo sistema.";
-    return "";
-  }
-
-  const totalPermitidos = todasEmpresas.filter(e => paisPermitidos.has(e.id)).length;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,22,43,0.7)]">
-      <div className="panel-3d w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="bevel-3d flex items-center justify-between px-5 py-3">
-          <span className="text-[14px] font-bold text-[#16294a]">
-            {inicial ? "Editar Empresa" : "Nova Empresa"}
-          </span>
-          <button onClick={onFechar} className="concave-3d p-1"><X className="h-4 w-4 text-[#647c97]" /></button>
-        </div>
-        <div className="px-5 py-4 space-y-3">
-          {/* Nome */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Nome da Empresa *</label>
-            <input
-              value={form.nome} onChange={e => set("nome", e.target.value)}
-              className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-              placeholder="Ex.: Clínica Barakat"
-            />
-          </div>
-          {/* CNPJ + Responsável */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">CNPJ</label>
-              <input value={form.cnpj} onChange={e => set("cnpj", e.target.value)}
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-                placeholder="00.000.000/0001-00" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Responsável</label>
-              <input value={form.donoNome} onChange={e => set("donoNome", e.target.value)}
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-                placeholder="Nome do dono" />
-            </div>
-          </div>
-          {/* Tipo de licenciamento */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Tipo de Licenciamento *</label>
-            <select
-              value={form.tipoLicenciamento}
-              onChange={e => set("tipoLicenciamento", e.target.value as TipoLicenciamento)}
-              className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-            >
-              {TIPOS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          {/* Aviso de isenção — aparece só para Vivência CEO */}
-          {form.tipoLicenciamento === "clinica_propria_vivencia" && (
-            <div className="concave-3d flex items-start gap-2 px-3 py-2.5 rounded"
-              style={{ borderLeft: "3px solid #7c3aed" }}>
-              <Sparkles className="h-4 w-4 text-[#7c3aed] mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[#7c3aed]">Modo Vivência CEO</p>
-                <p className="text-[11px] text-[#647c97] mt-0.5">
-                  Esta clínica aparece na hierarquia como licenciada, mas <strong>não será cobrada</strong>.
-                  Objetivo: o CEO vivencia em primeira pessoa a experiência dos seus clientes.
-                </p>
-              </div>
-            </div>
-          )}
-          {/* Empresa mãe (condicional) */}
-          {precisaMae && (
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Empresa Mãe *</label>
-                <span className="text-[9px] text-[#647c97]">
-                  ({totalPermitidos} disponíve{totalPermitidos === 1 ? "l" : "is"})
-                </span>
-              </div>
-              {/* Regra explicada */}
-              <div className="concave-3d flex items-start gap-2 px-3 py-2 rounded mb-2"
-                style={{ borderLeft: "3px solid #45B8CC" }}>
-                <Info className="h-3.5 w-3.5 text-[#45B8CC] mt-0.5 shrink-0" />
-                <p className="text-[10px] text-[#647c97]">
-                  Apenas o <strong>Platform Owner</strong> pode ser empresa-mãe.
-                  A profundidade máxima permitida é <strong>1 nível</strong> — empresas que já têm
-                  uma mãe não podem ser mãe de outros.
-                </p>
-              </div>
-              <select
-                value={form.empresaMaeId}
-                onChange={e => set("empresaMaeId", e.target.value)}
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-              >
-                <option value="">— Selecione —</option>
-                {todasEmpresas.map(e => {
-                  const permitido = paisPermitidos.has(e.id);
-                  const motivo = motivoBloqueio(e);
-                  return (
-                    <option
-                      key={e.id}
-                      value={String(e.id)}
-                      disabled={!permitido}
-                      title={motivo || undefined}
-                    >
-                      {permitido ? e.nome : `🚫 ${e.nome} — ${motivo}`}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          )}
-          {/* Valores */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Mensalidade (R$)</label>
-              <input value={form.valorMensalContrato} onChange={e => set("valorMensalContrato", e.target.value)}
-                type="number" min="0" step="10"
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-                placeholder="500" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Royalty % (repasse)</label>
-              <input value={form.royaltyPercent} onChange={e => set("royaltyPercent", e.target.value)}
-                type="number" min="0" max="100" step="1"
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-                placeholder="30" />
-            </div>
-          </div>
-          {/* Contato */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Telefone</label>
-              <input value={form.telefone} onChange={e => set("telefone", e.target.value)}
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-                placeholder="+55 11 00000-0000" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">E-mail</label>
-              <input value={form.emailGeral} onChange={e => set("emailGeral", e.target.value)}
-                type="email"
-                className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]"
-                placeholder="contato@clinica.com.br" />
-            </div>
-          </div>
-          {/* Status */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">Status</label>
-            <select value={form.status} onChange={e => set("status", e.target.value)}
-              className="concave-3d mt-1 w-full rounded px-3 py-2 text-[13px] text-[#16294a]">
-              <option value="ATIVO">ATIVO</option>
-              <option value="SUSPENSO">SUSPENSO</option>
-              <option value="CANCELADO">CANCELADO</option>
-            </select>
-          </div>
-        </div>
-        {/* Footer */}
-        <div className="border-t border-[rgba(22,41,74,0.1)] px-5 py-3 flex justify-end gap-3">
-          <button onClick={onFechar} className="btn-3d-soft px-4 py-2 text-[12px] font-bold uppercase tracking-wide">
-            Cancelar
-          </button>
-          <button
-            onClick={() => onSalvar(form)}
-            disabled={salvando || !form.nome}
-            className="btn-3d inline-flex items-center gap-2 px-5 py-2 text-[12px] font-bold uppercase tracking-wide disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {salvando ? "Salvando…" : "Salvar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Painel de receita ──────────────────────────────────────────────────────────
-
-function PainelReceita({ raiz, raizes }: { raiz: EmpresaNo | null; raizes?: EmpresaNo[] }) {
-  const todosNos = raiz ? [raiz] : (raizes ?? []);
-  const filhosParaCalculo = raiz ? raiz.filhos : todosNos;
-  const { direto, royalties } = calcReceita(filhosParaCalculo);
-  const total = direto + royalties;
-  const projecaoAnual = total * 12;
-
-  return (
-    <section className="panel-3d px-5 py-4">
-      <div className="flex items-center gap-2 mb-3">
-        <TrendingUp className="h-4 w-4 text-[#c2a05a]" />
-        <span className="text-[12px] font-bold uppercase tracking-wide text-[#16294a]">Receita PAXTER — Resumo Mensal</span>
-      </div>
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        {[
-          { rotulo: "Licenças Diretas", valor: fmtBRL(direto), cor: "#45B8CC" },
-          { rotulo: "Royalties (30%)", valor: fmtBRL(royalties), cor: "#c2a05a" },
-          { rotulo: "Total Mensal", valor: fmtBRL(total), cor: "#3D7A7A" },
-        ].map(k => (
-          <div key={k.rotulo} className="concave-3d px-3 py-2">
-            <div className="text-[9px] font-bold uppercase tracking-wide text-[#647c97]">{k.rotulo}</div>
-            <div className="text-[18px] font-bold mt-0.5" style={{ color: k.cor }}>{k.valor}</div>
-          </div>
-        ))}
-      </div>
-      <div className="concave-3d px-3 py-2 flex items-center justify-between">
-        <span className="text-[11px] text-[#647c97]">Projeção anual (12 meses)</span>
-        <span className="text-[14px] font-bold text-[#16294a]">{fmtBRL(projecaoAnual)}</span>
-      </div>
-      <p className="mt-2 text-[10px] text-[#647c97]">
-        Cálculo: licenciadas_direta pagam mensalidade ao PAXTER; licenciadas_por_clinica pagam à clínica mãe, que repassa {30}% ao PAXTER.
-      </p>
-    </section>
-  );
-}
-
-// ── Tabela de empresas ─────────────────────────────────────────────────────────
-
-function TabelaEmpresas({ empresas, onEdit, onDrive }: {
-  empresas: EmpresaFlat[];
-  onEdit: (id: number) => void;
-  onDrive: (id: number) => void;
-}) {
-  return (
-    <section className="panel-3d px-5 py-4">
-      <div className="text-[12px] font-bold uppercase tracking-wide text-[#16294a] mb-3">
-        Todas as Empresas ({empresas.length})
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12px] text-[#16294a]">
-          <thead>
-            <tr className="text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
-              <th className="concave-3d px-3 py-2 text-left">Empresa</th>
-              <th className="concave-3d px-3 py-2 text-left">Tipo</th>
-              <th className="concave-3d px-3 py-2 text-left">Status</th>
-              <th className="concave-3d px-3 py-2 text-right">Mensalidade</th>
-              <th className="concave-3d px-3 py-2 text-right">Royalty %</th>
-              <th className="concave-3d px-3 py-2 text-left">Drive</th>
-              <th className="concave-3d px-3 py-2 text-left">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {empresas.map((e, i) => (
-              <tr key={e.id} style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.55)" : "transparent" }}>
-                <td className="px-3 py-2 font-semibold">
-                  {e.isPlatformOwner && <Crown className="inline h-3 w-3 mr-1 text-[#c2a05a]" />}
-                  {e.nome}
-                  {e.donoNome && <div className="text-[10px] text-[#647c97]">{e.donoNome}</div>}
-                </td>
-                <td className="px-3 py-2"><TipoBadge tipo={e.tipoLicenciamento} /></td>
-                <td className="px-3 py-2">
-                  <span className={`text-[10px] font-bold ${e.status === "ATIVO" ? "text-[#3D7A7A]" : "text-[#c0392b]"}`}>
-                    {e.status}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right">{fmtBRL(e.valorMensalContrato)}</td>
-                <td className="px-3 py-2 text-right">{e.royaltyPercent ? `${e.royaltyPercent}%` : "—"}</td>
-                <td className="px-3 py-2">
-                  {e.driveFolderEmpresaId
-                    ? <Check className="h-3.5 w-3.5 text-[#3D7A7A]" />
-                    : <button onClick={() => onDrive(e.id)} className="text-[10px] text-amber-600 underline underline-offset-2">Configurar</button>
-                  }
-                </td>
-                <td className="px-3 py-2">
-                  <button onClick={() => onEdit(e.id)} className="concave-3d px-2 py-1 text-[10px] font-semibold text-[#16294a]">
-                    <Edit2 className="inline h-3 w-3 mr-0.5" /> Editar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-// ── Componente principal ───────────────────────────────────────────────────────
-
-export default function EmpresasLicenciadas() {
-  const [hierarquia, setHierarquia] = useState<HierarquiaResposta | null>(null);
-  const [empresasFlat, setEmpresasFlat] = useState<EmpresaFlat[]>([]);
+export default function EmpresasIndependentes() {
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [modalAberto, setModalAberto] = useState(false);
-  const [editandoId, setEditandoId] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
-  const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; msg: string } | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [empresaEditando, setEmpresaEditando] = useState<number | null>(null);
+  const [formulario, setFormulario] = useState<Formulario>(FORMULARIO_VAZIO);
+  const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [driveCarregando, setDriveCarregando] = useState<number | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      const [h, flat] = await Promise.all([
-        fetch(`${BASE}/api/empresas/hierarquia`).then(r => r.json()) as Promise<HierarquiaResposta>,
-        fetch(`${BASE}/api/empresas`).then(r => r.json()) as Promise<EmpresaFlat[]>,
-      ]);
-      setHierarquia(h);
-      setEmpresasFlat(Array.isArray(flat) ? flat : []);
-    } catch {
-      setAviso({ tipo: "erro", msg: "Erro ao carregar dados." });
+      const resposta = await fetch(`${BASE}/api/empresas`);
+      if (!resposta.ok) throw new Error("Não foi possível carregar as empresas.");
+      const dados = await resposta.json() as Empresa[];
+      setEmpresas(Array.isArray(dados) ? dados : []);
+    } catch (erro) {
+      setMensagem({
+        tipo: "erro",
+        texto: erro instanceof Error ? erro.message : "Falha ao carregar os cadastros.",
+      });
     } finally {
       setCarregando(false);
     }
@@ -598,204 +95,238 @@ export default function EmpresasLicenciadas() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
-  // KPIs
-  const raiz = hierarquia?.raiz ?? null;
-  const raizes = hierarquia?.raizes ?? [];
-  const todosNos = raiz ? aplanar([raiz]) : aplanar(raizes);
-  const totalTenants = todosNos.length;
-  const filhosCalculo = raiz ? raiz.filhos : raizes;
-  const { direto, royalties } = calcReceita(filhosCalculo);
+  const ativas = useMemo(() => empresas.filter((empresa) => empresa.ativa).length, [empresas]);
 
-  // Drive setup
-  async function handleDrive(empresaId: number) {
-    setDriveCarregando(empresaId);
-    try {
-      const r = await fetch(`${BASE}/api/empresas/${empresaId}/setup-drive`, { method: "POST" });
-      const data = await r.json();
-      if (r.ok) {
-        setAviso({ tipo: "ok", msg: `Drive configurado! Pasta: ${data.folderUrl ?? data.folderId}` });
-        void carregar();
-      } else {
-        setAviso({ tipo: "erro", msg: data.error ?? "Falha no Drive." });
-      }
-    } catch {
-      setAviso({ tipo: "erro", msg: "Erro ao configurar Drive." });
-    } finally {
-      setDriveCarregando(null);
-    }
-  }
-
-  function handleEdit(id: number) {
-    setEditandoId(id);
+  function abrirNovo() {
+    setEmpresaEditando(null);
+    setFormulario(FORMULARIO_VAZIO);
     setModalAberto(true);
   }
 
-  function handleNovaEmpresa() {
-    setEditandoId(null);
+  function abrirEdicao(empresa: Empresa) {
+    setEmpresaEditando(empresa.id);
+    setFormulario({
+      nome: empresa.nome,
+      cnpj: empresa.cnpj ?? "",
+      donoNome: empresa.donoNome ?? "",
+      telefone: empresa.telefone ?? "",
+      emailGeral: empresa.emailGeral ?? "",
+    });
     setModalAberto(true);
   }
 
-  async function handleSalvar(form: FormState) {
+  async function salvar(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setSalvando(true);
-    setAviso(null);
+    setMensagem(null);
     try {
-      const payload: Record<string, unknown> = {
-        nome: form.nome,
-        cnpj: form.cnpj || undefined,
-        donoNome: form.donoNome || undefined,
-        telefone: form.telefone || undefined,
-        emailGeral: form.emailGeral || undefined,
-        tipoLicenciamento: form.tipoLicenciamento,
-        empresaMaeId: form.empresaMaeId ? parseInt(form.empresaMaeId) : null,
-        valorMensalContrato: form.valorMensalContrato ? parseFloat(form.valorMensalContrato) : null,
-        royaltyPercent: form.royaltyPercent ? parseFloat(form.royaltyPercent) : null,
-        status: form.status,
-      };
-
-      const url = editandoId ? `${BASE}/api/empresas/${editandoId}` : `${BASE}/api/empresas`;
-      const method = editandoId ? "PUT" : "POST";
-      const r = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const resposta = await fetch(
+        empresaEditando
+          ? `${BASE}/api/empresas/${empresaEditando}`
+          : `${BASE}/api/empresas`,
+        {
+          method: empresaEditando ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formulario),
+        },
+      );
+      const dados = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(dados.error ?? "Não foi possível salvar.");
+      setModalAberto(false);
+      setMensagem({ tipo: "ok", texto: empresaEditando ? "Cadastro atualizado." : "Cadastro criado." });
+      await carregar();
+    } catch (erro) {
+      setMensagem({
+        tipo: "erro",
+        texto: erro instanceof Error ? erro.message : "Falha ao salvar o cadastro.",
       });
-
-      if (r.ok) {
-        setAviso({ tipo: "ok", msg: editandoId ? "Empresa atualizada." : "Empresa criada." });
-        setModalAberto(false);
-        void carregar();
-      } else {
-        const e = await r.json();
-        setAviso({ tipo: "erro", msg: e.error ?? "Falha ao salvar." });
-      }
-    } catch {
-      setAviso({ tipo: "erro", msg: "Erro de rede." });
     } finally {
       setSalvando(false);
     }
   }
 
-  // Dados para o modal de edição
-  const empresaParaEditar = editandoId ? empresasFlat.find(e => e.id === editandoId) : null;
-  const formInicial: FormState | null = empresaParaEditar
-    ? {
-        nome: empresaParaEditar.nome,
-        cnpj: empresaParaEditar.cnpj ?? "",
-        donoNome: empresaParaEditar.donoNome ?? "",
-        telefone: empresaParaEditar.telefone ?? "",
-        emailGeral: empresaParaEditar.emailGeral ?? "",
-        tipoLicenciamento: (empresaParaEditar.tipoLicenciamento as TipoLicenciamento) ?? "propria",
-        empresaMaeId: empresaParaEditar.empresaMaeId ? String(empresaParaEditar.empresaMaeId) : "",
-        valorMensalContrato: empresaParaEditar.valorMensalContrato ?? "",
-        royaltyPercent: empresaParaEditar.royaltyPercent ?? "30",
-        status: empresaParaEditar.status,
-      }
-    : null;
+  async function configurarDrive(empresa: Empresa) {
+    setDriveCarregando(empresa.id);
+    setMensagem(null);
+    try {
+      const resposta = await fetch(`${BASE}/api/empresas/${empresa.id}/setup-drive`, { method: "POST" });
+      const dados = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(dados.error ?? "Não foi possível configurar a pasta.");
+      setMensagem({ tipo: "ok", texto: `Pasta do Drive vinculada a ${empresa.nome}.` });
+      await carregar();
+    } catch (erro) {
+      setMensagem({
+        tipo: "erro",
+        texto: erro instanceof Error ? erro.message : "Falha ao configurar o Drive.",
+      });
+    } finally {
+      setDriveCarregando(null);
+    }
+  }
 
   return (
     <ConsoleShell
       icon={Building2}
-      title="Centro de Comando PAXTER"
-      subtitle="Pirâmide de licenciamento — clínicas, sub-unidades e royalties"
+      title="Empresas independentes"
+      subtitle="Cadastros clínicos sem empresa-mãe, filial ou repasse automático"
     >
-      {/* KPIs */}
-      <section className="panel-3d px-5 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-3">
-            {[
-              { rotulo: "Tenants Ativos", valor: String(totalTenants), icon: Users, cor: "#3D7A7A" },
-              { rotulo: "Receita Mensal", valor: fmtBRL(direto + royalties), icon: TrendingUp, cor: "#45B8CC" },
-              { rotulo: "Royalties Recebidos", valor: fmtBRL(royalties), icon: Landmark, cor: "#c2a05a" },
-            ].map(k => (
-              <div key={k.rotulo} className="concave-3d flex items-center gap-2 px-3 py-2">
-                <k.icon className="h-4 w-4 shrink-0" style={{ color: k.cor }} />
-                <div>
-                  <div className="text-[8px] font-bold uppercase tracking-wide text-[#647c97]">{k.rotulo}</div>
-                  <div className="text-[16px] font-bold text-[#16294a]">{k.valor}</div>
-                </div>
-              </div>
-            ))}
+      <section className="panel-3d space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="concave-3d rounded-md px-4 py-2">
+            <span className="block text-[9px] font-bold uppercase tracking-wider text-[#647c97]">Cadastros</span>
+            <span className="text-xl font-black tabular-nums text-[#16294a]">{empresas.length}</span>
           </div>
-          <div className="flex items-center gap-3">
-            {aviso && (
-              <div className={`flex items-center gap-1.5 text-[11px] font-semibold ${aviso.tipo === "ok" ? "text-[#3D7A7A]" : "text-[#c0392b]"}`}>
-                {aviso.tipo === "ok" ? <Check className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-                {aviso.msg}
-              </div>
-            )}
-            <button onClick={carregar} className="concave-3d p-2">
-              <RefreshCw className={`h-4 w-4 text-[#647c97] ${carregando ? "animate-spin" : ""}`} />
-            </button>
-            <button
-              onClick={handleNovaEmpresa}
-              className="btn-3d inline-flex items-center gap-2 px-4 py-2.5 text-[12px] font-bold uppercase tracking-wide"
-            >
-              <Plus className="h-4 w-4" /> Nova Empresa
-            </button>
+          <div className="concave-3d rounded-md px-4 py-2">
+            <span className="block text-[9px] font-bold uppercase tracking-wider text-[#647c97]">Ativas</span>
+            <span className="text-xl font-black tabular-nums text-emerald-700">{ativas}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => void carregar()}
+            disabled={carregando}
+            className="btn-3d-soft ml-auto inline-flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider"
+          >
+            <RefreshCw size={13} className={carregando ? "animate-spin" : ""} />
+            Atualizar
+          </button>
+          <button
+            type="button"
+            onClick={abrirNovo}
+            className="btn-3d inline-flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider"
+          >
+            <Plus size={14} />
+            Nova empresa clínica
+          </button>
         </div>
-      </section>
 
-      {/* Pirâmide visual */}
-      <section className="panel-3d px-5 py-6">
-        <div className="flex items-center gap-2 mb-5">
-          <Wifi className="h-4 w-4 text-[#c2a05a]" />
-          <span className="text-[12px] font-bold uppercase tracking-wide text-[#16294a]">Pirâmide de Licenciamento</span>
+        <div className="bevel-3d rounded-md px-4 py-3 text-xs leading-relaxed text-[#334763]">
+          Os dados empresariais deste ambiente são simulações. Os vínculos antigos e os valores contratuais
+          aparecem somente como histórico; não formam hierarquia, cobrança, repasse nem receita.
         </div>
+
+        {mensagem && (
+          <div
+            role="status"
+            className={`rounded-md border px-3 py-2 text-xs ${
+              mensagem.tipo === "ok"
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                : "border-red-300 bg-red-50 text-red-800"
+            }`}
+          >
+            {mensagem.texto}
+          </div>
+        )}
+
         {carregando ? (
-          <div className="py-10 text-center text-[12px] text-[#647c97]">Carregando pirâmide…</div>
+          <div className="concave-3d rounded-md px-4 py-10 text-center text-sm text-[#647c97]">
+            Carregando cadastros…
+          </div>
+        ) : empresas.length === 0 ? (
+          <div className="concave-3d rounded-md px-4 py-10 text-center text-sm text-[#647c97]">
+            Nenhuma empresa clínica cadastrada.
+          </div>
         ) : (
-          <div className="overflow-x-auto pb-4">
-            <div className="flex justify-center min-w-max">
-              {raiz ? (
-                <PiramideNo no={raiz} nivel={0} onDrive={handleDrive} onEdit={handleEdit} />
-              ) : (
-                <div className="flex gap-4">
-                  {raizes.map(r => (
-                    <PiramideNo key={r.id} no={r} nivel={0} onDrive={handleDrive} onEdit={handleEdit} />
-                  ))}
-                </div>
-              )}
-            </div>
-            {/* Legenda */}
-            <div className="flex flex-wrap items-center gap-4 mt-6 justify-center">
-              {Object.entries(TIPO_META).map(([k, v]) => (
-                <span key={k} className="flex items-center gap-1.5 text-[10px]" style={{ color: v.cor }}>
-                  <span className="w-3 h-3 rounded-sm inline-block" style={{ background: v.bg, border: `1.5px solid ${v.borda}` }} />
-                  {v.label}
-                </span>
-              ))}
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-separate border-spacing-y-2 text-left">
+              <thead>
+                <tr className="text-[9px] font-black uppercase tracking-wider text-[#647c97]">
+                  <th className="px-3 pb-1">Empresa clínica</th>
+                  <th className="px-3 pb-1">Responsável e contato</th>
+                  <th className="px-3 pb-1">Estado</th>
+                  <th className="px-3 pb-1">Valores históricos, não aplicados</th>
+                  <th className="px-3 pb-1 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {empresas.map((empresa) => (
+                  <tr key={empresa.id} className="panel-3d text-xs text-[#16294a]">
+                    <td className="rounded-l-md px-3 py-3">
+                      <strong className="block uppercase">{empresa.nome}</strong>
+                      <span className="text-[10px] text-[#647c97]">CNPJ: {empresa.cnpj || "—"}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className="block">{empresa.donoNome || "Responsável: —"}</span>
+                      <span className="block text-[10px] text-[#647c97]">
+                        {[empresa.telefone, empresa.emailGeral].filter(Boolean).join(" · ") || "Contato: —"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={empresa.ativa ? "font-bold text-emerald-700" : "font-bold text-[#647c97]"}>
+                        {empresa.ativa ? "ATIVA" : empresa.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-[10px] text-[#647c97]">
+                      <span className="block">Mensalidade registrada: {moeda(empresa.valorMensalContrato)}</span>
+                      <span className="block">Percentual registrado: {empresa.royaltyPercent ?? "—"}%</span>
+                    </td>
+                    <td className="rounded-r-md px-3 py-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => abrirEdicao(empresa)}
+                          className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold uppercase"
+                        >
+                          <Pencil size={11} /> Editar
+                        </button>
+                        {!empresa.driveFolderEmpresaId && (
+                          <button
+                            type="button"
+                            onClick={() => void configurarDrive(empresa)}
+                            disabled={driveCarregando === empresa.id}
+                            className="btn-3d-soft inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold uppercase disabled:opacity-50"
+                          >
+                            <HardDrive size={11} /> Drive
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
 
-      {/* Painel de receita */}
-      <PainelReceita raiz={raiz} raizes={raizes} />
-
-      {/* Tabela */}
-      {!carregando && <TabelaEmpresas empresas={empresasFlat} onEdit={handleEdit} onDrive={handleDrive} />}
-
-      {/* Modal */}
       {modalAberto && (
-        <Modal
-          inicial={formInicial}
-          editandoId={editandoId}
-          todasEmpresas={empresasFlat}
-          hierarquia={hierarquia}
-          onSalvar={handleSalvar}
-          onFechar={() => setModalAberto(false)}
-          salvando={salvando}
-        />
-      )}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07162b]/65 p-3">
+          <form onSubmit={salvar} className="panel-3d w-full max-w-2xl space-y-4 p-4 sm:p-6">
+            <header className="bevel-3d flex items-center gap-3 rounded-md px-4 py-3">
+              <Building2 size={18} className="text-[#c2a05a]" />
+              <div className="min-w-0">
+                <h2 className="text-sm font-black uppercase tracking-wide text-[#16294a]">
+                  {empresaEditando ? "Editar empresa clínica" : "Nova empresa clínica"}
+                </h2>
+                <p className="text-[10px] text-[#647c97]">Este cadastro não aceita empresa-mãe nem filial.</p>
+              </div>
+              <button type="button" onClick={() => setModalAberto(false)} className="concave-3d ml-auto rounded p-1.5" aria-label="Fechar">
+                <X size={15} />
+              </button>
+            </header>
 
-      {/* Overlay de Drive */}
-      {driveCarregando !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,22,43,0.7)]">
-          <div className="panel-3d px-6 py-5 flex items-center gap-3">
-            <HardDrive className="h-5 w-5 text-[#45B8CC] animate-pulse" />
-            <span className="text-[13px] font-semibold text-[#16294a]">Configurando pasta no Google Drive…</span>
-          </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Campo titulo="Nome" valor={formulario.nome} alterar={(nome) => setFormulario((f) => ({ ...f, nome }))} />
+              <Campo titulo="CNPJ de teste" valor={formulario.cnpj} alterar={(cnpj) => setFormulario((f) => ({ ...f, cnpj }))} />
+              <Campo titulo="Responsável" valor={formulario.donoNome} alterar={(donoNome) => setFormulario((f) => ({ ...f, donoNome }))} />
+              <Campo titulo="Telefone" valor={formulario.telefone} alterar={(telefone) => setFormulario((f) => ({ ...f, telefone }))} />
+              <div className="sm:col-span-2">
+                <Campo titulo="E-mail geral" tipo="email" valor={formulario.emailGeral} alterar={(emailGeral) => setFormulario((f) => ({ ...f, emailGeral }))} />
+              </div>
+            </div>
+
+            <div className="bevel-3d rounded-md px-3 py-2 text-[10px] leading-relaxed text-[#647c97]">
+              Os valores contratuais antigos são preservados fora deste formulário e não são calculados nem cobrados.
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-[#c8b98d]/40 pt-3">
+              <button type="button" onClick={() => setModalAberto(false)} className="btn-3d-soft px-4 py-2 text-[10px] font-bold uppercase">
+                Cancelar
+              </button>
+              <button type="submit" disabled={salvando} className="btn-3d inline-flex items-center gap-2 px-4 py-2 text-[10px] font-bold uppercase disabled:opacity-50">
+                <Save size={13} /> {salvando ? "Salvando…" : "Salvar"}
+              </button>
+            </footer>
+          </form>
         </div>
       )}
     </ConsoleShell>

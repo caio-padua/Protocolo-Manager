@@ -1,13 +1,13 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
-import { empresasTable, cargosTable, colaboradoresTable, locationsTable, empresaContratosTable } from "@workspace/db/schema";
-import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { empresasTable, arvoreLicenciamentoTable, cargosTable, colaboradoresTable, locationsTable, empresaContratosTable } from "@workspace/db/schema";
+import { and, eq, isNotNull, or } from "drizzle-orm";
 import { isDriveConnected, uploadFileToDrive, driveListChildren, removeDiacritics, driveDownloadFile } from "../lib/google-drive";
 import { google } from "googleapis";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAiTenant, logAiUsage } from "../lib/ai-central";
-import { verificarCadeia, type EmpresaRoyaltyInfo } from "../lib/royalty";
+import { brtNow } from "../lib/brt";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -89,8 +89,8 @@ const CAMPOS_EMPRESA = [
   "driveFolderEmpresaId","driveContratoSocialId","driveAlvaraId","driveCrmId",
   // Módulos e contrato
   "modulosAtivos","tipoContrato","fatMetaMensal",
-  // Pirâmide de licenciamento (16/07/2026)
-  "tipoLicenciamento","empresaMaeId","royaltyPercent","valorMensalContrato","isPlatformOwner",
+  // Modalidade e valores antigos ficam registrados, mas não criam hierarquia nem cobrança.
+  "tipoLicenciamento","royaltyPercent","valorMensalContrato",
 ];
 
 // Campos que aceitam credencial no PUT (gravação — protegida pelo collaboratorGuard global)
@@ -257,75 +257,47 @@ router.post("/empresas/drive-import", async (req, res): Promise<void> => {
   res.json({ inseridos: inseridos.length, ids: inseridos });
 });
 
-// ── GET /empresas/hierarquia — árvore da pirâmide (antes do /:id para não colidir) ──
+// ── GET /empresas/hierarquia — rota legada, resposta plana sem hierarquia ───────
 router.get("/empresas/hierarquia", async (req, res): Promise<void> => {
-  const todasEmpresas = await db.select().from(empresasTable).orderBy(empresasTable.id);
-  const todasLocations = await db.select({
-    id: locationsTable.id,
-    name: locationsTable.name,
-    empresaId: locationsTable.empresaId,
-  }).from(locationsTable);
-
-  // Agrupar unidades por empresa
-  const unidadesPorEmpresa: Record<number, string[]> = {};
-  for (const loc of todasLocations) {
-    const eid = loc.empresaId ?? 0;
-    if (!unidadesPorEmpresa[eid]) unidadesPorEmpresa[eid] = [];
-    unidadesPorEmpresa[eid].push(loc.name);
-  }
-
-  type EmpresaNo = {
-    id: number; nome: string; tipoLicenciamento: string; status: string;
-    donoNome: string | null; valorMensalContrato: string | null;
-    royaltyPercent: string | null; isPlatformOwner: boolean;
-    driveFolderEmpresaId: string | null; empresaMaeId: number | null;
-    locations: string[]; filhos: EmpresaNo[];
-  };
-
-  const map = new Map<number, EmpresaNo>();
-  for (const e of todasEmpresas) {
-    map.set(e.id, {
-      id: e.id, nome: e.nome, tipoLicenciamento: e.tipoLicenciamento,
-      status: e.status, donoNome: e.donoNome, valorMensalContrato: e.valorMensalContrato,
-      royaltyPercent: e.royaltyPercent, isPlatformOwner: e.isPlatformOwner,
-      driveFolderEmpresaId: e.driveFolderEmpresaId,
-      empresaMaeId: e.empresaMaeId,
-      locations: unidadesPorEmpresa[e.id] ?? [],
+  const companies = await db.select().from(empresasTable).orderBy(empresasTable.id);
+  const raizes = companies
+    .filter((company) =>
+      company.tipo === "clinic" &&
+      company.ativa &&
+      company.status !== "ARQUIVADA" &&
+      !company.isPlatformOwner
+    )
+    .map((company) => ({
+      id: company.id,
+      nome: company.nome,
+      status: company.status,
+      donoNome: company.donoNome,
+      driveFolderEmpresaId: company.driveFolderEmpresaId,
+      locations: [],
       filhos: [],
-    });
-  }
-
-  // Montar árvore
-  const raizes: EmpresaNo[] = [];
-  for (const node of map.values()) {
-    if (node.empresaMaeId && map.has(node.empresaMaeId)) {
-      map.get(node.empresaMaeId)!.filhos.push(node);
-    } else {
-      raizes.push(node);
-    }
-  }
-
-  // Platform owner no topo; o resto como filhos
-  const owner = raizes.find(r => r.isPlatformOwner) ?? null;
-  const semOwner = raizes.filter(r => !r.isPlatformOwner);
-  if (owner) {
-    owner.filhos.push(...semOwner);
-    res.json({ raiz: owner });
-  } else {
-    res.json({ raiz: null, raizes: semOwner });
-  }
+    }));
+  res.json({ raiz: null, raizes });
 });
 
 router.get("/empresas", async (req, res): Promise<void> => {
   const rows = await db.select().from(empresasTable).orderBy(empresasTable.id);
-  res.json(rows.map(sanitizarEmpresa));
+  res.json(rows
+    .filter((company) =>
+      company.tipo === "clinic" &&
+      company.status !== "ARQUIVADA" &&
+      !company.isPlatformOwner
+    )
+    .map(sanitizarEmpresa));
 });
 
 router.get("/empresas/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   const [row] = await db.select().from(empresasTable).where(eq(empresasTable.id, id));
-  if (!row) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
+  if (!row || row.tipo !== "clinic" || row.status === "ARQUIVADA" || row.isPlatformOwner) {
+    res.status(404).json({ error: "Empresa clínica não encontrada" });
+    return;
+  }
 
   const cargos = await db.select().from(cargosTable).where(eq(cargosTable.empresaId, id));
   const colaboradores = await db
@@ -355,121 +327,67 @@ router.get("/empresas/:id/integracoes", async (req, res): Promise<void> => {
   });
 });
 
-// ── Helper: valida hierarquia antes de persistir empresaMaeId ────────────────
-//
-// Regra: profundidade máxima = 1 (filho direto do Platform Owner).
-// Fail-closed: cadeia incompleta, raiz não-PO ou ciclo → 422.
-//
-// empresaIdEditando (PUT only): a empresa cujo empresaMaeId está sendo alterado.
-//   - Auto-referência é bloqueada explicitamente.
-//   - Se a empresa editada tem filhos e ficaria em profundidade 1, esses filhos
-//     passariam para profundidade 2 → também bloqueado.
-//   - Ciclo via descendente: se empresaMaeId é um descendente da empresa editada,
-//     a cadeia ATUAL (sem a mudança aplicada) vai até o PO e a empresa editada
-//     aparece antes — detectado automaticamente pela profundidade do novo pai.
-//
-async function validarHierarquia(
-  empresaMaeId: number | null | undefined,
-  empresaIdEditando?: number,
-): Promise<string | null> {
-  if (!empresaMaeId) return null; // sem pai → empresa raiz → sempre OK
+const CAMPOS_HIERARQUIA = [
+  "empresaMaeId",
+  "empresa_mae_id",
+  "parentEmpresaId",
+  "parent_empresa_id",
+] as const;
 
-  // Auto-referência explícita (PUT onde id === empresaMaeId)
-  if (empresaIdEditando !== undefined && empresaMaeId === empresaIdEditando) {
-    return "Uma empresa não pode ser sua própria empresa-mãe.";
+function validarSemHierarquia(body: Record<string, unknown>): string | null {
+  const campoComValor = CAMPOS_HIERARQUIA.find((field) =>
+    body[field] !== undefined && body[field] !== null && body[field] !== ""
+  );
+  if (campoComValor) {
+    return `O campo ${campoComValor} foi preservado no banco, mas vínculos entre empresas estão desativados.`;
   }
 
-  const todasEmpresas = await db.select({
-    id: empresasTable.id,
-    nome: empresasTable.nome,
-    empresaMaeId: empresasTable.empresaMaeId,
-    royaltyPercent: empresasTable.royaltyPercent,
-    isPlatformOwner: empresasTable.isPlatformOwner,
-  }).from(empresasTable);
-
-  // Usamos a lista COMPLETA (sem excluir a empresa editada).
-  // Para PUT, a empresa editada ainda tem seu empresaMaeId ANTIGO no banco —
-  // isso é correto para verificar se o novo pai proposto pertence a uma cadeia
-  // válida que termine no PO. A exclusão incorreta ocultava ciclos via descendente.
-  const lista = todasEmpresas as EmpresaRoyaltyInfo[];
-
-  // Verificar se o novo pai proposto pertence a uma cadeia válida até o PO.
-  const check = verificarCadeia(empresaMaeId, lista);
-  if (!check.ok) {
-    return `Não é possível criar sub-licenciado neste nível da hierarquia. ${check.motivo}`;
+  const modalidadeHierarquica = new Set(["sub_unidade", "licenciada_por_clinica"]);
+  if (
+    modalidadeHierarquica.has(String(body.tipoLicenciamento ?? "")) ||
+    modalidadeHierarquica.has(String(body.tipoRelacionamento ?? ""))
+  ) {
+    return "Classificações que criam vínculo entre empresas estão desativadas.";
   }
-
-  // A nova empresa (ou empresa editada) ficaria em check.profundidade + 1.
-  // Máximo permitido = 1, ou seja, o novo pai DEVE ser o próprio Platform Owner (profundidade 0).
-  if (check.profundidade + 1 > 1) {
-    return "Não é possível criar sub-licenciado neste nível da hierarquia.";
+  if (body.isPlatformOwner === true || body.is_platform_owner === true) {
+    return "A autoridade global pertence à conta do profissional, não a um cadastro de clínica.";
   }
-
-  // PUT: verificar recursivamente se algum descendente ficaria com profundidade > 1.
-  // A empresa editada ficaria em novaProf = check.profundidade + 1.
-  // Um descendente a N saltos dela ficaria em novaProf + N.
-  // Como novaProf ≤ 1, qualquer filho (N=1) já ficaria em novaProf+1 ≥ 2 → proibido.
-  // Verificamos recursivamente para listar todos os afetados (incluindo netos, bisnetos).
-  if (empresaIdEditando !== undefined) {
-    const novaProf = check.profundidade + 1;
-
-    // Monta índice de filhos diretos para percorrer a árvore
-    const filhosPorPai = new Map<number, Array<{ id: number; nome: string }>>();
-    for (const e of lista) {
-      if (e.empresaMaeId !== null && e.empresaMaeId !== undefined) {
-        const arr = filhosPorPai.get(e.empresaMaeId) ?? [];
-        arr.push({ id: e.id, nome: e.nome });
-        filhosPorPai.set(e.empresaMaeId, arr);
-      }
-    }
-
-    // BFS: encontra todos os descendentes e calcula a nova profundidade de cada um
-    const afetados: string[] = [];
-    const fila: Array<{ id: number; nome: string; prof: number }> = (filhosPorPai.get(empresaIdEditando) ?? [])
-      .map(f => ({ id: f.id, nome: f.nome, prof: novaProf + 1 }));
-
-    while (fila.length > 0) {
-      const { id, nome, prof } = fila.shift()!;
-      if (prof > 1) afetados.push(nome);
-      for (const filho of (filhosPorPai.get(id) ?? [])) {
-        fila.push({ id: filho.id, nome: filho.nome, prof: prof + 1 });
-      }
-    }
-
-    if (afetados.length > 0) {
-      const lista422 = afetados.map(n => `"${n}"`).join(", ");
-      return (
-        `Não é possível mover esta empresa: os seguintes sub-licenciados ficariam ` +
-        `fora da hierarquia permitida (profundidade > 1): ${lista422}.`
-      );
-    }
+  if (body.podeSublicenciar === true || body.pode_sublicenciar === true) {
+    return "A sublicença entre empresas está desativada.";
   }
-
   return null;
 }
 
 router.post("/empresas", async (req, res): Promise<void> => {
   const body = req.body;
   if (!body.nome) { res.status(400).json({ error: "nome é obrigatório" }); return; }
+  const errHierarquia = validarSemHierarquia(body);
+  if (errHierarquia) { res.status(422).json({ error: errHierarquia }); return; }
+  if (body.tipo !== undefined && body.tipo !== "clinic") {
+    res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
+    return;
+  }
   const cnpjDigits = String(body.cnpj ?? "").replace(/\D/g, "");
   if (cnpjDigits.length === 14) {
-    const existingCompanies = await db.select({ id: empresasTable.id, cnpj: empresasTable.cnpj })
-      .from(empresasTable)
-      .where(isNotNull(empresasTable.cnpj));
+    const existingCompanies = await db.select({
+      id: empresasTable.id,
+      cnpj: empresasTable.cnpj,
+      tipo: empresasTable.tipo,
+      status: empresasTable.status,
+      ativa: empresasTable.ativa,
+      isPlatformOwner: empresasTable.isPlatformOwner,
+    }).from(empresasTable).where(isNotNull(empresasTable.cnpj));
     const duplicate = existingCompanies.some((company) =>
+      company.tipo === "clinic" &&
+      company.ativa &&
+      company.status !== "ARQUIVADA" &&
+      !company.isPlatformOwner &&
       company.cnpj?.replace(/\D/g, "") === cnpjDigits
     );
     if (duplicate) {
       res.status(409).json({ error: "Já existe outro cadastro empresarial para este CNPJ completo." });
       return;
     }
-  }
-
-  // ── Trava anti-pirâmide: rejeita empresaMaeId que criaria profundidade > 1 ──
-  const errHierarquia = await validarHierarquia(body.empresaMaeId ?? null);
-  if (errHierarquia) {
-    res.status(422).json({ error: errHierarquia });
-    return;
   }
 
   // ── Normaliza e valida slug ────────────────────────────────────────────────
@@ -487,6 +405,10 @@ router.post("/empresas", async (req, res): Promise<void> => {
     tipo: body.tipo || "clinic",
     status: body.status || "ATIVO",
     ativa: body.ativa ?? true,
+    isPlatformOwner: false,
+    empresaMaeId: null,
+    parentEmpresaId: null,
+    podeSublicenciar: false,
     modulosAtivos: body.modulosAtivos || {},
     zohoEmail: zohoSugerido,
     zohoStatus: body.zohoStatus || "sugerido",
@@ -515,13 +437,11 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
 
-  // ── Trava anti-pirâmide: só valida se empresaMaeId está sendo alterado ──
-  if (req.body.empresaMaeId !== undefined) {
-    const errHierarquia = await validarHierarquia(req.body.empresaMaeId ?? null, id);
-    if (errHierarquia) {
-      res.status(422).json({ error: errHierarquia });
-      return;
-    }
+  const errHierarquia = validarSemHierarquia(req.body ?? {});
+  if (errHierarquia) { res.status(422).json({ error: errHierarquia }); return; }
+  if (req.body.tipo !== undefined && req.body.tipo !== "clinic") {
+    res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
+    return;
   }
 
   // ── Normaliza e valida slug ────────────────────────────────────────────────
@@ -541,6 +461,10 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
   for (const f of todosCampos) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
   }
+  updates.empresaMaeId = null;
+  updates.parentEmpresaId = null;
+  updates.podeSublicenciar = false;
+  updates.isPlatformOwner = false;
 
   try {
     const outcome = await db.transaction(async (tx) => {
@@ -573,9 +497,17 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
           const existingCompanies = await tx.select({
             id: empresasTable.id,
             cnpj: empresasTable.cnpj,
+            tipo: empresasTable.tipo,
+            status: empresasTable.status,
+            ativa: empresasTable.ativa,
+            isPlatformOwner: empresasTable.isPlatformOwner,
           }).from(empresasTable).where(isNotNull(empresasTable.cnpj));
           const duplicate = existingCompanies.some((other) =>
             other.id !== id &&
+            other.tipo === "clinic" &&
+            other.ativa &&
+            other.status !== "ARQUIVADA" &&
+            !other.isPlatformOwner &&
             other.cnpj?.replace(/\D/g, "") === nextCnpj
           );
           if (duplicate) {
@@ -608,11 +540,63 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
 router.delete("/empresas/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
-  const [emp] = await db.select().from(empresasTable).where(eq(empresasTable.id, id));
-  if (!emp) { res.status(404).json({ error: "Empresa não encontrada" }); return; }
-  if (emp.tipo === "genesis_seed") { res.status(409).json({ error: "Template Genesis não pode ser apagado." }); return; }
-  await db.delete(empresasTable).where(eq(empresasTable.id, id));
-  res.json({ ok: true });
+  const outcome = await db.transaction(async (tx) => {
+    const [emp] = await tx.select().from(empresasTable)
+      .where(eq(empresasTable.id, id))
+      .for("update")
+      .limit(1);
+    if (!emp) return { status: 404 as const, error: "Empresa não encontrada." };
+    if (emp.tipo === "genesis_seed") {
+      return { status: 409 as const, error: "O cadastro modelo não pode ser arquivado por esta rota." };
+    }
+    if (emp.isPlatformOwner) {
+      return { status: 409 as const, error: "A identidade global pertence ao cadastro do profissional; arquive o registro técnico por fluxo administrativo." };
+    }
+
+    const dataFim = brtNow().toISOString().slice(0, 10);
+    await tx.update(arvoreLicenciamentoTable)
+      .set({
+        ativo: false,
+        dataFim,
+        motivoEncerramento: "Cadastro empresarial arquivado; vínculo legado desativado.",
+      })
+      .where(and(
+        eq(arvoreLicenciamentoTable.ativo, true),
+        or(
+          eq(arvoreLicenciamentoTable.parentId, id),
+          eq(arvoreLicenciamentoTable.childId, id),
+        ),
+      ));
+    await tx.update(empresasTable)
+      .set({
+        empresaMaeId: null,
+        parentEmpresaId: null,
+        podeSublicenciar: false,
+      })
+      .where(or(
+        eq(empresasTable.empresaMaeId, id),
+        eq(empresasTable.parentEmpresaId, id),
+      ));
+    const [archived] = await tx.update(empresasTable)
+      .set({
+        ativa: false,
+        status: "ARQUIVADA",
+        empresaMaeId: null,
+        parentEmpresaId: null,
+        podeSublicenciar: false,
+        isPlatformOwner: false,
+        atualizadoEm: brtNow(),
+      })
+      .where(eq(empresasTable.id, id))
+      .returning({ id: empresasTable.id });
+    if (!archived) return { status: 404 as const, error: "Empresa não encontrada." };
+    return { status: 200 as const, data: { ok: true, archivedId: archived.id } };
+  });
+  if ("error" in outcome) {
+    res.status(outcome.status).json({ error: outcome.error });
+    return;
+  }
+  res.json(outcome.data);
 });
 
 // ── POST /empresas/:id/setup-drive — cria pasta raiz no Drive por empresa ────

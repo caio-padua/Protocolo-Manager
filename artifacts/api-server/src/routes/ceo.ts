@@ -49,18 +49,10 @@ export interface EmpresaResumo {
   telefone: string | null;
   emailGeral: string | null;
 
-  // Status e classificação (variáveis explícitas por pedido do CEO)
+  // Status operacional
   status: string;          // ATIVO | SUSPENSO | CANCELADO
   ativa: boolean;
   isAtiva: boolean;        // ativa === true
-  isPropria: boolean;      // tipoLicenciamento === 'propria' — clínica do CEO
-  isLicenciada: boolean;   // tipoLicenciamento === 'licenciada_direta'
-  isSublicenciada: boolean; // tipoLicenciamento === 'licenciada_por_clinica' | 'sub_unidade'
-  tipoLicenciamento: string;
-  tipoRelacionamento: string;
-  podeSublicenciar: boolean;
-  royaltyPercent: string | null;
-  valorMensalContrato: string | null;
 
   // KPIs operacionais
   consultasHoje: number;
@@ -146,8 +138,6 @@ async function buildResumo(empresaId: number, empresa: typeof empresasTable.$inf
   if (pagPendentes > 5) alertas.push(`${pagPendentes} pagamentos pendentes`);
   if (empresa.status !== "ATIVO") alertas.push(`Clínica ${empresa.status}`);
 
-  const tipoLic = empresa.tipoLicenciamento ?? empresa.tipoRelacionamento ?? "licenciada_direta";
-
   return {
     id: empresa.id,
     nome: empresa.nome,
@@ -168,14 +158,6 @@ async function buildResumo(empresaId: number, empresa: typeof empresasTable.$inf
     status: empresa.status,
     ativa: empresa.ativa ?? true,
     isAtiva: empresa.ativa === true,
-    isPropria: tipoLic === "propria",
-    isLicenciada: tipoLic === "licenciada_direta",
-    isSublicenciada: tipoLic === "licenciada_por_clinica" || tipoLic === "sub_unidade",
-    tipoLicenciamento: tipoLic,
-    tipoRelacionamento: empresa.tipoRelacionamento ?? "licenciada_direta",
-    podeSublicenciar: empresa.podeSublicenciar ?? false,
-    royaltyPercent: empresa.royaltyPercent ?? null,
-    valorMensalContrato: empresa.valorMensalContrato ?? null,
 
     consultasHoje,
     clientesAtivos,
@@ -198,6 +180,8 @@ router.get("/ceo/resumo", requirePlatformOwner, async (_req: Request, res: Respo
         and(
           eq(empresasTable.ativa, true),
           ne(empresasTable.isPlatformOwner, true),
+          eq(empresasTable.tipo, "clinic"),
+          ne(empresasTable.status, "ARQUIVADA"),
         ),
       )
       .orderBy(
@@ -233,6 +217,8 @@ router.get("/ceo/stream", requirePlatformOwner, async (_req: Request, res: Respo
           and(
             eq(empresasTable.ativa, true),
             ne(empresasTable.isPlatformOwner, true),
+            eq(empresasTable.tipo, "clinic"),
+            ne(empresasTable.status, "ARQUIVADA"),
           ),
         )
         .orderBy(
