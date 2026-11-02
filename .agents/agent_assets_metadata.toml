@@ -634,3 +634,17 @@ mtime_ms = 1793578241513
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9339acc6-188b-41fd-ad90-b61be1d9367f/af2e2953-6b5a-4777-83cd-971e89b3a4e1"
 storage_version_token = "1793578300081646"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "mlsICIj6ubTaJMH4HjjOP"
+uri = "file://generated-artifacts/paxter-cadastro-empresas-e-unidades-para-correcao-2026-11-02.xlsx"
+type = "table"
+title = "Planilha para correção dos cadastros empresariais"
+description = "Cópia de leitura da base de desenvolvimento: 12 empresas, 17 unidades, vínculos atuais, divergências identificadas e abas amarelas para você preencher. Nenhuma alteração foi feita no sistema."
+logical_id = "4b17288b-e6a7-424f-adcc-811d2366b32d"
+content_hash = "sha256:cb2b8a4f9d3235a7889527159c090a9d3fbea1ea2ff668bc7fd1a6955e76745b"
+size = 27240
+mtime_ms = 1793625053672
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4b17288b-e6a7-424f-adcc-811d2366b32d/29809d0e-b7ec-4b5a-9b0f-43adacb39033"
+storage_version_token = "1793625261593435"
+content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
