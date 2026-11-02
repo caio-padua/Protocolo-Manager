@@ -8,6 +8,14 @@ description: Decisões e estado da migração multi-tenant (schema + middleware 
 Empresa_id em TODA tabela clínica — isolamento por tenant.
 Fase atual: single-tenant (empresa_id=5 fixo), middleware pronoto para upgrade.
 
+## Estrutura empresarial desejada pelo CEO (02/11/2026)
+
+O modelo empresarial pretendido é de empresas independentes, com uma relação específica entre Instituto Padua e Paduzzi. A palavra “filial” ainda precisa ser confirmada contra os documentos societários; uma empresa do mesmo grupo não é automaticamente uma filial jurídica.
+
+**Why:** A base de desenvolvimento mostra relações de licenciamento e empresa-mãe que não coincidem integralmente com a estrutura empresarial declarada pelo CEO. Além disso, o CNPJ cadastrado para Paduzzi tem raiz diferente do CNPJ do Instituto Padua, o que não confirma uma filial jurídica.
+
+**How to apply:** Manter separadas a hierarquia de licenciamento do produto e a relação societária legal. Não reclassificar empresas nem gerar códigos definitivos com base apenas em `empresa_mae_id`, nome parecido ou vínculo comercial. Confirmar os documentos antes de alterar a árvore jurídica.
+
 ## O que foi feito (ONDA A — 16/07/2026)
 
 ### Schema pirâmide (empresas)
