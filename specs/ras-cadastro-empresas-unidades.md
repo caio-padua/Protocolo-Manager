@@ -1,6 +1,6 @@
 # PAXTER Loop — Cadastro de empresas, unidades e agendas
 
-**Estado:** UNIDADE 1 IMPLEMENTADA PARCIALMENTE — AGUARDANDO DEFINIÇÃO DA CONSOLIDAÇÃO E HOMOLOGAÇÃO
+**Estado:** UNIDADE 1 PARCIAL; UNIDADE 2 COM IMPORTAÇÃO PARCIAL — SEM HOMOLOGAÇÃO
 **Data:** 02/11/2026  
 **Responsável:** Dr. Replit Paxter  
 **Unidade ativa:** 1 — código semântico da unidade clínica  
@@ -19,7 +19,7 @@ Organizar os cadastros empresariais e das unidades clínicas, gerar códigos ras
 5. `CNPJ4` conterá os quatro primeiros números do Cadastro Nacional da Pessoa Jurídica (CNPJ) da empresa proprietária da unidade.
 6. `SEQ4` será o número sequencial e estável da unidade no sistema, com quatro posições, começando por `0001`. Não será o identificador técnico do banco nem o número da linha da planilha.
 7. “Única” significa que existe uma única empresa para aquele CNPJ completo. Não será inferido apenas pela raiz do CNPJ.
-8. Os registros marcados como `APAGAR` na planilha são candidatos à exclusão física, mas só podem ser excluídos após identificar a linha correta e provar que não há dependências impeditivas.
+8. O CEO determinou que os registros existentes sejam preservados nesta reconciliação. A marca `APAGAR` da planilha não autoriza exclusão, desativação, renomeação nem substituição de registro.
 9. O CEO autorizou padronizar cadastros novos e existentes com iniciais maiúsculas e sem acentos. A alteração em massa será registrada e limitada aos campos estruturados de cadastro.
 10. Nomes, endereços, campos fiscais e de contato da planilha atualizada devem ser considerados na consolidação.
 11. Cada código será atribuído a uma unidade física e guardará os blocos como fotografia do momento da emissão; mudanças futuras na empresa não reescrevem códigos antigos.
@@ -95,7 +95,7 @@ Essas opções são classificações internas selecionadas pelo CEO; não declar
 - Preservar registros e identificadores da rota antiga.
 - Não desabilitar telas de configuração operacional sem confirmar que fazem o mesmo cadastro.
 
-**Estado verificado em 02/11/2026:** “Cadastro de Empresas” e “Clínicas & Locais” continuam como rotas e itens separados no menu. A consolidação da interface ainda não foi feita.
+**Estado verificado em 02/11/2026:** “Cadastro de Empresas” e “Clínicas & Locais” continuam como rotas e itens separados no menu. A recomendação é tornar “Cadastro de Empresas” a entrada principal e administrar locais vinculados dentro dela, sem apagar dados. A consolidação da interface ainda não foi feita.
 
 ### Unidade 4 — Profissional e várias agendas por unidade
 
@@ -113,12 +113,13 @@ Essas opções são classificações internas selecionadas pelo CEO; não declar
 - Preservar a razão social oficial até haver confirmação de que o valor normalizado continua idêntico ao cadastro fiscal oficial.
 - Rodar prévia com contagens de alterações e conflitos antes da atualização.
 
-### Unidade 6 — Reconciliação e exclusões da planilha
+### Unidade 6 — Reconciliação sem exclusões
 
-- Relacionar linhas por CNPJ e nome oficial; nunca usar o número da linha como identificador do banco.
+- Relacionar linhas por nome do sistema e CNPJ; nunca usar o número da linha como identificador do banco.
 - Mostrar divergências e itens sem correspondência para decisão explícita.
-- Excluir fisicamente somente registros marcados `APAGAR` cuja identidade e dependências tenham sido verificadas.
-- A empresa proprietária da plataforma não será removida sem migração planejada de todas as referências e confirmação expressa do CEO sobre o plano de transferência.
+- Preservar registros marcados `APAGAR`; a planilha serve como fonte de correção, não como autorização de exclusão.
+- Não renomear nem reaproveitar registros sem correspondência exata; manter a linha pendente para decisão do CEO.
+- A empresa proprietária da plataforma também permanece preservada.
 
 ## 5. Limites e preservação
 
@@ -165,7 +166,7 @@ Aceite do CEO
         ↓
 Unidade 5 — Normalização dos registros existentes
         ↓ prévia, backup e aprovação da lista de alterações
-Unidade 6 — Reconciliação e exclusões verificadas
+Unidade 6 — Reconciliação sem exclusões
 ```
 
 Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação antes de continuar.
@@ -185,7 +186,7 @@ Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação ant
 
 ## 9. Estado da unidade ativa
 
-**Unidade 1 — implementação parcial; aguardando decisão e homologação do CEO.**
+**Unidade 1 — implementação parcial; revisão independente, teste concorrente e homologação ainda pendentes. A Unidade 2 recebeu autorização direta para iniciar a reconciliação de dados, mas também permanece parcial.**
 
 - Migração aditiva aplicada somente ao banco de desenvolvimento.
 - As 17 unidades existentes receberam uma sequência estável e única; nenhuma empresa, classificação ou código semântico foi alterado ou emitido.
@@ -193,12 +194,19 @@ Uma unidade por vez. Uma descoberta impeditiva atualiza esta especificação ant
 - Classificação e emissão têm validação de CEO no servidor; consultas têm autenticação e isolamento por empresa para colaboradores.
 - CNPJ duplicado, inválido, ausência de vínculo ou sequência fora do limite bloqueiam a emissão.
 - Após emissão, a classificação e o CNPJ da empresa ficam protegidos contra mudanças que invalidariam o código.
-- A inspeção encontrou os IDs 1, 4 e 5 com o mesmo CNPJ completo. Em 02/11/2026, o CEO confirmou que os CNPJs são fictícios, autorizou alterações e indicou preservar a identidade “Instituto Padua = Paduccia Clínica Médica = Clínica Padua”. Nenhum CNPJ foi alterado ainda; falta definir se os IDs 1 e 4 devem permanecer como empresas fictícias separadas ou ter referências migradas ao ID 5.
-- Qualquer exclusão dos IDs 1 e 4 depende de inventário de referências, apresentação do impacto e uma confirmação explícita adicional do CEO; não executar exclusão agora.
+- Em 02/11/2026, o CEO confirmou que os CNPJs são fictícios, indicou preservar a identidade “Instituto Padua = Paduccia Clínica Médica = Clínica Padua” e determinou não apagar registros nesta etapa.
+- A planilha foi lida diretamente do Google Drive. Foram atualizados, na base de desenvolvimento, os campos empresariais e fiscais correspondentes aos IDs 2, 3, 4, 5, 7, 8, 10, 11 e 12, com correspondência por nome e CNPJ anterior. Nenhum registro foi apagado.
+- O CNPJ do ID 4 foi substituído pelo valor da planilha. Os IDs 1, 6 e 9 permanecem intactos; os IDs 6 e 9 estavam marcados `APAGAR` na planilha, mas a instrução mais recente do CEO é preservá-los.
+- O nome fantasia “Clinica Padua” foi gravado na localização existente de Instituto Padua, ID 8, cuja empresa proprietária é o ID 5.
+- A linha “Instituto Padilha” não teve correspondência segura com a empresa “INSTITUTO INTEGRATIVO”, ID 1; nenhum registro foi renomeado e nenhuma empresa nova foi criada.
+- O CEP informado para Paduzzi Guarulhos na planilha (`05577-88`) tem sete algarismos. O sistema preservou o CEP já existente, sem completar o número por suposição.
+- Os regimes tributários e CNAEs foram preenchidos para nove empresas. A planilha contém códigos semânticos que não seguem o formato confirmado `BASE.VINC.CNPJ4.SEQ4`; esses códigos não foram importados.
+- A coluna “EMPRESA MAE” não foi aplicada à hierarquia existente: os valores da planilha conflitam com a estrutura relatada pelo CEO e podem alterar relações de licenciamento. Cobranças e vínculos de licenciamento não foram alterados.
+- A tela “Cadastro de Empresas” não possui campo próprio para todos os dados da planilha, especialmente nome fantasia e número do endereço. A recomendação visual está registrada, mas a consolidação dos campos e das telas ainda precisa ser construída.
 - A ferramenta de revisão independente solicitada não estava disponível nesta execução. Foi feita revisão manual; por isso, o critério de revisão independente continua pendente.
 - Os 12 testes específicos passaram; a verificação das bibliotecas e as compilações do servidor e da interface passaram.
 - Ainda falta um teste concorrente integrado no banco para demonstrar duas emissões simultâneas; a proteção está implementada com transação e restrição única, mas essa evidência não foi produzida.
 - A verificação geral de TypeScript continua falhando em 173 diagnósticos já existentes; o único apontamento em arquivo alterado está em um trecho antigo e não relacionado da rota empresarial.
 - A imagem automática da página encontrou o acesso, mas não entrou na sessão; a tela autenticada não foi validada visualmente.
 - Uma inicialização registrou limite temporário de leituras no serviço de planilhas; na última inicialização, o dicionário estava atualizado e o servidor ficou ativo.
-- A unidade não está homologada; a etapa seguinte não deve começar antes de resolver a associação dos registros duplicados e obter o aceite do CEO.
+- A unidade não está homologada. As divergências de correspondência, campos ausentes na tela e códigos semânticos da planilha permanecem pendentes; nenhuma exclusão pode ser feita neste escopo.
