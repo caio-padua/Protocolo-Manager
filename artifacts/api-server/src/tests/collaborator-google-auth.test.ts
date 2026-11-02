@@ -6,6 +6,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 
 const state = vi.hoisted(() => ({
   clerkUserId: null as string | null,
+  clerkUsers: {} as Record<string, any>,
   professionals: [] as any[],
   companies: [] as any[],
   audit: [] as any[],
@@ -15,6 +16,15 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@clerk/express", () => ({
   getAuth: () => ({ userId: state.clerkUserId }),
+  clerkClient: {
+    users: {
+      getUser: vi.fn(async (userId: string) => {
+        const user = state.clerkUsers[userId];
+        if (!user) throw new Error("synthetic clerk user not found");
+        return user;
+      }),
+    },
+  },
 }));
 
 vi.mock("../lib/messaging/engine.js", () => ({
@@ -36,6 +46,7 @@ vi.mock("@workspace/db", async () => {
     [schema.professionalsTable.active, "active"],
     [schema.professionalsTable.cpf, "cpf"],
     [schema.professionalsTable.email, "email"],
+    [schema.professionalsTable.secondaryEmail, "secondaryEmail"],
     [schema.professionalsTable.empresaId, "empresaId"],
     [schema.professionalsTable.isPlatformOwner, "isPlatformOwner"],
     [schema.professionalsTable.credentialVersion, "credentialVersion"],
@@ -60,7 +71,15 @@ vi.mock("@workspace/db", async () => {
     if (table === schema.locationProfessionalsTable) return [];
     if (table === schema.collaboratorAuditTable) {
       let rows = [...state.audit];
-      if (query.sql.includes("professional_id")) {
+      if (query.sql.includes("subject_professional_id")) {
+        const targetId = query.params.find((value) => typeof value === "number");
+        if (targetId !== undefined) {
+          rows = rows.filter((event) =>
+            event.subjectProfessionalId === targetId ||
+            (event.subjectProfessionalId == null && event.professionalId === targetId),
+          );
+        }
+      } else if (query.sql.includes("professional_id")) {
         const professionalId = query.params.find((value) => typeof value === "number");
         if (professionalId !== undefined) {
           rows = rows.filter((event) => event.professionalId === professionalId);
@@ -71,7 +90,12 @@ vi.mock("@workspace/db", async () => {
       rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       return fields
         ? rows.map((row) => Object.fromEntries(
-            Object.keys(fields).map((key) => [key, row[key]]),
+            Object.keys(fields).map((key) => [
+              key,
+              key === "companyName"
+                ? state.companies.find((company) => company.id === row.empresaId)?.nome ?? null
+                : row[key],
+            ]),
           ))
         : rows;
     }
@@ -143,6 +167,9 @@ vi.mock("@workspace/db", async () => {
             return chain;
           },
           innerJoin() {
+            return chain;
+          },
+          leftJoin() {
             return chain;
           },
           limit() {
@@ -286,6 +313,16 @@ function professional(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function setVerifiedGoogleUser(userId: string, email: string, provider = "oauth_google") {
+  state.clerkUsers[userId] = {
+    externalAccounts: [{
+      provider,
+      emailAddress: email,
+      verification: { status: "verified" },
+    }],
+  };
+}
+
 function collaboratorToken(professionalId = 41) {
   return createCollaboratorToken({ professionalId, role: "executor" });
 }
@@ -293,10 +330,11 @@ function collaboratorToken(professionalId = 41) {
 beforeEach(() => {
   process.env.CLERK_PUBLISHABLE_KEY = "pk_test_synthetic";
   state.clerkUserId = null;
+  state.clerkUsers = {};
   state.professionals = [professional()];
   state.companies = [
-    { id: 5, ativa: true, status: "ATIVO" },
-    { id: 6, ativa: true, status: "ATIVO" },
+    { id: 5, nome: "Instituto Pádua", ativa: true, status: "ATIVO" },
+    { id: 6, nome: "Clínica Teste", ativa: true, status: "ATIVO" },
   ];
   state.audit = [];
   state.raceUpdateIdentity = null;
@@ -361,14 +399,14 @@ describe("recuperação de senha profissional por e-mail", () => {
     const recoveryToken = new URL(message.botao!.url).searchParams.get("recoveryToken");
     expect(recoveryToken).toBeTruthy();
 
-    const newPassword = "new-synthetic-password-2026";
+    const newPassword = "New-synthetic-password-2026!";
     const completed = await request(app)
       .post("/collaborator/password-recovery/complete")
       .send({ recoveryToken, newPassword });
     expect(completed.status).toBe(200);
     expect(state.professionals[0].credentialVersion).toBe(1);
     expect(verifyPassword(newPassword, state.professionals[0].passwordHash)).toBe(true);
-    expect(state.audit.at(-1)).toMatchObject({
+    expect(state.audit.filter((event) => event.action === "password_recovered").at(-1)).toMatchObject({
       professionalId: 41,
       action: "password_recovered",
       detail: { priorSessionsInvalidated: true },
@@ -385,7 +423,7 @@ describe("recuperação de senha profissional por e-mail", () => {
 
     const replay = await request(app)
       .post("/collaborator/password-recovery/complete")
-      .send({ recoveryToken, newPassword: "another-synthetic-password" });
+      .send({ recoveryToken, newPassword: "Another-synthetic-password!" });
     expect(replay.status).toBe(401);
   });
 
@@ -410,7 +448,7 @@ describe("recuperação de senha profissional por e-mail", () => {
       .post("/collaborator/password-recovery/complete")
       .send({
         recoveryToken: `${expiredPayload}.${expiredSignature}`,
-        newPassword: "new-synthetic-password-2026",
+        newPassword: "New-synthetic-password-2026!",
       });
 
     expect(response.status).toBe(401);
@@ -431,18 +469,18 @@ describe("recuperação de senha profissional por e-mail", () => {
     const responses = await Promise.all([
       request(app)
         .post("/collaborator/password-recovery/complete")
-        .send({ recoveryToken, newPassword: "first-synthetic-password-2026" }),
+        .send({ recoveryToken, newPassword: "First-synthetic-password-2026!" }),
       request(app)
         .post("/collaborator/password-recovery/complete")
-        .send({ recoveryToken, newPassword: "second-synthetic-password-2026" }),
+        .send({ recoveryToken, newPassword: "Second-synthetic-password-2026!" }),
     ]);
 
     expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
     expect(state.professionals[0].credentialVersion).toBe(1);
     expect(state.audit.filter((event) => event.action === "password_recovered")).toHaveLength(1);
     expect(
-      verifyPassword("first-synthetic-password-2026", state.professionals[0].passwordHash) ||
-      verifyPassword("second-synthetic-password-2026", state.professionals[0].passwordHash),
+      verifyPassword("First-synthetic-password-2026!", state.professionals[0].passwordHash) ||
+      verifyPassword("Second-synthetic-password-2026!", state.professionals[0].passwordHash),
     ).toBe(true);
   });
 
@@ -451,6 +489,7 @@ describe("recuperação de senha profissional por e-mail", () => {
       {
         id: 1,
         professionalId: 41,
+        subjectProfessionalId: null,
         action: "identity_updated",
         detail: {
           emailUpdated: true,
@@ -479,12 +518,61 @@ describe("recuperação de senha profissional por e-mail", () => {
       action: "identity_updated",
       label: "Identificadores de acesso atualizados",
       changes: [
-        { field: "E-mail de acesso", before: "Valor protegido", after: "Valor protegido" },
+        { field: "E-mail principal", before: "Valor protegido", after: "Valor protegido" },
         { field: "CPF", before: "Valor protegido", after: "Valor protegido" },
       ],
     });
     expect(JSON.stringify(response.body)).not.toContain("private@example.test");
     expect(JSON.stringify(response.body)).not.toContain("11144477735");
+  });
+
+  it("permite ao CEO consultar valores completos do histórico entre clínicas", async () => {
+    state.professionals.push(professional({
+      id: 42,
+      name: "CEO de teste",
+      isPlatformOwner: true,
+      empresaId: 6,
+    }));
+    state.audit = [{
+      id: 10,
+      professionalId: 42,
+      professionalName: "CEO de teste",
+      subjectProfessionalId: 41,
+      subjectProfessionalName: "Caio Henrique Fernandes Padua",
+      empresaId: 5,
+      action: "professional_profile_updated",
+      detail: {
+        changes: {
+          "E-mail principal": { before: "anterior@example.test", after: "caio@example.test" },
+          CPF: { before: "11144477735", after: "52998224725" },
+        },
+      },
+      createdAt: new Date("2026-10-30T12:00:00.000Z"),
+    }];
+
+    const response = await request(app)
+      .get("/professionals/41/history")
+      .set("Authorization", `Bearer ${collaboratorToken(42)}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.events[0]).toMatchObject({
+      actorName: "CEO de teste",
+      subjectName: "Caio Henrique Fernandes Padua",
+      empresaId: 5,
+      companyName: "Instituto Pádua",
+      changes: [
+        { field: "E-mail principal", before: "anterior@example.test", after: "caio@example.test" },
+        { field: "CPF", before: "11144477735", after: "52998224725" },
+      ],
+    });
+  });
+
+  it("bloqueia histórico de terceiros para colaborador sem privilégio de CEO", async () => {
+    state.professionals.push(professional({ id: 42, isPlatformOwner: false }));
+    const response = await request(app)
+      .get("/professionals/41/history")
+      .set("Authorization", `Bearer ${collaboratorToken(42)}`);
+    expect(response.status).toBe(403);
   });
 });
 
@@ -517,7 +605,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
     expect(started.body.expiresInSeconds).toBe(600);
     expect(started.headers["cache-control"]).toContain("no-store");
 
-    const newPassword = "new-synthetic-password-2026";
+    const newPassword = "New-synthetic-password-2026!";
     const completed = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
       .send({ challenge: started.body.challenge, newPassword });
@@ -527,7 +615,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
     expect(verifyPassword(newPassword, state.professionals[0].passwordHash)).toBe(true);
     expect(state.professionals[0].credentialVersion).toBe(1);
     expect(state.professionals).toHaveLength(1);
-    expect(state.audit.at(-1)).toMatchObject({
+    expect(state.audit.filter((event) => event.action === "dev_primary_password_recovered").at(-1)).toMatchObject({
       professionalId: 41,
       action: "dev_primary_password_recovered",
       detail: { environment: "development", priorSessionsInvalidated: true },
@@ -555,7 +643,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
       (
         await request(app)
           .post("/collaborator/dev-primary-recovery/complete")
-          .send({ challenge: started.body.challenge, newPassword: "replay-synthetic-password" })
+          .send({ challenge: started.body.challenge, newPassword: "Replay-synthetic-password!" })
       ).status,
     ).toBe(401);
   });
@@ -569,7 +657,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
     const started = await startRecovery("192.0.2.11");
     const completed = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
-      .send({ challenge: "synthetic-token", newPassword: "new-synthetic-password" });
+      .send({ challenge: "synthetic-token", newPassword: "New-synthetic-password!" });
 
     expect(started.status).toBe(404);
     expect(completed.status).toBe(404);
@@ -611,7 +699,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
 
     const validPassword = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
-      .send({ challenge: started.body.challenge, newPassword: "valid-synthetic-password" });
+      .send({ challenge: started.body.challenge, newPassword: "Valid-synthetic-password!" });
     expect(validPassword.status).toBe(200);
     expect(state.professionals[0].credentialVersion).toBe(1);
   });
@@ -627,7 +715,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
       dateNow.mockReturnValue(now + 10 * 60 * 1000 + 1);
       const completed = await request(app)
         .post("/collaborator/dev-primary-recovery/complete")
-        .send({ challenge: started.body.challenge, newPassword: "new-synthetic-password" });
+        .send({ challenge: started.body.challenge, newPassword: "New-synthetic-password!" });
 
       expect(completed.status).toBe(401);
       expect(state.professionals[0].passwordHash).toBe(existingHash);
@@ -646,10 +734,10 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
     const results = await Promise.all([
       request(app)
         .post("/collaborator/dev-primary-recovery/complete")
-        .send({ challenge, newPassword: "first-synthetic-password" }),
+        .send({ challenge, newPassword: "First-synthetic-password!" }),
       request(app)
         .post("/collaborator/dev-primary-recovery/complete")
-        .send({ challenge, newPassword: "second-synthetic-password" }),
+        .send({ challenge, newPassword: "Second-synthetic-password!" }),
     ]);
 
     expect(results.filter((result) => result.status === 200)).toHaveLength(1);
@@ -667,7 +755,7 @@ describe("recuperação única do médico principal no desenvolvimento", () => {
 
     const completed = await request(app)
       .post("/collaborator/dev-primary-recovery/complete")
-      .send({ challenge: started.body.challenge, newPassword: "new-synthetic-password" });
+      .send({ challenge: started.body.challenge, newPassword: "New-synthetic-password!" });
 
     expect(completed.status).toBe(500);
     expect(state.professionals[0].passwordHash).toBe(existingHash);
@@ -729,17 +817,53 @@ describe("acesso Google vinculado ao colaborador", () => {
 
   it("vincula a sessao Google somente ao profissional do token atual", async () => {
     state.clerkUserId = "google-user-caio";
+    state.professionals[0].email = "caio@example.test";
+    setVerifiedGoogleUser("google-user-caio", "caio@example.test");
     const response = await request(app)
       .post("/collaborator/google/link")
       .set("Authorization", `Bearer ${collaboratorToken()}`)
-      .send({ professionalId: 999, clerkUserId: "forged-user" });
+      .send({
+        professionalId: 999,
+        clerkUserId: "forged-user",
+        email: "attacker@example.test",
+      });
     expect(response.status).toBe(200);
     expect(state.professionals[0].clerkUserIdDev).toBe("google-user-caio");
     expect(verifyCollaboratorToken(response.body.token)?.professionalId).toBe(41);
   });
 
+  it("recusa vínculo quando o e-mail Google confirmado difere do e-mail principal", async () => {
+    state.clerkUserId = "google-user-caio";
+    state.professionals[0].email = "caio@example.test";
+    setVerifiedGoogleUser("google-user-caio", "outra-conta@example.test");
+    const response = await request(app)
+      .post("/collaborator/google/link")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(409);
+    expect(state.professionals[0].clerkUserIdDev).toBeNull();
+  });
+
+  it("recusa vínculo sem uma conta Google confirmada", async () => {
+    state.clerkUserId = "google-user-caio";
+    state.professionals[0].email = "caio@example.test";
+    state.clerkUsers["google-user-caio"] = {
+      externalAccounts: [{
+        provider: "oauth_github",
+        emailAddress: "caio@example.test",
+        verification: { status: "verified" },
+      }],
+    };
+    const response = await request(app)
+      .post("/collaborator/google/link")
+      .set("Authorization", `Bearer ${collaboratorToken()}`);
+    expect(response.status).toBe(403);
+    expect(state.professionals[0].clerkUserIdDev).toBeNull();
+  });
+
   it("impede que a mesma conta Google seja vinculada a outro profissional", async () => {
     state.clerkUserId = "google-user-caio";
+    state.professionals[0].email = "caio@example.test";
+    setVerifiedGoogleUser("google-user-caio", "caio@example.test");
     state.professionals.push(professional({ id: 42, clerkUserIdDev: "google-user-caio" }));
     const response = await request(app)
       .post("/collaborator/google/link")
@@ -750,6 +874,8 @@ describe("acesso Google vinculado ao colaborador", () => {
 
   it("nao substitui silenciosamente o Google ja vinculado ao profissional", async () => {
     state.clerkUserId = "google-user-new";
+    state.professionals[0].email = "caio@example.test";
+    setVerifiedGoogleUser("google-user-new", "caio@example.test");
     state.professionals[0].clerkUserIdDev = "google-user-old";
     const response = await request(app)
       .post("/collaborator/google/link")
@@ -774,6 +900,8 @@ describe("acesso Google vinculado ao colaborador", () => {
 
   it("nao sobrescreve identidade concorrente detectada durante a gravacao", async () => {
     state.clerkUserId = "google-user-caio";
+    state.professionals[0].email = "caio@example.test";
+    setVerifiedGoogleUser("google-user-caio", "caio@example.test");
     state.raceUpdateIdentity = "google-user-concorrente";
     const response = await request(app)
       .post("/collaborator/google/link")
@@ -901,7 +1029,7 @@ describe("acesso Google vinculado ao colaborador", () => {
       .send({
         professionalId: 42,
         currentPassword: "old-password",
-        newPassword: "new-synthetic-password",
+        newPassword: "New-synthetic-password!",
       });
 
     expect(response.status).toBe(200);
@@ -926,7 +1054,7 @@ describe("acesso Google vinculado ao colaborador", () => {
     const wrongCurrent = await request(app)
       .post("/collaborator/change-password")
       .set("Authorization", `Bearer ${token}`)
-      .send({ currentPassword: "wrong", newPassword: "new-synthetic-password" });
+      .send({ currentPassword: "wrong", newPassword: "New-synthetic-password!" });
     const shortNew = await request(app)
       .post("/collaborator/change-password")
       .set("Authorization", `Bearer ${token}`)
@@ -939,7 +1067,7 @@ describe("acesso Google vinculado ao colaborador", () => {
   it("recusa a primeira senha sem sessao de colaborador", async () => {
     const response = await request(app)
       .post("/collaborator/initial-password")
-      .send({ newPassword: "synthetic-first-password" });
+      .send({ newPassword: "Synthetic-first-password!" });
     expect(response.status).toBe(401);
     expect(state.professionals[0].passwordHash).toBeNull();
     expect(state.professionals[0].credentialVersion).toBe(0);
@@ -972,7 +1100,7 @@ describe("acesso Google vinculado ao colaborador", () => {
       }),
     );
     const originalToken = collaboratorToken(41);
-    const newPassword = "synthetic-first-password";
+    const newPassword = "Synthetic-first-password!";
     const response = await request(app)
       .post("/collaborator/initial-password")
       .set("Authorization", `Bearer ${originalToken}`)
@@ -1007,7 +1135,7 @@ describe("acesso Google vinculado ao colaborador", () => {
     const response = await request(app)
       .post("/collaborator/initial-password")
       .set("Authorization", `Bearer ${collaboratorToken()}`)
-      .send({ newPassword: "new-synthetic-password" });
+      .send({ newPassword: "New-synthetic-password!" });
 
     expect(response.status).toBe(409);
     expect(state.professionals[0].passwordHash).toBe(existingHash);
@@ -1020,18 +1148,18 @@ describe("acesso Google vinculado ao colaborador", () => {
       request(app)
         .post("/collaborator/initial-password")
         .set("Authorization", `Bearer ${token}`)
-        .send({ newPassword: "synthetic-first-password-one" }),
+        .send({ newPassword: "Synthetic-first-password-one!" }),
       request(app)
         .post("/collaborator/initial-password")
         .set("Authorization", `Bearer ${token}`)
-        .send({ newPassword: "synthetic-first-password-two" }),
+        .send({ newPassword: "Synthetic-first-password-two!" }),
     ]);
 
     expect(results.filter((result) => result.status === 200)).toHaveLength(1);
     expect(results.some((result) => result.status === 409 || result.status === 401)).toBe(true);
     expect(state.professionals[0].credentialVersion).toBe(1);
-    expect(verifyPassword("synthetic-first-password-one", state.professionals[0].passwordHash) ||
-      verifyPassword("synthetic-first-password-two", state.professionals[0].passwordHash)).toBe(true);
+    expect(verifyPassword("Synthetic-first-password-one!", state.professionals[0].passwordHash) ||
+      verifyPassword("Synthetic-first-password-two!", state.professionals[0].passwordHash)).toBe(true);
   });
 
   it("atualiza e-mail e CPF somente na conta da sessão e encerra sessões anteriores", async () => {
@@ -1066,7 +1194,18 @@ describe("acesso Google vinculado ao colaborador", () => {
     expect(state.professionals[1].email).toBeNull();
     expect(state.professionals[1].cpf).toBeNull();
     expect(verifyCollaboratorToken(response.body.token)?.credentialVersion).toBe(1);
-    expect(JSON.stringify(state.audit)).not.toContain("caio@example.test");
+    expect(JSON.stringify(state.audit)).toContain("caio@example.test");
+    expect(JSON.stringify(state.audit)).toContain("11144477735");
+    expect(state.audit.at(-1)).toMatchObject({
+      subjectProfessionalId: 41,
+      action: "identity_updated",
+      detail: {
+        changes: {
+          "E-mail principal": { before: "—", after: "caio@example.test" },
+          CPF: { before: "—", after: "11144477735" },
+        },
+      },
+    });
     expect(
       (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${oldToken}`)).status,
     ).toBe(401);
@@ -1094,6 +1233,69 @@ describe("acesso Google vinculado ao colaborador", () => {
     expect(wrongPassword.status).toBe(401);
     expect(state.professionals[0].email).toBeNull();
     expect(state.professionals[0].credentialVersion).toBe(0);
+  });
+
+  it("mantém o e-mail secundário fora do login e não encerra sessões", async () => {
+    state.professionals[0].email = "caio@example.test";
+    state.professionals[0].secondaryEmail = "old-contact@example.test";
+    state.professionals[0].passwordHash = hashPassword("old-password");
+    const token = collaboratorToken();
+
+    const saved = await request(app)
+      .put("/collaborator/me/identity")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        secondaryEmail: "new-contact@example.test",
+        currentPassword: "old-password",
+      });
+    const secondaryLogin = await request(app)
+      .post("/collaborator/login")
+      .send({ identifier: "new-contact@example.test", password: "old-password" });
+    const primaryLogin = await request(app)
+      .post("/collaborator/login")
+      .send({ identifier: "caio@example.test", password: "old-password" });
+
+    expect(saved.status).toBe(200);
+    expect(state.professionals[0].secondaryEmail).toBe("new-contact@example.test");
+    expect(state.professionals[0].credentialVersion).toBe(0);
+    expect(secondaryLogin.status).toBe(401);
+    expect(primaryLogin.status).toBe(200);
+    expect(
+      (await request(app).get("/collaborator/me").set("Authorization", `Bearer ${token}`)).status,
+    ).toBe(200);
+    expect(state.audit.filter((event) => event.action === "identity_updated").at(-1)).toMatchObject({
+      action: "identity_updated",
+      detail: {
+        priorSessionsInvalidated: false,
+        changes: {
+          "E-mail secundário": {
+            before: "old-contact@example.test",
+            after: "new-contact@example.test",
+          },
+        },
+      },
+    });
+  });
+
+  it("aplica a regra de senha em cadastro inicial", async () => {
+    const token = collaboratorToken();
+    const lowercaseStart = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newPassword: "lowercase123!" });
+    const missingSpecial = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newPassword: "NoSpecial123" });
+    const validTenCharacters = await request(app)
+      .post("/collaborator/initial-password")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ newPassword: "A12345678!" });
+
+    expect(lowercaseStart.status).toBe(400);
+    expect(missingSpecial.status).toBe(400);
+    expect(validTenCharacters.status).toBe(200);
+    expect(verifyPassword("A12345678!", state.professionals[0].passwordHash)).toBe(true);
   });
 
   it("nao aceita que o navegador conceda outra clinica ao profissional", async () => {
@@ -1184,6 +1386,31 @@ describe("acesso Google vinculado ao colaborador", () => {
     expect([create.status, update.status, deactivate.status]).toEqual([403, 403, 403]);
     expect(state.professionals[0].email).toBe("current@example.test");
     expect(state.professionals[0].active).toBe(true);
+  });
+
+  it("exige e-mail principal no cadastro de um novo profissional", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    const response = await request(app)
+      .post("/professionals")
+      .set("Authorization", `Bearer ${collaboratorToken()}`)
+      .send({ name: "Profissional sintético", serviceTypes: [] });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("E-mail principal é obrigatório");
+    expect(state.professionals).toHaveLength(1);
+  });
+
+  it("não permite remover o e-mail principal de uma conta já cadastrada", async () => {
+    state.professionals[0].isPlatformOwner = true;
+    state.professionals[0].email = "owner@example.test";
+    const response = await request(app)
+      .put("/professionals/41")
+      .set("Authorization", `Bearer ${collaboratorToken()}`)
+      .send({ email: "" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("não pode ser removido");
+    expect(state.professionals[0].email).toBe("owner@example.test");
   });
 
   it("impede o proprietário de consultar profissional de outra clínica", async () => {

@@ -171,6 +171,8 @@ Esta revisão substitui qualquer regra anterior conflitante sobre visibilidade d
 5. Se o Google vinculado não corresponder ao e-mail principal, a interface mostra a divergência e não afirma que o vínculo está correto.
 6. O login Google não concede acesso ao Google Drive; o compartilhamento futuro exigirá autorização própria para o Drive e escopos específicos.
 7. O CPF recebe máscara brasileira durante a digitação; o banco conserva somente os algarismos e a apresentação mantém pontos e hífen.
+8. Novos profissionais precisam informar o e-mail principal; o vínculo só é considerado Google válido depois da confirmação do provedor e da coincidência com esse e-mail.
+9. Um e-mail principal existente não pode ser removido; deve ser substituído por outro endereço válido. Cadastros antigos sem e-mail mantêm o acesso atual até serem atualizados.
 
 ### 11.3 Senha
 
@@ -196,6 +198,7 @@ Esta revisão substitui qualquer regra anterior conflitante sobre visibilidade d
 2. A migração deve ser idempotente, entrar em `scripts/migrations.sql` e nunca usar `db push`, `DROP`, `TRUNCATE` ou `DELETE`.
 3. Esta etapa não aplica migração nem alteração de cadastro em produção; produção depende de implantação/migração autorizada e verificada separadamente.
 4. Nenhum e-mail real, mensagem clínica ou alteração em cadastro clínico real pode ocorrer nos testes.
+5. A migração aditiva foi aplicada somente no banco de desenvolvimento e as quatro colunas novas foram verificadas; nenhum esquema de produção foi alterado.
 
 ### 11.6 Critérios de verificação desta revisão
 
@@ -206,3 +209,15 @@ Esta revisão substitui qualquer regra anterior conflitante sobre visibilidade d
 5. Confirmar que nenhum segredo aparece na resposta, trilha ou tela do histórico e que não existe exclusão de eventos.
 6. A migração só pode ser aplicada em banco de desenvolvimento identificado; os testes automatizados usam dados sintéticos e não enviam mensagens.
 7. Não declarar homologado sem teste das rotas permitidas/proibidas, reinício limpo dos serviços e revisão independente sequencial.
+
+### 11.7 Evidência desta execução — 01/11/2026
+
+1. A suíte `collaborator-google-auth.test.ts` passou: 57 testes, incluindo histórico próprio/CEO, bloqueio de outro colaborador, Google incompatível, e-mail secundário fora do login, CPF e política de senha.
+2. `pnpm run typecheck:libs` passou.
+3. O servidor de API foi compilado; o aplicativo PADCOM foi compilado. O compilador do aplicativo reportou avisos preexistentes em `preview-validacao.tsx` (chaves `width` e `height` duplicadas), avisos de mapas de código-fonte e tamanho do pacote.
+4. As verificações globais de TypeScript continuam falhando em arquivos fora das alterações desta etapa: 174 erros no servidor e 86 no aplicativo; nenhum erro foi apontado nos arquivos alterados.
+5. Os serviços foram reiniciados; o servidor registrou `Server listening` na porta 8080 e o Vite do PADCOM ficou pronto.
+6. As quatro colunas novas foram verificadas somente no banco de desenvolvimento; nenhuma alteração foi aplicada em produção.
+7. A captura sem sessão recebeu respostas HTTP 401 e não verificou a ficha autenticada; nenhum atalho de autenticação foi criado.
+8. Nenhuma mensagem real foi enviada e não houve sincronização com GitHub.
+9. A revisão independente foi solicitada, mas a plataforma informou que o subagente arquiteto está indisponível nesta execução. Pelo PAXTER Loop, a entrega permanece **BLOQUEADA para homologação** até uma revisão independente sequencial.

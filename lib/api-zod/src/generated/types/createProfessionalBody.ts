@@ -10,7 +10,8 @@ export interface CreateProfessionalBody {
   name: string;
   crm?: string | null;
   specialty?: string | null;
-  email?: string | null;
+  email: string;
+  secondaryEmail?: string | null;
   phone?: string | null;
   unit?: string | null;
   serviceTypes: string[];

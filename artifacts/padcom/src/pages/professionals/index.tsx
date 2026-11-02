@@ -48,13 +48,17 @@ import {
   Circle,
   Loader2,
   ChevronDown,
+  KeyRound,
+  History,
 } from "lucide-react";
 import { tituloProprio } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import { formatCpfInput } from "@/lib/cpf";
 import AccountAccessPanel from "./AccountAccessPanel";
+import ProfessionalHistoryPanel from "./ProfessionalHistoryPanel";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -577,6 +581,7 @@ const EMPTY_FORM = {
   registrationNumber: "",
   phone: "",
   email: "",
+  secondaryEmail: "",
   unit: "",
   complemento: "",
   serviceTypes: ["presencial"] as string[],
@@ -607,9 +612,12 @@ export default function Professionals() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [sessionProfessionalId, setSessionProfessionalId] = useState<number | null>(null);
+  const [sessionIsPlatformOwner, setSessionIsPlatformOwner] = useState(false);
   const [sessionIdentityLoaded, setSessionIdentityLoaded] = useState(false);
   const selfAccessLaunchHandled = useRef(false);
   const isSelfEditing = editingId !== null && editingId === sessionProfessionalId;
+  const canViewProfessionalHistory =
+    isSelfEditing || (sessionIdentityLoaded && sessionIsPlatformOwner);
   const [editingSignatureUrl, setEditingSignatureUrl] = useState<string | null>(null);
   const [editingPhotoUrl, setEditingPhotoUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("dados");
@@ -700,12 +708,13 @@ export default function Professionals() {
       registrationNumber: pro.registrationNumber ?? "",
       phone: pro.phone ?? "",
       email: pro.email ?? "",
+      secondaryEmail: pro.secondaryEmail ?? "",
       unit: pro.unit ?? "",
       complemento: (pro as any).complemento ?? "",
       serviceTypes: pro.serviceTypes?.length ? pro.serviceTypes : ["presencial"],
       active: pro.active ?? true,
       nurseType: p.nurseType ?? "",
-      cpf: p.cpf ?? "",
+      cpf: formatCpfInput(p.cpf ?? ""),
       cnpj: p.cnpj ?? "",
       homeServiceFeePerVisit: p.homeServiceFeePerVisit != null ? String(p.homeServiceFeePerVisit) : "",
       contractType: p.contractType ?? "",
@@ -726,13 +735,19 @@ export default function Professionals() {
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("Não foi possível validar a conta da sessão.");
-        const result = await response.json() as { professional?: { id?: number } };
+        const result = await response.json() as {
+          professional?: { id?: number; isPlatformOwner?: boolean };
+        };
         if (mounted && Number.isInteger(result.professional?.id)) {
           setSessionProfessionalId(result.professional!.id!);
+          setSessionIsPlatformOwner(result.professional?.isPlatformOwner === true);
         }
       })
       .catch(() => {
-        if (mounted) setSessionProfessionalId(null);
+        if (mounted) {
+          setSessionProfessionalId(null);
+          setSessionIsPlatformOwner(false);
+        }
       })
       .finally(() => {
         if (mounted) setSessionIdentityLoaded(true);
@@ -770,6 +785,7 @@ export default function Professionals() {
     isLoading,
     sessionIdentityLoaded,
     sessionProfessionalId,
+    sessionIsPlatformOwner,
     toast,
   ]);
 
@@ -784,6 +800,14 @@ export default function Professionals() {
   const handleSubmit = () => {
     if (!form.name.trim()) {
       toast({ title: "Nome é obrigatório", variant: "destructive" });
+      return;
+    }
+    if (!editingId && !form.email.trim()) {
+      toast({
+        title: "E-mail principal obrigatório",
+        description: "Use o e-mail da conta Google que será vinculada ao profissional.",
+        variant: "destructive",
+      });
       return;
     }
     if (!form.areaId) {
@@ -809,19 +833,20 @@ export default function Professionals() {
       registrationCouncil: form.registrationCouncil.trim() || null,
       registrationNumber: form.registrationNumber.trim() || null,
       phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
+      email: form.email.trim(),
+      secondaryEmail: form.secondaryEmail.trim() || null,
+      cpf: form.cpf.trim() || null,
       unit: form.unit.trim() || null,
       complemento: form.complemento.trim() || null,
       serviceTypes: form.serviceTypes,
       active: form.active,
       ...(isNurse ? {
         nurseType: form.nurseType || null,
-        cpf: form.cpf.trim() || null,
         cnpj: form.cnpj.trim() || null,
         homeServiceFeePerVisit: form.homeServiceFeePerVisit ? Number(form.homeServiceFeePerVisit) : null,
         contractType: form.contractType || null,
       } : {
-        nurseType: null, cpf: null, cnpj: null,
+        nurseType: null, cnpj: null,
         homeServiceFeePerVisit: null, contractType: null,
       }),
     };
@@ -881,11 +906,17 @@ export default function Professionals() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3">
               {/* Painel superior saliente — barra de abas como botões físicos */}
-              <TabsList className="panel-3d-sub w-full border-none h-auto p-2 flex gap-2 mb-5">
+              <TabsList className="panel-3d-sub w-full border-none h-auto p-2 flex flex-wrap gap-2 mb-5">
                 {[
                   { value: "dados", label: "DADOS", icon: User },
+                  ...(isSelfEditing
+                    ? [{ value: "acesso", label: "ACESSO", icon: KeyRound }]
+                    : []),
                   { value: "vinculos", label: "VÍNCULOS", icon: Link2, disabled: !editingId },
                   { value: "documentos", label: "DOCUMENTOS", icon: FileText, disabled: !editingId },
+                  ...(canViewProfessionalHistory
+                    ? [{ value: "historico", label: "HISTÓRICO", icon: History }]
+                    : []),
                 ].map(({ value, label, icon: Icon, disabled }) => (
                   <button
                     key={value}
@@ -917,7 +948,7 @@ export default function Professionals() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categoria funcional</Label>
                     <Select value={form.category} onValueChange={(v) => v && set("category", v)}>
@@ -1018,7 +1049,7 @@ export default function Professionals() {
                   — Contato
                 </p>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Telefone / WhatsApp</Label>
                     <Input
@@ -1029,20 +1060,48 @@ export default function Professionals() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">E-mail profissional</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">E-mail principal — login e Google</Label>
                     <Input
                       type="email"
                       value={form.email}
                       onChange={(e) => set("email", e.target.value)}
                       placeholder="nome@clinica.com.br"
                       className="field-engraved"
+                      required={!editingId}
                       disabled={editingId !== null && (!sessionIdentityLoaded || isSelfEditing)}
                     />
                     {isSelfEditing ? (
                       <p className="text-[10px] leading-relaxed text-muted-foreground">
-                        Para proteger seu acesso, altere este e-mail na seção “Acesso à própria conta”.
+                        Para proteger sua conta, altere este e-mail na aba “Acesso”.
                       </p>
                     ) : null}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">E-mail secundário — contato opcional</Label>
+                    <Input
+                      type="email"
+                      value={form.secondaryEmail}
+                      onChange={(e) => set("secondaryEmail", e.target.value)}
+                      placeholder="contato@clinica.com.br"
+                      className="field-engraved"
+                      disabled={editingId !== null && (!sessionIdentityLoaded || isSelfEditing)}
+                    />
+                    <p className="text-[10px] leading-relaxed text-muted-foreground">
+                      Não pode ser usado para entrar nem recuperar a senha.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">CPF do profissional</Label>
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={14}
+                      value={form.cpf}
+                      onChange={(e) => set("cpf", formatCpfInput(e.target.value))}
+                      placeholder="000.000.000-00"
+                      className="field-engraved"
+                      disabled={editingId !== null && (!sessionIdentityLoaded || isSelfEditing)}
+                    />
                   </div>
                 </div>
 
@@ -1113,12 +1172,6 @@ export default function Professionals() {
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">CPF (contratos / NF)</Label>
-                        <Input value={form.cpf} onChange={(e) => set("cpf", e.target.value)} placeholder="000.000.000-00" className="field-engraved"
-                          disabled={editingId !== null && (!sessionIdentityLoaded || isSelfEditing)} />
-                      </div>
-
                       {form.nurseType === "home" && (
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1.5">
@@ -1172,16 +1225,32 @@ export default function Professionals() {
                     Salve para liberar as abas <strong>VÍNCULOS</strong> e <strong>DOCUMENTOS</strong>.
                   </p>
                 )}
+              </TabsContent>
+
+              <TabsContent value="acesso" className="space-y-4 focus:outline-none">
                 {isSelfEditing && editingId !== null ? (
                   <AccountAccessPanel
+                    key={editingId}
                     professionalId={editingId}
                     onIdentityUpdated={(identity) => {
                       setForm((current) => ({
                         ...current,
                         email: identity.email ?? "",
-                        cpf: identity.cpf ?? "",
+                        secondaryEmail: identity.secondaryEmail ?? "",
+                        cpf: formatCpfInput(identity.cpf ?? ""),
                       }));
                     }}
+                  />
+                ) : null}
+              </TabsContent>
+
+              <TabsContent value="historico" className="focus:outline-none">
+                {canViewProfessionalHistory && editingId !== null ? (
+                  <ProfessionalHistoryPanel
+                    key={editingId}
+                    professionalId={editingId}
+                    isOwnRecord={isSelfEditing}
+                    canViewOtherRecords={sessionIsPlatformOwner}
                   />
                 ) : null}
               </TabsContent>

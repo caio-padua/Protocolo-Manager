@@ -7,10 +7,12 @@ import { eq, and, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   isValidCpf,
   normalizeCpf,
-  recordOwnProfessionalProfileChange,
+  recordProfessionalProfileChange,
+  getVerifiedGoogleEmail,
   requireCollaborator,
 } from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext.js";
+import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 
 const router: IRouter = Router();
@@ -51,6 +53,7 @@ function formatProfessional(
   delete (safe as Partial<typeof p>).empresaId;
   if (!includePrivate) {
     delete (safe as Partial<typeof p>).email;
+    delete (safe as Partial<typeof p>).secondaryEmail;
     delete (safe as Partial<typeof p>).phone;
     delete (safe as Partial<typeof p>).cpf;
     delete (safe as Partial<typeof p>).cnpj;
@@ -210,7 +213,7 @@ router.patch(
         })
         .where(eq(professionalsTable.id, actor.id))
         .returning();
-      if (saved) await recordOwnProfessionalProfileChange(tx, req, current, saved);
+      if (saved) await recordProfessionalProfileChange(tx, req, current, saved);
       return [saved];
     });
 
@@ -279,6 +282,11 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
       return;
     }
   }
+  const requestedPrimaryEmail = req.body?.email;
+  if (typeof requestedPrimaryEmail !== "string" || !requestedPrimaryEmail.trim()) {
+    res.status(400).json({ error: "E-mail principal é obrigatório para cadastrar um profissional." });
+    return;
+  }
   const parsed = CreateProfessionalBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -288,8 +296,26 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
   const emailValue = parsed.data.email;
   const normalizedEmail =
     emailValue == null || !emailValue.trim() ? null : emailValue.trim().toLowerCase();
-  if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+  if (!normalizedEmail) {
+    res.status(400).json({ error: "E-mail principal é obrigatório para cadastrar um profissional." });
+    return;
+  }
+  if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     res.status(400).json({ error: "E-mail inválido" });
+    return;
+  }
+  const secondaryEmailValue =
+    typeof req.body?.secondaryEmail === "string" ? req.body.secondaryEmail : null;
+  const normalizedSecondaryEmail =
+    secondaryEmailValue == null || !secondaryEmailValue.trim()
+      ? null
+      : secondaryEmailValue.trim().toLowerCase();
+  if (
+    normalizedSecondaryEmail &&
+    (normalizedSecondaryEmail.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedSecondaryEmail))
+  ) {
+    res.status(400).json({ error: "E-mail secundário inválido" });
     return;
   }
   const cpfValue = parsed.data.cpf;
@@ -302,6 +328,7 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
   const values = {
     ...parsed.data,
     email: normalizedEmail,
+    secondaryEmail: normalizedSecondaryEmail,
     cpf: normalizedCpf,
     category: normalizeCategory(parsed.data.category),
     role: parsed.data.role ?? "executor",
@@ -349,7 +376,7 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
   }
 
   const {
-    name, crm, specialty, email, phone, unit, complemento, serviceTypes, category, role, active,
+    name, crm, specialty, email, secondaryEmail, phone, unit, complemento, serviceTypes, category, role, active,
     professionalType, areaId, specialtyId, registrationCouncil, registrationNumber,
     nurseType, cpf, cnpj, homeServiceFeePerVisit, contractType,
   } = req.body as {
@@ -357,6 +384,7 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
     crm?: string | null;
     specialty?: string | null;
     email?: string | null;
+    secondaryEmail?: string | null;
     phone?: string | null;
     unit?: string | null;
     complemento?: string | null;
@@ -416,9 +444,54 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
 
   const normalizedEmail =
     email === undefined ? undefined : email === null || !email.trim() ? null : email.trim().toLowerCase();
+  if (normalizedEmail === null && row.email) {
+    res.status(400).json({ error: "O e-mail principal existente não pode ser removido; altere-o para outro endereço." });
+    return;
+  }
+  if (normalizedEmail && normalizedEmail.length > 254) {
+    res.status(400).json({ error: "E-mail inválido" });
+    return;
+  }
   if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     res.status(400).json({ error: "E-mail inválido" });
     return;
+  }
+  const normalizedSecondaryEmail =
+    secondaryEmail === undefined
+      ? undefined
+      : secondaryEmail === null || !secondaryEmail.trim()
+        ? null
+        : secondaryEmail.trim().toLowerCase();
+  if (
+    normalizedSecondaryEmail &&
+    (normalizedSecondaryEmail.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedSecondaryEmail))
+  ) {
+    res.status(400).json({ error: "E-mail secundário inválido" });
+    return;
+  }
+  if (normalizedEmail !== undefined && normalizedEmail !== row.email) {
+    const environment = resolveClerkEnvironmentForRequest(req);
+    const linkedGoogleUserId = environment === "production"
+      ? row.clerkUserIdProd
+      : environment === "development"
+        ? row.clerkUserIdDev
+        : null;
+    if (linkedGoogleUserId) {
+      let googleEmail: string | null;
+      try {
+        googleEmail = await getVerifiedGoogleEmail(linkedGoogleUserId);
+      } catch {
+        res.status(503).json({ error: "Não foi possível confirmar o e-mail Google agora." });
+        return;
+      }
+      if (googleEmail !== normalizedEmail) {
+        res.status(409).json({
+          error: "O e-mail principal precisa coincidir com o e-mail Google confirmado.",
+        });
+        return;
+      }
+    }
   }
   const normalizedCpf = cpf === undefined ? undefined : cpf === null || !cpf.trim() ? null : normalizeCpf(cpf);
   if (normalizedCpf && !isValidCpf(normalizedCpf)) {
@@ -446,6 +519,9 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
       ...(crm !== undefined ? { crm } : {}),
       ...(specialty !== undefined ? { specialty } : {}),
       ...(normalizedEmail !== undefined ? { email: normalizedEmail } : {}),
+      ...(normalizedSecondaryEmail !== undefined
+        ? { secondaryEmail: normalizedSecondaryEmail }
+        : {}),
       ...(phone !== undefined ? { phone } : {}),
       ...(unit !== undefined ? { unit } : {}),
       ...(complemento !== undefined ? { complemento } : {}),
@@ -471,7 +547,7 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
         })
         .where(eq(professionalsTable.id, id))
         .returning();
-      if (updated) await recordOwnProfessionalProfileChange(tx, req, current, updated);
+      if (updated) await recordProfessionalProfileChange(tx, req, current, updated);
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {

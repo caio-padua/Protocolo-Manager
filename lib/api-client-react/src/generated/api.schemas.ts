@@ -1447,6 +1447,7 @@ export interface Professional {
   crm?: string | null;
   specialty?: string | null;
   email?: string | null;
+  secondaryEmail?: string | null;
   phone?: string | null;
   unit?: string | null;
   serviceTypes: string[];
@@ -1468,7 +1469,8 @@ export interface CreateProfessionalBody {
   name: string;
   crm?: string | null;
   specialty?: string | null;
-  email?: string | null;
+  email: string;
+  secondaryEmail?: string | null;
   phone?: string | null;
   unit?: string | null;
   serviceTypes: string[];
@@ -1494,6 +1496,7 @@ export interface UpdateProfessionalBody {
   crm?: string | null;
   specialty?: string | null;
   email?: string | null;
+  secondaryEmail?: string | null;
   phone?: string | null;
   unit?: string | null;
   serviceTypes?: string[];

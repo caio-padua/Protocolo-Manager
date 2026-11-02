@@ -1791,8 +1791,10 @@ router.post(
   const professionalId = Number(req.body?.professionalId);
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
-  if (!Number.isInteger(professionalId) || !username || password.length < 6) {
-    res.status(400).json({ error: "Profissional, usuário e senha (mínimo 6 caracteres) são obrigatórios" });
+  if (!Number.isInteger(professionalId) || !username || !isNewPasswordValid(password)) {
+    res.status(400).json({
+      error: `Informe um profissional e um usuário válidos. ${PASSWORD_POLICY_ERROR}`,
+    });
     return;
   }
   const [prof] = await db

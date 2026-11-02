@@ -4944,7 +4944,7 @@ components:
           nullable: true
         email:
           type: string
-          nullable: true
+          format: email
         secondaryEmail:
           type: string
           nullable: true
@@ -5001,6 +5001,7 @@ components:
           description: "'clt' | 'pj' | 'mei'"
       required:
         - name
+        - email
         - serviceTypes
 
     UpdateProfessionalBody:

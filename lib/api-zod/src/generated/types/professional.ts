@@ -12,6 +12,7 @@ export interface Professional {
   crm?: string | null;
   specialty?: string | null;
   email?: string | null;
+  secondaryEmail?: string | null;
   phone?: string | null;
   unit?: string | null;
   serviceTypes: string[];
