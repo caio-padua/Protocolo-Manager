@@ -14,11 +14,17 @@ export function ClinicalDraftGate({ identity, clientId, kind, children }: {
   const validated = useRef<ClinicalIdentity | null>(null);
   const authorizationRefused = identity.isError && identity.error instanceof ClinicalIdentityRequestError
     && [400, 401, 403, 404, 422].includes(identity.error.status);
-  if (!identity.isFetching && !identity.isError && data?.canPrescribe
+  const canPrepare = kind === "prescription"
+    ? data?.canPrescribe || data?.canPreparePrescription
+    : data?.canRequestExams || data?.canPrepareExamRequest;
+  if (!identity.isFetching && !identity.isError && data && canPrepare
     && data.client.id === clientId && data.professional.id && data.clinic.id && data.clinic.empresaId) {
     validated.current = data;
   }
-  if (authorizationRefused || (data && !data.canPrescribe) || validated.current?.client.id !== clientId) {
+  const hasCurrentPermission = kind === "prescription"
+    ? data?.canPrescribe || data?.canPreparePrescription
+    : data?.canRequestExams || data?.canPrepareExamRequest;
+  if (authorizationRefused || (data && !hasCurrentPermission) || validated.current?.client.id !== clientId) {
     validated.current = null;
   }
   const context = validated.current;

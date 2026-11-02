@@ -4,14 +4,12 @@ import {
   Search,
   Trash2,
   Send,
-  Mail,
-  MessageCircle,
   FileText,
   CheckCircle2,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { BASE } from "../../comunicacao/_shared";
-import { getCollabToken } from "@/lib/collab-auth";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 import ExamDocumentHistoryPanel from "./ExamDocumentHistoryPanel";
@@ -19,6 +17,9 @@ import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/co
 import { useClinicalDraft } from "@/hooks/use-clinical-draft";
 import { emptyExamDraft, examDraftSchema } from "./clinical-draft-schemas";
 import PersonalExamSets from "./PersonalExamSets";
+import { useCreateClinicalApproval, useEmitExamRequest, getListClinicalApprovalsQueryKey, getCountClinicalApprovalsQueryKey } from "@workspace/api-client-react";
+import { getCollabToken } from "@/lib/collab-auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 // ---------------------------------------------------------------------------
 // PAINEL: PEDIDOS DE EXAMES (client-scoped) — extraido de consulta/index.tsx.
@@ -60,6 +61,7 @@ interface EmitResult {
   pdfs: Array<{ id: number; tipoLabel: string; fileName: string; examCount: number; url: string }>;
   email: { attempted: boolean; success: boolean; error?: string };
   whatsapp: { attempted: boolean; success: boolean; error?: string };
+  confirmed?: boolean;
 }
 
 const TIPO_COLOR: Record<Tipo, string> = {
@@ -99,6 +101,7 @@ export default function PedidosExamesPanel({ clientId }: { clientId: number }) {
 }
 
 function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity: IdentityQuery; scope: string }) {
+  const queryClient = useQueryClient();
   const draft = useClinicalDraft(scope, examDraftSchema, emptyExamDraft);
   const { cart, observacao, individualDocuments } = draft.value;
   const setCart = draft.field("cart");
@@ -109,12 +112,16 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
   const [erroExams, setErroExams] = useState(false);
   const [busca, setBusca] = useState("");
   const [cardiacOnly, setCardiacOnly] = useState(false);
-  const [recentIds, setRecentIds] = useState<number[]>([]);
   const activeClient = useRef(clientId);
   activeClient.current = clientId;
   const [emitindo, setEmitindo] = useState(false);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
   const [emitErro, setEmitErro] = useState<string | null>(null);
+  const [approvalQueued, setApprovalQueued] = useState(false);
+  const requestKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const authRequest = { headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` } };
+  const emitExamMutation = useEmitExamRequest({ request: authRequest });
+  const createApproval = useCreateClinicalApproval({ request: authRequest });
 
 
   const carregarExams = useCallback(() => {
@@ -170,40 +177,38 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
     });
   };
 
+  const emissionItems = () => cartList.map((i) => ({
+    nomeExame: i.nomeExame,
+    codigoExame: i.codigoExame,
+    grupoPrincipal: i.grupoPrincipal,
+    preparo: i.preparo,
+    tipo: i.tipo,
+  }));
+
   const emitir = async () => {
-    if (draft.pending || emitindo || cartList.length === 0 || !identity.data || identity.isFetching || identity.isError) return;
+    if (draft.pending || emitindo || cartList.length === 0 || !identity.data?.canRequestExams || identity.isFetching || identity.isError) return;
     const requestedClient = clientId;
     const snapshot = draft.value;
     setEmitindo(true);
     setEmitErro(null);
     setEmitResult(null);
     try {
-      const r = await fetch(`${BASE}/api/exam-requests/emit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getCollabToken() ?? ""}` },
-        body: JSON.stringify({
+      const response = await emitExamMutation.mutateAsync({ data: {
           clientId,
+          professionalId: identity.data.professional.id,
           observacao: observacao.trim() || undefined,
           individualDocuments,
           sendEmail: false,
           sendWhatsapp: false,
-          items: cartList.map((i) => ({
-            nomeExame: i.nomeExame,
-            codigoExame: i.codigoExame,
-            grupoPrincipal: i.grupoPrincipal,
-            preparo: i.preparo,
-            tipo: i.tipo,
-          })),
-        }),
-      });
-      const d = await r.json().catch(() => ({}) as Record<string, unknown>);
-      if (!r.ok) throw new Error((d as { error?: string }).error ?? "Falha ao gerar solicitação");
-      if (!Array.isArray(d.pdfs) || !d.pdfs.length || !d.email || !d.whatsapp) {
-        throw new Error("O servidor não confirmou os documentos gerados. Confira o histórico antes de tentar novamente");
-      }
+          items: emissionItems(),
+        } }) as unknown as EmitResult;
       if (!draft.isCurrent() || activeClient.current !== requestedClient) return;
-      setEmitResult(d as EmitResult);
-      setRecentIds((d as EmitResult).pdfs.map(pdf => pdf.id));
+      setEmitResult({
+        pdfs: Array.isArray(response?.pdfs) ? response.pdfs : [],
+        email: response?.email ?? { attempted: false, success: false },
+        whatsapp: response?.whatsapp ?? { attempted: false, success: false },
+        confirmed: true,
+      });
       draft.complete(snapshot);
     } catch (e) {
       if (draft.isCurrent() && activeClient.current === requestedClient) setEmitErro(`${(e as Error).message} — rascunho preservado.`);
@@ -212,12 +217,42 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
     }
   };
 
+  const enviarParaRevisao = () => {
+    if (draft.pending || createApproval.isPending || cartList.length === 0 || !identity.data?.canPrepareExamRequest) return;
+    const payload = { observacao: observacao.trim() || undefined, individualDocuments, items: emissionItems() };
+    const fingerprint = JSON.stringify(payload);
+    if (!requestKeyRef.current || requestKeyRef.current.fingerprint !== fingerprint) {
+      requestKeyRef.current = { fingerprint, key: `exam:${crypto.randomUUID()}` };
+    }
+    const snapshot = draft.value;
+    setEmitErro(null);
+    createApproval.mutate({ data: {
+      requestKey: requestKeyRef.current.key,
+      kind: "pedido_exames",
+      clientId,
+      payload,
+    } }, {
+      onSuccess: () => {
+        if (!draft.isCurrent()) return;
+        requestKeyRef.current = null;
+        setApprovalQueued(true);
+        draft.complete(snapshot);
+        void queryClient.invalidateQueries({ queryKey: getListClinicalApprovalsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getCountClinicalApprovalsQueryKey() });
+      },
+      onError: error => {
+        if (draft.isCurrent()) setEmitErro(`${error.message} — rascunho preservado.`);
+      },
+    });
+  };
+
   return (
     <div className="space-y-3">
-      <fieldset disabled={emitindo} className="min-w-0">
+      <fieldset disabled={emitindo || createApproval.isPending || emitExamMutation.isPending} className="min-w-0">
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
-      {!draft.pending && <fieldset disabled={emitindo} className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      {approvalQueued && <p role="status" className="bevel-3d px-3 py-2 text-sm text-emerald-800">Pedido enviado ao médico responsável para revisão. Nenhuma mensagem foi enviada.</p>}
+      {!draft.pending && <fieldset disabled={emitindo || createApproval.isPending || emitExamMutation.isPending} className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
       {/* Catalogo */}
       <div className="min-w-0 space-y-3">
         {identity.data && !identity.isError && !identity.isFetching && (
@@ -341,17 +376,31 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
             onChange={event => setIndividualDocuments(event.target.checked)} />
           Gerar um documento por exame, todos na mesma ação.
         </label>
-        <p className="text-xs text-muted-foreground">Gerar não envia mensagens; confira os documentos e escolha os canais no histórico abaixo.</p>
+        <p className="text-xs text-muted-foreground">A emissão direta não envia mensagens. Pedidos submetidos para revisão também não habilitam envio externo.</p>
 
-        <button
-          type="button"
-          onClick={() => void emitir()}
-          disabled={cartList.length === 0 || emitindo || !identity.data || identity.isFetching || identity.isError}
-          className="btn-3d-soft inline-flex h-11 w-full items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide disabled:opacity-60"
-        >
-          {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Gerar pedidos de exames
-        </button>
+        {identity.data?.canRequestExams ? (
+          <button
+            type="button"
+            onClick={() => void emitir()}
+            disabled={cartList.length === 0 || emitindo || !identity.data || identity.isFetching || identity.isError}
+            data-testid="button-emit-exam-requests"
+            className="btn-3d-soft inline-flex h-11 w-full items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide disabled:opacity-60"
+          >
+            {emitindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Emitir pedidos de exames
+          </button>
+        ) : identity.data?.canPrepareExamRequest ? (
+          <button
+            type="button"
+            onClick={enviarParaRevisao}
+            disabled={cartList.length === 0 || createApproval.isPending || identity.isFetching || identity.isError}
+            data-testid="button-submit-exam-review"
+            className="btn-3d inline-flex h-11 w-full items-center justify-center gap-2 text-sm font-bold uppercase tracking-wide disabled:opacity-60"
+          >
+            {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
+          </button>
+        ) : null}
 
         {emitErro && (
           <div className="bevel-3d flex items-start gap-2 px-3 py-2 text-xs text-destructive">
@@ -361,8 +410,9 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
         {emitResult && (
           <div className="bevel-3d space-y-1 px-3 py-2 text-xs">
             <p className="flex items-center gap-1.5 font-semibold text-emerald-700">
-              <CheckCircle2 className="h-4 w-4" /> {emitResult.pdfs.length} PDF(s) gerado(s)
+              <CheckCircle2 className="h-4 w-4" /> {emitResult.pdfs.length ? `${emitResult.pdfs.length} PDF(s) gerado(s)` : "Emissão confirmada"}
             </p>
+            {emitResult.confirmed && emitResult.pdfs.length === 0 && <p>Emissão confirmada pelo servidor. Consulte o histórico de documentos.</p>}
             {emitResult.pdfs.map((p) => (
               <a
                 key={p.id}

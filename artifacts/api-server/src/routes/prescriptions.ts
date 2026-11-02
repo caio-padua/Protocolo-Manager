@@ -6,6 +6,7 @@ import {
   prescriptionItemsTable,
   recipesTable,
   pharmaciesTable,
+  professionalsTable,
   catalogoItensTable,
   catalogoFormulasTable,
 } from "@workspace/db";
@@ -23,7 +24,13 @@ import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
 import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
 import { mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
-import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { ClinicalIdentityError, medicalRegistration, resolveClinicalEmitter, resolveClinicalMember } from "../lib/clinical-emitter";
+import { ClinicalAccessError, clinicalToolAccess, currentResponsibleDoctor } from "../lib/clinical-access";
+import {
+  claimApprovalInTransaction,
+  completeApprovalInTransaction,
+  loadApprovalForEmission,
+} from "../lib/clinical-approval-execution";
 import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionSigner } from "../lib/prescription-signing";
 import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } from "./prescription-delivery";
 
@@ -101,9 +108,44 @@ router.get("/prescriptions/:id", requireCollaborator, async (req, res): Promise<
 router.get("/clinical-context/:clientId", requireCollaborator, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   try {
-    res.json(await resolveClinicalEmitter(req, Number(req.params.clientId)));
+    const clientId = Number(req.params.clientId);
+    const member = await resolveClinicalMember(req, clientId);
+    const [prescriptionAccess, examAccess, responsible, professional] = await Promise.all([
+      clinicalToolAccess(req, clientId, "prescricao"),
+      clinicalToolAccess(req, clientId, "pedido_exames"),
+      currentResponsibleDoctor(member.clinic.id, member.clinic.empresaId),
+      db.select().from(professionalsTable).where(eq(professionalsTable.id, member.professional.id)).limit(1)
+        .then((rows) => rows[0]),
+    ]);
+    let registration: ReturnType<typeof medicalRegistration> | null = null;
+    let issue: string | null = null;
+    if (professional?.professionalType === "medico") {
+      try {
+        registration = medicalRegistration(professional);
+      } catch (error) {
+        issue = error instanceof Error ? error.message : "Confira o registro profissional.";
+      }
+    }
+    const canPrescribe = prescriptionAccess.mode === "direto" && Boolean(registration?.uf);
+    const canRequestExams = examAccess.mode === "direto" && Boolean(registration?.uf);
+    res.json({
+      ...member,
+      professional: {
+        ...member.professional,
+        crm: registration?.crm ?? null,
+        uf: registration?.uf ?? null,
+      },
+      canPrescribe,
+      canRequestExams,
+      canPreparePrescription: prescriptionAccess.mode === "conferir" && Boolean(responsible),
+      canPrepareExamRequest: examAccess.mode === "conferir" && Boolean(responsible),
+      responsibleDoctorName: responsible?.name ?? null,
+      issue: issue ?? (!canPrescribe && !canRequestExams && !responsible
+        ? "Esta unidade ainda não tem médico responsável ativo e vinculado."
+        : null),
+    });
   } catch (error) {
-    if (error instanceof ClinicalIdentityError) {
+    if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
       res.status(error.status).json({ error: error.message });
       return;
     }
@@ -112,10 +154,53 @@ router.get("/clinical-context/:clientId", requireCollaborator, async (req, res):
 });
 
 router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promise<void> => {
-  let identity;
+  let identity: Awaited<ReturnType<typeof resolveClinicalEmitter>>;
   let signer: PrescriptionSigner;
+  let approval: Awaited<ReturnType<typeof loadApprovalForEmission>> | null = null;
+  const requestedApprovalId = req.body?.approvalRequestId == null ? null : Number(req.body.approvalRequestId);
   try {
-    identity = await resolveClinicalEmitter(req, req.body?.clientId);
+    if (requestedApprovalId !== null) {
+      if (!Number.isSafeInteger(requestedApprovalId) || requestedApprovalId <= 0) {
+        throw new ClinicalAccessError(400, "Identificador da conferência inválido.");
+      }
+      approval = await loadApprovalForEmission(req, requestedApprovalId, "prescricao");
+      req.body = { ...approval.request.payload, approvalRequestId: approval.request.id };
+      if (approval.request.status === "aprovado") {
+        const [existingPrescription] = await db.select().from(prescriptionsTable)
+          .where(eq(prescriptionsTable.approvalRequestId, approval.request.id)).limit(1);
+        if (!existingPrescription) throw new ClinicalAccessError(409, "A emissão foi concluída, mas os documentos precisam de conferência técnica.");
+        const recipes = await db.select().from(recipesTable)
+          .where(eq(recipesTable.prescriptionId, existingPrescription.id));
+        res.status(200).json({
+          prescriptionId: existingPrescription.id,
+          recipes: recipes.map((recipe) => ({
+            id: recipe.id,
+            recipeType: recipe.recipeType,
+            title: recipe.title ?? "Receita",
+            pharmacyId: recipe.pharmacyId ?? null,
+            anvisaType: recipe.anvisaType ?? null,
+            anvisaColorName: recipe.anvisaColorName ?? null,
+            sncrNumber: recipe.sncrNumber ?? null,
+            sncrStatus: recipe.sncrStatus ?? null,
+            driveWebViewLink: recipe.driveWebViewLink ?? null,
+            pdfUrl: `/api/recipes/${recipe.id}/pdf`,
+          })),
+          sncrAlerts: [],
+          pharmacyDispatches: [],
+          pacientePdfMotorUnico: null,
+        });
+        return;
+      }
+      identity = approval.identity;
+    } else {
+      const access = await clinicalToolAccess(req, req.body?.clientId, "prescricao");
+      if (access.mode !== "direto") {
+        throw new ClinicalAccessError(403, access.mode === "conferir"
+          ? "Envie a prescrição para conferência do médico responsável."
+          : "Prescrição não liberada para este profissional nesta unidade.");
+      }
+      identity = await resolveClinicalEmitter(req, req.body?.clientId);
+    }
     if (req.body?.professionalId != null && req.body.professionalId !== identity.professional.id) {
       throw new ClinicalIdentityError(403, "O prescritor deve ser o médico autenticado.");
     }
@@ -123,7 +208,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     // Certificate authorization precedes persistence, regulatory numbering and delivery.
     signer = await resolvePrescriptionSigner(identity);
   } catch (error) {
-    if (error instanceof ClinicalIdentityError) {
+    if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
       res.status(error.status).json({ error: error.message });
       return;
     }
@@ -164,10 +249,19 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   const pharmRows = await db.select().from(pharmaciesTable);
   const pharmMap = new Map(pharmRows.map((p) => [p.id, p]));
 
-  const { prescription, emittedRecipes, sncrAlerts } = await db.transaction(async (tx) => {
+  let transactionResult: Awaited<ReturnType<typeof runPrescriptionTransaction>>;
+  async function runPrescriptionTransaction() {
+    return db.transaction(async (tx) => {
+    if (approval) {
+      const claim = await claimApprovalInTransaction(tx, approval.request.id, approval.actor);
+      if (claim !== "claimed") {
+        throw new ClinicalAccessError(409, "A solicitação já foi emitida ou decidida por outro processo.");
+      }
+    }
     const [prescription] = await tx
       .insert(prescriptionsTable)
       .values({
+        approvalRequestId: approval?.request.id ?? null,
         clientId: body.clientId ?? null,
         clientName: body.clientName,
         clientCpf: body.clientCpf ?? null,
@@ -316,18 +410,39 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       pdfUrl: `/api/recipes/${recipe.id}/pdf`,
     });
     }
-    return { prescription, emittedRecipes, sncrAlerts };
-  });
+    if (approval) {
+      await completeApprovalInTransaction(
+        tx,
+        approval.request.id,
+        approval.actor,
+        emittedRecipes.map((recipe) => recipe.id),
+      );
+    }
+      return { prescription, emittedRecipes, sncrAlerts };
+    });
+  }
+  try {
+    transactionResult = await runPrescriptionTransaction();
+  } catch (error) {
+    if (error instanceof ClinicalAccessError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+  const { prescription, emittedRecipes, sncrAlerts } = transactionResult;
 
   // Reminders and alerts are attempted only after the clinical documents commit.
-  try {
-    await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
-      tipo: "formula" as const, nome: it.name,
-      ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
-      dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
-    })));
-  } catch (err) {
-    req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
+  if (!approval) {
+    try {
+      await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
+        tipo: "formula" as const, nome: it.name,
+        ativoPrincipal: it.ativos?.split("\n")[0]?.trim() ?? undefined,
+        dose: it.dose ?? undefined, periodos: mapPeriodosTextoToCanonicos(it.periodo ?? ""),
+      })));
+    } catch (err) {
+      req.log.warn({ err }, "Conteúdo do lembrete não preparado; emissão clínica continua sem envios");
+    }
   }
 
   // Preserve internal regulatory warnings without notifying any external recipient.
@@ -353,47 +468,48 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     tipoMotor: string;
   } | null = null;
 
-  try {
-    // Consolida todos os itens da prescrição para o motor único (ignora desmembramento —
-    // o paciente recebe UMA receita visual completa com todas as substâncias).
-    const formulasParaMotor = items.map((it) => ({
-      nome:      it.name,
-      ativos:    it.ativos ?? undefined,
-      posologia: it.posologia ?? "",
-      via:       it.via ?? undefined,
-      forma:     it.observacao ?? undefined,
-      dose:      it.dose ?? undefined,
-    }));
+  if (!approval) {
+    try {
+      // Consolida todos os itens da prescrição para o motor único (ignora desmembramento —
+      // o paciente recebe UMA receita visual completa com todas as substâncias).
+      const formulasParaMotor = items.map((it) => ({
+        nome:      it.name,
+        ativos:    it.ativos ?? undefined,
+        posologia: it.posologia ?? "",
+        via:       it.via ?? undefined,
+        forma:     it.observacao ?? undefined,
+        dose:      it.dose ?? undefined,
+      }));
 
-    // Generation only: email is a separate confirmed delivery action.
-    const emailDestinatarios: string[] = [];
+      // Generation only: email is a separate confirmed delivery action.
+      const emailDestinatarios: string[] = [];
+      const motorResult = await emitirReceituarioPdf({
+        identity,
+        medicoId: identity.professional.id,
+        clinicaId: identity.clinic.id,
+        patient: {
+          nome:          body.clientName,
+          cpf:           body.clientCpf ?? undefined,
+          telefone:      body.clientPhone ?? undefined,
+          email:         body.clientEmail ?? undefined,
+        },
+        formulas:    formulasParaMotor,
+        tipoReceita: "especial",
+        emailTo:     emailDestinatarios,
+      });
 
-    const motorResult = await emitirReceituarioPdf({
-      identity,
-      medicoId: identity.professional.id,
-      clinicaId: identity.clinic.id,
-      patient: {
-        nome:          body.clientName,
-        cpf:           body.clientCpf ?? undefined,
-        telefone:      body.clientPhone ?? undefined,
-        email:         body.clientEmail ?? undefined,
-      },
-      formulas:    formulasParaMotor,
-      tipoReceita: "especial",
-      emailTo:     emailDestinatarios,
-    });
-
-    pacientePdfMotorUnico = {
-      fileName:    motorResult.fileName,
-      driveUrl:    motorResult.driveUrl,
-      emailSent:   motorResult.emailSent,
-      modeloUsado: motorResult.modeloUsado,
-      tipoMotor:   motorResult.tipoMotor,
-    };
-    req.log.info({ fileName: motorResult.fileName, tipoMotor: motorResult.tipoMotor }, "prescriptions/emit: cópia motor único gerada para o paciente");
-  } catch (motorErr) {
-    // Falha na cópia visual NÃO cancela a emissão regulatória M3
-    req.log.warn({ err: motorErr instanceof Error ? motorErr.message : String(motorErr) }, "prescriptions/emit: motor único falhou — receita M3 regulatória intacta");
+      pacientePdfMotorUnico = {
+        fileName:    motorResult.fileName,
+        driveUrl:    motorResult.driveUrl,
+        emailSent:   motorResult.emailSent,
+        modeloUsado: motorResult.modeloUsado,
+        tipoMotor:   motorResult.tipoMotor,
+      };
+      req.log.info({ fileName: motorResult.fileName, tipoMotor: motorResult.tipoMotor }, "prescriptions/emit: cópia motor único gerada para o paciente");
+    } catch (motorErr) {
+      // Falha na cópia visual NÃO cancela a emissão regulatória M3
+      req.log.warn({ err: motorErr instanceof Error ? motorErr.message : String(motorErr) }, "prescriptions/emit: motor único falhou — receita M3 regulatória intacta");
+    }
   }
 
   // Entregas são ações separadas, confirmadas por destinatário.

@@ -7,6 +7,13 @@ import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-reques
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { ClinicalAccessError, clinicalToolAccess } from "../lib/clinical-access";
+import {
+  claimApprovalInTransaction,
+  completeApprovalInTransaction,
+  loadApprovalForEmission,
+} from "../lib/clinical-approval-execution";
+import { validateExamCatalogItems } from "../lib/exam-catalog-validation";
 import { resolvePrescriptionSigner, signExistingClinicalPdf, type PrescriptionSigner } from "../lib/prescription-signing";
 import dispatchRouter from "./exam-request-dispatch";
 import examSetsRouter from "./exam-sets";
@@ -48,6 +55,7 @@ const ItemSchema = z.object({
 });
 
 const EmitSchema = z.object({
+  approvalRequestId: z.number().int().positive().optional(),
   clientId: z.number().int().positive(),
   professionalId: z.number().int().positive().optional().nullable(),
   observacao: z.string().optional().nullable(),
@@ -58,17 +66,68 @@ const EmitSchema = z.object({
 });
 
 router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promise<void> => {
+  let approval: Awaited<ReturnType<typeof loadApprovalForEmission>> | null = null;
+  const requestedApprovalId = req.body?.approvalRequestId == null ? null : Number(req.body.approvalRequestId);
+  if (requestedApprovalId !== null) {
+    if (!Number.isSafeInteger(requestedApprovalId) || requestedApprovalId <= 0) {
+      res.status(400).json({ error: "Identificador da conferência inválido." });
+      return;
+    }
+    try {
+      approval = await loadApprovalForEmission(req, requestedApprovalId, "pedido_exames");
+    } catch (error) {
+      if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      throw error;
+    }
+    if (approval.request.status === "aprovado") {
+      const rows = await db.select().from(examRequestPdfsTable)
+        .where(eq(examRequestPdfsTable.approvalRequestId, approval.request.id));
+      const baseUrl = absoluteBaseUrl(req);
+      res.status(200).json({
+        pdfs: rows.map((row) => ({
+          id: row.id,
+          tipo: row.tipo,
+          tipoLabel: TIPO_LABEL[row.tipo] ?? row.tipo,
+          fileName: row.fileName,
+          examCount: row.examCount,
+          url: `${baseUrl}/api/exam-requests/file/${row.token}`,
+        })),
+        email: { attempted: false, success: false },
+        whatsapp: { attempted: false, success: false },
+      });
+      return;
+    }
+    req.body = {
+      ...approval.request.payload,
+      approvalRequestId: approval.request.id,
+      sendEmail: false,
+      sendWhatsapp: false,
+    };
+  }
   const parsed = EmitSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() });
     return;
   }
-  const body = parsed.data;
+  let body = parsed.data;
 
   let identity;
   let signer: PrescriptionSigner;
   try {
-    identity = await resolveClinicalEmitter(req, body.clientId);
+    if (approval) {
+      identity = approval.identity;
+    } else {
+      const access = await clinicalToolAccess(req, body.clientId, "pedido_exames");
+      if (access.mode !== "direto") {
+        throw new ClinicalAccessError(403, access.mode === "conferir"
+          ? "Envie o pedido de exames para conferência do médico responsável."
+          : "Pedido de exames não liberado para este profissional nesta unidade.");
+      }
+      identity = await resolveClinicalEmitter(req, body.clientId);
+    }
     if (body.professionalId != null && body.professionalId !== identity.professional.id) {
       throw new ClinicalIdentityError(403, "O solicitante deve ser o médico autenticado.");
     }
@@ -79,11 +138,19 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
     // any exam document. A browser-supplied doctor ID is never a signing authority.
     signer = await resolvePrescriptionSigner(identity);
   } catch (error) {
-    if (error instanceof ClinicalIdentityError) {
+    if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
       res.status(error.status).json({ error: error.message });
       return;
     }
     throw error;
+  }
+  try {
+    body = { ...body, items: await validateExamCatalogItems(body.items) };
+  } catch (error) {
+    res.status(422).json({
+      error: error instanceof Error ? error.message.replace(/^EXAM_CATALOG_INVALID: /, "") : "Exame fora do catálogo ativo.",
+    });
+    return;
   }
   const client = identity.client;
   const professional = { ...identity.professional, crm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / ") };
@@ -164,12 +231,21 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
 
   // Finish rendering and signing every file before the first write. Persist the
   // batch atomically so a partial multi-PDF order cannot be mistaken for success.
-  const saved = await db.transaction(async (tx) => {
+  let saved: Array<{ id: number; document: (typeof prepared)[number] }>;
+  try {
+    saved = await db.transaction(async (tx) => {
+    if (approval) {
+      const claim = await claimApprovalInTransaction(tx, approval.request.id, approval.actor);
+      if (claim !== "claimed") {
+        throw new ClinicalAccessError(409, "A solicitação já foi emitida ou decidida por outro processo.");
+      }
+    }
     const rows: Array<{ id: number; document: (typeof prepared)[number] }> = [];
     for (const document of prepared) {
       const [row] = await tx
         .insert(examRequestPdfsTable)
         .values({
+          approvalRequestId: approval?.request.id ?? null,
           token: document.token,
           clientId: client.id,
           professionalId: professional?.id ?? null,
@@ -182,8 +258,23 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
         .returning({ id: examRequestPdfsTable.id });
       rows.push({ id: row.id, document });
     }
+    if (approval) {
+      await completeApprovalInTransaction(
+        tx,
+        approval.request.id,
+        approval.actor,
+        rows.map((row) => row.id),
+      );
+    }
     return rows;
-  });
+    });
+  } catch (error) {
+    if (error instanceof ClinicalAccessError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
 
   for (const { id, document } of saved) {
     created.push({

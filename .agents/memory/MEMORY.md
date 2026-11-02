@@ -31,6 +31,7 @@
 - [Transição de login por e-mail ou CPF](login-transicao-email-cpf.md) — preservar credenciais atuais até preencher identificador; depois habilitar e-mail/CPF sem bloquear contas antes da regularização.
 - [Separadores e verificação de conflitos](merge-marker-separators.md) — a integração automática pode interpretar sinais de igualdade em comentários como conflito; usar hífens decorativos.
 - [Autorização na fronteira de envio](envio-autorizacao-fronteira.md) — testes preservam a cadeia real de autenticação; vínculo administrativo não se infere de cargo ou agenda.
+- [Aprovação clínica delegada](aprovacao-clinica-delegada.md) — preparo por enfermagem não autoriza emissão; médico da mesma clínica aprova e assina sob concessões global e local.
 - [Seed runner mata servidor no boot](seed-runner-bundle-exit.md) — arquivo de seed com bloco `import.meta.url===argv[1]`+`process.exit` NÃO pode ser importado no entry (esbuild empacota e derruba o boot).
 - [Profissionais estratificados + Entrada 4](profissionais-estratificacao.md) — Entrada 4 = "Corpo Clínico", inclui não-médicos agendáveis; catálogo só ativo p/ paciente; 4 entradas nunca se misturam.
 - [Marca navy/ouro nas telas (padcom)](paxter-navy-gold-marca-telas.md) — chrome=navy/ouro (mata teal/#3D7A7A); STATUS sobrevive (verde=done, emerald NAO trocar em massa); toggle tema useScreenTheme.

@@ -12,11 +12,14 @@ export function ClinicalIdentityPanel({ identity }: { identity: ReturnType<typeo
   const { client, professional, clinic, issue } = identity.data;
   return (
     <section className="panel-3d-sub p-3" aria-label="Identificação clínica validada">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Cliente", client.name, `Identificador ${client.id}`],
-          ["Médico responsável", professional.name, `CRM ${professional.crm} / ${professional.uf ?? "unidade federativa pendente"}`],
-          ["Clínica", clinic.name, `Identificador ${clinic.id}`],
+          ["Cliente selecionado", client.name, `Identificador ${client.id}`],
+          ["Profissional autenticado", professional.name, professional.professionalType === "medico"
+            ? `CRM ${professional.crm ?? "pendente"} / ${professional.uf ?? "UF pendente"}`
+            : professional.professionalType ?? "Equipe clínica"],
+          ["Médico responsável", identity.data.responsibleDoctorName ?? "Não designado", "Revisão e emissão sob identidade própria"],
+          ["Clínica", clinic.name, `Unidade ${clinic.id}`],
         ].map(([label, value, detail]) => (
           <div key={label} className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>

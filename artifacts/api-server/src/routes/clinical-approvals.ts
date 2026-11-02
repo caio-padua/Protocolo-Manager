@@ -2,22 +2,22 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import {
-  ClinicalAdministrationUpdateBody,
-  ClinicalAccessUpdateBody,
+  UpdateClinicalProfessionalAdministrationBody,
+  UpdateClinicalProfessionalAccessBody,
   CountClinicalApprovalsResponse,
   CreateClinicalApprovalBody,
   ListClinicalAccessLocationsResponse,
   ListClinicalApprovalsResponse,
+  ListClinicalApprovalsResponseItem,
   ListClinicalProfessionalAccessResponse,
   RejectClinicalApprovalBody,
   RejectClinicalApprovalResponse,
   UpdateClinicalProfessionalAdministrationResponse,
   UpdateClinicalProfessionalAccessResponse,
   EmitPrescriptionBody,
-  ExamRequestEmitBody,
+  EmitExamRequestBody,
 } from "@workspace/api-zod";
 import {
-  catalogoExamesTable,
   clinicalAccessAuditTable,
   clinicalAccessGrantsTable,
   clinicalApprovalEventsTable,
@@ -30,10 +30,11 @@ import {
 } from "@workspace/db";
 import { normalizeMatriz, podeUsar, type Matriz } from "@workspace/governanca";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
+import { validateExamCatalogItems } from "../lib/exam-catalog-validation";
 import { ClinicalAccessError, clinicManagementPermission, currentResponsibleDoctor, isPlatformOwner } from "../lib/clinical-access";
-import { clinicalWorkflowMode } from "../lib/clinical-access-policy";
 import { assertCurrentResponsibleDoctor, clinicalToolAccess } from "../lib/clinical-access";
 import { ClinicalIdentityError, medicalRegistration } from "../lib/clinical-emitter";
+import { canViewOwnClinicalApproval } from "../lib/clinical-access-policy";
 import { getJsonSetting } from "../lib/secure-settings";
 import { requireCollaborator } from "./collaborator";
 
@@ -48,10 +49,6 @@ function actorId(req: Request): number | null {
 function positiveId(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function normalizeName(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function stableJson(value: unknown): string {
@@ -198,7 +195,7 @@ async function normalizeApprovalPayload(
     return parsed.data as unknown as Record<string, unknown>;
   }
 
-  const parsed = ExamRequestEmitBody.safeParse({
+  const parsed = EmitExamRequestBody.safeParse({
     ...rawPayload,
     clientId: client.id,
     professionalId: null,
@@ -208,34 +205,12 @@ async function normalizeApprovalPayload(
   });
   if (!parsed.success) throw new ClinicalAccessError(400, "O pedido de exames contém dados incompletos ou inválidos.");
 
-  const requestedCodes = parsed.data.items.map((item) => item.codigoExame).filter((code): code is string => Boolean(code));
-  const requestedNames = parsed.data.items.map((item) => item.nomeExame);
-  const catalogConditions = [
-    requestedCodes.length ? inArray(catalogoExamesTable.codigoExame, requestedCodes) : undefined,
-    requestedNames.length ? inArray(catalogoExamesTable.nomeExame, requestedNames) : undefined,
-  ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
-  const catalog = catalogConditions.length
-    ? await db.select({
-      codigoExame: catalogoExamesTable.codigoExame,
-      nomeExame: catalogoExamesTable.nomeExame,
-      ativo: catalogoExamesTable.ativo,
-    }).from(catalogoExamesTable).where(and(eq(catalogoExamesTable.ativo, true), or(...catalogConditions)))
-    : [];
-  const byCode = new Map(catalog.map((item) => [item.codigoExame, item]));
-  const byName = new Map<string, typeof catalog>();
-  for (const item of catalog) {
-    const key = normalizeName(item.nomeExame ?? "");
-    byName.set(key, [...(byName.get(key) ?? []), item]);
+  let items: typeof parsed.data.items;
+  try {
+    items = await validateExamCatalogItems(parsed.data.items);
+  } catch (error) {
+    throw new ClinicalAccessError(422, error instanceof Error ? error.message.replace(/^EXAM_CATALOG_INVALID: /, "") : "Exame fora do catálogo ativo.");
   }
-  const items = parsed.data.items.map((item) => {
-    const matched = item.codigoExame ? byCode.get(item.codigoExame) : undefined;
-    const nameMatches = !item.codigoExame ? byName.get(normalizeName(item.nomeExame)) ?? [] : [];
-    const resolved = matched ?? (nameMatches.length === 1 ? nameMatches[0] : undefined);
-    if (!resolved?.ativo || !resolved.codigoExame || !resolved.nomeExame) {
-      throw new ClinicalAccessError(422, "Há exame fora do catálogo ativo ou sem correspondência única. Selecione novamente no catálogo.");
-    }
-    return { ...item, nomeExame: resolved.nomeExame, codigoExame: resolved.codigoExame };
-  });
   return { ...parsed.data, items, sendEmail: false, sendWhatsapp: false, professionalId: null };
 }
 
@@ -258,12 +233,8 @@ async function responsibleScopes(professionalId: number): Promise<Array<{ locati
     ));
   const valid: Array<{ locationId: number; empresaId: number }> = [];
   for (const row of rows) {
-    try {
-      await assertCurrentResponsibleDoctor(professionalId, row.locationId, row.empresaId);
-      valid.push(row);
-    } catch {
-      // Vínculo removido ou médico desativado: nunca manter visibilidade da fila.
-    }
+    const doctor = await currentResponsibleDoctor(row.locationId, row.empresaId);
+    if (doctor?.id === professionalId) valid.push(row);
   }
   return valid;
 }
@@ -294,7 +265,7 @@ router.get("/clinical-access/locations", requireCollaborator, async (req, res): 
     return;
   }
   const owner = await isPlatformOwner(actor);
-  let locations: Array<{ id: number; name: string; empresaId: number }> = [];
+  let locations: Array<{ id: number; name: string; empresaId: number | null }> = [];
   if (owner) {
     locations = await db.select({
       id: locationsTable.id,
@@ -372,7 +343,7 @@ router.put("/clinical-access/locations/:locationId/professionals/:professionalId
   const actor = actorId(req);
   const locationId = positiveId(req.params.locationId);
   const professionalId = positiveId(req.params.professionalId);
-  const body = ClinicalAccessUpdateBody.safeParse(req.body);
+  const body = UpdateClinicalProfessionalAccessBody.safeParse(req.body);
   if (!actor || !locationId || !professionalId || !body.success) {
     res.status(actor ? 400 : 401).json({ error: "Dados de acesso inválidos." });
     return;
@@ -446,7 +417,7 @@ router.put("/clinical-access/locations/:locationId/professionals/:professionalId
   const actor = actorId(req);
   const locationId = positiveId(req.params.locationId);
   const professionalId = positiveId(req.params.professionalId);
-  const body = ClinicalAdministrationUpdateBody.safeParse(req.body);
+  const body = UpdateClinicalProfessionalAdministrationBody.safeParse(req.body);
   if (!actor || !locationId || !professionalId || !body.success) {
     res.status(actor ? 400 : 401).json({ error: "Dados administrativos inválidos." });
     return;
@@ -580,7 +551,16 @@ router.post("/clinical-approvals", requireCollaborator, async (req, res): Promis
   }
   const { requestKey, kind, clientId, payload } = parsed.data;
   const tool = kind === "prescricao" ? "prescricao" : "pedido_exames";
-  const access = await clinicalToolAccess(req, clientId, tool);
+  let access: Awaited<ReturnType<typeof clinicalToolAccess>>;
+  try {
+    access = await clinicalToolAccess(req, clientId, tool);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   if (access.mode !== "conferir") {
     res.status(403).json({ error: "Seu acesso não permite preparar este documento para conferência." });
     return;
@@ -590,7 +570,16 @@ router.post("/clinical-approvals", requireCollaborator, async (req, res): Promis
     res.status(422).json({ error: "Esta unidade ainda não tem médico responsável ativo e vinculado." });
     return;
   }
-  const normalizedPayload = await normalizeApprovalPayload(kind, payload, access.member.client, access.member.clinic.empresaId);
+  let normalizedPayload: Record<string, unknown>;
+  try {
+    normalizedPayload = await normalizeApprovalPayload(kind, payload, access.member.client, access.member.clinic.empresaId);
+  } catch (error) {
+    if (error instanceof ClinicalAccessError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   const hash = payloadDigest({ kind, clientId, payload: normalizedPayload });
   const [existing] = await db.select().from(clinicalApprovalRequestsTable).where(and(
     eq(clinicalApprovalRequestsTable.preparedByProfessionalId, actor),
@@ -608,7 +597,7 @@ router.post("/clinical-approvals", requireCollaborator, async (req, res): Promis
       preparedByName: names.professionals.get(existing.preparedByProfessionalId) ?? "Profissional",
       responsibleDoctorName: doctor.name,
     }, new Set());
-    res.status(200).json(ListClinicalApprovalsResponse.element.parse(response));
+    res.status(200).json(ListClinicalApprovalsResponseItem.parse(response));
     return;
   }
   let created: typeof clinicalApprovalRequestsTable.$inferSelect;
@@ -662,19 +651,61 @@ router.get("/clinical-approvals", requireCollaborator, async (req, res): Promise
     return;
   }
   const scopes = await responsibleScopes(actor);
+  const roleMatrix = await matrix();
   const reviewerConditions = scopes.map((scope) => and(
     eq(clinicalApprovalRequestsTable.locationId, scope.locationId),
     eq(clinicalApprovalRequestsTable.empresaId, scope.empresaId),
     inArray(clinicalApprovalRequestsTable.status, ["pendente", "processando"]),
   ));
-  const filters = [
-    eq(clinicalApprovalRequestsTable.preparedByProfessionalId, actor),
-    ...reviewerConditions,
-  ];
-  const rows = filters.length ? await db.select().from(clinicalApprovalRequestsTable)
-    .where(or(...filters))
+  const ownRows = await db.select().from(clinicalApprovalRequestsTable)
+    .where(eq(clinicalApprovalRequestsTable.preparedByProfessionalId, actor))
+    .orderBy(desc(clinicalApprovalRequestsTable.createdAt))
+    .limit(200);
+  const currentLinks = await db.select({
+    locationId: locationProfessionalsTable.locationId,
+    empresaId: locationsTable.empresaId,
+    grantEmpresaId: clinicalAccessGrantsTable.empresaId,
+    canPrescribe: clinicalAccessGrantsTable.canPrescribe,
+    canRequestExams: clinicalAccessGrantsTable.canRequestExams,
+    professionalType: professionalsTable.professionalType,
+    category: professionalsTable.category,
+    active: professionalsTable.active,
+  })
+    .from(locationProfessionalsTable)
+    .innerJoin(locationsTable, eq(locationsTable.id, locationProfessionalsTable.locationId))
+    .innerJoin(professionalsTable, eq(professionalsTable.id, locationProfessionalsTable.professionalId))
+    .leftJoin(clinicalAccessGrantsTable, and(
+      eq(clinicalAccessGrantsTable.professionalId, locationProfessionalsTable.professionalId),
+      eq(clinicalAccessGrantsTable.locationId, locationProfessionalsTable.locationId),
+    ))
+    .where(and(
+      eq(locationProfessionalsTable.professionalId, actor),
+      eq(locationsTable.active, "true"),
+      eq(professionalsTable.active, true),
+    ));
+  const ownVisibleRows = ownRows.filter((row) => {
+    const link = currentLinks.find((candidate) =>
+      candidate.locationId === row.locationId && candidate.empresaId === row.empresaId,
+    );
+    const tool = row.kind === "prescricao" ? "prescricao" : "pedido_exames";
+    return canViewOwnClinicalApproval({
+      requestLocationId: row.locationId,
+      requestEmpresaId: row.empresaId,
+      linkLocationId: link?.locationId ?? null,
+      linkEmpresaId: link?.empresaId ?? null,
+      grantEmpresaId: link?.grantEmpresaId ?? null,
+      active: Boolean(link?.active),
+      professionalType: link?.professionalType ?? null,
+      category: link?.category ?? null,
+      globalAllowed: podeUsar(roleMatrix, tool, link?.category ?? ""),
+      localAllowed: tool === "prescricao" ? Boolean(link?.canPrescribe) : Boolean(link?.canRequestExams),
+    });
+  });
+  const reviewerRows = reviewerConditions.length ? await db.select().from(clinicalApprovalRequestsTable)
+    .where(or(...reviewerConditions))
     .orderBy(desc(clinicalApprovalRequestsTable.createdAt))
     .limit(200) : [];
+  const rows = [...ownVisibleRows, ...reviewerRows];
   const deduped = [...new Map(rows.map((row) => [row.id, row])).values()];
   const names = await approvalNames(deduped);
   const response = [];

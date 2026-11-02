@@ -3,13 +3,13 @@ import { podeUsar, type Matriz, type PapelId } from "@workspace/governanca";
 import { getCollabToken, COLLAB_EVENT } from "./collab-auth";
 
 // Fonte unica de permissoes no FRONT. O hook busca:
-//   1. /collaborator/me      — o papel (category) e se e o CEO (isPrimaryDoctor)
+//   1. /collaborator/me      — o papel (category) e a autoridade global (isPlatformOwner)
 //   2. /settings/governanca  — a matriz atual (quem pode o que), semeada no back
 // e devolve `pode(ferramentaId)` que a tela e o menu consultam.
 //
 // Regras de fallback (sempre a favor de nao travar o operador legitimo):
 //   - sem token de colaborador  -> acesso TOTAL (ambiente single-tenant/proxy)
-//   - CEO (isPrimaryDoctor)      -> acesso TOTAL (ve e faz tudo)
+//   - CEO (isPlatformOwner)      -> acesso TOTAL (ve e faz tudo)
 //   - demais                     -> podeUsar(matriz, ferramenta, category)
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -20,6 +20,7 @@ export interface Me {
   role: string;
   category: string;
   isPrimaryDoctor: boolean;
+  isPlatformOwner: boolean;
   cpf: string | null;
   googleLinked: boolean;
 }
@@ -86,7 +87,7 @@ export function usePermissoes(): Permissoes {
     };
   }, [tick]);
 
-  const isCeo = Boolean(me?.isPrimaryDoctor);
+  const isCeo = Boolean(me?.isPlatformOwner);
   // Sem colaborador identificado (me === null) => acesso total.
   const acessoTotal = me === null || isCeo;
 

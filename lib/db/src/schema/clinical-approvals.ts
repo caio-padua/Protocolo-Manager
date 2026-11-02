@@ -11,19 +11,22 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { clientsTable } from "./clients";
+import { locationsTable } from "./locations";
+import { professionalsTable } from "./professionals";
 
 export const clinicalAccessGrantsTable = pgTable(
   "clinical_access_grants",
   {
     id: serial("id").primaryKey(),
     empresaId: integer("empresa_id").notNull(),
-    locationId: integer("location_id").notNull(),
-    professionalId: integer("professional_id").notNull(),
+    locationId: integer("location_id").notNull().references(() => locationsTable.id),
+    professionalId: integer("professional_id").notNull().references(() => professionalsTable.id),
     canPrescribe: boolean("can_prescribe").notNull().default(false),
     canRequestExams: boolean("can_request_exams").notNull().default(false),
     isClinicAdmin: boolean("is_clinic_admin").notNull().default(false),
     isResponsibleDoctor: boolean("is_responsible_doctor").notNull().default(false),
-    updatedByProfessionalId: integer("updated_by_professional_id").notNull(),
+    updatedByProfessionalId: integer("updated_by_professional_id").notNull().references(() => professionalsTable.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -51,13 +54,13 @@ export const clinicalApprovalRequestsTable = pgTable(
     kind: text("kind").notNull(),
     status: text("status").notNull().default("pendente"),
     empresaId: integer("empresa_id").notNull(),
-    locationId: integer("location_id").notNull(),
-    clientId: integer("client_id").notNull(),
-    preparedByProfessionalId: integer("prepared_by_professional_id").notNull(),
+    locationId: integer("location_id").notNull().references(() => locationsTable.id),
+    clientId: integer("client_id").notNull().references(() => clientsTable.id),
+    preparedByProfessionalId: integer("prepared_by_professional_id").notNull().references(() => professionalsTable.id),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
     result: jsonb("result").$type<Record<string, unknown> | null>(),
     rejectionReason: text("rejection_reason"),
-    decidedByProfessionalId: integer("decided_by_professional_id"),
+    decidedByProfessionalId: integer("decided_by_professional_id").references(() => professionalsTable.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
@@ -88,8 +91,8 @@ export const clinicalApprovalEventsTable = pgTable(
   "clinical_approval_events",
   {
     id: serial("id").primaryKey(),
-    requestId: integer("request_id").notNull(),
-    actorProfessionalId: integer("actor_professional_id").notNull(),
+    requestId: integer("request_id").notNull().references(() => clinicalApprovalRequestsTable.id),
+    actorProfessionalId: integer("actor_professional_id").notNull().references(() => professionalsTable.id),
     eventType: text("event_type").notNull(),
     details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -105,9 +108,9 @@ export const clinicalAccessAuditTable = pgTable(
   {
     id: serial("id").primaryKey(),
     empresaId: integer("empresa_id").notNull(),
-    locationId: integer("location_id").notNull(),
-    subjectProfessionalId: integer("subject_professional_id").notNull(),
-    actorProfessionalId: integer("actor_professional_id").notNull(),
+    locationId: integer("location_id").notNull().references(() => locationsTable.id),
+    subjectProfessionalId: integer("subject_professional_id").notNull().references(() => professionalsTable.id),
+    actorProfessionalId: integer("actor_professional_id").notNull().references(() => professionalsTable.id),
     before: jsonb("before").$type<Record<string, unknown> | null>(),
     after: jsonb("after").$type<Record<string, unknown>>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

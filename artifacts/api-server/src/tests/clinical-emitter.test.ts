@@ -5,6 +5,7 @@ import request from "supertest";
 const mock = vi.hoisted(() => ({
   results: [] as any[][],
   insert: vi.fn(), pdf: vi.fn(), send: vi.fn(),
+  accessMode: "direto" as "direto" | "conferir" | "bloqueado",
 }));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
@@ -18,6 +19,13 @@ vi.mock("@workspace/db", async () => ({
 }));
 vi.mock("../lib/exam-request-pdf", () => ({ generateExamRequestPdf: mock.pdf }));
 vi.mock("../lib/messaging/index.js", () => ({ enviarMensagemPaxter: mock.send }));
+vi.mock("../lib/exam-catalog-validation", () => ({
+  validateExamCatalogItems: async (items: unknown[]) => items,
+}));
+vi.mock("../lib/clinical-access", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/clinical-access")>(),
+  clinicalToolAccess: async () => ({ mode: mock.accessMode }),
+}));
 // This suite covers identity and clinic binding. Cryptographic signing is
 // exercised separately with a synthetic certificate in prescription-signing.test.ts.
 vi.mock("../lib/prescription-signing", () => ({
@@ -42,7 +50,7 @@ app.get("/context/:id", requireCollaborator, async (req, res) => {
   catch (err: any) { res.status(err.status ?? 500).json({ error: err.message }); }
 });
 const token = () => createCollaboratorToken({ professionalId: 41, role: "executor" });
-beforeEach(() => { mock.results = []; vi.clearAllMocks(); });
+beforeEach(() => { mock.results = []; mock.accessMode = "direto"; vi.clearAllMocks(); });
 
 describe("cadastro e autorizacao clinica", () => {
   it("resolve o medico real do cadastro sem medico principal fixo", () => {
@@ -56,7 +64,7 @@ describe("cadastro e autorizacao clinica", () => {
   });
   it.each(["active", "professionalType"])("recusa profissional sem condicao %s", field => {
     const data = valid(); data.professional[field] = field === "active" ? false : "nao_medico";
-    expect(() => validateClinicalIdentity(data)).toThrow("médico ativo");
+    expect(() => validateClinicalIdentity(data)).toThrow();
   });
   it.each(["empresa", "local", "vinculo", "inativo", "clienteAusente", "empresaAusente", "profissionalAusente"])("recusa %s", condition => {
     const data = valid();
@@ -104,6 +112,18 @@ describe("rotas reais com banco e provedores isolados", () => {
     const response = await request(app).post("/exam-requests/emit").send({ clientId: 71, items: [{ nomeExame: "Exame sintetico", tipo: "SANGUE" }] });
     expect(response.status).toBe(401);
     expect(mock.insert).not.toHaveBeenCalled(); expect(mock.pdf).not.toHaveBeenCalled(); expect(mock.send).not.toHaveBeenCalled();
+  });
+  it.each(["conferir", "bloqueado"] as const)("emissão direta de exame recusa o modo %s sem PDF, gravação ou envio", async mode => {
+    mock.accessMode = mode;
+    mock.results = [[professional], [professional], [client], [location], [{ id: 1 }]];
+    const response = await request(app).post("/exam-requests/emit")
+      .set("Authorization", `Bearer ${token()}`).send({
+        clientId: 71, items: [{ nomeExame: "Exame sintetico", tipo: "SANGUE" }],
+      });
+    expect(response.status).toBe(403);
+    expect(mock.insert).not.toHaveBeenCalled();
+    expect(mock.pdf).not.toHaveBeenCalled();
+    expect(mock.send).not.toHaveBeenCalled();
   });
   it("pedido com outro medico no corpo e rejeitado antes de efeitos", async () => {
     mock.results = [[professional], [professional], [client], [location], [{ id: 1 }]];

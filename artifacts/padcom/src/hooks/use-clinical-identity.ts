@@ -4,10 +4,14 @@ import { COLLAB_EVENT, getCollabToken } from "@/lib/collab-auth";
 import { BASE } from "@/pages/comunicacao/_shared";
 
 export interface ClinicalIdentity {
-  professional: { id: number; name: string; crm: string; uf: string | null };
+  professional: { id: number; name: string; crm: string | null; uf: string | null; professionalType?: string | null };
   client: { id: number; name: string; cpf: string | null; phone: string | null; email: string | null; birthDate: string | null };
   clinic: { id: number; empresaId: number; name: string };
   canPrescribe: boolean;
+  canRequestExams: boolean;
+  canPreparePrescription: boolean;
+  canPrepareExamRequest: boolean;
+  responsibleDoctorName: string | null;
   issue: string | null;
 }
 

@@ -18,6 +18,7 @@ import {
 import { ConsoleShell } from "./comunicacao/_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 import { usePermissoes } from "@/lib/permissoes";
+import { ClinicalAccessConsole } from "./governanca/ClinicalAccessConsole";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -310,6 +311,7 @@ export default function Governanca() {
           </button>
         </div>
       </section>
+      <ClinicalAccessConsole platformOwner={isCeo} />
     </ConsoleShell>
   );
 }

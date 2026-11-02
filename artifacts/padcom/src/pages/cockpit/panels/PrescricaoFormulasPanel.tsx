@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
 import {
   Search,
@@ -10,6 +10,7 @@ import {
   Clock,
   Building2,
   ShieldAlert,
+  ShieldCheck,
   Send,
   ExternalLink,
   MessageSquare,
@@ -33,7 +34,7 @@ import {
   type SelectedFormula,
 } from "../../prescricao/data";
 import { useQuery } from "@tanstack/react-query";
-import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
+import { useListPharmacies, usePreviewPrescription, useEmitPrescription, useCreateClinicalApproval, getListClinicalApprovalsQueryKey, getCountClinicalApprovalsQueryKey } from "@workspace/api-client-react";
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,8 @@ import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
 import { ClinicalDraftGate, ClinicalDraftNotice, type IdentityQuery } from "@/components/ClinicalDraft";
 import { useClinicalDraft } from "@/hooks/use-clinical-draft";
 import { emptyPrescriptionDraft, prescriptionDraftSchema } from "./clinical-draft-schemas";
+import { getCollabToken } from "@/lib/collab-auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 // ===========================================================================
 // PAINEL: PRESCRICAO DE FORMULAS (client-scoped) — extraido de prescricao/index.tsx.
@@ -88,6 +91,7 @@ export default function PrescricaoFormulasPanel({ clientId }: { clientId: number
 
 function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; identity: IdentityQuery; scope: string }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const draft = useClinicalDraft(scope, prescriptionDraftSchema, emptyPrescriptionDraft);
   const { duracao, cid, selected, defaultPharmacyId, routing } = draft.value;
   const setDuracao = draft.field("duracao");
@@ -105,6 +109,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
   const [emitirMotorUnicoLoading, setEmitirMotorUnicoLoading] = useState(false);
   // ── PDF Visual (Puppeteer server-side — fiel ao template HTML) ────────────
   const [gerarPdfVisualLoading, setGerarPdfVisualLoading] = useState(false);
+  const [approvalQueued, setApprovalQueued] = useState(false);
+  const requestKeyRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const createApproval = useCreateClinicalApproval({ request: { headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` } } });
 
   const { data: pharmacies } = useListPharmacies();
 
@@ -138,6 +145,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     },
   });
   const emitMutation = useEmitPrescription({
+    request: { headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` } },
     mutation: {
       onSuccess: (res) => {
         if (!draft.isCurrent()) return;
@@ -374,6 +382,37 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     } });
   };
 
+  const handleSubmitForReview = () => {
+    if (draft.pending || createApproval.isPending || !identity.data?.canPreparePrescription || !draft.isCurrent()) return;
+    const payload = { durationDays: duracao || null, cid: cid || null, items: buildItems() };
+    if (!payload.items.length) {
+      toast({ title: "Inclua ao menos uma fórmula antes de enviar para revisão.", variant: "destructive" });
+      return;
+    }
+    const fingerprint = JSON.stringify(payload);
+    if (!requestKeyRef.current || requestKeyRef.current.fingerprint !== fingerprint) {
+      requestKeyRef.current = { fingerprint, key: `rx:${crypto.randomUUID()}` };
+    }
+    const snapshot = draft.value;
+    createApproval.mutate({ data: {
+      requestKey: requestKeyRef.current.key,
+      kind: "prescricao",
+      clientId,
+      payload,
+    } }, {
+      onSuccess: () => {
+        if (!draft.isCurrent()) return;
+        requestKeyRef.current = null;
+        setApprovalQueued(true);
+        draft.complete(snapshot);
+        void queryClient.invalidateQueries({ queryKey: getListClinicalApprovalsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getCountClinicalApprovalsQueryKey() });
+        toast({ title: "Prescrição enviada para conferência", description: "O médico responsável revisará e emitirá sob a própria identidade." });
+      },
+      onError: error => toast({ title: "Não foi possível enviar para conferência", description: `${error.message} — o rascunho foi preservado.`, variant: "destructive" }),
+    });
+  };
+
   const idade = client?.birthDate
     ? Math.floor((Date.now() - new Date(client.birthDate).getTime()) / 31557600000)
     : 0;
@@ -425,11 +464,12 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
   return (
     <div className="cockpit-prescricao-visual space-y-4">
-      <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0">
+      <fieldset disabled={emitMutation.isPending || previewMutation.isPending || createApproval.isPending} className="min-w-0">
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
+      {approvalQueued && <p role="status" className="bevel-3d px-3 py-2 text-sm text-emerald-800">Solicitação registrada para revisão do médico responsável. Nenhuma mensagem foi enviada.</p>}
       {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
-      {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending} className="min-w-0 space-y-4">
+      {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending || createApproval.isPending} className="min-w-0 space-y-4">
       <ClinicalIdentityPanel identity={identity} />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
@@ -823,17 +863,30 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                       {previewMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
                       {previewMutation.isPending ? "Gerando…" : "Prévia do desmembramento"}
                     </button>
-                    <button
-                      onClick={handleEmit}
-                      disabled={emitMutation.isPending || !identity.data?.canPrescribe || identity.isFetching || identity.isError}
-                      className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
-                      style={{ color: GOLD }}
-                    >
-                      {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
-                    </button>
+                    {identity.data?.canPrescribe ? (
+                      <button
+                        onClick={handleEmit}
+                        disabled={emitMutation.isPending || identity.isFetching || identity.isError}
+                        data-testid="button-emit-prescriptions"
+                        className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+                        style={{ color: GOLD }}
+                      >
+                        {emitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {emitMutation.isPending ? "Emitindo…" : "Emitir receitas"}
+                      </button>
+                    ) : identity.data?.canPreparePrescription ? (
+                      <button
+                        onClick={handleSubmitForReview}
+                        disabled={createApproval.isPending || identity.isFetching || identity.isError}
+                        data-testid="button-submit-prescription-review"
+                        className="btn-3d flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-bold disabled:opacity-40"
+                      >
+                        {createApproval.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                        {createApproval.isPending ? "Enviando para revisão…" : "Enviar ao médico responsável"}
+                      </button>
+                    ) : null}
                     {/* ── Motor Único (lê modelo ativo do banco) ── */}
-                    <button
+                    {identity.data?.canPrescribe && <button
                       onClick={() => { void handleEmitirMotorUnico(); }}
                       disabled
                       title="Emissão alternativa suspensa até a homologação da assinatura e dos envios"
@@ -841,9 +894,9 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     >
                       {emitirMotorUnicoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       Emitir Receituário
-                    </button>
+                    </button>}
                     {/* ── PDF Visual (Puppeteer server-side) ── */}
-                    <button
+                    {identity.data?.canPrescribe && <button
                       onClick={() => { void handleGerarPdfVisual(); }}
                       disabled
                       title="PDF visual alternativo suspenso até a homologação da assinatura e dos envios"
@@ -851,7 +904,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     >
                       {gerarPdfVisualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       Gerar PDF Visual
-                    </button>
+                    </button>}
                   </div>
 
                   {/* Prévia */}

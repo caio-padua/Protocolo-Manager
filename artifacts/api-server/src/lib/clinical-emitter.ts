@@ -31,15 +31,20 @@ export function validateClinicalIdentity(input: {
   linked: boolean;
 }) {
   const { professional, client, location, linked } = input;
-  validateClinicalMembership(input);
-  if (professional.professionalType !== "medico") {
+  const member = validateClinicalMembership(input);
+  if (!professional || professional.professionalType !== "medico") {
     throw new ClinicalIdentityError(403, "O acesso autenticado não pertence a um médico ativo.");
   }
   const registration = medicalRegistration(professional);
   return {
-    professional: { id: professional.id, name: professional.name, cpf: professional.cpf, ...registration },
-    client: { id: client.id, name: client.name, cpf: client.cpf, email: client.email, phone: client.phone, birthDate: client.birthDate },
-    clinic: { id: location.id, empresaId: client.empresaId, name: location.name },
+    professional: {
+      id: professional.id,
+      name: professional.name,
+      cpf: professional.cpf,
+      ...registration,
+    },
+    client: member.client,
+    clinic: member.clinic,
     canPrescribe: !!registration.uf,
     issue: registration.uf ? null : "Informe a unidade federativa do CRM no cadastro profissional (por exemplo, CRM/SP).",
   };
@@ -83,7 +88,7 @@ export function validateClinicalMembership(input: {
   };
 }
 
-export async function resolveClinicalMember(req: Request, clientId: unknown) {
+async function loadClinicalRecords(req: Request, clientId: unknown) {
   if (!req.collaborator) throw new ClinicalIdentityError(401, "Faça login de colaborador.");
   if (typeof clientId !== "number" || !Number.isSafeInteger(clientId) || clientId <= 0) {
     throw new ClinicalIdentityError(400, "Selecione um cliente cadastrado.");
@@ -100,19 +105,13 @@ export async function resolveClinicalMember(req: Request, clientId: unknown) {
       .where(and(eq(locationProfessionalsTable.locationId, location.id),
         eq(locationProfessionalsTable.professionalId, req.collaborator.professionalId))).limit(1)
     : [];
-  return validateClinicalMembership({ professional, client, location, linked: !!membership });
+  return { professional, client, location, linked: !!membership };
+}
+
+export async function resolveClinicalMember(req: Request, clientId: unknown) {
+  return validateClinicalMembership(await loadClinicalRecords(req, clientId));
 }
 
 export async function resolveClinicalEmitter(req: Request, clientId: unknown) {
-  const member = await resolveClinicalMember(req, clientId);
-  if (member.professional.professionalType !== "medico") {
-    throw new ClinicalIdentityError(403, "O acesso autenticado não pertence a um médico ativo.");
-  }
-  const [professional] = await db.select().from(professionalsTable)
-    .where(eq(professionalsTable.id, member.professional.id)).limit(1);
-  const [client] = await db.select().from(clientsTable)
-    .where(eq(clientsTable.id, member.client.id)).limit(1);
-  const [location] = await db.select().from(locationsTable)
-    .where(eq(locationsTable.id, member.clinic.id)).limit(1);
-  return validateClinicalIdentity({ professional, client, location, linked: true });
+  return validateClinicalIdentity(await loadClinicalRecords(req, clientId));
 }

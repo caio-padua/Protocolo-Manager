@@ -1,7 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-const mock = vi.hoisted(() => ({ results: [] as any[][], insert: vi.fn(), send: vi.fn(), generate: vi.fn(), values: vi.fn(), alert: vi.fn() }));
+const mock = vi.hoisted(() => ({
+  results: [] as any[][], insert: vi.fn(), send: vi.fn(), generate: vi.fn(),
+  values: vi.fn(), alert: vi.fn(), accessMode: "direto" as "direto" | "conferir" | "bloqueado",
+}));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
   db: {
@@ -28,6 +31,11 @@ vi.mock("@workspace/db", async () => ({
   },
 }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_q: any, _s: any, next: any) => next() }));
+vi.mock("../lib/clinical-access", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/clinical-access")>(),
+  clinicalToolAccess: async () => ({ mode: mock.accessMode }),
+  currentResponsibleDoctor: async () => null,
+}));
 vi.mock("../lib/desmembramento", () => ({ planDesmembramento: mock.generate }));
 vi.mock("../lib/sncr", () => ({ consumeSncrNumber: mock.generate }));
 vi.mock("../lib/prescription-pdf", () => ({ generateRecipePdf: mock.generate }));
@@ -58,7 +66,7 @@ const location = { id: 31, name: "Clinica sintetica", empresaId: 21, active: "tr
 const token = () => createCollaboratorToken({ professionalId: 41, role: "executor" });
 const body = { clientId: 71, clientName: "Nome enviado nao confiavel", items: [] };
 const authenticatedProfessional = { id: 41, role: "executor", active: true, credentialVersion: 0 };
-beforeEach(() => { vi.clearAllMocks(); mock.results = []; mock.alert.mockResolvedValue(undefined); });
+beforeEach(() => { vi.clearAllMocks(); mock.results = []; mock.accessMode = "direto"; mock.alert.mockResolvedValue(undefined); });
 function setAuthenticatedQueryResults(...results: any[][]) {
   // requireCollaborator reads the authenticated account before clinical identity queries.
   mock.results = [[authenticatedProfessional], ...results];
@@ -70,6 +78,14 @@ function noEffects() {
 }
 it("emissao anonima retorna 401 antes de gravar ou gerar", async () => {
   expect((await request(app).post("/prescriptions/emit").send(body)).status).toBe(401);
+  noEffects();
+});
+it.each(["conferir", "bloqueado"] as const)("emissão direta recusa o modo %s sem criar documento nem enviar", async mode => {
+  mock.accessMode = mode;
+  setAuthenticatedQueryResults();
+  const response = await request(app).post("/prescriptions/emit")
+    .set("Authorization", `Bearer ${token()}`).send(body);
+  expect(response.status).toBe(403);
   noEffects();
 });
 it("identidade explicita de outro medico retorna 403", async () => {

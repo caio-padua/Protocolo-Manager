@@ -1,7 +1,7 @@
 # PAXTER Loop — Acesso clínico delegado e aprovação médica
 
-Data: 02/11/2026
-Estado: EM ESPECIFICAÇÃO
+Data: 01/11/2026
+Estado: CÓDIGO IMPLEMENTADO LOCALMENTE; HOMOLOGAÇÃO PENDENTE
 Escopo: prescrição e pedido de exames no Cockpit
 Fonte relacionada: `specs/homologacao-prescricoes-e-exames.md`
 
@@ -171,3 +171,22 @@ Médico responsável confere e assina
 5. TESTAR — aplicar testes de contrato, persistência, autorização, repetição, interface e efeitos externos.
 6. HOMOLOGAR — somente com evidência dos requisitos aplicáveis e sem impeditivos.
 7. APRENDER — registrar apenas regras duráveis, sem salvar histórico de implementação na memória.
+
+## 11. Evidências e bloqueios observados nesta execução
+
+Data da verificação: 01/11/2026.
+
+1. A autorização global e a concessão por clínica são verificadas no servidor para emissão direta de prescrições e pedidos de exames.
+2. As rotas antigas de emissão de prescrições também foram incluídas na verificação de acesso.
+3. A enfermagem liberada pode preparar a solicitação, mas não emitir nem assinar o documento final.
+4. O médico responsável atual, ativo e vinculado à mesma clínica confere, aprova e emite sob a própria identidade. A clínica informada pelo navegador não concede acesso.
+5. A emissão aprovada não dispara e-mail, WhatsApp ou Telegram. Uma nova tentativa após emissão devolve os documentos já registrados em vez de emitir novamente.
+6. A enfermagem passou a ver suas próprias solicitações e o estado delas. O servidor oculta esse histórico quando o vínculo ou a permissão global ou local deixam de estar ativos.
+7. Testes sintéticos: 71 testes passaram em cinco arquivos de teste, incluindo caminhos autorizados, bloqueios, rotas legadas e repetição de aprovação. Os testes usam dependências simuladas; não provam integração real com o banco.
+8. Compilação do servidor e da interface concluída. A compilação da interface ainda registra avisos em arquivos fora deste escopo, incluindo propriedades repetidas em `preview-validacao.tsx`.
+9. `typecheck:libs` passou. O verificador geral do servidor continua retornando falha com 174 diagnósticos do repositório; nenhum diagnóstico listado aponta para os arquivos clínicos alterados nesta execução.
+10. O servidor e a interface iniciaram após reinício. A verificação visual da rota autenticada não foi possível: a captura mostrou a tela de login, sem uma sessão autenticada.
+11. A revisão manual cobriu as rotas de emissão e os caminhos legados. A revisão independente solicitada não foi executada nesta sessão; portanto, não registrar a etapa como auditada por um segundo revisor.
+12. Nenhuma migração foi aplicada. Nenhum atendimento, assinatura clínica, envio a cliente ou sincronização com GitHub foi executado.
+13. O fluxo continua bloqueado para uso clínico real até aplicar a migração apenas no banco de desenvolvimento confirmado, validar a interface autenticada, concluir revisão independente e cumprir `specs/homologacao-prescricoes-e-exames.md`.
+14. Atestados e encaminhamentos não fazem parte desta etapa. Devem receber a mesma análise de autorização em etapa posterior, sem execução em paralelo à homologação de receitas e exames.

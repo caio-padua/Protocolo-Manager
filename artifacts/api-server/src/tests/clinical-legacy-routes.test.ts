@@ -1,7 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-const mock = vi.hoisted(() => ({ rows: [] as any[][], emit: vi.fn() }));
+const mock = vi.hoisted(() => ({
+  rows: [] as any[][], emit: vi.fn(),
+  accessMode: "direto" as "direto" | "conferir" | "bloqueado",
+}));
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
   db: { select: () => ({ from: () => ({ where: () => ({
@@ -10,6 +13,10 @@ vi.mock("@workspace/db", async () => ({
   }) }) }) },
 }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: any, next: any) => next() }));
+vi.mock("../lib/clinical-access", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/clinical-access")>(),
+  clinicalToolAccess: async () => ({ mode: mock.accessMode }),
+}));
 vi.mock("../lib/receituario-motor.js", () => ({
   emitirReceituarioPdf: mock.emit, garantirTabelaTokens: vi.fn(),
 }));
@@ -29,6 +36,7 @@ const payload = { clientId: 71, patient: { nome: "Nome falso", email: "outro@exa
 beforeEach(() => {
   vi.clearAllMocks();
   mock.rows = [];
+  mock.accessMode = "direto";
   mock.emit.mockResolvedValue({ pdf: new Uint8Array([1]), fileName: "sintetico.pdf", emailSent: false });
 });
 it.each(["emitir-prescricao", "emitir-cliente"])("%s rejeita anonimo e formulario sem cliente", async action => {
@@ -55,6 +63,14 @@ it.each(["emitir-prescricao", "emitir-cliente"])("%s passa o medico vinculado e 
     medicoId: 41, clinicaId: 31, emailTo: [],
     patient: expect.objectContaining({ nome: client.name, email: client.email }),
   }));
+});
+it.each(["emitir-prescricao", "emitir-cliente"])("%s recusa profissional sem liberação direta antes de gerar PDF", async action => {
+  mock.accessMode = "bloqueado";
+  mock.rows = [[doctor], [doctor], [doctor], [client], [location], [{ id: 1 }]];
+  const response = await request(app).post(`/receituario/${action}`)
+    .set("Authorization", `Bearer ${token()}`).send(payload);
+  expect(response.status).toBe(403);
+  expect(mock.emit).not.toHaveBeenCalled();
 });
 it("assinatura por imagem nao aceita anonimo", async () => {
   const response = await request(app).post("/receituario/assinar-imagem-pdf").send({
@@ -92,6 +108,16 @@ it("rota reaberta usa médico, paciente e clínica autorizados sem destinatário
 });
 it("rota reaberta impede outra clínica antes de chamar o motor", async () => {
   mock.rows = [[doctor], [doctor], [doctor], [client], [{ ...location, empresaId: 99 }], [{ id: 1 }]];
+  const response = await request(app).post("/receituario/assinar-imagem-pdf")
+    .set("Authorization", `Bearer ${token()}`).send({
+      clientId: 71, formulas: [{ nome: "Formula sintetica", posologia: "Uso sintetico" }],
+    });
+  expect(response.status).toBe(403);
+  expect(mock.emit).not.toHaveBeenCalled();
+});
+it("assinatura por imagem bloqueia quem só pode preparar para conferência", async () => {
+  mock.accessMode = "conferir";
+  mock.rows = [[doctor], [doctor], [doctor], [client], [location], [{ id: 1 }]];
   const response = await request(app).post("/receituario/assinar-imagem-pdf")
     .set("Authorization", `Bearer ${token()}`).send({
       clientId: 71, formulas: [{ nome: "Formula sintetica", posologia: "Uso sintetico" }],

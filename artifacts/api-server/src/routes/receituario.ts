@@ -39,6 +39,7 @@ import { sql } from "drizzle-orm";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { ClinicalAccessError, clinicalToolAccess } from "../lib/clinical-access";
 
 const router = Router();
 router.use(moduleGuard("protocolos"));
@@ -543,6 +544,12 @@ router.post("/receituario/gerar-demo", async (req, res): Promise<void> => {
 router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const { clientId, formulas, tipoReceita = "especial", modeloId } = req.body ?? {};
+    const access = await clinicalToolAccess(req, clientId, "prescricao");
+    if (access.mode !== "direto") {
+      throw new ClinicalAccessError(403, access.mode === "conferir"
+        ? "Envie a prescrição para conferência do médico responsável."
+        : "Prescrição não liberada para este profissional nesta unidade.");
+    }
     const identity = await resolveClinicalEmitter(req, clientId);
     if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
 
@@ -574,7 +581,7 @@ router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, r
       tipoMotor: result.tipoMotor,
     });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
       res.status(err.status).json({ error: err.message });
       return;
     }
@@ -599,6 +606,12 @@ router.post("/receituario/assinar-imagem-pdf", requireCollaborator, async (req, 
       res.status(400).json({ error: "Informe clientId e fórmulas. Imagens, destinatários e identidades livres não são aceitos." });
       return;
     }
+    const access = await clinicalToolAccess(req, parsed.data.clientId, "prescricao");
+    if (access.mode !== "direto") {
+      throw new ClinicalAccessError(403, access.mode === "conferir"
+        ? "Envie a prescrição para conferência do médico responsável."
+        : "Prescrição não liberada para este profissional nesta unidade.");
+    }
     const identity = await resolveClinicalEmitter(req, parsed.data.clientId);
     if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
     const result = await emitirReceituarioPdf({ ...parsed.data, identity,
@@ -606,7 +619,7 @@ router.post("/receituario/assinar-imagem-pdf", requireCollaborator, async (req, 
     res.json({ ok: true, pdfBase64: Buffer.from(result.pdf).toString("base64"),
       fileName: result.fileName, driveUrl: result.driveUrl, driveId: result.driveId, emailSent: false });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
       res.status(err.status).json({ error: err.message }); return;
     }
     req.log.error({ err }, "assinar-imagem-pdf: falha na assinatura");
@@ -759,6 +772,12 @@ router.get("/receituario/preview-html", async (req, res): Promise<void> => {
 router.post("/receituario/emitir-cliente", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const { clientId, formulas, tipoReceita = "especial", modeloId } = req.body ?? {};
+    const access = await clinicalToolAccess(req, clientId, "prescricao");
+    if (access.mode !== "direto") {
+      throw new ClinicalAccessError(403, access.mode === "conferir"
+        ? "Envie a prescrição para conferência do médico responsável."
+        : "Prescrição não liberada para este profissional nesta unidade.");
+    }
     const identity = await resolveClinicalEmitter(req, clientId);
     if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
 
@@ -817,7 +836,7 @@ router.post("/receituario/emitir-cliente", requireCollaborator, async (req, res)
       tipoMotor:   result.tipoMotor,
     });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
       res.status(err.status).json({ error: err.message });
       return;
     }

@@ -2,9 +2,9 @@ import type { Request } from "express";
 import { and, eq } from "drizzle-orm";
 import {
   clinicalAccessGrantsTable,
+  locationProfessionalsTable,
   db,
   locationsTable,
-  locationProfessionalsTable,
   professionalsTable,
 } from "@workspace/db";
 import { normalizeMatriz, podeUsar, type Matriz } from "@workspace/governanca";
@@ -112,6 +112,10 @@ export async function currentResponsibleDoctor(locationId: number, empresaId: nu
     .from(clinicalAccessGrantsTable)
     .innerJoin(professionalsTable, eq(professionalsTable.id, clinicalAccessGrantsTable.professionalId))
     .innerJoin(locationsTable, eq(locationsTable.id, clinicalAccessGrantsTable.locationId))
+    .innerJoin(locationProfessionalsTable, and(
+      eq(locationProfessionalsTable.professionalId, clinicalAccessGrantsTable.professionalId),
+      eq(locationProfessionalsTable.locationId, clinicalAccessGrantsTable.locationId),
+    ))
     .where(and(
       eq(clinicalAccessGrantsTable.locationId, locationId),
       eq(clinicalAccessGrantsTable.empresaId, empresaId),
