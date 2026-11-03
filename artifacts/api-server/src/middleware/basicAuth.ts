@@ -64,8 +64,13 @@ const BYPASS_PREFIXES = [
   "/api/onboarding/config",  // GET config de UI por ?tenant=slug — sem dado sensível
 ];
 
+const BYPASS_EXACT_PATHS = new Set([
+  "/api/collaborator/password-recovery/request",
+  "/api/collaborator/password-recovery/complete",
+]);
+
 function isPublicPath(path: string): boolean {
-  return BYPASS_PREFIXES.some(
+  return BYPASS_EXACT_PATHS.has(path) || BYPASS_PREFIXES.some(
     (prefix) => path === prefix || path.startsWith(prefix + "/")
   );
 }

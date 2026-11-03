@@ -1454,3 +1454,68 @@ describe("acesso Google vinculado ao colaborador", () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe("autenticação básica integrada às rotas públicas de recuperação", () => {
+  it("libera somente os dois caminhos exatos de recuperação", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalAdminUsername = process.env.ADMIN_USERNAME;
+    const originalAdminPassword = process.env.ADMIN_PASSWORD;
+    const originalSessionSecret = process.env.SESSION_SECRET;
+
+    process.env.NODE_ENV = "production";
+    process.env.ADMIN_USERNAME = "synthetic-audit-user";
+    process.env.ADMIN_PASSWORD = "synthetic-audit-password";
+    process.env.SESSION_SECRET = "synthetic-integrated-test-secret";
+    vi.resetModules();
+
+    try {
+      const { basicAuthMiddleware } = await import("../middleware/basicAuth");
+      const integratedApp = express()
+        .use(express.json())
+        .use(basicAuthMiddleware)
+        .use("/api", router)
+        .post(
+          "/api/collaborator/password-recovery/request/future",
+          (_req, res) => res.sendStatus(204),
+        );
+
+      const requestRecovery = await request(integratedApp)
+        .post("/api/collaborator/password-recovery/request")
+        .send({});
+      const completeRecovery = await request(integratedApp)
+        .post("/api/collaborator/password-recovery/complete")
+        .send({
+          recoveryToken: "synthetic-invalid-token",
+          newPassword: "Valid-synthetic-password-2026!",
+        });
+      const unrelatedCollaboratorRoute = await request(integratedApp)
+        .post("/api/collaborator/change-password")
+        .send({});
+      const nestedRecoveryPath = await request(integratedApp)
+        .post("/api/collaborator/password-recovery/request/future")
+        .send({});
+
+      expect(requestRecovery.status).toBe(202);
+      expect(requestRecovery.body).toEqual({
+        message: "Se houver uma conta ativa com esse identificador e e-mail cadastrado, enviaremos as instruções.",
+      });
+      expect(completeRecovery.status).toBe(401);
+      expect(completeRecovery.body.error).toContain("O link é inválido ou expirou");
+      expect(unrelatedCollaboratorRoute.status).toBe(401);
+      expect(unrelatedCollaboratorRoute.body.error).toBe("Autenticação necessária.");
+      expect(nestedRecoveryPath.status).toBe(401);
+      expect(nestedRecoveryPath.body.error).toBe("Autenticação necessária.");
+      expect(enviarMensagemPaxter).not.toHaveBeenCalled();
+    } finally {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
+      if (originalAdminUsername === undefined) delete process.env.ADMIN_USERNAME;
+      else process.env.ADMIN_USERNAME = originalAdminUsername;
+      if (originalAdminPassword === undefined) delete process.env.ADMIN_PASSWORD;
+      else process.env.ADMIN_PASSWORD = originalAdminPassword;
+      if (originalSessionSecret === undefined) delete process.env.SESSION_SECRET;
+      else process.env.SESSION_SECRET = originalSessionSecret;
+      vi.resetModules();
+    }
+  });
+});
