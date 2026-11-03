@@ -118,7 +118,7 @@ export default function DietaTreinoPanel({ clientId }: Props) {
   async function handleDownload(plano: DietaPlano) {
     const token = getCollabToken();
     try {
-      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/pdf`, {
+      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/pdf?clienteId=${clientId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!r.ok) {

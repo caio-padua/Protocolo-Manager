@@ -90,6 +90,7 @@ interface Alimento {
 interface Cliente {
   id: number;
   name: string;
+  email?: string | null;
 }
 interface ItemLinha {
   uid: string;
@@ -302,9 +303,10 @@ function MontarCardapio() {
 
   // --- Passo de confirmação de e-mail (preview → confirm) ---
   const [pendingEmail, setPendingEmail] = useState<{
-    pdfBase64: string;
+    planId: number;
     clientId: number;
     nomePaciente: string;
+    emailDestino: string | null;
     caloriasAlvo: number;
     estiloAlimentar?: string;
     usedFallbackDownload?: boolean;
@@ -448,7 +450,9 @@ function MontarCardapio() {
       const a = parseFloat(altura.replace(",", "."));
       const i = parseInt(idade, 10);
       if (!p || !a || !i) throw new Error("Preencha Peso, Altura e Idade antes de emitir.");
-      if (enviarEmail && !clientId) throw new Error("Selecione um cliente para poder enviar por e-mail.");
+      if (!clientId) throw new Error("Selecione um cliente cadastrado antes de emitir o plano.");
+      const token = getCollabToken();
+      if (!token) throw new Error("Faça login de colaborador antes de emitir o plano.");
 
       // Abre aba em branco AGORA (user activation), antes do await longo
       pdfWinRef.current = window.open("about:blank", "_blank");
@@ -463,7 +467,7 @@ function MontarCardapio() {
         nivelAtividade: atividade,
         enviarEmail: false, // Nunca envia aqui — CEO revisa primeiro
       };
-      if (clientId) body.clientId = clientId;
+      body.clientId = clientId;
       if (kcalAlvo) body.caloriasAlvo = kcalAlvo;
       if (estiloAlimentar.trim()) body.estiloAlimentar = estiloAlimentar.trim();
 
@@ -477,7 +481,10 @@ function MontarCardapio() {
       try {
         r = await fetch("/api/dieta/emitir-pdf", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify(body),
           signal: ac.signal,
         });
@@ -496,6 +503,13 @@ function MontarCardapio() {
         const err = await r.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || "Falha ao gerar o plano nutricional.");
       }
+
+      const planId = Number(r.headers.get("X-Dieta-Plan-Id"));
+      if (!Number.isSafeInteger(planId) || planId <= 0) {
+        pdfWinRef.current?.close();
+        throw new Error("O servidor não confirmou o registro seguro do plano. O envio por e-mail foi bloqueado.");
+      }
+      const emailDestino = r.headers.get("X-Dieta-Email-Target");
 
       // Verificar se a imagem de assinatura falhou ao ser embutida (cabeçalho do servidor)
       const signatureImageFailed = r.headers.get("X-Signature-Image-Failed") === "true";
@@ -518,20 +532,11 @@ function MontarCardapio() {
       }
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
 
-      // Se o CEO marcou "Enviar por e-mail", converter o blob para base64 e aguardar confirmação
-      let pdfBase64: string | null = null;
-      if (enviarEmail && clientId) {
-        const buf = await blob.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let bin = "";
-        for (const b of bytes) bin += String.fromCharCode(b);
-        pdfBase64 = btoa(bin);
-      }
-
       return {
-        pdfBase64,
+        planId,
         clientId,
         nomePaciente: clientes?.find((c) => c.id === clientId)?.name ?? "Paciente",
+        emailDestino,
         caloriasAlvo: kcalAlvo ?? p * 25,
         estiloAlimentar: estiloAlimentar.trim() || undefined,
         querEnviarEmail: enviarEmail && !!clientId,
@@ -553,14 +558,15 @@ function MontarCardapio() {
       }
       // Atualiza o Histórico de Planos imediatamente (mesmo que a aba já esteja montada)
       qc.invalidateQueries({ queryKey: ["dieta", "planos-emitidos"] });
-      if (result.querEnviarEmail && result.pdfBase64 && result.clientId) {
+      if (result.querEnviarEmail && result.planId && result.clientId) {
         if (result.clientId === clientIdRef.current) {
           // Exibir painel de confirmação de envio apenas se o cliente não mudou
           // durante a geração assíncrona do PDF (guarda contra race condition).
           setPendingEmail({
-            pdfBase64: result.pdfBase64,
+            planId: result.planId,
             clientId: result.clientId!,
             nomePaciente: result.nomePaciente,
+            emailDestino: result.emailDestino,
             caloriasAlvo: result.caloriasAlvo,
             estiloAlimentar: result.estiloAlimentar,
             usedFallbackDownload: result.usedFallbackDownload,
@@ -583,15 +589,17 @@ function MontarCardapio() {
   const confirmarEnvio = useMutation({
     mutationFn: async () => {
       if (!pendingEmail) throw new Error("Nenhum PDF pendente de envio.");
+      const token = getCollabToken();
+      if (!token) throw new Error("Faça login de colaborador antes de confirmar o envio.");
       const r = await fetch("/api/dieta/enviar-pdf-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           clientId: pendingEmail.clientId,
-          pdfBase64: pendingEmail.pdfBase64,
-          nomePaciente: pendingEmail.nomePaciente,
-          caloriasAlvo: pendingEmail.caloriasAlvo,
-          estiloAlimentar: pendingEmail.estiloAlimentar,
+          planId: pendingEmail.planId,
         }),
       });
       const json = await r.json().catch(() => ({}));
@@ -615,16 +623,18 @@ function MontarCardapio() {
       }
     },
     onError: (e: Error) => {
+      setPendingEmail(null);
+      qc.invalidateQueries({ queryKey: ["dieta", "planos-emitidos"] });
       toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" });
     },
   });
 
   const podeEmitir =
     !emitirPdf.isPending &&
+    !!clientId &&
     !!peso.trim() &&
     !!altura.trim() &&
-    !!idade.trim() &&
-    (!enviarEmail || !!clientId);
+    !!idade.trim();
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">
@@ -1142,6 +1152,13 @@ function MontarCardapio() {
                   : <>O PDF foi aberto em nova aba para revisão.</>}{" "}
                 <span className="font-bold">Enviar para {pendingEmail.nomePaciente}?</span>
               </p>
+              <p className="text-xs text-muted-foreground">
+                Destinatário do cadastro:{" "}
+                <span className="font-semibold text-foreground">
+                  {pendingEmail.emailDestino ?? "sem e-mail cadastrado"}
+                </span>
+                {!pendingEmail.emailDestino && " — cadastre um e-mail antes de enviar."}
+              </p>
               {pendingEmail.usedFallbackDownload && (
                 <p className="text-[11px] text-muted-foreground">
                   Plano: <span className="font-bold text-foreground">{pendingEmail.caloriasAlvo} kcal</span>
@@ -1162,7 +1179,11 @@ function MontarCardapio() {
               <div className="flex items-center gap-2">
                 <Button
                   className="btn-3d"
-                  disabled={confirmarEnvio.isPending || (!!pendingEmail.usedFallbackDownload && !reviewedFallback)}
+                  disabled={
+                    confirmarEnvio.isPending ||
+                    !pendingEmail.emailDestino ||
+                    (!!pendingEmail.usedFallbackDownload && !reviewedFallback)
+                  }
                   onClick={() => confirmarEnvio.mutate()}
                 >
                   {confirmarEnvio.isPending ? (
@@ -1280,6 +1301,8 @@ function FilaIndicacao() {
 interface PlanoEmitido {
   id: number;
   clienteId: number;
+  professionalId: number | null;
+  locationId: number | null;
   nomePaciente: string;
   objetivo: string | null;
   estrategia: string | null;
@@ -1288,6 +1311,9 @@ interface PlanoEmitido {
   alturaCm: number | null;
   emailDestino: string | null;
   emailEnviado: boolean;
+  emailStatus: string;
+  emailEnviadoPor: number | null;
+  emailEnviadoEm: string | null;
   temPdf: boolean;
   pdfExpirado: boolean;
   pdfBytes: number | null;
@@ -1337,7 +1363,7 @@ function HistoricoPlanos() {
   async function handleDownload(plano: PlanoEmitido) {
     const token = getCollabToken();
     try {
-      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/pdf`, {
+      const r = await fetch(`/api/dieta/planos-emitidos/${plano.id}/pdf?clienteId=${plano.clienteId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!r.ok) {
@@ -1383,7 +1409,7 @@ function HistoricoPlanos() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ clientId: reenviarModal.plano.clienteId, email }),
       });
       const d = await r.json();
       if (!r.ok || !d.ok) {
@@ -1487,7 +1513,15 @@ function HistoricoPlanos() {
                       <span className="text-[11px] text-muted-foreground">
                         {formatDate(p.emitidoEm)}
                       </span>
-                      {p.emailEnviado ? (
+                      {p.emailStatus === "sending" ? (
+                        <span className="rounded bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                          Resultado do envio incerto
+                        </span>
+                      ) : p.emailStatus === "failed" ? (
+                        <span className="rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                          Último envio falhou
+                        </span>
+                      ) : p.emailEnviado ? (
                         <span className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                           <CheckCircle2 className="h-3 w-3" /> E-mail enviado
                         </span>
@@ -1586,6 +1620,11 @@ function HistoricoPlanos() {
                     <p className="text-sm text-muted-foreground">
                       Confirme ou altere o e-mail de destino. O histórico registrará o endereço utilizado.
                     </p>
+                    {p.emailStatus === "sending" && (
+                      <p className="text-sm font-semibold text-orange-700">
+                        O resultado anterior é incerto. Reenviar pode entregar uma segunda cópia.
+                      </p>
+                    )}
                     <div className="space-y-1">
                       <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         E-mail de destino

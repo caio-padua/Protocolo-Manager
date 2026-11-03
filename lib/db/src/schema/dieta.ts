@@ -170,6 +170,8 @@ export const dietaPlanosEmitidosTable = pgTable("dieta_planos_emitidos", {
   id: serial("id").primaryKey(),
   clienteId: integer("cliente_id").notNull().references(() => clientsTable.id, { onDelete: "cascade" }),
   empresaId: integer("empresa_id").notNull().default(5),
+  professionalId: integer("professional_id"),
+  locationId: integer("location_id"),
   // Parâmetros usados na geração (auditoria)
   nomePaciente: text("nome_paciente").notNull(),
   pesoKg: real("peso_kg"),
@@ -185,6 +187,9 @@ export const dietaPlanosEmitidosTable = pgTable("dieta_planos_emitidos", {
   // Entrega
   emailDestino: text("email_destino"),
   emailEnviado: boolean("email_enviado").notNull().default(false),
+  emailStatus: text("email_status").notNull().default("not_sent"),
+  emailEnviadoPor: integer("email_enviado_por"),
+  emailEnviadoEm: timestamp("email_enviado_em", { withTimezone: true }),
   // Armazenamento
   pdfStorageKey: text("pdf_storage_key"),    // caminho lógico no Object Storage
   pdfBytes: integer("pdf_bytes"),            // tamanho do arquivo em bytes

@@ -42,8 +42,15 @@ const MINIMAL_PDF_BYTES = Buffer.from(
   "startxref\n190\n%%EOF\n"
 );
 
+let emissionAuthorization: string | undefined;
+let emailConfirmationAuthorization: string | undefined;
+let emailConfirmationBody: unknown;
+
 test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
   test.beforeEach(async ({ page }) => {
+    emissionAuthorization = undefined;
+    emailConfirmationAuthorization = undefined;
+    emailConfirmationBody = undefined;
     // Injeta token falso de colaborador no localStorage antes de qualquer
     // navegação, para que o CollaboratorGate passe na validação.
     await page.addInitScript(() => {
@@ -78,6 +85,7 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
             name: "Ana Silva",
             cpf: "123.456.789-00",
             phone: "(11) 91234-5678",
+            email: "ana.silva@example.invalid",
             photoUrl: null,
           },
         ]),
@@ -100,6 +108,20 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
     await page.route("**/api/dieta/prescricoes*", (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
     );
+    await page.route("**/api/dieta/enviar-pdf-email", async (route) => {
+      emailConfirmationAuthorization = route.request().headers().authorization;
+      emailConfirmationBody = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          planId: 77,
+          emailDestino: "ana.silva@example.invalid",
+          email: { success: true },
+        }),
+      });
+    });
 
     // POST /api/dieta/emitir-pdf → devolve um PDF mínimo com delay intencional.
     //
@@ -111,19 +133,24 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
     // Isso permite ao teste provar a ordenação: o botão só pode aparecer DEPOIS
     // que o PDF foi aberto na nova aba (tab navega para blob:), não antes.
     await page.route("**/api/dieta/emitir-pdf", async (route) => {
+      emissionAuthorization = route.request().headers().authorization;
       // 800 ms de janela: tempo suficiente para o Playwright verificar o estado
       // intermediário sem tornar o teste lento demais.
       await new Promise<void>((r) => setTimeout(r, 800));
       await route.fulfill({
         status: 200,
         contentType: "application/pdf",
+        headers: {
+          "X-Dieta-Plan-Id": "77",
+          "X-Dieta-Email-Target": "ana.silva@example.invalid",
+        },
         body: MINIMAL_PDF_BYTES,
       });
     });
   });
 
   test(
-    "nova aba abre com o PDF e o painel 'Confirmar envio' aparece em seguida",
+    "revisão confirma o PDF e envia apenas o identificador com sessão autenticada",
     async ({ page, context }) => {
       // ── 1. Navega para a página de Dieta ─────────────────────────────────
       await page.goto("/dieta");
@@ -205,6 +232,13 @@ test.describe("Dieta — PDF preview + confirmação de e-mail", () => {
       // O botão "Gerar PDF para Revisão" fica desabilitado enquanto há envio
       // pendente (disabled={!!pendingEmail}), prevenindo duplo envio.
       await expect(gerarBtn).toBeDisabled();
+      expect(emissionAuthorization).toBe("Bearer e2e-fake-token");
+      await expect(page.getByText("ana.silva@example.invalid")).toBeVisible();
+
+      await page.getByRole("button", { name: /Confirmar envio/i }).click();
+      await expect(page.getByText("Plano enviado!")).toBeVisible({ timeout: 5_000 });
+      expect(emailConfirmationAuthorization).toBe("Bearer e2e-fake-token");
+      expect(emailConfirmationBody).toEqual({ clientId: 42, planId: 77 });
     }
   );
 

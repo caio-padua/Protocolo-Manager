@@ -3,6 +3,8 @@ import { db, clientsTable, protocolsTable, examRequestPdfsTable, examDocumentsTa
 import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { listPlanosByCliente } from "../lib/dieta-planos-storage";
+import { requireCollaborator } from "./collaborator";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 
 // ============================================================================
 // GET /api/prontuario/:clientId
@@ -12,14 +14,18 @@ import { listPlanosByCliente } from "../lib/dieta-planos-storage";
 
 const router: IRouter = Router();
 
-router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
-  const clientId = parseInt(req.params.clientId, 10);
-  if (!clientId || isNaN(clientId)) {
+router.get("/prontuario/:clientId", requireCollaborator, async (req, res): Promise<void> => {
+  const clientId = Number(req.params.clientId);
+  if (!Number.isSafeInteger(clientId) || clientId <= 0) {
     res.status(400).json({ error: "clientId inválido" });
     return;
   }
 
   try {
+    // O prontuário, inclusive seu histórico de Dieta, só é acessível após
+    // validar a sessão e o vínculo explícito do colaborador com a unidade.
+    const identity = await resolveClinicalEmitter(req, clientId);
+
     // 1. Dados do cliente
     const [client] = await db
       .select()
@@ -136,7 +142,11 @@ router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
     // 7b. Planos nutricionais emitidos em PDF (motor IA/Claude — Órgão Dieta)
     let dietaPlanos: Awaited<ReturnType<typeof listPlanosByCliente>> = [];
     try {
-      dietaPlanos = await listPlanosByCliente(clientId, client.empresaId ?? 5);
+      dietaPlanos = await listPlanosByCliente(
+        clientId,
+        identity.clinic.empresaId,
+        identity.clinic.id,
+      );
     } catch (err) {
       req.log.error({ err: err instanceof Error ? err.message : String(err) }, "prontuario: erro ao buscar planos de dieta");
     }
@@ -187,6 +197,10 @@ router.get("/prontuario/:clientId", async (req, res): Promise<void> => {
       treinoPrescricoes,
     });
   } catch (err) {
+    if (err instanceof ClinicalIdentityError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     req.log.error({ err: err instanceof Error ? err.message : String(err) }, "prontuario: erro");
     res.status(500).json({ error: "Erro interno" });
   }

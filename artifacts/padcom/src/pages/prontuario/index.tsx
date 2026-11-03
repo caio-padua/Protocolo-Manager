@@ -198,7 +198,7 @@ export default function Prontuario() {
   async function handleDownloadDietaPdf(planoId: number, nomePaciente: string) {
     const token = getCollabToken();
     try {
-      const r = await fetch(`/api/dieta/planos-emitidos/${planoId}/pdf`, {
+      const r = await fetch(`/api/dieta/planos-emitidos/${planoId}/pdf?clienteId=${id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!r.ok) {

@@ -24,6 +24,8 @@ export async function ensureDietaPlanosTable(): Promise<void> {
           id                SERIAL       PRIMARY KEY,
           cliente_id        INTEGER      NOT NULL,
           empresa_id        INTEGER      NOT NULL DEFAULT 5,
+          professional_id   INTEGER,
+          location_id       INTEGER,
           nome_paciente     TEXT         NOT NULL,
           peso_kg           REAL,
           altura_cm         REAL,
@@ -37,11 +39,27 @@ export async function ensureDietaPlanosTable(): Promise<void> {
           tdee              REAL,
           email_destino     TEXT,
           email_enviado     BOOLEAN      NOT NULL DEFAULT FALSE,
+          email_status      TEXT         NOT NULL DEFAULT 'not_sent',
+          email_enviado_por INTEGER,
+          email_enviado_em  TIMESTAMPTZ,
           pdf_storage_key   TEXT,
           pdf_bytes         INTEGER,
           emitido_em        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
         )
       `)
+      .then(async () => {
+        // Migração aditiva: preservar os históricos existentes sem apagar linhas.
+        await db.execute(sql`ALTER TABLE dieta_planos_emitidos ADD COLUMN IF NOT EXISTS professional_id INTEGER`);
+        await db.execute(sql`ALTER TABLE dieta_planos_emitidos ADD COLUMN IF NOT EXISTS location_id INTEGER`);
+        await db.execute(sql`ALTER TABLE dieta_planos_emitidos ADD COLUMN IF NOT EXISTS email_status TEXT NOT NULL DEFAULT 'not_sent'`);
+        await db.execute(sql`ALTER TABLE dieta_planos_emitidos ADD COLUMN IF NOT EXISTS email_enviado_por INTEGER`);
+        await db.execute(sql`ALTER TABLE dieta_planos_emitidos ADD COLUMN IF NOT EXISTS email_enviado_em TIMESTAMPTZ`);
+        await db.execute(sql`
+          UPDATE dieta_planos_emitidos
+          SET email_status = 'sent'
+          WHERE email_enviado = TRUE AND email_status = 'not_sent'
+        `);
+      })
       .then(() => undefined)
       .catch((err: unknown) => {
         _tableReady = null;
@@ -131,6 +149,8 @@ export interface PlanoEmitidoRow {
   id: number;
   clienteId: number;
   empresaId: number;
+  professionalId: number | null;
+  locationId: number | null;
   nomePaciente: string;
   objetivo: string | null;
   estrategia: string | null;
@@ -139,6 +159,9 @@ export interface PlanoEmitidoRow {
   alturaCm: number | null;
   emailDestino: string | null;
   emailEnviado: boolean;
+  emailStatus: string;
+  emailEnviadoPor: number | null;
+  emailEnviadoEm: Date | null;
   pdfStorageKey: string | null;
   pdfBytes: number | null;
   emitidoEm: Date;
@@ -147,12 +170,13 @@ export interface PlanoEmitidoRow {
 // ─── Queries com escopo de tenant obrigatório ──────────────────────────────────
 
 /**
- * Lista os planos emitidos para um cliente, filtrado por empresa_id.
- * Nenhum registro de outro tenant é retornado.
+ * Lista os planos emitidos para um cliente, filtrado por empresa e unidade.
+ * Registros legados sem unidade ficam preservados, mas não são expostos por segurança.
  */
 export async function listPlanosByCliente(
   clienteId: number,
   empresaId: number,
+  locationId: number,
 ): Promise<PlanoEmitidoRow[]> {
   await ensureDietaPlanosTable();
   const rows = await db
@@ -161,6 +185,7 @@ export async function listPlanosByCliente(
     .where(and(
       eq(dietaPlanosEmitidosTable.clienteId, clienteId),
       eq(dietaPlanosEmitidosTable.empresaId, empresaId),
+      eq(dietaPlanosEmitidosTable.locationId, locationId),
     ))
     .orderBy(desc(dietaPlanosEmitidosTable.emitidoEm))
     .limit(50);
@@ -168,12 +193,13 @@ export async function listPlanosByCliente(
 }
 
 /**
- * Busca um plano por ID, garantindo que pertence ao tenant informado.
- * Retorna null se não existir OU se pertencer a outro tenant (anti-IDOR).
+ * Busca um plano por ID, garantindo empresa, unidade e cliente.
+ * Retorna null se não existir OU se pertencer a outro escopo (anti-IDOR).
  */
 export async function getPlanoById(
   id: number,
   empresaId: number,
+  locationId: number,
 ): Promise<PlanoEmitidoRow | null> {
   await ensureDietaPlanosTable();
   const [row] = await db
@@ -182,6 +208,7 @@ export async function getPlanoById(
     .where(and(
       eq(dietaPlanosEmitidosTable.id, id),
       eq(dietaPlanosEmitidosTable.empresaId, empresaId),
+      eq(dietaPlanosEmitidosTable.locationId, locationId),
     ));
   return (row as PlanoEmitidoRow) ?? null;
 }
