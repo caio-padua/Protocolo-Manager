@@ -22,6 +22,7 @@ import { clerkPublishableKey } from "@/lib/clerk-app";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
+import { postCollaboratorLogin } from "./login-request";
 
 interface BootstrapStatus {
   needsBootstrap: boolean;
@@ -212,7 +213,7 @@ export default function LoginPage() {
           password,
         });
       } else {
-        res = await postJson("/api/collaborator/login", {
+        res = await postCollaboratorLogin({
           identifier: loginIdentifierForRequest(username),
           password,
         });
@@ -222,7 +223,7 @@ export default function LoginPage() {
       setCollabSession(data.token, data.professional);
       navigate(getReturnTo(), { replace: true });
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError("O serviço de acesso não respondeu. Aguarde e tente novamente.");
       setBusy(false);
     }
   }

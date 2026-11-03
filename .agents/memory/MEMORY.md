@@ -51,6 +51,7 @@
 - **Concierge** — [gate server-only + HMAC](concierge-pagamento-gate-servidor.md) · [trava de escassez por CPF](concierge-penalidade.md) · [peso por desfecho v2](concierge-penalidade-arquitetura.md) · [piso de 3 meses so na vaga da fila](concierge-janela-natural.md)
 - [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por origem antes de abrir a outras fontes).
 - [Background bash não sobrevive entre chamadas](bash-background-nao-sobrevive.md) — nohup/& morrem ao retornar a tool; trabalho tem de caber em 1 chamada (~120s) ou virar workflow.
+- [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o POST.
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
 - [Fábrica de Padrão de Documentos (PDF)](fabrica-padrao-documentos.md) — wordmark é ouro-sobre-escuro nativo; api-server roda do dist (cp assets→dist/assets no build); emissor PAXTER, exceção receituário=Pádua.
