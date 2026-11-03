@@ -153,3 +153,4 @@
 - [Envio clínico com resultado incerto](envio-clinico-resultado-incerto.md) — reservas não expiram nem autorizam repetição automática; resposta perdida exige conferência, não nova chave.
 - [Comercialização multiempresa](comercializacao-multiempresa.md) — finalidade comercial exige isolamento real; correção local não certifica o sistema inteiro para várias clínicas.
 - [Fixtures de autenticação do colaborador](colaborador-auth-test-fixtures.md) — testes protegidos precisam simular sessão ativa completa e cada validação de autenticação executada na rota.
+- [Cadastro empresarial separado da agenda](cadastro-empresa-vs-local-agenda.md) — dados legais ficam em Empresas; locais e agendas são camada operacional, sem criar hierarquia por inferência.

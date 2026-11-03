@@ -219,6 +219,10 @@ describe("empresas clínicas sem hierarquia", () => {
     const app = await buildApp();
     const response = await request(app).post("/api/empresas").send({
       nome: "Clínica teste nova",
+      nomeFantasia: "Clínica de Teste",
+      endereco: "Rua de Teste",
+      numero: "123",
+      referenciaPlanilha: { empresaMae: "Empresa de Teste", codigoSemantico: "TEST.UNIC.SOCI.0001" },
       cnae: "86.30-5/03",
       regimeTributario: "simples_nacional",
     });
@@ -229,7 +233,24 @@ describe("empresas clínicas sem hierarquia", () => {
       parentEmpresaId: null,
       podeSublicenciar: false,
       isPlatformOwner: false,
+      nomeFantasia: "Clínica de Teste",
+      endereco: "Rua de Teste",
+      numero: "123",
     });
+    expect(fake.inserted[0]).not.toHaveProperty("referenciaPlanilha");
+  });
+
+  it("atualiza nome fantasia e número do endereço em campos próprios", async () => {
+    const app = await buildApp();
+    const response = await request(app).put("/api/empresas/5").send({
+      nomeFantasia: "Clínica Padua",
+      numero: "327",
+    });
+    expect(response.status).toBe(200);
+    expect(fake.updates.some(({ values }) =>
+      values.nomeFantasia === "Clínica Padua" && values.numero === "327"
+    )).toBe(true);
+    expect(fake.updates.every(({ values }) => values.empresaMaeId === null)).toBe(true);
   });
 
   it("normaliza o CNAE para o padrão com sete números", async () => {
@@ -304,11 +325,30 @@ describe("empresas clínicas sem hierarquia", () => {
     expect(fake.updates).toHaveLength(0);
   });
 
-  it("esconde cadastros arquivados e técnicos da lista clínica", async () => {
+  it("lista empresas clínicas e o registro Genesis, ocultando cadastros arquivados", async () => {
     const app = await buildApp();
     const response = await request(app).get("/api/empresas");
     expect(response.status).toBe(200);
-    expect(response.body.map((company: { id: number }) => company.id)).toEqual([5, 7]);
+    expect(response.body.map((company: { id: number }) => company.id)).toEqual([5, 4, 7]);
+  });
+
+  it("devolve as referências da planilha sem expor vínculo empresarial ativo", async () => {
+    fake.companies[0].referenciaPlanilha = {
+      numeroEmpresa: 1,
+      empresaMae: null,
+      acaoSugerida: "Corrigir",
+      codigoSemantico: "PADU.UNIC.SOCI.0001",
+      cepInformado: "03416-050",
+    };
+    fake.companies[0].empresaMaeId = null;
+    const app = await buildApp();
+    const response = await request(app).get("/api/empresas");
+    expect(response.status).toBe(200);
+    expect(response.body[0].referenciaPlanilha).toMatchObject({
+      numeroEmpresa: 1,
+      codigoSemantico: "PADU.UNIC.SOCI.0001",
+    });
+    expect(response.body[0]).not.toHaveProperty("empresaMaeId");
   });
 
   it("a rota legada de hierarquia devolve uma lista plana, sem raiz ou filhos", async () => {

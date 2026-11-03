@@ -66,7 +66,7 @@ function sanitizarEmpresa(row: EmpresaRow) {
 
 // Todos os campos editáveis da tabela empresas (exceto credenciais — essas têm rota própria)
 const CAMPOS_EMPRESA = [
-  "nome","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","areaUrl","timezone",
+  "nome","nomeFantasia","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","areaUrl","timezone",
   // Fiscal/Jurídico
   "cnae","cnaeDescricao","cnaesSecundarios","naturezaJuridica","regimeTributario",
   "inscricaoEstadual","inscricaoMunicipal","dataAbertura","capitalSocial",
@@ -74,7 +74,7 @@ const CAMPOS_EMPRESA = [
   "responsavelLegalNome","responsavelLegalCpf",
   "contadorNome","contadorCrc","contadorEmail","contadorTelefone",
   // Endereço comercial
-  "endereco","complemento","cep","bairro","cidade","estado","zona",
+  "endereco","numero","complemento","cep","bairro","cidade","estado","zona",
   // Endereço fiscal
   "enderecoFiscal","complementoFiscal","cepFiscal","bairroFiscal","cidadeFiscal","estadoFiscal","codigoIbge",
   // Contatos
@@ -304,7 +304,7 @@ router.get("/empresas", async (req, res): Promise<void> => {
   const rows = await db.select().from(empresasTable).orderBy(empresasTable.id);
   res.json(rows
     .filter((company) =>
-      company.tipo === "clinic" &&
+      (company.tipo === "clinic" || company.tipo === "genesis_seed") &&
       company.status !== "ARQUIVADA" &&
       !company.isPlatformOwner
     )
@@ -315,7 +315,7 @@ router.get("/empresas/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   const [row] = await db.select().from(empresasTable).where(eq(empresasTable.id, id));
-  if (!row || row.tipo !== "clinic" || row.status === "ARQUIVADA" || row.isPlatformOwner) {
+  if (!row || (row.tipo !== "clinic" && row.tipo !== "genesis_seed") || row.status === "ARQUIVADA" || row.isPlatformOwner) {
     res.status(404).json({ error: "Empresa clínica não encontrada" });
     return;
   }

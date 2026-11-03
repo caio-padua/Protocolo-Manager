@@ -294,6 +294,15 @@ BEGIN
   END IF;
 END $$;
 
+-- Campos separados para o cadastro empresarial da planilha.
+-- referencia_planilha é informativa: não alimenta empresa_mae_id nem códigos oficiais.
+ALTER TABLE empresas
+  ADD COLUMN IF NOT EXISTS nome_fantasia TEXT;
+ALTER TABLE empresas
+  ADD COLUMN IF NOT EXISTS numero TEXT;
+ALTER TABLE empresas
+  ADD COLUMN IF NOT EXISTS referencia_planilha JSONB;
+
 CREATE UNIQUE INDEX IF NOT EXISTS locations_codigo_sequencial_unique
   ON locations (codigo_sequencial)
   WHERE codigo_sequencial IS NOT NULL;

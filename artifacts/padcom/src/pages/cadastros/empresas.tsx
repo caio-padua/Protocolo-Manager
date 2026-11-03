@@ -23,16 +23,44 @@ const apiBase = import.meta.env.VITE_API_URL || "/api";
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 interface Empresa {
   id: number; iheId: number | null;
-  nome: string; nick: string | null; cnpj: string | null;
+  nome: string; nomeFantasia: string | null; razaoSocial: string | null;
+  nick: string | null; cnpj: string | null;
   tipo: string; tipoUnidade: string | null; status: string; ativa: boolean;
   donoNome: string | null; slug: string | null; areaUrl: string | null; timezone: string | null;
-  endereco: string | null; cep: string | null; bairro: string | null;
+  endereco: string | null; numero: string | null; complemento: string | null;
+  cep: string | null; bairro: string | null;
   cidade: string | null; estado: string | null; zona: string | null;
+  cnae: string | null; cnaeDescricao: string | null; regimeTributario: string | null;
+  naturezaJuridica: string | null; inscricaoEstadual: string | null; inscricaoMunicipal: string | null;
+  dataAbertura: string | null; capitalSocial: number | string | null;
+  optanteSimples: boolean | null;
+  responsavelLegalNome: string | null; responsavelLegalCpf: string | null;
+  contadorNome: string | null; contadorCrc: string | null;
+  contadorEmail: string | null; contadorTelefone: string | null;
+  enderecoFiscal: string | null; complementoFiscal: string | null; cepFiscal: string | null;
+  bairroFiscal: string | null; cidadeFiscal: string | null; estadoFiscal: string | null; codigoIbge: string | null;
+  nfeAmbiente: string | null; nfeSerie: string | null; nfeProximoNumero: number | null;
+  nfeCodigoServico: string | null; nfeAliquotaIss: number | string | null;
+  nfeCodigoIss: string | null; nfeDiscriminacaoPadrao: string | null;
+  certTipo: string | null; certValidade: string | null; certStatus: string | null;
+  zapsignToken: string | null; zapsignEmail: string | null;
+  waNumero: string | null; waPhoneNumberId: string | null;
+  waBusinessAccountId: string | null; waToken: string | null;
+  twilioAccountSid: string | null; twilioAuthToken: string | null; twilioNumero: string | null;
+  telegramBotToken: string | null; telegramChatId: string | null; telegramBotUsername: string | null;
+  zohoEmail: string | null; zohoStatus: string | null;
   telefone: string | null; emailGeral: string | null; emailAgenda: string | null;
   emailEnfermagem: string | null; emailFinanceiro: string | null;
   googleCalendarId: string | null; googleDriveFolderId: string | null;
   modulosAtivos: Record<string, boolean>;
   tipoContrato: string | null; fatMetaMensal: number | null;
+  referenciaPlanilha?: {
+    numeroEmpresa?: number | null;
+    empresaMae?: string | null;
+    acaoSugerida?: string | null;
+    codigoSemantico?: string | null;
+    cepInformado?: string | null;
+  } | null;
 }
 
 interface Cargo {
@@ -56,6 +84,7 @@ const REGIMES_TRIBUTARIOS = ["simples_nacional", "mei", "lucro_presumido", "lucr
 const formSchema = z.object({
   // Identificação básica
   nome:            z.string().min(2, "Nome obrigatório"),
+  nomeFantasia:    z.string().optional(),
   razaoSocial:     z.string().optional(),
   nick:            z.string().optional(),
   cnpj:            z.string().optional(),
@@ -87,6 +116,7 @@ const formSchema = z.object({
   contadorTelefone: z.string().optional(),
   // Endereço comercial
   endereco:        z.string().optional(),
+  numero:          z.string().optional(),
   cep:             z.string().optional(),
   zona:            z.string().optional(),
   bairro:          z.string().optional(),
@@ -145,7 +175,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const EMPTY: FormValues = {
-  nome: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
+  nome: "", nomeFantasia: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
   tipoUnidade: "CLINICA", status: "ATIVO", ativa: true,
   donoNome: "", slug: "", areaUrl: "", timezone: "America/Sao_Paulo",
   cnae: "", cnaeDescricao: "", naturezaJuridica: "Ltda",
@@ -153,7 +183,7 @@ const EMPTY: FormValues = {
   inscricaoMunicipal: "", dataAbertura: "", capitalSocial: "", optanteSimples: true,
   responsavelLegalNome: "", responsavelLegalCpf: "",
   contadorNome: "", contadorCrc: "", contadorEmail: "", contadorTelefone: "",
-  endereco: "", complemento: "", cep: "", zona: "", bairro: "", cidade: "", estado: "",
+  endereco: "", numero: "", complemento: "", cep: "", zona: "", bairro: "", cidade: "", estado: "",
   enderecoFiscal: "", complementoFiscal: "", cepFiscal: "", bairroFiscal: "", cidadeFiscal: "", estadoFiscal: "", codigoIbge: "",
   telefone: "", emailGeral: "", emailAgenda: "", emailEnfermagem: "", emailFinanceiro: "",
   nfeAmbiente: "homologacao", nfeSerie: "1", nfeProximoNumero: 1,
@@ -260,7 +290,12 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
         </div>
 
         {/* Nome */}
-        <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">{empresa.nome}</h3>
+        <div>
+          <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">{empresa.nome}</h3>
+          {empresa.nomeFantasia && (
+            <p className="text-[10px] text-muted-foreground mt-1">{empresa.nomeFantasia}</p>
+          )}
+        </div>
 
         {/* Bloco de dados */}
         <div className="concave-3d p-2.5 space-y-1.5 flex-1">
@@ -882,6 +917,7 @@ function DriveImportModal({ open, onClose }: { open: boolean; onClose: () => voi
 export default function CadastroEmpresas() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen]   = useState(false);
+  const [activeFormTab, setActiveFormTab] = useState("ident");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -938,11 +974,17 @@ export default function CadastroEmpresas() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const openNew = () => { setEditingId(null); form.reset(EMPTY); setFormOpen(true); };
+  const openNew = () => {
+    setEditingId(null);
+    form.reset(EMPTY);
+    setActiveFormTab("ident");
+    setFormOpen(true);
+  };
   const openEdit = (e: Empresa) => {
     setEditingId(e.id);
     form.reset({
-      nome: e.nome, razaoSocial: e.razaoSocial || "", nick: e.nick || "", cnpj: e.cnpj || "",
+      nome: e.nome, nomeFantasia: e.nomeFantasia || "", razaoSocial: e.razaoSocial || "",
+      nick: e.nick || "", cnpj: e.cnpj || "",
       tipo: e.tipo, tipoUnidade: normalizarTipoUnidade(e.tipoUnidade), status: e.status, ativa: e.ativa,
       donoNome: e.donoNome || "", slug: e.slug || "", areaUrl: e.areaUrl || "", timezone: e.timezone || "America/Sao_Paulo",
       cnae: e.cnae ? formatarCnaeExistente(e.cnae) : "", cnaeDescricao: e.cnaeDescricao || "",
@@ -954,7 +996,8 @@ export default function CadastroEmpresas() {
       responsavelLegalNome: e.responsavelLegalNome || "", responsavelLegalCpf: e.responsavelLegalCpf || "",
       contadorNome: e.contadorNome || "", contadorCrc: e.contadorCrc || "",
       contadorEmail: e.contadorEmail || "", contadorTelefone: e.contadorTelefone || "",
-      endereco: e.endereco || "", complemento: (e as any).complemento || "", cep: e.cep || "",
+      endereco: e.endereco || "", numero: e.numero || "",
+      complemento: e.complemento || "", cep: e.cep || "",
       bairro: e.bairro || "", cidade: e.cidade || "", estado: e.estado || "", zona: e.zona || "",
       enderecoFiscal: e.enderecoFiscal || "", complementoFiscal: (e as any).complementoFiscal || "", cepFiscal: e.cepFiscal || "",
       bairroFiscal: e.bairroFiscal || "", cidadeFiscal: e.cidadeFiscal || "",
@@ -978,6 +1021,7 @@ export default function CadastroEmpresas() {
       zohoEmail: e.zohoEmail || "", zohoStatus: e.zohoStatus || "sugerido",
       googleCalendarId: e.googleCalendarId || "", googleDriveFolderId: e.googleDriveFolderId || "",
     });
+    setActiveFormTab("ident");
     setFormOpen(true);
   };
 
@@ -1125,33 +1169,44 @@ export default function CadastroEmpresas() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
-              <Tabs defaultValue="ident" className="flex flex-col flex-1 min-h-0">
+              <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex flex-col flex-1 min-h-0">
 
                 {/* Barra de abas */}
-                <TabsList className="mx-6 mt-3 mb-0 justify-start gap-1 h-auto bg-transparent p-0 border-b border-border/30 rounded-none">
-                  {[
-                    { value: "ident",      label: "Identificação" },
-                    { value: "fiscal",     label: "Jurídico & Fiscal" },
-                    { value: "end",        label: "Endereços" },
-                    { value: "nfe",        label: "NF-e & Cert." },
-                    { value: "integ",      label: "Integrações" },
-                    { value: "contratos",  label: "Contratos" },
-                  ].map(({ value, label }) => (
-                    <TabsTrigger key={value} value={value}
-                      className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent shadow-none">
-                      {label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+                <div className="mx-4 sm:mx-6 mt-3 overflow-x-auto">
+                  <TabsList aria-label="Seções do cadastro empresarial"
+                    className="w-max min-w-full justify-start gap-3 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
+                    {[
+                      { value: "ident",      label: "Dados" },
+                      { value: "fiscal",     label: "Fiscal e CNAE" },
+                      { value: "end",        label: "Endereço" },
+                      { value: "referencias",label: "Origem e Referências" },
+                      { value: "nfe",        label: "Documentos Fiscais" },
+                      { value: "integ",      label: "Integrações" },
+                      { value: "contratos",  label: "Documentos e Contratos" },
+                    ].map(({ value, label }) => (
+                      <TabsTrigger key={value} value={value}
+                        className="bevel-3d whitespace-nowrap text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2 border-0 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+                        {label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </div>
 
-                {/* ── ABA 1: IDENTIFICAÇÃO ───────────────────────────────────────── */}
+                {/* ── ABA: DADOS ────────────────────────────────────────────────── */}
                 <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="nome" render={({ field }) => (
                       <FormItem className="md:col-span-2">
-                        <FormLabel className="lbl">Nome Fantasia *</FormLabel>
+                        <FormLabel className="lbl">Nome no Sistema *</FormLabel>
                         <FormControl><Input placeholder="Ex: Instituto Padua" {...field} className="field-engraved" /></FormControl>
+                        <p className="text-[9px] text-muted-foreground">Nome principal exibido nos cadastros internos.</p>
                         <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="nomeFantasia" render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="lbl">Nome Fantasia</FormLabel>
+                        <FormControl><Input placeholder="Nome de divulgação da empresa" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="razaoSocial" render={({ field }) => (
@@ -1426,7 +1481,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA 3: ENDEREÇOS ───────────────────────────────────────────── */}
                 <TabsContent value="end" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <Divider label="Endereço Comercial" />
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cep" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">CEP</FormLabel>
@@ -1434,9 +1489,15 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="endereco" render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel className="lbl">Logradouro e Número</FormLabel>
-                        <FormControl><Input placeholder="Rua, Av., número" {...field} className="field-engraved" /></FormControl>
+                      <FormItem className="sm:col-span-2 xl:col-span-2">
+                        <FormLabel className="lbl">Logradouro</FormLabel>
+                        <FormControl><Input placeholder="Rua, avenida, praça..." {...field} className="field-engraved" /></FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="numero" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="lbl">Número</FormLabel>
+                        <FormControl><Input placeholder="Número do imóvel" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="complemento" render={({ field }) => (
@@ -1452,7 +1513,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cidade" render={({ field }) => (
-                      <FormItem className="col-span-2">
+                      <FormItem className="sm:col-span-2 xl:col-span-2">
                         <FormLabel className="lbl">Cidade</FormLabel>
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
@@ -1473,7 +1534,7 @@ export default function CadastroEmpresas() {
                   </div>
 
                   <Divider label="Endereço Fiscal (para NF-e — pode ser igual ao comercial)" />
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cepFiscal" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">CEP Fiscal</FormLabel>
@@ -1481,7 +1542,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="enderecoFiscal" render={({ field }) => (
-                      <FormItem className="col-span-2">
+                      <FormItem className="sm:col-span-2 xl:col-span-2">
                         <FormLabel className="lbl">Logradouro Fiscal</FormLabel>
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
@@ -1499,7 +1560,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cidadeFiscal" render={({ field }) => (
-                      <FormItem className="col-span-2">
+                      <FormItem className="sm:col-span-2 xl:col-span-2">
                         <FormLabel className="lbl">Cidade Fiscal</FormLabel>
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
@@ -1511,12 +1572,66 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="codigoIbge" render={({ field }) => (
-                      <FormItem className="col-span-2">
+                      <FormItem className="sm:col-span-2 xl:col-span-2">
                         <FormLabel className="lbl">Código IBGE do Município <span className="text-destructive">*NF-e</span></FormLabel>
                         <FormControl><Input placeholder="3550308 (São Paulo)" {...field} className="field-engraved font-mono" /></FormControl>
                         <p className="text-[9px] text-muted-foreground/50">7 dígitos — obrigatório para emitir NF-e</p>
                       </FormItem>
                     )} />
+                  </div>
+                </TabsContent>
+
+                {/* ── ABA: REFERÊNCIAS DA PLANILHA ─────────────────────────────── */}
+                <TabsContent value="referencias" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
+                  <div className="panel-3d-sub p-4 space-y-3">
+                    <div className="bevel-3d px-3 py-1.5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      Referências da planilha
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Estes valores são apenas referências da planilha de teste. Não criam vínculo jurídico,
+                      hierarquia, permissão, cobrança ou código semântico oficial.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {[
+                        {
+                          label: "Número original na planilha",
+                          value: selectedEmpresa?.referenciaPlanilha?.numeroEmpresa?.toString(),
+                        },
+                        {
+                          label: "Empresa mãe indicada",
+                          value: selectedEmpresa?.referenciaPlanilha?.empresaMae,
+                        },
+                        {
+                          label: "Ação sugerida na planilha",
+                          value: selectedEmpresa?.referenciaPlanilha?.acaoSugerida,
+                        },
+                        {
+                          label: "Código semântico sugerido",
+                          value: selectedEmpresa?.referenciaPlanilha?.codigoSemantico,
+                        },
+                        {
+                          label: "CEP informado na planilha",
+                          value: selectedEmpresa?.referenciaPlanilha?.cepInformado,
+                        },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="concave-3d min-w-0 p-3 space-y-1.5">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
+                          <p className="text-[12px] font-semibold break-words">
+                            {value?.trim() || (selectedEmpresa ? "Sem valor informado" : "Sem referência de planilha para novos cadastros")}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-amber-700 dark:text-amber-300">
+                      O código oficial continua sendo gerado por unidade clínica no painel de códigos semânticos.
+                    </p>
+                    {selectedEmpresa?.referenciaPlanilha?.cepInformado &&
+                      selectedEmpresa.referenciaPlanilha.cepInformado.replace(/\D/g, "").length !== 8 && (
+                        <p className="text-[10px] text-destructive">
+                          O CEP de origem está incompleto; o endereço válido já cadastrado foi preservado.
+                        </p>
+                      )}
                   </div>
                 </TabsContent>
 

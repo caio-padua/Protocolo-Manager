@@ -10,7 +10,8 @@ export const empresasTable = pgTable("empresas", {
   iheId: integer("ihe_id"),                      // referência ao ID original do IHE (não-chave, só rastreio)
 
   // ── Identificação básica ────────────────────────────────────────────────────
-  nome: text("nome").notNull(),                  // nome fantasia / nome interno
+  nome: text("nome").notNull(),                  // nome usado no sistema
+  nomeFantasia: text("nome_fantasia"),           // nome fantasia, separado do nome do sistema
   razaoSocial: text("razao_social"),             // razão social completa (para NF-e / documentos legais)
   nick: text("nick"),                            // apelido interno curto
   cnpj: text("cnpj"),
@@ -48,12 +49,21 @@ export const empresasTable = pgTable("empresas", {
 
   // ── Endereço comercial ──────────────────────────────────────────────────────
   endereco: text("endereco"),
+  numero: text("numero"),
   cep: text("cep"),
   bairro: text("bairro"),
   cidade: text("cidade"),
   estado: text("estado"),
   zona: text("zona"),                            // ex: "Zona Leste", "Centro", "Asa Sul" — auto ou manual
   complemento: text("complemento"),              // sala, andar, apto (endereço comercial)
+  // Metadados apenas informativos da planilha; não criam hierarquia nem emitem código.
+  referenciaPlanilha: jsonb("referencia_planilha").$type<{
+    numeroEmpresa?: number | null;
+    empresaMae?: string | null;
+    acaoSugerida?: string | null;
+    codigoSemantico?: string | null;
+    cepInformado?: string | null;
+  }>(),
 
   // ── Endereço fiscal (pode diferir do comercial — obrigatório NF-e) ──────────
   enderecoFiscal: text("endereco_fiscal"),       // logradouro completo
