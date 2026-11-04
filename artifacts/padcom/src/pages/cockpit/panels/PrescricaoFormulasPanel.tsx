@@ -60,6 +60,37 @@ import { useQueryClient } from "@tanstack/react-query";
 // ===========================================================================
 
 const GOLD = "#c2a05a";
+const SAFE_CLINICAL_ERROR =
+  "Falha interna ao salvar. O rascunho foi preservado; confira o histórico antes de tentar novamente.";
+
+function safeClinicalErrorMessage(error: unknown): string {
+  const raw = error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : "";
+  const jsonStart = raw.indexOf("{");
+  const jsonEnd = raw.lastIndexOf("}");
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    try {
+      const payload = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { error?: unknown };
+      if (typeof payload.error === "string" && payload.error.trim()) {
+        const message = payload.error.trim();
+        if (!/<!doctype|<html|failed query|insert into|select\s.+\sfrom|stack trace/i.test(message)) {
+          return message.slice(0, 300);
+        }
+      }
+    } catch {
+      // A resposta não é JSON confiável; abaixo mostramos somente uma mensagem genérica.
+    }
+  }
+  if (/HTTP\s+5\d\d\b|<!doctype|<html|failed query|insert into|select\s.+\sfrom|stack trace/i.test(raw)) {
+    return SAFE_CLINICAL_ERROR;
+  }
+  return raw.trim().slice(0, 300) || SAFE_CLINICAL_ERROR;
+}
 
 const INTERNAL_COLORS: { value: string; label: string; hex: string }[] = [
   { value: "", label: "— sem cor —", hex: "" },
@@ -163,7 +194,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             : "Confira os documentos no histórico.",
         });
       },
-      onError: (error) => { if (draft.isCurrent()) toast({ title: "Erro ao emitir receitas — rascunho preservado", description: error.message, variant: "destructive" }); },
+      onError: (error) => { if (draft.isCurrent()) toast({ title: "Erro ao emitir receitas — rascunho preservado", description: safeClinicalErrorMessage(error), variant: "destructive" }); },
     },
   });
 
@@ -417,7 +448,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         void queryClient.invalidateQueries({ queryKey: getCountClinicalApprovalsQueryKey() });
         toast({ title: "Prescrição enviada para conferência", description: "O médico responsável revisará e emitirá sob a própria identidade." });
       },
-      onError: error => toast({ title: "Não foi possível enviar para conferência", description: `${error.message} — o rascunho foi preservado.`, variant: "destructive" }),
+      onError: error => toast({ title: "Não foi possível enviar para conferência", description: `${safeClinicalErrorMessage(error)} — o rascunho foi preservado.`, variant: "destructive" }),
     });
   };
 
@@ -476,7 +507,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
         <ClinicalDraftNotice draft={draft} identity={identity} />
       </fieldset>
       {approvalQueued && <p role="status" className="bevel-3d px-3 py-2 text-sm text-emerald-800">Solicitação registrada para revisão do médico responsável. Nenhuma mensagem foi enviada.</p>}
-      {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
+      {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {safeClinicalErrorMessage(emitMutation.error)}</p>}
       {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending || createApproval.isPending} className="min-w-0 space-y-4">
       <ClinicalIdentityPanel
         identity={identity}

@@ -21,6 +21,8 @@ Permitir que um médico autorizado gere uma prescrição no Cockpit quando seu c
 13. Nas telas de RAS e protocolos que usam certificado global do sistema, mostrar um indicador separado e corretamente identificado; não oferecer geração sem assinatura nessa etapa.
 14. Não adicionar indicador a atestados ou encaminhamentos que não usam certificado digital no fluxo atual.
 15. Persistir a classificação de assinatura e a validade observada na emissão em colunas aditivas; não apagar nem reclassificar registros existentes.
+16. Antes de testar a emissão, confirmar que o banco de desenvolvimento contém todas as colunas requeridas pelo esquema e aplicar as migrações aditivas já declaradas; em particular, `approval_request_id` em prescrições e pedidos de exames.
+17. Falhas de banco devem retornar mensagem JSON genérica ao navegador; nunca expor HTML de erro, consulta SQL, parâmetros ou dados clínicos.
 
 ## Falhas previstas e barreiras
 
@@ -34,6 +36,8 @@ Permitir que um médico autorizado gere uma prescrição no Cockpit quando seu c
 | Receita controlada consome numeração sem assinatura | Alta | Bloquear o caminho sem assinatura para itens controlados antes da transação | Assinar com certificado vigente | Receita controlada |
 | Rascunho ou aprovação duplicada | Alta | Preservar chave de requisição, transação e guarda de aprovação existentes | Consultar histórico; não repetir emissão | Repetição e concorrência |
 | Migração altera registros anteriores | Crítica | Somente `ADD COLUMN IF NOT EXISTS`, com padrão que preserva documentos já assinados | Parar a homologação se o esquema divergir | Banco isolado e consulta comparativa |
+| Coluna aditiva prevista não aplicada no ambiente | Alta | Conferir esquema real antes da emissão e aplicar a migração existente no desenvolvimento | Repetir somente após confirmar o esquema; preservar o rascunho | Comparação do esquema e emissão sintética |
+| Erro interno expõe consulta SQL ou HTML na tela | Alta | Converter falha transacional em resposta JSON genérica e sanitizar mensagens do navegador | Manter detalhes técnicos fora da tela clínica | Falha sintética de persistência |
 
 ## Escopo técnico
 

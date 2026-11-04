@@ -474,7 +474,15 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       res.status(error.status).json({ error: error.message });
       return;
     }
-    throw error;
+    const errorName = error instanceof Error ? error.name : "ErroDesconhecido";
+    const errorCode = error && typeof error === "object" && "code" in error
+      ? String((error as { code: unknown }).code)
+      : undefined;
+    req.log.error({ errorName, errorCode }, "Falha transacional ao emitir prescrição");
+    res.status(500).json({
+      error: "Não foi possível confirmar a gravação da prescrição. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
+    });
+    return;
   }
   const { prescription, emittedRecipes, sncrAlerts } = transactionResult;
 

@@ -878,6 +878,8 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
           items: [{ name: "FALHA SINTETICA — NAO DISPENSAR", isControlled: false }],
         });
       expect(failedEmission.status).toBe(500);
+      expect(failedEmission.body.error).toMatch(/Não foi possível confirmar a gravação/);
+      expect(JSON.stringify(failedEmission.body)).not.toMatch(/Failed query|INSERT INTO|<!DOCTYPE/i);
       expect(await database.select().from(prescriptionsTable)).toHaveLength(beforeFailure.prescriptions);
       expect(await database.select().from(prescriptionItemsTable)).toHaveLength(beforeFailure.items);
       expect(await database.select().from(recipesTable)).toHaveLength(beforeFailure.recipes);
