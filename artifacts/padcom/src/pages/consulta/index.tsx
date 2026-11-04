@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { getCollabProfessional } from "@/lib/collab-auth";
 
 // ===========================================================================
@@ -420,6 +421,8 @@ export default function ConsultaProntuario() {
       title="Consulta (Prontuário)"
       subtitle="Uma tela: prescrever exames · evolução antes/depois · acompanhamento do cliente"
     >
+      <ClinicalCertificateStatus scope="professional" />
+
       {/* ---- Seletor de cliente compartilhado ---- */}
       <section className="panel-3d p-4">
         <div className="flex flex-wrap items-center gap-3">

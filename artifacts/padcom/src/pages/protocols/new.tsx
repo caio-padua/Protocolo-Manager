@@ -423,6 +423,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl">
       {!embedded && (
+        <>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" className="btn-3d-soft" onClick={() => setLocation("/protocols")}>
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -434,6 +435,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
           </div>
         </div>
         <ClinicalCertificateStatus scope="system" />
+        </>
       )}
 
       {/* BLOCO 1 - DADOS GERAIS */}

@@ -134,6 +134,7 @@
 - [Unicidade em substance_applications](substance-applications-unicidade.md) — chave única é o trio com session_number; consolidação semanal repete substância na mesma sessão quando intervalDays<7.
 - [pdf-lib drawSvgPath y invertido](pdflib-drawsvgpath-y-flip.md) — path é SVG y-down relativo à opção y; y:0 desenha fora da página sem erro; ancorar y=pageH e flipar cada ponto.
 - [Reenvio de documentos clínicos](historico-documentos-clinicos.md) — transmitir o PDF já emitido; link temporário de sete dias para WhatsApp/Telegram; resultado incerto exige conferência humana.
+- [Prescrição sem assinatura com certificado vencido](certificado-expirado-prescricao-sem-assinatura.md) — somente Cockpit, certificado pessoal comprovadamente vencido, marca explícita e sem envio; RAS, exames e certificado global seguem assinados.
 // hint: Logic changed on both sides. Requires understanding intent of each change.
 - [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — PDF assinado abre em branco no chat e HTML abre como código no editor; entregar PNG por página; no app, abrir em aba nova, nunca baixar.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.

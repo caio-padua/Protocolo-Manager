@@ -49,7 +49,9 @@ function PrescriptionHistoryRow({ p, clientId }: { p: Prescricao; clientId: numb
         <p className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleString("pt-BR")}</p>
         {p.signatureStatus === "unsigned_expired" && (
           <p className="mt-1 text-xs font-bold text-amber-800" role="status">
-            GERADA SEM ASSINATURA DIGITAL — não enviada; exige assinatura manual.
+            GERADA SEM ASSINATURA DIGITAL
+            {p.certificateValidTo && ` — certificado vencido em ${new Date(p.certificateValidTo).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
+            ; não enviada; exige assinatura manual.
           </p>
         )}
         {p.signatureStatus === "legacy_unknown" && (

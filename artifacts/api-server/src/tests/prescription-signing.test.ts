@@ -15,7 +15,7 @@ const mock = vi.hoisted(() => ({
   getJson: vi.fn(), getSecret: vi.fn(), read: vi.fn(), globalBuffer: vi.fn(), globalPasswords: vi.fn(),
   rows: [] as any[][], execute: vi.fn(), upload: vi.fn(), email: vi.fn(), insert: vi.fn(),
   transaction: vi.fn(), sendPaxter: vi.fn(), update: vi.fn(), motor: vi.fn(), useMotorMock: false, reminder: vi.fn(),
-  realDb: null as any, syntheticResolver: null as any, realRecipePdf: null as any,
+  realDb: null as any, syntheticResolver: null as any, clinicalAccess: null as any, realRecipePdf: null as any,
   recipePdfCallCount: 0, failOnRecipePdfCall: null as number | null, useHomologationNotice: false,
 }));
 vi.mock("@workspace/db", async () => ({
@@ -44,6 +44,18 @@ vi.mock("../lib/clinical-emitter", async (importOriginal) => {
       : Reflect.apply(actual.resolveClinicalEmitter, actual, args),
   };
 });
+vi.mock("../lib/clinical-access", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/clinical-access")>();
+  return {
+    ...actual,
+    clinicalToolAccess: (...args: any[]) => mock.clinicalAccess
+      ? mock.clinicalAccess(...args)
+      : Reflect.apply(actual.clinicalToolAccess, actual, args),
+  };
+});
+vi.mock("../lib/exam-catalog-validation", () => ({
+  validateExamCatalogItems: async (items: unknown[]) => items,
+}));
 vi.mock("../lib/prescription-pdf", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/prescription-pdf")>();
   mock.realRecipePdf = actual.generateRecipePdf;
@@ -169,7 +181,8 @@ beforeAll(async () => {
   await postgres.pool.query(`CREATE TABLE prescriptions (
     id SERIAL PRIMARY KEY, client_id INTEGER, client_name TEXT NOT NULL, client_cpf TEXT,
     client_phone TEXT, client_email TEXT, professional_id INTEGER, professional_name TEXT,
-    professional_crm TEXT, professional_uf TEXT, duration_days TEXT, cid TEXT, message TEXT,
+    professional_crm TEXT, professional_uf TEXT, approval_request_id INTEGER,
+    duration_days TEXT, cid TEXT, message TEXT,
     status TEXT NOT NULL DEFAULT 'draft', signature_status TEXT NOT NULL DEFAULT 'legacy_unknown',
     certificate_valid_to TIMESTAMPTZ, empresa_id INTEGER,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(), emitted_at TIMESTAMPTZ
@@ -199,6 +212,7 @@ beforeAll(async () => {
 afterAll(async () => { await postgres?.stop(); });
 beforeEach(() => {
   vi.clearAllMocks();
+  mock.clinicalAccess = async () => ({ mode: "direto" });
   mock.getJson.mockResolvedValue(null);
   mock.globalBuffer.mockReturnValue(pfx);
   mock.globalPasswords.mockReturnValue([password]);
@@ -284,7 +298,7 @@ it("emite e recupera pedidos sinteticos assinados para dois clientes em PostgreS
         })),
       });
 
-      expect(response.status).toBe(200);
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
       expect(response.body.pdfs).toHaveLength(operation.expectedFiles);
       expect(response.body.pdfs.map((pdf: any) => pdf.examCount)).toEqual(
         operation.tipo === "SANGUE"
@@ -494,7 +508,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     expect(() => inspectPrescriptionCertificate(Buffer.from("not-pfx"), password, identity.professional.cpf)).toThrow();
     expect(() => inspectPrescriptionCertificate(pfx, password, "99999999999")).toThrow(/CPF/);
     expect(() => inspectPrescriptionCertificate(pfx, password, null)).toThrow(/CPF/);
-    expect(() => inspectPrescriptionCertificate(pfx, password, identity.professional.cpf, new Date("2050-01-01"))).toThrow(/validade/);
+    expect(() => inspectPrescriptionCertificate(pfx, password, identity.professional.cpf, new Date("2050-01-01"))).toThrow(/vencido|validade/);
     expect(() => inspectPrescriptionCertificate(pfx, password, identity.professional.cpf, new Date("2010-01-01"))).toThrow(/validade/);
     const otherKey = forge.pki.rsa.generateKeyPair(1024).privateKey;
     expect(() => inspectPrescriptionCertificate(pack(cert, otherKey), password, identity.professional.cpf)).toThrow(/chave/);
@@ -511,7 +525,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     expect(mock.getJson).toHaveBeenCalledWith("certificate.professional.41.meta");
     expect(mock.globalBuffer).not.toHaveBeenCalled();
     mock.read.mockRejectedValue(new Error("unavailable"));
-    await expect(resolvePrescriptionSigner(identity)).rejects.toThrow(/indisponível/);
+    await expect(resolvePrescriptionSigner(identity)).rejects.toThrow(/indisponível|não configurado/);
     expect(mock.globalBuffer).not.toHaveBeenCalled();
   });
   it("permite o modo sem assinatura somente quando o certificado do médico está vencido", async () => {
@@ -529,7 +543,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     await expect(resolvePrescriptionSigner({ ...identity,
       professional: { ...identity.professional, cpf: "99999999999" } })).rejects.toThrow(/CPF/);
     mock.globalBuffer.mockImplementation(() => { throw new Error("absent"); });
-    await expect(resolvePrescriptionSigner(identity)).rejects.toThrow(/indisponível/);
+    await expect(resolvePrescriptionSigner(identity)).rejects.toThrow(/indisponível|não configurado/);
   });
   it("nenhum gerador devolve PDF sem assinatura quando falta contexto", async () => {
     await expect(generatePdfFromPngBase64("invalid")).rejects.toThrow(/autorizados/);
@@ -752,6 +766,101 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
       expect(await database.select().from(prescriptionsTable)).toHaveLength(6);
       expect(await database.select().from(prescriptionItemsTable)).toHaveLength(6);
       expect(await database.select().from(recipesTable)).toHaveLength(6);
+
+      const originalValidTo = cert.validity.notAfter;
+      const expiredAt = new Date("2020-01-01T00:00:00Z");
+      cert.validity.notAfter = expiredAt;
+      cert.sign(key, forge.md.sha256.create());
+      const expiredPfx = pack();
+      cert.validity.notAfter = originalValidTo;
+      cert.sign(key, forge.md.sha256.create());
+
+      mock.getJson.mockResolvedValue({ objectPath: "certs/pfx/expired-synthetic.pfx" });
+      mock.getSecret.mockResolvedValue(password);
+      mock.read.mockResolvedValue(expiredPfx);
+      mock.globalBuffer.mockImplementation(() => { throw new Error("global synthetic certificate absent"); });
+      mock.recipePdfCallCount = 0;
+      mock.failOnRecipePdfCall = null;
+      const sideEffectCountsBeforeUnsigned = {
+        motor: mock.motor.mock.calls.length,
+        reminder: mock.reminder.mock.calls.length,
+        email: mock.email.mock.calls.length,
+        upload: mock.upload.mock.calls.length,
+        messaging: mock.sendPaxter.mock.calls.length,
+      };
+
+      const unsignedResponse = await request(app)
+        .post("/api/prescriptions/emit")
+        .set("Authorization", authorization)
+        .send({
+          signatureMode: "unsigned_expired",
+          clientId: carlucia.id,
+          items: [{
+            name: `${disclaimer} — FORMULA SEM ASSINATURA`,
+            dose: "SEM DOSE TERAPEUTICA",
+            via: "NAO APLICAVEL",
+            frequencia: "NAO APLICAVEL",
+            posologia: "DOCUMENTO DE TESTE. NAO DISPENSAR.",
+            isControlled: false,
+          }],
+        });
+      expect(unsignedResponse.status, JSON.stringify(unsignedResponse.body)).toBe(201);
+      expect(unsignedResponse.body.signatureStatus).toBe("unsigned_expired");
+      expect(unsignedResponse.body.certificateValidTo).toBe(expiredAt.toISOString());
+      expect(unsignedResponse.body.warning).toMatch(/SEM ASSINATURA DIGITAL/);
+
+      const [unsignedPrescription] = await database.select().from(prescriptionsTable)
+        .where(eq(prescriptionsTable.id, unsignedResponse.body.prescriptionId));
+      expect(unsignedPrescription).toMatchObject({
+        status: "emitted_unsigned",
+        signatureStatus: "unsigned_expired",
+        certificateValidTo: expiredAt,
+      });
+
+      const unsignedPdfResponse = await request(app)
+        .get(`/api/recipes/${unsignedResponse.body.recipes[0].id}/pdf`)
+        .set("Authorization", authorization)
+        .buffer(true)
+        .parse((res: any, callback: (error: Error | null, body?: Buffer) => void) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (chunk: Buffer) => chunks.push(chunk));
+          res.on("end", () => callback(null, Buffer.concat(chunks)));
+        });
+      expect(unsignedPdfResponse.status).toBe(200);
+      const unsignedPdfPath = join(tempDir, "prescription-unsigned.pdf");
+      writeFileSync(unsignedPdfPath, unsignedPdfResponse.body as Buffer);
+      const unsignedText = execFileSync("pdftotext", [unsignedPdfPath, "-"], { encoding: "utf8" })
+        .replace(/\s+/g, " ").toUpperCase();
+      expect(unsignedText).toContain("GERADA SEM ASSINATURA DIGITAL");
+      expect(unsignedText).toContain("EXIGE ASSINATURA MANUAL");
+      let unsignedPdfSignatureReport = "";
+      try {
+        unsignedPdfSignatureReport = execFileSync("pdfsig", [unsignedPdfPath], { encoding: "utf8" });
+      } catch (error) {
+        const commandError = error as { stdout?: Buffer | string; stderr?: Buffer | string };
+        unsignedPdfSignatureReport = `${commandError.stdout ?? ""}\n${commandError.stderr ?? ""}`;
+      }
+      expect(unsignedPdfSignatureReport).not.toMatch(/Signature Validation:\s*Signature is Valid/i);
+      expect(mock.motor).toHaveBeenCalledTimes(sideEffectCountsBeforeUnsigned.motor);
+      expect(mock.reminder).toHaveBeenCalledTimes(sideEffectCountsBeforeUnsigned.reminder);
+      expect(mock.email).toHaveBeenCalledTimes(sideEffectCountsBeforeUnsigned.email);
+      expect(mock.upload).toHaveBeenCalledTimes(sideEffectCountsBeforeUnsigned.upload);
+      expect(mock.sendPaxter).toHaveBeenCalledTimes(sideEffectCountsBeforeUnsigned.messaging);
+
+      const beforeControlledAttempt = (await database.select().from(prescriptionsTable)).length;
+      const controlledUnsigned = await request(app)
+        .post("/api/prescriptions/emit")
+        .set("Authorization", authorization)
+        .send({
+          signatureMode: "unsigned_expired",
+          clientId: carlucia.id,
+          items: [{ name: "FORMULA CONTROLADA SINTETICA", isControlled: true, anvisaType: "A" }],
+        });
+      expect(controlledUnsigned.status).toBe(422);
+      expect(await database.select().from(prescriptionsTable)).toHaveLength(beforeControlledAttempt);
+      mock.getJson.mockResolvedValue(null);
+      mock.globalBuffer.mockReturnValue(pfx);
+      mock.globalPasswords.mockReturnValue([password]);
 
       const beforeFailure = {
         prescriptions: (await database.select().from(prescriptionsTable)).length,

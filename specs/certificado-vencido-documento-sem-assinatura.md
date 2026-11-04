@@ -17,7 +17,7 @@ Permitir que um médico autorizado gere uma prescrição no Cockpit quando seu c
 9. Não enviar documentos sem assinatura por e-mail, WhatsApp, Telegram, farmácia, links públicos ou pasta externa; não disparar lembretes como consequência desse modo.
 10. Não consumir numeração controlada no caminho sem assinatura; bloquear receitas controladas nesse modo com orientação clara.
 11. Manter a emissão assinada atual sem alteração quando o certificado estiver vigente.
-12. Aplicar o estado e o indicador às telas de prescrição do Cockpit, pedido de exames do Cockpit e prescrição independente que usam o certificado pessoal do médico; apenas a prescrição do Cockpit recebe nesta etapa a ação de geração sem assinatura.
+12. Aplicar estado e indicador a todos os fluxos que usam certificado pessoal: prescrição e pedido de exames do Cockpit, prescrição independente, prescritor de exames, tela Consulta e receituário automático; somente a emissão de prescrição do Cockpit recebe nesta etapa a ação sem assinatura.
 13. Nas telas de RAS e protocolos que usam certificado global do sistema, mostrar um indicador separado e corretamente identificado; não oferecer geração sem assinatura nessa etapa.
 14. Não adicionar indicador a atestados ou encaminhamentos que não usam certificado digital no fluxo atual.
 15. Persistir a classificação de assinatura e a validade observada na emissão em colunas aditivas; não apagar nem reclassificar registros existentes.
@@ -39,7 +39,7 @@ Permitir que um médico autorizado gere uma prescrição no Cockpit quando seu c
 
 - API: estado seguro de validade do certificado pessoal; emissão da prescrição do Cockpit com `signatureMode` explícito; persistência do estado; bloqueio de entrega/reenvio não assinado.
 - Documentos: faixa destacada, em todas as páginas, para arquivos gerados sem assinatura.
-- Interface: painel Paxter 3D no topo dos fluxos pessoais, luzinha em vela e ação separada para geração sem assinatura.
+- Interface: painel Paxter 3D no topo de cada fluxo que usa certificado, luzinha em vela e ação separada para geração sem assinatura somente no Cockpit.
 - Certificado global: indicador distinto nas telas de RAS e protocolos, sem confundir certificado global com a identidade do médico.
 - Dados e integrações: migração aditiva; nenhum envio real nem acesso a banco de produção.
 

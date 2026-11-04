@@ -879,7 +879,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     </button>
                     {identity.data?.canPrescribe ? (
                       <button
-                        onClick={handleEmit}
+                        onClick={() => handleEmit()}
                         disabled={emitMutation.isPending || identity.isFetching || identity.isError}
                         data-testid="button-emit-prescriptions"
                         className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-40"

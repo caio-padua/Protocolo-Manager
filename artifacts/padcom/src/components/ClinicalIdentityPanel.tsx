@@ -47,7 +47,7 @@ export function ClinicalIdentityPanel({
     <ClinicalCertificateStatus
       professionalType={professional.professionalType}
       responsibleDoctorName={identity.data.responsibleDoctorName}
-      allowUnsignedPrescription={allowUnsignedPrescription}
+      allowUnsignedPrescription={allowUnsignedPrescription && identity.data.canPrescribe}
       canGenerateUnsigned={canGenerateUnsigned}
       pending={unsignedGenerationPending}
       onGenerateUnsigned={onGenerateUnsigned}

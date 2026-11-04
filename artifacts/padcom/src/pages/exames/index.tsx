@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import {
   Select,
   SelectContent,
@@ -407,6 +408,8 @@ export default function ExamesPage({
           </div>
         </div>
       )}
+
+      <ClinicalCertificateStatus scope="professional" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Catálogo de exames */}
