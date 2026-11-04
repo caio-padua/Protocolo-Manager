@@ -5,6 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { PrescriptionSignatureStatus } from "./prescriptionSignatureStatus";
 
 export interface Prescription {
   id: number;
@@ -13,6 +14,8 @@ export interface Prescription {
   clientCpf?: string | null;
   professionalName?: string | null;
   status: string;
+  signatureStatus?: PrescriptionSignatureStatus;
+  certificateValidTo?: Date | null;
   createdAt: string;
   emittedAt?: string | null;
 }

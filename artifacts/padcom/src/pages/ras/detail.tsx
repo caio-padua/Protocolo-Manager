@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useGetRAS } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Printer, FileDown, ShieldCheck, Loader2, FolderUp } from "lucide-react";
@@ -129,17 +130,7 @@ export default function RASDetail() {
         </Button>
       </div>
 
-      {/* Certificate badge */}
-      {certInfo && (
-        <div className="flex items-center gap-2 text-xs print:hidden panel-3d-sub border-l-4 border-blue-500 px-4 py-2.5">
-          <ShieldCheck className="h-4 w-4 text-blue-600 flex-shrink-0" />
-          <span className="text-[10px] font-bold uppercase tracking-wide text-blue-700">
-            Certificado A1 ICP-Brasil ativo — <strong>{certInfo.cpf ?? "CPF vinculado"}</strong>
-            {" "}· Válido até {new Date(certInfo.validTo).toLocaleDateString("pt-BR")}
-            {" "}· Emissor: {certInfo.issuer.split(",").find(p => p.includes("CN="))?.replace("CN=", "").trim() ?? certInfo.issuer}
-          </span>
-        </div>
-      )}
+      <ClinicalCertificateStatus scope="system" />
 
       {/* RAS Document — styled as official medical form, paper-like */}
       <div className="panel-3d p-8 max-w-4xl print:border-none print:rounded-none print:p-4 print:shadow-none">

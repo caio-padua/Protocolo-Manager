@@ -10,6 +10,7 @@ import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
 const PAST_STATUSES = ["completed", "cancelled", "expired", "refunded"];
 const FALLBACK_COLOR = "#94a3b8";
@@ -443,6 +444,7 @@ export default function ProtocolDetail() {
               <p className="text-muted-foreground text-sm uppercase tracking-wide font-medium mt-1">
                 {protocol.clientName} — <span className="tabular-nums">CPF: {protocol.clientCpf}</span>
               </p>
+              <ClinicalCertificateStatus scope="system" />
             </div>
             <div className="screen-3d px-4 py-2.5 text-center flex-shrink-0">
               <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black mb-0.5">Progresso</p>

@@ -1083,11 +1083,19 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     const info = getCertInfo();
-    const msRemaining = new Date(info.validTo).getTime() - Date.now();
+    const now = Date.now();
+    const startsAt = Date.parse(info.validFrom);
+    const expiresAt = Date.parse(info.validTo);
+    const state = now < startsAt ? "not_yet_valid" : now > expiresAt ? "expired" : "valid";
+    const msRemaining = expiresAt - now;
     const daysRemaining = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
     res.json({
-      ok: true,
-      message: "Certificado carregado com sucesso — assinatura PAdES disponível.",
+      ok: state === "valid",
+      state,
+      message: state === "valid"
+        ? "Certificado global válido; assinatura digital disponível."
+        : state === "expired" ? "Certificado global vencido; assinatura digital indisponível."
+          : "Certificado global ainda não vigente; assinatura digital indisponível.",
       cert: {
         issuer:       info.issuer,
         serial:       info.serial,
@@ -1099,8 +1107,8 @@ router.get("/protocols/carta-pdf-certcheck", requireCollaborator, async (_req, r
   } catch (err: any) {
     res.status(503).json({
       ok: false,
+      state: "unavailable",
       message: "Certificado não configurado ou senha incorreta.",
-      details: err.message,
     });
   }
 });

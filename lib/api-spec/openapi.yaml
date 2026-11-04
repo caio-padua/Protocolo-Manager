@@ -3324,6 +3324,12 @@ components:
         fileName: { type: string, nullable: true }
         cpf: { type: string, nullable: true }
         updatedAt: { type: string, nullable: true }
+        state:
+          type: string
+          enum: [valid, expired, not_yet_valid, missing, invalid, owner_mismatch, unavailable]
+        professionalType: { type: string, nullable: true }
+        validFrom: { type: string, format: date-time, nullable: true }
+        validTo: { type: string, format: date-time, nullable: true }
 
     ReconciliationItem:
       type: object
@@ -6169,6 +6175,10 @@ components:
     EmitBody:
       type: object
       properties:
+        signatureMode:
+          type: string
+          enum: [signed, unsigned_expired]
+          default: signed
         approvalRequestId:
           type: integer
           minimum: 1
@@ -6418,6 +6428,15 @@ components:
       properties:
         prescriptionId:
           type: integer
+        signatureStatus:
+          type: string
+          enum: [signed, unsigned_expired, legacy_unknown]
+        certificateValidTo:
+          type: string
+          format: date-time
+          nullable: true
+        warning:
+          type: string
         recipes:
           type: array
           items:
@@ -6432,6 +6451,8 @@ components:
             $ref: "#/components/schemas/PharmacyDispatch"
       required:
         - prescriptionId
+        - signatureStatus
+        - certificateValidTo
         - recipes
         - sncrAlerts
         - pharmacyDispatches
@@ -6454,6 +6475,13 @@ components:
           nullable: true
         status:
           type: string
+        signatureStatus:
+          type: string
+          enum: [signed, unsigned_expired, legacy_unknown]
+        certificateValidTo:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
         emittedAt:
@@ -6480,6 +6508,13 @@ components:
           nullable: true
         status:
           type: string
+        signatureStatus:
+          type: string
+          enum: [signed, unsigned_expired, legacy_unknown]
+        certificateValidTo:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
         emittedAt:

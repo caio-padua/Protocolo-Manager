@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2, Clock, Stethoscope } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -432,6 +433,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">Preencha os dados e adicione as substâncias do protocolo.</p>
           </div>
         </div>
+        <ClinicalCertificateStatus scope="system" />
       )}
 
       {/* BLOCO 1 - DADOS GERAIS */}

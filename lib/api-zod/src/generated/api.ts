@@ -2781,6 +2781,10 @@ export const ListPrescriptionsResponseItem = zod.object({
   clientCpf: zod.string().nullish(),
   professionalName: zod.string().nullish(),
   status: zod.string(),
+  signatureStatus: zod
+    .enum(["signed", "unsigned_expired", "legacy_unknown"])
+    .optional(),
+  certificateValidTo: zod.coerce.date().nullish(),
   createdAt: zod.string(),
   emittedAt: zod.string().nullish(),
 });
@@ -2845,8 +2849,12 @@ export const PreviewPrescriptionResponse = zod.array(
 /**
  * @summary Emite a prescrição (desmembra, gera PDFs, Drive, WhatsApp)
  */
+export const emitPrescriptionBodySignatureModeDefault = `signed`;
 
 export const EmitPrescriptionBody = zod.object({
+  signatureMode: zod
+    .enum(["signed", "unsigned_expired"])
+    .default(emitPrescriptionBodySignatureModeDefault),
   approvalRequestId: zod.number().min(1).optional(),
   clientId: zod.number().nullish(),
   clientName: zod.string(),
@@ -2892,6 +2900,10 @@ export const GetPrescriptionResponse = zod.object({
   clientCpf: zod.string().nullish(),
   professionalName: zod.string().nullish(),
   status: zod.string(),
+  signatureStatus: zod
+    .enum(["signed", "unsigned_expired", "legacy_unknown"])
+    .optional(),
+  certificateValidTo: zod.coerce.date().nullish(),
   createdAt: zod.string(),
   emittedAt: zod.string().nullish(),
   recipes: zod.array(
@@ -4543,6 +4555,20 @@ export const GetCertificateStatusResponse = zod.object({
   fileName: zod.string().nullish(),
   cpf: zod.string().nullish(),
   updatedAt: zod.string().nullish(),
+  state: zod
+    .enum([
+      "valid",
+      "expired",
+      "not_yet_valid",
+      "missing",
+      "invalid",
+      "owner_mismatch",
+      "unavailable",
+    ])
+    .optional(),
+  professionalType: zod.string().nullish(),
+  validFrom: zod.coerce.date().nullish(),
+  validTo: zod.coerce.date().nullish(),
 });
 
 /**

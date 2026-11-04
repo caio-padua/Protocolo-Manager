@@ -111,7 +111,8 @@ router.get("/clinical-documents/:documentType/:documentId/pdf", async (req, res)
     return;
   }
   const document = await getIssuedDocument(type as DocumentType, documentId);
-  if (!document || !document.clientId || document.status !== "emitted" ||
+  const unsignedPrescription = type === "prescricao" && document?.status === "emitted_unsigned";
+  if (!document || !document.clientId || (document.status !== "emitted" && !unsignedPrescription) ||
     document.professionalId === null || document.professionalId === undefined || !document.pdfData) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
@@ -199,7 +200,9 @@ router.get("/clinical-documents/delivery-history/:documentType/:documentId", asy
     return;
   }
   const document = await getIssuedDocument(type as DocumentType, documentId);
-  if (!document || !document.clientId || document.status !== "emitted" || !document.professionalId) {
+  const unsignedPrescription = type === "prescricao" && document?.status === "emitted_unsigned";
+  if (!document || !document.clientId ||
+    (document.status !== "emitted" && !unsignedPrescription) || !document.professionalId) {
     res.status(404).json({ error: "Histórico indisponível." });
     return;
   }

@@ -31,7 +31,12 @@ import {
   completeApprovalInTransaction,
   loadApprovalForEmission,
 } from "../lib/clinical-approval-execution";
-import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionSigner } from "../lib/prescription-signing";
+import {
+  requireExpiredPrescriptionCertificate,
+  resolvePrescriptionSigner,
+  signExistingPrescriptionPdf,
+  type PrescriptionSigner,
+} from "../lib/prescription-signing";
 import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } from "./prescription-delivery";
 
 const router: IRouter = Router();
@@ -68,6 +73,8 @@ router.get("/prescriptions", requireCollaborator, async (req, res): Promise<void
       clientCpf: p.clientCpf ?? null,
       professionalName: p.professionalName ?? null,
       status: p.status,
+      signatureStatus: p.signatureStatus,
+      certificateValidTo: p.certificateValidTo?.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
       emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
     })),
@@ -88,6 +95,8 @@ router.get("/prescriptions/:id", requireCollaborator, async (req, res): Promise<
     clientCpf: p.clientCpf ?? null,
     professionalName: p.professionalName ?? null,
     status: p.status,
+    signatureStatus: p.signatureStatus,
+    certificateValidTo: p.certificateValidTo?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
     emittedAt: p.emittedAt ? p.emittedAt.toISOString() : null,
     recipes: recipes.map((r) => ({
@@ -155,8 +164,15 @@ router.get("/clinical-context/:clientId", requireCollaborator, async (req, res):
 
 router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promise<void> => {
   let identity: Awaited<ReturnType<typeof resolveClinicalEmitter>>;
-  let signer: PrescriptionSigner;
+  let signer: PrescriptionSigner | undefined;
+  let signatureStatus: "signed" | "unsigned_expired" = "signed";
+  let certificateValidTo: string | null = null;
   let approval: Awaited<ReturnType<typeof loadApprovalForEmission>> | null = null;
+  const requestedSignatureMode = req.body?.signatureMode ?? "signed";
+  if (requestedSignatureMode !== "signed" && requestedSignatureMode !== "unsigned_expired") {
+    res.status(400).json({ error: "Modo de assinatura inválido." });
+    return;
+  }
   const requestedApprovalId = req.body?.approvalRequestId == null ? null : Number(req.body.approvalRequestId);
   try {
     if (requestedApprovalId !== null) {
@@ -164,7 +180,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         throw new ClinicalAccessError(400, "Identificador da conferência inválido.");
       }
       approval = await loadApprovalForEmission(req, requestedApprovalId, "prescricao");
-      req.body = { ...approval.request.payload, approvalRequestId: approval.request.id };
+      req.body = {
+        ...approval.request.payload,
+        approvalRequestId: approval.request.id,
+        signatureMode: requestedSignatureMode,
+      };
       if (approval.request.status === "aprovado") {
         const [existingPrescription] = await db.select().from(prescriptionsTable)
           .where(eq(prescriptionsTable.approvalRequestId, approval.request.id)).limit(1);
@@ -173,6 +193,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
           .where(eq(recipesTable.prescriptionId, existingPrescription.id));
         res.status(200).json({
           prescriptionId: existingPrescription.id,
+          signatureStatus: existingPrescription.signatureStatus,
+          certificateValidTo: existingPrescription.certificateValidTo?.toISOString() ?? null,
+          warning: existingPrescription.signatureStatus === "unsigned_expired"
+            ? "Documento gerado sem assinatura digital; não foi enviado."
+            : undefined,
           recipes: recipes.map((recipe) => ({
             id: recipe.id,
             recipeType: recipe.recipeType,
@@ -205,8 +230,15 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       throw new ClinicalIdentityError(403, "O prescritor deve ser o médico autenticado.");
     }
     if (!identity.canPrescribe) throw new ClinicalIdentityError(422, identity.issue!);
-    // Certificate authorization precedes persistence, regulatory numbering and delivery.
-    signer = await resolvePrescriptionSigner(identity);
+    if (requestedSignatureMode === "unsigned_expired") {
+      const certificate = await requireExpiredPrescriptionCertificate(identity);
+      signatureStatus = "unsigned_expired";
+      certificateValidTo = certificate.validTo;
+    } else {
+      // Certificate authorization precedes persistence, regulatory numbering and delivery.
+      signer = await resolvePrescriptionSigner(identity);
+      certificateValidTo = signer.meta.validTo;
+    }
   } catch (error) {
     if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
       res.status(error.status).json({ error: error.message });
@@ -244,6 +276,14 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   // Todos os consumidores abaixo usam o vínculo validado.
   body.clientId = resolvedClientId;
   const plans = planDesmembramento(items);
+  if (signatureStatus === "unsigned_expired" &&
+    (items.some((item) => item.isControlled) ||
+      plans.some((plan) => plan.recipeType === "controlado_isolado" || plan.needsSncr))) {
+    res.status(422).json({
+      error: "Receitas controladas não podem ser geradas sem assinatura digital. Nenhuma numeração foi consumida.",
+    });
+    return;
+  }
 
   // Mapa de farmácias para nome/tipo.
   const pharmRows = await db.select().from(pharmaciesTable);
@@ -274,7 +314,9 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         durationDays: body.durationDays ?? null,
         cid: body.cid ?? null,
         message: body.message ?? null,
-        status: "emitted",
+        status: signatureStatus === "unsigned_expired" ? "emitted_unsigned" : "emitted",
+        signatureStatus,
+        certificateValidTo: certificateValidTo ? new Date(certificateValidTo) : null,
         emittedAt: new Date(),
         empresaId,
       })
@@ -334,7 +376,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
     // 2b) Gera PDF.
     const pharmacy = plan.pharmacyId != null ? pharmMap.get(plan.pharmacyId) : undefined;
-    const pdfBytes = await signExistingPrescriptionPdf(await generateRecipePdf(plan, {
+    const unsignedPdfBytes = await generateRecipePdf(plan, {
       clientName: body.clientName,
       clientCpf: body.clientCpf ?? null,
       professionalName: body.professionalName ?? null,
@@ -347,7 +389,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       pharmacyType: pharmacy?.type ?? null,
       sncrNumber,
       sncrStatus,
-    }), signer);
+      unsignedSignatureNotice: signatureStatus === "unsigned_expired",
+    });
+    const pdfBytes = signer
+      ? await signExistingPrescriptionPdf(unsignedPdfBytes, signer)
+      : unsignedPdfBytes;
     const pdfBuffer = Buffer.from(pdfBytes);
     const pdfBase64 = pdfBuffer.toString("base64");
 
@@ -433,7 +479,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   const { prescription, emittedRecipes, sncrAlerts } = transactionResult;
 
   // Reminders and alerts are attempted only after the clinical documents commit.
-  if (!approval) {
+  if (!approval && signatureStatus === "signed") {
     try {
       await sincronizarLembretePrescricao(body.clientId, items.map(it => ({
         tipo: "formula" as const, nome: it.name,
@@ -468,7 +514,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     tipoMotor: string;
   } | null = null;
 
-  if (!approval) {
+  if (!approval && signatureStatus === "signed") {
     try {
       // Consolida todos os itens da prescrição para o motor único (ignora desmembramento —
       // o paciente recebe UMA receita visual completa com todas as substâncias).
@@ -525,6 +571,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
   res.status(201).json({
     prescriptionId:      prescription.id,
+    signatureStatus,
+    certificateValidTo,
+    warning: signatureStatus === "unsigned_expired"
+      ? "GERADA SEM ASSINATURA DIGITAL. Não enviada; exige assinatura manual antes de uso clínico."
+      : undefined,
     recipes:             emittedRecipes,
     sncrAlerts,
     pharmacyDispatches,

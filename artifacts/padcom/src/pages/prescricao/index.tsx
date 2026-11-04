@@ -16,6 +16,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { PaxterClientSelector, type PaxterClientOption } from "@/components/PaxterClientSelector";
 import { useListPharmacies, usePreviewPrescription, useEmitPrescription } from "@workspace/api-client-react";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/api-client-react";
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
@@ -576,6 +577,7 @@ export default function PrescricaoPage(
               <p className="text-[11px] tracking-[0.22em] uppercase text-primary font-semibold">
                 Montador de Receitas Manipuladas
               </p>
+              <ClinicalCertificateStatus />
             </div>
           </div>
           <span className="text-sm text-muted-foreground hidden md:block">Dr. Caio Henrique Pádua</span>

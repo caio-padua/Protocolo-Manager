@@ -34,6 +34,7 @@ export interface RecipePdfContext {
   sncrNumber?: string | null;
   sncrStatus?: string | null;
   homologationNotice?: boolean;
+  unsignedSignatureNotice?: boolean;
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -68,11 +69,43 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
     emissor: "instituto_padua",
   };
 
-  let { page, y } = fab.novaPagina(cabecalho);
+  const novaPagina = () => {
+    const next = fab.novaPagina(cabecalho);
+    if (ctx.unsignedSignatureNotice) {
+      const bannerHeight = 34;
+      next.page.drawRectangle({
+        x: margem,
+        y: next.y - bannerHeight + 8,
+        width: larguraConteudo,
+        height: bannerHeight,
+        color: rgb(1, 0.93, 0.93),
+        borderColor: ALERTA,
+        borderWidth: 1,
+      });
+      next.page.drawText("GERADA SEM ASSINATURA DIGITAL — NÃO ASSINADA", {
+        x: margem + 8,
+        y: next.y - 9,
+        size: 8.5,
+        font: fontBold,
+        color: ALERTA,
+      });
+      next.page.drawText("Exige assinatura manual antes de uso clínico.", {
+        x: margem + 8,
+        y: next.y - 22,
+        size: 8,
+        font,
+        color: ALERTA,
+      });
+      next.y -= bannerHeight + 6;
+    }
+    return next;
+  };
+
+  let { page, y } = novaPagina();
 
   const ensureSpace = (needed: number) => {
     if (y - needed < 72) {
-      const nova = fab.novaPagina(cabecalho);
+      const nova = novaPagina();
       page = nova.page;
       y = nova.y;
     }
@@ -180,7 +213,7 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
       idx,
       { margem, larguraConteudo, font, fontBold },
       () => {
-        const nova = fab.novaPagina(cabecalho);
+        const nova = novaPagina();
         page = nova.page;
         y = nova.y;
         return { page, y };

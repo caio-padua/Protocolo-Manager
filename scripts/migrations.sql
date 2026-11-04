@@ -294,6 +294,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Registra se cada prescrição foi assinada, sem presumir o estado dos
+-- documentos antigos. A validade é uma fotografia no momento da emissão.
+ALTER TABLE prescriptions
+  ADD COLUMN IF NOT EXISTS signature_status TEXT NOT NULL DEFAULT 'legacy_unknown';
+ALTER TABLE prescriptions
+  ADD COLUMN IF NOT EXISTS certificate_valid_to TIMESTAMPTZ;
+
 -- Campos separados para o cadastro empresarial da planilha.
 -- referencia_planilha é informativa: não alimenta empresa_mae_id nem códigos oficiais.
 ALTER TABLE empresas

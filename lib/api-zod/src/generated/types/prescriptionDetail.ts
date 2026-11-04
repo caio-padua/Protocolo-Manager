@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EmittedRecipe } from "./emittedRecipe";
+import type { PrescriptionDetailSignatureStatus } from "./prescriptionDetailSignatureStatus";
 
 export interface PrescriptionDetail {
   id: number;
@@ -13,6 +14,8 @@ export interface PrescriptionDetail {
   clientCpf?: string | null;
   professionalName?: string | null;
   status: string;
+  signatureStatus?: PrescriptionDetailSignatureStatus;
+  certificateValidTo?: Date | null;
   createdAt: string;
   emittedAt?: string | null;
   recipes: EmittedRecipe[];

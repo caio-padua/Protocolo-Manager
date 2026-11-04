@@ -19,6 +19,8 @@ export const prescriptionsTable = pgTable("prescriptions", {
   cid: text("cid"),
   message: text("message"),
   status: text("status").notNull().default("draft"),
+  signatureStatus: text("signature_status").notNull().default("legacy_unknown"),
+  certificateValidTo: timestamp("certificate_valid_to", { withTimezone: true }),
   empresaId: integer("empresa_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   emittedAt: timestamp("emitted_at", { withTimezone: true }),

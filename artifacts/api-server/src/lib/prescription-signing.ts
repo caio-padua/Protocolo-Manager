@@ -1,4 +1,5 @@
 import forge from "node-forge";
+import { brtNow } from "./brt";
 import { PDFDocument } from "pdf-lib";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
@@ -14,9 +15,38 @@ export interface PrescriptionSigner {
   identity: PrescriptionIdentity;
   buffer: Buffer;
   password: string;
-  meta: { assinante: string; cpf: string; ac: string; serial: string; validTo: string };
+  meta: { assinante: string; cpf: string; ac: string; serial: string; validFrom: string; validTo: string };
 }
 export type ClinicalPdfKind = "Receituario" | "Solicitacao de exames";
+export type PrescriptionCertificateState =
+  | "valid"
+  | "expired"
+  | "not_yet_valid"
+  | "missing"
+  | "invalid"
+  | "owner_mismatch"
+  | "unavailable";
+export interface PrescriptionCertificateStatus {
+  state: PrescriptionCertificateState;
+  validFrom: string | null;
+  validTo: string | null;
+}
+
+class CertificateSourceError extends Error {
+  constructor(readonly state: "missing" | "invalid" | "unavailable", message: string) {
+    super(message);
+    this.name = "CertificateSourceError";
+  }
+}
+
+export class PrescriptionCertificateExpiredError extends ClinicalIdentityError {
+  readonly code = "certificate_expired";
+  constructor(validTo: string) {
+    super(422, `Certificado vencido em ${validTo}.`);
+    this.name = "PrescriptionCertificateExpiredError";
+  }
+}
+
 const validated = new WeakSet<PrescriptionSigner>();
 const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 
@@ -43,6 +73,18 @@ export function validatePrescriptionCertificate(
 }
 
 export function inspectPrescriptionCertificate(buffer: Buffer, password: string, ownerCpf: string | null, now = new Date()) {
+  const meta = inspectPrescriptionCertificateContents(buffer, password, ownerCpf);
+  const nowMs = now.getTime();
+  if (nowMs < Date.parse(meta.validFrom)) {
+    throw new ClinicalIdentityError(422, "Certificado ainda não está no período de validade.");
+  }
+  if (nowMs > Date.parse(meta.validTo)) {
+    throw new PrescriptionCertificateExpiredError(meta.validTo);
+  }
+  return meta;
+}
+
+function inspectPrescriptionCertificateContents(buffer: Buffer, password: string, ownerCpf: string | null) {
   try {
     const p12 = forge.pkcs12.pkcs12FromAsn1(forge.asn1.fromDer(buffer.toString("binary")), password);
     const certs = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] ?? [];
@@ -66,12 +108,11 @@ export function inspectPrescriptionCertificate(buffer: Buffer, password: string,
     if (!cpf || cpf !== digits(ownerCpf)) {
       throw new ClinicalIdentityError(422, "O certificado não pertence ao CPF do médico autenticado.");
     }
-    if (now < cert.validity.notBefore || now > cert.validity.notAfter) {
-      throw new ClinicalIdentityError(422, "Certificado fora do período de validade.");
-    }
     return {
       assinante: cn.split(":")[0], cpf, ac: String(cert.issuer.getField("CN")?.value ?? ""),
-      serial: cert.serialNumber.toUpperCase(), validTo: cert.validity.notAfter.toISOString(),
+      serial: cert.serialNumber.toUpperCase(),
+      validFrom: cert.validity.notBefore.toISOString(),
+      validTo: cert.validity.notAfter.toISOString(),
     };
   } catch (err) {
     if (err instanceof ClinicalIdentityError) throw err;
@@ -79,29 +120,133 @@ export function inspectPrescriptionCertificate(buffer: Buffer, password: string,
   }
 }
 
-export async function resolvePrescriptionSigner(identity: PrescriptionIdentity): Promise<PrescriptionSigner> {
-  const prefix = `certificate.professional.${identity.professional.id}`;
+interface CertificateCredential {
+  buffer: Buffer;
+  password: string;
+}
+
+async function loadCertificateCredentials(professionalId: number): Promise<CertificateCredential[]> {
+  const professionalPrefix = `certificate.professional.${professionalId}`;
   try {
-    const meta = await getJsonSetting<CertMeta>(`${prefix}.meta`);
+    const meta = await getJsonSetting<CertMeta>(`${professionalPrefix}.meta`);
     if (meta) {
-      if (!meta.objectPath.startsWith("certs/pfx/")) throw new Error("invalid path");
-      const password = await getSecret(`${prefix}.password`);
-      if (!password) throw new ClinicalIdentityError(422, "Senha do certificado do médico ausente.");
-      return validatePrescriptionCertificate(
-        await new ObjectStorageService().readPrivateObject(meta.objectPath), password, identity,
-      );
+      if (!meta.objectPath?.startsWith("certs/pfx/")) {
+        throw new CertificateSourceError("invalid", "Caminho do certificado inválido.");
+      }
+      const password = await getSecret(`${professionalPrefix}.password`);
+      if (!password) throw new CertificateSourceError("missing", "Senha do certificado ausente.");
+      try {
+        const buffer = await new ObjectStorageService().readPrivateObject(meta.objectPath);
+        return [{ buffer, password }];
+      } catch {
+        throw new CertificateSourceError("unavailable", "Arquivo do certificado indisponível.");
+      }
     }
-    // Migration compatibility: the global certificate may ONLY sign for its actual owner.
-    const buffer = getCertBufferSync();
-    let last: unknown;
-    for (const password of getCertPasswordsSync()) {
-      try { return validatePrescriptionCertificate(buffer, password, identity); } catch (err) { last = err; }
+    // Compatibilidade histórica: o certificado global só pode ser usado
+    // quando o CPF do titular corresponder ao médico autenticado.
+    let buffer: Buffer;
+    let passwords: string[];
+    try {
+      buffer = getCertBufferSync();
+      passwords = getCertPasswordsSync();
+    } catch {
+      throw new CertificateSourceError("missing", "Certificado do médico não configurado.");
     }
-    throw last;
+    return passwords.map((password) => ({ buffer, password }));
   } catch (err) {
-    if (err instanceof ClinicalIdentityError) throw err;
-    throw new ClinicalIdentityError(422, "Certificado do médico indisponível. Configure-o em Certificados.");
+    if (err instanceof CertificateSourceError) throw err;
+    throw new CertificateSourceError("unavailable", "Não foi possível acessar o certificado do médico.");
   }
+}
+
+export async function getPrescriptionCertificateStatus(
+  professionalId: number,
+  ownerCpf: string | null,
+  now = new Date(),
+): Promise<PrescriptionCertificateStatus> {
+  let credentials: CertificateCredential[];
+  try {
+    credentials = await loadCertificateCredentials(professionalId);
+  } catch (err) {
+    return {
+      state: err instanceof CertificateSourceError ? err.state : "unavailable",
+      validFrom: null,
+      validTo: null,
+    };
+  }
+
+  let lastError: unknown;
+  for (const credential of credentials) {
+    try {
+      const meta = inspectPrescriptionCertificateContents(credential.buffer, credential.password, ownerCpf);
+      const nowMs = now.getTime();
+      return {
+        state: nowMs < Date.parse(meta.validFrom)
+          ? "not_yet_valid"
+          : nowMs > Date.parse(meta.validTo) ? "expired" : "valid",
+        validFrom: meta.validFrom,
+        validTo: meta.validTo,
+      };
+    } catch (err) {
+      lastError = err;
+      if (err instanceof ClinicalIdentityError &&
+        err.message.includes("não pertence ao CPF")) {
+        return { state: "owner_mismatch", validFrom: null, validTo: null };
+      }
+    }
+  }
+
+  if (lastError instanceof CertificateSourceError) {
+    return { state: lastError.state, validFrom: null, validTo: null };
+  }
+  return { state: "invalid", validFrom: null, validTo: null };
+}
+
+export async function requireExpiredPrescriptionCertificate(
+  identity: PrescriptionIdentity,
+  now: Date = brtNow(),
+): Promise<PrescriptionCertificateStatus> {
+  if (!identity.canPrescribe) {
+    throw new ClinicalIdentityError(422, "O cadastro profissional precisa ter CRM com unidade federativa.");
+  }
+  if (!/^\d{11}$/.test(digits(identity.professional.cpf))) {
+    throw new ClinicalIdentityError(422, "O cadastro profissional precisa ter CPF com onze dígitos.");
+  }
+  const status = await getPrescriptionCertificateStatus(
+    identity.professional.id,
+    identity.professional.cpf,
+    now,
+  );
+  if (status.state !== "expired") {
+    const messages: Record<PrescriptionCertificateState, string> = {
+      valid: "O certificado está vigente; use a emissão assinada.",
+      expired: "",
+      not_yet_valid: "O certificado ainda não iniciou a validade.",
+      missing: "Certificado do médico não configurado.",
+      invalid: "Certificado inválido ou senha incorreta.",
+      owner_mismatch: "O certificado não pertence ao médico autenticado.",
+      unavailable: "Não foi possível validar o certificado do médico.",
+    };
+    throw new ClinicalIdentityError(422, messages[status.state]);
+  }
+  return status;
+}
+
+export async function resolvePrescriptionSigner(identity: PrescriptionIdentity): Promise<PrescriptionSigner> {
+  const credentials = await loadCertificateCredentials(identity.professional.id);
+  let lastError: unknown;
+  for (const credential of credentials) {
+    try {
+      return validatePrescriptionCertificate(credential.buffer, credential.password, identity);
+    } catch (err) {
+      lastError = err;
+      if (err instanceof ClinicalIdentityError && err.message.includes("não pertence ao CPF")) {
+        throw err;
+      }
+    }
+  }
+  if (lastError instanceof Error) throw lastError;
+  throw new ClinicalIdentityError(422, "Certificado do médico indisponível. Configure-o em Certificados.");
 }
 
 export function assertPrescriptionSigner(signer?: PrescriptionSigner): asserts signer is PrescriptionSigner {

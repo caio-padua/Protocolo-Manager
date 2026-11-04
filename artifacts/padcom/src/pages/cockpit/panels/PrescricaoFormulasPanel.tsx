@@ -154,7 +154,14 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
           return;
         }
         setEmitResult(res);
-        toast({ title: `Receitas geradas (${res.recipes.length})`, description: "Confira os documentos e o resultado de cada envio." });
+        toast({
+          title: res.signatureStatus === "unsigned_expired"
+            ? `Prescrição gerada sem assinatura (${res.recipes.length})`
+            : `Receitas assinadas (${res.recipes.length})`,
+          description: res.signatureStatus === "unsigned_expired"
+            ? "O documento não foi enviado e exige assinatura manual antes de uso clínico."
+            : "Confira os documentos no histórico.",
+        });
       },
       onError: (error) => { if (draft.isCurrent()) toast({ title: "Erro ao emitir receitas — rascunho preservado", description: error.message, variant: "destructive" }); },
     },
@@ -349,7 +356,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     previewMutation.mutate({ data: { items: buildItems() } });
   };
 
-  const handleEmit = () => {
+  const handleEmit = (signatureMode: "signed" | "unsigned_expired" = "signed") => {
     if (draft.pending || emitMutation.isPending) return;
     if (!identity.data?.canPrescribe || identity.isFetching || identity.isError) {
       toast({ title: "Identidade clínica pendente", description: identity.data?.issue ?? identity.error?.message, variant: "destructive" });
@@ -367,6 +374,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     const snapshot = draft.value;
     emitMutation.mutate({
       data: {
+        signatureMode,
         clientId,
         clientName: client.name.trim(),
         clientCpf: client.cpf || null,
@@ -470,7 +478,13 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       {approvalQueued && <p role="status" className="bevel-3d px-3 py-2 text-sm text-emerald-800">Solicitação registrada para revisão do médico responsável. Nenhuma mensagem foi enviada.</p>}
       {emitMutation.isError && <p role="alert" className="text-sm text-destructive">Falha ao emitir: {emitMutation.error.message}. Rascunho preservado; confira o histórico antes de tentar novamente.</p>}
       {!draft.pending && <fieldset disabled={emitMutation.isPending || previewMutation.isPending || createApproval.isPending} className="min-w-0 space-y-4">
-      <ClinicalIdentityPanel identity={identity} />
+      <ClinicalIdentityPanel
+        identity={identity}
+        allowUnsignedPrescription
+        canGenerateUnsigned={buildItems().length > 0 && !draft.pending}
+        unsignedGenerationPending={emitMutation.isPending}
+        onGenerateUnsigned={() => handleEmit("unsigned_expired")}
+      />
       {/* Cabeçalho do paciente (prefil) + duração/CID */}
       <div className="screen-3d rounded-md p-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Paciente</p>

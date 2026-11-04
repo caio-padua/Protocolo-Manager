@@ -5,9 +5,11 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { EmitBodySignatureMode } from "./emitBodySignatureMode";
 import type { PrescriptionItemInput } from "./prescriptionItemInput";
 
 export interface EmitBody {
+  signatureMode?: EmitBodySignatureMode;
   /** @minimum 1 */
   approvalRequestId?: number;
   clientId?: number | null;

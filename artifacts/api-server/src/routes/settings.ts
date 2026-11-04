@@ -21,7 +21,7 @@ import {
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
-import { inspectPrescriptionCertificate } from "../lib/prescription-signing";
+import { getPrescriptionCertificateStatus, inspectPrescriptionCertificate } from "../lib/prescription-signing";
 import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
 import {
   getJsonSetting,
@@ -391,7 +391,19 @@ router.put("/settings/stripe", requireCollaborator, async (req, res): Promise<vo
 
 // ------------------------------------------------------------- CERTIFICADO ---
 router.get("/settings/certificate", requireCollaborator, async (req, res): Promise<void> => {
-  res.json(await getCertificateStatus(req.collaborator!.professionalId));
+  const professionalId = req.collaborator!.professionalId;
+  const [professional] = await db.select({
+    cpf: professionalsTable.cpf,
+    professionalType: professionalsTable.professionalType,
+  })
+    .from(professionalsTable).where(eq(professionalsTable.id, professionalId)).limit(1);
+  const [stored, validity] = await Promise.all([
+    getCertificateStatus(professionalId),
+    professional?.professionalType === "medico"
+      ? getPrescriptionCertificateStatus(professionalId, professional.cpf ?? null)
+      : Promise.resolve({ state: "missing", validFrom: null, validTo: null }),
+  ]);
+  res.json({ ...stored, ...validity, professionalType: professional?.professionalType ?? null });
 });
 
 // Upload do .pfx (multipart): campo "file" + "password" (+ opcional "cpf").

@@ -89,7 +89,8 @@ vi.mock("../lib/messaging/base-url.js", () => ({ baseUrlFromEnv: () => "" }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: any, next: any) => next() }));
 vi.mock("../lib/receituario-worker", () => ({ liberarSlot: vi.fn(), processarReceituarioDiario: vi.fn() }));
 import { inspectPrescriptionCertificate, resolvePrescriptionSigner, signPrescriptionPdf,
-  signExistingPrescriptionPdf, validatePrescriptionCertificate, type PrescriptionIdentity } from "../lib/prescription-signing";
+  signExistingPrescriptionPdf, validatePrescriptionCertificate, requireExpiredPrescriptionCertificate,
+  type PrescriptionIdentity } from "../lib/prescription-signing";
 import { generatePdfFromPngBase64, generateReceituarioPdfV2, generateReceituarioPdf } from "../lib/receituario-pdf";
 import { ClinicalIdentityError, validateClinicalIdentity } from "../lib/clinical-emitter";
 import prescriptionRouter from "../routes/receituario";
@@ -169,7 +170,8 @@ beforeAll(async () => {
     id SERIAL PRIMARY KEY, client_id INTEGER, client_name TEXT NOT NULL, client_cpf TEXT,
     client_phone TEXT, client_email TEXT, professional_id INTEGER, professional_name TEXT,
     professional_crm TEXT, professional_uf TEXT, duration_days TEXT, cid TEXT, message TEXT,
-    status TEXT NOT NULL DEFAULT 'draft', empresa_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'draft', signature_status TEXT NOT NULL DEFAULT 'legacy_unknown',
+    certificate_valid_to TIMESTAMPTZ, empresa_id INTEGER,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(), emitted_at TIMESTAMPTZ
   )`);
   await postgres.pool.query(`CREATE TABLE prescription_items (
@@ -511,6 +513,16 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     mock.read.mockRejectedValue(new Error("unavailable"));
     await expect(resolvePrescriptionSigner(identity)).rejects.toThrow(/indisponível/);
     expect(mock.globalBuffer).not.toHaveBeenCalled();
+  });
+  it("permite o modo sem assinatura somente quando o certificado do médico está vencido", async () => {
+    mock.getJson.mockResolvedValue({ objectPath: "certs/pfx/synthetic.pfx" });
+    mock.getSecret.mockResolvedValue(password);
+    mock.read.mockResolvedValue(pfx);
+    const expired = await requireExpiredPrescriptionCertificate(identity, new Date("2100-01-01T12:00:00Z"));
+    expect(expired.state).toBe("expired");
+    expect(expired.validTo).toBeTruthy();
+    await expect(requireExpiredPrescriptionCertificate(identity, new Date("2010-01-01T12:00:00Z")))
+      .rejects.toThrow(/validade/);
   });
   it("global só pode ser usado pelo titular e ausência falha explicitamente", async () => {
     await expect(resolvePrescriptionSigner(identity)).resolves.toHaveProperty("meta.serial");

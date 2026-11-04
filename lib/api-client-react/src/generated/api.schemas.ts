@@ -370,12 +370,29 @@ export interface ESignatureUpdate {
   token?: string | null;
 }
 
+export type CertificateStatusState =
+  (typeof CertificateStatusState)[keyof typeof CertificateStatusState];
+
+export const CertificateStatusState = {
+  valid: "valid",
+  expired: "expired",
+  not_yet_valid: "not_yet_valid",
+  missing: "missing",
+  invalid: "invalid",
+  owner_mismatch: "owner_mismatch",
+  unavailable: "unavailable",
+} as const;
+
 export interface CertificateStatus {
   isSet: boolean;
   hasPassword: boolean;
   fileName?: string | null;
   cpf?: string | null;
   updatedAt?: string | null;
+  state?: CertificateStatusState;
+  professionalType?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
 }
 
 export type ReconciliationItemMatch =
@@ -1962,7 +1979,16 @@ export interface RecipePlan {
   items: PrescriptionItemInput[];
 }
 
+export type EmitBodySignatureMode =
+  (typeof EmitBodySignatureMode)[keyof typeof EmitBodySignatureMode];
+
+export const EmitBodySignatureMode = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+} as const;
+
 export interface EmitBody {
+  signatureMode?: EmitBodySignatureMode;
   /** @minimum 1 */
   approvalRequestId?: number;
   clientId?: number | null;
@@ -2164,12 +2190,33 @@ export interface PharmacyDispatch {
   whatsappLink?: string | null;
 }
 
+export type EmitResultSignatureStatus =
+  (typeof EmitResultSignatureStatus)[keyof typeof EmitResultSignatureStatus];
+
+export const EmitResultSignatureStatus = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+  legacy_unknown: "legacy_unknown",
+} as const;
+
 export interface EmitResult {
   prescriptionId: number;
+  signatureStatus: EmitResultSignatureStatus;
+  certificateValidTo: string | null;
+  warning?: string;
   recipes: EmittedRecipe[];
   sncrAlerts: SncrAlert[];
   pharmacyDispatches: PharmacyDispatch[];
 }
+
+export type PrescriptionSignatureStatus =
+  (typeof PrescriptionSignatureStatus)[keyof typeof PrescriptionSignatureStatus];
+
+export const PrescriptionSignatureStatus = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+  legacy_unknown: "legacy_unknown",
+} as const;
 
 export interface Prescription {
   id: number;
@@ -2178,9 +2225,20 @@ export interface Prescription {
   clientCpf?: string | null;
   professionalName?: string | null;
   status: string;
+  signatureStatus?: PrescriptionSignatureStatus;
+  certificateValidTo?: string | null;
   createdAt: string;
   emittedAt?: string | null;
 }
+
+export type PrescriptionDetailSignatureStatus =
+  (typeof PrescriptionDetailSignatureStatus)[keyof typeof PrescriptionDetailSignatureStatus];
+
+export const PrescriptionDetailSignatureStatus = {
+  signed: "signed",
+  unsigned_expired: "unsigned_expired",
+  legacy_unknown: "legacy_unknown",
+} as const;
 
 export interface PrescriptionDetail {
   id: number;
@@ -2188,6 +2246,8 @@ export interface PrescriptionDetail {
   clientCpf?: string | null;
   professionalName?: string | null;
   status: string;
+  signatureStatus?: PrescriptionDetailSignatureStatus;
+  certificateValidTo?: string | null;
   createdAt: string;
   emittedAt?: string | null;
   recipes: EmittedRecipe[];
