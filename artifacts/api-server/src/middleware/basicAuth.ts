@@ -27,6 +27,9 @@
  *    (rotas protegidas /api/onboarding/stats e /api/onboarding/minha-config
  *     mantêm o basicAuth; passam via Bearer do colaborador)
  *
+ *  Compartilhamento de receita (token aleatório com validade e hash do PDF):
+ *    /api/recipes/share/:token
+ *
  * ATENÇÃO: este middleware deve vir DEPOIS do cors() em app.ts.
  * O preflight OPTIONS do navegador não carrega credencial; se o Basic Auth
  * vier antes do CORS, o padcom leva 401 no preflight e não fala com a API.
@@ -62,6 +65,7 @@ const BYPASS_PREFIXES = [
   // Onboarding do paciente — público (Guia Digital abre no browser do paciente sem auth):
   "/api/onboarding/evento",  // POST analytics — paciente dispara ao abrir seção
   "/api/onboarding/config",  // GET config de UI por ?tenant=slug — sem dado sensível
+  "/api/recipes/share",      // QR impresso abre a cópia exata da receita sem login
 ];
 
 const BYPASS_EXACT_PATHS = new Set([

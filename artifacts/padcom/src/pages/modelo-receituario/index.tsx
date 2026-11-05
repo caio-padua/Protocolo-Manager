@@ -4,6 +4,7 @@
 // (designer de faixas), apenas governa qual modelo o SISTEMA usa ao emitir.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { LayoutTemplate, CheckCircle2, Circle, FlaskConical, Loader2, RefreshCw, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -82,7 +83,10 @@ export default function ModeloReceituario() {
   async function ativar(id: number) {
     setAtivando(id);
     try {
-      const r = await fetch(`${API}/api/receituario-modelos/${id}/ativar`, { method: "POST" });
+      const r = await fetch(`${API}/api/receituario-modelos/${id}/ativar`, {
+        method: "POST",
+        headers: collabAuthHeaders(),
+      });
       const data = await r.json() as { ok: boolean; modelo?: Modelo };
       if (!data.ok) throw new Error("Falha ao ativar");
       await carregar();
@@ -100,7 +104,7 @@ export default function ModeloReceituario() {
     try {
       const r = await fetch(`${API}/api/receituario-modelos/emitir-teste`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ modeloId }),
       });
       const data = await r.json() as EmitirTesteResult;

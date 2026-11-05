@@ -29,6 +29,17 @@ import { ReceituarioPreview } from "@/components/receituario/ReceituarioPreview"
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+function persistedDesignerConfig(config: ReceituarioConfig): Partial<ReceituarioConfig> {
+  const {
+    selectedClinicaId: _selectedClinicaId,
+    selectedMedicoId: _selectedMedicoId,
+    assinaturaDataUrl: _assinaturaDataUrl,
+    certificadoQrDataUrl: _certificadoQrDataUrl,
+    ...visualConfig
+  } = config;
+  return visualConfig;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // THUMB DO SELETOR DE FAIXA
 // ══════════════════════════════════════════════════════════════════════════════
@@ -167,6 +178,10 @@ export default function ConfigReceituario() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [cfg, setCfg]         = useState<ReceituarioConfig>(loadReceituarioConfig);
+  const [activeModelId, setActiveModelId] = useState<number | null>(null);
+  const [activeModelConfig, setActiveModelConfig] = useState<Record<string, unknown>>({});
+  const [modelLoading, setModelLoading] = useState(true);
+  const [savingModel, setSavingModel] = useState(false);
   const [bandModel, setBandModel] = useState<string>(getSavedBandModel);
   const [previewBand, setPreviewBand] = useState<string>(bandModel);
   const [previewCustomUrl, setPreviewCustomUrl] = useState<string | undefined>();
@@ -175,6 +190,66 @@ export default function ConfigReceituario() {
   const [saved, setSaved]     = useState(false);
   const [dragging, setDragging] = useState(false);
   const [gerandoDemo, setGerandoDemo] = useState(false); // P7
+  const designerChanged = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadActiveModel() {
+      try {
+        const response = await fetch(`${BASE}/api/receituario-modelos/ativo`, {
+          headers: collabAuthHeaders(),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json() as {
+          modelo?: { id?: number; config?: Record<string, unknown> };
+        };
+        const model = payload.modelo;
+        if (!model?.id) throw new Error("Não há modelo ativo no servidor.");
+        const serverConfig = model.config ?? {};
+        if (cancelled) return;
+        setActiveModelId(model.id);
+        setActiveModelConfig(serverConfig);
+
+        const storedDesigner = serverConfig["designerConfig"];
+        if (storedDesigner && typeof storedDesigner === "object" && !Array.isArray(storedDesigner)) {
+          if (!designerChanged.current) {
+            setCfg({ ...DEFAULT_CONFIG, ...(storedDesigner as Partial<ReceituarioConfig>) });
+            const savedBand = typeof serverConfig["bandModelId"] === "string"
+              ? serverConfig["bandModelId"] : getSavedBandModel();
+            setBandModel(savedBand);
+            setPreviewBand(savedBand);
+          }
+          return;
+        }
+
+        // Migração única, sem substituir um modelo já salvo no servidor.
+        const migratedConfig = {
+          ...serverConfig,
+          designerConfig: persistedDesignerConfig(loadReceituarioConfig()),
+          bandModelId: getSavedBandModel(),
+        };
+        const saved = await fetch(`${BASE}/api/receituario-modelos/${model.id}`, {
+          method: "PUT",
+          headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ config: migratedConfig }),
+        });
+        if (!saved.ok) throw new Error(`Não foi possível migrar o modelo (HTTP ${saved.status}).`);
+        if (!cancelled) setActiveModelConfig(migratedConfig);
+      } catch (error) {
+        if (!cancelled) {
+          toast({
+            title: "Modelo do receituário não sincronizado",
+            description: error instanceof Error ? error.message : String(error),
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) setModelLoading(false);
+      }
+    }
+    void loadActiveModel();
+    return () => { cancelled = true; };
+  }, [toast]);
 
   // P1: Seletor de clínica e médico
   const [locationsList, setLocationsList] = useState<Array<{ id: number; name: string; razaoSocial?: string; nomeFantasia?: string; cnpj?: string; certTitular?: string; certTipo?: string; certValidade?: string }>>([]);
@@ -202,17 +277,46 @@ export default function ConfigReceituario() {
 
   // Data-bind em tempo real — qualquer mudança no cfg reflete no preview imediatamente
   const patch = useCallback((partial: Partial<ReceituarioConfig>) => {
+    designerChanged.current = true;
     setCfg(prev => ({ ...prev, ...partial }));
     setSaved(false);
   }, []);
 
   // ── Salvar ──────────────────────────────────────────────────────────────────
-  function handleSave() {
-    saveReceituarioConfig(cfg);
-    saveBandModel(previewBand as ArabesqueModelId);
-    setBandModel(previewBand);
-    setSaved(true);
-    toast({ title: "Configuração salva!", description: "Gravada no navegador deste dispositivo." });
+  async function handleSave() {
+    if (!activeModelId) {
+      toast({ title: "Modelo ativo indisponível", description: "A configuração não foi salva.", variant: "destructive" });
+      return;
+    }
+    setSavingModel(true);
+    try {
+      const nextConfig = {
+        ...activeModelConfig,
+        designerConfig: persistedDesignerConfig(cfg),
+        bandModelId: previewBand,
+      };
+      const response = await fetch(`${BASE}/api/receituario-modelos/${activeModelId}`, {
+        method: "PUT",
+        headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ config: nextConfig }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setActiveModelConfig(nextConfig);
+      saveReceituarioConfig(cfg);
+      saveBandModel(previewBand as ArabesqueModelId);
+      setBandModel(previewBand);
+      setSaved(true);
+      toast({ title: "Modelo salvo", description: "A emissão usará esta configuração do servidor." });
+    } catch (error) {
+      setSaved(false);
+      toast({
+        title: "Falha ao salvar o modelo",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingModel(false);
+    }
   }
 
   // ── Imprimir / PDF (P8) ─────────────────────────────────────────────────────
@@ -256,6 +360,7 @@ export default function ConfigReceituario() {
           addedAt: new Date().toISOString(),
         };
         patch({ customBands: [...(cfg.customBands ?? []), band] });
+        designerChanged.current = true;
         setPreviewBand(band.id);
         setPreviewCustomUrl(dataUrl);
         toast({ title: `Faixa "${band.name}" adicionada!` });
@@ -351,9 +456,10 @@ export default function ConfigReceituario() {
             <Printer className="w-4 h-4"/> Imprimir / PDF
           </button>
           <button onClick={handleSave}
+            disabled={modelLoading || savingModel}
             className={`text-sm px-4 py-2 flex items-center gap-2 font-semibold ${saved ? "bevel-3d-ok" : "btn-3d-gold"}`}>
             {saved ? <CheckCircle2 className="w-4 h-4"/> : <Save className="w-4 h-4"/>}
-            {saved ? "Salvo" : "Salvar tudo"}
+            {modelLoading ? "Sincronizando..." : savingModel ? "Salvando..." : saved ? "Salvo" : "Salvar tudo"}
           </button>
         </div>
       </div>
@@ -391,7 +497,7 @@ export default function ConfigReceituario() {
                     {cfg.customBands.map(b => (
                       <ModelCard key={b.id} src={b.dataUrl}
                         selected={previewBand === b.id} isSaved={bandModel === b.id}
-                        onSelect={() => { setPreviewBand(b.id); setPreviewCustomUrl(b.dataUrl); }}/>
+                        onSelect={() => { designerChanged.current = true; setPreviewBand(b.id); setPreviewCustomUrl(b.dataUrl); }}/>
                     ))}
                   </div>
                 </div>
@@ -406,7 +512,7 @@ export default function ConfigReceituario() {
                     {models.map(m => (
                       <ModelCard key={m.id} m={m}
                         selected={previewBand === m.id} isSaved={bandModel === m.id}
-                        onSelect={() => { setPreviewBand(m.id); setPreviewCustomUrl(undefined); }}/>
+                        onSelect={() => { designerChanged.current = true; setPreviewBand(m.id); setPreviewCustomUrl(undefined); }}/>
                     ))}
                   </div>
                 </div>
@@ -651,9 +757,9 @@ export default function ConfigReceituario() {
                 <div key={tk} className="panel-3d-sub p-3 space-y-2">
                   <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">{lbl}</div>
                   <FieldRow label="Título do cartão">
-                    <Input value={(cfg as Record<string, string>)[tk]}
+                    <Input value={String(cfg[tk as keyof ReceituarioConfig] ?? "")}
                       onChange={e => patch({ [tk]: e.target.value } as Partial<ReceituarioConfig>)}
-                      placeholder={(DEFAULT_CONFIG as Record<string, string>)[tk]} className="text-sm"/>
+                      placeholder={String(DEFAULT_CONFIG[tk as keyof ReceituarioConfig] ?? "")} className="text-sm"/>
                   </FieldRow>
                 </div>
               ))}
@@ -1134,11 +1240,11 @@ export default function ConfigReceituario() {
                         <div className="text-xs font-semibold text-gray-700 truncate">{b.name}</div>
                         <div className="text-xs text-gray-400">{b.widthPx}×{b.heightPx}px · {b.fileSizeKb} KB</div>
                       </div>
-                      <button onClick={() => { setPreviewBand(b.id); setPreviewCustomUrl(b.dataUrl); }}
+                      <button onClick={() => { designerChanged.current = true; setPreviewBand(b.id); setPreviewCustomUrl(b.dataUrl); }}
                         className="btn-3d-soft text-xs px-2 py-1 font-semibold">Preview</button>
                       <button onClick={() => {
                         patch({ customBands: cfg.customBands.filter(x => x.id !== b.id) });
-                        if (previewBand === b.id) { setPreviewBand(bandModel); setPreviewCustomUrl(undefined); }
+                        if (previewBand === b.id) { designerChanged.current = true; setPreviewBand(bandModel); setPreviewCustomUrl(undefined); }
                       }} className="p-1.5 text-gray-400 hover:text-red-500">
                         <Trash2 className="w-3.5 h-3.5"/>
                       </button>

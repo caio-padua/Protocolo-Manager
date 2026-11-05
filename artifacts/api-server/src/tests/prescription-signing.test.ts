@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import forge from "node-forge";
 import { PDFDocument } from "pdf-lib";
 import { execFileSync } from "node:child_process";
@@ -15,7 +16,8 @@ const mock = vi.hoisted(() => ({
   getJson: vi.fn(), getSecret: vi.fn(), read: vi.fn(), globalBuffer: vi.fn(), globalPasswords: vi.fn(),
   rows: [] as any[][], execute: vi.fn(), upload: vi.fn(), email: vi.fn(), insert: vi.fn(),
   transaction: vi.fn(), sendPaxter: vi.fn(), update: vi.fn(), motor: vi.fn(), useMotorMock: false, reminder: vi.fn(),
-  realDb: null as any, syntheticResolver: null as any, clinicalAccess: null as any, realRecipePdf: null as any,
+  realDb: null as any, syntheticResolver: null as any, clinicalAccess: null as any,
+  realRecipePdf: null as any, realReceituarioPdf: null as any,
   recipePdfCallCount: 0, failOnRecipePdfCall: null as number | null, useHomologationNotice: false,
 }));
 vi.mock("@workspace/db", async () => ({
@@ -74,6 +76,20 @@ vi.mock("../lib/prescription-pdf", async (importOriginal) => {
     },
   };
 });
+vi.mock("../lib/receituario-pdf", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/receituario-pdf")>();
+  mock.realReceituarioPdf = actual.generateReceituarioPdfV2;
+  return {
+    ...actual,
+    generateReceituarioPdfV2: (...args: any[]) => {
+      mock.recipePdfCallCount += 1;
+      if (mock.failOnRecipePdfCall === mock.recipePdfCallCount) {
+        throw new Error("Falha sintética na geração do PDF");
+      }
+      return mock.realReceituarioPdf(...args);
+    },
+  };
+});
 vi.mock("../lib/secure-settings", () => ({ getJsonSetting: mock.getJson, getSecret: mock.getSecret }));
 vi.mock("../lib/cert-source", () => ({ getCertBufferSync: mock.globalBuffer, getCertPasswordsSync: mock.globalPasswords }));
 vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: class { readPrivateObject = mock.read; } }));
@@ -97,7 +113,7 @@ vi.mock("../lib/receituario-motor.js", async (importOriginal) => {
 vi.mock("../lib/lembrete-periodo", () => ({ sincronizarLembretePrescricao: mock.reminder }));
 vi.mock("../lib/lembrete-templates", () => ({ templateLembretePrescricao: mock.sendPaxter }));
 vi.mock("../lib/mensageria-paxmed", () => ({ montarMensagemPaxmed: mock.sendPaxter }));
-vi.mock("../lib/messaging/base-url.js", () => ({ baseUrlFromEnv: () => "" }));
+vi.mock("../lib/messaging/base-url.js", () => ({ baseUrlFromEnv: () => "https://test.invalid" }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: any, next: any) => next() }));
 vi.mock("../lib/receituario-worker", () => ({ liberarSlot: vi.fn(), processarReceituarioDiario: vi.fn() }));
 import { inspectPrescriptionCertificate, resolvePrescriptionSigner, signPrescriptionPdf,
@@ -154,7 +170,8 @@ beforeAll(async () => {
   )`);
   await postgres.pool.query(`CREATE TABLE clients (
     id SERIAL PRIMARY KEY, name TEXT NOT NULL, cpf TEXT, email TEXT, phone TEXT,
-    status TEXT NOT NULL DEFAULT 'active', location_id INTEGER, empresa_id INTEGER
+    address TEXT, birth_date TEXT, status TEXT NOT NULL DEFAULT 'active',
+    location_id INTEGER, empresa_id INTEGER
   )`);
   await postgres.pool.query(`CREATE TABLE synthetic_professionals (
     id INTEGER PRIMARY KEY, name TEXT NOT NULL, cpf TEXT NOT NULL, crm TEXT NOT NULL,
@@ -169,14 +186,16 @@ beforeAll(async () => {
     PRIMARY KEY (professional_id, clinic_id)
   )`);
   await postgres.pool.query(`CREATE TABLE locations (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, active TEXT NOT NULL, empresa_id INTEGER NOT NULL
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL, address TEXT, phone TEXT,
+    active TEXT NOT NULL, empresa_id INTEGER NOT NULL
   )`);
   await postgres.pool.query(`CREATE TABLE location_professionals (
     location_id INTEGER NOT NULL, professional_id INTEGER NOT NULL
   )`);
   await postgres.pool.query(`CREATE TABLE professionals (
     id INTEGER PRIMARY KEY, active BOOLEAN NOT NULL, professional_type TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'executor', credential_version INTEGER NOT NULL DEFAULT 0
+    role TEXT NOT NULL DEFAULT 'executor', credential_version INTEGER NOT NULL DEFAULT 0,
+    signature_url TEXT
   )`);
   await postgres.pool.query(`CREATE TABLE prescriptions (
     id SERIAL PRIMARY KEY, client_id INTEGER, client_name TEXT NOT NULL, client_cpf TEXT,
@@ -200,6 +219,7 @@ beforeAll(async () => {
     sncr_number TEXT, sncr_range_id INTEGER, sncr_status TEXT, title TEXT, items_json JSONB,
     drive_file_id TEXT, drive_web_view_link TEXT, file_name TEXT, pdf_data TEXT, batch_date TEXT,
     email_sent_at TIMESTAMPTZ, status TEXT NOT NULL DEFAULT 'generated',
+    qr_token_hash TEXT, qr_expires_at TIMESTAMPTZ, qr_pdf_sha256 TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
   await postgres.pool.query(`CREATE TABLE pharmacies (
@@ -208,6 +228,13 @@ beforeAll(async () => {
     controlled_types TEXT[] NOT NULL DEFAULT '{}', drive_folder_id TEXT,
     active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
+  await postgres.pool.query(`CREATE TABLE receituario_modelos (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'faixas_paxter',
+    config JSONB NOT NULL DEFAULT '{}', ativo BOOLEAN NOT NULL DEFAULT false,
+    criado_em TIMESTAMPTZ NOT NULL DEFAULT now(), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  await postgres.pool.query(`INSERT INTO receituario_modelos (nome, tipo, config, ativo)
+    VALUES ('Modelo sintético', 'faixas_paxter', '{"designerConfig":{}}'::jsonb, TRUE)`);
 }, 30_000);
 afterAll(async () => { await postgres?.stop(); });
 beforeEach(() => {
@@ -547,7 +574,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
   });
   it("nenhum gerador devolve PDF sem assinatura quando falta contexto", async () => {
     await expect(generatePdfFromPngBase64("invalid")).rejects.toThrow(/autorizados/);
-    await expect(generateReceituarioPdfV2({} as any)).rejects.toThrow(/autorizados/);
+    await expect(generateReceituarioPdfV2({} as any)).rejects.toThrow(/certificado válido/);
     await expect(generateReceituarioPdf({} as any)).rejects.toThrow(/autorizados/);
     await expect(signPrescriptionPdf(await PDFDocument.create(), {} as any)).rejects.toThrow(/autorizados/);
   });
@@ -719,6 +746,10 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
           expect(item.dose).toBe("SEM DOSE TERAPEUTICA");
           expect(recipe.prescriptionId).toBe(prescriptionId);
           expect(recipe.pdfData).toBeTruthy();
+           expect(recipe.qrTokenHash).toMatch(/^[a-f0-9]{64}$/);
+           expect(recipe.qrExpiresAt.getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 60 * 60 * 1000);
+           expect(recipe.qrPdfSha256).toBe(createHash("sha256")
+             .update(Buffer.from(recipe.pdfData, "base64")).digest("hex"));
 
           const history = await request(app)
             .get(`/api/prescriptions/${prescriptionId}`)

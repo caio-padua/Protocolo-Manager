@@ -3,8 +3,9 @@
  * Padrão visual PAXTER: faixa navy, tabela de fórmulas, rodapé com selo.
  */
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
 import QRCode from "qrcode";
 
@@ -56,9 +57,63 @@ function parseDataImage(value: unknown): { bytes: Buffer; mime: "image/png" | "i
   return { bytes, mime: match[1] === "png" ? "image/png" : "image/jpeg" };
 }
 
+async function embedDesignerImage(pdfDoc: PDFDocument, value: unknown) {
+  const raster = parseDataImage(value);
+  if (raster) {
+    return raster.mime === "image/png"
+      ? pdfDoc.embedPng(raster.bytes)
+      : pdfDoc.embedJpg(raster.bytes);
+  }
+  if (typeof value !== "string" || !/^data:image\/svg\+xml/i.test(value)) return null;
+  const match = value.match(/^data:image\/svg\+xml(?:;charset=[^;,]+)?(;base64)?,([\s\S]+)$/i);
+  if (!match) throw new Error("A imagem SVG do modelo está malformada.");
+  const svgBytes = match[1]
+    ? Buffer.from(match[2], "base64")
+    : Buffer.from(decodeURIComponent(match[2]), "utf8");
+  if (!svgBytes.length || svgBytes.length > 1_000_000) {
+    throw new Error("A imagem SVG do modelo excede o limite permitido.");
+  }
+  const svg = svgBytes.toString("utf8");
+  if (!/<svg[\s>]/i.test(svg) ||
+      /<script|<foreignObject|<!DOCTYPE|<!ENTITY|\son[a-z]+\s*=|url\(\s*(['"]?)(?!#|data:image\/(?:png|jpeg);base64,)[^)]+\)/i.test(svg) ||
+      /(?:href|xlink:href|src)\s*=\s*(['"])(?!#|data:image\/(?:png|jpeg);base64,)[\s\S]*?\1/i.test(svg)) {
+    throw new Error("A imagem SVG contém recursos ou conteúdo não permitido.");
+  }
+  const image = await loadImage(svgBytes);
+  if (!Number.isFinite(image.width) || !Number.isFinite(image.height) ||
+      image.width < 1 || image.height < 1 || image.width > 8192 || image.height > 8192) {
+    throw new Error("As dimensões da imagem SVG do modelo não são válidas.");
+  }
+  const scale = Math.min(1, 1600 / image.width, 600 / image.height);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = createCanvas(width, height);
+  canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+  return pdfDoc.embedPng(canvas.toBuffer("image/png"));
+}
+
 function configuredFontFamily(value: unknown): "serif" | "sans" {
   const normalized = typeof value === "string" ? value.toLowerCase() : "";
   return /georgia|garamond|lora|cardo|times/.test(normalized) ? "serif" : "sans";
+}
+
+function fontAssetCandidates(name: string): string[] {
+  return [
+    resolve(import.meta.dirname, "../assets/fonts", name),
+    resolve(import.meta.dirname, "../../assets/fonts", name),
+    resolve(import.meta.dirname, "assets/fonts", name),
+  ];
+}
+
+function readFontAsset(name: string): Buffer {
+  for (const candidate of fontAssetCandidates(name)) {
+    try {
+      return readFileSync(candidate);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  throw new Error(`A fonte configurada para o receituário não foi encontrada: ${name}`);
 }
 
 function configuredColor(value: unknown, fallback: ReturnType<typeof rgb>) {
@@ -393,15 +448,27 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const pdfDoc   = await PDFDocument.create();
   const titleSerif = configuredFontFamily(designer["corpoFonteTitulo"]) === "serif";
   const bodySerif = configuredFontFamily(designer["corpoFonteCorpo"]) === "serif";
-  const fontReg  = await pdfDoc.embedFont(bodySerif ? StandardFonts.TimesRoman : StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(bodySerif ? StandardFonts.TimesRomanBold : StandardFonts.HelveticaBold);
-  const fontItal = await pdfDoc.embedFont(titleSerif ? StandardFonts.TimesRomanItalic : StandardFonts.HelveticaOblique);
+  const { default: fontkit } = await import("@pdf-lib/fontkit");
+  pdfDoc.registerFontkit(fontkit);
+  const [titleRegularBytes, titleBoldBytes, titleItalicBytes, bodyRegularBytes, bodyBoldBytes] = await Promise.all([
+    readFontAsset(titleSerif ? "EBGaramond-Regular.ttf" : "Manrope-Regular.woff"),
+    readFontAsset(titleSerif ? "EBGaramond-Bold.ttf" : "Manrope-Bold.woff"),
+    readFontAsset(titleSerif ? "EBGaramond-SemiBoldItalic.ttf" : "Manrope-Regular.woff"),
+    readFontAsset(bodySerif ? "EBGaramond-Regular.ttf" : "Manrope-Regular.woff"),
+    readFontAsset(bodySerif ? "EBGaramond-Bold.ttf" : "Manrope-Bold.woff"),
+  ]);
+  const [titleReg, titleBold, fontReg, fontBold, fontItal] = await Promise.all([
+    pdfDoc.embedFont(titleRegularBytes, titleSerif ? { subset: false } : { subset: true }),
+    pdfDoc.embedFont(titleBoldBytes, titleSerif ? { subset: false } : { subset: true }),
+    pdfDoc.embedFont(bodyRegularBytes, bodySerif ? { subset: false } : { subset: true }),
+    pdfDoc.embedFont(bodyBoldBytes, bodySerif ? { subset: false } : { subset: true }),
+    titleSerif
+      ? pdfDoc.embedFont(titleItalicBytes, { subset: false })
+      : pdfDoc.embedFont(StandardFonts.HelveticaOblique),
+  ]);
 
-  // ── Metadados reais do certificado ICP-Brasil ──────────────────────────────
-  // URL oficial do ITI (Instituto Nacional de Tecnologia da Informação) para
-  // que o farmacêutico valide o documento digitalmente assinado.
+  // ── QR da cópia exata da receita; a validação PAdES ocorre no próprio PDF.
   const ITI_VALIDATION_URL = "https://validar.iti.gov.br/";
-  // QR aponta para a página de consulta do documento (quando disponível) ou para o ITI
   const qrTarget = data.consultaUrl ?? ITI_VALIDATION_URL;
   const certMeta = signer?.meta;
   let certQrImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null = null;
@@ -411,7 +478,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       color: { dark: "#151c2eff", light: "#ffffffff" },
     });
     certQrImg = await pdfDoc.embedPng(qrBuf);
-  } catch { /* sem QR — documento sai sem imagem */ }
+  } catch (error) {
+    if (data.consultaUrl) {
+      throw new Error(`Não foi possível gerar o QR de acesso à receita: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 
   const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
   const M  = 36;
@@ -522,8 +593,25 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
 
   /** Linha decorativa fina — igual ao <LinhaDecorativa/> do motor. */
-  function drawDecorLine(y: number, active = true, thickness = 0.4): void {
+  function drawDecorLine(
+    y: number,
+    active = true,
+    thickness = 0.4,
+    style: "simples" | "dupla" | "ornamentada" = "simples",
+  ): void {
     if (!active) return;
+    if (style === "dupla") {
+      page.drawLine({ start: { x: M, y: y + 1.5 }, end: { x: PAGE_W - M, y: y + 1.5 }, thickness, color: LINE });
+      page.drawLine({ start: { x: M, y: y - 1.5 }, end: { x: PAGE_W - M, y: y - 1.5 }, thickness, color: LINE });
+      return;
+    }
+    if (style === "ornamentada") {
+      const middle = PAGE_W / 2;
+      page.drawLine({ start: { x: M, y }, end: { x: middle - 5, y }, thickness, color: LINE });
+      page.drawLine({ start: { x: middle + 5, y }, end: { x: PAGE_W - M, y }, thickness, color: LINE });
+      page.drawRectangle({ x: middle - 1.5, y: y - 1.5, width: 3, height: 3, color: LINE });
+      return;
+    }
     page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness, color: LINE });
   }
 
@@ -535,27 +623,25 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     "padua-10-acanto-floral","padua-11-acanto-romantico",
   ];
   const bandId = data.bandModel
-    ?? (typeof designer["bandModelId"] === "string" ? designer["bandModelId"] : "")
-    ?? "padua-01-floral-islamico";
+    || (typeof designer["bandModelId"] === "string" ? designer["bandModelId"] : "")
+    || "padua-01-floral-islamico";
   let arabImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
-  try {
-    const customBands = Array.isArray(designer["customBands"])
-      ? designer["customBands"] as Array<Record<string, unknown>>
-      : [];
-    const customBand = customBands.find((band) => band["id"] === bandId);
-    const customImage = parseDataImage(customBand?.["dataUrl"]);
-    if (customImage?.mime === "image/png") {
-      arabImg = await pdfDoc.embedPng(customImage.bytes);
-    } else if (customImage?.mime === "image/jpeg") {
-      arabImg = await pdfDoc.embedJpg(customImage.bytes) as unknown as Awaited<ReturnType<typeof pdfDoc.embedPng>>;
-    } else if (ARAB_IDS.includes(bandId)) {
-      const buf = readFileSync(join(
-        "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
-        `${bandId}.png`,
-      ));
-      arabImg = await pdfDoc.embedPng(buf);
-    }
-  } catch { /* sem arabesco — continua */ }
+  const customBands = Array.isArray(designer["customBands"])
+    ? designer["customBands"] as Array<Record<string, unknown>>
+    : [];
+  const customBand = customBands.find((band) => band["id"] === bandId);
+  if (customBand) {
+    arabImg = await embedDesignerImage(pdfDoc, customBand["dataUrl"]) as typeof arabImg;
+    if (!arabImg) throw new Error("A faixa personalizada selecionada não contém uma imagem válida.");
+  } else if (ARAB_IDS.includes(bandId)) {
+    const buf = readFileSync(join(
+      "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
+      `${bandId}.png`,
+    ));
+    arabImg = await pdfDoc.embedPng(buf);
+  } else {
+    throw new Error("A faixa selecionada não existe no modelo ativo do receituário.");
+  }
 
   /**
    * Desenha a faixa arabesca ATRÁS dos boxes.
@@ -578,7 +664,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   /** Desenha o par de boxes (D06 corrigido: borda escura #454545 + faixinha lateral ciano). */
   // Borda escura: rgb(0.27, 0.27, 0.27) = #454545 (motor: border 1px #454545)
-  const BOX_BORDER = configuredColor(designer["boxFaixinhaCor"], rgb(0.27, 0.27, 0.27));
+  const BOX_BORDER = rgb(0.27, 0.27, 0.27);
   // Faixinha lateral esquerda: 3pt de largura, cor ciano da marca (#45B8CC)
   const BOX_STRIP  = configuredColor(designer["boxFaixinhaCor"], rgb(0.271, 0.722, 0.800));
   const STRIP_W    = designer["boxFaixinhaEsquerda"] === true ? 3 : 0;
@@ -586,10 +672,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   function drawBoxPair(
     boxTop: number, boxH: number, titleH: number,
-    bx1: number, bx2: number, boxW: number,
+    bx1: number, bx2: number, boxW1: number, boxW2: number,
     titulo1: string, titulo2: string,
   ): void {
-    for (const [bx, titulo] of [[bx1, titulo1], [bx2, titulo2]] as [number, string][]) {
+    for (const [bx, boxW, titulo] of [
+      [bx1, boxW1, titulo1], [bx2, boxW2, titulo2],
+    ] as [number, number, string][]) {
       // ① Caixa principal branca — borda escura #454545, borderWidth 0.8
       page.drawRectangle({ x: bx, y: boxTop - boxH, width: boxW, height: boxH,
         color: WHITE, borderColor: BOX_BORDER, borderWidth: BOX_BORDER_W });
@@ -602,10 +690,10 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
       // ③ Título: texto centralizado bold 7pt (motor: fontSize:7 fontWeight:700)
       //    SEM fill rect — apenas linha pontilhada ABAIXO do texto (motor: borderBottom 0.4px #ddd)
-      const tW = (fontBold as any).widthOfTextAtSize(titulo, 7);
+      const tW = (titleBold as any).widthOfTextAtSize(titulo, 7);
       page.drawText(titulo, {
         x: bx + (boxW - tW) / 2, y: boxTop - 11,
-        font: fontBold, size: 7, color: rgb(0.13, 0.13, 0.13),
+        font: titleBold, size: 7, color: rgb(0.13, 0.13, 0.13),
       });
       // Linha separadora abaixo do título (motor: borderBottom: "0.4px solid #ddd")
       const titleLineY = boxTop - titleH;
@@ -618,10 +706,14 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
 
   // ── Constantes de layout ──────────────────────────────────────────────────
-  const BOX_GAP  = configNumber(designer, "boxBandGap", 4, 2, 15) * 72 / 25.4;
-  const BOX_W    = (CW - BOX_GAP) / 2; // ≈ 257
-  const BX1      = M;
-  const BX2      = M + BOX_W + BOX_GAP;
+  const MM = 72 / 25.4;
+  const BOX_GAP = configNumber(designer, "boxBandGap", 4, 2, 15) * MM;
+  const BOX_TOTAL_W = CW * configNumber(designer, "boxWidthPct", 100, 30, 100) / 100;
+  const BOX_CONTENT_W = Math.max(1, BOX_TOTAL_W - BOX_GAP);
+  const BOX1_W = BOX_CONTENT_W * configNumber(designer, "boxLeftWidthPercent", 50, 30, 70) / 100;
+  const BOX2_W = BOX_CONTENT_W - BOX1_W;
+  const BX1 = M + (CW - BOX_TOTAL_W) / 2;
+  const BX2 = BX1 + BOX1_W + BOX_GAP;
   const TITLE_H  = 14;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -629,39 +721,32 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   let y = PAGE_H - M;
 
-  const headerLogo = parseDataImage(
-    designer["cabecalhoLogoDataUrl"] ??
-    (designer["cabecalhoNomeModo"] === "imagem" ? designer["cabecalhoNomeImagemDataUrl"] : undefined),
-  );
+  const headerLogoRaw = designer["cabecalhoLogoDataUrl"] ??
+    (designer["cabecalhoNomeModo"] === "imagem" ? designer["cabecalhoNomeImagemDataUrl"] : undefined);
+  const headerLogo = headerLogoRaw ? await embedDesignerImage(pdfDoc, headerLogoRaw) : null;
+  if (headerLogoRaw && !headerLogo) {
+    throw new Error("A imagem configurada no cabeçalho do receituário não é válida.");
+  }
   if (headerLogo) {
-    try {
-      const image = headerLogo.mime === "image/png"
-        ? await pdfDoc.embedPng(headerLogo.bytes)
-        : await pdfDoc.embedJpg(headerLogo.bytes);
-      const scale = Math.min(34 / image.width, 26 / image.height);
-      page.drawImage(image, {
-        x: M, y: y - 26 + (26 - image.height * scale) / 2,
-        width: image.width * scale, height: image.height * scale,
-      });
-    } catch {
-      page.drawRectangle({ x: M, y: y - 26, width: 34, height: 26, color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
-    }
-  } else {
-    page.drawRectangle({ x: M, y: y - 26, width: 34, height: 26,
-      color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
+    const scale = Math.min(34 / headerLogo.width, 26 / headerLogo.height);
+    page.drawImage(headerLogo, {
+      x: M, y: y - 26 + (26 - headerLogo.height * scale) / 2,
+      width: headerLogo.width * scale, height: headerLogo.height * scale,
+    });
   }
 
   // O modelo define tipografia e subtítulos; identidade real vem do cadastro ativo.
+  const headerTextX = M + (headerLogo ? 40 : 0);
   page.drawText(safeTxt(data.clinicaNome), {
-    x: M + 40, y: y - 11, font: fontBold, size: 13, color: DARK,
+    x: headerTextX, y: y - 11, font: titleBold, size: 13, color: DARK,
   });
   const subtitle1 = configText(designer, "cabecalhoTitulo", " ");
   const subtitle2 = configText(designer, "cabecalhoSubtitulo", "");
   if (subtitle1.trim()) {
-    page.drawText(subtitle1.slice(0, 75), { x: M + 40, y: y - 25, font: fontReg, size: 7, color: MUTED });
+    page.drawText(subtitle1.slice(0, 75), { x: headerTextX, y: y - 25, font: titleReg, size: 7, color: MUTED });
   }
   if (subtitle2.trim()) {
-    page.drawText(subtitle2.slice(0, 75), { x: M + 40, y: y - 34, font: fontReg, size: 6, color: MUTED });
+    page.drawText(subtitle2.slice(0, 75), { x: headerTextX, y: y - 34, font: titleReg, size: 6, color: MUTED });
   }
   // D05 REMOVIDO: linha médico/CRM não existe no cabeçalho do motor
 
@@ -678,7 +763,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(vias.slice(0, 64), 6), y: y - 21, font: fontReg, size: 6, color: MUTED });
 
   y -= 42;
-  drawDecorLine(y, designer["sepSup1Ativo"] !== false, configNumber(designer, "sepSup1Espessura", 0.5, 0.2, 2.5) * 0.6);
+  y -= configNumber(designer, "sepSup1MarginTop", 3, 0, 20) * MM;
+  const lineStyle = (["simples", "dupla", "ornamentada"].includes(String(designer["linhaEstiloCabecalho"]))
+    ? designer["linhaEstiloCabecalho"] : "simples") as "simples" | "dupla" | "ornamentada";
+  drawDecorLine(y, designer["sepSup1Ativo"] !== false,
+    configNumber(designer, "sepSup1Espessura", 0.5, 0.2, 2.5) * 0.6, lineStyle);
   y -= 12;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -686,22 +775,26 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   // D07 corrigido: size 16 (motor usa fontSize 16, fontWeight 800)
   const configuredTitle = configText(designer, "tituloDocumento", tituloDoc);
-  const displayedTitle = tipo === "especial" ? configuredTitle : tituloDoc;
-  const titW = (fontBold as any).widthOfTextAtSize(displayedTitle, 16);
+  const displayedTitle = tipo === "especial"
+    ? configuredTitle
+    : configuredTitle.replace(/CONTROLE\s+ESPECIAL/gi, "SIMPLES");
+  const titW = (titleBold as any).widthOfTextAtSize(displayedTitle, 16);
   page.drawText(displayedTitle,
-    { x: (PAGE_W - titW) / 2, y, font: fontBold, size: 16, color: DARK });
+    { x: (PAGE_W - titW) / 2, y, font: titleBold, size: 16, color: DARK });
   y -= 18;
   // D10 corrigido: tituloSubtitulo abaixo do título (motor: fontSize 7, letterSpacing 2, color MUTED)
   const configuredSubtitle = data.tituloSubtitulo ?? configText(designer, "tituloSubtitulo", "");
   if (configuredSubtitle.trim()) {
-    const subW = (fontReg as any).widthOfTextAtSize(configuredSubtitle.toUpperCase(), 7);
+    const subW = (titleReg as any).widthOfTextAtSize(configuredSubtitle.toUpperCase(), 7);
     page.drawText(configuredSubtitle.toUpperCase(),
-      { x: (PAGE_W - subW) / 2, y, font: fontReg, size: 7, color: MUTED });
+      { x: (PAGE_W - subW) / 2, y, font: titleReg, size: 7, color: MUTED });
     y -= 10;
   } else {
     y -= 4;
   }
-  drawDecorLine(y, designer["sepSup2Ativo"] !== false, configNumber(designer, "sepSup2Espessura", 0.5, 0.2, 2.5) * 0.6);
+  y -= configNumber(designer, "sepSup2MarginTop", 3, 0, 20) * MM;
+  drawDecorLine(y, designer["sepSup2Ativo"] !== false,
+    configNumber(designer, "sepSup2Espessura", 0.5, 0.2, 2.5) * 0.6, lineStyle);
   y -= 10;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -712,18 +805,18 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const BOX1_TOP = y;
 
   drawArabBand(BOX1_TOP, BOX1_H);
-  drawBoxPair(BOX1_TOP, BOX1_H, TITLE_H, BX1, BX2, BOX_W,
+  drawBoxPair(BOX1_TOP, BOX1_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
     configText(designer, "boxMedicoTitulo", data.boxMedicoTitulo ?? "IDENTIFICAÇÃO DO EMITENTE"),
     configText(designer, "boxPacienteTitulo", data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE"),
   );
 
   // Padding interno dos boxes — motor: padding "3mm 4mm" = ~8.5pt top / ~11.3pt left
-  const BP_L = configNumber(designer, "boxInnerPaddingX", 4, 2, 12) * 72 / 25.4;
-  const BP_T = 3 * 72 / 25.4;
+  const BP_L = configNumber(designer, "boxInnerPaddingX", 4, 2, 12) * MM;
+  const BP_T = 3 * MM;
 
   // Box 1 — Emitente (motor: emitentRows)
   {
-    const iW = BOX_W - BP_L - 6; // largura interna para campos
+    const iW = BOX1_W - BP_L - 6; // largura interna para campos
     let fy = BOX1_TOP - TITLE_H - BP_T;
 
     // ROW 1: Profissional/Prescritor — BOLD 8pt para destacar o nome (CEO req.)
@@ -744,7 +837,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   // Box 2 — Paciente (motor: pacienteRows)
   {
-    const iW = BOX_W - BP_L - 6;
+    const iW = BOX2_W - BP_L - 6;
     let fy = BOX1_TOP - TITLE_H - BP_T;
 
     // Normaliza nascimento: aceita DD/MM/YYYY ou YYYY-MM-DD
@@ -850,6 +943,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     }
   }
 
+  const details = [
+    data.duracaoDias ? { label: "Duração", value: `${data.duracaoDias} dias` } : null,
+    data.cid ? { label: "CID", value: data.cid } : null,
+    data.farmaciaNome ? {
+      label: data.farmaciaTipo ? `Farmácia (${data.farmaciaTipo})` : "Farmácia",
+      value: data.farmaciaNome,
+    } : null,
+  ].filter(Boolean) as { label: string; value: string }[];
+  if (details.length) {
+    y -= 3;
+    y = drawInlineRow(M, y, details, CW);
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // 5. ASSINATURA + CERTIFICADO — LADO A LADO (motor: flex row, gap 8mm)
   // ══════════════════════════════════════════════════════════════════════════
@@ -863,18 +969,36 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const CERT_H      = 64;
   const sigTopY     = y;
 
-  // ESQUERDA: assinatura (D08 corrigido: texto cursivo italic 18pt ANTES da linha)
-  // Motor: Georgia italic 18px, cor DARK, posição acima da linha horizontal
+  // ESQUERDA: imagem real da assinatura vinculada ao cadastro do profissional.
   {
-    const sigTxt = safeTxt(data.assinaturaTextoFallback ?? data.medicoName ?? "Assinatura");
-    page.drawText(sigTxt.slice(0, 28),
-      { x: M, y: y + 18, font: fontItal, size: 18, color: DARK });
+    if (data.assinaturaImagem) {
+      try {
+        const image = data.assinaturaImagem.mime === "image/png"
+          ? await pdfDoc.embedPng(data.assinaturaImagem.bytes)
+          : await pdfDoc.embedJpg(data.assinaturaImagem.bytes);
+        const maxW = 130;
+        const maxH = 28;
+        const scale = Math.min(maxW / image.width, maxH / image.height);
+        page.drawImage(image, {
+          x: M + (maxW - image.width * scale) / 2,
+          y: y + 3,
+          width: image.width * scale,
+          height: image.height * scale,
+        });
+      } catch {
+        throw new Error("Não foi possível inserir a imagem de assinatura cadastrada.");
+      }
+    } else {
+      page.drawText("Assinatura não cadastrada", {
+        x: M, y: y + 12, font: fontReg, size: 6, color: MUTED,
+      });
+    }
   }
   page.drawLine({ start: { x: M, y }, end: { x: M + 130, y },
     thickness: 0.5, color: DARK });
   y -= 10;
   page.drawText(safeTxt(data.medicoName),
-    { x: M, y, font: fontBold, size: 8, color: DARK });
+    { x: M, y, font: titleBold, size: 8, color: DARK });
   y -= 10;
   page.drawText(crmRqeStr,
     { x: M, y, font: fontReg, size: 7, color: MUTED });
@@ -885,11 +1009,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // DIREITA: BlocoCertificado (motor: título + 4 campos + QR placeholder)
   page.drawRectangle({ x: CERT_X, y: sigTopY - CERT_H, width: CERT_W, height: CERT_H,
     color: WHITE, borderColor: LINE, borderWidth: 0.5 });
-  const certTitulo = "DOCUMENTO ASSINADO ELETRONICAMENTE";
-  const certTitW   = (fontBold as any).widthOfTextAtSize(certTitulo, 5.5);
+  const certTitulo = signer ? "DOCUMENTO ASSINADO DIGITALMENTE" : "GERADA SEM ASSINATURA DIGITAL";
+  const certTitW   = (titleBold as any).widthOfTextAtSize(certTitulo, 5.5);
   page.drawText(certTitulo,
     { x: CERT_X + (CERT_W - certTitW) / 2, y: sigTopY - 10,
-      font: fontBold, size: 5.5, color: DARK });
+      font: titleBold, size: 5.5, color: signer ? rgb(0.05, 0.42, 0.21) : rgb(0.72, 0.12, 0.12) });
   // ── Bloco de certificado ICP-Brasil com dados reais do cert ativo ────────
   // QR fica no canto inferior direito (28×28 pt); texto à esquerda do QR.
   const QR_S   = 28;                         // tamanho do QR em pt
@@ -900,19 +1024,26 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // Campos preenchidos com dados reais do cert (fallback para dados do médico)
   const fmtValidTo = certMeta?.validTo
     ? fmtData(certMeta.validTo.slice(0, 10))
-    : "—";
-  const serialFmt = certMeta?.serial
-    ? certMeta.serial.slice(0, 20)  // primeiros 20 hex chars
-    : "—";
-  const certFields: [string, string][] = [
-    ["Assinante",    certMeta?.assinante ?? safeTxt(data.medicoName)],
-    ["CPF",          certMeta?.cpf       ?? safeTxt(data.medicoCrm)],
-    ["Certificadora", certMeta?.ac        ?? "ICP-Brasil"],
-    ["Nr. Série",    serialFmt],
-    ["Válido até",   fmtValidTo],
-    ["Verificar",    "validar.iti.gov.br"],
-    ["Acesse em",    data.consultaUrl ? data.consultaUrl.replace(/^https?:\/\//, "").slice(0, 52) : "—"],
-  ];
+    : data.certificadoValidoAte
+      ? fmtData(data.certificadoValidoAte.slice(0, 10))
+      : "—";
+  const serialFmt = certMeta?.serial ? certMeta.serial.slice(0, 20) : "—";
+  const certFields: [string, string][] = signer
+    ? [
+        ["Assinante", certMeta?.assinante ?? safeTxt(data.medicoName)],
+        ["CPF", certMeta?.cpf ?? "—"],
+        ["Certificadora", certMeta?.ac ?? "ICP-Brasil"],
+        ["Número de série", serialFmt],
+        ["Válido até", fmtValidTo],
+        ["QR", "Abre esta receita"],
+      ]
+    : [
+        ["Responsável", safeTxt(data.medicoName)],
+        ["Situação", "Certificado vencido"],
+        ["Vencimento", fmtValidTo],
+        ["Aviso", "Exige assinatura manual"],
+        ["QR", "Abre esta receita"],
+      ];
   let certY = sigTopY - 18;
   for (const [k, v] of certFields) {
     page.drawText(`${k}:`,
@@ -922,7 +1053,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     certY -= 7;
   }
 
-  // QR real apontando para validar.iti.gov.br (gerado no início da função)
+  // O QR da emissão abre diretamente a receita no celular.
   if (certQrImg) {
     page.drawImage(certQrImg, { x: QR_X, y: QR_Y, width: QR_S, height: QR_S });
   } else {
@@ -939,19 +1070,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   //    Apenas receituário especial. Arabescos ATRÁS. (motor: BandaComBoxes)
   // ══════════════════════════════════════════════════════════════════════════
   if (tipo === "especial") {
-    const BOX2_H   = 120;
+    const BOX2_H   = Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
     const BOX2_TOP = y;
 
     drawArabBand(BOX2_TOP, BOX2_H);
-    drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX_W,
-      data.boxCompradorTitulo ?? "IDENTIFICAÇÃO DO COMPRADOR",
-      data.boxFarmaciaTitulo  ?? "IDENTIFICAÇÃO DO FORNECEDOR / FARMÁCIA",
+    drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
+      configText(designer, "boxCompradorTitulo", data.boxCompradorTitulo ?? "IDENTIFICAÇÃO DO COMPRADOR"),
+      configText(designer, "boxFarmaciaTitulo", data.boxFarmaciaTitulo ?? "IDENTIFICAÇÃO DO FORNECEDOR / FARMÁCIA"),
     );
 
     // Box 3 — Comprador (motor: compradorRows — 5 linhas)
     // Labels do screenshot: "Nome", "Endereço", "Cidade" | "UF", "Ident." | "Org. Emissor", "Telefone"
     {
-      const iW = BOX_W - BP_L - 6;
+      const iW = BOX1_W - BP_L - 6;
       let fy = BOX2_TOP - TITLE_H - BP_T;
 
       fy = drawField(BX1 + BP_L, fy, "Nome",     undefined, iW);
@@ -968,7 +1099,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     // Box 4 — Fornecedor/Farmácia (motor: fornecedorRows — 2 campos ANCORADOS NO FUNDO)
     // CEO: "no box 4 a posição dos campos está no FUNDO" — âncora bottom-up
     {
-      const iW = BOX_W - BP_L - 6;
+      const iW = BOX2_W - BP_L - 6;
       const boxBottom = BOX2_TOP - BOX2_H;
       // 2 campos × ~19pt + 9pt padding no fundo → começa em boxBottom + 47
       // drawField: label 6pt (-9pt) + value/linha (-10pt) + gap (-2pt) = -21pt por campo
@@ -986,13 +1117,20 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   // ══════════════════════════════════════════════════════════════════════════
   // 7. RODAPÉ — fundo BRANCO, borda fina no topo (motor: posição absoluta)
-  //    LEFT: rodapeLinhas  |  RIGHT: "PAXTER" ouro + subtítulo
+  //    LEFT: identidade real da clínica  |  RIGHT: marca configurada no modelo
   // ══════════════════════════════════════════════════════════════════════════
-  const FOOTER_LINE_Y = 30;
-  const FOOTER_TOP    = FOOTER_LINE_Y + 34;
+  const FOOTER_TOP = configNumber(designer, "sepInfBottom", 20, 8, 35) * MM + 7.3;
+  if (y < FOOTER_TOP + 10) {
+    throw new Error("O conteúdo ultrapassa o espaço do modelo de receituário. Reduza os itens ou use um modelo com mais espaço.");
+  }
 
-  page.drawLine({ start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
-    thickness: 0.3, color: LINE });
+  if (designer["sepInfAtivo"] !== false) {
+    page.drawLine({
+      start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
+      thickness: configNumber(designer, "sepInfEspessura", 0.3, 0.2, 2.5) * 0.6,
+      color: LINE,
+    });
+  }
 
   // Linhas à esquerda
   const rodapeLinhas = (data.rodapeLinhas?.length)
@@ -1001,7 +1139,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         safeTxt(data.clinicaNome),
         ...(data.clinicaEndereco ? [safeTxt(data.clinicaEndereco)] : []),
         ...(data.clinicaTelefone ? [`Tel: ${safeTxt(data.clinicaTelefone)}`] : []),
-        "Documento assinado digitalmente — ICP-Brasil / PAdES",
+        signer
+          ? "Documento assinado digitalmente — ICP-Brasil / PAdES"
+          : "Documento gerado sem assinatura digital",
       ];
   let rl_y = FOOTER_TOP - 5;
   rodapeLinhas.slice(0, 4).forEach((linha, i) => {
@@ -1012,33 +1152,33 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     rl_y -= 7;
   });
 
-  // PAXTER wordmark à direita (D09 corrigido: PNG oficial, fallback texto ouro)
+  // A marca lateral é parte do modelo; não substitui a identidade clínica.
   {
-    let drewPng = false;
-    try {
-      const wmarkBuf = readFileSync(
-        "/home/runner/workspace/artifacts/padcom/public/brand/paxter-wordmark.png"
-      );
-      const wmarkImg  = await pdfDoc.embedPng(wmarkBuf);
+    const markData = designer["rodapeSistemaModo"] === "imagem"
+      ? designer["rodapeSistemaImagemDataUrl"] ?? designer["rodapeSistemaLogoDataUrl"]
+      : undefined;
+    const wmarkImg = markData ? await embedDesignerImage(pdfDoc, markData) : null;
+    if (markData && !wmarkImg) {
+      throw new Error("A imagem configurada no rodapé do receituário não é válida.");
+    }
+    if (wmarkImg) {
       // Escala proporcional: altura alvo = 22pt
       const wmarkH    = 22;
       const wmarkW    = (wmarkImg.width / wmarkImg.height) * wmarkH;
       const wmarkX    = PAGE_W - M - wmarkW;
       page.drawImage(wmarkImg, { x: wmarkX, y: FOOTER_TOP - wmarkH - 2, width: wmarkW, height: wmarkH });
-      drewPng = true;
-    } catch { /* fallback abaixo */ }
-
-    if (!drewPng) {
-      const paxterW = (fontBold as any).widthOfTextAtSize("PAXTER", 9);
-      const subTxt  = "Clinical Intelligence System";
+    } else {
+      const brandName = configText(designer, "rodapePaxterNome", "PAXTER");
+      const paxterW = (titleBold as any).widthOfTextAtSize(brandName, 9);
+      const subTxt  = configText(designer, "rodapePaxterSubtitulo", "Clinical Intelligence System");
       const subW    = (fontReg as any).widthOfTextAtSize(subTxt, 5);
       const rightX  = PAGE_W - M - Math.max(paxterW, subW);
-      page.drawText("PAXTER",
-        { x: rightX, y: FOOTER_TOP - 6, font: fontBold, size: 9, color: GOLD });
+      page.drawText(brandName,
+        { x: rightX, y: FOOTER_TOP - 6, font: titleBold, size: 9, color: GOLD });
       page.drawText(subTxt,
         { x: rightX, y: FOOTER_TOP - 15, font: fontReg, size: 5, color: MUTED });
     }
   }
 
-  return signPrescriptionPdf(pdfDoc, signer);
+  return signer ? signPrescriptionPdf(pdfDoc, signer) : pdfDoc.save();
 }

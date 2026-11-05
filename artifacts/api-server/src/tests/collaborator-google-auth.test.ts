@@ -1474,6 +1474,7 @@ describe("autenticação básica integrada às rotas públicas de recuperação"
         .use(express.json())
         .use(basicAuthMiddleware)
         .use("/api", router)
+        .get("/api/recipes/share/:token", (_req, res) => res.sendStatus(204))
         .post(
           "/api/collaborator/password-recovery/request/future",
           (_req, res) => res.sendStatus(204),
@@ -1494,6 +1495,8 @@ describe("autenticação básica integrada às rotas públicas de recuperação"
       const nestedRecoveryPath = await request(integratedApp)
         .post("/api/collaborator/password-recovery/request/future")
         .send({});
+      const publicRecipeQr = await request(integratedApp)
+        .get(`/api/recipes/share/${"A".repeat(43)}`);
 
       expect(requestRecovery.status).toBe(202);
       expect(requestRecovery.body).toEqual({
@@ -1504,6 +1507,7 @@ describe("autenticação básica integrada às rotas públicas de recuperação"
       expect(unrelatedCollaboratorRoute.status).toBe(401);
       expect(unrelatedCollaboratorRoute.body.error).toBe("Autenticação necessária.");
       expect(nestedRecoveryPath.status).toBe(401);
+      expect(publicRecipeQr.status).toBe(204);
       expect(nestedRecoveryPath.body.error).toBe("Autenticação necessária.");
       expect(enviarMensagemPaxter).not.toHaveBeenCalled();
     } finally {

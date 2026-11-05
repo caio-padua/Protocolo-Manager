@@ -1,7 +1,10 @@
+import { createHash, randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import {
   db,
+  clientsTable,
+  locationsTable,
   prescriptionsTable,
   prescriptionItemsTable,
   recipesTable,
@@ -17,7 +20,12 @@ import { brtDisplayDate, brtISODate } from "../lib/brt";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
 import { consumeSncrNumber } from "../lib/sncr";
 import { handleSncrAlert } from "../lib/sncr-alerts";
-import { generateRecipePdf } from "../lib/prescription-pdf";
+import { generateRecipePdf } from "../lib/prescription-pdf"; // demonstração sintética sem persistência
+import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
+import { getModeloAtivo } from "../lib/receituario-motor";
+import { ObjectStorageService } from "../lib/objectStorage";
+import { baseUrlFromEnv } from "../lib/messaging/base-url";
+import QRCode from "qrcode";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
 import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
 // ── Motor de lembretes por período (portado do IHE) ──
@@ -34,7 +42,6 @@ import {
 import {
   requireExpiredPrescriptionCertificate,
   resolvePrescriptionSigner,
-  signExistingPrescriptionPdf,
   type PrescriptionSigner,
 } from "../lib/prescription-signing";
 import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } from "./prescription-delivery";
@@ -42,6 +49,8 @@ import deliveryRouter, { authorizedPrescription, authorizedPrescriptionFilter } 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
 router.use(deliveryRouter);
+
+const QR_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 function todayBR(): string {
   return brtISODate();
@@ -285,6 +294,59 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     return;
   }
 
+  const [professionalRecord] = await db.select({
+    signatureUrl: professionalsTable.signatureUrl,
+  }).from(professionalsTable)
+    .where(eq(professionalsTable.id, identity.professional.id)).limit(1);
+  let assinaturaImagem: { bytes: Buffer; mime: "image/png" | "image/jpeg" } | undefined;
+  if (professionalRecord?.signatureUrl) {
+    const signatureObjectPath = professionalRecord.signatureUrl.replace(/^\/api\/storage/, "");
+    if (!signatureObjectPath.startsWith("/objects/uploads/signatures/")) {
+      res.status(422).json({ error: "O caminho da assinatura cadastrada não é válido." });
+      return;
+    }
+    try {
+      const bytes = await new ObjectStorageService().readPrivateObject(signatureObjectPath);
+      if (!bytes.length || bytes.length > 2_000_000) {
+        res.status(422).json({ error: "A imagem de assinatura cadastrada está vazia ou excede o limite permitido." });
+        return;
+      }
+      assinaturaImagem = {
+        bytes,
+        mime: professionalRecord.signatureUrl.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg",
+      };
+    } catch {
+      res.status(422).json({ error: "A imagem de assinatura cadastrada não pôde ser lida. Atualize o cadastro antes de emitir." });
+      return;
+    }
+  }
+
+  const [clientRecord] = body.clientId
+    ? await db.select({
+      name: clientsTable.name,
+      cpf: clientsTable.cpf,
+      address: clientsTable.address,
+      birthDate: clientsTable.birthDate,
+      phone: clientsTable.phone,
+    }).from(clientsTable).where(eq(clientsTable.id, body.clientId)).limit(1)
+    : [];
+  const [clinicRecord] = await db.select({
+    name: locationsTable.name,
+    address: locationsTable.address,
+    phone: locationsTable.phone,
+  }).from(locationsTable)
+    .where(eq(locationsTable.id, identity.clinic.id)).limit(1);
+  const activeReceiptModel = await getModeloAtivo();
+  const rawDesignerConfig = activeReceiptModel.config["designerConfig"];
+  const designerConfig = rawDesignerConfig && typeof rawDesignerConfig === "object" && !Array.isArray(rawDesignerConfig)
+    ? { ...(rawDesignerConfig as Record<string, unknown>) }
+    : {};
+  // Dados de demonstração/seletores do editor nunca são fonte de identidade para emissão.
+  delete designerConfig["selectedClinicaId"];
+  delete designerConfig["selectedMedicoId"];
+  delete designerConfig["assinaturaDataUrl"];
+  delete designerConfig["certificadoQrDataUrl"];
+
   // Mapa de farmácias para nome/tipo.
   const pharmRows = await db.select().from(pharmaciesTable);
   const pharmMap = new Map(pharmRows.map((p) => [p.id, p]));
@@ -374,28 +436,68 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       }
     }
 
-    // 2b) Gera PDF.
+    // 2b) Gera o PDF do modelo ativo, com QR apontando para a cópia exata.
     const pharmacy = plan.pharmacyId != null ? pharmMap.get(plan.pharmacyId) : undefined;
-    const unsignedPdfBytes = await generateRecipePdf(plan, {
-      clientName: body.clientName,
-      clientCpf: body.clientCpf ?? null,
-      professionalName: body.professionalName ?? null,
-      professionalCrm: body.professionalCrm ?? null,
-      professionalUf: body.professionalUf ?? null,
+    const qrToken = randomBytes(32).toString("base64url");
+    const qrTokenHash = createHash("sha256").update(qrToken, "utf8").digest("hex");
+    const qrExpiresAt = new Date(Date.now() + QR_LIFETIME_MS);
+    const publicBaseUrl = baseUrlFromEnv();
+    let qrUrl: string;
+    try {
+      const parsedBase = new URL(publicBaseUrl);
+      if (!["https:", "http:"].includes(parsedBase.protocol) ||
+          (parsedBase.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(parsedBase.hostname))) {
+        throw new Error("A URL pública precisa usar HTTPS.");
+      }
+      qrUrl = new URL(`/api/recipes/share/${qrToken}`, parsedBase).toString();
+    } catch {
+      res.status(503).json({ error: "Não foi possível montar o QR público da receita. Verifique o domínio do ambiente." });
+      return;
+    }
+    const pdfBytes = await generateReceituarioPdfV2({
+      medicoName: identity.professional.name,
+      medicoCrm: identity.professional.crm,
+      clinicaNome: clinicRecord?.name ?? identity.clinic.name,
+      clinicaEndereco: clinicRecord?.address ?? undefined,
+      clinicaTelefone: clinicRecord?.phone ?? undefined,
+      pacienteNome: clientRecord?.name ?? identity.client.name,
+      pacienteCpf: clientRecord?.cpf ?? identity.client.cpf ?? undefined,
+      pacienteNascimento: clientRecord?.birthDate ?? undefined,
+      pacienteTelefone: clientRecord?.phone ?? undefined,
+      pacienteEndereco: clientRecord?.address ?? undefined,
+      formulas: plan.items.map((item) => ({
+        nome: item.name,
+        ativos: [item.ativos, item.dose].filter(Boolean).join(" — ") || undefined,
+        posologia: item.posologia ?? ([item.frequencia, item.periodo].filter(Boolean).join(" — ") || undefined),
+        via: item.via ?? undefined,
+        forma: item.category ?? undefined,
+        observacao: item.observacao ?? undefined,
+      })),
+      tipoReceita: plan.recipeType === "controlado_isolado" ? "especial" : "simples",
+      dataEmissao: todayBR(),
+      validadeDias: 30,
+      numeroReceita: sncrNumber ?? undefined,
+      bandModel: typeof activeReceiptModel.config["bandModelId"] === "string"
+        ? activeReceiptModel.config["bandModelId"] as string : undefined,
+      consultaUrl: qrUrl,
+      tituloSubtitulo: plan.title,
+      assinaturaDigitalEstado: signatureStatus === "signed" ? "assinado" : "sem_certificado_vencido",
+      certificadoValidoAte: certificateValidTo,
+      duracaoDias: body.durationDays ?? null,
       cid: body.cid ?? null,
-      durationDays: body.durationDays ?? null,
-      dateBR: dateBRfull(),
-      pharmacyName: pharmacy?.name ?? null,
-      pharmacyType: pharmacy?.type ?? null,
-      sncrNumber,
-      sncrStatus,
-      unsignedSignatureNotice: signatureStatus === "unsigned_expired",
-    });
-    const pdfBytes = signer
-      ? await signExistingPrescriptionPdf(unsignedPdfBytes, signer)
-      : unsignedPdfBytes;
+      farmaciaNome: pharmacy?.name ?? null,
+      farmaciaTipo: pharmacy?.type ?? null,
+      assinaturaImagem,
+      designerConfig,
+      rodapeLinhas: [
+        clinicRecord?.name ?? identity.clinic.name,
+        clinicRecord?.address ?? "",
+        clinicRecord?.phone ? `Telefone: ${clinicRecord.phone}` : "",
+      ].filter(Boolean),
+    }, signer);
     const pdfBuffer = Buffer.from(pdfBytes);
     const pdfBase64 = pdfBuffer.toString("base64");
+    const qrPdfSha256 = createHash("sha256").update(pdfBuffer).digest("hex");
 
     const safeClient = body.clientName.replace(/[^a-zA-Z0-9 ]/g, "").trim().toUpperCase();
     const kind = plan.recipeType === "controlado_isolado" ? `CONTROLADO ${plan.anvisaType ?? ""}` : "MANIPULACAO";
@@ -418,6 +520,9 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
         title: plan.title,
         itemsJson: plan.items,
         pdfData: pdfBase64,
+        qrTokenHash,
+        qrExpiresAt,
+        qrPdfSha256,
         batchDate,
         status: "generated",
       })
@@ -481,6 +586,12 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     req.log.error({ errorName, errorCode }, "Falha transacional ao emitir prescrição");
     res.status(500).json({
       error: "Não foi possível confirmar a gravação da prescrição. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
+    });
+    return;
+  }
+  if (!transactionResult) {
+    res.status(500).json({
+      error: "A emissão não foi confirmada pelo banco. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
     });
     return;
   }

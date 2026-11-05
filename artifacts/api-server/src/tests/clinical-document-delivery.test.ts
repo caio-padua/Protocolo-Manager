@@ -247,4 +247,42 @@ describe("reenvio de documentos clínicos, sem contato real com provedores", () 
     const response = await request(app).get(`/api/clinical-documents/share/${token}`);
     expect(response.status).toBe(404);
   });
+
+  it("abre a receita pelo QR sem login e bloqueia expiração ou PDF alterado", async () => {
+    const token = "A".repeat(43);
+    const bytes = Buffer.from(issued.pdfData, "base64");
+    const pdfHash = createHash("sha256").update(bytes).digest("hex");
+    mock.selectRows.set(recipesTable, [{
+      id: 81, prescriptionId: 82, fileName: "receita-sintetica.pdf", pdfData: issued.pdfData,
+      status: "generated", qrTokenHash: createHash("sha256").update(token).digest("hex"),
+      qrExpiresAt: new Date(Date.now() + 60_000), qrPdfSha256: pdfHash,
+    }]);
+
+    const opened = await request(app).get(`/api/recipes/share/${token}`).buffer(true)
+      .parse((res: any, callback: (error: Error | null, body?: Buffer) => void) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
+    expect(opened.status).toBe(200);
+    expect(opened.headers["content-type"]).toContain("application/pdf");
+    expect(opened.headers["cache-control"]).toContain("no-store");
+    expect(opened.headers["content-disposition"]).toContain("inline");
+    expect(Buffer.isBuffer(opened.body)).toBe(true);
+    expect((opened.body as Buffer).equals(bytes)).toBe(true);
+
+    mock.selectRows.set(recipesTable, [{
+      id: 81, prescriptionId: 82, fileName: "receita-sintetica.pdf", pdfData: issued.pdfData,
+      status: "generated", qrTokenHash: createHash("sha256").update(token).digest("hex"),
+      qrExpiresAt: new Date(Date.now() - 1), qrPdfSha256: pdfHash,
+    }]);
+    expect((await request(app).get(`/api/recipes/share/${token}`)).status).toBe(404);
+
+    mock.selectRows.set(recipesTable, [{
+      id: 81, prescriptionId: 82, fileName: "receita-sintetica.pdf", pdfData: issued.pdfData,
+      status: "generated", qrTokenHash: createHash("sha256").update(token).digest("hex"),
+      qrExpiresAt: new Date(Date.now() + 60_000), qrPdfSha256: "0".repeat(64),
+    }]);
+    expect((await request(app).get(`/api/recipes/share/${token}`)).status).toBe(404);
+  });
 });
