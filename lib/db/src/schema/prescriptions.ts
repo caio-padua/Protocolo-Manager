@@ -69,9 +69,16 @@ export const recipesTable = pgTable("recipes", {
   pdfData: text("pdf_data"),
   batchDate: text("batch_date"),
   emailSentAt: timestamp("email_sent_at", { withTimezone: true }),
+  qrTokenHash: text("qr_token_hash"),
+  qrExpiresAt: timestamp("qr_expires_at", { withTimezone: true }),
+  qrPdfSha256: text("qr_pdf_sha256"),
   status: text("status").notNull().default("generated"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  qrTokenHashUnique: uniqueIndex("recipes_qr_token_hash_unique")
+    .on(table.qrTokenHash)
+    .where(sql`${table.qrTokenHash} IS NOT NULL`),
+}));
 
 export const insertPrescriptionSchema = createInsertSchema(prescriptionsTable).omit({ id: true, createdAt: true, emittedAt: true });
 export const insertPrescriptionItemSchema = createInsertSchema(prescriptionItemsTable).omit({ id: true, createdAt: true });

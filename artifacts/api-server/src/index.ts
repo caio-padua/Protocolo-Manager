@@ -16,6 +16,7 @@ import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schem
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
+import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
 import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
 import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
 import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
@@ -48,6 +49,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("identidades Google por ambiente: schema pronto antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir identidades Google — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureRecipeQrSchema();
+    logger.info("recipes: campos aditivos de QR prontos antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir campos de QR das receitas — abortando boot");
     process.exit(1);
   }
 

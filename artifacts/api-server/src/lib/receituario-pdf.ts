@@ -35,6 +35,42 @@ function safeTxt(v: unknown): string {
   return v == null ? "" : String(v).trim();
 }
 
+function configText(config: Record<string, unknown>, key: string, fallback: string): string {
+  const value = config[key];
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function configNumber(config: Record<string, unknown>, key: string, fallback: number, min: number, max: number): number {
+  const value = config[key];
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback;
+}
+
+function parseDataImage(value: unknown): { bytes: Buffer; mime: "image/png" | "image/jpeg" } | null {
+  if (typeof value !== "string" || value.length > 8_000_000) return null;
+  const match = value.match(/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=\s]+)$/);
+  if (!match) return null;
+  const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+  if (!bytes.length || bytes.length > 6_000_000) return null;
+  return { bytes, mime: match[1] === "png" ? "image/png" : "image/jpeg" };
+}
+
+function configuredFontFamily(value: unknown): "serif" | "sans" {
+  const normalized = typeof value === "string" ? value.toLowerCase() : "";
+  return /georgia|garamond|lora|cardo|times/.test(normalized) ? "serif" : "sans";
+}
+
+function configuredColor(value: unknown, fallback: ReturnType<typeof rgb>) {
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) return fallback;
+  const hex = value.slice(1);
+  return rgb(
+    parseInt(hex.slice(0, 2), 16) / 255,
+    parseInt(hex.slice(2, 4), 16) / 255,
+    parseInt(hex.slice(4, 6), 16) / 255,
+  );
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 export interface FormulaItem {
   nome: string;
@@ -295,6 +331,14 @@ export interface ReceituarioDataV2 {
   validadeDias?: number;  // default 30
   numeroReceita?: string;
   bandModel?: string;     // id do modelo arabesco (ex: "padua-01-floral-islamico")
+  designerConfig?: Record<string, unknown>;
+  assinaturaImagem?: { bytes: Uint8Array; mime: "image/png" | "image/jpeg" };
+  assinaturaDigitalEstado?: "assinado" | "sem_certificado_vencido";
+  certificadoValidoAte?: string | null;
+  duracaoDias?: string | null;
+  cid?: string | null;
+  farmaciaNome?: string | null;
+  farmaciaTipo?: string | null;
 
   // URL pública de consulta do documento (QR code aponta para ela)
   consultaUrl?: string;   // ex: https://dominio.app/consulta-receituario?token=12C9AA79
@@ -341,11 +385,17 @@ export async function generatePdfFromPngBase64(
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
-  assertPrescriptionSigner(signer);
+  if (signer) assertPrescriptionSigner(signer);
+  else if (data.assinaturaDigitalEstado !== "sem_certificado_vencido") {
+    throw new Error("A receita precisa de um certificado válido ou da indicação explícita de certificado vencido.");
+  }
+  const designer = data.designerConfig ?? {};
   const pdfDoc   = await PDFDocument.create();
-  const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const fontItal = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  const titleSerif = configuredFontFamily(designer["corpoFonteTitulo"]) === "serif";
+  const bodySerif = configuredFontFamily(designer["corpoFonteCorpo"]) === "serif";
+  const fontReg  = await pdfDoc.embedFont(bodySerif ? StandardFonts.TimesRoman : StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(bodySerif ? StandardFonts.TimesRomanBold : StandardFonts.HelveticaBold);
+  const fontItal = await pdfDoc.embedFont(titleSerif ? StandardFonts.TimesRomanItalic : StandardFonts.HelveticaOblique);
 
   // ── Metadados reais do certificado ICP-Brasil ──────────────────────────────
   // URL oficial do ITI (Instituto Nacional de Tecnologia da Informação) para
@@ -353,7 +403,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const ITI_VALIDATION_URL = "https://validar.iti.gov.br/";
   // QR aponta para a página de consulta do documento (quando disponível) ou para o ITI
   const qrTarget = data.consultaUrl ?? ITI_VALIDATION_URL;
-  const certMeta = signer.meta;
+  const certMeta = signer?.meta;
   let certQrImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null = null;
   try {
     const qrBuf = await QRCode.toBuffer(qrTarget, {
@@ -472,8 +522,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
 
   /** Linha decorativa fina — igual ao <LinhaDecorativa/> do motor. */
-  function drawDecorLine(y: number): void {
-    page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.4, color: LINE });
+  function drawDecorLine(y: number, active = true, thickness = 0.4): void {
+    if (!active) return;
+    page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness, color: LINE });
   }
 
   // ── Arabesco: carrega o PNG uma só vez, reutiliza nas duas faixas ─────────
@@ -483,10 +534,21 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     "padua-07-acanto-barroco","padua-08-acanto-renascentista","padua-09-rinceau-fino",
     "padua-10-acanto-floral","padua-11-acanto-romantico",
   ];
-  const bandId = data.bandModel ?? "padua-01-floral-islamico";
+  const bandId = data.bandModel
+    ?? (typeof designer["bandModelId"] === "string" ? designer["bandModelId"] : "")
+    ?? "padua-01-floral-islamico";
   let arabImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
   try {
-    if (ARAB_IDS.includes(bandId)) {
+    const customBands = Array.isArray(designer["customBands"])
+      ? designer["customBands"] as Array<Record<string, unknown>>
+      : [];
+    const customBand = customBands.find((band) => band["id"] === bandId);
+    const customImage = parseDataImage(customBand?.["dataUrl"]);
+    if (customImage?.mime === "image/png") {
+      arabImg = await pdfDoc.embedPng(customImage.bytes);
+    } else if (customImage?.mime === "image/jpeg") {
+      arabImg = await pdfDoc.embedJpg(customImage.bytes) as unknown as Awaited<ReturnType<typeof pdfDoc.embedPng>>;
+    } else if (ARAB_IDS.includes(bandId)) {
       const buf = readFileSync(join(
         "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
         `${bandId}.png`,
@@ -516,10 +578,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   /** Desenha o par de boxes (D06 corrigido: borda escura #454545 + faixinha lateral ciano). */
   // Borda escura: rgb(0.27, 0.27, 0.27) = #454545 (motor: border 1px #454545)
-  const BOX_BORDER = rgb(0.27, 0.27, 0.27);
+  const BOX_BORDER = configuredColor(designer["boxFaixinhaCor"], rgb(0.27, 0.27, 0.27));
   // Faixinha lateral esquerda: 3pt de largura, cor ciano da marca (#45B8CC)
-  const BOX_STRIP  = rgb(0.271, 0.722, 0.800); // #45B8CC
-  const STRIP_W    = 3;
+  const BOX_STRIP  = configuredColor(designer["boxFaixinhaCor"], rgb(0.271, 0.722, 0.800));
+  const STRIP_W    = designer["boxFaixinhaEsquerda"] === true ? 3 : 0;
+  const BOX_BORDER_W = configNumber(designer, "boxBorderWidth", 0.8, 0.25, 3);
 
   function drawBoxPair(
     boxTop: number, boxH: number, titleH: number,
@@ -529,11 +592,13 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     for (const [bx, titulo] of [[bx1, titulo1], [bx2, titulo2]] as [number, string][]) {
       // ① Caixa principal branca — borda escura #454545, borderWidth 0.8
       page.drawRectangle({ x: bx, y: boxTop - boxH, width: boxW, height: boxH,
-        color: WHITE, borderColor: BOX_BORDER, borderWidth: 0.8 });
+        color: WHITE, borderColor: BOX_BORDER, borderWidth: BOX_BORDER_W });
 
       // ② Faixinha lateral esquerda ciano (3pt) — cobre a borda esq. da caixa
-      page.drawRectangle({ x: bx, y: boxTop - boxH, width: STRIP_W, height: boxH,
-        color: BOX_STRIP });
+      if (STRIP_W > 0) {
+        page.drawRectangle({ x: bx, y: boxTop - boxH, width: STRIP_W, height: boxH,
+          color: BOX_STRIP });
+      }
 
       // ③ Título: texto centralizado bold 7pt (motor: fontSize:7 fontWeight:700)
       //    SEM fill rect — apenas linha pontilhada ABAIXO do texto (motor: borderBottom 0.4px #ddd)
@@ -553,7 +618,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
 
   // ── Constantes de layout ──────────────────────────────────────────────────
-  const BOX_GAP  = 8;
+  const BOX_GAP  = configNumber(designer, "boxBandGap", 4, 2, 15) * 72 / 25.4;
   const BOX_W    = (CW - BOX_GAP) / 2; // ≈ 257
   const BX1      = M;
   const BX2      = M + BOX_W + BOX_GAP;
@@ -564,74 +629,97 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   let y = PAGE_H - M;
 
-  // Placeholder de logo (motor: caixa dashed 48×36 → 34×26 em pt)
-  page.drawRectangle({ x: M, y: y - 26, width: 34, height: 26,
-    color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
-  page.drawText("LOGO", { x: M + 9, y: y - 16, font: fontReg, size: 5, color: MUTED });
+  const headerLogo = parseDataImage(
+    designer["cabecalhoLogoDataUrl"] ??
+    (designer["cabecalhoNomeModo"] === "imagem" ? designer["cabecalhoNomeImagemDataUrl"] : undefined),
+  );
+  if (headerLogo) {
+    try {
+      const image = headerLogo.mime === "image/png"
+        ? await pdfDoc.embedPng(headerLogo.bytes)
+        : await pdfDoc.embedJpg(headerLogo.bytes);
+      const scale = Math.min(34 / image.width, 26 / image.height);
+      page.drawImage(image, {
+        x: M, y: y - 26 + (26 - image.height * scale) / 2,
+        width: image.width * scale, height: image.height * scale,
+      });
+    } catch {
+      page.drawRectangle({ x: M, y: y - 26, width: 34, height: 26, color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
+    }
+  } else {
+    page.drawRectangle({ x: M, y: y - 26, width: 34, height: 26,
+      color: LIGHT, borderColor: LINE, borderWidth: 0.4 });
+  }
 
-  // Nome da clínica bold 13pt (motor: fontWeight 800, fontSize 13)
+  // O modelo define tipografia e subtítulos; identidade real vem do cadastro ativo.
   page.drawText(safeTxt(data.clinicaNome), {
     x: M + 40, y: y - 11, font: fontBold, size: 13, color: DARK,
   });
-  // Subtítulo: cabecalhoTitulo (motor: fontSize 7, letterSpacing 1.5, color #666)
-  if (data.clinicaEndereco) {
-    page.drawText(safeTxt(data.clinicaEndereco).slice(0, 75),
-      { x: M + 40, y: y - 25, font: fontReg, size: 7, color: MUTED });
+  const subtitle1 = configText(designer, "cabecalhoTitulo", " ");
+  const subtitle2 = configText(designer, "cabecalhoSubtitulo", "");
+  if (subtitle1.trim()) {
+    page.drawText(subtitle1.slice(0, 75), { x: M + 40, y: y - 25, font: fontReg, size: 7, color: MUTED });
+  }
+  if (subtitle2.trim()) {
+    page.drawText(subtitle2.slice(0, 75), { x: M + 40, y: y - 34, font: fontReg, size: 6, color: MUTED });
   }
   // D05 REMOVIDO: linha médico/CRM não existe no cabeçalho do motor
 
   // RCE code + vias (lado DIREITO — motor: textAlign right, stack de linhas)
-  const rce  = data.numeroReceita ? `Nº ${data.numeroReceita}` : `RCE: ${ano}`;
+  const rceTemplate = configText(designer, "cabecalhoRceNumero", "");
+  const rce = data.numeroReceita
+    ? `Nº ${data.numeroReceita}`
+    : rceTemplate.replace(/\{\{ano\}\}/g, ano).replace(/\{\{numero\}\}/g, "");
   const rceW = (fontBold as any).widthOfTextAtSize(rce, 7);
   page.drawText(rce,
     { x: PAGE_W - M - rceW, y: y - 11, font: fontBold, size: 7, color: MUTED });
-  const via1 = "1ª via - Farmácia";
-  const via2 = "2ª via - Paciente";
-  page.drawText(via1,
-    { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(via1, 6), y: y - 21, font: fontReg, size: 6, color: MUTED });
-  page.drawText(via2,
-    { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(via2, 6), y: y - 30, font: fontReg, size: 6, color: MUTED });
+  const vias = configText(designer, "cabecalhoVias", "1ª via - Farmácia — 2ª via - Paciente");
+  page.drawText(vias.slice(0, 64),
+    { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(vias.slice(0, 64), 6), y: y - 21, font: fontReg, size: 6, color: MUTED });
 
   y -= 42;
-  drawDecorLine(y);
+  drawDecorLine(y, designer["sepSup1Ativo"] !== false, configNumber(designer, "sepSup1Espessura", 0.5, 0.2, 2.5) * 0.6);
   y -= 12;
 
   // ══════════════════════════════════════════════════════════════════════════
   // 2. TÍTULO DO DOCUMENTO (motor: centrado bold 16px uppercase letterSpacing 2)
   // ══════════════════════════════════════════════════════════════════════════
   // D07 corrigido: size 16 (motor usa fontSize 16, fontWeight 800)
-  const titW = (fontBold as any).widthOfTextAtSize(tituloDoc, 16);
-  page.drawText(tituloDoc,
+  const configuredTitle = configText(designer, "tituloDocumento", tituloDoc);
+  const displayedTitle = tipo === "especial" ? configuredTitle : tituloDoc;
+  const titW = (fontBold as any).widthOfTextAtSize(displayedTitle, 16);
+  page.drawText(displayedTitle,
     { x: (PAGE_W - titW) / 2, y, font: fontBold, size: 16, color: DARK });
   y -= 18;
   // D10 corrigido: tituloSubtitulo abaixo do título (motor: fontSize 7, letterSpacing 2, color MUTED)
-  if (data.tituloSubtitulo?.trim()) {
-    const subW = (fontReg as any).widthOfTextAtSize(data.tituloSubtitulo.toUpperCase(), 7);
-    page.drawText(data.tituloSubtitulo.toUpperCase(),
+  const configuredSubtitle = data.tituloSubtitulo ?? configText(designer, "tituloSubtitulo", "");
+  if (configuredSubtitle.trim()) {
+    const subW = (fontReg as any).widthOfTextAtSize(configuredSubtitle.toUpperCase(), 7);
+    page.drawText(configuredSubtitle.toUpperCase(),
       { x: (PAGE_W - subW) / 2, y, font: fontReg, size: 7, color: MUTED });
     y -= 10;
   } else {
     y -= 4;
   }
-  drawDecorLine(y);
+  drawDecorLine(y, designer["sepSup2Ativo"] !== false, configNumber(designer, "sepSup2Espessura", 0.5, 0.2, 2.5) * 0.6);
   y -= 10;
 
   // ══════════════════════════════════════════════════════════════════════════
   // 3. FAIXA SUPERIOR — Box 1 (Emitente) + Box 2 (Paciente)
   //    Arabescos ATRÁS; boxes brancos NA FRENTE. (motor: BandaComBoxes)
   // ══════════════════════════════════════════════════════════════════════════
-  const BOX1_H   = 116;
+  const BOX1_H   = Math.max(116, configNumber(designer, "boxSuperiorMinHeight", 120, 100, 500) * 0.75);
   const BOX1_TOP = y;
 
   drawArabBand(BOX1_TOP, BOX1_H);
   drawBoxPair(BOX1_TOP, BOX1_H, TITLE_H, BX1, BX2, BOX_W,
-    data.boxMedicoTitulo   ?? "IDENTIFICAÇÃO DO EMITENTE",
-    data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE",
+    configText(designer, "boxMedicoTitulo", data.boxMedicoTitulo ?? "IDENTIFICAÇÃO DO EMITENTE"),
+    configText(designer, "boxPacienteTitulo", data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE"),
   );
 
   // Padding interno dos boxes — motor: padding "3mm 4mm" = ~8.5pt top / ~11.3pt left
-  const BP_L = 11;   // 4mm left padding (do extremo esquerdo do box, incl. faixinha)
-  const BP_T = 8;    // 3mm top padding abaixo da linha do título
+  const BP_L = configNumber(designer, "boxInnerPaddingX", 4, 2, 12) * 72 / 25.4;
+  const BP_T = 3 * 72 / 25.4;
 
   // Box 1 — Emitente (motor: emitentRows)
   {

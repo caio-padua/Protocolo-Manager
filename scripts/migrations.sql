@@ -356,3 +356,15 @@ BEGIN
       );
   END IF;
 END $$;
+
+-- QR público da receita: token aleatório somente em hash, validade curta e
+-- resumo do PDF assinado para conferir integridade antes de servir o arquivo.
+ALTER TABLE recipes
+  ADD COLUMN IF NOT EXISTS qr_token_hash TEXT;
+ALTER TABLE recipes
+  ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ;
+ALTER TABLE recipes
+  ADD COLUMN IF NOT EXISTS qr_pdf_sha256 TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
+  ON recipes (qr_token_hash)
+  WHERE qr_token_hash IS NOT NULL;
