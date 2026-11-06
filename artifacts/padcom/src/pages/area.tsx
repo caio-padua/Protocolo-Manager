@@ -17,6 +17,8 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 
+import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
+
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // ---------------------------------------------------------------------------
@@ -1598,22 +1600,21 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
 
   return (
     <div className="space-y-4">
+      <PedidosMedicosCliente token={client.token} />
       {/* RAS */}
       {d && d.ras.length > 0 && (
         <CategorySection label="REGISTROS DE APLICAÇÃO (RAS)" count={d.ras.length} defaultOpen>
           {d.ras.map((r) => (
-            <a key={r.id}
-              href={`${API_BASE}/api/area-paciente/ras/${r.id}/pdf?token=${client.token}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
+            <div key={r.id}
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3"
             >
               <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-primary font-semibold text-sm">RAS — {brDate(r.serviceDate)}</p>
                 <p className="text-muted-foreground text-xs truncate">{r.professionalName} · {r.unit}</p>
+                <p className="text-muted-foreground text-xs">Peça a segunda via à clínica.</p>
               </div>
-              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </a>
+            </div>
           ))}
         </CategorySection>
       )}
@@ -1622,18 +1623,16 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
       {d && d.protocols.length > 0 && (
         <CategorySection label="PROTOCOLOS COMPLETOS (PDF)" count={d.protocols.length} defaultOpen>
           {d.protocols.map((p) => (
-            <a key={p.id}
-              href={`${API_BASE}/api/area-paciente/protocolo/${p.id}/pdf?token=${client.token}`}
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3 hover:bg-muted transition-colors"
+            <div key={p.id}
+              className="flex items-center gap-3 panel-3d-sub rounded-lg p-3"
             >
               <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-primary font-semibold text-sm truncate">{p.title}</p>
                 <p className="text-muted-foreground text-xs">Documento completo · {brDate(p.startDate)}</p>
+                <p className="text-muted-foreground text-xs">Peça a segunda via à clínica.</p>
               </div>
-              <Download className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </a>
+            </div>
           ))}
         </CategorySection>
       )}

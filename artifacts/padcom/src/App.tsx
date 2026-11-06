@@ -57,6 +57,7 @@ import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
 import CadastroAuditoria from "@/pages/cadastros/auditoria";
+import PedidosMedicosPage from "@/pages/pedidos-medicos";
 import ConfigEmpresa from "@/pages/configuracoes/empresa";
 import ConfigCertificados from "@/pages/configuracoes/certificados";
 import ConfigAssinatura from "@/pages/configuracoes/assinatura";
@@ -255,6 +256,7 @@ function Router() {
             <Route path="/craniotomia" component={Craniotomia} />
             <Route path="/cockpit-anamnese" component={CockpitAnamnese} />
             <Route path="/radar-clinico" component={RadarClinico} />
+            <Route path="/pedidos-medicos"><CollaboratorGate><PedidosMedicosPage /></CollaboratorGate></Route>
             <Route path="/cartorio" component={Cartorio} />
             <Route path="/receituario-automatico" component={ReceituarioAutomatico} />
             <Route path="/modelo-receituario" component={ModeloReceituario} />
