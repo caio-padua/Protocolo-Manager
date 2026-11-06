@@ -484,7 +484,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     }
   }
 
-  const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  // Cursor de página único e reapontável: o conteúdo longo continua na página seguinte.
+  let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
   const M  = 36;
   const CW = PAGE_W - M * 2; // ≈ 523
 
@@ -717,9 +718,98 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const TITLE_H  = 14;
 
   // ══════════════════════════════════════════════════════════════════════════
+  // PAGINAÇÃO — o receituário cresce em páginas; nunca recusa por excesso de itens.
+  // ══════════════════════════════════════════════════════════════════════════
+  let y = 0;
+  const FOOTER_TOP = configNumber(designer, "sepInfBottom", 20, 8, 35) * MM + 7.3;
+  const BODY_BOTTOM = FOOTER_TOP + 12;
+
+  const footerMarkData = designer["rodapeSistemaModo"] === "imagem"
+    ? designer["rodapeSistemaImagemDataUrl"] ?? designer["rodapeSistemaLogoDataUrl"]
+    : undefined;
+  const footerMarkImg = footerMarkData ? await embedDesignerImage(pdfDoc, footerMarkData) : null;
+  if (footerMarkData && !footerMarkImg) {
+    throw new Error("A imagem configurada no rodapé do receituário não é válida.");
+  }
+
+  /** Rodapé da página corrente (identidade da clínica + marca do modelo). */
+  function drawFooter(): void {
+    if (designer["sepInfAtivo"] !== false) {
+      page.drawLine({
+        start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
+        thickness: configNumber(designer, "sepInfEspessura", 0.3, 0.2, 2.5) * 0.6,
+        color: LINE,
+      });
+    }
+    const rodapeLinhas = (data.rodapeLinhas?.length)
+      ? data.rodapeLinhas
+      : [
+          safeTxt(data.clinicaNome),
+          ...(data.clinicaEndereco ? [safeTxt(data.clinicaEndereco)] : []),
+          ...(data.clinicaTelefone ? [`Tel: ${safeTxt(data.clinicaTelefone)}`] : []),
+          signer
+            ? "Documento assinado digitalmente — ICP-Brasil / PAdES"
+            : "Documento gerado sem assinatura digital",
+        ];
+    let rl_y = FOOTER_TOP - 5;
+    rodapeLinhas.slice(0, 4).forEach((linha, i) => {
+      page.drawText(safeTxt(linha).slice(0, 72), {
+        x: M, y: rl_y,
+        font: fontReg, size: i === 0 ? 5.5 : 5, color: i === 0 ? DARK : MUTED,
+      });
+      rl_y -= 7;
+    });
+    // A marca lateral é parte do modelo; não substitui a identidade clínica.
+    if (footerMarkImg) {
+      const wmarkH = 22;
+      const wmarkW = (footerMarkImg.width / footerMarkImg.height) * wmarkH;
+      page.drawImage(footerMarkImg, { x: PAGE_W - M - wmarkW, y: FOOTER_TOP - wmarkH - 2, width: wmarkW, height: wmarkH });
+    } else {
+      const brandName = configText(designer, "rodapePaxterNome", "PAXTER");
+      const paxterW = (titleBold as any).widthOfTextAtSize(brandName, 9);
+      const subTxt  = configText(designer, "rodapePaxterSubtitulo", "Clinical Intelligence System");
+      const subW    = (fontReg as any).widthOfTextAtSize(subTxt, 5);
+      const rightX  = PAGE_W - M - Math.max(paxterW, subW);
+      page.drawText(brandName, { x: rightX, y: FOOTER_TOP - 6, font: titleBold, size: 9, color: GOLD });
+      page.drawText(subTxt, { x: rightX, y: FOOTER_TOP - 15, font: fontReg, size: 5, color: MUTED });
+    }
+  }
+
+  /** Fecha a página corrente (rodapé) e abre a seguinte com cabeçalho de continuação. */
+  function newPage(): void {
+    drawFooter();
+    page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    y = PAGE_H - M;
+    page.drawText(safeTxt(data.clinicaNome), { x: M, y: y - 8, font: titleBold, size: 9, color: DARK });
+    const cont = `Receituário (continuação) — Paciente: ${safeTxt(data.pacienteNome ?? "")}`.slice(0, 80);
+    const contW = (fontReg as any).widthOfTextAtSize(cont, 7);
+    page.drawText(cont, { x: PAGE_W - M - contW, y: y - 8, font: fontReg, size: 7, color: MUTED });
+    y -= 18;
+    page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.4, color: LINE });
+    y -= 14;
+  }
+
+  /** Garante `needed` pontos livres acima do rodapé; senão quebra a página. */
+  function ensureSpace(needed: number): void {
+    if (y - needed < BODY_BOTTOM) newPage();
+  }
+
+  /** Texto com quebra de linha E de página (uma linha por vez). */
+  function drawWrappedPaged(
+    text: string,
+    opts: { x: number; maxWidth: number; font: PDFFont; size: number; color: ReturnType<typeof rgb>; lineHeight: number },
+  ): void {
+    for (const ln of wrapLines(text, opts.font, opts.size, opts.maxWidth)) {
+      ensureSpace(opts.lineHeight);
+      page.drawText(ln, { x: opts.x, y, font: opts.font, size: opts.size, color: opts.color });
+      y -= opts.lineHeight;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // 1. CABEÇALHO (motor: logo LEFT + nome + subtítulo  |  RCE + vias RIGHT)
   // ══════════════════════════════════════════════════════════════════════════
-  let y = PAGE_H - M;
+  y = PAGE_H - M;
 
   const headerLogoRaw = designer["cabecalhoLogoDataUrl"] ??
     (designer["cabecalhoNomeModo"] === "imagem" ? designer["cabecalhoNomeImagemDataUrl"] : undefined);
@@ -877,6 +967,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   for (let i = 0; i < data.formulas.length; i++) {
     const f   = data.formulas[i];
     const num = String(i + 1).padStart(2, "0");
+    ensureSpace(13 + 20 + 22); // título + via/forma + primeira linha ficam juntos
 
     // D03 corrigido: número MUTED (cinza #555), NÃO dourado
     // D04 corrigido: nome preserva case original (NÃO força uppercase)
@@ -908,8 +999,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       for (const raw of f.ativos.split("\n")) {
         const ln = raw.trim();
         if (!ln) continue;
-        y = drawWrappedText(page, `  ${ln}`, {
-          x: M + 14, y, maxWidth: CW - 14, font: fontReg, size: 8, color: DARK, lineHeight: 11,
+        drawWrappedPaged(`  ${ln}`, {
+          x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: DARK, lineHeight: 11,
         });
       }
     }
@@ -919,14 +1010,15 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       for (const raw of f.posologia.split("\n")) {
         const ln = raw.trim();
         if (!ln) continue;
-        y = drawWrappedText(page, `  >> ${ln}`, {
-          x: M + 14, y, maxWidth: CW - 14, font: fontBold, size: 7, color: VERDE, lineHeight: 10,
+        drawWrappedPaged(`  >> ${ln}`, {
+          x: M + 14, maxWidth: CW - 14, font: fontBold, size: 7, color: VERDE, lineHeight: 10,
         });
       }
     }
 
     // Observação (italic muted) — mantida
     if (f.observacao?.trim()) {
+      ensureSpace(11);
       page.drawText(`  Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
         { x: M + 14, y, font: fontItal, size: 7.5, color: MUTED });
       y -= 11;
@@ -934,6 +1026,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
     // Separador pontilhado entre fórmulas
     if (i < data.formulas.length - 1) {
+      ensureSpace(14);
       y -= 4;
       page.drawLine({ start: { x: M + 14, y }, end: { x: PAGE_W - M, y },
         thickness: 0.3, color: LINE, dashArray: [2, 4], dashPhase: 0 });
@@ -951,6 +1044,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       value: data.farmaciaNome,
     } : null,
   ].filter(Boolean) as { label: string; value: string }[];
+  // Detalhes + assinatura + certificado ficam juntos na mesma página.
+  ensureSpace(150);
   if (details.length) {
     y -= 3;
     y = drawInlineRow(M, y, details, CW);
@@ -1071,6 +1166,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   if (tipo === "especial") {
     const BOX2_H   = Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
+    ensureSpace(BOX2_H + 12);
     const BOX2_TOP = y;
 
     drawArabBand(BOX2_TOP, BOX2_H);
@@ -1119,65 +1215,17 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // 7. RODAPÉ — fundo BRANCO, borda fina no topo (motor: posição absoluta)
   //    LEFT: identidade real da clínica  |  RIGHT: marca configurada no modelo
   // ══════════════════════════════════════════════════════════════════════════
-  const FOOTER_TOP = configNumber(designer, "sepInfBottom", 20, 8, 35) * MM + 7.3;
-  if (y < FOOTER_TOP + 10) {
-    throw new Error("O conteúdo ultrapassa o espaço do modelo de receituário. Reduza os itens ou use um modelo com mais espaço.");
-  }
-
-  if (designer["sepInfAtivo"] !== false) {
-    page.drawLine({
-      start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
-      thickness: configNumber(designer, "sepInfEspessura", 0.3, 0.2, 2.5) * 0.6,
-      color: LINE,
+  // ══════════════════════════════════════════════════════════════════════════
+  // 7. RODAPÉ da última página + numeração "Página i de n" quando há mais de uma
+  // ══════════════════════════════════════════════════════════════════════════
+  drawFooter();
+  const allPages = pdfDoc.getPages();
+  if (allPages.length > 1) {
+    allPages.forEach((pg, idx) => {
+      const label = `Página ${idx + 1} de ${allPages.length}`;
+      const w = (fontReg as any).widthOfTextAtSize(label, 6);
+      pg.drawText(label, { x: (PAGE_W - w) / 2, y: FOOTER_TOP - 5, font: fontReg, size: 6, color: MUTED });
     });
-  }
-
-  // Linhas à esquerda
-  const rodapeLinhas = (data.rodapeLinhas?.length)
-    ? data.rodapeLinhas
-    : [
-        safeTxt(data.clinicaNome),
-        ...(data.clinicaEndereco ? [safeTxt(data.clinicaEndereco)] : []),
-        ...(data.clinicaTelefone ? [`Tel: ${safeTxt(data.clinicaTelefone)}`] : []),
-        signer
-          ? "Documento assinado digitalmente — ICP-Brasil / PAdES"
-          : "Documento gerado sem assinatura digital",
-      ];
-  let rl_y = FOOTER_TOP - 5;
-  rodapeLinhas.slice(0, 4).forEach((linha, i) => {
-    page.drawText(safeTxt(linha).slice(0, 72), {
-      x: M, y: rl_y,
-      font: fontReg, size: i === 0 ? 5.5 : 5, color: i === 0 ? DARK : MUTED,
-    });
-    rl_y -= 7;
-  });
-
-  // A marca lateral é parte do modelo; não substitui a identidade clínica.
-  {
-    const markData = designer["rodapeSistemaModo"] === "imagem"
-      ? designer["rodapeSistemaImagemDataUrl"] ?? designer["rodapeSistemaLogoDataUrl"]
-      : undefined;
-    const wmarkImg = markData ? await embedDesignerImage(pdfDoc, markData) : null;
-    if (markData && !wmarkImg) {
-      throw new Error("A imagem configurada no rodapé do receituário não é válida.");
-    }
-    if (wmarkImg) {
-      // Escala proporcional: altura alvo = 22pt
-      const wmarkH    = 22;
-      const wmarkW    = (wmarkImg.width / wmarkImg.height) * wmarkH;
-      const wmarkX    = PAGE_W - M - wmarkW;
-      page.drawImage(wmarkImg, { x: wmarkX, y: FOOTER_TOP - wmarkH - 2, width: wmarkW, height: wmarkH });
-    } else {
-      const brandName = configText(designer, "rodapePaxterNome", "PAXTER");
-      const paxterW = (titleBold as any).widthOfTextAtSize(brandName, 9);
-      const subTxt  = configText(designer, "rodapePaxterSubtitulo", "Clinical Intelligence System");
-      const subW    = (fontReg as any).widthOfTextAtSize(subTxt, 5);
-      const rightX  = PAGE_W - M - Math.max(paxterW, subW);
-      page.drawText(brandName,
-        { x: rightX, y: FOOTER_TOP - 6, font: titleBold, size: 9, color: GOLD });
-      page.drawText(subTxt,
-        { x: rightX, y: FOOTER_TOP - 15, font: fontReg, size: 5, color: MUTED });
-    }
   }
 
   return signer ? signPrescriptionPdf(pdfDoc, signer) : pdfDoc.save();

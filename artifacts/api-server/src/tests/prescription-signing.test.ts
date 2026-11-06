@@ -530,6 +530,21 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
       dataEmissao: "2026-10-29",
     }, signer));
   });
+  it("receita longa (12 fórmulas) continua em novas páginas, assinada, sem recusar", async () => {
+    const signer = validatePrescriptionCertificate(pfx, password, identity);
+    const formulas = Array.from({ length: 12 }, (_, i) => ({
+      nome: `FORMULA SINTETICA ${i + 1}`, via: "VO", forma: "Capsula",
+      ativos: "Ativo A 10mg\nAtivo B 20mg\nAtivo C 300mg\nAtivo D 5mg\nAtivo E 1mg",
+      posologia: "1 dose VO as 08:00; 1 dose VO as 20:00",
+    }));
+    const signed = await generateReceituarioPdfV2({
+      medicoName: identity.professional.name, medicoCrm: "CRM/SP 12345", clinicaNome: identity.clinic.name,
+      pacienteNome: identity.client.name, formulas, dataEmissao: "2026-10-29",
+    }, signer);
+    verify(signed);
+    const reloaded = await PDFDocument.load(signed);
+    expect(reloaded.getPageCount()).toBeGreaterThan(1);
+  });
   it("rejeita senha, arquivo, CPF divergente/ausente, certificado vencido/futuro e chave divergente", () => {
     expect(() => inspectPrescriptionCertificate(pfx, "wrong", identity.professional.cpf)).toThrow(/inválido/);
     expect(() => inspectPrescriptionCertificate(Buffer.from("not-pfx"), password, identity.professional.cpf)).toThrow();

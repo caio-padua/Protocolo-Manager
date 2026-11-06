@@ -157,3 +157,4 @@
 - [Fixtures de autenticação do colaborador](colaborador-auth-test-fixtures.md) — testes protegidos precisam simular sessão ativa completa e cada validação de autenticação executada na rota.
 - [Cadastro empresarial separado da agenda](cadastro-empresa-vs-local-agenda.md) — dados legais ficam em Empresas; locais e agendas são camada operacional, sem criar hierarquia por inferência.
 - [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
+- [Receituário V2 pagina em vez de recusar](receituario-pdf-paginacao.md) — limite de 1 página causava 500 genérico na emissão; usar ensureSpace/newPage; erro real só no log.
