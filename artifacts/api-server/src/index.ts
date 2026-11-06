@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
 import { ensureExamSetsTable } from "./lib/exam-sets";
+import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
@@ -66,6 +67,13 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("client_photo_history: tabela pronta antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela client_photo_history — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensurePedidosMedicosTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela client_medical_requests — abortando boot");
     process.exit(1);
   }
 

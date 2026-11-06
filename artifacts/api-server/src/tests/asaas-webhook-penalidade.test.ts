@@ -46,6 +46,8 @@ vi.mock("@workspace/db", () => ({
   db: {
     select: mockDbSelect,
     update: mockDbUpdate,
+    // Pedido médico do cliente: nenhuma cobrança desta suíte pertence a ele.
+    execute: vi.fn(async () => ({ rows: [] })),
   },
   paymentsTable:          { asaasChargeId: "asaasChargeId", id: "id", status: "status" },
   schedulingRequestsTable:{ asaasChargeId: "asaasChargeId", id: "id" },

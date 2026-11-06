@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+import { cancelRefundedPedido, cancelUnpaidPedido, markPedidoPaid } from "../lib/pedido-medico.js";
 import {
   db,
   paymentsTable,
@@ -652,6 +653,23 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
   }
 
   try {
+    // Pedido medico do cliente (Area do Cliente): cobranca propria, transicoes idempotentes.
+    const pedidoHit = await db.execute(
+      sql`SELECT 1 FROM client_medical_requests WHERE asaas_charge_id = ${payment.id} LIMIT 1`,
+    );
+    if (pedidoHit.rows.length > 0) {
+      const paid = payment.paymentDate || new Date().toISOString().slice(0, 10);
+      if (event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED") {
+        await markPedidoPaid(payment.id, paid);
+      } else if (event === "PAYMENT_OVERDUE" || event === "PAYMENT_DELETED") {
+        await cancelUnpaidPedido(payment.id);
+      } else if (event === "PAYMENT_REFUNDED" || event === "PAYMENT_CHARGEBACK_REQUESTED") {
+        await cancelRefundedPedido(payment.id);
+      }
+      res.status(200).json({ ok: true });
+      return;
+    }
+
     // A cobranca pode estar na tabela de pagamentos (clientes) OU amarrada a uma
     // solicitacao de agendamento Concierge (lead ainda nao cadastrado). Atualiza
     // as duas fontes que existirem; so ignora se nenhuma reconhecer o charge.

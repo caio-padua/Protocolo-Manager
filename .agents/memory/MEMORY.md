@@ -156,3 +156,4 @@
 - [Comercialização multiempresa](comercializacao-multiempresa.md) — finalidade comercial exige isolamento real; correção local não certifica o sistema inteiro para várias clínicas.
 - [Fixtures de autenticação do colaborador](colaborador-auth-test-fixtures.md) — testes protegidos precisam simular sessão ativa completa e cada validação de autenticação executada na rota.
 - [Cadastro empresarial separado da agenda](cadastro-empresa-vs-local-agenda.md) — dados legais ficam em Empresas; locais e agendas são camada operacional, sem criar hierarquia por inferência.
+- [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
