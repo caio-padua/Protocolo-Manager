@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import { AsyncLocalStorage } from "async_hooks";
 import forge from "node-forge";
 import { getSecret, setSecret, getJsonSetting, setJsonSetting } from "./secure-settings.js";
 import { ObjectStorageService } from "./objectStorage.js";
@@ -23,6 +24,22 @@ export interface CertMeta {
   fileName: string;
   cpf: string | null;
   updatedAt: string;
+}
+
+// Certificado do MEDICO autenticado, valido somente durante a chamada atual.
+// Quando ativo, ele substitui o certificado global: o documento e assinado
+// com a identidade de quem fez login, nunca com a de outra pessoa.
+const doctorCertificate = new AsyncLocalStorage<{ buffer: Buffer; password: string }>();
+
+export function runWithDoctorCertificate<T>(
+  credential: { buffer: Buffer; password: string },
+  fn: () => Promise<T>,
+): Promise<T> {
+  return doctorCertificate.run(credential, fn);
+}
+
+export function isDoctorCertificateActive(): boolean {
+  return doctorCertificate.getStore() !== undefined;
 }
 
 let cachedBuffer: Buffer | null = null;
@@ -54,6 +71,8 @@ export async function refreshCertCache(): Promise<void> {
 
 // Buffer do .pfx para uso sincrono pelo pdf-signer. Cache -> arquivo local.
 export function getCertBufferSync(): Buffer {
+  const own = doctorCertificate.getStore();
+  if (own) return own.buffer;
   if (cachedBuffer) return cachedBuffer;
   if (fs.existsSync(FILE_CERT_PATH)) return fs.readFileSync(FILE_CERT_PATH);
   throw new Error(
@@ -63,6 +82,8 @@ export function getCertBufferSync(): Buffer {
 
 // Senhas candidatas (cofre + env). embedPadesSignature tenta cada uma.
 export function getCertPasswordsSync(): string[] {
+  const own = doctorCertificate.getStore();
+  if (own) return [own.password];
   const list: string[] = [];
   if (cachedVaultPassword) list.push(cachedVaultPassword);
   if (process.env.CERT_PASSWORD && !list.includes(process.env.CERT_PASSWORD)) {

@@ -29,7 +29,7 @@ async function embedPaxterQr(pdfDoc: PDFDocument): Promise<QrImage> {
 // Fonte do certificado: cache configuravel (cofre/object storage) com fallback
 // ao arquivo local. NUNCA quebra no carregamento do modulo — so falha (com
 // mensagem clara) na hora de assinar, se nada estiver configurado.
-import { getCertBufferSync, getCertPasswordsSync } from "./cert-source.js";
+import { getCertBufferSync, getCertPasswordsSync, isDoctorCertificateActive } from "./cert-source.js";
 
 interface SubstanceInfo {
   substanceName: string;
@@ -100,14 +100,16 @@ function loadCertificate(): { key: forge.pki.rsa.PrivateKey; cert: forge.pki.Cer
 
 let cachedCertPassword: string | null = null;
 function getCertPassword(): string {
-  if (cachedCertPassword) return cachedCertPassword;
+  // Certificado do medico logado nunca usa nem alimenta o cache do certificado global.
+  const overridden = isDoctorCertificateActive();
+  if (!overridden && cachedCertPassword) return cachedCertPassword;
   const pfxBuffer = getCertBufferSync();
   const pfxBinary = forge.util.binary.raw.encode(new Uint8Array(pfxBuffer));
   const pfxAsn1 = forge.asn1.fromDer(pfxBinary);
   for (const pw of getCertPasswordsSync()) {
     try {
       forge.pkcs12.pkcs12FromAsn1(pfxAsn1, pw);
-      cachedCertPassword = pw;
+      if (!overridden) cachedCertPassword = pw;
       return pw;
     } catch {
       continue;

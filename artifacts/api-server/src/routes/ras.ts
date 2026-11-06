@@ -12,6 +12,8 @@ import {
   CreateRASBody,
   GetRASParams,
 } from "@workspace/api-zod";
+import { ClinicalIdentityError } from "../lib/clinical-emitter";
+import { withLoggedDoctorCertificate } from "../lib/prescription-signing";
 import { generateSignedRASPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import type { ModoRasFap } from "../lib/ras-fap";
 import {
@@ -261,7 +263,7 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
       };
     });
 
-    const { pdfBytes } = await generateSignedRASPdf({
+    const { pdfBytes } = await withLoggedDoctorCertificate(req, ras.clientId, () => generateSignedRASPdf({
       id: ras.id,
       sessionId: ras.sessionId,
       clientName: ras.clientName,
@@ -273,7 +275,7 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
       serviceType: ras.serviceType,
       observations: ras.observations ?? null,
       substances: enrichedSubstances,
-    });
+    }));
 
     const filename = formatRASFileName(ras.serviceDate, ras.clientName, ras.clientCpf);
 
@@ -301,6 +303,7 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("PDF generation error:", err);
     res.status(500).json({ error: "Erro ao gerar PDF assinado", details: err.message });
   }
@@ -349,7 +352,7 @@ router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, asyn
       };
     });
 
-    const { pdfBytes } = await generateSignedRASPdf({
+    const { pdfBytes } = await withLoggedDoctorCertificate(req, ras.clientId, () => generateSignedRASPdf({
       id: ras.id,
       sessionId: ras.sessionId,
       clientName: ras.clientName,
@@ -361,7 +364,7 @@ router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, asyn
       serviceType: ras.serviceType,
       observations: ras.observations ?? null,
       substances: enrichedSubstances,
-    });
+    }));
 
     const driveFileName = formatRASFileName(ras.serviceDate, ras.clientName, ras.clientCpf);
     const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
@@ -379,6 +382,7 @@ router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, asyn
       message: `RAS enviado para Google Drive na pasta PROTOCOLOS de ${client.name}`,
     });
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("RAS Drive upload error:", err);
     res.status(500).json({ error: err.message });
   }

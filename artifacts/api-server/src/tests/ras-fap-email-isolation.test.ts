@@ -93,6 +93,12 @@ vi.mock("../lib/google-gmail", () => ({
   isGmailConnected: vi.fn(),
 }));
 
+// A identidade/certificado do médico logado é testada em prescription-signing e
+// doctor-certificate-context; aqui a geração do documento é o foco.
+vi.mock("../lib/prescription-signing", () => ({
+  withLoggedDoctorCertificate: (_req: unknown, _clientId: unknown, fn: () => Promise<unknown>) => fn(),
+}));
+
 vi.mock("../lib/pdf-signer", () => ({
   generateSignedRASPdf:    vi.fn(),
   generatePhysicalRASPdf: vi.fn(),

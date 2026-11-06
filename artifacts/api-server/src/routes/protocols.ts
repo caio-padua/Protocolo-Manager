@@ -1,10 +1,12 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable, locationProfessionalsTable } from "@workspace/db";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
+import { ClinicalIdentityError } from "../lib/clinical-emitter";
+import { withLoggedDoctorCertificate } from "../lib/prescription-signing";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import { generateProtocolLetterPdf, buildCartaTratamentoDto } from "../lib/pdf-carta-tratamento";
 import {
@@ -480,7 +482,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
   const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.protocolId, protocolId));
 
   try {
-    const { pdfBytes } = await generateProtocolDocumentPdf({
+    const { pdfBytes } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolDocumentPdf({
       protocolId: protocol.id,
       protocolTitle: protocol.title,
       clientName: client.name,
@@ -509,7 +511,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
         installments: p.installments,
         cardLabel: p.cardLabel,
       })),
-    });
+    }));
 
     const pdfBuffer = Buffer.from(pdfBytes);
     const clientSlug = client.name.replace(/\s+/g, "_");
@@ -523,6 +525,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
     // Para subir no Drive, enviar e-mail e despachar cadernos jurídicos,
     // use POST /protocols/:id/emit-document (ação explícita e distinta).
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("Protocol document PDF error:", err);
     res.status(500).json({ error: "Erro ao gerar documento do protocolo", details: err.message });
   }
@@ -657,7 +660,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 
   try {
     // 1. Gerar PDF do protocolo
-    const { pdfBytes } = await generateProtocolDocumentPdf({
+    const { pdfBytes } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolDocumentPdf({
       protocolId: protocol.id,
       protocolTitle: protocol.title,
       clientName: client.name,
@@ -686,7 +689,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         installments: p.installments,
         cardLabel: p.cardLabel,
       })),
-    });
+    }));
 
     const pdfBuffer = Buffer.from(pdfBytes);
 
@@ -1070,6 +1073,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         : `Protocolo gerado e subido no Drive. E-mail não enviado${emailError ? ": " + emailError : " (Gmail não conectado ou paciente sem e-mail)"}.`,
     });
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("[emit] Erro geral:", err);
     res.status(500).json({ error: "Erro ao emitir documento do protocolo", details: err.message });
   }
@@ -1448,6 +1452,7 @@ type CartaMontada = {
 };
 
 async function montarCartaDeTratamento(
+  req: Request,
   protocolId: number,
 ): Promise<{ ok: true; carta: CartaMontada } | { ok: false; status: number; error: string }> {
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
@@ -1537,7 +1542,7 @@ async function montarCartaDeTratamento(
     sessions: sessions.map(s => ({ status: s.status })),
   });
 
-  const { pdfBytes, certInfo } = await generateProtocolLetterPdf(dto);
+  const { pdfBytes, certInfo } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolLetterPdf(dto));
   const slug = client.name.replace(/\s+/g, "_");
 
   return {
@@ -1568,7 +1573,7 @@ router.get("/protocols/:id/carta-pdf", requireCollaborator, async (req, res): Pr
       if (!res.headersSent) res.status(404).json({ error: "Registro não encontrado" });
       return;
     }
-    const r = await montarCartaDeTratamento(protocolId);
+    const r = await montarCartaDeTratamento(req, protocolId);
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
     const { pdfBytes, certInfo, filename, client } = r.carta;
 
@@ -1593,6 +1598,7 @@ router.get("/protocols/:id/carta-pdf", requireCollaborator, async (req, res): Pr
 
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("[carta-pdf] erro:", err.message);
     res.status(500).json({ error: "Erro ao gerar carta", details: err.message });
   }
@@ -1649,7 +1655,7 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
       return;
     }
 
-    const r = await montarCartaDeTratamento(protocolId);
+    const r = await montarCartaDeTratamento(req, protocolId);
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
     const c = r.carta;
 
@@ -1692,6 +1698,7 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
       totalSessions: c.totalSessions,
     });
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ sent: false, error: err.message }); return; }
     console.error("[carta-email] erro:", err.message);
     res.status(500).json({ sent: false, error: "Erro ao enviar carta", details: err.message });
   }

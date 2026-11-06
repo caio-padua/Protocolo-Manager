@@ -115,6 +115,12 @@ const mockGeneratePhysicalRASPdf = vi.fn().mockResolvedValue(
   new Uint8Array([0x25, 0x50, 0x44, 0x46]),
 );
 
+// A identidade/certificado do médico logado é testada em prescription-signing e
+// doctor-certificate-context; aqui a geração do documento é o foco.
+vi.mock("../lib/prescription-signing", () => ({
+  withLoggedDoctorCertificate: (_req: unknown, _clientId: unknown, fn: () => Promise<unknown>) => fn(),
+}));
+
 vi.mock("../lib/pdf-signer", () => ({
   generateProtocolDocumentPdf: vi.fn().mockResolvedValue({
     pdfBytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),

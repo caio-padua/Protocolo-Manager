@@ -4,9 +4,8 @@ import { PDFDocument } from "pdf-lib";
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
-import { ClinicalIdentityError } from "./clinical-emitter";
-import type { resolveClinicalEmitter } from "./clinical-emitter";
-import { getCertBufferSync, getCertPasswordsSync, type CertMeta } from "./cert-source";
+import { ClinicalIdentityError, resolveClinicalEmitter } from "./clinical-emitter";
+import { getCertBufferSync, getCertPasswordsSync, runWithDoctorCertificate, type CertMeta } from "./cert-source";
 import { getJsonSetting, getSecret } from "./secure-settings";
 import { ObjectStorageService } from "./objectStorage";
 
@@ -285,4 +284,17 @@ export async function signExistingClinicalPdf(
   bytes: Uint8Array, signer: PrescriptionSigner, kind: ClinicalPdfKind,
 ): Promise<Uint8Array> {
   return signClinicalPdf(await PDFDocument.load(bytes), signer, kind);
+}
+
+// Executa a geracao de um documento com o certificado do medico autenticado.
+// Sem medico valido, vinculo com a clinica/paciente ou certificado vigente, lanca
+// ClinicalIdentityError: NUNCA recorre ao certificado global de outra pessoa.
+export async function withLoggedDoctorCertificate<T>(
+  req: import("express").Request,
+  clientId: unknown,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const identity = await resolveClinicalEmitter(req, clientId);
+  const signer = await resolvePrescriptionSigner(identity);
+  return runWithDoctorCertificate({ buffer: signer.buffer, password: signer.password }, fn);
 }
