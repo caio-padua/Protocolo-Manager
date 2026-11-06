@@ -306,7 +306,10 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       return;
     }
     try {
-      const bytes = await new ObjectStorageService().readPrivateObject(signatureObjectPath);
+      // O upload grava em "<privado>/uploads/signatures/..."; o caminho público tem o
+      // prefixo "/objects/". Resolver pelo mesmo método do servidor de arquivos.
+      const signatureFile = await new ObjectStorageService().getObjectEntityFile(signatureObjectPath);
+      const [bytes] = await signatureFile.download();
       if (!bytes.length || bytes.length > 2_000_000) {
         res.status(422).json({ error: "A imagem de assinatura cadastrada está vazia ou excede o limite permitido." });
         return;
