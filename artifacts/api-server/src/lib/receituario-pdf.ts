@@ -458,12 +458,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     readFontAsset(bodySerif ? "EBGaramond-Bold.ttf" : "Manrope-Bold.woff"),
   ]);
   const [titleReg, titleBold, fontReg, fontBold, fontItal] = await Promise.all([
-    pdfDoc.embedFont(titleRegularBytes, titleSerif ? { subset: false } : { subset: true }),
-    pdfDoc.embedFont(titleBoldBytes, titleSerif ? { subset: false } : { subset: true }),
-    pdfDoc.embedFont(bodyRegularBytes, bodySerif ? { subset: false } : { subset: true }),
-    pdfDoc.embedFont(bodyBoldBytes, bodySerif ? { subset: false } : { subset: true }),
+    pdfDoc.embedFont(titleRegularBytes, titleSerif ? { subset: false, features: { liga: false, clig: false } } : { subset: true, features: { liga: false, clig: false } }),
+    pdfDoc.embedFont(titleBoldBytes, titleSerif ? { subset: false, features: { liga: false, clig: false } } : { subset: true, features: { liga: false, clig: false } }),
+    pdfDoc.embedFont(bodyRegularBytes, bodySerif ? { subset: false, features: { liga: false, clig: false } } : { subset: true, features: { liga: false, clig: false } }),
+    pdfDoc.embedFont(bodyBoldBytes, bodySerif ? { subset: false, features: { liga: false, clig: false } } : { subset: true, features: { liga: false, clig: false } }),
     titleSerif
-      ? pdfDoc.embedFont(titleItalicBytes, { subset: false })
+      ? pdfDoc.embedFont(titleItalicBytes, { subset: false, features: { liga: false, clig: false } })
       : pdfDoc.embedFont(StandardFonts.HelveticaOblique),
   ]);
 
@@ -868,7 +868,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const configuredTitle = configText(designer, "tituloDocumento", tituloDoc);
   const displayedTitle = tipo === "especial"
     ? configuredTitle
-    : configuredTitle.replace(/CONTROLE\s+ESPECIAL/gi, "SIMPLES");
+    : configuredTitle.replace(/(DE\s+)?CONTROLE\s+ESPECIAL/gi, "SIMPLES");
   const titW = (titleBold as any).widthOfTextAtSize(displayedTitle, 16);
   page.drawText(displayedTitle,
     { x: (PAGE_W - titW) / 2, y, font: titleBold, size: 16, color: DARK });
@@ -1012,7 +1012,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         const ln = raw.trim();
         if (!ln) continue;
         drawWrappedPaged(`  >> ${ln}`, {
-          x: M + 14, maxWidth: CW - 14, font: fontBold, size: 7, color: VERDE, lineHeight: 10,
+          x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: VERDE, lineHeight: 11,
         });
       }
     }
