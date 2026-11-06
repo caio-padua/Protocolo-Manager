@@ -963,18 +963,21 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   y -= 16;
 
   // Verde posologia (motor: color #0a7a6e)
-  const VERDE = rgb(0.039, 0.478, 0.431);
+  const VERDE = rgb(0, 0, 0); // impressão laser: corpo da prescrição 100% preto
 
   for (let i = 0; i < data.formulas.length; i++) {
     const f   = data.formulas[i];
     const num = String(i + 1).padStart(2, "0");
-    ensureSpace(13 + 20 + 22); // título + via/forma + primeira linha ficam juntos
+    // A fórmula inteira fica na mesma página (não corta ativos/posologia ao meio).
+    const nAtivos = f.ativos ? f.ativos.split("\n").filter((l) => l.trim()).length : 0;
+    const nPos = f.posologia ? Math.max(1, Math.ceil(f.posologia.length / 95)) : 0;
+    ensureSpace(13 + ((f.via || f.forma) ? 20 : 0) + nAtivos * 11 + (nPos ? 11 + nPos * 11 : 0) + (f.observacao ? 11 : 0) + 14);
 
     // D03 corrigido: número MUTED (cinza #555), NÃO dourado
     // D04 corrigido: nome preserva case original (NÃO força uppercase)
-    page.drawText(`${num}`, { x: M, y, font: titleBold, size: 11, color: GOLD });
+    page.drawText(`${num}`, { x: M, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
     page.drawText(safeTxt(f.nome),
-      { x: M + 18, y, font: titleBold, size: 11, color: DARK });
+      { x: M + 18, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
     y -= 13;
 
     // D01 corrigido: Via | Forma vêm ANTES dos ativos (motor: FormulaReal linha 198-213)
@@ -988,9 +991,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         const cx = M + 26 + ci * colW;
         const c  = viaCols[ci];
         page.drawText(c.label.toUpperCase(),
-          { x: cx, y, font: fontBold, size: 5.5, color: rgb(0.67, 0.67, 0.67) });
+          { x: cx, y, font: fontBold, size: 5.5, color: rgb(0, 0, 0) });
         page.drawText(c.value,
-          { x: cx, y: y - 9, font: fontBold, size: 7, color: rgb(0.20, 0.20, 0.20) });
+          { x: cx, y: y - 9, font: fontBold, size: 7, color: rgb(0, 0, 0) });
       }
       y -= 20;
     }
@@ -1001,17 +1004,20 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         const ln = raw.trim();
         if (!ln) continue;
         drawWrappedPaged(`  ${ln}`, {
-          x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: DARK, lineHeight: 11,
+          x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: rgb(0, 0, 0), lineHeight: 11,
         });
       }
     }
 
     // D02 corrigido: posologia com ▸ prefix + cor verde #0a7a6e (motor: linha 220-222)
     if (f.posologia?.trim()) {
+      ensureSpace(24);
+      page.drawText("POSOLOGIA:", { x: M + 14, y, font: fontBold, size: 7, color: rgb(0, 0, 0) });
+      y -= 11;
       for (const raw of f.posologia.split("\n")) {
         const ln = raw.trim();
         if (!ln) continue;
-        drawWrappedPaged(`  >> ${ln}`, {
+        drawWrappedPaged(`  ${ln}`, {
           x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: VERDE, lineHeight: 11,
         });
       }
@@ -1021,7 +1027,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     if (f.observacao?.trim()) {
       ensureSpace(11);
       page.drawText(`  Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
-        { x: M + 14, y, font: fontItal, size: 7.5, color: MUTED });
+        { x: M + 14, y, font: fontItal, size: 7.5, color: rgb(0, 0, 0) });
       y -= 11;
     }
 
@@ -1030,7 +1036,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       ensureSpace(14);
       y -= 4;
       page.drawLine({ start: { x: M + 18, y }, end: { x: PAGE_W - M, y },
-        thickness: 0.4, color: rgb(0.86, 0.80, 0.66) });
+        thickness: 0.4, color: rgb(0, 0, 0) });
       y -= 8;
     } else {
       y -= 6;
