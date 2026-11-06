@@ -4,6 +4,8 @@ import { logger } from "./lib/logger";
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
 import { ensureExamSetsTable } from "./lib/exam-sets";
+import { ensureSystemErrorLogTable } from "./lib/system-error-log";
+import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
@@ -62,6 +64,19 @@ if (Number.isNaN(port) || port <= 0) {
   }
 
   await ensureExamSetsTable();
+  try {
+    await ensureSystemErrorLogTable();
+    logger.info("system_error_log: tabela pronta antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar system_error_log — Central de Erros indisponível");
+  }
+  try {
+    await ensurePrescriptionProtocolsTable();
+    logger.info("prescription_protocols: tabela pronta antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela prescription_protocols — abortando boot");
+    process.exit(1);
+  }
   try {
     await ensurePhotoHistoryTable();
     logger.info("client_photo_history: tabela pronta antes do listen");

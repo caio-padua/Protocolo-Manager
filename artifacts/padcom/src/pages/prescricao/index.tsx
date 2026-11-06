@@ -21,6 +21,7 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../comunicacao/_shared";
+import { useProtocolosSalvos } from "./useProtocolosSalvos";
 import {
   ReceituarioPreview,
   type RealFormula,
@@ -80,7 +81,7 @@ export default function PrescricaoPage(
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
-  const [customProtocolos, setCustomProtocolos] = useState<Protocolo[]>([]);
+  const { salvos: customProtocolos, salvar: salvarProtocolo, remover: removerProtocolo } = useProtocolosSalvos();
   const [copied, setCopied] = useState(false);
   // Faixa ornamental do receituário
   const [bandOpen, setBandOpen] = useState(false);
@@ -366,12 +367,7 @@ export default function PrescricaoPage(
   const removeTomada = (id: string, ti: number) =>
     setSelected((prev) => prev.map((s) => (s.id === id ? { ...s, tomadas: s.tomadas.filter((_, i) => i !== ti) } : s)));
 
-  const saveAsProtocolo = () => {
-    if (selected.length === 0) return;
-    const nome = window.prompt("Nome do protocolo:");
-    if (!nome) return;
-    setCustomProtocolos((prev) => [...prev, { id: "c-" + Date.now(), nome, formulaIds: selected.map((s) => s.id) }]);
-  };
+  const saveAsProtocolo = () => { void salvarProtocolo(selected.map((s) => s.id)); };
 
   const handleClear = () => {
     if (window.confirm("Limpar receita inteira?")) setSelected([]);
@@ -734,7 +730,10 @@ export default function PrescricaoPage(
               <div key={p.id} className="panel-3d-sub p-3">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5"><Layers className="w-4 h-4 text-primary" />{p.nome}</h3>
-                  <button onClick={() => addProtocolo(p)} className="btn-3d shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {p.id.startsWith("db-") && <button onClick={() => void removerProtocolo(p.id)} title="Remover da minha lista" className="p-1 text-destructive hover:opacity-80"><Trash2 className="w-3.5 h-3.5" /></button>}
+                    <button onClick={() => addProtocolo(p)} className="btn-3d px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5">{p.formulaIds.map((id) => allFormulas.find((f) => f.id === id)?.name).filter(Boolean).join(" • ")}</p>
               </div>

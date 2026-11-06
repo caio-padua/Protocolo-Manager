@@ -15,6 +15,7 @@ import {
 } from "@workspace/db";
 import { eq, desc, asc } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
+import { registrarErroSistema } from "../lib/system-error-log";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
 import { brtDisplayDate, brtISODate } from "../lib/brt";
 import { planDesmembramento, type PrescriptionItemInput } from "../lib/desmembramento";
@@ -591,6 +592,13 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     const errorMessage = !errorCode && error instanceof Error ? error.message.slice(0, 300) : undefined;
     const errorStack = !errorCode && error instanceof Error ? error.stack?.split("\n").slice(0, 4).join(" | ") : undefined;
     req.log.error({ errorName, errorCode, errorMessage, errorStack }, "Falha transacional ao emitir prescrição");
+    // Central de Erros: motivo real (so mensagens internas, nunca erro do Postgres).
+    res.locals.erroRegistrado = true;
+    registrarErroSistema({
+      method: req.method, path: req.originalUrl, status: 500,
+      message: errorMessage ?? `Erro ${errorName}${errorCode ? ` (código ${errorCode})` : ""} ao emitir prescrição`,
+      code: errorCode ?? errorName, professionalId: req.collaborator?.professionalId ?? null,
+    });
     res.status(500).json({
       error: "Não foi possível confirmar a gravação da prescrição. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
     });

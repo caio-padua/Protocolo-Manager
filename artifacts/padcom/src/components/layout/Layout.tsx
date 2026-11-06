@@ -229,6 +229,7 @@ const navigation: NavEntry[] = [
       { name: "Listas (Categorias/Tipos)", href: "/cadastros/listas", icon: Library },
       { name: "Textos & Vídeos", href: "/cadastros/textos", icon: MessageSquareText },
       { name: "Auditoria", href: "/cadastros/auditoria", icon: ClipboardListIcon },
+      { name: "Central de Erros", href: "/cadastros/central-erros", icon: ShieldCheck },
       { name: "Cadernos Jurídicos", href: "/juridico/contratos", icon: Scale },
       { name: "Certificados Digitais", href: "/configuracoes/certificados", icon: ShieldCheck },
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },

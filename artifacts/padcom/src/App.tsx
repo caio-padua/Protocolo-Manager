@@ -57,6 +57,7 @@ import CadastroAgendasGoogle from "@/pages/cadastros/agendas-google";
 import CadastroEquipe from "@/pages/cadastros/equipe";
 import CadastroTextos from "@/pages/cadastros/textos";
 import CadastroAuditoria from "@/pages/cadastros/auditoria";
+import CentralErros from "@/pages/cadastros/central-erros";
 import PedidosMedicosPage from "@/pages/pedidos-medicos";
 import ConfigEmpresa from "@/pages/configuracoes/empresa";
 import ConfigCertificados from "@/pages/configuracoes/certificados";
@@ -289,6 +290,7 @@ function Router() {
                   <Route path="/cadastros/equipe" component={CadastroEquipe} />
                   <Route path="/cadastros/textos" component={CadastroTextos} />
                   <Route path="/cadastros/auditoria" component={CadastroAuditoria} />
+                  <Route path="/cadastros/central-erros" component={CentralErros} />
                   <Route component={NotFound} />
                 </Switch>
               </CollaboratorGate>

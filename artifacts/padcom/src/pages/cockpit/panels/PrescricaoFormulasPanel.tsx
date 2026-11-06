@@ -19,6 +19,7 @@ import {
   FileSignature,
   Loader2,
   CheckCircle2,
+  FolderPlus,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -41,6 +42,7 @@ import type { PrescriptionItemInput, RecipePlan, EmitResult } from "@workspace/a
 import { ANVISA_CONTROLLED_CLASSES, recipeTypeForControlledClass } from "@/lib/anvisa";
 import { useToast } from "@/hooks/use-toast";
 import { BASE } from "../../comunicacao/_shared";
+import { useProtocolosSalvos } from "../../prescricao/useProtocolosSalvos";
 import { PrescricoesEmitidas, PrescriptionPdfLink } from "../../prescricao/PrescricoesEmitidas";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { ClinicalIdentityPanel } from "@/components/ClinicalIdentityPanel";
@@ -259,7 +261,8 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     setEmitResult(null);
   };
   // Protocolos: conjunto de fórmulas adicionado de uma vez (mesmo comportamento da tela Prescrição).
-  const allProtocolos: Protocolo[] = PROTOCOLOS_SEED;
+  const { salvos: protocolosSalvos, salvar: salvarProtocolo, remover: removerProtocolo } = useProtocolosSalvos();
+  const allProtocolos: Protocolo[] = [...PROTOCOLOS_SEED, ...protocolosSalvos];
   const addProtocolo = (p: Protocolo) => {
     setSelected((prev) => {
       const next = [...prev];
@@ -681,12 +684,23 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
                     <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                       <Layers className="h-4 w-4 text-primary" /> {p.nome}
                     </h4>
-                    <button
-                      onClick={() => addProtocolo(p)}
-                      className="btn-3d flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Adicionar
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {p.id.startsWith("db-") && (
+                        <button
+                          onClick={() => void removerProtocolo(p.id)}
+                          title="Remover da minha lista"
+                          className="p-1 text-destructive hover:opacity-80"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => addProtocolo(p)}
+                        className="btn-3d flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar
+                      </button>
+                    </div>
                   </div>
                   <p className="mt-1.5 text-[11px] text-muted-foreground">
                     {p.formulaIds
@@ -702,10 +716,18 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
         {/* Receita selecionada + roteamento + emissão */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <h3 className="mr-auto flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
               <FileSignature className="h-4 w-4" /> Receita ({selected.length})
             </h3>
+            {selected.length > 0 && (
+              <button
+                onClick={() => void salvarProtocolo(selected.map((s) => s.id))}
+                className="flex items-center gap-1 text-xs font-semibold text-primary hover:opacity-80"
+              >
+                <FolderPlus className="h-4 w-4" /> Salvar protocolo
+              </button>
+            )}
             {selected.length > 0 && (
               <button
                 onClick={() => {
