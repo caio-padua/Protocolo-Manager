@@ -1202,6 +1202,7 @@ router.get("/collaborator/me", requireCollaborator, async (req, res): Promise<vo
       crm: professionalsTable.crm,
       registrationCouncil: professionalsTable.registrationCouncil,
       registrationNumber: professionalsTable.registrationNumber,
+      photoUrl: professionalsTable.photoUrl,
       loginUsername: professionalsTable.loginUsername,
       isPlatformOwner: professionalsTable.isPlatformOwner,
       hasPassword: sql<boolean>`${professionalsTable.passwordHash} IS NOT NULL`,

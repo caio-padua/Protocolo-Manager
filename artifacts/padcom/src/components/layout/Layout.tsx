@@ -82,6 +82,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
 
 interface LayoutProps {
@@ -338,7 +339,7 @@ const HREF_FERRAMENTA: Record<string, string> = {
 export function Layout({ children }: LayoutProps) {
   const [location, navigate] = useLocation();
   const { available: clerkAvailable, signOut: signOutGoogle } = useClerkActions();
-  const { pode, me } = usePermissoes();
+  const { pode, me, loading: identityLoading } = usePermissoes();
   const [profileOpen, setProfileOpen] = useState(false);
   const [cpfVisible, setCpfVisible] = useState(false);
   const [profileActionBusy, setProfileActionBusy] = useState(false);
@@ -703,26 +704,26 @@ export function Layout({ children }: LayoutProps) {
                 }`}
               >
                 <div className="border-b border-sidebar-border/70 pb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-primary">
-                    Identidade profissional
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#16284a]">
+                    Minha conta
                   </p>
-                  <p className="mt-1 truncate text-xs font-medium text-sidebar-foreground">
-                    {me ? formatProfessionalName(me.name) : "Verificando cadastro…"}
+                  <p className="mt-1 truncate text-xs font-medium text-slate-900">
+                    {me ? formatProfessionalName(me.name) : identityLoading ? "Validando sessão…" : "Sessão não validada"}
                   </p>
                 </div>
 
                 <div className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px]">
-                  <span className="text-sidebar-foreground/45">Cargo</span>
-                  <span className="truncate text-sidebar-foreground/80">
+                  <span className="text-slate-600">Cargo</span>
+                  <span className="truncate text-slate-900">
                     {me ? formatProfessionalRole(me.role, me.category) : "—"}
                   </span>
                   <span
-                    className="text-sidebar-foreground/45"
+                    className="text-slate-600"
                     title="Cadastro de Pessoas Físicas"
                   >
                     CPF
                   </span>
-                  <span className="flex min-w-0 items-center justify-between gap-2 text-sidebar-foreground/80">
+                  <span className="flex min-w-0 items-center justify-between gap-2 text-slate-900">
                     <span className="truncate font-mono">
                       {formatProfessionalCpf(me?.cpf, cpfVisible)}
                     </span>
@@ -732,14 +733,14 @@ export function Layout({ children }: LayoutProps) {
                         onClick={() => setCpfVisible((visible) => !visible)}
                         aria-label={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
                         title={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
-                        className="bevel-3d flex h-7 w-7 shrink-0 items-center justify-center text-sidebar-primary"
+                        className="bevel-3d flex h-7 w-7 shrink-0 items-center justify-center text-[#16284a]"
                       >
                         {cpfVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
                     ) : null}
                   </span>
-                  <span className="text-sidebar-foreground/45">Validação</span>
-                  <span className="truncate text-sidebar-foreground/80">
+                  <span className="text-slate-600">Validação</span>
+                  <span className="truncate text-slate-900">
                     {me?.googleLinked ? "Google validado" : "Vínculo Google pendente"}
                   </span>
                 </div>
@@ -805,8 +806,11 @@ export function Layout({ children }: LayoutProps) {
               title={collapsed
                 ? me
                   ? formatProfessionalName(me.name)
-                  : "Entrar no sistema"
+                  : hasCollaboratorSession
+                    ? "Validando sessão"
+                    : "Entrar no sistema"
                 : undefined}
+              data-testid="button-sidebar-account"
               onClick={() => {
                 setProfileActionError(null);
                 if (!hasCollaboratorSession) {
@@ -819,33 +823,47 @@ export function Layout({ children }: LayoutProps) {
                 collapsed ? "justify-center px-2" : "gap-3 px-2.5"
               } py-2 text-left`}
             >
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center border border-sidebar-primary/40 bg-sidebar-primary/15 text-xs font-bold text-sidebar-primary"
-                style={{ borderRadius: "4px" }}
+              <Avatar
+                data-testid="img-sidebar-account-avatar"
+                className="h-10 w-10 border border-[#c6a35a]/80 bg-[#16284a] shadow-sm"
               >
-                {me ? (
-                  formatProfessionalInitials(me.name)
-                ) : hasCollaboratorSession ? (
-                  <UserRound className="h-4 w-4" />
-                ) : (
-                  <LogIn className="h-4 w-4" />
-                )}
-              </span>
+                {me?.photoUrl ? (
+                  <AvatarImage
+                    src={me.photoUrl}
+                    alt={`Foto de ${me.name}`}
+                    className="object-cover"
+                  />
+                ) : null}
+                <AvatarFallback className="bg-[#16284a] text-xs font-bold text-[#f0d488]">
+                  {me ? (
+                    formatProfessionalInitials(me.name)
+                  ) : hasCollaboratorSession ? (
+                    <UserRound className="h-4 w-4" />
+                  ) : (
+                    <LogIn className="h-4 w-4" />
+                  )}
+                </AvatarFallback>
+              </Avatar>
               {!collapsed ? (
                 <>
-                  <span className="grid min-w-0 flex-1 grid-rows-3 leading-tight">
-                    <span className="truncate text-xs font-semibold text-sidebar-foreground">
+                  <span className="grid min-w-0 flex-1 grid-rows-2 leading-tight">
+                    <span
+                      data-testid="text-sidebar-account-name"
+                      className="truncate text-xs font-semibold text-[#16284a]"
+                    >
                       {me
                         ? formatProfessionalName(me.name)
                         : hasCollaboratorSession
-                          ? "Verificando cadastro…"
+                          ? identityLoading
+                            ? "Validando sessão…"
+                            : "Sessão não validada"
                           : "Entrar no sistema"}
                     </span>
-                    <span className="truncate text-[10px] text-sidebar-foreground/55">
-                      {me ? formatProfessionalRole(me.role, me.category) : "Acesso profissional"}
-                    </span>
-                    <span className="truncate font-mono text-[10px] text-sidebar-foreground/45">
-                      {formatProfessionalCpf(me?.cpf)}
+                    <span
+                      data-testid="text-sidebar-account-role"
+                      className="truncate text-[10px] font-medium text-slate-700"
+                    >
+                      {me ? formatProfessionalRole(me.role, me.category) : hasCollaboratorSession ? "Perfil em conferência" : "Acesso profissional"}
                     </span>
                   </span>
                   {hasCollaboratorSession ? (

@@ -660,6 +660,20 @@ validacoes existentes.
 
 **How to apply:** usar este padrão ao alterar qualquer aba do diálogo de cadastro/edição do Corpo Clínico, em computador e celular.
 
+### 4.6 Padrão 25 — Identidade da conta no rodapé do menu
+
+- O rodapé do menu mostra a foto do perfil da própria conta autenticada; sem foto, mostra as iniciais da mesma pessoa.
+- A foto vem do registro próprio do colaborador no Corpo Clínico/Perfil; nunca usar a foto do médico responsável quando for outra pessoa.
+- O cartão claro em relevo usa texto navy escuro com contraste; ouro fica como detalhe de moldura, não como texto pequeno.
+- Exibir nome e função/categoria em slots fixos; não deixar o CPF visível permanentemente no menu.
+- Dados pessoais adicionais permanecem atrás da abertura explícita do cartão e mascarados por padrão.
+- O título da área é neutro (“Minha conta”), pois o titular pode ser médico, outro profissional ou administrador não clínico.
+- A categoria exibida descreve o cadastro; ela não concede nem prova autoridade administrativa ou clínica.
+
+**Why:** em 06/11/2026, o CEO apontou baixo contraste no rodapé e pediu uma foto da própria conta, observando que o administrador pode não ser médico.
+
+**How to apply:** reutilizar o registro autenticado em `/api/collaborator/me`, com iniciais como alternativa; manter foto, nome e função ligados à mesma pessoa, sem inferir privilégios.
+
 Nota tecnica (relevo 3D vence Tailwind): as classes de relevo (`bevel-3d`, `panel-3d`, etc.) ficam
 SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do Tailwind. Para tingir
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use

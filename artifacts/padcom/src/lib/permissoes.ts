@@ -22,6 +22,7 @@ export interface Me {
   isPrimaryDoctor: boolean;
   isPlatformOwner: boolean;
   cpf: string | null;
+  photoUrl: string | null;
   googleLinked: boolean;
 }
 
