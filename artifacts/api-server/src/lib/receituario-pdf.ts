@@ -599,21 +599,22 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     active = true,
     thickness = 0.4,
     style: "simples" | "dupla" | "ornamentada" = "simples",
+    color: ReturnType<typeof rgb> = LINE,
   ): void {
     if (!active) return;
     if (style === "dupla") {
-      page.drawLine({ start: { x: M, y: y + 1.5 }, end: { x: PAGE_W - M, y: y + 1.5 }, thickness, color: LINE });
-      page.drawLine({ start: { x: M, y: y - 1.5 }, end: { x: PAGE_W - M, y: y - 1.5 }, thickness, color: LINE });
+      page.drawLine({ start: { x: M, y: y + 1.5 }, end: { x: PAGE_W - M, y: y + 1.5 }, thickness, color });
+      page.drawLine({ start: { x: M, y: y - 1.5 }, end: { x: PAGE_W - M, y: y - 1.5 }, thickness, color });
       return;
     }
     if (style === "ornamentada") {
       const middle = PAGE_W / 2;
-      page.drawLine({ start: { x: M, y }, end: { x: middle - 5, y }, thickness, color: LINE });
-      page.drawLine({ start: { x: middle + 5, y }, end: { x: PAGE_W - M, y }, thickness, color: LINE });
-      page.drawRectangle({ x: middle - 1.5, y: y - 1.5, width: 3, height: 3, color: LINE });
+      page.drawLine({ start: { x: M, y }, end: { x: middle - 5, y }, thickness, color });
+      page.drawLine({ start: { x: middle + 5, y }, end: { x: PAGE_W - M, y }, thickness, color });
+      page.drawRectangle({ x: middle - 1.5, y: y - 1.5, width: 3, height: 3, color });
       return;
     }
-    page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness, color: LINE });
+    page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness, color });
   }
 
   // ── Arabesco: carrega o PNG uma só vez, reutiliza nas duas faixas ─────────
@@ -971,9 +972,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
     // D03 corrigido: número MUTED (cinza #555), NÃO dourado
     // D04 corrigido: nome preserva case original (NÃO força uppercase)
-    page.drawText(`${num}.`, { x: M, y, font: fontBold, size: 9, color: MUTED });
-    page.drawText(`  ${safeTxt(f.nome)}`,
-      { x: M + 14, y, font: fontBold, size: 10, color: DARK });
+    page.drawText(`${num}`, { x: M, y, font: titleBold, size: 11, color: GOLD });
+    page.drawText(safeTxt(f.nome),
+      { x: M + 18, y, font: titleBold, size: 11, color: DARK });
     y -= 13;
 
     // D01 corrigido: Via | Forma vêm ANTES dos ativos (motor: FormulaReal linha 198-213)
@@ -1028,8 +1029,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     if (i < data.formulas.length - 1) {
       ensureSpace(14);
       y -= 4;
-      page.drawLine({ start: { x: M + 14, y }, end: { x: PAGE_W - M, y },
-        thickness: 0.3, color: LINE, dashArray: [2, 4], dashPhase: 0 });
+      page.drawLine({ start: { x: M + 18, y }, end: { x: PAGE_W - M, y },
+        thickness: 0.4, color: rgb(0.86, 0.80, 0.66) });
       y -= 8;
     } else {
       y -= 6;
@@ -1055,16 +1056,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // 5. ASSINATURA + CERTIFICADO — LADO A LADO (motor: flex row, gap 8mm)
   // ══════════════════════════════════════════════════════════════════════════
   y -= 10;
-  page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.3, color: LIGHT });
+  drawDecorLine(y, true, 0.5, "ornamentada", GOLD);
   y -= 14;
 
-  const SIG_W       = 155;
-  const CERT_X      = M + SIG_W + 10;
-  const CERT_W      = CW - SIG_W - 10;
+  // Certificado + QR à ESQUERDA; desenho da assinatura à DIREITA, na mesma altura.
+  const SIG_W       = 150;
+  const CERT_X      = M;
+  const CERT_W      = CW - SIG_W - 14;
+  const SIG_X       = PAGE_W - M - SIG_W;
   const CERT_H      = 64;
   const sigTopY     = y;
+  y = sigTopY - 30; // linha da assinatura centrada na altura do quadro do certificado
 
-  // ESQUERDA: imagem real da assinatura vinculada ao cadastro do profissional.
+  // DIREITA: imagem real da assinatura vinculada ao cadastro do profissional.
   {
     if (data.assinaturaImagem) {
       try {
@@ -1075,7 +1079,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         const maxH = 28;
         const scale = Math.min(maxW / image.width, maxH / image.height);
         page.drawImage(image, {
-          x: M + (maxW - image.width * scale) / 2,
+          x: SIG_X + (maxW - image.width * scale) / 2,
           y: y + 3,
           width: image.width * scale,
           height: image.height * scale,
@@ -1085,25 +1089,25 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       }
     } else {
       page.drawText("Assinatura não cadastrada", {
-        x: M, y: y + 12, font: fontReg, size: 6, color: MUTED,
+        x: SIG_X, y: y + 12, font: fontReg, size: 6, color: MUTED,
       });
     }
   }
-  page.drawLine({ start: { x: M, y }, end: { x: M + 130, y },
+  page.drawLine({ start: { x: SIG_X, y }, end: { x: SIG_X + 130, y },
     thickness: 0.5, color: DARK });
   y -= 10;
   page.drawText(safeTxt(data.medicoName),
-    { x: M, y, font: titleBold, size: 8, color: DARK });
+    { x: SIG_X, y, font: titleBold, size: 8, color: DARK });
   y -= 10;
   page.drawText(crmRqeStr,
-    { x: M, y, font: fontReg, size: 7, color: MUTED });
+    { x: SIG_X, y, font: fontReg, size: 7, color: MUTED });
   y -= 10;
   page.drawText(`São Paulo, ${dataExtenso}`,
-    { x: M, y, font: fontReg, size: 7, color: MUTED });
+    { x: SIG_X, y, font: fontReg, size: 7, color: MUTED });
 
-  // DIREITA: BlocoCertificado (motor: título + 4 campos + QR placeholder)
+  // ESQUERDA: BlocoCertificado (motor: título + 4 campos + QR placeholder)
   page.drawRectangle({ x: CERT_X, y: sigTopY - CERT_H, width: CERT_W, height: CERT_H,
-    color: WHITE, borderColor: LINE, borderWidth: 0.5 });
+    color: rgb(0.99, 0.98, 0.96), borderColor: GOLD, borderWidth: 0.6 });
   const certTitulo = signer ? "DOCUMENTO ASSINADO DIGITALMENTE" : "GERADA SEM ASSINATURA DIGITAL";
   const certTitW   = (titleBold as any).widthOfTextAtSize(certTitulo, 5.5);
   page.drawText(certTitulo,
@@ -1221,10 +1225,30 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   drawFooter();
   const allPages = pdfDoc.getPages();
   if (allPages.length > 1) {
+    // Cada página carrega sua própria identificação: nº da receita, paciente,
+    // "Página X de Y" e o QR que abre a receita completa.
+    const CENTER_X = 300;
+    const TXT_X = CENTER_X + 28;
+    const TXT_MAX = PAGE_W - M - 100 - TXT_X;
+    const fitTxt = (t: string, font: PDFFont, size: number): string => {
+      let out = safeTxt(t);
+      while (out.length > 1 && (font as any).widthOfTextAtSize(out, size) > TXT_MAX) out = out.slice(0, -1);
+      return out;
+    };
     allPages.forEach((pg, idx) => {
-      const label = `Página ${idx + 1} de ${allPages.length}`;
-      const w = (fontReg as any).widthOfTextAtSize(label, 6);
-      pg.drawText(label, { x: (PAGE_W - w) / 2, y: FOOTER_TOP - 5, font: fontReg, size: 6, color: MUTED });
+      if (certQrImg) {
+        pg.drawImage(certQrImg, { x: CENTER_X, y: FOOTER_TOP - 27, width: 24, height: 24 });
+      }
+      const linhas: [string, PDFFont, number, ReturnType<typeof rgb>][] = [
+        [data.numeroReceita ? `Receita Nº ${data.numeroReceita}` : "Receituário", fontBold, 5.5, DARK],
+        [`Paciente: ${data.pacienteNome ?? ""}`, fontReg, 5, MUTED],
+        [`Página ${idx + 1} de ${allPages.length} — QR abre a receita completa`, fontReg, 5, MUTED],
+      ];
+      let ty = FOOTER_TOP - 9;
+      for (const [t, f, sz, c] of linhas) {
+        pg.drawText(fitTxt(t, f, sz), { x: TXT_X, y: ty, font: f, size: sz, color: c });
+        ty -= 8;
+      }
     });
   }
 
