@@ -84,16 +84,20 @@ function toFixedBuffer(value: string): Buffer {
 }
 
 function buildMiddleware() {
-  const user = process.env.ADMIN_USERNAME;
-  const pass = process.env.ADMIN_PASSWORD;
+  // O CEO ja cadastrou o par de perimetro no cofre do Replit com o prefixo RAILWAY_
+  // (RAILWAY_ADMIN_USERNAME/PASSWORD). Os nomes ADMIN_* continuam mandando; o prefixo
+  // RAILWAY_ so vale quando ADMIN_* nao existe. Nenhuma credencial e logada.
+  // So em producao: no desenvolvimento o bypass continua como sempre foi.
   const isProd = process.env.NODE_ENV === "production";
+  const user = process.env.ADMIN_USERNAME || (isProd ? process.env.RAILWAY_ADMIN_USERNAME : undefined);
+  const pass = process.env.ADMIN_PASSWORD || (isProd ? process.env.RAILWAY_ADMIN_PASSWORD : undefined);
 
   // Produção: fail-closed — o servidor não sobe sem credenciais.
   // Desenvolvimento: warn + bypass (API não é pública no Replit).
   if (!user || !pass) {
     if (isProd) {
       logger.fatal(
-        "FATAL: ADMIN_USERNAME e/ou ADMIN_PASSWORD não definidas em produção. " +
+        "FATAL: ADMIN_USERNAME/ADMIN_PASSWORD (ou RAILWAY_ADMIN_USERNAME/RAILWAY_ADMIN_PASSWORD) não definidas em produção. " +
         "O servidor não pode subir sem porta travada. " +
         "Defina as variáveis de ambiente e reinicie."
       );
