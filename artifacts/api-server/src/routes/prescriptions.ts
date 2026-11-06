@@ -586,7 +586,11 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     const errorCode = error && typeof error === "object" && "code" in error
       ? String((error as { code: unknown }).code)
       : undefined;
-    req.log.error({ errorName, errorCode }, "Falha transacional ao emitir prescrição");
+    // Erros do Postgres (com code) podem conter dados do paciente: so a mensagem de
+    // erros internos da aplicacao (sem code) e registrada, para diagnostico.
+    const errorMessage = !errorCode && error instanceof Error ? error.message.slice(0, 300) : undefined;
+    const errorStack = !errorCode && error instanceof Error ? error.stack?.split("\n").slice(0, 4).join(" | ") : undefined;
+    req.log.error({ errorName, errorCode, errorMessage, errorStack }, "Falha transacional ao emitir prescrição");
     res.status(500).json({
       error: "Não foi possível confirmar a gravação da prescrição. O rascunho foi preservado; confira o histórico antes de tentar novamente.",
     });

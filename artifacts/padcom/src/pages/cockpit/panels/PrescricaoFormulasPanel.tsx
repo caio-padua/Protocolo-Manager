@@ -31,6 +31,8 @@ import {
   formatBRL,
   type Tomada,
   type FormulaSeed,
+  PROTOCOLOS_SEED,
+  type Protocolo,
   type SelectedFormula,
 } from "../../prescricao/data";
 import { useQuery } from "@tanstack/react-query";
@@ -133,6 +135,7 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
 
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
+  const [leftTab, setLeftTab] = useState<"cat" | "proto">("cat");
 
   const [previewPlans, setPreviewPlans] = useState<RecipePlan[] | null>(null);
   const [emitResult, setEmitResult] = useState<EmitResult | null>(null);
@@ -251,6 +254,22 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       if (prev.find((s) => s.id === f.id)) return prev;
       const { ativos, tomadas } = parseBody(f.body);
       return [...prev, { id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) }];
+    });
+    setPreviewPlans(null);
+    setEmitResult(null);
+  };
+  // Protocolos: conjunto de fórmulas adicionado de uma vez (mesmo comportamento da tela Prescrição).
+  const allProtocolos: Protocolo[] = PROTOCOLOS_SEED;
+  const addProtocolo = (p: Protocolo) => {
+    setSelected((prev) => {
+      const next = [...prev];
+      for (const id of p.formulaIds) {
+        const f = allFormulas.find((x) => x.id === id);
+        if (!f || next.find((s) => s.id === f.id)) continue;
+        const { ativos, tomadas } = parseBody(f.body);
+        next.push({ id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) });
+      }
+      return next;
     });
     setPreviewPlans(null);
     setEmitResult(null);
@@ -548,86 +567,138 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
-        {/* Catálogo */}
-        <div className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest" style={{ color: GOLD }}>
-            <FileText className="h-4 w-4" /> Catálogo ({filtered.length})
-          </h3>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              className={`w-full pl-9 ${inputCls}`}
-              placeholder="Buscar fórmula…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        {/* Catálogo e Protocolos — mesmo visual da tela Prescrição (menu) */}
+        <section className="panel-3d min-w-0 space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-sm font-bold uppercase tracking-widest text-primary">
+              <FileText className="h-4 w-4" /> Catálogo e Protocolos
+            </h3>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+              {leftTab === "cat" ? `${filtered.length} disponíveis` : `${allProtocolos.length} protocolos`}
+            </span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="concave-3d grid max-w-md grid-cols-2 gap-1 p-1">
             <button
-              onClick={() => setActiveCategory("all")}
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold ${activeCategory === "all" ? "btn-3d-soft" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setLeftTab("cat")}
+              className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold transition ${leftTab === "cat" ? "btn-3d-soft" : "text-muted-foreground"}`}
             >
-              Todas <span className="opacity-70">{stats.all}</span>
+              <FileText className="h-4 w-4" /> Categorias
             </button>
-            {CATEGORIES.map((c) => {
-              const n = stats[c.id] || 0;
-              if (!n) return null;
-              const active = activeCategory === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveCategory(c.id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold ${active ? "btn-3d-soft" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  <span className="max-w-[140px] truncate">{c.label}</span> <span className="opacity-70">{n}</span>
-                </button>
-              );
-            })}
+            <button
+              onClick={() => setLeftTab("proto")}
+              className={`flex items-center justify-center gap-1.5 rounded-md py-2 text-sm font-semibold transition ${leftTab === "proto" ? "btn-3d-soft" : "text-muted-foreground"}`}
+            >
+              <Layers className="h-4 w-4" /> Protocolos
+            </button>
           </div>
-          <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
-            {filtered.map((f) => {
-              const cat = CATEGORIES.find((c) => c.id === f.cat);
-              const isSel = !!selected.find((s) => s.id === f.id);
-              return (
-                <div key={f.id} className="panel-3d-sub rounded-md p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      {cat && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: GOLD }}>
-                          {cat.label}
-                        </span>
-                      )}
-                      <h4 className="text-sm font-semibold text-foreground">{f.name}</h4>
-                      <p className="mt-0.5 line-clamp-2 font-mono text-[11px] text-muted-foreground">
-                        {f.body.split("\n").slice(0, 2).join(" • ")}
-                      </p>
-                    </div>
+          {leftTab === "cat" ? (
+            <>
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  className={`w-full pl-9 ${inputCls}`}
+                  placeholder="Buscar fórmula…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setActiveCategory("all")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeCategory === "all" ? "btn-3d" : "btn-3d-soft"}`}
+                >
+                  <FileText className="h-3.5 w-3.5" /> Todas <span className="font-mono opacity-70">{stats.all}</span>
+                </button>
+                {CATEGORIES.map((c) => {
+                  const Icon = c.icon;
+                  const n = stats[c.id] || 0;
+                  if (!n) return null;
+                  const active = activeCategory === c.id;
+                  return (
                     <button
-                      onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))}
-                      className={`shrink-0 rounded-md px-2.5 py-1.5 text-xs font-semibold ${isSel ? "btn-3d-soft" : "btn-3d-soft"}`}
-                      style={isSel ? { color: "#34d399" } : { color: GOLD }}
+                      key={c.id}
+                      onClick={() => setActiveCategory(c.id)}
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${active ? "btn-3d" : "btn-3d-soft"}`}
                     >
-                      {isSel ? (
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Incluída
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="max-w-[150px] truncate">{c.label}</span>
+                      <span className="font-mono opacity-70">{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid max-h-[560px] grid-cols-1 gap-3 overflow-y-auto pr-1 2xl:grid-cols-2">
+                {filtered.map((f) => {
+                  const cat = CATEGORIES.find((c) => c.id === f.cat);
+                  const isSel = !!selected.find((s) => s.id === f.id);
+                  return (
+                    <div key={f.id} className={`panel-3d-sub flex flex-col p-3 ${isSel ? "panel-3d-active" : ""}`}>
+                      <div className="min-w-0 flex-1">
+                        {cat && (
+                          <span className="rounded-sm bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                            {cat.label}
+                          </span>
+                        )}
+                        <h4 className="mt-1 text-sm font-semibold text-foreground">{f.name}</h4>
+                        <p className="mt-1 line-clamp-2 font-mono text-[11px] text-muted-foreground">
+                          {f.body.split("\n").slice(0, 2).join(" • ")}
+                        </p>
+                        <span
+                          className="mt-1.5 inline-flex items-center gap-1 rounded-sm border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-700"
+                          title="Valor médio de mercado — uso interno, não aparece para o cliente"
+                        >
+                          ≈ {formatBRL(getPrecoMedio(f))} <span className="font-sans tracking-wide">INTERNO</span>
                         </span>
-                      ) : (
-                        <span className="flex items-center gap-1">
-                          <Plus className="h-3.5 w-3.5" />
-                          Adicionar
-                        </span>
-                      )}
+                      </div>
+                      <button
+                        onClick={() => (isSel ? removeFormula(f.id) : addFormula(f))}
+                        className={`mt-2.5 flex w-full items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-semibold ${isSel ? "btn-3d-soft" : "btn-3d"}`}
+                      >
+                        {isSel ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4" /> Incluída
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4" /> Adicionar
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <p className="col-span-full py-8 text-center text-sm text-muted-foreground">Nenhuma fórmula encontrada.</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="grid max-h-[560px] grid-cols-1 gap-3 overflow-y-auto pr-1">
+              <p className="px-1 text-xs text-muted-foreground">Clique para adicionar o conjunto inteiro à receita.</p>
+              {allProtocolos.map((p) => (
+                <div key={p.id} className="panel-3d-sub p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                      <Layers className="h-4 w-4 text-primary" /> {p.nome}
+                    </h4>
+                    <button
+                      onClick={() => addProtocolo(p)}
+                      className="btn-3d flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar
                     </button>
                   </div>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    {p.formulaIds
+                      .map((id) => allFormulas.find((f) => f.id === id)?.name)
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </p>
                 </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma fórmula encontrada.</p>
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Receita selecionada + roteamento + emissão */}
         <div className="space-y-3">
