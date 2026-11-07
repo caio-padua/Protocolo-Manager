@@ -45,5 +45,16 @@ ao separar empresas e locais. Um arquivo exportado não autoriza recriar, sobres
 **Why:** o responsável forneceu a exportação das agendas e pediu expressamente que sua agenda
 permaneça no Instituto Pádua.
 
-**How to apply:** verificar vínculos e permissões sem alterar os eventos; não importar a cópia
-automaticamente nem presumir acesso da equipe a calendários pessoais.
+**How to apply:** verificar vínculos e permissões sem alterar os eventos; uma
+importação de arquivo exige pedido explícito e não autoriza presumir acesso da
+equipe a calendários pessoais.
+
+**Decisão posterior:** transferir a agenda anteriormente exibida no Pádua e seus
+locais para o Paluzze; em seguida importar o arquivo enviado para o Pádua.
+
+**Why:** o responsável esclareceu que deseja a agenda anterior integralmente no
+Paluzze e a agenda do arquivo como nova agenda do Pádua.
+
+**How to apply:** tratar a transferência da agenda separadamente da titularidade
+de prontuários e protocolos; preservar os eventos externos e impedir que as duas
+empresas alterem acidentalmente o mesmo evento.
