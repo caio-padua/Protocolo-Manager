@@ -126,6 +126,9 @@ router.get("/sessions", async (req, res): Promise<void> => {
   const empresaId = resolveEmpresaId(req);
   let sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.empresaId, empresaId));
 
+  // Consultas do prontuário por cliente/protocolo preservam o histórico clínico.
+  // A visão geral da agenda não inclui compromissos retirados.
+  if (!query.data.clientId && !query.data.protocolId) sessions = sessions.filter(s => !s.agendaArchived);
   if (query.data.clientId) sessions = sessions.filter(s => s.clientId === query.data.clientId);
   if (query.data.protocolId) sessions = sessions.filter(s => s.protocolId === query.data.protocolId);
   if (query.data.status) sessions = sessions.filter(s => s.status === query.data.status);
@@ -141,7 +144,9 @@ router.get("/sessions", async (req, res): Promise<void> => {
 router.get("/sessions/ics", async (req, res): Promise<void> => {
   const { dateFrom, dateTo, professionalId, clientId, protocolId } = req.query as Record<string, string>;
 
-  let sessions = await db.select().from(sessionsTable);
+  const empresaId = resolveEmpresaId(req);
+  let sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.empresaId, empresaId));
+  sessions = sessions.filter(s => !s.agendaArchived);
 
   if (dateFrom) sessions = sessions.filter(s => s.scheduledDate >= dateFrom);
   if (dateTo) sessions = sessions.filter(s => s.scheduledDate <= dateTo);
@@ -171,7 +176,7 @@ router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
   }
 
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id));
-  if (!session) {
+  if (!session || session.agendaArchived || session.empresaId !== resolveEmpresaId(req)) {
     res.status(404).json({ error: "Session not found" });
     return;
   }

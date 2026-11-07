@@ -23,10 +23,10 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   const totalClients = clients.length;
   const activeProtocols = protocols.filter(p => p.status === "active" || p.status === "validated").length;
 
-  const todaySessions = sessions.filter(s => s.scheduledDate === today);
+  const todaySessions = sessions.filter(s => !s.agendaArchived && s.scheduledDate === today);
   const weekStartStr = weekStart.toISOString().split("T")[0];
   const weekEndStr = weekEnd.toISOString().split("T")[0];
-  const weekSessions = sessions.filter(s => s.scheduledDate >= weekStartStr && s.scheduledDate <= weekEndStr);
+  const weekSessions = sessions.filter(s => !s.agendaArchived && s.scheduledDate >= weekStartStr && s.scheduledDate <= weekEndStr);
 
   const pendingPayments = payments.filter(p => p.status === "pending" || p.status === "partial" || p.status === "overdue");
   const pendingPaymentsValue = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -70,6 +70,7 @@ router.get("/dashboard/upcoming-sessions", async (_req, res): Promise<void> => {
 
   const sessions = await db.select().from(sessionsTable);
   const upcomingSessions = sessions.filter(s =>
+    !s.agendaArchived &&
     s.scheduledDate >= today &&
     s.scheduledDate <= nextWeekStr &&
     s.status !== "cancelled"

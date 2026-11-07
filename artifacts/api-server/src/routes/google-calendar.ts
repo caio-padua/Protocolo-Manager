@@ -114,7 +114,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
   }
 
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session) {
+  if (!session || session.agendaArchived) {
     res.status(404).json({ error: "Session not found" });
     return;
   }
@@ -273,7 +273,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
 
   const sessions = await db.select().from(sessionsTable);
   const weekSessions = sessions.filter(
-    s => s.scheduledDate >= dateFrom && s.scheduledDate <= dateTo && s.status !== "cancelled"
+    s => !s.agendaArchived && s.scheduledDate >= dateFrom && s.scheduledDate <= dateTo && s.status !== "cancelled"
   );
 
   const results: Array<{ sessionId: number; clientName: string; success: boolean; eventId?: string; error?: string }> = [];

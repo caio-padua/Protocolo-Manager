@@ -58,7 +58,7 @@ router.get("/ical/feed/:token", async (req, res): Promise<void> => {
   // SUB-04 item 7: o feed assinado leva apenas as sessões FUTURAS (de hoje em diante),
   // para a agenda do cliente refletir só o que ainda vai acontecer.
   const today = new Date().toISOString().slice(0, 10);
-  const sessions = allSessions.filter(s => s.scheduledDate >= today);
+  const sessions = allSessions.filter(s => !s.agendaArchived && s.scheduledDate >= today);
   sessions.sort((a, b) =>
     a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
   );

@@ -7,7 +7,7 @@ Instituto Paluzze; depois importar a agenda enviada para o Instituto Pádua.
 
 ## Requisitos
 
-1. Preservar os compromissos e seus vínculos originais durante a transferência.
+1. Preservar os vínculos clínicos dos compromissos durante a transferência.
 2. Não transferir prontuários, protocolos ou cadastros de clientes por inferência.
 3. Após a transferência, a agenda antiga pertence ao Paluzze; a importada,
    ao Pádua, com suas cores originais.
@@ -20,6 +20,17 @@ Instituto Paluzze; depois importar a agenda enviada para o Instituto Pádua.
 8. Registrar no cadastro do Pádua a conta Google solicitada e o identificador
    da sua agenda principal, sem confundir esse registro com importação ou
    visualização dos compromissos.
+9. Decisão posterior do proprietário: retirar da agenda do sistema os 57
+   compromissos cuja identificação coincide com o arquivo Google, mantendo os
+   eventos na conta Google e preservando suas aplicações e histórico clínico.
+   A importação no sistema deverá excluir esses 57 eventos pelo identificador
+   de origem, sem apagá-los do Google nem recriá-los em outra empresa.
+10. Desvincular os cadastros de clientes dos locais transferidos sem alterar
+    a empresa dos clientes. Corrigir previamente os valores padrão que
+    apontam para o local transferido e revisar a emissão clínica que depende
+    desse vínculo.
+11. Um profissional vinculado a um local não deve ganhar acesso automático
+    à empresa destinatária simplesmente por esse local mudar de empresa.
 
 ## Fontes e efeitos verificados
 
@@ -51,6 +62,9 @@ Instituto Paluzze; depois importar a agenda enviada para o Instituto Pádua.
 | Calendário pessoal fica acessível a toda a clínica | Acesso restrito; não presumir autorização da equipe. |
 | Importação repete eventos ou perde recorrências e exceções | Identidade estável por calendário, evento e ocorrência; testar reimportação. |
 | O vínculo de profissional ao local concede acesso a outra empresa | Revisar os efeitos de permissão antes de alterar os vínculos. |
+| Retirar sessão remove aplicações e histórico vinculados | Ocultar a sessão apenas das jornadas de agenda, conservando os registros clínicos. |
+| Ocultar compromissos libera horários ainda ocupados no Google | Manter bloqueio de horário até o motor consultar ocupação da agenda Google de forma confiável. |
+| Os clientes perdem o local exigido para emissão clínica | Não inventar outro local; corrigir o fluxo de autorização antes de desligar os vínculos. |
 | Mudanças parciais deixam compromissos ou locais no lugar errado | Executar transferência apenas após as barreiras, com transação e conferência. |
 
 ## Pronto

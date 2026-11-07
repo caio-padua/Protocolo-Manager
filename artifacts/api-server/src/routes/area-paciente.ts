@@ -213,7 +213,7 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
     const upcoming = await db
       .select()
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.clientId, clientId), gte(sessionsTable.scheduledDate, todayISO())))
+      .where(and(eq(sessionsTable.clientId, clientId), eq(sessionsTable.agendaArchived, false), gte(sessionsTable.scheduledDate, todayISO())))
       .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.scheduledTime));
 
     const nextSession = upcoming.find((s) => s.status === "scheduled" || s.status === "confirmed") ?? upcoming[0] ?? null;
@@ -307,7 +307,7 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
     const sessions = await db
       .select()
       .from(sessionsTable)
-      .where(eq(sessionsTable.clientId, clientId))
+      .where(and(eq(sessionsTable.clientId, clientId), eq(sessionsTable.agendaArchived, false)))
       .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.scheduledTime));
 
     const allSubstances = await db.select().from(substancesTable);
@@ -685,7 +685,7 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
   try {
     const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
     // Mensagem generica (nao revela se a sessao existe nem que e de outra cliente) -> anti-IDOR
-    if (!session || session.clientId !== clientId) {
+    if (!session || session.agendaArchived || session.clientId !== clientId) {
       res.status(404).json({ error: "Sessão não encontrada." });
       return;
     }

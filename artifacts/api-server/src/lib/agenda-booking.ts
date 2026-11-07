@@ -240,7 +240,7 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
   if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
 
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session || session.clientId !== clientId) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  if (!session || session.agendaArchived || session.clientId !== clientId) return { ok: false, status: 404, error: "Sessão não encontrada" };
   if (session.status !== "scheduled") return { ok: false, status: 409, error: "Só é possível remarcar sessões agendadas." };
 
   const computed = await computeResourceSlots(resourceId, date, null);
@@ -344,7 +344,7 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
 
 export async function cancelBooking(sessionId: number): Promise<BookResult> {
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  if (!session || session.agendaArchived) return { ok: false, status: 404, error: "Sessão não encontrada" };
 
   if (session.googleEventId) {
     try {

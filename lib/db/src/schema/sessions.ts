@@ -27,6 +27,8 @@ export const sessionsTable = pgTable("sessions", {
   // Texto livre (label + endereço formatado) para simplicidade de consulta nos PDFs.
   serviceAddress: text("service_address"),
   empresaId: integer("empresa_id"),
+  // Retirada da agenda sem destruir a sessão e suas aplicações clínicas.
+  agendaArchived: boolean("agenda_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
