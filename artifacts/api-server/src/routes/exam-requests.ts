@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request } from "express";
 import { randomBytes } from "node:crypto";
-import { db, examRequestPdfsTable } from "@workspace/db";
+import { db, examRequestPdfsTable, professionalsTable } from "@workspace/db";
+import { ObjectStorageService } from "../lib/objectStorage";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { generateExamRequestPdf, type ExamRequestItem } from "../lib/exam-request-pdf";
@@ -202,6 +203,23 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
     pdfBuffer: Buffer;
   }> = [];
 
+  // Imagem da assinatura cadastrada do médico (mesma fonte do receituário). Ausente = o PDF avisa.
+  let assinaturaImagem: { bytes: Uint8Array; mime: "image/png" | "image/jpeg" } | undefined;
+  try {
+    const [rec] = await db.select({ signatureUrl: professionalsTable.signatureUrl })
+      .from(professionalsTable).where(eq(professionalsTable.id, identity.professional.id)).limit(1);
+    const sigPath = rec?.signatureUrl?.replace(/^\/api\/storage/, "");
+    if (sigPath && sigPath.startsWith("/objects/uploads/signatures/")) {
+      const f = await new ObjectStorageService().getObjectEntityFile(sigPath);
+      const [bytes] = await f.download();
+      if (bytes.length && bytes.length <= 2_000_000) {
+        assinaturaImagem = { bytes, mime: sigPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg" };
+      }
+    }
+  } catch (e) {
+    console.warn("[exam-requests] assinatura cadastrada não lida:", (e as Error)?.message);
+  }
+
   for (const { tipo, items } of jobs) {
     const tipoLabel = TIPO_LABEL[tipo] ?? tipo;
     const unsignedPdfBytes = await generateExamRequestPdf({
@@ -215,6 +233,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
       observacao: body.observacao ?? null,
       items,
       certificado: signer.meta,
+      assinaturaImagem,
     });
     const pdfBytes = await signExistingClinicalPdf(unsignedPdfBytes, signer, "Solicitacao de exames");
     const pdfBuffer = Buffer.from(pdfBytes);
