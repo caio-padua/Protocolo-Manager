@@ -5,7 +5,7 @@
 // receituário usa o emissor "Instituto Pádua" (não PAXTER) — regra clínica.
 // O conteúdo regulatório (faixa Anvisa, SNCR, boilerplate, itens) continua aqui.
 import { rgb, PDFFont, PDFPage } from "pdf-lib";
-import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
+import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 import type { RecipePlan, PrescriptionItemInput } from "./desmembramento";
 
@@ -252,6 +252,14 @@ function drawItem(
   topoPagina: number,
 ) {
   const { margem, larguraConteudo, font, fontBold } = cfg;
+  // Cada tomada em sua própria linha ("Posologia:" abre o grupo).
+  const linhasPosologia = (texto: string) => {
+    const tomadas = separarTomadas(texto);
+    return [
+      "Posologia:",
+      ...tomadas.flatMap((t) => wrapText(`  ${t}`, font, 9, larguraConteudo - 12)),
+    ];
+  };
   let curPage = page;
   let y = getY();
 
@@ -259,7 +267,7 @@ function drawItem(
   const posPrevia = item.posologia || buildPosologia(item);
   const altura = 16
     + (item.ativos ? wrapText(item.ativos, font, 9, larguraConteudo - 12).length * 11 : 0)
-    + (posPrevia ? 2 + wrapText(`Posologia: ${posPrevia}`, font, 9, larguraConteudo - 12).length * 11 : 0);
+    + (posPrevia ? 2 + linhasPosologia(posPrevia).length * 11 : 0);
   if (blocoDeveIrParaProximaPagina({
     y, alturaBloco: altura, limiteInferior: 72, linhaEmBranco: 11, topoPaginaNova: topoPagina,
   })) {
@@ -300,7 +308,7 @@ function drawItem(
   const pos = item.posologia || buildPosologia(item);
   if (pos) {
     y -= 2;
-    for (const l of wrapText(`Posologia: ${pos}`, font, 9, larguraConteudo - 12)) {
+    for (const l of linhasPosologia(pos)) {
       ensure(11);
       curPage.drawText(l, { x: margem + 12, y, size: 9, font, color: COR.navy700 });
       y -= 11;

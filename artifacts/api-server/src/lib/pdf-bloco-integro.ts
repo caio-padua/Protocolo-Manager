@@ -31,3 +31,13 @@ export function blocoDeveIrParaProximaPagina(r: RegraBlocoIntegro): boolean {
   // Se nem em página vazia cabe, empurrar não ajuda: deixa fluir.
   return cabeEmPaginaVazia;
 }
+
+/** Uma tomada por linha: separa por quebra de linha, ponto e vírgula ou " e N dose(s)". */
+export function separarTomadas(posologia?: string | null): string[] {
+  return (posologia ?? "")
+    .split(/\n|;/)
+    .flatMap((trecho) => trecho.split(/\s+e\s+(?=\d+\s*doses?\b)/i))
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+

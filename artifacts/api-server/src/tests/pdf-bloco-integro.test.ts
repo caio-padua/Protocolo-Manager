@@ -111,3 +111,60 @@ describe("Documentos médicos não cortam item entre páginas (regra 3)", () => 
     assertSemCorte(pgs, 40);
   });
 });
+
+import { separarTomadas } from "../lib/pdf-bloco-integro";
+import { agruparOpcoesPorPagina } from "../lib/dieta-pdf";
+
+describe("Posologia: uma tomada por linha, Via/Forma em linha", () => {
+  it("separarTomadas divide por ponto e vírgula, quebra de linha e ' e N doses'", () => {
+    expect(separarTomadas("1 dose VO – Antes do Café; 1 dose VO – Antes do Jantar")).toEqual([
+      "1 dose VO – Antes do Café", "1 dose VO – Antes do Jantar"]);
+    expect(separarTomadas("1 dose VO - De manhã e 1 dose SL - À tarde e 1 dose SL - À Noite")).toHaveLength(3);
+    expect(separarTomadas("1 dose VO\n2 doses VO")).toHaveLength(2);
+    expect(separarTomadas("")).toEqual([]);
+  });
+
+  it("PDF do receituário: tomadas em linhas separadas, Via e Forma na mesma linha, rótulo EB Garamond", async () => {
+    const bytes = await generateReceituarioPdfV2({
+      medicoName: "Medico Teste", medicoCrm: "000000", clinicaNome: "Clinica Teste",
+      pacienteNome: "Paciente Sintetico", assinaturaDigitalEstado: "sem_certificado_vencido",
+      formulas: [{
+        nome: "Probiotico Teste", ativos: "Lactobacillus 10 bilhoes",
+        posologia: "1 dose VO – Antes do Café da Manhã; 1 dose VO – Antes do Jantar",
+        via: "Oral", forma: "Probióticos",
+      }],
+    });
+    const dir = mkdtempSync(join(tmpdir(), "pdfpos-"));
+    const f = join(dir, "d.pdf");
+    writeFileSync(f, bytes);
+    const txt = execFileSync("pdftotext", ["-layout", f, "-"], { encoding: "utf8" }).split("\n");
+    const cafe = txt.findIndex((l) => l.includes("Café da Manhã"));
+    const jantar = txt.findIndex((l) => l.includes("Antes do Jantar"));
+    expect(cafe).toBeGreaterThan(-1);
+    expect(jantar).toBeGreaterThan(cafe);
+    expect(txt[cafe]).not.toContain("Jantar");
+    expect(txt.some((l) => l.includes("Posologia:"))).toBe(true);
+    const linhaVia = txt.find((l) => l.includes("Via:"));
+    expect(linhaVia).toBeDefined();
+    expect(linhaVia).toContain("Forma:");
+    const fontes = execFileSync("pdffonts", [f], { encoding: "utf8" });
+    expect(fontes).toMatch(/Garamond/i);
+  });
+});
+
+describe("Dieta: opção de refeição nunca descartada nem cortada", () => {
+  const opcao = (n: number, itens: number) => ({
+    numero: n, totalKcal: 400, proteinaG: 30, carboidratoG: 40, gorduraG: 10,
+    itens: Array.from({ length: itens }, (_, i) => ({
+      nome: `Alimento ${i}`, medidaCaseira: "1 porção", pesoG: 100, kcal: 100, proteinaG: 5,
+    })),
+  });
+  it("3 opções curtas: 1 página", () => {
+    expect(agruparOpcoesPorPagina([opcao(1, 4), opcao(2, 4), opcao(3, 4)] as never)).toHaveLength(1);
+  });
+  it("opções longas: vão inteiras para páginas seguintes, nenhuma perdida", () => {
+    const g = agruparOpcoesPorPagina([opcao(1, 25), opcao(2, 25), opcao(3, 25)] as never);
+    expect(g.length).toBeGreaterThan(1);
+    expect(g.flat()).toHaveLength(3);
+  });
+});

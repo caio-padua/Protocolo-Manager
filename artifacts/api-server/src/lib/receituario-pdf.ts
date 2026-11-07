@@ -8,7 +8,7 @@ import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
 import QRCode from "qrcode";
-import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
+import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
 const NAVY   = rgb(0.082, 0.11,  0.18);   // #151C2E
@@ -458,6 +458,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     readFontAsset(bodySerif ? "EBGaramond-Regular.ttf" : "Manrope-Regular.woff"),
     readFontAsset(bodySerif ? "EBGaramond-Bold.ttf" : "Manrope-Bold.woff"),
   ]);
+  // Rótulos (Via, Forma, Posologia): sempre EB Garamond itálico — clássico e elegante.
+  const rotuloBytes = titleSerif ? titleItalicBytes : await readFontAsset("EBGaramond-SemiBoldItalic.ttf");
+  const fontRotulo = await pdfDoc.embedFont(rotuloBytes, { subset: false, features: { liga: false, clig: false } });
   const [titleReg, titleBold, fontReg, fontBold, fontItal] = await Promise.all([
     pdfDoc.embedFont(titleRegularBytes, titleSerif ? { subset: false, features: { liga: false, clig: false } } : { subset: true, features: { liga: false, clig: false } }),
     pdfDoc.embedFont(titleBoldBytes, titleSerif ? { subset: false, features: { liga: false, clig: false } } : { subset: true, features: { liga: false, clig: false } }),
@@ -978,9 +981,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       .filter((line) => line.trim()).reduce((total, line) =>
         total + wrapLines(`  ${line.trim()}`, fontReg, BODY_SIZE, CW - 14).length, 0);
     const nAtivos = lineCount(f.ativos);
-    const nPos = lineCount(f.posologia);
-    const itemHeight = 16 + ((f.via || f.forma) ? 21 : 0) +
-      nAtivos * BODY_LINE_HEIGHT + (nPos ? 13 + nPos * BODY_LINE_HEIGHT : 0) +
+    // Cada tomada ocupa a(s) sua(s) própria(s) linha(s), uma embaixo da outra.
+    const tomadas = separarTomadas(f.posologia);
+    const nPos = tomadas.reduce((total, t) =>
+      total + wrapLines(`  ${t}`, fontReg, BODY_SIZE, CW - 14).length, 0);
+    const itemHeight = 16 + ((f.via || f.forma) ? 13 : 0) +
+      nAtivos * BODY_LINE_HEIGHT + (nPos ? 15 + nPos * BODY_LINE_HEIGHT : 0) +
       (f.observacao ? 11 : 0) + 18;
     // Regra do CEO: fórmula inteira + 1 linha em branco, senão vai inteira para a próxima página.
     if (blocoDeveIrParaProximaPagina({
@@ -996,22 +1002,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       { x: M + 18, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
     y -= 16;
 
-    // D01 corrigido: Via | Forma vêm ANTES dos ativos (motor: FormulaReal linha 198-213)
+    // Via e Forma em UMA linha, alinhadas por duas guias verticais fixas
+    // (iguais em todas as fórmulas), logo abaixo do nome.
     if (f.via || f.forma) {
-      const viaCols = [
-        f.via   ? { label: "Via",   value: f.via }   : null,
-        f.forma ? { label: "Forma", value: f.forma } : null,
-      ].filter(Boolean) as { label: string; value: string }[];
-      const colW = 60;
-      for (let ci = 0; ci < viaCols.length; ci++) {
-        const cx = M + 26 + ci * colW;
-        const c  = viaCols[ci];
-        page.drawText(c.label.toUpperCase(),
-          { x: cx, y, font: fontBold, size: 6.5, color: TINTA });
-        page.drawText(c.value,
-          { x: cx, y: y - 9, font: fontBold, size: 7.5, color: TINTA });
-      }
-      y -= 21;
+      const xVia = M + 14;
+      const xForma = M + 14 + 150;
+      const par = (rotulo: string, valor: string, x: number) => {
+        page.drawText(`${rotulo}:`, { x, y, font: fontRotulo, size: 9.5, color: TINTA });
+        const w = fontRotulo.widthOfTextAtSize(`${rotulo}: `, 9.5);
+        page.drawText(safeTxt(valor), { x: x + w, y, font: fontReg, size: BODY_SIZE, color: TINTA });
+      };
+      if (f.via) par("Via", f.via, xVia);
+      if (f.forma) par("Forma", f.forma, xForma);
+      y -= 13;
     }
 
     // Ativos — fonte monospace-like (motor: fontFamily monospace, fontSize 8)
@@ -1025,16 +1028,14 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       }
     }
 
-    // D02 corrigido: posologia com ▸ prefix + cor verde #0a7a6e (motor: linha 220-222)
-    if (f.posologia?.trim()) {
+    // Posologia: rótulo clássico + cada tomada em sua própria linha.
+    if (tomadas.length) {
       ensureSpace(27);
       y -= 2;
-      page.drawText("POSOLOGIA:", { x: M + 14, y, font: fontBold, size: 7.5, color: TINTA });
-      y -= 11;
-      for (const raw of f.posologia.split("\n")) {
-        const ln = raw.trim();
-        if (!ln) continue;
-        drawWrappedPaged(`  ${ln}`, {
+      page.drawText("Posologia:", { x: M + 14, y, font: fontRotulo, size: 10.5, color: TINTA });
+      y -= 13;
+      for (const t of tomadas) {
+        drawWrappedPaged(`  ${t}`, {
           x: M + 14, maxWidth: CW - 14, font: fontReg, size: BODY_SIZE, color: TINTA, lineHeight: BODY_LINE_HEIGHT,
         });
       }
