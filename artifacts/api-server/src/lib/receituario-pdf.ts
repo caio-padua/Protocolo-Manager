@@ -9,6 +9,7 @@ import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
 import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
+import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
 const NAVY   = rgb(0.082, 0.11,  0.18);   // #151C2E
@@ -1083,105 +1084,14 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   drawDecorLine(y, true, 0.5, "ornamentada", GOLD);
   y -= 14;
 
-  // Certificado + QR à ESQUERDA; desenho da assinatura à DIREITA, na mesma altura.
-  const SIG_W       = 150;
-  const CERT_X      = M;
-  const CERT_W      = CW - SIG_W - 14;
-  const SIG_X       = PAGE_W - M - SIG_W;
-  const CERT_H      = 64;
-  const sigTopY     = y;
-  y = sigTopY - 30; // linha da assinatura centrada na altura do quadro do certificado
-
-  // DIREITA: imagem real da assinatura vinculada ao cadastro do profissional.
-  {
-    if (data.assinaturaImagem) {
-      try {
-        const image = data.assinaturaImagem.mime === "image/png"
-          ? await pdfDoc.embedPng(data.assinaturaImagem.bytes)
-          : await pdfDoc.embedJpg(data.assinaturaImagem.bytes);
-        const maxW = 130;
-        const maxH = 28;
-        const scale = Math.min(maxW / image.width, maxH / image.height);
-        page.drawImage(image, {
-          x: SIG_X + (maxW - image.width * scale) / 2,
-          y: y + 3,
-          width: image.width * scale,
-          height: image.height * scale,
-        });
-      } catch {
-        throw new Error("Não foi possível inserir a imagem de assinatura cadastrada.");
-      }
-    } else {
-      page.drawText("Assinatura não cadastrada", {
-        x: SIG_X, y: y + 12, font: fontReg, size: 6, color: MUTED,
-      });
-    }
-  }
-  page.drawLine({ start: { x: SIG_X, y }, end: { x: SIG_X + 130, y },
-    thickness: 0.5, color: DARK });
-  y -= 10;
-  page.drawText(safeTxt(data.medicoName),
-    { x: SIG_X, y, font: titleBold, size: 8, color: DARK });
-  y -= 10;
-  page.drawText(crmRqeStr,
-    { x: SIG_X, y, font: fontReg, size: 7, color: MUTED });
-  y -= 10;
-  page.drawText(`São Paulo, ${dataExtenso}`,
-    { x: SIG_X, y, font: fontReg, size: 7, color: MUTED });
-
-  // ESQUERDA: BlocoCertificado (motor: título + 4 campos + QR placeholder)
-  page.drawRectangle({ x: CERT_X, y: sigTopY - CERT_H, width: CERT_W, height: CERT_H,
-    color: rgb(0.99, 0.98, 0.96), borderColor: GOLD, borderWidth: 0.6 });
-  const certTitulo = signer ? "DOCUMENTO ASSINADO DIGITALMENTE" : "GERADA SEM ASSINATURA DIGITAL";
-  const certTitW   = (titleBold as any).widthOfTextAtSize(certTitulo, 5.5);
-  page.drawText(certTitulo,
-    { x: CERT_X + (CERT_W - certTitW) / 2, y: sigTopY - 10,
-      font: titleBold, size: 5.5, color: signer ? rgb(0.05, 0.42, 0.21) : rgb(0.72, 0.12, 0.12) });
-  // ── Bloco de certificado ICP-Brasil com dados reais do cert ativo ────────
-  // QR fica no canto inferior direito (28×28 pt); texto à esquerda do QR.
-  const QR_S   = 28;                         // tamanho do QR em pt
-  const QR_X   = CERT_X + CERT_W - QR_S - 4;
-  const QR_Y   = sigTopY - CERT_H + 4;
-  const TXT_W  = QR_X - CERT_X - 9;         // largura disponível para os campos
-
-  // Campos preenchidos com dados reais do cert (fallback para dados do médico)
-  const fmtValidTo = certMeta?.validTo
-    ? fmtData(certMeta.validTo.slice(0, 10))
-    : data.certificadoValidoAte
-      ? fmtData(data.certificadoValidoAte.slice(0, 10))
-      : "—";
-  const serialFmt = certMeta?.serial ? certMeta.serial.slice(0, 20) : "—";
-  const certFields: [string, string][] = signer
-    ? [
-        ["Assinante", certMeta?.assinante ?? safeTxt(data.medicoName)],
-        ["CPF", certMeta?.cpf ?? "—"],
-        ["Certificadora", certMeta?.ac ?? "ICP-Brasil"],
-        ["Número de série", serialFmt],
-        ["Válido até", fmtValidTo],
-        ["QR", data.consultaUrl ? "Abre esta receita" : "Validador do ITI"],
-      ]
-    : [
-        ["Responsável", safeTxt(data.medicoName)],
-        ["Situação", "Certificado vencido"],
-        ["Vencimento", fmtValidTo],
-        ["Aviso", "Exige assinatura manual"],
-        ["Acesso", "Somente por acesso autenticado"],
-      ];
-  let certY = sigTopY - 18;
-  for (const [k, v] of certFields) {
-    page.drawText(`${k}:`,
-      { x: CERT_X + 5, y: certY, font: fontBold, size: 4.5, color: MUTED });
-    page.drawText(v.slice(0, 52),
-      { x: CERT_X + 38, y: certY, font: fontReg, size: 5, color: DARK });
-    certY -= 7;
-  }
-
-  // O QR da emissão abre diretamente a receita no celular.
-  if (certQrImg) {
-    page.drawImage(certQrImg, { x: QR_X, y: QR_Y, width: QR_S, height: QR_S });
-  }
-
-  y = sigTopY - CERT_H - 12;
+  await desenharAssinatura3a1c(pdfDoc, page, y - ASSINATURA_3A1C_ALTURA, {
+    certificado: certMeta,
+    profissional: data.medicoName,
+    crm: data.medicoCrm,
+    assinaturaImagem: data.assinaturaImagem,
+    vencimento: data.certificadoValidoAte,
+  });
+  y -= ASSINATURA_3A1C_ALTURA + 12;
 
   // ══════════════════════════════════════════════════════════════════════════
   // 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor/Farmácia)

@@ -704,3 +704,31 @@ mtime_ms = 1794026388599
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a8250a36-85a2-4c5a-878d-153a77d181cb/ebdd48ee-c57c-4d03-bac1-91392e462b15"
 storage_version_token = "1794026420113173"
 content_type = "image/png"
+
+[[outputs]]
+id = "VDdxNAp32fBKYvDZ6Gxjg"
+uri = "file://generated-artifacts/modelo-3a1c/receita-demonstracao.png"
+type = "image"
+title = "Receita de demonstração"
+description = "Modelo 3A-1C com dados fictícios, sem validade clínica."
+logical_id = "00904953-126c-416f-badc-af6988b781d5"
+content_hash = "sha256:660d973caa12686c5308ff526ec381dc30041a752d95e97b230c8bc25688b641"
+size = 243880
+mtime_ms = 1794028184935
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/00904953-126c-416f-badc-af6988b781d5/fc9bef98-d351-45c5-be33-9766fdc6dc39"
+storage_version_token = "1794028219877107"
+content_type = "image/png"
+
+[[outputs]]
+id = "adychK8Y9xvmHObRfFaR1"
+uri = "file://generated-artifacts/modelo-3a1c/exames-demonstracao.png"
+type = "image"
+title = "Pedido de exames de demonstração"
+description = "Modelo 3A-1C com dados fictícios, sem validade clínica."
+logical_id = "90fd1742-286e-43d3-893e-55975d8ca74c"
+content_hash = "sha256:f1092ad36cf1cd9299d33bbdcd4eacbdc22fa9fd292c2c5669bfaca5d33c9c39"
+size = 182404
+mtime_ms = 1794028186279
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/90fd1742-286e-43d3-893e-55975d8ca74c/726dfed7-abda-48f0-b33c-cd92f6fc78e7"
+storage_version_token = "1794028220912306"
+content_type = "image/png"

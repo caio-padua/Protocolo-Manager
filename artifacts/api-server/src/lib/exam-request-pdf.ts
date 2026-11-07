@@ -6,9 +6,9 @@
 // (lib/documentos/padrao.ts) para cabeçalho-mastro PAXTER, cores da marca, rodapé
 // e paginação. O conteúdo específico (lista de exames) continua aqui.
 import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
-import { PDFFont, rgb } from "pdf-lib";
-import QRCode from "qrcode";
+import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
+import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
 
 export interface ExamRequestItem {
   nomeExame: string;
@@ -139,65 +139,15 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
     }
   }
 
-  // Assinatura no padrão do receituário: quadro do certificado (esquerda, fundo creme, borda ouro,
-  // QR do validador do ITI) e assinatura do médico (direita) na mesma faixa.
-  const c = ctx.certificado;
-  const GOLD = rgb(0.761, 0.627, 0.353);
-  const VERDE = rgb(0.05, 0.42, 0.21);
-  const VERMELHO = rgb(0.72, 0.12, 0.12);
-  const validade = c?.validTo ? c.validTo.slice(0, 10).split("-").reverse().join("/") : "—";
-  const campos: [string, string][] = c ? [
-    ["Assinante", c.assinante],
-    ["CPF", c.cpf ?? "—"],
-    ["Certificadora", c.ac || "ICP-Brasil"],
-    ["Número de série", c.serial ? c.serial.slice(0, 20) : "—"],
-    ["Válido até", validade],
-    ["QR", "Validador do ITI"],
-  ] : [];
-  const SIG_W = 150;
-  const CERT_W = larguraConteudo - SIG_W - 14;
-  const CERT_H = 78;
-  const SIG_X = margem + larguraConteudo - SIG_W;
-  ensureSpace(CERT_H + 50);
+  ensureSpace(ASSINATURA_3A1C_ALTURA + 24);
   y -= 24;
-  const topo = y;
-
-  // Direita: imagem da assinatura, linha, nome, CRM e local/data.
-  let yy = topo - 40;
-  if (ctx.assinaturaImagem) {
-    const img = ctx.assinaturaImagem.mime === "image/png"
-      ? await fab.doc.embedPng(ctx.assinaturaImagem.bytes)
-      : await fab.doc.embedJpg(ctx.assinaturaImagem.bytes);
-    const sc = Math.min(130 / img.width, 30 / img.height);
-    page.drawImage(img, { x: SIG_X + (130 - img.width * sc) / 2, y: yy + 3, width: img.width * sc, height: img.height * sc });
-  } else {
-    page.drawText("Assinatura não cadastrada", { x: SIG_X, y: yy + 12, size: 7, font, color: COR.cinza });
-  }
-  page.drawLine({ start: { x: SIG_X, y: yy }, end: { x: SIG_X + 130, y: yy }, thickness: 0.5, color: COR.tinta });
-  yy -= 11;
-  page.drawText(`${ctx.professionalName ?? ""}`, { x: SIG_X, y: yy, size: 9, font: fontBold, color: COR.tinta });
-  yy -= 11;
-  if (ctx.professionalCrm) page.drawText(`CRM ${ctx.professionalCrm}`, { x: SIG_X, y: yy, size: 7.5, font, color: COR.cinza });
-  yy -= 11;
-  page.drawText(`São Paulo, ${ctx.dateBR}`, { x: SIG_X, y: yy, size: 7.5, font, color: COR.cinza });
-
-  // Esquerda: quadro do certificado.
-  page.drawRectangle({ x: margem, y: topo - CERT_H, width: CERT_W, height: CERT_H, color: rgb(0.99, 0.98, 0.96), borderColor: GOLD, borderWidth: 0.6 });
-  const titulo = c ? "DOCUMENTO ASSINADO DIGITALMENTE" : "GERADO SEM ASSINATURA DIGITAL";
-  const tw = fontBold.widthOfTextAtSize(titulo, 6.5);
-  page.drawText(titulo, { x: margem + (CERT_W - tw) / 2, y: topo - 11, size: 6.5, font: fontBold, color: c ? VERDE : VERMELHO });
-  let cy = topo - 24;
-  for (const [k, v] of campos) {
-    page.drawText(`${k}:`, { x: margem + 6, y: cy, size: 6, font: fontBold, color: COR.cinza });
-    page.drawText(v.slice(0, 48), { x: margem + 62, y: cy, size: 6.5, font, color: COR.tinta });
-    cy -= 8.5;
-  }
-  if (c) {
-    const qr = await fab.doc.embedPng(await QRCode.toBuffer("https://validar.iti.gov.br", { type: "png", margin: 0, width: 160 }));
-    const QS = 40;
-    page.drawImage(qr, { x: margem + CERT_W - QS - 6, y: topo - CERT_H + 6, width: QS, height: QS });
-  }
-  y = topo - CERT_H;
+  await desenharAssinatura3a1c(fab.doc, page, y - ASSINATURA_3A1C_ALTURA, {
+    certificado: ctx.certificado,
+    profissional: ctx.professionalName ?? "",
+    crm: ctx.professionalCrm ?? "",
+    assinaturaImagem: ctx.assinaturaImagem,
+  });
+  y -= ASSINATURA_3A1C_ALTURA;
 
   return fab.finalizar();
 }

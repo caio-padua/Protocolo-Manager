@@ -203,21 +203,28 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
     pdfBuffer: Buffer;
   }> = [];
 
-  // Imagem da assinatura cadastrada do médico (mesma fonte do receituário). Ausente = o PDF avisa.
+  // Imagem do médico autenticado; uma falha de leitura não significa ausência de cadastro.
   let assinaturaImagem: { bytes: Uint8Array; mime: "image/png" | "image/jpeg" } | undefined;
   try {
     const [rec] = await db.select({ signatureUrl: professionalsTable.signatureUrl })
       .from(professionalsTable).where(eq(professionalsTable.id, identity.professional.id)).limit(1);
     const sigPath = rec?.signatureUrl?.replace(/^\/api\/storage/, "");
-    if (sigPath && sigPath.startsWith("/objects/uploads/signatures/")) {
+    if (sigPath) {
+      if (!sigPath.startsWith("/objects/uploads/signatures/")) {
+        res.status(422).json({ error: "O caminho da assinatura cadastrada não é válido." });
+        return;
+      }
       const f = await new ObjectStorageService().getObjectEntityFile(sigPath);
       const [bytes] = await f.download();
-      if (bytes.length && bytes.length <= 2_000_000) {
-        assinaturaImagem = { bytes, mime: sigPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg" };
+      if (!bytes.length || bytes.length > 2_000_000) {
+        res.status(422).json({ error: "A imagem da assinatura cadastrada está vazia ou excede o limite permitido." });
+        return;
       }
+      assinaturaImagem = { bytes, mime: sigPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg" };
     }
-  } catch (e) {
-    console.warn("[exam-requests] assinatura cadastrada não lida:", (e as Error)?.message);
+  } catch {
+    res.status(422).json({ error: "A imagem da assinatura cadastrada não pôde ser lida." });
+    return;
   }
 
   for (const { tipo, items } of jobs) {

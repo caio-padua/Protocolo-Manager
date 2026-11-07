@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from "fs";
 import path from "path";
+import { assinatura3a1cSvg } from "./documentos/bloco-assinatura-3a1c";
 
 // PNG embutido como base64 — evita qualquer dependência de rede no Puppeteer
 // CWD varia: workspace root quando node direto, ou artifacts/api-server quando via pnpm filter
@@ -64,6 +65,7 @@ export interface PrescricaoHtmlData {
   assetsBaseUrl: string;
   certMeta?: CertMetaHtml | null;
   consultaUrl?: string;  // URL pública de consulta (QR code e rodapé apontam para ela)
+  assinaturaImagem?: { bytes: Uint8Array; mime: "image/png" | "image/jpeg" } | null;
 }
 
 function fmtData(iso: string): string {
@@ -150,7 +152,7 @@ function formulaBlock(f: PrescricaoHtmlData["formulas"][number]): string {
       ${f.forma ? `<div style="display:flex;flex-direction:column"><span style="font-size:5.5px;text-transform:uppercase;letter-spacing:1px;color:#aaa">Forma</span><span style="font-weight:600;color:#333">${f.forma}</span></div>` : ""}
     </div>` : "";
   return `
-    <div style="margin-bottom:5mm;border-bottom:0.3px dashed #e5e5e5;padding-bottom:4mm">
+    <div style="margin-bottom:5mm;border-bottom:0.3px dashed #e5e5e5;padding-bottom:4mm;break-inside:avoid">
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
         <span style="font-weight:700;font-size:9px;color:#555;min-width:18px;text-align:right">${String(f.numero).padStart(2,"0")}.</span>
         <span style="font-weight:700;font-size:10px;color:#111;font-family:Georgia,serif">${f.nome}</span>
@@ -245,6 +247,10 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: white; font-family: Georgia, serif; }
     @page { size: A4; margin: 0; }
+    @media print {
+      @page { size: A4; margin: 10mm 0; }
+      #receituario { width: 210mm !important; min-height: 277mm !important; padding: 0 12mm 20mm !important; }
+    }
   </style>
 </head>
 <body>
@@ -297,29 +303,10 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
   </div>
 
   <!-- 5. ASSINATURA -->
-  <div style="display:flex;align-items:flex-start;gap:8mm;padding:4mm 2mm 6mm;border-top:0.3px solid #eee;margin-top:2mm">
-    <div style="flex:0 0 auto;min-width:140px">
-      <div style="font-family:Georgia,serif;font-style:italic;font-size:18px;color:#222;letter-spacing:1px;margin-bottom:3px;border-bottom:0.5px solid #555;padding-bottom:4px;width:130px">Assinatura</div>
-      <div style="font-size:6.5px;color:#333;margin-top:4px;font-family:Arial,sans-serif">
-        ${d.medicoNome}<br/>
-        ${crmRqe}<br/>
-        São Paulo, ${dataExtenso}
-      </div>
-    </div>
-    <!-- Bloco certificado digital ICP-Brasil — dados reais do PFX quando disponível -->
-    <div style="flex:1;border:0.5px solid #bbb;border-radius:2px;padding:4px 6px;background:#fafafa;font-family:Arial,sans-serif">
-      <div style="font-size:5.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#555;border-bottom:0.4px solid #ddd;padding-bottom:2px;margin-bottom:3px">Documento Assinado Digitalmente — ICP-Brasil</div>
-      <table style="width:100%;border-collapse:collapse;font-size:5.5px;color:#333">
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinante:</td><td style="font-weight:600">${d.certMeta?.assinante ?? d.medicoNome}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">CPF:</td><td style="font-weight:600">${d.certMeta?.cpf ?? "—"}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Autoridade Cert.:</td><td style="font-weight:600">${d.certMeta?.ac ?? "ICP-Brasil"}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Validade:</td><td style="font-weight:600">${d.certMeta?.validTo ? new Date(d.certMeta.validTo).toLocaleDateString("pt-BR") : "—"}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Assinado em:</td><td style="font-weight:600">${dataFormatada}</td></tr>
-        <tr><td style="color:#888;padding-right:4px;white-space:nowrap">Verificação:</td><td style="font-weight:600">https://validar.iti.gov.br/</td></tr>
-        ${d.consultaUrl ? `<tr><td style="color:#888;padding-right:4px;white-space:nowrap">Acesse em:</td><td style="font-weight:600;color:#1a6b6b">${d.consultaUrl}</td></tr>` : ""}
-      </table>
-    </div>
+  <div style="width:180mm;height:24.5mm;max-width:none;margin:4mm auto 6mm;break-inside:avoid">
+    ${assinatura3a1cSvg({ certificado: d.certMeta, profissional: d.medicoNome, crm: d.medicoCrm, assinaturaImagem: d.assinaturaImagem })}
   </div>
+  ${d.consultaUrl ? `<div style="font:6px Arial,sans-serif;margin:0 3mm 3mm">Acesse em: ${d.consultaUrl.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
 
   <!-- 6. FAIXA INFERIOR + BOXES -->
   ${faixaInferior}
@@ -328,7 +315,7 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
   <div style="position:absolute;bottom:8mm;left:12mm;right:12mm;display:flex;align-items:flex-end;justify-content:space-between;border-top:0.3px solid #ddd;padding-top:3mm">
     <div>
       <div style="font-size:6px;color:#444;margin-bottom:1px">${d.clinicaEndereco}</div>
-      <div style="font-size:5.5px;color:#999">Instituto Padua — CNPJ: 00.000.000/0001-00</div>
+      <div style="font-size:5.5px;color:#999">${d.clinicaNome}</div>
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
       <img src="${paxterLogoSrc}" alt="ícone" style="height:22px;width:22px;object-fit:contain;opacity:0.8"/>

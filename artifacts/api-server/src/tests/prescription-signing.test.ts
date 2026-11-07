@@ -437,6 +437,21 @@ it("bloqueia pedido sem certificado valido antes de persistir", async () => {
   expect(mock.sendPaxter).not.toHaveBeenCalled();
 });
 
+it("não emite pedido quando o caminho da imagem de assinatura é inválido", async () => {
+  const app = express().use(express.json()).use("/api", examRequestRouter);
+  const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
+  queueExamIdentity(71, "CLIENTE MODELO");
+  mock.rows.push([{ signatureUrl: "/objects/uploads/outro-arquivo.png" }]);
+  const response = await request(app).post("/api/exam-requests/emit").set("Authorization", authorization).send({
+    clientId: 71,
+    items: [{ nomeExame: "EXAME SINTETICO", tipo: "SANGUE" }],
+  });
+  expect(response.status).toBe(422);
+  expect(response.body.error).toContain("assinatura cadastrada");
+  expect(mock.transaction).not.toHaveBeenCalled();
+  expect(mock.sendPaxter).not.toHaveBeenCalled();
+});
+
 function verify(bytes: Uint8Array, tamper = false) {
   const pdf = Buffer.from(bytes);
   const text = pdf.toString("latin1");

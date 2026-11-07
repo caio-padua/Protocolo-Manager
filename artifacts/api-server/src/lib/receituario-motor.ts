@@ -7,17 +7,19 @@ import { randomBytes } from "crypto";
 import { db, professionalsTable, locationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { resolvePrescriptionSigner, type PrescriptionIdentity } from "./prescription-signing";
+import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionIdentity } from "./prescription-signing";
 import { ClinicalIdentityError } from "./clinical-emitter";
 import { buildPrescricaoHtml, type PrescricaoHtmlData } from "./receituario-html.js";
-import { htmlToPngBase64 } from "./puppeteer-capture.js";
-import { generatePdfFromPngBase64, generateReceituarioPdfV2, type ReceituarioDataV2 } from "./receituario-pdf.js";
+import { htmlToPdfBytes } from "./puppeteer-capture.js";
+import { generateReceituarioPdfV2, type ReceituarioDataV2 } from "./receituario-pdf.js";
 import { uploadToFolderById } from "./google-drive.js";
 import { sendGmailMessage } from "./google-gmail.js";
 import { logger } from "./logger.js";
 import { baseUrlFromEnv } from "./messaging/base-url.js";
 import { paxterEmailShell } from "./messaging/render-email.js";
 import { blocoTabelaSubstancias, soMiligramas } from "./messaging/substance-table.js";
+import { ObjectStorageService } from "./objectStorage";
+import { PDFDocument } from "pdf-lib";
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -259,6 +261,24 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, clinicaId));
 
   if (!medico || !clinica) throw new ClinicalIdentityError(403, "Médico ou clínica indisponível.");
+  let assinaturaImagem: { bytes: Buffer; mime: "image/png" | "image/jpeg" } | undefined;
+  if (medico.signatureUrl) {
+    const objectPath = medico.signatureUrl.replace(/^\/api\/storage/, "");
+    if (!objectPath.startsWith("/objects/uploads/signatures/")) {
+      throw new ClinicalIdentityError(422, "O caminho da assinatura cadastrada não é válido.");
+    }
+    try {
+      const file = await new ObjectStorageService().getObjectEntityFile(objectPath);
+      const [bytes] = await file.download();
+      if (!bytes.length || bytes.length > 2_000_000) throw new Error("Imagem de assinatura vazia ou muito grande.");
+      assinaturaImagem = { bytes, mime: objectPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg" };
+      const verificarImagem = await PDFDocument.create();
+      if (assinaturaImagem.mime === "image/png") await verificarImagem.embedPng(bytes);
+      else await verificarImagem.embedJpg(bytes);
+    } catch {
+      throw new ClinicalIdentityError(422, "A imagem da assinatura cadastrada não pôde ser lida.");
+    }
+  }
   const medicoNome = identity.professional.name;
   const medicoCrm  = `CRM/${identity.professional.uf} ${identity.professional.crm}`;
   const medicoRqe  = (medico as any)?.specialty ?? undefined;
@@ -294,6 +314,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       dataEmissao: dataHoje,
       bandModel:   (modelo.config.bandModel as string) ?? "padua-01-floral-islamico",
       consultaUrl,
+      assinaturaImagem,
     };
     pdfBytes = await generateReceituarioPdfV2(pdfData, signer);
   } else {
@@ -325,11 +346,12 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       assetsBaseUrl: assetsBase,
       certMeta,
       consultaUrl,
+      assinaturaImagem,
     };
 
     const html = buildPrescricaoHtml(htmlData);
-    const pngBase64 = await htmlToPngBase64(html);
-    pdfBytes = await generatePdfFromPngBase64(pngBase64, signer);
+    const pdfSemAssinatura = await htmlToPdfBytes(html);
+    pdfBytes = await signExistingPrescriptionPdf(pdfSemAssinatura, signer);
   }
 
   // 5. Nome do arquivo — padrão PAXTER

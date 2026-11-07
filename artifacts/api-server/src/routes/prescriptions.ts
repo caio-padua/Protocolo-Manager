@@ -461,7 +461,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     }
     const pdfBytes = await generateReceituarioPdfV2({
       medicoName: identity.professional.name,
-      medicoCrm: identity.professional.crm,
+      medicoCrm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / "),
       clinicaNome: clinicRecord?.name ?? identity.clinic.name,
       clinicaEndereco: clinicRecord?.address ?? undefined,
       clinicaTelefone: clinicRecord?.phone ?? undefined,
