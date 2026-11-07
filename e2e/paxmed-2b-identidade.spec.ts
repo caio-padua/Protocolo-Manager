@@ -13,6 +13,7 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
     let identity = {
       nomeCabecalho: "Clínica sintética", rodapeLinha1: "Clínica sintética",
       rodapeLinha2: "Rua de teste", rodapeLinha3: "Cidade de teste", versao: 1,
+      simboloExemplo: true, dadosExemplo: false,
     };
     const logo = aplicarOuroAoSimbolo(readFileSync(path.resolve("artifacts/padcom/src/assets/padua-dp-mask.png")));
     await page.route("**/api/**", async (route) => {
@@ -31,7 +32,7 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
         expect(route.request().headers()["x-empresa-id"]).toBe("21");
         if (route.request().method() === "PUT") {
           const { uploadId: _uploadId, ...textos } = route.request().postDataJSON();
-          identity = { ...textos, versao: identity.versao + 1 };
+          identity = { ...textos, simboloExemplo: false, dadosExemplo: false, versao: identity.versao + 1 };
         }
         await route.fulfill({ json: { identidade: identity } });
       } else if (url.pathname.startsWith("/api/semantic-codes/")) {
@@ -47,9 +48,15 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
     const section = page.getByRole("region", { name: "Identidade nos documentos — Modelo 2B" });
     await expect(section.getByLabel("Nome no cabeçalho")).toHaveValue("Clínica sintética");
     await expect(section.getByAltText("Símbolo da empresa em dourado")).toBeVisible();
+    await expect(section.getByText("Símbolo demonstrativo, não oficial.", { exact: false })).toBeVisible();
     await section.getByLabel("Nome no cabeçalho").fill("Clínica de teste");
     await section.getByLabel("Rodapé — terceira linha").fill("Cidade alterada");
     await section.getByLabel("Escolher símbolo da empresa").setInputFiles("artifacts/padcom/src/assets/padua-dp-mask.png");
+    await expect(section.getByRole("img", { name: "Prévia dourada do símbolo escolhido" })).toBeVisible();
+    await expect(section.getByRole("img", { name: "Prévia aproximada do cabeçalho" })).toContainText("Clínica de teste");
+    await section.getByRole("button", { name: "Ampliar prévia" }).click();
+    await expect(section.getByRole("button", { name: "Reduzir prévia" })).toBeVisible();
+    await section.getByRole("button", { name: "Reduzir prévia" }).click();
     await section.getByRole("button", { name: "Salvar identidade", exact: true }).click();
     await expect(section.getByRole("status").filter({ hasText: "Identidade salva" })).toBeVisible();
     await expect(section.getByLabel("Nome no cabeçalho")).toHaveValue("Clínica de teste");

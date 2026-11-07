@@ -674,6 +674,18 @@ validacoes existentes.
 
 **How to apply:** reutilizar o registro autenticado em `/api/collaborator/me`, com iniciais como alternativa; manter foto, nome e função ligados à mesma pessoa, sem inferir privilégios.
 
+### 4.7 Padrão 26 — Prévia de identidade em documentos
+
+- Mostrar cabeçalho e rodapé lado a lado com os campos de identidade, com opção de ampliar e reduzir.
+- Mostrar o símbolo recém-escolhido antes de salvar, centralizado sem distorção e com o padrão de cor do documento.
+- Informar formatos aceitos e limite de tamanho junto ao botão de seleção; recusar fundo inadequado.
+- Exibir contagem de caracteres, mas validar a largura física real com a fonte da prova, sem cortar texto.
+- Diferenciar a ilustração aproximada da prova salva; identificar símbolos e dados de demonstração.
+
+**Why:** em 07/11/2026, o responsável pediu uma forma simples de conferir alinhamento e proporção da identidade antes de salvar.
+
+**How to apply:** usar este padrão ao configurar a identidade empresarial do Modelo 2B; não apresentar a ilustração como documento clínico aprovado.
+
 Nota tecnica (relevo 3D vence Tailwind): as classes de relevo (`bevel-3d`, `panel-3d`, etc.) ficam
 SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do Tailwind. Para tingir
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use

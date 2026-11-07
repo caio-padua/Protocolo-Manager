@@ -3256,6 +3256,8 @@ components:
         rodapeLinha1: { type: string }
         rodapeLinha2: { type: string }
         rodapeLinha3: { type: string }
+        simboloExemplo: { type: boolean }
+        dadosExemplo: { type: boolean }
         versao: { type: integer }
     Paxmed2bEmpresaResposta:
       type: object

@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, type PDFFont } from "pdf-lib";
 
 const mm = (value: number) => value * 72 / 25.4;
 
@@ -9,6 +9,11 @@ export type TextosEmpresa2b = {
   rodapeLinha3: string;
 };
 
+export function tamanhoNomeCabecalho(font: PDFFont, nome: string): number {
+  const measured = font.widthOfTextAtSize(nome, 20);
+  return measured > 0 ? Math.min(20, 20 * mm(54) / measured) : 20;
+}
+
 // Medidas da área útil da prova A4. Cada texto é medido na fonte e tamanho
 // escolhidos para o respectivo local; contar letras não mede largura.
 export async function validarTextosEmpresa2b(data: TextosEmpresa2b): Promise<void> {
@@ -16,7 +21,7 @@ export async function validarTextosEmpresa2b(data: TextosEmpresa2b): Promise<voi
   const bold = await doc.embedFont(StandardFonts.TimesRomanBold);
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const fields = [
-    ["Nome do cabeçalho", data.nomeCabecalho, bold, 20, 54],
+    ["Nome do cabeçalho", data.nomeCabecalho, bold, 12, 54],
     ["Primeira linha do rodapé", data.rodapeLinha1, bold, 12.6, 66],
     ["Segunda linha do rodapé", data.rodapeLinha2, regular, 7.65, 66],
     ["Terceira linha do rodapé", data.rodapeLinha3, regular, 7.65, 66],

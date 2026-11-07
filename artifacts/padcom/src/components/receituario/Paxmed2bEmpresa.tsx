@@ -3,12 +3,15 @@ import { Eye, ImageIcon, Save, Upload } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PreviaIdentidadeEmpresa, prepararSimboloLocal } from "./PreviaIdentidadeEmpresa";
 
 type Identity = {
   nomeCabecalho: string;
   rodapeLinha1: string;
   rodapeLinha2: string;
   rodapeLinha3: string;
+  simboloExemplo?: boolean;
+  dadosExemplo?: boolean;
   versao: number;
 };
 const empty: Identity = { nomeCabecalho: "", rodapeLinha1: "", rodapeLinha2: "", rodapeLinha3: "", versao: 0 };
@@ -23,12 +26,15 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
   const [identity, setIdentity] = useState<Identity>(empty);
   const [image, setImage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [localImage, setLocalImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [refresh, setRefresh] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const imageRequest = useRef(0);
   const endpoint = `${base}/paxmed-2b/empresas/${empresaId}`;
   const headers = () => collabAuthHeaders({ "x-empresa-id": String(empresaId) });
 
@@ -38,6 +44,9 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
     setIdentity(empty);
     setImage(null);
     setFile(null);
+    setLocalImage(null);
+    setPreparing(false);
+    imageRequest.current++;
     setLoading(true);
     setError("");
     async function load() {
@@ -64,7 +73,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
   }, [empresaId, refresh]);
 
   async function save() {
-    if (saving || loading) return;
+    if (saving || loading || preparing) return;
     setSaving(true);
     setError("");
     setStatus("");
@@ -81,7 +90,11 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
       const response = await fetch(endpoint, {
         method: "PUT",
         headers: collabAuthHeaders({ "Content-Type": "application/json", "x-empresa-id": String(empresaId) }),
-        body: JSON.stringify({ ...identity, ...(uploadId ? { uploadId } : {}) }),
+        body: JSON.stringify({
+          nomeCabecalho: identity.nomeCabecalho, rodapeLinha1: identity.rodapeLinha1,
+          rodapeLinha2: identity.rodapeLinha2, rodapeLinha3: identity.rodapeLinha3,
+          versao: identity.versao, ...(uploadId ? { uploadId } : {}),
+        }),
       });
       if (!response.ok) throw new Error(await errorMessage(response));
       const result = await response.json() as { identidade: Identity };
@@ -110,7 +123,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
     }
   }
 
-  const fields: Array<[keyof Omit<Identity, "versao">, string]> = [
+  const fields: Array<["nomeCabecalho" | "rodapeLinha1" | "rodapeLinha2" | "rodapeLinha3", string]> = [
     ["nomeCabecalho", "Nome no cabeçalho"],
     ["rodapeLinha1", "Rodapé — primeira linha"],
     ["rodapeLinha2", "Rodapé — segunda linha"],
@@ -127,29 +140,54 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
       <p className="concave-3d p-3 text-xs text-muted-foreground">
         Configuração em teste. Ainda não altera os documentos clínicos reais. Apenas o proprietário autorizado pode configurá-la nesta fase.
       </p>
+      {identity.simboloExemplo && !file && (
+        <p role="note" className="concave-3d p-3 text-xs text-amber-800">Símbolo demonstrativo, não oficial. Substitua pela marca da empresa.</p>
+      )}
+      {identity.dadosExemplo && <p role="note" className="concave-3d p-3 text-xs text-amber-800">Há informações fictícias nesta identidade. Confira antes de utilizar.</p>}
       <div className="concave-3d p-3 flex gap-3 items-center">
         <div className="h-20 w-20 shrink-0 bg-[#0a1a30] rounded-sm flex items-center justify-center">
-          {image ? <img src={image} alt="Símbolo da empresa em dourado" className="max-w-full max-h-full object-contain" /> :
+          {localImage ? <div role="img" aria-label="Prévia dourada do símbolo escolhido" className="w-16 h-16"
+            style={{ background: "linear-gradient(#976017,#f1d690,#c8831b,#f0be53,#976017)", maskImage: `url(${localImage})`, maskSize: "contain", maskPosition: "center", maskRepeat: "no-repeat" }} /> :
+            image ? <img src={image} alt="Símbolo da empresa em dourado" className="max-w-full max-h-full object-contain" /> :
             <ImageIcon className="w-7 h-7 text-white/40" aria-hidden="true" />}
         </div>
         <div className="min-w-0 space-y-1">
           <p className="text-xs font-semibold">Símbolo da empresa</p>
           <p className="text-xs text-muted-foreground">Imagem PNG (formato de imagem) com fundo transparente, até 2 megabytes. A cor será convertida para dourado.</p>
           <input ref={fileRef} type="file" accept="image/png" className="sr-only" aria-label="Escolher símbolo da empresa"
-            disabled={saving || loading} onChange={(event) => {
+            disabled={saving || loading} onChange={async (event) => {
               const selected = event.target.files?.[0] ?? null;
+              const input = event.currentTarget;
+              const request = ++imageRequest.current;
+              setLocalImage(null);
+              setPreparing(false);
               if (selected && (selected.type !== "image/png" || selected.size > 2 * 1024 * 1024)) {
                 setError("Envie uma imagem PNG com até 2 megabytes.");
-                event.target.value = "";
+                input.value = "";
                 setFile(null);
                 return;
               }
               setError("");
-              setFile(selected);
+              setFile(null);
+              if (!selected) return;
+              setPreparing(true);
+              try {
+                const preview = await prepararSimboloLocal(selected);
+                if (request !== imageRequest.current) return;
+                setLocalImage(preview);
+                setFile(selected);
+              } catch (err) {
+                if (request !== imageRequest.current) return;
+                input.value = "";
+                setError(err instanceof Error ? err.message : "Não foi possível ler o símbolo.");
+              } finally {
+                if (request === imageRequest.current) setPreparing(false);
+              }
             }} />
           <Button type="button" size="sm" className="btn-3d-soft" disabled={saving || loading}
             onClick={() => fileRef.current?.click()}><Upload className="w-3 h-3 mr-2" />Escolher símbolo</Button>
-          <p className="text-xs break-words">{file ? `Selecionado: ${file.name}` : "A imagem dourada é exibida após salvar."}</p>
+          <p className="text-xs break-words">{file ? `Selecionado: ${file.name}` : "O símbolo escolhido aparece antes de salvar."}</p>
+          {preparing && <p role="status" className="text-xs">Preparando símbolo...</p>}
         </div>
       </div>
       {fields.map(([key, label]) => (
@@ -160,8 +198,9 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
           <span className="block text-[10px] text-muted-foreground">{Array.from(identity[key]).length}/80 caracteres; a largura também é conferida ao salvar.</span>
         </label>
       ))}
+      <PreviaIdentidadeEmpresa {...identity} simbolo={localImage ?? image} />
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" className="btn-3d" onClick={() => void save()} disabled={loading || saving ||
+        <Button type="button" className="btn-3d" onClick={() => void save()} disabled={loading || saving || preparing ||
           fields.some(([key]) => !identity[key].trim()) || (!identity.versao && !file)}>
           <Save className="w-4 h-4 mr-2" />{saving ? "Salvando..." : "Salvar identidade"}
         </Button>

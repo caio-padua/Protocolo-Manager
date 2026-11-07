@@ -7,8 +7,9 @@ import { requireCollaborator } from "./collaborator";
 import { clinicManagementPermission } from "../lib/clinical-access";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { aplicarOuroAoSimbolo } from "../lib/documentos/paxmed-ouro";
+import { recortarSimbolo } from "../lib/documentos/paxmed-recortar-simbolo";
 import { validarTextosEmpresa2b } from "../lib/documentos/paxmed-2b-limites";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva } from "../lib/documentos/paxmed-modelo-2b-prova";
 
 const router = Router();
@@ -111,6 +112,8 @@ function companyView(row: Record<string, unknown> | undefined) {
     rodapeLinha1: row.rodape_linha1,
     rodapeLinha2: row.rodape_linha2,
     rodapeLinha3: row.rodape_linha3,
+    simboloExemplo: row.simbolo_exemplo,
+    dadosExemplo: row.dados_exemplo,
     versao: row.versao,
   };
 }
@@ -119,7 +122,7 @@ router.get("/paxmed-2b/empresas/:empresaId", requireCollaborator, async (req, re
   try {
     const { empresaId } = authorizeCompany(req);
     const result = await db.execute(sql`
-      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, versao
+      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, simbolo_exemplo, dados_exemplo, versao
       FROM paxmed_2b_empresa_identidade WHERE empresa_id = ${empresaId}
     `);
     res.json({ identidade: companyView(result.rows[0] as Record<string, unknown> | undefined) });
@@ -194,13 +197,19 @@ router.put("/paxmed-2b/empresas/:empresaId", requireCollaborator, async (req, re
           UPDATE paxmed_2b_empresa_identidade
           SET nome_cabecalho = ${textos.nomeCabecalho}, rodape_linha1 = ${textos.rodapeLinha1},
             rodape_linha2 = ${textos.rodapeLinha2}, rodape_linha3 = ${textos.rodapeLinha3},
-            simbolo_path = COALESCE(${finalizedId}, simbolo_path), versao = versao + 1, atualizado_em = NOW()
+            simbolo_path = COALESCE(${finalizedId}, simbolo_path),
+            simbolo_exemplo = CASE WHEN ${finalizedId}::text IS NOT NULL THEN FALSE ELSE simbolo_exemplo END,
+            versao = versao + 1, atualizado_em = NOW()
           WHERE empresa_id = ${empresaId} AND versao = ${data.versao} RETURNING empresa_id
         `);
         if (!changed.rows.length) throw new IdentityError(409, "A configuração mudou. Recarregue antes de salvar.");
       }
     });
-    res.json({ identidade: { ...textos, versao: data.versao + 1 } });
+    const saved = await db.execute(sql`
+      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, simbolo_exemplo, dados_exemplo, versao
+      FROM paxmed_2b_empresa_identidade WHERE empresa_id = ${empresaId}
+    `);
+    res.json({ identidade: companyView(saved.rows[0] as Record<string, unknown> | undefined) });
   } catch (error) { fail(req, res, error); }
 });
 
@@ -212,7 +221,7 @@ router.get("/paxmed-2b/empresas/:empresaId/simbolo", requireCollaborator, async 
     `);
     const objectId = (result.rows[0] as { simbolo_path?: string } | undefined)?.simbolo_path;
     if (!objectId) throw new IdentityError(404, "Símbolo não configurado.");
-    res.type("png").send(aplicarOuroAoSimbolo(await logoBytes(objectId, true)));
+    res.type("png").send(recortarSimbolo(aplicarOuroAoSimbolo(await logoBytes(objectId, true))));
   } catch (error) { fail(req, res, error); }
 });
 
@@ -220,10 +229,10 @@ router.get("/paxmed-2b/empresas/:empresaId/pre-visualizacao", requireCollaborato
   try {
     const { empresaId } = authorizeCompany(req);
     const result = await db.execute(sql`
-      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, simbolo_path
+      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, simbolo_path, simbolo_exemplo, dados_exemplo
       FROM paxmed_2b_empresa_identidade WHERE empresa_id = ${empresaId}
     `);
-    const row = result.rows[0] as Record<string, string> | undefined;
+    const row = result.rows[0] as (Record<string, string> & { simbolo_exemplo?: boolean; dados_exemplo?: boolean }) | undefined;
     if (!row) throw new IdentityError(404, "Salve a identidade antes de abrir a prévia.");
     const textos = {
       nomeCabecalho: row.nome_cabecalho, rodapeLinha1: row.rodape_linha1,
@@ -231,13 +240,18 @@ router.get("/paxmed-2b/empresas/:empresaId/pre-visualizacao", requireCollaborato
     };
     try { await validarTextosEmpresa2b(textos); }
     catch (error) { throw new IdentityError(400, error instanceof Error ? error.message : "Texto inválido."); }
-    const simboloDourado = aplicarOuroAoSimbolo(await logoBytes(row.simbolo_path, true));
+    const simboloDourado = recortarSimbolo(aplicarOuroAoSimbolo(await logoBytes(row.simbolo_path, true)));
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const visual = await prepararVisualProva(doc, { textos, simboloDourado });
     const page = doc.addPage([210 * 72 / 25.4, 297 * 72 / 25.4]);
     desenharCabecalhoProva(page, visual, font, bold, "PRESCRIÇÃO MÉDICA", "PRÉVIA DE TESTE");
+    if (row.simbolo_exemplo || row.dados_exemplo) {
+      page.drawText("IDENTIDADE DEMONSTRATIVA — CONFERIR ANTES DE UTILIZAR", {
+        x: 13 * 72 / 25.4, y: 235 * 72 / 25.4, font: bold, size: 8, color: rgb(0.65, 0.08, 0.08),
+      });
+    }
     carimbarRodapesProva(doc, visual, font);
     res.type("application/pdf").send(Buffer.from(await doc.save()));
   } catch (error) { fail(req, res, error); }

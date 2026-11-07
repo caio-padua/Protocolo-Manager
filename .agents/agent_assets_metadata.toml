@@ -914,3 +914,17 @@ mtime_ms = 1794074466209
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/04b4caea-34eb-4586-9f46-5330866198ff/ca665e10-6ed3-448a-843b-c276f1e02d5a"
 storage_version_token = "1794074494430119"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "YN0fi1GfhdIiV06U4PddW"
+uri = "file://generated-artifacts/paxmed-2b-clinicas-demonstracao.pdf"
+type = "pdf"
+title = "Prévia atualizada das dez clínicas ativas"
+description = "Dez páginas de teste sem validade clínica. Os símbolos provisórios são identificados, e os bairros cadastrados foram incluídos nas identidades de demonstração."
+logical_id = "59311273-8826-4594-9298-26de5b8b32ba"
+content_hash = "sha256:ca04a45fa6813a2b2d851a91f3f3775bf6a3c0fb0d9077d1df08677e538f7dd2"
+size = 11573505
+mtime_ms = 1794075228612
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/59311273-8826-4594-9298-26de5b8b32ba/1a37bd4d-f358-4118-a437-a8f1a5794667"
+storage_version_token = "1794075267289175"
+content_type = "application/pdf"

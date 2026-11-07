@@ -20,6 +20,17 @@ por todos os locais da empresa, sem alterar documentos clínicos reais.
 8. A tela informa que o documento permanece em teste e não altera a emissão real.
 9. A prévia autenticada usa a identidade salva, em documento sintético identificado,
    sem código de verificação; a reconstrução visual do cabeçalho é aproximada.
+10. Exibir prévia ampliável do cabeçalho e rodapé enquanto os campos são editados;
+    a imagem escolhida deve aparecer antes de salvar e a visualização deve avisar
+    que a prova salva é a confirmação final.
+11. Centralizar a área visível do símbolo, sem cortar proporções ou ultrapassar
+    o espaço reservado; a mesma normalização deve chegar à prova.
+12. Identidades de demonstração das empresas clínicas ativas usam nome e endereço
+    do cadastro existente; onde faltar dado, usar texto explicitamente fictício.
+    Símbolos criados para teste são identificados como provisórios e substituíveis.
+    Nenhum cadastro existente é sobrescrito; empresas inativas não são reativadas.
+13. Nomes longos podem reduzir a fonte dentro de limites legíveis, sem truncamento
+    e mantendo o texto inteiro na área útil. Validar na mesma fonte da prova.
 
 ## Impacto e falhas previstas
 | Falha | Gravidade | Prevenção e recuperação |
@@ -32,6 +43,9 @@ por todos os locais da empresa, sem alterar documentos clínicos reais.
 | Armazenamento falha | Alta | Preservar identidade anterior e informar erro. |
 | Uso clínico presume modelo ou verificação prontos | Alta | Manter bloqueio em produção e aviso explícito de teste. |
 | Migrar identidade errada | Alta | Sem migração genérica; copiar somente dados expressamente autorizados do Instituto. |
+| Marca fictícia interpretada como oficial | Alta | Registrar símbolo provisório e exibir aviso; prévia sem validade clínica. |
+| Prévia visual diverge da prova salva | Alta | Marcar prévia ao vivo como aproximada; conferir prova salva com a fonte real. |
+| Espaços transparentes deslocam símbolo | Média | Recortar somente bordas transparentes antes de centralizar, sem tocar o original salvo. |
 
 ## Evidência e definição de pronto
 Testar persistência, isolamento entre empresas, expiração, conflitos, imagens de

@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { PNG } from "pngjs";
-import type { TextosEmpresa2b } from "./paxmed-2b-limites";
+import { tamanhoNomeCabecalho, type TextosEmpresa2b } from "./paxmed-2b-limites";
 
 const MM = 72 / 25.4;
 const mm = (n: number) => n * MM;
@@ -98,8 +98,10 @@ export function desenharCabecalhoProva(
   page.drawImage(visual.header, { x: mm(5), y: HEIGHT - mm(39), width: mm(200), height: mm(32) });
   if (visual.identidade && visual.simboloEmpresa) {
     imagemContida(page, visual.simboloEmpresa, mm(14), HEIGHT - mm(34), mm(16), mm(21), true);
+    const size = tamanhoNomeCabecalho(visual.serifBold, visual.identidade.nomeCabecalho);
     page.drawText(visual.identidade.nomeCabecalho, {
-      x: mm(34), y: HEIGHT - mm(26), font: visual.serifBold, size: 20,
+      x: mm(34), y: HEIGHT - mm(23.5) - visual.serifBold.heightAtSize(size, { descender: false }) / 2,
+      font: visual.serifBold, size,
       color: rgb(0.94, 0.79, 0.49),
     });
   }

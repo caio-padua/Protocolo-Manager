@@ -11,5 +11,7 @@ export interface Paxmed2bEmpresa {
   rodapeLinha1: string;
   rodapeLinha2: string;
   rodapeLinha3: string;
+  simboloExemplo?: boolean;
+  dadosExemplo?: boolean;
   versao: number;
 }
