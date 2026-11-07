@@ -17,6 +17,9 @@ Instituto Paluzze; depois importar a agenda enviada para o Instituto Pádua.
 6. Preservar os eventos da conta Google; a transferência não autoriza removê-los.
 7. Restringir dados e operações à empresa e ao profissional autorizado. Não
    presumir que toda a equipe possa ver a agenda pessoal.
+8. Registrar no cadastro do Pádua a conta Google solicitada e o identificador
+   da sua agenda principal, sem confundir esse registro com importação ou
+   visualização dos compromissos.
 
 ## Fontes e efeitos verificados
 
