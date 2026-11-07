@@ -32,7 +32,11 @@ async function getAccessToken() {
   const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
 
   if (!connectionSettings || !accessToken) {
-    throw new Error('Gmail not connected');
+    throw new Error('Gmail não conectado');
+  }
+  if (connectionSettings.status && connectionSettings.status !== 'connected') {
+    connectionSettings = undefined;
+    throw new Error('Conexão do Gmail expirada ou desconectada: reconecte a integração Gmail para enviar e-mails.');
   }
   return accessToken;
 }

@@ -495,7 +495,15 @@ export default function Clients() {
                           )}
 
                           {/* Rodapé */}
-                          <div className="pt-2 border-t flex justify-end">
+                          <div className="pt-2 border-t flex justify-end gap-2">
+                            <Link
+                              href={`/clients/${client.id}/edit`}
+                              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            >
+                              <div className="screen-3d px-2 py-1 text-[9px] font-bold text-primary uppercase tracking-wider" data-testid={`button-edit-client-${client.id}`}>
+                                Editar
+                              </div>
+                            </Link>
                             <Link
                               href={`/clients/${client.id}`}
                               onClick={(e: React.MouseEvent) => e.stopPropagation()}
