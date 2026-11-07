@@ -202,7 +202,16 @@ export function overrideZones(
   }>,
 ): Zone[] | null {
   if (!rows.length) return null;
-  const ordered = [...rows].sort((a, b) => a.ordem - b.ordem);
+  // Algumas instalações acumularam cópias idênticas no banco a cada reinício.
+  // Compactamos apenas representações exatamente iguais na leitura; não
+  // removemos registros nem escolhemos entre limites ou rótulos diferentes.
+  const seen = new Set<string>();
+  const ordered = rows.filter((row) => {
+    const fingerprint = JSON.stringify([row.ordem, row.faixaName, row.low, row.high, row.color]);
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  }).sort((a, b) => a.ordem - b.ordem);
   const keyByIndex: ZoneKey[] = ["below", "t1", "t2", "t3", "above"];
   return ordered.map((r, i) => ({
     key: keyByIndex[Math.min(i, 4)],

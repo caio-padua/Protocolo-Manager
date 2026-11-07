@@ -20,9 +20,6 @@ import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
 import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
-import { seedDirecoesExames } from "./lib/exam-extraction/seed-direcoes";
-import { seedCatalogoAnalitos } from "./lib/exam-extraction/seed-analitos";
-import { seedFaixasSexo } from "./lib/exam-extraction/seed-faixas-sexo";
 import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
 import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
@@ -199,14 +196,9 @@ if (Number.isNaN(port) || port <= 0) {
     runSeedDemoRogerio((m) => logger.info({ seed: "demo-rogerio" }, m)).catch((e) =>
       logger.error({ err: e }, "Falha ao semear demo Rogério Juarez"),
     );
-    seedDirecoesExames()
-      .then((r) => logger.info({ seed: "direcoes-exames", ...r }, "Direções de exames semeadas"))
-      .catch((e) => logger.error({ err: e }, "Falha ao semear direções de exames"));
-    seedCatalogoAnalitos()
-      .then((r) => logger.info({ seed: "catalogo-analitos", ...r }, "Catálogo/unidades/faixas semeados"))
-      .then(() => seedFaixasSexo())
-      .then((r) => logger.info({ seed: "faixas-sexo", ...r }, "Faixas por sexo semeadas"))
-      .catch((e) => logger.error({ err: e }, "Falha ao semear catálogo de analitos"));
+    // Curadoria laboratorial não é semeada no boot: rotinas anteriores podiam
+    // sobrescrever escolhas médicas ou fabricar faixas. A retomada depende de
+    // revisão dos valores e de importação explícita, preservando o que existe.
 
     // Recupera documentos de exame que ficaram presos em "processando"
     // por reinicializacao do servidor durante a extracao por IA.

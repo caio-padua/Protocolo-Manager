@@ -25,6 +25,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { BASE } from "@/pages/comunicacao/_shared";
+import { getCollabToken } from "@/lib/collab-auth";
 import {
   NAVY,
   GOLD,
@@ -38,6 +39,18 @@ import {
   type Direction,
   type ZoneLabel,
 } from "@/components/exames-faixas-shared";
+
+// Todos os pedidos deste componente são locais. Encaminhar a sessão permite
+// que o servidor verifique o colaborador e a permissão também nas escritas.
+function fetch(input: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  const url = new URL(input, window.location.origin);
+  const token = getCollabToken();
+  if (token && url.origin === window.location.origin && url.pathname.includes("/api/exames-lab/")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return globalThis.fetch(input, { ...init, headers });
+}
 
 // ===========================================================================
 // CONSOLE DE EXAMES — tela ÚNICA que funde as DUAS ferramentas antigas:

@@ -73,10 +73,12 @@ import {
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendGmailMessage } from "../lib/google-gmail";
 import { moduleGuard } from "../middleware/moduleGuard";
+import { protectCurationMutation } from "../lib/exam-curation-access";
 import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
 
 const router: IRouter = Router();
 router.use(moduleGuard("exames_lab"));
+router.use(protectCurationMutation);
 
 /** Deduz o mime-type pela extensão do nome do arquivo. */
 export function guessMime(fileName: string): string {

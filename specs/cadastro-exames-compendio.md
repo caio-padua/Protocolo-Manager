@@ -13,6 +13,12 @@ documentos segundo seus próprios preceitos e estudos. Não substituir seus
 critérios por faixas presumidas de terceiros. Distinguir metas institucionais
 do intervalo de referência do laboratório e de metas individuais.
 
+Ele esclareceu que os valores devem ser exatamente os dos documentos: se uma
+faixa não tiver valores, ou contiver um ou vários valores, manter o que consta
+na fonte. Não inferir limites nem corrigir sobreposições. A apresentação e a
+edição literal não dependem de escolher uma faixa automática; a classificação
+automática permanece indisponível onde a fonte não determina um resultado único.
+
 ## Requisitos
 
 1. Menu lateral “Cadastro de Exames” e tela responsiva no padrão visual Paxter,
@@ -62,17 +68,33 @@ do intervalo de referência do laboratório e de metas individuais.
   decimais: a intenção e o comportamento no limite precisam ser explicitados.
 - O compêndio contém aprofundamentos e referências além da primeira ficha;
   importá-los exige conferência de integridade por página, não truncar o texto.
-- O console atual permite alterações por rotas de exames que não aplicam a
-  matriz de permissões no servidor. A verificação visual do menu e da tela
-  nova não substitui autorização no servidor. Isso é impeditivo de homologação
-  da curadoria unificada e exige correção e testes antes de uso clínico.
+- As rotas de escrita da curadoria não aplicavam a matriz de permissões no
+  servidor. Foi adicionada verificação de sessão e de permissão no servidor,
+  além do envio da sessão pelo componente existente. A revisão independente,
+  os testes integrados e a confirmação das dependências seguem necessários.
 
 ## Estado de implementação em 07/11/2026
 
 - Entrada do menu e estrutura inicial criadas. A seção de faixas está bloqueada
-  nesta nova tela até que a autorização no servidor seja corrigida.
+  nesta nova tela durante a validação e a importação.
 - O cadastro existente envia a sessão do colaborador ao criar e atualizar.
 - Extração e contagens preliminares verificadas, sem importação no banco.
+- As 115 fichas coincidem com as páginas correspondentes do compêndio na
+  extração dos nomes, grupos, unidades, faixas e seis blocos. As faixas dos
+  três modelos coincidem com as respectivas fichas. Conferência visual e
+  referência das páginas complementares continuam necessárias.
+- A autorização das rotas de curadoria passou em testes isolados com sessão,
+  perfis e falhas sintéticos. Ainda não comprova autorização integrada no app.
+- Ao reiniciar o servidor de desenvolvimento, a rotina anterior de direção
+  executou 167 inserções/atualizações; não há evidência do conteúdo anterior.
+  A rotina anterior de catálogo também atualizou registros e seis conjuntos
+  de cinco faixas por sexo foram inseridos. As três rotinas foram retiradas da
+  inicialização para impedir novas alterações enquanto são revisadas.
+- A leitura do banco de desenvolvimento encontrou três analitos com 715 cópias
+  idênticas de cada faixa para cada sexo: hormônio luteinizante, testosterona
+  livre calculada e testosterona biodisponível. Os registros são preservados;
+  somente cópias idênticas são compactadas na leitura de zonas. O efeito sobre
+  as interpretações anteriores e sobre outros fluxos permanece por investigar.
 - Pendentes: extração conferida dos três documentos, referências do compêndio,
   conciliação e inclusão de exames, edição persistente dos novos campos,
   faixas transacionais e auditáveis, autorização no servidor, revisão

@@ -97,7 +97,7 @@ export default function CadastroExamesUnificado() {
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <span>
           A importação dos documentos de fichas e do compêndio ainda não foi feita. A segurança da curadoria
-          existente ainda precisa ser corrigida e o conjunto ainda não foi homologado. Não use esta tela como
+          está em validação e o conjunto ainda não foi homologado. Não use esta tela como
           referência para decisões clínicas até sua conclusão.
         </span>
       </div>
@@ -127,8 +127,8 @@ export default function CadastroExamesUnificado() {
         }}
       >
         <div className="concave-3d p-4 text-sm" role="status">
-          A edição das faixas nesta nova tela está bloqueada enquanto a proteção de acesso e a
-          importação dos documentos são concluídas.
+          A edição das faixas nesta nova tela está bloqueada enquanto a proteção de acesso é
+          validada e a importação dos documentos é concluída.
         </div>
       </Secao>
     </div>

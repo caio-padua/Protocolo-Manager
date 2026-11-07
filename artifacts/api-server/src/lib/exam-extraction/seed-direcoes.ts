@@ -1,6 +1,6 @@
 // ===========================================================================
 // SEED de CATEGORIZAÇÃO — direção favorável dos exames reais (curadoria médica).
-//   Idempotente (upsert por nome_exame, unique). Chamado no boot do api-server.
+//   Inserção não destrutiva por nome_exame. Não é executado no boot.
 //   Fonte: exames que realmente aparecem nos laudos (exam_results) + variações
 //   de nome observadas (caixa/hífen/"Dosagem"). O motor casa por nome
 //   normalizado (removeDiacritics + upper), então basta 1 entrada por classe
@@ -269,22 +269,21 @@ const CURADORIA: GrupoCuradoria[] = [
 ];
 
 /**
- * Upsert idempotente da curadoria de direção. Não trunca; só insere/atualiza
- * por nome (unique). Seguro para rodar a cada boot.
+ * Insere direções ausentes sem sobrescrever a curadoria existente.
  */
 export async function seedDirecoesExames(): Promise<{ inseridos: number; total: number }> {
   let total = 0;
+  let inseridos = 0;
   for (const g of CURADORIA) {
     for (const nome of g.nomes) {
       total += 1;
-      await db
+      const criados = await db
         .insert(direcaoFavoravelExameTable)
         .values({ nomeExame: nome, direcaoFavoravel: g.direcao, grupoExame: g.grupo })
-        .onConflictDoUpdate({
-          target: direcaoFavoravelExameTable.nomeExame,
-          set: { direcaoFavoravel: g.direcao, grupoExame: g.grupo },
-        });
+        .onConflictDoNothing({ target: direcaoFavoravelExameTable.nomeExame })
+        .returning({ id: direcaoFavoravelExameTable.id });
+      inseridos += criados.length;
     }
   }
-  return { inseridos: total, total };
+  return { inseridos, total };
 }
