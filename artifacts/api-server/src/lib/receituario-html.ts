@@ -98,9 +98,9 @@ function identBox(titulo: string, rows: (string | { label: string; value?: strin
   return `
     <div style="
       background:#fff;
-      border:1px solid #454545;
-      border-radius:1px;
-      border-left:3px solid #3D7A7A;
+      border:1px solid #B68A37;
+      border-radius:2.1mm;
+      border-left:1px solid #B68A37;
       padding:3mm 4mm;
       box-shadow:0.4mm 0.4mm 0 rgba(0,0,0,0.05);
       box-sizing:border-box;
@@ -229,7 +229,7 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     ],
   );
 
-  const faixaSuperior = arabesqueBand(box1 + box2, "flex-start");
+  const faixaSuperior = arabesqueBand(box2 + box1, "flex-start");
   const faixaInferior = d.tipoReceita === "especial" ? arabesqueBand(box3 + box4, "stretch") : "";
 
   const formulasHtml = d.formulas.map(f => formulaBlock(f)).join("");

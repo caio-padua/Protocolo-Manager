@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFPage, PDFFont, rgb } from "pdf-lib";
 import QRCode from "qrcode";
+import { brtDisplayDate } from "../brt";
+import { rubricaAzulTransparente } from "./tinta-assinatura";
 
 const require = createRequire(import.meta.url);
 const mm = 72 / 25.4;
@@ -33,6 +35,10 @@ export type DadosAssinatura3a1c = {
   crm: string;
   assinaturaImagem?: { bytes: Uint8Array; mime: "image/png" | "image/jpeg" } | null;
   vencimento?: string | null;
+  /** UF do conselho; se ausente, tenta extrair de "CRM/SP 12345". */
+  uf?: string | null;
+  /** AAAA-MM-DD ou DD/MM/AAAA; padrão = hoje (BRT). */
+  dataEmissao?: string | null;
 };
 
 function validade(value?: string | null) {
@@ -40,8 +46,29 @@ function validade(value?: string | null) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : "—";
 }
 
-function crmTexto(crm: string): string {
-  return crm.trim().replace(/^CRM\s*[:/]?\s*/i, "") || "—";
+function milhar(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function cpfTexto(cpf?: string | null): string {
+  const d = (cpf ?? "").replace(/\D/g, "");
+  return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : (cpf || "—");
+}
+
+function crmTexto(crm: string, uf?: string | null): string {
+  const raw = crm.trim();
+  const ufMatch = raw.match(/\/\s*([A-Za-z]{2})\b/) ?? raw.match(/\b([A-Za-z]{2})\s*$/);
+  const sigla = (uf || ufMatch?.[1] || "").toUpperCase();
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "—";
+  return sigla ? `${milhar(digits)} / ${sigla}` : milhar(digits);
+}
+
+function dataEmissaoTexto(value?: string | null): string {
+  if (!value) return brtDisplayDate();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+  const v = validade(value);
+  return v === "—" ? brtDisplayDate() : v;
 }
 
 function fit(font: PDFFont, text: string, max: number, preferred = 7): number {
@@ -71,15 +98,15 @@ export async function desenharAssinatura3a1c(
   page.drawSvgPath(`M ${r} 0 L ${w-r} 0 Q ${w} 0 ${w} ${r} L ${w} ${h-r} Q ${w} ${h} ${w-r} ${h} L ${r} ${h} Q 0 ${h} 0 ${h-r} L 0 ${r} Q 0 0 ${r} 0 Z`, {
     x, y: bottom + h, color: rgb(1, 1, 1), borderColor: gold, borderWidth: 0.18 * mm,
   });
-  page.drawRectangle({ x: xp(0.5), y: yp(2.7), width: 1.25 * mm, height: 19.1 * mm, color: ink });
   for (const d of [34.5, 142.4]) {
     page.drawLine({ start: { x: xp(d), y: yp(3.3) }, end: { x: xp(d), y: yp(21.2) }, color: separator, thickness: 0.35 * mm });
   }
   if (c) {
     const qr = await doc.embedPng(await QRCode.toBuffer(URL_VALIDADOR, { width: 400, margin: 4, errorCorrectionLevel: "M" }));
     page.drawImage(qr, { x: xp(8), y: yp(6.8), width: 15 * mm, height: 15 * mm });
-    const caption = "CONFERIR QR";
-    page.drawText(caption, { x: xp(15.5) - regular.widthOfTextAtSize(caption, 6) / 2, y: yp(3), font: regular, size: 6, color: ink });
+    const caption = "Verificar e validar documento";
+    const capSize = fit(regular, caption, 31 * mm, 5.6);
+    page.drawText(caption, { x: xp(15.5) - regular.widthOfTextAtSize(caption, capSize) / 2, y: yp(3), font: regular, size: capSize, color: ink });
   } else {
     const aviso = "NÃO ASSINADO";
     page.drawText(aviso, { x: xp(17.25) - bold.widthOfTextAtSize(aviso, 6.2) / 2, y: yp(11), font: bold, size: 6.2, color: rgb(0.68, 0.1, 0.1) });
@@ -90,12 +117,12 @@ export async function desenharAssinatura3a1c(
   page.drawLine({ start: { x: xp(38.2), y: yp(17.5) }, end: { x: xp(138.5), y: yp(17.5) }, thickness: 0.35, color: separator });
   const rows: [string, string, boolean?][] = c ? [
     [`Assinante: ${c.assinante}`, `Certificadora: ${c.ac || "—"}`],
-    [`CPF: ${c.cpf || "—"}`, `Série: ${c.serial || "—"}`],
-    [`CRM: ${crmTexto(dados.crm)}`, `Válido até: ${validade(c.validTo)}`, true],
-    ["", "Verificação: validar.iti.gov.br"],
+    [`CPF: ${cpfTexto(c.cpf)}`, `Série: ${c.serial || "—"}`],
+    [`CRM: ${crmTexto(dados.crm, dados.uf)}`, `Válido até: ${validade(c.validTo)}`, true],
+    [`Emissão: ${dataEmissaoTexto(dados.dataEmissao)}`, "Verificação: validar.iti.gov.br"],
   ] : [
     [`Responsável: ${dados.profissional}`, dados.vencimento ? "Situação: certificado vencido" : "Situação: não assinado"],
-    [`CRM: ${crmTexto(dados.crm)}`, `Vencimento: ${validade(dados.vencimento)}`, true],
+    [`CRM: ${crmTexto(dados.crm, dados.uf)}`, `Vencimento: ${validade(dados.vencimento)}`, true],
     ["Exige assinatura manual", "Somente acesso autenticado"],
     ["", ""],
   ];
@@ -108,27 +135,22 @@ export async function desenharAssinatura3a1c(
   const center = xp(161);
   const lineY = yp(12.8);
   if (dados.assinaturaImagem) {
-    const img = dados.assinaturaImagem.mime === "image/png"
-      ? await doc.embedPng(dados.assinaturaImagem.bytes) : await doc.embedJpg(dados.assinaturaImagem.bytes);
-    const scale = Math.min((28 * mm) / img.width, (7 * mm) / img.height);
+    // Rubrica em azul de caneta tinteiro, fundo transparente, ampliada.
+    const tinta = rubricaAzulTransparente(dados.assinaturaImagem.bytes, dados.assinaturaImagem.mime);
+    const img = await doc.embedPng(tinta);
+    const scale = Math.min((35 * mm) / img.width, (10.5 * mm) / img.height);
     page.drawImage(img, { x: center - img.width * scale / 2, y: lineY + 1, width: img.width * scale, height: img.height * scale });
   } else {
     const unavailable = "Assinatura não cadastrada";
     page.drawText(unavailable, { x: center - regular.widthOfTextAtSize(unavailable, 4.6) / 2, y: yp(16), font: regular, size: 4.6, color: gray });
   }
-  page.drawLine({ start: { x: xp(147), y: lineY }, end: { x: xp(175), y: lineY }, thickness: 0.45, color: gold });
-  const words = dados.profissional.trim().split(/\s+/).filter(Boolean);
-  let lines = [words.join(" ")];
-  if (serif.widthOfTextAtSize(lines[0], 7) > 32 * mm && words.length > 1) {
-    const middle = Math.ceil(words.length / 2);
-    lines = [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
-  }
-  lines.forEach((line, i) => {
-    const size = fit(serif, line, 33 * mm, 7);
-    page.drawText(line, { x: center - serif.widthOfTextAtSize(line, size) / 2, y: yp(9.5 - i * 3.1), font: serif, size, color: ink });
-  });
-  const crm = `CRM ${crmTexto(dados.crm)}`;
-  const crmSize = fit(regular, crm, 33 * mm, 6);
+  page.drawLine({ start: { x: xp(144), y: lineY }, end: { x: xp(178), y: lineY }, thickness: 0.45, color: gold });
+  // Nome em uma única linha: reduz a fonte até caber.
+  const nome = dados.profissional.trim().split(/\s+/).filter(Boolean).join(" ");
+  const nomeSize = fit(serif, nome, 35 * mm, 7);
+  page.drawText(nome, { x: center - serif.widthOfTextAtSize(nome, nomeSize) / 2, y: yp(9.5), font: serif, size: nomeSize, color: ink });
+  const crm = `CRM: ${crmTexto(dados.crm, dados.uf)}`;
+  const crmSize = fit(regular, crm, 35 * mm, 6);
   page.drawText(crm, { x: center - regular.widthOfTextAtSize(crm, crmSize) / 2, y: yp(3), font: regular, size: crmSize, color: gray });
 }
 
@@ -148,12 +170,12 @@ export function assinatura3a1cSvg(dados: DadosAssinatura3a1c): string {
   const signedTitle = c ? "ASSINADO DIGITALMENTE – ICP-Brasil / PAdES" : "GERADA SEM ASSINATURA DIGITAL";
   const rows = c ? [
     [`Assinante: ${c.assinante}`, `Certificadora: ${c.ac || "—"}`],
-    [`CPF: ${c.cpf || "—"}`, `Série: ${c.serial || "—"}`],
-    [`CRM: ${crmTexto(dados.crm)}`, `Válido até: ${validade(c.validTo)}`],
-    ["", "Verificação: validar.iti.gov.br"],
+    [`CPF: ${cpfTexto(c.cpf)}`, `Série: ${c.serial || "—"}`],
+    [`CRM: ${crmTexto(dados.crm, dados.uf)}`, `Válido até: ${validade(c.validTo)}`],
+    [`Emissão: ${dataEmissaoTexto(dados.dataEmissao)}`, "Verificação: validar.iti.gov.br"],
   ] : [
     [`Responsável: ${dados.profissional}`, dados.vencimento ? "Situação: certificado vencido" : "Situação: não assinado"],
-    [`CRM: ${crmTexto(dados.crm)}`, `Vencimento: ${validade(dados.vencimento)}`],
+    [`CRM: ${crmTexto(dados.crm, dados.uf)}`, `Vencimento: ${validade(dados.vencimento)}`],
     ["Exige assinatura manual", "Somente acesso autenticado"],
     ["", ""],
   ];
@@ -169,25 +191,22 @@ export function assinatura3a1cSvg(dados: DadosAssinatura3a1c): string {
     for (let y = 0; y < m.size; y++) for (let x = 0; x < m.size; x++) {
       if (m.get(y, x)) blocks += `<rect x="${8 + (x + 4) * unit}" y="${24.5 - 6.8 - 15 + (y + 4) * unit}" width="${unit}" height="${unit}"/>`;
     }
-    qr = `<g fill="#0D2234" shape-rendering="crispEdges">${blocks}</g>${text(15.5, 3, "CONFERIR QR", 30, 2.1, 'text-anchor="middle"')}`;
+    qr = `<g fill="#0D2234" shape-rendering="crispEdges">${blocks}</g>${text(15.5, 3, "Verificar e validar documento", 31, 2, 'text-anchor="middle"')}`;
   } else {
     qr = text(17.25, 11, "NÃO ASSINADO", 30, 2, 'text-anchor="middle" fill="#ad1919" font-weight="700"');
   }
   const image = dados.assinaturaImagem
-    ? `<image x="147" y="4.7" width="28" height="7" preserveAspectRatio="xMidYMid meet" href="data:${dados.assinaturaImagem.mime};base64,${Buffer.from(dados.assinaturaImagem.bytes).toString("base64")}"/>`
+    ? `<image x="143.5" y="2.7" width="35" height="10.5" preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${Buffer.from(rubricaAzulTransparente(dados.assinaturaImagem.bytes, dados.assinaturaImagem.mime)).toString("base64")}"/>`
     : text(161, 16, "Assinatura não cadastrada", 32, 1.7, 'text-anchor="middle" fill="#66717B"');
-  const words = dados.profissional.trim().split(/\s+/).filter(Boolean);
-  const middle = Math.ceil(words.length / 2);
-  const lines = words.join(" ").length > 22 && words.length > 1 ? [words.slice(0, middle).join(" "), words.slice(middle).join(" ")] : [words.join(" ")];
-  const names = lines.map((v, i) => text(161, 9.5 - i * 3.1, v, 33, 2.5, 'text-anchor="middle" font-family="Liberation Serif,serif" font-weight="700"')).join("");
+  const nomeLinha = dados.profissional.trim().split(/\s+/).filter(Boolean).join(" ");
+  const names = text(161, 9.5, nomeLinha, 35, 2.5, 'text-anchor="middle" font-family="Liberation Serif,serif" font-weight="700"');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="180mm" height="24.5mm" viewBox="0 0 180 24.5" role="img" aria-label="Quadro de assinatura e certificado" font-family="Lato,sans-serif" fill="#0D2234">
     <style>@font-face{font-family:Lato;src:url(data:font/woff;base64,${reg})} @font-face{font-family:Lato;src:url(data:font/woff;base64,${bold});font-weight:700} @font-face{font-family:Liberation Serif;src:url(data:font/ttf;base64,${serif});font-weight:700}</style>
     <rect x=".09" y=".09" width="179.82" height="24.32" rx="2.1" fill="#fff" stroke="#B68A37" stroke-width=".18"/>
-    <rect x=".5" y="2.7" width="1.25" height="19.1" fill="#0D2234"/>
     <path d="M 34.5 3.3 V 21.2 M 142.4 3.3 V 21.2" stroke="#DED3BD" stroke-width=".35"/>
     ${qr}${text(38.2, 19.15, signedTitle, 100, 2.9, 'font-weight="700"')}
     <path d="M 38.2 7 H 138.5" stroke="#DED3BD" stroke-width=".12"/>
-    ${rowTexts}${image}<path d="M 147 11.7 H 175" stroke="#B68A37" stroke-width=".16"/>
-    ${names}${text(161, 3, `CRM ${crmTexto(dados.crm)}`, 33, 2.1, 'text-anchor="middle" fill="#66717B"')}
+    ${rowTexts}${image}<path d="M 144 11.7 H 178" stroke="#B68A37" stroke-width=".16"/>
+    ${names}${text(161, 3, `CRM: ${crmTexto(dados.crm, dados.uf)}`, 35, 2.1, 'text-anchor="middle" fill="#66717B"')}
   </svg>`;
 }

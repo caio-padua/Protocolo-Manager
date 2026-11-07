@@ -732,3 +732,31 @@ mtime_ms = 1794028186279
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/90fd1742-286e-43d3-893e-55975d8ca74c/726dfed7-abda-48f0-b33c-cd92f6fc78e7"
 storage_version_token = "1794028220912306"
 content_type = "image/png"
+
+[[outputs]]
+id = "N70lVQBxsUXTCj5DY4k3V"
+uri = "file://attached_assets/conferencia-receita-sintetica.png"
+type = "image"
+title = "Receituário sintético — novo layout"
+description = "Paciente à esquerda, emitente à direita, contornos dourados, quadro de assinatura novo. Dados fictícios."
+logical_id = "d3936408-0e77-4c75-9487-95db47c19437"
+content_hash = "sha256:2f7b89c53039430578235cd5fca6e32020bbd4c1b39e27600192430b63b23bc1"
+size = 129189
+mtime_ms = 1794049215279
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d3936408-0e77-4c75-9487-95db47c19437/f8db8a11-a6fa-41f5-83a0-3d0e78978239"
+storage_version_token = "1794049219750656"
+content_type = "image/png"
+
+[[outputs]]
+id = "paCqSVlRXrLdPMN2Pi4o8"
+uri = "file://attached_assets/conferencia-exames-sintetico.png"
+type = "image"
+title = "Pedido de exames sintético — novo quadro de assinatura"
+description = "Dados fictícios."
+logical_id = "620702f2-d989-430b-ad22-3172ba49b514"
+content_hash = "sha256:3179429ad1670f1e71b6853923516a7ccc676c5c3d8a048315bb6f0a04b6e967"
+size = 59517
+mtime_ms = 1794049215295
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/620702f2-d989-430b-ad22-3172ba49b514/73bac413-1f9f-41ce-a2af-43c0b96f11cf"
+storage_version_token = "1794049220374686"
+content_type = "image/png"

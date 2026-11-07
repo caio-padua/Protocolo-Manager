@@ -675,7 +675,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   /** Desenha o par de boxes (D06 corrigido: borda escura #454545 + faixinha lateral ciano). */
   // Borda escura: rgb(0.27, 0.27, 0.27) = #454545 (motor: border 1px #454545)
-  const BOX_BORDER = rgb(0.27, 0.27, 0.27);
+  const BOX_BORDER = rgb(182 / 255, 138 / 255, 55 / 255); // dourado #B68A37 (igual ao quadro do certificado)
   // Faixinha lateral esquerda: 3pt de largura, cor ciano da marca (#45B8CC)
   const BOX_STRIP  = configuredColor(designer["boxFaixinhaCor"], rgb(0.271, 0.722, 0.800));
   const STRIP_W    = designer["boxFaixinhaEsquerda"] === true ? 3 : 0;
@@ -690,8 +690,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       [bx1, boxW1, titulo1], [bx2, boxW2, titulo2],
     ] as [number, number, string][]) {
       // ① Caixa principal branca — borda escura #454545, borderWidth 0.8
-      page.drawRectangle({ x: bx, y: boxTop - boxH, width: boxW, height: boxH,
-        color: WHITE, borderColor: BOX_BORDER, borderWidth: BOX_BORDER_W });
+      // Contorno dourado com cantos arredondados (mesmo estilo do quadro do certificado).
+      // Caminho SVG tem eixo Y para baixo: ancora no topo da caixa.
+      const k = 2.1 * (72 / 25.4); // mesmo raio do quadro do certificado
+      page.drawSvgPath(
+        `M ${k} 0 L ${boxW - k} 0 Q ${boxW} 0 ${boxW} ${k} L ${boxW} ${boxH - k} Q ${boxW} ${boxH} ${boxW - k} ${boxH} L ${k} ${boxH} Q 0 ${boxH} 0 ${boxH - k} L 0 ${k} Q 0 0 ${k} 0 Z`,
+        { x: bx, y: boxTop, color: WHITE, borderColor: BOX_BORDER, borderWidth: BOX_BORDER_W });
 
       // ② Faixinha lateral esquerda ciano (3pt) — cobre a borda esq. da caixa
       if (STRIP_W > 0) {
@@ -910,8 +914,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   drawArabBand(BOX1_TOP, BOX1_H);
   drawBoxPair(BOX1_TOP, BOX1_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
-    configText(designer, "boxMedicoTitulo", data.boxMedicoTitulo ?? "IDENTIFICAÇÃO DO EMITENTE"),
     configText(designer, "boxPacienteTitulo", data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE"),
+    configText(designer, "boxMedicoTitulo", data.boxMedicoTitulo ?? "IDENTIFICAÇÃO DO EMITENTE"),
   );
 
   // Padding interno dos boxes — motor: padding "3mm 4mm" = ~8.5pt top / ~11.3pt left
@@ -920,15 +924,15 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   // Box 1 — Emitente (motor: emitentRows)
   {
-    const iW = BOX1_W - BP_L - 6; // largura interna para campos
+    const iW = BOX2_W - BP_L - 6; // largura interna para campos
     let fy = BOX1_TOP - TITLE_H - BP_T;
 
     // ROW 1: Profissional/Prescritor — BOLD 8pt para destacar o nome (CEO req.)
-    fy = drawField(BX1 + BP_L, fy, "Profissional/Prescritor",
+    fy = drawField(BX2 + BP_L, fy, "Profissional/Prescritor",
       data.medicoName, iW, { bold: true, valueSize: 8 });
 
     // ROW 2 inline 3 cols: Conselho | RQE | Telefone
-    fy = drawInlineRow(BX1 + BP_L, fy,
+    fy = drawInlineRow(BX2 + BP_L, fy,
       [
         { label: "Conselho",  value: data.medicoCrm },
         { label: "RQE",       value: data.medicoRqe },
@@ -936,12 +940,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       ], iW);
 
     // ROW 3 single: Endereço do Consultório
-    drawField(BX1 + BP_L, fy, "Endereço do Consultório", data.clinicaEndereco, iW);
+    drawField(BX2 + BP_L, fy, "Endereço do Consultório", data.clinicaEndereco, iW);
   }
 
   // Box 2 — Paciente (motor: pacienteRows)
   {
-    const iW = BOX2_W - BP_L - 6;
+    const iW = BOX1_W - BP_L - 6;
     let fy = BOX1_TOP - TITLE_H - BP_T;
 
     // Normaliza nascimento: aceita DD/MM/YYYY ou YYYY-MM-DD
@@ -952,11 +956,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     }
 
     // ROW 1: Nome Completo — BOLD 8pt para destacar o nome do paciente (CEO req.)
-    fy = drawField(BX2 + BP_L, fy, "Nome Completo",
+    fy = drawField(BX1 + BP_L, fy, "Nome Completo",
       data.pacienteNome, iW, { bold: true, valueSize: 8 });
 
     // ROW 2 inline 3 cols: CPF | Nascimento | Telefone
-    fy = drawInlineRow(BX2 + BP_L, fy,
+    fy = drawInlineRow(BX1 + BP_L, fy,
       [
         { label: "CPF",        value: data.pacienteCpf },
         { label: "Nascimento", value: nasc },
@@ -964,7 +968,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       ], iW);
 
     // ROW 3 single: Endereço Completo
-    drawField(BX2 + BP_L, fy, "Endereço Completo", data.pacienteEndereco, iW);
+    drawField(BX1 + BP_L, fy, "Endereço Completo", data.pacienteEndereco, iW);
   }
 
   y = BOX1_TOP - BOX1_H - 17;
@@ -1096,6 +1100,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     crm: data.medicoCrm,
     assinaturaImagem: data.assinaturaImagem,
     vencimento: data.certificadoValidoAte,
+    dataEmissao: dataStr,
   });
   y -= ASSINATURA_3A1C_ALTURA + 12;
 

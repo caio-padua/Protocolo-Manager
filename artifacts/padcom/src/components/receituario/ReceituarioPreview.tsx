@@ -104,11 +104,11 @@ function IdentBoxV2({
     <div style={{
       position: "relative", zIndex: 2,
       background: "#ffffff",
-      border: `${borderWidth}px solid #454545`,
-      borderRadius: 1,
+      border: `${borderWidth}px solid #B68A37`,
+      borderRadius: "2.1mm",
       borderLeft: faixinha
         ? `${Math.max(borderWidth, 3)}px solid ${faixinhaCor}`
-        : `${borderWidth}px solid #454545`,
+        : `${borderWidth}px solid #B68A37`,
       paddingTop: "3mm", paddingLeft: `${px}mm`, paddingRight: `${px}mm`,
       paddingBottom: "2mm",
       boxShadow: "0.4mm 0.4mm 0 rgba(0,0,0,0.05)",
