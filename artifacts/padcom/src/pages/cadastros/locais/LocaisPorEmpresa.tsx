@@ -140,7 +140,7 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
           )}
           {online.length > 0 && (
             <div>
-              <Cabecalho nivel={1} rotulo="Online · sem endereço físico" qtd={online.length} icone={<MODO_META.online.Icon className="w-3.5 h-3.5 text-primary" />} />
+              <Cabecalho nivel={1} rotulo="Online · endereço só como referência" qtd={online.length} icone={<MODO_META.online.Icon className="w-3.5 h-3.5 text-primary" />} />
               <div className={GRADE}>
                 {online.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} />)}
               </div>

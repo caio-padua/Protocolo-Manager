@@ -1,5 +1,5 @@
-import { MapPin, Phone, CalendarCheck, Users, Pencil, Trash2, Building2, Video, HelpCircle } from "lucide-react";
-import { MODO_META, modoDoLocal, type LocalAtendimento } from "./locais-modo";
+import { MapPin, Phone, CalendarCheck, Users, Pencil, Trash2, Building2, Video, HelpCircle, MessageSquareText } from "lucide-react";
+import { MODO_META, PAPEIS_AGENDA, modoDoLocal, type LocalAtendimento } from "./locais-modo";
 
 function displayPhone(raw: string | null): string {
   if (!raw) return "—";
@@ -61,16 +61,15 @@ export function LocalCard({ c, onEdit, onDelete }: { c: LocalAtendimento; onEdit
               modo === "definir" && !l1 ? <HelpCircle className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" /> :
               <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />}
             <div className="min-w-0">
-              {modo === "online" ? (
-                <p className="text-foreground/80">Atendimento online</p>
-              ) : l1 ? (
+              {modo === "online" && <p className="text-foreground/80">Atendimento online{l1 ? " · endereço de referência" : ""}</p>}
+              {l1 ? (
                 <>
                   <p className="text-foreground/80 truncate">{l1}</p>
                   <p className="text-muted-foreground truncate">{l2 || "—"}</p>
                 </>
-              ) : (
+              ) : modo !== "online" ? (
                 <p className="text-muted-foreground">{modo === "definir" ? "Defina a modalidade e o endereço" : (c.address || "—")}</p>
-              )}
+              ) : null}
               {modo === "sede" && <p className="text-[9px] font-black uppercase tracking-widest text-primary/70">= endereço da empresa</p>}
             </div>
           </div>
@@ -80,7 +79,16 @@ export function LocalCard({ c, onEdit, onDelete }: { c: LocalAtendimento; onEdit
           </div>
           <div className="flex items-center gap-2">
             <CalendarCheck className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className="text-muted-foreground font-mono truncate" title={c.googleCalendarId ?? undefined}>{calLabel(c.googleCalendarId)}</span>
+            <span className="text-muted-foreground font-mono truncate" title={c.googleCalendarId ?? undefined}>
+              {c.agendaPapel ? `${PAPEIS_AGENDA.find((p) => p.valor === c.agendaPapel)?.rotulo ?? c.agendaPapel} · ` : ""}{calLabel(c.googleCalendarId)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <MessageSquareText className="w-3 h-3 shrink-0 text-muted-foreground/60" />
+            <span className={`truncate ${c.observacaoLocal || c.nomeEspaco ? "text-foreground/80" : "text-muted-foreground"}`}
+              title={[c.nomeEspaco, c.observacaoLocal].filter(Boolean).join(" — ") || undefined}>
+              {[c.nomeEspaco, c.observacaoLocal].filter(Boolean).join(" — ") || "—"}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Users className="w-3 h-3 shrink-0 text-muted-foreground/60" />

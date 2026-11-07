@@ -37,6 +37,7 @@ export * from "./catalog-options";
 export * from "./budget";
 export * from "./agenda-motor";
 export * from "./agenda-calendars";
+export * from "./agenda-compromissos";
 export * from "./site-content";
 export * from "./scheduling";
 export * from "./collaborator-audit";

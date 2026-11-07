@@ -176,9 +176,22 @@ function modalidadeValida(v: unknown): "presencial" | "online" | null | undefine
   return v === "presencial" || v === "online" ? v : undefined;
 }
 
+const PAPEIS_AGENDA = ["local", "remoto", "externo", "pessoal", "geral"] as const;
+function papelValido(v: unknown): (typeof PAPEIS_AGENDA)[number] | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return (PAPEIS_AGENDA as readonly string[]).includes(String(v)) ? (v as (typeof PAPEIS_AGENDA)[number]) : undefined;
+}
+function textoOpcional(v: unknown, max = 500): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  const t = String(v).trim();
+  return t ? t.slice(0, max) : null;
+}
+
 function serializeLocation(loc: typeof locationsTable.$inferSelect, emp?: EmpresaEndereco | null) {
   // Sede: o endereco exibido e SEMPRE o atual da empresa (nao fica velho se a empresa mudar).
-  const herda = loc.mesmoEnderecoEmpresa && loc.modalidade === "presencial" && emp ? enderecoDaEmpresa(emp) : null;
+  const herda = loc.mesmoEnderecoEmpresa && (loc.modalidade === "presencial" || loc.modalidade === "online") && emp ? enderecoDaEmpresa(emp) : null;
   return {
     id: loc.id,
     name: loc.name,
@@ -208,6 +221,9 @@ function serializeLocation(loc: typeof locationsTable.$inferSelect, emp?: Empres
     modalidade: loc.modalidade === "presencial" || loc.modalidade === "online" ? loc.modalidade : null,
     mesmoEnderecoEmpresa: loc.mesmoEnderecoEmpresa,
     enderecoEmpresa: emp ? textoEndereco(enderecoDaEmpresa(emp)) : null,
+    agendaPapel: loc.agendaPapel ?? null,
+    observacaoLocal: loc.observacaoLocal ?? null,
+    nomeEspaco: loc.nomeEspaco ?? null,
   };
 }
 
@@ -251,9 +267,14 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
     return;
   }
   const modalidadeFinal = modalidadeBody ?? null;
-  const mesmoEndereco = req.body.mesmoEnderecoEmpresa === true && modalidadeFinal === "presencial";
-  if (req.body.mesmoEnderecoEmpresa === true && modalidadeFinal !== "presencial") {
-    res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige modalidade presencial." });
+  const mesmoEndereco = req.body.mesmoEnderecoEmpresa === true && modalidadeFinal !== null;
+  if (req.body.mesmoEnderecoEmpresa === true && modalidadeFinal === null) {
+    res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige definir a modalidade (presencial ou online)." });
+    return;
+  }
+  const papelBody = papelValido(req.body.agendaPapel);
+  if (req.body.agendaPapel !== undefined && papelBody === undefined) {
+    res.status(422).json({ error: "agendaPapel deve ser local, remoto, externo, pessoal ou geral." });
     return;
   }
   if (!req.tenantContext.empresaId) {
@@ -305,6 +326,9 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
     empresaId: req.tenantContext.empresaId,
     modalidade: modalidadeFinal,
     mesmoEnderecoEmpresa: mesmoEndereco,
+    agendaPapel: papelBody ?? null,
+    observacaoLocal: textoOpcional(req.body.observacaoLocal) ?? null,
+    nomeEspaco: textoOpcional(req.body.nomeEspaco, 200) ?? null,
     ...(herdado ?? {}),
   }).returning();
 
@@ -348,13 +372,23 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   }
   const modalidadeFinal = req.body.modalidade !== undefined ? (modalidadeBody ?? null) : (atual.modalidade ?? null);
   let mesmoFinal = req.body.mesmoEnderecoEmpresa !== undefined ? req.body.mesmoEnderecoEmpresa === true : atual.mesmoEnderecoEmpresa;
-  if (mesmoFinal && modalidadeFinal !== "presencial") {
+  if (mesmoFinal && modalidadeFinal === null) {
     if (req.body.mesmoEnderecoEmpresa === true) {
-      res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige modalidade presencial." });
+      res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige definir a modalidade (presencial ou online)." });
       return;
     }
-    mesmoFinal = false; // passou para online: deixa de ser sede (o endereco antigo fica guardado)
+    mesmoFinal = false; // modalidade voltou a "a definir": deixa de herdar (o endereco antigo fica guardado)
   }
+  const papelBody = papelValido(req.body.agendaPapel);
+  if (req.body.agendaPapel !== undefined && papelBody === undefined) {
+    res.status(422).json({ error: "agendaPapel deve ser local, remoto, externo, pessoal ou geral." });
+    return;
+  }
+  if (req.body.agendaPapel !== undefined) updates.agendaPapel = papelBody ?? null;
+  const obs = textoOpcional(req.body.observacaoLocal);
+  if (obs !== undefined) updates.observacaoLocal = obs;
+  const espaco = textoOpcional(req.body.nomeEspaco, 200);
+  if (espaco !== undefined) updates.nomeEspaco = espaco;
   if (req.body.modalidade !== undefined) updates.modalidade = modalidadeFinal;
   if (req.body.mesmoEnderecoEmpresa !== undefined || mesmoFinal !== atual.mesmoEnderecoEmpresa) updates.mesmoEnderecoEmpresa = mesmoFinal;
   let empresaDoLocal: EmpresaEndereco | null = null;

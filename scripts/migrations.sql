@@ -376,3 +376,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Modalidade dos locais de atendimento (presencial/online + mesmo endereco da empresa).
 \ir migrations/20261107_locais_modalidade.sql
+
+-- Aba Agenda Google no cadastro do local (papel, observacao, compromissos importados).
+\ir migrations/20261107_agenda_google_local.sql

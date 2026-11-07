@@ -691,15 +691,28 @@ SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do 
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use
 uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `background`/`border-color`.
 
-### 4.6 Padrao 25 — Selo de modalidade do local (Sede / Outro endereco / Online / A definir)
+### 4.8 Padrao 27 — Selo de modalidade do local (Sede / Outro endereco / Online / A definir)
 
 Lei promulgada em 07/11/2026 para a tela LOCAIS DE ATENDIMENTO (`/cadastros/clinicas`).
 - 4 estados, cada um com icone + cor fixa (fonte: `pages/cadastros/locais/locais-modo.ts`): SEDE = navy com texto ouro (Building2); OUTRO ENDERECO = ouro claro com borda ouro (MapPinned); ONLINE = azul claro com borda azul (Video); A DEFINIR = ambar (HelpCircle).
 - O selo mora na ZONA 1 (barra superior) do card, ao lado do LED de ativo; nunca ao lado do nome. Resumo por modalidade no cabecalho da empresa usa os mesmos selos com contagem (contagem nao leva LED).
 - Hierarquia: Empresa (painel recolhivel) > Estado > Cidade > Regiao; online e "a definir" ganham secao propria sem geografia.
 - Filtro por modalidade = botoes bevel com `aria-pressed`; ativo = `bg-primary text-primary-foreground ring-2 ring-[#b8892b]` (nunca so mudar a cor do texto).
-- Formulario: 3 botoes grandes (Presencial / Online / A definir) + Switch "O local fisico e o mesmo endereco da empresa" (so aparece em Presencial). Ligado: campos de endereco somem e o endereco da empresa e mostrado.
+- Formulario: 3 botoes grandes (Presencial / Online / A definir) + Switch "O local fisico e o mesmo endereco da empresa" (aparece em Presencial e em Online; em Online o texto e "Usar o endereco da empresa como referencia"). Ligado: campos de endereco somem e o endereco da empresa e mostrado. Online guarda endereco so como referencia e pode ter "Observacao do local".
 - Modalidade nunca e presumida: sem informacao = A DEFINIR.
+
+### 4.9 Padrao 28 — Aba "Agenda Google" no cadastro do local
+
+Lei promulgada em 07/11/2026. Fonte: `pages/cadastros/locais/AgendaGoogleTab.tsx`.
+- A agenda do Google e ESCOLHIDA numa lista da conta conectada (bevel com amostra da cor real, `aria-pressed`, ocupadas desabilitadas dizendo "Ja usada em: ..."), nunca digitada. O campo de ID na aba Contato e somente leitura.
+- Papel da agenda (Local, Remoto, Externo, Pessoal, Geral) e obrigatorio e sempre confirmado pelo usuario; o nome da agenda apenas SUGERE.
+- Cor e endereco vem do Google por acao explicita (caixa "Usar a cor" e botao "Preencher a aba Endereco"). O endereco so preenche o formulario, nunca salva sozinho; texto fora do formato "Rua, n - bairro, cidade - UF, CEP" nao e chutado.
+- Importacao de .ics/link: SEMPRE em 2 passos. "VER PREVIA (NAO GRAVA NADA)" mostra tabela emoldurada (1a linha pastel) e so entao "CONFIRMAR IMPORTACAO DE N COMPROMISSOS". Eventos que o proprio sistema criou para sessoes de clientes aparecem separados e nunca sao importados.
+- Enter no campo de link nunca submete o formulario do local.
+
+**Why:** o CEO pediu cadastrar agendas dentro da tela do local, importar por arquivo ou link, e nunca triplicar compromissos.
+
+**How to apply:** qualquer nova fonte de agenda (outra conta Google, outro formato) entra nesta aba com previa antes de gravar.
 
 ## 5. Console de Orcamento (referencia viva)
 

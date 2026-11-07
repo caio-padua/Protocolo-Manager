@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { AgendaGoogleTab } from "./locais/AgendaGoogleTab";
+import type { EnderecoLido } from "./locais/endereco-google";
 import { LocaisPorEmpresa } from "./locais/LocaisPorEmpresa";
 import { MODO_META, type LocalAtendimento } from "./locais/locais-modo";
 import {
@@ -40,6 +43,8 @@ const formSchema = z.object({
   active: z.boolean(),
   modalidade: z.enum(["presencial", "online", "definir"]),
   mesmoEnderecoEmpresa: z.boolean(),
+  observacaoLocal: z.string().max(500, "Máximo de 500 caracteres").optional(),
+  nomeEspaco: z.string().max(200, "Máximo de 200 caracteres").optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -59,6 +64,7 @@ const EMPTY: FormValues = {
   complemento: "", bairro: "", cidade: "", estado: "", zona: "",
   color: "#16284a", googleCalendarId: "", active: true,
   modalidade: "presencial", mesmoEnderecoEmpresa: false,
+  observacaoLocal: "", nomeEspaco: "",
 };
 
 // ── Divisor de seção do formulário ────────────────────────────────────────────
@@ -81,7 +87,7 @@ export default function CadastroClinicas() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [novaEmpresaId, setNovaEmpresaId] = useState("");
   const [erroEmpresa, setErroEmpresa] = useState("");
-  const [secao, setSecao] = useState<"identificacao" | "endereco" | "contato" | "documentos">("identificacao");
+  const [secao, setSecao] = useState<"identificacao" | "endereco" | "contato" | "agenda" | "documentos">("identificacao");
   const [documentosVisitados, setDocumentosVisitados] = useState(false);
   const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
@@ -158,6 +164,22 @@ export default function CadastroClinicas() {
     finally  { setLoadingCep(false); }
   }, [form]);
 
+  const aplicarEnderecoGoogle = useCallback((e: EnderecoLido) => {
+    const opts = { shouldDirty: true };
+    form.setValue("cep", e.cep, opts);
+    form.setValue("logradouro", e.logradouro, opts);
+    form.setValue("numero", e.numero, opts);
+    form.setValue("complemento", e.complemento, opts);
+    form.setValue("bairro", e.bairro, opts);
+    form.setValue("cidade", e.cidade, opts);
+    form.setValue("estado", e.estado, opts);
+    form.setValue("zona", "", opts);
+    form.setValue("mesmoEnderecoEmpresa", false, opts);
+    if (form.getValues("modalidade") === "definir") form.setValue("modalidade", "presencial", opts);
+    setSecao("endereco");
+    toast.success("Endereço preenchido a partir do Google. Revise e clique em SALVAR LOCAL.");
+  }, [form]);
+
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!editingId && (!novaEmpresaId || !empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId))) {
@@ -172,7 +194,9 @@ export default function CadastroClinicas() {
       const body = {
         ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null,
         modalidade: values.modalidade === "definir" ? null : values.modalidade,
-        mesmoEnderecoEmpresa: values.modalidade === "presencial" && values.mesmoEnderecoEmpresa,
+        mesmoEnderecoEmpresa: values.modalidade !== "definir" && values.mesmoEnderecoEmpresa,
+        observacaoLocal: values.observacaoLocal?.trim() || null,
+        nomeEspaco: values.nomeEspaco?.trim() || null,
       };
       const url = editingId ? `${apiBase}/locations/${editingId}` : `${apiBase}/locations`;
       const headers = collabAuthHeaders({
@@ -218,6 +242,7 @@ export default function CadastroClinicas() {
       zona: c.zona || "", color: c.color || "#16284a",
       googleCalendarId: c.googleCalendarId || "", active: c.active,
       modalidade: c.modalidade ?? "definir", mesmoEnderecoEmpresa: c.mesmoEnderecoEmpresa,
+      observacaoLocal: c.observacaoLocal ?? "", nomeEspaco: c.nomeEspaco ?? "",
     });
     setDialogOpen(true);
   };
@@ -282,11 +307,12 @@ export default function CadastroClinicas() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 sm:px-6 py-3" role="group" aria-label="Seções do local">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-4 sm:px-6 py-3" role="group" aria-label="Seções do local">
             {([
               ["identificacao", "Identificação"],
               ["endereco", "Endereço"],
-              ["contato", "Contato e agenda"],
+              ["contato", "Contato"],
+              ["agenda", "Agenda Google"],
               ["documentos", "Identidade dos documentos"],
             ] as const).map(([value, label]) => (
               <button key={value} type="button" onClick={() => { setSecao(value); if (value === "documentos") setDocumentosVisitados(true); }}
@@ -338,13 +364,13 @@ export default function CadastroClinicas() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Modalidade do local">
                   {([
                     ["presencial", "Presencial", "Atende num endereço físico", MODO_META.sede.Icon],
-                    ["online", "Online", "Sem endereço físico", Video],
+                    ["online", "Online", "Endereço só como referência", Video],
                     ["definir", "A definir", "Informar depois", MODO_META.definir.Icon],
                   ] as const).map(([valor, titulo, sub, Icone]) => {
                     const ativo = modalidadeAtual === valor;
                     return (
                       <button key={valor} type="button" aria-pressed={ativo}
-                        onClick={() => { form.setValue("modalidade", valor, { shouldDirty: true }); if (valor !== "presencial") form.setValue("mesmoEnderecoEmpresa", false, { shouldDirty: true }); }}
+                        onClick={() => { form.setValue("modalidade", valor, { shouldDirty: true }); if (valor === "definir") form.setValue("mesmoEnderecoEmpresa", false, { shouldDirty: true }); }}
                         className={`bevel-3d p-3 flex items-center gap-3 text-left transition-colors ${ativo ? "bg-primary text-primary-foreground ring-2 ring-[#b8892b]" : "text-foreground"}`}>
                         <Icone className="w-5 h-5 shrink-0" aria-hidden />
                         <span className="min-w-0">
@@ -355,18 +381,18 @@ export default function CadastroClinicas() {
                     );
                   })}
                 </div>
-                {modalidadeAtual === "presencial" && (
+                {modalidadeAtual !== "definir" && (
                   <div className="concave-3d p-3 flex items-start gap-3">
                     <Switch id="mesmo-endereco-empresa" checked={mesmoEnderecoAtual}
                       onCheckedChange={(v) => form.setValue("mesmoEnderecoEmpresa", v, { shouldDirty: true })} />
                     <div className="min-w-0">
                       <label htmlFor="mesmo-endereco-empresa" className="text-[11px] font-black uppercase tracking-widest cursor-pointer">
-                        O local físico é o mesmo endereço da empresa
+                        {modalidadeAtual === "online" ? "Usar o endereço da empresa como referência" : "O local físico é o mesmo endereço da empresa"}
                       </label>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         {mesmoEnderecoAtual
                           ? (enderecoEmpresaEdicao ? `Sede: ${enderecoEmpresaEdicao}` : "O endereço da empresa será aplicado ao salvar.")
-                          : "Desligado: informe o endereço deste local na aba Endereço (sala alugada, coworking, outra cidade)."}
+                          : (modalidadeAtual === "online" ? "Desligado: informe na aba Endereço um endereço de referência, se houver." : "Desligado: informe o endereço deste local na aba Endereço (sala alugada, coworking, outra cidade).")}
                       </p>
                     </div>
                   </div>
@@ -432,21 +458,42 @@ export default function CadastroClinicas() {
                     </div>
                   </FormItem>
                 )} />
+
+                {modalidadeAtual === "presencial" && !mesmoEnderecoAtual && (
+                  <FormField control={form.control} name="nomeEspaco" render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Nome do espaço (sala, coworking, clínica parceira)</FormLabel>
+                      <FormControl><Input placeholder="Ex: Sala 706 — Locação de consultórios" {...field} className="field-engraved" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                )}
+
+                <FormField control={form.control} name="observacaoLocal" render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Observação do local</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder="Ex: Atendimento online, endereço da empresa só como referência." {...field} className="field-engraved" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
               </div>
 
               {/* ── SEÇÃO 2: ENDEREÇO ── */}
               <div hidden={secao !== "endereco"} className="space-y-4">
               <SectionDivider label="Endereço" />
-              {modalidadeAtual === "online" ? (
-                <p className="concave-3d p-4 text-sm flex items-center gap-2"><Video className="w-4 h-4 shrink-0" /> Atendimento online: este local não tem endereço físico.</p>
-              ) : mesmoEnderecoAtual ? (
+              {modalidadeAtual === "online" && !mesmoEnderecoAtual && (
+                <p className="concave-3d p-4 text-sm flex items-center gap-2"><Video className="w-4 h-4 shrink-0" /> Atendimento online: o endereço abaixo é apenas uma referência (opcional).</p>
+              )}
+              {mesmoEnderecoAtual ? (
                 <p className="concave-3d p-4 text-sm flex items-start gap-2">
                   <Building2 className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>Endereço herdado da empresa{enderecoEmpresaEdicao ? `: ${enderecoEmpresaEdicao}` : "."} Para usar outro endereço, desligue "mesmo endereço da empresa" na aba Identificação.</span>
                 </p>
               ) : null}
-              <div className={modalidadeAtual === "online" || mesmoEnderecoAtual ? "hidden" : "space-y-4"}>
+              <div className={mesmoEnderecoAtual ? "hidden" : "space-y-4"}>
 
               {/* CEP + busca automática */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -542,7 +589,7 @@ export default function CadastroClinicas() {
 
               {/* ── SEÇÃO 3: CONTATO & AGENDA ── */}
               <div hidden={secao !== "contato"} className="space-y-4">
-              <SectionDivider label="Contato & Agenda Google" />
+              <SectionDivider label="Contato" />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="phone" render={({ field }) => (
@@ -567,21 +614,36 @@ export default function CadastroClinicas() {
                 <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">
-                      ID Agenda Google
+                      ID Agenda Google (somente leitura)
                     </FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="...@group.calendar.google.com"
+                        placeholder="Escolha na aba Agenda Google"
                         {...field}
+                        readOnly
                         className="field-engraved font-mono text-[11px]"
                       />
                     </FormControl>
                     <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                      Configurações do Google Calendar → Integração → ID da agenda
+                      Para trocar a agenda, use a aba Agenda Google.
                     </p>
                   </FormItem>
                 )} />
               </div>
+              </div>
+
+              <div hidden={secao !== "agenda"} className="space-y-4">
+                <SectionDivider label="Agenda Google" />
+                <AgendaGoogleTab
+                  localId={editingId}
+                  googleCalendarId={form.watch("googleCalendarId") || null}
+                  papelInicial={clinicas.find((c) => c.id === editingId)?.agendaPapel ?? null}
+                  onVinculado={({ googleCalendarId, cor }) => {
+                    form.setValue("googleCalendarId", googleCalendarId);
+                    if (cor) form.setValue("color", cor);
+                  }}
+                  onUsarEndereco={aplicarEnderecoGoogle}
+                />
               </div>
 
               {documentosVisitados && (
