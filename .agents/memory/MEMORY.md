@@ -157,3 +157,4 @@
 - [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
 - [Receituário V2 pagina em vez de recusar](receituario-pdf-paginacao.md) — limite de 1 página causava 500 genérico na emissão; usar ensureSpace/newPage; erro real só no log.
 - [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ativo false.
+- [Paginação bloco inteiro](paginacao-bloco-integro-documentos.md) — fórmula/item nunca cortado + 1 linha em branco; helper pdf-bloco-integro; faltam carta, dieta, RAS FAP.

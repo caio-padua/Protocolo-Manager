@@ -8,6 +8,7 @@ import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
 import QRCode from "qrcode";
+import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
 const NAVY   = rgb(0.082, 0.11,  0.18);   // #151C2E
@@ -981,8 +982,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     const itemHeight = 16 + ((f.via || f.forma) ? 21 : 0) +
       nAtivos * BODY_LINE_HEIGHT + (nPos ? 13 + nPos * BODY_LINE_HEIGHT : 0) +
       (f.observacao ? 11 : 0) + 18;
-    const maxPageBody = PAGE_H - M - 32 - BODY_BOTTOM;
-    ensureSpace(itemHeight <= maxPageBody ? itemHeight : 55);
+    // Regra do CEO: fórmula inteira + 1 linha em branco, senão vai inteira para a próxima página.
+    if (blocoDeveIrParaProximaPagina({
+      y, alturaBloco: itemHeight, limiteInferior: BODY_BOTTOM,
+      linhaEmBranco: BODY_LINE_HEIGHT, topoPaginaNova: PAGE_H - M - 32,
+    })) newPage();
+    else ensureSpace(55);
 
     // D03 corrigido: número MUTED (cinza #555), NÃO dourado
     // D04 corrigido: nome preserva case original (NÃO força uppercase)

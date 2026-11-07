@@ -5,6 +5,7 @@
 // PILOTO da Fábrica de Padrão de Documentos: este gerador consome a camada única
 // (lib/documentos/padrao.ts) para cabeçalho-mastro PAXTER, cores da marca, rodapé
 // e paginação. O conteúdo específico (lista de exames) continua aqui.
+import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 
@@ -60,6 +61,7 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
   };
 
   let { page, y } = fab.novaPagina(cabecalho);
+  const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
     if (y - needed < 72) {
@@ -92,8 +94,19 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
 
   let idx = 1;
   for (const item of ctx.items) {
-    ensureSpace(16);
     const titleLines = wrapText(`${idx}. ${item.nomeExame}`, fontBold, 11, larguraConteudo);
+    const preparoLines = item.preparo && item.preparo.trim()
+      ? wrapText(`Preparo: ${item.preparo}`, font, 9, larguraConteudo - 12) : [];
+    // Regra do CEO: exame inteiro (título + preparo) + 1 linha em branco, senão página nova.
+    if (blocoDeveIrParaProximaPagina({
+      y, alturaBloco: titleLines.length * 14 + preparoLines.length * 11 + 6,
+      limiteInferior: 72, linhaEmBranco: 11, topoPaginaNova: topoPagina,
+    })) {
+      const nova = fab.novaPagina(cabecalho);
+      page = nova.page;
+      y = nova.y;
+    }
+    ensureSpace(16);
     for (const l of titleLines) {
       ensureSpace(14);
       page.drawText(l, { x: margem, y, size: 11, font: fontBold, color: COR.tinta });

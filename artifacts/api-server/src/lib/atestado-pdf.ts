@@ -5,6 +5,7 @@
 // (documento clínico). O conteúdo específico (corpo, CID, tipo, assinatura) é
 // desenhado aqui, com quebra de página para texto longo — nunca escreve fora da
 // folha (ver memória `pdf-cursor-quebra-pagina`). Vocabulário: "cliente".
+import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 
@@ -85,6 +86,7 @@ export async function gerarAtestadoPdf(dados: AtestadoPdfData): Promise<Uint8Arr
   };
 
   let { page, y } = fab.novaPagina(cabecalho);
+  const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
     if (y - needed < 72) {
@@ -101,7 +103,16 @@ export async function gerarAtestadoPdf(dados: AtestadoPdfData): Promise<Uint8Arr
   };
 
   const drawParagraph = (text: string, size: number, useFont: PDFFont, color = COR.tinta, indent = 0) => {
-    for (const l of wrapText(text, useFont, size, larguraConteudo - indent)) {
+    const linhasPar = wrapText(text, useFont, size, larguraConteudo - indent);
+    // Regra do CEO: parágrafo inteiro + 1 linha em branco, senão página nova.
+    if (blocoDeveIrParaProximaPagina({
+      y, alturaBloco: linhasPar.length * (size + 4), limiteInferior: 72, linhaEmBranco: size + 4, topoPaginaNova: topoPagina,
+    })) {
+      const nova = fab.novaPagina(cabecalho);
+      page = nova.page;
+      y = nova.y;
+    }
+    for (const l of linhasPar) {
       ensureSpace(size + 4);
       page.drawText(l, { x: margem + indent, y, size, font: useFont, color });
       y -= size + 4;

@@ -5,6 +5,7 @@
 // receituário usa o emissor "Instituto Pádua" (não PAXTER) — regra clínica.
 // O conteúdo regulatório (faixa Anvisa, SNCR, boilerplate, itens) continua aqui.
 import { rgb, PDFFont, PDFPage } from "pdf-lib";
+import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 import type { RecipePlan, PrescriptionItemInput } from "./desmembramento";
 
@@ -102,6 +103,7 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
   };
 
   let { page, y } = novaPagina();
+  const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
     if (y - needed < 72) {
@@ -222,6 +224,7 @@ export async function generateRecipePdf(plan: RecipePlan, ctx: RecipePdfContext)
       (ny) => {
         y = ny;
       },
+      topoPagina,
     );
     idx++;
     y -= 8;
@@ -246,10 +249,24 @@ function drawItem(
   newPage: () => { page: PDFPage; y: number },
   getY: () => number,
   setY: (y: number) => void,
+  topoPagina: number,
 ) {
   const { margem, larguraConteudo, font, fontBold } = cfg;
   let curPage = page;
   let y = getY();
+
+  // Regra do CEO: item inteiro (até o fim da posologia) + 1 linha em branco, senão página nova.
+  const posPrevia = item.posologia || buildPosologia(item);
+  const altura = 16
+    + (item.ativos ? wrapText(item.ativos, font, 9, larguraConteudo - 12).length * 11 : 0)
+    + (posPrevia ? 2 + wrapText(`Posologia: ${posPrevia}`, font, 9, larguraConteudo - 12).length * 11 : 0);
+  if (blocoDeveIrParaProximaPagina({
+    y, alturaBloco: altura, limiteInferior: 72, linhaEmBranco: 11, topoPaginaNova: topoPagina,
+  })) {
+    const np = newPage();
+    curPage = np.page;
+    y = np.y;
+  }
 
   const ensure = (needed: number) => {
     if (y - needed < 72) {
