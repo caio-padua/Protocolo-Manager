@@ -147,6 +147,10 @@ router.use(adminPlanilhaTempRouter);
 // Deve ficar ANTES do collaboratorGuard para não ser bloqueado.
 router.use("/onboarding", onboardingPublicRouter);
 
+// QR impresso na receita: o paciente abre pelo celular, sem sessao. Token aleatorio
+// de 43 caracteres + validade curta (a propria rota valida). ANTES do portao.
+router.use(clinicalDocumentShareRouter);
+
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
 // protegidas. Leituras seguem livres.
@@ -222,7 +226,6 @@ router.use(assinaturasRouter);
 router.use(demoGaleriaRouter);
 router.use(importarDriveRouter);
 router.use(atestadosRouter);
-router.use(clinicalDocumentShareRouter);
 router.use(clinicalDocumentDeliveryRouter);
 router.use(cid10Router);
 router.use(encaminhamentosRouter);
