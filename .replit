@@ -63,6 +63,9 @@ VITE_SITE_URL = "https://e4777049-2482-4493-bc8d-9ddd502ce731-00-33xz3y36vyw2i.r
 [userenv.development]
 ZAPSIGN_BASE_URL = "https://api.zapsign.com.br"
 
+[userenv.production]
+PUBLIC_BASE_URL = "https://padcom.com.br"
+
 [[ports]]
 localPort = 8080
 externalPort = 8080
