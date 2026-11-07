@@ -70,3 +70,22 @@ Portanto, transferir o local mantendo o vínculo pode dar ao profissional acesso
 ele permaneça cadastrado no Pádua e não receba permissão de prescrição.
 Não alterar o vínculo antes de explicar esse efeito e obter decisão específica;
 não confundir nenhuma das duas permissões com isolamento integral comprovado.
+
+Decisão do responsável: manter o cadastro do profissional no Pádua e permitir
+que ele acesse a lista de clientes do Instituto Lemos por sua associação ao
+consultório. Essa decisão não autoriza criar permissão de prescrição nem
+atribuir acesso de outros profissionais.
+
+### Resultado da correção pontual
+
+- Ambiente de desenvolvimento: atualizada somente a empresa do local de 5 para 2,
+  após conferir as condições dentro de uma transação; nenhuma linha foi apagada.
+- Conferência posterior: local associado ao Instituto Lemos, profissional ativo
+  ainda cadastrado no Instituto Pádua, vínculo profissional-local preservado,
+  um recurso de agenda do local preservado e nenhuma concessão clínica local.
+- As empresas permanecem independentes e não há vínculo na árvore empresarial
+  envolvendo o Instituto Lemos.
+- A associação permite selecionar a empresa conforme o código atual; o acesso
+  autenticado do profissional e a interface após login não foram testados.
+- Revisão independente não realizada; esta correção não homologa isolamento
+  multiempresa e não ativa o modelo documental na emissão de receitas.
