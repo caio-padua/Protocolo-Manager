@@ -1253,7 +1253,7 @@ export default function CadastroEmpresas() {
                       { value: "contratos",  label: "Documentos e Contratos" },
                     ].map(({ value, label }) => (
                       <TabsTrigger key={value} value={value}
-                        className="bevel-3d whitespace-normal text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2 border-0 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+                        className="bevel-3d empresa-aba whitespace-normal text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2">
                         {label}
                       </TabsTrigger>
                     ))}

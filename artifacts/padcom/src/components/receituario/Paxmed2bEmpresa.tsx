@@ -164,7 +164,7 @@ export function Paxmed2bEmpresa({ empresaId, onDirtyChange }: { empresaId: numbe
       <div className="grid grid-cols-3 gap-2" role="group" aria-label="Etapas da identidade">
         {([["simbolo", "Símbolo e nome"], ["rodape", "Linhas do rodapé"], ["previa", "Prévia"]] as const).map(([value, label]) => (
           <button type="button" key={value} onClick={() => setEtapa(value)} aria-pressed={etapa === value}
-            className={`bevel-3d px-2 py-2 text-xs font-semibold ${etapa === value ? "ring-2 ring-primary/30" : ""}`}>{label}</button>
+            className="bevel-3d empresa-aba px-2 py-2 text-xs font-semibold">{label}</button>
         ))}
       </div>
       <div hidden={etapa !== "simbolo"} className="space-y-3">
