@@ -928,3 +928,31 @@ mtime_ms = 1794078006621
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/59311273-8826-4594-9298-26de5b8b32ba/ae016628-9c2c-4de1-969f-2b440a17c38f"
 storage_version_token = "1794078017698544"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "G4VqpHWB-YM5_NiD68l2g"
+uri = "file://generated-artifacts/previa-visual-clinicas-leve.pdf"
+type = "pdf"
+title = "Prévia leve das dez clínicas"
+description = "Dez páginas de visualização em imagem, sem validade clínica; o Instituto Pádua está na sexta página."
+logical_id = "e28a02c0-45cd-4451-b37f-51f04ca97293"
+content_hash = "sha256:386068c11ddc5cc20519448cbfbdc6d4d18fa6637a00107dd99b65fb36e65713"
+size = 835120
+mtime_ms = 1794078163097
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/e28a02c0-45cd-4451-b37f-51f04ca97293/c3a535e5-fbc9-4d71-8f62-7798478e7096"
+storage_version_token = "1794078181052265"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "-HdDfUoKgCEI4YfMdB9hf"
+uri = "file://generated-artifacts/previa-instituto-padua-leve.jpg"
+type = "image"
+title = "Imagem do Instituto Pádua"
+description = "Alternativa em imagem para conferir a página do Instituto Pádua, sem validade clínica."
+logical_id = "7d970d59-8fd4-45ab-b4cf-b05fdd946f3b"
+content_hash = "sha256:b3f1d51eaf12ec4f3a2f388d061894048a7d23cf010f9bfc01de29f648f58f48"
+size = 78393
+mtime_ms = 1794078163228
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7d970d59-8fd4-45ab-b4cf-b05fdd946f3b/eb741aad-ce7b-42bf-897a-bfedb169167d"
+storage_version_token = "1794078181961513"
+content_type = "image/jpeg"
