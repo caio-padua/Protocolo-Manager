@@ -373,3 +373,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 \ir migrations/20261107_paxmed_2b_identidade.sql
 \ir migrations/20261107_paxmed_2b_empresa.sql
 \ir migrations/20261107_paxmed_2b_exemplos.sql
+
+-- Modalidade dos locais de atendimento (presencial/online + mesmo endereco da empresa).
+\ir migrations/20261107_locais_modalidade.sql

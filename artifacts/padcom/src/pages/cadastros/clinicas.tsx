@@ -9,22 +9,19 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
+import { Switch } from "@/components/ui/switch";
+import { LocaisPorEmpresa } from "./locais/LocaisPorEmpresa";
+import { MODO_META, type LocalAtendimento } from "./locais/locais-modo";
 import {
   Building2, Plus, Loader2, Search, Save, Pencil, Trash2,
-  Phone, MapPin, CalendarCheck, Tag,
+  Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
-interface Clinica {
-  id: number; name: string; address: string | null; type: string;
-  color: string; active: boolean; googleCalendarId: string | null;
-  phone: string | null; cep: string | null; logradouro: string | null;
-  numero: string | null; complemento: string | null; bairro: string | null;
-  cidade: string | null; estado: string | null; zona: string | null;
-}
+type Clinica = LocalAtendimento;
 
 const formSchema = z.object({
   name: z.string().min(2, "Nome obrigatório"),
@@ -41,6 +38,8 @@ const formSchema = z.object({
   color: z.string().optional(),
   googleCalendarId: z.string().optional(),
   active: z.boolean(),
+  modalidade: z.enum(["presencial", "online", "definir"]),
+  mesmoEnderecoEmpresa: z.boolean(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -55,121 +54,12 @@ function formatPhone(value: string): string {
   if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
-function displayPhone(raw: string | null): string {
-  if (!raw) return "—";
-  const clean = raw.replace(/^\+55/, "").replace(/\D/g, "");
-  if (clean.length === 11) return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
-  if (clean.length === 10) return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
-  return raw;
-}
-function calLabel(id: string | null): string {
-  if (!id) return "—";
-  if (id.includes("@group.calendar.google.com")) return id.split("@")[0].slice(0, 16) + "…";
-  if (id.includes("@")) return id;
-  return id.slice(0, 20) + (id.length > 20 ? "…" : "");
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  clinic: "Local de atendimento", homecare: "Domiciliar", lab: "Laboratório",
-};
-
 const EMPTY: FormValues = {
   name: "", type: "clinic", phone: "", cep: "", logradouro: "", numero: "",
   complemento: "", bairro: "", cidade: "", estado: "", zona: "",
   color: "#16284a", googleCalendarId: "", active: true,
+  modalidade: "presencial", mesmoEnderecoEmpresa: false,
 };
-
-// ── Card de clínica ───────────────────────────────────────────────────────────
-function ClinicaCard({ c, onEdit, onDelete }: { c: Clinica; onEdit: () => void; onDelete: () => void }) {
-  const endLine1 = [c.logradouro, c.numero, c.complemento].filter(Boolean).join(", ");
-  const endLine2 = [c.bairro, c.cidade ? `${c.cidade}${c.estado ? " - " + c.estado : ""}` : c.estado].filter(Boolean).join(" · ");
-
-  return (
-    <div className="panel-3d relative overflow-hidden flex flex-col">
-      {/* Faixa lateral de cor */}
-      <div className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px]" style={{ backgroundColor: c.color || "#16284a" }} />
-
-      <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
-        {/* Linha de topo: status + tipo + ID */}
-        <div className="flex items-center gap-2">
-          <span className={`paxter-led ${c.active ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} />
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            {TYPE_LABELS[c.type] ?? c.type}
-          </span>
-          <span className="ml-auto text-[9px] text-muted-foreground/50 font-mono">#{c.id}</span>
-          {!c.active && (
-            <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 bg-amber-400/15 text-amber-700 rounded-[3px]">
-              INATIVA
-            </span>
-          )}
-        </div>
-
-        {/* Nome */}
-        <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">
-          {c.name}
-        </h3>
-
-        {/* Bloco de informações — sempre visível */}
-        <div className="concave-3d p-2.5 space-y-1.5 flex-1">
-          {/* Endereço */}
-          <div className="flex items-start gap-2 text-[11px]">
-            <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />
-            <div className="min-w-0">
-              {endLine1 ? (
-                <>
-                  <p className="text-foreground/80 truncate">{endLine1}</p>
-                  {endLine2 && <p className="text-muted-foreground truncate">{endLine2}</p>}
-                </>
-              ) : (
-                <p className="text-muted-foreground">{c.address || "—"}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Telefone */}
-          <div className="flex items-center gap-2 text-[11px]">
-            <Phone className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className={c.phone ? "text-foreground/80" : "text-muted-foreground"}>{displayPhone(c.phone)}</span>
-          </div>
-
-          {/* Zona */}
-          {c.zona && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Tag className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-primary font-semibold">{c.zona}</span>
-            </div>
-          )}
-
-          {/* Google Calendar */}
-          <div className="flex items-center gap-2 text-[11px]">
-            <CalendarCheck className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className="text-muted-foreground font-mono truncate" title={c.googleCalendarId ?? undefined}>
-              {calLabel(c.googleCalendarId)}
-            </span>
-          </div>
-        </div>
-
-        {/* Botões */}
-        <div className="flex gap-2 pt-0.5">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors"
-          >
-            <Pencil className="w-3 h-3" /> Editar
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="bevel-3d px-3 py-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Divisor de seção do formulário ────────────────────────────────────────────
 function SectionDivider({ label }: { label: string }) {
@@ -246,6 +136,9 @@ export default function CadastroClinicas() {
     : undefined;
 
   const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
+  const modalidadeAtual = form.watch("modalidade");
+  const mesmoEnderecoAtual = form.watch("mesmoEnderecoEmpresa");
+  const enderecoEmpresaEdicao = editingId ? (clinicas.find((c) => c.id === editingId)?.enderecoEmpresa ?? null) : null;
 
   const doLookupCep = useCallback(async () => {
     const cep = form.getValues("cep")?.replace(/\D/g, "");
@@ -276,7 +169,11 @@ export default function CadastroClinicas() {
         values.cidade ? `${values.cidade}${values.estado ? " - " + values.estado : ""}` : values.estado,
         values.cep ? `CEP ${values.cep}` : "",
       ].filter(Boolean);
-      const body = { ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null };
+      const body = {
+        ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null,
+        modalidade: values.modalidade === "definir" ? null : values.modalidade,
+        mesmoEnderecoEmpresa: values.modalidade === "presencial" && values.mesmoEnderecoEmpresa,
+      };
       const url = editingId ? `${apiBase}/locations/${editingId}` : `${apiBase}/locations`;
       const headers = collabAuthHeaders({
         "Content-Type": "application/json",
@@ -320,6 +217,7 @@ export default function CadastroClinicas() {
       bairro: c.bairro || "", cidade: c.cidade || "", estado: c.estado || "",
       zona: c.zona || "", color: c.color || "#16284a",
       googleCalendarId: c.googleCalendarId || "", active: c.active,
+      modalidade: c.modalidade ?? "definir", mesmoEnderecoEmpresa: c.mesmoEnderecoEmpresa,
     });
     setDialogOpen(true);
   };
@@ -336,30 +234,7 @@ export default function CadastroClinicas() {
     setDialogOpen(open);
   };
 
-  // ── Agrupamento geográfico data-bound ────────────────────────────────────────
-  // Grupo = "Cidade · UF" derivado dos dados reais do banco.
-  // Nenhum valor de cidade ou estado é fixo no código.
-  // Dentro de cada cidade com 3+ locais: sub-agrupamento por zona.
-
   const ativas = useMemo(() => clinicas.filter((c) => c.active), [clinicas]);
-
-  const grupos = useMemo(() => {
-    const map = new Map<string, Clinica[]>();
-    for (const c of ativas) {
-      const chave =
-        c.cidade && c.estado ? `${c.cidade} · ${c.estado}` :
-        c.cidade              ? c.cidade :
-        c.estado              ? `Estado: ${c.estado}` :
-                                "Sem Localização";
-      if (!map.has(chave)) map.set(chave, []);
-      map.get(chave)!.push(c);
-    }
-    // Ordena: maior grupo primeiro; empate → alfabético
-    return [...map.entries()].sort(([a, ac], [b, bc]) =>
-      bc.length !== ac.length ? bc.length - ac.length : a.localeCompare(b, "pt-BR")
-    );
-  }, [clinicas]);
-
   const inativas = useMemo(() => clinicas.filter((c) => !c.active), [clinicas]);
 
   return (
@@ -381,7 +256,7 @@ export default function CadastroClinicas() {
         </Button>
       </div>
 
-      {/* Grade de cards — agrupamento geográfico data-bound */}
+      {/* Locais agrupados: Empresa > Estado > Cidade > Região, com selo de modalidade */}
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : isError ? (
@@ -394,78 +269,8 @@ export default function CadastroClinicas() {
           Nenhum local cadastrado. Clique em NOVO LOCAL.
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Grupos geográficos — um painel por cidade */}
-          {grupos.map(([cidadeKey, lista]) => {
-            // Sub-agrupamento por zona dentro de cada cidade (só quando há zonas variadas)
-            const zonaMap = new Map<string, Clinica[]>();
-            for (const c of lista) {
-              const z = c.zona || "—";
-              if (!zonaMap.has(z)) zonaMap.set(z, []);
-              zonaMap.get(z)!.push(c);
-            }
-            const temMultiploZonas = zonaMap.size > 1;
-
-            return (
-              <div key={cidadeKey}>
-                {/* Cabeçalho da cidade */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
-                    <MapPin className="w-3.5 h-3.5 text-primary" />
-                    <span className="font-black text-[11px] uppercase tracking-widest">{cidadeKey}</span>
-                    <span className="text-[9px] text-muted-foreground/60 font-bold">
-                      {lista.length} local{lista.length !== 1 ? "is" : ""}
-                    </span>
-                  </div>
-                  <div className="h-px bg-primary/15 flex-1" />
-                </div>
-
-                {temMultiploZonas ? (
-                  /* Com sub-zonas: agrupa por área dentro da cidade */
-                  <div className="space-y-5 pl-4 border-l-2 border-primary/10">
-                    {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, items]) => (
-                      <div key={zona}>
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
-                          <Tag className="w-3 h-3" /> {zona}
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {items.map((c) => (
-                            <ClinicaCard key={c.id} c={c}
-                              onEdit={() => openEdit(c)}
-                              onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* Cidade única ou sem zonas: grade direta */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {lista.map((c) => (
-                      <ClinicaCard key={c.id} c={c}
-                        onEdit={() => openEdit(c)}
-                        onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Inativas — sempre ao final, separadas */}
-          {inativas.length > 0 && (
-            <div className="opacity-60">
-              <SectionDivider label={`${inativas.length} inativa${inativas.length > 1 ? "s" : ""}`} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-                {inativas.map((c) => (
-                  <ClinicaCard key={c.id} c={c}
-                    onEdit={() => openEdit(c)}
-                    onDelete={() => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <LocaisPorEmpresa locais={clinicas} onEdit={openEdit}
+          onDelete={(c) => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
       )}
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
@@ -486,7 +291,7 @@ export default function CadastroClinicas() {
             ] as const).map(([value, label]) => (
               <button key={value} type="button" onClick={() => { setSecao(value); if (value === "documentos") setDocumentosVisitados(true); }}
                 aria-pressed={secao === value}
-                className={`bevel-3d min-w-0 px-2 py-2 text-[10px] font-bold uppercase ${secao === value ? "text-primary ring-2 ring-primary/30" : "text-muted-foreground"}`}>
+                className={`bevel-3d min-w-0 px-2 py-2 text-[10px] font-bold uppercase transition-colors ${secao === value ? "bg-primary text-primary-foreground ring-2 ring-[#b8892b]" : "text-muted-foreground"}`}>
                 {label}
               </button>
             ))}
@@ -527,6 +332,46 @@ export default function CadastroClinicas() {
                   <p className="text-xs text-muted-foreground">O local será cadastrado para a empresa escolhida. O servidor confirma o seu acesso.</p>
                 </div>
               )}
+              {/* Modalidade do atendimento: selo visual + sinalizador "mesmo endereço da empresa" */}
+              <div className="space-y-2">
+                <p className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Como este local atende *</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Modalidade do local">
+                  {([
+                    ["presencial", "Presencial", "Atende num endereço físico", MODO_META.sede.Icon],
+                    ["online", "Online", "Sem endereço físico", Video],
+                    ["definir", "A definir", "Informar depois", MODO_META.definir.Icon],
+                  ] as const).map(([valor, titulo, sub, Icone]) => {
+                    const ativo = modalidadeAtual === valor;
+                    return (
+                      <button key={valor} type="button" aria-pressed={ativo}
+                        onClick={() => { form.setValue("modalidade", valor, { shouldDirty: true }); if (valor !== "presencial") form.setValue("mesmoEnderecoEmpresa", false, { shouldDirty: true }); }}
+                        className={`bevel-3d p-3 flex items-center gap-3 text-left transition-colors ${ativo ? "bg-primary text-primary-foreground ring-2 ring-[#b8892b]" : "text-foreground"}`}>
+                        <Icone className="w-5 h-5 shrink-0" aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block text-[11px] font-black uppercase tracking-widest">{titulo}</span>
+                          <span className={`block text-[10px] ${ativo ? "opacity-80" : "text-muted-foreground"}`}>{sub}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {modalidadeAtual === "presencial" && (
+                  <div className="concave-3d p-3 flex items-start gap-3">
+                    <Switch id="mesmo-endereco-empresa" checked={mesmoEnderecoAtual}
+                      onCheckedChange={(v) => form.setValue("mesmoEnderecoEmpresa", v, { shouldDirty: true })} />
+                    <div className="min-w-0">
+                      <label htmlFor="mesmo-endereco-empresa" className="text-[11px] font-black uppercase tracking-widest cursor-pointer">
+                        O local físico é o mesmo endereço da empresa
+                      </label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {mesmoEnderecoAtual
+                          ? (enderecoEmpresaEdicao ? `Sede: ${enderecoEmpresaEdicao}` : "O endereço da empresa será aplicado ao salvar.")
+                          : "Desligado: informe o endereço deste local na aba Endereço (sala alugada, coworking, outra cidade)."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem className="md:col-span-2">
@@ -593,6 +438,15 @@ export default function CadastroClinicas() {
               {/* ── SEÇÃO 2: ENDEREÇO ── */}
               <div hidden={secao !== "endereco"} className="space-y-4">
               <SectionDivider label="Endereço" />
+              {modalidadeAtual === "online" ? (
+                <p className="concave-3d p-4 text-sm flex items-center gap-2"><Video className="w-4 h-4 shrink-0" /> Atendimento online: este local não tem endereço físico.</p>
+              ) : mesmoEnderecoAtual ? (
+                <p className="concave-3d p-4 text-sm flex items-start gap-2">
+                  <Building2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Endereço herdado da empresa{enderecoEmpresaEdicao ? `: ${enderecoEmpresaEdicao}` : "."} Para usar outro endereço, desligue "mesmo endereço da empresa" na aba Identificação.</span>
+                </p>
+              ) : null}
+              <div className={modalidadeAtual === "online" || mesmoEnderecoAtual ? "hidden" : "space-y-4"}>
 
               {/* CEP + busca automática */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -682,6 +536,7 @@ export default function CadastroClinicas() {
                     </p>
                   </FormItem>
                 )} />
+              </div>
               </div>
               </div>
 

@@ -691,6 +691,16 @@ SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do 
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use
 uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `background`/`border-color`.
 
+### 4.6 Padrao 25 — Selo de modalidade do local (Sede / Outro endereco / Online / A definir)
+
+Lei promulgada em 07/11/2026 para a tela LOCAIS DE ATENDIMENTO (`/cadastros/clinicas`).
+- 4 estados, cada um com icone + cor fixa (fonte: `pages/cadastros/locais/locais-modo.ts`): SEDE = navy com texto ouro (Building2); OUTRO ENDERECO = ouro claro com borda ouro (MapPinned); ONLINE = azul claro com borda azul (Video); A DEFINIR = ambar (HelpCircle).
+- O selo mora na ZONA 1 (barra superior) do card, ao lado do LED de ativo; nunca ao lado do nome. Resumo por modalidade no cabecalho da empresa usa os mesmos selos com contagem (contagem nao leva LED).
+- Hierarquia: Empresa (painel recolhivel) > Estado > Cidade > Regiao; online e "a definir" ganham secao propria sem geografia.
+- Filtro por modalidade = botoes bevel com `aria-pressed`; ativo = `bg-primary text-primary-foreground ring-2 ring-[#b8892b]` (nunca so mudar a cor do texto).
+- Formulario: 3 botoes grandes (Presencial / Online / A definir) + Switch "O local fisico e o mesmo endereco da empresa" (so aparece em Presencial). Ligado: campos de endereco somem e o endereco da empresa e mostrado.
+- Modalidade nunca e presumida: sem informacao = A DEFINIR.
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

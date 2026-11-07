@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable } from "@workspace/db";
+import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable, empresasTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 
 const router: IRouter = Router();
@@ -127,24 +127,75 @@ function normalizePhone(raw: unknown): string | null {
   return "+" + digits;
 }
 
-function serializeLocation(loc: typeof locationsTable.$inferSelect) {
+type EmpresaEndereco = {
+  nome: string; endereco: string | null; cep: string | null; bairro: string | null;
+  cidade: string | null; estado: string | null; zona: string | null; telefone: string | null;
+};
+
+// "Rua X, 327" -> { logradouro: "Rua X", numero: "327" }; sem numero -> so logradouro.
+function splitEndereco(raw: string | null): { logradouro: string | null; numero: string | null } {
+  if (!raw) return { logradouro: null, numero: null };
+  const m = raw.match(/^(.*?),\s*(\d[\w./-]*)\s*$/);
+  return m ? { logradouro: m[1].trim(), numero: m[2] } : { logradouro: raw.trim(), numero: null };
+}
+
+function textoEndereco(parts: { logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null; cep: string | null }): string | null {
+  const t = [
+    [parts.logradouro, parts.numero].filter(Boolean).join(", "),
+    parts.bairro,
+    parts.cidade ? `${parts.cidade}${parts.estado ? " - " + parts.estado : ""}` : parts.estado,
+    parts.cep ? `CEP ${parts.cep}` : "",
+  ].filter(Boolean);
+  return t.length ? t.join(", ") : null;
+}
+
+// Campos de endereco que o local herda da empresa quando e a SEDE.
+function enderecoDaEmpresa(emp: EmpresaEndereco) {
+  const { logradouro, numero } = splitEndereco(emp.endereco);
+  const campos = {
+    logradouro, numero, complemento: null as string | null, bairro: emp.bairro ?? null,
+    cidade: emp.cidade ?? null, estado: emp.estado ?? null, cep: emp.cep ?? null,
+    zona: emp.zona || deriveZona(emp.bairro ?? null, emp.cidade ?? null, emp.estado ?? null, emp.cep ?? null),
+  };
+  return { ...campos, address: textoEndereco(campos) };
+}
+
+async function carregarEmpresa(empresaId: number | null): Promise<EmpresaEndereco | null> {
+  if (!empresaId) return null;
+  const [emp] = await db.select({
+    nome: empresasTable.nome, endereco: empresasTable.endereco, cep: empresasTable.cep,
+    bairro: empresasTable.bairro, cidade: empresasTable.cidade, estado: empresasTable.estado,
+    zona: empresasTable.zona, telefone: empresasTable.telefone,
+  }).from(empresasTable).where(eq(empresasTable.id, empresaId));
+  return emp ?? null;
+}
+
+function modalidadeValida(v: unknown): "presencial" | "online" | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return v === "presencial" || v === "online" ? v : undefined;
+}
+
+function serializeLocation(loc: typeof locationsTable.$inferSelect, emp?: EmpresaEndereco | null) {
+  // Sede: o endereco exibido e SEMPRE o atual da empresa (nao fica velho se a empresa mudar).
+  const herda = loc.mesmoEnderecoEmpresa && loc.modalidade === "presencial" && emp ? enderecoDaEmpresa(emp) : null;
   return {
     id: loc.id,
     name: loc.name,
-    address: loc.address ?? null,
+    address: herda ? herda.address : (loc.address ?? null),
     type: loc.type,
     color: loc.color,
     active: loc.active === "true",
     googleCalendarId: loc.googleCalendarId ?? null,
     phone: loc.phone ?? null,
-    cep: loc.cep ?? null,
-    logradouro: loc.logradouro ?? null,
-    numero: loc.numero ?? null,
-    complemento: loc.complemento ?? null,
-    bairro: loc.bairro ?? null,
-    cidade: loc.cidade ?? null,
-    estado: loc.estado ?? null,
-    zona: loc.zona ?? null,
+    cep: herda ? herda.cep : (loc.cep ?? null),
+    logradouro: herda ? herda.logradouro : (loc.logradouro ?? null),
+    numero: herda ? herda.numero : (loc.numero ?? null),
+    complemento: herda ? herda.complemento : (loc.complemento ?? null),
+    bairro: herda ? herda.bairro : (loc.bairro ?? null),
+    cidade: herda ? herda.cidade : (loc.cidade ?? null),
+    estado: herda ? herda.estado : (loc.estado ?? null),
+    zona: herda ? herda.zona : (loc.zona ?? null),
     createdAt: loc.createdAt.toISOString(),
     cnpj: loc.cnpj ?? null,
     razaoSocial: loc.razaoSocial ?? null,
@@ -152,11 +203,22 @@ function serializeLocation(loc: typeof locationsTable.$inferSelect) {
     certTitular: loc.certTitular ?? null,
     certTipo: loc.certTipo ?? null,
     certValidade: loc.certValidade ?? null,
+    empresaId: loc.empresaId ?? null,
+    empresaNome: emp?.nome ?? null,
+    modalidade: loc.modalidade === "presencial" || loc.modalidade === "online" ? loc.modalidade : null,
+    mesmoEnderecoEmpresa: loc.mesmoEnderecoEmpresa,
+    enderecoEmpresa: emp ? textoEndereco(enderecoDaEmpresa(emp)) : null,
   };
 }
 
 router.get("/locations", async (_req, res): Promise<void> => {
   const locations = await db.select().from(locationsTable).orderBy(locationsTable.name);
+  const empresas = await db.select({
+    id: empresasTable.id, nome: empresasTable.nome, endereco: empresasTable.endereco, cep: empresasTable.cep,
+    bairro: empresasTable.bairro, cidade: empresasTable.cidade, estado: empresasTable.estado,
+    zona: empresasTable.zona, telefone: empresasTable.telefone,
+  }).from(empresasTable);
+  const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
 
   const result = await Promise.all(locations.map(async (loc) => {
     const links = await db.select().from(locationProfessionalsTable)
@@ -169,7 +231,7 @@ router.get("/locations", async (_req, res): Promise<void> => {
     }));
 
     return {
-      ...serializeLocation(loc),
+      ...serializeLocation(loc, loc.empresaId ? empresaPorId.get(loc.empresaId) : null),
       professionals: professionals.filter(Boolean),
     };
   }));
@@ -181,6 +243,17 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
   const { name, address, type, color, googleCalendarId, phone, cep, logradouro, numero, complemento, bairro, cidade, estado, zona } = req.body;
   if (!name) {
     res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const modalidadeBody = modalidadeValida(req.body.modalidade);
+  if (req.body.modalidade !== undefined && modalidadeBody === undefined) {
+    res.status(422).json({ error: "modalidade deve ser 'presencial' ou 'online'." });
+    return;
+  }
+  const modalidadeFinal = modalidadeBody ?? null;
+  const mesmoEndereco = req.body.mesmoEnderecoEmpresa === true && modalidadeFinal === "presencial";
+  if (req.body.mesmoEnderecoEmpresa === true && modalidadeFinal !== "presencial") {
+    res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige modalidade presencial." });
     return;
   }
   if (!req.tenantContext.empresaId) {
@@ -206,6 +279,13 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
   // Auto-derivação de zona: só aplica quando não veio zona manual no body
   const geoZona = zona ?? deriveZona(geoBairro, geoCidade, geoEstado, cep ?? null);
 
+  const sede = mesmoEndereco ? await carregarEmpresa(req.tenantContext.empresaId) : null;
+  if (mesmoEndereco && !sede) {
+    res.status(422).json({ error: "Não foi possível ler o endereço da empresa. Nenhum local foi criado." });
+    return;
+  }
+  const herdado = sede ? enderecoDaEmpresa(sede) : null;
+
   const [loc] = await db.insert(locationsTable).values({
     name,
     address: address ?? null,
@@ -223,9 +303,12 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
     zona: geoZona,
     // Empresa vem da identidade autenticada, nunca do corpo enviado pelo navegador.
     empresaId: req.tenantContext.empresaId,
+    modalidade: modalidadeFinal,
+    mesmoEnderecoEmpresa: mesmoEndereco,
+    ...(herdado ?? {}),
   }).returning();
 
-  res.status(201).json(serializeLocation(loc));
+  res.status(201).json(serializeLocation(loc, sede ?? await carregarEmpresa(loc.empresaId)));
 });
 
 router.put("/locations/:id", async (req, res): Promise<void> => {
@@ -252,8 +335,40 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   if (estado !== undefined) updates.estado = estado ?? null;
   if (zona !== undefined) updates.zona = zona ?? null;
 
+  // Modalidade e sinalizador "mesmo endereco da empresa".
+  const [atual] = await db.select().from(locationsTable).where(eq(locationsTable.id, id));
+  if (!atual) {
+    res.status(404).json({ error: "Location not found" });
+    return;
+  }
+  const modalidadeBody = modalidadeValida(req.body.modalidade);
+  if (req.body.modalidade !== undefined && modalidadeBody === undefined) {
+    res.status(422).json({ error: "modalidade deve ser 'presencial' ou 'online'." });
+    return;
+  }
+  const modalidadeFinal = req.body.modalidade !== undefined ? (modalidadeBody ?? null) : (atual.modalidade ?? null);
+  let mesmoFinal = req.body.mesmoEnderecoEmpresa !== undefined ? req.body.mesmoEnderecoEmpresa === true : atual.mesmoEnderecoEmpresa;
+  if (mesmoFinal && modalidadeFinal !== "presencial") {
+    if (req.body.mesmoEnderecoEmpresa === true) {
+      res.status(422).json({ error: "O sinalizador de mesmo endereço da empresa exige modalidade presencial." });
+      return;
+    }
+    mesmoFinal = false; // passou para online: deixa de ser sede (o endereco antigo fica guardado)
+  }
+  if (req.body.modalidade !== undefined) updates.modalidade = modalidadeFinal;
+  if (req.body.mesmoEnderecoEmpresa !== undefined || mesmoFinal !== atual.mesmoEnderecoEmpresa) updates.mesmoEnderecoEmpresa = mesmoFinal;
+  let empresaDoLocal: EmpresaEndereco | null = null;
+  if (mesmoFinal) {
+    empresaDoLocal = await carregarEmpresa(atual.empresaId ?? null);
+    if (!empresaDoLocal) {
+      res.status(422).json({ error: "Não foi possível ler o endereço da empresa. Nada foi alterado." });
+      return;
+    }
+    Object.assign(updates, enderecoDaEmpresa(empresaDoLocal));
+  }
+
   // Auto-preenchimento via ViaCEP: se CEP foi enviado e campos geo estão ausentes/nulos no body
-  if (cep && (!bairro || !cidade || !estado)) {
+  if (!mesmoFinal && cep && (!bairro || !cidade || !estado)) {
     const geo = await lookupCep(cep);
     if (geo) {
       if (!updates.bairro && geo.bairro)         updates.bairro  = geo.bairro;
@@ -264,7 +379,7 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   }
 
   // Auto-derivação de zona: só deriva se zona não foi enviada manualmente no body
-  if (zona === undefined && !updates.zona) {
+  if (!mesmoFinal && zona === undefined && !updates.zona) {
     const finalBairro = (updates.bairro as string | null) ?? null;
     const finalCidade = (updates.cidade as string | null) ?? null;
     const finalEstado = (updates.estado as string | null) ?? null;
@@ -283,7 +398,7 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Location not found" });
     return;
   }
-  res.json(serializeLocation(updated));
+  res.json(serializeLocation(updated, empresaDoLocal ?? await carregarEmpresa(updated.empresaId)));
 });
 
 router.delete("/locations/:id", async (req, res): Promise<void> => {

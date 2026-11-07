@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, uniqueIndex, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -36,6 +36,10 @@ export const locationsTable = pgTable("locations", {
   certTitular: text("cert_titular"),
   certValidade: text("cert_validade"),
   certTipo: text("cert_tipo"),
+  // Modalidade do atendimento: 'presencial' | 'online' | NULL (a definir). Adicionada por ALTER TABLE.
+  modalidade: text("modalidade"),
+  // Presencial no MESMO endereco da empresa (sede). Quando true, o endereco vem da empresa.
+  mesmoEnderecoEmpresa: boolean("mesmo_endereco_empresa").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
