@@ -469,15 +469,17 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   // ── QR da cópia exata da receita; a validação PAdES ocorre no próprio PDF.
   const ITI_VALIDATION_URL = "https://validar.iti.gov.br/";
-  const qrTarget = data.consultaUrl ?? ITI_VALIDATION_URL;
+  const qrTarget = signer ? (data.consultaUrl ?? ITI_VALIDATION_URL) : null;
   const certMeta = signer?.meta;
   let certQrImg: Awaited<ReturnType<PDFDocument["embedPng"]>> | null = null;
   try {
-    const qrBuf = await QRCode.toBuffer(qrTarget, {
-      width: 80, margin: 1,
-      color: { dark: "#151c2eff", light: "#ffffffff" },
-    });
-    certQrImg = await pdfDoc.embedPng(qrBuf);
+    if (qrTarget) {
+      const qrBuf = await QRCode.toBuffer(qrTarget, {
+        width: 80, margin: 1,
+        color: { dark: "#151c2eff", light: "#ffffffff" },
+      });
+      certQrImg = await pdfDoc.embedPng(qrBuf);
+    }
   } catch (error) {
     if (data.consultaUrl) {
       throw new Error(`Não foi possível gerar o QR de acesso à receita: ${error instanceof Error ? error.message : String(error)}`);
@@ -954,31 +956,40 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     drawField(BX2 + BP_L, fy, "Endereço Completo", data.pacienteEndereco, iW);
   }
 
-  y = BOX1_TOP - BOX1_H - 8;
+  y = BOX1_TOP - BOX1_H - 17;
 
   // ══════════════════════════════════════════════════════════════════════════
   // 4. CORPO / FÓRMULAS (motor: "Prescrevo:" italic + FormulaReal)
   // ══════════════════════════════════════════════════════════════════════════
-  page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: DARK });
-  y -= 16;
+  page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: rgb(0, 0, 0) });
+  y -= 19;
 
-  // Verde posologia (motor: color #0a7a6e)
-  const VERDE = rgb(0, 0, 0); // impressão laser: corpo da prescrição 100% preto
+  // Preto puro e a mesma fonte para ativos e posologia: impressão a laser.
+  const TINTA = rgb(0, 0, 0);
+  const BODY_SIZE = 9;
+  const BODY_LINE_HEIGHT = 12;
 
   for (let i = 0; i < data.formulas.length; i++) {
     const f   = data.formulas[i];
     const num = String(i + 1).padStart(2, "0");
     // A fórmula inteira fica na mesma página (não corta ativos/posologia ao meio).
-    const nAtivos = f.ativos ? f.ativos.split("\n").filter((l) => l.trim()).length : 0;
-    const nPos = f.posologia ? Math.max(1, Math.ceil(f.posologia.length / 95)) : 0;
-    ensureSpace(13 + ((f.via || f.forma) ? 20 : 0) + nAtivos * 11 + (nPos ? 11 + nPos * 11 : 0) + (f.observacao ? 11 : 0) + 14);
+    const lineCount = (text?: string | null) => (text ?? "").split("\n")
+      .filter((line) => line.trim()).reduce((total, line) =>
+        total + wrapLines(`  ${line.trim()}`, fontReg, BODY_SIZE, CW - 14).length, 0);
+    const nAtivos = lineCount(f.ativos);
+    const nPos = lineCount(f.posologia);
+    const itemHeight = 16 + ((f.via || f.forma) ? 21 : 0) +
+      nAtivos * BODY_LINE_HEIGHT + (nPos ? 13 + nPos * BODY_LINE_HEIGHT : 0) +
+      (f.observacao ? 11 : 0) + 18;
+    const maxPageBody = PAGE_H - M - 32 - BODY_BOTTOM;
+    ensureSpace(itemHeight <= maxPageBody ? itemHeight : 55);
 
     // D03 corrigido: número MUTED (cinza #555), NÃO dourado
     // D04 corrigido: nome preserva case original (NÃO força uppercase)
     page.drawText(`${num}`, { x: M, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
     page.drawText(safeTxt(f.nome),
       { x: M + 18, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
-    y -= 13;
+    y -= 16;
 
     // D01 corrigido: Via | Forma vêm ANTES dos ativos (motor: FormulaReal linha 198-213)
     if (f.via || f.forma) {
@@ -991,11 +1002,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         const cx = M + 26 + ci * colW;
         const c  = viaCols[ci];
         page.drawText(c.label.toUpperCase(),
-          { x: cx, y, font: fontBold, size: 5.5, color: rgb(0, 0, 0) });
+          { x: cx, y, font: fontBold, size: 6.5, color: TINTA });
         page.drawText(c.value,
-          { x: cx, y: y - 9, font: fontBold, size: 7, color: rgb(0, 0, 0) });
+          { x: cx, y: y - 9, font: fontBold, size: 7.5, color: TINTA });
       }
-      y -= 20;
+      y -= 21;
     }
 
     // Ativos — fonte monospace-like (motor: fontFamily monospace, fontSize 8)
@@ -1004,21 +1015,22 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         const ln = raw.trim();
         if (!ln) continue;
         drawWrappedPaged(`  ${ln}`, {
-          x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: rgb(0, 0, 0), lineHeight: 11,
+          x: M + 14, maxWidth: CW - 14, font: fontReg, size: BODY_SIZE, color: TINTA, lineHeight: BODY_LINE_HEIGHT,
         });
       }
     }
 
     // D02 corrigido: posologia com ▸ prefix + cor verde #0a7a6e (motor: linha 220-222)
     if (f.posologia?.trim()) {
-      ensureSpace(24);
-      page.drawText("POSOLOGIA:", { x: M + 14, y, font: fontBold, size: 7, color: rgb(0, 0, 0) });
+      ensureSpace(27);
+      y -= 2;
+      page.drawText("POSOLOGIA:", { x: M + 14, y, font: fontBold, size: 7.5, color: TINTA });
       y -= 11;
       for (const raw of f.posologia.split("\n")) {
         const ln = raw.trim();
         if (!ln) continue;
         drawWrappedPaged(`  ${ln}`, {
-          x: M + 14, maxWidth: CW - 14, font: fontReg, size: 8, color: VERDE, lineHeight: 11,
+          x: M + 14, maxWidth: CW - 14, font: fontReg, size: BODY_SIZE, color: TINTA, lineHeight: BODY_LINE_HEIGHT,
         });
       }
     }
@@ -1033,11 +1045,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
     // Separador pontilhado entre fórmulas
     if (i < data.formulas.length - 1) {
-      ensureSpace(14);
-      y -= 4;
+      ensureSpace(18);
+      y -= 6;
       page.drawLine({ start: { x: M + 18, y }, end: { x: PAGE_W - M, y },
-        thickness: 0.4, color: rgb(0, 0, 0) });
-      y -= 8;
+        thickness: 0.3, color: TINTA });
+      y -= 12;
     } else {
       y -= 6;
     }
@@ -1140,14 +1152,14 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         ["Certificadora", certMeta?.ac ?? "ICP-Brasil"],
         ["Número de série", serialFmt],
         ["Válido até", fmtValidTo],
-        ["QR", "Abre esta receita"],
+        ["QR", data.consultaUrl ? "Abre esta receita" : "Validador do ITI"],
       ]
     : [
         ["Responsável", safeTxt(data.medicoName)],
         ["Situação", "Certificado vencido"],
         ["Vencimento", fmtValidTo],
         ["Aviso", "Exige assinatura manual"],
-        ["QR", "Abre esta receita"],
+        ["Acesso", "Somente por acesso autenticado"],
       ];
   let certY = sigTopY - 18;
   for (const [k, v] of certFields) {
@@ -1161,11 +1173,6 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // O QR da emissão abre diretamente a receita no celular.
   if (certQrImg) {
     page.drawImage(certQrImg, { x: QR_X, y: QR_Y, width: QR_S, height: QR_S });
-  } else {
-    // Placeholder visual se QR falhou
-    page.drawRectangle({ x: QR_X, y: QR_Y, width: QR_S, height: QR_S,
-      borderColor: LINE, borderWidth: 0.4 });
-    page.drawText("QR", { x: QR_X + 7, y: QR_Y + 10, font: fontReg, size: 6, color: LIGHT });
   }
 
   y = sigTopY - CERT_H - 12;
@@ -1248,7 +1255,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       const linhas: [string, PDFFont, number, ReturnType<typeof rgb>][] = [
         [data.numeroReceita ? `Receita Nº ${data.numeroReceita}` : "Receituário", fontBold, 5.5, DARK],
         [`Paciente: ${data.pacienteNome ?? ""}`, fontReg, 5, MUTED],
-        [`Página ${idx + 1} de ${allPages.length} — QR abre a receita completa`, fontReg, 5, MUTED],
+        [`Página ${idx + 1} de ${allPages.length}${certQrImg && data.consultaUrl ? " — QR abre a receita completa" : ""}`, fontReg, 5, MUTED],
       ];
       let ty = FOOTER_TOP - 9;
       for (const [t, f, sz, c] of linhas) {

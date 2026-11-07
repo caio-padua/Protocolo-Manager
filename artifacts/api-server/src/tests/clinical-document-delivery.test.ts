@@ -106,7 +106,7 @@ beforeEach(() => {
     [clientsTable, [client]],
     [examRequestPdfsTable, [{ id: 61, clientId: 71, professionalId: 41, fileName: "pedido.pdf", pdfData: issued.pdfData }]],
     [recipesTable, [{ id: 81, prescriptionId: 82, fileName: "receita.pdf", title: "Receita original", pdfData: issued.pdfData }]],
-    [prescriptionsTable, [{ id: 82, clientId: 71, professionalId: 41, status: "emitted" }]],
+    [prescriptionsTable, [{ id: 82, clientId: 71, professionalId: 41, status: "emitted", signatureStatus: "signed" }]],
     [referralsTable, [{ id: 52, clientId: 71, professionalId: 41, status: "emitted", especialidadeDestino: "Cardiologia",
       pdfData: issued.pdfData, fileName: "encaminhamento.pdf" }]],
   ]);
@@ -270,6 +270,12 @@ describe("reenvio de documentos clínicos, sem contato real com provedores", () 
     expect(opened.headers["content-disposition"]).toContain("inline");
     expect(Buffer.isBuffer(opened.body)).toBe(true);
     expect((opened.body as Buffer).equals(bytes)).toBe(true);
+
+    mock.selectRows.set(prescriptionsTable, [{ id: 82, status: "emitted_unsigned", signatureStatus: "unsigned_expired" }]);
+    expect((await request(app).get(`/api/recipes/share/${token}`)).status).toBe(404);
+    mock.selectRows.set(prescriptionsTable, []);
+    expect((await request(app).get(`/api/recipes/share/${token}`)).status).toBe(404);
+    mock.selectRows.set(prescriptionsTable, [{ id: 82, status: "emitted", signatureStatus: "signed" }]);
 
     mock.selectRows.set(recipesTable, [{
       id: 81, prescriptionId: 82, fileName: "receita-sintetica.pdf", pdfData: issued.pdfData,

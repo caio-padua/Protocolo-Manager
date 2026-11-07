@@ -19,4 +19,4 @@ Ao diagnosticar 500 genérico de emissão: ler `errorMessage` no log "Falha tran
 ## Layout premium e fontes
 Rodapé de cada página repete QR + nº da receita + paciente + "Página i de n"; certificado fica à esquerda e assinatura à direita.
 Fonte serif (EB Garamond) embutida pelo pdf-lib junta "fi" com espaço torto ("Identifi cação"); embedFont com `features:{liga:false,clig:false}` resolve.
-Ativos e posologia usam a mesma fonte e tamanho (a posologia só muda de cor).
+Ativos e posologia usam a mesma fonte e tamanho, em preto para impressão.

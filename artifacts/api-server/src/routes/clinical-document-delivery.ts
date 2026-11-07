@@ -544,6 +544,7 @@ publicRouter.get("/recipes/share/:token", async (req, res) => {
   }
   const [recipe] = await db.select({
     id: recipesTable.id,
+    prescriptionId: recipesTable.prescriptionId,
     fileName: recipesTable.fileName,
     pdfData: recipesTable.pdfData,
     status: recipesTable.status,
@@ -553,6 +554,14 @@ publicRouter.get("/recipes/share/:token", async (req, res) => {
   if (!recipe || recipe.status !== "generated" || !recipe.pdfData ||
       !recipe.qrExpiresAt || recipe.qrExpiresAt.getTime() <= Date.now() ||
       !recipe.qrPdfSha256) {
+    res.status(404).send("Documento indisponível.");
+    return;
+  }
+  const [prescription] = await db.select({
+    status: prescriptionsTable.status,
+    signatureStatus: prescriptionsTable.signatureStatus,
+  }).from(prescriptionsTable).where(eq(prescriptionsTable.id, recipe.prescriptionId)).limit(1);
+  if (!prescription || prescription.status !== "emitted" || prescription.signatureStatus !== "signed") {
     res.status(404).send("Documento indisponível.");
     return;
   }

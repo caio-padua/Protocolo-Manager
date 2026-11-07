@@ -879,6 +879,8 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
         .replace(/\s+/g, " ").toUpperCase();
       expect(unsignedText).toContain("GERADA SEM ASSINATURA DIGITAL");
       expect(unsignedText).toContain("EXIGE ASSINATURA MANUAL");
+      expect(unsignedText).not.toContain("ABRE ESTA RECEITA");
+      expect(unsignedText).not.toContain("QR ABRE A RECEITA COMPLETA");
       let unsignedPdfSignatureReport = "";
       try {
         unsignedPdfSignatureReport = execFileSync("pdfsig", [unsignedPdfPath], { encoding: "utf8" });

@@ -8,3 +8,6 @@ Regra: a exceção sem assinatura é restrita à prescrição explícita no Cock
 **Why:** Separar “gerado” de “assinado” evita atribuir validade ou autoria criptográfica inexistente e impede transmissão automática de um documento incompleto.
 
 **How to apply:** Ao alterar qualquer emissão clínica, preservar a identidade do médico, cliente, clínica e governança; persistir o estado da assinatura; testar abertura autenticada e recusa de envio; nunca inferir assinatura em registros históricos.
+
+O acesso público à receita deve consultar também o estado da prescrição associada;
+um código válido e a integridade do arquivo não comprovam que houve assinatura.

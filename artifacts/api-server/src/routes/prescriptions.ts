@@ -23,6 +23,7 @@ import { consumeSncrNumber } from "../lib/sncr";
 import { handleSncrAlert } from "../lib/sncr-alerts";
 import { generateRecipePdf } from "../lib/prescription-pdf"; // demonstração sintética sem persistência
 import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
+import { prescriptionItemForDocument } from "../lib/prescription-rendering";
 import { getModeloAtivo } from "../lib/receituario-motor";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { baseUrlFromEnv } from "../lib/messaging/base-url";
@@ -469,14 +470,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       pacienteNascimento: clientRecord?.birthDate ?? undefined,
       pacienteTelefone: clientRecord?.phone ?? undefined,
       pacienteEndereco: clientRecord?.address ?? undefined,
-      formulas: plan.items.map((item) => ({
-        nome: item.name,
-        ativos: [item.ativos, item.dose].filter(Boolean).join(" — ") || undefined,
-        posologia: item.posologia ?? ([item.frequencia, item.periodo].filter(Boolean).join(" — ") || undefined),
-        via: item.via ?? undefined,
-        forma: item.category ?? undefined,
-        observacao: item.observacao ?? undefined,
-      })),
+      formulas: plan.items.map(prescriptionItemForDocument),
       tipoReceita: plan.recipeType === "controlado_isolado" ? "especial" : "simples",
       dataEmissao: todayBR(),
       validadeDias: 30,

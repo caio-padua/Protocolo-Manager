@@ -648,3 +648,31 @@ mtime_ms = 1793625053672
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4b17288b-e6a7-424f-adcc-811d2366b32d/5e1207e6-3c79-4ec0-8fdd-1fd9fd892f63"
 storage_version_token = "1793625363086855"
 content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+[[outputs]]
+id = "C7xyOrg8HfUFGvMG6Ww8C"
+uri = "file://generated-artifacts/receituario-previa-sintetica/receituario-real-modelo-1.png"
+type = "image"
+title = "Prévia sintética — página 1"
+description = "Amostra visual sem validade clínica; não foi emitida para um cliente."
+logical_id = "d1b6c803-7e3b-4849-84c9-7803a9024044"
+content_hash = "sha256:d7640bf6d7578671408c8b78dc7bca611699a8eeda0287c628e697798f2a7326"
+size = 163033
+mtime_ms = 1794017985523
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/d1b6c803-7e3b-4849-84c9-7803a9024044/34fb8ae2-e5c1-4f19-9ade-d782ba0b3dab"
+storage_version_token = "1794018133563541"
+content_type = "image/png"
+
+[[outputs]]
+id = "8Ry2afH3HHxvAj7FDI0PJ"
+uri = "file://generated-artifacts/receituario-previa-sintetica/receituario-real-modelo-2.png"
+type = "image"
+title = "Prévia sintética — página 2"
+description = "Amostra visual sem validade clínica, sem certificado real e sem envio."
+logical_id = "3e874022-82f6-4c39-80fc-f63d24b5be7c"
+content_hash = "sha256:5c0e5403a5eea1dbc8f1deb8f81e2e101beee788d8cbeb3e2c4d7d64147c86da"
+size = 78855
+mtime_ms = 1794017985524
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/3e874022-82f6-4c39-80fc-f63d24b5be7c/9ca66635-2c5f-478d-a348-73031b2ffdcf"
+storage_version_token = "1794018134261214"
+content_type = "image/png"

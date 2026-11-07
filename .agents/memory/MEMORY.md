@@ -29,7 +29,7 @@
 - [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
 - [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico no lembrete.
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
-- [Transição de login por e-mail ou CPF](login-transicao-email-cpf.md) — preservar credenciais atuais até preencher identificador; depois habilitar e-mail/CPF sem bloquear contas antes da regularização.
+- **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
 - [Separadores e verificação de conflitos](merge-marker-separators.md) — a integração automática pode interpretar sinais de igualdade em comentários como conflito; usar hífens decorativos.
 - [Autorização na fronteira de envio](envio-autorizacao-fronteira.md) — testes preservam a cadeia real de autenticação; vínculo administrativo não se infere de cargo ou agenda.
 - [Aprovação clínica delegada](aprovacao-clinica-delegada.md) — preparo por enfermagem não autoriza emissão; médico da mesma clínica aprova e assina sob concessões global e local.
@@ -46,7 +46,6 @@
 - [Orcamentos "Console Clinico" + relevo 3D](orcamentos-console-clinico.md) — dose exibida (catalogo) != dose salva (r.dose) e proposital; classes 3D UNLAYERED vencem utilitarios Tailwind/shadcn.
 - Painel de Domínios — padrões visuais — LED sempre à esquerda do card selecionado; bevel-3d badge flutuante para subtítulos de seção; painel comercial = KPIs+modelo+tabela de preços.
 - [LoginScreen: classes de tema (login-card-topbar/body/btn-3d-gold)](login-screen-classes-tema.md) — painel de login usa 3 classes próprias no index.css; sharp=true no PaxterSymbolGlass elimina curvatura do vidro.
-- [Solicitação de acesso com aprovação](login-solicitacao-acesso-aprovacao.md) — profissionais sem conta só recebem acesso após aprovação explícita da clínica responsável.
 - [Webhook assinatura: idempotencia + invalido](webhook-assinatura-idempotencia.md) — eventId determinístico (nunca new Date()); assinatura inválida NÃO marca processado=true; só expor provedor cabeado (404 nos demais).
 - **Concierge** — [gate server-only + HMAC](concierge-pagamento-gate-servidor.md) · [trava de escassez por CPF](concierge-penalidade.md) · [peso por desfecho v2](concierge-penalidade-arquitetura.md) · [piso de 3 meses so na vaga da fila](concierge-janela-natural.md)
 - [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por origem antes de abrir a outras fontes).
@@ -149,8 +148,7 @@
 - [Homologação clínica sintética](homologacao-documento-sintetico.md) — banner de teste destacado e supressão de boilerplate clínico contraditório em PDFs de homologação.
 - [Entrada em operação clínica](entrada-operacao-clinica.md) — primeiro uso real em paralelo ao sistema anterior; receitas e exames são prioridades, sem pressupor migração.
 - [Destinatários implícitos em documentos clínicos](recibos-clinicos-copia-implicita.md) — ao habilitar vários médicos, cópia pessoal herdada vira vazamento entre clínicas; verificar chamador e padrão do motor.
-- [Rascunho e revalidação transitória](rascunho-revalidacao-transitoria.md) — falha temporária de identidade oculta/bloqueia o editor, sem apagar a única cópia em memória.
-- [Rascunhos clínicos e emissão incerta](rascunhos-clinicos-recuperacao.md) — recuperar edição não prova emissão; rascunho local não é backup nem sincronização entre aparelhos.
+- **Rascunhos clínicos** — [revalidação transitória](rascunho-revalidacao-transitoria.md) · [recuperação e emissão incerta](rascunhos-clinicos-recuperacao.md).
 - [Autonomia nos retornos das tarefas](autonomia-retornos-tarefas.md) — decidir questões técnicas de “Aguardando entrada” com foco comercial; ler a pergunta e confirmar o envio da resposta.
 - [Envio clínico com resultado incerto](envio-clinico-resultado-incerto.md) — reservas não expiram nem autorizam repetição automática; resposta perdida exige conferência, não nova chave.
 - [Comercialização multiempresa](comercializacao-multiempresa.md) — finalidade comercial exige isolamento real; correção local não certifica o sistema inteiro para várias clínicas.
