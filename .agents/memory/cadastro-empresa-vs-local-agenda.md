@@ -26,3 +26,9 @@ Regra: A empresa do cadastro de um profissional pode ser diferente da empresa de
 **Why:** O responsável optou por manter o profissional cadastrado no Pádua enquanto o consultório pertence ao Lemos, sem transformar uma empresa em subordinada da outra.
 
 **How to apply:** Preservar as associações profissionais expressamente autorizadas e conferir as permissões resultantes; o vínculo a um local não implica que as empresas pertençam ao mesmo grupo.
+
+Regra: Uma mesma empresa clínica pode atender em locais próprios, espaços alugados por hora e por atendimento remoto, sem criar uma empresa para cada local.
+
+**Why:** O responsável descreveu uma operação itinerante, com agendas organizadas por cidade e consultórios alugados conforme a necessidade.
+
+**How to apply:** Separar empresa responsável, local ou modalidade e agenda; não presumir que o proprietário do endereço seja a clínica que realiza o atendimento.
