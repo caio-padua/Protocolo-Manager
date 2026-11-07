@@ -760,3 +760,87 @@ mtime_ms = 1794049215295
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/620702f2-d989-430b-ad22-3172ba49b514/73bac413-1f9f-41ce-a2af-43c0b96f11cf"
 storage_version_token = "1794049220374686"
 content_type = "image/png"
+
+[[outputs]]
+id = "CyociCDRVK6gWSCOKrqh0"
+uri = "file://generated-artifacts/paxmed-2b-prova-pagina-1.png"
+type = "image"
+title = "Pedido de exames — página 1"
+description = "Prova visual sintética; sem validade clínica e sem código de verificação."
+logical_id = "2640d639-3b9a-4ef5-a5d2-b68e89a90684"
+content_hash = "sha256:47e7150141dc2d81591a021885d7047fb168c85922561c4eac5010160c409891"
+size = 454278
+mtime_ms = 1794070685146
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/2640d639-3b9a-4ef5-a5d2-b68e89a90684/664bad15-abfa-474d-add3-5c2d08cc3465"
+storage_version_token = "1794071011428934"
+content_type = "image/png"
+
+[[outputs]]
+id = "-N_eRoGI8Jjcwi4rkFZ2h"
+uri = "file://generated-artifacts/paxmed-2b-prova-pagina-2.png"
+type = "image"
+title = "Pedido de exames — página 2"
+description = "Continuação da prova sintética; não é um documento clínico."
+logical_id = "7bf4ed5e-8e2e-48b8-a052-1efc46223910"
+content_hash = "sha256:e2440a72263a69a700825a374031fdb381c44117d904b60b24ab49224773e8b5"
+size = 405331
+mtime_ms = 1794070685658
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7bf4ed5e-8e2e-48b8-a052-1efc46223910/a14988ca-2982-421d-a69f-05cf2e2545cf"
+storage_version_token = "1794071012295998"
+content_type = "image/png"
+
+[[outputs]]
+id = "SOCJrDamIU1B3Ln9zRadO"
+uri = "file://generated-artifacts/paxmed-2b-receita-pagina-1.png"
+type = "image"
+title = "Receita de teste — página 1"
+description = "Prova visual sintética de um gerador alternativo; sem assinatura."
+logical_id = "c04ee96e-2dd8-4e4f-9c7b-8c560d27daf7"
+content_hash = "sha256:6717a6ff9ac07f3ec00c99c2c7ff50f896c28ea8c72281ad3dfac5749f698223"
+size = 403048
+mtime_ms = 1794070798043
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c04ee96e-2dd8-4e4f-9c7b-8c560d27daf7/171347fe-815a-42a3-b92e-b43b71cfc578"
+storage_version_token = "1794071013327839"
+content_type = "image/png"
+
+[[outputs]]
+id = "XLI8SiI8o8RP8jRBX8B62"
+uri = "file://generated-artifacts/paxmed-2b-receita-pagina-2.png"
+type = "image"
+title = "Receita de teste — página 2"
+description = "Continuação da prova sintética; sem assinatura."
+logical_id = "72f58fc3-ba1e-44ac-a13b-eabb803ae8c0"
+content_hash = "sha256:ed0b9e7d4327307469c892f1709f9f64b86e34f736fb5e58d3dfee9d12a4a02a"
+size = 353163
+mtime_ms = 1794070809743
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/72f58fc3-ba1e-44ac-a13b-eabb803ae8c0/42b2bcb2-48ad-4c7a-846a-815109c1683e"
+storage_version_token = "1794071014200060"
+content_type = "image/png"
+
+[[outputs]]
+id = "m4Xo-8qBJYWI8Eq6APHx2"
+uri = "file://generated-artifacts/paxmed-2b-prova-sintetica.pdf"
+type = "pdf"
+title = "Pedido de exames para impressão de teste"
+description = "Formato de documento portátil, duas páginas; conteúdo fictício, sem validade clínica."
+logical_id = "59077b76-19aa-480c-b85a-1da4fb429474"
+content_hash = "sha256:acf84fa36270809d74c163f5797499001421c3449b578a171705e2493f03dfd5"
+size = 1744013
+mtime_ms = 1794070683874
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/59077b76-19aa-480c-b85a-1da4fb429474/d40e4ef8-7edb-4b08-8236-139d89413f5a"
+storage_version_token = "1794071015268515"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "Oc679dpuRlBzMPIWe7J-H"
+uri = "file://generated-artifacts/paxmed-2b-receita-sintetica.pdf"
+type = "pdf"
+title = "Receita para impressão de teste"
+description = "Formato de documento portátil, duas páginas; conteúdo fictício, sem validade clínica."
+logical_id = "acc6f033-c974-48cf-aad9-0725a8c114bd"
+content_hash = "sha256:949077aba1f4d90dc1c9853d403cb6c820fbfc766933172cdef8ecf4d1955646"
+size = 1731456
+mtime_ms = 1794070797175
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/acc6f033-c974-48cf-aad9-0725a8c114bd/d18808ea-a654-42d1-885e-240d90d974a0"
+storage_version_token = "1794071016193536"
+content_type = "application/pdf"

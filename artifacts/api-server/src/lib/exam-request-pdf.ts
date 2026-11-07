@@ -20,6 +20,8 @@ export interface ExamRequestItem {
 
 export interface ExamRequestPdfContext {
   homologacao?: boolean;
+  /** Exclusivo para prova sintética offline, ainda sem verificação real. */
+  modelo2bProva?: boolean;
   tipo: string;
   tipoLabel: string;
   clientName: string;
@@ -59,19 +61,23 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promise<Uint8Array> {
-  const fab = await iniciarFabrica();
+  if (ctx.modelo2bProva && !ctx.homologacao) {
+    throw new Error("Modelo 2B de prova exige documento de homologação.");
+  }
+  const fab = await iniciarFabrica(ctx.modelo2bProva ? { modeloProva: "paxmed-2b-sintetico" } : undefined);
   const { font, fontBold, margem, larguraConteudo } = fab;
 
   const cabecalho: CabecalhoOpts = {
-    titulo: ctx.homologacao ? "DEMONSTRAÇÃO DE EXAMES" : "SOLICITAÇÃO DE EXAMES",
+    titulo: ctx.homologacao && !ctx.modelo2bProva ? "DEMONSTRAÇÃO DE EXAMES" : "SOLICITAÇÃO DE EXAMES",
     subtitulo: `EXAMES — ${ctx.tipoLabel.toUpperCase()}`,
+    ...(ctx.modelo2bProva ? { emissor: "instituto_padua" as const } : {}),
   };
 
   let { page, y } = fab.novaPagina(cabecalho);
   const topoPagina = y;
 
   const ensureSpace = (needed: number) => {
-    if (y - needed < 72) {
+    if (y - needed < fab.limiteInferior) {
       const nova = fab.novaPagina(cabecalho);
       page = nova.page;
       y = nova.y;
@@ -107,7 +113,7 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
     // Regra do CEO: exame inteiro (título + preparo) + 1 linha em branco, senão página nova.
     if (blocoDeveIrParaProximaPagina({
       y, alturaBloco: titleLines.length * 14 + preparoLines.length * 11 + 6,
-      limiteInferior: 72, linhaEmBranco: 11, topoPaginaNova: topoPagina,
+      limiteInferior: fab.limiteInferior, linhaEmBranco: 11, topoPaginaNova: topoPagina,
     })) {
       const nova = fab.novaPagina(cabecalho);
       page = nova.page;

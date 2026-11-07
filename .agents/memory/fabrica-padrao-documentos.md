@@ -28,6 +28,33 @@ assinado, o fluxo é: desenhar tudo → carimbar cabeçalho/rodapé → placehol
 nada depois de assinar (invalida o selo). Por isso o atalho `finalizar` (salva) só serve a documentos
 NÃO assinados; o fluxo assinado chama `carimbarRodape` e entrega `fab.doc` ao assinador.
 
+## Modelo 2B: emissor clínico separado do software
+
+No Modelo 2B, o Instituto Pádua é o emissor no cabeçalho e a marca PAXMED no
+rodapé identifica o software. A frase do rodapé desse modelo é “Medical
+Intelligence System”. A identidade da clínica não deve ser aplicada a outras.
+
+**Why:** o usuário forneceu um modelo específico de documentos para o Instituto,
+distinguindo o emissor clínico do software que produz o documento.
+
+**How to apply:** essa regra é específica do Modelo 2B; não altera os documentos
+legados ou de outras clínicas automaticamente. Não presumir verificação por
+código ou uso clínico antes de concluir e validar a integração.
+
+## Identidade de clínica e acesso ao documento
+
+O símbolo, o nome e o endereço dos documentos pertencem a cada clínica e devem
+ser configurados em “Faixas do Receituário”. O Instituto Pádua segue esse mesmo
+fluxo, como exemplo de uma clínica licenciada. O acesso ao documento aberto
+pelo código de verificação exige login.
+
+**Why:** o responsável quer que futuras clínicas personalizem seus documentos
+sem herdar a identidade do Instituto ou expor documentos a quem possuir o código.
+
+**How to apply:** separar identidade da clínica e marca do software; vincular
+configuração e leitura à clínica autorizada no servidor; não tornar o código,
+sozinho, uma autorização para visualizar o arquivo.
+
 ## Asset bundling no api-server (sempre roda do dist)
 O `dev` do api-server é `build && start` — o servidor SEMPRE roda do bundle `dist`, nunca da fonte.
 Logo, asset binário (PNG do wordmark, .afm) tem de ser COPIADO para `dist` no passo de build e
