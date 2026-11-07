@@ -7,6 +7,7 @@ import { join, resolve } from "path";
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
+import { marcarDemonstracao } from "./documentos/marca-demonstracao";
 import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
@@ -408,6 +409,7 @@ export interface ReceituarioDataV2 {
 
   // Título e assinatura
   tituloSubtitulo?: string;         // ex: "MODELO DEMONSTRATIVO — SEM VALIDADE"
+  homologacao?: boolean;
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
 
   // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
@@ -856,9 +858,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const rceW = (fontBold as any).widthOfTextAtSize(rce, 7);
   page.drawText(rce,
     { x: PAGE_W - M - rceW, y: y - 11, font: fontBold, size: 7, color: MUTED });
-  const vias = configText(designer, "cabecalhoVias", "1ª via - Farmácia — 2ª via - Paciente");
-  page.drawText(vias.slice(0, 64),
-    { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(vias.slice(0, 64), 6), y: y - 21, font: fontReg, size: 6, color: MUTED });
+  if (!data.homologacao) {
+    const vias = configText(designer, "cabecalhoVias", "1ª via - Farmácia — 2ª via - Paciente");
+    page.drawText(vias.slice(0, 64),
+      { x: PAGE_W - M - (fontReg as any).widthOfTextAtSize(vias.slice(0, 64), 6), y: y - 21, font: fontReg, size: 6, color: MUTED });
+  }
 
   y -= 42;
   y -= configNumber(designer, "sepSup1MarginTop", 3, 0, 20) * MM;
@@ -872,7 +876,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // 2. TÍTULO DO DOCUMENTO (motor: centrado bold 16px uppercase letterSpacing 2)
   // ══════════════════════════════════════════════════════════════════════════
   // D07 corrigido: size 16 (motor usa fontSize 16, fontWeight 800)
-  const configuredTitle = configText(designer, "tituloDocumento", tituloDoc);
+  const configuredTitle = data.homologacao
+    ? "DEMONSTRAÇÃO DE RECEITUÁRIO"
+    : configText(designer, "tituloDocumento", tituloDoc);
   const displayedTitle = tipo === "especial"
     ? configuredTitle
     : configuredTitle.replace(/(DE\s+)?CONTROLE\s+ESPECIAL/gi, "SIMPLES");
@@ -966,7 +972,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   // 4. CORPO / FÓRMULAS (motor: "Prescrevo:" italic + FormulaReal)
   // ══════════════════════════════════════════════════════════════════════════
-  page.drawText("Prescrevo:", { x: M, y, font: fontItal, size: 11, color: rgb(0, 0, 0) });
+  page.drawText(data.homologacao ? "Itens para demonstração:" : "Prescrevo:", { x: M, y, font: fontItal, size: 11, color: rgb(0, 0, 0) });
   y -= 19;
 
   // Preto puro e a mesma fonte para ativos e posologia: impressão a laser.
@@ -1181,5 +1187,6 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     });
   }
 
+  if (data.homologacao) await marcarDemonstracao(pdfDoc);
   return signer ? signPrescriptionPdf(pdfDoc, signer) : pdfDoc.save();
 }

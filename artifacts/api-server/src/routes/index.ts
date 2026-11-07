@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import clinicalDemonstrationsRouter from "./clinical-demonstrations";
 import healthRouter from "./health";
 import clientsRouter from "./clients";
 import substancesRouter from "./substances";
@@ -181,6 +182,7 @@ router.use(nursingAssessmentsRouter);
 router.use(taskCardsRouter);
 router.use(pharmaciesRouter);
 router.use(prescriptionsRouter);
+router.use(clinicalDemonstrationsRouter);
 router.use(prescriptionProtocolsRouter);
 router.use(systemErrorsRouter);
 router.use(clinicalApprovalsRouter);

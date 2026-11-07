@@ -7,6 +7,80 @@
  */
 import * as zod from "zod";
 
+export const ListClinicalDemonstrationsParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const ListClinicalDemonstrationsQueryParams = zod.object({
+  kind: zod.enum(["prescricao", "exames"]),
+});
+
+export const ListClinicalDemonstrationsResponseItem = zod.object({
+  id: zod.string(),
+  kind: zod.enum(["prescricao", "exames"]),
+  createdAt: zod.string(),
+});
+export const ListClinicalDemonstrationsResponse = zod.array(
+  ListClinicalDemonstrationsResponseItem,
+);
+
+export const CreateClinicalDemonstrationParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const createClinicalDemonstrationBodyPrescriptionItemsMax = 50;
+
+export const createClinicalDemonstrationBodyExamItemsMax = 100;
+
+export const createClinicalDemonstrationBodyObservacaoMax = 2000;
+
+export const CreateClinicalDemonstrationBody = zod.object({
+  kind: zod.enum(["prescricao", "exames"]),
+  prescriptionItems: zod
+    .array(
+      zod.object({
+        name: zod.string(),
+        ativos: zod.string().nullish(),
+        posologia: zod.string().nullish(),
+        dose: zod.string().nullish(),
+        via: zod.string().nullish(),
+        frequencia: zod.string().nullish(),
+        periodo: zod.string().nullish(),
+        observacao: zod.string().nullish(),
+        category: zod.string().nullish(),
+        internalColor: zod.string().nullish(),
+        isControlled: zod.boolean().nullish(),
+        anvisaType: zod.string().nullish(),
+        pharmacyId: zod.number().nullish(),
+      }),
+    )
+    .min(1)
+    .max(createClinicalDemonstrationBodyPrescriptionItemsMax)
+    .optional(),
+  examItems: zod
+    .array(
+      zod.object({
+        nomeExame: zod.string().min(1),
+        codigoExame: zod.string().nullish(),
+        grupoPrincipal: zod.string().nullish(),
+        preparo: zod.string().nullish(),
+        tipo: zod.enum(["SANGUE", "IMAGEM", "OUTROS"]),
+      }),
+    )
+    .min(1)
+    .max(createClinicalDemonstrationBodyExamItemsMax)
+    .optional(),
+  observacao: zod
+    .string()
+    .max(createClinicalDemonstrationBodyObservacaoMax)
+    .nullish(),
+});
+
+export const GetClinicalDemonstrationParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+  id: zod.coerce.string(),
+});
+
 /**
  * @summary Personal exam selections scoped to the authenticated doctor and authorized client clinic
  */

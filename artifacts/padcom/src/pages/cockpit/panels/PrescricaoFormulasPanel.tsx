@@ -51,6 +51,7 @@ import { useClinicalDraft } from "@/hooks/use-clinical-draft";
 import { emptyPrescriptionDraft, prescriptionDraftSchema } from "./clinical-draft-schemas";
 import { getCollabToken } from "@/lib/collab-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import ClinicalDemonstrationPanel from "./ClinicalDemonstrationPanel";
 
 // ===========================================================================
 // PAINEL: PRESCRICAO DE FORMULAS (client-scoped) — extraido de prescricao/index.tsx.
@@ -892,6 +893,14 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             </div>
           )}
 
+          {identity.data?.canPrescribe && (
+            <ClinicalDemonstrationPanel
+              clientId={clientId}
+              kind="prescricao"
+              canCreate={selected.length > 0 && !identity.isFetching && !identity.isError}
+              payload={{ kind: "prescricao", prescriptionItems: buildItems() }}
+            />
+          )}
           {/* Roteamento para farmácias + emissão */}
           {selected.length > 0 && (
             <div className="space-y-3">

@@ -5,6 +5,84 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export type ClinicalDemonstrationKind =
+  (typeof ClinicalDemonstrationKind)[keyof typeof ClinicalDemonstrationKind];
+
+export const ClinicalDemonstrationKind = {
+  prescricao: "prescricao",
+  exames: "exames",
+} as const;
+
+export interface ClinicalDemonstration {
+  id: string;
+  kind: ClinicalDemonstrationKind;
+  createdAt: string;
+}
+
+export type ClinicalDemonstrationInputKind =
+  (typeof ClinicalDemonstrationInputKind)[keyof typeof ClinicalDemonstrationInputKind];
+
+export const ClinicalDemonstrationInputKind = {
+  prescricao: "prescricao",
+  exames: "exames",
+} as const;
+
+export interface PrescriptionItemInput {
+  name: string;
+  ativos?: string | null;
+  posologia?: string | null;
+  dose?: string | null;
+  via?: string | null;
+  frequencia?: string | null;
+  periodo?: string | null;
+  observacao?: string | null;
+  category?: string | null;
+  internalColor?: string | null;
+  isControlled?: boolean | null;
+  anvisaType?: string | null;
+  pharmacyId?: number | null;
+}
+
+export type ExamRequestEmitItemTipo =
+  (typeof ExamRequestEmitItemTipo)[keyof typeof ExamRequestEmitItemTipo];
+
+export const ExamRequestEmitItemTipo = {
+  SANGUE: "SANGUE",
+  IMAGEM: "IMAGEM",
+  OUTROS: "OUTROS",
+} as const;
+
+export interface ExamRequestEmitItem {
+  /** @minLength 1 */
+  nomeExame: string;
+  /** @nullable */
+  codigoExame?: string | null;
+  /** @nullable */
+  grupoPrincipal?: string | null;
+  /** @nullable */
+  preparo?: string | null;
+  tipo: ExamRequestEmitItemTipo;
+}
+
+export interface ClinicalDemonstrationInput {
+  kind: ClinicalDemonstrationInputKind;
+  /**
+   * @minItems 1
+   * @maxItems 50
+   */
+  prescriptionItems?: PrescriptionItemInput[];
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  examItems?: ExamRequestEmitItem[];
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  observacao?: string | null;
+}
+
 export type EmpresaCodigoSemanticoInputVinculo =
   (typeof EmpresaCodigoSemanticoInputVinculo)[keyof typeof EmpresaCodigoSemanticoInputVinculo];
 
@@ -1947,22 +2025,6 @@ export interface ClinicalDeliveryResult {
   target: ClinicalDeliveryTarget;
 }
 
-export interface PrescriptionItemInput {
-  name: string;
-  ativos?: string | null;
-  posologia?: string | null;
-  dose?: string | null;
-  via?: string | null;
-  frequencia?: string | null;
-  periodo?: string | null;
-  observacao?: string | null;
-  category?: string | null;
-  internalColor?: string | null;
-  isControlled?: boolean | null;
-  anvisaType?: string | null;
-  pharmacyId?: number | null;
-}
-
 export interface PreviewBody {
   items: PrescriptionItemInput[];
 }
@@ -2004,27 +2066,6 @@ export interface EmitBody {
   cid?: string | null;
   message?: string | null;
   items: PrescriptionItemInput[];
-}
-
-export type ExamRequestEmitItemTipo =
-  (typeof ExamRequestEmitItemTipo)[keyof typeof ExamRequestEmitItemTipo];
-
-export const ExamRequestEmitItemTipo = {
-  SANGUE: "SANGUE",
-  IMAGEM: "IMAGEM",
-  OUTROS: "OUTROS",
-} as const;
-
-export interface ExamRequestEmitItem {
-  /** @minLength 1 */
-  nomeExame: string;
-  /** @nullable */
-  codigoExame?: string | null;
-  /** @nullable */
-  grupoPrincipal?: string | null;
-  /** @nullable */
-  preparo?: string | null;
-  tipo: ExamRequestEmitItemTipo;
 }
 
 export interface ExamRequestEmitBody {
@@ -2691,6 +2732,18 @@ export interface BudgetSeedResult {
   catalogTotal: number;
   settingsCreated: boolean;
 }
+
+export type ListClinicalDemonstrationsParams = {
+  kind: ListClinicalDemonstrationsKind;
+};
+
+export type ListClinicalDemonstrationsKind =
+  (typeof ListClinicalDemonstrationsKind)[keyof typeof ListClinicalDemonstrationsKind];
+
+export const ListClinicalDemonstrationsKind = {
+  prescricao: "prescricao",
+  exames: "exames",
+} as const;
 
 export type UpdatePersonalExamSetBody =
   | PersonalExamSetWrite

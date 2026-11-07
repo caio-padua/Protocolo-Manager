@@ -41,6 +41,73 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /clinical-demonstrations/{clientId}:
+    parameters:
+      - name: clientId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: listClinicalDemonstrations
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [prescricao, exames] }
+      responses:
+        "200":
+          description: Demonstrações privadas do médico e cliente autorizados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicalDemonstration" }
+        "401": { description: Autenticação necessária }
+        "403": { description: Acesso não autorizado }
+    post:
+      operationId: createClinicalDemonstration
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicalDemonstrationInput" }
+      responses:
+        "201":
+          description: Documento de teste criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicalDemonstration" }
+        "400": { description: Dados inválidos }
+        "401": { description: Autenticação necessária }
+        "403": { description: Acesso não autorizado }
+        "422": { description: Certificado ou itens inválidos }
+  /clinical-demonstrations/{clientId}/{id}:
+    get:
+      operationId: getClinicalDemonstration
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Documento de teste assinado
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { description: Autenticação necessária }
+        "403": { description: Acesso não autorizado }
+        "404": { description: Documento não encontrado }
   /exam-sets/{clientId}:
     parameters:
       - name: clientId
@@ -3001,6 +3068,30 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    ClinicalDemonstration:
+      type: object
+      required: [id, kind, createdAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [prescricao, exames] }
+        createdAt: { type: string }
+    ClinicalDemonstrationInput:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [prescricao, exames] }
+        prescriptionItems:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/PrescriptionItemInput" }
+        examItems:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/ExamRequestEmitItem" }
+        observacao: { type: ["string", "null"], maxLength: 2000 }
     EmpresaCodigoSemanticoInput:
       type: object
       additionalProperties: false

@@ -72,6 +72,8 @@ import type {
   ClinicalDeliveryContext,
   ClinicalDeliveryInput,
   ClinicalDeliveryResult,
+  ClinicalDemonstration,
+  ClinicalDemonstrationInput,
   ClinicalProfessionalAccess,
   ClinicsSettings,
   CompanySettings,
@@ -123,6 +125,7 @@ import type {
   ListBudgetsParams,
   ListCatalogOptionsParams,
   ListClientsParams,
+  ListClinicalDemonstrationsParams,
   ListFinancialGoalsParams,
   ListPaymentsParams,
   ListProfessionalAreasParams,
@@ -190,6 +193,300 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getListClinicalDemonstrationsUrl = (
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/clinical-demonstrations/${clientId}?${stringifiedParams}`
+    : `/api/clinical-demonstrations/${clientId}`;
+};
+
+export const listClinicalDemonstrations = async (
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+  options?: RequestInit,
+): Promise<ClinicalDemonstration[]> => {
+  return customFetch<ClinicalDemonstration[]>(
+    getListClinicalDemonstrationsUrl(clientId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClinicalDemonstrationsQueryKey = (
+  clientId: number,
+  params?: ListClinicalDemonstrationsParams,
+) => {
+  return [
+    `/api/clinical-demonstrations/${clientId}`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListClinicalDemonstrationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListClinicalDemonstrationsQueryKey(clientId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClinicalDemonstrations>>
+  > = ({ signal }) =>
+    listClinicalDemonstrations(clientId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClinicalDemonstrationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClinicalDemonstrations>>
+>;
+export type ListClinicalDemonstrationsQueryError = ErrorType<void>;
+
+export function useListClinicalDemonstrations<
+  TData = Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params: ListClinicalDemonstrationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClinicalDemonstrations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClinicalDemonstrationsQueryOptions(
+    clientId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateClinicalDemonstrationUrl = (clientId: number) => {
+  return `/api/clinical-demonstrations/${clientId}`;
+};
+
+export const createClinicalDemonstration = async (
+  clientId: number,
+  clinicalDemonstrationInput: ClinicalDemonstrationInput,
+  options?: RequestInit,
+): Promise<ClinicalDemonstration> => {
+  return customFetch<ClinicalDemonstration>(
+    getCreateClinicalDemonstrationUrl(clientId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(clinicalDemonstrationInput),
+    },
+  );
+};
+
+export const getCreateClinicalDemonstrationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createClinicalDemonstration>>,
+    TError,
+    { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createClinicalDemonstration>>,
+  TError,
+  { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+  TContext
+> => {
+  const mutationKey = ["createClinicalDemonstration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createClinicalDemonstration>>,
+    { clientId: number; data: BodyType<ClinicalDemonstrationInput> }
+  > = (props) => {
+    const { clientId, data } = props ?? {};
+
+    return createClinicalDemonstration(clientId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateClinicalDemonstrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createClinicalDemonstration>>
+>;
+export type CreateClinicalDemonstrationMutationBody =
+  BodyType<ClinicalDemonstrationInput>;
+export type CreateClinicalDemonstrationMutationError = ErrorType<void>;
+
+export const useCreateClinicalDemonstration = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createClinicalDemonstration>>,
+    TError,
+    { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createClinicalDemonstration>>,
+  TError,
+  { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+  TContext
+> => {
+  return useMutation(getCreateClinicalDemonstrationMutationOptions(options));
+};
+
+export const getGetClinicalDemonstrationUrl = (
+  clientId: number,
+  id: string,
+) => {
+  return `/api/clinical-demonstrations/${clientId}/${id}`;
+};
+
+export const getClinicalDemonstration = async (
+  clientId: number,
+  id: string,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetClinicalDemonstrationUrl(clientId, id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetClinicalDemonstrationQueryKey = (
+  clientId: number,
+  id: string,
+) => {
+  return [`/api/clinical-demonstrations/${clientId}/${id}`] as const;
+};
+
+export const getGetClinicalDemonstrationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClinicalDemonstration>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClinicalDemonstration>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClinicalDemonstrationQueryKey(clientId, id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClinicalDemonstration>>
+  > = ({ signal }) =>
+    getClinicalDemonstration(clientId, id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(clientId && id),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClinicalDemonstration>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClinicalDemonstrationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClinicalDemonstration>>
+>;
+export type GetClinicalDemonstrationQueryError = ErrorType<void>;
+
+export function useGetClinicalDemonstration<
+  TData = Awaited<ReturnType<typeof getClinicalDemonstration>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClinicalDemonstration>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClinicalDemonstrationQueryOptions(
+    clientId,
+    id,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Personal exam selections scoped to the authenticated doctor and authorized client clinic

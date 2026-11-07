@@ -26,6 +26,7 @@ import PersonalExamSets from "./PersonalExamSets";
 import { useCreateClinicalApproval, useEmitExamRequest, getListClinicalApprovalsQueryKey, getCountClinicalApprovalsQueryKey } from "@workspace/api-client-react";
 import { getCollabToken } from "@/lib/collab-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import ClinicalDemonstrationPanel from "./ClinicalDemonstrationPanel";
 
 // ---------------------------------------------------------------------------
 // PAINEL: PEDIDOS DE EXAMES (client-scoped) — extraido de consulta/index.tsx.
@@ -501,6 +502,14 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
         </label>
         <p className="text-xs text-muted-foreground">A emissão direta não envia mensagens. Pedidos submetidos para revisão também não habilitam envio externo.</p>
 
+        {identity.data?.canRequestExams && (
+          <ClinicalDemonstrationPanel
+            clientId={clientId}
+            kind="exames"
+            canCreate={cartList.length > 0 && !identity.isFetching && !identity.isError}
+            payload={{ kind: "exames", examItems: emissionItems(), observacao: observacao.trim() || undefined }}
+          />
+        )}
         {identity.data?.canRequestExams ? (
           <button
             type="button"

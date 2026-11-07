@@ -9,6 +9,7 @@ import { blocoDeveIrParaProximaPagina } from "./pdf-bloco-integro";
 import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
+import { marcarDemonstracao } from "./documentos/marca-demonstracao";
 
 export interface ExamRequestItem {
   nomeExame: string;
@@ -18,6 +19,7 @@ export interface ExamRequestItem {
 }
 
 export interface ExamRequestPdfContext {
+  homologacao?: boolean;
   tipo: string;
   tipoLabel: string;
   clientName: string;
@@ -61,7 +63,7 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
   const { font, fontBold, margem, larguraConteudo } = fab;
 
   const cabecalho: CabecalhoOpts = {
-    titulo: "SOLICITAÇÃO DE EXAMES",
+    titulo: ctx.homologacao ? "DEMONSTRAÇÃO DE EXAMES" : "SOLICITAÇÃO DE EXAMES",
     subtitulo: `EXAMES — ${ctx.tipoLabel.toUpperCase()}`,
   };
 
@@ -94,7 +96,7 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
   y -= 6;
 
   // Lista de exames
-  drawLine("Solicito a realização dos seguintes exames:", 10, fontBold, COR.navy);
+  drawLine(ctx.homologacao ? "Exames para demonstração:" : "Solicito a realização dos seguintes exames:", 10, fontBold, COR.navy);
   y -= 4;
 
   let idx = 1;
@@ -149,5 +151,7 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
   });
   y -= ASSINATURA_3A1C_ALTURA;
 
-  return fab.finalizar();
+  fab.carimbarRodape();
+  if (ctx.homologacao) await marcarDemonstracao(fab.doc);
+  return fab.doc.save();
 }
