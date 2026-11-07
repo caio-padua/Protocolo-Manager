@@ -41,3 +41,32 @@ O fluxo real autenticado e o uso clínico só serão afirmados com evidência pr
   mas a rolagem vertical continua disponível em telas pequenas e em formulários extensos.
   Não considerar atendida a solicitação de eliminar todas as barras.
 - A prévia automatizada não efetua autenticação real, e a revisão independente ainda não foi realizada.
+
+## Correção pontual autorizada: consultório Lemos
+
+Em desenvolvimento, transferir somente a empresa do consultório Lemos para
+Instituto Lemos. A empresa e o cadastro do profissional permanecem separados:
+o profissional continua no Instituto Pádua e mantém sua associação ao local,
+conforme a proposta apresentada ao responsável, que decidiu manter o cadastro
+profissional no Pádua. Antes de manter essa associação, é necessária decisão
+explícita sobre a consequência de acesso encontrada na auditoria abaixo.
+
+Antes de gravar, confirmar o local, as duas empresas ativas e independentes, a
+empresa anterior, o profissional associado, a ausência de código semântico
+emitido, de clientes associados ao local, de permissões clínicas e de atendimentos
+para os recursos do local. Condições divergentes interrompem a operação.
+Preservar agendas, sequências, profissionais, históricos e todas as demais linhas.
+Não criar ou apagar empresas nem enviar mensagens, receitas ou cobranças.
+Depois da mudança, conferir os dados de empresa, profissional, vínculo e agenda.
+Essa correção não comprova isolamento completo nem altera a produção.
+
+### Bloqueio de acesso entre empresas
+
+O vínculo profissional-local é usado para autorizar a seleção da empresa do
+local no contexto autenticado. A lista de clientes usa esse contexto para
+filtrar por empresa e não exige a mesma concessão específica da prescrição.
+Portanto, transferir o local mantendo o vínculo pode dar ao profissional acesso
+à lista de clientes do Instituto Lemos, inclusive clientes futuros, ainda que
+ele permaneça cadastrado no Pádua e não receba permissão de prescrição.
+Não alterar o vínculo antes de explicar esse efeito e obter decisão específica;
+não confundir nenhuma das duas permissões com isolamento integral comprovado.

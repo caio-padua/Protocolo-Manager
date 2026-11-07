@@ -20,3 +20,9 @@ Regra: O Instituto Lemos e o Instituto Pádua são empresas independentes, sem r
 **Why:** O responsável esclareceu que Lemos é uma empresa própria e pediu a retirada dos vínculos entre elas.
 
 **How to apply:** Não criar hierarquia ou vínculo empresarial entre as duas; tratar separadamente a associação de cada local e o acesso dos profissionais, após conferir seus efeitos.
+
+Regra: A empresa do cadastro de um profissional pode ser diferente da empresa de um local onde ele atende.
+
+**Why:** O responsável optou por manter o profissional cadastrado no Pádua enquanto o consultório pertence ao Lemos, sem transformar uma empresa em subordinada da outra.
+
+**How to apply:** Preservar as associações profissionais expressamente autorizadas e conferir as permissões resultantes; o vínculo a um local não implica que as empresas pertençam ao mesmo grupo.
