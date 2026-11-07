@@ -872,3 +872,31 @@ mtime_ms = 1794072440846
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/32d10830-f875-4ab0-9667-4a5b8c1b4d80/9b82b677-24fc-410d-9a7b-c68dff1c89f6"
 storage_version_token = "1794072491930706"
 content_type = "image/png"
+
+[[outputs]]
+id = "j1AjrZEC96MOHNJ1V0olf"
+uri = "file://generated-artifacts/prova-transformacao-preto-branco-colorido.png"
+type = "image"
+title = "Teste: símbolo preto, branco e colorido"
+description = "Entradas transparentes enviadas em teste isolado; os três resultados retornados têm a mesma forma e os mesmos tons de dourado."
+logical_id = "38ea1bea-70e4-47a6-8334-09cf6a52db5e"
+content_hash = "sha256:911e9a043761dfd60a46ab801a491100137b7be658d91ad62aed40d34bb259c8"
+size = 235457
+mtime_ms = 1794073043561
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/38ea1bea-70e4-47a6-8334-09cf6a52db5e/30e8f87f-13c6-4148-893a-face325286e8"
+storage_version_token = "1794073106903518"
+content_type = "image/png"
+
+[[outputs]]
+id = "_A7a3Db0ut0tsp-nlm3hI"
+uri = "file://generated-artifacts/prova-transformacao-tres-cores.png"
+type = "image"
+title = "Prova: preto, branco e duas cores"
+description = "As três entradas têm o mesmo desenho e fundo transparente. As saídas vieram do processo de salvamento e leitura em teste isolado."
+logical_id = "06187d09-87e5-46b8-916d-bb504df4b39c"
+content_hash = "sha256:3d0b9b937f517dd89d17356499877b7bea389ad4f7b1f5909d58ff2e8122f702"
+size = 236259
+mtime_ms = 1794073157641
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/06187d09-87e5-46b8-916d-bb504df4b39c/aad1d279-ad99-4532-9237-8e95796c05cc"
+storage_version_token = "1794073164531811"
+content_type = "image/png"

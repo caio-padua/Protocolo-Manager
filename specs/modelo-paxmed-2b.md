@@ -39,6 +39,16 @@ outras clínicas.
   e o respectivo nome são substituíveis, mas devem assumir automaticamente o
   dourado do Modelo 2B. Preservar desenho e proporções da marca de origem;
   conservar o arquivo original e não deformá-lo ou redesenhá-lo.
+- O responsável reforçou que a transformação não pode depender da cor de
+  entrada: símbolos brancos, pretos ou coloridos devem receber o mesmo
+  tratamento quando tiverem a mesma forma e transparência. Comprovar a cadeia
+  de envio, salvamento do original e leitura tratada em ambiente isolado,
+  confrontando pixels de entrada e saída e produzindo evidência visual.
+- O envio atualmente aceita apenas arquivos PNG com transparência, até dois
+  megabytes; imagens totalmente opacas ou com fundo incorporado não têm
+  separação segura de forma e fundo e não devem ser declaradas convertidas.
+  O teste de cor não equivale à aprovação visual do relevo escovado ou à
+  integração com os documentos reais.
 - O arquivo do cabeçalho recebido incorpora o símbolo e o nome do Instituto
   Pádua à imagem de fundo. O pacote não inclui o símbolo dourado isolado; há no
   projeto uma imagem isolada transparente do mesmo desenho enviado pelo
@@ -97,6 +107,14 @@ outras clínicas.
   do registro de desenvolvimento e do original armazenado, e prova da tela com
   servidor simulado em computador e celular. O fluxo completo na tela com sessão
   real, a concorrência com banco isolado e o uso clínico ainda não foram provados.
+- Em 07/11/2026, teste isolado percorreu a emissão de endereço de envio, envio
+  de arquivo, gravação da identidade e leitura do símbolo para três entradas
+  de mesma forma e transparência: preto, branco e duas cores. O banco e o
+  armazenamento eram simulados; as imagens douradas retornadas tiveram pixels
+  e transparência iguais entre si, e cada original foi preservado. Também foi
+  testada a recusa de imagem com fundo totalmente opaco. Esses testes não
+  comprovam o fluxo da tela autenticada real nem equivalência visual exata com
+  o ouro escovado do modelo aprovado.
 - A verificação física da impressão e a revisão independente ainda não ocorreram.
 - A verificação de tipos geral do servidor está com erros anteriores fora dos
   arquivos alterados; não usar essa verificação como evidência de aprovação.

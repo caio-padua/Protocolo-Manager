@@ -57,7 +57,9 @@ sozinho, uma autorização para visualizar o arquivo.
 
 No Modelo 2B, o símbolo e o nome são trocáveis por clínica, mas devem assumir
 o dourado do modelo enviado pelo Dr. Claude. A forma do símbolo original deve
-ser preservada; o tratamento visual não substitui nem apaga o original.
+ser preservada; o tratamento visual não substitui nem apaga o original. O
+responsável reforçou que a cor de entrada do símbolo pode ser branca, preta
+ou colorida: a mesma forma deve receber o mesmo padrão dourado.
 
 **Why:** o responsável definiu que a identidade é personalizável, mas a cor
 do documento segue o mesmo padrão visual entre as clínicas.

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { PgDialect } from "drizzle-orm/pg-core";
+import { PNG } from "pngjs";
 
 const state = vi.hoisted(() => ({
   active: true,
@@ -16,6 +17,8 @@ const state = vi.hoisted(() => ({
   executeCount: 0,
   finalCopies: [] as Buffer[],
   failStorage: false,
+  files: new Map<string, Buffer>(),
+  finalLogoId: "11111111-1111-4111-8111-111111111111",
 }));
 
 vi.mock("@workspace/db", async () => {
@@ -44,7 +47,7 @@ vi.mock("@workspace/db", async () => {
         nome_clinica: "Clínica sintética", endereco_linha1: "Rua fictícia",
         endereco_linha2: "Cidade fictícia", versao: state.version,
       }] : [] };
-      if (sql.includes("SELECT simbolo_path")) return { rows: state.version ? [{ simbolo_path: "11111111-1111-4111-8111-111111111111" }] : [] };
+      if (sql.includes("SELECT simbolo_path")) return { rows: state.version ? [{ simbolo_path: state.finalLogoId }] : [] };
       if (sql.includes("SELECT id FROM paxmed_2b_upload")) return { rows: state.pending && !state.used ? [{ id: params[0] }] : [] };
       if (sql.includes("UPDATE paxmed_2b_upload")) {
         if (!state.pending || state.used) return { rows: [] };
@@ -60,15 +63,16 @@ vi.mock("@workspace/db", async () => {
       if (sql.includes("UPDATE paxmed_2b_identidade")) {
         const requestedVersion = params[params.length - 1];
         if (requestedVersion !== state.version) return { rows: [] };
+        if (params[3]) state.finalLogoId = String(params[3]);
         state.version++;
         return { rows: [{ location_id: 31 }] };
       }
       throw new Error("Consulta inesperada no teste.");
     },
     transaction: async (fn: any) => {
-      const oldVersion = state.version, oldUsed = state.used;
+      const oldVersion = state.version, oldUsed = state.used, oldLogo = state.finalLogoId;
       try { return await fn(db); }
-      catch (err) { state.version = oldVersion; state.used = oldUsed; throw err; }
+      catch (err) { state.version = oldVersion; state.used = oldUsed; state.finalLogoId = oldLogo; throw err; }
     },
   };
   return { ...schema, db };
@@ -81,17 +85,19 @@ vi.mock("../lib/clinical-access", () => ({
 }));
 vi.mock("../lib/objectStorage", () => ({
   ObjectStorageService: class {
-    async getClinicBrandUploadURL() {
+    async getClinicBrandUploadURL(id: string) {
       if (state.failStorage) throw new Error("storage offline");
-      return "https://example.invalid/signed-upload";
+      return `/test-storage/${id}`;
     }
-    async getObjectEntityFile() {
+    async getObjectEntityFile(path: string) {
       if (state.failStorage) throw Object.assign(new Error("storage offline"), { code: 500 });
-      return { getMetadata: async () => [{ size: String(state.logo.length) }], download: async () => [state.logo] };
+      const bytes = state.files.get(path) ?? state.logo;
+      return { getMetadata: async () => [{ size: String(bytes.length) }], download: async () => [bytes] };
     }
-    async savePrivateObject(_path: string, bytes: Buffer) {
+    async savePrivateObject(path: string, bytes: Buffer) {
       if (state.failStorage) throw new Error("storage offline");
       state.finalCopies.push(Buffer.from(bytes));
+      state.files.set(`/objects/${path}`, Buffer.from(bytes));
     }
   },
 }));
@@ -102,6 +108,11 @@ import { createCollaboratorToken } from "../lib/collaborator-auth";
 
 const app = express();
 app.use(express.json());
+// Armazenamento sintético em memória: nunca grava dados de clínicas reais.
+app.put("/test-storage/:id", express.raw({ type: "image/png", limit: "2mb" }), (req, res) => {
+  state.files.set(`/objects/paxmed-marcas/${req.params.id}`, Buffer.from(req.body));
+  res.sendStatus(200);
+});
 app.use((req, _res, next) => {
   req.log = { error: vi.fn() } as any;
   next();
@@ -117,6 +128,7 @@ beforeEach(() => {
     active: true, allowed: true, empresa: 21, clinicEmpresa: 21, version: 1,
     logo: readFileSync("../padcom/src/assets/padua-dp-mask.png"),
     pending: true, used: false, executeCount: 0, finalCopies: [], failStorage: false,
+    files: new Map(), finalLogoId: "11111111-1111-4111-8111-111111111111",
   });
 });
 
@@ -169,6 +181,82 @@ describe("identidade 2B: autenticação, clínica e integridade", () => {
     expect(state.finalCopies).toHaveLength(1);
     expect(state.finalCopies[0].equals(state.logo)).toBe(true);
     expect(state.used).toBe(true);
+  });
+  it("envia preto, branco e colorido e exibe a mesma forma dourada", async () => {
+    const source = PNG.sync.read(readFileSync("../padcom/src/assets/padua-dp-mask.png"));
+    const cores = [
+      { nome: "preto", rgb: [0, 0, 0] },
+      { nome: "branco", rgb: [255, 255, 255] },
+      { nome: "colorido", rgb: [27, 120, 213] },
+    ];
+    let referencia: Buffer | null = null;
+    for (const cor of cores) {
+      const entrada = new PNG({ width: source.width, height: source.height });
+      for (let i = 0; i < entrada.data.length; i += 4) {
+        const rgb = cor.nome === "colorido" && Math.floor(i / 4) % source.width < source.width / 2
+          ? [213, 38, 84] : cor.rgb;
+        entrada.data[i] = rgb[0];
+        entrada.data[i + 1] = rgb[1];
+        entrada.data[i + 2] = rgb[2];
+        entrada.data[i + 3] = source.data[i + 3];
+      }
+      const arquivo = PNG.sync.write(entrada);
+      const init = await request(app).post("/paxmed-2b/clinicas/31/simbolo/upload")
+        .set("Authorization", `Bearer ${token()}`);
+      expect(init.status).toBe(200);
+      expect((await request(app).put(init.body.uploadUrl).set("Content-Type", "image/png").send(arquivo)).status).toBe(200);
+      const save = await request(app).put("/paxmed-2b/clinicas/31").set("Authorization", `Bearer ${token()}`)
+        .send({ ...valid, versao: state.version, uploadId: init.body.uploadId });
+      expect(save.status).toBe(200);
+      expect(state.finalCopies[state.finalCopies.length - 1].equals(arquivo)).toBe(true);
+      const result = await request(app).get("/paxmed-2b/clinicas/31/simbolo").set("Authorization", `Bearer ${token()}`);
+      expect(result.status).toBe(200);
+      const dourado = PNG.sync.read(result.body);
+      expect([dourado.width, dourado.height]).toEqual([source.width, source.height]);
+      const alphaOriginal = Buffer.alloc(source.width * source.height);
+      const alphaDourado = Buffer.alloc(source.width * source.height);
+      let visible = 0, golden = 0;
+      const tons = new Set<string>();
+      for (let i = 0; i < alphaOriginal.length; i++) {
+        alphaOriginal[i] = source.data[4 * i + 3];
+        alphaDourado[i] = dourado.data[4 * i + 3];
+        if (alphaDourado[i] === 255) {
+          visible++;
+          const [r, g, b] = dourado.data.subarray(4 * i, 4 * i + 3);
+          if (r > g && g > b) golden++;
+          tons.add(`${r},${g},${b}`);
+        }
+      }
+      expect(alphaDourado.equals(alphaOriginal)).toBe(true);
+      expect(visible).toBeGreaterThan(0);
+      expect(golden).toBe(visible);
+      expect(tons.size).toBeGreaterThan(1);
+      if (referencia) expect(dourado.data.equals(referencia)).toBe(true);
+      else referencia = Buffer.from(dourado.data);
+      if (process.env.PAXMED_PROVA_IMAGEM === "1") {
+        writeFileSync(`../../generated-artifacts/cor-entrada-${cor.nome}.png`, arquivo);
+        writeFileSync(`../../generated-artifacts/cor-saida-${cor.nome}.png`, result.body);
+      }
+      state.used = false;
+    }
+  });
+  it("recusa símbolo com fundo opaco sem substituir o original cadastrado", async () => {
+    const arquivo = new PNG({ width: 30, height: 30 });
+    for (let i = 0; i < arquivo.data.length; i += 4) {
+      const symbol = Math.floor(i / 4) % 30 > 8 && Math.floor(i / 4) % 30 < 21;
+      arquivo.data[i] = arquivo.data[i + 1] = arquivo.data[i + 2] = symbol ? 0 : 255;
+      arquivo.data[i + 3] = 255;
+    }
+    const init = await request(app).post("/paxmed-2b/clinicas/31/simbolo/upload")
+      .set("Authorization", `Bearer ${token()}`);
+    const bytes = PNG.sync.write(arquivo);
+    expect((await request(app).put(init.body.uploadUrl).set("Content-Type", "image/png").send(bytes)).status).toBe(200);
+    const result = await request(app).put("/paxmed-2b/clinicas/31").set("Authorization", `Bearer ${token()}`)
+      .send({ ...valid, uploadId: init.body.uploadId });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/fundo transparente/);
+    expect(state.finalCopies).toHaveLength(0);
+    expect(state.version).toBe(1);
   });
   it("recusa envio vencido, imagem inválida e conflito sem alterar configuração", async () => {
     state.pending = false;
