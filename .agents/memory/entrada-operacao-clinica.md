@@ -13,6 +13,15 @@ As prioridades confirmadas são receitas, pedidos de exames e trabalho com resul
 
 **How to apply:** Priorizar validação dos fluxos clínicos essenciais e uma entrada gradual; não pressupor substituição, integração ou migração automática do sistema anterior.
 
+## Esclarecimento sobre agendas anteriores
+
+O proprietário reiterou que o sistema nunca entrou em atividade e que os agendamentos e vínculos de agenda anteriores eram testes.
+A fonte operacional da agenda deve passar a ser exclusivamente a conta Google da clínica indicada por ele.
+
+**Why:** Não tratar os antigos agendamentos de teste como atendimento realizado, nem misturá-los à nova carga operacional.
+
+**How to apply:** Inventariar e separar os registros de agenda antigos antes da importação; confirmar o recorte de datas e o alcance de exclusões, sem estender a limpeza a clientes, fórmulas ou outros dados importados.
+
 ## Retificacao do escopo pelo proprietario em 29/10/2026
 
 O proprietario informou que os cadastros de clientes e as formulas do Support Health ja foram importados para o PAXTER.
