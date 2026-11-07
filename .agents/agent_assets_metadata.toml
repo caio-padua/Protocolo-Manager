@@ -984,3 +984,17 @@ mtime_ms = 1794078899445
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7c0c3928-61bd-454a-9b7b-7d1ed4e7d953/f2c1d149-7263-4c7b-a9bc-44e0639b87d2"
 storage_version_token = "1794078977719522"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "ZDLThdcI_13a_pF8fW_jq"
+uri = "file://generated-artifacts/paxmed-2b-empresa-1365.png"
+type = "image"
+title = "Prova da edição empresarial em teste"
+description = "Captura de teste automatizado com clínica e sessão simuladas; não demonstra acesso com sua conta nem uso em receituário clínico."
+logical_id = "6b349355-cbaa-492a-9cdb-6fae3a03995d"
+content_hash = "sha256:31a96325a4a0274c20925eb799dc8c3d2c167f13af38125b8117c7650879397b"
+size = 256778
+mtime_ms = 1794081515169
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6b349355-cbaa-492a-9cdb-6fae3a03995d/8be0ce34-7f60-4ab4-9d9c-d1e3a7354121"
+storage_version_token = "1794081535175657"
+content_type = "image/png"
