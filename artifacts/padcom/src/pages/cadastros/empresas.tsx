@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import SemanticCodeManager from "./SemanticCodeManager";
+import { LocaisDaEmpresa } from "./LocaisDaEmpresa";
+import { Switch } from "@/components/ui/switch";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -262,11 +264,13 @@ function PermBadge({ ok, label }: { ok: boolean; label: string }) {
 }
 
 // ── Card da empresa ────────────────────────────────────────────────────────────
-function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
+function EmpresaCard({ empresa, onEdit, onDelete, onOpen, locaisAbertos, onToggleLocais }: {
   empresa: Empresa;
   onEdit: () => void;
   onDelete: () => void;
   onOpen: () => void;
+  locaisAbertos: boolean;
+  onToggleLocais: () => void;
 }) {
   return (
     <div className="panel-3d relative overflow-hidden flex flex-col cursor-default">
@@ -338,6 +342,16 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
               Modelo comercial histórico: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <button type="button" onClick={onToggleLocais} aria-expanded={locaisAbertos}
+            aria-label={`${locaisAbertos ? "Recolher" : "Mostrar"} locais de ${empresa.nome}`}
+            className="bevel-3d w-full px-3 py-2 flex items-center gap-2 text-left text-[10px] font-black uppercase tracking-wide">
+            <MapPin className="w-3.5 h-3.5" /> Locais de atendimento
+            {locaisAbertos ? <ChevronDown className="w-4 h-4 ml-auto" /> : <ChevronRight className="w-4 h-4 ml-auto" />}
+          </button>
+          {locaisAbertos && <LocaisDaEmpresa empresaId={empresa.id} />}
         </div>
 
         {/* Botões */}
@@ -926,6 +940,7 @@ export default function CadastroEmpresas() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
+  const [locaisAbertos, setLocaisAbertos] = useState<Set<number>>(() => new Set());
 
   const { data: empresas = [], isLoading, isError, refetch } = useQuery<Empresa[]>({
     queryKey: ["empresas"],
@@ -1063,6 +1078,12 @@ export default function CadastroEmpresas() {
 
   const ativas   = empresas.filter((e) => e.ativa);
   const inativas = empresas.filter((e) => !e.ativa);
+  const todosLocaisAbertos = empresas.length > 0 && empresas.every((e) => locaisAbertos.has(e.id));
+  const toggleLocais = (id: number) => setLocaisAbertos((previous) => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   return (
     <div className="flex h-full gap-4">
@@ -1070,24 +1091,33 @@ export default function CadastroEmpresas() {
       <div className={`flex flex-col gap-4 flex-1 min-w-0 transition-all ${painelEmpresa ? "lg:max-w-[55%]" : ""}`}>
 
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
             <div className="min-w-0">
-              <h1 className="text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
               <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
                 Cadastros clínicos · {ativas.length} ativa{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativa{inativas.length !== 1 ? "s" : ""}
               </p>
             </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button onClick={() => setDriveImportOpen(true)} className="btn-3d-soft px-4">
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
+            <Button onClick={() => setDriveImportOpen(true)} className="btn-3d-soft min-w-0 px-2 sm:px-4 text-[10px] sm:text-xs">
               <FolderSearch className="w-4 h-4 mr-2" /> IMPORTAR DO DRIVE
             </Button>
-            <Button onClick={openNew} className="btn-3d px-5">
+            <Button onClick={openNew} className="btn-3d min-w-0 px-2 sm:px-5 text-[10px] sm:text-xs">
               <Plus className="w-4 h-4 mr-2" /> NOVA EMPRESA
             </Button>
           </div>
+        </div>
+
+        <div className="concave-3d px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <label htmlFor="mostrar-todos-locais" className="text-xs font-black uppercase">Mostrar locais de todas as empresas</label>
+            <p className="text-xs text-muted-foreground mt-1">Cadastrar um local não cria outra empresa.</p>
+          </div>
+          <Switch id="mostrar-todos-locais" checked={todosLocaisAbertos}
+            onCheckedChange={(checked) => setLocaisAbertos(checked ? new Set(empresas.map((e) => e.id)) : new Set())} />
         </div>
 
         <details className="panel-3d-sub p-4">
@@ -1139,6 +1169,7 @@ export default function CadastroEmpresas() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                             {items.map((e) => (
                               <EmpresaCard key={e.id} empresa={e}
+                                locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
                                 onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
                                 onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                             ))}
@@ -1150,6 +1181,7 @@ export default function CadastroEmpresas() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                       {lista.map((e) => (
                         <EmpresaCard key={e.id} empresa={e}
+                          locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
                           onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
                           onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                       ))}
@@ -1164,6 +1196,7 @@ export default function CadastroEmpresas() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
                   {inativas.map((e) => (
                     <EmpresaCard key={e.id} empresa={e}
+                    locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
                       onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
                       onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                   ))}

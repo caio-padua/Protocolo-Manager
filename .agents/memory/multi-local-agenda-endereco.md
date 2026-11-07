@@ -38,3 +38,12 @@ Sao coisas diferentes; nao misturar.
 **How to apply:** ao mexer em agenda, mensageria ou lembrete, garantir que o endereco do
 LOCAL da agenda virtual va no texto/link ao paciente. Ao revisar menu, manter o quadro de
 Clinicas. Confirmar com o CEO antes de mexer em locations.
+
+**Regra de preservação:** as agendas existentes da operação do Instituto Pádua devem ser preservadas
+ao separar empresas e locais. Um arquivo exportado não autoriza recriar, sobrescrever ou excluir eventos.
+
+**Why:** o responsável forneceu a exportação das agendas e pediu expressamente que sua agenda
+permaneça no Instituto Pádua.
+
+**How to apply:** verificar vínculos e permissões sem alterar os eventos; não importar a cópia
+automaticamente nem presumir acesso da equipe a calendários pessoais.

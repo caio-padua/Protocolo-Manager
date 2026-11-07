@@ -32,7 +32,7 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
     });
     await page.goto("/cadastros/clinicas");
     await page.getByRole("button", { name: "Editar", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "EDITAR CLÍNICA" });
+    const dialog = page.getByRole("dialog", { name: "EDITAR LOCAL" });
     await dialog.getByRole("button", { name: "Identidade dos documentos" }).click();
     const identity = dialog.getByRole("region", { name: "Identidade nos documentos — Modelo 2B" });
     await expect(identity.getByLabel("Nome no cabeçalho")).toHaveValue("Empresa sintética");
@@ -68,7 +68,7 @@ test("sem vínculo não escolhe empresa por suposição", async ({ page }) => {
   });
   await page.goto("/cadastros/clinicas");
   await page.getByRole("button", { name: "Editar", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "EDITAR CLÍNICA" });
+  const dialog = page.getByRole("dialog", { name: "EDITAR LOCAL" });
   await dialog.getByRole("button", { name: "Identidade dos documentos" }).click();
   await expect(dialog.getByRole("alert")).toContainText("Não foi possível confirmar uma empresa vinculada");
   expect(calls.filter((call) => call.startsWith("/api/paxmed-2b/empresas/"))).toEqual([]);
@@ -93,7 +93,7 @@ test("falha de rede permite nova tentativa sem supor ausência de vínculo", asy
   });
   await page.goto("/cadastros/clinicas");
   await page.getByRole("button", { name: "Editar", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "EDITAR CLÍNICA" });
+  const dialog = page.getByRole("dialog", { name: "EDITAR LOCAL" });
   await dialog.getByRole("button", { name: "Identidade dos documentos" }).click();
   await expect(dialog.getByRole("alert")).toContainText("Não foi possível consultar o vínculo");
   await dialog.getByRole("button", { name: "Tentar novamente" }).click();
@@ -117,7 +117,7 @@ test("recusa ao carregar identidade impede edição e salvamento", async ({ page
   });
   await page.goto("/cadastros/clinicas");
   await page.getByRole("button", { name: "Editar", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "EDITAR CLÍNICA" });
+  const dialog = page.getByRole("dialog", { name: "EDITAR LOCAL" });
   await dialog.getByRole("button", { name: "Identidade dos documentos" }).click();
   const identity = dialog.getByRole("region", { name: "Identidade nos documentos — Modelo 2B" });
   await expect(identity.getByRole("alert")).toContainText("Acesso não autorizado.");
@@ -137,6 +137,6 @@ test("falha ao listar clínicas não é apresentada como cadastro vazio", async 
     return route.fulfill({ json: {} });
   });
   await page.goto("/cadastros/clinicas");
-  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar as clínicas");
-  await expect(page.getByText("Nenhuma clínica cadastrada", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar os locais");
+  await expect(page.getByText("Nenhum local cadastrado", { exact: false })).toHaveCount(0);
 });

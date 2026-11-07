@@ -89,3 +89,25 @@ atribuir acesso de outros profissionais.
   autenticado do profissional e a interface após login não foram testados.
 - Revisão independente não realizada; esta correção não homologa isolamento
   multiempresa e não ativa o modelo documental na emissão de receitas.
+
+## Separação visual de empresas e locais
+
+1. Manter cadastros, rotas e registros existentes, sem duplicar ou migrar dados.
+2. Distinguir no menu o cadastro de empresas do cadastro de locais de atendimento.
+3. Na listagem de empresas, permitir abrir ou recolher os locais de cada empresa
+   e abrir ou recolher todos; consultar vínculo autenticado por identificador.
+4. Distinguir carregamento, falha, empresa não contemplada na consulta e lista
+   vazia; não atribuir locais sem vínculo confirmado nem por nome.
+5. Abrir a edição existente do local correspondente sem trocar a empresa ou
+   simular dados; manter controles e permissão existentes.
+6. A agenda diária atual não demonstra todos os compromissos da agenda Google.
+   Não apresentá-la como agenda completa de uma empresa nem alterar dados ou
+   permissões por suposição. Esta etapa permanece pendente.
+7. Conferir acessibilidade, telas estreitas, empresa sem locais, erro de rede e
+   vínculo divergente. Acesso global do proprietário continua com as regras atuais.
+8. Ao criar local, exigir escolha explícita da empresa entre as visíveis à
+   sessão. O servidor valida a empresa selecionada; não mudar a empresa de um
+   local existente nem migrar seus atendimentos.
+9. A consulta por empresa não substitui a agenda Google, pois compromissos
+   externos não necessariamente existem como atendimentos no sistema. Manter a
+   agenda pessoal sem alteração e não atribuir acesso a ela por suposição.

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -70,7 +70,7 @@ function calLabel(id: string | null): string {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  clinic: "Clínica", homecare: "Domiciliar", lab: "Laboratório",
+  clinic: "Local de atendimento", homecare: "Domiciliar", lab: "Laboratório",
 };
 
 const EMPTY: FormValues = {
@@ -185,8 +185,12 @@ function SectionDivider({ label }: { label: string }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function CadastroClinicas() {
   const queryClient = useQueryClient();
+  const localSolicitado = useRef(new URLSearchParams(window.location.search).get("local"));
+  const localAberto = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [novaEmpresaId, setNovaEmpresaId] = useState("");
+  const [erroEmpresa, setErroEmpresa] = useState("");
   const [secao, setSecao] = useState<"identificacao" | "endereco" | "contato" | "documentos">("identificacao");
   const [documentosVisitados, setDocumentosVisitados] = useState(false);
   const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
@@ -201,6 +205,20 @@ export default function CadastroClinicas() {
       const res = await fetch(`${apiBase}/locations`);
       if (!res.ok) throw new Error("Erro ao carregar clínicas");
       return res.json();
+    },
+  });
+
+  const empresasDisponiveis = useQuery<Array<{ id: number; nome: string }>>({
+    queryKey: ["empresas-disponiveis-local", dialogOpen],
+    enabled: dialogOpen && editingId === null,
+    retry: false,
+    staleTime: 0,
+    queryFn: async () => {
+      const response = await fetch(`${apiBase}/semantic-codes/companies`, { headers: collabAuthHeaders() });
+      if (!response.ok) throw new Error("Não foi possível consultar as empresas.");
+      const data: unknown = await response.json();
+      if (!Array.isArray(data)) throw new Error("Resposta de empresas inválida.");
+      return data;
     },
   });
 
@@ -249,6 +267,9 @@ export default function CadastroClinicas() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      if (!editingId && (!novaEmpresaId || !empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId))) {
+        throw new Error("Selecione a empresa responsável pelo local.");
+      }
       const parts = [
         values.logradouro, values.numero, values.complemento && `(${values.complemento})`,
         values.bairro,
@@ -257,16 +278,22 @@ export default function CadastroClinicas() {
       ].filter(Boolean);
       const body = { ...values, address: parts.join(", ") || null, googleCalendarId: values.googleCalendarId || null };
       const url = editingId ? `${apiBase}/locations/${editingId}` : `${apiBase}/locations`;
-      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
-      if (!res.ok) throw new Error("Erro ao salvar");
+      const headers = collabAuthHeaders({
+        "Content-Type": "application/json",
+        ...(!editingId ? { "X-Empresa-Id": novaEmpresaId } : {}),
+      });
+      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Não foi possível salvar o local. Confira o acesso à empresa e tente novamente.");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clinicas"] });
-      toast.success(editingId ? "Clínica atualizada!" : "Clínica cadastrada!");
+      queryClient.invalidateQueries({ queryKey: ["empresas-locais-confirmados"] });
+      queryClient.invalidateQueries({ queryKey: ["semantic-code-locations"] });
+      toast.success(editingId ? "Local atualizado!" : "Local cadastrado!");
       setDialogOpen(false);
     },
-    onError: () => toast.error("Erro ao salvar clínica."),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const deleteMutation = useMutation({
@@ -280,8 +307,9 @@ export default function CadastroClinicas() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const openNew = () => { setEditingId(null); setSecao("identificacao"); setDocumentosVisitados(false); setIdentidadeAlterada(false); form.reset(EMPTY); setDialogOpen(true); };
+  const openNew = () => { saveMutation.reset(); setEditingId(null); setNovaEmpresaId(""); setErroEmpresa(""); setSecao("identificacao"); setDocumentosVisitados(false); setIdentidadeAlterada(false); form.reset(EMPTY); setDialogOpen(true); };
   const openEdit = (c: Clinica) => {
+    saveMutation.reset();
     setEditingId(c.id);
     setSecao("identificacao");
     setDocumentosVisitados(false);
@@ -295,6 +323,13 @@ export default function CadastroClinicas() {
     });
     setDialogOpen(true);
   };
+  useEffect(() => {
+    if (localAberto.current || !localSolicitado.current || isLoading || isError) return;
+    localAberto.current = true;
+    const local = clinicas.find((item) => String(item.id) === localSolicitado.current);
+    if (local) openEdit(local);
+    else toast.error("O local solicitado não foi encontrado.");
+  }, [clinicas, isLoading, isError]);
   const handleDialogOpen = (open: boolean) => {
     if (!open && (form.formState.isDirty || identidadeAlterada) &&
       !window.confirm("Há alterações não salvas. Fechar descartará essas alterações. Continuar?")) return;
@@ -335,14 +370,14 @@ export default function CadastroClinicas() {
         <div className="flex items-center gap-3 min-w-0">
           <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-black tracking-tight uppercase">CLÍNICAS & LOCAIS DE ATENDIMENTO</h1>
+            <h1 className="text-2xl font-black tracking-tight uppercase">LOCAIS DE ATENDIMENTO</h1>
             <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
               {ativas.length} ativo{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativo{inativas.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
         <Button onClick={openNew} className="btn-3d px-5 shrink-0">
-          <Plus className="w-4 h-4 mr-2" /> NOVA CLÍNICA
+          <Plus className="w-4 h-4 mr-2" /> NOVO LOCAL
         </Button>
       </div>
 
@@ -351,12 +386,12 @@ export default function CadastroClinicas() {
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : isError ? (
         <div role="alert" className="concave-3d text-center py-10 text-sm">
-          <p>Não foi possível carregar as clínicas. Verifique sua sessão e tente novamente.</p>
+          <p>Não foi possível carregar os locais. Verifique sua sessão e tente novamente.</p>
           <Button type="button" className="btn-3d-soft mt-4" onClick={() => void refetchClinicas()}>Tentar novamente</Button>
         </div>
       ) : clinicas.length === 0 ? (
         <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
-          Nenhuma clínica cadastrada. Clique em NOVA CLÍNICA.
+          Nenhum local cadastrado. Clique em NOVO LOCAL.
         </div>
       ) : (
         <div className="space-y-8">
@@ -438,11 +473,11 @@ export default function CadastroClinicas() {
         <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
-              {editingId ? "EDITAR CLÍNICA" : "NOVA CLÍNICA"}
+              {editingId ? "EDITAR LOCAL" : "NOVO LOCAL"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 sm:px-6 py-3" role="group" aria-label="Seções da clínica">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 sm:px-6 py-3" role="group" aria-label="Seções do local">
             {([
               ["identificacao", "Identificação"],
               ["endereco", "Endereço"],
@@ -459,7 +494,13 @@ export default function CadastroClinicas() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => {
-              if (identidadeAlterada && !window.confirm("Salvar a clínica fechará esta janela e descartará as alterações não salvas da identidade. Continuar?")) return;
+              if (identidadeAlterada && !window.confirm("Salvar o local fechará esta janela e descartará as alterações não salvas da identidade. Continuar?")) return;
+              if (!editingId && (!novaEmpresaId || !empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId))) {
+                setErroEmpresa("Selecione a empresa responsável pelo local.");
+                setSecao("identificacao");
+                return;
+              }
+              setErroEmpresa("");
               saveMutation.mutate(v);
             }, () => setSecao("identificacao"))} className="flex flex-col min-h-0">
               <div className="min-h-0 overflow-y-auto px-6 pb-4">
@@ -467,6 +508,25 @@ export default function CadastroClinicas() {
               {/* ── SEÇÃO 1: IDENTIFICAÇÃO ── */}
               <div hidden={secao !== "identificacao"} className="space-y-4">
               <SectionDivider label="Identificação" />
+              {!editingId && (
+                <div className="space-y-2">
+                  <label htmlFor="empresa-do-novo-local" className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Empresa responsável pelo local *</label>
+                  {empresasDisponiveis.isLoading ? (
+                    <p role="status" className="text-sm">Consultando empresas disponíveis...</p>
+                  ) : empresasDisponiveis.isError ? (
+                    <div role="alert" className="text-sm">Não foi possível consultar as empresas. <button type="button" className="btn-3d-soft px-2 py-1" onClick={() => void empresasDisponiveis.refetch()}>Tentar novamente</button></div>
+                  ) : (
+                    <Select value={novaEmpresaId} onValueChange={(value) => { setNovaEmpresaId(value); setErroEmpresa(""); }}>
+                      <SelectTrigger id="empresa-do-novo-local" className="field-engraved"><SelectValue placeholder="Selecionar empresa..." /></SelectTrigger>
+                      <SelectContent>
+                        {(empresasDisponiveis.data ?? []).map((empresa) => <SelectItem key={empresa.id} value={String(empresa.id)}>{empresa.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {erroEmpresa && <p role="alert" className="text-sm text-destructive">{erroEmpresa}</p>}
+                  <p className="text-xs text-muted-foreground">O local será cadastrado para a empresa escolhida. O servidor confirma o seu acesso.</p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem className="md:col-span-2">
@@ -483,7 +543,7 @@ export default function CadastroClinicas() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0"><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="clinic">Clínica (endereço fixo)</SelectItem>
+                          <SelectItem value="clinic">Local de atendimento</SelectItem>
                           <SelectItem value="homecare">Domiciliar / Itinerante</SelectItem>
                           <SelectItem value="lab">Laboratório</SelectItem>
                         </SelectContent>
@@ -672,17 +732,17 @@ export default function CadastroClinicas() {
               {documentosVisitados && (
                 <div hidden={secao !== "documentos"} className="space-y-3">
                   {!editingId ? (
-                    <p className="concave-3d p-4 text-sm">Salve a clínica primeiro para consultar a empresa vinculada.</p>
+                    <p className="concave-3d p-4 text-sm">Salve o local primeiro para consultar a empresa vinculada.</p>
                   ) : vinculos.isLoading || vinculos.isFetching ? (
                     <p role="status" className="concave-3d p-4 text-sm">Consultando a empresa vinculada...</p>
                   ) : vinculos.isError ? (
                     <div role="alert" className="concave-3d p-4 text-sm">
-                      <p>Não foi possível consultar o vínculo da clínica. Nenhuma empresa foi selecionada.</p>
+                      <p>Não foi possível consultar o vínculo do local. Nenhuma empresa foi selecionada.</p>
                       <Button type="button" className="btn-3d-soft mt-3" onClick={() => void vinculos.refetch()}>Tentar novamente</Button>
                     </div>
                   ) : !empresaVinculada ? (
                     <div role="alert" className="concave-3d p-4 text-sm">
-                      Não foi possível confirmar uma empresa vinculada a esta clínica. Confira o vínculo antes de configurar a identidade.
+                      Não foi possível confirmar uma empresa vinculada a este local. Confira o vínculo antes de configurar a identidade.
                     </div>
                   ) : import.meta.env.DEV ? (
                     <>
@@ -696,6 +756,7 @@ export default function CadastroClinicas() {
               )}
               </div>
               {/* Rodapé do form */}
+              {saveMutation.isError && <p role="alert" className="px-6 pb-2 text-sm text-destructive">{saveMutation.error.message}</p>}
               <DialogFooter className="px-6 py-3 border-t border-border/40">
                 <Button type="button" className="btn-3d-soft" onClick={() => handleDialogOpen(false)}>
                   CANCELAR
@@ -704,7 +765,7 @@ export default function CadastroClinicas() {
                   {saveMutation.isPending
                     ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     : <Save className="w-4 h-4 mr-2" />}
-                  SALVAR CLÍNICA
+                  SALVAR LOCAL
                 </Button>
               </DialogFooter>
             </form>

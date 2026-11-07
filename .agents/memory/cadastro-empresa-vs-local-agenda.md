@@ -9,11 +9,11 @@ Regra: O “Cadastro de Empresas” guarda os dados jurídicos, fiscais e de con
 
 **How to apply:** Ao alterar menus, cadastros empresariais ou telas de agenda, preservar as duas funções e manter os dados de origem informativos até haver autorização explícita para outra arquitetura.
 
-Regra: “Clínicas & Locais” deve ser a entrada principal para acessar a identidade documental da empresa vinculada, mantendo uma identidade compartilhada por seus locais.
+Regra: O menu deve separar empresas e locais de atendimento, preservando o acesso à identidade documental da empresa vinculada a partir do local.
 
-**Why:** O CEO escolheu unificar o acesso sem duplicar os cadastros ou confundir a empresa com as unidades de atendimento.
+**Why:** O responsável inicialmente escolheu acesso unificado e depois pediu entradas separadas para não confundir clínicas independentes com salas de atendimento.
 
-**How to apply:** Mostrar a identidade somente após confirmar o vínculo e a autorização; não escolher nem alterar vínculos por suposição.
+**How to apply:** Manter os dois cadastros e permitir expansão dos locais por empresa sem duplicação. Mostrar a identidade somente após confirmar vínculo e autorização.
 
 Regra: O Instituto Lemos e o Instituto Pádua são empresas independentes, sem relação de subordinação entre si.
 

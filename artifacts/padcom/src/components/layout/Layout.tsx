@@ -223,7 +223,7 @@ const navigation: NavEntry[] = [
       { name: "Cadastro de Empresas", href: "/cadastros/empresas", icon: Building2 },
       { name: "Cadastro legado de empresas — desativado", href: "/cadastros/empresas-licenciadas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
-      { name: "Clínicas & Locais", href: "/cadastros/clinicas", icon: Building2 },
+      { name: "Locais de Atendimento", href: "/cadastros/clinicas", icon: Building2 },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Equipe (Cadastro Interno)", href: "/cadastros/equipe", icon: Users },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },
