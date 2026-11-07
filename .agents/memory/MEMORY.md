@@ -150,3 +150,4 @@
 - [Gmail desconectado = e-mail falha](gmail-conector-desconectado-401.md) — "Invalid Credentials" no envio = autorizacao Google expirada; reautorizar integracao, nao mexer na rota.
 - [Locais: modalidade e sede](locais-modalidade-sede.md) — LOCAL=endereco da empresa, REMOTO=a definir (nao presumir); sede sobrepoe endereco na leitura; Padrao 27.
 - [Importar .ics sem duplicar sessoes do sistema](ics-importacao-sessoes-do-sistema.md) — UID = sessions.google_event_id; previa separa sessoes do sistema; agenda Google unica por local na empresa.
+- [Governança e pessoal na agenda](agenda-governanca-pessoal.md) — preservar liberação gradual; secretaria pede autorização; compromisso pessoal bloqueia só recursos do titular.
