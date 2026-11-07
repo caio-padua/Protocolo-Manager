@@ -214,6 +214,7 @@ router.post("/exam-requests/emit", requireCollaborator, async (req, res): Promis
       dateBR: stamp.br,
       observacao: body.observacao ?? null,
       items,
+      certificado: signer.meta,
     });
     const pdfBytes = await signExistingClinicalPdf(unsignedPdfBytes, signer, "Solicitacao de exames");
     const pdfBuffer = Buffer.from(pdfBytes);

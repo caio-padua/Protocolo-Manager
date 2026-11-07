@@ -8,6 +8,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
+  Droplets,
+  ScanLine,
+  Activity,
+  List,
+  Layers,
+  Plus,
 } from "lucide-react";
 import { BASE } from "../../comunicacao/_shared";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
@@ -69,6 +75,13 @@ const TIPO_COLOR: Record<Tipo, string> = {
   IMAGEM: "#1D4ED8",
   OUTROS: "#7C3AED",
 };
+const TIPO_META: Record<Tipo, { label: string; icon: typeof Droplets; color: string }> = {
+  SANGUE: { label: "Sangue / Laboratorial", icon: Droplets, color: "#B91C1C" },
+  IMAGEM: { label: "Imagem", icon: ScanLine, color: "#1D4ED8" },
+  OUTROS: { label: "Outros / Procedimentos", icon: Activity, color: "#7C3AED" },
+};
+interface BlocoGrau { grau: string; exames: Array<{ nomeExame: string; codigoPadcom: string | null; ordem: number | null }> }
+interface Bloco { codigoBloco: string; nomeBloco: string | null; tipoMacro: string | null; totalExames: number; graus: BlocoGrau[] }
 const IMAGING_MODALITIES = ["USG", "TC", "RM", "RX", "DENSITOMETRIA", "MAMOGRAFIA"];
 
 function noAccents(s: string): string {
@@ -112,6 +125,11 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
   const [erroExams, setErroExams] = useState(false);
   const [busca, setBusca] = useState("");
   const [cardiacOnly, setCardiacOnly] = useState(false);
+  const [categoria, setCategoria] = useState("all");
+  const [viewMode, setViewMode] = useState<"lista" | "bloco">("lista");
+  const [blocos, setBlocos] = useState<Bloco[]>([]);
+  const [blocoBusca, setBlocoBusca] = useState("");
+  const [blocoAviso, setBlocoAviso] = useState<string | null>(null);
   const activeClient = useRef(clientId);
   activeClient.current = clientId;
   const [emitindo, setEmitindo] = useState(false);
@@ -141,22 +159,73 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
     carregarExams();
   }, [carregarExams]);
 
+  useEffect(() => {
+    fetch(`${BASE}/api/cadastros/blocos`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("blocos"))))
+      .then((d: Bloco[]) => setBlocos(Array.isArray(d) ? d : []))
+      .catch(() => setBlocos([]));
+  }, []);
+
+  const categorias = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of exams) if (e.ativo !== false && e.grupoPrincipal) set.add(e.grupoPrincipal);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [exams]);
+
   const examesFiltrados = useMemo(() => {
     const term = noAccents(busca.trim().toLowerCase());
-    const ativos = exams.filter((e) => {
+    return exams.filter((e) => {
       if (e.ativo === false || !e.nomeExame) return false;
-      const text = noAccents([e.nomeExame, e.grupoPrincipal, e.subgrupo, e.modalidade].filter(Boolean).join(" ")).toUpperCase();
-      return !cardiacOnly || /CARDIO|ECOCARD|CORONARI|HOLTER|\bECG\b|\bMAPA\b|ERGOMETR|(?:ESCORE|SCORE).*CALCIO/.test(text);
+      if (categoria !== "all" && e.grupoPrincipal !== categoria) return false;
+      if (cardiacOnly) {
+        const text = noAccents([e.nomeExame, e.grupoPrincipal, e.subgrupo, e.modalidade].filter(Boolean).join(" ")).toUpperCase();
+        if (!/CARDIO|ECOCARD|CORONARI|HOLTER|\bECG\b|\bMAPA\b|ERGOMETR|(?:ESCORE|SCORE).*CALCIO/.test(text)) return false;
+      }
+      if (!term) return true;
+      return [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo]
+        .filter(Boolean)
+        .some((v) => noAccents(String(v).toLowerCase()).includes(term));
     });
-    if (!term) return ativos.slice(0, 40);
-    return ativos
-      .filter((e) =>
-        [e.nomeExame, e.codigoExame, e.grupoPrincipal, e.subgrupo]
-          .filter(Boolean)
-          .some((v) => noAccents(String(v).toLowerCase()).includes(term)),
-      )
-      .slice(0, 60);
-  }, [exams, busca, cardiacOnly]);
+  }, [exams, busca, cardiacOnly, categoria]);
+
+  const agrupados = useMemo(() => {
+    const g: Record<Tipo, Exam[]> = { SANGUE: [], IMAGEM: [], OUTROS: [] };
+    for (const e of examesFiltrados) g[classifyTipo(e.modalidade, e.materialOuSetor, e.grupoPrincipal)].push(e);
+    return g;
+  }, [examesFiltrados]);
+
+  const blocosFiltrados = useMemo(() => {
+    const q = noAccents(blocoBusca).toLowerCase().trim();
+    if (!q) return blocos;
+    return blocos.filter((b) => noAccents(`${b.nomeBloco ?? ""} ${b.tipoMacro ?? ""}`).toLowerCase().includes(q));
+  }, [blocos, blocoBusca]);
+
+  const adicionarPainel = (g: BlocoGrau) => {
+    const ativos = exams.filter((e) => e.ativo !== false && e.nomeExame);
+    const porCodigo = new Map(ativos.filter((e) => e.codigoExame).map((e) => [e.codigoExame!.toUpperCase().trim(), e]));
+    const porNome = new Map<string, Exam>();
+    for (const e of ativos) { const k = noAccents(e.nomeExame!).toUpperCase().trim(); if (!porNome.has(k)) porNome.set(k, e); }
+    const achados: Exam[] = [];
+    let semCatalogo = 0;
+    for (const ex of g.exames) {
+      const m = (ex.codigoPadcom ? porCodigo.get(ex.codigoPadcom.toUpperCase().trim()) : undefined)
+        ?? porNome.get(noAccents(ex.nomeExame).toUpperCase().trim());
+      if (m) achados.push(m); else semCatalogo++;
+    }
+    setCart((prev) => {
+      const next = { ...prev };
+      for (const e of achados) {
+        if (!next[e.id]) next[e.id] = {
+          id: e.id, nomeExame: e.nomeExame ?? "(sem nome)", codigoExame: e.codigoExame,
+          grupoPrincipal: e.grupoPrincipal, preparo: e.preparo,
+          tipo: classifyTipo(e.modalidade, e.materialOuSetor, e.grupoPrincipal),
+        };
+      }
+      return next;
+    });
+    setBlocoAviso(`${achados.length} exame(s) adicionado(s)` + (semCatalogo > 0
+      ? `; ${semCatalogo} sem correspondência no catálogo ativo (não adicionados).` : "."));
+  };
 
   const cartList = useMemo(() => Object.values(cart), [cart]);
 
@@ -274,14 +343,31 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
           <input type="checkbox" checked={cardiacOnly} onChange={event => setCardiacOnly(event.target.checked)} disabled={emitindo} />
           Mostrar exames cardiológicos
         </label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="concave-3d h-10 w-full rounded-md bg-transparent pl-9 pr-3 text-sm"
-            placeholder="Buscar exame pelo nome…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
+        <div className="concave-3d inline-flex gap-0.5 p-0.5">
+          {([["lista", List, "Por Lista"], ["bloco", Layers, "Por Bloco"]] as const).map(([m, Icon, label]) => (
+            <button key={m} type="button" onClick={() => setViewMode(m)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wide ${viewMode === m ? "btn-3d" : "text-muted-foreground neon-hover"}`}
+              style={{ borderRadius: "4px" }}>
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+        {viewMode === "lista" ? (<>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <select value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoria"
+            className="concave-3d h-10 w-full rounded-md bg-transparent px-3 text-sm">
+            <option value="all">Todas as categorias</option>
+            {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="concave-3d h-10 w-full rounded-md bg-transparent pl-9 pr-3 text-sm"
+              placeholder="Buscar exame..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+          </div>
         </div>
         {carregandoExams ? (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
@@ -292,41 +378,78 @@ function ExamsEditor({ clientId, identity, scope }: { clientId: number; identity
             <span className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" /> Falha ao carregar o catálogo de exames.
             </span>
-            <button
-              type="button"
-              onClick={() => carregarExams()}
-              className="btn-3d-soft rounded px-2 py-1 text-xs font-semibold uppercase"
-            >
+            <button type="button" onClick={() => carregarExams()}
+              className="btn-3d-soft rounded px-2 py-1 text-xs font-semibold uppercase">
               Tentar novamente
             </button>
           </div>
+        ) : examesFiltrados.length === 0 ? (
+          <p className="px-3 py-6 text-sm text-muted-foreground">Nenhum exame encontrado.</p>
         ) : (
-          <div className="max-h-[420px] divide-y divide-border overflow-y-auto rounded-md border border-border">
-            {examesFiltrados.map((e) => {
-              const tipo = classifyTipo(e.modalidade, e.materialOuSetor, e.grupoPrincipal);
-              return (
-                <label key={e.id} className="flex cursor-pointer items-start gap-3 px-3 py-2 neon-hover">
-                  <input type="checkbox" disabled={emitindo} checked={!!cart[e.id]} onChange={() => toggleExam(e)} className="mt-1" />
-                  <span className="min-w-0">
-                    <span className="block text-sm">{e.nomeExame}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      <span
-                        className="mr-1 inline-block rounded px-1 text-[10px] font-bold uppercase text-white"
-                        style={{ background: TIPO_COLOR[tipo] }}
-                      >
-                        {tipo}
+          (Object.keys(TIPO_META) as Tipo[]).map((tipo) => {
+            const list = agrupados[tipo];
+            if (list.length === 0) return null;
+            const Meta = TIPO_META[tipo];
+            const Icon = Meta.icon;
+            return (
+              <div key={tipo} className="panel-3d overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white" style={{ background: Meta.color }}>
+                  <Icon className="h-4 w-4" /> {Meta.label}
+                  <span className="ml-auto opacity-80">{list.length}</span>
+                </div>
+                <div className="max-h-72 divide-y divide-border overflow-y-auto">
+                  {list.map((e) => (
+                    <label key={e.id} className="flex cursor-pointer items-start gap-3 px-4 py-2 neon-hover">
+                      <input type="checkbox" disabled={emitindo} checked={!!cart[e.id]} onChange={() => toggleExam(e)} className="mt-1" />
+                      <span className="min-w-0">
+                        <span className="block text-sm">{e.nomeExame}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {[e.codigoExame, e.grupoPrincipal].filter(Boolean).join(" • ")}
+                        </span>
                       </span>
-                      {[e.codigoExame, e.grupoPrincipal].filter(Boolean).join(" • ")}
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-            {examesFiltrados.length === 0 && (
-              <p className="px-3 py-6 text-sm text-muted-foreground">Nenhum exame encontrado.</p>
-            )}
-          </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })
         )}
+        </>) : (<>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input className="concave-3d h-10 w-full rounded-md bg-transparent pl-9 pr-3 text-sm"
+              placeholder="Buscar bloco..." value={blocoBusca} onChange={(e) => setBlocoBusca(e.target.value)} />
+          </div>
+          <p className="concave-3d px-3 py-2.5 text-xs text-muted-foreground">
+            Escolha um bloco e clique em "Adicionar painel" no grau desejado para incluir todos os exames daquele painel de uma vez.
+          </p>
+          {blocoAviso && <p role="status" className="bevel-3d px-3 py-2 text-xs">{blocoAviso}</p>}
+          <div className="max-h-[520px] space-y-3 overflow-y-auto">
+            {blocosFiltrados.map((b) => (
+              <div key={b.codigoBloco} className="panel-3d-sub border-l-4 border-primary/50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wide">{b.nomeBloco}</span>
+                  {b.tipoMacro && <span className="text-[10px] font-bold uppercase text-muted-foreground">{b.tipoMacro}</span>}
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  {b.graus.map((g) => (
+                    <div key={g.grau} className="concave-3d flex flex-col p-2.5">
+                      <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-primary">{g.grau} ({g.exames.length})</div>
+                      <ul className="mb-2 flex-1 space-y-0.5">
+                        {g.exames.map((ex, i) => <li key={i} className="text-xs text-muted-foreground">{ex.nomeExame}</li>)}
+                      </ul>
+                      <button type="button" disabled={emitindo} onClick={() => adicionarPainel(g)}
+                        className="btn-3d-soft inline-flex w-full items-center justify-center gap-1 rounded px-2 py-1.5 text-xs font-semibold uppercase">
+                        <Plus className="h-3.5 w-3.5" /> Adicionar painel
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {blocosFiltrados.length === 0 && <p className="px-3 py-6 text-sm text-muted-foreground">Nenhum bloco encontrado.</p>}
+          </div>
+        </>)}
       </div>
 
       {/* Carrinho + acoes */}

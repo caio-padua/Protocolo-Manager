@@ -357,7 +357,7 @@ export default function ExamesPage({
     mutationFn: async () => {
       const r = await fetch("/api/exam-requests/emit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           clientId: Number(clientId),
           professionalId: professionalId ? Number(professionalId) : undefined,

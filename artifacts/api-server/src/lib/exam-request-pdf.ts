@@ -26,6 +26,8 @@ export interface ExamRequestPdfContext {
   dateBR: string;
   observacao?: string | null;
   items: ExamRequestItem[];
+  /** Dados do certificado ICP-Brasil que assina o documento (bloco visível de assinatura digital). */
+  certificado?: { assinante: string; cpf?: string | null; ac?: string | null; serial?: string | null; validTo?: string | null } | null;
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -141,6 +143,28 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
   y -= 14;
   drawLine(`${ctx.professionalName ?? ""}`, 10, fontBold, COR.tinta);
   if (ctx.professionalCrm) drawLine(`CRM ${ctx.professionalCrm}`, 9, font, COR.cinza);
+
+  // Bloco visível da assinatura digital (a assinatura PAdES é aplicada sobre este PDF logo depois).
+  if (ctx.certificado) {
+    const c = ctx.certificado;
+    const validade = c.validTo ? c.validTo.slice(0, 10).split("-").reverse().join("/") : "—";
+    const linhas = [
+      `Assinante: ${c.assinante}${c.cpf ? `  •  CPF: ${c.cpf}` : ""}`,
+      `Certificadora: ${c.ac || "ICP-Brasil"}  •  Série: ${c.serial ? c.serial.slice(0, 20) : "—"}  •  Válido até: ${validade}`,
+      "Verificação: validar.iti.gov.br",
+    ];
+    const altura = 14 + linhas.length * 11 + 8;
+    y -= 10;
+    ensureSpace(altura + 4);
+    page.drawRectangle({ x: margem, y: y - altura + 10, width: larguraConteudo, height: altura, borderColor: COR.navy, borderWidth: 0.8 });
+    page.drawText("DOCUMENTO ASSINADO DIGITALMENTE (ICP-BRASIL / PAdES)", { x: margem + 8, y: y - 4, size: 8, font: fontBold, color: COR.navy });
+    let ly = y - 17;
+    for (const l of linhas) {
+      page.drawText(l, { x: margem + 8, y: ly, size: 8, font, color: COR.tinta });
+      ly -= 11;
+    }
+    y -= altura;
+  }
 
   return fab.finalizar();
 }
