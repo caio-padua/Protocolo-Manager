@@ -277,6 +277,26 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
     setPreviewPlans(null);
     setEmitResult(null);
   };
+  // Prescrição Modelo: só preenche o rascunho com fórmulas JÁ existentes no catálogo
+  // (posologia do próprio catálogo). Não emite, não assina, não envia.
+  const PRESCRICAO_MODELO_IDS = [
+    "lugol-5", "t3-10mcg", "t4-30mcg", "blend-tireoide-cafe", "ki-gotas", "ki-selenio-caps",
+    "mio-inositol-500", "cabergolina-blend", "tamoxifeno-15", "raloxifeno-60", "silimarina-leve",
+  ];
+  const addPrescricaoModelo = () => {
+    setSelected((prev) => {
+      const next = [...prev];
+      for (const id of PRESCRICAO_MODELO_IDS) {
+        const f = allFormulas.find((x) => x.id === id);
+        if (!f || next.find((s) => s.id === f.id)) continue;
+        const { ativos, tomadas } = parseBody(f.body);
+        next.push({ id: f.id, cat: f.cat, name: f.name, ativos, tomadas, preco: getPrecoMedio(f) });
+      }
+      return next;
+    });
+    setPreviewPlans(null);
+    setEmitResult(null);
+  };
   const removeFormula = (id: string) => {
     setSelected((prev) => prev.filter((s) => s.id !== id));
     setPreviewPlans(null);
@@ -566,6 +586,21 @@ function PrescriptionEditor({ clientId, identity, scope }: { clientId: number; i
             value={cid}
             onChange={(e) => setCid(e.target.value)}
           />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={addPrescricaoModelo}
+            data-testid="button-prescricao-modelo"
+            className="btn-3d-soft flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold"
+            style={{ color: GOLD }}
+          >
+            <FileText className="h-4 w-4" />
+            Prescrição Modelo
+          </button>
+          <span className="text-xs text-muted-foreground">
+            Preenche o rascunho com fórmulas do catálogo. Não emite nem envia: confira e clique em "Emitir receitas".
+          </span>
         </div>
       </div>
 
