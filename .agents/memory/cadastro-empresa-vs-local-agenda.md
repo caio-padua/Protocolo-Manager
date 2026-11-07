@@ -14,3 +14,9 @@ Regra: “Clínicas & Locais” deve ser a entrada principal para acessar a iden
 **Why:** O CEO escolheu unificar o acesso sem duplicar os cadastros ou confundir a empresa com as unidades de atendimento.
 
 **How to apply:** Mostrar a identidade somente após confirmar o vínculo e a autorização; não escolher nem alterar vínculos por suposição.
+
+Regra: O Instituto Lemos e o Instituto Pádua são empresas independentes, sem relação de subordinação entre si.
+
+**Why:** O responsável esclareceu que Lemos é uma empresa própria e pediu a retirada dos vínculos entre elas.
+
+**How to apply:** Não criar hierarquia ou vínculo empresarial entre as duas; tratar separadamente a associação de cada local e o acesso dos profissionais, após conferir seus efeitos.
