@@ -35,12 +35,33 @@ outras clínicas.
   pertencem à clínica e devem ser configurados em “Faixas do Receituário”.
   O Instituto Pádua deve usar esse mesmo caminho, como uma clínica licenciada.
   Não gravar sua identidade no modelo compartilhado de outras clínicas.
+- Em 07/11/2026, o responsável esclareceu que o símbolo enviado pela clínica
+  e o respectivo nome são substituíveis, mas devem assumir automaticamente o
+  dourado do Modelo 2B. Preservar desenho e proporções da marca de origem;
+  conservar o arquivo original e não deformá-lo ou redesenhá-lo.
 - O arquivo do cabeçalho recebido incorpora o símbolo e o nome do Instituto
-  Pádua à imagem de fundo. O pacote não inclui o símbolo dourado isolado:
-  seu recorte ou reconstrução não deve ser confundido com a arte original.
+  Pádua à imagem de fundo. O pacote não inclui o símbolo dourado isolado; há no
+  projeto uma imagem isolada transparente do mesmo desenho enviado pelo
+  responsável, adequada como original para aplicação da cor definida.
+- Uma imagem sem transparência ou com fundo não identificável não deve ser
+  transformada silenciosamente em um retângulo dourado. Orientar a pessoa e
+  recusar o uso inadequado, sem remover o original nem simular sucesso.
 - A tela atual salva sua configuração visual no modelo ativo compartilhado e
   o seletor de clínica não é persistido nessa configuração. Isolar identidade
   e autorização por clínica antes de disponibilizar a personalização real.
+- Cadastro do Modelo 2B: identificação, endereço e referência ao arquivo
+  original devem pertencer à unidade clínica e à empresa corretas. A edição
+  exige profissional ativo com permissão efetiva de administração da unidade;
+  uma categoria ou um identificador enviado pelo navegador não são prova de
+  permissão. Cada gravação precisa preservar a configuração anterior até a
+  nova imagem ser validada e armazenada com sucesso.
+- Arquivos novos devem ser enviados diretamente ao armazenamento por endereço
+  temporário, com controle de autoria da tentativa; o servidor valida os bytes
+  recebidos antes de associá-los à clínica. A tentativa não pode usar o arquivo
+  de outra clínica nem publicar arquivos privados em uma rota genérica.
+- Verificações mínimas do cadastro: ausência de login, sessão expirada,
+  clínica errada, permissão insuficiente, imagem inválida, arquivo ausente,
+  falha de armazenamento, gravações concorrentes, atualização e recarga.
 - A escolha expressa para acesso ao documento é login obrigatório. A sessão,
   o vínculo com a clínica, a permissão de visualizar o documento e a identidade
   do arquivo assinado precisam ser verificados no servidor. O código, por si
@@ -62,10 +83,20 @@ outras clínicas.
 - Existe uma prova visual sintética para pedido de exames e um gerador alternativo
   de receita. A arte fixa do Instituto é usada somente nessa prova, nunca como
   identidade configurável de outra clínica. Nenhuma rota clínica ativa a prova.
-- Ainda não há cadastro isolado de identidade na tela, nem carregamento do
-  símbolo do Instituto, nem código de verificação com login nesta implementação.
+- Em desenvolvimento, há um cadastro independente de identidade por unidade na
+  tela de faixas; a imagem original do Instituto, seu nome e endereço foram
+  configurados sem substituir configurações existentes. A imagem original está
+  no armazenamento privado e o dourado é aplicado para exibição. A paleta foi
+  amostrada do símbolo fornecido; não equivale a recriar o relevo da imagem.
+- O cadastro e suas rotas ficam indisponíveis em produção. A identidade salva
+  ainda não alimenta o cabeçalho e o rodapé dos geradores clínicos.
+- Ainda não existe o código de verificação com login nesta implementação.
 - A prova não contém assinatura digital, não é documento clínico e não demonstra
   a emissão pelo gerador principal de receituário ou pelos demais documentos.
+- Houve testes automatizados com sessão e dados sintéticos simulados, conferência
+  do registro de desenvolvimento e do original armazenado, e prova da tela com
+  servidor simulado em computador e celular. O fluxo completo na tela com sessão
+  real, a concorrência com banco isolado e o uso clínico ainda não foram provados.
 - A verificação física da impressão e a revisão independente ainda não ocorreram.
 - A verificação de tipos geral do servidor está com erros anteriores fora dos
   arquivos alterados; não usar essa verificação como evidência de aprovação.

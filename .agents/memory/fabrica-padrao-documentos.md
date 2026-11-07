@@ -55,6 +55,16 @@ sem herdar a identidade do Instituto ou expor documentos a quem possuir o códig
 configuração e leitura à clínica autorizada no servidor; não tornar o código,
 sozinho, uma autorização para visualizar o arquivo.
 
+No Modelo 2B, o símbolo e o nome são trocáveis por clínica, mas devem assumir
+o dourado do modelo enviado pelo Dr. Claude. A forma do símbolo original deve
+ser preservada; o tratamento visual não substitui nem apaga o original.
+
+**Why:** o responsável definiu que a identidade é personalizável, mas a cor
+do documento segue o mesmo padrão visual entre as clínicas.
+
+**How to apply:** mostrar o resultado do tratamento antes de utilizá-lo; recusar
+imagem inadequada em vez de apresentar o fundo como se fosse parte do símbolo.
+
 ## Asset bundling no api-server (sempre roda do dist)
 O `dev` do api-server é `build && start` — o servidor SEMPRE roda do bundle `dist`, nunca da fonte.
 Logo, asset binário (PNG do wordmark, .afm) tem de ser COPIADO para `dist` no passo de build e

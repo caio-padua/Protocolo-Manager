@@ -844,3 +844,31 @@ mtime_ms = 1794070797175
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/acc6f033-c974-48cf-aad9-0725a8c114bd/d18808ea-a654-42d1-885e-240d90d974a0"
 storage_version_token = "1794071016193536"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "5E5lV9BVZZIAaM64Ds-TZ"
+uri = "file://generated-artifacts/simbolo-instituto-ouro-comparacao.png"
+type = "image"
+title = "Prova do símbolo em dourado"
+description = "Imagem de teste baseada no símbolo isolado existente e na paleta do cabeçalho recebido; ainda não está cadastrada no menu."
+logical_id = "2a16dd1d-4396-4ddf-ad71-4e0b9bb59a28"
+content_hash = "sha256:1740821b35ddce338add5643f39fb0f1049791b7d4dde755f9d41b4dd8727cdb"
+size = 28263
+mtime_ms = 1794071523062
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/2a16dd1d-4396-4ddf-ad71-4e0b9bb59a28/930a509e-2373-4808-a490-042d6dd9b2b5"
+storage_version_token = "1794071586005917"
+content_type = "image/png"
+
+[[outputs]]
+id = "wuMQGsSo_gGQvlUpIwJ-V"
+uri = "file://generated-artifacts/paxmed-2b-tela-390.png"
+type = "image"
+title = "Personalização da clínica — prova em celular"
+description = "Tela de teste com dados fictícios; não representa a conta real nem um documento clínico."
+logical_id = "32d10830-f875-4ab0-9667-4a5b8c1b4d80"
+content_hash = "sha256:5df813f704291510d73b193a56b47f748b67524c8864aef802fc125bfc664a3b"
+size = 136714
+mtime_ms = 1794072440846
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/32d10830-f875-4ab0-9667-4a5b8c1b4d80/9b82b677-24fc-410d-9a7b-c68dff1c89f6"
+storage_version_token = "1794072491930706"
+content_type = "image/png"

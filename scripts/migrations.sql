@@ -368,3 +368,6 @@ ALTER TABLE recipes
 CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
   ON recipes (qr_token_hash)
   WHERE qr_token_hash IS NOT NULL;
+
+-- Cadastro isolado da identidade visual do Modelo 2B.
+\ir migrations/20261107_paxmed_2b_identidade.sql

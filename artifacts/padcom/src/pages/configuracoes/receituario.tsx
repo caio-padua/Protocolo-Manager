@@ -26,6 +26,7 @@ import {
 } from "@/lib/arabesques/receituario-config";
 import { getTileForModel } from "@/lib/arabesques/InlinePatterns";
 import { ReceituarioPreview } from "@/components/receituario/ReceituarioPreview";
+import { Paxmed2bIdentidade } from "@/components/receituario/Paxmed2bIdentidade";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -465,12 +466,14 @@ export default function ConfigReceituario() {
       </div>
 
       <div className="p-6 max-w-screen-2xl mx-auto">
-        <div className="grid grid-cols-[1fr_580px] gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_580px] gap-6 items-start">
 
           {/* ══════════════════════════════════════════════════════════════════
               COLUNA ESQUERDA — Configuração (15 pedidos + Kaizen)
           ══════════════════════════════════════════════════════════════════ */}
           <div className="space-y-3">
+
+            {import.meta.env.DEV && <Paxmed2bIdentidade />}
 
             {/* ── Seletor de faixa ativa (catálogo) ──────────────────────── */}
             <Section icon={<LayoutTemplate className="w-4 h-4"/>}

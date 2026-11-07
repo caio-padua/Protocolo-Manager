@@ -41,6 +41,93 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /paxmed-2b/clinicas:
+    get:
+      operationId: listPaxmed2bClinicas
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Unidades cuja identidade o colaborador pode configurar.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bClinicas" }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+  /paxmed-2b/clinicas/{locationId}:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bIdentidade
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Identidade da unidade, ou nula se ainda não foi configurada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bIdentidadeResposta" }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+    put:
+      operationId: savePaxmed2bIdentidade
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Paxmed2bIdentidadeEntrada" }
+      responses:
+        "200":
+          description: Identidade configurada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bIdentidadeResposta" }
+        "400": { description: Dados ou imagem inválidos. }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+        "409": { description: Configuração alterada por outra sessão. }
+  /paxmed-2b/clinicas/{locationId}/simbolo/upload:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: requestPaxmed2bSimboloUpload
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Endereço temporário de envio direto para o armazenamento privado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bUpload" }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+  /paxmed-2b/clinicas/{locationId}/simbolo:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bSimbolo
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Símbolo dourado para conferência.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "401": { description: Sessão ausente ou inválida. }
+        "403": { description: Clínica não autorizada. }
+        "404": { description: Símbolo não configurado. }
   /clinical-demonstrations/{clientId}:
     parameters:
       - name: clientId
@@ -3068,6 +3155,51 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    Paxmed2bClinica:
+      type: object
+      required: [id, nome]
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+    Paxmed2bClinicas:
+      type: object
+      required: [clinicas]
+      properties:
+        clinicas:
+          type: array
+          items: { $ref: "#/components/schemas/Paxmed2bClinica" }
+    Paxmed2bIdentidade:
+      type: object
+      required: [nome, enderecoLinha1, enderecoLinha2, versao]
+      properties:
+        nome: { type: string }
+        enderecoLinha1: { type: string }
+        enderecoLinha2: { type: string }
+        versao: { type: integer }
+    Paxmed2bIdentidadeResposta:
+      type: object
+      required: [identidade]
+      properties:
+        identidade:
+          anyOf:
+            - $ref: "#/components/schemas/Paxmed2bIdentidade"
+            - type: "null"
+    Paxmed2bIdentidadeEntrada:
+      type: object
+      additionalProperties: false
+      required: [nome, enderecoLinha1, enderecoLinha2, versao]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 80 }
+        enderecoLinha1: { type: string, minLength: 1, maxLength: 80 }
+        enderecoLinha2: { type: string, minLength: 1, maxLength: 80 }
+        versao: { type: integer, minimum: 0 }
+        uploadId: { type: string, format: uuid }
+    Paxmed2bUpload:
+      type: object
+      required: [uploadId, uploadUrl]
+      properties:
+        uploadId: { type: string, format: uuid }
+        uploadUrl: { type: string, format: uri }
     ClinicalDemonstration:
       type: object
       required: [id, kind, createdAt]

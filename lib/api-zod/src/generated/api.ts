@@ -7,6 +7,82 @@
  */
 import * as zod from "zod";
 
+export const ListPaxmed2bClinicasResponse = zod.object({
+  clinicas: zod.array(
+    zod.object({
+      id: zod.number(),
+      nome: zod.string(),
+    }),
+  ),
+});
+
+export const GetPaxmed2bIdentidadeParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+});
+
+export const GetPaxmed2bIdentidadeResponse = zod.object({
+  identidade: zod.union([
+    zod.object({
+      nome: zod.string(),
+      enderecoLinha1: zod.string(),
+      enderecoLinha2: zod.string(),
+      versao: zod.number(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const SavePaxmed2bIdentidadeParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+});
+
+export const savePaxmed2bIdentidadeBodyNomeMax = 80;
+
+export const savePaxmed2bIdentidadeBodyEnderecoLinha1Max = 80;
+
+export const savePaxmed2bIdentidadeBodyEnderecoLinha2Max = 80;
+
+export const savePaxmed2bIdentidadeBodyVersaoMin = 0;
+
+export const SavePaxmed2bIdentidadeBody = zod.object({
+  nome: zod.string().min(1).max(savePaxmed2bIdentidadeBodyNomeMax),
+  enderecoLinha1: zod
+    .string()
+    .min(1)
+    .max(savePaxmed2bIdentidadeBodyEnderecoLinha1Max),
+  enderecoLinha2: zod
+    .string()
+    .min(1)
+    .max(savePaxmed2bIdentidadeBodyEnderecoLinha2Max),
+  versao: zod.number().min(savePaxmed2bIdentidadeBodyVersaoMin),
+  uploadId: zod.string().uuid().optional(),
+});
+
+export const SavePaxmed2bIdentidadeResponse = zod.object({
+  identidade: zod.union([
+    zod.object({
+      nome: zod.string(),
+      enderecoLinha1: zod.string(),
+      enderecoLinha2: zod.string(),
+      versao: zod.number(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const RequestPaxmed2bSimboloUploadParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+});
+
+export const RequestPaxmed2bSimboloUploadResponse = zod.object({
+  uploadId: zod.string().uuid(),
+  uploadUrl: zod.string().url(),
+});
+
+export const GetPaxmed2bSimboloParams = zod.object({
+  locationId: zod.coerce.number().min(1),
+});
+
 export const ListClinicalDemonstrationsParams = zod.object({
   clientId: zod.coerce.number().min(1),
 });

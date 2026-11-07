@@ -5,6 +5,52 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface Paxmed2bClinica {
+  id: number;
+  nome: string;
+}
+
+export interface Paxmed2bClinicas {
+  clinicas: Paxmed2bClinica[];
+}
+
+export interface Paxmed2bIdentidade {
+  nome: string;
+  enderecoLinha1: string;
+  enderecoLinha2: string;
+  versao: number;
+}
+
+export interface Paxmed2bIdentidadeResposta {
+  identidade: Paxmed2bIdentidade | null;
+}
+
+export interface Paxmed2bIdentidadeEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  nome: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  enderecoLinha1: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  enderecoLinha2: string;
+  /** @minimum 0 */
+  versao: number;
+  uploadId?: string;
+}
+
+export interface Paxmed2bUpload {
+  uploadId: string;
+  uploadUrl: string;
+}
+
 export type ClinicalDemonstrationKind =
   (typeof ClinicalDemonstrationKind)[keyof typeof ClinicalDemonstrationKind];
 
