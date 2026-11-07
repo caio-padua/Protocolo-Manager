@@ -21,6 +21,12 @@ Instituto Paluzze; depois importar a agenda enviada para o Instituto Pádua.
 ## Fontes e efeitos verificados
 
 - Dezesseis locais estão vinculados ao Pádua no ambiente de desenvolvimento.
+- O local Instituto Pádua é referência de 3.682 cadastros de clientes;
+  outro local da transferência é referência de um cadastro. Transferir os
+  locais sem ajustar os vínculos faria esses cadastros do Pádua apontarem para
+  locais do Paluzze.
+- Alguns locais possuem vínculos de profissionais não proprietários. O vínculo
+  ao local pode conceder acesso à empresa à qual ele pertence.
 - Existem 245 sessões da empresa, todas vinculadas a clientes e protocolos
   dessa empresa; 781 aplicações de substâncias estão ligadas a essas sessões.
 - Cinquenta e oito sessões possuem identificador de evento Google; cinquenta e
