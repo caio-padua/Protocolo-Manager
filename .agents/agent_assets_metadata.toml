@@ -676,3 +676,31 @@ mtime_ms = 1794017985524
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/3e874022-82f6-4c39-80fc-f63d24b5be7c/9ca66635-2c5f-478d-a348-73031b2ffdcf"
 storage_version_token = "1794018134261214"
 content_type = "image/png"
+
+[[outputs]]
+id = "pQrNqT8K2rpo-j3OkIEos"
+uri = "file://generated-artifacts/demonstracao-documentos/Receita-demonstracao.png"
+type = "image"
+title = "Receita de demonstração — página 1"
+description = "Prévia visual, sem validade clínica."
+logical_id = "9700af9e-35b2-4ca1-9b11-c251f4c13cf1"
+content_hash = "sha256:9fcd549ec19df66655db3b6fae922318bb3262fa7313dd9cabc935192b413a93"
+size = 137138
+mtime_ms = 1794026388299
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9700af9e-35b2-4ca1-9b11-c251f4c13cf1/86f70999-b723-4e65-a7ef-f51584f401af"
+storage_version_token = "1794026419324865"
+content_type = "image/png"
+
+[[outputs]]
+id = "r-CmGWs7ZuoKc4MC9tkhF"
+uri = "file://generated-artifacts/demonstracao-documentos/Exames-demonstracao.png"
+type = "image"
+title = "Pedido de exames de demonstração — página 1"
+description = "Prévia visual, sem validade clínica."
+logical_id = "a8250a36-85a2-4c5a-878d-153a77d181cb"
+content_hash = "sha256:a230d940b08e41c0b9c4d491124cf5df1b9a07668da5d0bf6f364429dd5ebb7b"
+size = 90846
+mtime_ms = 1794026388599
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a8250a36-85a2-4c5a-878d-153a77d181cb/ebdd48ee-c57c-4d03-bac1-91392e462b15"
+storage_version_token = "1794026420113173"
+content_type = "image/png"
