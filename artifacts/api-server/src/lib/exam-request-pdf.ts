@@ -136,35 +136,40 @@ export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promis
     }
   }
 
-  // Assinatura
-  ensureSpace(60);
+  // Assinatura: caixa do certificado (esquerda, encurtada) e assinatura do médico (direita),
+  // tudo na mesma faixa horizontal e alinhado pelas mesmas alturas.
+  const c = ctx.certificado;
+  const validade = c?.validTo ? c.validTo.slice(0, 10).split("-").reverse().join("/") : "—";
+  const linhasCert = c ? [
+    `Assinante: ${c.assinante}`,
+    `CPF: ${c.cpf ?? "—"}`,
+    `Certificadora: ${c.ac || "ICP-Brasil"}`,
+    `Série: ${c.serial ? c.serial.slice(0, 20) : "—"}`,
+    `Válido até: ${validade}`,
+    "Verificação: validar.iti.gov.br",
+  ] : [];
+  const boxW = 262;
+  const boxH = c ? 20 + linhasCert.length * 12 : 56;
+  const passo = 12;
+  ensureSpace(boxH + 40);
   y -= 30;
-  page.drawLine({ start: { x: margem, y }, end: { x: margem + 240, y }, thickness: 1, color: COR.tinta });
-  y -= 14;
-  drawLine(`${ctx.professionalName ?? ""}`, 10, fontBold, COR.tinta);
-  if (ctx.professionalCrm) drawLine(`CRM ${ctx.professionalCrm}`, 9, font, COR.cinza);
-
-  // Bloco visível da assinatura digital (a assinatura PAdES é aplicada sobre este PDF logo depois).
-  if (ctx.certificado) {
-    const c = ctx.certificado;
-    const validade = c.validTo ? c.validTo.slice(0, 10).split("-").reverse().join("/") : "—";
-    const linhas = [
-      `Assinante: ${c.assinante}${c.cpf ? `  •  CPF: ${c.cpf}` : ""}`,
-      `Certificadora: ${c.ac || "ICP-Brasil"}  •  Série: ${c.serial ? c.serial.slice(0, 20) : "—"}  •  Válido até: ${validade}`,
-      "Verificação: validar.iti.gov.br",
-    ];
-    const altura = 14 + linhas.length * 11 + 8;
-    y -= 10;
-    ensureSpace(altura + 4);
-    page.drawRectangle({ x: margem, y: y - altura + 10, width: larguraConteudo, height: altura, borderColor: COR.navy, borderWidth: 0.8 });
-    page.drawText("DOCUMENTO ASSINADO DIGITALMENTE (ICP-BRASIL / PAdES)", { x: margem + 8, y: y - 4, size: 8, font: fontBold, color: COR.navy });
-    let ly = y - 17;
-    for (const l of linhas) {
-      page.drawText(l, { x: margem + 8, y: ly, size: 8, font, color: COR.tinta });
-      ly -= 11;
-    }
-    y -= altura;
+  const topo = y;
+  const colDir = margem + boxW + 24;
+  const larguraDir = larguraConteudo - boxW - 24;
+  if (c) {
+    page.drawRectangle({ x: margem, y: topo - boxH, width: boxW, height: boxH, borderColor: COR.navy, borderWidth: 0.8 });
+    page.drawText("ASSINADO DIGITALMENTE (ICP-BRASIL / PAdES)", { x: margem + 8, y: topo - 11, size: 7.5, font: fontBold, color: COR.navy });
+    linhasCert.forEach((l, k) => {
+      page.drawText(l, { x: margem + 8, y: topo - 25 - k * passo, size: 7.5, font, color: COR.tinta });
+    });
   }
+  // Linha da assinatura, nome e CRM caem exatamente nas mesmas alturas das linhas de texto da caixa.
+  const base = (k: number) => topo - 25 - k * passo;
+  const yLinha = base(2) - 3;
+  page.drawLine({ start: { x: colDir, y: yLinha }, end: { x: colDir + larguraDir, y: yLinha }, thickness: 1, color: COR.tinta });
+  page.drawText(`${ctx.professionalName ?? ""}`, { x: colDir, y: base(3), size: 9.5, font: fontBold, color: COR.tinta });
+  if (ctx.professionalCrm) page.drawText(`CRM ${ctx.professionalCrm}`, { x: colDir, y: base(4), size: 7.5, font, color: COR.cinza });
+  y = topo - boxH;
 
   return fab.finalizar();
 }
