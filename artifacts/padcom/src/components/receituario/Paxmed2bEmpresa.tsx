@@ -22,12 +22,14 @@ async function errorMessage(response: Response) {
   return typeof payload.error === "string" ? payload.error : "Não foi possível concluir a operação.";
 }
 
-export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
+export function Paxmed2bEmpresa({ empresaId, onDirtyChange }: { empresaId: number; onDirtyChange?: (dirty: boolean) => void }) {
   const [identity, setIdentity] = useState<Identity>(empty);
+  const [etapa, setEtapa] = useState<"simbolo" | "rodape" | "previa">("simbolo");
   const [image, setImage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [localImage, setLocalImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
@@ -35,6 +37,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
   const [refresh, setRefresh] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRequest = useRef(0);
+  const savedIdentity = useRef<Identity>(empty);
   const endpoint = `${base}/paxmed-2b/empresas/${empresaId}`;
   const headers = () => collabAuthHeaders({ "x-empresa-id": String(empresaId) });
 
@@ -48,6 +51,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
     setPreparing(false);
     imageRequest.current++;
     setLoading(true);
+    setLoadFailed(false);
     setError("");
     async function load() {
       try {
@@ -55,6 +59,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
         if (!response.ok) throw new Error(await errorMessage(response));
         const payload = await response.json() as { identidade: Identity | null };
         if (!active) return;
+        savedIdentity.current = payload.identidade ?? empty;
         setIdentity(payload.identidade ?? empty);
         if (payload.identidade) {
           const logo = await fetch(`${endpoint}/simbolo`, { headers: headers() });
@@ -65,15 +70,23 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
           setImage(objectUrl);
         }
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : "Não foi possível carregar a identidade.");
+        if (active) {
+          setLoadFailed(true);
+          setError(err instanceof Error ? err.message : "Não foi possível carregar a identidade.");
+        }
       } finally { if (active) setLoading(false); }
     }
     void load();
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [empresaId, refresh]);
 
+  const dirty = Boolean(file) || ["nomeCabecalho", "rodapeLinha1", "rodapeLinha2", "rodapeLinha3"].some(
+    (key) => identity[key as keyof Identity] !== savedIdentity.current[key as keyof Identity]
+  );
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
   async function save() {
-    if (saving || loading || preparing) return;
+    if (saving || loading || loadFailed || preparing) return;
     setSaving(true);
     setError("");
     setStatus("");
@@ -98,6 +111,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
       });
       if (!response.ok) throw new Error(await errorMessage(response));
       const result = await response.json() as { identidade: Identity };
+      savedIdentity.current = result.identidade;
       setIdentity(result.identidade);
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -131,19 +145,29 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
   ];
 
   return (
-    <section className="panel-3d-sub p-4 space-y-4" aria-labelledby="identidade-empresa-title"
+    <section className="panel-3d-sub p-3 sm:p-4 space-y-3" aria-labelledby="identidade-empresa-title"
       onKeyDown={(event) => { if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault(); }}>
       <div>
         <h2 id="identidade-empresa-title" className="font-bold text-sm">Identidade nos documentos — Modelo 2B</h2>
         <p className="text-xs text-muted-foreground mt-1">Uma identidade compartilhada pelos locais desta empresa.</p>
       </div>
-      <p className="concave-3d p-3 text-xs text-muted-foreground">
+      <p className="concave-3d p-2 text-xs text-muted-foreground">
         Configuração em teste. Ainda não altera os documentos clínicos reais. Apenas o proprietário autorizado pode configurá-la nesta fase.
       </p>
+      {loading && <p role="status" className="text-xs">Carregando identidade...</p>}
+      {status && <p role="status" className="text-xs text-green-700">{status}</p>}
+      {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
       {identity.simboloExemplo && !file && (
         <p role="note" className="concave-3d p-3 text-xs text-amber-800">Símbolo demonstrativo, não oficial. Substitua pela marca da empresa.</p>
       )}
       {identity.dadosExemplo && <p role="note" className="concave-3d p-3 text-xs text-amber-800">Há informações fictícias nesta identidade. Confira antes de utilizar.</p>}
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Etapas da identidade">
+        {([["simbolo", "Símbolo e nome"], ["rodape", "Linhas do rodapé"], ["previa", "Prévia"]] as const).map(([value, label]) => (
+          <button type="button" key={value} onClick={() => setEtapa(value)} aria-pressed={etapa === value}
+            className={`bevel-3d px-2 py-2 text-xs font-semibold ${etapa === value ? "ring-2 ring-primary/30" : ""}`}>{label}</button>
+        ))}
+      </div>
+      <div hidden={etapa !== "simbolo"} className="space-y-3">
       <div className="concave-3d p-3 flex gap-3 items-center">
         <div className="h-20 w-20 shrink-0 bg-[#0a1a30] rounded-sm flex items-center justify-center">
           {localImage ? <div role="img" aria-label="Prévia dourada do símbolo escolhido" className="w-16 h-16"
@@ -155,7 +179,7 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
           <p className="text-xs font-semibold">Símbolo da empresa</p>
           <p className="text-xs text-muted-foreground">Imagem PNG (formato de imagem) com fundo transparente, até 2 megabytes. A cor será convertida para dourado.</p>
           <input ref={fileRef} type="file" accept="image/png" className="sr-only" aria-label="Escolher símbolo da empresa"
-            disabled={saving || loading} onChange={async (event) => {
+            disabled={saving || loading || loadFailed} onChange={async (event) => {
               const selected = event.target.files?.[0] ?? null;
               const input = event.currentTarget;
               const request = ++imageRequest.current;
@@ -184,36 +208,49 @@ export function Paxmed2bEmpresa({ empresaId }: { empresaId: number }) {
                 if (request === imageRequest.current) setPreparing(false);
               }
             }} />
-          <Button type="button" size="sm" className="btn-3d-soft" disabled={saving || loading}
+          <Button type="button" size="sm" className="btn-3d-soft" disabled={saving || loading || loadFailed}
             onClick={() => fileRef.current?.click()}><Upload className="w-3 h-3 mr-2" />Escolher símbolo</Button>
           <p className="text-xs break-words">{file ? `Selecionado: ${file.name}` : "O símbolo escolhido aparece antes de salvar."}</p>
           {preparing && <p role="status" className="text-xs">Preparando símbolo...</p>}
         </div>
       </div>
-      {fields.map(([key, label]) => (
+      {fields.slice(0, 1).map(([key, label]) => (
         <label key={key} className="block space-y-1 text-xs font-semibold">
           <span>{label}</span>
-          <Input value={identity[key]} maxLength={80} disabled={loading || saving}
+          <Input value={identity[key]} maxLength={80} disabled={loading || loadFailed || saving}
             onChange={(event) => setIdentity((previous) => ({ ...previous, [key]: event.target.value }))} />
           <span className="block text-[10px] text-muted-foreground">{Array.from(identity[key]).length}/80 caracteres; a largura também é conferida ao salvar.</span>
         </label>
       ))}
+      </div>
+      <div hidden={etapa !== "rodape"} className="space-y-3">
+      {fields.slice(1).map(([key, label]) => (
+        <label key={key} className="block space-y-1 text-xs font-semibold">
+          <span>{label}</span>
+          <Input value={identity[key]} maxLength={80} disabled={loading || loadFailed || saving}
+            onChange={(event) => setIdentity((previous) => ({ ...previous, [key]: event.target.value }))} />
+          <span className="block text-[10px] text-muted-foreground">{Array.from(identity[key]).length}/80 caracteres; a largura também é conferida ao salvar.</span>
+        </label>
+      ))}
+      </div>
+      <div hidden={etapa !== "previa"}>
       <PreviaIdentidadeEmpresa {...identity} simbolo={localImage ?? image} />
+      </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" className="btn-3d" onClick={() => void save()} disabled={loading || saving || preparing ||
+        <Button type="button" className="btn-3d" onClick={() => void save()} disabled={loading || loadFailed || saving || preparing ||
           fields.some(([key]) => !identity[key].trim()) || (!identity.versao && !file)}>
           <Save className="w-4 h-4 mr-2" />{saving ? "Salvando..." : "Salvar identidade"}
         </Button>
-        <Button type="button" className="btn-3d-soft" disabled={saving} onClick={() => { setStatus(""); setRefresh((value) => value + 1); }}>
+        <Button type="button" className="btn-3d-soft" disabled={saving} onClick={() => {
+          if (dirty && !window.confirm("Recarregar descartará as alterações não salvas da identidade. Continuar?")) return;
+          setStatus(""); setRefresh((value) => value + 1);
+        }}>
           Recarregar identidade
         </Button>
-        <Button type="button" className="btn-3d-soft" disabled={!identity.versao || loading || saving} onClick={() => void openPreview()}>
+        <Button type="button" className="btn-3d-soft" disabled={!identity.versao || loading || loadFailed || saving} onClick={() => void openPreview()}>
           <Eye className="w-4 h-4 mr-2" />Abrir prévia salva
         </Button>
       </div>
-      {loading && <p role="status" className="text-xs">Carregando identidade...</p>}
-      {status && <p role="status" className="text-xs text-green-700">{status}</p>}
-      {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
     </section>
   );
 }

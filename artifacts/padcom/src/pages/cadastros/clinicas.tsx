@@ -8,6 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
 import {
   Building2, Plus, Loader2, Search, Save, Pencil, Trash2,
   Phone, MapPin, CalendarCheck, Tag,
@@ -186,18 +187,45 @@ export default function CadastroClinicas() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [secao, setSecao] = useState<"identificacao" | "endereco" | "contato" | "documentos">("identificacao");
+  const [documentosVisitados, setDocumentosVisitados] = useState(false);
+  const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Clinica | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  const { data: clinicas = [], isLoading } = useQuery<Clinica[]>({
+  const { data: clinicas = [], isLoading, isError, refetch: refetchClinicas } = useQuery<Clinica[]>({
     queryKey: ["clinicas"],
+    retry: false,
     queryFn: async () => {
       const res = await fetch(`${apiBase}/locations`);
       if (!res.ok) throw new Error("Erro ao carregar clínicas");
       return res.json();
     },
   });
+
+  const vinculos = useQuery<{ locais: Array<{ locationId: number; empresaId: number }>; empresas: Array<{ id: number; nome: string }> }>({
+    queryKey: ["semantic-code-locations"],
+    enabled: dialogOpen && editingId !== null && documentosVisitados,
+    queryFn: async () => {
+      const headers = collabAuthHeaders();
+      const [locaisResponse, empresasResponse] = await Promise.all([
+        fetch(`${apiBase}/semantic-codes/locations`, { headers }),
+        fetch(`${apiBase}/semantic-codes/companies`, { headers }),
+      ]);
+      if (!locaisResponse.ok || !empresasResponse.ok) throw new Error("Não foi possível consultar o vínculo da clínica.");
+      const [locais, empresas] = await Promise.all([locaisResponse.json(), empresasResponse.json()]);
+      if (!Array.isArray(locais) || !Array.isArray(empresas)) throw new Error("A resposta dos vínculos é inválida.");
+      return { locais, empresas };
+    },
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const locaisVinculados = vinculos.data?.locais.filter((vinculo) => vinculo.locationId === editingId) ?? [];
+  const empresaVinculada = locaisVinculados.length === 1
+    ? vinculos.data?.empresas.find((empresa) => empresa.id === locaisVinculados[0].empresaId)
+    : undefined;
 
   const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
 
@@ -252,9 +280,12 @@ export default function CadastroClinicas() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const openNew = () => { setEditingId(null); form.reset(EMPTY); setDialogOpen(true); };
+  const openNew = () => { setEditingId(null); setSecao("identificacao"); setDocumentosVisitados(false); setIdentidadeAlterada(false); form.reset(EMPTY); setDialogOpen(true); };
   const openEdit = (c: Clinica) => {
     setEditingId(c.id);
+    setSecao("identificacao");
+    setDocumentosVisitados(false);
+    setIdentidadeAlterada(false);
     form.reset({
       name: c.name, type: c.type, phone: c.phone || "", cep: c.cep || "",
       logradouro: c.logradouro || "", numero: c.numero || "", complemento: c.complemento || "",
@@ -263,6 +294,11 @@ export default function CadastroClinicas() {
       googleCalendarId: c.googleCalendarId || "", active: c.active,
     });
     setDialogOpen(true);
+  };
+  const handleDialogOpen = (open: boolean) => {
+    if (!open && (form.formState.isDirty || identidadeAlterada) &&
+      !window.confirm("Há alterações não salvas. Fechar descartará essas alterações. Continuar?")) return;
+    setDialogOpen(open);
   };
 
   // ── Agrupamento geográfico data-bound ────────────────────────────────────────
@@ -313,6 +349,11 @@ export default function CadastroClinicas() {
       {/* Grade de cards — agrupamento geográfico data-bound */}
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : isError ? (
+        <div role="alert" className="concave-3d text-center py-10 text-sm">
+          <p>Não foi possível carregar as clínicas. Verifique sua sessão e tente novamente.</p>
+          <Button type="button" className="btn-3d-soft mt-4" onClick={() => void refetchClinicas()}>Tentar novamente</Button>
+        </div>
       ) : clinicas.length === 0 ? (
         <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
           Nenhuma clínica cadastrada. Clique em NOVA CLÍNICA.
@@ -393,18 +434,38 @@ export default function CadastroClinicas() {
       )}
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
               {editingId ? "EDITAR CLÍNICA" : "NOVA CLÍNICA"}
             </DialogTitle>
           </DialogHeader>
 
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 sm:px-6 py-3" role="group" aria-label="Seções da clínica">
+            {([
+              ["identificacao", "Identificação"],
+              ["endereco", "Endereço"],
+              ["contato", "Contato e agenda"],
+              ["documentos", "Identidade dos documentos"],
+            ] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => { setSecao(value); if (value === "documentos") setDocumentosVisitados(true); }}
+                aria-pressed={secao === value}
+                className={`bevel-3d min-w-0 px-2 py-2 text-[10px] font-bold uppercase ${secao === value ? "text-primary ring-2 ring-primary/30" : "text-muted-foreground"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4 pt-1">
+            <form onSubmit={form.handleSubmit((v) => {
+              if (identidadeAlterada && !window.confirm("Salvar a clínica fechará esta janela e descartará as alterações não salvas da identidade. Continuar?")) return;
+              saveMutation.mutate(v);
+            }, () => setSecao("identificacao"))} className="flex flex-col min-h-0">
+              <div className="min-h-0 overflow-y-auto px-6 pb-4">
 
               {/* ── SEÇÃO 1: IDENTIFICAÇÃO ── */}
+              <div hidden={secao !== "identificacao"} className="space-y-4">
               <SectionDivider label="Identificação" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
@@ -467,8 +528,10 @@ export default function CadastroClinicas() {
                   </FormItem>
                 )} />
               </div>
+              </div>
 
               {/* ── SEÇÃO 2: ENDEREÇO ── */}
+              <div hidden={secao !== "endereco"} className="space-y-4">
               <SectionDivider label="Endereço" />
 
               {/* CEP + busca automática */}
@@ -560,8 +623,10 @@ export default function CadastroClinicas() {
                   </FormItem>
                 )} />
               </div>
+              </div>
 
               {/* ── SEÇÃO 3: CONTATO & AGENDA ── */}
+              <div hidden={secao !== "contato"} className="space-y-4">
               <SectionDivider label="Contato & Agenda Google" />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -602,10 +667,37 @@ export default function CadastroClinicas() {
                   </FormItem>
                 )} />
               </div>
+              </div>
 
+              {documentosVisitados && (
+                <div hidden={secao !== "documentos"} className="space-y-3">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-sm">Salve a clínica primeiro para consultar a empresa vinculada.</p>
+                  ) : vinculos.isLoading || vinculos.isFetching ? (
+                    <p role="status" className="concave-3d p-4 text-sm">Consultando a empresa vinculada...</p>
+                  ) : vinculos.isError ? (
+                    <div role="alert" className="concave-3d p-4 text-sm">
+                      <p>Não foi possível consultar o vínculo da clínica. Nenhuma empresa foi selecionada.</p>
+                      <Button type="button" className="btn-3d-soft mt-3" onClick={() => void vinculos.refetch()}>Tentar novamente</Button>
+                    </div>
+                  ) : !empresaVinculada ? (
+                    <div role="alert" className="concave-3d p-4 text-sm">
+                      Não foi possível confirmar uma empresa vinculada a esta clínica. Confira o vínculo antes de configurar a identidade.
+                    </div>
+                  ) : import.meta.env.DEV ? (
+                    <>
+                      <p className="text-sm font-semibold">Empresa vinculada: {empresaVinculada.nome}</p>
+                      <Paxmed2bEmpresa key={`${editingId}-${empresaVinculada.id}`} empresaId={empresaVinculada.id} onDirtyChange={setIdentidadeAlterada} />
+                    </>
+                  ) : (
+                    <p className="concave-3d p-4 text-sm">A personalização dos documentos ainda está em teste e não está disponível nesta versão.</p>
+                  )}
+                </div>
+              )}
+              </div>
               {/* Rodapé do form */}
-              <DialogFooter className="pt-2">
-                <Button type="button" className="btn-3d-soft" onClick={() => setDialogOpen(false)}>
+              <DialogFooter className="px-6 py-3 border-t border-border/40">
+                <Button type="button" className="btn-3d-soft" onClick={() => handleDialogOpen(false)}>
                   CANCELAR
                 </Button>
                 <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>

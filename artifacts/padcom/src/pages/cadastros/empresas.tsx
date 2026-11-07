@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -346,8 +347,8 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
             <ChevronRight className="w-3 h-3" /> Ver Equipe
           </button>
           <button type="button" onClick={onEdit} aria-label={`Editar empresa ${empresa.nome}`} title="Editar empresa"
-            className="bevel-3d px-2.5 py-1.5 hover:bg-primary/10 transition-colors">
-            <Pencil className="w-3.5 h-3.5" />
+            className="bevel-3d px-2.5 py-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase hover:bg-primary/10 transition-colors">
+            <Pencil className="w-3.5 h-3.5" /> Editar
           </button>
           {empresa.tipo !== "genesis_seed" && (
             <button type="button" onClick={onDelete}
@@ -919,16 +920,18 @@ export default function CadastroEmpresas() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen]   = useState(false);
   const [activeFormTab, setActiveFormTab] = useState("ident");
+  const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Empresa | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
 
-  const { data: empresas = [], isLoading } = useQuery<Empresa[]>({
+  const { data: empresas = [], isLoading, isError, refetch } = useQuery<Empresa[]>({
     queryKey: ["empresas"],
+    retry: false,
     queryFn: async () => {
-      const r = await fetch(`${apiBase}/empresas`);
+      const r = await fetch(`${apiBase}/empresas`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Erro ao carregar empresas");
       return r.json();
     },
@@ -944,7 +947,7 @@ export default function CadastroEmpresas() {
       const url = editingId ? `${apiBase}/empresas/${editingId}` : `${apiBase}/empresas`;
       const r = await fetch(url, {
         method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(values),
       });
       const d = await r.json().catch(() => ({}));
@@ -961,7 +964,7 @@ export default function CadastroEmpresas() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const r = await fetch(`${apiBase}/empresas/${id}`, { method: "DELETE" });
+      const r = await fetch(`${apiBase}/empresas/${id}`, { method: "DELETE", headers: collabAuthHeaders() });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Erro ao arquivar");
       return d;
@@ -977,12 +980,14 @@ export default function CadastroEmpresas() {
 
   const openNew = () => {
     setEditingId(null);
+    setIdentidadeAlterada(false);
     form.reset(EMPTY);
     setActiveFormTab("ident");
     setFormOpen(true);
   };
   const openEdit = (e: Empresa) => {
     setEditingId(e.id);
+    setIdentidadeAlterada(false);
     form.reset({
       nome: e.nome, nomeFantasia: e.nomeFantasia || "", razaoSocial: e.razaoSocial || "",
       nick: e.nick || "", cnpj: e.cnpj || "",
@@ -1024,6 +1029,18 @@ export default function CadastroEmpresas() {
     });
     setActiveFormTab("ident");
     setFormOpen(true);
+  };
+  const handleFormOpen = (open: boolean) => {
+    if (!open && (form.formState.isDirty || identidadeAlterada) &&
+      !window.confirm("Há alterações não salvas. Fechar descartará essas alterações. Continuar?")) return;
+    setFormOpen(open);
+  };
+  const changeFormTab = (value: string) => {
+    if (activeFormTab === "marca-documento" && value !== activeFormTab && identidadeAlterada) {
+      if (!window.confirm("Mudar de seção descartará as alterações não salvas da identidade. Continuar?")) return;
+      setIdentidadeAlterada(false);
+    }
+    setActiveFormTab(value);
   };
 
   // ── Agrupamento geográfico data-bound ──────────────────────────────────────
@@ -1073,11 +1090,19 @@ export default function CadastroEmpresas() {
           </div>
         </div>
 
-        <SemanticCodeManager />
+        <details className="panel-3d-sub p-4">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide">Códigos das empresas e locais</summary>
+          <div className="mt-4"><SemanticCodeManager /></div>
+        </details>
 
         {/* Grade de cards — agrupamento geográfico data-bound */}
         {isLoading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : isError ? (
+          <div role="alert" className="concave-3d text-center py-10 text-sm">
+            <p>Não foi possível carregar as empresas. Verifique sua sessão e tente novamente.</p>
+            <Button type="button" className="btn-3d-soft mt-4" onClick={() => void refetch()}>Tentar novamente</Button>
+          </div>
         ) : empresas.length === 0 ? (
           <div className="concave-3d text-center py-16 text-muted-foreground text-sm">
             Nenhuma empresa cadastrada. Clique em NOVA EMPRESA.
@@ -1160,7 +1185,7 @@ export default function CadastroEmpresas() {
       <DriveImportModal open={driveImportOpen} onClose={() => setDriveImportOpen(false)} />
 
       {/* Dialog — Formulário criar/editar com abas */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+      <Dialog open={formOpen} onOpenChange={handleFormOpen}>
         <DialogContent className="max-w-3xl max-h-[94vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
@@ -1169,13 +1194,21 @@ export default function CadastroEmpresas() {
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
-              <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={form.handleSubmit((v) => {
+              if (identidadeAlterada && !window.confirm("Salvar a empresa fechará esta janela e descartará as alterações não salvas da identidade. Continuar?")) return;
+              saveMutation.mutate(v);
+            }, (errors) => {
+              if (errors.nome || errors.slug) changeFormTab("ident");
+              else if (errors.cnae || errors.regimeTributario) changeFormTab("fiscal");
+              else if (errors.nfeProximoNumero) changeFormTab("nfe");
+              toast.error("Confira os campos destacados antes de salvar a empresa.");
+            })} className="flex flex-col flex-1 min-h-0">
+              <Tabs value={activeFormTab} onValueChange={changeFormTab} className="flex flex-col flex-1 min-h-0">
 
                 {/* Barra de abas */}
-                <div className="mx-4 sm:mx-6 mt-3 overflow-x-auto">
+                <div className="mx-4 sm:mx-6 mt-3">
                   <TabsList aria-label="Seções do cadastro empresarial"
-                    className="w-max min-w-full justify-start gap-3 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
+                    className="w-full flex flex-wrap justify-start gap-2 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
                     {[
                       { value: "ident",      label: "Dados" },
                       { value: "marca-documento", label: "Identidade dos documentos" },
@@ -1187,7 +1220,7 @@ export default function CadastroEmpresas() {
                       { value: "contratos",  label: "Documentos e Contratos" },
                     ].map(({ value, label }) => (
                       <TabsTrigger key={value} value={value}
-                        className="bevel-3d whitespace-nowrap text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2 border-0 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+                        className="bevel-3d whitespace-normal text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2 border-0 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
                         {label}
                       </TabsTrigger>
                     ))}
@@ -1198,7 +1231,7 @@ export default function CadastroEmpresas() {
                   {!editingId ? (
                     <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para configurar a identidade.</p>
                   ) : import.meta.env.DEV ? (
-                    <Paxmed2bEmpresa key={editingId} empresaId={editingId} />
+                    <Paxmed2bEmpresa key={editingId} empresaId={editingId} onDirtyChange={setIdentidadeAlterada} />
                   ) : (
                     <p className="concave-3d p-4 text-xs">A personalização dos documentos ainda está em teste e não está disponível nesta versão.</p>
                   )}
@@ -1397,6 +1430,7 @@ export default function CadastroEmpresas() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cnae" render={({ field }) => (
@@ -1413,6 +1447,7 @@ export default function CadastroEmpresas() {
                             className="field-engraved font-mono"
                           />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="cnaeDescricao" render={({ field }) => (
@@ -1907,7 +1942,7 @@ export default function CadastroEmpresas() {
 
               {/* Rodapé fixo com botões */}
               <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0">
-                <Button type="button" className="btn-3d-soft" onClick={() => setFormOpen(false)}>CANCELAR</Button>
+                <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>CANCELAR</Button>
                 <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   SALVAR EMPRESA

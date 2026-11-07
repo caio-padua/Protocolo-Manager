@@ -998,3 +998,31 @@ mtime_ms = 1794081515169
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/6b349355-cbaa-492a-9cdb-6fae3a03995d/8be0ce34-7f60-4ab4-9d9c-d1e3a7354121"
 storage_version_token = "1794081535175657"
 content_type = "image/png"
+
+[[outputs]]
+id = "MP5RKe5ZJH0lG2pNcn2r8"
+uri = "file://generated-artifacts/clinica-identidade-1365.png"
+type = "image"
+title = "Edição da clínica em computador"
+description = "Captura de teste com dados fictícios; não representa uma clínica real."
+logical_id = "b447d26e-fb26-4594-a470-fbafdf6356cb"
+content_hash = "sha256:77613c0d15414b0a59fe9c65a022316fc9dcf8aff86418c2ba037e1b640e204a"
+size = 233644
+mtime_ms = 1794083466001
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b447d26e-fb26-4594-a470-fbafdf6356cb/2beacecd-3ed0-4ab1-a84c-9f426d358d59"
+storage_version_token = "1794083581180248"
+content_type = "image/png"
+
+[[outputs]]
+id = "RvgpQwFdwHzAr_fRKcx1b"
+uri = "file://generated-artifacts/clinica-identidade-390.png"
+type = "image"
+title = "Edição da clínica em celular"
+description = "Captura de teste com dados fictícios; a rolagem vertical ainda precisa ser eliminada."
+logical_id = "8d76292a-2d63-4090-bb52-07f9bafa6270"
+content_hash = "sha256:7818e4a408cc5c59368e6e2bc26397a42f9fdedf630945853480a1645e2185a4"
+size = 160721
+mtime_ms = 1794083478457
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/8d76292a-2d63-4090-bb52-07f9bafa6270/6d9a700f-8ff8-47b3-80a4-a3bb13520d14"
+storage_version_token = "1794083582003972"
+content_type = "image/png"
