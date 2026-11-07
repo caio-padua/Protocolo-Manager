@@ -900,3 +900,17 @@ mtime_ms = 1794073157641
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/06187d09-87e5-46b8-916d-bb504df4b39c/aad1d279-ad99-4532-9237-8e95796c05cc"
 storage_version_token = "1794073164531811"
 content_type = "image/png"
+
+[[outputs]]
+id = "0QCibbONV4a9k4TeqBIQn"
+uri = "file://generated-artifacts/paxmed-identidade-instituto-prova.pdf"
+type = "pdf"
+title = "Prévia de teste — identidade do Instituto Pádua"
+description = "Documento sintético, sem validade clínica e sem código de verificação. O acabamento visual do cabeçalho é aproximado."
+logical_id = "04b4caea-34eb-4586-9f46-5330866198ff"
+content_hash = "sha256:a208e3204ebc17bf22edda88e74f8c614d7831a411801af40f9a9e4698b730ab"
+size = 1171214
+mtime_ms = 1794074466209
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/04b4caea-34eb-4586-9f46-5330866198ff/ca665e10-6ed3-448a-843b-c276f1e02d5a"
+storage_version_token = "1794074494430119"
+content_type = "application/pdf"

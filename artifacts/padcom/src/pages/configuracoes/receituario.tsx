@@ -26,7 +26,6 @@ import {
 } from "@/lib/arabesques/receituario-config";
 import { getTileForModel } from "@/lib/arabesques/InlinePatterns";
 import { ReceituarioPreview } from "@/components/receituario/ReceituarioPreview";
-import { Paxmed2bIdentidade } from "@/components/receituario/Paxmed2bIdentidade";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -473,7 +472,11 @@ export default function ConfigReceituario() {
           ══════════════════════════════════════════════════════════════════ */}
           <div className="space-y-3">
 
-            {import.meta.env.DEV && <Paxmed2bIdentidade />}
+            {import.meta.env.DEV && (
+              <p className="concave-3d p-3 text-xs text-muted-foreground">
+                A identidade do Modelo 2B agora é configurada em Cadastro de Empresas → Editar empresa → Identidade dos documentos.
+              </p>
+            )}
 
             {/* ── Seletor de faixa ativa (catálogo) ──────────────────────── */}
             <Section icon={<LayoutTemplate className="w-4 h-4"/>}

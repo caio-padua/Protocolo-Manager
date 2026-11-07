@@ -7,10 +7,13 @@ import { PNG } from "pngjs";
 
 const state = vi.hoisted(() => ({
   active: true,
+  owner: false,
   allowed: true,
   empresa: 21,
   clinicEmpresa: 21,
   version: 1,
+  companyVersion: 1,
+  companyFields: ["Clínica sintética", "Clínica sintética", "Rua fictícia", "Cidade fictícia"],
   logo: Buffer.alloc(0),
   pending: true,
   used: false,
@@ -29,7 +32,7 @@ vi.mock("@workspace/db", async () => {
       const rows = () => {
         if (table === schema.professionalsTable) return [{
           id: 41, role: "admin", active: state.active, credentialVersion: 0,
-          category: "administrativo", empresaId: state.empresa, isPlatformOwner: false,
+          category: "administrativo", empresaId: state.empresa, isPlatformOwner: state.owner,
         }];
         if (table === schema.locationProfessionalsTable) return [{ empresaId: state.empresa }];
         if (table === schema.empresasTable) return [{ id: state.empresa }];
@@ -43,6 +46,17 @@ vi.mock("@workspace/db", async () => {
     execute: async (query: any) => {
       state.executeCount++;
       const { sql, params } = dialect.sqlToQuery(query);
+      if (sql.includes("SELECT nome_cabecalho")) return { rows: state.companyVersion ? [{
+        nome_cabecalho: state.companyFields[0], rodape_linha1: state.companyFields[1],
+        rodape_linha2: state.companyFields[2], rodape_linha3: state.companyFields[3],
+        simbolo_path: state.finalLogoId, versao: state.companyVersion,
+      }] : [] };
+      if (sql.includes("UPDATE paxmed_2b_empresa_identidade")) {
+        if (params[params.length - 1] !== state.companyVersion) return { rows: [] };
+        state.companyFields = params.slice(0, 4).map(String);
+        state.companyVersion++;
+        return { rows: [{ empresa_id: state.empresa }] };
+      }
       if (sql.includes("SELECT nome_clinica")) return { rows: state.version ? [{
         nome_clinica: "Clínica sintética", endereco_linha1: "Rua fictícia",
         endereco_linha2: "Cidade fictícia", versao: state.version,
@@ -125,10 +139,57 @@ const uploadId = "11111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   Object.assign(state, {
-    active: true, allowed: true, empresa: 21, clinicEmpresa: 21, version: 1,
+    active: true, owner: false, allowed: true, empresa: 21, clinicEmpresa: 21, version: 1,
+    companyVersion: 1, companyFields: ["Clínica sintética", "Clínica sintética", "Rua fictícia", "Cidade fictícia"],
     logo: readFileSync("../padcom/src/assets/padua-dp-mask.png"),
     pending: true, used: false, executeCount: 0, finalCopies: [], failStorage: false,
     files: new Map(), finalLogoId: "11111111-1111-4111-8111-111111111111",
+  });
+});
+
+describe("identidade empresarial do Modelo 2B", () => {
+  const url = "/paxmed-2b/empresas/21";
+  const body = {
+    nomeCabecalho: "Clínica sintética", rodapeLinha1: "Clínica sintética",
+    rodapeLinha2: "Rua fictícia", rodapeLinha3: "Cidade fictícia", versao: 1,
+  };
+  it("nega acesso anônimo e não transforma administrador local em administrador empresarial", async () => {
+    expect((await request(app).get(url)).status).toBe(401);
+    expect((await request(app).put(url).set("Authorization", `Bearer ${token()}`).send(body)).status).toBe(403);
+    expect(state.executeCount).toBe(0);
+  });
+  it("exige que empresa selecionada e empresa do cadastro coincidam", async () => {
+    state.owner = true;
+    state.empresa = 22;
+    const result = await request(app).get(url).set("Authorization", `Bearer ${token()}`).set("x-empresa-id", "22");
+    expect(result.status).toBe(403);
+    expect(state.executeCount).toBe(0);
+  });
+  it("salva os quatro textos e impede conflito de versão", async () => {
+    state.owner = true;
+    const saved = await request(app).put(url).set("Authorization", `Bearer ${token()}`).set("x-empresa-id", "21").send(body);
+    expect(saved.status).toBe(200);
+    expect(saved.body.identidade.versao).toBe(2);
+    expect(state.companyFields).toEqual([body.nomeCabecalho, body.rodapeLinha1, body.rodapeLinha2, body.rodapeLinha3]);
+    const conflict = await request(app).put(url).set("Authorization", `Bearer ${token()}`).set("x-empresa-id", "21").send(body);
+    expect(conflict.status).toBe(409);
+  });
+  it("rejeita textos que invadem o espaço, caracteres inválidos e quebras de linha", async () => {
+    state.owner = true;
+    for (const change of [{ nomeCabecalho: "W".repeat(30) }, { rodapeLinha2: "W".repeat(30) },
+      { rodapeLinha3: "Linha\nextra" }, { rodapeLinha3: "Símbolo 😀" }]) {
+      const result = await request(app).put(url).set("Authorization", `Bearer ${token()}`).set("x-empresa-id", "21").send({ ...body, ...change });
+      expect(result.status).toBe(400);
+    }
+    expect(state.companyVersion).toBe(1);
+  });
+  it("gera prova sintética com identidade da empresa e sem verificação", async () => {
+    state.owner = true;
+    const result = await request(app).get(`${url}/pre-visualizacao`)
+      .set("Authorization", `Bearer ${token()}`).set("x-empresa-id", "21");
+    expect(result.status).toBe(200);
+    expect(result.headers["content-type"]).toContain("application/pdf");
+    expect(result.body.subarray(0, 4).toString()).toBe("%PDF");
   });
 });
 

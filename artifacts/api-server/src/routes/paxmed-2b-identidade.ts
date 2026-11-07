@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { db, locationsTable } from "@workspace/db";
-import { SavePaxmed2bIdentidadeBody } from "@workspace/api-zod";
+import { SavePaxmed2bIdentidadeBody, SavePaxmed2bEmpresaBody } from "@workspace/api-zod";
 import { requireCollaborator } from "./collaborator";
 import { clinicManagementPermission } from "../lib/clinical-access";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { aplicarOuroAoSimbolo } from "../lib/documentos/paxmed-ouro";
+import { validarTextosEmpresa2b } from "../lib/documentos/paxmed-2b-limites";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva } from "../lib/documentos/paxmed-modelo-2b-prova";
 
 const router = Router();
 const storage = new ObjectStorageService();
@@ -81,6 +84,164 @@ async function logoBytes(objectId: string, finalized = false): Promise<Buffer> {
     throw new IdentityError(503, "Armazenamento indisponível. A configuração anterior foi preservada.");
   }
 }
+
+// A concessão de administrador de um local não autoriza alterar a identidade
+// de todos os locais da empresa. Até haver concessão empresarial explícita,
+// apenas o proprietário autenticado pode operar essa configuração.
+function authorizeCompany(req: Request): { empresaId: number; professionalId: number } {
+  const raw = req.params.empresaId;
+  if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+    throw new IdentityError(400, "Empresa inválida.");
+  }
+  const empresaId = Number(raw);
+  const professionalId = req.collaborator?.professionalId;
+  if (!professionalId || !req.tenantContext?.authenticated || req.tenantContext.professionalId !== professionalId) {
+    throw new IdentityError(401, "Faça login novamente.");
+  }
+  if (!req.tenantContext.isPlatformOwner || req.tenantContext.empresaId !== empresaId) {
+    throw new IdentityError(403, "A configuração empresarial está disponível apenas ao proprietário autorizado.");
+  }
+  return { empresaId, professionalId };
+}
+
+function companyView(row: Record<string, unknown> | undefined) {
+  if (!row) return null;
+  return {
+    nomeCabecalho: row.nome_cabecalho,
+    rodapeLinha1: row.rodape_linha1,
+    rodapeLinha2: row.rodape_linha2,
+    rodapeLinha3: row.rodape_linha3,
+    versao: row.versao,
+  };
+}
+
+router.get("/paxmed-2b/empresas/:empresaId", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const { empresaId } = authorizeCompany(req);
+    const result = await db.execute(sql`
+      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, versao
+      FROM paxmed_2b_empresa_identidade WHERE empresa_id = ${empresaId}
+    `);
+    res.json({ identidade: companyView(result.rows[0] as Record<string, unknown> | undefined) });
+  } catch (error) { fail(req, res, error); }
+});
+
+router.post("/paxmed-2b/empresas/:empresaId/simbolo/upload", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const { empresaId, professionalId } = authorizeCompany(req);
+    const uploadId = randomUUID();
+    const uploadUrl = await storage.getClinicBrandUploadURL(uploadId);
+    await db.execute(sql`
+      INSERT INTO paxmed_2b_empresa_upload (id, empresa_id, professional_id, expira_em)
+      VALUES (${uploadId}::uuid, ${empresaId}, ${professionalId}, NOW() + INTERVAL '15 minutes')
+    `);
+    res.json({ uploadId, uploadUrl });
+  } catch (error) { fail(req, res, error); }
+});
+
+router.put("/paxmed-2b/empresas/:empresaId", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const { empresaId, professionalId } = authorizeCompany(req);
+    const parsed = SavePaxmed2bEmpresaBody.strict().safeParse(req.body);
+    if (!parsed.success) throw new IdentityError(400, "Preencha os campos da identidade corretamente.");
+    const data = parsed.data;
+    const textos = {
+      nomeCabecalho: data.nomeCabecalho.trim().normalize("NFC"),
+      rodapeLinha1: data.rodapeLinha1.trim().normalize("NFC"),
+      rodapeLinha2: data.rodapeLinha2.trim().normalize("NFC"),
+      rodapeLinha3: data.rodapeLinha3.trim().normalize("NFC"),
+    };
+    if (!Number.isSafeInteger(data.versao)) throw new IdentityError(400, "Versão inválida.");
+    try { await validarTextosEmpresa2b(textos); }
+    catch (error) { throw new IdentityError(400, error instanceof Error ? error.message : "Texto inválido."); }
+
+    let finalizedId: string | null = null;
+    if (data.uploadId) {
+      const pending = await db.execute(sql`
+        SELECT id FROM paxmed_2b_empresa_upload WHERE id = ${data.uploadId}::uuid
+          AND empresa_id = ${empresaId} AND professional_id = ${professionalId}
+          AND expira_em > NOW() AND usado_em IS NULL
+      `);
+      if (!pending.rows.length) throw new IdentityError(400, "O envio expirou ou não pertence a esta empresa.");
+      const bytes = await logoBytes(data.uploadId);
+      try { aplicarOuroAoSimbolo(bytes); }
+      catch (error) { throw new IdentityError(400, error instanceof Error ? error.message : "Imagem inválida."); }
+      finalizedId = randomUUID();
+      try { await storage.savePrivateObject(`paxmed-marcas-finais/${finalizedId}`, bytes, "image/png"); }
+      catch { throw new IdentityError(503, "Armazenamento indisponível. A configuração anterior foi preservada."); }
+    }
+    await db.transaction(async (tx) => {
+      if (data.uploadId) {
+        const consumed = await tx.execute(sql`
+          UPDATE paxmed_2b_empresa_upload SET usado_em = NOW()
+          WHERE id = ${data.uploadId}::uuid AND empresa_id = ${empresaId}
+            AND professional_id = ${professionalId} AND expira_em > NOW() AND usado_em IS NULL RETURNING id
+        `);
+        if (!consumed.rows.length) throw new IdentityError(409, "O envio já foi usado ou expirou.");
+      }
+      if (data.versao === 0) {
+        if (!finalizedId) throw new IdentityError(400, "Envie o símbolo da empresa.");
+        const created = await tx.execute(sql`
+          INSERT INTO paxmed_2b_empresa_identidade
+            (empresa_id, nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, simbolo_path)
+          VALUES (${empresaId}, ${textos.nomeCabecalho}, ${textos.rodapeLinha1},
+            ${textos.rodapeLinha2}, ${textos.rodapeLinha3}, ${finalizedId})
+          ON CONFLICT (empresa_id) DO NOTHING RETURNING empresa_id
+        `);
+        if (!created.rows.length) throw new IdentityError(409, "A configuração mudou. Recarregue antes de salvar.");
+      } else {
+        const changed = await tx.execute(sql`
+          UPDATE paxmed_2b_empresa_identidade
+          SET nome_cabecalho = ${textos.nomeCabecalho}, rodape_linha1 = ${textos.rodapeLinha1},
+            rodape_linha2 = ${textos.rodapeLinha2}, rodape_linha3 = ${textos.rodapeLinha3},
+            simbolo_path = COALESCE(${finalizedId}, simbolo_path), versao = versao + 1, atualizado_em = NOW()
+          WHERE empresa_id = ${empresaId} AND versao = ${data.versao} RETURNING empresa_id
+        `);
+        if (!changed.rows.length) throw new IdentityError(409, "A configuração mudou. Recarregue antes de salvar.");
+      }
+    });
+    res.json({ identidade: { ...textos, versao: data.versao + 1 } });
+  } catch (error) { fail(req, res, error); }
+});
+
+router.get("/paxmed-2b/empresas/:empresaId/simbolo", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const { empresaId } = authorizeCompany(req);
+    const result = await db.execute(sql`
+      SELECT simbolo_path FROM paxmed_2b_empresa_identidade WHERE empresa_id = ${empresaId}
+    `);
+    const objectId = (result.rows[0] as { simbolo_path?: string } | undefined)?.simbolo_path;
+    if (!objectId) throw new IdentityError(404, "Símbolo não configurado.");
+    res.type("png").send(aplicarOuroAoSimbolo(await logoBytes(objectId, true)));
+  } catch (error) { fail(req, res, error); }
+});
+
+router.get("/paxmed-2b/empresas/:empresaId/pre-visualizacao", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const { empresaId } = authorizeCompany(req);
+    const result = await db.execute(sql`
+      SELECT nome_cabecalho, rodape_linha1, rodape_linha2, rodape_linha3, simbolo_path
+      FROM paxmed_2b_empresa_identidade WHERE empresa_id = ${empresaId}
+    `);
+    const row = result.rows[0] as Record<string, string> | undefined;
+    if (!row) throw new IdentityError(404, "Salve a identidade antes de abrir a prévia.");
+    const textos = {
+      nomeCabecalho: row.nome_cabecalho, rodapeLinha1: row.rodape_linha1,
+      rodapeLinha2: row.rodape_linha2, rodapeLinha3: row.rodape_linha3,
+    };
+    try { await validarTextosEmpresa2b(textos); }
+    catch (error) { throw new IdentityError(400, error instanceof Error ? error.message : "Texto inválido."); }
+    const simboloDourado = aplicarOuroAoSimbolo(await logoBytes(row.simbolo_path, true));
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const visual = await prepararVisualProva(doc, { textos, simboloDourado });
+    const page = doc.addPage([210 * 72 / 25.4, 297 * 72 / 25.4]);
+    desenharCabecalhoProva(page, visual, font, bold, "PRESCRIÇÃO MÉDICA", "PRÉVIA DE TESTE");
+    carimbarRodapesProva(doc, visual, font);
+    res.type("application/pdf").send(Buffer.from(await doc.save()));
+  } catch (error) { fail(req, res, error); }
+});
 
 router.get("/paxmed-2b/clinicas", requireCollaborator, async (req, res): Promise<void> => {
   try {

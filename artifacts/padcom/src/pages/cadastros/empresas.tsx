@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -344,7 +345,7 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen }: {
             className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
             <ChevronRight className="w-3 h-3" /> Ver Equipe
           </button>
-          <button type="button" onClick={onEdit}
+          <button type="button" onClick={onEdit} aria-label={`Editar empresa ${empresa.nome}`} title="Editar empresa"
             className="bevel-3d px-2.5 py-1.5 hover:bg-primary/10 transition-colors">
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -1177,6 +1178,7 @@ export default function CadastroEmpresas() {
                     className="w-max min-w-full justify-start gap-3 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
                     {[
                       { value: "ident",      label: "Dados" },
+                      { value: "marca-documento", label: "Identidade dos documentos" },
                       { value: "fiscal",     label: "Fiscal e CNAE" },
                       { value: "end",        label: "Endereço" },
                       { value: "referencias",label: "Origem e Referências" },
@@ -1191,6 +1193,16 @@ export default function CadastroEmpresas() {
                     ))}
                   </TabsList>
                 </div>
+
+                <TabsContent value="marca-documento" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para configurar a identidade.</p>
+                  ) : import.meta.env.DEV ? (
+                    <Paxmed2bEmpresa key={editingId} empresaId={editingId} />
+                  ) : (
+                    <p className="concave-3d p-4 text-xs">A personalização dos documentos ainda está em teste e não está disponível nesta versão.</p>
+                  )}
+                </TabsContent>
 
                 {/* ── ABA: DADOS ────────────────────────────────────────────────── */}
                 <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">

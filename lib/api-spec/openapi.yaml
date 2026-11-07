@@ -41,6 +41,99 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /paxmed-2b/empresas/{empresaId}:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bEmpresa
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Identidade empresarial, ou nula.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bEmpresaResposta" }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+    put:
+      operationId: savePaxmed2bEmpresa
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Paxmed2bEmpresaEntrada" }
+      responses:
+        "200":
+          description: Identidade empresarial salva.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bEmpresaResposta" }
+        "400": { description: Texto ou imagem inválida. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+        "409": { description: Configuração foi alterada. }
+  /paxmed-2b/empresas/{empresaId}/simbolo/upload:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: requestPaxmed2bEmpresaSimboloUpload
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Endereço temporário de envio privado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paxmed2bUpload" }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+  /paxmed-2b/empresas/{empresaId}/simbolo:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getPaxmed2bEmpresaSimbolo
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Símbolo dourado para conferência.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+        "404": { description: Símbolo não configurado. }
+  /paxmed-2b/empresas/{empresaId}/pre-visualizacao:
+    parameters:
+      - name: empresaId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: previewPaxmed2bEmpresa
+      tags: [prescriptions]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Prova sintética sem validade clínica ou código de verificação.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { description: Sessão inválida. }
+        "403": { description: Empresa não autorizada. }
+        "404": { description: Identidade não configurada. }
   /paxmed-2b/clinicas:
     get:
       operationId: listPaxmed2bClinicas
@@ -3155,6 +3248,34 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    Paxmed2bEmpresa:
+      type: object
+      required: [nomeCabecalho, rodapeLinha1, rodapeLinha2, rodapeLinha3, versao]
+      properties:
+        nomeCabecalho: { type: string }
+        rodapeLinha1: { type: string }
+        rodapeLinha2: { type: string }
+        rodapeLinha3: { type: string }
+        versao: { type: integer }
+    Paxmed2bEmpresaResposta:
+      type: object
+      required: [identidade]
+      properties:
+        identidade:
+          anyOf:
+            - $ref: "#/components/schemas/Paxmed2bEmpresa"
+            - type: "null"
+    Paxmed2bEmpresaEntrada:
+      type: object
+      additionalProperties: false
+      required: [nomeCabecalho, rodapeLinha1, rodapeLinha2, rodapeLinha3, versao]
+      properties:
+        nomeCabecalho: { type: string, minLength: 1, maxLength: 80 }
+        rodapeLinha1: { type: string, minLength: 1, maxLength: 80 }
+        rodapeLinha2: { type: string, minLength: 1, maxLength: 80 }
+        rodapeLinha3: { type: string, minLength: 1, maxLength: 80 }
+        versao: { type: integer, minimum: 0 }
+        uploadId: { type: string, format: uuid }
     Paxmed2bClinica:
       type: object
       required: [id, nome]

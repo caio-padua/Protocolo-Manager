@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from "pdf-lib";
+import { PNG } from "pngjs";
+import type { TextosEmpresa2b } from "./paxmed-2b-limites";
 
 const MM = 72 / 25.4;
 const mm = (n: number) => n * MM;
@@ -19,6 +21,8 @@ export interface VisualProva {
   wordmark: PDFImage;
   tagline: PDFImage;
   serifBold: PDFFont;
+  identidade?: TextosEmpresa2b;
+  simboloEmpresa?: PDFImage;
 }
 
 function asset(nome: string): Uint8Array {
@@ -34,15 +38,37 @@ function asset(nome: string): Uint8Array {
   throw new Error(`Arte obrigatória do Modelo 2B ausente: ${nome}`);
 }
 
-export async function prepararVisualProva(doc: PDFDocument): Promise<VisualProva> {
+export async function prepararVisualProva(
+  doc: PDFDocument, custom?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array },
+): Promise<VisualProva> {
+  let headerBytes = asset("header-instituto-padua-textfree.png");
+  if (custom) {
+    // A arte fornecida traz o nome e símbolo do Instituto impressos. Na prova
+    // empresarial, cobrir somente essa área com amostras do mesmo tecido azul.
+    // É uma aproximação para teste, não a arte aprovada para emissão clínica.
+    const image = PNG.sync.read(Buffer.from(headerBytes));
+    if (image.width !== 977 || image.height !== 157) throw new Error("Dimensões inesperadas da arte de prova.");
+    for (let y = 18; y < 145; y++) {
+      for (let x = 32; x < 410; x++) {
+        const from = (y * image.width + 480 + ((x - 32) % 270)) * 4;
+        const to = (y * image.width + x) * 4;
+        const blend = Math.min(1, (x - 32) / 12, (409 - x) / 12, (y - 18) / 12, (144 - y) / 12);
+        for (let channel = 0; channel < 3; channel++) {
+          image.data[to + channel] = Math.round(image.data[to + channel] * (1 - blend) + image.data[from + channel] * blend);
+        }
+      }
+    }
+    headerBytes = PNG.sync.write(image);
+  }
   const [header, symbol, wordmark, tagline, serifBold] = await Promise.all([
-    doc.embedPng(asset("header-instituto-padua-textfree.png")),
+    doc.embedPng(headerBytes),
     doc.embedPng(asset("paxmed-simbolo-ouro-transparente.png")),
     doc.embedPng(asset("paxmed-nome-ouro-transparente.png")),
     doc.embedPng(asset("paxmed-tagline-ouro-renderizado.png")),
     doc.embedFont(StandardFonts.TimesRomanBold),
   ]);
-  return { header, symbol, wordmark, tagline, serifBold };
+  const simboloEmpresa = custom ? await doc.embedPng(custom.simboloDourado) : undefined;
+  return { header, symbol, wordmark, tagline, serifBold, identidade: custom?.textos, simboloEmpresa };
 }
 
 function garantirA4(page: PDFPage): void {
@@ -70,6 +96,13 @@ export function desenharCabecalhoProva(
     throw new Error("Título ou subtítulo excede o espaço do Modelo 2B.");
   }
   page.drawImage(visual.header, { x: mm(5), y: HEIGHT - mm(39), width: mm(200), height: mm(32) });
+  if (visual.identidade && visual.simboloEmpresa) {
+    imagemContida(page, visual.simboloEmpresa, mm(14), HEIGHT - mm(34), mm(16), mm(21), true);
+    page.drawText(visual.identidade.nomeCabecalho, {
+      x: mm(34), y: HEIGHT - mm(26), font: visual.serifBold, size: 20,
+      color: rgb(0.94, 0.79, 0.49),
+    });
+  }
   page.drawText(title, { x: mm(96.2), y: HEIGHT - mm(21), font: bold, size: 14.6, color: rgb(247 / 255, 217 / 255, 148 / 255) });
   page.drawText(subtitle, { x: mm(96.2), y: HEIGHT - mm(29), font, size: 8.95, color: rgb(245 / 255, 240 / 255, 232 / 255) });
   const notice = "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA";
@@ -93,9 +126,9 @@ export function carimbarRodapesProva(doc: PDFDocument, visual: VisualProva, font
       if (width > mm(66)) throw new Error("Endereço ultrapassa o espaço reservado.");
       page.drawText(text, { x: center - width / 2, y, size, font: f, color: INK });
     };
-    central("Instituto Pádua", bottom + mm(17.3), 12.6, visual.serifBold);
-    central("Rua Guaxupé, 327 - Tatuapé", bottom + mm(11.4), 7.65, font);
-    central("CEP.: 03416-050 - São Paulo - SP", bottom + mm(7.15), 7.65, font);
+    central(visual.identidade?.rodapeLinha1 ?? "Instituto Pádua", bottom + mm(17.3), 12.6, visual.serifBold);
+    central(visual.identidade?.rodapeLinha2 ?? "Rua Guaxupé, 327 - Tatuapé", bottom + mm(11.4), 7.65, font);
+    central(visual.identidade?.rodapeLinha3 ?? "CEP.: 03416-050 - São Paulo - SP", bottom + mm(7.15), 7.65, font);
     const qrX = mm(199 - 18.3);
     const textRight = qrX - mm(1.6);
     ["Documento de teste", "Sem verificação", `Página ${index + 1} de ${pages.length}`].forEach((text, i) => {

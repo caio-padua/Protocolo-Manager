@@ -371,3 +371,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Cadastro isolado da identidade visual do Modelo 2B.
 \ir migrations/20261107_paxmed_2b_identidade.sql
+\ir migrations/20261107_paxmed_2b_empresa.sql

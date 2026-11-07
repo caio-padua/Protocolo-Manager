@@ -139,6 +139,8 @@ import type {
   LocationCodigoSemantico,
   LocationCodigoSemanticoLista,
   Paxmed2bClinicas,
+  Paxmed2bEmpresaEntrada,
+  Paxmed2bEmpresaResposta,
   Paxmed2bIdentidadeEntrada,
   Paxmed2bIdentidadeResposta,
   Paxmed2bUpload,
@@ -197,6 +199,430 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getGetPaxmed2bEmpresaUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}`;
+};
+
+export const getPaxmed2bEmpresa = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Paxmed2bEmpresaResposta> => {
+  return customFetch<Paxmed2bEmpresaResposta>(
+    getGetPaxmed2bEmpresaUrl(empresaId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPaxmed2bEmpresaQueryKey = (empresaId: number) => {
+  return [`/api/paxmed-2b/empresas/${empresaId}`] as const;
+};
+
+export const getGetPaxmed2bEmpresaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaxmed2bEmpresaQueryKey(empresaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresa>>
+  > = ({ signal }) =>
+    getPaxmed2bEmpresa(empresaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!empresaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaxmed2bEmpresaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaxmed2bEmpresa>>
+>;
+export type GetPaxmed2bEmpresaQueryError = ErrorType<void>;
+
+export function useGetPaxmed2bEmpresa<
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaxmed2bEmpresaQueryOptions(empresaId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSavePaxmed2bEmpresaUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}`;
+};
+
+export const savePaxmed2bEmpresa = async (
+  empresaId: number,
+  paxmed2bEmpresaEntrada: Paxmed2bEmpresaEntrada,
+  options?: RequestInit,
+): Promise<Paxmed2bEmpresaResposta> => {
+  return customFetch<Paxmed2bEmpresaResposta>(
+    getSavePaxmed2bEmpresaUrl(empresaId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(paxmed2bEmpresaEntrada),
+    },
+  );
+};
+
+export const getSavePaxmed2bEmpresaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+    TError,
+    { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+  TError,
+  { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+  TContext
+> => {
+  const mutationKey = ["savePaxmed2bEmpresa"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+    { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> }
+  > = (props) => {
+    const { empresaId, data } = props ?? {};
+
+    return savePaxmed2bEmpresa(empresaId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SavePaxmed2bEmpresaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof savePaxmed2bEmpresa>>
+>;
+export type SavePaxmed2bEmpresaMutationBody = BodyType<Paxmed2bEmpresaEntrada>;
+export type SavePaxmed2bEmpresaMutationError = ErrorType<void>;
+
+export const useSavePaxmed2bEmpresa = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+    TError,
+    { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof savePaxmed2bEmpresa>>,
+  TError,
+  { empresaId: number; data: BodyType<Paxmed2bEmpresaEntrada> },
+  TContext
+> => {
+  return useMutation(getSavePaxmed2bEmpresaMutationOptions(options));
+};
+
+export const getRequestPaxmed2bEmpresaSimboloUploadUrl = (
+  empresaId: number,
+) => {
+  return `/api/paxmed-2b/empresas/${empresaId}/simbolo/upload`;
+};
+
+export const requestPaxmed2bEmpresaSimboloUpload = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Paxmed2bUpload> => {
+  return customFetch<Paxmed2bUpload>(
+    getRequestPaxmed2bEmpresaSimboloUploadUrl(empresaId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRequestPaxmed2bEmpresaSimboloUploadMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+    TError,
+    { empresaId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+  TError,
+  { empresaId: number },
+  TContext
+> => {
+  const mutationKey = ["requestPaxmed2bEmpresaSimboloUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+    { empresaId: number }
+  > = (props) => {
+    const { empresaId } = props ?? {};
+
+    return requestPaxmed2bEmpresaSimboloUpload(empresaId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestPaxmed2bEmpresaSimboloUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>
+>;
+
+export type RequestPaxmed2bEmpresaSimboloUploadMutationError = ErrorType<void>;
+
+export const useRequestPaxmed2bEmpresaSimboloUpload = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+    TError,
+    { empresaId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestPaxmed2bEmpresaSimboloUpload>>,
+  TError,
+  { empresaId: number },
+  TContext
+> => {
+  return useMutation(
+    getRequestPaxmed2bEmpresaSimboloUploadMutationOptions(options),
+  );
+};
+
+export const getGetPaxmed2bEmpresaSimboloUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}/simbolo`;
+};
+
+export const getPaxmed2bEmpresaSimbolo = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetPaxmed2bEmpresaSimboloUrl(empresaId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPaxmed2bEmpresaSimboloQueryKey = (empresaId: number) => {
+  return [`/api/paxmed-2b/empresas/${empresaId}/simbolo`] as const;
+};
+
+export const getGetPaxmed2bEmpresaSimboloQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPaxmed2bEmpresaSimboloQueryKey(empresaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>
+  > = ({ signal }) =>
+    getPaxmed2bEmpresaSimbolo(empresaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!empresaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPaxmed2bEmpresaSimboloQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>
+>;
+export type GetPaxmed2bEmpresaSimboloQueryError = ErrorType<void>;
+
+export function useGetPaxmed2bEmpresaSimbolo<
+  TData = Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPaxmed2bEmpresaSimbolo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPaxmed2bEmpresaSimboloQueryOptions(
+    empresaId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getPreviewPaxmed2bEmpresaUrl = (empresaId: number) => {
+  return `/api/paxmed-2b/empresas/${empresaId}/pre-visualizacao`;
+};
+
+export const previewPaxmed2bEmpresa = async (
+  empresaId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getPreviewPaxmed2bEmpresaUrl(empresaId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getPreviewPaxmed2bEmpresaQueryKey = (empresaId: number) => {
+  return [`/api/paxmed-2b/empresas/${empresaId}/pre-visualizacao`] as const;
+};
+
+export const getPreviewPaxmed2bEmpresaQueryOptions = <
+  TData = Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getPreviewPaxmed2bEmpresaQueryKey(empresaId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>
+  > = ({ signal }) =>
+    previewPaxmed2bEmpresa(empresaId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!empresaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type PreviewPaxmed2bEmpresaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>
+>;
+export type PreviewPaxmed2bEmpresaQueryError = ErrorType<void>;
+
+export function usePreviewPaxmed2bEmpresa<
+  TData = Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+  TError = ErrorType<void>,
+>(
+  empresaId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof previewPaxmed2bEmpresa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getPreviewPaxmed2bEmpresaQueryOptions(
+    empresaId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getListPaxmed2bClinicasUrl = () => {
   return `/api/paxmed-2b/clinicas`;

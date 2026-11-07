@@ -43,19 +43,19 @@ código ou uso clínico antes de concluir e validar a integração.
 
 ## Identidade de clínica e acesso ao documento
 
-O símbolo, o nome e o endereço dos documentos pertencem a cada clínica e devem
-ser configurados em “Faixas do Receituário”. O Instituto Pádua segue esse mesmo
-fluxo, como exemplo de uma clínica licenciada. O acesso ao documento aberto
-pelo código de verificação exige login.
+O símbolo, o nome do cabeçalho e três linhas do rodapé são configurados no
+Cadastro de Empresas. Cada empresa tem uma identidade compartilhada pelos seus
+locais. O Instituto Pádua segue esse fluxo como exemplo de empresa licenciada.
+O acesso ao documento aberto pelo código de verificação exige login.
 
 **Why:** o responsável quer que futuras clínicas personalizem seus documentos
 sem herdar a identidade do Instituto ou expor documentos a quem possuir o código.
 
-**How to apply:** separar identidade da clínica e marca do software; vincular
-configuração e leitura à clínica autorizada no servidor; não tornar o código,
+**How to apply:** separar identidade empresarial e marca do software; vincular
+configuração e leitura à empresa autorizada no servidor; não tornar o código,
 sozinho, uma autorização para visualizar o arquivo.
 
-No Modelo 2B, o símbolo e o nome são trocáveis por clínica, mas devem assumir
+No Modelo 2B, o símbolo e o nome são trocáveis por empresa, mas devem assumir
 o dourado do modelo enviado pelo Dr. Claude. A forma do símbolo original deve
 ser preservada; o tratamento visual não substitui nem apaga o original. O
 responsável reforçou que a cor de entrada do símbolo pode ser branca, preta

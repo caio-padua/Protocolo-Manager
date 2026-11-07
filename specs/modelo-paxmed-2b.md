@@ -90,6 +90,14 @@ outras clínicas.
 
 ## Estado atual
 
+- Atualização de 07/11/2026: o responsável escolheu uma identidade por empresa,
+  compartilhada entre seus locais, configurada em Cadastro de Empresas. A antiga
+  configuração por unidade foi preservada. No desenvolvimento, o Instituto foi
+  copiado para a identidade empresarial sem sobrescrever outras configurações.
+  A prévia empresarial é sintética; o fundo reconstruído e o dourado são
+  aproximações, não uma aprovação visual nem uso clínico. A configuração empresarial
+  permanece restrita ao proprietário até existir concessão empresarial explícita.
+
 - Existe uma prova visual sintética para pedido de exames e um gerador alternativo
   de receita. A arte fixa do Instituto é usada somente nessa prova, nunca como
   identidade configurável de outra clínica. Nenhuma rota clínica ativa a prova.

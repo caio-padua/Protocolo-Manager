@@ -7,6 +7,79 @@
  */
 import * as zod from "zod";
 
+export const GetPaxmed2bEmpresaParams = zod.object({
+  empresaId: zod.coerce.number().min(1),
+});
+
+export const GetPaxmed2bEmpresaResponse = zod.object({
+  identidade: zod.union([
+    zod.object({
+      nomeCabecalho: zod.string(),
+      rodapeLinha1: zod.string(),
+      rodapeLinha2: zod.string(),
+      rodapeLinha3: zod.string(),
+      versao: zod.number(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const SavePaxmed2bEmpresaParams = zod.object({
+  empresaId: zod.coerce.number().min(1),
+});
+
+export const savePaxmed2bEmpresaBodyNomeCabecalhoMax = 80;
+
+export const savePaxmed2bEmpresaBodyRodapeLinha1Max = 80;
+
+export const savePaxmed2bEmpresaBodyRodapeLinha2Max = 80;
+
+export const savePaxmed2bEmpresaBodyRodapeLinha3Max = 80;
+
+export const savePaxmed2bEmpresaBodyVersaoMin = 0;
+
+export const SavePaxmed2bEmpresaBody = zod.object({
+  nomeCabecalho: zod
+    .string()
+    .min(1)
+    .max(savePaxmed2bEmpresaBodyNomeCabecalhoMax),
+  rodapeLinha1: zod.string().min(1).max(savePaxmed2bEmpresaBodyRodapeLinha1Max),
+  rodapeLinha2: zod.string().min(1).max(savePaxmed2bEmpresaBodyRodapeLinha2Max),
+  rodapeLinha3: zod.string().min(1).max(savePaxmed2bEmpresaBodyRodapeLinha3Max),
+  versao: zod.number().min(savePaxmed2bEmpresaBodyVersaoMin),
+  uploadId: zod.string().uuid().optional(),
+});
+
+export const SavePaxmed2bEmpresaResponse = zod.object({
+  identidade: zod.union([
+    zod.object({
+      nomeCabecalho: zod.string(),
+      rodapeLinha1: zod.string(),
+      rodapeLinha2: zod.string(),
+      rodapeLinha3: zod.string(),
+      versao: zod.number(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const RequestPaxmed2bEmpresaSimboloUploadParams = zod.object({
+  empresaId: zod.coerce.number().min(1),
+});
+
+export const RequestPaxmed2bEmpresaSimboloUploadResponse = zod.object({
+  uploadId: zod.string().uuid(),
+  uploadUrl: zod.string().url(),
+});
+
+export const GetPaxmed2bEmpresaSimboloParams = zod.object({
+  empresaId: zod.coerce.number().min(1),
+});
+
+export const PreviewPaxmed2bEmpresaParams = zod.object({
+  empresaId: zod.coerce.number().min(1),
+});
+
 export const ListPaxmed2bClinicasResponse = zod.object({
   clinicas: zod.array(
     zod.object({
