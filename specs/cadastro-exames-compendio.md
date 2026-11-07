@@ -41,6 +41,14 @@ do intervalo de referência do laboratório e de metas individuais.
 
 - As fichas possuem 115 páginas; o compêndio editorial possui 333 páginas;
   o terceiro documento possui três modelos de demonstração.
+- Em 07/11/2026 foi feita uma extração preliminar local das 115 fichas:
+  575 faixas literais e 690 blocos de texto. A contagem não prova fidelidade
+  completa; alguns símbolos em trechos corridos podem sair em ordem incorreta
+  na extração de texto e precisam ser conferidos contra o documento.
+- O extrator em `scripts/extrair-fichas-exames.py` não importa para o banco e
+  exclui o cabeçalho de identificação e o quadro de coletas. Não elimina a
+  necessidade de conferir a ausência de dados pessoais e de revisar o
+  conteúdo antes de disponibilizá-lo.
 - Já há dois domínios distintos: cadastro de exames e catálogo de analitos;
   há editor de faixas no Console de Exames e consumidores na evolução clínica.
 - O classificador atual trata a maioria das faixas como limite inferior
@@ -54,6 +62,21 @@ do intervalo de referência do laboratório e de metas individuais.
   decimais: a intenção e o comportamento no limite precisam ser explicitados.
 - O compêndio contém aprofundamentos e referências além da primeira ficha;
   importá-los exige conferência de integridade por página, não truncar o texto.
+- O console atual permite alterações por rotas de exames que não aplicam a
+  matriz de permissões no servidor. A verificação visual do menu e da tela
+  nova não substitui autorização no servidor. Isso é impeditivo de homologação
+  da curadoria unificada e exige correção e testes antes de uso clínico.
+
+## Estado de implementação em 07/11/2026
+
+- Entrada do menu e estrutura inicial criadas. A seção de faixas está bloqueada
+  nesta nova tela até que a autorização no servidor seja corrigida.
+- O cadastro existente envia a sessão do colaborador ao criar e atualizar.
+- Extração e contagens preliminares verificadas, sem importação no banco.
+- Pendentes: extração conferida dos três documentos, referências do compêndio,
+  conciliação e inclusão de exames, edição persistente dos novos campos,
+  faixas transacionais e auditáveis, autorização no servidor, revisão
+  independente e homologação completa. Não marcar este trabalho como concluído.
 
 ## Falhas previstas e barreiras
 

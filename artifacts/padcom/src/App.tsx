@@ -50,6 +50,7 @@ import ExamesMonitor from "@/pages/exames/monitor";
 import CadastroExames from "@/pages/cadastros/exames";
 import CadastroConfigExames from "@/pages/cadastros/config-exames";
 import CadastroConsoleExames from "@/pages/cadastros/console-exames";
+import CadastroExamesUnificado from "@/pages/cadastros/cadastro-exames";
 import CadastroListas from "@/pages/cadastros/listas";
 import CadastroClinicas from "@/pages/cadastros/clinicas";
 import CadastroEmpresas from "@/pages/cadastros/empresas";
@@ -278,6 +279,7 @@ function Router() {
                 <Switch>
                   <Route path="/cadastros/config-exames" component={CadastroConfigExames} />
                   <Route path="/cadastros/governanca" component={Governanca} />
+                  <Route path="/cadastros/cadastro-exames" component={CadastroExamesUnificado} />
                   <Route path="/cadastros/exames" component={CadastroExames} />
                   <Route path="/cadastros/console-exames" component={CadastroConsoleExames} />
                   <Route path="/cadastros/direcao-exames" component={CadastroConsoleExames} />

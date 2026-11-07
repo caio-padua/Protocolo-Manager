@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -171,7 +172,7 @@ function ExamesTab() {
         : "/api/cadastros/exames";
       const r = await fetch(url, {
         method: form.id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(form.id ? body : { ...body, codigoExame: form.codigoExame }),
       });
       if (!r.ok) {
@@ -193,7 +194,7 @@ function ExamesTab() {
     mutationFn: async ({ id, ativo }) => {
       const r = await fetch(`/api/cadastros/exames/${id}/ativo`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ ativo }),
       });
       if (!r.ok) throw new Error("Falha ao alterar status");

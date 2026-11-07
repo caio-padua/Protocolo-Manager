@@ -9,7 +9,7 @@
 - [BRT centralizado — fonte única de data/hora](brt-centralizado.md) — lib/brt.ts é a ÚNICA fonte de data BRT; nunca usar new Date() nu para arquivo/exibição; GET /api/brt prova o fuso ao vivo (público, sem auth).
 - ProcedenciaDocumentosBloco — Kaizen-001 — ClassificationPanel bevel-3d 5 canais fixos; ZONA 1 sem LED/origem; Col 1 bi-line (canônico/extraído); Col 3 = leitura original quando convertido; watcher 5min+boot.
 - **Exames — catalogo, faixas e triagem** — [direcao mora em direcao_favoravel_exame](direcao-exame-fonte-verdade.md) · [synonyms ja ensina o scanner](aliases-unidades-exames.md) · [filtrar por zone.key, nunca zone.name](exames-faixa-filtro-por-key.md) · [hormonio sexo-dependente nao aceita faixa unica](curadoria-faixas-classe.md) · [chaveFaixa compara, slugInterno gera](exame-code-identidade-slug.md) · [active=false polissemico](exam-catalog-active-polissemico.md) · [resolver carimba o cluster inteiro](exames-triagem-resolucao.md) · [zerar fila nao zera exam_results](triagem-fila-vs-crus.md) · [2 fases C1/C2, maior-id-vence](conferencia-humana-exames.md) · [Gemini+pdf-parse, 70-106s, UI assincrona](exam-extraction-motor.md) · [isHistory + lab name so por vision](motor-extracao-v2-ishistory.md)
-- [Receituário e documentos clínicos](receituario-motor-v2-anvisa.md) — modelo 3A-1C; páginas sem compressão; concluir o conteúdo antes da assinatura digital.
+- [Documentos clínicos e faixas do Instituto](indice-documentos-clinicos.md) — emissão, fontes, assinatura, entrega e segurança.
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.
 - serializeLocation mapeia campos explicitamente — nova coluna Drizzle não aparece no response até ser adicionada em serializeLocation(); getCertInfo() retorna { subject, issuer, serial, validFrom, validTo, cpf }.
 - Precedência < vs ?? no for-loop — `i < arr.items?.length ?? arr.length` → `<` vence `??`; loop nunca roda. Sempre parentesize: `i < (arr.items?.length ?? arr.length)`.
@@ -24,7 +24,6 @@
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna NOT NULL.
 - [PDF: cursor de pagina unico contra paginas em branco](pdf-cursor-quebra-pagina.md) — gerador multi-pagina usa `let page`+`ensureSpace` reapontavel; `const page` por bloco quebra; pdf-lib nao avisa y fora da folha.
-- [Assinatura PDF embarcada (PAdES/selo verde)](assinatura-pades-padcom.md) — embutir com @signpdf (import { SignPdf }, save useObjectStreams:false); pdfsig 'issuer not Trusted' nao e defeito (Adobe AATL confia ICP-Brasil).
 - [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico no lembrete.
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
 - **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
@@ -51,7 +50,6 @@
 - [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o POST.
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
-- [Fábrica de Padrão de Documentos (PDF)](fabrica-padrao-documentos.md) — wordmark é ouro-sobre-escuro nativo; api-server roda do dist (cp assets→dist/assets no build); emissor PAXTER, exceção receituário=Pádua.
 - [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configurado".
 - [E-mail Paxter v2 (terno + tabela)](email-paxter-v2-terno-tabela.md) — e-mail branded = fundo navy "terno" + substâncias SEMPRE em tabela alinhada; dose só a massa (tira "/ml"); WhatsApp só banner+texto.
 - [Twilio WhatsApp janela 24h (erro 63016)](twilio-whatsapp-janela-24h.md) — sent:true NÃO é entregue; 63016=fora da janela 24h; sandbox=+14155238886.
@@ -130,12 +128,8 @@
 - [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.
 - [Unicidade em substance_applications](substance-applications-unicidade.md) — chave única é o trio com session_number; consolidação semanal repete substância na mesma sessão quando intervalDays<7.
 - [pdf-lib drawSvgPath y invertido](pdflib-drawsvgpath-y-flip.md) — path é SVG y-down relativo à opção y; y:0 desenha fora da página sem erro; ancorar y=pageH e flipar cada ponto.
-- [Reenvio de documentos clínicos](historico-documentos-clinicos.md) — transmitir o PDF já emitido; link temporário de sete dias para WhatsApp/Telegram; resultado incerto exige conferência humana.
-- [Prescrição sem assinatura com certificado vencido](certificado-expirado-prescricao-sem-assinatura.md) — somente Cockpit, certificado pessoal comprovadamente vencido, marca explícita e sem envio; RAS, exames e certificado global seguem assinados.
 // hint: Logic changed on both sides. Requires understanding intent of each change.
-- [Entregar documento para o CEO conferir](entregar-documento-visual-ao-ceo.md) — PDF assinado abre em branco no chat e HTML abre como código no editor; entregar PNG por página; no app, abrir em aba nova, nunca baixar.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
-- [Fotos em PDF clínico sem metadados](pdf-foto-sem-metadados.md) — remover EXIF/XMP/IPTC/COM antes de embedJpg; PDF pode preservar JPEG bruto e vazar localização/aparelho.
 - [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
 - [Post-merge — migração falha em silêncio](post-merge-migracao-pg.md) — require('pg') na raiz do monorepo sempre falha (usar psql + scripts/migrations.sql); corrigir o script NÃO aplica a coluna, conferir no banco.
 - [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicionar-item.mjs); token do Sheets vem do conector google-drive.
@@ -143,9 +137,7 @@
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.
 - [JPEG enviado — decodificar e regravar sem EXIF](jpeg-upload-decode-reencode.md) — validar pixels com decoder JavaScript puro; regravar remove EXIF/GPS; decoder nativo pode derrubar o Node 24.
 - [Prescrição — vínculo seguro](prescricao-vinculo-seguro.md) — nunca inferir por nome; conflito CPF/e-mail exige seleção humana, não primeiro resultado.
-- [Homologação clínica sintética](homologacao-documento-sintetico.md) — banner de teste destacado e supressão de boilerplate clínico contraditório em PDFs de homologação.
 - [Entrada em operação clínica](entrada-operacao-clinica.md) — primeiro uso real em paralelo ao sistema anterior; receitas e exames são prioridades, sem pressupor migração.
-- [Destinatários implícitos em documentos clínicos](recibos-clinicos-copia-implicita.md) — ao habilitar vários médicos, cópia pessoal herdada vira vazamento entre clínicas; verificar chamador e padrão do motor.
 - **Rascunhos clínicos** — [revalidação transitória](rascunho-revalidacao-transitoria.md) · [recuperação e emissão incerta](rascunhos-clinicos-recuperacao.md).
 - [Autonomia nos retornos das tarefas](autonomia-retornos-tarefas.md) — decidir questões técnicas de “Aguardando entrada” com foco comercial; ler a pergunta e confirmar o envio da resposta.
 - [Envio clínico com resultado incerto](envio-clinico-resultado-incerto.md) — reservas não expiram nem autorizam repetição automática; resposta perdida exige conferência, não nova chave.
@@ -155,5 +147,4 @@
 - [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
 - [Receituário V2 pagina em vez de recusar](receituario-pdf-paginacao.md) — limite de 1 página causava 500 genérico na emissão; usar ensureSpace/newPage; erro real só no log.
 - [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ativo false.
-- [Paginação bloco inteiro](paginacao-bloco-integro-documentos.md) — fórmula/item nunca cortado + 1 linha em branco; helper pdf-bloco-integro; tomada por linha; carta e RAS FAP são layout fixo.
 - [Gmail desconectado = e-mail falha](gmail-conector-desconectado-401.md) — "Invalid Credentials" no envio = autorizacao Google expirada; reautorizar integracao, nao mexer na rota.

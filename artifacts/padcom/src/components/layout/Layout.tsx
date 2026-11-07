@@ -133,6 +133,7 @@ const navigation: NavEntry[] = [
       { name: "Procedência de Exames", href: "/procedencia-exames", icon: MapPin },
       { name: "Prescritor de Exames", href: "/exames", icon: ClipboardListIcon },
       { name: "Monitor do Motor", href: "/exames/monitor", icon: Activity },
+      { name: "Cadastro de Exames", href: "/cadastros/cadastro-exames", icon: FolderTree },
       { name: "Exames & Blocos", href: "/cadastros/exames", icon: TestTube },
       { name: "Console de Exames", href: "/cadastros/console-exames", icon: Compass },
       { name: "Configuração de Exames", href: "/cadastros/config-exames", icon: FlaskConical },
@@ -313,6 +314,7 @@ const HREF_FERRAMENTA: Record<string, string> = {
   "/importar-drive": "exames_importar",
   "/exames-cliente": "exames_mesa",
   "/cadastros/console-exames": "exames_faixas",
+  "/cadastros/cadastro-exames": "exames_faixas",
   "/cadastros/config-exames": "exames_config",
   // Documentos (Arsenal Clinico)
   "/arsenal/atestados": "atestado",
