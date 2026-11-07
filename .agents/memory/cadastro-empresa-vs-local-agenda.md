@@ -32,3 +32,9 @@ Regra: Uma mesma empresa clínica pode atender em locais próprios, espaços alu
 **Why:** O responsável descreveu uma operação itinerante, com agendas organizadas por cidade e consultórios alugados conforme a necessidade.
 
 **How to apply:** Separar empresa responsável, local ou modalidade e agenda; não presumir que o proprietário do endereço seja a clínica que realiza o atendimento.
+
+Regra: Cadastro de clientes e locais de atendimento são coisas distintas; transferir locais não significa transferir os cadastros dos clientes.
+
+**Why:** O responsável esclareceu essa distinção ao solicitar a reorganização dos locais entre empresas.
+
+**How to apply:** Preservar a empresa dos clientes e corrigir eventuais vínculos internos com locais sem interpretar a mudança de agenda como transferência de clientes.
