@@ -112,7 +112,7 @@ export async function runSeedDemoRogerio(
         fichaClinica: FICHA_DEMO,
         status: "active",
         empresaId: 5,
-        locationId: 8,
+        locationId: 30,
       })
       .returning({ id: clientsTable.id });
     clienteId = novo!.id;

@@ -501,7 +501,7 @@ export async function runTransmutacao(opts: {
           fichaClinica: payload.fichaClinica,
           needsReview,
           empresaId: 5,
-          locationId: 8,
+          locationId: 30,
         })
         .returning({ id: clientsTable.id });
       indexClient({
