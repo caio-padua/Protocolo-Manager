@@ -28,9 +28,14 @@ por todos os locais da empresa, sem alterar documentos clínicos reais.
 12. Identidades de demonstração das empresas clínicas ativas usam nome e endereço
     do cadastro existente; onde faltar dado, usar texto explicitamente fictício.
     Símbolos criados para teste são identificados como provisórios e substituíveis.
-    Nenhum cadastro existente é sobrescrito; empresas inativas não são reativadas.
+    Cadastro existente não é sobrescrito sem ordem; empresas inativas não são reativadas.
 13. Nomes longos podem reduzir a fonte dentro de limites legíveis, sem truncamento
     e mantendo o texto inteiro na área útil. Validar na mesma fonte da prova.
+14. A pedido do responsável, substituir os símbolos provisórios de iniciais por
+    desenhos originais distintos por clínica, sem apresentação como marca oficial.
+    Preservar o símbolo oficial do Instituto Pádua, textos e os objetos anteriores.
+    Alterar somente as identidades provisórias identificadas e proteger alterações
+    concorrentes por versão e símbolo anterior; não alterar a emissão clínica.
 
 ## Impacto e falhas previstas
 | Falha | Gravidade | Prevenção e recuperação |
@@ -46,6 +51,7 @@ por todos os locais da empresa, sem alterar documentos clínicos reais.
 | Marca fictícia interpretada como oficial | Alta | Registrar símbolo provisório e exibir aviso; prévia sem validade clínica. |
 | Prévia visual diverge da prova salva | Alta | Marcar prévia ao vivo como aproximada; conferir prova salva com a fonte real. |
 | Espaços transparentes deslocam símbolo | Média | Recortar somente bordas transparentes antes de centralizar, sem tocar o original salvo. |
+| Substituir marca oficial ou desenho alterado pelo usuário | Alta | Atualizar apenas símbolo provisório previamente conferido, com versão e objeto anterior em condição atômica. |
 
 ## Evidência e definição de pronto
 Testar persistência, isolamento entre empresas, expiração, conflitos, imagens de

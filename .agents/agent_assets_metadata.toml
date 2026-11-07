@@ -956,3 +956,31 @@ mtime_ms = 1794078163228
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7d970d59-8fd4-45ab-b4cf-b05fdd946f3b/eb741aad-ce7b-42bf-897a-bfedb169167d"
 storage_version_token = "1794078181961513"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "1A1_6Re5ApIOg03uFOBUf"
+uri = "file://generated-artifacts/simbolos-cadastrados-clinicas.png"
+type = "image"
+title = "Símbolos cadastrados nas clínicas"
+description = "Comparação visual das dez clínicas: nove símbolos fictícios novos e o símbolo preservado do Instituto Pádua."
+logical_id = "dfe8bee3-7015-4e8b-a8c6-fb3529080a2b"
+content_hash = "sha256:0c30864d5baa43988235fb893fd84579eaccc84874ce25d4658dfa4d7569b169"
+size = 668929
+mtime_ms = 1794078896472
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/dfe8bee3-7015-4e8b-a8c6-fb3529080a2b/2cd86763-95e5-4780-84c2-e33638e2ba3c"
+storage_version_token = "1794078976687336"
+content_type = "image/png"
+
+[[outputs]]
+id = "aXXuJz_2DSeemUwPqj1BI"
+uri = "file://generated-artifacts/novos-simbolos-previa-dez-clinicas.pdf"
+type = "pdf"
+title = "Prévia leve dos receituários"
+description = "Dez páginas de demonstração, em formato de imagem e sem validade clínica; inclui os novos símbolos e endereços cadastrados."
+logical_id = "7c0c3928-61bd-454a-9b7b-7d1ed4e7d953"
+content_hash = "sha256:5115afa06854b9e37cfa400d61225065ceb73b6fc58c740f702eb805a235cea6"
+size = 846223
+mtime_ms = 1794078899445
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7c0c3928-61bd-454a-9b7b-7d1ed4e7d953/f2c1d149-7263-4c7b-a9bc-44e0639b87d2"
+storage_version_token = "1794078977719522"
+content_type = "application/pdf"

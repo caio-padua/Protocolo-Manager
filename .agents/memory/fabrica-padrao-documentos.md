@@ -67,6 +67,20 @@ do documento segue o mesmo padrão visual entre as clínicas.
 **How to apply:** mostrar o resultado do tratamento antes de utilizá-lo; recusar
 imagem inadequada em vez de apresentar o fundo como se fosse parte do símbolo.
 
+### Desenho com vazios internos brancos
+
+O tratamento dourado usa a transparência como forma e ignora a cor original.
+Se a remoção de fundo deixar regiões brancas opacas dentro do desenho, essas
+regiões também ficam douradas e podem transformar o símbolo em uma mancha.
+
+**Why:** uma imagem gerada tinha fundo externo transparente, mas mantinha os
+espaços internos brancos opacos; o resultado parecia válido até aplicar o ouro.
+
+**How to apply:** conferir a máscara também nos vazios internos e visualizar o
+resultado dourado sobre azul-marinho. Para desenho preto sobre branco, remover
+os vazios brancos preservando as bordas antes de salvar como imagem de exemplo.
+Não aplicar essa conversão automaticamente a uma marca oficial colorida.
+
 ## Asset bundling no api-server (sempre roda do dist)
 O `dev` do api-server é `build && start` — o servidor SEMPRE roda do bundle `dist`, nunca da fonte.
 Logo, asset binário (PNG do wordmark, .afm) tem de ser COPIADO para `dist` no passo de build e
