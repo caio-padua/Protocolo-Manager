@@ -13,3 +13,8 @@ personalizada baseada em avaliação clínica, o que poderia confundir quem less
 
 **How to apply:** Em qualquer teste de receita, exame ou atestado, revisar o texto
 extraído e a página renderizada antes de entregar o arquivo como evidência.
+
+Quando o responsável solicitar uma demonstração com dados do próprio sistema,
+usar as fórmulas e posologias existentes sem inventar ou completar orientações.
+Não confundir essa demonstração autorizada com testes agressivos, de segurança
+ou regressão, que continuam exigindo dados sintéticos e isolamento.
