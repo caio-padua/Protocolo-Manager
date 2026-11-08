@@ -562,6 +562,15 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   vermelho=exige decisao, cinza=ignorado) + frase de UMA linha com seta "→" separando causa e efeito.
   Maximo ~5 passos; texto `text-[10px]` navy. Referencia viva: Sala de Triagem (`ConsoleExamesTool.tsx`).
 
+- **Padrao 30 — ESTADO DE INTEGRACAO EM CHIP FIXO + ACAO BLOQUEADA EXPLICADA (Motor de Agenda, 2026)**:
+  cada agenda externa mostra estado num chip `concave-3d` de largura FIXA (`w-[148px]`) com LED:
+  verde estavel = atualizada, ambar `-breathe` = aguardando, vermelho `-on` = erro (texto do erro
+  em `paxter-alert-red` logo abaixo), `paxter-led-off` = leitura desligada. "Ultima atualizacao" e
+  "Ultima tentativa" sempre presentes (slot com "—"). Acao sem autorizacao NUNCA some: o botao fica
+  desabilitado e um `paxter-alert paxter-alert-amber` explica quem pode e qual caminho alternativo
+  (ex.: solicitacao de expediente). Atualizacao assincrona (202) mostra "Atualizando…" ate o estado
+  real confirmar, nunca conclusao instantanea. Referencia: `pages/agenda/AgendaIntegrationPanel.tsx`.
+
 ## 4. Catalogo de Controles por Intencao (botao x toggle x acao)
 
 Paradigma travado pelo CEO (19/06/2026): cada INTENCAO tem UM controle e UMA cor. Ao criar ou
@@ -691,7 +700,9 @@ SEM `@layer` de proposito e por isso sobrepoem utilitarios `bg-*`/`border-*` do 
 um bloco em relevo (ex.: alerta "dentro do alvo" verde) NAO adianta por `bg-emerald-50` — crie/use
 uma classe unlayered companheira (ex.: `bevel-3d-ok`) que sobrescreve so `background`/`border-color`.
 
-### 4.8 Padrao 27 — Selo de modalidade do local (Sede / Outro endereco / Online / A definir)
+### 4.8 Padrao 27 — Selo de modalidade do local (Sede / Local externo / Online / Indefinido)
+
+Atualizacao (correcao de cadastros): rotulos visiveis passaram a ser SEDE, LOCAL EXTERNO, ONLINE, INDEFINIDO (valores internos `sede`/`externo`/`online`/`definir` inalterados). SEDE deixou de ser navy chapado (lia como preto): agora navy claro `#e3e9f4` com texto navy. Estado ativo de botao bevel NAO usa mais `bg-primary text-primary-foreground` (o `bevel-3d` unlayered vence o fundo e sobra texto branco em face clara): usar `bevel-3d pax-escolha` com `aria-pressed` (ver Padrao 31).
 
 Lei promulgada em 07/11/2026 para a tela LOCAIS DE ATENDIMENTO (`/cadastros/clinicas`).
 - 4 estados, cada um com icone + cor fixa (fonte: `pages/cadastros/locais/locais-modo.ts`): SEDE = navy com texto ouro (Building2); OUTRO ENDERECO = ouro claro com borda ouro (MapPinned); ONLINE = azul claro com borda azul (Video); A DEFINIR = ambar (HelpCircle).
@@ -700,6 +711,17 @@ Lei promulgada em 07/11/2026 para a tela LOCAIS DE ATENDIMENTO (`/cadastros/clin
 - Filtro por modalidade = botoes bevel com `aria-pressed`; ativo = `bg-primary text-primary-foreground ring-2 ring-[#b8892b]` (nunca so mudar a cor do texto).
 - Formulario: 3 botoes grandes (Presencial / Online / A definir) + Switch "O local fisico e o mesmo endereco da empresa" (aparece em Presencial e em Online; em Online o texto e "Usar o endereco da empresa como referencia"). Ligado: campos de endereco somem e o endereco da empresa e mostrado. Online guarda endereco so como referencia e pode ter "Observacao do local".
 - Modalidade nunca e presumida: sem informacao = A DEFINIR.
+
+### 4.8.1 Padrao 31 — Janela de altura estavel, legenda alinhada e resumo de slots fixos
+
+Fonte: `pages/cadastros/locais/locais.css` (classes unlayered `.pax-*`).
+- Dialogo de cadastro com secoes/abas: `DialogContent` recebe `pax-dialogo-fixo` (altura efetiva fixa `min(46rem, 100dvh - 2rem)`); cabecalho, barra de secoes e rodape `shrink-0`; so o miolo rola (`pax-dialogo-miolo` ou `TabsContent flex-1 overflow-y-auto`). Trocar secao nunca redimensiona a janela; o rodape com SALVAR fica sempre visivel.
+- Cabecalho de dialogo de registro filho mostra SEMPRE o dono (ex.: "Empresa proprietaria") num insert concavo; nunca depender de o usuario lembrar o contexto.
+- Filtro com legenda: UMA linha por significado (`pax-filtro-linha`): botao bevel de largura fixa a esquerda (mesma largura e altura em todas as linhas) + texto de ajuda a direita. Nada de chips em `flex-wrap` com legenda separada.
+- Estado ativo de escolha bevel: `bevel-3d pax-escolha` + `aria-pressed`/`data-state`. Claro = face ouro clara + texto navy + anel ouro; escuro = face navy + texto ouro. Nunca texto branco sobre face clara.
+- Resumo por categoria: `pax-resumo` com TODOS os slots sempre presentes na mesma ordem, inclusive contagem zero (`data-zero` so atenua). No celular os slots empilham em posicoes iguais (1 coluna); a partir de 768px viram colunas iguais. Rotulo nunca truncado com reticencias — se nao cabe, empilha.
+- Cabecalho de pagina com acao principal: no celular a acao desce abaixo do titulo em largura total (`flex-col sm:flex-row`); nunca sobrepor o titulo.
+- Toda variante tem `.dark`.
 
 ### 4.9 Padrao 28 — Aba "Agenda Google" no cadastro do local
 

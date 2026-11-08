@@ -2,21 +2,23 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Loader2 } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { describeError, useCollabIdentity } from "./agenda-integration-api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { GoogleAgendaCommitments } from "@workspace/api-client-react";
 
 export function GoogleCommitments({ de, ate }: { de: string; ate: string }) {
   const [search, setSearch] = useState("");
+  const identity = useCollabIdentity();
   const query = useQuery({
-    queryKey: ["google-compromissos", de, ate],
+    queryKey: ["google-compromissos", identity, de, ate],
     queryFn: async ({ signal }) => {
       const base = import.meta.env.VITE_API_URL || "/api";
       const params = new URLSearchParams({ de, ate });
       const response = await fetch(`${base}/agenda/google-compromissos?${params}`, {
         headers: collabAuthHeaders(), signal,
       });
-      if (!response.ok) throw new Error("Não foi possível carregar a agenda importada.");
+      if (!response.ok) throw Object.assign(new Error("Não foi possível carregar a agenda importada."), { status: response.status });
       return response.json() as Promise<GoogleAgendaCommitments>;
     },
     staleTime: 30_000,
@@ -39,7 +41,7 @@ export function GoogleCommitments({ de, ate }: { de: string; ate: string }) {
         className="field-engraved" value={search} onChange={(event) => setSearch(event.target.value)} />
       {query.isPending ? <p role="status" className="flex gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Carregando compromissos…</p>
         : query.isError ? <div role="alert" className="concave-3d p-3 text-sm">
-          Não foi possível consultar a agenda.
+          {describeError(query.error, "Não foi possível consultar a agenda.")}
           <Button type="button" className="btn-3d-soft ml-2" onClick={() => void query.refetch()}>Tentar novamente</Button>
         </div> : events.length === 0 ? <p className="concave-3d p-3 text-sm">
           Nenhum compromisso do Google neste período ou nesta busca.

@@ -22,6 +22,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
+import { AgendaChangeRequests } from "./AgendaChangeRequests";
+import { useAgendaIntegration } from "./agenda-integration-api";
 import {
   CalendarCog,
   Save,
@@ -115,6 +118,19 @@ export default function AgendaMotor() {
     () => resources?.find((r) => r.id === selectedId) ?? null,
     [resources, selectedId],
   );
+
+  // ---- Autorizacao por local (somente apresentacao; o backend recusa de qualquer forma) ----
+  const integration = useAgendaIntegration();
+  const agendaByLocation = useMemo(() => {
+    const map = new Map<number, { canManage: boolean; enabled: boolean | null }>();
+    for (const a of integration.data?.agendas ?? []) map.set(a.id, { canManage: a.canManage, enabled: a.enabled });
+    return map;
+  }, [integration.data]);
+  const canManageResource = (r: { locationId?: number | null } | null | undefined) =>
+    !!r?.locationId && !!agendaByLocation.get(r.locationId)?.canManage;
+  const canManageSelected = canManageResource(selected);
+  const anyCanManage = Array.from(agendaByLocation.values()).some((a) => a.canManage);
+  const globalLocked = !integration.data?.canManageGlobalSettings;
 
   // ---- Identidade do recurso (draft) ----
   const [resDraft, setResDraft] = useState<{
@@ -249,6 +265,9 @@ export default function AgendaMotor() {
       },
     },
   });
+
+  const bookResource = resources?.find((r) => r.id === slotResource);
+  const bookReadOff = !!bookResource?.locationId && agendaByLocation.get(bookResource.locationId)?.enabled === false;
 
   function confirmBooking() {
     if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime) {
@@ -499,7 +518,7 @@ export default function AgendaMotor() {
                 className="h-9 w-12 cursor-pointer border-0 bg-transparent p-0"
                 aria-label="Cor do recurso"
               />
-              <Button className="btn-3d flex-1" onClick={addResource} disabled={createResource.isPending}>
+              <Button className="btn-3d flex-1" onClick={addResource} disabled={!anyCanManage || createResource.isPending}>
                 <Plus className="mr-1 h-4 w-4" /> Adicionar
               </Button>
             </div>
@@ -512,7 +531,7 @@ export default function AgendaMotor() {
           <div className="panel-3d p-4 space-y-4">
             <div className="flex items-center justify-between">
               <BlockTitle icon={SlidersHorizontal}>Identidade do Recurso</BlockTitle>
-              <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || updateResource.isPending}>
+              <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || !canManageSelected || updateResource.isPending}>
                 <Save className="mr-1 h-4 w-4" /> Salvar
               </Button>
             </div>
@@ -602,7 +621,7 @@ export default function AgendaMotor() {
               <Button
                 className="btn-3d"
                 onClick={saveWindows}
-                disabled={!selectedId || replaceWindows.isPending}
+                disabled={!selectedId || !canManageSelected || replaceWindows.isPending}
               >
                 <Save className="mr-1 h-4 w-4" /> Salvar Janelas
               </Button>
@@ -610,6 +629,12 @@ export default function AgendaMotor() {
             <p className="text-xs text-muted-foreground">
               Horários em que o recurso atende, por dia da semana. Várias faixas por dia (manhã/tarde).
             </p>
+            {selected && !canManageSelected && (
+              <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-locked">
+                Você não administra o local deste recurso: identidade e janelas não podem ser gravadas aqui.
+                Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.
+              </p>
+            )}
             <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
               {WEEK_ORDER.map((wd) => (
                 <div key={wd} className="panel-3d-sub p-3 space-y-2">
@@ -667,10 +692,15 @@ export default function AgendaMotor() {
         <div className="panel-3d p-4 space-y-4">
           <div className="flex items-center justify-between">
             <BlockTitle icon={Gauge}>Parâmetros do Motor</BlockTitle>
-            <Button className="btn-3d" onClick={saveSettings} disabled={!setDraft || updateSettings.isPending}>
+            <Button className="btn-3d" onClick={saveSettings} disabled={!setDraft || globalLocked || updateSettings.isPending}>
               <Save className="mr-1 h-4 w-4" /> Salvar
             </Button>
           </div>
+          {globalLocked && (
+            <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-settings-locked">
+              Parâmetros globais do motor são exclusivos do proprietário. Para mudar o expediente de um recurso, envie uma solicitação.
+            </p>
+          )}
           {setDraft ? (
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-3">
@@ -774,10 +804,15 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
-            <Button className="btn-3d w-full" onClick={addException} disabled={createException.isPending}>
+            <Button className="btn-3d w-full" onClick={addException} disabled={!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) || createException.isPending}>
               <Plus className="mr-1 h-4 w-4" /> Adicionar exceção
             </Button>
           </div>
+          {!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) && (
+            <p role="note" className="text-[11px] text-muted-foreground">
+              Exceção para todos os recursos exige o proprietário; para um recurso, exige administrar o local dele.
+            </p>
+          )}
           <div className="space-y-2">
             {(exceptions ?? []).length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhuma exceção cadastrada.</p>
@@ -1004,12 +1039,20 @@ export default function AgendaMotor() {
         <Button
           className="btn-3d w-full sm:w-auto"
           onClick={confirmBooking}
-          disabled={bookSession.isPending || !bookTime}
+          disabled={bookSession.isPending || !bookTime || bookReadOff}
         >
           <CalendarDays className="mr-2 h-4 w-4" />
           {bookSession.isPending ? "Marcando…" : "Confirmar marcação"}
         </Button>
+        {bookReadOff && (
+          <p role="alert" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-booking-blocked">
+            Leitura do Google desligada neste local: marcações bloqueadas até os dados serem atualizados.
+          </p>
+        )}
       </div>
+      {/* GOOGLE (somente leitura) + SOLICITACOES DE EXPEDIENTE */}
+      <AgendaIntegrationPanel />
+      <AgendaChangeRequests />
     </div>
   );
 }

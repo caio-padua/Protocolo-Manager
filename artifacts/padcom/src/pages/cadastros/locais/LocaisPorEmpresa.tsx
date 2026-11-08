@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
+import "./locais.css";
 import { Building2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, MapPin, Search, Tag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { LocalCard } from "./LocalCard";
 import {
-  MODO_META, ORDEM_MODOS, modoDoLocal, semAcento,
+  MODO_META, ORDEM_MODOS, modoDoLocal, semAcento, compararEmpresas, ehInstitutoPadua,
   type LocalAtendimento, type ModoLocal,
 } from "./locais-modo";
 
@@ -11,6 +12,14 @@ interface Props {
   locais: LocalAtendimento[];
   onEdit: (l: LocalAtendimento) => void;
   onDelete: (l: LocalAtendimento) => void;
+}
+
+/** "todas" ou chave da empresa ("e12" / "sem"). */
+export type EmpresaFiltro = "todas" | string;
+
+interface ListaProps extends Props {
+  empresaFiltro: EmpresaFiltro;
+  onEmpresaFiltro: (valor: EmpresaFiltro) => void;
 }
 
 interface GrupoEmpresa {
@@ -69,7 +78,7 @@ function ArvoreGeografica({ locais, onEdit, onDelete }: Props) {
               {[...cidades.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")).map((cidade) => {
                 const totalCidade = [...cidade.zonas.values()].reduce((m, z) => m + z.length, 0);
                 return (
-                  <div key={cidade.nome}>
+                  <div key={semAcento(cidade.nome)}>
                     <Cabecalho nivel={2} rotulo={cidade.nome} qtd={totalCidade} icone={<Building2 className="w-3.5 h-3.5 text-primary" />} />
                     <div className="space-y-4 pl-4 border-l-2 border-primary/10">
                       {[...cidade.zonas.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, itens]) => (
@@ -102,33 +111,41 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
   const presenciais = grupo.locais.filter((l) => { const m = modoDoLocal(l); return m === "sede" || m === "externo"; });
   const online = grupo.locais.filter((l) => modoDoLocal(l) === "online");
   const definir = grupo.locais.filter((l) => modoDoLocal(l) === "definir");
+  const padua = ehInstitutoPadua(grupo.nome);
 
   return (
-    <section className="panel-3d overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
-        <div className="bevel-3d p-2 shrink-0"><Building2 className="w-4 h-4 text-primary" /></div>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-black text-[15px] uppercase tracking-tight truncate">{grupo.nome}</h2>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {grupo.locais.length} local{grupo.locais.length !== 1 ? "is" : ""} de atendimento
-          </p>
+    <section className={`panel-3d overflow-hidden ${padua ? "panel-3d-active" : ""}`} data-testid={`locais-empresa-${grupo.chave}`} aria-label={`Locais de ${grupo.nome}`}>
+      <div className="px-4 py-3 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="bevel-3d p-2 shrink-0"><Building2 className="w-4 h-4 text-primary" /></div>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-black text-[15px] uppercase tracking-tight leading-tight break-words" title={grupo.nome}>{grupo.nome}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              {padua ? "Empresa principal · " : ""}{grupo.locais.length} local{grupo.locais.length !== 1 ? "is" : ""} de atendimento
+            </p>
+          </div>
+          <button type="button" onClick={onToggle} aria-expanded={aberto}
+            aria-label={`${aberto ? "Recolher" : "Abrir"} locais de ${grupo.nome}`}
+            data-testid={`locais-empresa-alternar-${grupo.chave}`}
+            className="bevel-3d p-2 shrink-0">
+            {aberto ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap" aria-label="Resumo por modalidade">
-          {ORDEM_MODOS.filter((m) => contagem[m] > 0).map((m) => {
+        {/* Resumo: 4 posicoes fixas, mesma ordem, inclusive zero */}
+        <ul className="pax-resumo" aria-label="Resumo por modalidade" data-testid={`locais-resumo-${grupo.chave}`}>
+          {ORDEM_MODOS.map((m) => {
             const meta = MODO_META[m];
             return (
-              <span key={m} className="inline-flex items-center gap-1 rounded-[3px] border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider"
+              <li key={m} data-modo={m} data-zero={contagem[m] === 0} data-testid={`locais-resumo-slot-${m}`}
+                className="pax-resumo-slot min-h-7 py-1 min-w-0 flex items-center gap-1.5 rounded-[3px] border px-2 text-[9px] font-black uppercase tracking-wider"
                 style={{ backgroundColor: meta.fundo, color: meta.texto, borderColor: meta.borda }} title={meta.explicacao}>
-                <meta.Icon className="w-3 h-3" aria-hidden /> {contagem[m]} {meta.rotulo}
-              </span>
+                <meta.Icon className="w-3 h-3 shrink-0" aria-hidden />
+                <span className="tabular-nums shrink-0">{contagem[m]}</span>
+                <span>{meta.rotulo}</span>
+              </li>
             );
           })}
-        </div>
-        <button type="button" onClick={onToggle} aria-expanded={aberto}
-          aria-label={`${aberto ? "Recolher" : "Abrir"} locais de ${grupo.nome}`}
-          className="bevel-3d p-2 shrink-0">
-          {aberto ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </button>
+        </ul>
       </div>
 
       {aberto && (
@@ -139,7 +156,7 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
             </div>
           )}
           {online.length > 0 && (
-            <div>
+            <div className={presenciais.length ? "" : "pt-4"}>
               <Cabecalho nivel={1} rotulo="Online · endereço só como referência" qtd={online.length} icone={<MODO_META.online.Icon className="w-3.5 h-3.5 text-primary" />} />
               <div className={GRADE}>
                 {online.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} />)}
@@ -147,8 +164,8 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
             </div>
           )}
           {definir.length > 0 && (
-            <div>
-              <Cabecalho nivel={1} rotulo="A definir · informe a modalidade" qtd={definir.length} icone={<MODO_META.definir.Icon className="w-3.5 h-3.5 text-primary" />} />
+            <div className={presenciais.length || online.length ? "" : "pt-4"}>
+              <Cabecalho nivel={1} rotulo="Indefinido · informe a modalidade" qtd={definir.length} icone={<MODO_META.definir.Icon className="w-3.5 h-3.5 text-primary" />} />
               <div className={GRADE}>
                 {definir.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} />)}
               </div>
@@ -160,75 +177,112 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
   );
 }
 
-export function LocaisPorEmpresa({ locais, onEdit, onDelete }: Props) {
+function chaveEmpresa(l: LocalAtendimento): string { return l.empresaId ? `e${l.empresaId}` : "sem"; }
+
+export function LocaisPorEmpresa({ locais, onEdit, onDelete, empresaFiltro, onEmpresaFiltro }: ListaProps) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<ModoLocal | "todos">("todos");
   const [fechadas, setFechadas] = useState<Set<string>>(() => new Set());
 
+  const empresas = useMemo(() => {
+    const map = new Map<string, { chave: string; id: number | null; nome: string; qtd: number }>();
+    for (const l of locais) {
+      const chave = chaveEmpresa(l);
+      if (!map.has(chave)) map.set(chave, { chave, id: l.empresaId, nome: l.empresaNome ?? "Sem empresa vinculada", qtd: 0 });
+      map.get(chave)!.qtd += 1;
+    }
+    return [...map.values()].sort(compararEmpresas);
+  }, [locais]);
+
+  const filtroEfetivo: EmpresaFiltro = empresaFiltro === "todas" || empresas.some((e) => e.chave === empresaFiltro) ? empresaFiltro : "todas";
+  const escopo = useMemo(() => filtroEfetivo === "todas" ? locais : locais.filter((l) => chaveEmpresa(l) === filtroEfetivo), [locais, filtroEfetivo]);
+  const nomeEscopo = filtroEfetivo === "todas" ? "Todas as empresas" : (empresas.find((e) => e.chave === filtroEfetivo)?.nome ?? "");
+
   const contagemGeral = useMemo(() => {
     const m: Record<ModoLocal, number> = { sede: 0, externo: 0, online: 0, definir: 0 };
-    for (const l of locais) m[modoDoLocal(l)] += 1;
+    for (const l of escopo) m[modoDoLocal(l)] += 1;
     return m;
-  }, [locais]);
+  }, [escopo]);
 
   const grupos = useMemo<GrupoEmpresa[]>(() => {
     const q = semAcento(busca);
     const map = new Map<string, GrupoEmpresa>();
-    for (const l of locais) {
+    for (const l of escopo) {
       if (filtro !== "todos" && modoDoLocal(l) !== filtro) continue;
       if (q && !semAcento([l.name, l.cidade, l.bairro, l.zona, l.empresaNome].filter(Boolean).join(" ")).includes(q)) continue;
-      const chave = l.empresaId ? `e${l.empresaId}` : "sem";
+      const chave = chaveEmpresa(l);
       if (!map.has(chave)) map.set(chave, { chave, empresaId: l.empresaId, nome: l.empresaNome ?? "Sem empresa vinculada", locais: [] });
       map.get(chave)!.locais.push(l);
     }
-    return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  }, [locais, busca, filtro]);
+    return [...map.values()].sort((a, b) => compararEmpresas({ nome: a.nome, id: a.empresaId }, { nome: b.nome, id: b.empresaId }));
+  }, [escopo, busca, filtro]);
 
   const todasAbertas = grupos.every((g) => !fechadas.has(g.chave));
   const alternar = (chave: string) => setFechadas((prev) => {
     const n = new Set(prev); if (n.has(chave)) n.delete(chave); else n.add(chave); return n;
   });
+  const trocarEmpresa = (valor: EmpresaFiltro) => { setFiltro("todos"); setBusca(""); onEmpresaFiltro(valor); };
+
+  const linhas: Array<{ valor: ModoLocal | "todos"; rotulo: string; ajuda: string; qtd: number }> = [
+    { valor: "todos", rotulo: "Todos", ajuda: "Todas as modalidades da empresa exibida", qtd: escopo.length },
+    ...ORDEM_MODOS.map((m) => ({ valor: m, rotulo: MODO_META[m].rotulo, ajuda: MODO_META[m].explicacao, qtd: contagemGeral[m] })),
+  ];
 
   return (
     <div className="space-y-5">
-      {/* Legenda + filtros: o olho entende cada selo antes de ler o texto */}
-      <div className="panel-3d-sub p-3 space-y-3">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por modalidade">
-          {([["todos", `Todos · ${locais.length}`], ...ORDEM_MODOS.map((m) => [m, `${MODO_META[m].rotulo} · ${contagemGeral[m]}`])] as Array<[ModoLocal | "todos", string]>).map(([valor, texto]) => {
+      <div className="panel-3d-sub p-4 space-y-4">
+        {/* Empresa exibida: escolha explicita, nunca implicita */}
+        <div className="grid gap-2 md:grid-cols-[14rem_minmax(0,1fr)] md:items-center">
+          <label htmlFor="locais-empresa-filtro" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Empresa exibida</label>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <select id="locais-empresa-filtro" data-testid="locais-empresa-filtro" value={filtroEfetivo}
+              onChange={(e) => trocarEmpresa(e.target.value)}
+              className="field-engraved h-10 px-3 text-[12px] font-bold w-full sm:w-80 rounded-[6px]">
+              <option value="todas">Todas as empresas ({locais.length} locais)</option>
+              {empresas.map((e) => <option key={e.chave} value={e.chave}>{e.nome} ({e.qtd})</option>)}
+            </select>
+            <span className="text-[11px] text-muted-foreground" data-testid="locais-empresa-escopo">
+              Exibindo: <b className="text-foreground">{nomeEscopo}</b>
+            </span>
+          </div>
+        </div>
+
+        {/* Modalidade: uma linha por significado, botao de largura fixa e ajuda a direita */}
+        <div className="space-y-2" role="group" aria-label="Filtrar por modalidade" data-testid="locais-filtros">
+          {linhas.map(({ valor, rotulo, ajuda, qtd }) => {
             const ativo = filtro === valor;
             const meta = valor === "todos" ? null : MODO_META[valor];
             return (
-              <button key={valor} type="button" onClick={() => setFiltro(valor)} aria-pressed={ativo}
-                className={`bevel-3d px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${ativo ? "bg-primary text-primary-foreground ring-2 ring-[#b8892b]" : "text-muted-foreground"}`}>
-                {meta && <meta.Icon className="w-3 h-3" aria-hidden />}
-                {texto}
-              </button>
+              <div key={valor} className="pax-filtro-linha">
+                <button type="button" onClick={() => setFiltro(valor)} aria-pressed={ativo} data-testid={`locais-filtro-${valor}`}
+                  className="bevel-3d pax-escolha h-10 w-full px-3 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                  {meta ? (
+                    <span className="inline-flex items-center justify-center rounded-[3px] border w-6 h-6 shrink-0"
+                      style={{ backgroundColor: meta.fundo, color: meta.texto, borderColor: meta.borda }}>
+                      <meta.Icon className="w-3 h-3" aria-hidden />
+                    </span>
+                  ) : <span className="w-6 h-6 shrink-0 inline-flex items-center justify-center"><Building2 className="w-3.5 h-3.5" aria-hidden /></span>}
+                  <span className="leading-tight text-left">{rotulo}</span>
+                  <span className="ml-auto tabular-nums">{qtd}</span>
+                </button>
+                <span className="text-[11px] text-muted-foreground leading-snug min-w-0">{ajuda}</span>
+              </div>
             );
           })}
-          <div className="relative ml-auto min-w-[200px] flex-1 sm:flex-none sm:w-64">
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="relative flex-1 sm:max-w-sm">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar local, cidade, empresa…" className="field-engraved pl-8 h-9 text-xs" aria-label="Buscar local" />
+            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar local, cidade, empresa…" className="field-engraved pl-8 h-9 text-xs" aria-label="Buscar local" data-testid="locais-busca" />
           </div>
           <button type="button" onClick={() => setFechadas(todasAbertas ? new Set(grupos.map((g) => g.chave)) : new Set())}
-            className="bevel-3d px-3 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+            data-testid="locais-alternar-todas"
+            className="bevel-3d h-9 px-3 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 sm:ml-auto">
             {todasAbertas ? <ChevronsDownUp className="w-3.5 h-3.5" /> : <ChevronsUpDown className="w-3.5 h-3.5" />}
             {todasAbertas ? "Recolher todas" : "Abrir todas"}
           </button>
         </div>
-        <ul className="grid grid-cols-1 md:grid-cols-4 gap-2 text-[10px] text-muted-foreground">
-          {ORDEM_MODOS.map((m) => {
-            const meta = MODO_META[m];
-            return (
-              <li key={m} className="flex items-center gap-2 min-w-0">
-                <span className="inline-flex items-center justify-center rounded-[3px] border w-6 h-6 shrink-0"
-                  style={{ backgroundColor: meta.fundo, color: meta.texto, borderColor: meta.borda }}>
-                  <meta.Icon className="w-3 h-3" aria-hidden />
-                </span>
-                <span className="min-w-0"><b className="text-foreground uppercase tracking-wider">{meta.rotulo}</b> — {meta.explicacao}</span>
-              </li>
-            );
-          })}
-        </ul>
       </div>
 
       {grupos.length === 0 ? (

@@ -16,7 +16,7 @@ import {
   ChevronLeft, ChevronRight, Clock, Home, Building2, User, MapPin, Stethoscope,
   CheckCircle2, Search, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
   KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
-  LayoutGrid, List, Columns3,
+  LayoutGrid, List, Columns3, RefreshCw,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 import { RescheduleDrawer } from "@/components/RescheduleDrawer";
 import { GoogleCommitments } from "./GoogleCommitments";
+import { useGoogleRefreshCycle } from "./agenda-integration-api";
 
 type ViewMode = "dia" | "semana" | "mes";
 
@@ -597,18 +598,11 @@ export default function Agenda() {
     finally { setCalSyncing(null); }
   }
 
-  async function syncPeriodToGoogleCalendar() {
-    setCalSyncing(-1);
-    try {
-      const res = await fetch("/api/google-calendar/sync-week", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dateFrom, dateTo }),
-      });
-      const data = await res.json();
-      if (res.ok) toast({ title: "Período sincronizado!", description: `${data.synced} sessões adicionadas ao Google Agenda.` });
-      else toast({ title: "Erro", description: data.error, variant: "destructive" });
-    } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
-    finally { setCalSyncing(null); }
+  // Leitura autenticada (somente leitura): pede ao servidor para reler o Google.
+  // Nao envia nada ao Google. O estado e acompanhado por consulta ate concluir.
+  const googleRefresh = useGoogleRefreshCycle();
+  function refreshFromGoogle() {
+    googleRefresh.start((msg) => toast({ title: "Atualização recusada", description: msg, variant: "destructive" }));
   }
 
   async function sendPreSessionEmail(session: any) {
@@ -698,9 +692,9 @@ export default function Agenda() {
           <Button variant="outline" size="sm" onClick={downloadWeekICS} className="btn-3d-soft gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length}>
             <Download className="h-3.5 w-3.5" /> ICS
           </Button>
-          <Button variant="outline" size="sm" onClick={syncPeriodToGoogleCalendar} className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length || calSyncing === -1}>
-            {calSyncing === -1 ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarPlus className="h-3.5 w-3.5" />}
-            Sync
+          <Button variant="outline" size="sm" onClick={refreshFromGoogle} className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={googleRefresh.running} data-testid="button-refresh-google">
+            {googleRefresh.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {googleRefresh.running ? "Atualizando…" : "Atualizar do Google"}
           </Button>
         </div>
       </div>

@@ -1723,7 +1723,9 @@ export const ListSessionsResponse = zod.array(ListSessionsResponseItem);
 /**
  * @summary Create a session
  */
+
 export const CreateSessionBody = zod.object({
+  resourceId: zod.number().min(1).optional(),
   protocolId: zod.number(),
   clientId: zod.number(),
   scheduledDate: zod.string(),
@@ -4224,6 +4226,140 @@ export const UpdateAgendaSettingsResponse = zod.object({
   blockMinutes: zod.number(),
   triggerPercent: zod.number(),
   minLeadHours: zod.number(),
+});
+
+export const GetAgendaIntegrationResponse = zod.object({
+  agendas: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      color: zod.string(),
+      role: zod.string().nullable(),
+      enabled: zod.boolean().nullable(),
+      lastSuccess: zod.string().nullable(),
+      lastAttempt: zod.string().nullable(),
+      error: zod.string().nullable(),
+      personalOwnerId: zod.number().nullable(),
+      canManage: zod.boolean(),
+    }),
+  ),
+  professionals: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+    }),
+  ),
+  resources: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      locationId: zod.number(),
+    }),
+  ),
+  globalSettingsOwnerOnly: zod.boolean(),
+  canManageGlobalSettings: zod.boolean(),
+  companyId: zod.number(),
+});
+
+export const UpdateAgendaReadSettingsBody = zod.object({
+  locationId: zod.number().min(1),
+  enabled: zod.boolean(),
+});
+
+export const UpdateAgendaPersonalOwnerBody = zod.object({
+  locationId: zod.number().min(1),
+  professionalId: zod.number().min(1).nullable(),
+});
+
+export const listAgendaChangeRequestsResponseRequestsItemWindowsItemWeekdayMin = 0;
+export const listAgendaChangeRequestsResponseRequestsItemWindowsItemWeekdayMax = 6;
+
+export const listAgendaChangeRequestsResponseRequestsItemWindowsItemStartTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const listAgendaChangeRequestsResponseRequestsItemWindowsItemEndTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+
+export const ListAgendaChangeRequestsResponse = zod.object({
+  requests: zod.array(
+    zod.object({
+      id: zod.number(),
+      resourceId: zod.number(),
+      resource: zod.string(),
+      reason: zod.string(),
+      state: zod.string(),
+      windows: zod.array(
+        zod.object({
+          weekday: zod
+            .number()
+            .min(
+              listAgendaChangeRequestsResponseRequestsItemWindowsItemWeekdayMin,
+            )
+            .max(
+              listAgendaChangeRequestsResponseRequestsItemWindowsItemWeekdayMax,
+            ),
+          startTime: zod
+            .string()
+            .regex(
+              listAgendaChangeRequestsResponseRequestsItemWindowsItemStartTimeRegExp,
+            ),
+          endTime: zod
+            .string()
+            .regex(
+              listAgendaChangeRequestsResponseRequestsItemWindowsItemEndTimeRegExp,
+            ),
+        }),
+      ),
+      createdAt: zod.string(),
+      locationId: zod.number(),
+      requestedBy: zod.number(),
+      canDecide: zod.boolean(),
+    }),
+  ),
+});
+
+export const createAgendaChangeRequestBodyReasonMin = 8;
+export const createAgendaChangeRequestBodyReasonMax = 500;
+
+export const createAgendaChangeRequestBodyWindowsItemWeekdayMin = 0;
+export const createAgendaChangeRequestBodyWindowsItemWeekdayMax = 6;
+
+export const createAgendaChangeRequestBodyWindowsItemStartTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createAgendaChangeRequestBodyWindowsItemEndTimeRegExp = new RegExp(
+  "^([01]\\d|2[0-3]):[0-5]\\d$",
+);
+export const createAgendaChangeRequestBodyWindowsMax = 100;
+
+export const CreateAgendaChangeRequestBody = zod.object({
+  resourceId: zod.number().min(1),
+  reason: zod
+    .string()
+    .min(createAgendaChangeRequestBodyReasonMin)
+    .max(createAgendaChangeRequestBodyReasonMax),
+  windows: zod
+    .array(
+      zod.object({
+        weekday: zod
+          .number()
+          .min(createAgendaChangeRequestBodyWindowsItemWeekdayMin)
+          .max(createAgendaChangeRequestBodyWindowsItemWeekdayMax),
+        startTime: zod
+          .string()
+          .regex(createAgendaChangeRequestBodyWindowsItemStartTimeRegExp),
+        endTime: zod
+          .string()
+          .regex(createAgendaChangeRequestBodyWindowsItemEndTimeRegExp),
+      }),
+    )
+    .max(createAgendaChangeRequestBodyWindowsMax),
+});
+
+export const DecideAgendaChangeRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DecideAgendaChangeRequestBody = zod.object({
+  decision: zod.enum(["aprovar", "recusar"]),
 });
 
 /**

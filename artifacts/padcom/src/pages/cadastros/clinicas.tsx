@@ -8,16 +8,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
+import { useLocation } from "wouter";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { AgendaGoogleTab } from "./locais/AgendaGoogleTab";
 import type { EnderecoLido } from "./locais/endereco-google";
-import { LocaisPorEmpresa } from "./locais/LocaisPorEmpresa";
-import { MODO_META, type LocalAtendimento } from "./locais/locais-modo";
+import { LocaisPorEmpresa, type EmpresaFiltro } from "./locais/LocaisPorEmpresa";
+import "./locais/locais.css";
+import { MODO_META, compararEmpresas, type LocalAtendimento } from "./locais/locais-modo";
 import {
   Building2, Plus, Loader2, Search, Save, Pencil, Trash2,
-  Video,
+  Video, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { collabAuthHeaders } from "@/lib/collab-auth";
@@ -89,7 +90,10 @@ export default function CadastroClinicas() {
   const [erroEmpresa, setErroEmpresa] = useState("");
   const [secao, setSecao] = useState<"identificacao" | "endereco" | "contato" | "agenda" | "documentos">("identificacao");
   const [documentosVisitados, setDocumentosVisitados] = useState(false);
-  const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
+  const [empresaFiltro, setEmpresaFiltro] = useState<EmpresaFiltro>("todas");
+  const [, navegar] = useLocation();
+  // Sessao do registro aberto: respostas atrasadas (CEP/Google) de outro registro sao descartadas.
+  const sessaoRef = useRef(0);
   const [loadingCep, setLoadingCep] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Clinica | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -119,8 +123,10 @@ export default function CadastroClinicas() {
   });
 
   const vinculos = useQuery<{ locais: Array<{ locationId: number; empresaId: number }>; empresas: Array<{ id: number; nome: string }> }>({
-    queryKey: ["semantic-code-locations"],
+    // Chave propria: o formato {locais, empresas} difere do cache "semantic-code-locations" (array) do SemanticCodeManager.
+    queryKey: ["clinicas-vinculo-empresa"],
     enabled: dialogOpen && editingId !== null && documentosVisitados,
+    // documentosVisitados = aba "Identidade" aberta: confirma a empresa dona antes de oferecer o atalho.
     queryFn: async () => {
       const headers = collabAuthHeaders();
       const [locaisResponse, empresasResponse] = await Promise.all([
@@ -142,6 +148,8 @@ export default function CadastroClinicas() {
     : undefined;
 
   const form = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
+  // Leitura no render assina o proxy do react-hook-form; sem isso isDirty fica sempre falso nos handlers.
+  const formSujo = form.formState.isDirty;
   const modalidadeAtual = form.watch("modalidade");
   const mesmoEnderecoAtual = form.watch("mesmoEnderecoEmpresa");
   const enderecoEmpresaEdicao = editingId ? (clinicas.find((c) => c.id === editingId)?.enderecoEmpresa ?? null) : null;
@@ -149,22 +157,27 @@ export default function CadastroClinicas() {
   const doLookupCep = useCallback(async () => {
     const cep = form.getValues("cep")?.replace(/\D/g, "");
     if (!cep || cep.length !== 8) { toast.error("CEP deve ter 8 dígitos"); return; }
+    const sessao = sessaoRef.current;
     setLoadingCep(true);
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if (sessao !== sessaoRef.current) return;
       if (!res.ok) { toast.error("CEP não encontrado"); return; }
       const data = await res.json();
+      // Descarta resposta atrasada: outro registro foi aberto ou o CEP mudou.
+      if (sessao !== sessaoRef.current || form.getValues("cep")?.replace(/\D/g, "") !== cep) return;
       if (data.erro) { toast.error("CEP não encontrado"); return; }
       form.setValue("logradouro", data.logradouro || "");
       form.setValue("bairro",     data.bairro     || "");
       form.setValue("cidade",     data.localidade || "");
       form.setValue("estado",     data.uf         || "");
       toast.success("Endereço preenchido automaticamente!");
-    } catch { toast.error("Erro ao buscar CEP"); }
-    finally  { setLoadingCep(false); }
+    } catch { if (sessao === sessaoRef.current) toast.error("Erro ao buscar CEP"); }
+    finally  { if (sessao === sessaoRef.current) setLoadingCep(false); }
   }, [form]);
 
-  const aplicarEnderecoGoogle = useCallback((e: EnderecoLido) => {
+  const aplicarEnderecoGoogle = useCallback((e: EnderecoLido, sessao: number) => {
+    if (sessao !== sessaoRef.current) return;
     const opts = { shouldDirty: true };
     form.setValue("cep", e.cep, opts);
     form.setValue("logradouro", e.logradouro, opts);
@@ -181,10 +194,9 @@ export default function CadastroClinicas() {
   }, [form]);
 
   const saveMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      if (!editingId && (!novaEmpresaId || !empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId))) {
-        throw new Error("Selecione a empresa responsável pelo local.");
-      }
+    // Alvo capturado no envio: id e empresa nunca sao relidos do estado (que pode mudar durante a gravacao).
+    mutationFn: async ({ values, alvoId, empresaId }: { values: FormValues; alvoId: number | null; empresaId: string }) => {
+      if (!empresaId) throw new Error(alvoId ? "Este local não tem empresa proprietária confirmada; nada foi salvo." : "Selecione a empresa responsável pelo local.");
       const parts = [
         values.logradouro, values.numero, values.complemento && `(${values.complemento})`,
         values.bairro,
@@ -198,28 +210,27 @@ export default function CadastroClinicas() {
         observacaoLocal: values.observacaoLocal?.trim() || null,
         nomeEspaco: values.nomeEspaco?.trim() || null,
       };
-      const url = editingId ? `${apiBase}/locations/${editingId}` : `${apiBase}/locations`;
-      const headers = collabAuthHeaders({
-        "Content-Type": "application/json",
-        ...(!editingId ? { "X-Empresa-Id": novaEmpresaId } : {}),
-      });
-      const res = await fetch(url, { method: editingId ? "PUT" : "POST", headers, body: JSON.stringify(body) });
+      const url = alvoId ? `${apiBase}/locations/${alvoId}` : `${apiBase}/locations`;
+      const headers = collabAuthHeaders({ "Content-Type": "application/json", "X-Empresa-Id": empresaId });
+      const res = await fetch(url, { method: alvoId ? "PUT" : "POST", headers, body: JSON.stringify(body) });
       if (!res.ok) throw new Error("Não foi possível salvar o local. Confira o acesso à empresa e tente novamente.");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, { alvoId }) => {
       queryClient.invalidateQueries({ queryKey: ["clinicas"] });
       queryClient.invalidateQueries({ queryKey: ["empresas-locais-confirmados"] });
       queryClient.invalidateQueries({ queryKey: ["semantic-code-locations"] });
-      toast.success(editingId ? "Local atualizado!" : "Local cadastrado!");
-      setDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["clinicas-vinculo-empresa"] });
+      toast.success(alvoId ? "Local atualizado!" : "Local cadastrado!");
+      fecharDialogo();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await fetch(`${apiBase}/locations/${id}`, { method: "DELETE" });
+    mutationFn: async ({ id, empresaId }: { id: number; empresaId: number | null }) => {
+      if (!empresaId) throw new Error("Este local não tem empresa proprietária confirmada; nada foi apagado.");
+      const res = await fetch(`${apiBase}/locations/${id}`, { method: "DELETE", headers: collabAuthHeaders({ "X-Empresa-Id": String(empresaId) }) });
       if (res.status === 409) { const d = await res.json(); throw new Error(d.error || "Clínica possui sessões vinculadas."); }
       if (!res.ok) throw new Error("Erro ao apagar");
       return res.json();
@@ -228,13 +239,33 @@ export default function CadastroClinicas() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const openNew = () => { saveMutation.reset(); setEditingId(null); setNovaEmpresaId(""); setErroEmpresa(""); setSecao("identificacao"); setDocumentosVisitados(false); setIdentidadeAlterada(false); form.reset(EMPTY); setDialogOpen(true); };
+  const escreverUrlLocal = (id: number | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("local", String(id)); else url.searchParams.delete("local");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+  const fecharDialogo = () => { sessaoRef.current += 1; setLoadingCep(false); setDialogOpen(false); escreverUrlLocal(null); };
+  const gravando = () => {
+    if (!saveMutation.isPending) return false;
+    toast.error("Aguarde: o local ainda está sendo salvo.");
+    return true;
+  };
+  const openNew = () => {
+    if (gravando()) return;
+    sessaoRef.current += 1; setLoadingCep(false);
+    saveMutation.reset(); setEditingId(null); setErroEmpresa(""); setSecao("identificacao"); setDocumentosVisitados(false);
+    // Empresa escolhida na lista vira sugestao explicita; so vale se for autorizada (conferido no envio).
+    setNovaEmpresaId(empresaFiltro !== "todas" && empresaFiltro.startsWith("e") ? empresaFiltro.slice(1) : "");
+    form.reset(EMPTY); escreverUrlLocal(null); setDialogOpen(true);
+  };
   const openEdit = (c: Clinica) => {
+    if (gravando()) return;
+    sessaoRef.current += 1; setLoadingCep(false);
     saveMutation.reset();
     setEditingId(c.id);
     setSecao("identificacao");
     setDocumentosVisitados(false);
-    setIdentidadeAlterada(false);
+    escreverUrlLocal(c.id);
     form.reset({
       name: c.name, type: c.type, phone: c.phone || "", cep: c.cep || "",
       logradouro: c.logradouro || "", numero: c.numero || "", complemento: c.complemento || "",
@@ -254,9 +285,24 @@ export default function CadastroClinicas() {
     else toast.error("O local solicitado não foi encontrado.");
   }, [clinicas, isLoading, isError]);
   const handleDialogOpen = (open: boolean) => {
-    if (!open && (form.formState.isDirty || identidadeAlterada) &&
+    if (open) { setDialogOpen(true); return; }
+    if (gravando()) return;
+    if (formSujo &&
       !window.confirm("Há alterações não salvas. Fechar descartará essas alterações. Continuar?")) return;
-    setDialogOpen(open);
+    fecharDialogo();
+  };
+  const localEditado = editingId ? clinicas.find((c) => c.id === editingId) ?? null : null;
+  const empresaNovaNome = empresasDisponiveis.data?.find((e) => String(e.id) === novaEmpresaId)?.nome ?? null;
+  const empresaDona = editingId
+    ? (localEditado?.empresaNome ?? empresaVinculada?.nome ?? null)
+    : empresaNovaNome;
+  const abrirIdentidadeNaEmpresa = (empresaId: number) => {
+    if (gravando()) return;
+    if (formSujo &&
+      !window.confirm("Há alterações não salvas neste local. Abrir a empresa descartará essas alterações. Continuar?")) return;
+    sessaoRef.current += 1;
+    setDialogOpen(false);
+    navegar(`/cadastros/empresas?empresa=${empresaId}&aba=marca-documento`);
   };
 
   const ativas = useMemo(() => clinicas.filter((c) => c.active), [clinicas]);
@@ -266,17 +312,17 @@ export default function CadastroClinicas() {
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid="locais-cabecalho">
         <div className="flex items-center gap-3 min-w-0">
           <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-black tracking-tight uppercase">LOCAIS DE ATENDIMENTO</h1>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">LOCAIS DE ATENDIMENTO</h1>
             <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
               {ativas.length} ativo{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativo{inativas.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
-        <Button onClick={openNew} className="btn-3d px-5 shrink-0">
+        <Button onClick={openNew} className="btn-3d px-5 shrink-0 w-full sm:w-auto" data-testid="local-novo">
           <Plus className="w-4 h-4 mr-2" /> NOVO LOCAL
         </Button>
       </div>
@@ -295,19 +341,28 @@ export default function CadastroClinicas() {
         </div>
       ) : (
         <LocaisPorEmpresa locais={clinicas} onEdit={openEdit}
+          empresaFiltro={empresaFiltro} onEmpresaFiltro={setEmpresaFiltro}
           onDelete={(c) => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
       )}
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
+        <DialogContent className="pax-dialogo-fixo max-w-3xl p-0 gap-0" data-testid="local-dialogo">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40 shrink-0 space-y-2">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
               {editingId ? "EDITAR LOCAL" : "NOVO LOCAL"}
             </DialogTitle>
+            <div className="concave-3d px-3 py-2 flex items-center gap-2 min-w-0" data-testid="local-empresa-proprietaria">
+              <Building2 className="w-4 h-4 text-primary shrink-0" aria-hidden />
+              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground shrink-0">Empresa proprietária</span>
+              <span className="text-[12px] font-bold truncate" data-testid="local-empresa-proprietaria-nome">
+                {empresaDona ?? (editingId ? "Sem empresa vinculada" : "Nenhuma empresa escolhida")}
+              </span>
+              {editingId && <span className="ml-auto text-[9px] font-mono text-muted-foreground shrink-0">Local #{editingId}</span>}
+            </div>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-4 sm:px-6 py-3" role="group" aria-label="Seções do local">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-4 sm:px-6 py-3 shrink-0" role="group" aria-label="Seções do local">
             {([
               ["identificacao", "Identificação"],
               ["endereco", "Endereço"],
@@ -316,8 +371,8 @@ export default function CadastroClinicas() {
               ["documentos", "Identidade dos documentos"],
             ] as const).map(([value, label]) => (
               <button key={value} type="button" onClick={() => { setSecao(value); if (value === "documentos") setDocumentosVisitados(true); }}
-                aria-pressed={secao === value}
-                className={`bevel-3d min-w-0 px-2 py-2 text-[10px] font-bold uppercase transition-colors ${secao === value ? "bg-primary text-primary-foreground ring-2 ring-[#b8892b]" : "text-muted-foreground"}`}>
+                aria-pressed={secao === value} data-testid={`local-secao-${value}`}
+                className="bevel-3d pax-escolha min-w-0 h-11 px-2 text-[10px] font-bold uppercase leading-tight">
                 {label}
               </button>
             ))}
@@ -325,16 +380,17 @@ export default function CadastroClinicas() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => {
-              if (identidadeAlterada && !window.confirm("Salvar o local fechará esta janela e descartará as alterações não salvas da identidade. Continuar?")) return;
               if (!editingId && (!novaEmpresaId || !empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId))) {
                 setErroEmpresa("Selecione a empresa responsável pelo local.");
                 setSecao("identificacao");
                 return;
               }
               setErroEmpresa("");
-              saveMutation.mutate(v);
+              if (saveMutation.isPending) return;
+              const alvo = editingId ? clinicas.find((c) => c.id === editingId) : null;
+              saveMutation.mutate({ values: v, alvoId: editingId, empresaId: editingId ? (alvo?.empresaId ? String(alvo.empresaId) : "") : novaEmpresaId });
             }, () => setSecao("identificacao"))} className="flex flex-col min-h-0">
-              <div className="min-h-0 overflow-y-auto px-6 pb-4">
+              <div className="pax-dialogo-miolo px-6 pb-4" data-testid="local-dialogo-miolo">
 
               {/* ── SEÇÃO 1: IDENTIFICAÇÃO ── */}
               <div hidden={secao !== "identificacao"} className="space-y-4">
@@ -347,10 +403,10 @@ export default function CadastroClinicas() {
                   ) : empresasDisponiveis.isError ? (
                     <div role="alert" className="text-sm">Não foi possível consultar as empresas. <button type="button" className="btn-3d-soft px-2 py-1" onClick={() => void empresasDisponiveis.refetch()}>Tentar novamente</button></div>
                   ) : (
-                    <Select value={novaEmpresaId} onValueChange={(value) => { setNovaEmpresaId(value); setErroEmpresa(""); }}>
-                      <SelectTrigger id="empresa-do-novo-local" className="field-engraved"><SelectValue placeholder="Selecionar empresa..." /></SelectTrigger>
+                    <Select value={empresasDisponiveis.data?.some((e) => String(e.id) === novaEmpresaId) ? novaEmpresaId : ""} onValueChange={(value) => { setNovaEmpresaId(value); setErroEmpresa(""); }}>
+                      <SelectTrigger id="empresa-do-novo-local" className="field-engraved" data-testid="local-novo-empresa"><SelectValue placeholder="Selecionar empresa..." /></SelectTrigger>
                       <SelectContent>
-                        {(empresasDisponiveis.data ?? []).map((empresa) => <SelectItem key={empresa.id} value={String(empresa.id)}>{empresa.nome}</SelectItem>)}
+                        {[...(empresasDisponiveis.data ?? [])].sort(compararEmpresas).map((empresa) => <SelectItem key={empresa.id} value={String(empresa.id)}>{empresa.nome}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
@@ -363,19 +419,19 @@ export default function CadastroClinicas() {
                 <p className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Como este local atende *</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Modalidade do local">
                   {([
-                    ["presencial", "Presencial", "Atende num endereço físico", MODO_META.sede.Icon],
+                    ["presencial", "Presencial", "Sede ou local externo", MODO_META.sede.Icon],
                     ["online", "Online", "Endereço só como referência", Video],
-                    ["definir", "A definir", "Informar depois", MODO_META.definir.Icon],
+                    ["definir", "Indefinido", "Informar depois", MODO_META.definir.Icon],
                   ] as const).map(([valor, titulo, sub, Icone]) => {
                     const ativo = modalidadeAtual === valor;
                     return (
-                      <button key={valor} type="button" aria-pressed={ativo}
+                      <button key={valor} type="button" aria-pressed={ativo} data-testid={`local-modalidade-${valor}`}
                         onClick={() => { form.setValue("modalidade", valor, { shouldDirty: true }); if (valor === "definir") form.setValue("mesmoEnderecoEmpresa", false, { shouldDirty: true }); }}
-                        className={`bevel-3d p-3 flex items-center gap-3 text-left transition-colors ${ativo ? "bg-primary text-primary-foreground ring-2 ring-[#b8892b]" : "text-foreground"}`}>
+                        className="bevel-3d pax-escolha h-16 p-3 flex items-center gap-3 text-left">
                         <Icone className="w-5 h-5 shrink-0" aria-hidden />
                         <span className="min-w-0">
                           <span className="block text-[11px] font-black uppercase tracking-widest">{titulo}</span>
-                          <span className={`block text-[10px] ${ativo ? "opacity-80" : "text-muted-foreground"}`}>{sub}</span>
+                          <span className="block text-[10px] opacity-75">{sub}</span>
                         </span>
                       </button>
                     );
@@ -391,7 +447,7 @@ export default function CadastroClinicas() {
                       </label>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         {mesmoEnderecoAtual
-                          ? (enderecoEmpresaEdicao ? `Sede: ${enderecoEmpresaEdicao}` : "O endereço da empresa será aplicado ao salvar.")
+                          ? (enderecoEmpresaEdicao ? `Sede de ${empresaDona ?? "empresa proprietária"}: ${enderecoEmpresaEdicao}` : `Será usado o endereço da sede de ${empresaDona ?? "empresa escolhida"} ao salvar.`)
                           : (modalidadeAtual === "online" ? "Desligado: informe na aba Endereço um endereço de referência, se houver." : "Desligado: informe o endereço deste local na aba Endereço (sala alugada, coworking, outra cidade).")}
                       </p>
                     </div>
@@ -635,6 +691,7 @@ export default function CadastroClinicas() {
               <div hidden={secao !== "agenda"} className="space-y-4">
                 <SectionDivider label="Agenda Google" />
                 <AgendaGoogleTab
+                  key={`agenda-${sessaoRef.current}`}
                   localId={editingId}
                   googleCalendarId={form.watch("googleCalendarId") || null}
                   papelInicial={clinicas.find((c) => c.id === editingId)?.agendaPapel ?? null}
@@ -642,7 +699,7 @@ export default function CadastroClinicas() {
                     form.setValue("googleCalendarId", googleCalendarId);
                     if (cor) form.setValue("color", cor);
                   }}
-                  onUsarEndereco={aplicarEnderecoGoogle}
+                  onUsarEndereco={((sessao) => (e: EnderecoLido) => aplicarEnderecoGoogle(e, sessao))(sessaoRef.current)}
                 />
               </div>
 
@@ -661,24 +718,26 @@ export default function CadastroClinicas() {
                     <div role="alert" className="concave-3d p-4 text-sm">
                       Não foi possível confirmar uma empresa vinculada a este local. Confira o vínculo antes de configurar a identidade.
                     </div>
-                  ) : import.meta.env.DEV ? (
-                    <>
-                      <p className="text-sm font-semibold">Empresa vinculada: {empresaVinculada.nome}</p>
-                      <Paxmed2bEmpresa key={`${editingId}-${empresaVinculada.id}`} empresaId={empresaVinculada.id} onDirtyChange={setIdentidadeAlterada} />
-                    </>
                   ) : (
-                    <p className="concave-3d p-4 text-sm">A personalização dos documentos ainda está em teste e não está disponível nesta versão.</p>
+                    <div className="concave-3d p-4 space-y-3" data-testid="local-identidade-atalho">
+                      <p className="text-sm">A identidade e o logotipo dos documentos pertencem à empresa. Há um único editor, no cadastro da empresa.</p>
+                      <p className="text-sm font-semibold">Empresa vinculada: {empresaVinculada.nome}</p>
+                      <Button type="button" className="btn-3d-soft" data-testid="local-abrir-identidade-empresa" disabled={saveMutation.isPending}
+                        onClick={() => abrirIdentidadeNaEmpresa(empresaVinculada.id)}>
+                        <ExternalLink className="w-4 h-4 mr-2" /> Abrir identidade em Empresas
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
               </div>
               {/* Rodapé do form */}
-              {saveMutation.isError && <p role="alert" className="px-6 pb-2 text-sm text-destructive">{saveMutation.error.message}</p>}
-              <DialogFooter className="px-6 py-3 border-t border-border/40">
-                <Button type="button" className="btn-3d-soft" onClick={() => handleDialogOpen(false)}>
+              {saveMutation.isError && <p role="alert" className="px-6 pb-2 text-sm text-destructive shrink-0">{saveMutation.error.message}</p>}
+              <DialogFooter className="px-6 py-3 border-t border-border/40 shrink-0" data-testid="local-dialogo-rodape">
+                <Button type="button" className="btn-3d-soft" disabled={saveMutation.isPending} onClick={() => handleDialogOpen(false)}>
                   CANCELAR
                 </Button>
-                <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
+                <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending} data-testid="local-salvar">
                   {saveMutation.isPending
                     ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     : <Save className="w-4 h-4 mr-2" />}
@@ -716,7 +775,7 @@ export default function CadastroClinicas() {
               <Button
                 type="button" variant="destructive" className="btn-3d"
                 disabled={deleteConfirmText !== deleteTarget?.name || deleteMutation.isPending}
-                onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+                onClick={() => deleteTarget && !deleteMutation.isPending && deleteMutation.mutate({ id: deleteTarget.id, empresaId: deleteTarget.empresaId })}
               >
                 {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
                 APAGAR

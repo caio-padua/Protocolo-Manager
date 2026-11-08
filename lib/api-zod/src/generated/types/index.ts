@@ -7,13 +7,25 @@
  */
 
 export * from "./agendaBookedSession";
+export * from "./agendaChangeDecisionInput";
+export * from "./agendaChangeDecisionInputDecision";
+export * from "./agendaChangeRequest";
+export * from "./agendaChangeRequestList";
 export * from "./agendaException";
+export * from "./agendaIntegrationCalendar";
+export * from "./agendaIntegrationProfessional";
+export * from "./agendaIntegrationResource";
+export * from "./agendaIntegrationState";
+export * from "./agendaPersonalOwnerInput";
+export * from "./agendaProposedWindow";
+export * from "./agendaReadSettingsInput";
 export * from "./agendaResource";
 export * from "./agendaSettings";
 export * from "./agendaSlot";
 export * from "./agendaSlotsResponse";
 export * from "./agendaSubBlock";
 export * from "./agendaWindow";
+export * from "./agendaWindowChangeInput";
 export * from "./agendaWindowInput";
 export * from "./alert";
 export * from "./alertSeverity";

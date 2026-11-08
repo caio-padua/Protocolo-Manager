@@ -21,6 +21,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { computeResourceSlots } from "../lib/agenda-booking.js";
 import express from "express";
 import request from "supertest";
 import { postSlackAlertChecked } from "../lib/slack-reporter.js";
@@ -120,6 +121,7 @@ vi.mock("../lib/concierge-finalize.js", () => ({
 
 vi.mock("../lib/agenda-concierge.js", () => ({
   computeConciergeOffer: vi.fn(),
+  pickConciergeResource: vi.fn().mockResolvedValue({id:7,name:"Agenda sintética",slotMinutes:30}),
 }));
 
 // ── Mocks configuráveis por teste ─────────────────────────────────────────────
@@ -187,6 +189,8 @@ function bodyConciergeCpf(cpf: string) {
     patientPhone:  "11999999999",
     patientCpf:    cpf,
     earliestDate:  "2027-01-01",
+    chosenDate:    "2027-01-04",
+    chosenTime:    "09:00",
   };
 }
 
@@ -246,6 +250,9 @@ describe("POST /scheduling/requests — trava de bloqueio Concierge (Guard #159)
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(computeResourceSlots).mockResolvedValue({resource:{id:7},result:{
+      slots:[{time:"09:00",state:"aberto",reason:null,subBlockIndex:0}],subBlocks:[],reason:null,
+    }} as any);
     vi.mocked(postSlackAlertChecked).mockResolvedValue(undefined);
     mockRegistrarFalha.mockResolvedValue(undefined);
     mockCheckDeviceThrottle.mockResolvedValue({
@@ -257,6 +264,17 @@ describe("POST /scheduling/requests — trava de bloqueio Concierge (Guard #159)
     mockDbInsertReturning.mockResolvedValue([FAKE_ROW]);
   });
 
+  it("recusa horário bloqueado pelo motor antes de gravar solicitação",async()=>{
+    mockGetPenalidade.mockResolvedValue({bloqueado:false,penalidade_dias:0,tentativas:0});
+    vi.mocked(apiZod.CreateSchedulingRequestBody.safeParse).mockReturnValue({
+      success:true,data:bodyConciergeCpf(CPF_SEM_FALHA),
+    } as any);
+    vi.mocked(computeResourceSlots).mockResolvedValueOnce({resource:{id:7},result:{
+      slots:[{time:"09:00",state:"bloqueado",reason:"compromisso",subBlockIndex:0}],subBlocks:[],reason:null,
+    }} as any);
+    await request(buildApp()).post("/scheduling/requests").send(bodyConciergeCpf(CPF_SEM_FALHA)).expect(409);
+    expect(mockDbInsertReturning).not.toHaveBeenCalled();
+  });
   // ── Cenário B1 ─────────────────────────────────────────────────────────────
   it("B1 — CPF bloqueado permanentemente → 403 CONCIERGE_BLOCKED", async () => {
     // getPenalidade devolve bloqueio total
@@ -356,6 +374,8 @@ describe("POST /scheduling/requests — trava de bloqueio Concierge (Guard #159)
       patientName:  "Sem CPF",
       patientPhone: "11888888888",
       earliestDate: "2027-01-01",
+      chosenDate:   "2027-01-04",
+      chosenTime:   "09:00",
       // patientCpf omitido intencionalmente
     };
 

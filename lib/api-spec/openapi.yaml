@@ -2754,6 +2754,93 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgendaSettings"
 
+  /agenda/integration:
+    get:
+      operationId: getAgendaIntegration
+      tags: [agenda]
+      responses:
+        "200":
+          description: Estado e permissões de leitura
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaIntegrationState"
+  /agenda/integration/refresh:
+    post:
+      operationId: refreshAgendaIntegration
+      tags: [agenda]
+      responses:
+        "202":
+          description: Atualização de leitura solicitada
+  /agenda/integration/read-settings:
+    put:
+      operationId: updateAgendaReadSettings
+      tags: [agenda]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaReadSettingsInput"
+      responses:
+        "200":
+          description: Preferência salva
+  /agenda/integration/personal-owner:
+    put:
+      operationId: updateAgendaPersonalOwner
+      tags: [agenda]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaPersonalOwnerInput"
+      responses:
+        "200":
+          description: Titular salvo
+  /agenda/requests:
+    get:
+      operationId: listAgendaChangeRequests
+      tags: [agenda]
+      responses:
+        "200":
+          description: Solicitações do autor ou administrador autorizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaChangeRequestList"
+    post:
+      operationId: createAgendaChangeRequest
+      tags: [agenda]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaWindowChangeInput"
+      responses:
+        "201":
+          description: Solicitação pendente
+  /agenda/requests/{id}/decision:
+    post:
+      operationId: decideAgendaChangeRequest
+      tags: [agenda]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaChangeDecisionInput"
+      responses:
+        "200":
+          description: Decisão registrada
+
   /agenda/google-compromissos:
     get:
       operationId: getGoogleAgendaCommitments
@@ -4129,6 +4216,160 @@ components:
         subBlockIndex:
           type: integer
 
+    AgendaProposedWindow:
+      type: object
+      required: [weekday, startTime, endTime]
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        startTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        endTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+    AgendaWindowChangeInput:
+      type: object
+      required: [resourceId, reason, windows]
+      properties:
+        resourceId:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 8
+          maxLength: 500
+        windows:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AgendaProposedWindow"
+    AgendaChangeDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [aprovar, recusar]
+    AgendaPersonalOwnerInput:
+      type: object
+      required: [locationId, professionalId]
+      properties:
+        locationId:
+          type: integer
+          minimum: 1
+        professionalId:
+          type: [integer, "null"]
+          minimum: 1
+    AgendaReadSettingsInput:
+      type: object
+      required: [locationId, enabled]
+      properties:
+        locationId:
+          type: integer
+          minimum: 1
+        enabled:
+          type: boolean
+    AgendaIntegrationCalendar:
+      type: object
+      required: [id, name, color, role, enabled, lastSuccess, lastAttempt, error, personalOwnerId, canManage]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        role:
+          type: [string, "null"]
+        enabled:
+          type: [boolean, "null"]
+        lastSuccess:
+          type: [string, "null"]
+        lastAttempt:
+          type: [string, "null"]
+        error:
+          type: [string, "null"]
+        personalOwnerId:
+          type: [integer, "null"]
+        canManage:
+          type: boolean
+    AgendaIntegrationResource:
+      type: object
+      required: [id, name, locationId]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        locationId:
+          type: integer
+    AgendaIntegrationProfessional:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    AgendaIntegrationState:
+      type: object
+      required: [agendas, professionals, resources, globalSettingsOwnerOnly, canManageGlobalSettings, companyId]
+      properties:
+        agendas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaIntegrationCalendar"
+        professionals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaIntegrationProfessional"
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaIntegrationResource"
+        globalSettingsOwnerOnly:
+          type: boolean
+        canManageGlobalSettings:
+          type: boolean
+        companyId:
+          type: integer
+    AgendaChangeRequest:
+      type: object
+      required: [id, resourceId, resource, reason, state, windows, createdAt, locationId, requestedBy, canDecide]
+      properties:
+        id:
+          type: integer
+        resourceId:
+          type: integer
+        resource:
+          type: string
+        reason:
+          type: string
+        state:
+          type: string
+        windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaProposedWindow"
+        createdAt:
+          type: string
+        locationId:
+          type: integer
+        requestedBy:
+          type: integer
+        canDecide:
+          type: boolean
+    AgendaChangeRequestList:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaChangeRequest"
     GoogleAgendaCommitment:
       type: object
       required: [id, titulo, inicio, fim, data, horario, diaInteiro, agenda, cor, recorrente]
@@ -5288,6 +5529,9 @@ components:
     CreateSessionBody:
       type: object
       properties:
+        resourceId:
+          type: integer
+          minimum: 1
         protocolId:
           type: integer
         clientId:

@@ -27,7 +27,7 @@ import {
   asaasGetCharge,
   asaasGetPixQrCode,
 } from "../lib/asaas.js";
-import { computeConciergeOffer } from "../lib/agenda-concierge.js";
+import { computeConciergeOffer, pickConciergeResource } from "../lib/agenda-concierge.js";
 import { getSetting } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { getPenalidade, registrarFalha } from "../lib/concierge-penalidade.js";
@@ -539,6 +539,21 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
     }
   }
 
+  // A solicitação não pode aceitar uma hora que o motor real bloqueou.
+  // Não cria sessão clínica nem cobrança; a confirmação continua no fluxo próprio.
+  let caioResourceId: number | null = null;
+  if (entrada === "dr_caio") {
+    if (!data.chosenDate || !data.chosenTime) {
+      res.status(400).json({error:"Escolha uma data e um horário liberados na agenda."});return;
+    }
+    const resource = await pickConciergeResource();
+    const available = resource ? await computeResourceSlots(resource.id,data.chosenDate) : null;
+    if (!available?.result.slots.some((slot)=>slot.time===data.chosenTime && slot.state==="aberto")) {
+      res.status(409).json({error:"Horário indisponível; consulte novamente os horários liberados."});return;
+    }
+    caioResourceId = resource!.id;
+  }
+
   // Braco de pagamento default por entrada (estrutura; sem cobranca real).
   const paymentArm =
     data.paymentArm ??
@@ -569,7 +584,7 @@ router.post("/scheduling/requests", async (req, res): Promise<void> => {
       chosenTime: data.chosenTime ?? null,
       path: data.path ?? null,
       paymentArm: paymentArm ?? null,
-      resourceId: isCaio ? null : (isAssist ? assistantResourceId : null),
+      resourceId: isCaio ? caioResourceId : (isAssist ? assistantResourceId : null),
     })
     .returning();
 

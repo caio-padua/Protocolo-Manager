@@ -1,4 +1,4 @@
-import { and, eq, or, isNull, inArray } from "drizzle-orm";
+import { and, eq, or, isNull, inArray, sql } from "drizzle-orm";
 import {
   db,
   sessionsTable,
@@ -8,14 +8,25 @@ import {
   agendaSettingsTable,
   clientsTable,
   type Session,
+  protocolsTable,
 } from "@workspace/db";
+import { loadAgendaOccupancy, type AgendaExecutor } from "./agenda-occupancy";
 import { computeAgendaSlots, type EngineResult } from "./agenda-motor.js";
 import { createCalendarEvent, deleteCalendarEvent, verifyClinicAccount } from "./google-calendar.js";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const validDate = (date: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const value = new Date(`${date}T12:00:00Z`);
+  return Number.isFinite(value.getTime()) && value.toISOString().slice(0,10) === date;
+};
+const blockReason = (reason: string | null) => ({
+  antecedencia:"dentro da antecedência mínima", compromisso:"compromisso existente sobreposto",
+  integracao:"aguardando atualização segura da agenda Google",
+}[reason ?? ""] ?? "ainda não liberado (cadeia)");
 export const SIM_TAG = "[SIMULACAO]";
 
-async function getSettings() {
+async function getSettings(db: AgendaExecutor) {
   const [row] = await db.select().from(agendaSettingsTable).orderBy(agendaSettingsTable.id).limit(1);
   if (row) return row;
   const [created] = await db.insert(agendaSettingsTable).values({}).returning();
@@ -30,11 +41,16 @@ export async function computeResourceSlots(
   resourceId: number,
   date: string,
   occupiedOverride?: Set<string> | null,
+  executor: AgendaExecutor = db,
+  ignoreSessionId?: number,
 ): Promise<{ resource: typeof agendaResourcesTable.$inferSelect; result: EngineResult } | null> {
+  if (!validDate(date)) return null;
+  const db = executor;
   const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, resourceId));
   if (!resource || !resource.active) return null;
 
-  const settings = await getSettings();
+  const settings = await getSettings(db);
+  const occupancy = await loadAgendaOccupancy(resource, date, db, ignoreSessionId);
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
 
   const windows = await db
@@ -63,7 +79,9 @@ export async function computeResourceSlots(
         and(
           eq(sessionsTable.resourceId, resourceId),
           eq(sessionsTable.scheduledDate, date),
-          inArray(sessionsTable.status, ["scheduled", "completed"]),
+          inArray(sessionsTable.status, ["scheduled", "confirmed", "completed"]),
+          eq(sessionsTable.agendaArchived, false),
+          ...(ignoreSessionId ? [sql`${sessionsTable.id}<>${ignoreSessionId}`] : []),
         ),
       );
     occupiedTimes = new Set<string>(booked.map((b) => String(b.time).slice(0, 5)).filter((t) => HHMM.test(t)));
@@ -81,7 +99,16 @@ export async function computeResourceSlots(
     now: new Date(),
     date,
     isException: exceptions.length > 0,
+    blockedRanges: occupancy.blockedRanges,
+    occupiedRanges: occupiedOverride ? [] : occupancy.occupiedRanges,
   });
+  if (!occupancy.fresh) {
+    result.reason = "sincronizacao-pendente";
+    for (const slot of result.slots) if (slot.state !== "ocupado") {
+      slot.state = "bloqueado";
+      slot.reason = "integracao";
+    }
+  }
 
   return { resource, result };
 }
@@ -107,6 +134,16 @@ export interface BookParams {
   unit?: string;
   syncGoogle?: boolean;
   simulate?: boolean;
+  empresaId?: number;
+}
+
+async function lockAgendaResource(executor: AgendaExecutor, resourceId: number) {
+  const result = await executor.execute(sql`SELECT l.empresa_id FROM agenda_resources r
+    JOIN locations l ON l.id=r.location_id WHERE r.id=${resourceId} AND r.active AND l.active='true'`);
+  const empresaId = Number(result.rows[0]?.empresa_id);
+  if (!empresaId) return null;
+  await executor.execute(sql`SELECT pg_advisory_xact_lock(19872026,${empresaId})`);
+  return empresaId;
 }
 
 /**
@@ -114,23 +151,33 @@ export interface BookParams {
  * a ocupacao real para evitar corrida). Opcionalmente sincroniza com o Google Calendar.
  */
 export async function bookSession(params: BookParams): Promise<BookResult> {
+  if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
+  return db.transaction(async (tx) => {
+    const empresaId = await lockAgendaResource(tx, params.resourceId);
+    if (!empresaId || (params.empresaId && params.empresaId !== empresaId)) return {ok:false,status:404,error:"Recurso não encontrado"};
+    return bookSessionLocked({...params, empresaId}, tx);
+  });
+}
+async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promise<BookResult> {
   const { resourceId, clientId, protocolId, date, time, serviceType, unit, syncGoogle, simulate } = params;
 
   if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
 
-  const computed = await computeResourceSlots(resourceId, date, null);
+  const computed = await computeResourceSlots(resourceId, date, null, db);
   if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
 
   const slot = computed.result.slots.find((s) => s.time === time);
   if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };
   if (slot.state === "ocupado") return { ok: false, status: 409, error: "Horário já ocupado" };
   if (slot.state === "bloqueado") {
-    const motivo = slot.reason === "antecedencia" ? "dentro da antecedência mínima" : "ainda não liberado (cadeia)";
+    const motivo = blockReason(slot.reason);
     return { ok: false, status: 409, error: `Horário bloqueado: ${motivo}` };
   }
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-  if (!client) return { ok: false, status: 404, error: "Cliente não encontrado" };
+  if (!client || client.empresaId !== params.empresaId) return { ok: false, status: 404, error: "Cliente não encontrado" };
+  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
+  if (!protocol || protocol.clientId !== clientId) return { ok: false, status: 404, error: "Protocolo não pertence ao cliente" };
 
   // Guarda de corrida: reconsulta direta de ocupacao no exato recurso+data+hora,
   // imediatamente antes do insert, para estreitar a janela entre o motor e a gravacao.
@@ -142,7 +189,7 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
         eq(sessionsTable.resourceId, resourceId),
         eq(sessionsTable.scheduledDate, date),
         eq(sessionsTable.scheduledTime, time),
-        inArray(sessionsTable.status, ["scheduled", "completed"]),
+        inArray(sessionsTable.status, ["scheduled", "confirmed", "completed"]),
       ),
     )
     .limit(1);
@@ -170,6 +217,9 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
       serviceType: serviceType ?? (computed.resource.modality === "domiciliar" ? "home" : "clinic"),
       weekNumber,
       notes,
+      empresaId: params.empresaId,
+      professionalId: computed.resource.professionalId,
+      durationMinutes: computed.resource.slotMinutes,
     })
     .returning();
 
@@ -188,7 +238,7 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
       googleEventId = await createCalendarEvent({
         sessionId: session.id,
         clientName: client.name,
-        clientCpf: client.cpf,
+        clientCpf: client.cpf ?? undefined,
         scheduledDate: date,
         scheduledTime: time,
         durationMinutes: computed.resource.slotMinutes,
@@ -235,22 +285,30 @@ export interface RescheduleParams {
  * (remove o antigo + cria o novo). Falha de Google nunca trava a remarcacao.
  */
 export async function rescheduleSession(params: RescheduleParams): Promise<BookResult> {
+  if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
+  return db.transaction(async (tx) => {
+    const empresaId = await lockAgendaResource(tx, params.resourceId);
+    if (!empresaId) return {ok:false,status:404,error:"Recurso não encontrado"};
+    return rescheduleSessionLocked(params, tx, empresaId);
+  });
+}
+async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecutor, empresaId: number): Promise<BookResult> {
   const { sessionId, clientId, resourceId, date, time, syncGoogle } = params;
 
   if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
 
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session || session.agendaArchived || session.clientId !== clientId) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  if (!session || session.agendaArchived || session.clientId !== clientId || session.empresaId !== empresaId) return { ok: false, status: 404, error: "Sessão não encontrada" };
   if (session.status !== "scheduled") return { ok: false, status: 409, error: "Só é possível remarcar sessões agendadas." };
 
-  const computed = await computeResourceSlots(resourceId, date, null);
+  const computed = await computeResourceSlots(resourceId, date, null, db, sessionId);
   if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
 
   const slot = computed.result.slots.find((s) => s.time === time);
   if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };
   if (slot.state === "ocupado") return { ok: false, status: 409, error: "Horário já ocupado" };
   if (slot.state === "bloqueado") {
-    const motivo = slot.reason === "antecedencia" ? "dentro da antecedência mínima" : "ainda não liberado (cadeia)";
+    const motivo = blockReason(slot.reason);
     return { ok: false, status: 409, error: `Horário bloqueado: ${motivo}` };
   }
 
@@ -263,7 +321,7 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
         eq(sessionsTable.resourceId, resourceId),
         eq(sessionsTable.scheduledDate, date),
         eq(sessionsTable.scheduledTime, time),
-        inArray(sessionsTable.status, ["scheduled", "completed"]),
+        inArray(sessionsTable.status, ["scheduled", "confirmed", "completed"]),
       ),
     );
   if (clashRows.some((r) => r.id !== sessionId)) return { ok: false, status: 409, error: "Horário já ocupado" };
@@ -297,7 +355,7 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
         googleEventId = await createCalendarEvent({
           sessionId: session.id,
           clientName: client.name,
-          clientCpf: client.cpf,
+          clientCpf: client.cpf ?? undefined,
           scheduledDate: date,
           scheduledTime: time,
           durationMinutes: computed.resource.slotMinutes,
@@ -326,6 +384,8 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
     .update(sessionsTable)
     .set({
       resourceId,
+      professionalId: computed.resource.professionalId,
+      durationMinutes: computed.resource.slotMinutes,
       scheduledDate: date,
       scheduledTime: time,
       unit: resourceName,
@@ -342,9 +402,9 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
   return { ok: true, status: 200, session: updated, googleEventId, googleSyncWarning };
 }
 
-export async function cancelBooking(sessionId: number): Promise<BookResult> {
+export async function cancelBooking(sessionId: number, empresaId?: number): Promise<BookResult> {
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session || session.agendaArchived) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  if (!session || session.agendaArchived || (empresaId != null && session.empresaId !== empresaId)) return { ok: false, status: 404, error: "Sessão não encontrada" };
 
   if (session.googleEventId) {
     try {

@@ -43,7 +43,17 @@ vi.mock("@workspace/db", () => {
 });
 vi.mock("drizzle-orm", () => ({ eq: (column: string, value: unknown) => ({ column, value }), and: () => ({}), or: () => ({}), isNull: () => ({}), inArray: () => ({}) }));
 vi.mock("../middleware/moduleGuard.js", () => ({ moduleGuard: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
-vi.mock("../middleware/tenantContext.js", () => ({ resolveEmpresaId: () => 5 }));
+// Chamador sintético autorizado: esta suíte verifica arquivamento, não login.
+vi.mock("../middleware/tenantContext.js", () => ({
+  resolveEmpresaId: () => 5,
+  requirePlatformOwner: (_req:unknown,_res:unknown,next:()=>void) => next(),
+}));
+vi.mock("../routes/collaborator", () => ({
+  requireCollaborator: (req:any,_res:unknown,next:()=>void) => {
+    req.tenantContext={authenticated:true,empresaId:5,isPlatformOwner:true,professionalId:901};
+    next();
+  },
+}));
 vi.mock("../lib/google-calendar.js", () => ({
   createCalendarEvent: vi.fn(),
   updateCalendarEvent: vi.fn(),

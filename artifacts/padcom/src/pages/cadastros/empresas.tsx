@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { semAcento, compararEmpresas, ehInstitutoPadua } from "./locais/locais-modo";
+import "./locais/locais.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -201,6 +203,8 @@ const EMPTY: FormValues = {
   googleCalendarId: "", googleDriveFolderId: "",
 };
 
+const ABAS_VALIDAS = ["ident", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos"];
+
 // ── Labels de referência ───────────────────────────────────────────────────────
 const TIPO_LABELS: Record<string, string> = {
   clinic: "Clínica",
@@ -273,7 +277,7 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen, locaisAbertos, onToggl
   onToggleLocais: () => void;
 }) {
   return (
-    <div className="panel-3d relative overflow-hidden flex flex-col cursor-default">
+    <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${ehInstitutoPadua(empresa.nome) ? "panel-3d-active" : ""}`} data-testid={`empresa-card-${empresa.id}`}>
       {/* Faixa lateral: genesis=dourado, ativa=teal, inativa=amber */}
       <div className={`absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px] ${
         empresa.tipo === "genesis_seed" ? "bg-amber-400" :
@@ -360,7 +364,7 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen, locaisAbertos, onToggl
             className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
             <ChevronRight className="w-3 h-3" /> Ver Equipe
           </button>
-          <button type="button" onClick={onEdit} aria-label={`Editar empresa ${empresa.nome}`} title="Editar empresa"
+          <button type="button" onClick={onEdit} aria-label={`Editar empresa ${empresa.nome}`} title="Editar empresa" data-testid={`empresa-editar-${empresa.id}`}
             className="bevel-3d px-2.5 py-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase hover:bg-primary/10 transition-colors">
             <Pencil className="w-3.5 h-3.5" /> Editar
           </button>
@@ -1058,23 +1062,49 @@ export default function CadastroEmpresas() {
     setActiveFormTab(value);
   };
 
-  // ── Agrupamento geográfico data-bound ──────────────────────────────────────
+  // ── Agrupamento geográfico normalizado ("São Paulo" = "Sao Paulo") ──────────
+  // Grupo do Instituto Padua primeiro; demais em ordem alfabética determinística.
   const grupos = useMemo(() => {
     const ativas = empresas.filter((e) => e.ativa);
-    const map = new Map<string, Empresa[]>();
+    const map = new Map<string, { rotulo: string; lista: Empresa[] }>();
     for (const e of ativas) {
-      const chave =
-        e.cidade && e.estado ? `${e.cidade} · ${e.estado}` :
-        e.cidade              ? e.cidade :
-        e.estado              ? `Estado: ${e.estado}` :
-                                "Sem Localização";
-      if (!map.has(chave)) map.set(chave, []);
-      map.get(chave)!.push(e);
+      const cidade = e.cidade?.trim() || "";
+      const uf = e.estado?.trim().toUpperCase() || "";
+      const chave = `${semAcento(cidade)}|${uf}`;
+      const rotulo = cidade && uf ? `${cidade} · ${uf}` : cidade ? cidade : uf ? `Estado: ${uf}` : "Sem Localização";
+      const atual = map.get(chave);
+      if (!atual) map.set(chave, { rotulo, lista: [e] });
+      else {
+        atual.lista.push(e);
+        // Prefere a grafia acentuada como rótulo visível (São Paulo > Sao Paulo).
+        if (rotulo.normalize("NFD").length > atual.rotulo.normalize("NFD").length) atual.rotulo = rotulo;
+      }
     }
-    return [...map.entries()].sort(([a, ac], [b, bc]) =>
-      bc.length !== ac.length ? bc.length - ac.length : a.localeCompare(b, "pt-BR")
-    );
+    const entradas = [...map.entries()].map(([chave, g]) => ({ chave, rotulo: g.rotulo, lista: [...g.lista].sort(compararEmpresas) }));
+    return entradas.sort((a, b) => {
+      const pa = a.lista.some((e) => ehInstitutoPadua(e.nome)) ? 0 : 1;
+      const pb = b.lista.some((e) => ehInstitutoPadua(e.nome)) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      const sa = a.chave === "|" ? 1 : 0; const sb = b.chave === "|" ? 1 : 0;
+      if (sa !== sb) return sa - sb;
+      return a.rotulo.localeCompare(b.rotulo, "pt-BR", { sensitivity: "base" });
+    });
   }, [empresas]);
+
+  // ── Navegação profunda: /cadastros/empresas?empresa=ID&aba=marca-documento ──
+  const deepLinkTratado = useRef(false);
+  useEffect(() => {
+    if (deepLinkTratado.current || isLoading || isError) return;
+    const params = new URLSearchParams(window.location.search);
+    const alvo = params.get("empresa");
+    if (!alvo) return;
+    deepLinkTratado.current = true;
+    const empresa = empresas.find((e) => String(e.id) === alvo);
+    if (!empresa) { toast.error("A empresa solicitada não foi encontrada."); return; }
+    openEdit(empresa);
+    const aba = params.get("aba");
+    if (aba && ABAS_VALIDAS.includes(aba)) setActiveFormTab(aba);
+  }, [empresas, isLoading, isError]);
 
   const ativas   = empresas.filter((e) => e.ativa);
   const inativas = empresas.filter((e) => !e.ativa);
@@ -1139,7 +1169,7 @@ export default function CadastroEmpresas() {
           </div>
         ) : (
           <div className="space-y-8">
-            {grupos.map(([cidadeKey, lista]) => {
+            {grupos.map(({ chave: grupoChave, rotulo: cidadeKey, lista }) => {
               const zonaMap = new Map<string, Empresa[]>();
               for (const e of lista) {
                 const z = e.zona || "—";
@@ -1148,11 +1178,11 @@ export default function CadastroEmpresas() {
               }
               const temMultiplaZonas = zonaMap.size > 1;
               return (
-                <div key={cidadeKey}>
+                <div key={grupoChave} data-testid={`empresas-grupo-${grupoChave}`}>
                   <div className="flex items-center gap-3 mb-4">
                     <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
                       <MapPin className="w-3.5 h-3.5 text-primary" />
-                      <span className="font-black text-[11px] uppercase tracking-widest">{cidadeKey}</span>
+                      <span className="font-black text-[11px] uppercase tracking-widest" data-testid="empresas-grupo-rotulo">{cidadeKey}</span>
                       <span className="text-[9px] text-muted-foreground/60 font-bold">
                         {lista.length} empresa{lista.length !== 1 ? "s" : ""}
                       </span>
@@ -1219,11 +1249,16 @@ export default function CadastroEmpresas() {
 
       {/* Dialog — Formulário criar/editar com abas */}
       <Dialog open={formOpen} onOpenChange={handleFormOpen}>
-        <DialogContent className="max-w-3xl max-h-[94vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40">
+        <DialogContent className="pax-dialogo-fixo max-w-3xl p-0 gap-0" data-testid="empresa-dialogo">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40 shrink-0">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
               {editingId ? "EDITAR EMPRESA" : "NOVA EMPRESA"}
             </DialogTitle>
+            {selectedEmpresa && (
+              <p className="text-[11px] font-bold truncate" data-testid="empresa-dialogo-identificacao">
+                {selectedEmpresa.nome} <span className="font-mono text-muted-foreground">#{selectedEmpresa.id}</span>
+              </p>
+            )}
           </DialogHeader>
 
           <Form {...form}>
@@ -1239,7 +1274,7 @@ export default function CadastroEmpresas() {
               <Tabs value={activeFormTab} onValueChange={changeFormTab} className="flex flex-col flex-1 min-h-0">
 
                 {/* Barra de abas */}
-                <div className="mx-4 sm:mx-6 mt-3">
+                <div className="mx-4 sm:mx-6 mt-3 shrink-0">
                   <TabsList aria-label="Seções do cadastro empresarial"
                     className="w-full flex flex-wrap justify-start gap-2 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
                     {[
@@ -1253,6 +1288,7 @@ export default function CadastroEmpresas() {
                       { value: "contratos",  label: "Documentos e Contratos" },
                     ].map(({ value, label }) => (
                       <TabsTrigger key={value} value={value}
+                        data-testid={`empresa-aba-${value}`}
                         className="bevel-3d empresa-aba whitespace-normal text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2">
                         {label}
                       </TabsTrigger>
@@ -1974,7 +2010,7 @@ export default function CadastroEmpresas() {
               </Tabs>
 
               {/* Rodapé fixo com botões */}
-              <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0">
+              <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0" data-testid="empresa-dialogo-rodape">
                 <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>CANCELAR</Button>
                 <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}

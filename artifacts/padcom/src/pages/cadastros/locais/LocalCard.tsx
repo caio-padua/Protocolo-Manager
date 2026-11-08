@@ -38,7 +38,7 @@ export function LocalCard({ c, onEdit, onDelete }: { c: LocalAtendimento; onEdit
   const equipe = c.professionals?.length ?? 0;
 
   return (
-    <div className={`panel-3d relative overflow-hidden flex flex-col ${c.active ? "" : "opacity-60"}`}>
+    <div data-testid={`local-card-${c.id}`} className={`panel-3d relative overflow-hidden flex flex-col ${c.active ? "" : "opacity-60"}`}>
       <div className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px]" style={{ backgroundColor: c.color || "#16284a" }} />
       <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
         {/* Zona 1 — barra superior fixa */}
@@ -100,7 +100,7 @@ export function LocalCard({ c, onEdit, onDelete }: { c: LocalAtendimento; onEdit
 
         {/* Ações */}
         <div className="flex gap-2 pt-0.5">
-          <button type="button" onClick={onEdit}
+          <button type="button" onClick={onEdit} data-testid={`local-editar-${c.id}`}
             className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
             <Pencil className="w-3 h-3" /> Editar
           </button>

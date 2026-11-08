@@ -17,11 +17,17 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AgendaChangeDecisionInput,
+  AgendaChangeRequestList,
   AgendaException,
+  AgendaIntegrationState,
+  AgendaPersonalOwnerInput,
+  AgendaReadSettingsInput,
   AgendaResource,
   AgendaSettings,
   AgendaSlotsResponse,
   AgendaWindow,
+  AgendaWindowChangeInput,
   Alert,
   AmarracaoSintomaInput,
   AnamneseAmarracaoSintoma,
@@ -11912,6 +11918,546 @@ export const useUpdateAgendaSettings = <
   TContext
 > => {
   return useMutation(getUpdateAgendaSettingsMutationOptions(options));
+};
+
+export const getGetAgendaIntegrationUrl = () => {
+  return `/api/agenda/integration`;
+};
+
+export const getAgendaIntegration = async (
+  options?: RequestInit,
+): Promise<AgendaIntegrationState> => {
+  return customFetch<AgendaIntegrationState>(getGetAgendaIntegrationUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgendaIntegrationQueryKey = () => {
+  return [`/api/agenda/integration`] as const;
+};
+
+export const getGetAgendaIntegrationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaIntegration>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaIntegration>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgendaIntegrationQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaIntegration>>
+  > = ({ signal }) => getAgendaIntegration({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaIntegration>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaIntegrationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaIntegration>>
+>;
+export type GetAgendaIntegrationQueryError = ErrorType<unknown>;
+
+export function useGetAgendaIntegration<
+  TData = Awaited<ReturnType<typeof getAgendaIntegration>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaIntegration>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaIntegrationQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getRefreshAgendaIntegrationUrl = () => {
+  return `/api/agenda/integration/refresh`;
+};
+
+export const refreshAgendaIntegration = async (
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRefreshAgendaIntegrationUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRefreshAgendaIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["refreshAgendaIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+    void
+  > = () => {
+    return refreshAgendaIntegration(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshAgendaIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshAgendaIntegration>>
+>;
+
+export type RefreshAgendaIntegrationMutationError = ErrorType<unknown>;
+
+export const useRefreshAgendaIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshAgendaIntegration>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRefreshAgendaIntegrationMutationOptions(options));
+};
+
+export const getUpdateAgendaReadSettingsUrl = () => {
+  return `/api/agenda/integration/read-settings`;
+};
+
+export const updateAgendaReadSettings = async (
+  agendaReadSettingsInput: AgendaReadSettingsInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getUpdateAgendaReadSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaReadSettingsInput),
+  });
+};
+
+export const getUpdateAgendaReadSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+    TError,
+    { data: BodyType<AgendaReadSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+  TError,
+  { data: BodyType<AgendaReadSettingsInput> },
+  TContext
+> => {
+  const mutationKey = ["updateAgendaReadSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+    { data: BodyType<AgendaReadSettingsInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAgendaReadSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAgendaReadSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAgendaReadSettings>>
+>;
+export type UpdateAgendaReadSettingsMutationBody =
+  BodyType<AgendaReadSettingsInput>;
+export type UpdateAgendaReadSettingsMutationError = ErrorType<unknown>;
+
+export const useUpdateAgendaReadSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+    TError,
+    { data: BodyType<AgendaReadSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAgendaReadSettings>>,
+  TError,
+  { data: BodyType<AgendaReadSettingsInput> },
+  TContext
+> => {
+  return useMutation(getUpdateAgendaReadSettingsMutationOptions(options));
+};
+
+export const getUpdateAgendaPersonalOwnerUrl = () => {
+  return `/api/agenda/integration/personal-owner`;
+};
+
+export const updateAgendaPersonalOwner = async (
+  agendaPersonalOwnerInput: AgendaPersonalOwnerInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getUpdateAgendaPersonalOwnerUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaPersonalOwnerInput),
+  });
+};
+
+export const getUpdateAgendaPersonalOwnerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+    TError,
+    { data: BodyType<AgendaPersonalOwnerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+  TError,
+  { data: BodyType<AgendaPersonalOwnerInput> },
+  TContext
+> => {
+  const mutationKey = ["updateAgendaPersonalOwner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+    { data: BodyType<AgendaPersonalOwnerInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAgendaPersonalOwner(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAgendaPersonalOwnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAgendaPersonalOwner>>
+>;
+export type UpdateAgendaPersonalOwnerMutationBody =
+  BodyType<AgendaPersonalOwnerInput>;
+export type UpdateAgendaPersonalOwnerMutationError = ErrorType<unknown>;
+
+export const useUpdateAgendaPersonalOwner = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+    TError,
+    { data: BodyType<AgendaPersonalOwnerInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAgendaPersonalOwner>>,
+  TError,
+  { data: BodyType<AgendaPersonalOwnerInput> },
+  TContext
+> => {
+  return useMutation(getUpdateAgendaPersonalOwnerMutationOptions(options));
+};
+
+export const getListAgendaChangeRequestsUrl = () => {
+  return `/api/agenda/requests`;
+};
+
+export const listAgendaChangeRequests = async (
+  options?: RequestInit,
+): Promise<AgendaChangeRequestList> => {
+  return customFetch<AgendaChangeRequestList>(
+    getListAgendaChangeRequestsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListAgendaChangeRequestsQueryKey = () => {
+  return [`/api/agenda/requests`] as const;
+};
+
+export const getListAgendaChangeRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAgendaChangeRequestsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>
+  > = ({ signal }) => listAgendaChangeRequests({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAgendaChangeRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAgendaChangeRequests>>
+>;
+export type ListAgendaChangeRequestsQueryError = ErrorType<unknown>;
+
+export function useListAgendaChangeRequests<
+  TData = Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAgendaChangeRequests>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAgendaChangeRequestsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateAgendaChangeRequestUrl = () => {
+  return `/api/agenda/requests`;
+};
+
+export const createAgendaChangeRequest = async (
+  agendaWindowChangeInput: AgendaWindowChangeInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getCreateAgendaChangeRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaWindowChangeInput),
+  });
+};
+
+export const getCreateAgendaChangeRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+    TError,
+    { data: BodyType<AgendaWindowChangeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+  TError,
+  { data: BodyType<AgendaWindowChangeInput> },
+  TContext
+> => {
+  const mutationKey = ["createAgendaChangeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+    { data: BodyType<AgendaWindowChangeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createAgendaChangeRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAgendaChangeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAgendaChangeRequest>>
+>;
+export type CreateAgendaChangeRequestMutationBody =
+  BodyType<AgendaWindowChangeInput>;
+export type CreateAgendaChangeRequestMutationError = ErrorType<unknown>;
+
+export const useCreateAgendaChangeRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+    TError,
+    { data: BodyType<AgendaWindowChangeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAgendaChangeRequest>>,
+  TError,
+  { data: BodyType<AgendaWindowChangeInput> },
+  TContext
+> => {
+  return useMutation(getCreateAgendaChangeRequestMutationOptions(options));
+};
+
+export const getDecideAgendaChangeRequestUrl = (id: number) => {
+  return `/api/agenda/requests/${id}/decision`;
+};
+
+export const decideAgendaChangeRequest = async (
+  id: number,
+  agendaChangeDecisionInput: AgendaChangeDecisionInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDecideAgendaChangeRequestUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaChangeDecisionInput),
+  });
+};
+
+export const getDecideAgendaChangeRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+    TError,
+    { id: number; data: BodyType<AgendaChangeDecisionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+  TError,
+  { id: number; data: BodyType<AgendaChangeDecisionInput> },
+  TContext
+> => {
+  const mutationKey = ["decideAgendaChangeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+    { id: number; data: BodyType<AgendaChangeDecisionInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return decideAgendaChangeRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DecideAgendaChangeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof decideAgendaChangeRequest>>
+>;
+export type DecideAgendaChangeRequestMutationBody =
+  BodyType<AgendaChangeDecisionInput>;
+export type DecideAgendaChangeRequestMutationError = ErrorType<unknown>;
+
+export const useDecideAgendaChangeRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+    TError,
+    { id: number; data: BodyType<AgendaChangeDecisionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof decideAgendaChangeRequest>>,
+  TError,
+  { id: number; data: BodyType<AgendaChangeDecisionInput> },
+  TContext
+> => {
+  return useMutation(getDecideAgendaChangeRequestMutationOptions(options));
 };
 
 /**

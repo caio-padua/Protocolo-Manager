@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable, empresasTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
+import { mayWriteLocation } from "../lib/location-write-access";
 
 const router: IRouter = Router();
 
@@ -335,9 +336,9 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
   res.status(201).json(serializeLocation(loc, sede ?? await carregarEmpresa(loc.empresaId)));
 });
 
-router.put("/locations/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+router.put("/locations/:id", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -363,6 +364,10 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   const [atual] = await db.select().from(locationsTable).where(eq(locationsTable.id, id));
   if (!atual) {
     res.status(404).json({ error: "Location not found" });
+    return;
+  }
+  if (!(await mayWriteLocation(req,atual))) {
+    res.status(403).json({error:"Selecione a empresa proprietária do local e use um acesso autorizado para alterá-lo."});
     return;
   }
   const modalidadeBody = modalidadeValida(req.body.modalidade);
@@ -435,15 +440,19 @@ router.put("/locations/:id", async (req, res): Promise<void> => {
   res.json(serializeLocation(updated, empresaDoLocal ?? await carregarEmpresa(updated.empresaId)));
 });
 
-router.delete("/locations/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+router.delete("/locations/:id", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
   const [loc] = await db.select().from(locationsTable).where(eq(locationsTable.id, id));
   if (!loc) {
     res.status(404).json({ error: "Location not found" });
+    return;
+  }
+  if (!(await mayWriteLocation(req,loc))) {
+    res.status(403).json({error:"A exclusão exige acesso autorizado à empresa proprietária deste local."});
     return;
   }
   // Trava: não apagar clínica com sessões vinculadas (vínculo por nome em sessions.unit)

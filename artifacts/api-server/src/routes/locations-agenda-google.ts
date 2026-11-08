@@ -4,9 +4,17 @@ import { db, locationsTable, agendaCompromissosTable, sessionsTable } from "@wor
 import { requireCollaborator } from "./collaborator";
 import { getUncachableGoogleCalendarClient, listCalendars, verifyClinicAccount } from "../lib/google-calendar";
 import { lerIcs, chaveEvento, type ResultadoIcs } from "../lib/ics-parser";
+import { mayManageAgenda } from "../lib/agenda-governance";
 
 // Aba "Agenda Google" do cadastro do local — Fase 1: so LE o Google (nada e escrito la).
 const router: IRouter = Router();
+router.use("/locations/:id/agenda-google", requireCollaborator, async (req,res,next) => {
+  if (["GET","HEAD","OPTIONS"].includes(req.method)) {next();return;}
+  if (!(await mayManageAgenda(req,Number(req.params.id)))) {
+    res.status(403).json({error:"Vínculo de agenda exige administrador autorizado ou responsável técnico."});return;
+  }
+  next();
+});
 
 const PAPEIS = ["local", "remoto", "externo", "pessoal", "geral"] as const;
 type Papel = (typeof PAPEIS)[number];

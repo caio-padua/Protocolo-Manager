@@ -13,7 +13,7 @@ Regra: O menu deve separar empresas e locais de atendimento, preservando o acess
 
 **Why:** O responsável inicialmente escolheu acesso unificado e depois pediu entradas separadas para não confundir clínicas independentes com salas de atendimento.
 
-**How to apply:** Manter os dois cadastros e permitir expansão dos locais por empresa sem duplicação. Mostrar a identidade somente após confirmar vínculo e autorização.
+**How to apply:** Manter os dois cadastros e permitir expansão dos locais por empresa sem duplicação; a identidade é editada somente em Empresas, com atalho do local para a empresa exata após conferir vínculo e autorização.
 
 Regra: O Instituto Lemos e o Instituto Pádua são empresas independentes, sem relação de subordinação entre si.
 

@@ -82,7 +82,7 @@ function addDaysISO(dateISO: string, days: number): string {
 
 // Recurso alvo do Dr. Caio: 1o recurso PRESENCIAL ativo (menor id); fallback ao
 // recurso Online ativo. Nunca hardcode de id.
-async function pickConciergeResource(): Promise<
+export async function pickConciergeResource(): Promise<
   { id: number; name: string; slotMinutes: number } | null
 > {
   const doctors = await db
@@ -237,7 +237,8 @@ export async function computeConciergeOffer(input: ConciergeOfferInput): Promise
 
   const scanned = await scanRealDays(resource.id, resource.slotMinutes, floorISO, 8, 30);
   if (scanned.length === 0) {
-    return fallbackFromWindows(resource, floorISO, preferredWeekday, period);
+    // Escassez comercial não autoriza oferecer horário que o motor bloqueou.
+    return { resourceId: resource.id, resourceName: resource.name, days: [], generated: false };
   }
 
   // Dia primario: primeiro que casa com o dia-da-semana pedido; senao o primeiro.

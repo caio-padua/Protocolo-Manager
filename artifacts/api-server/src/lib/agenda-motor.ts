@@ -58,6 +58,8 @@ export function computeAgendaSlots(params: {
   now: Date;
   date: string;
   isException: boolean;
+  blockedRanges?: { start: number; end: number }[];
+  occupiedRanges?: { start: number; end: number }[];
 }): EngineResult {
   const { windows, slotMinutes, settings, occupiedTimes, now, date, isException } = params;
 
@@ -84,17 +86,21 @@ export function computeAgendaSlots(params: {
   const threshold = now.getTime() + leadMs;
 
   const subBlocks: EngineSubBlock[] = [];
-  const slotsBySub: { time: string; occupied: boolean }[][] = [];
+  const slotsBySub: { time: string; occupied: boolean; blocked: boolean }[][] = [];
 
   for (const r of subRanges) {
-    const slots: { time: string; occupied: boolean }[] = [];
+    const slots: { time: string; occupied: boolean; blocked: boolean }[] = [];
     for (let t = r.start; t + slot <= r.end; t += slot) {
       const time = toHHMM(t);
-      slots.push({ time, occupied: occupiedTimes.has(time) });
+      const overlaps = (range: {start: number; end: number}) => t < range.end && t + slot > range.start;
+      slots.push({
+        time, occupied: occupiedTimes.has(time) || Boolean(params.occupiedRanges?.some(overlaps)),
+        blocked: Boolean(params.blockedRanges?.some(overlaps)),
+      });
     }
     slotsBySub.push(slots);
     const occupied = slots.filter((s) => s.occupied).length;
-    const total = slots.length;
+    const total = slots.filter((s) => !s.blocked || s.occupied).length;
     const occupancy = total === 0 ? 0 : Math.round((occupied / total) * 100);
     subBlocks.push({
       startTime: toHHMM(r.start),
@@ -106,12 +112,10 @@ export function computeAgendaSlots(params: {
     });
   }
 
-  for (let i = 0; i < subBlocks.length; i++) {
-    if (i === 0) {
-      subBlocks[i].released = true;
-    } else {
-      subBlocks[i].released = subBlocks[i - 1].released && subBlocks[i - 1].occupancy >= settings.triggerPercent;
-    }
+  let chainOpen = true;
+  for (const block of subBlocks) {
+    block.released = chainOpen && block.total > 0;
+    if (block.total > 0) chainOpen = chainOpen && block.occupancy >= settings.triggerPercent;
   }
 
   const outSlots: EngineSlot[] = [];
@@ -125,6 +129,9 @@ export function computeAgendaSlots(params: {
       const dt = new Date(`${date}T${s.time}:00-03:00`);
       if (s.occupied) {
         state = "ocupado";
+      } else if (s.blocked) {
+        state = "bloqueado";
+        reason = "compromisso";
       } else if (dt.getTime() < threshold) {
         state = "bloqueado";
         reason = "antecedencia";

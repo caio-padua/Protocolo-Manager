@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { ensureAgendaIntegrationSchema } from "./lib/agenda-integracao-schema";
+import { startGoogleAgendaSync } from "./lib/agenda-google-sync";
 // startCronJobs migrado para api-worker (Onda 2 — evita duplicação em múltiplas réplicas)
 import { aquecerBannersAnimados } from "./lib/messaging/banner";
 import { ensurePhotoHistoryTable } from "./routes/client-photo.js";
@@ -122,6 +124,7 @@ if (Number.isNaN(port) || port <= 0) {
 
   try {
     await ensureSubstanceBlendsSchema();
+    await ensureAgendaIntegrationSchema();
     logger.info("substance blends: schema e correção segura da ADEK garantidos antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir schema de blends — abortando boot");
@@ -173,6 +176,7 @@ if (Number.isNaN(port) || port <= 0) {
   }
 
   app.listen(port, (err) => {
+    if (!err) startGoogleAgendaSync();
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);

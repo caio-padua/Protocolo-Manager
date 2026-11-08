@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { agendaWriteGuard } from "../lib/agenda-governance";
+import { eq, and, or, isNull, sql, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -8,6 +9,7 @@ import {
   agendaWindowsTable,
   agendaExceptionsTable,
   agendaSettingsTable,
+  locationsTable,
 } from "@workspace/db";
 import {
   computeResourceSlots,
@@ -18,6 +20,7 @@ import {
 
 const router: IRouter = Router();
 router.use(moduleGuard("agenda"));
+router.use(agendaWriteGuard);
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -110,7 +113,7 @@ async function ensureSeed(): Promise<void> {
     // Backfill idempotente do calendario Google por nome do recurso (recursos legados sem vinculo).
     for (const r of DEFAULT_RESOURCES) {
       const match = existing.find((e) => e.name === r.name);
-      if (match && !match.googleCalendarId) {
+      if (match?.active && !match.googleCalendarId) {
         await db.update(agendaResourcesTable)
           .set({ googleCalendarId: r.googleCalendarId })
           .where(eq(agendaResourcesTable.id, match.id));
@@ -132,9 +135,13 @@ async function ensureSettings() {
 }
 
 // ---- Recursos ----
-router.get("/agenda/resources", async (_req, res): Promise<void> => {
+router.get("/agenda/resources", async (req, res): Promise<void> => {
   await ensureSeed();
-  const rows = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.active, true)).orderBy(agendaResourcesTable.sortOrder);
+  const rows = await db.select().from(agendaResourcesTable).where(and(
+    eq(agendaResourcesTable.active, true),
+    inArray(agendaResourcesTable.locationId,db.select({id:locationsTable.id}).from(locationsTable)
+      .where(eq(locationsTable.empresaId,req.tenantContext.empresaId ?? -1))),
+  )).orderBy(agendaResourcesTable.sortOrder);
   res.json(rows);
 });
 
@@ -173,7 +180,10 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Nenhum campo para atualizar" });
     return;
   }
-  const [updated] = await db.update(agendaResourcesTable).set(updates).where(eq(agendaResourcesTable.id, id)).returning();
+  const [updated] = await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
+    return tx.update(agendaResourcesTable).set(updates).where(eq(agendaResourcesTable.id, id)).returning();
+  });
   if (!updated) {
     res.status(404).json({ error: "Recurso não encontrado" });
     return;
@@ -222,9 +232,11 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
     }
   }
 
-  await db.delete(agendaWindowsTable).where(eq(agendaWindowsTable.resourceId, id));
+  await db.transaction(async tx => {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
+  await tx.delete(agendaWindowsTable).where(eq(agendaWindowsTable.resourceId, id));
   if (windows.length > 0) {
-    await db.insert(agendaWindowsTable).values(
+    await tx.insert(agendaWindowsTable).values(
       windows.map((w) => ({
         resourceId: id,
         weekday: w.weekday,
@@ -233,6 +245,7 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
       })),
     );
   }
+  });
   const rows = await db.select().from(agendaWindowsTable).where(eq(agendaWindowsTable.resourceId, id));
   res.json(rows);
 });
@@ -353,6 +366,7 @@ router.post("/agenda/book", async (req, res): Promise<void> => {
     unit: data.unit,
     syncGoogle: data.syncGoogle ?? false,
     simulate: data.simulate ?? false,
+    empresaId: req.tenantContext.empresaId ?? undefined,
   });
   if (!r.ok) {
     res.status(r.status).json({ error: r.error });
@@ -367,7 +381,7 @@ router.delete("/agenda/book/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "id inválido" });
     return;
   }
-  const r = await cancelBooking(id);
+  const r = await cancelBooking(id, req.tenantContext.empresaId ?? -1);
   if (!r.ok) {
     res.status(r.status).json({ error: r.error });
     return;

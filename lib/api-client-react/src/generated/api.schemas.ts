@@ -901,6 +901,114 @@ export interface AgendaSlot {
   subBlockIndex: number;
 }
 
+export interface AgendaProposedWindow {
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  weekday: number;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  startTime: string;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  endTime: string;
+}
+
+export interface AgendaWindowChangeInput {
+  /** @minimum 1 */
+  resourceId: number;
+  /**
+   * @minLength 8
+   * @maxLength 500
+   */
+  reason: string;
+  /** @maxItems 100 */
+  windows: AgendaProposedWindow[];
+}
+
+export type AgendaChangeDecisionInputDecision =
+  (typeof AgendaChangeDecisionInputDecision)[keyof typeof AgendaChangeDecisionInputDecision];
+
+export const AgendaChangeDecisionInputDecision = {
+  aprovar: "aprovar",
+  recusar: "recusar",
+} as const;
+
+export interface AgendaChangeDecisionInput {
+  decision: AgendaChangeDecisionInputDecision;
+}
+
+export interface AgendaPersonalOwnerInput {
+  /** @minimum 1 */
+  locationId: number;
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  professionalId: number | null;
+}
+
+export interface AgendaReadSettingsInput {
+  /** @minimum 1 */
+  locationId: number;
+  enabled: boolean;
+}
+
+export interface AgendaIntegrationCalendar {
+  id: number;
+  name: string;
+  color: string;
+  /** @nullable */
+  role: string | null;
+  /** @nullable */
+  enabled: boolean | null;
+  /** @nullable */
+  lastSuccess: string | null;
+  /** @nullable */
+  lastAttempt: string | null;
+  /** @nullable */
+  error: string | null;
+  /** @nullable */
+  personalOwnerId: number | null;
+  canManage: boolean;
+}
+
+export interface AgendaIntegrationResource {
+  id: number;
+  name: string;
+  locationId: number;
+}
+
+export interface AgendaIntegrationProfessional {
+  id: number;
+  name: string;
+}
+
+export interface AgendaIntegrationState {
+  agendas: AgendaIntegrationCalendar[];
+  professionals: AgendaIntegrationProfessional[];
+  resources: AgendaIntegrationResource[];
+  globalSettingsOwnerOnly: boolean;
+  canManageGlobalSettings: boolean;
+  companyId: number;
+}
+
+export interface AgendaChangeRequest {
+  id: number;
+  resourceId: number;
+  resource: string;
+  reason: string;
+  state: string;
+  windows: AgendaProposedWindow[];
+  createdAt: string;
+  locationId: number;
+  requestedBy: number;
+  canDecide: boolean;
+}
+
+export interface AgendaChangeRequestList {
+  requests: AgendaChangeRequest[];
+}
+
 export interface GoogleAgendaCommitment {
   id: string;
   titulo: string;
@@ -1536,6 +1644,8 @@ export const CreateSessionBodyServiceType = {
 } as const;
 
 export interface CreateSessionBody {
+  /** @minimum 1 */
+  resourceId?: number;
   protocolId: number;
   clientId: number;
   scheduledDate: string;

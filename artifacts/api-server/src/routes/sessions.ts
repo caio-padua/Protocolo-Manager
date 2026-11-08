@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
+import { requireCollaborator } from "./collaborator";
+import { bookSession, rescheduleSession } from "../lib/agenda-booking";
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import {
@@ -193,7 +195,7 @@ router.get("/sessions/:id/ics", async (req, res): Promise<void> => {
   res.send(icsContent);
 });
 
-router.post("/sessions", async (req, res): Promise<void> => {
+router.post("/sessions", requireCollaborator, async (req, res): Promise<void> => {
   const parsed = CreateSessionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -201,8 +203,16 @@ router.post("/sessions", async (req, res): Promise<void> => {
   }
 
   const empresaId = resolveEmpresaId(req);
-  const [session] = await db.insert(sessionsTable).values({ ...parsed.data, empresaId }).returning();
-  const result = await buildSessionResponse(session);
+  if (!parsed.data.resourceId || parsed.data.status !== "scheduled") {
+    res.status(422).json({error:"Uma nova marcação exige agenda e status agendado; utilize o Motor de Agenda."}); return;
+  }
+  const booked = await bookSession({
+    resourceId: parsed.data.resourceId, clientId: parsed.data.clientId,
+    protocolId: parsed.data.protocolId, date: parsed.data.scheduledDate,
+    time: parsed.data.scheduledTime, empresaId, syncGoogle: false,
+  });
+  if (!booked.ok || !booked.session) {res.status(booked.status).json({error:booked.error});return;}
+  const result = await buildSessionResponse(booked.session);
   res.status(201).json(result);
 });
 
@@ -223,7 +233,7 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.put("/sessions/:id", async (req, res): Promise<void> => {
+router.put("/sessions/:id", requireCollaborator, async (req, res): Promise<void> => {
   const params = UpdateSessionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -236,7 +246,27 @@ router.put("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [session] = await db.update(sessionsTable).set(parsed.data).where(eq(sessionsTable.id, params.data.id)).returning();
+  const [existing] = await db.select().from(sessionsTable).where(and(eq(sessionsTable.id,params.data.id),eq(sessionsTable.empresaId,resolveEmpresaId(req))));
+  if (!existing || existing.agendaArchived) {res.status(404).json({error:"Sessão não encontrada."});return;}
+  if (parsed.data.professionalId !== undefined && parsed.data.professionalId !== existing.professionalId) {
+    res.status(422).json({error:"Troca de profissional exige selecionar uma agenda na remarcação."});return;
+  }
+  if (["scheduled","confirmed"].includes(parsed.data.status ?? "") && !["scheduled","confirmed"].includes(existing.status)) {
+    res.status(409).json({error:"Reativação exige nova marcação em uma vaga liberada."});return;
+  }
+  if ((parsed.data.scheduledDate && parsed.data.scheduledDate!==existing.scheduledDate)
+    || (parsed.data.scheduledTime && parsed.data.scheduledTime!==existing.scheduledTime)) {
+    if (!existing.resourceId) {res.status(422).json({error:"Defina uma agenda antes de remarcar."});return;}
+    const moved = await rescheduleSession({sessionId:existing.id,clientId:existing.clientId,
+      resourceId:existing.resourceId,date:parsed.data.scheduledDate??existing.scheduledDate,
+      time:parsed.data.scheduledTime??existing.scheduledTime,syncGoogle:false});
+    if (!moved.ok) {res.status(moved.status).json({error:moved.error});return;}
+  }
+  const {scheduledDate:_date,scheduledTime:_time,...updates} = parsed.data;
+  const whereSession = and(eq(sessionsTable.id, params.data.id),eq(sessionsTable.empresaId,resolveEmpresaId(req)));
+  const [session] = Object.keys(updates).length
+    ? await db.update(sessionsTable).set(updates).where(whereSession).returning()
+    : await db.select().from(sessionsTable).where(whereSession);
   if (!session) {
     res.status(404).json({ error: "Session not found" });
     return;
