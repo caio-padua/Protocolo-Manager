@@ -285,6 +285,69 @@ desenvolvimento, mas isso não corrige a falta de reserva. Um protocolo sugerido
 não equivale a compromisso agendado. O fluxo atual de validação não deve ser
 considerado prova de uma vaga.
 
+### Etapa preparatória: planejamento com datas e vagas fornecidas
+
+Estender o planejamento de datas existente para aceitar, explicitamente, as
+datas consultadas no motor de disponibilidade e a quantidade de aplicações
+que cada vaga comporta. Esta etapa calcula um plano; não reserva, valida,
+envia, nem altera protocolo ou agenda. Não usar o resultado para afirmar que
+houve agendamento.
+
+Cada ocorrência mantém substância, dose, número, data nominal e data proposta.
+A primeira data nunca é antecipada ao início cadastrado. Cada data fica no
+máximo quatro dias antes ou depois da nominal. Entre ocorrências consecutivas
+da mesma substância, o mínimo é o intervalo cadastrado menos quatro dias;
+para intervalos de um a quatro dias o mínimo é o próprio intervalo.
+A capacidade de cada vaga é explícita; uma vaga ausente não é livre presumida.
+Quando há alternativas, preferir agrupar as aplicações no mesmo dia, em
+seguida diminuir visitas e deslocamentos das datas nominais, com ordenação
+estável. Uma busca limitada que não encontra plano deve informar falha, nunca
+afirmar que nenhum plano possível existe. Não rotular a busca limitada como
+otimização global.
+
+Frequências inferiores a sete dias exigem identificação da necessidade de
+confirmar a rotina de múltiplas visitas. Dados e horários preferidos só entram
+quando fornecidos pelo cadastro; nunca pressupor confirmação do cliente.
+Reservar efetivamente e sincronizar só depois da integração transacional,
+da conferência de recursos e participação médica e da revisão independente.
+
+Riscos: antecipar a primeira dose; aproximar doses consecutivas ao deslocar
+duas datas em sentidos opostos; perder ocorrência na consolidação; escolher
+data indisponível; exceder capacidade; usar hora fictícia; truncar busca e
+anunciar inexistência de plano. Testar também frequência de dois dias, mês e
+ano novos, ausência de vagas, empates, mudança da ordem dos itens e duas
+opções na mesma data. Nenhum dado clínico real é usado nesses testes.
+
+A revisão independente identificou risco de poda de uma alternativa viável e
+de consumo excessivo de recursos. Resolução: reduzir opções equivalentes sem
+perder a melhor preferência, limitar as expansões e os sucessores, e sinalizar
+explicitamente quando o limite da busca impedir uma conclusão. O resultado
+permanece uma proposta não reservada que exige avaliação clínica,
+compatibilidade, restrições prescritas e recursos verificados antes de uso.
+Qualquer semana com duas ou mais visitas exige confirmação da rotina, não só
+as semanas que tenham uma substância de frequência inferior a sete dias.
+Uma consulta autorizada e somente de leitura das vagas disponíveis para o
+protocolo solicitado atingiu o limite de busca. Ajustar o tamanho do feixe
+conforme o número de opções e manter os melhores estados em memória limitada;
+o cálculo continua sem garantia de ótimo global e falha de forma explícita
+quando a limitação impedir uma conclusão.
+
+Restrições por substância: o chamador pode informar dias da semana e uma lista
+explícita de datas autorizadas; quando ambos são fornecidos, respeitar os dois.
+Lista vazia significa nenhuma data autorizada, não ausência de restrição.
+Quando houver data comprovada de aplicação anterior, usar o intervalo mínimo
+também entre essa aplicação e a primeira ocorrência planejada. A ausência da
+data não comprova ausência de histórico. Não supor a autorização clínica ou
+o histórico pela mera presença de um parâmetro.
+
+Verificar uma poda progressiva com solução existente, limites de busca e um
+conjunto autorizado de sábados alternados, inclusive virada de ano. A origem
+das restrições, a compatibilidade, a confirmação da rotina, o fuso do horário e
+o vínculo dos recursos permanecem bloqueadores da integração com reservas.
+Limitar o número total de datas informadas nas restrições e preparar os
+conjuntos uma vez por substância, para não multiplicar o trabalho por
+ocorrência. Os limites de expansão não são garantia de tempo de resposta.
+
 ### Requisitos e dependências
 
 1. O mesmo fluxo de validação deve reservar o recurso de enfermagem correto

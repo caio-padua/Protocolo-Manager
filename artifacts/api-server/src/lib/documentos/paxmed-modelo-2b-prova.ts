@@ -87,6 +87,7 @@ function imagemContida(page: PDFPage, image: PDFImage, x: number, y: number, wid
 
 export function desenharCabecalhoProva(
   page: PDFPage, visual: VisualProva, font: PDFFont, bold: PDFFont, titulo: string, subtitulo: string,
+  demonstracao = true,
 ): number {
   garantirA4(page);
   const title = titulo.trim();
@@ -107,12 +108,17 @@ export function desenharCabecalhoProva(
   }
   page.drawText(title, { x: mm(96.2), y: HEIGHT - mm(21), font: bold, size: 14.6, color: rgb(247 / 255, 217 / 255, 148 / 255) });
   page.drawText(subtitle, { x: mm(96.2), y: HEIGHT - mm(29), font, size: 8.95, color: rgb(245 / 255, 240 / 255, 232 / 255) });
-  const notice = "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA";
-  page.drawText(notice, { x: mm(13), y: HEIGHT - mm(50), font: bold, size: 9, color: rgb(0.65, 0.08, 0.08) });
+  if (demonstracao) {
+    const notice = "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA";
+    page.drawText(notice, { x: mm(13), y: HEIGHT - mm(50), font: bold, size: 9, color: rgb(0.65, 0.08, 0.08) });
+  }
   return HEIGHT - mm(59);
 }
 
-export function carimbarRodapesProva(doc: PDFDocument, visual: VisualProva, font: PDFFont): void {
+function carimbarRodapes(
+  doc: PDFDocument, visual: VisualProva, font: PDFFont,
+  modo: { tipo: "prova" } | { tipo: "clinico"; qr: PDFImage | null },
+): void {
   const pages = doc.getPages();
   if (!pages.length) throw new Error("Documento de prova sem páginas.");
   pages.forEach((page, index) => {
@@ -133,14 +139,29 @@ export function carimbarRodapesProva(doc: PDFDocument, visual: VisualProva, font
     central(visual.identidade?.rodapeLinha3 ?? "CEP.: 03416-050 - São Paulo - SP", bottom + mm(7.15), 7.65, font);
     const qrX = mm(199 - 18.3);
     const textRight = qrX - mm(1.6);
-    ["Documento de teste", "Sem verificação", `Página ${index + 1} de ${pages.length}`].forEach((text, i) => {
+    const textos = modo.tipo === "prova"
+      ? ["Documento de teste", "Sem verificação", `Página ${index + 1} de ${pages.length}`]
+      : [modo.qr ? "Acesso com login" : "Sem assinatura digital", `Página ${index + 1} de ${pages.length}`];
+    textos.forEach((text, i) => {
       const width = font.widthOfTextAtSize(text, 7.9);
       if (textRight - width < mm(139.64)) throw new Error("Texto da prova invade o espaço central.");
       page.drawText(text, { x: textRight - width, y: bottom + mm(16 - i * 4.7), size: 7.9, font, color: INK });
     });
-    // A prova não contém QR: a URL de documento ainda não está implementada.
-    page.drawRectangle({ x: qrX, y: bottom + mm(2.45), width: mm(18.3), height: mm(18.3), borderColor: INK, borderWidth: 0.5 });
-    page.drawText("SEM QR", { x: qrX + mm(2), y: bottom + mm(11), size: 6, font, color: INK });
-    page.drawText("DE TESTE", { x: qrX + mm(2), y: bottom + mm(8), size: 5.5, font, color: INK });
+    if (modo.tipo === "prova") {
+      page.drawRectangle({ x: qrX, y: bottom + mm(2.45), width: mm(18.3), height: mm(18.3), borderColor: INK, borderWidth: 0.5 });
+      page.drawText("SEM QR", { x: qrX + mm(2), y: bottom + mm(11), size: 6, font, color: INK });
+      page.drawText("DE TESTE", { x: qrX + mm(2), y: bottom + mm(8), size: 5.5, font, color: INK });
+    } else if (modo.qr) {
+      page.drawImage(modo.qr, { x: qrX, y: bottom + mm(2.45), width: mm(18.3), height: mm(18.3) });
+    }
   });
+}
+
+export function carimbarRodapesProva(doc: PDFDocument, visual: VisualProva, font: PDFFont): void {
+  carimbarRodapes(doc, visual, font, { tipo: "prova" });
+}
+
+export function carimbarRodapesClinicos(doc: PDFDocument, visual: VisualProva, font: PDFFont, qr: PDFImage | null): void {
+  if (!visual.identidade || !visual.simboloEmpresa) throw new Error("Identidade empresarial obrigatória.");
+  carimbarRodapes(doc, visual, font, { tipo: "clinico", qr });
 }

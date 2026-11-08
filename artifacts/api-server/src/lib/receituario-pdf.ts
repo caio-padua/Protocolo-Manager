@@ -11,7 +11,7 @@ import { marcarDemonstracao } from "./documentos/marca-demonstracao";
 import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
-import { PAXMED_LIMITE_CONTEUDO, prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva } from "./documentos/paxmed-modelo-2b-prova";
+import { PAXMED_LIMITE_CONTEUDO, prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva, carimbarRodapesClinicos } from "./documentos/paxmed-modelo-2b-prova";
 import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
@@ -415,6 +415,7 @@ export interface ReceituarioDataV2 {
   /** Exclusivo para testes sintéticos offline; não autoriza emissão clínica. */
   modelo2bProva?: boolean;
   identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
+  identidade2bClinica?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
 
   // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
@@ -450,8 +451,12 @@ export async function generatePdfFromPngBase64(
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
   if ((data.modelo2bProva && (!data.homologacao || process.env.NODE_ENV === "production")) ||
-      (data.identidade2bProva && !data.modelo2bProva)) {
+      (data.identidade2bProva && !data.modelo2bProva) ||
+      (data.identidade2bClinica && (data.modelo2bProva || data.homologacao))) {
     throw new Error("Modelo 2B de prova exige homologação sintética fora de produção.");
+  }
+  if (data.identidade2bClinica && signer && !data.consultaUrl) {
+    throw new Error("A receita assinada exige endereço de acesso protegido.");
   }
   if (signer) assertPrescriptionSigner(signer);
   else if (data.assinaturaDigitalEstado !== "sem_certificado_vencido") {
@@ -459,7 +464,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
   const designer = data.designerConfig ?? {};
   const pdfDoc   = await PDFDocument.create();
-  const visualProva = data.modelo2bProva ? await prepararVisualProva(pdfDoc, data.identidade2bProva) : null;
+  const visualProva = data.modelo2bProva || data.identidade2bClinica
+    ? await prepararVisualProva(pdfDoc, data.identidade2bClinica ?? data.identidade2bProva) : null;
   const fonteProva = visualProva ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
   const fonteProvaNegrito = visualProva ? await pdfDoc.embedFont(StandardFonts.HelveticaBold) : null;
   const titleSerif = configuredFontFamily(designer["corpoFonteTitulo"]) === "serif";
@@ -808,7 +814,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     page = pdfDoc.addPage([PAGE_W, PAGE_H]);
     if (visualProva && fonteProva && fonteProvaNegrito) {
       y = desenharCabecalhoProva(page, visualProva, fonteProva, fonteProvaNegrito,
-        "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS");
+        "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS", !data.identidade2bClinica);
       return;
     }
     y = PAGE_H - M;
@@ -845,7 +851,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     ? designer["linhaEstiloCabecalho"] : "simples") as "simples" | "dupla" | "ornamentada";
   if (visualProva && fonteProva && fonteProvaNegrito) {
     y = desenharCabecalhoProva(page, visualProva, fonteProva, fonteProvaNegrito,
-      "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS");
+      "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS", !data.identidade2bClinica);
   } else {
   y = PAGE_H - M;
 
@@ -1186,7 +1192,10 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // 7. RODAPÉ da última página + numeração "Página i de n" quando há mais de uma
   // ══════════════════════════════════════════════════════════════════════════
   drawFooter();
-  if (visualProva && fonteProva) carimbarRodapesProva(pdfDoc, visualProva, fonteProva);
+  if (visualProva && fonteProva) {
+    if (data.identidade2bClinica) carimbarRodapesClinicos(pdfDoc, visualProva, fonteProva, certQrImg);
+    else carimbarRodapesProva(pdfDoc, visualProva, fonteProva);
+  }
   const allPages = pdfDoc.getPages();
   if (!visualProva && allPages.length > 1) {
     // Cada página carrega sua própria identificação: nº da receita, paciente,
