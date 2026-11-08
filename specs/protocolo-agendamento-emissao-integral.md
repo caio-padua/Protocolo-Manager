@@ -21,9 +21,11 @@ disponibilidade. O responsável deseja autonomia para reunir aplicações, sem
 solicitar aprovação a cada ajuste. Direção proposta: permitir ajustes automáticos
 dentro de limites clínicos autorizados previamente, registrar a data original,
 a data escolhida e o motivo, e não modificar intervalos silenciosamente.
-Os limites numéricos e sua origem ainda não foram definidos: não inventá-los.
-Na ausência de limite autorizado ou diante de conflito clínico, apresentar o
-caso para decisão; não confirmar uma mudança por presunção.
+O responsável escolheu uma margem máxima de quatro dias antes ou quatro dias
+depois da data prevista para planejamento. Essa margem não define, por si só,
+os limites clínicos do intervalo real entre aplicações consecutivas. Na ausência
+de limites clínicos autorizados ou diante de conflito, apresentar o caso para
+decisão; não confirmar uma mudança por presunção.
 
 Para novas marcações, unificar os caminhos divergentes de geração de visitas
 em uma política consolidada, capaz também de preservar frequências menores que
@@ -68,6 +70,7 @@ correta, sem inventar dados, antes de afirmar equivalência entre telas.
 O responsável solicitou avaliar até cinco dias antes ou depois para facilitar
 a reunião das aplicações. Isto não estabelece, por si só, um intervalo mínimo
 seguro entre doses nem homologa uma margem para qualquer substância.
+Após a comparação, escolheu quatro dias para cada lado como teto de planejamento.
 
 Experimento sintético isolado: frequências de 7, 15, 21, 10 e 40 dias; primeira
 aplicação preservada; dia semanal fixo e disponível; horizonte do dia zero ao
@@ -91,6 +94,8 @@ visita que três não alcançariam. Isso não demonstra viabilidade clínica.
 No exemplo de doses previstas nos dias 15 e 30, deslocá-las para 20 e 25
 respeita cinco dias de margem, mas deixa apenas cinco dias entre aplicações:
 o intervalo entre doses consecutivas exige uma regra clínica independente.
+Com a margem escolhida de quatro dias, deslocar as mesmas datas para os dias
+19 e 26 também respeita a margem, mas deixa apenas sete dias entre aplicações.
 Desvios acumulados, início individual, compatibilidade, histórico real de
 aplicação e duração também precisam de verificação; não inferi-los da margem.
 

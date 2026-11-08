@@ -53,6 +53,15 @@ objetivo da agenda.
 autorizados previamente; não presumir qual margem é segura quando não houver
 uma definida.
 
+Para agrupar aplicações, o responsável escolheu margem de planejamento de até
+quatro dias antes ou depois da data prevista.
+
+**Why:** deseja reduzir visitas desnecessárias mantendo autonomia para o sistema.
+
+**How to apply:** respeitar o teto escolhido e conferir separadamente limites
+clínicos entre aplicações consecutivas; quatro dias de margem por data não
+definem por si só um intervalo mínimo seguro.
+
 O responsável pediu uma única regra de agendamento dos injetáveis e uma única
 fonte das informações do compromisso; regras concorrentes devem ser
 aposentadas após a preservação dos registros existentes.
