@@ -63,6 +63,43 @@ por tipo. Não assumir que esses valores correspondem ao local ou à duração
 real. Situações, duração, contatos, calendário e endereço devem vir da fonte
 correta, sem inventar dados, antes de afirmar equivalência entre telas.
 
+### Análise da margem solicitada pelo responsável
+
+O responsável solicitou avaliar até cinco dias antes ou depois para facilitar
+a reunião das aplicações. Isto não estabelece, por si só, um intervalo mínimo
+seguro entre doses nem homologa uma margem para qualquer substância.
+
+Experimento sintético isolado: frequências de 7, 15, 21, 10 e 40 dias; primeira
+aplicação preservada; dia semanal fixo e disponível; horizonte do dia zero ao
+dia 84, inclusive; demais aplicações movidas à visita semanal mais próxima
+dentro da margem ou mantidas no dia previsto. Não foram usados dados reais,
+indisponibilidade, duração, interações ou restrições clínicas.
+
+| Margem em dias | Visitas com início comum | Média em 2.401 variações de início |
+|---|---:|---:|
+| 0 | 23 | 29,437 |
+| 1 | 20 | 24,921 |
+| 2 | 17 | 20,405 |
+| 3 | 13 | 15,761 |
+| 4 | 13 | 15,761 |
+| 5 | 13 | 15,761 |
+
+Nesta estratégia de dia semanal fixo, cinco não supera três porque cada data
+tem uma visita a no máximo três dias; primeiras aplicações permanecem fixas.
+Se uma visita não estiver disponível, quatro ou cinco podem alcançar outra
+visita que três não alcançariam. Isso não demonstra viabilidade clínica.
+No exemplo de doses previstas nos dias 15 e 30, deslocá-las para 20 e 25
+respeita cinco dias de margem, mas deixa apenas cinco dias entre aplicações:
+o intervalo entre doses consecutivas exige uma regra clínica independente.
+Desvios acumulados, início individual, compatibilidade, histórico real de
+aplicação e duração também precisam de verificação; não inferi-los da margem.
+
+A grade semanal existente reúne quatro aplicações a cada dois dias em uma
+única linha; o caminho de datas exatas gera quatro datas. Isto demonstra uma
+divergência que deve ser corrigida antes de homologar a regra. Os testes
+documentam essa diferença; não comprovam que o agendamento atual a corrige.
+Ver `artifacts/api-server/src/tests/protocol-tolerance-analysis.test.ts`.
+
 ### Verificação necessária para esta direção
 
 1. Inícios individuais, contagem e intervalos diferentes, inclusive dois em
