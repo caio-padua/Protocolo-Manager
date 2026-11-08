@@ -237,7 +237,6 @@ const navigation: NavEntry[] = [
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
       { name: "Médico Responsável", href: "/configuracoes/medico", icon: Stethoscope },
       { name: "Perfil do Administrador", href: "/professionals?selfAccess=1", icon: UserRound },
-      { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
       { name: "Modelo de Receituários", href: "/modelo-receituario", icon: LayoutTemplate },
       { name: "Vitrine (Pública)", href: "/vitrine", icon: Sparkles },
     ],

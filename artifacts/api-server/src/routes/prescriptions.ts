@@ -13,7 +13,7 @@ import {
   catalogoItensTable,
   catalogoFormulasTable,
 } from "@workspace/db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, or } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { registrarErroSistema } from "../lib/system-error-log";
 import { PreviewPrescriptionBody, EmitPrescriptionBody } from "@workspace/api-zod";
@@ -29,7 +29,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { baseUrlFromEnv } from "../lib/messaging/base-url";
 import QRCode from "qrcode";
 // ── MOTOR ÚNICO: cópia visual para o paciente (além do PDF regulatório M3) ──
-import { emitirReceituarioPdf } from "../lib/receituario-motor.js";
+import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError, type IdentidadeClinica2b } from "../lib/documentos/paxmed-2b-identidade-clinica";
 // ── Motor de lembretes por período (portado do IHE) ──
 import { sincronizarLembretePrescricao } from "../lib/lembrete-periodo";
 import { mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
@@ -53,6 +53,8 @@ router.use(moduleGuard("protocolos"));
 router.use(deliveryRouter);
 
 const QR_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+export const protectedRecipeHash = (token: string) =>
+  createHash("sha256").update(`receita-protegida:${token}`, "utf8").digest("hex");
 
 function todayBR(): string {
   return brtISODate();
@@ -277,6 +279,16 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 
   // Validates the patient before any prescription record is written.
   const empresaId = identity.clinic.empresaId;
+  let identidade2bClinica: IdentidadeClinica2b;
+  try {
+    identidade2bClinica = await carregarIdentidadeClinica2b(empresaId);
+  } catch (error) {
+    if (error instanceof IdentidadeEmpresa2bError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
   const resolvedClientId = await resolvePrescriptionClient(body, empresaId);
   if (resolvedClientId === null) {
     res.status(422).json({
@@ -355,6 +367,18 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
   // Mapa de farmácias para nome/tipo.
   const pharmRows = await db.select().from(pharmaciesTable);
   const pharmMap = new Map(pharmRows.map((p) => [p.id, p]));
+
+  let publicBase: URL;
+  try {
+    publicBase = new URL(baseUrlFromEnv());
+    if (!["https:", "http:"].includes(publicBase.protocol) ||
+        (publicBase.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(publicBase.hostname))) {
+      throw new Error("Endereço inválido");
+    }
+  } catch {
+    res.status(503).json({ error: "Não foi possível montar o endereço protegido da receita. Verifique o domínio do ambiente." });
+    return;
+  }
 
   let transactionResult: Awaited<ReturnType<typeof runPrescriptionTransaction>>;
   async function runPrescriptionTransaction() {
@@ -444,21 +468,9 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     // 2b) Gera o PDF do modelo ativo, com QR apontando para a cópia exata.
     const pharmacy = plan.pharmacyId != null ? pharmMap.get(plan.pharmacyId) : undefined;
     const qrToken = randomBytes(32).toString("base64url");
-    const qrTokenHash = createHash("sha256").update(qrToken, "utf8").digest("hex");
+    const qrTokenHash = protectedRecipeHash(qrToken);
     const qrExpiresAt = new Date(Date.now() + QR_LIFETIME_MS);
-    const publicBaseUrl = baseUrlFromEnv();
-    let qrUrl: string;
-    try {
-      const parsedBase = new URL(publicBaseUrl);
-      if (!["https:", "http:"].includes(parsedBase.protocol) ||
-          (parsedBase.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(parsedBase.hostname))) {
-        throw new Error("A URL pública precisa usar HTTPS.");
-      }
-      qrUrl = new URL(`/api/recipes/share/${qrToken}`, parsedBase).toString();
-    } catch {
-      res.status(503).json({ error: "Não foi possível montar o QR público da receita. Verifique o domínio do ambiente." });
-      return;
-    }
+    const qrUrl = new URL(`/documento-clinico-receita/${qrToken}`, publicBase).toString();
     const pdfBytes = await generateReceituarioPdfV2({
       medicoName: identity.professional.name,
       medicoCrm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / "),
@@ -487,6 +499,7 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       farmaciaTipo: pharmacy?.type ?? null,
       assinaturaImagem,
       designerConfig,
+      identidade2bClinica,
       rodapeLinhas: [
         clinicRecord?.name ?? identity.clinic.name,
         clinicRecord?.address ?? "",
@@ -642,49 +655,8 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     tipoMotor: string;
   } | null = null;
 
-  if (!approval && signatureStatus === "signed") {
-    try {
-      // Consolida todos os itens da prescrição para o motor único (ignora desmembramento —
-      // o paciente recebe UMA receita visual completa com todas as substâncias).
-      const formulasParaMotor = items.map((it) => ({
-        nome:      it.name,
-        ativos:    it.ativos ?? undefined,
-        posologia: it.posologia ?? "",
-        via:       it.via ?? undefined,
-        forma:     it.observacao ?? undefined,
-        dose:      it.dose ?? undefined,
-      }));
-
-      // Generation only: email is a separate confirmed delivery action.
-      const emailDestinatarios: string[] = [];
-      const motorResult = await emitirReceituarioPdf({
-        identity,
-        medicoId: identity.professional.id,
-        clinicaId: identity.clinic.id,
-        patient: {
-          nome:          body.clientName,
-          cpf:           body.clientCpf ?? undefined,
-          telefone:      body.clientPhone ?? undefined,
-          email:         body.clientEmail ?? undefined,
-        },
-        formulas:    formulasParaMotor,
-        tipoReceita: "especial",
-        emailTo:     emailDestinatarios,
-      });
-
-      pacientePdfMotorUnico = {
-        fileName:    motorResult.fileName,
-        driveUrl:    motorResult.driveUrl,
-        emailSent:   motorResult.emailSent,
-        modeloUsado: motorResult.modeloUsado,
-        tipoMotor:   motorResult.tipoMotor,
-      };
-      req.log.info({ fileName: motorResult.fileName, tipoMotor: motorResult.tipoMotor }, "prescriptions/emit: cópia motor único gerada para o paciente");
-    } catch (motorErr) {
-      // Falha na cópia visual NÃO cancela a emissão regulatória M3
-      req.log.warn({ err: motorErr instanceof Error ? motorErr.message : String(motorErr) }, "prescriptions/emit: motor único falhou — receita M3 regulatória intacta");
-    }
-  }
+  // A cópia alternativa foi suspensa: era outro documento, com modelo distinto.
+  // As receitas persistidas acima são a fonte de verdade para consulta e entrega.
 
   // Entregas são ações separadas, confirmadas por destinatário.
   const pharmacyDispatches: Array<{
@@ -713,6 +685,41 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
 });
 
 // PDF binário (fora do OpenAPI — acesso direto por link).
+router.get("/recipes/secure/:token", requireCollaborator, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const token = typeof req.params.token === "string" ? req.params.token : "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    res.status(404).json({ error: "Documento indisponível." }); return;
+  }
+  const hash = protectedRecipeHash(token);
+  const legacyHash = createHash("sha256").update(token, "utf8").digest("hex");
+  const matches = await db.select().from(recipesTable).where(or(
+    eq(recipesTable.qrTokenHash, hash), eq(recipesTable.qrTokenHash, legacyHash),
+  )).limit(2);
+  const recipe = matches.length === 1 ? matches[0] : undefined;
+  if (!recipe || recipe.status !== "generated" || !recipe.pdfData || !recipe.qrPdfSha256 ||
+      !recipe.qrExpiresAt || recipe.qrExpiresAt.getTime() <= Date.now()) {
+    res.status(404).json({ error: "Documento indisponível." }); return;
+  }
+  try {
+    const { pres, identity } = await authorizedPrescription(req, recipe.prescriptionId);
+    if (pres.status !== "emitted" || pres.signatureStatus !== "signed" ||
+        pres.professionalId !== identity.professional.id) {
+      res.status(404).json({ error: "Documento indisponível." }); return;
+    }
+    const bytes = Buffer.from(recipe.pdfData, "base64");
+    if (!bytes.length || createHash("sha256").update(bytes).digest("hex") !== recipe.qrPdfSha256) {
+      res.status(404).json({ error: "Documento indisponível." }); return;
+    }
+    res.type("application/pdf").send(bytes);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
+      res.status(404).json({ error: "Documento indisponível." }); return;
+    }
+    throw error;
+  }
+});
+
 router.get("/recipes/:id/pdf", requireCollaborator, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {

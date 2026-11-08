@@ -43,18 +43,17 @@ export async function prepararVisualProva(
 ): Promise<VisualProva> {
   let headerBytes = asset("header-instituto-padua-textfree.png");
   if (custom) {
-    // A arte fornecida traz o nome e símbolo do Instituto impressos. Na prova
-    // empresarial, cobrir somente essa área com amostras do mesmo tecido azul.
-    // É uma aproximação para teste, não a arte aprovada para emissão clínica.
+    // A arte fornecida contém a marca do Instituto. Substituir integralmente a
+    // área que contém essa marca por tecido neutro, sem misturar os pixels
+    // originais; a moldura e a parte direita da arte permanecem intactas.
     const image = PNG.sync.read(Buffer.from(headerBytes));
     if (image.width !== 977 || image.height !== 157) throw new Error("Dimensões inesperadas da arte de prova.");
-    for (let y = 18; y < 145; y++) {
-      for (let x = 32; x < 410; x++) {
-        const from = (y * image.width + 480 + ((x - 32) % 270)) * 4;
+    for (let y = 14; y < 145; y++) {
+      for (let x = 18; x < 410; x++) {
+        const from = (y * image.width + 480 + ((x - 18) % 270)) * 4;
         const to = (y * image.width + x) * 4;
-        const blend = Math.min(1, (x - 32) / 12, (409 - x) / 12, (y - 18) / 12, (144 - y) / 12);
         for (let channel = 0; channel < 3; channel++) {
-          image.data[to + channel] = Math.round(image.data[to + channel] * (1 - blend) + image.data[from + channel] * blend);
+          image.data[to + channel] = image.data[from + channel];
         }
       }
     }

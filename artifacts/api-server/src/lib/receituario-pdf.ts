@@ -4,6 +4,8 @@
  */
 import { readFileSync } from "fs";
 import { join, resolve } from "path";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
@@ -663,10 +665,18 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     arabImg = await embedDesignerImage(pdfDoc, customBand["dataUrl"]) as typeof arabImg;
     if (!arabImg) throw new Error("A faixa personalizada selecionada não contém uma imagem válida.");
   } else if (ARAB_IDS.includes(bandId)) {
-    const buf = readFileSync(join(
-      "/home/runner/workspace/artifacts/padcom/public/assets/arabesques",
-      `${bandId}.png`,
-    ));
+    const currentDir = dirname(fileURLToPath(import.meta.url));
+    const candidates = [
+      join(currentDir, "assets", "arabesques", `${bandId}.png`),
+      resolve(currentDir, "../../../padcom/public/assets/arabesques", `${bandId}.png`),
+    ];
+    let buf: Buffer | undefined;
+    for (const candidate of candidates) {
+      try { buf = readFileSync(candidate); break; } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+    if (!buf) throw new Error("Faixa do receituário não encontrada nos recursos do servidor.");
     arabImg = await pdfDoc.embedPng(buf);
   } else {
     throw new Error("A faixa selecionada não existe no modelo ativo do receituário.");

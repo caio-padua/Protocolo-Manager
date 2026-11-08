@@ -132,6 +132,9 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   // are read at runtime from `${__dirname}/assets`. esbuild does not bundle binary
   // assets, and the bundled __dirname resolves to `dist`, so copy assets -> dist/assets.
   await cp(path.resolve(artifactDir, "assets"), path.resolve(distDir, "assets"), { recursive: true });
+  // As faixas internas acompanham o pacote em execução, inclusive fora do Replit.
+  await cp(path.resolve(artifactDir, "../padcom/public/assets/arabesques"),
+    path.resolve(distDir, "assets/arabesques"), { recursive: true });
 }
 
 buildAll().catch((err) => {

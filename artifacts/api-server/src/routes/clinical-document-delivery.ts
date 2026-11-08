@@ -534,7 +534,7 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
   res.send(bytes);
 });
 
-// QR impresso na receita: token aleatório, acesso direto ao PDF e validade curta.
+// Códigos impressos anteriormente continuam reconhecidos, mas exigem login.
 publicRouter.get("/recipes/share/:token", async (req, res) => {
   noStore(res);
   const token = req.params.token ?? "";
@@ -542,38 +542,7 @@ publicRouter.get("/recipes/share/:token", async (req, res) => {
     res.status(404).send("Documento indisponível.");
     return;
   }
-  const [recipe] = await db.select({
-    id: recipesTable.id,
-    prescriptionId: recipesTable.prescriptionId,
-    fileName: recipesTable.fileName,
-    pdfData: recipesTable.pdfData,
-    status: recipesTable.status,
-    qrExpiresAt: recipesTable.qrExpiresAt,
-    qrPdfSha256: recipesTable.qrPdfSha256,
-  }).from(recipesTable).where(eq(recipesTable.qrTokenHash, hashToken(token))).limit(1);
-  if (!recipe || recipe.status !== "generated" || !recipe.pdfData ||
-      !recipe.qrExpiresAt || recipe.qrExpiresAt.getTime() <= Date.now() ||
-      !recipe.qrPdfSha256) {
-    res.status(404).send("Documento indisponível.");
-    return;
-  }
-  const [prescription] = await db.select({
-    status: prescriptionsTable.status,
-    signatureStatus: prescriptionsTable.signatureStatus,
-  }).from(prescriptionsTable).where(eq(prescriptionsTable.id, recipe.prescriptionId)).limit(1);
-  if (!prescription || prescription.status !== "emitted" || prescription.signatureStatus !== "signed") {
-    res.status(404).send("Documento indisponível.");
-    return;
-  }
-  const bytes = Buffer.from(recipe.pdfData, "base64");
-  if (!bytes.length || createHash("sha256").update(bytes).digest("hex") !== recipe.qrPdfSha256) {
-    req.log?.error({ recipeId: recipe.id }, "QR de receita bloqueado: resumo do PDF diverge");
-    res.status(404).send("Documento indisponível.");
-    return;
-  }
-  res.type("application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${safeFilename(recipe.fileName ?? "receita.pdf")}"`);
-  res.send(bytes);
+  res.redirect(302, `/documento-clinico-receita/${token}`);
 });
 
 export { publicRouter as clinicalDocumentShareRouter };

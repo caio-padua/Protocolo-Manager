@@ -87,10 +87,25 @@ vi.mock("../lib/receituario-pdf", async (importOriginal) => {
       if (mock.failOnRecipePdfCall === mock.recipePdfCallCount) {
         throw new Error("Falha sintética na geração do PDF");
       }
+      if (mock.useHomologationNotice && args[0].identidade2bClinica) {
+        const { identidade2bClinica, ...data } = args[0];
+        return mock.realReceituarioPdf({
+          ...data, homologacao: true, modelo2bProva: true, identidade2bProva: identidade2bClinica,
+        }, args[1]);
+      }
       return mock.realReceituarioPdf(...args);
     },
   };
 });
+vi.mock("../lib/documentos/paxmed-2b-identidade-clinica", async (original) => ({
+  ...await original<typeof import("../lib/documentos/paxmed-2b-identidade-clinica")>(),
+  carregarIdentidadeClinica2b: async (empresaId: number) => ({
+    empresaId,
+    textos: { nomeCabecalho: "Empresa Sintética", rodapeLinha1: "Empresa Sintética",
+      rodapeLinha2: "Rua Sintética, 1", rodapeLinha3: "Cidade Sintética" },
+    simboloDourado: readFileSync(new URL("../../assets/paxmed-modelo-2b/paxmed-simbolo-ouro-transparente.png", import.meta.url)),
+  }),
+}));
 vi.mock("../lib/secure-settings", () => ({ getJsonSetting: mock.getJson, getSecret: mock.getSecret }));
 vi.mock("../lib/clinical-demonstration-store", async (importOriginal) => {
   const original = await importOriginal<typeof import("../lib/clinical-demonstration-store")>();
@@ -597,6 +612,39 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     verify(signed);
     const reloaded = await PDFDocument.load(signed);
     expect(reloaded.getPageCount()).toBeGreaterThan(1);
+  });
+  it("aplica a apresentação clínica em páginas assinadas sem avisos de demonstração", async () => {
+    const signer = validatePrescriptionCertificate(pfx, password, identity);
+    const marca = readFileSync(new URL("../../assets/paxmed-modelo-2b/paxmed-simbolo-ouro-transparente.png", import.meta.url));
+    const formulas = Array.from({ length: 12 }, (_, i) => ({
+      nome: `FORMULA SINTETICA ${i + 1}`, ativos: "CONTEUDO FICTICIO\nSEM SUBSTANCIA",
+      posologia: "NAO UTILIZAR",
+    }));
+    const pdf = await generateReceituarioPdfV2({
+      medicoName: identity.professional.name, medicoCrm: "CRM/SP 12345", clinicaNome: identity.clinic.name,
+      pacienteNome: identity.client.name, formulas, dataEmissao: "2026-10-29",
+      consultaUrl: `https://test.invalid/documento-clinico-receita/${"a".repeat(43)}`,
+      identidade2bClinica: {
+        textos: { nomeCabecalho: "Empresa Sintética", rodapeLinha1: "Empresa Sintética",
+          rodapeLinha2: "Rua Sintética, 1", rodapeLinha3: "Cidade Sintética" },
+        simboloDourado: marca,
+      },
+    }, signer);
+    verify(pdf);
+    const doc = await PDFDocument.load(pdf);
+    expect(doc.getPageCount()).toBeGreaterThan(1);
+    const dir = mkdtempSync(join(tmpdir(), "paxter-receita-clinica-"));
+    try {
+      const path = join(dir, "sintetica.pdf");
+      writeFileSync(path, pdf);
+      if (process.env.PAXTER_RENDER_RECIPE_TEST === "1") writeFileSync("/tmp/paxter-receita-sintetica.pdf", pdf);
+      const text = execFileSync("pdftotext", [path, "-"], { encoding: "utf8" });
+      expect(text).toContain("PRESCRIÇÃO MÉDICA");
+      expect(text).toContain("Acesso com login");
+      expect(text).not.toContain("DOCUMENTO DE TESTE");
+      expect(text).not.toContain("SEM QR");
+      expect(text).toContain("FORMULA SINTETICA 12");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("marca todas as páginas das demonstrações sintéticas antes de assiná-las", async () => {
     const signer = validatePrescriptionCertificate(pfx, password, identity);
@@ -1132,8 +1180,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
       expect(mock.email).not.toHaveBeenCalled();
       expect(mock.upload).not.toHaveBeenCalled();
       expect(mock.sendPaxter).not.toHaveBeenCalled();
-      expect(mock.motor).toHaveBeenCalledTimes(6);
-      expect(mock.motor.mock.calls.every(([args]) => args.emailTo.length === 0)).toBe(true);
+      expect(mock.motor).not.toHaveBeenCalled();
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

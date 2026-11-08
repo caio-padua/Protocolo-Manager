@@ -74,6 +74,7 @@ import FinanceiroNfse from "@/pages/financeiro/nfse";
 import FinanceiroBancos from "@/pages/financeiro/bancos";
 import FinanceiroTransferencias from "@/pages/financeiro/transferencias";
 import { CollaboratorGate } from "@/components/CollaboratorGate";
+import ReceitaProtegida from "@/pages/documento-clinico-protegido/ReceitaProtegida";
 import { registerCollabTokenGetter } from "@/lib/collab-auth";
 import LoginPage from "@/pages/login";
 import Portal from "@/pages/portal";
@@ -162,6 +163,9 @@ function Router() {
       <Route path="/login/google-link-return" component={GoogleLinkReturnPage} />
       <Route path="/portal"><Redirect to="/area" replace /></Route>
       <Route path="/consulta-receituario" component={ConsultaReceituario} />
+      <Route path="/documento-clinico-receita/:token">
+        <CollaboratorGate><ReceitaProtegida /></CollaboratorGate>
+      </Route>
       <Route path="/foto" component={Foto} />
       <Route path="/cadastro" component={Cadastro} />
       <Route path="/agendar/status/:id" component={AgendarStatus} />

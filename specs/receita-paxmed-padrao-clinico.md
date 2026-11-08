@@ -37,6 +37,15 @@ regulatórias.
 | Perda de funcionalidades | Preservar histórico, editor e configurações; não alterar cálculo clínico ou desmembramento. |
 | Cópia antiga contradiz modelo novo | Suspender a geração automática dessa cópia, não apagar as anteriores. |
 
+## Descobertas da revisão
+O mesmo código não pode funcionar simultaneamente na rota histórica pública e
+na nova rota protegida. Os novos códigos usam resumo separado por finalidade;
+os códigos antigos passam pela mesma página protegida, sem apagar as receitas.
+Domínio inválido deve impedir a operação antes de iniciar a transação.
+O fundo empresarial não pode conservar pixels da marca de exemplo.
+A faixa interna deve ser empacotada com o servidor, sem depender de um caminho
+absoluto do ambiente de desenvolvimento.
+
 ## Homologação
 Revisão independente sequencial, testes sintéticos de geração, autorização,
 falhas de identidade, assinatura e paginação; examinar o documento renderizado
