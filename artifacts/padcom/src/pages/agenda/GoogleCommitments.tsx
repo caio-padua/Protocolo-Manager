@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Check, Clock, Lock, Repeat, Search, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
-import { describeError, useCollabIdentity } from "./agenda-integration-api";
+import { describeError, errorStatus, useCollabIdentity } from "./agenda-integration-api";
+import { GoogleDescription } from "./GoogleDescription";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -109,6 +110,24 @@ function GoogleCommitmentsPanel({ identity, de, ate }: { identity: string; de: s
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
+  });
+  const description = useQuery({
+    queryKey: ["google-compromisso-descricao", identity, detail?.id ?? null],
+    enabled: !!detail,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async ({ signal }) => {
+      if (!detail) throw new Error("Selecione um compromisso.");
+      const base = import.meta.env.VITE_API_URL || "/api";
+      const id = detail.id.split(":")[0];
+      const params = new URLSearchParams({ inicio: detail.inicio });
+      const response = await fetch(`${base}/agenda/google-compromissos/${encodeURIComponent(id)}/descricao?${params}`, {
+        headers: collabAuthHeaders(), signal, cache: "no-store",
+      });
+      if (!response.ok) throw Object.assign(new Error("Não foi possível consultar a descrição."), { status: response.status });
+      return response.json() as Promise<{ descricao: string | null }>;
+    },
   });
 
   const agendas = useMemo(() => query.data?.agendas ?? [], [query.data]);
@@ -274,7 +293,7 @@ function GoogleCommitmentsPanel({ identity, de, ate }: { identity: string; de: s
       )}
 
       <Dialog open={!!detail} onOpenChange={(o) => { if (!o) setDetail(null); }}>
-        <DialogContent className="panel-3d max-w-md">
+        <DialogContent className="panel-3d max-w-2xl max-h-[90vh] overflow-y-auto">
           {detail && (
             <>
               <DialogHeader>
@@ -291,6 +310,21 @@ function GoogleCommitmentsPanel({ identity, de, ate }: { identity: string; de: s
                 <DetailRow label="Horário" value={<span className="inline-flex items-center gap-1.5 tabular-nums"><Clock className="h-3 w-3" aria-hidden />{detail.diaInteiro ? "Dia inteiro" : detail.horario}</span>} />
                 <DetailRow label="Agenda" value={detail.agenda} />
                 <DetailRow label="Repetição" value={detail.recorrente ? "Recorrente" : "Única"} />
+                <section className="concave-3d p-3 space-y-2" aria-label="Informações do compromisso">
+                  <h3 className="text-xs font-bold uppercase tracking-wider">Informações do compromisso</h3>
+                  <p className="text-xs text-muted-foreground">Descrição importada do Google. Pode não refletir alterações ainda não sincronizadas.</p>
+                  {description.isPending && <p className="text-xs" role="status">Carregando informações…</p>}
+                  {description.isError && (
+                    <p className="text-xs" role="alert">
+                      {errorStatus(description.error) === 403
+                        ? "A descrição importada está disponível somente ao proprietário."
+                        : "Não foi possível carregar as informações deste compromisso."}
+                    </p>
+                  )}
+                  {description.isSuccess && (description.data.descricao
+                    ? <GoogleDescription description={description.data.descricao} />
+                    : <p className="text-xs">Este compromisso não possui descrição importada.</p>)}
+                </section>
               </div>
             </>
           )}

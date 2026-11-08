@@ -26,7 +26,14 @@ describe("projeção da agenda Google", () => {
   it("evento comum não se repete nem aparece no período errado", () => {
     const once = { ...row, origem: "google", recorrencia: null };
     expect(projectImportedCommitment(once, from, until)).toHaveLength(1);
+    expect(projectImportedCommitment(once, from, until)[0].recorrente).toBe(false);
     expect(projectImportedCommitment(once, new Date("2035-01-01"), new Date("2035-02-01"))).toEqual([]);
+  });
+  it("ocorrência modificada é identificada como parte de série sem repetir", () => {
+    const override = { ...row, origem: "google", recorrencia: null, belongsToSeries: true };
+    const result = projectImportedCommitment(override, from, until);
+    expect(result).toHaveLength(1);
+    expect(result[0].recorrente).toBe(true);
   });
   it("dia inteiro mantém a data de Brasília e término exclusivo", () => {
     const day = { ...row, origem: "google", recorrencia: null, diaInteiro: true,

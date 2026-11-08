@@ -12,7 +12,7 @@ async function fixture(context: BrowserContext, manager: boolean, realOccupied =
     reason:"Expediente sintético para conferência",state:"pendente",
     windows:[{weekday:6,startTime:"09:00",endTime:"10:00",repeatWeeks:2,anchorDate:"2026-11-21"}],createdAt:now(),
     locationId:35001,requestedBy:91002,canDecide:true}] : [];
-  const state={refreshes:0,legacyWrites:0,proposal:null as any,decision:null as any,savedWindows:null as any,
+  const state={refreshes:0,legacyWrites:0,recurring:false,descriptionStatus:200,descriptionValue:"Procedimentos:\nAplicação sintética\n[DISP] Substância fictícia",proposal:null as any,decision:null as any,savedWindows:null as any,
     denyClients:false, simulatedQueries:0, confirmations:[] as any[],
     windows:[{id:60001,resourceId:19001,weekday:6,startTime:"09:00",endTime:"13:00",repeatWeeks:2,anchorDate:"2026-11-21"}] as any[]};
   await context.addInitScript(()=>{
@@ -49,10 +49,14 @@ async function fixture(context: BrowserContext, manager: boolean, realOccupied =
       body={status:200,state:pending[0].state};
     } else if(path==="/api/agenda/google-compromissos") body={desde:"2026-09-01",
       agendas:[{id:35001,nome:"Agenda sintética",cor:"#2c5480"}],eventos:[
-      {id:"synthetic:1",titulo:"Ocupado — compromisso pessoal",inicio:"2026-11-07T13:00:00Z",
+      {id:"90001:2026-11-07T13:00:00.000Z",titulo:"Ocupado — compromisso pessoal",inicio:"2026-11-07T13:00:00.000Z",
         fim:"2026-11-07T14:00:00Z",data:"2026-11-07",horario:"10:00",diaInteiro:false,
-        agenda:"Agenda sintética",agendaId:35001,cor:"#2c5480",recorrente:false},
+        agenda:"Agenda sintética",agendaId:35001,cor:"#2c5480",recorrente:state.recurring},
     ]};
+    else if(path==="/api/agenda/google-compromissos/90001/descricao") {
+      if(state.descriptionStatus!==200) return route.fulfill({status:state.descriptionStatus,json:{error:"Falha sintética"}});
+      body={descricao:state.descriptionValue};
+    }
     else if(path==="/api/sessions") body=syntheticSessions;
     else if(/^\/api\/sessions\/\d+\/confirm-substance$/.test(path)) {
       const input=request.postDataJSON(); state.confirmations.push(input);
@@ -115,6 +119,53 @@ test("agenda atualiza por leitura e exibe compromisso sem envio legado",async({p
   await expect(page.getByText("Ocupado — compromisso pessoal",{exact:true})).toBeVisible();
   await page.getByTestId("button-refresh-google").click();
   await expect.poll(()=>state.refreshes).toBe(1);
+  expect(state.legacyWrites).toBe(0);
+});
+test("agenda abre descrição importada sem interpretar conteúdo como procedimento confirmado",async({page,context})=>{
+  const state=await fixture(context,true);
+  await page.goto("/agenda");
+  await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog.getByText("Informações do compromisso")).toBeVisible();
+  await expect(dialog.getByText("[DISP] Substância fictícia",{exact:false})).toBeVisible();
+  await expect(dialog.getByText("Nenhum vínculo clínico foi confirmado nesta consulta.",{exact:false})).toBeVisible();
+  expect(state.legacyWrites).toBe(0);
+});
+test("agenda informa recusa e falhas de descrição sem quebrar o diálogo",async({page,context})=>{
+  const state=await fixture(context,true);
+  await page.goto("/agenda");
+  for (const status of [403,404,500]) {
+    state.descriptionStatus=status;
+    await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
+    const dialog=page.getByRole("dialog");
+    await expect(dialog.getByRole("alert")).toHaveText(status===403
+      ? "A descrição importada está disponível somente ao proprietário."
+      : "Não foi possível carregar as informações deste compromisso.");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  }
+  expect(state.legacyWrites).toBe(0);
+});
+test("descrição importada mantém negrito sem executar conteúdo externo",async({page,context})=>{
+  const state=await fixture(context,true);
+  state.descriptionValue='<b>Procedimentos sintéticos</b><br>[DISP] Substância fictícia<img src="https://example.invalid/rastreamento"><script>window.descricaoExecutada = true</script><a href="https://example.invalid/">Link visível</a>';
+  let externalRequests=0;
+  await page.route("https://example.invalid/**",route=>{externalRequests++;return route.abort();});
+  await page.goto("/agenda");
+  await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog.locator("b")).toHaveText("Procedimentos sintéticos");
+  await expect(dialog.getByText("[DISP] Substância fictícia",{exact:false})).toBeVisible();
+  await expect(dialog.locator("img, script, a")).toHaveCount(0);
+  expect(await page.evaluate(()=>(window as any).descricaoExecutada)).toBeUndefined();
+  expect(externalRequests).toBe(0);
+});
+test("ocorrência modificada informa que pertence a uma série",async({page,context})=>{
+  const state=await fixture(context,true);
+  state.recurring=true;
+  await page.goto("/agenda");
+  await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
+  await expect(page.getByRole("dialog").getByText("Recorrente",{exact:true})).toBeVisible();
   expect(state.legacyWrites).toBe(0);
 });
 test("marca apenas horários abertos como preferidos, sem transformar preferência em vaga",async({page,context})=>{

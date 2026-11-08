@@ -8,6 +8,43 @@ import {
 } from "../lib/agenda-google-projection";
 
 const router = Router();
+// A descrição importada pode conter dados clínicos sem vínculo validado.
+// Até existir autorização por cliente, somente o proprietário pode consultá-la.
+router.get("/agenda/google-compromissos/:id/descricao", requireCollaborator, async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  if (!req.tenantContext.isPlatformOwner) {
+    res.status(403).json({ error: "A descrição importada exige acesso do proprietário." });
+    return;
+  }
+  const id = Number(req.params.id);
+  const value = req.query.inicio;
+  const start = typeof value === "string" ? new Date(value) : new Date(NaN);
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof value !== "string" ||
+      !Number.isFinite(start.getTime()) || start.toISOString() !== value) {
+    res.status(400).json({ error: "Identificador ou início do compromisso inválido." });
+    return;
+  }
+  const empresaId = req.tenantContext.empresaId;
+  if (!empresaId) { res.status(403).json({ error: "Selecione a empresa." }); return; }
+  try {
+    const result = await db.execute(sql`
+      SELECT c.id, c.titulo, c.descricao, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
+        c.recorrencia, c.origem, l.name AS agenda, l.id AS "agendaId", l.color AS cor, l.agenda_papel AS papel
+      FROM agenda_compromissos c JOIN locations l ON l.id = c.location_id
+      WHERE c.id = ${id} AND l.empresa_id = ${empresaId} AND l.active = 'true' AND c.status = 'ativo'
+      LIMIT 1
+    `);
+    const row = result.rows[0] as unknown as (ImportedCommitment & { descricao: string | null }) | undefined;
+    const matches = row && projectImportedCommitment(row, start, new Date(start.getTime() + 1))
+      .some((event) => event.inicio === value);
+    if (!matches) { res.status(404).json({ error: "Compromisso não encontrado neste acesso." }); return; }
+    res.json({ descricao: row.descricao ?? null });
+  } catch (error) {
+    req.log?.error({ err: error }, "Falha ao consultar descrição importada");
+    res.status(500).json({ error: "Não foi possível consultar a descrição importada." });
+  }
+});
+
 router.get("/agenda/google-compromissos", requireCollaborator, async (req, res): Promise<void> => {
   const query = GetGoogleAgendaCommitmentsQueryParams.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: "Informe de e ate no formato AAAA-MM-DD." }); return; }
@@ -26,11 +63,19 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
     const result = await db.execute(sql`
       SELECT c.id, c.titulo, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
         c.recorrencia, c.origem,
+        CASE WHEN c.origem = 'ics' THEN
+          COALESCE(c.recorrencia, '') <> '' OR
+          (left(c.chave, length(c.ical_uid) + 1) = c.ical_uid || '|'
+            AND length(c.chave) > length(c.ical_uid) + 1)
+        ELSE COALESCE(NULLIF(source.body->>'recurringEventId', ''), '') <> ''
+        END AS "belongsToSeries",
         CASE WHEN l.agenda_papel = 'pessoal' AND NOT ${req.tenantContext.isPlatformOwner} THEN 'Agenda pessoal'
           ELSE l.name END AS agenda,
         l.id AS "agendaId", l.color AS cor, l.agenda_papel AS papel
       FROM agenda_compromissos c
       JOIN locations l ON l.id = c.location_id
+      LEFT JOIN agenda_google_source source ON source.location_id = c.location_id
+        AND c.origem = 'google' AND c.chave = 'google:' || source.event_id
       WHERE l.empresa_id = ${empresaId} AND l.active = 'true' AND c.status = 'ativo'
         AND (c.origem = 'google_recorrente' OR (c.inicio < ${until.toISOString()}::timestamptz
           AND c.fim > ${start.toISOString()}::timestamptz))

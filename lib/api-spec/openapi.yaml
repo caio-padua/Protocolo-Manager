@@ -2921,6 +2921,39 @@ paths:
         "500":
           description: Falha na consulta
 
+  /agenda/google-compromissos/{id}/descricao:
+    get:
+      operationId: getGoogleAgendaCommitmentDescription
+      tags: [agenda]
+      summary: Consultar a descrição importada de um compromisso selecionado
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: inicio
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Descrição importada, sem vínculo clínico confirmado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAgendaCommitmentDescription"
+        "400":
+          description: Identificador ou início inválido
+        "401":
+          description: Autenticação obrigatória
+        "403":
+          description: Acesso restrito ao proprietário
+        "404":
+          description: Compromisso não encontrado neste acesso
+        "500":
+          description: Falha na consulta
   /agenda/slots:
     get:
       operationId: getAgendaSlots
@@ -4443,6 +4476,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgendaChangeRequest"
+    GoogleAgendaCommitmentDescription:
+      type: object
+      required: [descricao]
+      properties:
+        descricao:
+          type: ["string", "null"]
     GoogleAgendaCommitment:
       type: object
       required: [id, titulo, inicio, fim, data, horario, diaInteiro, agenda, agendaId, cor, recorrente]

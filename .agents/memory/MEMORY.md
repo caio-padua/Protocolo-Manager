@@ -11,7 +11,6 @@
 - **Exames — catalogo, faixas e triagem** — [direcao mora em direcao_favoravel_exame](direcao-exame-fonte-verdade.md) · [synonyms ja ensina o scanner](aliases-unidades-exames.md) · [filtrar por zone.key, nunca zone.name](exames-faixa-filtro-por-key.md) · [hormonio sexo-dependente nao aceita faixa unica](curadoria-faixas-classe.md) · [chaveFaixa compara, slugInterno gera](exame-code-identidade-slug.md) · [active=false polissemico](exam-catalog-active-polissemico.md) · [resolver carimba o cluster inteiro](exames-triagem-resolucao.md) · [zerar fila nao zera exam_results](triagem-fila-vs-crus.md) · [2 fases C1/C2, maior-id-vence](conferencia-humana-exames.md) · [Gemini+pdf-parse, 70-106s, UI assincrona](exam-extraction-motor.md) · [isHistory + lab name so por vision](motor-extracao-v2-ishistory.md)
 - [Documentos clínicos e faixas do Instituto](indice-documentos-clinicos.md) — emissão, fontes, assinatura, entrega e segurança.
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — lei maxima do CEO (16/07/2026): nunca DROP/TRUNCATE/delete sem ordem escrita dupla; tela obsoleta = fora do menu, arquivo intacto; ADD COLUMN sempre, DROP nunca.
-- serializeLocation mapeia campos explicitamente — nova coluna Drizzle não aparece no response até ser adicionada em serializeLocation(); getCertInfo() retorna { subject, issuer, serial, validFrom, validTo, cpf }.
 - Precedência < vs ?? no for-loop — `i < arr.items?.length ?? arr.length` → `<` vence `??`; loop nunca roda. Sempre parentesize: `i < (arr.items?.length ?? arr.length)`.
 - [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta "R$" porque o R é letra.
 - [Lei das 4 fontes do Paxter](fonte-unica-eb-garamond.md) — EB Garamond principal (max 800), Inter operacional, Lora PERMANENTE na anamnese, Cardo secundaria so em PDF; Cormorant aposentado 13/08/2026.
@@ -96,7 +95,6 @@
 - [Área do Cliente: desejo IMPLÍCITO + faixas](area-cliente-desejo-implicito.md) — planos viram ícone-coroa a descobrir (sem upsell/preço na home); cabeçalho em 3 faixas, nome nunca sob PAXTER.
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange.
 - [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de reverter.
-- ConsoleShell prop icon obrigatória — ConsoleShell(_shared) tem `icon: LucideIcon` obrigatório; omitir = "Element type invalid" no runtime (tsc não detecta).
 - [Lembrete por período do IHE (portar ao Manager)](ihe-mensageria-periodo.md) — motor cronobiológico: 1 msg POR JANELA (não por fórmula), 9 períodos canônicos, tolerância 5min, madrugada vazia.
 - [Cockpit v2 — arquitetura de componentes](cockpit-v2-arquitetura.md) — CockpitShell+lazy panels; URL=fonte de verdade; key={clientId} no Route; useListClients→useCockpitSearch.
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas.
@@ -129,7 +127,6 @@
 - [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.
 - [Unicidade em substance_applications](substance-applications-unicidade.md) — chave única é o trio com session_number; consolidação semanal repete substância na mesma sessão quando intervalDays<7.
 - [pdf-lib drawSvgPath y invertido](pdflib-drawsvgpath-y-flip.md) — path é SVG y-down relativo à opção y; y:0 desenha fora da página sem erro; ancorar y=pageH e flipar cada ponto.
-// hint: Logic changed on both sides. Requires understanding intent of each change.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
 - [Post-merge — migração falha em silêncio](post-merge-migracao-pg.md) — require('pg') na raiz do monorepo sempre falha (usar psql + scripts/migrations.sql); corrigir o script NÃO aplica a coluna, conferir no banco.
@@ -155,5 +152,6 @@
 - [PQQ: via do consultório](pqq-via-intramuscular.md) — médico confirmou via intramuscular, nunca endovenosa; corrigir divergências do cadastro na fonte.
 - [Intervalo de protocolos](intervalo-minimo-protocolos.md) — médico escolheu frequência menos quatro dias como mínimo; frequências curtas exigem trava positiva.
 - [Transmutação e origem privada](transmutacao-catalogo-fonte-privada.md) — endereço público pode retornar 404 enquanto a integração autenticada lê o catálogo.
-- [Importar .ics sem duplicar sessoes do sistema](ics-importacao-sessoes-do-sistema.md) — UID = sessions.google_event_id; previa separa sessoes do sistema; agenda Google unica por local na empresa.
-- [Governança e pessoal na agenda](agenda-governanca-pessoal.md) — preservar liberação gradual; secretaria pede autorização; compromisso pessoal bloqueia só recursos do titular.
+- [Governança e agenda pessoal](agenda-governanca-pessoal.md) — liberação gradual e bloqueio de recursos pessoais.
+- [Importação e sessões](ics-importacao-sessoes-do-sistema.md) — diferenciar compromissos importados de sessões do sistema.
+- [Informações clínicas no Google](agenda-evento-google-padrao.md) — conectar o formato existente às duas agendas, sem inventar dados ou estados.

@@ -5418,6 +5418,21 @@ export const GetGoogleAgendaCommitmentsResponse = zod.object({
 });
 
 /**
+ * @summary Consultar a descrição importada de um compromisso selecionado
+ */
+export const GetGoogleAgendaCommitmentDescriptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetGoogleAgendaCommitmentDescriptionQueryParams = zod.object({
+  inicio: zod.coerce.string(),
+});
+
+export const GetGoogleAgendaCommitmentDescriptionResponse = zod.object({
+  descricao: zod.string().nullable(),
+});
+
+/**
  * @summary Compute released/blocked/occupied slots for a resource on a date (anti-island engine)
  */
 export const GetAgendaSlotsQueryParams = zod.object({

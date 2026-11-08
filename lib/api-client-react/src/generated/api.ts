@@ -127,8 +127,10 @@ import type {
   GetConciergeOfferParams,
   GetExamRequestHistoryParams,
   GetFinancialGoalsSummaryParams,
+  GetGoogleAgendaCommitmentDescriptionParams,
   GetGoogleAgendaCommitmentsParams,
   GetReconciliationParams,
+  GoogleAgendaCommitmentDescription,
   GoogleAgendaCommitments,
   HealthStatus,
   ListAnamnesePerguntasParams,
@@ -12693,6 +12695,130 @@ export function useGetGoogleAgendaCommitments<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGoogleAgendaCommitmentsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Consultar a descrição importada de um compromisso selecionado
+ */
+export const getGetGoogleAgendaCommitmentDescriptionUrl = (
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/google-compromissos/${id}/descricao?${stringifiedParams}`
+    : `/api/agenda/google-compromissos/${id}/descricao`;
+};
+
+export const getGoogleAgendaCommitmentDescription = async (
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+  options?: RequestInit,
+): Promise<GoogleAgendaCommitmentDescription> => {
+  return customFetch<GoogleAgendaCommitmentDescription>(
+    getGetGoogleAgendaCommitmentDescriptionUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetGoogleAgendaCommitmentDescriptionQueryKey = (
+  id: number,
+  params?: GetGoogleAgendaCommitmentDescriptionParams,
+) => {
+  return [
+    `/api/agenda/google-compromissos/${id}/descricao`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetGoogleAgendaCommitmentDescriptionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetGoogleAgendaCommitmentDescriptionQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>
+  > = ({ signal }) =>
+    getGoogleAgendaCommitmentDescription(id, params, {
+      signal,
+      ...requestOptions,
+    });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGoogleAgendaCommitmentDescriptionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>
+>;
+export type GetGoogleAgendaCommitmentDescriptionQueryError = ErrorType<void>;
+
+/**
+ * @summary Consultar a descrição importada de um compromisso selecionado
+ */
+
+export function useGetGoogleAgendaCommitmentDescription<
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params: GetGoogleAgendaCommitmentDescriptionParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitmentDescription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGoogleAgendaCommitmentDescriptionQueryOptions(
+    id,
     params,
     options,
   );

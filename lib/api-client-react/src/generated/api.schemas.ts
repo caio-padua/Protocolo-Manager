@@ -1042,6 +1042,11 @@ export interface AgendaChangeRequestList {
   requests: AgendaChangeRequest[];
 }
 
+export interface GoogleAgendaCommitmentDescription {
+  /** @nullable */
+  descricao: string | null;
+}
+
 export interface GoogleAgendaCommitment {
   id: string;
   titulo: string;
@@ -3281,6 +3286,10 @@ export type GetGoogleAgendaCommitmentsParams = {
    * @pattern ^\d{4}-\d{2}-\d{2}$
    */
   ate: string;
+};
+
+export type GetGoogleAgendaCommitmentDescriptionParams = {
+  inicio: string;
 };
 
 export type GetAgendaSlotsParams = {

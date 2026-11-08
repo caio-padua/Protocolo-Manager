@@ -317,3 +317,73 @@ considerado prova de uma vaga.
 | Calendário externo recebe evento sem substâncias ou via incorreta | Alta | Usar as aplicações persistidas e a sincronização existente; testar criação e falha de resposta. |
 | Solicitação repetida cria reservas duplicadas | Alta | Serializar por protocolo e retornar as sessões existentes; testar repetição e resposta perdida. |
 | Agenda pertencente a outra empresa ou profissional | Crítica | Conferir acesso clínico e recurso antes e após aguardar bloqueios; testar recusa. |
+
+## Complemento: informação existente dos compromissos Google na agenda interna
+
+Estado: descrição consultável e verificada; a jornada integral continua
+BLOQUEADA. Esta etapa não homologa a criação de sessões nem a atualização
+automática do estado clínico no Google.
+
+1. Reutilizar a descrição já importada do Google, sem reconstruir dados do
+   protocolo e sem modificar eventos no Google.
+2. Abrir a descrição apenas ao selecionar o compromisso; informar que é uma
+   cópia importada, sem interpretar seu texto como prova clínica.
+3. Como eventos importados não possuem vínculo clínico validado, permitir a
+   leitura integral somente ao proprietário da plataforma dentro da empresa
+   selecionada. Não ampliar o acesso dos demais colaboradores nesta etapa.
+4. Não enviar todas as descrições na lista; autorizar e buscar o compromisso
+   selecionado na empresa autenticada. Não apresentar conteúdo anterior ao
+   corte pela simples manipulação do identificador ou da data.
+5. Não executar código ou carregar recursos externos contidos na descrição.
+   Preservar quebras de linha e formatação textual segura da origem, incluindo
+   negrito, e limitar a altura de visualização.
+6. No caso de falha da consulta, informar erro; descrição inexistente é um
+   estado distinto. Troca de acesso ou de compromisso não deve exibir o
+   conteúdo anterior.
+7. Testar separadamente autorização, isolamento de empresa, corte, recorrência,
+   falhas e interação visual, sem eventos ou dados reais de terceiros.
+
+Risco ainda aberto: criação direta e remarcação podem produzir descrição
+incompleta ou incorreta; confirmação de aplicação não dispara atualização
+automática protegida no Google. A ligação dessas operações exige a reserva e a
+sincronização com proteção contra resposta incerta já descritas acima.
+
+### Evidências desta etapa
+
+1. Vinte e um testes de consulta, projeção e banco descartável passaram,
+   inclusive isolamento entre empresas, local inativo e repetição excluída.
+2. Três testes de interface com serviços e dados sintéticos passaram,
+   incluindo recusa, falhas e tentativa de conteúdo ativo.
+3. A abertura de compromisso real autorizado foi conferida na tela autenticada
+   em computador e celular; a descrição existente e o negrito apareceram.
+4. Revisão independente aprovou a consulta e a renderização restrita após
+   duas correções; a checagem global de tipos ainda falha em outros arquivos.
+5. Na captura do ambiente de testes, alguns símbolos gráficos da descrição
+   antiga apareceram como quadrados. Isso não comprova o resultado em todos os
+   computadores e impede declarar paridade visual perfeita com o Google.
+6. O acesso integral à descrição importada está restrito ao proprietário;
+   ampliação a outros perfis depende de vínculo e autorização clínica válidos.
+
+## Complemento: ocorrência modificada de série importada
+
+Uma ocorrência modificada de uma série é preservada como evento individual
+para não duplicar a projeção, mas continua pertencendo à série no Google.
+A tela não deve chamá-la de única. A leitura deve usar o identificador da
+série conservado na fonte importada, sem criar nova ocorrência, modificar o
+Google ou alterar a regra de geração e ocupação.
+Testar evento individual, série, ocorrência modificada e ausência de fonte,
+incluindo consulta real somente de leitura e isolamento por local.
+
+Arquivos iCalendar importados também guardam a identificação de ocorrência:
+classificar as linhas existentes como parte de série quando esse identificador
+ou uma regra de repetição estiver presente. Isso não equivale a expandir
+ocorrências futuras de séries importadas por arquivo: essa limitação
+preexistente permanece aberta e não deve ser apresentada como resolvida.
+
+Evidências: quarenta e dois testes de consulta, projeção, integração, leitura
+de arquivos e banco descartável passaram; um teste de interface confirmou a
+classificação recorrente. A comparação de quatro eventos reais autorizados
+confirmou datas e horários no Google e no sistema; a tela autenticada confirmou
+a classificação de uma ocorrência modificada. Revisão independente aprovou a
+correção apenas nesse escopo, sem certificar todos os compromissos ou futuras
+sincronizações.

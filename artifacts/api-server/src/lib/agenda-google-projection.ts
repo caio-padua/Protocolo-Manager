@@ -32,6 +32,7 @@ export interface ImportedCommitment {
   agendaId: number;
   cor: string;
   papel: string | null;
+  belongsToSeries?: boolean;
 }
 
 export function projectImportedCommitment(row: ImportedCommitment, from: Date, until: Date) {
@@ -65,6 +66,6 @@ export function projectImportedCommitment(row: ImportedCommitment, from: Date, u
       agenda: row.agenda,
       agendaId: row.agendaId,
       cor: row.cor,
-      recorrente: row.origem === "google_recorrente",
+      recorrente: row.origem === "google_recorrente" || row.belongsToSeries === true,
     }));
 }

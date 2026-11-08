@@ -91,3 +91,66 @@ describe("consulta autenticada de compromissos importados", () => {
     expect(response.body.eventos[0].agendaId).toBe(42);
   });
 });
+
+describe("descrição importada de compromisso selecionado", () => {
+  const path = "/agenda/google-compromissos/1/descricao?inicio=2026-09-02T13%3A00%3A00.000Z";
+  const withDescription = { ...event, descricao: "Procedimentos:\nAplicação sintética\n[DISP] Substância fictícia" };
+  beforeEach(() => {
+    mocks.empresa = 5;
+    mocks.owner = true;
+    mocks.execute.mockReset().mockResolvedValue({ rows: [withDescription] });
+  });
+  it("nega colaborador sem privilégio antes da consulta", async () => {
+    mocks.owner = false;
+    expect((await request(app).get(path).set("x-test-access", "1")).status).toBe(403);
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+  it("reusa a descrição exata e limita a consulta à empresa", async () => {
+    const response = await request(app).get(path).set("x-test-access", "1");
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body.descricao).toBe(withDescription.descricao);
+    const { PgDialect } = await import("drizzle-orm/pg-core");
+    const query = new PgDialect().sqlToQuery(mocks.execute.mock.calls[0][0]);
+    expect(query.sql).toContain("l.empresa_id");
+    expect(query.sql).toContain("l.active = 'true'");
+    expect(query.params).toContain(5);
+    expect(query.params).toContain(1);
+  });
+  it("não expõe texto na listagem, nem quando o banco o retorna", async () => {
+    mocks.execute.mockReset().mockResolvedValueOnce({ rows: [withDescription] })
+      .mockResolvedValueOnce({ rows: [] });
+    const response = await request(app).get("/agenda/google-compromissos?de=2026-09-01&ate=2026-09-30").set("x-test-access", "1");
+    expect(JSON.stringify(response.body)).not.toContain(withDescription.descricao);
+  });
+  it("recusa outra ocorrência e data anterior ao corte", async () => {
+    for (const inicio of ["2026-09-03T13:00:00.000Z", "2026-08-31T13:00:00.000Z"]) {
+      const response = await request(app).get(`/agenda/google-compromissos/1/descricao?inicio=${encodeURIComponent(inicio)}`).set("x-test-access", "1");
+      expect(response.status).toBe(404);
+      expect(JSON.stringify(response.body)).not.toContain(withDescription.descricao);
+    }
+  });
+  it("valida a ocorrência de um compromisso recorrente", async () => {
+    mocks.execute.mockResolvedValue({ rows: [{ ...withDescription, origem: "google_recorrente",
+      recorrencia: JSON.stringify({ version: 1, start: event.inicio, end: event.fim,
+        lines: ["RRULE:FREQ=WEEKLY;COUNT=4"], excluded: [] }) }] });
+    const response = await request(app).get("/agenda/google-compromissos/1/descricao?inicio=2026-09-09T13%3A00%3A00.000Z").set("x-test-access", "1");
+    expect(response.status).toBe(200);
+    expect(response.body.descricao).toBe(withDescription.descricao);
+  });
+  it("não mostra uma ocorrência excluída de uma repetição", async () => {
+    mocks.execute.mockResolvedValue({ rows: [{ ...withDescription, origem: "google_recorrente",
+      recorrencia: JSON.stringify({ version: 1, start: event.inicio, end: event.fim,
+        lines: ["RRULE:FREQ=WEEKLY;COUNT=4"], excluded: ["2026-09-09T13:00:00.000Z"] }) }] });
+    const response = await request(app).get("/agenda/google-compromissos/1/descricao?inicio=2026-09-09T13%3A00%3A00.000Z").set("x-test-access", "1");
+    expect(response.status).toBe(404);
+  });
+  it("distingue descrição ausente de erro de banco", async () => {
+    mocks.execute.mockResolvedValueOnce({ rows: [{ ...event, descricao: null }] });
+    expect((await request(app).get(path).set("x-test-access", "1")).body).toEqual({ descricao: null });
+    mocks.execute.mockRejectedValueOnce(new Error("falha sintética"));
+    const response = await request(app).get(path).set("x-test-access", "1");
+    expect(response.status).toBe(500);
+    expect(response.body).not.toHaveProperty("descricao");
+  });
+});
