@@ -22,6 +22,15 @@ A fonte operacional da agenda deve passar a ser exclusivamente a conta Google da
 
 **How to apply:** Inventariar e separar os registros de agenda antigos antes da importação; confirmar o recorte de datas e o alcance de exclusões, sem estender a limpeza a clientes, fórmulas ou outros dados importados.
 
+## Corte operacional da agenda Google
+
+Em 07/11/2026, o proprietário confirmou o corte operacional em 01/09/2026 e autorizou limpar os testes somente dentro do sistema.
+O histórico da agenda Google, inclusive antes desse corte, deve permanecer intacto.
+
+**Why:** O proprietário interrompeu a execução para diferenciar explicitamente a limpeza local da preservação integral da origem Google.
+
+**How to apply:** Importar ocorrências desde 01/09/2026, inclusive séries iniciadas antes quando tiverem ocorrências posteriores; nunca interpretar essa autorização como permissão para excluir ou alterar eventos no Google.
+
 ## Retificacao do escopo pelo proprietario em 29/10/2026
 
 O proprietario informou que os cadastros de clientes e as formulas do Support Health ja foram importados para o PAXTER.

@@ -32,7 +32,7 @@ export async function computeResourceSlots(
   occupiedOverride?: Set<string> | null,
 ): Promise<{ resource: typeof agendaResourcesTable.$inferSelect; result: EngineResult } | null> {
   const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, resourceId));
-  if (!resource) return null;
+  if (!resource || !resource.active) return null;
 
   const settings = await getSettings();
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();

@@ -134,7 +134,7 @@ async function ensureSettings() {
 // ---- Recursos ----
 router.get("/agenda/resources", async (_req, res): Promise<void> => {
   await ensureSeed();
-  const rows = await db.select().from(agendaResourcesTable).orderBy(agendaResourcesTable.sortOrder);
+  const rows = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.active, true)).orderBy(agendaResourcesTable.sortOrder);
   res.json(rows);
 });
 

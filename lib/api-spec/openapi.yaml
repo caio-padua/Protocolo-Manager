@@ -2754,6 +2754,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgendaSettings"
 
+  /agenda/google-compromissos:
+    get:
+      operationId: getGoogleAgendaCommitments
+      tags: [agenda]
+      summary: Consultar compromissos Google importados no período autenticado
+      parameters:
+        - name: de
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: ate
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        "200":
+          description: Compromissos da empresa autenticada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAgendaCommitments"
+        "400":
+          description: Período inválido ou superior a 62 dias
+        "401":
+          description: Autenticação obrigatória
+        "403":
+          description: Empresa não selecionada
+        "500":
+          description: Falha na consulta
+
   /agenda/slots:
     get:
       operationId: getAgendaSlots
@@ -4094,6 +4128,41 @@ components:
           nullable: true
         subBlockIndex:
           type: integer
+
+    GoogleAgendaCommitment:
+      type: object
+      required: [id, titulo, inicio, fim, data, horario, diaInteiro, agenda, cor, recorrente]
+      properties:
+        id:
+          type: string
+        titulo:
+          type: string
+        inicio:
+          type: string
+        fim:
+          type: string
+        data:
+          type: string
+        horario:
+          type: string
+        diaInteiro:
+          type: boolean
+        agenda:
+          type: string
+        cor:
+          type: string
+        recorrente:
+          type: boolean
+    GoogleAgendaCommitments:
+      type: object
+      required: [desde, eventos]
+      properties:
+        desde:
+          type: string
+        eventos:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoogleAgendaCommitment"
 
     AgendaSlotsResponse:
       type: object

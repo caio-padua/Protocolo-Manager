@@ -119,7 +119,9 @@ import type {
   GetConciergeOfferParams,
   GetExamRequestHistoryParams,
   GetFinancialGoalsSummaryParams,
+  GetGoogleAgendaCommitmentsParams,
   GetReconciliationParams,
+  GoogleAgendaCommitments,
   HealthStatus,
   ListAnamnesePerguntasParams,
   ListBudgetsParams,
@@ -11911,6 +11913,115 @@ export const useUpdateAgendaSettings = <
 > => {
   return useMutation(getUpdateAgendaSettingsMutationOptions(options));
 };
+
+/**
+ * @summary Consultar compromissos Google importados no período autenticado
+ */
+export const getGetGoogleAgendaCommitmentsUrl = (
+  params: GetGoogleAgendaCommitmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/google-compromissos?${stringifiedParams}`
+    : `/api/agenda/google-compromissos`;
+};
+
+export const getGoogleAgendaCommitments = async (
+  params: GetGoogleAgendaCommitmentsParams,
+  options?: RequestInit,
+): Promise<GoogleAgendaCommitments> => {
+  return customFetch<GoogleAgendaCommitments>(
+    getGetGoogleAgendaCommitmentsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetGoogleAgendaCommitmentsQueryKey = (
+  params?: GetGoogleAgendaCommitmentsParams,
+) => {
+  return [
+    `/api/agenda/google-compromissos`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetGoogleAgendaCommitmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGoogleAgendaCommitmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGoogleAgendaCommitmentsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitments>>
+  > = ({ signal }) =>
+    getGoogleAgendaCommitments(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGoogleAgendaCommitmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGoogleAgendaCommitments>>
+>;
+export type GetGoogleAgendaCommitmentsQueryError = ErrorType<void>;
+
+/**
+ * @summary Consultar compromissos Google importados no período autenticado
+ */
+
+export function useGetGoogleAgendaCommitments<
+  TData = Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+  TError = ErrorType<void>,
+>(
+  params: GetGoogleAgendaCommitmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAgendaCommitments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGoogleAgendaCommitmentsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Compute released/blocked/occupied slots for a resource on a date (anti-island engine)

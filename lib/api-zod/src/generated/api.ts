@@ -4227,6 +4227,39 @@ export const UpdateAgendaSettingsResponse = zod.object({
 });
 
 /**
+ * @summary Consultar compromissos Google importados no período autenticado
+ */
+export const getGoogleAgendaCommitmentsQueryDeRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getGoogleAgendaCommitmentsQueryAteRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
+export const GetGoogleAgendaCommitmentsQueryParams = zod.object({
+  de: zod.coerce.string().regex(getGoogleAgendaCommitmentsQueryDeRegExp),
+  ate: zod.coerce.string().regex(getGoogleAgendaCommitmentsQueryAteRegExp),
+});
+
+export const GetGoogleAgendaCommitmentsResponse = zod.object({
+  desde: zod.string(),
+  eventos: zod.array(
+    zod.object({
+      id: zod.string(),
+      titulo: zod.string(),
+      inicio: zod.string(),
+      fim: zod.string(),
+      data: zod.string(),
+      horario: zod.string(),
+      diaInteiro: zod.boolean(),
+      agenda: zod.string(),
+      cor: zod.string(),
+      recorrente: zod.boolean(),
+    }),
+  ),
+});
+
+/**
  * @summary Compute released/blocked/occupied slots for a resource on a date (anti-island engine)
  */
 export const GetAgendaSlotsQueryParams = zod.object({

@@ -901,6 +901,24 @@ export interface AgendaSlot {
   subBlockIndex: number;
 }
 
+export interface GoogleAgendaCommitment {
+  id: string;
+  titulo: string;
+  inicio: string;
+  fim: string;
+  data: string;
+  horario: string;
+  diaInteiro: boolean;
+  agenda: string;
+  cor: string;
+  recorrente: boolean;
+}
+
+export interface GoogleAgendaCommitments {
+  desde: string;
+  eventos: GoogleAgendaCommitment[];
+}
+
 export interface AgendaSlotsResponse {
   resourceId: number;
   date: string;
@@ -2975,6 +2993,17 @@ export type DeleteAnamnesePergunta200 = {
 export type ListBudgetsParams = {
   clientId?: number;
   status?: string;
+};
+
+export type GetGoogleAgendaCommitmentsParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  de: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  ate: string;
 };
 
 export type GetAgendaSlotsParams = {

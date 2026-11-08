@@ -28,6 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 import { RescheduleDrawer } from "@/components/RescheduleDrawer";
+import { GoogleCommitments } from "./GoogleCommitments";
 
 type ViewMode = "dia" | "semana" | "mes";
 
@@ -705,6 +706,7 @@ export default function Agenda() {
       </div>
 
       {/* ── CORPO ── */}
+      <GoogleCommitments de={dateFrom} ate={dateTo} />
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-[6px]" />)}</div>
       ) : (
