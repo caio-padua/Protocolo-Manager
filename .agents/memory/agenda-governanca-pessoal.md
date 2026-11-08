@@ -43,6 +43,16 @@ tratamentos que exigem aplicações mais frequentes.
 verificar compatibilidade clínica, disponibilidade e consistência entre
 documento e agenda antes de registrar datas, sem inventar um segundo motor.
 
+O responsável quer que o sistema tenha autonomia com bom senso para reunir
+aplicações, em vez de pedir aprovação a cada ajuste de data.
+
+**Why:** reduzir deslocamentos e decisões operacionais repetitivas é parte do
+objetivo da agenda.
+
+**How to apply:** permitir ajustes automáticos dentro de limites clínicos
+autorizados previamente; não presumir qual margem é segura quando não houver
+uma definida.
+
 O responsável pediu uma única regra de agendamento dos injetáveis e uma única
 fonte das informações do compromisso; regras concorrentes devem ser
 aposentadas após a preservação dos registros existentes.

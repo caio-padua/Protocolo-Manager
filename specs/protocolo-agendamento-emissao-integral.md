@@ -17,9 +17,13 @@ O início, a quantidade, a dose e o intervalo de cada substância vêm do protoc
 real. Ocorrências prescritas em dias diferentes de uma mesma substância não
 podem ser fundidas em uma aplicação. Aplicações que coincidirem no mesmo dia
 podem compartilhar uma visita, desde que clinicamente compatíveis e com
-disponibilidade. Quando as datas não coincidirem, o ajuste de uma aplicação
-para outra visita ainda depende de definição clínica autorizada; não antecipar,
-postergar ou modificar intervalos silenciosamente.
+disponibilidade. O responsável deseja autonomia para reunir aplicações, sem
+solicitar aprovação a cada ajuste. Direção proposta: permitir ajustes automáticos
+dentro de limites clínicos autorizados previamente, registrar a data original,
+a data escolhida e o motivo, e não modificar intervalos silenciosamente.
+Os limites numéricos e sua origem ainda não foram definidos: não inventá-los.
+Na ausência de limite autorizado ou diante de conflito clínico, apresentar o
+caso para decisão; não confirmar uma mudança por presunção.
 
 Para novas marcações, unificar os caminhos divergentes de geração de visitas
 em uma política consolidada, capaz também de preservar frequências menores que
