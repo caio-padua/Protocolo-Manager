@@ -7,6 +7,7 @@ import { PDFDocument } from "pdf-lib";
 import { iniciarFabrica } from "../lib/documentos/padrao";
 import { generateExamRequestPdf } from "../lib/exam-request-pdf";
 import { generateRecipePdf } from "../lib/prescription-pdf";
+import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
 
 function extrairTexto(bytes: Uint8Array): string[] {
   const dir = mkdtempSync(join(tmpdir(), "paxmed2b-"));
@@ -97,5 +98,42 @@ describe("Modelo 2B: prova sem dados clínicos", () => {
       expect(p).toContain("DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA");
       expect(p).not.toContain("personalizadas e foram elaboradas");
     });
+  });
+
+  it("usa o motor real de receita na prova, sem perder itens e com rodapé único", async () => {
+    const formulas = Array.from({ length: 24 }, (_, i) => ({
+      nome: `FORMULA FICTICIA ${String(i + 1).padStart(2, "0")}`,
+      ativos: "CONTEUDO DE TESTE",
+      posologia: "NAO DISPENSAR",
+    }));
+    const bytes = await generateReceituarioPdfV2({
+      modelo2bProva: true, homologacao: true, assinaturaDigitalEstado: "sem_certificado_vencido",
+      medicoName: "MEDICO FICTICIO", medicoCrm: "REGISTRO FICTICIO", clinicaNome: "CLINICA FICTICIA",
+      pacienteNome: "CLIENTE FICTICIO", dataEmissao: "2026-11-07", tipoReceita: "simples", formulas,
+    });
+    const paginas = extrairTexto(bytes);
+    expect(paginas.length).toBeGreaterThan(1);
+    for (const formula of formulas) expect(paginas.join("\n")).toContain(formula.nome);
+    paginas.forEach((p, i) => {
+      expect(p).toContain("PRESCRIÇÃO MÉDICA");
+      expect(p).toContain("DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA");
+      expect(p.match(new RegExp(`Página ${i + 1} de ${paginas.length}`, "g"))).toHaveLength(1);
+      expect(p).toContain("SEM QR");
+    });
+  });
+
+  it("impede a prova no motor real sem homologação ou em produção", async () => {
+    const data = {
+      modelo2bProva: true, assinaturaDigitalEstado: "sem_certificado_vencido" as const,
+      medicoName: "MÉDICO FICTÍCIO", medicoCrm: "TESTE", clinicaNome: "CLÍNICA FICTÍCIA",
+      formulas: [],
+    };
+    await expect(generateReceituarioPdfV2(data)).rejects.toThrow(/homologação sintética/);
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      await expect(generateReceituarioPdfV2({ ...data, homologacao: true })).rejects.toThrow(/fora de produção/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

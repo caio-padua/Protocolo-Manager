@@ -11,6 +11,7 @@ import { marcarDemonstracao } from "./documentos/marca-demonstracao";
 import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
+import { PAXMED_LIMITE_CONTEUDO, prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva } from "./documentos/paxmed-modelo-2b-prova";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
 const NAVY   = rgb(0.082, 0.11,  0.18);   // #151C2E
@@ -410,6 +411,8 @@ export interface ReceituarioDataV2 {
   // Título e assinatura
   tituloSubtitulo?: string;         // ex: "MODELO DEMONSTRATIVO — SEM VALIDADE"
   homologacao?: boolean;
+  /** Exclusivo para testes sintéticos offline; não autoriza emissão clínica. */
+  modelo2bProva?: boolean;
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
 
   // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
@@ -444,12 +447,18 @@ export async function generatePdfFromPngBase64(
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
+  if (data.modelo2bProva && (!data.homologacao || process.env.NODE_ENV === "production")) {
+    throw new Error("Modelo 2B de prova exige homologação sintética fora de produção.");
+  }
   if (signer) assertPrescriptionSigner(signer);
   else if (data.assinaturaDigitalEstado !== "sem_certificado_vencido") {
     throw new Error("A receita precisa de um certificado válido ou da indicação explícita de certificado vencido.");
   }
   const designer = data.designerConfig ?? {};
   const pdfDoc   = await PDFDocument.create();
+  const visualProva = data.modelo2bProva ? await prepararVisualProva(pdfDoc) : null;
+  const fonteProva = visualProva ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
+  const fonteProvaNegrito = visualProva ? await pdfDoc.embedFont(StandardFonts.HelveticaBold) : null;
   const titleSerif = configuredFontFamily(designer["corpoFonteTitulo"]) === "serif";
   const bodySerif = configuredFontFamily(designer["corpoFonteCorpo"]) === "serif";
   const { default: fontkit } = await import("@pdf-lib/fontkit");
@@ -736,7 +745,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   let y = 0;
   const FOOTER_TOP = configNumber(designer, "sepInfBottom", 20, 8, 35) * MM + 7.3;
-  const BODY_BOTTOM = FOOTER_TOP + 12;
+  const BODY_BOTTOM = visualProva ? PAXMED_LIMITE_CONTEUDO : FOOTER_TOP + 12;
 
   const footerMarkData = designer["rodapeSistemaModo"] === "imagem"
     ? designer["rodapeSistemaImagemDataUrl"] ?? designer["rodapeSistemaLogoDataUrl"]
@@ -748,6 +757,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   /** Rodapé da página corrente (identidade da clínica + marca do modelo). */
   function drawFooter(): void {
+    if (visualProva) return;
     if (designer["sepInfAtivo"] !== false) {
       page.drawLine({
         start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
@@ -793,6 +803,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   function newPage(): void {
     drawFooter();
     page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    if (visualProva && fonteProva && fonteProvaNegrito) {
+      y = desenharCabecalhoProva(page, visualProva, fonteProva, fonteProvaNegrito,
+        "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS");
+      return;
+    }
     y = PAGE_H - M;
     page.drawText(safeTxt(data.clinicaNome), { x: M, y: y - 8, font: titleBold, size: 9, color: DARK });
     const cont = `Receituário (continuação) — Paciente: ${safeTxt(data.pacienteNome ?? "")}`.slice(0, 80);
@@ -823,6 +838,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   // 1. CABEÇALHO (motor: logo LEFT + nome + subtítulo  |  RCE + vias RIGHT)
   // ══════════════════════════════════════════════════════════════════════════
+  const lineStyle = (["simples", "dupla", "ornamentada"].includes(String(designer["linhaEstiloCabecalho"]))
+    ? designer["linhaEstiloCabecalho"] : "simples") as "simples" | "dupla" | "ornamentada";
+  if (visualProva && fonteProva && fonteProvaNegrito) {
+    y = desenharCabecalhoProva(page, visualProva, fonteProva, fonteProvaNegrito,
+      "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS");
+  } else {
   y = PAGE_H - M;
 
   const headerLogoRaw = designer["cabecalhoLogoDataUrl"] ??
@@ -870,11 +891,10 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   y -= 42;
   y -= configNumber(designer, "sepSup1MarginTop", 3, 0, 20) * MM;
-  const lineStyle = (["simples", "dupla", "ornamentada"].includes(String(designer["linhaEstiloCabecalho"]))
-    ? designer["linhaEstiloCabecalho"] : "simples") as "simples" | "dupla" | "ornamentada";
   drawDecorLine(y, designer["sepSup1Ativo"] !== false,
     configNumber(designer, "sepSup1Espessura", 0.5, 0.2, 2.5) * 0.6, lineStyle);
   y -= 12;
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // 2. TÍTULO DO DOCUMENTO (motor: centrado bold 16px uppercase letterSpacing 2)
@@ -1163,8 +1183,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // 7. RODAPÉ da última página + numeração "Página i de n" quando há mais de uma
   // ══════════════════════════════════════════════════════════════════════════
   drawFooter();
+  if (visualProva && fonteProva) carimbarRodapesProva(pdfDoc, visualProva, fonteProva);
   const allPages = pdfDoc.getPages();
-  if (allPages.length > 1) {
+  if (!visualProva && allPages.length > 1) {
     // Cada página carrega sua própria identificação: nº da receita, paciente,
     // "Página X de Y" e o QR que abre a receita completa.
     const CENTER_X = 300;

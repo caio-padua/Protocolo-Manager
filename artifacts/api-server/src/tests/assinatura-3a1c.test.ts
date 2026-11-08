@@ -64,6 +64,33 @@ async function verifyPdf(bytes: Uint8Array, label: string) {
 }
 
 describe("Modelo 3A-1C", () => {
+  it("assina as provas 2B dos dois motores depois de paginar e carimbar", async () => {
+    const signer = syntheticSigner();
+    const prescription = await generateReceituarioPdfV2({
+      modelo2bProva: true, homologacao: true,
+      medicoName: identity.professional.name, medicoCrm: "12345 / SP", clinicaNome: identity.clinic.name,
+      pacienteNome: identity.client.name, dataEmissao: "2026-11-07", tipoReceita: "simples",
+      formulas: Array.from({ length: 20 }, (_, i) => ({
+        nome: `FORMULA FICTICIA ${String(i + 1).padStart(2, "0")}`, posologia: "TESTE — NÃO DISPENSAR",
+      })),
+    }, signer);
+    const recipeProof = await verifyPdf(prescription, "receita-2b-prova");
+    expect(recipeProof.count).toBeGreaterThan(1);
+    expect(recipeProof.text).toContain("FORMULA FICTICIA 20");
+    expect(recipeProof.text).toContain("DOCUMENTO DE TESTE");
+
+    const unsignedExam = await generateExamRequestPdf({
+      modelo2bProva: true, homologacao: true, tipo: "sangue", tipoLabel: "SANGUE",
+      clientName: identity.client.name, professionalName: identity.professional.name,
+      professionalCrm: "12345 / SP", dateBR: "07/11/2026", certificado: signer.meta,
+      items: Array.from({ length: 30 }, (_, i) => ({ nomeExame: `EXAME FICTICIO ${String(i + 1).padStart(2, "0")}` })),
+    });
+    const examProof = await verifyPdf(await signExistingPrescriptionPdf(unsignedExam, signer), "exames-2b-prova");
+    expect(examProof.count).toBeGreaterThan(1);
+    expect(examProof.text).toContain("EXAME FICTICIO 30");
+    expect(examProof.text).toContain("DOCUMENTO DE TESTE");
+  }, 90_000);
+
   it("gera receita e exames com certificado sintético válido e QR legível", async () => {
     const signer = syntheticSigner();
     const prescription = await generateReceituarioPdfV2({

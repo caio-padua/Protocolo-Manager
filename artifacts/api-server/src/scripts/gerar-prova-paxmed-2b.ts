@@ -2,7 +2,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateExamRequestPdf } from "../lib/exam-request-pdf";
-import { generateRecipePdf } from "../lib/prescription-pdf";
+import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
 
 async function main() {
   const destination = process.argv[2];
@@ -23,16 +23,15 @@ async function main() {
       preparo: "Informação fictícia para conferência visual da paginação.",
     })),
   });
-  const recipe = () => generateRecipePdf({
-    recipeType: "manipulacao", pharmacyId: null, anvisaType: null, anvisaColor: null,
-    anvisaColorName: null, internalColor: null, needsSncr: false, title: "Teste",
-    items: Array.from({ length: 22 }, (_, i) => ({
-      name: `Fórmula de demonstração ${String(i + 1).padStart(2, "0")}`,
-      ativos: "Conteúdo fictício para demonstração.",
+  const recipe = () => generateReceituarioPdfV2({
+    homologacao: true, modelo2bProva: true, assinaturaDigitalEstado: "sem_certificado_vencido",
+    medicoName: "PROFISSIONAL FICTÍCIO", medicoCrm: "REGISTRO FICTÍCIO",
+    clinicaNome: "CLÍNICA FICTÍCIA", pacienteNome: "CLIENTE FICTÍCIO",
+    dataEmissao: "2026-11-07", tipoReceita: "simples",
+    formulas: Array.from({ length: 22 }, (_, i) => ({
+      nome: `Fórmula de demonstração ${String(i + 1).padStart(2, "0")}`,
+      ativos: "Conteúdo fictício para demonstração.", posologia: "Teste — não dispensar.",
     })),
-  }, {
-    homologationNotice: true, modelo2bProva: true, clientName: "CLIENTE FICTÍCIO",
-    professionalName: "PROFISSIONAL FICTÍCIO", dateBR: "07/11/2026",
   });
   const bytes = await (kind === "exames" ? exam() : recipe());
   await mkdir(path.dirname(destination), { recursive: true });
