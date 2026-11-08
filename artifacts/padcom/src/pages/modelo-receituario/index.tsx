@@ -65,7 +65,8 @@ export default function ModeloReceituario() {
   async function carregar() {
     setCarregando(true);
     try {
-      const r = await fetch(`${API}/api/receituario-modelos`);
+      const r = await fetch(`${API}/api/receituario-modelos`, { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error("Não foi possível carregar os modelos.");
       const data = await r.json() as { modelos: Modelo[] };
       setModelos(data.modelos ?? []);
       setCarregouUmaVez(true);

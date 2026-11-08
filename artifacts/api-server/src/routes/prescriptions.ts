@@ -24,7 +24,6 @@ import { handleSncrAlert } from "../lib/sncr-alerts";
 import { generateRecipePdf } from "../lib/prescription-pdf"; // demonstração sintética sem persistência
 import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
 import { prescriptionItemForDocument } from "../lib/prescription-rendering";
-import { getModeloAtivo } from "../lib/receituario-motor";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { baseUrlFromEnv } from "../lib/messaging/base-url";
 import QRCode from "qrcode";
@@ -353,17 +352,6 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
     phone: locationsTable.phone,
   }).from(locationsTable)
     .where(eq(locationsTable.id, identity.clinic.id)).limit(1);
-  const activeReceiptModel = await getModeloAtivo();
-  const rawDesignerConfig = activeReceiptModel.config["designerConfig"];
-  const designerConfig = rawDesignerConfig && typeof rawDesignerConfig === "object" && !Array.isArray(rawDesignerConfig)
-    ? { ...(rawDesignerConfig as Record<string, unknown>) }
-    : {};
-  // Dados de demonstração/seletores do editor nunca são fonte de identidade para emissão.
-  delete designerConfig["selectedClinicaId"];
-  delete designerConfig["selectedMedicoId"];
-  delete designerConfig["assinaturaDataUrl"];
-  delete designerConfig["certificadoQrDataUrl"];
-
   // Mapa de farmácias para nome/tipo.
   const pharmRows = await db.select().from(pharmaciesTable);
   const pharmMap = new Map(pharmRows.map((p) => [p.id, p]));
@@ -487,8 +475,6 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       dataEmissao: todayBR(),
       validadeDias: 30,
       numeroReceita: sncrNumber ?? undefined,
-      bandModel: typeof activeReceiptModel.config["bandModelId"] === "string"
-        ? activeReceiptModel.config["bandModelId"] as string : undefined,
       consultaUrl: qrUrl,
       tituloSubtitulo: plan.title,
       assinaturaDigitalEstado: signatureStatus === "signed" ? "assinado" : "sem_certificado_vencido",
@@ -498,7 +484,6 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       farmaciaNome: pharmacy?.name ?? null,
       farmaciaTipo: pharmacy?.type ?? null,
       assinaturaImagem,
-      designerConfig,
       identidade2bClinica,
       rodapeLinhas: [
         clinicRecord?.name ?? identity.clinic.name,

@@ -18,9 +18,10 @@ regulatórias.
    o servidor verifica profissional, clínica, prescrição, arquivo, assinatura
    registrada e integridade da cópia antes de fornecê-la. O código sozinho não
    dá acesso nem certifica a assinatura criptográfica.
-6. Desabilitar temporariamente a entrada de menu das faixas; preservar a tela,
-   as configurações salvas e os documentos históricos. O desenho novo do
-   cabeçalho e rodapé não é controlado pelas faixas antigas.
+6. Manter a entrada de menu das faixas visível; preservar a tela, as
+   configurações salvas e os documentos históricos. Desligar a influência
+   desse editor na emissão principal e na demonstração do modelo aprovado,
+   sem apagar o motor ou a ferramenta.
 7. Evitar a criação automática da cópia alternativa com desenho antigo;
    manter as receitas regulatórias assinadas e sua entrega separada.
 8. Preservar farmácias, fórmulas, desmembramento, dados, permissões, avisos de
@@ -45,6 +46,17 @@ Domínio inválido deve impedir a operação antes de iniciar a transação.
 O fundo empresarial não pode conservar pixels da marca de exemplo.
 A faixa interna deve ser empacotada com o servidor, sem depender de um caminho
 absoluto do ambiente de desenvolvimento.
+Ao desligar o editor, nenhuma configuração de fonte, faixa ou título vinda
+dele pode mudar o documento principal; a identidade, os dados clínicos e a
+assinatura continuam vindo dos mesmos serviços autenticados.
+Outros caminhos legados que usam o motor antigo precisam ser inventariados
+e não podem ser considerados desconectados sem integração e validação.
+O editor mantém leitura e edição autenticadas. A rota existente de exclusão
+física deve recusar a operação, preservando os modelos e sua reativação futura.
+O reenvio por correio eletrônico deve usar os documentos já assinados e
+armazenados, sem regenerar a receita pelo modelo ativo do editor antigo.
+A ausência ou divergência do resumo de integridade deve bloquear o reenvio,
+inclusive para farmácias, sem tentar substituir o arquivo assinado.
 
 ## Homologação
 Revisão independente sequencial, testes sintéticos de geração, autorização,

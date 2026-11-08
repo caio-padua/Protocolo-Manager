@@ -10,7 +10,6 @@ import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
 import { generateExamRequestPdf } from "../lib/exam-request-pdf";
 import { validateExamCatalogItems } from "../lib/exam-catalog-validation";
 import { prescriptionItemForDocument } from "../lib/prescription-rendering";
-import { getModeloAtivo } from "../lib/receituario-motor";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { brtDisplayDate, brtISODate } from "../lib/brt";
 import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
@@ -131,11 +130,6 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
         .from(locationsTable).where(eq(locationsTable.id, identity.clinic.id)).limit(1);
       const [client] = await db.select({ birthDate: clientsTable.birthDate, address: clientsTable.address })
         .from(clientsTable).where(eq(clientsTable.id, identity.client.id)).limit(1);
-      const model = await getModeloAtivo();
-      const rawConfig = model.config["designerConfig"];
-      const designerConfig = rawConfig && typeof rawConfig === "object" && !Array.isArray(rawConfig)
-        ? { ...(rawConfig as Record<string, unknown>) } : {};
-      for (const key of ["selectedClinicaId", "selectedMedicoId", "assinaturaDataUrl", "certificadoQrDataUrl"]) delete designerConfig[key];
       bytes = await generateReceituarioPdfV2({
         medicoName: identity.professional.name,
         medicoCrm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / "),
@@ -153,8 +147,6 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
         ...(identidade2bProva ? { modelo2bProva: true, identidade2bProva } : {}),
         tituloSubtitulo: "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA",
         assinaturaImagem: signature,
-        designerConfig,
-        bandModel: typeof model.config["bandModelId"] === "string" ? model.config["bandModelId"] : undefined,
       }, signer);
     } else {
       let items;

@@ -1,11 +1,11 @@
 import { Router, type Request } from "express";
+import { createHash } from "node:crypto";
 import { db, prescriptionsTable, prescriptionItemsTable, recipesTable, pharmaciesTable,
   clientsTable, dispatchLogTable, lembreteEnviosTable, whatsappMensagensLogTable } from "@workspace/db";
 import { and, eq, desc, sql, gte, inArray } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { resolvePrescriptionClient } from "../lib/prescription-client";
-import { emitirReceituarioPdf } from "../lib/receituario-motor";
 import { sendWhatsapp } from "../lib/whatsapp";
 import { sendTelegram } from "../lib/telegram";
 import { sendGmailMessage } from "../lib/google-gmail";
@@ -148,9 +148,17 @@ async function deliver(req: Request, res: import("express").Response) {
       return row.id;
     },
     async () => {
-      if (target.channel === "email" && target.pharmacyId) {
-        const recipes = ctx.recipes.filter(r => r.pharmacyId === target.pharmacyId);
+      if (target.channel === "email") {
+        const recipes = target.pharmacyId
+          ? ctx.recipes.filter(r => r.pharmacyId === target.pharmacyId)
+          : ctx.recipes;
         if (!recipes.length || recipes.some(r => !r.pdfData)) return { accepted: false, error: "PDF regulatório indisponível; nenhum documento enviado." };
+        const invalid = recipes.some((recipe) => {
+          if (!recipe.qrPdfSha256 || !recipe.pdfData) return true;
+          const bytes = Buffer.from(recipe.pdfData, "base64");
+          return !bytes.length || createHash("sha256").update(bytes).digest("hex") !== recipe.qrPdfSha256;
+        });
+        if (invalid) return { accepted: false, error: "Integridade da receita não confirmada; nenhum documento enviado." };
         const result = await sendGmailMessage({
           to: target.recipient, subject: `${ctx.identity.clinic.name} | Receitas #${ctx.pres.id}`,
           html: "<p>Seguem os documentos clínicos confirmados pela clínica, em anexo.</p>",
@@ -158,18 +166,6 @@ async function deliver(req: Request, res: import("express").Response) {
             content: Buffer.from(r.pdfData!, "base64"), contentType: "application/pdf" })),
         });
         return { accepted: result.success, error: result.error };
-      }
-      if (target.channel === "email") {
-        const result = await emitirReceituarioPdf({
-          identity: ctx.identity,
-          medicoId: ctx.pres.professionalId!, clinicaId: ctx.identity.clinic.id,
-          patient: { nome: ctx.client.name, cpf: ctx.client.cpf ?? undefined,
-            telefone: ctx.client.phone ?? undefined, email: ctx.client.email ?? undefined },
-          formulas: items.map(it => ({ nome: it.name, ativos: it.ativos ?? undefined,
-            posologia: it.posologia ?? "", via: it.via ?? undefined, forma: it.observacao ?? undefined, dose: it.dose ?? undefined })),
-          tipoReceita: "especial", emailTo: [target.recipient],
-        });
-        return { accepted: result.emailSent, error: result.emailError };
       }
       const text = target.pharmacyId
         ? `${ctx.identity.clinic.name}: prescrição #${ctx.pres.id} de ${ctx.client.name} disponível. Solicite os documentos à clínica por canal autorizado.`

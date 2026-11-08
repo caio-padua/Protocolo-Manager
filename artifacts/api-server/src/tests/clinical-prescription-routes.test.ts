@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 const mock = vi.hoisted(() => ({
   results: [] as any[][], insert: vi.fn(), send: vi.fn(), generate: vi.fn(), authorize: vi.fn(),
+  generatePdf: vi.fn(async (..._args: unknown[]) => new Uint8Array([1])),
   values: vi.fn(), alert: vi.fn(), baseUrl: "https://test.invalid",
   accessMode: "direto" as "direto" | "conferir" | "bloqueado",
 }));
@@ -60,7 +61,7 @@ vi.mock("../lib/documentos/paxmed-2b-identidade-clinica", async (original) => ({
     simboloDourado: new Uint8Array([1]),
   }),
 }));
-vi.mock("../lib/receituario-pdf", () => ({ generateReceituarioPdfV2: async () => new Uint8Array([1]) }));
+vi.mock("../lib/receituario-pdf", () => ({ generateReceituarioPdfV2: mock.generatePdf }));
 vi.mock("../routes/prescription-delivery", async (original) => ({
   ...await original<typeof import("../routes/prescription-delivery")>(),
   authorizedPrescription: mock.authorize,
@@ -206,6 +207,9 @@ it.each([
   const result = await request(app).post("/prescriptions/emit").set("Authorization", `Bearer ${token()}`)
     .send({ ...body, items: [{ name: "Fórmula sintética", isControlled: true, anvisaType: "A" }] });
   expect(result.status, JSON.stringify(result.body)).toBe(201);
+  expect(mock.generatePdf).toHaveBeenCalledOnce();
+  expect(mock.generatePdf.mock.calls[0][0]).not.toHaveProperty("designerConfig");
+  expect(mock.generatePdf.mock.calls[0][0]).not.toHaveProperty("bandModel");
   expect(mock.alert).toHaveBeenCalledWith(expect.objectContaining({
     status: sncr.expected, controlledType: "A", uf: "SP", clientId: 71, prescriptionId: 101,
   }), { notifyEmail: false });
