@@ -2,7 +2,57 @@
 
 ## Estado
 
-BLOQUEADO para homologação integral; correções técnicas aplicadas em desenvolvimento.
+BLOQUEADO para homologação integral; a regra única abaixo ainda não está
+implementada. Há correções técnicas anteriores em desenvolvimento.
+
+## Direção atual: regra única de aplicações injetáveis
+
+O responsável determinou que o cliente não precise visitar a clínica mais de
+uma vez por semana para aplicações. A referência de semana é segunda-feira a
+domingo, como no motor existente da grade de RAS FAP. O início, a quantidade,
+a dose e o intervalo de cada substância vêm do protocolo real, não de valores
+inventados. A consolidação tem de ser compatível com a prescrição clínica.
+
+Quando não for possível respeitar simultaneamente a prescrição e uma única
+visita semanal, a proposta de regra única não agenda nem muda a prescrição
+silenciosamente. Uma definição clínica autorizada é necessária para esse caso.
+Não presumir que o intervalo entre doses possa ser reduzido nem antecipar a
+primeira dose automaticamente.
+
+Para novas marcações, unificar os caminhos divergentes de geração de visitas
+em uma política consolidada e aposentar a opção de visitas por datas exatas
+que contradiz essa política. Uma visita deve ser vinculada ao recurso correto
+e passar pelo motor existente de disponibilidade. O formulário e as
+informações da agenda devem refletir as sessões e aplicações efetivamente
+registradas, sem recalcular uma segunda agenda divergente.
+
+Preservar a leitura de protocolos e sessões existentes, inclusive qualquer
+registro com o modo exato, sem recalcular nem excluir histórico, sem remover
+colunas do banco e sem modificar eventos anteriores do Google. A remoção de
+regras redundantes exige primeiro identificar e adaptar seus consumidores e
+testar a compatibilidade. A existência desta direção não significa que o
+código atual já a cumpra.
+
+O evento da clínica deve usar as aplicações da sessão e uma montagem
+compartilhada em criação, sincronização e remarcação; mostrar aplicações da
+visita e futuras conforme sua situação verdadeira. Reutilizar o formato
+existente, conferir duração e destino e atualizar o evento existente quando
+possível. Nenhum evento externo deve ser modificado durante esta investigação.
+
+### Verificação necessária para esta direção
+
+1. Inícios individuais, contagem e intervalos diferentes; virada de semana e
+   visitas já existentes do mesmo cliente.
+2. Dias e horários sem expediente, ocupados, fora da antecedência ou não
+   liberados, inclusive indisponibilidade do Google.
+3. Sessões, formulário e evento com as mesmas datas e substâncias; próximas
+   aplicações não confirmáveis e aplicações realizadas ou não realizadas fiéis.
+4. Criação, remarcação, repetição e concorrência sem duplicar ou apagar histórico;
+   preservar o mesmo evento externo quando o calendário não mudar.
+5. Permissões de médico, responsável técnico, administrador e secretaria;
+   falhas de banco, de integração, de rede e de sessão expirada.
+6. Testes sintéticos isolados e revisão independente antes de homologar;
+   nenhuma operação clínica real ou entrega externa é prova por presunção.
 
 ## Objetivo
 
@@ -20,10 +70,9 @@ existentes, preservando catálogo, identidade clínica e comprovantes externos.
 5. Protocolo já validado com sessões retorna seu estado sem novo onboarding.
 6. Estado incompatível ou sessões preexistentes em protocolo sugerido bloqueiam
    geração; não reconstruir dados automaticamente.
-7. Preservar a consolidação semanal dos protocolos existentes e oferecer modo
-   explícito de datas exatas, necessário para inícios em dias diferentes.
-   Não alterar cálculo de orçamento nem motor de desmembramento.
-   Cada item salva sua data inicial; o modo exato agrupa somente o mesmo dia.
+7. Para novas marcações, seguir a direção atual de regra única acima e
+   preservar a leitura dos protocolos anteriores. Não alterar cálculo de
+   orçamento nem motor de desmembramento. Cada item conserva sua data inicial.
 8. Conferir a identidade na jornada autenticada antes de qualquer operação real.
 9. RAS FAP significa Formulário de Auditoria de Procedimentos; usar o gerador
    existente, sem fabricar arquivo ou comprovação de assinatura.
@@ -88,9 +137,15 @@ Compilação, simulação e testes isolados não substituem essas provas.
 
 Não excluir dados, não forjar sessão ou certificado, não copiar dados pessoais
 para testes, não cobrar, não convidar clientes no Google e não alterar os
-motores comerciais ou o comportamento dos protocolos semanais existentes.
+motores comerciais. Preservar os registros dos protocolos existentes ao
+substituir a lógica de novas marcações pela regra única.
 
-## Datas confirmadas pelo responsável
+## Registro histórico: proposta de datas separadas substituída
+
+Esta seção registra uma interpretação anterior que o responsável corrigiu:
+o cliente deve ir à clínica no máximo uma vez por semana. As oito visitas e
+a disponibilidade do modo exato descritas abaixo não são direção vigente e
+não autorizam criação de sessões.
 
 Em 08/11/2026 o responsável confirmou início da substância semanal na
 segunda-feira, 09/11/2026, às dez horas, e três aplicações da segunda substância

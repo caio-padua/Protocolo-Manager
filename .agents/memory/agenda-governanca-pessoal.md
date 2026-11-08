@@ -42,6 +42,17 @@ podem se deslocar mais de uma vez na semana para aplicações curtas.
 verificar compatibilidade clínica, disponibilidade e consistência entre
 documento e agenda antes de registrar datas, sem inventar um segundo motor.
 
+O responsável pediu uma única regra de agendamento dos injetáveis e uma única
+fonte das informações do compromisso; regras concorrentes devem ser
+aposentadas após a preservação dos registros existentes.
+
+**Why:** regras paralelas podem produzir datas e descrições divergentes para o
+mesmo protocolo.
+
+**How to apply:** manter a consolidação semanal e integrar agenda, sessões e
+formulário aos mesmos dados; preservar histórico e não antecipar dose ou
+alterar intervalo clínico sem autorização.
+
 O responsável definiu intervalos de agendamento de sessenta minutos para o
 médico e de vinte minutos para a enfermagem.
 
