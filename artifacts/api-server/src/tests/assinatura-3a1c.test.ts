@@ -65,6 +65,54 @@ async function verifyPdf(bytes: Uint8Array, label: string) {
 }
 
 describe("Modelo 3A-1C", () => {
+  it("fixa a faixa na mesma altura em receitas curtas, longas e especiais", async () => {
+    const signer = syntheticSigner();
+    const documents = [
+      { tipoReceita: "simples" as const, quantidade: 1 },
+      { tipoReceita: "simples" as const, quantidade: 24 },
+      { tipoReceita: "especial" as const, quantidade: 7 },
+      { tipoReceita: "especial" as const, quantidade: 12, alturaCaixa: 480 },
+    ];
+    const positions: number[] = [];
+    for (const { tipoReceita, quantidade, alturaCaixa } of documents) {
+      const formulas = Array.from({ length: quantidade }, (_, i) => ({
+        nome: `FORMULA SINTETICA ${String(i + 1).padStart(2, "0")}`,
+        ativos: `ELEMENTO SINTETICO ${String(i + 1).padStart(2, "0")}`,
+        posologia: `NAO DISPENSAR ITEM ${String(i + 1).padStart(2, "0")}`,
+      }));
+      const bytes = await generateReceituarioPdfV2({
+        medicoName: identity.professional.name, medicoCrm: "12345 / SP",
+        clinicaNome: identity.clinic.name, pacienteNome: identity.client.name,
+        dataEmissao: "2026-11-07", tipoReceita, formulas,
+        designerConfig: alturaCaixa ? { boxMinHeight: alturaCaixa } : undefined,
+      }, signer);
+      const result = await verifyPdf(bytes, `fixo-${tipoReceita}-${quantidade}`);
+      for (let i = 1; i <= quantidade; i++) {
+        const marker = String(i).padStart(2, "0");
+        expect(result.text).toContain(`FORMULA SINTETICA ${marker}`);
+        expect(result.text).toContain(`ELEMENTO SINTETICO ${marker}`);
+        expect(result.text).toContain(`NAO DISPENSAR ITEM ${marker}`);
+      }
+      if (tipoReceita === "especial") {
+        expect(result.text.toUpperCase()).toContain("COMPRADOR");
+        expect(result.text.toUpperCase()).toContain("FARMÁCIA");
+      }
+      const bbox = execFileSync("pdftotext", [
+        "-f", String(result.count), "-l", String(result.count), "-bbox", result.file, "-",
+      ], { encoding: "utf8" });
+      const match = bbox.match(/<word xMin="[^"]+" yMin="([^"]+)"[^>]*>ASSINADO<\/word>/);
+      expect(match).not.toBeNull();
+      positions.push(Number(match![1]));
+      if (tipoReceita === "especial") {
+        const farmacia = bbox.match(/<word[^>]*yMax="([^"]+)"[^>]*>FARMÁCIA<\/word>/);
+        expect(farmacia).not.toBeNull();
+        expect(Number(farmacia![1])).toBeLessThan(Number(match![1]) - 5);
+      }
+    }
+    expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(0.1);
+    expect(positions[0]).toBeGreaterThan(600);
+  }, 120_000);
+
   it("assina as provas 2B dos dois motores depois de paginar e carimbar", async () => {
     const signer = syntheticSigner();
     const logo = new PNG({ width: 2, height: 2 });

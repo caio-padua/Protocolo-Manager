@@ -1018,13 +1018,21 @@ export interface GoogleAgendaCommitment {
   horario: string;
   diaInteiro: boolean;
   agenda: string;
+  agendaId: number;
   cor: string;
   recorrente: boolean;
+}
+
+export interface GoogleAgendaOption {
+  id: number;
+  nome: string;
+  cor: string;
 }
 
 export interface GoogleAgendaCommitments {
   desde: string;
   eventos: GoogleAgendaCommitment[];
+  agendas: GoogleAgendaOption[];
 }
 
 export interface AgendaSlotsResponse {

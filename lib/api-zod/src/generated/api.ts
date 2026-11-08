@@ -4398,8 +4398,16 @@ export const GetGoogleAgendaCommitmentsResponse = zod.object({
       horario: zod.string(),
       diaInteiro: zod.boolean(),
       agenda: zod.string(),
+      agendaId: zod.number(),
       cor: zod.string(),
       recorrente: zod.boolean(),
+    }),
+  ),
+  agendas: zod.array(
+    zod.object({
+      id: zod.number(),
+      nome: zod.string(),
+      cor: zod.string(),
     }),
   ),
 });

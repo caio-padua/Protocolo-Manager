@@ -29,6 +29,7 @@ export interface ImportedCommitment {
   recorrencia: string | null;
   origem: string;
   agenda: string;
+  agendaId: number;
   cor: string;
   papel: string | null;
 }
@@ -62,6 +63,7 @@ export function projectImportedCommitment(row: ImportedCommitment, from: Date, u
       })(),
       diaInteiro: row.diaInteiro,
       agenda: row.agenda,
+      agendaId: row.agendaId,
       cor: row.cor,
       recorrente: row.origem === "google_recorrente",
     }));

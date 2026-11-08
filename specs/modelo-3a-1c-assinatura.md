@@ -12,6 +12,13 @@ Aplicar o quadro institucional aprovado de assinatura aos modelos de prescriçã
 6. Aplicar ao receituário simples, controlado e aos diferentes modelos de emissão ativos, além dos pedidos de exames.
 7. Preservar regras de paginação, conteúdo, autenticação, isolamento entre clínicas, assinatura criptográfica e envio.
 8. Fonte e tamanho priorizam a legibilidade, respeitando a especificação visual e declarando qualquer limitação.
+9. Na receita, a faixa de assinatura fica em posição fixa na parte inferior da
+   última página, acima do rodapé, mesmo quando o corpo for curto. Seu espaço
+   não pode ser ocupado por fórmulas, detalhes ou caixas de receita especial.
+   Quando não couber, iniciar outra página sem cortar ou esconder conteúdo.
+10. Os campos obrigatórios de receita especial permanecem no corpo, acima da
+    faixa. A classificação simples ou especial não escolhe outro cabeçalho
+    nem outro rodapé.
 
 ## Impactos e falhas previstas
 - Fonte de identidade incorreta: usar o contexto do profissional autenticado e o certificado validado, sem identificar médico por nome.
@@ -22,6 +29,15 @@ Aplicar o quadro institucional aprovado de assinatura aos modelos de prescriçã
 - QR ilegível ou incorreto: verificar conteúdo e leitura do código gerado; impressão física não pode ser comprovada pelo ambiente.
 - Outros modelos e formatos: revisar os geradores existentes; não alterar fluxos legados bloqueados nem reativar emissão insegura.
 - O modelo de faixas anteriormente comprimia imagens longas em uma única folha, deformando o quadro e o conteúdo; gerar páginas A4 reais e impedir que fórmulas e o quadro sejam partidos entre páginas.
+- Posição fixa: calcular a reserva a partir do limite superior do rodapé e da
+  altura real do quadro. Testar receita curta, extensa e especial, com e sem
+  paginação. Se caixas especiais forem altas, não colocá-las sobre a faixa.
+  Preservar dados clínicos e manter a assinatura criptográfica como último passo.
+- O motor que imprime a receita a partir de uma página web também precisa
+  reservar espaço na folha e colocar o mesmo quadro na posição fixa antes de
+  assinar. O espaço reservado deve impedir sobreposição em todas as páginas;
+  a prévia em tela não deve perder o quadro. Testar o arquivo impresso final,
+  não apenas o código da página web.
 
 ## Critérios de pronto
 - Geradores aplicáveis produzem o quadro nas posições especificadas e os campos correspondem ao contexto de emissão.

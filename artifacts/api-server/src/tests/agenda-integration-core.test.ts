@@ -50,7 +50,7 @@ describe("origem Google sem escrita nem inferência clínica",()=>{
     end:{dateTime:"2026-08-26T23:30:00-03:00"},recurrence:["RRULE:FREQ=WEEKLY;BYDAY=WE;COUNT=5"]};
   it("série iniciada em agosto preserva noite de quarta-feira no fuso correto",()=>{
     const [event]=normalizeGoogleSource([recurring]);
-    const projected=projectImportedCommitment({...event,id:1,agenda:"Sintética",cor:"#123",papel:"local"},
+    const projected=projectImportedCommitment({...event,id:1,agenda:"Sintética",agendaId:1,cor:"#123",papel:"local"},
       new Date("2026-09-01T00:00:00-03:00"),new Date("2026-10-01T00:00:00-03:00"));
     expect(projected.map(e=>e.data)).toEqual(["2026-09-02","2026-09-09","2026-09-16","2026-09-23"]);
     expect(projected.every(e=>e.horario==="23:00")).toBe(true);
@@ -60,7 +60,7 @@ describe("origem Google sem escrita nem inferência clínica",()=>{
       originalStartTime:{dateTime:"2026-09-02T23:00:00-03:00"},
       start:{dateTime:"2026-09-03T10:00:00-03:00"},end:{dateTime:"2026-09-03T10:30:00-03:00"}};
     const events=normalizeGoogleSource([recurring,override]);
-    const projected=events.flatMap((e,i)=>projectImportedCommitment({...e,id:i,agenda:"Sintética",cor:"#123",papel:"local"},
+    const projected=events.flatMap((e,i)=>projectImportedCommitment({...e,id:i,agenda:"Sintética",agendaId:1,cor:"#123",papel:"local"},
       new Date("2026-09-01T00:00:00-03:00"),new Date("2026-09-05T00:00:00-03:00")));
     expect(projected.map(e=>e.data)).toEqual(["2026-09-03"]);
   });

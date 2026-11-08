@@ -15,6 +15,7 @@ export interface GoogleAgendaCommitment {
   horario: string;
   diaInteiro: boolean;
   agenda: string;
+  agendaId: number;
   cor: string;
   recorrente: boolean;
 }

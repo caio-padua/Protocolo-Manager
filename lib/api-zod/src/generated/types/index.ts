@@ -203,6 +203,7 @@ export * from "./getGoogleAgendaCommitmentsParams";
 export * from "./getReconciliationParams";
 export * from "./googleAgendaCommitment";
 export * from "./googleAgendaCommitments";
+export * from "./googleAgendaOption";
 export * from "./healthStatus";
 export * from "./installmentOption";
 export * from "./itemVolumeResult";

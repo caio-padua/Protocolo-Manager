@@ -6,6 +6,13 @@ Aplicar o modelo visual 2B, versão 1.1, aos documentos do Instituto Pádua,
 sem alterar dados clínicos, assinatura, decisões regulatórias ou a marca de
 outras clínicas.
 
+Em 07/11/2026, o responsável reiterou que o padrão é o modelo de cabeçalho
+azul e marca PAXMED no rodapé, para emissão automática sem botão de ativação.
+Receitas comuns e especiais compartilham esse cabeçalho e rodapé; suas
+diferenças regulatórias permanecem no corpo. A faixa de assinatura deve estar
+na parte inferior da última folha, sem sobreposição ao conteúdo ou ao rodapé.
+A imagem posterior com cabeçalho branco não substitui essa escolha.
+
 ## Requisitos
 
 1. Cabeçalho com a arte fornecida do Instituto Pádua e títulos dinâmicos;
@@ -19,8 +26,10 @@ outras clínicas.
    assinado ou para página de verificação real, com controle de acesso.
    Endereço genérico ou fictício não comprova verificação.
 6. A identidade do Instituto Pádua não pode ser aplicada a outras clínicas.
-7. O modelo não deve ser ativado globalmente nem em produção; homologação em
-   ramificação própria, com demonstração sintética explicitamente identificada.
+7. O modelo será automático para as clínicas autorizadas, sem seletor visual.
+   Não ativar a integração clínica enquanto a identidade empresarial, o acesso
+   protegido, a assinatura e a regressão não estiverem validados; demonstrações
+   continuam explicitamente identificadas e sem validade clínica.
 8. Integrar também os demais motores clínicos identificados no pacote, após
    mapear seus consumidores e preservar assinaturas e regras regulatórias.
 9. Testar documentos de uma, duas, três e dez páginas, texto comprido,

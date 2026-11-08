@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GoogleAgendaCommitment } from "./googleAgendaCommitment";
+import type { GoogleAgendaOption } from "./googleAgendaOption";
 
 export interface GoogleAgendaCommitments {
   desde: string;
   eventos: GoogleAgendaCommitment[];
+  agendas: GoogleAgendaOption[];
 }

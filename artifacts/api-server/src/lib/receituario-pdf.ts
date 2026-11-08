@@ -1103,37 +1103,25 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       value: data.farmaciaNome,
     } : null,
   ].filter(Boolean) as { label: string; value: string }[];
-  // Detalhes + assinatura + certificado ficam juntos na mesma página.
-  ensureSpace(150);
+  // A faixa final é ancorada acima do rodapé, independentemente da quantidade
+  // de texto. O conteúdo deve terminar antes da linha que a separa do corpo.
+  const assinaturaBase = BODY_BOTTOM + 6;
+  const assinaturaTopo = assinaturaBase + ASSINATURA_3A1C_ALTURA;
+  const separadorAssinatura = assinaturaTopo + 14;
+  const limiteCorpoFinal = separadorAssinatura + 10;
   if (details.length) {
+    if (y - 30 < limiteCorpoFinal) newPage();
     y -= 3;
     y = drawInlineRow(M, y, details, CW);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 5. ASSINATURA + CERTIFICADO — LADO A LADO (motor: flex row, gap 8mm)
-  // ══════════════════════════════════════════════════════════════════════════
-  y -= 10;
-  drawDecorLine(y, true, 0.5, "ornamentada", GOLD);
-  y -= 14;
-
-  await desenharAssinatura3a1c(pdfDoc, page, y - ASSINATURA_3A1C_ALTURA, {
-    certificado: certMeta,
-    profissional: data.medicoName,
-    crm: data.medicoCrm,
-    assinaturaImagem: data.assinaturaImagem,
-    vencimento: data.certificadoValidoAte,
-    dataEmissao: dataStr,
-  });
-  y -= ASSINATURA_3A1C_ALTURA + 12;
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 6. FAIXA INFERIOR — Box 3 (Comprador) + Box 4 (Fornecedor/Farmácia)
+  // 5. CAMPOS DO CORPO — Box 3 (Comprador) + Box 4 (Fornecedor/Farmácia)
   //    Apenas receituário especial. Arabescos ATRÁS. (motor: BandaComBoxes)
   // ══════════════════════════════════════════════════════════════════════════
   if (tipo === "especial") {
     const BOX2_H   = Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
-    ensureSpace(BOX2_H + 12);
+    if (y - BOX2_H - 8 < limiteCorpoFinal) newPage();
     const BOX2_TOP = y;
 
     drawArabBand(BOX2_TOP, BOX2_H);
@@ -1177,6 +1165,18 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
     y = BOX2_TOP - BOX2_H - 8;
   }
+
+  // 6. ASSINATURA + CERTIFICADO: posição fixa na última página.
+  if (y < limiteCorpoFinal) newPage();
+  drawDecorLine(separadorAssinatura, true, 0.5, "ornamentada", GOLD);
+  await desenharAssinatura3a1c(pdfDoc, page, assinaturaBase, {
+    certificado: certMeta,
+    profissional: data.medicoName,
+    crm: data.medicoCrm,
+    assinaturaImagem: data.assinaturaImagem,
+    vencimento: data.certificadoValidoAte,
+    dataEmissao: dataStr,
+  });
 
   // ══════════════════════════════════════════════════════════════════════════
   // 7. RODAPÉ — fundo BRANCO, borda fina no topo (motor: posição absoluta)

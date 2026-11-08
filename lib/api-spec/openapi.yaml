@@ -4378,7 +4378,7 @@ components:
             $ref: "#/components/schemas/AgendaChangeRequest"
     GoogleAgendaCommitment:
       type: object
-      required: [id, titulo, inicio, fim, data, horario, diaInteiro, agenda, cor, recorrente]
+      required: [id, titulo, inicio, fim, data, horario, diaInteiro, agenda, agendaId, cor, recorrente]
       properties:
         id:
           type: string
@@ -4396,13 +4396,15 @@ components:
           type: boolean
         agenda:
           type: string
+        agendaId:
+          type: integer
         cor:
           type: string
         recorrente:
           type: boolean
     GoogleAgendaCommitments:
       type: object
-      required: [desde, eventos]
+      required: [desde, eventos, agendas]
       properties:
         desde:
           type: string
@@ -4410,6 +4412,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GoogleAgendaCommitment"
+        agendas:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoogleAgendaOption"
+    GoogleAgendaOption:
+      type: object
+      required: [id, nome, cor]
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        cor:
+          type: string
 
     AgendaSlotsResponse:
       type: object

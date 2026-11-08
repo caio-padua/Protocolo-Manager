@@ -142,7 +142,7 @@ function SessionCard({
   onSendPostEmail: (s: any) => void;
   onReschedule: (s: any) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const whatsappLink = buildWhatsAppLink(session);
   const dispApps = session.substanceApplications.filter((a: any) => a.availability === "disp");
   const allConfirmed = dispApps.length > 0 && dispApps.every((a: any) => a.appliedAt);

@@ -25,7 +25,10 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
     if (!empresaId) { res.status(403).json({ error: "Selecione a empresa." }); return; }
     const result = await db.execute(sql`
       SELECT c.id, c.titulo, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
-        c.recorrencia, c.origem, l.name AS agenda, l.color AS cor, l.agenda_papel AS papel
+        c.recorrencia, c.origem,
+        CASE WHEN l.agenda_papel = 'pessoal' AND NOT ${req.tenantContext.isPlatformOwner} THEN 'Agenda pessoal'
+          ELSE l.name END AS agenda,
+        l.id AS "agendaId", l.color AS cor, l.agenda_papel AS papel
       FROM agenda_compromissos c
       JOIN locations l ON l.id = c.location_id
       WHERE l.empresa_id = ${empresaId} AND l.active = 'true' AND c.status = 'ativo'
@@ -33,13 +36,26 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
           AND c.fim > ${start.toISOString()}::timestamptz))
       ORDER BY c.inicio, c.id
     `);
+    const calendars = await db.execute(sql`
+      SELECT l.id,
+        CASE WHEN l.agenda_papel = 'pessoal' AND NOT ${req.tenantContext.isPlatformOwner} THEN 'Agenda pessoal'
+          ELSE l.name END AS nome,
+        l.color AS cor
+      FROM locations l
+      WHERE l.empresa_id = ${empresaId} AND l.active = 'true'
+        AND (l.google_calendar_id IS NOT NULL OR EXISTS (
+          SELECT 1 FROM agenda_compromissos c
+          WHERE c.location_id = l.id AND c.status = 'ativo'
+        ))
+      ORDER BY l.name, l.id
+    `);
     const events = (result.rows as unknown as ImportedCommitment[]).flatMap((row) => {
       // O cadastro atual não prova titularidade pessoal: só o proprietário da plataforma vê o título.
       const safe = row.papel === "pessoal" && !req.tenantContext.isPlatformOwner
         ? { ...row, titulo: "Ocupado — compromisso pessoal" } : row;
       return projectImportedCommitment(safe, start, until);
     }).sort((a, b) => a.inicio.localeCompare(b.inicio) || a.id.localeCompare(b.id));
-    res.json(GetGoogleAgendaCommitmentsResponse.parse({ desde: GOOGLE_AGENDA_FLOOR, eventos: events }));
+    res.json(GetGoogleAgendaCommitmentsResponse.parse({ desde: GOOGLE_AGENDA_FLOOR, eventos: events, agendas: calendars.rows }));
   } catch (error) {
     req.log?.error({ err: error }, "Falha ao consultar compromissos importados");
     res.status(500).json({ error: "Não foi possível consultar os compromissos importados." });

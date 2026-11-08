@@ -3,7 +3,7 @@ import { projectImportedCommitment, type ImportedCommitment } from "../lib/agend
 
 const row: ImportedCommitment = {
   id: 1, titulo: "Exemplo sintético", inicio: "2026-09-02T13:45:00Z", fim: "2026-09-02T14:15:00Z",
-  diaInteiro: false, origem: "google_recorrente", agenda: "Agenda sintética", papel: "local", cor: "#123456",
+  diaInteiro: false, origem: "google_recorrente", agenda: "Agenda sintética", agendaId: 1, papel: "local", cor: "#123456",
   recorrencia: JSON.stringify({
     version: 1, start: "2026-08-19T10:45:00-03:00", end: "2026-08-19T11:15:00-03:00",
     lines: ["RRULE:FREQ=WEEKLY;BYDAY=WE"], excluded: ["2026-09-09T10:45:00-03:00"],
