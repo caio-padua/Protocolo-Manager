@@ -1026,3 +1026,17 @@ mtime_ms = 1794083478457
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/8d76292a-2d63-4090-bb52-07f9bafa6270/6d9a700f-8ff8-47b3-80a4-a3bb13520d14"
 storage_version_token = "1794083582003972"
 content_type = "image/png"
+
+[[outputs]]
+id = "cCZR0fOEd4_l0qYoK_N_K"
+uri = "file://generated-artifacts/plano-pendencias-paxter-08-11-2026.pdf"
+type = "pdf"
+title = "Plano de trabalho — o que falta fazer"
+description = "Documento de sete páginas com pendências, regras, validações e estimativas preliminares."
+logical_id = "99820308-3c08-4b39-88fa-924165e05e5e"
+content_hash = "sha256:45500ee1ec5def983b020cdf48bb99b9f017fcc01f1b1a579958269066fbfc64"
+size = 221447
+mtime_ms = 1794170191438
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/99820308-3c08-4b39-88fa-924165e05e5e/9fe9e735-b804-4a00-a86a-d0fedf818214"
+storage_version_token = "1794170203488978"
+content_type = "application/pdf"
