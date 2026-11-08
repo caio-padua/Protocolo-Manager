@@ -52,6 +52,7 @@ describe("consulta autenticada de compromissos importados", () => {
       new (await import("drizzle-orm/pg-core")).PgDialect(), mocks.execute.mock.calls[0][0],
     );
     expect(sql).toContain("l.empresa_id");
+    expect(sql).toContain("l.active = 'true'");
     expect(params).toContain(12345);
   });
   it("falha de banco é erro explícito, nunca lista vazia", async () => {

@@ -28,7 +28,7 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
         c.recorrencia, c.origem, l.name AS agenda, l.color AS cor, l.agenda_papel AS papel
       FROM agenda_compromissos c
       JOIN locations l ON l.id = c.location_id
-      WHERE l.empresa_id = ${empresaId} AND l.active = true AND c.status = 'ativo'
+      WHERE l.empresa_id = ${empresaId} AND l.active = 'true' AND c.status = 'ativo'
         AND (c.origem = 'google_recorrente' OR (c.inicio < ${until.toISOString()}::timestamptz
           AND c.fim > ${start.toISOString()}::timestamptz))
       ORDER BY c.inicio, c.id

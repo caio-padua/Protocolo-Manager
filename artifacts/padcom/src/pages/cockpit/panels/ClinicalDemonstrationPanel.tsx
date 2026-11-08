@@ -18,7 +18,7 @@ export default function ClinicalDemonstrationPanel({
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [modelo2b, setModelo2b] = useState(false);
+  const [modelo2b, setModelo2b] = useState(import.meta.env.DEV);
   const [error, setError] = useState<string | null>(null);
   const current = useRef(`${clientId}:${kind}`);
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function ClinicalDemonstrationPanel({
   useEffect(() => {
     setDocuments([]);
     setError(null);
-    setModelo2b(false);
+    setModelo2b(import.meta.env.DEV);
     void loadDocuments();
   }, [clientId, kind, loadDocuments]);
 

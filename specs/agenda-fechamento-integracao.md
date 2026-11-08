@@ -28,6 +28,16 @@ Google permanece somente leitura, inclusive no histórico; clientes, documentos 
 | Título pessoal vazado | Resposta neutra para terceiros | Contrato e teste de privacidade |
 | Origem indisponível | Estado explícito e recusa de novas reservas com cache vencido | Falha sintética |
 
+## Correção de leitura identificada em 07/11/2026
+O painel de compromissos retornou erro porque o campo de atividade dos locais
+é texto e a consulta comparava esse campo com um valor booleano. A consulta deve
+usar o valor textual realmente armazenado, preservar o isolamento por empresa e
+continuar recusando acessos sem autenticação. O teste deve conferir o SQL
+produzido e executar a consulta no PostgreSQL, pois um banco simulado não detectou
+a incompatibilidade. Esta correção não altera compromissos nem escreve no Google.
+A disponibilidade da origem e a atualização posterior devem ser verificadas
+separadamente; uma leitura local bem-sucedida não comprova sincronização atual.
+
 ## Critérios
 Testes específicos, compilação das bibliotecas, inicialização dos serviços e captura da interface.
 Teste de interface com respostas sintéticas não comprova login real nem escrita em serviço externo.

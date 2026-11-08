@@ -106,6 +106,45 @@ persistência e recuperação → revisão independente → testes de ponta a po
 O modelo não será ativado em emissão clínica enquanto essas dependências
 permanecerem incompletas; a prova sintética existente continua isolada.
 
+### Emissão real e acesso protegido
+
+Em 07/11/2026 o responsável apresentou uma receita real com o modelo anterior,
+o nome da agenda no cabeçalho e três páginas. A causa observada é que a emissão
+real chama o motor de receituário sem selecionar o Modelo 2B. A identidade do
+cabeçalho deve vir da empresa clínica autenticada, não do nome de uma agenda.
+Os documentos históricos assinados permanecem intactos.
+
+O acesso à cópia para o novo modelo deve passar por uma tela de entrada que
+preserve a página de retorno e por uma rota que valide, no servidor, a sessão,
+o médico, a empresa, o cliente e o documento. Um identificador no endereço não
+é credencial. A página não deve expor dados clínicos antes da autorização e
+deve informar falhas sem tentar outros documentos. A existência de links
+legados de compartilhamento não equivale à proteção exigida para o Modelo 2B.
+
+A integração dos motores de receita e exames deve reservar uma identidade real
+do documento antes do desenho do código, finalizar todas as páginas antes da
+assinatura e gravar a cópia assinada vinculada a essa identidade. Uma falha deve
+impedir a emissão, sem cair silenciosamente no modelo antigo. A apresentação
+de teste deve usar a mesma cadeia, mantendo a marca de demonstração e sem
+produzir efeitos clínicos ou enviar ao cliente. A reconexão do Gmail é necessária
+para demonstrar a entrega ao endereço da clínica; não equivale à sua realização.
+
+Revisão independente de 07/11/2026: a rota protegida de consulta existente não
+comprova integridade de assinatura e admite receita sem assinatura. Pedidos de
+exames antigos não armazenam o vínculo imutável da unidade de emissão; o médico
+e o vínculo atual do cliente não provam a unidade original após transferência.
+Não usar essa rota como verificador 2B até vincular a origem e conferir a cópia
+assinada. Links legados públicos continuam existindo e não provam login.
+
+Conferência em 07/11/2026 de uma demonstração gerada pelo fluxo autenticado:
+uma página; verificação local da integridade da assinatura aprovada, mas sem
+confirmação de confiança na autoridade emissora pelo verificador local. Não
+equivale à verificação oficial nem ao par de demonstrações de duas páginas.
+O Modelo 2B passou a ser a seleção inicial da demonstração em desenvolvimento,
+inclusive após troca do cliente; teste visual automatizado com dados sintéticos
+confirmou a seleção e o envio da opção ao servidor simulado. Isso não altera o
+modelo da emissão clínica real nem configura uma prova de envio.
+
 Falhas impeditivas: identidade ausente, provisória ou de outra empresa; objeto
 de marca inacessível; acesso por código sem autenticação; documento recuperado
 não correspondente ao assinado; alteração posterior à assinatura; perda de
