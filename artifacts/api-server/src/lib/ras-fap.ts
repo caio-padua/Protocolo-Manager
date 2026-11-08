@@ -50,6 +50,7 @@ export interface DadosRasFap {
   protocoloNumero?: string;
   valorTratamento?: number; // em reais
   substancias: SubstanciaFap[];
+  gradePersistida?: LinhaGrade[];
 }
 
 export type ModoRasFap = "PREMIUM" | "SIMPLES" | "MARCA" | "MINIMAL" | "BRONZE";
@@ -168,9 +169,13 @@ export interface PaginaRasFap {
  * lacunas: SEM 1, 3, 5... e isso e CORRETO). Padding ate 20 linhas POR PAGINA
  * com SEM em branco (linha de escrita, nao e ida real — nunca renumera).
  */
-export function planejarPaginasRasFap(subs: SubstanciaFap[]): PaginaRasFap[] {
+export function planejarPaginasRasFap(subs: SubstanciaFap[], gradePersistida?: LinhaGrade[]): PaginaRasFap[] {
   const grupos = chunk(subs, MAX_SUBS_POR_PAGINA);
-  const gradeGlobal = montarGrade(subs, 0);
+  // Explicit exact-date protocols supply their recorded agenda; legacy motor is unchanged.
+  const gradeGlobal = gradePersistida ?? montarGrade(subs, 0);
+  if (gradeGlobal.some(row => row.contadores.length !== subs.length)) {
+    throw new Error("RAS: grade incompatível com as colunas de substâncias");
+  }
   const plano: PaginaRasFap[] = [];
   for (const g of grupos) {
     const idxGlobais = g.map((s) => subs.indexOf(s));
@@ -799,7 +804,7 @@ export async function gerarRasFapPdf(dados: DadosRasFap, modo: ModoRasFap = "PRE
     doc.on("end", () => resolve(Buffer.concat(bufs)));
     doc.on("error", reject);
 
-    const planoPaginas = planejarPaginasRasFap(dados.substancias);
+    const planoPaginas = planejarPaginasRasFap(dados.substancias, dados.gradePersistida);
     const totalPages = planoPaginas.length;
 
     // APLIC continua, reiniciando a cada GRUPO de substancias (cada grupo gera

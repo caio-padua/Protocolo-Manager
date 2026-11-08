@@ -22,6 +22,8 @@ import { postSlackAlert } from "../lib/slack-reporter";
 import { notifySlackRasFapFailure } from "../lib/ras-fap-alert";
 import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
+import { buildExactProtocolSchedule } from "../lib/protocol-exact-schedule";
+import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
 import { requireCollaborator } from "./collaborator";
 import { isGmailConnected } from "../lib/google-gmail";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
@@ -32,6 +34,7 @@ import {
   UpdateProtocolParams,
   UpdateProtocolBody,
   ValidateProtocolParams,
+  ValidateProtocolQueryParams,
   GenerateProtocolICSParams,
 } from "@workspace/api-zod";
 
@@ -56,6 +59,8 @@ export async function ensureProtocolEmissoesTable(): Promise<void> {
 
 const router: IRouter = Router();
 router.use(moduleGuard("protocolos"));
+
+class ProtocolValidationConflict extends Error {}
 
 type ClinicalMember = Awaited<ReturnType<typeof resolveClinicalMember>>;
 
@@ -208,6 +213,8 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
     title: protocol.title,
     status: protocol.status,
     startDate: protocol.startDate,
+    scheduledTime: protocol.scheduledTime,
+    schedulingMode: protocol.schedulingMode,
     endDate: protocol.endDate ?? null,
     professionalId: protocol.professionalId ?? null,
     professionalName,
@@ -311,6 +318,14 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
   const { items, ...protocolData } = parsed.data;
   const member = await authorizeProtocolClient(req, protocolData.clientId, res);
   if (!member) return;
+  if (protocolData.schedulingMode === "exact") {
+    try {
+      buildExactProtocolSchedule(protocolData.startDate, items);
+    } catch {
+      res.status(400).json({ error: "Confira as datas, as substâncias e os intervalos do protocolo." });
+      return;
+    }
+  }
 
   if (protocolData.professionalId != null &&
       !await professionalLinkedToClinic(protocolData.professionalId, member.clinic.id)) {
@@ -347,7 +362,8 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
   const finalTotalValue =
     protocolData.totalValue && protocolData.totalValue > 0 ? protocolData.totalValue : computedBudget;
 
-  const [protocol] = await db.insert(protocolsTable).values({
+  const protocol = await db.transaction(async tx => {
+  const [created] = await tx.insert(protocolsTable).values({
     ...protocolData,
     totalValue: finalTotalValue,
     totalSessions,
@@ -356,18 +372,20 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
     ...(rawNurseServiceFee != null && !isNaN(rawNurseServiceFee) ? { nurseServiceFee: rawNurseServiceFee } : {}),
   }).returning();
 
-  await Promise.all(items.map((item: { substanceId: number; dose: string; totalSessions: number; intervalDays: number; frequency: string }) =>
-    db.insert(protocolItemsTable).values({
-      protocolId: protocol.id,
+  await Promise.all(items.map((item: { substanceId: number; dose: string; totalSessions: number; intervalDays: number; frequency: string; startDate?: string }) =>
+    tx.insert(protocolItemsTable).values({
+      protocolId: created.id,
       substanceId: item.substanceId,
       dose: item.dose,
       unitPrice: priceMap[item.substanceId] ?? 0,
       totalSessions: item.totalSessions,
       intervalDays: item.intervalDays,
-      startDate: protocolData.startDate,
+      startDate: item.startDate ?? protocolData.startDate,
       frequency: item.frequency,
     })
   ));
+  return created;
+  });
 
   const result = await buildProtocolResponse(protocol);
   res.status(201).json(result);
@@ -752,6 +770,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       }
 
       const rasFapBytes = await generatePhysicalRASPdf({
+        persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
         clientName: client.name,
         clientCpf: client.cpf ?? "000.000.000-00",
         clientPhone: client.phone ?? "",
@@ -1183,6 +1202,11 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const query = ValidateProtocolQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
 
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, params.data.id));
   if (!protocol) {
@@ -1191,17 +1215,76 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   }
   if (!await authorizeProtocol(req, protocol, res)) return;
 
-  const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id));
-
-  // Delete existing sessions for this protocol
-  const existingSessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
-  for (const session of existingSessions) {
-    await db.delete(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
+  let generated = false;
+  let updatedProtocol: typeof protocolsTable.$inferSelect;
+  try {
+  updatedProtocol = await db.transaction(async (tx) => {
+  // Serializa validações concorrentes, sem reconstruir ou apagar sessões.
+  // A autorização acima continua obrigatória; identidade é reconferida no lock.
+  const [lockedProtocol] = await tx.select().from(protocolsTable)
+    .where(eq(protocolsTable.id, protocol.id)).for("update");
+  if (!lockedProtocol ||
+      lockedProtocol.clientId !== protocol.clientId ||
+      lockedProtocol.empresaId !== protocol.empresaId ||
+      lockedProtocol.professionalId !== protocol.professionalId) {
+    throw new ProtocolValidationConflict("O protocolo mudou; recarregue e confira antes de validar.");
   }
-  await db.delete(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
+  // Refaz a autorização depois de eventual espera pelo bloqueio do protocolo.
+  try {
+    const currentMember = await resolveClinicalMember(req, lockedProtocol.clientId);
+    if (currentMember.clinic.empresaId !== resolveEmpresaId(req) ||
+        currentMember.clinic.empresaId !== lockedProtocol.empresaId) {
+      throw new Error("clinical_scope_changed");
+    }
+  } catch {
+    throw new ProtocolValidationConflict("O acesso clínico mudou; recarregue e confira antes de validar.");
+  }
+  const db = tx;
+  const existingSessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
+  if (lockedProtocol.status === "validated" && existingSessions.length > 0) {
+    return lockedProtocol;
+  }
+  if (lockedProtocol.status !== "suggested" || existingSessions.length > 0) {
+    throw new ProtocolValidationConflict("Protocolo já processado ou com sessões existentes; confira o histórico sem recriar os agendamentos.");
+  }
+  const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id));
+  if (items.length === 0 || items.some(item =>
+    !Number.isSafeInteger(item.totalSessions) || item.totalSessions <= 0 ||
+    !Number.isSafeInteger(item.intervalDays) || item.intervalDays <= 0)) {
+    throw new ProtocolValidationConflict("Confira as substâncias, as quantidades de sessões e os intervalos antes de validar.");
+  }
+  const defaultTime = query.data.scheduledTime ?? lockedProtocol.scheduledTime ?? "09:00";
+  if (lockedProtocol.schedulingMode === "exact") {
+    let appointments;
+    try {
+      appointments = buildExactProtocolSchedule(lockedProtocol.startDate, items);
+    } catch {
+      throw new ProtocolValidationConflict("Confira as datas e os intervalos das substâncias antes de validar.");
+    }
+    for (const [index, appointment] of appointments.entries()) {
+      const [session] = await db.insert(sessionsTable).values({
+        protocolId: lockedProtocol.id, clientId: lockedProtocol.clientId,
+        professionalId: lockedProtocol.professionalId, scheduledDate: appointment.date,
+        scheduledTime: defaultTime, status: "scheduled", unit: lockedProtocol.unit,
+        serviceType: lockedProtocol.serviceType, weekNumber: index + 1,
+      }).returning();
+      for (const application of appointment.applications) {
+        await db.insert(substanceApplicationsTable).values({
+          sessionId: session.id, ...application, status: "pending", availability: "disp",
+        });
+      }
+      for (const item of appointment.upcoming) {
+        await db.insert(substanceApplicationsTable).values({
+          sessionId: session.id, substanceId: item.substanceId, dose: item.dose,
+          sessionNumber: 0, totalSessions: item.totalSessions,
+          status: "pending", availability: "prox",
+        });
+      }
+    }
+  } else {
 
   // Build schedule map: week -> { date, substances[] }
-  const startDate = new Date(protocol.startDate);
+  const startDate = new Date(lockedProtocol.startDate);
   const weekMap: Map<number, { date: string; substanceApplications: Array<{ substanceId: number; dose: string; sessionNumber: number; totalSessions: number; weekNumber: number; dayOfWeek: number; }> }> = new Map();
 
   for (const item of items) {
@@ -1238,7 +1321,6 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   }
 
   // For each week, elect the best date (day with most applications) — weekly consolidation rule
-  const defaultTime = "09:00";
   for (const [weekNumber, weekData] of weekMap.entries()) {
     // Count applications per day
     const dayCount: Record<string, number> = {};
@@ -1264,12 +1346,12 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
     const [session] = await db.insert(sessionsTable).values({
       protocolId: protocol.id,
       clientId: protocol.clientId,
-      professionalId: protocol.professionalId,
+      professionalId: lockedProtocol.professionalId,
       scheduledDate: bestDate,
       scheduledTime: defaultTime,
       status: "scheduled",
-      unit: protocol.unit,
-      serviceType: protocol.serviceType,
+      unit: lockedProtocol.unit,
+      serviceType: lockedProtocol.serviceType,
       weekNumber,
     }).returning();
 
@@ -1296,11 +1378,7 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
             `Protocolo: *#${protocol.id}* | Sessão: *#${session.id}* (semana ${weekNumber}) | Substância ID: *${app.substanceId}* | Sessão nº ${app.sessionNumber}\n` +
             `O motor de consolidação tentou inserir uma linha já existente. Nenhum dado foi corrompido — a duplicata foi bloqueada na origem.`,
           );
-          res.status(409).json({
-            error: "duplicate_application",
-            message: `Aplicação duplicada detectada para a substância ${app.substanceId} na sessão ${session.id} (semana ${weekNumber}, nº ${app.sessionNumber}). O banco recusou o INSERT. Verifique o motor de consolidação.`,
-          });
-          return;
+          throw new ProtocolValidationConflict("Aplicação duplicada detectada; nenhuma sessão desta validação foi gravada.");
         }
         throw insertErr;
       }
@@ -1332,11 +1410,7 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
                 `Protocolo: *#${protocol.id}* | Sessão: *#${session.id}* (semana ${weekNumber}) | Substância ID: *${item.substanceId}* | Sessão nº 0\n` +
                 `O motor de consolidação tentou inserir uma linha já existente. Nenhum dado foi corrompido — a duplicata foi bloqueada na origem.`,
               );
-              res.status(409).json({
-                error: "duplicate_application",
-                message: `Aplicação duplicada detectada (PROX) para a substância ${item.substanceId} na sessão ${session.id} (semana ${weekNumber}). O banco recusou o INSERT. Verifique o motor de consolidação.`,
-              });
-              return;
+              throw new ProtocolValidationConflict("Aplicação futura duplicada detectada; nenhuma sessão desta validação foi gravada.");
             }
             throw insertErr;
           }
@@ -1344,12 +1418,28 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
       }
     }
   }
+  }
 
   // Update protocol status to validated
   const [updatedProtocol] = await db.update(protocolsTable)
-    .set({ status: "validated" })
+    .set({ status: "validated", scheduledTime: defaultTime })
     .where(eq(protocolsTable.id, params.data.id))
     .returning();
+  generated = true;
+  return updatedProtocol;
+  });
+  } catch (err) {
+    if (err instanceof ProtocolValidationConflict) {
+      res.status(409).json({ error: "protocol_validation_conflict", message: err.message });
+      return;
+    }
+    throw err;
+  }
+  if (!generated) {
+    req.log.info({ protocolId: protocol.id }, "Validação já concluída; sessões e comunicações preservadas");
+    res.json(await buildProtocolResponse(updatedProtocol));
+    return;
+  }
 
   // SUB-04 item 5: onboarding ao fechar/validar o protocolo — e-mail de boas-vindas
   // com o .ics consolidado das sessões recém-geradas. Best-effort: cliente sem
@@ -1358,7 +1448,7 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   // O CEO pode suprimi-lo de forma EXPLICITA com ?skipOnboardingEmail=true
   // quando valida um protocolo apenas para conferencia interna e o paciente
   // ainda nao deve receber nada. Nunca e silencioso: fica registrado no log.
-  const skipOnboarding = String(req.query.skipOnboardingEmail ?? "") === "true";
+  const skipOnboarding = query.data.skipOnboardingEmail === "true";
 
   try {
     if (skipOnboarding) {

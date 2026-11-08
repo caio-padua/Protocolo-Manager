@@ -9,6 +9,8 @@ export const protocolsTable = pgTable("protocols", {
   title: text("title").notNull(),
   status: text("status").notNull().default("suggested"),
   startDate: text("start_date").notNull(),
+  scheduledTime: text("scheduled_time").notNull().default("09:00"),
+  schedulingMode: text("scheduling_mode").notNull().default("weekly"),
   endDate: text("end_date"),
   unit: text("unit"),
   serviceType: text("service_type").notNull().default("clinic"),

@@ -1271,6 +1271,11 @@ export const ListProtocolsResponseItem = zod.object({
     "cancelled",
   ]),
   startDate: zod.string(),
+  scheduledTime: zod
+    .string()
+    .optional()
+    .describe("Horário local salvo para a validação das sessões."),
+  schedulingMode: zod.enum(["weekly", "exact"]).optional(),
   endDate: zod.string().nullish(),
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
@@ -1346,6 +1351,13 @@ export const ListProtocolsResponse = zod.array(ListProtocolsResponseItem);
 /**
  * @summary Create a protocol
  */
+export const createProtocolBodyScheduledTimeRegExp = new RegExp(
+  "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+);
+export const createProtocolBodyItemsItemStartDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateProtocolBody = zod.object({
   clientId: zod.number(),
   title: zod.string(),
@@ -1357,6 +1369,11 @@ export const CreateProtocolBody = zod.object({
     "cancelled",
   ]),
   startDate: zod.string(),
+  scheduledTime: zod
+    .string()
+    .regex(createProtocolBodyScheduledTimeRegExp)
+    .optional(),
+  schedulingMode: zod.enum(["weekly", "exact"]).optional(),
   professionalId: zod.number().nullish(),
   unit: zod.string().nullish(),
   serviceType: zod.enum(["clinic", "homecare"]),
@@ -1369,6 +1386,10 @@ export const CreateProtocolBody = zod.object({
       totalSessions: zod.number(),
       intervalDays: zod.number(),
       frequency: zod.string(),
+      startDate: zod
+        .string()
+        .regex(createProtocolBodyItemsItemStartDateRegExp)
+        .optional(),
     }),
   ),
 });
@@ -1394,6 +1415,11 @@ export const GetProtocolResponse = zod.object({
     "cancelled",
   ]),
   startDate: zod.string(),
+  scheduledTime: zod
+    .string()
+    .optional()
+    .describe("Horário local salvo para a validação das sessões."),
+  schedulingMode: zod.enum(["weekly", "exact"]).optional(),
   endDate: zod.string().nullish(),
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
@@ -1501,6 +1527,11 @@ export const UpdateProtocolResponse = zod.object({
     "cancelled",
   ]),
   startDate: zod.string(),
+  scheduledTime: zod
+    .string()
+    .optional()
+    .describe("Horário local salvo para a validação das sessões."),
+  schedulingMode: zod.enum(["weekly", "exact"]).optional(),
   endDate: zod.string().nullish(),
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
@@ -1579,6 +1610,21 @@ export const ValidateProtocolParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const validateProtocolQueryScheduledTimeRegExp = new RegExp(
+  "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+);
+
+export const ValidateProtocolQueryParams = zod.object({
+  scheduledTime: zod.coerce
+    .string()
+    .regex(validateProtocolQueryScheduledTimeRegExp)
+    .optional()
+    .describe(
+      "Horário local da clínica para as novas sessões; não altera sessões existentes.",
+    ),
+  skipOnboardingEmail: zod.enum(["true", "false"]).optional(),
+});
+
 export const ValidateProtocolResponse = zod.object({
   id: zod.number(),
   clientId: zod.number(),
@@ -1593,6 +1639,11 @@ export const ValidateProtocolResponse = zod.object({
     "cancelled",
   ]),
   startDate: zod.string(),
+  scheduledTime: zod
+    .string()
+    .optional()
+    .describe("Horário local salvo para a validação das sessões."),
+  schedulingMode: zod.enum(["weekly", "exact"]).optional(),
   endDate: zod.string().nullish(),
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),

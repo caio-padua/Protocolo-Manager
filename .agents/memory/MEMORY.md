@@ -112,7 +112,7 @@
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
 - [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
 - [Fonte .woff em PDF exige subset:true](pdf-woff-subset-obrigatorio.md) — EXCECAO: instancia de fonte variavel inverte a regra (subset:true corrompe, recortar antes com fontTools e usar subset:false).
-- [Gerar PDF do protocolo DISPARA e-mail real](protocolo-document-pdf-envia-email.md) — document-pdf E validate escrevem ao paciente; validar espelho com ?skipOnboardingEmail=true; carta-pdf é a rota sem efeito colateral.
+- [Prévia e emissão clínica](protocolo-document-pdf-envia-email.md) — conferir aparência não autoriza envio; verificar efeitos atuais, sem confiar no verbo da rota ou em descrições históricas.
 - [Sanitizador Latin-1 em PDF é armadilha](pdf-sanitizer-latin1.md) — filtro por faixa vira "?" no documento do paciente; apagar é pior; fonte EMBUTIDA não lança por glifo ausente (StandardFonts lança).
 - [Git — transporte gerenciado](git-http-auth-fallback.md) — proxy do Replit permite sincronizar sem acessar tokens; verificar divergência antes e comparar versões local e remota depois.
 - [Sync do painel Git interrompido deixa rebase travada](git-panel-rebase-travada.md) — "DIRTY_WORKTREE"/"GitHub travado" sem causa óbvia = rebase interativa órfã do botão Sync; `git status --short` esconde isso, só o completo mostra; `rebase --abort` é seguro.

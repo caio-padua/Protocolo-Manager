@@ -5,6 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateProtocolBodySchedulingMode } from "./createProtocolBodySchedulingMode";
 import type { CreateProtocolBodyServiceType } from "./createProtocolBodyServiceType";
 import type { CreateProtocolBodyStatus } from "./createProtocolBodyStatus";
 import type { CreateProtocolItemBody } from "./createProtocolItemBody";
@@ -14,6 +15,9 @@ export interface CreateProtocolBody {
   title: string;
   status: CreateProtocolBodyStatus;
   startDate: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  scheduledTime?: string;
+  schedulingMode?: CreateProtocolBodySchedulingMode;
   professionalId?: number | null;
   unit?: string | null;
   serviceType: CreateProtocolBodyServiceType;

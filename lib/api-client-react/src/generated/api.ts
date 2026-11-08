@@ -197,6 +197,7 @@ import type {
   UpdateSessionBody,
   UpdateSiteContentBody,
   UpdateSubstanceBlendComponentsBody,
+  ValidateProtocolParams,
   VisualPrescriptionInput,
 } from "./api.schemas";
 
@@ -4349,35 +4350,51 @@ export const useUpdateProtocol = <
 /**
  * @summary Validate and generate sessions for a protocol
  */
-export const getValidateProtocolUrl = (id: number) => {
-  return `/api/protocols/${id}/validate`;
+export const getValidateProtocolUrl = (
+  id: number,
+  params?: ValidateProtocolParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/protocols/${id}/validate?${stringifiedParams}`
+    : `/api/protocols/${id}/validate`;
 };
 
 export const validateProtocol = async (
   id: number,
+  params?: ValidateProtocolParams,
   options?: RequestInit,
 ): Promise<Protocol> => {
-  return customFetch<Protocol>(getValidateProtocolUrl(id), {
+  return customFetch<Protocol>(getValidateProtocolUrl(id, params), {
     ...options,
     method: "POST",
   });
 };
 
 export const getValidateProtocolMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof validateProtocol>>,
     TError,
-    { id: number },
+    { id: number; params?: ValidateProtocolParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof validateProtocol>>,
   TError,
-  { id: number },
+  { id: number; params?: ValidateProtocolParams },
   TContext
 > => {
   const mutationKey = ["validateProtocol"];
@@ -4391,11 +4408,11 @@ export const getValidateProtocolMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof validateProtocol>>,
-    { id: number }
+    { id: number; params?: ValidateProtocolParams }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, params } = props ?? {};
 
-    return validateProtocol(id, requestOptions);
+    return validateProtocol(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -4405,26 +4422,26 @@ export type ValidateProtocolMutationResult = NonNullable<
   Awaited<ReturnType<typeof validateProtocol>>
 >;
 
-export type ValidateProtocolMutationError = ErrorType<unknown>;
+export type ValidateProtocolMutationError = ErrorType<void>;
 
 /**
  * @summary Validate and generate sessions for a protocol
  */
 export const useValidateProtocol = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof validateProtocol>>,
     TError,
-    { id: number },
+    { id: number; params?: ValidateProtocolParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof validateProtocol>>,
   TError,
-  { id: number },
+  { id: number; params?: ValidateProtocolParams },
   TContext
 > => {
   return useMutation(getValidateProtocolMutationOptions(options));

@@ -69,9 +69,8 @@ function getEndDate(slot: SubstanceSlot): string {
   const freq = FREQUENCY_OPTIONS.find(f => f.value === slot.frequency);
   const days = slot.frequency === "custom" ? slot.customDays : (freq?.days ?? 7);
   const totalDays = days * (slot.totalSessions - 1);
-  const start = new Date(slot.startDate);
-  const end = addDays(start, totalDays);
-  return format(end, "dd/MM/yyyy", { locale: ptBR });
+  const ms = Date.parse(`${slot.startDate}T12:00:00Z`) + totalDays * 86_400_000;
+  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10).split("-").reverse().join("/") : "—";
 }
 
 interface Location { id: number; name: string; type: string; color: string; address: string | null; }
@@ -101,6 +100,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   const [professionalId, setProfessionalId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [scheduledTime, setScheduledTime] = useState("08:00");
+  const [schedulingMode, setSchedulingMode] = useState<"weekly" | "exact">("weekly");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
   const [comboLoading, setComboLoading] = useState(false);
@@ -216,7 +216,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
       clientId: clientId ?? 0,
       title: autoTitle,
       status: "suggested" as const,
-      startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
+      startDate: filledSlots.map(s => s.startDate).sort()[0] ?? format(new Date(), "yyyy-MM-dd"),
+      scheduledTime,
+      schedulingMode,
       serviceType: (selectedLocation?.type === "homecare" ? "homecare" : "clinic") as "homecare" | "clinic",
       professionalId: parseInt(professionalId),
       unit: selectedLocation?.name ?? null,
@@ -231,6 +233,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
           totalSessions: s.totalSessions,
           intervalDays,
           frequency: s.frequency,
+          startDate: s.startDate,
         };
       }),
       ...(nurseId ? { nurseId: parseInt(nurseId) } : {}),
@@ -250,7 +253,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
     try {
       const created = await createMutation.mutateAsync({ data: buildPayload() });
       createdId = created.id;
-      await validateMutation.mutateAsync({ id: created.id });
+      await validateMutation.mutateAsync({ id: created.id, params: { scheduledTime } });
       const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${created.id}`, {
         headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
       });
@@ -374,7 +377,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
                       <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         <span className="tabular-nums">{slot.totalSessions} sessões</span>
                         <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> a cada {days} dias</span>
-                        <span className="tabular-nums">Início: {format(new Date(slot.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        <span className="tabular-nums">Início: {slot.startDate.split("-").reverse().join("/")}</span>
                         <span className="tabular-nums">Término: {getEndDate(slot)}</span>
                       </div>
                     </div>
@@ -387,10 +390,13 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
           <div className="p-4 panel-3d-sub bg-primary/5 border-primary/20 paxter-underglow">
             <div className="flex items-center gap-2 text-sm">
               <CalendarDays className="h-4 w-4 text-primary" />
-              <span className="font-bold uppercase tracking-wide">Consolidação semanal ativa</span>
+              <span className="font-bold uppercase tracking-wide">{schedulingMode === "exact" ? "Datas e intervalos exatos" : "Consolidação semanal ativa"}</span>
             </div>
             <p className="text-[11px] text-muted-foreground mt-2 font-medium uppercase tracking-wide leading-relaxed">
-              O sistema agrupará automaticamente as substâncias por semana (Seg–Dom), elegendo um único dia de visita por semana. Horário padrão: <strong className="text-foreground">{scheduledTime}</strong>.
+              {schedulingMode === "exact"
+                ? "Cada substância mantém sua data inicial e seu intervalo. Somente aplicações no mesmo dia compartilham uma visita."
+                : "O sistema agrupará as substâncias por semana (segunda a domingo), elegendo um único dia de visita por semana."}
+              {" "}Horário padrão: <strong className="text-foreground">{scheduledTime}</strong>.
             </p>
           </div>
         </CardContent>
@@ -599,8 +605,23 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Horário Padrão das Sessões</Label>
               <Input type="time" className="field-engraved" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} />
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Horário de referência para consolidação semanal</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Horário local para os agendamentos gerados</p>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="scheduling-mode" className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Organização das aplicações</Label>
+            <Select value={schedulingMode} onValueChange={value => setSchedulingMode(value as "weekly" | "exact")}>
+              <SelectTrigger id="scheduling-mode" className="field-engraved"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">Consolidar uma visita por semana</SelectItem>
+                <SelectItem value="exact">Preservar datas e intervalos exatos</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground min-h-10">
+              {schedulingMode === "exact"
+                ? "Mantém o início de cada substância e o dia correto de cada aplicação."
+                : "Pode antecipar aplicações dentro da mesma semana; não mantém dias diferentes como visitas separadas."}
+            </p>
           </div>
           <div className="space-y-2">
             <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Título do Protocolo (opcional)</Label>
@@ -780,7 +801,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
                   <CalendarDays className="h-3.5 w-3.5" />
                   <span>
                     {slot.totalSessions} sessões ·{" "}
-                    Início: {format(new Date(slot.startDate), "dd/MM/yyyy", { locale: ptBR })} ·{" "}
+                    Início: {slot.startDate.split("-").reverse().join("/")} ·{" "}
                     Término estimado: {getEndDate(slot)}
                   </span>
                 </div>

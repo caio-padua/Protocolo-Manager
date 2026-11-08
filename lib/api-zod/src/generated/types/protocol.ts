@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ProtocolItem } from "./protocolItem";
+import type { ProtocolSchedulingMode } from "./protocolSchedulingMode";
 import type { ProtocolServiceType } from "./protocolServiceType";
 import type { ProtocolStatus } from "./protocolStatus";
 import type { Session } from "./session";
@@ -18,6 +19,9 @@ export interface Protocol {
   title: string;
   status: ProtocolStatus;
   startDate: string;
+  /** Horário local salvo para a validação das sessões. */
+  scheduledTime?: string;
+  schedulingMode?: ProtocolSchedulingMode;
   endDate?: string | null;
   professionalId?: number | null;
   professionalName?: string | null;

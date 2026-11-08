@@ -726,6 +726,7 @@ interface PhysicalRASData {
   valorTratamento?: string;
   substances: PhysicalRASSubstance[];
   sessions: PhysicalRASSession[];
+  persistedGrid?: import("./protocol-ras-grid").PersistedRasRow[];
   todayDate?: string;
 }
 
@@ -800,6 +801,11 @@ function viaLabel(t?: string): string | undefined {
 
 function physicalDataToFap(data: PhysicalRASData): DadosRasFap {
   return {
+    gradePersistida: data.persistedGrid?.map(row => ({
+      numero: row.number,
+      data: parseISODateLocal(row.date, "sessão persistida"),
+      contadores: row.counters,
+    })),
     nome: data.clientName,
     cpf: data.clientCpf || undefined,
     celular: data.clientPhone || undefined,

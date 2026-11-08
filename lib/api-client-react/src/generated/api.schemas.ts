@@ -1442,6 +1442,14 @@ export const ProtocolStatus = {
   cancelled: "cancelled",
 } as const;
 
+export type ProtocolSchedulingMode =
+  (typeof ProtocolSchedulingMode)[keyof typeof ProtocolSchedulingMode];
+
+export const ProtocolSchedulingMode = {
+  weekly: "weekly",
+  exact: "exact",
+} as const;
+
 export type ProtocolServiceType =
   (typeof ProtocolServiceType)[keyof typeof ProtocolServiceType];
 
@@ -1543,6 +1551,9 @@ export interface Protocol {
   title: string;
   status: ProtocolStatus;
   startDate: string;
+  /** Horário local salvo para a validação das sessões. */
+  scheduledTime?: string;
+  schedulingMode?: ProtocolSchedulingMode;
   endDate?: string | null;
   professionalId?: number | null;
   professionalName?: string | null;
@@ -1570,6 +1581,14 @@ export const CreateProtocolBodyStatus = {
   cancelled: "cancelled",
 } as const;
 
+export type CreateProtocolBodySchedulingMode =
+  (typeof CreateProtocolBodySchedulingMode)[keyof typeof CreateProtocolBodySchedulingMode];
+
+export const CreateProtocolBodySchedulingMode = {
+  weekly: "weekly",
+  exact: "exact",
+} as const;
+
 export type CreateProtocolBodyServiceType =
   (typeof CreateProtocolBodyServiceType)[keyof typeof CreateProtocolBodyServiceType];
 
@@ -1584,6 +1603,8 @@ export interface CreateProtocolItemBody {
   totalSessions: number;
   intervalDays: number;
   frequency: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  startDate?: string;
 }
 
 export interface CreateProtocolBody {
@@ -1591,6 +1612,9 @@ export interface CreateProtocolBody {
   title: string;
   status: CreateProtocolBodyStatus;
   startDate: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  scheduledTime?: string;
+  schedulingMode?: CreateProtocolBodySchedulingMode;
   professionalId?: number | null;
   unit?: string | null;
   serviceType: CreateProtocolBodyServiceType;
@@ -3015,6 +3039,23 @@ export type ListProtocolsParams = {
   clientId?: number;
   status?: string;
 };
+
+export type ValidateProtocolParams = {
+  /**
+   * Horário local da clínica para as novas sessões; não altera sessões existentes.
+   * @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$
+   */
+  scheduledTime?: string;
+  skipOnboardingEmail?: ValidateProtocolSkipOnboardingEmail;
+};
+
+export type ValidateProtocolSkipOnboardingEmail =
+  (typeof ValidateProtocolSkipOnboardingEmail)[keyof typeof ValidateProtocolSkipOnboardingEmail];
+
+export const ValidateProtocolSkipOnboardingEmail = {
+  true: "true",
+  false: "false",
+} as const;
 
 export type GenerateProtocolICS200 = {
   icsContent: string;
