@@ -263,7 +263,116 @@ describe("Cadastro de cliente e agendas preferenciais", () => {
     ]);
     expect(writes.map(r => r.status).sort()).toEqual([200, 409]);
     const history = await isolated.pool.query("SELECT preferences FROM client_visit_preference_revisions WHERE client_id=$1 ORDER BY id", [clientId]);
-    expect(history.rows.map(r => r.preferences)).toEqual([preferences, empty]);
+    expect(history.rows.map((r: { preferences: unknown }) => r.preferences)).toEqual([preferences, empty]);
     expect((await request(app).get(`/clients/${clientId}`).set(token)).body.name).toBe(base.name);
+  });
+
+  it("preserva três dias de enfermagem e o horário próprio de cada dia", async () => {
+    const token = { Authorization: `Bearer ${collaborator}` };
+    await isolated.pool.query(`
+      INSERT INTO agenda_windows (resource_id, weekday, start_time, end_time, active)
+      VALUES (11,3,'09:00','12:00',true), (11,5,'09:00','13:00',true)
+    `);
+    const preferences = {
+      medical: { weekdays: [], times: [] },
+      nursing: {
+        weekdays: [1, 3, 5],
+        times: [
+          { weekday: 1, time: "09:20" },
+          { weekday: 3, time: "10:00" },
+          { weekday: 5, time: "11:20" },
+        ],
+        priority: [
+          { weekday: 5, time: "11:20" },
+          { weekday: 1, time: "09:20" },
+          { weekday: 3, time: "10:00" },
+        ],
+      },
+    };
+    const created = await request(app).post("/clients").set(token)
+      .send({ ...base, name: "Cliente sintético com três dias", visitPreferences: preferences, visitPreferencesRevision: 0 });
+    expect(created.status, created.text).toBe(201);
+    const reread = await request(app).get(`/clients/${created.body.id}`).set(token);
+    expect(reread.status).toBe(200);
+    expect(reread.body.visitPreferences).toEqual(preferences);
+    const legacy = structuredClone(preferences);
+    delete (legacy.nursing as { priority?: unknown }).priority;
+    const fromLegacy = await request(app).patch(`/clients/${created.body.id}`).set(token)
+      .send({ visitPreferences: legacy, visitPreferencesRevision: reread.body.visitPreferencesRevision });
+    expect(fromLegacy.status, fromLegacy.text).toBe(200);
+    expect(fromLegacy.body.visitPreferences).toEqual(preferences);
+    const invalid = structuredClone(preferences);
+    invalid.nursing.priority = [{ weekday: 5, time: "09:00" }];
+    const rejected = await request(app).patch(`/clients/${created.body.id}`).set(token)
+      .send({ visitPreferences: invalid, visitPreferencesRevision: fromLegacy.body.visitPreferencesRevision });
+    expect(rejected.status).toBe(400);
+    expect((await request(app).get(`/clients/${created.body.id}`).set(token)).body.visitPreferences).toEqual(preferences);
+    invalid.nursing.priority = [preferences.nursing.priority[0], preferences.nursing.priority[0]];
+    expect((await request(app).patch(`/clients/${created.body.id}`).set(token)
+      .send({ visitPreferences: invalid, visitPreferencesRevision: fromLegacy.body.visitPreferencesRevision })).status).toBe(400);
+    const legacyRemove = structuredClone(legacy);
+    legacyRemove.nursing.weekdays = [1, 3];
+    legacyRemove.nursing.times = legacyRemove.nursing.times.filter(t => t.weekday !== 5);
+    const removed = await request(app).patch(`/clients/${created.body.id}`).set(token)
+      .send({ visitPreferences: legacyRemove, visitPreferencesRevision: fromLegacy.body.visitPreferencesRevision });
+    expect(removed.status, removed.text).toBe(200);
+    expect(removed.body.visitPreferences.nursing.priority).toEqual(preferences.nursing.priority.slice(1));
+    const clear = structuredClone(removed.body.visitPreferences);
+    clear.nursing.priority = [];
+    const cleared = await request(app).patch(`/clients/${created.body.id}`).set(token)
+      .send({ visitPreferences: clear, visitPreferencesRevision: removed.body.visitPreferencesRevision });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.visitPreferences.nursing.priority).toEqual([]);
+    expect(cleared.body.visitPreferences.nursing.times).toEqual(legacyRemove.nursing.times);
+    const forbidden = await request(app).get(`/clients/${created.body.id}`)
+      .set("Authorization", `Bearer ${otherCompany}`);
+    expect(forbidden.status).not.toBe(200);
+    expect(JSON.stringify(forbidden.body)).not.toContain("11:20");
+  });
+
+  it("relê a ordem alterada e impede duas reordenações concorrentes de sobrescreverem uma à outra", async () => {
+    const token = { Authorization: `Bearer ${collaborator}` };
+    await isolated.pool.query(`
+      INSERT INTO agenda_windows (resource_id, weekday, start_time, end_time, active)
+      VALUES (11,3,'09:00','12:00',true), (11,5,'09:00','13:00',true)
+    `);
+    const entries = [
+      { weekday: 1, time: "09:20" }, { weekday: 3, time: "10:00" }, { weekday: 5, time: "11:20" },
+    ];
+    const preferences = {
+      medical: { weekdays: [], times: [] },
+      nursing: { weekdays: [1, 3, 5], times: entries, priority: entries },
+    };
+    const created = await request(app).post("/clients").set(token).send({
+      ...base, name: "Cliente sintético ordenação concorrente",
+      visitPreferences: preferences, visitPreferencesRevision: 0,
+    });
+    expect(created.status, created.text).toBe(201);
+    const reordered = structuredClone(preferences);
+    reordered.nursing.priority = [entries[2], entries[0], entries[1]];
+    const saved = await request(app).patch(`/clients/${created.body.id}`).set(token).send({
+      visitPreferences: reordered, visitPreferencesRevision: created.body.visitPreferencesRevision,
+    });
+    expect(saved.status, saved.text).toBe(200);
+    const reread = await request(app).get(`/clients/${created.body.id}`).set(token);
+    expect(reread.body.visitPreferences.nursing.priority).toEqual(reordered.nursing.priority);
+    const choices = [
+      [entries[1], entries[0], entries[2]],
+      [entries[0], entries[2], entries[1]],
+    ];
+    const results = await Promise.all(choices.map(priority => request(app).patch(`/clients/${created.body.id}`).set(token).send({
+      visitPreferences: { ...reordered, nursing: { ...reordered.nursing, priority } },
+      visitPreferencesRevision: reread.body.visitPreferencesRevision,
+    })));
+    expect(results.map(r => r.status).sort()).toEqual([200, 409]);
+    const winner = choices[results.findIndex(r => r.status === 200)];
+    const final = await request(app).get(`/clients/${created.body.id}`).set(token);
+    expect(final.body.visitPreferences.nursing.priority).toEqual(winner);
+    const history = await isolated.pool.query(
+      "SELECT preferences FROM client_visit_preference_revisions WHERE client_id=$1 ORDER BY id",
+      [created.body.id],
+    );
+    expect(history.rows.map((row: { preferences: { nursing: { priority: unknown } } }) => row.preferences.nursing.priority))
+      .toEqual([entries, reordered.nursing.priority, winner]);
   });
 });

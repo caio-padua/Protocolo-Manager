@@ -1303,6 +1303,11 @@ export interface ClientVisitPreferenceCategory {
   weekdays: number[];
   /** @maxItems 504 */
   times: ClientVisitPreferenceTime[];
+  /**
+   * Ordem explícita de pares dia e horário; ausência não indica ordem.
+   * @maxItems 504
+   */
+  priority?: ClientVisitPreferenceTime[];
 }
 
 export interface ClientVisitPreferences {

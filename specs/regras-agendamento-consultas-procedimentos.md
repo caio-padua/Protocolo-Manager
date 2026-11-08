@@ -103,6 +103,44 @@ Não certifica que todos os arquivos do repositório tenham sido auditados.
 6. O PQQ utilizado pelo consultório é intramuscular, nunca endovenoso.
 7. O conteúdo do Google e da agenda interna deve vir dos mesmos dados reais,
    incluindo todas as substâncias e os estados efetivamente registrados.
+8. Quando o planejamento exigir duas ou mais visitas na mesma semana, consultar
+   as preferências de enfermagem do cadastro, mantendo a associação entre cada
+   dia e seus horários. Mostrar as opções cadastradas por clique, inclusive
+   três ou mais dias quando existirem, sem inventar preferências ausentes.
+9. Nessa situação, confirmar com o cliente os dias, o horário de cada dia e a
+   repetição desejada. A equipe pode registrar no sistema a confirmação obtida
+   na conversa; um aceite direto do cliente pelo sistema ou e-mail é outra
+   possibilidade. Preferência salva não equivale a aceite da programação.
+10. Permitir uma rotina fixa, por exemplo segunda e quinta com horários
+    diferentes, e também escolha não fixa quando o cliente preferir. O desenho
+    da alternativa não fixa e seu alcance ainda dependem de implementação e
+    validação; não se deve assumir que uma lista de preferências é um acordo.
+11. Calcular e mostrar as datas concretas decorrentes da repetição. Antes de
+    confirmar e reservar, conferir em cada data a frequência e o intervalo
+    mínimo, a margem autorizada, o expediente, as exceções, as vagas e todos os
+    recursos necessários. A escolha do cliente não autoriza mudar a prescrição
+    ou ignorar indisponibilidade clínica.
+12. A rotina fica vinculada ao cliente, ao protocolo e à empresa corretos.
+    Qualquer alteração da programação após o aceite exige nova confirmação;
+    alterações de expediente ou ocupação exigem nova conferência de vaga.
+    Impedir gravação parcial ou repetida em falha, concorrência e reconexão.
+
+### Avaliação independente das preferências e da nova solicitação
+
+Em 08/11/2026, revisão independente conferiu o cadastro de dias e horários,
+controle de versão, isolamento entre empresas e destaque na marcação interna.
+O cadastro já permite múltiplos dias e múltiplos horários por dia e categoria.
+As opções do cadastro representam a grade recorrente da empresa, não garantem
+vagas em uma data. As preferências aparecem na marcação somente entre horários
+consultados como abertos, sem que a simulação de ocupação determine as vagas.
+
+A revisão não encontrou confirmação de rotina fixa ou flexível do cliente,
+nem reserva integral de recursos para protocolo. A validação semanal anterior
+pode reunir aplicações de intervalo inferior a sete dias na mesma sessão; o
+modo exato não verifica as vagas necessárias. Assim, a nova jornada completa
+está BLOQUEADA e não pode ser apresentada como funcional ou homologada.
+As funções de confirmação, repetição e reserva precisam ser integradas ao
+mesmo motor clínico, não acrescentadas como demonstração paralela.
 
 ## Falhas previstas e barreiras
 

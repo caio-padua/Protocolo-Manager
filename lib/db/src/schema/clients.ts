@@ -72,6 +72,7 @@ export type ClientPreferredAgenda = typeof clientPreferredAgendasTable.$inferSel
 export type ClientVisitPreferenceCategory = {
   weekdays: number[];
   times: { weekday: number; time: string }[];
+  priority?: { weekday: number; time: string }[];
 };
 export type ClientVisitPreferences = {
   medical: ClientVisitPreferenceCategory;

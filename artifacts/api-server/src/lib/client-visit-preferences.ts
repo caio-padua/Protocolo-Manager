@@ -85,7 +85,7 @@ export async function getVisitPreferences(executor: Executor, empresaId: number,
   return latest ? { preferences: latest.preferences, revision: latest.id } : { preferences: emptyVisitPreferences(), revision: 0 };
 }
 
-function normalize(input: ClientVisitPreferences): ClientVisitPreferences {
+function normalize(input: ClientVisitPreferences, previous?: ClientVisitPreferences): ClientVisitPreferences {
   const normalized = emptyVisitPreferences();
   for (const kind of ["medical", "nursing"] as const) {
     const weekdays = [...new Set(input[kind].weekdays)].sort((a, b) => a - b);
@@ -94,7 +94,28 @@ function normalize(input: ClientVisitPreferences): ClientVisitPreferences {
     if (times.some(t => !weekdays.includes(t.weekday))) {
       throw new VisitPreferenceError("Selecione o dia correspondente a cada horário preferencial.");
     }
-    normalized[kind] = { weekdays, times };
+    const selectedTimes = new Set(times.map(t => `${t.weekday}:${t.time}`));
+    const requestedPriority = input[kind].priority;
+    const inheritedPriority = previous?.[kind].priority;
+    const source = requestedPriority ?? inheritedPriority;
+    let priority: ClientVisitPreferences[Kind]["priority"];
+    if (source !== undefined) {
+      const seen = new Set<string>();
+      priority = [];
+      for (const entry of source) {
+        const key = `${entry.weekday}:${entry.time}`;
+        if (!selectedTimes.has(key)) {
+          if (requestedPriority !== undefined) {
+            throw new VisitPreferenceError("A ordem só pode conter dias e horários preferenciais selecionados.");
+          }
+          continue;
+        }
+        if (seen.has(key)) throw new VisitPreferenceError("Um horário não pode aparecer duas vezes na ordem de preferência.");
+        seen.add(key);
+        priority.push({ weekday: entry.weekday, time: entry.time });
+      }
+    }
+    normalized[kind] = { weekdays, times, ...(priority === undefined ? {} : { priority }) };
   }
   return normalized;
 }
@@ -110,7 +131,7 @@ export async function setVisitPreferences(
   if (expectedRevision === undefined || expectedRevision !== previous.revision) {
     throw new VisitPreferenceError("As preferências mudaram. Recarregue o cadastro e confira antes de salvar.", 409);
   }
-  const desired = normalize(preferences);
+  const desired = normalize(preferences, previous.preferences);
   if (JSON.stringify(desired) === JSON.stringify(normalize(previous.preferences))) return previous;
   const options = await getVisitOptions(executor, empresaId);
   for (const kind of ["medical", "nursing"] as const) {

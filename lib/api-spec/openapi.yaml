@@ -4923,6 +4923,12 @@ components:
           maxItems: 504
           items:
             $ref: "#/components/schemas/ClientVisitPreferenceTime"
+        priority:
+          type: array
+          description: "Ordem explícita de pares dia e horário; ausência não indica ordem."
+          maxItems: 504
+          items:
+            $ref: "#/components/schemas/ClientVisitPreferenceTime"
     ClientVisitPreferences:
       type: object
       required: [medical, nursing]

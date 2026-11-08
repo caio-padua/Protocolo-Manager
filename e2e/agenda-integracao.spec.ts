@@ -2,7 +2,7 @@ import {test,expect,type BrowserContext} from "@playwright/test";
 
 // Somente interface: todos os serviços são interceptados e todos os dados sintéticos.
 // Não cria sessão real, não acessa Google, clientes, cobranças ou documentos.
-async function fixture(context: BrowserContext, manager: boolean, realOccupied = false, syntheticSessions: any[] = []) {
+async function fixture(context: BrowserContext, manager: boolean, realOccupied = false, syntheticSessions: any[] = [], ranked = false) {
   const now=()=>new Date().toISOString();
   const resource={id:19001,name:"Agenda sintética",kind:"medico",modality:"local",
     locationId:35001,professionalId:91001,slotMinutes:30,active:true,color:"#2c5480",sortOrder:0};
@@ -80,7 +80,7 @@ async function fixture(context: BrowserContext, manager: boolean, realOccupied =
       id:42001,name:"Cliente sintético",visitPreferences:{
         medical:{weekdays:[0,1,2,3,4,5,6],times:[0,1,2,3,4,5,6].flatMap(weekday=>[
           {weekday,time:"09:00"},{weekday,time:"11:00"},
-        ])},nursing:{weekdays:[],times:[]},
+        ]), ...(ranked ? {priority:[{weekday:1,time:"09:00"},{weekday:1,time:"11:00"}]} : {})},nursing:{weekdays:[],times:[]},
       },
     };
     else if(path.startsWith("/api/google-calendar/")) {state.legacyWrites++;body={};}
@@ -128,6 +128,15 @@ test("marca apenas horários abertos como preferidos, sem transformar preferênc
   await expect(booking.getByRole("button",{name:"09:00, horário preferido"})).toBeVisible();
   await expect(booking.getByRole("button",{name:"10:00",exact:true})).toBeVisible();
   await expect(booking.getByRole("button",{name:"11:00, horário preferido"})).toHaveCount(0);
+});
+test("mostra a ordem apenas para a preferência que está realmente aberta",async({page,context})=>{
+  await fixture(context,true,false,[],true);
+  await page.goto("/agenda/motor");
+  const booking=page.getByTestId("agenda-marcacao-real");
+  await booking.getByText("Cliente",{exact:true}).locator("..").getByRole("combobox").click();
+  await page.getByRole("option",{name:"Cliente sintético"}).click();
+  await expect(booking.getByRole("button",{name:"09:00, horário preferido, preferência 1"})).toBeVisible();
+  await expect(booking.getByRole("button",{name:"11:00, horário preferido, preferência 2"})).toHaveCount(0);
 });
 test("ocupação simulada nunca transforma horário realmente ocupado em vaga",async({page,context})=>{
   const state=await fixture(context,true,true);

@@ -1,6 +1,6 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 
-async function setup(context: BrowserContext, options: { resourcesFail?: boolean; visitOptionsFail?: boolean; stale?: boolean } = {}) {
+async function setup(context: BrowserContext, options: { resourcesFail?: boolean; visitOptionsFail?: boolean; stale?: boolean; multiDay?: boolean } = {}) {
   const client = {
     id: 42, name: "Cliente Sintético", cpf: "12345678901", email: "cliente@example.invalid",
     phone: "11999999999", status: "active", locationId: 8, preferredAgendaResourceIds: [11],
@@ -34,7 +34,10 @@ async function setup(context: BrowserContext, options: { resourcesFail?: boolean
       if (options.visitOptionsFail) return json({ error: "Indisponível" }, 503);
       return json({
         medical: { days: [{ weekday: 1, times: ["09:00", "10:00"] }], mismatchedResources: [] },
-        nursing: { days: [{ weekday: 1, times: ["09:00", "09:20"] }], mismatchedResources: [] },
+        nursing: { days: [
+          { weekday: 1, times: ["09:00", "09:20"] },
+          ...(options.multiDay ? [{ weekday: 3, times: ["10:00"] }, { weekday: 5, times: ["11:20"] }] : []),
+        ], mismatchedResources: [] },
       });
     }
     if (path === "/api/locations") return json([{ id: 8, name: "Local sintético" }]);
@@ -74,8 +77,71 @@ test("salva dia e horário de enfermagem sem alterar consulta", async ({ context
   expect(state.payload?.visitPreferencesRevision).toBe(7);
   expect(state.payload?.visitPreferences).toEqual({
     medical: { weekdays: [1], times: [{ weekday: 1, time: "09:00" }] },
-    nursing: { weekdays: [1], times: [{ weekday: 1, time: "09:20" }] },
+    nursing: { weekdays: [1], times: [{ weekday: 1, time: "09:20" }], priority: [{ weekday: 1, time: "09:20" }] },
   });
+});
+
+test("permite selecionar três dias e um horário diferente em cada dia", async ({ context, page }) => {
+  const state = await setup(context, { multiDay: true });
+  await page.goto("/clients/42/edit");
+  const days = page.getByRole("group", { name: "Dias preferenciais — enfermagem" });
+  for (const day of ["Segunda", "Quarta", "Sexta"]) await days.getByRole("button", { name: day }).click();
+  for (const [day, time] of [["Segunda", "09:20"], ["Quarta", "10:00"], ["Sexta", "11:20"]]) {
+    await page.getByRole("group", { name: `Horários de ${day} — enfermagem` }).getByRole("button", { name: time }).click();
+  }
+  const order = page.getByLabel("Ordem de preferência — enfermagem");
+  await order.getByRole("button", { name: "Subir Sexta às 11:20" }).click();
+  await order.getByRole("button", { name: "Subir Sexta às 11:20" }).click();
+  await expect(order.getByText("1ª — Sexta às 11:20")).toBeVisible();
+  await expect(order.getByText("2ª — Segunda às 09:20")).toBeVisible();
+  await expect(order.getByText("3ª — Quarta às 10:00")).toBeVisible();
+  await page.getByRole("region", { name: "Preferências para visitas à clínica" })
+    .screenshot({ path: "generated-artifacts/preferencias-visitas-tres-dias.png" });
+  await page.getByRole("button", { name: /salvar/i }).click();
+  await expect.poll(() => state.payload).not.toBeNull();
+  expect(state.payload?.visitPreferences).toEqual({
+    medical: { weekdays: [1], times: [{ weekday: 1, time: "09:00" }] },
+    nursing: { weekdays: [1, 3, 5], times: [
+      { weekday: 1, time: "09:20" },
+      { weekday: 3, time: "10:00" },
+      { weekday: 5, time: "11:20" },
+    ], priority: [
+      { weekday: 5, time: "11:20" },
+      { weekday: 1, time: "09:20" },
+      { weekday: 3, time: "10:00" },
+    ] },
+  });
+});
+
+test("escolha antiga sem ordem só recebe posição por ação explícita", async ({ context, page }) => {
+  const state = await setup(context);
+  await page.goto("/clients/42/edit");
+  const order = page.getByLabel("Ordem de preferência — consultas");
+  await expect(order.getByText("Nenhuma ordem definida.")).toBeVisible();
+  await order.getByRole("button", { name: "Adicionar à ordem Segunda às 09:00" }).click();
+  await expect(order.getByText("1ª — Segunda às 09:00")).toBeVisible();
+  await page.getByRole("button", { name: /salvar/i }).click();
+  await expect.poll(() => state.payload).not.toBeNull();
+  expect((state.payload?.visitPreferences as any).medical.priority).toEqual([{ weekday: 1, time: "09:00" }]);
+});
+
+test("ordem de três preferências permanece utilizável no celular", async ({ context, page }) => {
+  await setup(context, { multiDay: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/clients/42/edit");
+  const days = page.getByRole("group", { name: "Dias preferenciais — enfermagem" });
+  for (const day of ["Segunda", "Quarta", "Sexta"]) await days.getByRole("button", { name: day }).click();
+  for (const [day, time] of [["Segunda", "09:20"], ["Quarta", "10:00"], ["Sexta", "11:20"]]) {
+    await page.getByRole("group", { name: `Horários de ${day} — enfermagem` }).getByRole("button", { name: time }).click();
+  }
+  const order = page.getByLabel("Ordem de preferência — enfermagem");
+  await order.getByRole("button", { name: "Subir Sexta às 11:20" }).click();
+  await expect(order.getByText("2ª — Sexta às 11:20")).toBeVisible();
+  expect(await order.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  const label = await order.getByText("2ª — Sexta às 11:20").boundingBox();
+  const action = await order.getByRole("button", { name: "Subir Sexta às 11:20" }).boundingBox();
+  expect(label && action && label.y + label.height <= action.y).toBe(true);
+  await order.screenshot({ path: "generated-artifacts/preferencias-ordenadas-celular.png" });
 });
 
 test("falha nas opções preserva preferências salvas e não as envia sem alteração", async ({ context, page }) => {

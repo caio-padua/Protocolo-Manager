@@ -15,6 +15,50 @@ Utilizar o motor de agenda existente para considerar preferências dos clientes,
 calcular o tempo ocupado pelos procedimentos e reservar todos os profissionais
 necessários, sem produzir agendas ou descrições divergentes.
 
+### Subunidade solicitada: ordem explícita de preferência
+
+1. Registrar separadamente para consulta e enfermagem uma lista ordenada de
+   pares dia e horário já selecionados; o primeiro par é a primeira escolha.
+2. A tela permite selecionar e reordenar escolhas por clique, indica a posição
+   em texto e preserva a associação entre dia e horário. Remover uma escolha
+   da ordem não remove o horário preferido; remover o horário ou dia remove
+   apenas as respectivas posições na ordem.
+3. Escolhas anteriores sem ordem explícita permanecem sem ordem: não interpretar
+   a ordenação antiga por dia como a preferência do cliente.
+4. A omissão da lista de ordem por uma versão antiga da tela preserva as
+   posições existentes dos horários que continuam selecionados. Lista vazia
+   enviada explicitamente significa limpar a ordem. Não alterar preferências de
+   outro cliente, empresa ou versão concorrente.
+5. Recusar posições repetidas ou horários que não pertençam às escolhas do
+   cadastro. Manter revisão e histórico já existentes, sem migração destrutiva.
+6. Na marcação interna, mostrar a posição somente junto ao horário realmente
+   aberto da mesma data e categoria. Ordem não é confirmação do cliente,
+   disponibilidade futura, autorização clínica nem reserva.
+7. Testar gravação e releitura de três pares em ordem diferente da semana,
+   reordenação, dados legados, alterações concorrentes, dados inconsistentes,
+   falha de rede e destaque apenas em vagas abertas. Conferir computador e
+   celular, com dados fictícios, e realizar revisão independente.
+8. Esta subunidade não implementa escolha recorrente confirmada, planejamento
+   clínico nem reserva conjunta. A jornada permanece bloqueada até essas
+   dependências serem efetivamente construídas e verificadas.
+
+Evidência em 08/11/2026: a revisão independente aprovou a lógica restrita da
+ordem, sem homologar a jornada de agendamento. Quatorze testes de servidor
+passaram em banco isolado, incluindo gravação, releitura, histórico, concorrência
+e compatibilidade com dados sem ordem; testes de interface com serviços
+interceptados cobriram seleção, reordenação e exibição em computador e celular.
+Uma sobreposição visual no celular foi corrigida e recebeu teste geométrico.
+O serviço iniciou e a rota de saúde respondeu, mas não foi possível observar
+essa tela com uma sessão profissional autenticada na captura disponível.
+A conferência geral de tipos da interface e do servidor ainda apresenta erros
+preexistentes; essa verificação global não foi aprovada.
+
+No banco de desenvolvimento consultado, as agendas de enfermagem ativas
+estavam com intervalos de trinta minutos e sem janelas de expediente ativas.
+Não foram gravadas preferências reais nem criados agendamentos como parte
+destes testes. A configuração de vinte minutos e do expediente autorizado
+continua necessária antes de usar esses horários no cadastro real.
+
 ## Regras informadas pelo responsável
 
 1. No cadastro do cliente, permitir informar dias da semana e horários

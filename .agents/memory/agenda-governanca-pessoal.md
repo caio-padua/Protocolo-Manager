@@ -98,9 +98,22 @@ necessários. Não inferir que registros antigos dispensam médico.
 
 O responsável quer dias e horários preferenciais no cadastro do cliente para
 consultas e aplicações de enfermagem, respeitando as grades de cada serviço.
+Os pares de dia e horário devem poder ser ordenados por preferência explícita.
 
 **Why:** orientar a busca para horários convenientes sem produzir deslocamentos
 desnecessários.
 
 **How to apply:** preferência não é disponibilidade nem reserva; consultar o
 motor e a ocupação real, com identificação correta da clínica e do profissional.
+Não interpretar a ordem cronológica de cadastros antigos como ordem preferida.
+
+Quando um protocolo exigir duas ou mais visitas na semana, o responsável quer
+usar dias e horários preferidos pelo cliente como sugestões e confirmar com ele
+os dias, os horários de cada dia e a repetição desejada.
+
+**Why:** o cliente pode preferir uma rotina fixa, como segunda e quinta em
+horários diferentes, ou escolher outra distribuição conforme sua disponibilidade.
+
+**How to apply:** apresentar as escolhas cadastradas para clique, sem inventar
+preferências; distinguir a confirmação do cliente da preferência registrada.
+Conferir as datas, a prescrição e as vagas de todos os recursos antes de reservar.

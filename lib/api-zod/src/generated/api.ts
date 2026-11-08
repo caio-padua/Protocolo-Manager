@@ -870,6 +870,13 @@ export const listClientsResponseVisitPreferencesMedicalTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const listClientsResponseVisitPreferencesMedicalTimesMax = 504;
 
+export const listClientsResponseVisitPreferencesMedicalPriorityItemWeekdayMin = 0;
+export const listClientsResponseVisitPreferencesMedicalPriorityItemWeekdayMax = 6;
+
+export const listClientsResponseVisitPreferencesMedicalPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const listClientsResponseVisitPreferencesMedicalPriorityMax = 504;
+
 export const listClientsResponseVisitPreferencesNursingWeekdaysItemMin = 0;
 export const listClientsResponseVisitPreferencesNursingWeekdaysItemMax = 6;
 
@@ -881,6 +888,13 @@ export const listClientsResponseVisitPreferencesNursingTimesItemWeekdayMax = 6;
 export const listClientsResponseVisitPreferencesNursingTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const listClientsResponseVisitPreferencesNursingTimesMax = 504;
+
+export const listClientsResponseVisitPreferencesNursingPriorityItemWeekdayMin = 0;
+export const listClientsResponseVisitPreferencesNursingPriorityItemWeekdayMax = 6;
+
+export const listClientsResponseVisitPreferencesNursingPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const listClientsResponseVisitPreferencesNursingPriorityMax = 504;
 
 export const listClientsResponseVisitPreferencesRevisionMin = 0;
 
@@ -929,6 +943,29 @@ export const ListClientsResponseItem = zod.object({
             }),
           )
           .max(listClientsResponseVisitPreferencesMedicalTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  listClientsResponseVisitPreferencesMedicalPriorityItemWeekdayMin,
+                )
+                .max(
+                  listClientsResponseVisitPreferencesMedicalPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  listClientsResponseVisitPreferencesMedicalPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(listClientsResponseVisitPreferencesMedicalPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
       nursing: zod.object({
         weekdays: zod
@@ -958,6 +995,29 @@ export const ListClientsResponseItem = zod.object({
             }),
           )
           .max(listClientsResponseVisitPreferencesNursingTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  listClientsResponseVisitPreferencesNursingPriorityItemWeekdayMin,
+                )
+                .max(
+                  listClientsResponseVisitPreferencesNursingPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  listClientsResponseVisitPreferencesNursingPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(listClientsResponseVisitPreferencesNursingPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
     })
     .optional(),
@@ -986,6 +1046,13 @@ export const createClientBodyVisitPreferencesMedicalTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const createClientBodyVisitPreferencesMedicalTimesMax = 504;
 
+export const createClientBodyVisitPreferencesMedicalPriorityItemWeekdayMin = 0;
+export const createClientBodyVisitPreferencesMedicalPriorityItemWeekdayMax = 6;
+
+export const createClientBodyVisitPreferencesMedicalPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createClientBodyVisitPreferencesMedicalPriorityMax = 504;
+
 export const createClientBodyVisitPreferencesNursingWeekdaysItemMin = 0;
 export const createClientBodyVisitPreferencesNursingWeekdaysItemMax = 6;
 
@@ -997,6 +1064,13 @@ export const createClientBodyVisitPreferencesNursingTimesItemWeekdayMax = 6;
 export const createClientBodyVisitPreferencesNursingTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const createClientBodyVisitPreferencesNursingTimesMax = 504;
+
+export const createClientBodyVisitPreferencesNursingPriorityItemWeekdayMin = 0;
+export const createClientBodyVisitPreferencesNursingPriorityItemWeekdayMax = 6;
+
+export const createClientBodyVisitPreferencesNursingPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createClientBodyVisitPreferencesNursingPriorityMax = 504;
 
 export const createClientBodyVisitPreferencesRevisionMin = 0;
 
@@ -1042,6 +1116,29 @@ export const CreateClientBody = zod.object({
             }),
           )
           .max(createClientBodyVisitPreferencesMedicalTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  createClientBodyVisitPreferencesMedicalPriorityItemWeekdayMin,
+                )
+                .max(
+                  createClientBodyVisitPreferencesMedicalPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  createClientBodyVisitPreferencesMedicalPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(createClientBodyVisitPreferencesMedicalPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
       nursing: zod.object({
         weekdays: zod
@@ -1069,6 +1166,29 @@ export const CreateClientBody = zod.object({
             }),
           )
           .max(createClientBodyVisitPreferencesNursingTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  createClientBodyVisitPreferencesNursingPriorityItemWeekdayMin,
+                )
+                .max(
+                  createClientBodyVisitPreferencesNursingPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  createClientBodyVisitPreferencesNursingPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(createClientBodyVisitPreferencesNursingPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
     })
     .optional(),
@@ -1122,6 +1242,13 @@ export const getClientResponseVisitPreferencesMedicalTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const getClientResponseVisitPreferencesMedicalTimesMax = 504;
 
+export const getClientResponseVisitPreferencesMedicalPriorityItemWeekdayMin = 0;
+export const getClientResponseVisitPreferencesMedicalPriorityItemWeekdayMax = 6;
+
+export const getClientResponseVisitPreferencesMedicalPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const getClientResponseVisitPreferencesMedicalPriorityMax = 504;
+
 export const getClientResponseVisitPreferencesNursingWeekdaysItemMin = 0;
 export const getClientResponseVisitPreferencesNursingWeekdaysItemMax = 6;
 
@@ -1133,6 +1260,13 @@ export const getClientResponseVisitPreferencesNursingTimesItemWeekdayMax = 6;
 export const getClientResponseVisitPreferencesNursingTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const getClientResponseVisitPreferencesNursingTimesMax = 504;
+
+export const getClientResponseVisitPreferencesNursingPriorityItemWeekdayMin = 0;
+export const getClientResponseVisitPreferencesNursingPriorityItemWeekdayMax = 6;
+
+export const getClientResponseVisitPreferencesNursingPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const getClientResponseVisitPreferencesNursingPriorityMax = 504;
 
 export const getClientResponseVisitPreferencesRevisionMin = 0;
 
@@ -1181,6 +1315,29 @@ export const GetClientResponse = zod.object({
             }),
           )
           .max(getClientResponseVisitPreferencesMedicalTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  getClientResponseVisitPreferencesMedicalPriorityItemWeekdayMin,
+                )
+                .max(
+                  getClientResponseVisitPreferencesMedicalPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  getClientResponseVisitPreferencesMedicalPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(getClientResponseVisitPreferencesMedicalPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
       nursing: zod.object({
         weekdays: zod
@@ -1210,6 +1367,29 @@ export const GetClientResponse = zod.object({
             }),
           )
           .max(getClientResponseVisitPreferencesNursingTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  getClientResponseVisitPreferencesNursingPriorityItemWeekdayMin,
+                )
+                .max(
+                  getClientResponseVisitPreferencesNursingPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  getClientResponseVisitPreferencesNursingPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(getClientResponseVisitPreferencesNursingPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
     })
     .optional(),
@@ -1241,6 +1421,13 @@ export const updateClientBodyVisitPreferencesMedicalTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const updateClientBodyVisitPreferencesMedicalTimesMax = 504;
 
+export const updateClientBodyVisitPreferencesMedicalPriorityItemWeekdayMin = 0;
+export const updateClientBodyVisitPreferencesMedicalPriorityItemWeekdayMax = 6;
+
+export const updateClientBodyVisitPreferencesMedicalPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientBodyVisitPreferencesMedicalPriorityMax = 504;
+
 export const updateClientBodyVisitPreferencesNursingWeekdaysItemMin = 0;
 export const updateClientBodyVisitPreferencesNursingWeekdaysItemMax = 6;
 
@@ -1252,6 +1439,13 @@ export const updateClientBodyVisitPreferencesNursingTimesItemWeekdayMax = 6;
 export const updateClientBodyVisitPreferencesNursingTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const updateClientBodyVisitPreferencesNursingTimesMax = 504;
+
+export const updateClientBodyVisitPreferencesNursingPriorityItemWeekdayMin = 0;
+export const updateClientBodyVisitPreferencesNursingPriorityItemWeekdayMax = 6;
+
+export const updateClientBodyVisitPreferencesNursingPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientBodyVisitPreferencesNursingPriorityMax = 504;
 
 export const updateClientBodyVisitPreferencesRevisionMin = 0;
 
@@ -1297,6 +1491,29 @@ export const UpdateClientBody = zod.object({
             }),
           )
           .max(updateClientBodyVisitPreferencesMedicalTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  updateClientBodyVisitPreferencesMedicalPriorityItemWeekdayMin,
+                )
+                .max(
+                  updateClientBodyVisitPreferencesMedicalPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientBodyVisitPreferencesMedicalPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientBodyVisitPreferencesMedicalPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
       nursing: zod.object({
         weekdays: zod
@@ -1324,6 +1541,29 @@ export const UpdateClientBody = zod.object({
             }),
           )
           .max(updateClientBodyVisitPreferencesNursingTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  updateClientBodyVisitPreferencesNursingPriorityItemWeekdayMin,
+                )
+                .max(
+                  updateClientBodyVisitPreferencesNursingPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientBodyVisitPreferencesNursingPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientBodyVisitPreferencesNursingPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
     })
     .optional(),
@@ -1346,6 +1586,13 @@ export const updateClientResponseVisitPreferencesMedicalTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const updateClientResponseVisitPreferencesMedicalTimesMax = 504;
 
+export const updateClientResponseVisitPreferencesMedicalPriorityItemWeekdayMin = 0;
+export const updateClientResponseVisitPreferencesMedicalPriorityItemWeekdayMax = 6;
+
+export const updateClientResponseVisitPreferencesMedicalPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientResponseVisitPreferencesMedicalPriorityMax = 504;
+
 export const updateClientResponseVisitPreferencesNursingWeekdaysItemMin = 0;
 export const updateClientResponseVisitPreferencesNursingWeekdaysItemMax = 6;
 
@@ -1357,6 +1604,13 @@ export const updateClientResponseVisitPreferencesNursingTimesItemWeekdayMax = 6;
 export const updateClientResponseVisitPreferencesNursingTimesItemTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const updateClientResponseVisitPreferencesNursingTimesMax = 504;
+
+export const updateClientResponseVisitPreferencesNursingPriorityItemWeekdayMin = 0;
+export const updateClientResponseVisitPreferencesNursingPriorityItemWeekdayMax = 6;
+
+export const updateClientResponseVisitPreferencesNursingPriorityItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientResponseVisitPreferencesNursingPriorityMax = 504;
 
 export const updateClientResponseVisitPreferencesRevisionMin = 0;
 
@@ -1405,6 +1659,29 @@ export const UpdateClientResponse = zod.object({
             }),
           )
           .max(updateClientResponseVisitPreferencesMedicalTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  updateClientResponseVisitPreferencesMedicalPriorityItemWeekdayMin,
+                )
+                .max(
+                  updateClientResponseVisitPreferencesMedicalPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientResponseVisitPreferencesMedicalPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientResponseVisitPreferencesMedicalPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
       nursing: zod.object({
         weekdays: zod
@@ -1434,6 +1711,29 @@ export const UpdateClientResponse = zod.object({
             }),
           )
           .max(updateClientResponseVisitPreferencesNursingTimesMax),
+        priority: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  updateClientResponseVisitPreferencesNursingPriorityItemWeekdayMin,
+                )
+                .max(
+                  updateClientResponseVisitPreferencesNursingPriorityItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientResponseVisitPreferencesNursingPriorityItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientResponseVisitPreferencesNursingPriorityMax)
+          .optional()
+          .describe(
+            "Ordem explícita de pares dia e horário; ausência não indica ordem.",
+          ),
       }),
     })
     .optional(),

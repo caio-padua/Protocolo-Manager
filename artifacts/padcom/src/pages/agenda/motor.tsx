@@ -321,9 +321,13 @@ export default function AgendaMotor() {
     bookResource?.kind === "enfermagem" ? "nursing" : null;
   const weekday = /^\d{4}-\d{2}-\d{2}$/.test(slotDate)
     ? new Date(`${slotDate}T12:00:00Z`).getUTCDay() : null;
-  const preference = preferenceKind && preferredClient?.id === bookClient
+  const preference = !preferencesError && preferenceKind && preferredClient?.id === bookClient
     ? preferredClient.visitPreferences?.[preferenceKind] : undefined;
   const preferredTimes = new Set(preference?.times.filter(t => t.weekday === weekday).map(t => t.time) ?? []);
+  const preferredOrder = new Map((preference?.priority ?? [])
+    .map((entry, index) => ({ ...entry, rank: index + 1 }))
+    .filter(entry => entry.weekday === weekday)
+    .map(entry => [entry.time, entry.rank]));
   const preferredDay = weekday !== null && !!preference?.weekdays.includes(weekday);
 
   function confirmBooking() {
@@ -1115,7 +1119,7 @@ export default function AgendaMotor() {
                   key={t}
                   type="button"
                   onClick={() => setBookTime(t)}
-                  aria-label={preferredTimes.has(t) ? `${t}, horário preferido` : t}
+                  aria-label={preferredTimes.has(t) ? `${t}, horário preferido${preferredOrder.has(t) ? `, preferência ${preferredOrder.get(t)}` : ""}` : t}
                   className={`px-2.5 py-1 text-xs font-medium tabular-nums transition ${
                     bookTime === t
                       ? "bg-cyan-500 text-white ring-2 ring-cyan-300"
@@ -1125,7 +1129,9 @@ export default function AgendaMotor() {
                   }`}
                   style={{ borderRadius: "3px" }}
                 >
-                  {t}{preferredTimes.has(t) && <span className="ml-1 text-[9px]">PREFERIDO</span>}
+                  {t}{preferredTimes.has(t) && <span className="ml-1 text-[9px]">
+                    {preferredOrder.has(t) ? `${preferredOrder.get(t)}ª PREFERÊNCIA` : "PREFERIDO"}
+                  </span>}
                 </button>
               ))}
             </div>
