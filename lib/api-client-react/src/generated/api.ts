@@ -68,6 +68,7 @@ import type {
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
   Client,
+  ClientVisitPreferenceOptions,
   ClinicalAccessLocation,
   ClinicalAccessUpdate,
   ClinicalAdministrationUpdate,
@@ -3389,6 +3390,86 @@ export const useCreateClient = <
 > => {
   return useMutation(getCreateClientMutationOptions(options));
 };
+
+/**
+ * @summary Referências de dias e horários por tipo de atendimento
+ */
+export const getGetClientVisitPreferenceOptionsUrl = () => {
+  return `/api/clients/visit-preference-options`;
+};
+
+export const getClientVisitPreferenceOptions = async (
+  options?: RequestInit,
+): Promise<ClientVisitPreferenceOptions> => {
+  return customFetch<ClientVisitPreferenceOptions>(
+    getGetClientVisitPreferenceOptionsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetClientVisitPreferenceOptionsQueryKey = () => {
+  return [`/api/clients/visit-preference-options`] as const;
+};
+
+export const getGetClientVisitPreferenceOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClientVisitPreferenceOptionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>
+  > = ({ signal }) =>
+    getClientVisitPreferenceOptions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClientVisitPreferenceOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>
+>;
+export type GetClientVisitPreferenceOptionsQueryError = ErrorType<void>;
+
+/**
+ * @summary Referências de dias e horários por tipo de atendimento
+ */
+
+export function useGetClientVisitPreferenceOptions<
+  TData = Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getClientVisitPreferenceOptions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClientVisitPreferenceOptionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get client by ID

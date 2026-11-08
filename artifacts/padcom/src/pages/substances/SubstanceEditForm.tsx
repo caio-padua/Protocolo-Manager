@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUpdateSubstance, getListSubstancesQueryKey, useListCatalogOptions } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import {
   Star, X, Plus, Trash2, Activity, Gem, Beaker, Syringe, Droplet, Info, Sparkles, ShieldAlert,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
 
 const NULLABLE_TEXT = "";
@@ -442,6 +443,8 @@ export function SubstanceEditForm({
   const [form, setForm] = useState<Record<string, any>>({});
   const [components, setComponents] = useState<BlendComponentDraft[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const { toast } = useToast();
   const [activeSection, setActiveSection] = useState<string>("ident");
 
   useEffect(() => {
@@ -466,17 +469,28 @@ export function SubstanceEditForm({
   if (!substance) return null;
 
   const onSave = async () => {
+    setSaveError("");
+    const durationMinutes = numOrNull(form.durationMinutes);
+    const durationSeconds = durationMinutes === null ? NaN : durationMinutes * 60;
+    if (durationMinutes === null || durationMinutes <= 0 || !Number.isFinite(durationSeconds)
+      || Math.abs(durationSeconds - Math.round(durationSeconds)) > 1e-7
+      || Math.round(durationSeconds) <= 0 || durationSeconds > 2147483647) {
+      setSaveError("Informe uma duração válida em minutos, com precisão de segundos.");
+      return;
+    }
     const payload: Record<string, any> = {
       name: emptyToNull(form.name) ?? substance.name,
       category: emptyToNull(form.category) ?? substance.category,
       color: emptyToNull(form.color) ?? substance.color ?? "#16284a",
       categoryType: emptyToNull(form.categoryType),
       procedureType: form.procedureType || "iv",
+      ...((form.doctorParticipation ?? null) === (substance.doctorParticipation ?? null)
+        ? {} : { doctorParticipation: form.doctorParticipation ?? null }),
       starRating: Number(form.starRating) || 0,
       defaultDose: emptyToNull(form.defaultDose),
       unit: emptyToNull(form.unit),
       intervalDays: numOrNull(form.intervalDays),
-      durationMinutes: Number(form.durationMinutes) || 30,
+      durationMinutes,
       pricePerUnit: Number(form.pricePerUnit) || 0,
       stockQuantity: Number(form.stockQuantity) || 0,
       stockUnit: emptyToNull(form.stockUnit),
@@ -495,11 +509,13 @@ export function SubstanceEditForm({
     for (const { key } of ALL_TEXTAREAS) payload[key] = emptyToNull(form[key]);
 
     setIsSaving(true);
+    let substanceSaved = false;
     try {
       await update.mutateAsync({ id: substance.id, data: payload as any });
+      substanceSaved = true;
       const response = await fetch(`/api/substances/${substance.id}/components`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           isBlend: Boolean(form.isBlend),
           components: form.isBlend
@@ -512,10 +528,15 @@ export function SubstanceEditForm({
         throw new Error(error?.error ?? "Não foi possível salvar a composição");
       }
       await queryClient.invalidateQueries({ queryKey: getListSubstancesQueryKey() });
-      toast.success("Substância atualizada");
+      toast({ title: "Substância atualizada" });
       onClose();
     } catch (e: any) {
-      toast.error("Erro ao salvar", { description: String(e?.message ?? e) });
+      if (substanceSaved) {
+        await queryClient.invalidateQueries({ queryKey: getListSubstancesQueryKey(), refetchType: "none" });
+        setSaveError("Os dados da substância foram salvos, mas a composição não foi confirmada. Recarregue e confira antes de tentar novamente.");
+      } else {
+        setSaveError("Não foi possível confirmar o salvamento. Recarregue e confira antes de tentar novamente.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -585,13 +606,30 @@ export function SubstanceEditForm({
                   <Select value={form.procedureType ?? "iv"} onValueChange={(v) => setField("procedureType", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                      <SelectContent>
-                      <SelectItem value="iv">Endovenoso (IV) — 30 min</SelectItem>
-                      <SelectItem value="im">Intramuscular (IM) — 15 min</SelectItem>
-                       <SelectItem value="sc">Subcutâneo (SC) — 15 min</SelectItem>
-                      <SelectItem value="implant">Implante — 60 min</SelectItem>
+                      <SelectItem value="iv">Endovenoso</SelectItem>
+                      <SelectItem value="im">Intramuscular</SelectItem>
+                      <SelectItem value="sc">Subcutâneo</SelectItem>
+                      <SelectItem value="implant">Implante</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>
+                <div className="col-span-2 sm:col-span-3">
+                  <p className="mb-2 text-xs font-semibold">O médico participa da aplicação?</p>
+                  <div role="group" aria-label="Participação do médico" className="flex flex-wrap gap-2">
+                    <button type="button" aria-pressed={form.doctorParticipation === true}
+                      className={`px-4 py-2 text-xs font-semibold ${form.doctorParticipation === true ? "btn-3d" : "btn-3d-soft"}`}
+                      onClick={() => setField("doctorParticipation", true)}>Sim, participa</button>
+                    <button type="button" aria-pressed={form.doctorParticipation === false}
+                      className={`px-4 py-2 text-xs font-semibold ${form.doctorParticipation === false ? "btn-3d" : "btn-3d-soft"}`}
+                      onClick={() => setField("doctorParticipation", false)}>Não participa</button>
+                    {form.doctorParticipation != null && <button type="button" className="btn-3d-soft px-4 py-2 text-xs"
+                      onClick={() => setField("doctorParticipation", null)}>Deixar sem definição</button>}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {form.doctorParticipation == null ? "Ainda não definido. " : ""}
+                    Este cadastro ainda não reserva horários do médico ou da enfermagem.
+                  </p>
+                </div>
                 <Field label="Avaliação (estrelas)">
                   <EditableStars value={Number(form.starRating) || 0} onChange={(n) => setField("starRating", n)} />
                 </Field>
@@ -671,7 +709,7 @@ export function SubstanceEditForm({
                   <Input type="number" value={form.intervalDays ?? ""} onChange={(e) => setField("intervalDays", e.target.value)} />
                 </Field>
                 <Field label="Duração (min)">
-                  <Input type="number" value={form.durationMinutes ?? 30} onChange={(e) => setField("durationMinutes", e.target.value)} />
+                  <Input type="number" min="0.01" step="any" value={form.durationMinutes ?? ""} onChange={(e) => setField("durationMinutes", e.target.value)} />
                 </Field>
                 <Field label="Tempo p/ resultado">
                   <Input value={form.timeToEffect ?? ""} onChange={(e) => setField("timeToEffect", e.target.value)} />
@@ -808,6 +846,7 @@ export function SubstanceEditForm({
             </SectionCard>
           </div>
 
+      {saveError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
       <div className="mt-5 flex flex-row justify-end gap-2 border-t pt-4">
         <Button variant="outline" onClick={onClose} disabled={update.isPending || isSaving}>
           Cancelar

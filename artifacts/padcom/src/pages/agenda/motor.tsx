@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { tituloProprio } from "@/lib/utils";
 import {
   useListAgendaResources,
@@ -14,6 +14,7 @@ import {
   useGetAgendaSlots,
   useBookAgendaSession,
   useListClients,
+  useGetClient,
   useListProtocols,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { COLLAB_EVENT } from "@/lib/collab-auth";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
 import { AgendaChangeRequests } from "./AgendaChangeRequests";
-import { useAgendaIntegration } from "./agenda-integration-api";
+import { useAgendaIntegration, useCollabIdentity } from "./agenda-integration-api";
 import {
   CalendarCog,
   Save,
@@ -39,7 +41,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type Win = { startTime: string; endTime: string };
+type Win = { startTime: string; endTime: string; repeatWeeks: 1 | 2; anchorDate: string };
 type WindowsDraft = Record<number, Win[]>;
 
 const WEEK_LABEL = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -162,19 +164,31 @@ export default function AgendaMotor() {
     query: { enabled: !!selectedId },
   });
   const [windowsDraft, setWindowsDraft] = useState<WindowsDraft>({});
+  const [windowsDirty, setWindowsDirty] = useState(false);
+  const [windowsSnapshot, setWindowsSnapshot] = useState<{ weekday: number; startTime: string; endTime: string; repeatWeeks: 1 | 2; anchorDate: string | null }[] | null>(null);
+  const draftResource = useRef<number | null>(null);
 
   useEffect(() => {
-    if (windows) {
+    if (windows && selectedId && !(draftResource.current === selectedId && windowsDirty)) {
       const draft: WindowsDraft = {};
       for (const w of windows) {
-        (draft[w.weekday] ||= []).push({ startTime: w.startTime, endTime: w.endTime });
+        (draft[w.weekday] ||= []).push({
+          startTime: w.startTime, endTime: w.endTime,
+          repeatWeeks: w.repeatWeeks === 2 ? 2 : 1, anchorDate: w.anchorDate ?? "",
+        });
       }
       for (const k of Object.keys(draft)) {
         draft[Number(k)].sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
       }
       setWindowsDraft(draft);
+      setWindowsSnapshot(windows.map(w => ({
+        weekday: w.weekday, startTime: w.startTime, endTime: w.endTime,
+        repeatWeeks: w.repeatWeeks === 2 ? 2 : 1, anchorDate: w.anchorDate ?? null,
+      })));
+      draftResource.current = selectedId;
+      setWindowsDirty(false);
     }
-  }, [windows]);
+  }, [windows, selectedId, windowsDirty]);
 
   // ---- Settings (motor) ----
   const [setDraft, setSetDraft] = useState<{
@@ -227,11 +241,36 @@ export default function AgendaMotor() {
   const [bookSimulate, setBookSimulate] = useState<boolean>(true);
   const [bookSync, setBookSync] = useState<boolean>(true);
 
-  const { data: clients } = useListClients();
+  const identity = useCollabIdentity();
+  const [sessionEpoch, setSessionEpoch] = useState(0);
+  useEffect(() => {
+    const sessionChanged = () => setSessionEpoch(epoch => epoch + 1);
+    const storageChanged = (event: StorageEvent) => {
+      if (!event.key || event.key === "padcom_collab_token" || event.key === "padcom_collab_prof") sessionChanged();
+    };
+    window.addEventListener(COLLAB_EVENT, sessionChanged);
+    window.addEventListener("storage", storageChanged);
+    return () => {
+      window.removeEventListener(COLLAB_EVENT, sessionChanged);
+      window.removeEventListener("storage", storageChanged);
+    };
+  }, []);
+  const { data: clients, isError: clientsError, isPending: clientsLoading } = useListClients(undefined, {
+    query: { enabled: identity !== "anonimo", queryKey: ["agenda-booking-clients", identity, sessionEpoch] },
+  });
+  const { data: preferredClient, isError: preferencesError } = useGetClient(bookClient ?? 0, {
+    query: { enabled: !!bookClient, queryKey: ["agenda-client-preferences", identity, sessionEpoch, bookClient] },
+  });
   const { data: bookProtocols } = useListProtocols(
     { clientId: bookClient ?? 0 },
-    { query: { enabled: !!bookClient } },
+    { query: { enabled: !!bookClient, queryKey: ["agenda-booking-protocols", identity, sessionEpoch, bookClient] } },
   );
+
+  useEffect(() => {
+    setBookClient(null);
+    setBookProtocol(null);
+    setBookTime("");
+  }, [identity, sessionEpoch]);
 
   useEffect(() => {
     setBookProtocol(null);
@@ -241,9 +280,17 @@ export default function AgendaMotor() {
     setBookTime("");
   }, [slotResource, slotDate]);
 
+  // A consulta da marcação nunca recebe a ocupação simulada da Prova Viva.
+  const { data: bookingSlots, isFetching: bookingSlotsFetching, isError: bookingSlotsError,
+    refetch: refetchBookingSlots } = useGetAgendaSlots(
+    { resourceId: slotResource ?? 0, date: slotDate },
+    { query: { enabled: !!slotResource && !!slotDate && identity !== "anonimo",
+      queryKey: ["agenda-booking-real-slots", identity, sessionEpoch, slotResource, slotDate] } },
+  );
   const openTimes = useMemo(
-    () => (slotsData?.slots ?? []).filter((s) => s.state === "aberto").map((s) => s.time),
-    [slotsData],
+    () => bookingSlotsError || bookingSlotsFetching ? [] :
+      (bookingSlots?.slots ?? []).filter((s) => s.state === "aberto").map((s) => s.time),
+    [bookingSlots, bookingSlotsError, bookingSlotsFetching],
   );
 
   const bookSession = useBookAgendaSession({
@@ -254,6 +301,7 @@ export default function AgendaMotor() {
         toast({ title: "Cliente marcado", description: desc, variant: warn ? "destructive" : undefined });
         setBookTime("");
         refetchSlots();
+        refetchBookingSlots();
       },
       onError: (err: unknown) => {
         const msg =
@@ -262,15 +310,24 @@ export default function AgendaMotor() {
         toast({ title: "Marcação recusada", description: msg, variant: "destructive" });
         // 409 e afins: a régua pode ter mudado (slot encheu/cadeia). Recarrega.
         refetchSlots();
+        refetchBookingSlots();
       },
     },
   });
 
   const bookResource = resources?.find((r) => r.id === slotResource);
   const bookReadOff = !!bookResource?.locationId && agendaByLocation.get(bookResource.locationId)?.enabled === false;
+  const preferenceKind = bookResource?.kind === "medico" ? "medical" :
+    bookResource?.kind === "enfermagem" ? "nursing" : null;
+  const weekday = /^\d{4}-\d{2}-\d{2}$/.test(slotDate)
+    ? new Date(`${slotDate}T12:00:00Z`).getUTCDay() : null;
+  const preference = preferenceKind && preferredClient?.id === bookClient
+    ? preferredClient.visitPreferences?.[preferenceKind] : undefined;
+  const preferredTimes = new Set(preference?.times.filter(t => t.weekday === weekday).map(t => t.time) ?? []);
+  const preferredDay = weekday !== null && !!preference?.weekdays.includes(weekday);
 
   function confirmBooking() {
-    if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime) {
+    if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime || !openTimes.includes(bookTime)) {
       toast({ title: "Faltam dados", description: "Escolha recurso, data, cliente, protocolo e horário.", variant: "destructive" });
       return;
     }
@@ -320,6 +377,7 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Janelas salvas" });
+        setWindowsDirty(false);
         refetchWindows();
       },
       onError: () => toast({ title: "Erro ao salvar janelas", variant: "destructive" }),
@@ -380,32 +438,50 @@ export default function AgendaMotor() {
   }
 
   function addWindow(weekday: number) {
+    setWindowsDirty(true);
     setWindowsDraft((d) => ({
       ...d,
-      [weekday]: [...(d[weekday] ?? []), { startTime: "08:00", endTime: "12:00" }],
+      [weekday]: [...(d[weekday] ?? []), { startTime: "08:00", endTime: "12:00", repeatWeeks: 1, anchorDate: "" }],
     }));
   }
   function removeWindow(weekday: number, idx: number) {
+    setWindowsDirty(true);
     setWindowsDraft((d) => ({
       ...d,
       [weekday]: (d[weekday] ?? []).filter((_, i) => i !== idx),
     }));
   }
-  function setWindowField(weekday: number, idx: number, field: keyof Win, value: string) {
+  function setWindowField(weekday: number, idx: number, field: "startTime" | "endTime" | "anchorDate", value: string) {
+    setWindowsDirty(true);
     setWindowsDraft((d) => ({
       ...d,
       [weekday]: (d[weekday] ?? []).map((w, i) => (i === idx ? { ...w, [field]: value } : w)),
     }));
   }
+  function setWindowRepeat(weekday: number, idx: number, repeatWeeks: 1 | 2) {
+    setWindowsDirty(true);
+    setWindowsDraft(d => ({
+      ...d, [weekday]: (d[weekday] ?? []).map((w, i) => i === idx ? { ...w, repeatWeeks } : w),
+    }));
+  }
   function saveWindows() {
-    if (!selectedId) return;
-    const flat: { weekday: number; startTime: string; endTime: string }[] = [];
+    if (!selectedId || draftResource.current !== selectedId || !windowsSnapshot) return;
+    const flat: { weekday: number; startTime: string; endTime: string; repeatWeeks: 1 | 2; anchorDate: string | null }[] = [];
     for (const wd of Object.keys(windowsDraft)) {
       for (const w of windowsDraft[Number(wd)]) {
-        flat.push({ weekday: Number(wd), startTime: w.startTime, endTime: w.endTime });
+        if (w.repeatWeeks === 2) {
+          const date = new Date(`${w.anchorDate}T12:00:00Z`);
+          if (!w.anchorDate || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== w.anchorDate
+              || date.getUTCDay() !== Number(wd)) {
+            toast({ title: "Confira a data inicial", description: `Escolha uma data válida no dia ${WEEK_LABEL[Number(wd)]}.`, variant: "destructive" });
+            return;
+          }
+        }
+        flat.push({ weekday: Number(wd), startTime: w.startTime, endTime: w.endTime,
+          repeatWeeks: w.repeatWeeks, anchorDate: w.repeatWeeks === 2 ? w.anchorDate : null });
       }
     }
-    replaceWindows.mutate({ id: selectedId, data: { windows: flat } });
+    replaceWindows.mutate({ id: selectedId, data: { windows: flat, expectedWindows: windowsSnapshot } });
   }
 
   function addException() {
@@ -621,7 +697,7 @@ export default function AgendaMotor() {
               <Button
                 className="btn-3d"
                 onClick={saveWindows}
-                disabled={!selectedId || !canManageSelected || replaceWindows.isPending}
+                disabled={!selectedId || draftResource.current !== selectedId || !windowsSnapshot || !canManageSelected || replaceWindows.isPending}
               >
                 <Save className="mr-1 h-4 w-4" /> Salvar Janelas
               </Button>
@@ -635,7 +711,7 @@ export default function AgendaMotor() {
                 Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.
               </p>
             )}
-            <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+            <fieldset disabled={replaceWindows.isPending} className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
               {WEEK_ORDER.map((wd) => (
                 <div key={wd} className="panel-3d-sub p-3 space-y-2">
                   <div className="flex items-center justify-between">
@@ -655,7 +731,8 @@ export default function AgendaMotor() {
                     <span className="block text-[11px] text-muted-foreground">Fechado</span>
                   )}
                   {(windowsDraft[wd] ?? []).map((w, idx) => (
-                    <div key={idx} className="flex items-center gap-1">
+                    <div key={idx} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1">
                       <Input
                         type="time"
                         className="field-engraved h-8 px-1 text-xs"
@@ -677,11 +754,30 @@ export default function AgendaMotor() {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      </div>
+                      <label className="text-[10px] font-semibold text-muted-foreground">
+                        Repetição
+                        <select
+                          className="field-engraved mt-1 h-8 w-full rounded px-2 text-xs text-foreground"
+                          value={w.repeatWeeks}
+                          onChange={e => setWindowRepeat(wd, idx, e.target.value === "2" ? 2 : 1)}
+                        >
+                          <option value="1">Toda semana</option>
+                          <option value="2">A cada duas semanas</option>
+                        </select>
+                      </label>
+                      {w.repeatWeeks === 2 && (
+                        <label className="text-[10px] font-semibold text-muted-foreground">
+                          Primeiro dia de atendimento
+                          <Input type="date" className="field-engraved mt-1 h-8 px-1 text-xs"
+                            value={w.anchorDate} onChange={e => setWindowField(wd, idx, "anchorDate", e.target.value)} />
+                        </label>
+                      )}
                     </div>
                   ))}
                 </div>
               ))}
-            </div>
+            </fieldset>
           </div>
         </div>
       </div>
@@ -848,7 +944,7 @@ export default function AgendaMotor() {
       </div>
 
       {/* PROVA VIVA */}
-      <div className="panel-3d p-4 space-y-4">
+      <div className="panel-3d p-4 space-y-4" data-testid="agenda-simulacao">
         <BlockTitle icon={CalendarCog}>Prova Viva — Liberação Anti-Ilha</BlockTitle>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
@@ -948,7 +1044,7 @@ export default function AgendaMotor() {
       </div>
 
       {/* MARCAR CLIENTE (F2.3 — recepção) */}
-      <div className="panel-3d p-4 space-y-4 paxter-underglow">
+      <div className="panel-3d p-4 space-y-4 paxter-underglow" data-testid="agenda-marcacao-real">
         <BlockTitle icon={CalendarDays}>Marcar Cliente</BlockTitle>
         <p className="text-[11px] text-muted-foreground">
           Usa o recurso e a data escolhidos acima. Só horários <strong>abertos</strong> pelo motor podem ser
@@ -961,18 +1057,22 @@ export default function AgendaMotor() {
             <Select
               value={bookClient ? String(bookClient) : ""}
               onValueChange={(v) => setBookClient(Number(v))}
+              disabled={clientsError || clientsLoading || identity === "anonimo"}
             >
               <SelectTrigger className="field-engraved w-full">
                 <SelectValue placeholder="Selecione o cliente" />
               </SelectTrigger>
               <SelectContent>
-                {(clients ?? []).map((c) => (
+                {(clientsError ? [] : clients ?? []).map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
                     {tituloProprio(c.name)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {(clientsError || identity === "anonimo") && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
+              Não foi possível carregar os clientes para este acesso. Confira a sessão e tente novamente.
+            </p>}
           </div>
 
           <div className="panel-3d-sub p-3 space-y-1.5">
@@ -998,6 +1098,14 @@ export default function AgendaMotor() {
 
         <div className="panel-3d-sub p-3 space-y-2">
           <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Horário aberto</Label>
+          {bookingSlotsError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
+            Não foi possível consultar horários reais. Nenhum horário será oferecido até a consulta funcionar.
+          </p>}
+          {bookingSlotsFetching && <p role="status" className="text-xs">Conferindo horários reais…</p>}
+          {bookClient && preferencesError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
+            Não foi possível consultar as preferências do cliente. Confira o cadastro antes de decidir.
+          </p>}
+          {preferredDay && <p className="text-xs text-primary">Dia preferido pelo cliente. Preferência não garante disponibilidade.</p>}
           {openTimes.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum horário aberto para este recurso/data.</p>
           ) : (
@@ -1007,14 +1115,17 @@ export default function AgendaMotor() {
                   key={t}
                   type="button"
                   onClick={() => setBookTime(t)}
+                  aria-label={preferredTimes.has(t) ? `${t}, horário preferido` : t}
                   className={`px-2.5 py-1 text-xs font-medium tabular-nums transition ${
                     bookTime === t
                       ? "bg-cyan-500 text-white ring-2 ring-cyan-300"
-                      : "bg-emerald-500 text-white hover:brightness-110"
+                      : preferredTimes.has(t)
+                        ? "bg-emerald-700 text-white ring-2 ring-amber-400 hover:brightness-110"
+                        : "bg-emerald-500 text-white hover:brightness-110"
                   }`}
                   style={{ borderRadius: "3px" }}
                 >
-                  {t}
+                  {t}{preferredTimes.has(t) && <span className="ml-1 text-[9px]">PREFERIDO</span>}
                 </button>
               ))}
             </div>

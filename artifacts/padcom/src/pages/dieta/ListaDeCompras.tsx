@@ -29,7 +29,7 @@ import {
   formatBRL,
   parseApiError,
 } from "./shared";
-import { getCollabToken } from "@/lib/collab-auth";
+import { getCollabToken, collabAuthHeaders } from "@/lib/collab-auth";
 
 // -------------------------------------------------------------------------------
 // ABA "LISTA DE COMPRAS" (Task 234) — a partir de um cardapio ja emitido
@@ -100,7 +100,7 @@ export default function ListaDeCompras() {
   const { data: clientes } = useQuery<Cliente[]>({
     queryKey: ["dieta", "clientes"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       const d = await r.json();
       return Array.isArray(d) ? d : (d.data ?? []);

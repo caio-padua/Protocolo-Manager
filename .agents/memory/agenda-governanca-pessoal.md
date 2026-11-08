@@ -83,21 +83,18 @@ cadastro atual já contém esses valores.
 
 Cada aplicação intramuscular ou subcutânea tem duração clínica de 2,5 minutos.
 Até seis somam no máximo quinze minutos clínicos; cada período de vinte minutos
-de enfermagem preserva cinco minutos para organização. Acima de seis exige
-período adicional livre e adjacente, antes ou depois. O responsável disse depois
-que uma única aplicação precisa de mais um período: confirmar se isso se refere
-à aplicação além das seis ou à aplicação isolada, pois conflita com a instrução
-anterior de um único período para até seis. Implantes hormonais e procedimentos
-estéticos têm trinta minutos clínicos, reservam quarenta minutos de enfermagem e
-também exigem médico.
+de enfermagem preserva cinco minutos para organização. Uma até seis aplicações
+reservam um período; a partir da sétima, exige-se período adicional livre e
+adjacente, antes ou depois. Implantes hormonais e procedimentos estéticos têm
+trinta minutos clínicos, reservam quarenta minutos de enfermagem e também exigem
+médico.
 
 **Why:** os cinco minutos finais servem à organização; procedimentos com
 participação do médico não podem aparentar disponibilidade na agenda dele.
 
 **How to apply:** separar duração clínica de tempo reservado, contar aplicações
 efetivas e vias intramuscular e subcutânea juntas, e verificar todos os recursos
-necessários. Não presumir a resolução da dúvida sobre aplicação isolada nem
-inferir que registros antigos dispensam médico.
+necessários. Não inferir que registros antigos dispensam médico.
 
 O responsável quer dias e horários preferenciais no cadastro do cliente para
 consultas e aplicações de enfermagem, respeitando as grades de cada serviço.

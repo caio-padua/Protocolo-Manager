@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ClientStatus } from "./clientStatus";
+import type { ClientVisitPreferences } from "./clientVisitPreferences";
 
 export interface Client {
   id: number;
@@ -22,6 +23,9 @@ export interface Client {
   locationId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
+  visitPreferences?: ClientVisitPreferences;
+  /** @minimum 0 */
+  visitPreferencesRevision?: number;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;

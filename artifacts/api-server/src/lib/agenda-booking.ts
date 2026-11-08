@@ -11,6 +11,7 @@ import {
   protocolsTable,
 } from "@workspace/db";
 import { loadAgendaOccupancy, type AgendaExecutor } from "./agenda-occupancy";
+import { windowOccursOnDate } from "./agenda-window-recurrence";
 import { computeAgendaSlots, type EngineResult } from "./agenda-motor.js";
 import { createCalendarEvent, deleteCalendarEvent, verifyClinicAccount } from "./google-calendar.js";
 
@@ -56,7 +57,8 @@ export async function computeResourceSlots(
   const windows = await db
     .select()
     .from(agendaWindowsTable)
-    .where(and(eq(agendaWindowsTable.resourceId, resourceId), eq(agendaWindowsTable.weekday, weekday)));
+    .where(and(eq(agendaWindowsTable.resourceId, resourceId), eq(agendaWindowsTable.weekday, weekday),
+      eq(agendaWindowsTable.active, true)));
 
   const exceptions = await db
     .select()
@@ -88,7 +90,8 @@ export async function computeResourceSlots(
   }
 
   const result = computeAgendaSlots({
-    windows: windows.map((w) => ({ startTime: w.startTime, endTime: w.endTime })),
+    windows: windows.filter(w => windowOccursOnDate(w, date))
+      .map((w) => ({ startTime: w.startTime, endTime: w.endTime })),
     slotMinutes: resource.slotMinutes,
     settings: {
       blockMinutes: settings.blockMinutes,
@@ -297,8 +300,9 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
 
   if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
 
-  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId)).for("update");
   if (!session || session.agendaArchived || session.clientId !== clientId || session.empresaId !== empresaId) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  if (session.googleSyncPendingOperation) return { ok: false, status: 409, error: "A sincronização Google precisa ser concluída ou conferida antes da remarcação." };
   if (session.status !== "scheduled") return { ok: false, status: 409, error: "Só é possível remarcar sessões agendadas." };
 
   const computed = await computeResourceSlots(resourceId, date, null, db, sessionId);
@@ -403,53 +407,44 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
 }
 
 export async function cancelBooking(sessionId: number, empresaId?: number): Promise<BookResult> {
-  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session || session.agendaArchived || (empresaId != null && session.empresaId !== empresaId)) return { ok: false, status: 404, error: "Sessão não encontrada" };
+  return db.transaction(async tx => {
+    const [session] = await tx.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId)).for("update");
+    if (!session || session.agendaArchived || (empresaId != null && session.empresaId !== empresaId)) return { ok: false, status: 404, error: "Sessão não encontrada" };
+    if (session.googleSyncPendingOperation) return { ok: false, status: 409, error: "A sincronização Google precisa ser concluída ou conferida antes do cancelamento." };
 
-  if (session.googleEventId) {
-    try {
-      await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || undefined);
-    } catch {
-      /* evento ja removido ou Google indisponivel: segue cancelando no sistema */
+    if (session.googleEventId) {
+      try {
+        await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || undefined);
+      } catch {
+        /* evento ja removido ou Google indisponivel: segue cancelando no sistema */
+      }
     }
-  }
 
-  const [updated] = await db
-    .update(sessionsTable)
-    .set({ status: "cancelled", googleEventId: null })
-    .where(eq(sessionsTable.id, sessionId))
-    .returning();
+    const [updated] = await tx.update(sessionsTable)
+      .set({ status: "cancelled", googleEventId: null })
+      .where(eq(sessionsTable.id, sessionId)).returning();
 
-  return { ok: true, status: 200, session: updated };
+    return { ok: true, status: 200, session: updated };
+  });
 }
 
 /**
- * Remove a poluicao da demo: apaga eventos Google e exclui as sessoes etiquetadas [SIMULACAO].
- * So toca sessoes com a tag de simulacao (nunca marcacoes reais). Aceita escopo opcional
- * (clientId/protocolId) para restringir a demo de um cliente especifico, ex.: a Carlucia.
+ * Oculta apenas simulações da empresa selecionada, preservando registros e Google.
  */
 export async function clearSimulations(
-  scope?: { clientId?: number; protocolId?: number },
-): Promise<{ removed: number; googleRemoved: number }> {
-  const filters = [eq(sessionsTable.notes, SIM_TAG)];
+  scope: { empresaId: number; clientId?: number; protocolId?: number },
+): Promise<{ removed: number; googleRemoved: number; awaitingReview: number }> {
+  const filters = [eq(sessionsTable.notes, SIM_TAG), eq(sessionsTable.empresaId, scope.empresaId)];
   if (scope?.clientId != null) filters.push(eq(sessionsTable.clientId, scope.clientId));
   if (scope?.protocolId != null) filters.push(eq(sessionsTable.protocolId, scope.protocolId));
   const where = and(...filters);
 
-  const sims = await db.select().from(sessionsTable).where(where);
-  let googleRemoved = 0;
-  for (const s of sims) {
-    if (s.googleEventId) {
-      try {
-        await deleteCalendarEvent(s.googleEventId, s.googleCalendarId || undefined);
-        googleRemoved++;
-      } catch {
-        /* ignora falha de remocao no Google */
-      }
-    }
-  }
-  if (sims.length > 0) {
-    await db.delete(sessionsTable).where(where);
-  }
-  return { removed: sims.length, googleRemoved };
+  return db.transaction(async tx => {
+    const sims = await tx.select().from(sessionsTable).where(where).for("update");
+    const eligible = sims.filter(s => !s.agendaArchived && !s.googleSyncPendingOperation);
+    if (eligible.length) await tx.update(sessionsTable).set({ agendaArchived: true })
+      .where(inArray(sessionsTable.id, eligible.map(s => s.id)));
+    return { removed: eligible.length, googleRemoved: 0,
+      awaitingReview: sims.filter(s => !!s.googleSyncPendingOperation).length };
+  });
 }

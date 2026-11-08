@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { collabAuthHeaders } from "@/lib/collab-auth";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import {
   format, startOfWeek, endOfWeek, addWeeks, subWeeks,
@@ -143,16 +145,21 @@ function SessionCard({
   onReschedule: (s: any) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [notAppliedCandidate, setNotAppliedCandidate] = useState<any>(null);
   const whatsappLink = buildWhatsAppLink(session);
   const dispApps = session.substanceApplications.filter((a: any) => a.availability === "disp");
-  const allConfirmed = dispApps.length > 0 && dispApps.every((a: any) => a.appliedAt);
-  const someConfirmed = dispApps.some((a: any) => a.appliedAt) && !allConfirmed;
+  const isApplied = (a: any) => a.displayState === "applied";
+  const isPending = (a: any) => a.displayState === "disp";
+  const allConfirmed = dispApps.length > 0 && dispApps.every(isApplied);
+  const someConfirmed = dispApps.some(isApplied) && !allConfirmed;
   const proxCount = session.substanceApplications.filter((a: any) => a.availability === "prox").length;
-  const confirmableCount = dispApps.filter((a: any) => !a.appliedAt).length;
+  const confirmableCount = dispApps.filter(isPending).length;
   const visibleApps = expanded ? session.substanceApplications : dispApps;
 
   const statusBarColor =
-    session.status === "completed" ? "bg-green-500/80" :
+    session.status === "completed" && allConfirmed ? "bg-green-500/80" :
+    session.status === "completed" && someConfirmed ? "bg-amber-500/80" :
+    session.status === "completed" ? "bg-slate-400/80" :
     session.status === "missed" ? "bg-red-500/80" :
     session.status === "cancelled" ? "bg-slate-400/80" :
     someConfirmed ? "bg-amber-500/80" :
@@ -281,8 +288,8 @@ function SessionCard({
                         checked={false}
                         disabled={confirmMutation.isPending}
                         onCheckedChange={() => {
-                          dispApps.filter((a: any) => !a.appliedAt).forEach((a: any) =>
-                            confirmMutation.mutate({ id: session.id, data: { substanceId: a.substanceId, confirmed: true } })
+                          dispApps.filter(isPending).forEach((a: any) =>
+                            confirmMutation.mutate({ id: session.id, data: { substanceId: a.substanceId, applicationId: a.id, confirmed: true } })
                           );
                         }}
                         aria-label="Marcar todas como aplicadas"
@@ -316,10 +323,13 @@ function SessionCard({
               ) : (
                 visibleApps.map((app: any) => {
                   const isDisp = app.availability === "disp";
+                  const applied = isApplied(app);
+                  const pending = isPending(app);
+                  const notApplied = app.displayState === "notPerformed";
                   return (
                     <div
                       key={app.id}
-                      className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_2rem] items-center gap-x-2 px-2.5 py-2"
+                      className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_5.5rem] items-center gap-x-2 px-2.5 py-2"
                     >
                       <span
                         className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner shrink-0"
@@ -332,26 +342,37 @@ function SessionCard({
                       <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
                         {app.sessionNumber > 0 ? `${app.sessionNumber}/${app.totalSessions}` : "—"}
                       </span>
-                      {app.appliedAt ? (
+                      {applied ? (
                         <span className="text-[9px] font-black uppercase tracking-wider text-center text-green-600">Aplicada</span>
-                      ) : isDisp ? (
+                      ) : notApplied ? (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-center text-red-700">Não aplicada</span>
+                      ) : isDisp && pending ? (
                         <span className="text-[9px] font-black uppercase tracking-wider text-center text-amber-600">A aplicar</span>
-                      ) : (
+                      ) : app.displayState === "prox" ? (
                         <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Próxima</span>
+                      ) : app.displayState === "unavailable" ? (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Indisponível</span>
+                      ) : (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-center text-red-700">Conferir</span>
                       )}
-                      {app.appliedAt ? (
+                      {applied ? (
                         <CheckCircle2 className="h-5 w-5 text-green-600 justify-self-center" />
-                      ) : isDisp && canConfirm ? (
-                        <Checkbox
-                          className="justify-self-center"
-                          checked={false}
-                          disabled={confirmMutation.isPending}
-                          aria-label={`Confirmar ${app.substanceName}`}
-                          onCheckedChange={() => confirmMutation.mutate({
-                            id: session.id,
-                            data: { substanceId: app.substanceId, confirmed: true },
-                          })}
-                        />
+                      ) : isDisp && pending && canConfirm ? (
+                        <div className="flex justify-center items-center gap-1">
+                          <Checkbox
+                            checked={false}
+                            disabled={confirmMutation.isPending}
+                            aria-label={`Confirmar ${app.substanceName}`}
+                            onCheckedChange={() => confirmMutation.mutate({
+                              id: session.id,
+                              data: { substanceId: app.substanceId, applicationId: app.id, confirmed: true },
+                            })}
+                          />
+                          <button type="button" className="btn-3d-soft px-1 py-1 text-[9px]"
+                            aria-label={`Registrar ${app.substanceName} não aplicada`}
+                            disabled={confirmMutation.isPending}
+                            onClick={() => setNotAppliedCandidate(app)}>Não aplicada</button>
+                        </div>
                       ) : (
                         <span className="justify-self-center" />
                       )}
@@ -363,6 +384,26 @@ function SessionCard({
           </div>
         </CardContent>
       </div>
+      <AlertDialog open={!!notAppliedCandidate} onOpenChange={(open) => { if (!open) setNotAppliedCandidate(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Registrar aplicação não realizada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {notAppliedCandidate?.substanceName} será registrada como não aplicada. Isso não registra falta do cliente.
+              Uma correção posterior exige um processo de retificação.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (notAppliedCandidate) confirmMutation.mutate({
+                id: session.id, data: { substanceId: notAppliedCandidate.substanceId,
+                  applicationId: notAppliedCandidate.id, confirmed: false },
+              });
+            }}>Registrar não aplicada</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
@@ -503,7 +544,10 @@ export default function Agenda() {
 
   const confirmMutation = useConfirmSubstanceApplication({
     mutation: {
-      onSuccess: () => { toast({ title: "Substância confirmada!" }); refetch(); },
+      onSuccess: (_response, variables) => {
+        toast({ title: variables.data.confirmed ? "Aplicação registrada" : "Aplicação registrada como não realizada" });
+        refetch();
+      },
       onError: () => { toast({ title: "Erro ao confirmar", variant: "destructive" }); },
     },
   });
@@ -590,9 +634,9 @@ export default function Agenda() {
   async function syncToGoogleCalendar(session: any) {
     setCalSyncing(session.id);
     try {
-      const res = await fetch(`/api/google-calendar/sync-session/${session.id}`, { method: "POST" });
+      const res = await fetch(`/api/google-calendar/sync-session/${session.id}`, { method: "POST", headers: collabAuthHeaders() });
       const data = await res.json();
-      if (res.ok && data.success) toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} adicionada ao Google Agenda.` });
+      if (res.ok && data.success) toast({ title: "Sincronizado!", description: `Sessão de ${session.clientName} sincronizada com o Google Agenda.` });
       else toast({ title: "Erro ao sincronizar", description: data.error, variant: "destructive" });
     } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
     finally { setCalSyncing(null); }

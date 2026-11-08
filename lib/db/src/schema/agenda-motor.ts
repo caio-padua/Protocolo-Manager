@@ -23,6 +23,9 @@ export const agendaWindowsTable = pgTable("agenda_windows", {
   weekday: integer("weekday").notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
+  repeatWeeks: integer("repeat_weeks").notNull().default(1),
+  anchorDate: text("anchor_date"),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

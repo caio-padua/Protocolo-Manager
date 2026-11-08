@@ -3,6 +3,9 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import assert from "node:assert/strict";
+if (process.argv.includes("--executar")) {
+  throw new Error("Execução bloqueada: a rotina antiga exclui dados e não preserva o histórico das agendas.");
+}
 const requireDb = createRequire(new URL("../lib/db/package.json", import.meta.url));
 const { Client } = requireDb("pg");
 const snapshot = JSON.parse(await readFile(new URL("../.local/agenda-carga-google.json", import.meta.url), "utf8"));

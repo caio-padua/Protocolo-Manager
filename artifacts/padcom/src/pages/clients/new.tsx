@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
+import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useCallback } from "react";
@@ -36,6 +37,7 @@ const formSchema = z.object({
   status: z.enum(["active", "inactive", "pending"]),
   locationId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
+  visitPreferences: visitPreferencesSchema,
   notes: z.string().optional(),
 });
 
@@ -73,6 +75,7 @@ export default function NewClient() {
   const queryClient = useQueryClient();
   const createClient = useCreateClient();
   const [loadingCep, setLoadingCep] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -95,6 +98,7 @@ export default function NewClient() {
       status: "active",
       locationId: "8",
       preferredAgendaResourceIds: [],
+      visitPreferences: emptyVisitPreferences(),
       notes: "",
     },
   });
@@ -134,6 +138,7 @@ export default function NewClient() {
   }, [form, apiBase]);
 
   const onSubmit = (values: FormValues) => {
+    setSaveError("");
     const addressParts = [
       values.logradouro,
       values.numero,
@@ -158,6 +163,9 @@ export default function NewClient() {
         status: values.status,
         locationId: values.locationId ? Number(values.locationId) : 8,
         preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [],
+        ...(form.formState.dirtyFields.visitPreferences
+          ? { visitPreferences: values.visitPreferences, visitPreferencesRevision: 0 }
+          : {}),
         notes: values.notes || undefined,
       }},
       {
@@ -167,6 +175,7 @@ export default function NewClient() {
           setLocation(`/clients/${client.id}`);
         },
         onError: () => {
+          setSaveError("Não foi possível cadastrar o cliente. Confira os dados e tente novamente.");
           toast.error("Erro ao cadastrar cliente.");
         },
       }
@@ -189,6 +198,7 @@ export default function NewClient() {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              {saveError && <p role="alert" className="text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <User className="h-3 w-3 text-primary" /> Informações Pessoais
@@ -345,6 +355,11 @@ export default function NewClient() {
                       />
                     )}
                   />
+                  <FormField control={form.control} name="visitPreferences" render={({ field }) => (
+                    <div className="col-span-full">
+                      <VisitPreferencesField value={field.value} onChange={field.onChange} />
+                    </div>
+                  )} />
                 </div>
               </div>
 

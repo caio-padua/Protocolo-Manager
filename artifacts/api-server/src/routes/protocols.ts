@@ -3,12 +3,14 @@ import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, protocolsTable, protocolItemsTable, clientsTable, substancesTable, professionalsTable, sessionsTable, substanceApplicationsTable, paymentsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, protocolEmissoesTable, locationProfessionalsTable } from "@workspace/db";
+import { substanceDurationMinutes } from "../lib/substance-duration";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { withLoggedDoctorCertificate } from "../lib/prescription-signing";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import { generateProtocolLetterPdf, buildCartaTratamentoDto } from "../lib/pdf-carta-tratamento";
+import { contarAplicacoesRealizadas } from "../lib/contagem-aplicacoes-realizadas";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
@@ -467,7 +469,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
       // Campos de posologia & logística auditados em task-266.
       concentrationMg: sub?.concentrationMg ?? undefined,
       volumeAmpola: sub?.volumeAmpola ?? undefined,
-      durationMinutes: sub?.durationMinutes ?? undefined,
+      durationMinutes: sub ? substanceDurationMinutes(sub) : undefined,
     };
   });
 
@@ -645,6 +647,9 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       composicao: sub?.composicao ?? undefined,
       posologia: sub?.posologia ?? undefined,
       category: sub?.category ?? undefined,
+      concentrationMg: sub?.concentrationMg ?? undefined,
+      volumeAmpola: sub?.volumeAmpola ?? undefined,
+      durationMinutes: sub ? substanceDurationMinutes(sub) : undefined,
     };
   });
 
@@ -1563,29 +1568,13 @@ async function montarCartaDeTratamento(
   const subMap     = new Map(allSubs.map(s => [s.id, s]));
   const sessions   = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
 
-  // Quantas sessoes JA foram feitas de cada substancia.
-  // Conta as aplicacoes marcadas como "disp" (aplicada naquela semana) que
-  // pertencem a uma sessao concluida. Sem esta conta, a ficha de cada substancia
-  // imprimia sempre "0 / 8" enquanto a capa dizia "3 de 8", e o documento que
-  // chega ao paciente se contradizia.
-  // Conta SESSOES DISTINTAS, nunca linhas de aplicacao. Nao existe restricao de
-  // unicidade em (session_id, substance_id): uma linha duplicada faria a mesma
-  // sessao contar duas vezes e a substancia apareceria concluida antes da hora.
-  const doneSessionIds = sessions.filter(s => s.status === "completed").map(s => s.id);
-  const sessoesFeitasPorSubstancia = new Map<number, Set<number>>();
-  if (doneSessionIds.length > 0) {
-    const apps = await db.select().from(substanceApplicationsTable)
-      .where(inArray(substanceApplicationsTable.sessionId, doneSessionIds));
-    for (const a of apps) {
-      if (a.availability !== "disp") continue;
-      let set = sessoesFeitasPorSubstancia.get(a.substanceId);
-      if (!set) { set = new Set<number>(); sessoesFeitasPorSubstancia.set(a.substanceId, set); }
-      set.add(a.sessionId);
-    }
-  }
-  const doneBySubstance = new Map<number, number>(
-    [...sessoesFeitasPorSubstancia].map(([subId, set]) => [subId, set.size]),
-  );
+  // Sessão encerrada pode conter faltas; contar apenas aplicações comprovadas.
+  const sessionIds = sessions.map(s => s.id);
+  const applications = sessionIds.length
+    ? await db.select().from(substanceApplicationsTable)
+      .where(inArray(substanceApplicationsTable.sessionId, sessionIds))
+    : [];
+  const actual = contarAplicacoesRealizadas(sessionIds, applications);
 
   const substances = items.map(item => {
     const sub = subMap.get(item.substanceId);
@@ -1594,7 +1583,7 @@ async function montarCartaDeTratamento(
       dose:               item.dose,
       color:              sub?.color             ?? "navy",
       totalSessions:      item.totalSessions,
-      completedSessions:  doneBySubstance.get(item.substanceId) ?? 0,
+      completedSessions:  actual.bySubstance.get(item.substanceId) ?? 0,
       intervalDays:       item.intervalDays,
       startDate:          item.startDate,
       procedureType:      sub?.procedureType     ?? "iv",
@@ -1629,7 +1618,7 @@ async function montarCartaDeTratamento(
     unit:             protocol.unit ?? "Instituto Padua",
     startDate:        protocol.startDate,
     substances,
-    sessions: sessions.map(s => ({ status: s.status })),
+    sessions: sessions.map(s => ({ status: s.status, hasRecordedApplication: actual.visits.has(s.id) })),
   });
 
   const { pdfBytes, certInfo } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolLetterPdf(dto));

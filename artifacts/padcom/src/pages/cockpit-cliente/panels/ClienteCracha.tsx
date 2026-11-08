@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { tituloProprio } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -192,7 +193,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
   const { data: client } = useQuery<ClientData>({
     queryKey: ["cracha-client", clientId],
     queryFn: async () => {
-      const r = await fetch(`${BASE}/api/clients/${clientId}`);
+      const r = await fetch(`${BASE}/api/clients/${clientId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar cliente");
       return r.json();
     },

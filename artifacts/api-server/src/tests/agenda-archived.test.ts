@@ -25,21 +25,19 @@ vi.mock("@workspace/db", () => {
     agendaExceptionsTable: { name: "exceptions", id: "id" },
     agendaSettingsTable: { name: "settings", id: "id" },
   };
-  return {
-    ...tables,
-    db: { select: () => ({ from: (table: {name: string}) => ({
-      where: async (condition: {column: string, value: unknown}) => {
+  const db = { select: () => ({ from: (table: {name: string}) => ({
+      where: (condition: {column: string, value: unknown}) => {
+        let rows: any[] = [];
         if (table.name === "sessions") {
-          return condition.column === "id"
+          rows = condition.column === "id"
             ? data.sessions.filter(s => s.id === condition.value)
             : data.sessions.filter(s => s.empresaId === condition.value);
-        }
-        if (table.name === "clients") return [{ id: 5, name: "Cliente Sintético" }];
-        if (table.name === "protocols") return [{ id: 7, title: "Protocolo Sintético" }];
-        return [];
+        } else if (table.name === "clients") rows = [{ id: 5, name: "Cliente Sintético" }];
+        else if (table.name === "protocols") rows = [{ id: 7, title: "Protocolo Sintético" }];
+        return Object.assign(Promise.resolve(rows), { for: async () => rows });
       },
-    }) }) },
-  };
+    }) }), transaction: async (callback: (tx: any) => unknown) => callback(db) };
+  return { ...tables, db };
 });
 vi.mock("drizzle-orm", () => ({ eq: (column: string, value: unknown) => ({ column, value }), and: () => ({}), or: () => ({}), isNull: () => ({}), inArray: () => ({}) }));
 vi.mock("../middleware/moduleGuard.js", () => ({ moduleGuard: () => (_req: unknown, _res: unknown, next: () => void) => next() }));

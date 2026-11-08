@@ -23,6 +23,7 @@ export interface Substance {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
   mainFunction?: string | null;

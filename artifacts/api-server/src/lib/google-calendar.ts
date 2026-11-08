@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import type { EstadoAplicacao } from "./estado-aplicacao-protocolo";
 
 let connectionSettings: any;
 
@@ -47,7 +48,7 @@ export async function getUncachableGoogleCalendarClient() {
   return google.calendar({ version: 'v3', auth: oauth2Client });
 }
 
-export type SubstanceStatus = "disp" | "prox" | "applied" | "missed";
+export type SubstanceStatus = EstadoAplicacao;
 
 export interface CalendarSubstance {
   name: string;
@@ -68,12 +69,14 @@ export interface CalendarEventData {
   unit: string;
   locationAddress?: string;
   calendarId?: string;
+  eventId?: string;
   procedureType?: string;
   procedureLabel: string;
   activeProcedureTypes: string[];
   substances: CalendarSubstance[];
   clientEmail?: string;
   sessionStatus?: string;
+  rescheduleCount?: number;
   summaryPrefix?: string;
   // Total de idas (sessoes) do protocolo. Alimenta "Agendamento Número: N/Total".
   totalAppointments?: number;
@@ -81,8 +84,6 @@ export interface CalendarEventData {
   locationPhone?: string;
 }
 
-// Número oficial da clínica (SUB-05). Fallback quando a clínica não tem telefone próprio.
-const OFFICIAL_CLINIC_PHONE = "+5511977154000";
 
 // Normaliza um telefone para E.164 (+DDI...). Respeita o DDI informado (não força +55
 // quando já vem com sinal de mais); assume Brasil (+55) só para números locais sem DDI.
@@ -149,15 +150,15 @@ function buildAddressBlock(address: string | undefined, unitName: string): strin
   return block;
 }
 
-// Lista FIXA de procedimentos exibida no evento (padrao Paxter dos prints).
-// Cada linha leva polegar (ativo/inativo) e a contagem de tempo entre colchetes.
-const PROCEDURE_ROWS: Array<{ key: string; label: string; min: number }> = [
-  { key: "im", label: "Aplicação Intramuscular", min: 15 },
-  { key: "iv", label: "Aplicação Endovenosa", min: 30 },
-  { key: "consultation", label: "Consulta", min: 60 },
-  { key: "__retorno", label: "Retorno ou Avaliação", min: 30 },
-  { key: "__especifico", label: "Procedimento Específico", min: 60 },
-  { key: "implant", label: "Implante", min: 60 },
+// A classificação é exibida sem atribuir tempos clínicos que não estejam no cadastro.
+const PROCEDURE_ROWS: Array<{ key: string; label: string }> = [
+  { key: "im", label: "Aplicação Intramuscular" },
+  { key: "sc", label: "Aplicação Subcutânea" },
+  { key: "iv", label: "Aplicação Endovenosa" },
+  { key: "consultation", label: "Consulta" },
+  { key: "__retorno", label: "Retorno ou Avaliação" },
+  { key: "__especifico", label: "Procedimento Específico" },
+  { key: "implant", label: "Implante" },
 ];
 
 const MARK_OK = "\u2705"; // ✅ ocorre
@@ -196,14 +197,18 @@ const STATUS_SQUARE: Record<SubstanceStatus, string> = {
   disp: "\uD83D\uDFE9", // 🟩 verde
   prox: "\uD83D\uDFE8", // 🟨 amarelo
   applied: "\uD83D\uDFE6", // 🟦 azul
-  missed: "\u2B1C", // ⬜ branco
+  notPerformed: "\uD83D\uDFE5",
+  unavailable: "\u2B1C",
+  review: "\uD83D\uDFE7",
 };
 
 const STATUS_ABBR: Record<SubstanceStatus, string> = {
   disp: "DISP",
   prox: "PROX",
   applied: "APLI",
-  missed: "INDI",
+  notPerformed: "NREA",
+  unavailable: "INDI",
+  review: "CONF",
 };
 
 const SUBSTANCE_LEGEND =
@@ -211,34 +216,36 @@ const SUBSTANCE_LEGEND =
   `${STATUS_SQUARE.disp} Disponível para Aplicação [DISP]\n` +
   `${STATUS_SQUARE.prox} Disponível Próxima Sessão [PROX]\n` +
   `${STATUS_SQUARE.applied} Substância Aplicada [APLI]\n` +
-  `${STATUS_SQUARE.missed} Substância Indisponível [INDI]`;
-
-/** Soma das duracoes (min) so dos procedimentos ATIVOS, sem repetir tipo. */
-function computeActiveDuration(activeProcTypes: string[]): number {
-  const active = new Set(activeProcTypes);
-  let total = 0;
-  for (const row of PROCEDURE_ROWS) {
-    if (active.has(row.key)) total += row.min;
-  }
-  return total;
-}
+  `${STATUS_SQUARE.notPerformed} Aplicação Não Realizada [NREA]\n` +
+  `${STATUS_SQUARE.unavailable} Substância Indisponível [INDI]\n` +
+  `${STATUS_SQUARE.review} Registro a Conferir [CONF]`;
 
 function buildProcedureChecklist(activeProcTypes: string[]): string {
   const active = new Set(activeProcTypes);
   return PROCEDURE_ROWS.map(row => {
     const mark = active.has(row.key) ? MARK_OK : MARK_NO;
-    return `${mark} ${row.label} [${row.min}min]`;
+    return `${mark} ${row.label}`;
   }).join("\n");
 }
 
-function getSessionStatusLine(sessionStatus?: string): string {
-  if (sessionStatus === "completed") {
-    return `${STATUS_SQUARE.applied} Aplicação Realizada`;
+export function getSessionStatusLine(data: Pick<CalendarEventData, "sessionStatus" | "substances" | "rescheduleCount">): string {
+  if (data.sessionStatus === "cancelled") return `${STATUS_SQUARE.unavailable} Sessão Cancelada`;
+  if (data.sessionStatus === "missed") return `${STATUS_SQUARE.notPerformed} Cliente Faltou`;
+  if (data.sessionStatus === "completed") {
+    const due = data.substances.filter(s => s.sessionNumber > 0 && s.status !== "prox" && s.status !== "unavailable");
+    if (!due.length) return `${STATUS_SQUARE.unavailable} Sessão Encerrada`;
+    if (due.some(s => s.status === "review")) return `${STATUS_SQUARE.review} Sessão Encerrada — Registro a Conferir`;
+    const applied = due.filter(s => s.status === "applied").length;
+    if (applied === due.length) return `${STATUS_SQUARE.applied} Aplicações Realizadas`;
+    if (applied > 0) return `${STATUS_SQUARE.review} Sessão Encerrada — Aplicações Parcialmente Realizadas`;
+    return `${STATUS_SQUARE.unavailable} Sessão Encerrada — Nenhuma Aplicação Registrada como Realizada`;
   }
-  if (sessionStatus === "missed" || sessionStatus === "cancelled") {
-    return `${STATUS_SQUARE.missed} Não Realizada`;
+  if (data.sessionStatus === "scheduled" || data.sessionStatus === "confirmed") {
+    return (data.rescheduleCount ?? 0) > 0
+      ? `${STATUS_SQUARE.prox} Aplicação Remarcada`
+      : `${STATUS_SQUARE.prox} Aplicação Programada`;
   }
-  return `${STATUS_SQUARE.prox} Aplicação Programada`;
+  return `${STATUS_SQUARE.review} Situação da Sessão a Conferir`;
 }
 
 function buildSubstanceList(substances: CalendarSubstance[]): string {
@@ -246,8 +253,8 @@ function buildSubstanceList(substances: CalendarSubstance[]): string {
   return substances
     .map(s => {
       const idx = s.sessionNumber > 0 ? `${s.sessionNumber}/${s.totalSessions}` : `–/${s.totalSessions}`;
-      const square = STATUS_SQUARE[s.status] ?? STATUS_SQUARE.prox;
-      const abbr = STATUS_ABBR[s.status] ?? "PROX";
+      const square = STATUS_SQUARE[s.status] ?? STATUS_SQUARE.review;
+      const abbr = STATUS_ABBR[s.status] ?? "CONF";
       return `${square} [${idx}] ${s.name} ${s.dose} [${abbr}]`;
     })
     .join("\n");
@@ -259,11 +266,11 @@ function buildEventTitle(clientName: string, cpf: string, prefix: string): strin
   return `${prefix}${nameUpper}${cpfPart} [SESS]`;
 }
 
-function buildDescriptionBody(data: CalendarEventData): string {
+export function buildDescriptionBody(data: CalendarEventData): string {
   const totalAppointments = data.totalAppointments ?? data.weekNumber;
-  const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+  const durationTotal = data.durationMinutes;
   const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes);
-  const statusLine = getSessionStatusLine(data.sessionStatus);
+  const statusLine = getSessionStatusLine(data);
   const substanceList = buildSubstanceList(data.substances);
 
   const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
@@ -310,9 +317,8 @@ function buildDescriptionBody(data: CalendarEventData): string {
     }
   }
 
-  // CONTATO (SUB-05): telefone da clínica da sessão; fallback para o número oficial.
-  // Só omite se não houver telefone nem fallback (evita link quebrado).
-  const phoneE164 = normalizePhoneE164(data.locationPhone) ?? OFFICIAL_CLINIC_PHONE;
+  // Não atribuir telefone de outra empresa quando o cadastro estiver vazio.
+  const phoneE164 = normalizePhoneE164(data.locationPhone);
   if (phoneE164) {
     const waNumber = phoneE164.replace(/^\+/, "");
     desc += `\n\nCONTATO:`;
@@ -329,6 +335,7 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 
     // Mesmo corpo usado na atualizacao (convite B): 1 so verdade, sem drift create vs update.
     const event: any = buildEventRequestBody(data);
+    if (data.eventId) event.id = data.eventId;
 
     // Convite A (decisao CEO): o evento vive nos calendarios da clinica e NAO depende de
     // aceite do cliente. Nao adicionamos participante (attendee) nem disparamos convite/RSVP.
@@ -353,7 +360,7 @@ export async function createCalendarEvent(data: CalendarEventData): Promise<stri
 function buildEventRequestBody(data: CalendarEventData) {
   const [h, m] = data.scheduledTime.split(":").map(Number);
   const startDate = new Date(`${data.scheduledDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`);
-  const durationTotal = computeActiveDuration(data.activeProcedureTypes) || data.durationMinutes;
+  const durationTotal = data.durationMinutes;
   const endDate = new Date(startDate.getTime() + durationTotal * 60 * 1000);
   const cpfFormatted = data.clientCpf || "";
   const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";

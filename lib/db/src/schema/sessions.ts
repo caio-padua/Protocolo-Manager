@@ -18,6 +18,9 @@ export const sessionsTable = pgTable("sessions", {
   notes: text("notes"),
   googleEventId: text("google_event_id"),
   googleCalendarId: text("google_calendar_id"),
+  googleSyncPendingOperation: text("google_sync_pending_operation"),
+  googleSyncPendingEventId: text("google_sync_pending_event_id"),
+  googleSyncPendingCalendarId: text("google_sync_pending_calendar_id"),
   rescheduleCount: integer("reschedule_count").notNull().default(0),
   rescheduledAt: text("rescheduled_at"),
   rescheduledBy: text("rescheduled_by"),
@@ -43,6 +46,8 @@ export const substanceApplicationsTable = pgTable("substance_applications", {
   status: text("status").notNull().default("pending"),
   availability: text("availability").notNull().default("disp"),
   appliedAt: text("applied_at"),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: text("confirmed_at"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

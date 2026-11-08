@@ -7,6 +7,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import type { PaxterClientOption } from "./types";
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
@@ -153,6 +154,10 @@ export function useServerSearch(
         const params = new URLSearchParams({ search: query, limit: String(limit) });
         const res = await fetch(`${endpoint}?${params}`, {
           signal: abortRef.current.signal,
+          headers: new URL(endpoint, window.location.origin).origin === window.location.origin
+            && new URL(endpoint, window.location.origin).pathname === "/api/clients"
+            ? collabAuthHeaders()
+            : undefined,
         });
         if (!res.ok) throw new Error("Erro na busca");
         const data = await res.json();

@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, substancesTable, substanceBlendComponentsTable } from "@workspace/db";
 import {
@@ -6,12 +6,32 @@ import {
   UpdateSubstanceParams,
   UpdateSubstanceBody,
 } from "@workspace/api-zod";
+import { configuredDurationSeconds, durationSecondsFromMinutes, substanceDurationMinutes } from "../lib/substance-duration";
+import { requireCollaborator } from "./collaborator";
 
 const router: IRouter = Router();
 
+// O catálogo é compartilhado: uma clínica não pode alterar o cadastro global
+// das demais usando apenas o acesso de colaborador da própria clínica.
+function requireCatalogOwner(req: Request, res: Response, next: NextFunction) {
+  requireCollaborator(req, res, () => {
+    if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+      res.status(401).json({ error: "Entre com seu acesso profissional." });
+      return;
+    }
+    if (!req.tenantContext.isPlatformOwner) {
+      res.status(403).json({ error: "A edição do catálogo compartilhado exige o proprietário da plataforma." });
+      return;
+    }
+    next();
+  });
+}
+
 function formatSubstance(s: typeof substancesTable.$inferSelect) {
+  const { preciseDurationSeconds: _preciseDurationSeconds, ...rest } = s;
   return {
-    ...s,
+    ...rest,
+    durationMinutes: substanceDurationMinutes(s),
     defaultDose: s.defaultDose ?? null,
     unit: s.unit ?? null,
     maxSessionsPerWeek: s.maxSessionsPerWeek ?? null,
@@ -69,7 +89,7 @@ router.get("/substances/:id/components", async (req, res): Promise<void> => {
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id));
 });
 
-router.put("/substances/:id/components", async (req, res): Promise<void> => {
+router.put("/substances/:id/components", requireCatalogOwner, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "Invalid id" });
@@ -137,18 +157,28 @@ router.put("/substances/:id/components", async (req, res): Promise<void> => {
   res.json(saved.map(serializeComponent));
 });
 
-router.post("/substances", async (req, res): Promise<void> => {
+router.post("/substances", requireCatalogOwner, async (req, res): Promise<void> => {
   const parsed = CreateSubstanceBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const [substance] = await db.insert(substancesTable).values(parsed.data).returning();
+  const { durationMinutes, ...data } = parsed.data;
+  let preciseDurationSeconds: number | null;
+  try {
+    preciseDurationSeconds = durationMinutes === undefined
+      ? await configuredDurationSeconds(data.procedureType ?? "iv")
+      : durationSecondsFromMinutes(durationMinutes);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
+    return;
+  }
+  const [substance] = await db.insert(substancesTable).values({ ...data, preciseDurationSeconds }).returning();
   res.status(201).json(formatSubstance(substance));
 });
 
-router.put("/substances/:id", async (req, res): Promise<void> => {
+router.put("/substances/:id", requireCatalogOwner, async (req, res): Promise<void> => {
   const params = UpdateSubstanceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -161,7 +191,17 @@ router.put("/substances/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [substance] = await db.update(substancesTable).set(parsed.data).where(eq(substancesTable.id, params.data.id)).returning();
+  const { durationMinutes, ...data } = parsed.data;
+  let preciseDurationSeconds: number | undefined;
+  try {
+    if (durationMinutes !== undefined) preciseDurationSeconds = durationSecondsFromMinutes(durationMinutes);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
+    return;
+  }
+  const [substance] = await db.update(substancesTable)
+    .set({ ...data, ...(preciseDurationSeconds === undefined ? {} : { preciseDurationSeconds }) })
+    .where(eq(substancesTable.id, params.data.id)).returning();
   if (!substance) {
     res.status(404).json({ error: "Substance not found" });
     return;
@@ -172,7 +212,7 @@ router.put("/substances/:id", async (req, res): Promise<void> => {
 
 const PATCHABLE_FIELDS = [
   "name", "category", "color", "defaultDose", "unit", "maxSessionsPerWeek", "intervalDays",
-  "notes", "stockQuantity", "stockUnit", "procedureType", "durationMinutes", "description",
+  "notes", "stockQuantity", "stockUnit", "procedureType", "doctorParticipation", "durationMinutes", "description",
   "mainFunction", "perceivedEffects", "timeToEffect", "starRating", "bodySystemEffects",
   "longevityBenefit", "qualityOfLifeImpact", "sleepBenefit", "energyBenefit", "libidoBenefit",
   "physicalPerformance", "muscleStrength", "mentalClarity", "skinHairNails", "immuneSupport",
@@ -181,8 +221,8 @@ const PATCHABLE_FIELDS = [
   "isBlend", "presentationQuantity", "presentationUnit", "ampouleVolumeMl",
 ] as const;
 
-router.patch("/substances/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+router.patch("/substances/:id", requireCatalogOwner, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -195,6 +235,20 @@ router.patch("/substances/:id", async (req, res): Promise<void> => {
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No valid fields to update" });
     return;
+  }
+  if ("doctorParticipation" in updates && updates.doctorParticipation !== null &&
+      typeof updates.doctorParticipation !== "boolean") {
+    res.status(400).json({ error: "A participação médica deve ser sim, não ou não definida." });
+    return;
+  }
+  if ("durationMinutes" in updates) {
+    try {
+      updates.preciseDurationSeconds = durationSecondsFromMinutes(updates.durationMinutes);
+      delete updates.durationMinutes;
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
+      return;
+    }
   }
 
   const [substance] = await db.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();

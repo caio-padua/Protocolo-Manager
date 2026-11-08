@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 export interface ClientSearchResult {
   id: number;
@@ -23,7 +24,7 @@ export function useCockpitSearch() {
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/clients?search=${encodeURIComponent(query)}&limit=20`);
+        const res = await fetch(`/api/clients?search=${encodeURIComponent(query)}&limit=20`, { headers: collabAuthHeaders() });
         if (!res.ok) throw new Error("Erro na busca");
         const data: ClientSearchResult[] = await res.json();
         if (!cancelled) setResults(data);

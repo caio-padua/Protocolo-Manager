@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Response } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { agendaWriteGuard } from "../lib/agenda-governance";
+import { canonicalWindows, validWindowRecurrence } from "../lib/agenda-window-recurrence";
+import { requireCollaborator } from "./collaborator";
 import { eq, and, or, isNull, sql, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
@@ -57,8 +59,10 @@ const windowSchema = z.object({
   weekday: z.number().int().min(0).max(6),
   startTime: z.string().regex(HHMM, "horário inválido (HH:mm)"),
   endTime: z.string().regex(HHMM, "horário inválido (HH:mm)"),
+  repeatWeeks: z.union([z.literal(1), z.literal(2)]).optional(),
+  anchorDate: z.string().nullable().optional(),
 });
-const replaceWindowsSchema = z.object({ windows: z.array(windowSchema) });
+const replaceWindowsSchema = z.object({ windows: z.array(windowSchema), expectedWindows: z.array(windowSchema).optional() });
 
 const createExceptionSchema = z.object({
   resourceId: z.number().int().nullable().optional(),
@@ -192,13 +196,22 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
 });
 
 // ---- Janelas ----
-router.get("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+router.get("/agenda/resources/:id/windows", requireCollaborator, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "id inválido" });
     return;
   }
-  const rows = await db.select().from(agendaWindowsTable).where(eq(agendaWindowsTable.resourceId, id));
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
+  }
+  const owner = await db.select({ id: agendaResourcesTable.id }).from(agendaResourcesTable)
+    .innerJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
+    .where(and(eq(agendaResourcesTable.id, id), eq(locationsTable.empresaId, req.tenantContext.empresaId)));
+  if (!owner.length) { res.status(404).json({ error: "Recurso não encontrado." }); return; }
+  const rows = await db.select().from(agendaWindowsTable).where(and(
+    eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
+  ));
   res.json(rows);
 });
 
@@ -211,9 +224,17 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
   const data = parseOr400(replaceWindowsSchema, req.body, res);
   if (!data) return;
   const windows = data.windows;
+  if (!data.expectedWindows) {
+    res.status(409).json({ error: "Atualize a tela e confira o expediente antes de salvar." });
+    return;
+  }
   for (const w of windows) {
     if (w.endTime <= w.startTime) {
       res.status(400).json({ error: `janela com fim <= início (${w.startTime}-${w.endTime})` });
+      return;
+    }
+    if (!validWindowRecurrence(w.weekday, w.repeatWeeks ?? 1, w.anchorDate ?? null)) {
+      res.status(400).json({ error: "Informe uma data inicial válida no mesmo dia da semana para a repetição quinzenal." });
       return;
     }
   }
@@ -232,21 +253,33 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
     }
   }
 
-  await db.transaction(async tx => {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
-  await tx.delete(agendaWindowsTable).where(eq(agendaWindowsTable.resourceId, id));
-  if (windows.length > 0) {
-    await tx.insert(agendaWindowsTable).values(
-      windows.map((w) => ({
-        resourceId: id,
-        weekday: w.weekday,
-        startTime: w.startTime,
-        endTime: w.endTime,
-      })),
-    );
-  }
+  const saved = await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
+    const old = await tx.select().from(agendaWindowsTable).where(and(
+      eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
+    ));
+    if (JSON.stringify(canonicalWindows(old)) !== JSON.stringify(canonicalWindows(data.expectedWindows!)) ||
+        (old.some(w => w.repeatWeeks === 2) && windows.some(w => w.repeatWeeks === undefined))) {
+      return false;
+    }
+    await tx.update(agendaWindowsTable).set({ active: false }).where(and(
+      eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
+    ));
+    if (windows.length > 0) {
+      await tx.insert(agendaWindowsTable).values(windows.map(w => ({
+        resourceId: id, weekday: w.weekday, startTime: w.startTime, endTime: w.endTime,
+        repeatWeeks: w.repeatWeeks ?? 1, anchorDate: w.anchorDate ?? null, active: true,
+      })));
+    }
+    return true;
   });
-  const rows = await db.select().from(agendaWindowsTable).where(eq(agendaWindowsTable.resourceId, id));
+  if (!saved) {
+    res.status(409).json({ error: "Atualize a tela antes de alterar janelas quinzenais." });
+    return;
+  }
+  const rows = await db.select().from(agendaWindowsTable).where(and(
+    eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
+  ));
   res.json(rows);
 });
 
@@ -311,6 +344,10 @@ router.get("/agenda/slots", async (req, res): Promise<void> => {
     res.status(400).json({ error: "resourceId e date (YYYY-MM-DD) são obrigatórios" });
     return;
   }
+  const owner = await db.select({ id: agendaResourcesTable.id }).from(agendaResourcesTable)
+    .innerJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
+    .where(and(eq(agendaResourcesTable.id, resourceId), eq(locationsTable.empresaId, req.tenantContext.empresaId ?? -1)));
+  if (!owner.length) { res.status(404).json({ error: "Recurso não encontrado." }); return; }
 
   // Ocupacao: por padrao vem das sessoes REAIS marcadas neste recurso+data (F2.3).
   // O parametro `occupied` (CSV HH:mm) e um OVERRIDE para a Prova Viva demonstrar a liberacao em cadeia.
@@ -394,10 +431,10 @@ const limparSchema = z.object({
   protocolId: z.number().int().positive().optional(),
 });
 
-router.post("/agenda/limpar-simulacao", async (req, res): Promise<void> => {
+router.post("/agenda/limpar-simulacao", requireCollaborator, async (req, res): Promise<void> => {
   const parsed = limparSchema.safeParse(req.body ?? {});
-  const scope = parsed.success ? parsed.data : {};
-  const r = await clearSimulations(scope);
+  if (!parsed.success) { res.status(400).json({ error: "Filtro inválido." }); return; }
+  const r = await clearSimulations({ ...parsed.data, empresaId: req.tenantContext.empresaId ?? -1 });
   res.json(r);
 });
 

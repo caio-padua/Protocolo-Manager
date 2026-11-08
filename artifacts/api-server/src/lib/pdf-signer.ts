@@ -1715,7 +1715,7 @@ function drawSubstancePremiumPage(
   const pres2Cells: Array<{ lbl: string; val: string }> = [
     { lbl: "CONCENTRAÇÃO",   val: safeTxt(sub.concentrationMg) },
     { lbl: "VOLUME (AMPOLA)",val: safeTxt(sub.volumeAmpola) },
-    { lbl: "DURAÇÃO (MIN)",  val: sub.durationMinutes != null && sub.durationMinutes > 0 ? String(sub.durationMinutes) : "" },
+    { lbl: "DURAÇÃO (MIN)",  val: sub.durationMinutes != null && sub.durationMinutes > 0 ? new Intl.NumberFormat("pt-BR").format(sub.durationMinutes) : "" },
   ];
   const cell2W = CONTENT_W / pres2Cells.length;
   for (let ci = 0; ci < pres2Cells.length; ci++) {

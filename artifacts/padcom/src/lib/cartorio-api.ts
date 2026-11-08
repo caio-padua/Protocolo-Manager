@@ -2,7 +2,7 @@
 // Consome o motor de assinatura (Onda F) sem alterá-lo. As rotas /api/assinaturas/*
 // exigem token de colaborador (Bearer); /api/clients é pública. O token HMAC do
 // colaborador vive no localStorage (ver collab-auth.ts) e é injetado aqui.
-import { getCollabToken } from "./collab-auth";
+import { getCollabToken, collabAuthHeaders } from "./collab-auth";
 
 export interface ClienteLite {
   id: number;
@@ -152,7 +152,7 @@ async function jsonOrThrow<T>(r: Response): Promise<T> {
 
 export async function listarClientes(busca?: string): Promise<ClienteLite[]> {
   const qs = busca && busca.trim() ? `?search=${encodeURIComponent(busca.trim())}` : "";
-  const r = await fetch(`/api/clients${qs}`);
+  const r = await fetch(`/api/clients${qs}`, { headers: collabAuthHeaders() });
   const rows = await jsonOrThrow<ClienteLite[]>(r);
   return rows.map((c) => ({
     id: c.id,

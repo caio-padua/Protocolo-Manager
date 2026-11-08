@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Link } from "wouter";
 import { CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,7 @@ function formatBirthDate(birthDate: string | null | undefined): string {
 async function bulkAction(ids: number[], action: BulkAction): Promise<void> {
   const res = await fetch("/api/clients/bulk", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: collabAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ ids, action }),
   });
   if (!res.ok) {
@@ -73,6 +74,7 @@ export default function Clients() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tabClients, setTabClients]       = useState<any[]>([]);
   const [tabLoading, setTabLoading]       = useState(false);
+  const [tabError, setTabError]           = useState<string | null>(null);
   const [displayCount, setDisplayCount]   = useState(PAGE_SIZE);
   const sentinelRef                       = useRef<HTMLDivElement>(null);
   const abortRef                          = useRef<AbortController | null>(null);
@@ -84,16 +86,27 @@ export default function Clients() {
     const signal = abortRef.current.signal;
 
     setTabLoading(true);
+    setTabError(null);
     const params = new URLSearchParams({ tab: currentTab });
     if (currentSearch) params.set("search", currentSearch);
-    fetch(`/api/clients?${params}`, { signal })
-      .then((r) => r.json())
+    fetch(`/api/clients?${params}`, { signal, headers: collabAuthHeaders() })
+      .then((r) => {
+        if (!r.ok) throw new Error(r.status === 401
+          ? "Entre com seu acesso profissional para consultar os clientes."
+          : "Não foi possível consultar os clientes. Tente novamente.");
+        return r.json();
+      })
       .then((data) => {
-        setTabClients(Array.isArray(data) ? data : []);
+        if (!Array.isArray(data)) throw new Error("A resposta da lista de clientes é inválida. Tente novamente.");
+        setTabClients(data);
         setTabLoading(false);
       })
       .catch((err) => {
-        if (err.name !== "AbortError") setTabLoading(false);
+        if (err.name !== "AbortError") {
+          setTabClients([]);
+          setTabError(err instanceof Error ? err.message : "Não foi possível consultar os clientes. Tente novamente.");
+          setTabLoading(false);
+        }
       });
   }, []);
 
@@ -374,6 +387,17 @@ export default function Clients() {
           {[...Array(6)].map((_, i) => (
             <Skeleton key={i} className="h-36 rounded-lg panel-3d-sub" />
           ))}
+        </div>
+      ) : tabError ? (
+        <div role="alert" className="text-center py-16 panel-3d bg-white/50">
+          <h3 className="text-lg font-bold uppercase tracking-wide">Não foi possível carregar os clientes</h3>
+          <p className="mt-2 text-sm text-muted-foreground">{tabError}</p>
+          <Button className="btn-3d-soft mt-5" onClick={() => loadClients(tab, search)}>TENTAR NOVAMENTE</Button>
+          {tabError.startsWith("Entre com seu acesso") && (
+            <Link href="/login?returnTo=%2Fclients">
+              <Button className="btn-3d-soft mt-5 ml-2">ENTRAR</Button>
+            </Link>
+          )}
         </div>
       ) : tabClients.length === 0 ? (
         <div className="text-center py-20 panel-3d bg-white/50">

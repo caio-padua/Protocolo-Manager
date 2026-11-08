@@ -750,6 +750,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/Client"
 
+  /clients/visit-preference-options:
+    get:
+      operationId: getClientVisitPreferenceOptions
+      tags: [clients]
+      summary: Referências de dias e horários por tipo de atendimento
+      security:
+        - collaboratorBearer: []
+      responses:
+        "200":
+          description: Grades do expediente ativo da empresa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientVisitPreferenceOptions"
+        "401": { description: Colaborador não autenticado }
+
   /clients/{id}:
     get:
       operationId: getClient
@@ -1175,6 +1191,9 @@ paths:
               properties:
                 substanceId:
                   type: integer
+                applicationId:
+                  type: integer
+                  description: Identificador da ocorrência específica, obrigatório quando há mais de uma aplicação da mesma substância na sessão.
                 confirmed:
                   type: boolean
                 notes:
@@ -4135,6 +4154,12 @@ components:
           type: string
         endTime:
           type: string
+        repeatWeeks:
+          type: integer
+          enum: [1, 2]
+        anchorDate:
+          type: string
+          nullable: true
 
     AgendaWindowInput:
       type: object
@@ -4146,12 +4171,22 @@ components:
           type: string
         endTime:
           type: string
+        repeatWeeks:
+          type: integer
+          enum: [1, 2]
+        anchorDate:
+          type: string
+          nullable: true
 
     ReplaceAgendaWindowsBody:
       type: object
       required: [windows]
       properties:
         windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaWindowInput"
+        expectedWindows:
           type: array
           items:
             $ref: "#/components/schemas/AgendaWindowInput"
@@ -4257,6 +4292,12 @@ components:
         endTime:
           type: string
           pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        repeatWeeks:
+          type: integer
+          enum: [1, 2]
+        anchorDate:
+          type: string
+          nullable: true
     AgendaWindowChangeInput:
       type: object
       required: [resourceId, reason, windows]
@@ -4269,6 +4310,11 @@ components:
           minLength: 8
           maxLength: 500
         windows:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AgendaProposedWindow"
+        expectedWindows:
           type: array
           maxItems: 100
           items:
@@ -4850,6 +4896,69 @@ components:
           items:
             $ref: "#/components/schemas/SimulacaoSinalAlarme"
 
+    ClientVisitPreferenceTime:
+      type: object
+      required: [weekday, time]
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        time:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+    ClientVisitPreferenceCategory:
+      type: object
+      required: [weekdays, times]
+      properties:
+        weekdays:
+          type: array
+          maxItems: 7
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        times:
+          type: array
+          maxItems: 504
+          items:
+            $ref: "#/components/schemas/ClientVisitPreferenceTime"
+    ClientVisitPreferences:
+      type: object
+      required: [medical, nursing]
+      properties:
+        medical:
+          $ref: "#/components/schemas/ClientVisitPreferenceCategory"
+        nursing:
+          $ref: "#/components/schemas/ClientVisitPreferenceCategory"
+    ClientVisitPreferenceOptionsCategory:
+      type: object
+      required: [days, mismatchedResources]
+      properties:
+        days:
+          type: array
+          items:
+            type: object
+            required: [weekday, times]
+            properties:
+              weekday:
+                type: integer
+              times:
+                type: array
+                items:
+                  type: string
+        mismatchedResources:
+          type: array
+          items:
+            type: string
+    ClientVisitPreferenceOptions:
+      type: object
+      required: [medical, nursing]
+      properties:
+        medical:
+          $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
+        nursing:
+          $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
     Client:
       type: object
       properties:
@@ -4892,6 +5001,11 @@ components:
           items:
             type: integer
           nullable: true
+        visitPreferences:
+          $ref: "#/components/schemas/ClientVisitPreferences"
+        visitPreferencesRevision:
+          type: integer
+          minimum: 0
         notes:
           type: string
           nullable: true
@@ -4949,6 +5063,11 @@ components:
           items:
             type: integer
           nullable: true
+        visitPreferences:
+          $ref: "#/components/schemas/ClientVisitPreferences"
+        visitPreferencesRevision:
+          type: integer
+          minimum: 0
         notes:
           type: string
           nullable: true
@@ -4994,8 +5113,11 @@ components:
           type: number
         procedureType:
           type: string
+        doctorParticipation:
+          type: boolean
+          nullable: true
         durationMinutes:
-          type: integer
+          type: number
         description:
           type: string
           nullable: true
@@ -5123,8 +5245,11 @@ components:
           type: number
         procedureType:
           type: string
+        doctorParticipation:
+          type: boolean
+          nullable: true
         durationMinutes:
-          type: integer
+          type: number
         description:
           type: string
           nullable: true
@@ -5567,7 +5692,17 @@ components:
         availability:
           type: string
           enum: [disp, prox]
+        displayState:
+          type: string
+          enum: [disp, prox, applied, notPerformed, unavailable, review]
+          description: Estado derivado dos registros reais da aplicação.
         appliedAt:
+          type: string
+          nullable: true
+        confirmedBy:
+          type: integer
+          nullable: true
+        confirmedAt:
           type: string
           nullable: true
         notes:

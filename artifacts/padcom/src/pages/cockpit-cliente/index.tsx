@@ -1155,7 +1155,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                                   : <Send className="w-3 h-3 mr-1.5" />}
                                 ATIVAR TELEGRAM
                               </Button>
-                              {(client as any).validationPassword && (
+                              {(client as any).hasValidationPassword && (
                                 <>
                                   <Button
                                     variant="outline"

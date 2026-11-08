@@ -7,6 +7,7 @@
  * Inclui seção de Histórico de Campanhas com rastreio original → reenvio.
  */
 import { useState, useEffect, useRef } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { tituloProprio } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -72,7 +73,7 @@ export function CampanhaAvatar({ avatares, apiBase }: Props) {
       try {
         const r = await fetch(
           `${apiBase}/api/clients?search=${encodeURIComponent(busca)}&limit=20`,
-          { credentials: "include" },
+          { credentials: "include", headers: collabAuthHeaders() },
         );
         const d = await r.json();
         setResultsBusca(Array.isArray(d) ? d : (d.clients ?? d.data ?? []));

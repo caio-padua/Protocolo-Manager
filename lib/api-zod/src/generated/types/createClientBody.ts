@@ -5,6 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { ClientVisitPreferences } from "./clientVisitPreferences";
 import type { CreateClientBodyStatus } from "./createClientBodyStatus";
 
 export interface CreateClientBody {
@@ -21,5 +22,8 @@ export interface CreateClientBody {
   locationId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
+  visitPreferences?: ClientVisitPreferences;
+  /** @minimum 0 */
+  visitPreferencesRevision?: number;
   notes?: string | null;
 }

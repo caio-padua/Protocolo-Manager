@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
+import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { tituloProprio } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -37,6 +38,7 @@ const formSchema = z.object({
   status: z.enum(["active", "inactive", "pending"]),
   locationId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
+  visitPreferences: visitPreferencesSchema,
   notes: z.string().optional(),
 });
 
@@ -102,9 +104,12 @@ export default function EditClient() {
   const [, setLocation] = useLocation();
   const id = parseInt(params?.id || "0", 10);
   const queryClient = useQueryClient();
-  const { data: client, isLoading } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
+  const { data: client, isLoading, isError, error } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
   const updateClient = useUpdateClient();
   const [loadingCep, setLoadingCep] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const loadedClientId = useRef<number | null>(null);
+  const visitRevision = useRef<number | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -127,6 +132,7 @@ export default function EditClient() {
       status: "active",
       locationId: "",
       preferredAgendaResourceIds: [],
+      visitPreferences: emptyVisitPreferences(),
       notes: "",
     },
   });
@@ -138,7 +144,8 @@ export default function EditClient() {
   });
 
   useEffect(() => {
-    if (client) {
+    if (client && client.id === id && (loadedClientId.current !== id || !form.formState.isDirty)) {
+      visitRevision.current = typeof client.visitPreferencesRevision === "number" ? client.visitPreferencesRevision : null;
       const addrFields = parseAddressToFields(client.address);
       form.reset({
         name: client.name,
@@ -157,12 +164,14 @@ export default function EditClient() {
         instagram: (client as any).instagram || "",
         comoConheceu: (client as any).comoConheceu || "",
         status: (client.status as "active" | "inactive" | "pending") || "active",
-        locationId: (client as any).locationId != null ? String((client as any).locationId) : "8",
+        locationId: (client as any).locationId != null ? String((client as any).locationId) : "",
         preferredAgendaResourceIds: (client as any).preferredAgendaResourceIds ?? [],
+        visitPreferences: client.visitPreferences ?? emptyVisitPreferences(),
         notes: client.notes || "",
       });
+      loadedClientId.current = id;
     }
-  }, [client, form]);
+  }, [client, form, id, form.formState.isDirty]);
 
   const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -194,6 +203,11 @@ export default function EditClient() {
   }, [form, apiBase]);
 
   const onSubmit = (values: FormValues) => {
+    setSaveError("");
+    if (form.formState.dirtyFields.visitPreferences && visitRevision.current === null) {
+      setSaveError("Não foi possível confirmar a versão das preferências. Recarregue o cadastro antes de salvar.");
+      return;
+    }
     const addressParts = [
       values.logradouro,
       values.numero,
@@ -216,8 +230,15 @@ export default function EditClient() {
         instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
-        locationId: values.locationId ? Number(values.locationId) : undefined,
-        preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [],
+        ...(form.formState.dirtyFields.locationId
+          ? { locationId: values.locationId ? Number(values.locationId) : null }
+          : {}),
+        ...(form.formState.dirtyFields.preferredAgendaResourceIds
+          ? { preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [] }
+          : {}),
+        ...(form.formState.dirtyFields.visitPreferences && visitRevision.current !== null
+          ? { visitPreferences: values.visitPreferences, visitPreferencesRevision: visitRevision.current }
+          : {}),
         notes: values.notes || undefined,
       }},
       {
@@ -227,8 +248,9 @@ export default function EditClient() {
           toast.success("Cliente atualizado com sucesso!");
           setLocation(`/clients/${id}`);
         },
-        onError: () => {
-          toast.error("Erro ao atualizar cliente.");
+        onError: (error) => {
+          setSaveError("Não foi possível salvar o cadastro. Confira os dados e, se houver alteração concorrente, recarregue antes de tentar novamente.");
+          toast.error(error instanceof Error ? error.message : "Erro ao atualizar cliente.");
         },
       }
     );
@@ -243,7 +265,16 @@ export default function EditClient() {
     );
   }
 
-  if (!client) return <div className="p-8 text-center font-bold uppercase tracking-widest text-muted-foreground">Cliente nao encontrado.</div>;
+  if (isError) {
+    const status = (error as { status?: number } | null)?.status;
+    const message = status === 401 || status === 403
+      ? "Entre com seu acesso profissional para consultar este cadastro."
+      : status === 404
+        ? "Cliente não encontrado neste acesso."
+        : "Não foi possível carregar o cadastro. Tente novamente.";
+    return <div role="alert" className="p-8 text-center font-bold text-muted-foreground">{message}</div>;
+  }
+  if (!client) return <div className="p-8 text-center font-bold text-muted-foreground">Cliente não encontrado.</div>;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -261,6 +292,7 @@ export default function EditClient() {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              {saveError && <p role="alert" className="text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <User className="h-3 w-3 text-primary" /> Informações Pessoais
@@ -415,6 +447,11 @@ export default function EditClient() {
                       />
                     )}
                   />
+                  <FormField control={form.control} name="visitPreferences" render={({ field }) => (
+                    <div className="col-span-full">
+                      <VisitPreferencesField value={field.value} onChange={field.onChange} disabled={visitRevision.current === null} />
+                    </div>
+                  )} />
                 </div>
               </div>
 

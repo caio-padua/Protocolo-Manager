@@ -7,6 +7,7 @@
  * Suporta canal VOICE (áudio ElevenLabs) e VIDEO (vídeo HeyGen, assíncrono).
  */
 import { useState, useRef, useEffect } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { tituloProprio } from "@/lib/utils";
 import { Mic, Video, Search, Send, Loader2, CheckCircle2, XCircle, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -44,7 +45,7 @@ export function DisparadorAvatar({ avatares, apiBase }: Props) {
     if (busca.length < 2) { setClientes([]); return; }
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`${apiBase}/api/clients?search=${encodeURIComponent(busca)}&limit=10`);
+        const r = await fetch(`${apiBase}/api/clients?search=${encodeURIComponent(busca)}&limit=10`, { headers: collabAuthHeaders() });
         const d = await r.json();
         setClientes(Array.isArray(d) ? d : (d.clients ?? d.data ?? []));
       } catch { setClientes([]); }

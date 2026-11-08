@@ -1,5 +1,6 @@
-import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { Router, type IRouter, type Request } from "express";
+import { and, eq, isNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import {
   db,
   sessionsTable,
@@ -9,18 +10,22 @@ import {
   locationsTable,
   professionalsTable,
   agendaResourcesTable,
-  agendaCalendarsTable,
+  protocolsTable,
   locationProfessionalsTable,
 } from "@workspace/db";
 import {
   createCalendarEvent,
   updateCalendarEvent,
   updateCalendarEventDescription,
-  deleteCalendarEvent,
   listCalendars,
+  verifyClinicAccount,
   type CalendarEventData,
   type CalendarSubstance,
 } from "../lib/google-calendar";
+import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
+import { requireCollaborator } from "./collaborator";
+import { ClinicalIdentityError, resolveClinicalMember } from "../lib/clinical-emitter";
+import { resolveEmpresaId } from "../middleware/tenantContext";
 
 const router: IRouter = Router();
 
@@ -28,76 +33,107 @@ function procedureTypeLabel(type: string): string {
   switch (type) {
     case "iv": return "Aplicacao Endovenosa";
     case "im": return "Aplicacao Intramuscular";
+    case "sc": return "Aplicacao Subcutanea";
     case "implant": return "Implante";
     default: return "Procedimento";
   }
 }
 
-function getDurationForProcedureType(type: string): number {
-  switch (type) {
-    case "iv": return 30;
-    case "im": return 15;
-    case "implant": return 60;
-    case "consultation": return 60;
-    default: return 30;
+async function authorizeSession(req: Request, session: typeof sessionsTable.$inferSelect) {
+  const empresaId = resolveEmpresaId(req);
+  if (session.agendaArchived || (session.empresaId !== null && session.empresaId !== empresaId)) return null;
+  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
+  if (!protocol || protocol.empresaId !== empresaId || protocol.clientId !== session.clientId) return null;
+  try {
+    const member = await resolveClinicalMember(req, session.clientId);
+    if (member.clinic.empresaId !== empresaId) return null;
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+    return client ? { client, clinicId: member.clinic.id } : null;
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) return null;
+    throw error;
   }
 }
 
-function calculateTotalDuration(dispProcedureTypes: Set<string>): number {
-  if (dispProcedureTypes.size === 0) return 60;
-  let total = 0;
-  for (const t of dispProcedureTypes) {
-    total += getDurationForProcedureType(t);
-  }
-  return total;
+async function explicitDestination(req: Request, session: typeof sessionsTable.$inferSelect) {
+  if (!session.resourceId) return null;
+  const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
+  if (!resource?.active || !resource.locationId || !resource.googleCalendarId) return null;
+  const [location] = await db.select().from(locationsTable).where(eq(locationsTable.id, resource.locationId));
+  if (!location || location.active !== "true" || location.empresaId !== resolveEmpresaId(req)) return null;
+  const [membership] = await db.select().from(locationProfessionalsTable).where(and(
+    eq(locationProfessionalsTable.locationId, location.id),
+    eq(locationProfessionalsTable.professionalId, req.collaborator!.professionalId),
+  ));
+  if (!membership) return null;
+  return { resource, location, calendarId: resource.googleCalendarId };
 }
 
-async function findLocationByUnit(
-  unitName: string | null,
-  professionalId?: number | null,
-): Promise<{ address: string | null; phone: string | null; googleCalendarId: string | null; pairCalendarId: string | null }> {
-  if (!unitName) return { address: null, phone: null, googleCalendarId: null, pairCalendarId: null };
-  const locations = await db.select().from(locationsTable);
-  const match = locations.find(l => l.name.toLowerCase().includes(unitName.toLowerCase()) || unitName.toLowerCase().includes(l.name.toLowerCase()));
-  let googleCalendarId = match?.googleCalendarId ?? null;
-  // Fonte adicional (SUB-02): se a clínica não tem calendário próprio gravado,
-  // usa a agenda vinculada em agenda_calendars (preferindo kind "geral").
-  // NÃO sobrepõe a prioridade do recurso da agenda (Pacote B), que vem depois.
-  if (!googleCalendarId && match) {
-    const cals = await db.select().from(agendaCalendarsTable).where(eq(agendaCalendarsTable.locationId, match.id));
-    const usable = cals.filter(c => c.active);
-    const chosen = usable.find(c => c.kind === "geral") ?? usable[0];
-    if (chosen) googleCalendarId = chosen.googleCalendarId;
-  }
-  // SUB-03 (item 4.b): agenda do PAR profissional+clínica tem prioridade sobre a da clínica.
-  // Só resolve a agenda concreta (googleCalendarId) a partir do vínculo location_professionals.
-  let pairCalendarId: string | null = null;
-  if (match && professionalId) {
-    const [link] = await db
-      .select()
-      .from(locationProfessionalsTable)
-      .where(
-        eq(locationProfessionalsTable.professionalId, professionalId),
-      );
-    // Filtra pelo par exato (mesma clínica) sem exigir índice composto.
-    const pair = link && link.locationId === match.id
-      ? link
-      : (await db.select().from(locationProfessionalsTable).where(eq(locationProfessionalsTable.locationId, match.id)))
-          .find(l => l.professionalId === professionalId);
-    if (pair?.agendaCalendarId) {
-      const [cal] = await db.select().from(agendaCalendarsTable).where(eq(agendaCalendarsTable.id, pair.agendaCalendarId));
-      if (cal?.active) pairCalendarId = cal.googleCalendarId;
-    }
-  }
-  return {
-    address: match?.address ?? null,
-    phone: match?.phone ?? null,
-    googleCalendarId,
-    pairCalendarId,
+class CalendarSyncUncertain extends Error {}
+
+/** Reserva durável: mesmo falha de resposta ou reinício nunca autoriza nova criação. */
+async function syncReservedEvent(
+  session: typeof sessionsTable.$inferSelect,
+  data: CalendarEventData,
+  expectedApplications: (typeof substanceApplicationsTable.$inferSelect)[],
+) {
+  const operation = randomUUID();
+  const eventId = session.googleEventId ?? randomUUID().replace(/-/g, "");
+  const calendarId = data.calendarId!;
+  const [reserved] = await db.update(sessionsTable).set({
+    googleSyncPendingOperation: operation,
+    googleSyncPendingEventId: eventId,
+    googleSyncPendingCalendarId: calendarId,
+  }).where(and(
+    eq(sessionsTable.id, session.id),
+    isNull(sessionsTable.googleSyncPendingOperation),
+    session.googleEventId ? eq(sessionsTable.googleEventId, session.googleEventId) : isNull(sessionsTable.googleEventId),
+  )).returning({ id: sessionsTable.id });
+  if (!reserved) throw new CalendarSyncUncertain("Há uma sincronização em andamento ou com resultado incerto. Confira antes de repetir.");
+
+  // A descrição pode ter sido montada antes da reserva. Depois da reserva,
+  // confirme que a sessão e suas aplicações ainda são exatamente as mesmas.
+  const stripReservation = (s: typeof sessionsTable.$inferSelect) => {
+    const { googleSyncPendingOperation: _op, googleSyncPendingEventId: _id,
+      googleSyncPendingCalendarId: _calendar, ...rest } = s;
+    return JSON.stringify(rest);
   };
+  const serializeApplications = (items: (typeof substanceApplicationsTable.$inferSelect)[]) =>
+    JSON.stringify([...items].sort((a, b) => a.id - b.id));
+  const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
+  const freshApplications = await db.select().from(substanceApplicationsTable)
+    .where(eq(substanceApplicationsTable.sessionId, session.id));
+  if (!fresh || stripReservation(fresh) !== stripReservation(session) ||
+      serializeApplications(freshApplications) !== serializeApplications(expectedApplications)) {
+    await db.update(sessionsTable).set({
+      googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
+    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+    throw new CalendarSyncUncertain("A sessão mudou antes do envio. Nenhum evento foi alterado; confira e tente novamente.");
+  }
+  try {
+    if (session.googleEventId) {
+      await updateCalendarEvent(eventId, calendarId, data);
+    } else {
+      const created = await createCalendarEvent({ ...data, eventId });
+      if (created !== eventId) throw new Error("O Google não confirmou o identificador reservado.");
+    }
+    const [saved] = await db.update(sessionsTable).set({
+      googleEventId: eventId,
+      googleCalendarId: calendarId,
+      googleSyncPendingOperation: null,
+      googleSyncPendingEventId: null,
+      googleSyncPendingCalendarId: null,
+    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)))
+      .returning({ id: sessionsTable.id });
+    if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
+    return eventId;
+  } catch {
+    // Não libera a reserva: o Google pode ter recebido a alteração.
+    throw new CalendarSyncUncertain("Não foi possível confirmar o resultado no Google. Confira o compromisso antes de repetir.");
+  }
 }
 
-router.get("/google-calendar/status", async (_req, res): Promise<void> => {
+router.get("/google-calendar/status", requireCollaborator, async (_req, res): Promise<void> => {
   try {
     const calendars = await listCalendars();
     res.json({ connected: true, calendars: calendars.map(c => ({ id: c.id, summary: c.summary })) });
@@ -106,22 +142,36 @@ router.get("/google-calendar/status", async (_req, res): Promise<void> => {
   }
 });
 
-router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promise<void> => {
-  const sessionId = parseInt(req.params.sessionId);
-  if (isNaN(sessionId)) {
+router.post("/google-calendar/sync-session/:sessionId", requireCollaborator, async (req, res): Promise<void> => {
+  const sessionId = Number(req.params.sessionId);
+  if (!Number.isSafeInteger(sessionId) || sessionId <= 0) {
     res.status(400).json({ error: "Invalid session id" });
     return;
   }
 
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
-  if (!session || session.agendaArchived) {
+  if (!session) {
     res.status(404).json({ error: "Session not found" });
     return;
   }
 
-  const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
-  if (!client) {
-    res.status(400).json({ error: "Client not found" });
+  const authorization = await authorizeSession(req, session);
+  if (!authorization) {
+    res.status(404).json({ error: "Sessão não encontrada neste acesso." });
+    return;
+  }
+  const { client } = authorization;
+  const destination = await explicitDestination(req, session);
+  if (!destination || !session.durationMinutes || session.durationMinutes <= 0) {
+    res.status(409).json({ error: "Defina o recurso, a agenda Google e a duração da sessão antes de sincronizar." });
+    return;
+  }
+  if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
+    res.status(409).json({ error: "A sessão pertence a outra agenda Google; a transferência exige conferência e não foi realizada." });
+    return;
+  }
+  if (!(await verifyClinicAccount()).ok) {
+    res.status(503).json({ error: "Não foi possível confirmar a conta Google autorizada." });
     return;
   }
 
@@ -129,15 +179,19 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
     .where(eq(substanceApplicationsTable.sessionId, sessionId));
 
   const substances: CalendarSubstance[] = [];
-  let primaryProcType = "iv";
+  let primaryProcType = "";
   const activeProcTypes = new Set<string>();
   const dispProcTypes = new Set<string>();
   let hasDisp = false;
 
   for (const app of applications) {
     const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
+    if (!substance || (app.availability === "disp" && !substance.procedureType)) {
+      res.status(409).json({ error: "Substância ou via não identificada; nenhum evento foi alterado." });
+      return;
+    }
     if (substance) {
-      const status = app.appliedAt ? "applied" : (app.availability as "disp" | "prox" | "missed") || "prox";
+      const status = estadoAplicacao(app);
       substances.push({
         name: substance.name,
         dose: app.dose,
@@ -150,30 +204,27 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       }
       if (app.availability === "disp") {
         hasDisp = true;
-        primaryProcType = substance.procedureType ?? "iv";
-        dispProcTypes.add(substance.procedureType ?? "iv");
+        primaryProcType = substance.procedureType!;
+        dispProcTypes.add(substance.procedureType!);
       }
     }
   }
 
   if (!hasDisp) {
-    if (session.professionalId) {
-      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
-      if (prof?.specialty?.toLowerCase().includes("médic") || prof?.specialty?.toLowerCase().includes("medic")) {
-        primaryProcType = "consultation";
-        dispProcTypes.add("consultation");
-      }
-    }
-    if (substances.length === 0) {
+    if (applications.length === 0 && destination.resource.kind === "medico") {
       primaryProcType = "consultation";
       dispProcTypes.add("consultation");
     }
   }
+  if (!primaryProcType) {
+    res.status(409).json({ error: "Procedimento do dia não identificado; nenhum evento foi alterado." });
+    return;
+  }
   activeProcTypes.add(primaryProcType);
 
-  const totalDuration = calculateTotalDuration(dispProcTypes);
+  const totalDuration = session.durationMinutes;
 
-  const location = await findLocationByUnit(session.unit, session.professionalId);
+  const location = destination.location;
 
   const isDomiciliar = location.address?.toLowerCase().includes("itinerante") ||
     session.unit?.toLowerCase().includes("domiciliar") ||
@@ -182,24 +233,7 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
     ? client.address
     : location.address ?? undefined;
 
-  const isDoctor = primaryProcType === "implant" || primaryProcType === "consultation";
-  // Cadeia (SUB-03 item 5): par profissional+clínica > clínica > heurística MÉDICO > primary.
-  // O recurso da agenda (Pacote B) ainda sobrescreve no final, mantendo a prioridade existente.
-  let targetCalendarId = location.pairCalendarId ?? location.googleCalendarId ?? undefined;
-  if (!location.pairCalendarId && isDoctor && location.googleCalendarId) {
-    const allLocations = await db.select().from(locationsTable);
-    const doctorCal = allLocations.find(l => l.googleCalendarId && l.googleCalendarId.includes("MEDICO"));
-    if (doctorCal?.googleCalendarId) {
-      targetCalendarId = doctorCal.googleCalendarId;
-    }
-  }
-  // Preferencia: calendario do recurso da agenda (Enf. Local, Medico Local, etc.).
-  if (session.resourceId) {
-    const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
-    if (resource?.googleCalendarId) {
-      targetCalendarId = resource.googleCalendarId;
-    }
-  }
+  const targetCalendarId = destination.calendarId;
 
   try {
     const protocolSessions = await db.select({ id: sessionsTable.id }).from(sessionsTable)
@@ -208,13 +242,13 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
     const eventData: CalendarEventData = {
       sessionId: session.id,
       clientName: client.name,
-      clientCpf: client.cpf,
+      clientCpf: client.cpf ?? undefined,
       scheduledDate: session.scheduledDate,
       scheduledTime: session.scheduledTime,
       durationMinutes: totalDuration,
       weekNumber: session.weekNumber,
       totalAppointments: protocolSessions.length,
-      unit: session.unit ?? "Instituto Pádua",
+      unit: session.unit ?? destination.location.name,
       locationAddress: resolvedAddress,
       locationPhone: location.phone ?? undefined,
       calendarId: targetCalendarId,
@@ -226,52 +260,41 @@ router.post("/google-calendar/sync-session/:sessionId", async (req, res): Promis
       substances,
       clientEmail: client.email || undefined,
       sessionStatus: session.status,
+      rescheduleCount: session.rescheduleCount,
     };
 
-    // Convite B: se ja existe evento NO MESMO calendario, ATUALIZA no lugar (nao apaga+recria,
-    // nao dispara "Evento cancelado"). Só quando o calendario MUDA (ou legado sem calendarId)
-    // apagamos (sem notificar) e recriamos no calendario novo.
-    let eventId: string | null = session.googleEventId;
-    // Normaliza null/undefined -> "primary" para nao cair em apagar+recriar quando ambos sao o primario.
-    const oldCal = session.googleCalendarId || "primary";
-    const newCal = targetCalendarId || "primary";
-    const sameCalendar = !!session.googleEventId && oldCal === newCal;
-
-    if (sameCalendar && session.googleEventId) {
-      await updateCalendarEvent(session.googleEventId, oldCal, eventData);
-    } else {
-      if (session.googleEventId) {
-        try {
-          await deleteCalendarEvent(session.googleEventId, oldCal);
-        } catch (delErr: any) {
-          console.warn("Could not delete old calendar event:", delErr.message);
-        }
-      }
-      eventId = await createCalendarEvent(eventData);
-    }
-
-    if (eventId) {
-      await db.update(sessionsTable).set({
-        googleEventId: eventId,
-        googleCalendarId: targetCalendarId || null,
-      }).where(eq(sessionsTable.id, session.id));
-    }
+    const eventId = await syncReservedEvent(session, eventData, applications);
 
     res.json({ success: true, eventId });
   } catch (err: any) {
+    if (err instanceof CalendarSyncUncertain) {
+      res.status(409).json({ success: false, error: err.message });
+      return;
+    }
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
+router.post("/google-calendar/sync-week", requireCollaborator, async (req, res): Promise<void> => {
   const { dateFrom, dateTo } = req.body as { dateFrom?: string; dateTo?: string };
 
   if (!dateFrom || !dateTo) {
     res.status(400).json({ error: "dateFrom and dateTo required" });
     return;
   }
+  const parseDay = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() : NaN;
+  };
+  const from = parseDay(dateFrom);
+  const to = parseDay(dateTo);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from || to - from > 6 * 86_400_000) {
+    res.status(400).json({ error: "Selecione um período válido de até sete dias." });
+    return;
+  }
 
-  const sessions = await db.select().from(sessionsTable);
+  const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.empresaId, resolveEmpresaId(req)));
   const weekSessions = sessions.filter(
     s => !s.agendaArchived && s.scheduledDate >= dateFrom && s.scheduledDate <= dateTo && s.status !== "cancelled"
   );
@@ -279,22 +302,40 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
   const results: Array<{ sessionId: number; clientName: string; success: boolean; eventId?: string; error?: string }> = [];
 
   for (const session of weekSessions) {
-    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
-    if (!client) continue;
+    const authorization = await authorizeSession(req, session);
+    if (!authorization) continue;
+    const { client } = authorization;
+    const destination = await explicitDestination(req, session);
+    if (!destination || !session.durationMinutes || session.durationMinutes <= 0 ||
+        (session.googleEventId && session.googleCalendarId !== destination.calendarId)) {
+      results.push({ sessionId: session.id, clientName: client.name, success: false,
+        error: "Recurso, agenda ou duração exigem conferência; nenhum evento foi alterado." });
+      continue;
+    }
+    if (!(await verifyClinicAccount()).ok) {
+      results.push({ sessionId: session.id, clientName: client.name, success: false,
+        error: "Não foi possível confirmar a conta Google autorizada." });
+      continue;
+    }
 
     const applications = await db.select().from(substanceApplicationsTable)
       .where(eq(substanceApplicationsTable.sessionId, session.id));
 
     const substances: CalendarSubstance[] = [];
-    let primaryProcType = "iv";
+    let primaryProcType = "";
     const activeProcTypes2 = new Set<string>();
     const dispProcTypes2 = new Set<string>();
     let hasDisp2 = false;
+    let unresolvedSubstance = false;
 
     for (const app of applications) {
       const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
+      if (!substance || (app.availability === "disp" && !substance.procedureType)) {
+        unresolvedSubstance = true;
+        break;
+      }
       if (substance) {
-        const status = app.appliedAt ? "applied" : (app.availability as "disp" | "prox" | "missed") || "prox";
+        const status = estadoAplicacao(app);
         substances.push({
           name: substance.name,
           dose: app.dose,
@@ -307,30 +348,33 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         }
         if (app.availability === "disp") {
           hasDisp2 = true;
-          primaryProcType = substance.procedureType ?? "iv";
-          dispProcTypes2.add(substance.procedureType ?? "iv");
+          primaryProcType = substance.procedureType!;
+          dispProcTypes2.add(substance.procedureType!);
         }
       }
     }
+    if (unresolvedSubstance) {
+      results.push({ sessionId: session.id, clientName: client.name, success: false,
+        error: "Substância ou via não identificada; nenhum evento foi alterado." });
+      continue;
+    }
 
     if (!hasDisp2) {
-      if (session.professionalId) {
-        const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
-        if (prof?.specialty?.toLowerCase().includes("médic") || prof?.specialty?.toLowerCase().includes("medic")) {
-          primaryProcType = "consultation";
-          dispProcTypes2.add("consultation");
-        }
-      }
-      if (substances.length === 0) {
+      if (applications.length === 0 && destination.resource.kind === "medico") {
         primaryProcType = "consultation";
         dispProcTypes2.add("consultation");
       }
     }
+    if (!primaryProcType) {
+      results.push({ sessionId: session.id, clientName: client.name, success: false,
+        error: "Substância, via ou procedimento não identificado; nenhum evento foi alterado." });
+      continue;
+    }
     activeProcTypes2.add(primaryProcType);
 
-    const totalDuration2 = calculateTotalDuration(dispProcTypes2);
+    const totalDuration2 = session.durationMinutes;
 
-    const location = await findLocationByUnit(session.unit, session.professionalId);
+    const location = destination.location;
 
     const isDomiciliar2 = location.address?.toLowerCase().includes("itinerante") ||
       session.unit?.toLowerCase().includes("domiciliar") ||
@@ -339,24 +383,7 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
       ? client.address
       : location.address ?? undefined;
 
-    const isDoctor2 = primaryProcType === "implant" || primaryProcType === "consultation";
-    // Cadeia (SUB-03 item 5): par profissional+clínica > clínica > heurística MÉDICO > primary.
-    // O recurso da agenda (Pacote B) ainda sobrescreve no final, mantendo a prioridade existente.
-    let targetCal = location.pairCalendarId ?? location.googleCalendarId ?? undefined;
-    if (!location.pairCalendarId && isDoctor2 && location.googleCalendarId) {
-      const allLocs = await db.select().from(locationsTable);
-      const doctorCal = allLocs.find(l => l.googleCalendarId && l.googleCalendarId.includes("MEDICO"));
-      if (doctorCal?.googleCalendarId) {
-        targetCal = doctorCal.googleCalendarId;
-      }
-    }
-    // Preferencia: calendario do recurso da agenda (Enf. Local, Medico Local, etc.).
-    if (session.resourceId) {
-      const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
-      if (resource?.googleCalendarId) {
-        targetCal = resource.googleCalendarId;
-      }
-    }
+    const targetCal = destination.calendarId;
 
     try {
       const protocolSessions2 = await db.select({ id: sessionsTable.id }).from(sessionsTable)
@@ -365,13 +392,13 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
       const eventData2: CalendarEventData = {
         sessionId: session.id,
         clientName: client.name,
-        clientCpf: client.cpf,
+        clientCpf: client.cpf ?? undefined,
         scheduledDate: session.scheduledDate,
         scheduledTime: session.scheduledTime,
         durationMinutes: totalDuration2,
         weekNumber: session.weekNumber,
         totalAppointments: protocolSessions2.length,
-        unit: session.unit ?? "Instituto Pádua",
+        unit: session.unit ?? destination.location.name,
         locationAddress: resolvedAddr,
         locationPhone: location.phone ?? undefined,
         calendarId: targetCal,
@@ -381,32 +408,10 @@ router.post("/google-calendar/sync-week", async (req, res): Promise<void> => {
         substances,
         clientEmail: client.email || undefined,
         sessionStatus: session.status,
+        rescheduleCount: session.rescheduleCount,
       };
 
-      // Convite B: mesmo calendario -> atualiza no lugar; calendario novo -> apaga (sem notificar) e recria.
-      let eventId: string | null = session.googleEventId;
-      // Normaliza null/undefined -> "primary" para nao cair em apagar+recriar quando ambos sao o primario.
-      const oldCal2 = session.googleCalendarId || "primary";
-      const newCal2 = targetCal || "primary";
-      const sameCal = !!session.googleEventId && oldCal2 === newCal2;
-
-      if (sameCal && session.googleEventId) {
-        await updateCalendarEvent(session.googleEventId, oldCal2, eventData2);
-      } else {
-        if (session.googleEventId) {
-          try {
-            await deleteCalendarEvent(session.googleEventId, oldCal2);
-          } catch (_delErr: any) {}
-        }
-        eventId = await createCalendarEvent(eventData2);
-      }
-
-      if (eventId) {
-        await db.update(sessionsTable).set({
-          googleEventId: eventId,
-          googleCalendarId: targetCal || null,
-        }).where(eq(sessionsTable.id, session.id));
-      }
+      const eventId = await syncReservedEvent(session, eventData2, applications);
 
       results.push({ sessionId: session.id, clientName: client.name, success: true, eventId: eventId ?? undefined });
     } catch (err: any) {

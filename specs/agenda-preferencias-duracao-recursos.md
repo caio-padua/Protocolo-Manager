@@ -2,13 +2,12 @@
 
 ## Estado
 
-EM ESPECIFICAÇÃO. A quantidade de horários para uma única aplicação está
-BLOQUEADA para esclarecimento: a instrução anterior indicava um horário de
-vinte minutos, e a instrução posterior pode exigir outro horário adjacente
-mesmo para uma única aplicação. Não implementar essa decisão por suposição.
-Este documento não demonstra alteração no funcionamento, revisão independente
-ou homologação. Nenhum agendamento, documento ou evento externo foi criado
-por esta investigação.
+PARCIALMENTE IMPLEMENTADO NO DESENVOLVIMENTO. O responsável reiterou que já
+havia definido a reserva: uma a seis aplicações ocupam um período de vinte
+minutos; a partir da sétima, é necessário outro período adjacente e livre.
+A reserva com essas regras ainda não foi implementada ou homologada. As
+subunidades concluídas e seus limites estão descritos abaixo. Nenhum
+agendamento, documento ou evento externo foi criado por este trabalho.
 
 ## Objetivo
 
@@ -31,18 +30,17 @@ necessários, sem produzir agendas ou descrições divergentes.
    e permitir examinar outras vagas realmente disponíveis.
 4. Cada aplicação intramuscular ou subcutânea tem duração clínica de 2,5
    minutos. A cada grupo de até seis aplicações, contam-se até quinze minutos
-   de procedimento. Cada horário de vinte minutos da enfermagem deve preservar
-   cinco minutos para organização. Contar aplicações efetivas, não presumir que
-   cada componente de uma fórmula corresponde a uma aplicação separada.
+   de procedimento. Uma até seis aplicações ocupam um horário de vinte minutos.
+   Cada horário de vinte minutos da enfermagem deve preservar cinco minutos para
+   organização. Contar aplicações efetivas, não presumir que cada componente de
+   uma fórmula corresponde a uma aplicação separada.
 5. Ao passar de seis aplicações, um novo horário de vinte minutos da
    enfermagem deve ser reservado. O horário adicional precisa estar livre e ser
    adjacente, podendo ser anterior ou posterior, sem atravessar indisponibilidade.
    Sete aplicações exigem ao menos quarenta minutos de agenda. Se a única
    combinação disponível começar no horário anterior, comunicar e persistir o
-   início efetivo do atendimento, inclusive no calendário externo. O responsável
-   também mencionou um horário adicional para uma única aplicação; confirmar
-   se se referia à sétima aplicação ou a uma aplicação isolada. Não afirmar
-   que a regra de vinte minutos para uma aplicação isolada está resolvida.
+   início efetivo do atendimento, inclusive no calendário externo. A necessidade
+   adicional aplica-se à aplicação excedente ao grupo de seis.
 6. Implantes hormonais e procedimentos estéticos têm trinta minutos de
    procedimento, conforme nova instrução do responsável. Ocupam dois horários
    consecutivos de vinte minutos da enfermagem e também requerem o médico.
@@ -116,7 +114,7 @@ jornada futura e revisão independente ainda são necessários.
 |---|---|---|
 | 1 | Dias e horários preferenciais, separados por tipo de atendimento | Contrato de gravação e leitura, edição persistente, uso real na busca, empresa correta, tela em computador e celular; corrigir o caminho de edição da preferência de agenda existente. |
 | 2 | Participação do médico nos cadastros existentes | Identificar fonte de procedimentos, controle sim/não, persistência, permissões, dados antigos sem inferência e testes de contrato. |
-| 3 | Tempo de procedimento e ocupação | Uma fonte compartilhada com precisão de 2,5 minutos, catálogo e importação coerentes, contagem efetiva de aplicações, distinção entre duração clínica e tempo reservado, cobertura de limites e combinações. A reserva para aplicação isolada depende da resposta pendente. |
+| 3 | Tempo de procedimento e ocupação | Uma fonte compartilhada com precisão de 2,5 minutos, catálogo e importação coerentes, contagem efetiva de aplicações, distinção entre duração clínica e tempo reservado, cobertura de limites e combinações. |
 | 4 | Reserva conjunta de recursos | Motor existente, vagas consecutivas, médico e enfermagem da mesma clínica, transação e prevenção de corrida, cancelamento e remarcação preservando a integridade. |
 | 5 | Protocolo, formulário e Google | Dados reais da sessão, descrição detalhada consistente com os tempos reservados, criação e atualização compartilhadas, tratamento explícito de falha de sincronização. |
 | 6 | Jornada autorizada e documentos | Somente após as dependências anteriores e confirmação de identidade, profissional, datas e destino; conferir persistência, assinatura digital e entrega efetiva, sem usar dados reais para testes agressivos. |
@@ -158,13 +156,189 @@ homologada apenas pela existência desta tabela.
 Este detalhamento é um alvo de implementação, não representa criação de
 campos, execução de migração ou conclusão de tela.
 
+### Subunidade: preservar as agendas preferenciais já existentes
+
+O seletor atual de agendas é diferente dos novos dias e horários. Antes de
+acrescentar estes últimos, corrigir a edição do conjunto já existente.
+
+1. Preservar as linhas antigas por meio de estado ativo/inativo, sem apagar
+   registros; escolhas retiradas pelo usuário podem ser reativadas.
+2. Validar integralmente as agendas escolhidas, a empresa e o local antes
+   de gravar qualquer alteração. Uma falha não pode limpar escolhas anteriores.
+3. Tratar ausência do campo como preservação; lista vazia, quando enviada
+   explicitamente, como remoção da seleção. Efetuar a edição do cliente e da
+   preferência na mesma transação.
+4. Impedir que erro ao carregar agendas, troca de local ou dados não
+   disponíveis apaguem uma seleção sem uma ação explícita do usuário.
+5. As escritas da preferência precisam de acesso profissional ativo e do
+   mesmo contexto empresarial; nunca confiar em empresa informada pela tela.
+6. Testar criação, edição, limpeza, reativação, concorrência e rejeição de
+   agenda de outra empresa, sem dados de clientes reais.
+
+### Subunidade em teste: dias e horários preferenciais
+
+1. Guardar revisões das preferências no cadastro existente do cliente, sem
+   apagar versões anteriores. Cada versão contém duas categorias independentes:
+   consulta médica e enfermagem, com dias e horários associados a cada dia.
+2. A lista de escolhas deve vir das janelas e grades ativas da própria empresa.
+   As grades esperadas são de sessenta minutos para consultas e vinte minutos
+   para enfermagem. Divergências devem ser mostradas, não corrigidas em silêncio.
+3. Preferência é uma orientação recorrente, não uma vaga confirmada. Sábados
+   alternados e exceções precisam ser conferidos pelo motor na data concreta.
+4. Falhas na consulta de horários não podem limpar valores já salvos. Remoção
+   de dia ou horário deve decorrer de ação explícita. A omissão da preferência
+   em uma edição preserva o conjunto anterior.
+5. Ao gravar, conferir empresa, formato e a versão originalmente carregada.
+   Uma edição antiga não pode sobrescrever uma alteração mais recente.
+6. Testar persistência, histórico, autenticação, empresas diferentes, dados
+   inválidos, edição concorrente, indisponibilidade e interface; validar também
+   a integração na marcação antes de considerar o pedido completo.
+
+Evidências em 08/11/2026: revisão independente aprovou o cadastro e o destaque
+das preferências após corrigir a geometria de horários e isolar a simulação.
+Doze testes do servidor e treze testes de navegador passaram; também passaram
+dois testes visuais sintéticos em computador e celular e um teste adicional de
+recusa de acesso. A tabela aditiva foi criada no banco de desenvolvimento.
+As preferências aparecem apenas junto às vagas abertas consultadas pelo motor.
+A captura com sessão profissional real não foi possível neste ambiente;
+as capturas disponíveis usam dados sintéticos. Não homologar o fluxo clínico
+completo, nem a reserva simultânea de recursos, com base nesta subunidade.
+
+### Unidade de precisão do cadastro de substâncias
+
+1. Adicionar uma duração em segundos ao cadastro existente, sem alterar ou
+   remover o campo inteiro antigo. O novo campo é a fonte preferencial;
+   enquanto não preenchido, leituras usam a duração antiga convertida.
+2. Gravações aceitam minutos positivos representáveis em segundos; 2,5
+   minutos são armazenados como 150 segundos. Respostas ao cadastro e ao
+   documento traduzem a mesma fonte de volta para minutos.
+3. Na base de desenvolvimento, preencher apenas o campo novo vazio:
+   intramuscular e subcutânea com 150 segundos; implantes com 1.800 segundos;
+   demais tipos preservam o tempo anterior convertido. O campo antigo não é
+   sobrescrito. Não alterar sessões históricas, medicamentos, doses ou eventos.
+4. A importação de novas substâncias lê as durações padrão configuradas no
+   cadastro de configurações existente; se o padrão necessário não existir ou
+   for inválido, interromper com erro. Reimportação não sobrescreve a duração
+   precisa anteriormente editada.
+5. O contrato, edição, lista, exportação clínica e campos dos caminhos de
+   criação e alteração devem preservar e devolver a duração precisa. Valores
+   inválidos são recusados; o formulário não troca um valor vazio por trinta
+   minutos sem avisar.
+6. A unidade não prova reserva de recursos nem altera, isoladamente, a lógica
+   de agendamento. Não prometer que os horários estão bloqueados ao concluí-la.
+7. Testar com dados sintéticos isolados: conversão, criação, alteração, leitura
+   após edição, reimportação, valores inválidos e compatibilidade com valor
+   antigo. Conferir a base real apenas por leitura após a atualização autorizada.
+8. O catálogo de substâncias é compartilhado entre empresas. Suas escritas
+   exigem identidade profissional validada e proprietário da plataforma, até
+   existir concessão explícita e segura para o catálogo global. As leituras
+   permanecem inalteradas; a tela envia o acesso profissional também na edição
+   de componentes.
+9. A migração e o preenchimento executados neste trabalho atingem somente o
+   banco de desenvolvimento. Outros ambientes não estão automaticamente
+   certificados; publicação exige verificar coluna, padrões e preenchimento no
+   destino correto, sem executar alterações em produção sem autorização.
+   A migração automática de desenvolvimento é apenas estrutural: não cadastra
+   padrões nem altera tempos em nenhuma base por conta própria.
+
+### Revisão independente da unidade de precisão
+
+Revisão inicial: BLOQUEADA. A revisão apontou ausência de migração registrada e
+padrões para outros ambientes, divergência entre prévia e emissão, necessidade
+de autorização nas escritas do catálogo global e risco de consumidores legados.
+Correções e novas evidências devem ser avaliadas antes de qualquer homologação.
+
+### Situação verificada das duas primeiras subunidades
+
+1. A duração precisa das substâncias foi revisada independentemente e aprovada
+   somente para desenvolvimento; isso não comprova a reserva de horários.
+2. A preservação e a edição das agendas preferenciais existentes receberam
+   revisão independente aprovada após correções de isolamento, autenticação,
+   concorrência e preservação dos vínculos. O banco de desenvolvimento recebeu
+   a coluna aditiva; outros ambientes ainda precisam de aplicação verificada.
+3. Os testes de integração usam um banco descartável. A interface foi testada
+   com requisições interceptadas, sem clientes ou serviços externos reais.
+4. A lista de clientes e suas alterações agora exigem acesso profissional
+   autenticado. Clientes externos que consultavam ou alteravam esses dados sem
+   acesso autorizado precisarão se adequar.
+5. Permanecem pendentes: preferências de dias e horários; duração e participação
+   médica nos procedimentos; consolidação clínica; reserva simultânea de todos
+   os recursos; sincronização e descrição do Google; execução real solicitada,
+   emissão, assinatura digital e entrega. Nenhum desses itens está homologado.
+
+### Próxima subunidade: expediente quinzenal
+
+1. O cadastro de janelas deve permitir repetição semanal ou a cada duas
+   semanas, com uma data inicial informada para a repetição quinzenal.
+2. Datas anteriores à data inicial não são abertas por essa janela.
+3. Janelas existentes permanecem semanais até serem expressamente alteradas.
+4. A atualização deve preservar o histórico das janelas, sem apagar registros.
+5. Leituras, cálculo de disponibilidade e fluxo concierge devem interpretar a
+   repetição da mesma forma; exceções e ocupações continuam prevalecendo.
+6. Uma tela antiga não pode substituir silenciosamente janelas quinzenais por
+   janelas semanais; alterações de expediente continuam sujeitas à governança
+   do responsável técnico ou administrador autorizado.
+7. Testar sábado de referência, sábado fechado seguinte, sábado aberto
+   subsequente, datas anteriores, mudança de ano, permissões e compatibilidade.
+8. Não aplicar o expediente da clínica nem prometer horário real antes da
+   revisão independente e da confirmação da disponibilidade e das integrações.
+
+Resultado: APROVADA por revisão independente para o desenvolvimento. A
+migração estrutural foi aplicada nesse ambiente. Os testes em banco descartável
+e com o motor real verificaram os sábados de 21/11 e 05/12/2026, a folga de
+28/11, bloqueio por exceção, ocupação e oferta concierge. Outros testes
+verificaram isolamento de empresa, acesso, concorrência e preservação de
+janelas antigas; testes de interface usaram serviços interceptados. Isso não
+configura o expediente da clínica, nem comprova sincronização Google,
+agendamentos clínicos ou implantação em outro ambiente.
+
+### Subunidade cadastral: participação médica em substâncias
+
+O catálogo de substâncias existente possui classificação por procedimento.
+Foi encontrado também um catálogo separado de implantes; sua relação com o
+cadastro e com a marcação ainda precisa ser investigada. A tela de substâncias
+permite sim, não e não definido, sem converter silenciosamente os registros
+existentes para não. A migração acrescenta uma coluna anulável e foi aplicada
+somente ao desenvolvimento. A revisão independente aprovou esta subunidade
+cadastral. Foram testados sessão profissional assinada, autorização e
+persistência em banco descartável, preservação de valores omitidos e mensagens
+da tela quando o cadastro é salvo, mas sua composição não é confirmada.
+Os testes de tela interceptam os serviços e não provam uso clínico real.
+
+Antes de conectar a participação à reserva é necessário identificar também
+a fonte de procedimentos estéticos e implantes e provar o bloqueio simultâneo
+das duas agendas. O campo isolado não autoriza a marcação nem completa a
+solicitação referente ao cadastro separado de procedimentos.
+
+Revisão posterior: BLOQUEADA. A migração automática continha atualização de
+dados e foi separada: agora apenas acrescenta a coluna. Também faltam provas
+com a cadeia real de autenticação em ambiente sintético, banco isolado para
+reimportação e comparação entre prévia e emissão. Após a revisão, foram
+acrescentados testes com sessão assinada e os controladores reais de acesso;
+uma instância de banco descartável e sem acesso de rede para a reimportação;
+e comparação da prévia com a emissão em chamadas sem entrega externa. Também
+foi gerado um documento sintético e verificado o texto da duração nele.
+Essas provas não incluem emissão assinada nem funcionamento da tela com uma
+sessão real. A agenda ainda não usa a duração precisa para reservar recursos.
+
+Revisão final desta unidade: APROVADA para o cadastro no ambiente de
+desenvolvimento, sem homologar agendamentos, operação clínica, outros ambientes
+ou entrega externa. A evidência inclui autenticação, migração em banco
+descartável, reimportação, conteúdo do documento e comparação entre os dados
+de prévia e emissão. A verificação autenticada da tela ainda não foi realizada.
+
+Ambiente: o desenvolvimento já tem as configurações e os tempos atualizados.
+Em outro ambiente, a coluna estrutural não preenche configurações nem tempos;
+é necessário identificar o banco, aprovar e conferir a etapa de dados antes de
+considerar esse ambiente pronto. A migração estrutural sozinha não é suficiente.
+
 ## Falhas e testes obrigatórios
 
 | Falha | Gravidade | Barreira ou verificação |
 |---|---|---|
 | Preferência apresentada como vaga livre | Alta | Buscar disponibilidade real e distinguir preferência de reserva. |
 | Edição não persiste após recarregar | Alta | Testar gravação, retorno e nova leitura nas telas de criação e edição. |
-| Uma, seis e sete aplicações | Alta | Confirmar a quantidade de horários para uma aplicação isolada. Seis mistas têm quinze minutos clínicos; sete requerem pelo menos dois horários de enfermagem adjacentes e livres. Verificar dois minutos e meio por aplicação e cinco minutos de organização por horário. |
+| Uma, seis e sete aplicações | Alta | Verificar respectivamente vinte, vinte e quarenta minutos reservados. Seis mistas têm quinze minutos clínicos; sete requerem dois horários de enfermagem adjacentes e livres. Verificar dois minutos e meio por aplicação e cinco minutos de organização por horário. |
 | Perda da fração de minuto | Alta | Gravar e reler 2,5 sem arredondamento; verificar cadastro, contratos, banco, importação e consumidores de documentos e agenda. |
 | Reimportação sobrescreve tempos ajustados | Alta | Testar reimportação de cadastro existente e evitar regressão para quinze ou sessenta minutos antigos; preservar alterações legítimas e histórico. |
 | Horário adjacente antes ou depois | Alta | Procurar horário realmente livre e contíguo, sem ultrapassar expediente, almoço, bloqueio ou disponibilidade; não confirmar parcialmente. |

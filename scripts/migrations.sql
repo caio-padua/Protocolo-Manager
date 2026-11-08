@@ -379,3 +379,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Aba Agenda Google no cadastro do local (papel, observacao, compromissos importados).
 \ir migrations/20261107_agenda_google_local.sql
+
+-- Precisão da duração de substâncias: somente coluna, não altera dados.
+\ir migrations/20261108_substancias_duracao_precisa.sql
+
+-- Participação médica desconhecida até ser definida no catálogo.
+\ir migrations/20261108_substancias_participacao_medica.sql
+
+-- Arquivamento lógico de preferências de agenda sem excluir registros.
+\ir migrations/20261108_preferencias_agendas_ativas.sql
+
+-- Revisões não destrutivas de dias e horários preferenciais.
+\ir migrations/20261108_preferencias_visitas.sql
+
+-- Janelas com recorrência semanal ou quinzenal, preservando as antigas.
+\ir migrations/20261108_agenda_janelas_quinzenais.sql
+
+-- Autoria do registro clínico, sem reescrever aplicações históricas.
+\ir migrations/20261108_autoria_confirmacao_aplicacoes.sql
+
+-- Reserva durável para identificar tentativas externas com resultado incerto.
+\ir migrations/20261108_agenda_google_reserva_envio.sql

@@ -13,6 +13,7 @@
  * ════════════════════════════════════════════════════════════════════
  */
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import {
   FlaskConical, Microscope, Calendar, Save, Plus, Minus,
   ChevronLeft, ChevronRight, X, CreditCard, AlertCircle,
@@ -30,9 +31,7 @@ import ExamesPage from "@/pages/exames";
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const API = import.meta.env.BASE_URL.replace(/\/$/, "");
 function authHeader(): HeadersInit {
-  const t = localStorage.getItem("collab_token") || "";
-  return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }
-           : { "Content-Type": "application/json" };
+  return collabAuthHeaders({ "Content-Type": "application/json" });
 }
 async function apiFetch(path: string, opts?: RequestInit) {
   const r = await fetch(`${API}${path}`, { ...opts, headers: { ...authHeader(), ...(opts?.headers ?? {}) } });

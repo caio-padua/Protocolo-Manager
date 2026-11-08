@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -145,7 +146,7 @@ function MontarFicha() {
   const { data: clientes } = useQuery<Cliente[]>({
     queryKey: ["treino", "clientes"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       const d = await r.json();
       return Array.isArray(d) ? d : (d.data ?? []);

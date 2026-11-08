@@ -996,7 +996,7 @@ export function buildCartaTratamentoDto(raw: {
     /** Sessoes ja concluidas DESTA substancia. Ausente = 0. */
     completedSessions?: number | null;
   }>;
-  sessions?: Array<{ status: string }>;
+  sessions?: Array<{ status: string; hasRecordedApplication?: boolean }>;
 }): CartaTratamentoData {
 
   const viaMap: Record<string, string> = {
@@ -1012,7 +1012,7 @@ export function buildCartaTratamentoDto(raw: {
     ossos: "ossos", bones: "ossos", joints: "ossos",
   };
 
-  const completedSessions = (raw.sessions ?? []).filter(s => s.status === "completed").length;
+  const completedSessions = (raw.sessions ?? []).filter(s => s.hasRecordedApplication === true).length;
   const totalSessions     = raw.substances.reduce((m, s) => Math.max(m, s.totalSessions), 0);
 
   const substances: LetterSubstance[] = raw.substances.map((sub, i) => {

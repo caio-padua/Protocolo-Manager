@@ -17,7 +17,7 @@
  * para revisar antes de decidir emitir.
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 // ── Mocks ANTES de qualquer import de rota ───────────────────────────────────
 
@@ -63,6 +63,7 @@ vi.mock("@workspace/db", () => {
     substancesTable:             makeT("substances"),
     substanceApplicationsTable:  makeT("substance_applications"),
     paymentsTable:               makeT("payments"),
+    protocolEmissoesTable:       makeT("protocol_emissoes"),
     assinaturaSolicitacoesTable: makeT("assinatura_solicitacoes"),
     assinaturaTemplatesTable:    makeT("assinatura_templates"),
     rasTable:                    makeT("ras"),
@@ -199,6 +200,8 @@ const FAKE_PROFESSIONAL = {
 };
 const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", empresaId: 5 };
 let clinicMembershipIsValid = true;
+let syntheticItemsEnabled = false;
+afterEach(() => { syntheticItemsEnabled = false; });
 
 // ── Thenable-chain mock para drizzle ─────────────────────────────────────────
 
@@ -217,8 +220,13 @@ class DbChain {
       case "professionals":         return new DbChain([FAKE_PROFESSIONAL]);
       case "locations":             return new DbChain([FAKE_LOCATION]);
       case "location_professionals":return new DbChain(clinicMembershipIsValid ? [{ id: 1 }] : []);
-      case "protocol_items":        return new DbChain([]);
-      case "substances":            return new DbChain([]);
+      case "protocol_items":        return new DbChain(syntheticItemsEnabled ? [{
+        substanceId: 123, dose: "sintética", totalSessions: 1, intervalDays: 7,
+      }] : []);
+      case "substances":            return new DbChain(syntheticItemsEnabled ? [{
+        id: 123, name: "Substância sintética", category: "Teste", procedureType: "im",
+        color: "blue", durationMinutes: 15, preciseDurationSeconds: 150,
+      }] : []);
       case "sessions":              return new DbChain([]);
       case "substance_applications":return new DbChain([]);
       case "payments":              return new DbChain([]);
@@ -259,6 +267,7 @@ function buildApp() {
 
 function setupMocks() {
   vi.mocked(db.select).mockReturnValue(new DbChain([]) as any);
+  vi.mocked(db.insert).mockReturnValue({ values: vi.fn().mockResolvedValue([]) } as any);
   vi.mocked(pdfSigner.generateProtocolDocumentPdf).mockResolvedValue({
     pdfBytes: FAKE_PDF_BYTES,
   } as any);
@@ -445,6 +454,7 @@ describe("GET /api/protocols/:id/document-pdf — pré-visualização pura (sem 
 describe("POST /api/protocols/:id/emit-document — entrega real exige requireCollaborator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clinicMembershipIsValid = true;
     setupMocks();
   });
 
@@ -474,6 +484,24 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
     await new Promise(r => setTimeout(r, 300));
     expect(vi.mocked(driveLib.isDriveConnected)).not.toHaveBeenCalled();
     expect(vi.mocked(driveLib.uploadToFolderById)).not.toHaveBeenCalled();
+  });
+
+  it("prévia e emissão recebem a mesma duração precisa do cadastro", async () => {
+    syntheticItemsEnabled = true;
+    vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(false);
+    vi.mocked(driveLib.isDriveConnected).mockResolvedValue(false);
+
+    const preview = await request(buildApp()).get("/api/protocols/99/document-pdf")
+      .set("Authorization", "Bearer test-collaborator");
+    expect(preview.status).toBe(200);
+    expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf).mock.calls[0][0].substances[0].durationMinutes).toBe(2.5);
+
+    const emission = await request(buildApp()).post("/api/protocols/99/emit-document")
+      .set("Authorization", "Bearer test-collaborator").send({});
+    expect(emission.status).toBe(200);
+    expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf).mock.calls[1][0].substances[0].durationMinutes).toBe(2.5);
+    expect(vi.mocked(driveLib.uploadFileToDrive)).not.toHaveBeenCalled();
+    expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
   });
 });
 

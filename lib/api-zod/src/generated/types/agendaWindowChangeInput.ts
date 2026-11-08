@@ -17,4 +17,6 @@ export interface AgendaWindowChangeInput {
   reason: string;
   /** @maxItems 100 */
   windows: AgendaProposedWindow[];
+  /** @maxItems 100 */
+  expectedWindows?: AgendaProposedWindow[];
 }

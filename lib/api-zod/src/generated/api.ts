@@ -858,6 +858,32 @@ export const ListClientsQueryParams = zod.object({
   status: zod.coerce.string().optional(),
 });
 
+export const listClientsResponseVisitPreferencesMedicalWeekdaysItemMin = 0;
+export const listClientsResponseVisitPreferencesMedicalWeekdaysItemMax = 6;
+
+export const listClientsResponseVisitPreferencesMedicalWeekdaysMax = 7;
+
+export const listClientsResponseVisitPreferencesMedicalTimesItemWeekdayMin = 0;
+export const listClientsResponseVisitPreferencesMedicalTimesItemWeekdayMax = 6;
+
+export const listClientsResponseVisitPreferencesMedicalTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const listClientsResponseVisitPreferencesMedicalTimesMax = 504;
+
+export const listClientsResponseVisitPreferencesNursingWeekdaysItemMin = 0;
+export const listClientsResponseVisitPreferencesNursingWeekdaysItemMax = 6;
+
+export const listClientsResponseVisitPreferencesNursingWeekdaysMax = 7;
+
+export const listClientsResponseVisitPreferencesNursingTimesItemWeekdayMin = 0;
+export const listClientsResponseVisitPreferencesNursingTimesItemWeekdayMax = 6;
+
+export const listClientsResponseVisitPreferencesNursingTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const listClientsResponseVisitPreferencesNursingTimesMax = 504;
+
+export const listClientsResponseVisitPreferencesRevisionMin = 0;
+
 export const ListClientsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -873,6 +899,72 @@ export const ListClientsResponseItem = zod.object({
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
+  visitPreferences: zod
+    .object({
+      medical: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(listClientsResponseVisitPreferencesMedicalWeekdaysItemMin)
+              .max(listClientsResponseVisitPreferencesMedicalWeekdaysItemMax),
+          )
+          .max(listClientsResponseVisitPreferencesMedicalWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  listClientsResponseVisitPreferencesMedicalTimesItemWeekdayMin,
+                )
+                .max(
+                  listClientsResponseVisitPreferencesMedicalTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  listClientsResponseVisitPreferencesMedicalTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(listClientsResponseVisitPreferencesMedicalTimesMax),
+      }),
+      nursing: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(listClientsResponseVisitPreferencesNursingWeekdaysItemMin)
+              .max(listClientsResponseVisitPreferencesNursingWeekdaysItemMax),
+          )
+          .max(listClientsResponseVisitPreferencesNursingWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  listClientsResponseVisitPreferencesNursingTimesItemWeekdayMin,
+                )
+                .max(
+                  listClientsResponseVisitPreferencesNursingTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  listClientsResponseVisitPreferencesNursingTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(listClientsResponseVisitPreferencesNursingTimesMax),
+      }),
+    })
+    .optional(),
+  visitPreferencesRevision: zod
+    .number()
+    .min(listClientsResponseVisitPreferencesRevisionMin)
+    .optional(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
@@ -882,6 +974,32 @@ export const ListClientsResponse = zod.array(ListClientsResponseItem);
 /**
  * @summary Create a client
  */
+export const createClientBodyVisitPreferencesMedicalWeekdaysItemMin = 0;
+export const createClientBodyVisitPreferencesMedicalWeekdaysItemMax = 6;
+
+export const createClientBodyVisitPreferencesMedicalWeekdaysMax = 7;
+
+export const createClientBodyVisitPreferencesMedicalTimesItemWeekdayMin = 0;
+export const createClientBodyVisitPreferencesMedicalTimesItemWeekdayMax = 6;
+
+export const createClientBodyVisitPreferencesMedicalTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createClientBodyVisitPreferencesMedicalTimesMax = 504;
+
+export const createClientBodyVisitPreferencesNursingWeekdaysItemMin = 0;
+export const createClientBodyVisitPreferencesNursingWeekdaysItemMax = 6;
+
+export const createClientBodyVisitPreferencesNursingWeekdaysMax = 7;
+
+export const createClientBodyVisitPreferencesNursingTimesItemWeekdayMin = 0;
+export const createClientBodyVisitPreferencesNursingTimesItemWeekdayMax = 6;
+
+export const createClientBodyVisitPreferencesNursingTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createClientBodyVisitPreferencesNursingTimesMax = 504;
+
+export const createClientBodyVisitPreferencesRevisionMin = 0;
+
 export const CreateClientBody = zod.object({
   name: zod.string(),
   cpf: zod.string(),
@@ -896,7 +1014,93 @@ export const CreateClientBody = zod.object({
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
+  visitPreferences: zod
+    .object({
+      medical: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(createClientBodyVisitPreferencesMedicalWeekdaysItemMin)
+              .max(createClientBodyVisitPreferencesMedicalWeekdaysItemMax),
+          )
+          .max(createClientBodyVisitPreferencesMedicalWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(createClientBodyVisitPreferencesMedicalTimesItemWeekdayMin)
+                .max(
+                  createClientBodyVisitPreferencesMedicalTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  createClientBodyVisitPreferencesMedicalTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(createClientBodyVisitPreferencesMedicalTimesMax),
+      }),
+      nursing: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(createClientBodyVisitPreferencesNursingWeekdaysItemMin)
+              .max(createClientBodyVisitPreferencesNursingWeekdaysItemMax),
+          )
+          .max(createClientBodyVisitPreferencesNursingWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(createClientBodyVisitPreferencesNursingTimesItemWeekdayMin)
+                .max(
+                  createClientBodyVisitPreferencesNursingTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  createClientBodyVisitPreferencesNursingTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(createClientBodyVisitPreferencesNursingTimesMax),
+      }),
+    })
+    .optional(),
+  visitPreferencesRevision: zod
+    .number()
+    .min(createClientBodyVisitPreferencesRevisionMin)
+    .optional(),
   notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Referências de dias e horários por tipo de atendimento
+ */
+export const GetClientVisitPreferenceOptionsResponse = zod.object({
+  medical: zod.object({
+    days: zod.array(
+      zod.object({
+        weekday: zod.number(),
+        times: zod.array(zod.string()),
+      }),
+    ),
+    mismatchedResources: zod.array(zod.string()),
+  }),
+  nursing: zod.object({
+    days: zod.array(
+      zod.object({
+        weekday: zod.number(),
+        times: zod.array(zod.string()),
+      }),
+    ),
+    mismatchedResources: zod.array(zod.string()),
+  }),
 });
 
 /**
@@ -905,6 +1109,32 @@ export const CreateClientBody = zod.object({
 export const GetClientParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getClientResponseVisitPreferencesMedicalWeekdaysItemMin = 0;
+export const getClientResponseVisitPreferencesMedicalWeekdaysItemMax = 6;
+
+export const getClientResponseVisitPreferencesMedicalWeekdaysMax = 7;
+
+export const getClientResponseVisitPreferencesMedicalTimesItemWeekdayMin = 0;
+export const getClientResponseVisitPreferencesMedicalTimesItemWeekdayMax = 6;
+
+export const getClientResponseVisitPreferencesMedicalTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const getClientResponseVisitPreferencesMedicalTimesMax = 504;
+
+export const getClientResponseVisitPreferencesNursingWeekdaysItemMin = 0;
+export const getClientResponseVisitPreferencesNursingWeekdaysItemMax = 6;
+
+export const getClientResponseVisitPreferencesNursingWeekdaysMax = 7;
+
+export const getClientResponseVisitPreferencesNursingTimesItemWeekdayMin = 0;
+export const getClientResponseVisitPreferencesNursingTimesItemWeekdayMax = 6;
+
+export const getClientResponseVisitPreferencesNursingTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const getClientResponseVisitPreferencesNursingTimesMax = 504;
+
+export const getClientResponseVisitPreferencesRevisionMin = 0;
 
 export const GetClientResponse = zod.object({
   id: zod.number(),
@@ -921,6 +1151,72 @@ export const GetClientResponse = zod.object({
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
+  visitPreferences: zod
+    .object({
+      medical: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(getClientResponseVisitPreferencesMedicalWeekdaysItemMin)
+              .max(getClientResponseVisitPreferencesMedicalWeekdaysItemMax),
+          )
+          .max(getClientResponseVisitPreferencesMedicalWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  getClientResponseVisitPreferencesMedicalTimesItemWeekdayMin,
+                )
+                .max(
+                  getClientResponseVisitPreferencesMedicalTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  getClientResponseVisitPreferencesMedicalTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(getClientResponseVisitPreferencesMedicalTimesMax),
+      }),
+      nursing: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(getClientResponseVisitPreferencesNursingWeekdaysItemMin)
+              .max(getClientResponseVisitPreferencesNursingWeekdaysItemMax),
+          )
+          .max(getClientResponseVisitPreferencesNursingWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  getClientResponseVisitPreferencesNursingTimesItemWeekdayMin,
+                )
+                .max(
+                  getClientResponseVisitPreferencesNursingTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  getClientResponseVisitPreferencesNursingTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(getClientResponseVisitPreferencesNursingTimesMax),
+      }),
+    })
+    .optional(),
+  visitPreferencesRevision: zod
+    .number()
+    .min(getClientResponseVisitPreferencesRevisionMin)
+    .optional(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
@@ -932,6 +1228,32 @@ export const GetClientResponse = zod.object({
 export const UpdateClientParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const updateClientBodyVisitPreferencesMedicalWeekdaysItemMin = 0;
+export const updateClientBodyVisitPreferencesMedicalWeekdaysItemMax = 6;
+
+export const updateClientBodyVisitPreferencesMedicalWeekdaysMax = 7;
+
+export const updateClientBodyVisitPreferencesMedicalTimesItemWeekdayMin = 0;
+export const updateClientBodyVisitPreferencesMedicalTimesItemWeekdayMax = 6;
+
+export const updateClientBodyVisitPreferencesMedicalTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientBodyVisitPreferencesMedicalTimesMax = 504;
+
+export const updateClientBodyVisitPreferencesNursingWeekdaysItemMin = 0;
+export const updateClientBodyVisitPreferencesNursingWeekdaysItemMax = 6;
+
+export const updateClientBodyVisitPreferencesNursingWeekdaysMax = 7;
+
+export const updateClientBodyVisitPreferencesNursingTimesItemWeekdayMin = 0;
+export const updateClientBodyVisitPreferencesNursingTimesItemWeekdayMax = 6;
+
+export const updateClientBodyVisitPreferencesNursingTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientBodyVisitPreferencesNursingTimesMax = 504;
+
+export const updateClientBodyVisitPreferencesRevisionMin = 0;
 
 export const UpdateClientBody = zod.object({
   name: zod.string(),
@@ -947,8 +1269,96 @@ export const UpdateClientBody = zod.object({
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
+  visitPreferences: zod
+    .object({
+      medical: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(updateClientBodyVisitPreferencesMedicalWeekdaysItemMin)
+              .max(updateClientBodyVisitPreferencesMedicalWeekdaysItemMax),
+          )
+          .max(updateClientBodyVisitPreferencesMedicalWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(updateClientBodyVisitPreferencesMedicalTimesItemWeekdayMin)
+                .max(
+                  updateClientBodyVisitPreferencesMedicalTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientBodyVisitPreferencesMedicalTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientBodyVisitPreferencesMedicalTimesMax),
+      }),
+      nursing: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(updateClientBodyVisitPreferencesNursingWeekdaysItemMin)
+              .max(updateClientBodyVisitPreferencesNursingWeekdaysItemMax),
+          )
+          .max(updateClientBodyVisitPreferencesNursingWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(updateClientBodyVisitPreferencesNursingTimesItemWeekdayMin)
+                .max(
+                  updateClientBodyVisitPreferencesNursingTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientBodyVisitPreferencesNursingTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientBodyVisitPreferencesNursingTimesMax),
+      }),
+    })
+    .optional(),
+  visitPreferencesRevision: zod
+    .number()
+    .min(updateClientBodyVisitPreferencesRevisionMin)
+    .optional(),
   notes: zod.string().nullish(),
 });
+
+export const updateClientResponseVisitPreferencesMedicalWeekdaysItemMin = 0;
+export const updateClientResponseVisitPreferencesMedicalWeekdaysItemMax = 6;
+
+export const updateClientResponseVisitPreferencesMedicalWeekdaysMax = 7;
+
+export const updateClientResponseVisitPreferencesMedicalTimesItemWeekdayMin = 0;
+export const updateClientResponseVisitPreferencesMedicalTimesItemWeekdayMax = 6;
+
+export const updateClientResponseVisitPreferencesMedicalTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientResponseVisitPreferencesMedicalTimesMax = 504;
+
+export const updateClientResponseVisitPreferencesNursingWeekdaysItemMin = 0;
+export const updateClientResponseVisitPreferencesNursingWeekdaysItemMax = 6;
+
+export const updateClientResponseVisitPreferencesNursingWeekdaysMax = 7;
+
+export const updateClientResponseVisitPreferencesNursingTimesItemWeekdayMin = 0;
+export const updateClientResponseVisitPreferencesNursingTimesItemWeekdayMax = 6;
+
+export const updateClientResponseVisitPreferencesNursingTimesItemTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const updateClientResponseVisitPreferencesNursingTimesMax = 504;
+
+export const updateClientResponseVisitPreferencesRevisionMin = 0;
 
 export const UpdateClientResponse = zod.object({
   id: zod.number(),
@@ -965,6 +1375,72 @@ export const UpdateClientResponse = zod.object({
   locationId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
+  visitPreferences: zod
+    .object({
+      medical: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(updateClientResponseVisitPreferencesMedicalWeekdaysItemMin)
+              .max(updateClientResponseVisitPreferencesMedicalWeekdaysItemMax),
+          )
+          .max(updateClientResponseVisitPreferencesMedicalWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  updateClientResponseVisitPreferencesMedicalTimesItemWeekdayMin,
+                )
+                .max(
+                  updateClientResponseVisitPreferencesMedicalTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientResponseVisitPreferencesMedicalTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientResponseVisitPreferencesMedicalTimesMax),
+      }),
+      nursing: zod.object({
+        weekdays: zod
+          .array(
+            zod
+              .number()
+              .min(updateClientResponseVisitPreferencesNursingWeekdaysItemMin)
+              .max(updateClientResponseVisitPreferencesNursingWeekdaysItemMax),
+          )
+          .max(updateClientResponseVisitPreferencesNursingWeekdaysMax),
+        times: zod
+          .array(
+            zod.object({
+              weekday: zod
+                .number()
+                .min(
+                  updateClientResponseVisitPreferencesNursingTimesItemWeekdayMin,
+                )
+                .max(
+                  updateClientResponseVisitPreferencesNursingTimesItemWeekdayMax,
+                ),
+              time: zod
+                .string()
+                .regex(
+                  updateClientResponseVisitPreferencesNursingTimesItemTimeRegExp,
+                ),
+            }),
+          )
+          .max(updateClientResponseVisitPreferencesNursingTimesMax),
+      }),
+    })
+    .optional(),
+  visitPreferencesRevision: zod
+    .number()
+    .min(updateClientResponseVisitPreferencesRevisionMin)
+    .optional(),
   notes: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
@@ -987,6 +1463,7 @@ export const ListSubstancesResponseItem = zod.object({
   stockUnit: zod.string().nullish(),
   pricePerUnit: zod.number().optional(),
   procedureType: zod.string().optional(),
+  doctorParticipation: zod.boolean().nullish(),
   durationMinutes: zod.number().optional(),
   description: zod.string().nullish(),
   mainFunction: zod.string().nullish(),
@@ -1050,6 +1527,7 @@ export const CreateSubstanceBody = zod.object({
   stockUnit: zod.string().nullish(),
   pricePerUnit: zod.number().optional(),
   procedureType: zod.string().optional(),
+  doctorParticipation: zod.boolean().nullish(),
   durationMinutes: zod.number().optional(),
   description: zod.string().nullish(),
   mainFunction: zod.string().nullish(),
@@ -1099,6 +1577,7 @@ export const UpdateSubstanceBody = zod.object({
   stockUnit: zod.string().nullish(),
   pricePerUnit: zod.number().optional(),
   procedureType: zod.string().optional(),
+  doctorParticipation: zod.boolean().nullish(),
   durationMinutes: zod.number().optional(),
   description: zod.string().nullish(),
   mainFunction: zod.string().nullish(),
@@ -1142,6 +1621,7 @@ export const UpdateSubstanceResponse = zod.object({
   stockUnit: zod.string().nullish(),
   pricePerUnit: zod.number().optional(),
   procedureType: zod.string().optional(),
+  doctorParticipation: zod.boolean().nullish(),
   durationMinutes: zod.number().optional(),
   description: zod.string().nullish(),
   mainFunction: zod.string().nullish(),
@@ -1336,7 +1816,20 @@ export const ListProtocolsResponseItem = zod.object({
           totalSessions: zod.number(),
           status: zod.enum(["pending", "applied", "missed", "skipped"]),
           availability: zod.enum(["disp", "prox"]),
+          displayState: zod
+            .enum([
+              "disp",
+              "prox",
+              "applied",
+              "notPerformed",
+              "unavailable",
+              "review",
+            ])
+            .optional()
+            .describe("Estado derivado dos registros reais da aplicação."),
           appliedAt: zod.string().nullish(),
+          confirmedBy: zod.number().nullish(),
+          confirmedAt: zod.string().nullish(),
           notes: zod.string().nullish(),
         }),
       ),
@@ -1480,7 +1973,20 @@ export const GetProtocolResponse = zod.object({
           totalSessions: zod.number(),
           status: zod.enum(["pending", "applied", "missed", "skipped"]),
           availability: zod.enum(["disp", "prox"]),
+          displayState: zod
+            .enum([
+              "disp",
+              "prox",
+              "applied",
+              "notPerformed",
+              "unavailable",
+              "review",
+            ])
+            .optional()
+            .describe("Estado derivado dos registros reais da aplicação."),
           appliedAt: zod.string().nullish(),
+          confirmedBy: zod.number().nullish(),
+          confirmedAt: zod.string().nullish(),
           notes: zod.string().nullish(),
         }),
       ),
@@ -1592,7 +2098,20 @@ export const UpdateProtocolResponse = zod.object({
           totalSessions: zod.number(),
           status: zod.enum(["pending", "applied", "missed", "skipped"]),
           availability: zod.enum(["disp", "prox"]),
+          displayState: zod
+            .enum([
+              "disp",
+              "prox",
+              "applied",
+              "notPerformed",
+              "unavailable",
+              "review",
+            ])
+            .optional()
+            .describe("Estado derivado dos registros reais da aplicação."),
           appliedAt: zod.string().nullish(),
+          confirmedBy: zod.number().nullish(),
+          confirmedAt: zod.string().nullish(),
           notes: zod.string().nullish(),
         }),
       ),
@@ -1704,7 +2223,20 @@ export const ValidateProtocolResponse = zod.object({
           totalSessions: zod.number(),
           status: zod.enum(["pending", "applied", "missed", "skipped"]),
           availability: zod.enum(["disp", "prox"]),
+          displayState: zod
+            .enum([
+              "disp",
+              "prox",
+              "applied",
+              "notPerformed",
+              "unavailable",
+              "review",
+            ])
+            .optional()
+            .describe("Estado derivado dos registros reais da aplicação."),
           appliedAt: zod.string().nullish(),
+          confirmedBy: zod.number().nullish(),
+          confirmedAt: zod.string().nullish(),
           notes: zod.string().nullish(),
         }),
       ),
@@ -1772,7 +2304,20 @@ export const ListSessionsResponseItem = zod.object({
       totalSessions: zod.number(),
       status: zod.enum(["pending", "applied", "missed", "skipped"]),
       availability: zod.enum(["disp", "prox"]),
+      displayState: zod
+        .enum([
+          "disp",
+          "prox",
+          "applied",
+          "notPerformed",
+          "unavailable",
+          "review",
+        ])
+        .optional()
+        .describe("Estado derivado dos registros reais da aplicação."),
       appliedAt: zod.string().nullish(),
+      confirmedBy: zod.number().nullish(),
+      confirmedAt: zod.string().nullish(),
       notes: zod.string().nullish(),
     }),
   ),
@@ -1845,7 +2390,20 @@ export const GetSessionResponse = zod.object({
       totalSessions: zod.number(),
       status: zod.enum(["pending", "applied", "missed", "skipped"]),
       availability: zod.enum(["disp", "prox"]),
+      displayState: zod
+        .enum([
+          "disp",
+          "prox",
+          "applied",
+          "notPerformed",
+          "unavailable",
+          "review",
+        ])
+        .optional()
+        .describe("Estado derivado dos registros reais da aplicação."),
       appliedAt: zod.string().nullish(),
+      confirmedBy: zod.number().nullish(),
+      confirmedAt: zod.string().nullish(),
       notes: zod.string().nullish(),
     }),
   ),
@@ -1910,7 +2468,20 @@ export const UpdateSessionResponse = zod.object({
       totalSessions: zod.number(),
       status: zod.enum(["pending", "applied", "missed", "skipped"]),
       availability: zod.enum(["disp", "prox"]),
+      displayState: zod
+        .enum([
+          "disp",
+          "prox",
+          "applied",
+          "notPerformed",
+          "unavailable",
+          "review",
+        ])
+        .optional()
+        .describe("Estado derivado dos registros reais da aplicação."),
       appliedAt: zod.string().nullish(),
+      confirmedBy: zod.number().nullish(),
+      confirmedAt: zod.string().nullish(),
       notes: zod.string().nullish(),
     }),
   ),
@@ -1926,6 +2497,12 @@ export const ConfirmSubstanceApplicationParams = zod.object({
 
 export const ConfirmSubstanceApplicationBody = zod.object({
   substanceId: zod.number(),
+  applicationId: zod
+    .number()
+    .optional()
+    .describe(
+      "Identificador da ocorrência específica, obrigatório quando há mais de uma aplicação da mesma substância na sessão.",
+    ),
   confirmed: zod.boolean(),
   notes: zod.string().optional(),
 });
@@ -1963,7 +2540,20 @@ export const ConfirmSubstanceApplicationResponse = zod.object({
       totalSessions: zod.number(),
       status: zod.enum(["pending", "applied", "missed", "skipped"]),
       availability: zod.enum(["disp", "prox"]),
+      displayState: zod
+        .enum([
+          "disp",
+          "prox",
+          "applied",
+          "notPerformed",
+          "unavailable",
+          "review",
+        ])
+        .optional()
+        .describe("Estado derivado dos registros reais da aplicação."),
       appliedAt: zod.string().nullish(),
+      confirmedBy: zod.number().nullish(),
+      confirmedAt: zod.string().nullish(),
       notes: zod.string().nullish(),
     }),
   ),
@@ -2449,7 +3039,20 @@ export const GetUpcomingSessionsResponseItem = zod.object({
       totalSessions: zod.number(),
       status: zod.enum(["pending", "applied", "missed", "skipped"]),
       availability: zod.enum(["disp", "prox"]),
+      displayState: zod
+        .enum([
+          "disp",
+          "prox",
+          "applied",
+          "notPerformed",
+          "unavailable",
+          "review",
+        ])
+        .optional()
+        .describe("Estado derivado dos registros reais da aplicação."),
       appliedAt: zod.string().nullish(),
+      confirmedBy: zod.number().nullish(),
+      confirmedAt: zod.string().nullish(),
       notes: zod.string().nullish(),
     }),
   ),
@@ -4198,6 +4801,8 @@ export const ListAgendaWindowsResponseItem = zod.object({
   weekday: zod.number(),
   startTime: zod.string(),
   endTime: zod.string(),
+  repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+  anchorDate: zod.string().nullish(),
 });
 export const ListAgendaWindowsResponse = zod.array(
   ListAgendaWindowsResponseItem,
@@ -4216,8 +4821,21 @@ export const ReplaceAgendaWindowsBody = zod.object({
       weekday: zod.number(),
       startTime: zod.string(),
       endTime: zod.string(),
+      repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+      anchorDate: zod.string().nullish(),
     }),
   ),
+  expectedWindows: zod
+    .array(
+      zod.object({
+        weekday: zod.number(),
+        startTime: zod.string(),
+        endTime: zod.string(),
+        repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+        anchorDate: zod.string().nullish(),
+      }),
+    )
+    .optional(),
 });
 
 export const ReplaceAgendaWindowsResponseItem = zod.object({
@@ -4226,6 +4844,8 @@ export const ReplaceAgendaWindowsResponseItem = zod.object({
   weekday: zod.number(),
   startTime: zod.string(),
   endTime: zod.string(),
+  repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+  anchorDate: zod.string().nullish(),
 });
 export const ReplaceAgendaWindowsResponse = zod.array(
   ReplaceAgendaWindowsResponseItem,
@@ -4367,6 +4987,8 @@ export const ListAgendaChangeRequestsResponse = zod.object({
             .regex(
               listAgendaChangeRequestsResponseRequestsItemWindowsItemEndTimeRegExp,
             ),
+          repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+          anchorDate: zod.string().nullish(),
         }),
       ),
       createdAt: zod.string(),
@@ -4390,6 +5012,15 @@ export const createAgendaChangeRequestBodyWindowsItemEndTimeRegExp = new RegExp(
 );
 export const createAgendaChangeRequestBodyWindowsMax = 100;
 
+export const createAgendaChangeRequestBodyExpectedWindowsItemWeekdayMin = 0;
+export const createAgendaChangeRequestBodyExpectedWindowsItemWeekdayMax = 6;
+
+export const createAgendaChangeRequestBodyExpectedWindowsItemStartTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createAgendaChangeRequestBodyExpectedWindowsItemEndTimeRegExp =
+  new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createAgendaChangeRequestBodyExpectedWindowsMax = 100;
+
 export const CreateAgendaChangeRequestBody = zod.object({
   resourceId: zod.number().min(1),
   reason: zod
@@ -4409,9 +5040,32 @@ export const CreateAgendaChangeRequestBody = zod.object({
         endTime: zod
           .string()
           .regex(createAgendaChangeRequestBodyWindowsItemEndTimeRegExp),
+        repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+        anchorDate: zod.string().nullish(),
       }),
     )
     .max(createAgendaChangeRequestBodyWindowsMax),
+  expectedWindows: zod
+    .array(
+      zod.object({
+        weekday: zod
+          .number()
+          .min(createAgendaChangeRequestBodyExpectedWindowsItemWeekdayMin)
+          .max(createAgendaChangeRequestBodyExpectedWindowsItemWeekdayMax),
+        startTime: zod
+          .string()
+          .regex(
+            createAgendaChangeRequestBodyExpectedWindowsItemStartTimeRegExp,
+          ),
+        endTime: zod
+          .string()
+          .regex(createAgendaChangeRequestBodyExpectedWindowsItemEndTimeRegExp),
+        repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+        anchorDate: zod.string().nullish(),
+      }),
+    )
+    .max(createAgendaChangeRequestBodyExpectedWindowsMax)
+    .optional(),
 });
 
 export const DecideAgendaChangeRequestParams = zod.object({

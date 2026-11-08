@@ -10,6 +10,7 @@
 //  - Nunca beco: se ZERO abertos, sintetiza a partir das JANELAS reais (generated).
 
 import { db, agendaResourcesTable, professionalsTable, agendaWindowsTable } from "@workspace/db";
+import { windowOccursOnDate } from "./agenda-window-recurrence";
 import { and, eq, asc } from "drizzle-orm";
 import { computeResourceSlots } from "./agenda-booking.js";
 
@@ -177,11 +178,13 @@ async function fallbackFromWindows(
     const rows = await db
       .select()
       .from(agendaWindowsTable)
-      .where(and(eq(agendaWindowsTable.resourceId, resource.id), eq(agendaWindowsTable.weekday, wd)))
+      .where(and(eq(agendaWindowsTable.resourceId, resource.id), eq(agendaWindowsTable.weekday, wd),
+        eq(agendaWindowsTable.active, true)))
       .orderBy(asc(agendaWindowsTable.startTime));
-    if (rows.length > 0) {
+    const applicable = rows.filter(row => windowOccursOnDate(row, date));
+    if (applicable.length > 0) {
       chosenDate = date;
-      windows = rows.map((r) => ({ startTime: r.startTime.slice(0, 5), endTime: r.endTime.slice(0, 5) }));
+      windows = applicable.map((r) => ({ startTime: r.startTime.slice(0, 5), endTime: r.endTime.slice(0, 5) }));
     }
   }
   if (!chosenDate || windows.length === 0) {

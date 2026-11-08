@@ -225,7 +225,7 @@ export default function ConsultaProntuario() {
   );
 
   useEffect(() => {
-    fetch(`${BASE}/api/clients`)
+    fetch(`${BASE}/api/clients`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d: ClienteOption[]) =>
         setClientes([...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))),

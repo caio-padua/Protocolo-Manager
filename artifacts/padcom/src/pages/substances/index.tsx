@@ -219,7 +219,7 @@ export default function Substances() {
                         </div>
                         <div>
                           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1 flex items-center gap-0.5"><Clock className="h-3 w-3" />Duração</span>
-                          <span className="font-black text-sm">{substance.durationMinutes ?? 30} min</span>
+                          <span className="font-black text-sm">{substance.durationMinutes == null ? "—" : new Intl.NumberFormat("pt-BR").format(substance.durationMinutes)} min</span>
                         </div>
                         <div>
                           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Estoque</span>

@@ -831,22 +831,43 @@ export interface UpdateAgendaResourceBody {
   sortOrder?: number;
 }
 
+export type AgendaWindowRepeatWeeks =
+  (typeof AgendaWindowRepeatWeeks)[keyof typeof AgendaWindowRepeatWeeks];
+
+export const AgendaWindowRepeatWeeks = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+} as const;
+
 export interface AgendaWindow {
   id: number;
   resourceId: number;
   weekday: number;
   startTime: string;
   endTime: string;
+  repeatWeeks?: AgendaWindowRepeatWeeks;
+  anchorDate?: string | null;
 }
+
+export type AgendaWindowInputRepeatWeeks =
+  (typeof AgendaWindowInputRepeatWeeks)[keyof typeof AgendaWindowInputRepeatWeeks];
+
+export const AgendaWindowInputRepeatWeeks = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+} as const;
 
 export interface AgendaWindowInput {
   weekday: number;
   startTime: string;
   endTime: string;
+  repeatWeeks?: AgendaWindowInputRepeatWeeks;
+  anchorDate?: string | null;
 }
 
 export interface ReplaceAgendaWindowsBody {
   windows: AgendaWindowInput[];
+  expectedWindows?: AgendaWindowInput[];
 }
 
 export interface AgendaException {
@@ -901,6 +922,14 @@ export interface AgendaSlot {
   subBlockIndex: number;
 }
 
+export type AgendaProposedWindowRepeatWeeks =
+  (typeof AgendaProposedWindowRepeatWeeks)[keyof typeof AgendaProposedWindowRepeatWeeks];
+
+export const AgendaProposedWindowRepeatWeeks = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+} as const;
+
 export interface AgendaProposedWindow {
   /**
    * @minimum 0
@@ -911,6 +940,8 @@ export interface AgendaProposedWindow {
   startTime: string;
   /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
   endTime: string;
+  repeatWeeks?: AgendaProposedWindowRepeatWeeks;
+  anchorDate?: string | null;
 }
 
 export interface AgendaWindowChangeInput {
@@ -923,6 +954,8 @@ export interface AgendaWindowChangeInput {
   reason: string;
   /** @maxItems 100 */
   windows: AgendaProposedWindow[];
+  /** @maxItems 100 */
+  expectedWindows?: AgendaProposedWindow[];
 }
 
 export type AgendaChangeDecisionInputDecision =
@@ -1255,6 +1288,43 @@ export interface SimulacaoResultado {
   alarmes: SimulacaoSinalAlarme[];
 }
 
+export interface ClientVisitPreferenceTime {
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  weekday: number;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  time: string;
+}
+
+export interface ClientVisitPreferenceCategory {
+  /** @maxItems 7 */
+  weekdays: number[];
+  /** @maxItems 504 */
+  times: ClientVisitPreferenceTime[];
+}
+
+export interface ClientVisitPreferences {
+  medical: ClientVisitPreferenceCategory;
+  nursing: ClientVisitPreferenceCategory;
+}
+
+export type ClientVisitPreferenceOptionsCategoryDaysItem = {
+  weekday: number;
+  times: string[];
+};
+
+export interface ClientVisitPreferenceOptionsCategory {
+  days: ClientVisitPreferenceOptionsCategoryDaysItem[];
+  mismatchedResources: string[];
+}
+
+export interface ClientVisitPreferenceOptions {
+  medical: ClientVisitPreferenceOptionsCategory;
+  nursing: ClientVisitPreferenceOptionsCategory;
+}
+
 export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
 
 export const ClientStatus = {
@@ -1278,6 +1348,9 @@ export interface Client {
   locationId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
+  visitPreferences?: ClientVisitPreferences;
+  /** @minimum 0 */
+  visitPreferencesRevision?: number;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -1306,6 +1379,9 @@ export interface CreateClientBody {
   locationId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
+  visitPreferences?: ClientVisitPreferences;
+  /** @minimum 0 */
+  visitPreferencesRevision?: number;
   notes?: string | null;
 }
 
@@ -1340,6 +1416,7 @@ export interface Substance {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
   mainFunction?: string | null;
@@ -1392,6 +1469,7 @@ export interface CreateSubstanceBody {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
   mainFunction?: string | null;
@@ -1510,6 +1588,21 @@ export const SubstanceApplicationAvailability = {
   prox: "prox",
 } as const;
 
+/**
+ * Estado derivado dos registros reais da aplicação.
+ */
+export type SubstanceApplicationDisplayState =
+  (typeof SubstanceApplicationDisplayState)[keyof typeof SubstanceApplicationDisplayState];
+
+export const SubstanceApplicationDisplayState = {
+  disp: "disp",
+  prox: "prox",
+  applied: "applied",
+  notPerformed: "notPerformed",
+  unavailable: "unavailable",
+  review: "review",
+} as const;
+
 export interface SubstanceApplication {
   id: number;
   substanceId: number;
@@ -1520,7 +1613,11 @@ export interface SubstanceApplication {
   totalSessions: number;
   status: SubstanceApplicationStatus;
   availability: SubstanceApplicationAvailability;
+  /** Estado derivado dos registros reais da aplicação. */
+  displayState?: SubstanceApplicationDisplayState;
   appliedAt?: string | null;
+  confirmedBy?: number | null;
+  confirmedAt?: string | null;
   notes?: string | null;
 }
 
@@ -3073,6 +3170,8 @@ export type ListSessionsParams = {
 
 export type ConfirmSubstanceApplicationBody = {
   substanceId: number;
+  /** Identificador da ocorrência específica, obrigatório quando há mais de uma aplicação da mesma substância na sessão. */
+  applicationId?: number;
   confirmed: boolean;
   notes?: string;
 };

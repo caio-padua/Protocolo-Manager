@@ -70,7 +70,7 @@ export default function AtestadosPage() {
   const { data: clientes = [] } = useQuery<ClientRow[]>({
     queryKey: ["atestado-clientes"],
     queryFn: async () => {
-      const r = await fetch(`${API}/clients`);
+      const r = await fetch(`${API}/clients`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       return r.json();
     },

@@ -24,6 +24,7 @@
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna NOT NULL.
 - [PDF: cursor de pagina unico contra paginas em branco](pdf-cursor-quebra-pagina.md) — gerador multi-pagina usa `let page`+`ensureSpace` reapontavel; `const page` por bloco quebra; pdf-lib nao avisa y fora da folha.
+- [Testes de banco descartável](testes-banco-descartavel.md) — migração e escrita em banco próprio isolado, nunca na conexão configurada da aplicação.
 - [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico no lembrete.
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
 - **Acesso profissional** — [transição de login](login-transicao-email-cpf.md) · [solicitação depende de aprovação](login-solicitacao-acesso-aprovacao.md).
@@ -151,5 +152,7 @@
 - [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ativo false.
 - [Gmail desconectado = e-mail falha](gmail-conector-desconectado-401.md) — "Invalid Credentials" no envio = autorizacao Google expirada; reautorizar integracao, nao mexer na rota.
 - [Locais: modalidade e sede](locais-modalidade-sede.md) — LOCAL=endereco da empresa, REMOTO=a definir (nao presumir); sede sobrepoe endereco na leitura; Padrao 27.
+- [PQQ: via do consultório](pqq-via-intramuscular.md) — médico confirmou via intramuscular, nunca endovenosa; corrigir divergências do cadastro na fonte.
+- [Intervalo de protocolos](intervalo-minimo-protocolos.md) — médico escolheu frequência menos quatro dias como mínimo; frequências curtas exigem trava positiva.
 - [Importar .ics sem duplicar sessoes do sistema](ics-importacao-sessoes-do-sistema.md) — UID = sessions.google_event_id; previa separa sessoes do sistema; agenda Google unica por local na empresa.
 - [Governança e pessoal na agenda](agenda-governanca-pessoal.md) — preservar liberação gradual; secretaria pede autorização; compromisso pessoal bloqueia só recursos do titular.

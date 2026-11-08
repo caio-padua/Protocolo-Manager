@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import { mayManageAgenda } from "../lib/agenda-governance";
+import { canonicalWindows, validWindowRecurrence } from "../lib/agenda-window-recurrence";
 import { syncGoogleAgenda } from "../lib/agenda-google-sync";
 import {
   CreateAgendaChangeRequestBody as AgendaWindowChangeInput,
@@ -15,11 +16,10 @@ import {
 const router = Router();
 router.use("/agenda/integration", requireCollaborator);
 router.use("/agenda/requests", requireCollaborator);
-const canonical = (windows: any[]) => windows.map((w) => ({
-  weekday: Number(w.weekday), startTime: w.startTime, endTime: w.endTime,
-})).sort((a,b) => a.weekday-b.weekday || a.startTime.localeCompare(b.startTime));
-const windowsQuery = (id: number) => sql`SELECT weekday,start_time AS "startTime",end_time AS "endTime"
-  FROM agenda_windows WHERE resource_id=${id} ORDER BY weekday,start_time`;
+const canonical = canonicalWindows;
+const windowsQuery = (id: number) => sql`SELECT weekday,start_time AS "startTime",end_time AS "endTime",
+  repeat_weeks AS "repeatWeeks",anchor_date AS "anchorDate"
+  FROM agenda_windows WHERE resource_id=${id} AND active ORDER BY weekday,start_time`;
 
 router.get("/agenda/integration", async (req,res): Promise<void> => {
   const result = await db.execute(sql`SELECT l.id,l.name,l.color,l.agenda_papel AS role,
@@ -93,19 +93,31 @@ router.get("/agenda/requests", async (req,res): Promise<void> => {
 router.post("/agenda/requests", async (req,res): Promise<void> => {
   const input = AgendaWindowChangeInput.safeParse(req.body);
   if (!input.success) {res.status(400).json({error:"Solicitação inválida."});return;}
+  if (!input.data.expectedWindows) {
+    res.status(409).json({error:"Atualize a tela e confira o expediente antes de solicitar."});return;
+  }
   const windows = canonical(input.data.windows);
-  if (windows.some((w,i) => w.endTime<=w.startTime || (i>0 && windows[i-1].weekday===w.weekday && windows[i-1].endTime>w.startTime))) {
+  if (windows.some((w,i) => !validWindowRecurrence(w.weekday,w.repeatWeeks,w.anchorDate) ||
+      w.endTime<=w.startTime || (i>0 && windows[i-1].weekday===w.weekday && windows[i-1].endTime>w.startTime))) {
     res.status(400).json({error:"Expedientes inválidos ou sobrepostos."});return;
   }
-  const resource = await db.execute(sql`SELECT r.id FROM agenda_resources r JOIN locations l ON l.id=r.location_id
-    WHERE r.id=${input.data.resourceId} AND r.active AND l.empresa_id=${req.tenantContext.empresaId}`);
-  if (!resource.rows.length) {res.status(404).json({error:"Recurso não encontrado."});return;}
-  const before = await db.execute(windowsQuery(input.data.resourceId));
-  const result = await db.execute(sql`INSERT INTO agenda_change_requests
-    (empresa_id,resource_id,requested_by,reason,before_windows,proposed_windows)
-    VALUES(${req.tenantContext.empresaId},${input.data.resourceId},${req.tenantContext.professionalId},
-      ${input.data.reason},${JSON.stringify(canonical(before.rows))}::jsonb,${JSON.stringify(windows)}::jsonb) RETURNING id`);
-  res.status(201).json({id:Number(result.rows[0].id),state:"pendente"});
+  const result = await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
+    const resource = await tx.execute(sql`SELECT r.id FROM agenda_resources r JOIN locations l ON l.id=r.location_id
+      WHERE r.id=${input.data.resourceId} AND r.active AND l.empresa_id=${req.tenantContext.empresaId}`);
+    if (!resource.rows.length) return {status:404,error:"Recurso não encontrado."};
+    const before = await tx.execute(windowsQuery(input.data.resourceId));
+    if (JSON.stringify(canonical(before.rows as any[])) !== JSON.stringify(canonical(input.data.expectedWindows!)) ||
+        (canonical(before.rows as any[]).some(w => w.repeatWeeks===2) && input.data.windows.some(w => w.repeatWeeks===undefined))) {
+      return {status:409,error:"O expediente mudou; recarregue e confira antes de solicitar."};
+    }
+    const created = await tx.execute(sql`INSERT INTO agenda_change_requests
+      (empresa_id,resource_id,requested_by,reason,before_windows,proposed_windows)
+      VALUES(${req.tenantContext.empresaId},${input.data.resourceId},${req.tenantContext.professionalId},
+        ${input.data.reason},${JSON.stringify(canonical(before.rows as any[]))}::jsonb,${JSON.stringify(windows)}::jsonb) RETURNING id`);
+    return {status:201,id:Number(created.rows[0].id),state:"pendente"};
+  });
+  res.status(result.status).json(result);
 });
 router.post("/agenda/requests/:id/decision", async (req,res): Promise<void> => {
   const input = AgendaChangeDecisionInput.safeParse(req.body);
@@ -121,11 +133,12 @@ router.post("/agenda/requests/:id/decision", async (req,res): Promise<void> => {
     if (row.state!=="pendente") return {status:409,error:"Solicitação já decidida."};
     if (Date.now()-new Date(String(row.created_at)).getTime()>7*86400_000) return {status:409,error:"Solicitação expirada; envie outra."};
     const current = await tx.execute(windowsQuery(Number(row.resource_id)));
-    if (JSON.stringify(canonical(current.rows))!==JSON.stringify(canonical(row.before_windows as any[]))) return {status:409,error:"Expediente mudou; solicite nova conferência."};
+    if (JSON.stringify(canonical(current.rows as any[]))!==JSON.stringify(canonical(row.before_windows as any[]))) return {status:409,error:"Expediente mudou; solicite nova conferência."};
     if (input.data.decision==="aprovar") {
-      await tx.execute(sql`DELETE FROM agenda_windows WHERE resource_id=${Number(row.resource_id)}`);
-      for (const window of row.proposed_windows as any[]) await tx.execute(sql`INSERT INTO agenda_windows(resource_id,weekday,start_time,end_time)
-        VALUES(${Number(row.resource_id)},${window.weekday},${window.startTime},${window.endTime})`);
+      await tx.execute(sql`UPDATE agenda_windows SET active=false WHERE resource_id=${Number(row.resource_id)} AND active`);
+      for (const window of canonical(row.proposed_windows as any[])) await tx.execute(sql`INSERT INTO agenda_windows
+        (resource_id,weekday,start_time,end_time,repeat_weeks,anchor_date,active)
+        VALUES(${Number(row.resource_id)},${window.weekday},${window.startTime},${window.endTime},${window.repeatWeeks},${window.anchorDate},true)`);
     }
     const state = input.data.decision==="aprovar" ? "aprovado" : "recusado";
     await tx.execute(sql`UPDATE agenda_change_requests SET state=${state},decided_by=${req.tenantContext.professionalId},decided_at=now() WHERE id=${id}`);

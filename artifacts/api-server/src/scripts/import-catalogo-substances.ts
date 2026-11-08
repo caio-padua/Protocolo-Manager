@@ -1,5 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { db, catalogoItensTable, substancesTable } from "@workspace/db";
+import { catalogSubstanceUpdate, configuredDurationSeconds } from "../lib/substance-duration";
 
 // Importa do deposito transmutado (catalogo_itens) para a caixinha operacional
 // (substances), que alimenta a tela Substancias. Idempotente por codigo_padcom.
@@ -42,6 +43,11 @@ function asText(v: unknown): string | null {
 }
 
 async function main() {
+  const preciseDurations = {
+    im: await configuredDurationSeconds("im"),
+    sc: await configuredDurationSeconds("sc"),
+    implant: await configuredDurationSeconds("implant"),
+  };
   const itens = await db
     .select()
     .from(catalogoItensTable)
@@ -83,6 +89,7 @@ async function main() {
       color: COLOR_BY_PROCEDURE[procedureType] ?? "#3D7A7A",
       procedureType,
       durationMinutes: DURATION_BY_PROCEDURE[procedureType] ?? 30,
+      preciseDurationSeconds: preciseDurations[procedureType as keyof typeof preciseDurations] ?? null,
       defaultDose: asText(item.posologia),
       pricePerUnit: precoValido ? (item.preco as number) : 0,
       description: asText(item.composicao) ?? asText(item.descricao),
@@ -106,8 +113,7 @@ async function main() {
     // No update (re-import), so sobrescrevemos o preco quando o catalogo traz um
     // valor valido — assim um preco ajustado manualmente nao e zerado por um
     // catalogo sem preco (regra de ouro: nunca perder dado).
-    const { pricePerUnit: _drop, ...catalogoSemPreco } = catalogo;
-    const setUpdate = precoValido ? catalogo : catalogoSemPreco;
+    const setUpdate = catalogSubstanceUpdate(catalogo, precoValido);
 
     const novo = !jaExiste.has(codigoPadcom);
 

@@ -1,11 +1,14 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, clientsTable, clientPreferredAgendasTable, agendaResourcesTable } from "@workspace/db";
+import { db, clientsTable, clientPreferredAgendasTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
 import { emitirLinkMagico } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
+import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
+import { getVisitOptions, getVisitPreferences, setVisitPreferences, VisitPreferenceError } from "../lib/client-visit-preferences";
+import type { ClientVisitPreferences } from "@workspace/db";
 import { logIntegracao } from "./agentes-integracoes";
 import { sql } from "drizzle-orm";
 import {
@@ -47,9 +50,18 @@ type ClientRow = typeof clientsTable.$inferSelect;
 
 // Serializa um cliente para o contrato (datas em ISO, campos nullable normalizados) e
 // anexa a lista de agendas preferenciais (junção client_preferred_agendas).
-function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[]) {
+function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[],
+  visit?: { preferences: ClientVisitPreferences; revision: number }) {
+  const {
+    validationPassword,
+    passwordHash: _passwordHash,
+    passwordSetToken: _passwordSetToken,
+    telegramMagicToken: _telegramMagicToken,
+    ...safeClient
+  } = c;
   return {
-    ...c,
+    ...safeClient,
+    hasValidationPassword: Boolean(validationPassword),
     birthDate: c.birthDate ?? null,
     address: c.address ?? null,
     pais: c.pais ?? null,
@@ -57,53 +69,27 @@ function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[]) {
     comoConheceu: c.comoConheceu ?? null,
     notes: c.notes ?? null,
     preferredAgendaResourceIds,
+    ...(visit ? { visitPreferences: visit.preferences, visitPreferencesRevision: visit.revision } : {}),
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
 }
 
-async function getPreferredAgendas(clientId: number): Promise<number[]> {
-  const rows = await db
-    .select({ agendaResourceId: clientPreferredAgendasTable.agendaResourceId })
-    .from(clientPreferredAgendasTable)
-    .where(eq(clientPreferredAgendasTable.clientId, clientId));
-  return rows.map((r) => r.agendaResourceId);
+function requireClientWriter(req: Request, res: Response, next: NextFunction) {
+  requireCollaborator(req, res, () => {
+    if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+      res.status(401).json({ error: "Entre com seu acesso profissional para alterar clientes." });
+      return;
+    }
+    next();
+  });
 }
 
-// Substitui (não acumula) as agendas preferenciais do cliente. `ids === undefined` significa
-// "não mexer"; um array (mesmo vazio) significa "passe a valer exatamente este conjunto".
-async function setPreferredAgendas(clientId: number, ids: number[] | null | undefined): Promise<void> {
-  if (ids === undefined) return;
-  await db.delete(clientPreferredAgendasTable).where(eq(clientPreferredAgendasTable.clientId, clientId));
-  const unique = Array.from(new Set((ids ?? []).filter((n) => Number.isInteger(n) && n > 0)));
-  if (unique.length === 0) return;
-  // Data-bound de verdade: só persiste agendas ATIVAS que pertençam à clínica do cliente.
-  // IDs que não passam (clínica errada, inativas, inexistentes) são descartados em silêncio.
-  const [client] = await db
-    .select({ locationId: clientsTable.locationId })
-    .from(clientsTable)
-    .where(eq(clientsTable.id, clientId));
-  if (!client?.locationId) return;
-  const resources = await db
-    .select({
-      id: agendaResourcesTable.id,
-      active: agendaResourcesTable.active,
-      locationId: agendaResourcesTable.locationId,
-    })
-    .from(agendaResourcesTable)
-    .where(inArray(agendaResourcesTable.id, unique));
-  const valid = resources
-    .filter((r) => r.active && r.locationId === client.locationId)
-    .map((r) => r.id);
-  if (valid.length > 0) {
-    await db
-      .insert(clientPreferredAgendasTable)
-      .values(valid.map((agendaResourceId) => ({ clientId, agendaResourceId })))
-      .onConflictDoNothing();
+router.get("/clients", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." });
+    return;
   }
-}
-
-router.get("/clients", async (req, res): Promise<void> => {
   const query = ListClientsQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
@@ -163,7 +149,7 @@ router.get("/clients", async (req, res): Promise<void> => {
           agendaResourceId: clientPreferredAgendasTable.agendaResourceId,
         })
         .from(clientPreferredAgendasTable)
-        .where(inArray(clientPreferredAgendasTable.clientId, ids))
+        .where(and(inArray(clientPreferredAgendasTable.clientId, ids), eq(clientPreferredAgendasTable.active, true)))
     : [];
   const byClient = new Map<number, number[]>();
   for (const j of junctions) {
@@ -175,13 +161,49 @@ router.get("/clients", async (req, res): Promise<void> => {
   res.json(clients.map((c) => serializeClient(c, byClient.get(c.id) ?? [])));
 });
 
+router.get("/clients/visit-preference-options", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
+  }
+  res.json(await getVisitOptions(db, req.tenantContext.empresaId));
+});
+
+// Leitura individual usada pela tela de edição. A identidade e a empresa são
+// verificadas no servidor antes de devolver os dados do cliente.
+router.get("/clients/:id", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." });
+    return;
+  }
+  const params = GetClientParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const [client] = await db.select().from(clientsTable).where(and(
+    eq(clientsTable.id, params.data.id),
+    eq(clientsTable.empresaId, req.tenantContext.empresaId),
+    isNull(clientsTable.deletedAt),
+  ));
+  if (!client) {
+    res.status(404).json({ error: "Cliente não encontrado." });
+    return;
+  }
+  res.json(serializeClient(client, await getPreferredAgendas(client.id),
+    await getVisitPreferences(db, req.tenantContext.empresaId, client.id)));
+});
+
 // ─── Ações em lote ─────────────────────────────────────────────────────────
 // POST /api/clients/bulk
 // body: { ids: number[], action: "activate" | "deactivate" | "delete" | "restore" }
 // "delete"  → soft-delete (deleted_at = now)
 // "restore" → restaura (deleted_at = null), máx 5 anos
 // "activate" / "deactivate" → muda status (só clientes não apagados)
-router.post("/clients/bulk", async (req, res): Promise<void> => {
+router.post("/clients/bulk", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." });
+    return;
+  }
   const { ids, action } = req.body ?? {};
 
   if (!Array.isArray(ids) || ids.length === 0) {
@@ -200,73 +222,87 @@ router.post("/clients/bulk", async (req, res): Promise<void> => {
   }
 
   const CINCO_ANOS_MS = 5 * 365.25 * 24 * 3600 * 1000;
+  const sameCompany = eq(clientsTable.empresaId, req.tenantContext.empresaId);
+  let affected = 0;
 
   if (action === "delete") {
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ deletedAt: new Date() })
-      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+      .where(and(inArray(clientsTable.id, safeIds), sameCompany, isNull(clientsTable.deletedAt)))
+      .returning({ id: clientsTable.id });
+    affected = changed.length;
   } else if (action === "restore") {
     // Só restaura dentro dos 5 anos
     const limite = new Date(Date.now() - CINCO_ANOS_MS);
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ deletedAt: null })
       .where(
         and(
           inArray(clientsTable.id, safeIds),
+          sameCompany,
           isNotNull(clientsTable.deletedAt),
           sql`deleted_at > ${limite.toISOString()}`,
         )
-      );
+      ).returning({ id: clientsTable.id });
+    affected = changed.length;
   } else if (action === "activate") {
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ status: "active" })
-      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+      .where(and(inArray(clientsTable.id, safeIds), sameCompany, isNull(clientsTable.deletedAt)))
+      .returning({ id: clientsTable.id });
+    affected = changed.length;
   } else if (action === "deactivate") {
-    await db
+    const changed = await db
       .update(clientsTable)
       .set({ status: "inactive" })
-      .where(and(inArray(clientsTable.id, safeIds), isNull(clientsTable.deletedAt)));
+      .where(and(inArray(clientsTable.id, safeIds), sameCompany, isNull(clientsTable.deletedAt)))
+      .returning({ id: clientsTable.id });
+    affected = changed.length;
   }
 
-  res.json({ ok: true, affected: safeIds.length });
+  res.json({ ok: true, affected });
 });
 
 // ATENCAO: as rotas abaixo foram restauradas em 14/08/2026 apos um merge automatico
 // ter apagado o INSERT desta rota e transformado o PUT em um GET duplicado.
 // Nao substituir o db.insert por db.select aqui: esta rota CADASTRA paciente novo.
-router.post("/clients", async (req, res): Promise<void> => {
+router.post("/clients", requireClientWriter, async (req, res): Promise<void> => {
   const parsed = CreateClientBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const clientData = parsed.data;
-  // preferredAgendaResourceIds e locationId podem estar presentes no body mas ausentes
-  // no tipo gerado pelo dist desatualizado do api-zod; ler diretamente do req.body.
-  const bodyExtra = req.body as { preferredAgendaResourceIds?: number[] | null; locationId?: number | null };
-  const preferredAgendaResourceIds = bodyExtra.preferredAgendaResourceIds ?? undefined;
-  const locationId = bodyExtra.locationId ?? undefined;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, ...clientData } = parsed.data;
+  const locationId = clientData.locationId ?? undefined;
   const empresaId = req.tenantContext.empresaId;
 
-  const [created] = await db
-    .insert(clientsTable)
-    .values({ ...clientData, empresaId, locationId })
-    .returning();
-
-  if (!created) {
-    res.status(500).json({ error: "Falha ao criar cliente" });
-    return;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(clientsTable)
+        .values({ ...clientData, empresaId, locationId }).returning();
+      if (!created) throw new Error("Falha ao criar cliente");
+      await validateClientLocation(tx, empresaId, created.locationId);
+      await setPreferredAgendas(tx, created, preferredAgendaResourceIds);
+      const visit = await setVisitPreferences(tx, empresaId, created.id, req.tenantContext.professionalId!,
+        visitPreferences, visitPreferencesRevision);
+      return serializeClient(created, await getPreferredAgendas(created.id, tx), visit);
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
+    if (error instanceof InvalidPreferredAgendas) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-
-  await setPreferredAgendas(created.id, preferredAgendaResourceIds ?? undefined);
-  res.status(201).json(serializeClient(created, await getPreferredAgendas(created.id)));
 });
 
-router.put("/clients/:id", async (req, res): Promise<void> => {
+router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -281,22 +317,41 @@ router.put("/clients/:id", async (req, res): Promise<void> => {
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const clientData = parsed.data;
-  let client: ClientRow | undefined;
-  if (Object.keys(clientData).length > 0) {
-    [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
-  } else {
-    [client] = await db.select().from(clientsTable).where(tenantWhere);
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, ...clientData } = parsed.data;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
+      if (!existing) return null;
+      if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
+        await validateClientLocation(tx, empresaId, clientData.locationId);
+      }
+      if (preferredAgendaResourceIds === undefined && clientData.locationId !== undefined &&
+          clientData.locationId !== existing.locationId &&
+          (await getPreferredAgendas(existing.id, tx)).length > 0) {
+        throw new InvalidPreferredAgendas("Ao trocar o local, confira e escolha novamente as agendas preferenciais.");
+      }
+      const [client] = Object.keys(clientData).length
+        ? await tx.update(clientsTable).set(clientData).where(tenantWhere).returning()
+        : [existing];
+      await setPreferredAgendas(tx, client, preferredAgendaResourceIds);
+      const visit = await setVisitPreferences(tx, empresaId, client.id, req.tenantContext.professionalId!,
+        visitPreferences, visitPreferencesRevision);
+      return serializeClient(client, await getPreferredAgendas(client.id, tx), visit);
+    });
+    if (!result) { res.status(404).json({ error: "Client not found" }); return; }
+    res.json(result);
+  } catch (error) {
+    if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
+    if (error instanceof InvalidPreferredAgendas) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
-    return;
-  }
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 
-router.patch("/clients/:id", async (req, res): Promise<void> => {
+router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void> => {
   const params = UpdateClientParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -311,18 +366,37 @@ router.patch("/clients/:id", async (req, res): Promise<void> => {
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const clientData = parsed.data;
-  let client: ClientRow | undefined;
-  if (Object.keys(clientData).length > 0) {
-    [client] = await db.update(clientsTable).set(clientData).where(tenantWhere).returning();
-  } else {
-    [client] = await db.select().from(clientsTable).where(tenantWhere);
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, ...clientData } = parsed.data;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
+      if (!existing) return null;
+      if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
+        await validateClientLocation(tx, empresaId, clientData.locationId);
+      }
+      if (preferredAgendaResourceIds === undefined && clientData.locationId !== undefined &&
+          clientData.locationId !== existing.locationId &&
+          (await getPreferredAgendas(existing.id, tx)).length > 0) {
+        throw new InvalidPreferredAgendas("Ao trocar o local, confira e escolha novamente as agendas preferenciais.");
+      }
+      const [client] = Object.keys(clientData).length
+        ? await tx.update(clientsTable).set(clientData).where(tenantWhere).returning()
+        : [existing];
+      await setPreferredAgendas(tx, client, preferredAgendaResourceIds);
+      const visit = await setVisitPreferences(tx, empresaId, client.id, req.tenantContext.professionalId!,
+        visitPreferences, visitPreferencesRevision);
+      return serializeClient(client, await getPreferredAgendas(client.id, tx), visit);
+    });
+    if (!result) { res.status(404).json({ error: "Client not found" }); return; }
+    res.json(result);
+  } catch (error) {
+    if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
+    if (error instanceof InvalidPreferredAgendas) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
   }
-  if (!client) {
-    res.status(404).json({ error: "Client not found" });
-    return;
-  }
-  res.json(serializeClient(client, await getPreferredAgendas(client.id)));
 });
 
 router.get("/cep/:cep", async (req, res): Promise<void> => {

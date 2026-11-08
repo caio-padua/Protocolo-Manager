@@ -26,7 +26,8 @@ describe("decisão vinculada à proposta persistida",()=>{
       if(sql.includes("SELECT q.*")) return {rows:m.row?[m.row]:[]};
       if(sql.includes("SELECT weekday")) return {rows:[{weekday:1,startTime:"08:00",endTime:m.changed?"11:00":"12:00"}]};
       if(sql.includes("UPDATE agenda_change_requests")) m.row.state=params[0];
-      if(/DELETE FROM agenda_windows|INSERT INTO agenda_windows/.test(sql)) m.writes++;
+      if(/UPDATE agenda_windows SET active|INSERT INTO agenda_windows/.test(sql)) m.writes++;
+      if(/DELETE FROM agenda_windows/.test(sql)) throw new Error("Não apagar o histórico de janelas");
       return {rows:[]};
     });
   });

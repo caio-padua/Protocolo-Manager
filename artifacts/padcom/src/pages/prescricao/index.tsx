@@ -92,7 +92,7 @@ export default function PrescricaoPage(
   const { data: clientData } = useQuery<ClientData>({
     queryKey: ["prescricao-client", clientId],
     queryFn: async () => {
-      const r = await fetch(`${BASE}/api/clients/${clientId}`);
+      const r = await fetch(`${BASE}/api/clients/${clientId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar cliente");
       return r.json();
     },
@@ -113,7 +113,7 @@ export default function PrescricaoPage(
   // Standalone: carrega lista de clientes para o ClientPicker (A-Z + busca)
   useEffect(() => {
     if (clientId) return; // modo embutido — picker não é necessário
-    fetch(`${BASE}/api/clients?limit=5000`)
+    fetch(`${BASE}/api/clients?limit=5000`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d) => {
         const arr: ClientData[] = Array.isArray(d) ? d : (d.clients ?? []);
@@ -138,7 +138,7 @@ export default function PrescricaoPage(
     let cancelled = false;
     setPatient({ nome: "", cpf: "", telefone: "", email: "", dataNascimento: "" });
     if (!selectedClientId) return;
-    fetch(`${BASE}/api/clients/${selectedClientId}`)
+    fetch(`${BASE}/api/clients/${selectedClientId}`, { headers: collabAuthHeaders() })
       .then((r) => {
         if (!r.ok) throw new Error("Falha ao carregar cliente");
         return r.json();

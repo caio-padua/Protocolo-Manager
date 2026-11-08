@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCollabToken } from "@/lib/collab-auth";
+import { getCollabToken, collabAuthHeaders } from "@/lib/collab-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -184,7 +184,7 @@ function MontarCardapio() {
   const { data: clientes } = useQuery<Cliente[]>({
     queryKey: ["dieta", "clientes"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       const d = await r.json();
       return Array.isArray(d) ? d : (d.data ?? []);
@@ -1326,7 +1326,7 @@ function HistoricoPlanos() {
   const { data: clientes } = useQuery<Cliente[]>({
     queryKey: ["dieta", "clientes"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       const d = await r.json();
       return Array.isArray(d) ? d : (d.data ?? []);

@@ -13,6 +13,7 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { PDFDocument, PDFPage, StandardFonts } from "pdf-lib";
+import { PDFParse } from "pdf-parse";
 import QRCode from "qrcode";
 import {
   buildProtocolDocumentLayout,
@@ -223,6 +224,19 @@ describe("resumo visual de substâncias", () => {
 // ────────────────────────────────────────────────────────────────────────────────
 
 describe("buildProtocolDocumentLayout — overflow e estrutura", () => {
+
+  it("mostra a duração precisa com vírgula no documento gerado", async () => {
+    const pdfDoc = await PDFDocument.create();
+    const data = baseData([makeSub({ procedureType: "im", durationMinutes: 2.5 })]);
+    await buildProtocolDocumentLayout(pdfDoc, data as LayoutData);
+    const parser = new PDFParse({ data: new Uint8Array(await pdfDoc.save()) });
+    try {
+      const result = await parser.getText();
+      expect(result.text).toMatch(/DURAÇÃO\s*\(MIN\)[\s\S]{0,100}2,5/);
+    } finally {
+      await parser.destroy();
+    }
+  });
 
   it("deve gerar um PDF válido (bytes > 5 KB) sem certificado", async () => {
     const pdfDoc = await PDFDocument.create();

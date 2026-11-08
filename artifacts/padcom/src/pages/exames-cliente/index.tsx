@@ -266,7 +266,7 @@ export default function ExamesCliente() {
   const [importacaoAberta, setImportacaoAberta] = useState(false);
 
   useEffect(() => {
-    fetch(`${BASE}/api/clients`)
+    fetch(`${BASE}/api/clients`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d: ClienteOption[]) =>
         setClientes(

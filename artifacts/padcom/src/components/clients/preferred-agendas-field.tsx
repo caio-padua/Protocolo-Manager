@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useListAgendaResources } from "@workspace/api-client-react";
 import { CalendarClock, Check, Loader2 } from "lucide-react";
 
@@ -16,7 +16,7 @@ interface PreferredAgendasFieldProps {
  * não altera o motor de agenda. Data-bound: lista vem do backend, estado controlado.
  */
 export function PreferredAgendasField({ locationId, value, onChange }: PreferredAgendasFieldProps) {
-  const { data: resources, isLoading } = useListAgendaResources();
+  const { data: resources, isLoading, isError } = useListAgendaResources();
 
   const locId = locationId ? Number(locationId) : null;
 
@@ -27,14 +27,10 @@ export function PreferredAgendasField({ locationId, value, onChange }: Preferred
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }, [resources, locId]);
 
-  // Data-bound: ao trocar de clínica, remove do estado as agendas que não existem mais na
-  // lista filtrada (senão IDs "fantasmas" continuariam no form e iriam no submit).
-  useEffect(() => {
-    if (isLoading || locId == null) return;
-    const allowed = new Set(agendas.map((a) => a.id));
-    const pruned = value.filter((id) => allowed.has(id));
-    if (pruned.length !== value.length) onChange(pruned);
-  }, [agendas, isLoading, locId, value, onChange]);
+  // Erro de rede ou mudança de local não pode apagar uma escolha em silêncio.
+  const unavailable = resources && locId != null
+    ? value.filter((id) => !agendas.some((agenda) => agenda.id === id))
+    : [];
 
   const toggle = (id: number) => {
     if (value.includes(id)) {
@@ -55,6 +51,10 @@ export function PreferredAgendasField({ locationId, value, onChange }: Preferred
           <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando agendas...
           </div>
+        ) : isError ? (
+          <p className="text-destructive text-xs py-2">
+            Não foi possível carregar as agendas. Suas seleções anteriores foram preservadas.
+          </p>
         ) : agendas.length === 0 ? (
           <p className="text-muted-foreground text-xs py-2">
             {locId == null
@@ -82,6 +82,18 @@ export function PreferredAgendasField({ locationId, value, onChange }: Preferred
                 </button>
               );
             })}
+          </div>
+        )}
+        {unavailable.length > 0 && !isError && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+            <span>Há {unavailable.length} seleção(ões) que não estão disponíveis neste local.</span>
+            <button
+              type="button"
+              className="btn-3d-soft px-2 py-1 font-semibold"
+              onClick={() => onChange(value.filter((id) => !unavailable.includes(id)))}
+            >
+              Remover seleções indisponíveis
+            </button>
           </div>
         )}
       </div>

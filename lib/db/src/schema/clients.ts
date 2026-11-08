@@ -59,6 +59,7 @@ export const clientPreferredAgendasTable = pgTable(
     id: serial("id").primaryKey(),
     clientId: integer("client_id").notNull(),
     agendaResourceId: integer("agenda_resource_id").notNull(),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -67,3 +68,22 @@ export const clientPreferredAgendasTable = pgTable(
 );
 
 export type ClientPreferredAgenda = typeof clientPreferredAgendasTable.$inferSelect;
+
+export type ClientVisitPreferenceCategory = {
+  weekdays: number[];
+  times: { weekday: number; time: string }[];
+};
+export type ClientVisitPreferences = {
+  medical: ClientVisitPreferenceCategory;
+  nursing: ClientVisitPreferenceCategory;
+};
+
+// Histórico aditivo: uma versão nova nunca apaga a preferência anterior.
+export const clientVisitPreferenceRevisionsTable = pgTable("client_visit_preference_revisions", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  empresaId: integer("empresa_id").notNull(),
+  preferences: jsonb("preferences").$type<ClientVisitPreferences>().notNull(),
+  createdBy: integer("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

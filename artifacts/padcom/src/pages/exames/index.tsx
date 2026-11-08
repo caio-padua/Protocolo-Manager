@@ -173,7 +173,7 @@ export default function ExamesPage({
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/clients", { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar clientes");
       return r.json();
     },
