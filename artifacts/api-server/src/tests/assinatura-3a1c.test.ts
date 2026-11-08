@@ -7,6 +7,7 @@ import forge from "node-forge";
 import jsQR from "jsqr";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { PDFDocument } from "pdf-lib";
+import { PNG } from "pngjs";
 import { generateExamRequestPdf } from "../lib/exam-request-pdf";
 import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
 import { buildPrescricaoHtml } from "../lib/receituario-html";
@@ -66,29 +67,38 @@ async function verifyPdf(bytes: Uint8Array, label: string) {
 describe("Modelo 3A-1C", () => {
   it("assina as provas 2B dos dois motores depois de paginar e carimbar", async () => {
     const signer = syntheticSigner();
+    const logo = new PNG({ width: 2, height: 2 });
+    logo.data[3] = 255;
+    const identidade2bProva = {
+      textos: { nomeCabecalho: "Clinica Sintetica", rodapeLinha1: "Clinica Sintetica",
+        rodapeLinha2: "Rua Sintetica", rodapeLinha3: "Cidade Sintetica" },
+      simboloDourado: PNG.sync.write(logo),
+    };
     const prescription = await generateReceituarioPdfV2({
-      modelo2bProva: true, homologacao: true,
+      modelo2bProva: true, identidade2bProva, homologacao: true,
       medicoName: identity.professional.name, medicoCrm: "12345 / SP", clinicaNome: identity.clinic.name,
       pacienteNome: identity.client.name, dataEmissao: "2026-11-07", tipoReceita: "simples",
-      formulas: Array.from({ length: 20 }, (_, i) => ({
+      formulas: Array.from({ length: 8 }, (_, i) => ({
         nome: `FORMULA FICTICIA ${String(i + 1).padStart(2, "0")}`, posologia: "TESTE — NÃO DISPENSAR",
       })),
     }, signer);
     const recipeProof = await verifyPdf(prescription, "receita-2b-prova");
-    expect(recipeProof.count).toBeGreaterThan(1);
-    expect(recipeProof.text).toContain("FORMULA FICTICIA 20");
+    expect(recipeProof.count).toBe(2);
+    expect(recipeProof.text).toContain("FORMULA FICTICIA 08");
     expect(recipeProof.text).toContain("DOCUMENTO DE TESTE");
+    expect(recipeProof.text).toContain("Rua Sintetica");
 
     const unsignedExam = await generateExamRequestPdf({
-      modelo2bProva: true, homologacao: true, tipo: "sangue", tipoLabel: "SANGUE",
+      modelo2bProva: true, identidade2bProva, homologacao: true, tipo: "sangue", tipoLabel: "SANGUE",
       clientName: identity.client.name, professionalName: identity.professional.name,
       professionalCrm: "12345 / SP", dateBR: "07/11/2026", certificado: signer.meta,
       items: Array.from({ length: 30 }, (_, i) => ({ nomeExame: `EXAME FICTICIO ${String(i + 1).padStart(2, "0")}` })),
     });
     const examProof = await verifyPdf(await signExistingPrescriptionPdf(unsignedExam, signer), "exames-2b-prova");
-    expect(examProof.count).toBeGreaterThan(1);
+    expect(examProof.count).toBe(2);
     expect(examProof.text).toContain("EXAME FICTICIO 30");
     expect(examProof.text).toContain("DOCUMENTO DE TESTE");
+    expect(examProof.text).toContain("Rua Sintetica");
   }, 90_000);
 
   it("gera receita e exames com certificado sintético válido e QR legível", async () => {

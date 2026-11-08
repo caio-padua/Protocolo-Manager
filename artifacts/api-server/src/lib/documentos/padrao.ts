@@ -21,6 +21,7 @@ import {
   desenharCabecalhoProva,
   prepararVisualProva,
 } from "./paxmed-modelo-2b-prova";
+import type { TextosEmpresa2b } from "./paxmed-2b-limites";
 
 // ---- Paleta da marca (espelha os tokens do front em artifacts/padcom/src/index.css) ----
 export const COR = {
@@ -111,15 +112,20 @@ export interface Fabrica {
 }
 
 // Cria uma Fábrica ligada a um documento novo, com fontes e marca já embutidas.
-export async function iniciarFabrica(opts?: { modeloProva?: "paxmed-2b-sintetico" }): Promise<Fabrica> {
+export async function iniciarFabrica(opts?: {
+  modeloProva?: "paxmed-2b-sintetico";
+  identidadeProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
+}): Promise<Fabrica> {
   const prova2b = opts?.modeloProva === "paxmed-2b-sintetico";
+  if (opts?.identidadeProva && !prova2b) throw new Error("Identidade de prova exige o Modelo 2B de teste.");
   if (prova2b && process.env.NODE_ENV === "production") {
     throw new Error("O Modelo 2B de prova não pode ser usado em produção.");
   }
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const visualProva = prova2b ? await prepararVisualProva(doc) : null;
+  const identidadeProvaPersonalizada = Boolean(opts?.identidadeProva);
+  const visualProva = prova2b ? await prepararVisualProva(doc, opts?.identidadeProva) : null;
 
   const margem = PAGINA.margem;
   const larguraPagina = PAGINA.larguraRetrato;
@@ -147,7 +153,7 @@ export async function iniciarFabrica(opts?: { modeloProva?: "paxmed-2b-sintetico
   function desenharCabecalho(page: PDFPage, opts: CabecalhoOpts): number {
     const emissor = opts.emissor ?? "paxter";
     if (visualProva) {
-      if (emissor !== "instituto_padua") throw new Error("A prova do Modelo 2B é exclusiva do Instituto Pádua.");
+      if (!identidadeProvaPersonalizada && emissor !== "instituto_padua") throw new Error("A prova do Modelo 2B é exclusiva do Instituto Pádua.");
       emissorDoc = emissor;
       return desenharCabecalhoProva(page, visualProva, font, fontBold, opts.titulo, opts.subtitulo ?? "");
     }

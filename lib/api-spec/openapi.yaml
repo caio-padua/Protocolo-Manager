@@ -250,6 +250,12 @@ paths:
       operationId: createClinicalDemonstration
       tags: [prescriptions]
       security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: modelo
+          in: query
+          required: false
+          description: Prova optativa do Modelo 2B, disponível somente em desenvolvimento.
+          schema: { type: string, enum: [paxmed-2b] }
       requestBody:
         required: true
         content:

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import { getCollabToken } from "@/lib/collab-auth";
 import { BASE } from "../../comunicacao/_shared";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { ClinicalDemonstrationInput } from "@workspace/api-client-react";
 
 type DocumentItem = { id: string; kind: "prescricao" | "exames"; createdAt: string };
@@ -17,6 +18,7 @@ export default function ClinicalDemonstrationPanel({
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [modelo2b, setModelo2b] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const current = useRef(`${clientId}:${kind}`);
   useEffect(() => {
@@ -45,6 +47,7 @@ export default function ClinicalDemonstrationPanel({
   useEffect(() => {
     setDocuments([]);
     setError(null);
+    setModelo2b(false);
     void loadDocuments();
   }, [clientId, kind, loadDocuments]);
 
@@ -54,7 +57,8 @@ export default function ClinicalDemonstrationPanel({
     setCreating(true);
     setError(null);
     try {
-      const response = await fetch(`${BASE}/api/clinical-demonstrations/${clientId}`, {
+      const query = modelo2b ? "?modelo=paxmed-2b" : "";
+      const response = await fetch(`${BASE}/api/clinical-demonstrations/${clientId}${query}`, {
         method: "POST",
         headers: { ...headers(), "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -103,6 +107,17 @@ export default function ClinicalDemonstrationPanel({
         </p>
         <p className="text-xs text-muted-foreground">A assinatura usa o certificado do médico autenticado.</p>
       </div>
+      {import.meta.env.DEV && (
+        <label className="concave-3d flex items-start gap-3 p-3 text-sm">
+          <Checkbox checked={modelo2b} onCheckedChange={(checked) => setModelo2b(checked === true)} disabled={creating} />
+          <span>
+            <span className="block font-semibold">Usar Modelo 2B em teste</span>
+            <span className="block text-xs text-muted-foreground">
+              Exige a identidade da empresa cadastrada e validada. Não altera a emissão oficial.
+            </span>
+          </span>
+        </label>
+      )}
       <button type="button" onClick={() => void generate()} disabled={!canCreate || creating}
         className="btn-3d-soft inline-flex min-h-11 items-center gap-2 px-4 text-sm font-semibold disabled:opacity-50">
         {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}

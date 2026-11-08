@@ -12,6 +12,7 @@ import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
 import { PAXMED_LIMITE_CONTEUDO, prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva } from "./documentos/paxmed-modelo-2b-prova";
+import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
 const NAVY   = rgb(0.082, 0.11,  0.18);   // #151C2E
@@ -413,6 +414,7 @@ export interface ReceituarioDataV2 {
   homologacao?: boolean;
   /** Exclusivo para testes sintéticos offline; não autoriza emissão clínica. */
   modelo2bProva?: boolean;
+  identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
 
   // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
@@ -447,7 +449,8 @@ export async function generatePdfFromPngBase64(
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
-  if (data.modelo2bProva && (!data.homologacao || process.env.NODE_ENV === "production")) {
+  if ((data.modelo2bProva && (!data.homologacao || process.env.NODE_ENV === "production")) ||
+      (data.identidade2bProva && !data.modelo2bProva)) {
     throw new Error("Modelo 2B de prova exige homologação sintética fora de produção.");
   }
   if (signer) assertPrescriptionSigner(signer);
@@ -456,7 +459,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
   const designer = data.designerConfig ?? {};
   const pdfDoc   = await PDFDocument.create();
-  const visualProva = data.modelo2bProva ? await prepararVisualProva(pdfDoc) : null;
+  const visualProva = data.modelo2bProva ? await prepararVisualProva(pdfDoc, data.identidade2bProva) : null;
   const fonteProva = visualProva ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
   const fonteProvaNegrito = visualProva ? await pdfDoc.embedFont(StandardFonts.HelveticaBold) : null;
   const titleSerif = configuredFontFamily(designer["corpoFonteTitulo"]) === "serif";

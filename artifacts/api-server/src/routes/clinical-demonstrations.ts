@@ -13,6 +13,7 @@ import { prescriptionItemForDocument } from "../lib/prescription-rendering";
 import { getModeloAtivo } from "../lib/receituario-motor";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { brtDisplayDate, brtISODate } from "../lib/brt";
+import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
 import {
   kindFromId, listDemonstrations, readDemonstration, saveDemonstration,
   type DemonstrationKind,
@@ -40,7 +41,7 @@ async function authorized(req: Request, kind: DemonstrationKind) {
 }
 
 function respondError(req: Request, res: Response, error: unknown): void {
-  if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError) {
+  if (error instanceof ClinicalIdentityError || error instanceof ClinicalAccessError || error instanceof IdentidadeEmpresa2bError) {
     res.status(error.status).json({ error: error.message });
     return;
   }
@@ -99,6 +100,12 @@ router.get("/clinical-demonstrations/:clientId/:id", requireCollaborator, async 
 });
 
 router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (req, res): Promise<void> => {
+  if (req.query.modelo !== undefined && req.query.modelo !== "paxmed-2b") {
+    res.status(400).json({ error: "Modelo de teste inválido." }); return;
+  }
+  if (req.query.modelo === "paxmed-2b" && process.env.NODE_ENV !== "development") {
+    res.status(404).json({ error: "Modelo de teste indisponível neste ambiente." }); return;
+  }
   const parsed = CreateClinicalDemonstrationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Dados do documento de teste inválidos." }); return; }
   const body = parsed.data;
@@ -113,6 +120,11 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
     const { identity, owner } = await authorized(req, body.kind);
     const signer = await resolvePrescriptionSigner(identity);
     const signature = await loadSignature(identity.professional.id);
+    // A nova identidade é aplicada apenas à demonstração em desenvolvimento.
+    // A emissão clínica e a demonstração em produção continuam inalteradas.
+    const identidade2bProva = req.query.modelo === "paxmed-2b"
+      ? await carregarIdentidadeClinica2b(identity.clinic.empresaId)
+      : undefined;
     let bytes: Uint8Array;
     if (body.kind === "prescricao") {
       const [clinic] = await db.select({ name: locationsTable.name, address: locationsTable.address, phone: locationsTable.phone })
@@ -138,6 +150,7 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
         tipoReceita: "simples",
         dataEmissao: brtISODate(),
         homologacao: true,
+        ...(identidade2bProva ? { modelo2bProva: true, identidade2bProva } : {}),
         tituloSubtitulo: "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA",
         assinaturaImagem: signature,
         designerConfig,
@@ -151,6 +164,7 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
       }
       const pdf = await generateExamRequestPdf({
         homologacao: true, tipo: "TESTE", tipoLabel: "DOCUMENTO DE TESTE",
+        ...(identidade2bProva ? { modelo2bProva: true, identidade2bProva } : {}),
         clientName: identity.client.name, clientCpf: identity.client.cpf,
         professionalName: identity.professional.name,
         professionalCrm: [identity.professional.crm, identity.professional.uf].filter(Boolean).join(" / "),

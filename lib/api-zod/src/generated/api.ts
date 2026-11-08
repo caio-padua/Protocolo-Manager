@@ -181,6 +181,15 @@ export const CreateClinicalDemonstrationParams = zod.object({
   clientId: zod.coerce.number().min(1),
 });
 
+export const CreateClinicalDemonstrationQueryParams = zod.object({
+  modelo: zod
+    .enum(["paxmed-2b"])
+    .optional()
+    .describe(
+      "Prova optativa do Modelo 2B, disponível somente em desenvolvimento.",
+    ),
+});
+
 export const createClinicalDemonstrationBodyPrescriptionItemsMax = 50;
 
 export const createClinicalDemonstrationBodyExamItemsMax = 100;

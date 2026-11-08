@@ -90,6 +90,36 @@ outras clínicas.
 
 ## Estado atual
 
+### Continuação autorizada pelo responsável
+
+Em 07/11/2026 o responsável pediu que o modelo seja integrado às receitas e
+solicitações de exames emitidas, com revisão independente, e solicitou uma
+receita e um pedido de exames de duas páginas assinados digitalmente para sua
+conferência. Esta ordem amplia o objetivo além da prova anterior, sem autorizar
+misturar identidades de empresas, inventar conteúdo clínico ou modificar arquivos
+assinados já existentes. O destino preciso dos documentos de conferência deve
+ser confirmado antes de qualquer entrega externa.
+
+Sequência obrigatória: identidade empresarial válida → paginação e desenho →
+vínculo verificável com o documento correto e acesso autorizado → assinatura →
+persistência e recuperação → revisão independente → testes de ponta a ponta.
+O modelo não será ativado em emissão clínica enquanto essas dependências
+permanecerem incompletas; a prova sintética existente continua isolada.
+
+Falhas impeditivas: identidade ausente, provisória ou de outra empresa; objeto
+de marca inacessível; acesso por código sem autenticação; documento recuperado
+não correspondente ao assinado; alteração posterior à assinatura; perda de
+conteúdo ou invasão de rodapé; uso de conteúdos clínicos inventados; envio a
+destinatário não identificado. Cada falha deve gerar recusa explícita e testes
+negativos, sem copiar a marca do Instituto para outras empresas.
+
+O responsável reforçou que a demonstração para sua conferência deve usar os
+motores e dados existentes do sistema, sem identificar pessoas por suposição
+e sem inventar fórmulas, posologias ou exames. O endereço informado para
+entrega é o e-mail da agenda do Instituto. Não se deve converter uma amostra
+em uma prescrição clínica não autorizada nem alterar prontuários para o teste.
+Testes de regressão e segurança continuam isolados com dados sintéticos.
+
 - Atualização de 07/11/2026: o responsável escolheu uma identidade por empresa,
   compartilhada entre seus locais, configurada em Cadastro de Empresas. A antiga
   configuração por unidade foi preservada. No desenvolvimento, o Instituto foi
@@ -109,8 +139,16 @@ outras clínicas.
 - O cadastro e suas rotas ficam indisponíveis em produção. A identidade salva
   ainda não alimenta o cabeçalho e o rodapé dos geradores clínicos.
 - Ainda não existe o código de verificação com login nesta implementação.
-- A prova não contém assinatura digital, não é documento clínico e não demonstra
-  a emissão pelo gerador principal de receituário ou pelos demais documentos.
+- A prova visual original não tinha assinatura digital. Posteriormente, uma
+  opção explícita de prova em desenvolvimento passou a utilizar os motores
+  principais de receita e de exames, a identidade empresarial não exemplificativa
+  e o certificado do profissional autenticado. Continua sendo demonstração
+  sem validade clínica, isolada do histórico e sem envio automático. A emissão
+  clínica e a opção de prova em produção permanecem inalteradas.
+- Um teste isolado gerou uma receita e um pedido de exames com exatamente duas
+  páginas cada, assinados com certificado sintético. A assinatura foi verificada
+  após a paginação. Isso não comprova certificado real, conteúdo real,
+  recuperação ponta a ponta, verificação autenticada ou entrega por e-mail.
 - Houve testes automatizados com sessão e dados sintéticos simulados, conferência
   do registro de desenvolvimento e do original armazenado, e prova da tela com
   servidor simulado em computador e celular. O fluxo completo na tela com sessão

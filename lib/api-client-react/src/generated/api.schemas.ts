@@ -2959,6 +2959,20 @@ export const ListClinicalDemonstrationsKind = {
   exames: "exames",
 } as const;
 
+export type CreateClinicalDemonstrationParams = {
+  /**
+   * Prova optativa do Modelo 2B, disponível somente em desenvolvimento.
+   */
+  modelo?: CreateClinicalDemonstrationModelo;
+};
+
+export type CreateClinicalDemonstrationModelo =
+  (typeof CreateClinicalDemonstrationModelo)[keyof typeof CreateClinicalDemonstrationModelo];
+
+export const CreateClinicalDemonstrationModelo = {
+  "paxmed-2b": "paxmed-2b",
+} as const;
+
 export type UpdatePersonalExamSetBody =
   | PersonalExamSetWrite
   | {

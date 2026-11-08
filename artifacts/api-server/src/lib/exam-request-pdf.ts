@@ -10,6 +10,7 @@ import { PDFFont } from "pdf-lib";
 import { COR, iniciarFabrica, type CabecalhoOpts } from "./documentos/padrao";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
 import { marcarDemonstracao } from "./documentos/marca-demonstracao";
+import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 
 export interface ExamRequestItem {
   nomeExame: string;
@@ -22,6 +23,7 @@ export interface ExamRequestPdfContext {
   homologacao?: boolean;
   /** Exclusivo para prova sintética offline, ainda sem verificação real. */
   modelo2bProva?: boolean;
+  identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   tipo: string;
   tipoLabel: string;
   clientName: string;
@@ -61,16 +63,18 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 export async function generateExamRequestPdf(ctx: ExamRequestPdfContext): Promise<Uint8Array> {
-  if (ctx.modelo2bProva && !ctx.homologacao) {
+  if ((ctx.modelo2bProva && !ctx.homologacao) || (ctx.identidade2bProva && !ctx.modelo2bProva)) {
     throw new Error("Modelo 2B de prova exige documento de homologação.");
   }
-  const fab = await iniciarFabrica(ctx.modelo2bProva ? { modeloProva: "paxmed-2b-sintetico" } : undefined);
+  const fab = await iniciarFabrica(ctx.modelo2bProva
+    ? { modeloProva: "paxmed-2b-sintetico", identidadeProva: ctx.identidade2bProva }
+    : undefined);
   const { font, fontBold, margem, larguraConteudo } = fab;
 
   const cabecalho: CabecalhoOpts = {
     titulo: ctx.homologacao && !ctx.modelo2bProva ? "DEMONSTRAÇÃO DE EXAMES" : "SOLICITAÇÃO DE EXAMES",
     subtitulo: `EXAMES — ${ctx.tipoLabel.toUpperCase()}`,
-    ...(ctx.modelo2bProva ? { emissor: "instituto_padua" as const } : {}),
+    ...(ctx.modelo2bProva && !ctx.identidade2bProva ? { emissor: "instituto_padua" as const } : {}),
   };
 
   let { page, y } = fab.novaPagina(cabecalho);

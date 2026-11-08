@@ -129,6 +129,8 @@ export * from "./createCatalogOptionBody";
 export * from "./createClientBody";
 export * from "./createClientBodyStatus";
 export * from "./createClientServiceAddressBody";
+export * from "./createClinicalDemonstrationModelo";
+export * from "./createClinicalDemonstrationParams";
 export * from "./createConciergeChargeBody";
 export * from "./createConciergeChargeBodyMethod";
 export * from "./createPaymentBody";

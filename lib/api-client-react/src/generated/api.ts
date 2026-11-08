@@ -90,6 +90,7 @@ import type {
   CreateAgendaResourceBody,
   CreateCatalogOptionBody,
   CreateClientBody,
+  CreateClinicalDemonstrationParams,
   CreateConciergeChargeBody,
   CreatePaymentBody,
   CreatePharmacyBody,
@@ -1150,17 +1151,33 @@ export function useListClinicalDemonstrations<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
-export const getCreateClinicalDemonstrationUrl = (clientId: number) => {
-  return `/api/clinical-demonstrations/${clientId}`;
+export const getCreateClinicalDemonstrationUrl = (
+  clientId: number,
+  params?: CreateClinicalDemonstrationParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/clinical-demonstrations/${clientId}?${stringifiedParams}`
+    : `/api/clinical-demonstrations/${clientId}`;
 };
 
 export const createClinicalDemonstration = async (
   clientId: number,
   clinicalDemonstrationInput: ClinicalDemonstrationInput,
+  params?: CreateClinicalDemonstrationParams,
   options?: RequestInit,
 ): Promise<ClinicalDemonstration> => {
   return customFetch<ClinicalDemonstration>(
-    getCreateClinicalDemonstrationUrl(clientId),
+    getCreateClinicalDemonstrationUrl(clientId, params),
     {
       ...options,
       method: "POST",
@@ -1177,14 +1194,22 @@ export const getCreateClinicalDemonstrationMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createClinicalDemonstration>>,
     TError,
-    { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+    {
+      clientId: number;
+      data: BodyType<ClinicalDemonstrationInput>;
+      params?: CreateClinicalDemonstrationParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createClinicalDemonstration>>,
   TError,
-  { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+  {
+    clientId: number;
+    data: BodyType<ClinicalDemonstrationInput>;
+    params?: CreateClinicalDemonstrationParams;
+  },
   TContext
 > => {
   const mutationKey = ["createClinicalDemonstration"];
@@ -1198,11 +1223,15 @@ export const getCreateClinicalDemonstrationMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createClinicalDemonstration>>,
-    { clientId: number; data: BodyType<ClinicalDemonstrationInput> }
+    {
+      clientId: number;
+      data: BodyType<ClinicalDemonstrationInput>;
+      params?: CreateClinicalDemonstrationParams;
+    }
   > = (props) => {
-    const { clientId, data } = props ?? {};
+    const { clientId, data, params } = props ?? {};
 
-    return createClinicalDemonstration(clientId, data, requestOptions);
+    return createClinicalDemonstration(clientId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1222,14 +1251,22 @@ export const useCreateClinicalDemonstration = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createClinicalDemonstration>>,
     TError,
-    { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+    {
+      clientId: number;
+      data: BodyType<ClinicalDemonstrationInput>;
+      params?: CreateClinicalDemonstrationParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createClinicalDemonstration>>,
   TError,
-  { clientId: number; data: BodyType<ClinicalDemonstrationInput> },
+  {
+    clientId: number;
+    data: BodyType<ClinicalDemonstrationInput>;
+    params?: CreateClinicalDemonstrationParams;
+  },
   TContext
 > => {
   return useMutation(getCreateClinicalDemonstrationMutationOptions(options));

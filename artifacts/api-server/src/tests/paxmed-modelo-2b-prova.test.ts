@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
+import { PNG } from "pngjs";
 import { iniciarFabrica } from "../lib/documentos/padrao";
 import { generateExamRequestPdf } from "../lib/exam-request-pdf";
 import { generateRecipePdf } from "../lib/prescription-pdf";
@@ -134,6 +135,43 @@ describe("Modelo 2B: prova sem dados clínicos", () => {
       await expect(generateReceituarioPdfV2({ ...data, homologacao: true })).rejects.toThrow(/fora de produção/);
     } finally {
       vi.unstubAllEnvs();
+    }
+  });
+
+  it("usa a identidade fornecida da empresa em provas dos dois motores", async () => {
+    const png = new PNG({ width: 2, height: 2 });
+    png.data.fill(0);
+    png.data[3] = 255;
+    const identidade2bProva = {
+      textos: {
+        nomeCabecalho: "Empresa Sintetica",
+        rodapeLinha1: "Empresa Sintetica",
+        rodapeLinha2: "Endereco Sintetico",
+        rodapeLinha3: "Cidade Sintetica",
+      },
+      simboloDourado: PNG.sync.write(png),
+    };
+    const recipe = await generateReceituarioPdfV2({
+      modelo2bProva: true, identidade2bProva, homologacao: true,
+      assinaturaDigitalEstado: "sem_certificado_vencido",
+      medicoName: "MEDICO SINTETICO", medicoCrm: "REGISTRO SINTETICO",
+      clinicaNome: "Empresa Sintetica", pacienteNome: "CLIENTE SINTETICO",
+      dataEmissao: "2026-11-07", tipoReceita: "simples",
+      formulas: [{ nome: "FORMULA DE TESTE", posologia: "NAO DISPENSAR" }],
+    });
+    const exam = await generateExamRequestPdf({
+      modelo2bProva: true, identidade2bProva, homologacao: true,
+      tipo: "sangue", tipoLabel: "SANGUE", clientName: "CLIENTE SINTETICO",
+      dateBR: "07/11/2026", items: [{ nomeExame: "EXAME DE TESTE" }],
+    });
+    for (const bytes of [recipe, exam]) {
+      const pages = extrairTexto(bytes);
+      for (const page of pages) {
+        expect(page).toContain("Empresa Sintetica");
+        expect(page).toContain("Endereco Sintetico");
+        expect(page).not.toContain("Instituto Pádua");
+        expect(page).toContain("DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA");
+      }
     }
   });
 });
