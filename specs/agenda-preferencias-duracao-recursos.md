@@ -2,9 +2,13 @@
 
 ## Estado
 
-EM ESPECIFICAÇÃO. Este documento registra a pesquisa e as decisões do
-responsável. Não demonstra alteração no funcionamento, revisão independente
-ou homologação. Nenhum agendamento, documento ou evento externo foi criado.
+EM ESPECIFICAÇÃO. A quantidade de horários para uma única aplicação está
+BLOQUEADA para esclarecimento: a instrução anterior indicava um horário de
+vinte minutos, e a instrução posterior pode exigir outro horário adjacente
+mesmo para uma única aplicação. Não implementar essa decisão por suposição.
+Este documento não demonstra alteração no funcionamento, revisão independente
+ou homologação. Nenhum agendamento, documento ou evento externo foi criado
+por esta investigação.
 
 ## Objetivo
 
@@ -25,18 +29,22 @@ necessários, sem produzir agendas ou descrições divergentes.
    continua sujeita ao motor existente, expediente, ocupação, percentual de
    liberação e bloqueios. Caso não haja opção preferida, informar a situação
    e permitir examinar outras vagas realmente disponíveis.
-4. De uma até seis aplicações intramusculares e/ou subcutâneas na mesma
-   visita formam um grupo com quinze minutos de procedimento e ocupam um
-   horário de vinte minutos da enfermagem. Os cinco minutos restantes são
-   reservados para organização, não ficam disponíveis para outro cliente.
-   Exemplos: uma intramuscular, uma subcutânea ou quatro intramusculares e
-   duas subcutâneas ocupam o mesmo horário de vinte minutos.
+4. Cada aplicação intramuscular ou subcutânea tem duração clínica de 2,5
+   minutos. A cada grupo de até seis aplicações, contam-se até quinze minutos
+   de procedimento. Cada horário de vinte minutos da enfermagem deve preservar
+   cinco minutos para organização. Contar aplicações efetivas, não presumir que
+   cada componente de uma fórmula corresponde a uma aplicação separada.
 5. Ao passar de seis aplicações, um novo horário de vinte minutos da
-   enfermagem deve ser reservado. Assim, sete aplicações exigem ao menos
-   quarenta minutos de agenda. A expansão para quantidades superiores e sua
-   interpretação como sucessivos grupos de seis ainda devem ser confirmadas:
-   a mensagem do responsável terminou com uma frase incompleta.
-6. Implantes hormonais e procedimentos estéticos ocupam dois horários
+   enfermagem deve ser reservado. O horário adicional precisa estar livre e ser
+   adjacente, podendo ser anterior ou posterior, sem atravessar indisponibilidade.
+   Sete aplicações exigem ao menos quarenta minutos de agenda. Se a única
+   combinação disponível começar no horário anterior, comunicar e persistir o
+   início efetivo do atendimento, inclusive no calendário externo. O responsável
+   também mencionou um horário adicional para uma única aplicação; confirmar
+   se se referia à sétima aplicação ou a uma aplicação isolada. Não afirmar
+   que a regra de vinte minutos para uma aplicação isolada está resolvida.
+6. Implantes hormonais e procedimentos estéticos têm trinta minutos de
+   procedimento, conforme nova instrução do responsável. Ocupam dois horários
    consecutivos de vinte minutos da enfermagem e também requerem o médico.
    Verificar e reservar os dois recursos durante todo o atendimento; na
    grade médica, impedir qualquer sobreposição com os horários reservados
@@ -65,9 +73,11 @@ necessários, sem produzir agendas ou descrições divergentes.
 | Gravação da preferência existente | `routes/clients.ts` | Criação chama `setPreferredAgendas`; atualizações `PUT` e `PATCH` consultadas não a chamam. A tela de edição envia a preferência, mas este caminho precisa ser corrigido e testado antes de prometer persistência. |
 | Preferência na solicitação de consulta | `scheduling.ts` e `agendar.tsx` | Existe escolha de dia e período em solicitações específicas; não equivale ao novo cadastro com horários por categoria. |
 | Ocupação do motor | `agenda-booking.ts`, `agenda-motor.ts`, `agenda-occupancy.ts` | Há expediente, percentual de liberação, sobreposição e bloqueios vindos de sessões e compromissos. A reserva examinada recebe um recurso e grava a duração de um intervalo desse recurso. |
-| Duração de convite de calendário | `ics.ts` e seus consumidores | Soma tipos únicos; uma intramuscular mais uma subcutânea somam trinta minutos, em desacordo com o grupo de quinze minutos solicitado. |
+| Duração de substância | `schema/substances.ts`, `SubstanceEditForm.tsx`, `openapi.yaml` e banco de desenvolvimento | O campo é inteiro no modelo, no contrato e no banco: não representa 2,5 minutos. A edição não explicita passo decimal; a mudança precisa preservar duração histórica e funcionar em todos os caminhos de gravação e leitura. |
+| Importação de substâncias | `scripts/import-catalogo-substances.ts` | A importação determina quinze minutos para intramuscular e subcutânea e sessenta para implantes; no conflito atualiza esses tempos. Uma correção somente na tela ou no banco seria sobrescrita por nova importação. |
+| Duração de convite de calendário | `ics.ts` e seus consumidores | Soma tipos únicos; uma intramuscular mais uma subcutânea somam trinta minutos, em desacordo com a reserva conjunta solicitada. |
 | Duração e descrição do Google | `routes/google-calendar.ts` e `lib/google-calendar.ts` | Há dois cálculos por tipos; a lista de procedimentos da descrição não contém a via subcutânea e o cálculo interno pode substituir a duração recebida. O implante aparece com sessenta minutos no modelo atual, diferente dos quarenta minutos de enfermagem solicitados. |
-| Catálogo e termo de implante | `SubstanceEditForm.tsx`, `scripts/import-catalogo-substances.ts` e `routes/cadernos-juridicos.ts` | O formulário e o importador apresentam sessenta minutos para implante, e um termo jurídico descreve aproximadamente sessenta minutos de procedimento. Não confundir o tempo do procedimento descrito ao cliente com os quarenta minutos de enfermagem, nem alterar termo clínico ou jurídico sem avaliar o significado e a autorização. |
+| Catálogo e termo de implante | `SubstanceEditForm.tsx`, `scripts/import-catalogo-substances.ts` e `routes/cadernos-juridicos.ts` | O formulário e o importador apresentam sessenta minutos para implante, e um termo jurídico descreve aproximadamente sessenta minutos de procedimento. A nova instrução fixa trinta minutos clínicos e dois intervalos de enfermagem; avaliar a divergência do termo sem alterar documentos jurídicos ou clínicos históricos. |
 | Gravação pelo motor de agenda | `agenda-booking.ts` | Ao criar evento, usa duração do recurso e pode enviar lista vazia de substâncias; o gerador do evento recalcula a duração com os tipos ativos. O caminho examinado não comprova reserva simultânea de dois recursos. |
 | Intervalos de aplicação | `protocols.ts`, `protocol-exact-schedule.ts`, `budget.ts` e `orcamentos/novo.tsx` | A validação possui modos semanal e exato distintos. No semanal, as semanas contam blocos de sete dias a partir do início do protocolo e o dia é escolhido pela maior quantidade de aplicações. O exato preserva a data de início de cada item. No orçamento existem limites mensais e alertas que estimam dias pela relação trinta dividido pelo limite. A existência desses campos não comprova que sejam limites individuais autorizados entre doses nem que protejam o agendamento. |
 | Formulário de administração | `ras-fap.ts` e `protocol-ras-grid.ts` | A grade semanal antiga agrupa ocorrências de segunda a domingo e escolhe o primeiro dia previsto; a grade do modo exato lê as sessões persistidas. O agrupamento semanal do formulário não é o mesmo bloco de sete dias iniciado no protocolo e não usa necessariamente o mesmo critério de eleição. São caminhos diferentes que precisam convergir para as mesmas visitas efetivas. |
@@ -77,6 +87,14 @@ O inventário acima é delimitado aos caminhos examinados; não afirma que o
 repositório inteiro tenha sido auditado. Antes de alterar o cadastro de
 procedimentos, identificar qual catálogo existente é a fonte correta e seus
 consumidores. Não criar outro catálogo por conveniência.
+
+Em consulta somente de leitura ao banco de desenvolvimento, havia 167
+substâncias classificadas como intramusculares com duração de quinze minutos,
+uma subcutânea com quinze minutos e 33 implantes com sessenta minutos.
+Estas quantidades descrevem o cadastro consultado, não provam o alcance de
+outras tabelas, o número de aplicações ou o estado de outro ambiente. A
+alteração dos tempos existentes deve ser rastreável e preservar os valores
+históricos; não alterar registros clínicos já emitidos.
 
 ## Verificações desta investigação
 
@@ -98,7 +116,7 @@ jornada futura e revisão independente ainda são necessários.
 |---|---|---|
 | 1 | Dias e horários preferenciais, separados por tipo de atendimento | Contrato de gravação e leitura, edição persistente, uso real na busca, empresa correta, tela em computador e celular; corrigir o caminho de edição da preferência de agenda existente. |
 | 2 | Participação do médico nos cadastros existentes | Identificar fonte de procedimentos, controle sim/não, persistência, permissões, dados antigos sem inferência e testes de contrato. |
-| 3 | Tempo de procedimento e ocupação | Uma fonte compartilhada, contagem efetiva de aplicações, distinção entre duração clínica e tempo reservado, cobertura de limites e combinações. |
+| 3 | Tempo de procedimento e ocupação | Uma fonte compartilhada com precisão de 2,5 minutos, catálogo e importação coerentes, contagem efetiva de aplicações, distinção entre duração clínica e tempo reservado, cobertura de limites e combinações. A reserva para aplicação isolada depende da resposta pendente. |
 | 4 | Reserva conjunta de recursos | Motor existente, vagas consecutivas, médico e enfermagem da mesma clínica, transação e prevenção de corrida, cancelamento e remarcação preservando a integridade. |
 | 5 | Protocolo, formulário e Google | Dados reais da sessão, descrição detalhada consistente com os tempos reservados, criação e atualização compartilhadas, tratamento explícito de falha de sincronização. |
 | 6 | Jornada autorizada e documentos | Somente após as dependências anteriores e confirmação de identidade, profissional, datas e destino; conferir persistência, assinatura digital e entrega efetiva, sem usar dados reais para testes agressivos. |
@@ -146,7 +164,11 @@ campos, execução de migração ou conclusão de tela.
 |---|---|---|
 | Preferência apresentada como vaga livre | Alta | Buscar disponibilidade real e distinguir preferência de reserva. |
 | Edição não persiste após recarregar | Alta | Testar gravação, retorno e nova leitura nas telas de criação e edição. |
-| Uma, seis e sete aplicações | Alta | Verificar, respectivamente, vinte, vinte e ao menos quarenta minutos reservados; seis mistas devem ocupar vinte. |
+| Uma, seis e sete aplicações | Alta | Confirmar a quantidade de horários para uma aplicação isolada. Seis mistas têm quinze minutos clínicos; sete requerem pelo menos dois horários de enfermagem adjacentes e livres. Verificar dois minutos e meio por aplicação e cinco minutos de organização por horário. |
+| Perda da fração de minuto | Alta | Gravar e reler 2,5 sem arredondamento; verificar cadastro, contratos, banco, importação e consumidores de documentos e agenda. |
+| Reimportação sobrescreve tempos ajustados | Alta | Testar reimportação de cadastro existente e evitar regressão para quinze ou sessenta minutos antigos; preservar alterações legítimas e histórico. |
+| Horário adjacente antes ou depois | Alta | Procurar horário realmente livre e contíguo, sem ultrapassar expediente, almoço, bloqueio ou disponibilidade; não confirmar parcialmente. |
+| Horário anterior muda início real | Alta | A agenda interna e o evento externo devem mostrar o horário efetivamente reservado; não reservar antes em segredo e comunicar outro início. |
 | Dezesseis horas de expediente ou almoço ultrapassados | Alta | Validar toda a duração da reserva contra cada janela efetiva e exceção. |
 | Segunda vaga ocupada ou não liberada | Alta | Não confirmar só porque o primeiro horário está livre. |
 | Médico ocupado ou de outra empresa | Crítica | Resolver profissional correto, validar todos os intervalos e recusar sem gravar qualquer metade. |
