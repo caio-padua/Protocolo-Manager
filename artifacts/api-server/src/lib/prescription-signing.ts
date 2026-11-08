@@ -289,12 +289,31 @@ export async function signExistingClinicalPdf(
 // Executa a geracao de um documento com o certificado do medico autenticado.
 // Sem medico valido, vinculo com a clinica/paciente ou certificado vigente, lanca
 // ClinicalIdentityError: NUNCA recorre ao certificado global de outra pessoa.
+export async function resolveProtocolDoctor(
+  req: import("express").Request,
+  clientId: unknown,
+  expectedProfessionalId: number | null,
+): Promise<PrescriptionIdentity> {
+  const identity = await resolveClinicalEmitter(req, clientId);
+  if (!Number.isSafeInteger(expectedProfessionalId) ||
+      expectedProfessionalId !== identity.professional.id) {
+    throw new ClinicalIdentityError(
+      403,
+      "A emissão exige o médico responsável registrado no protocolo.",
+    );
+  }
+  return identity;
+}
+
 export async function withLoggedDoctorCertificate<T>(
   req: import("express").Request,
   clientId: unknown,
   fn: () => Promise<T>,
+  options?: { expectedProfessionalId: number | null },
 ): Promise<T> {
-  const identity = await resolveClinicalEmitter(req, clientId);
+  const identity = options
+    ? await resolveProtocolDoctor(req, clientId, options.expectedProfessionalId)
+    : await resolveClinicalEmitter(req, clientId);
   const signer = await resolvePrescriptionSigner(identity);
   return runWithDoctorCertificate({ buffer: signer.buffer, password: signer.password }, fn);
 }

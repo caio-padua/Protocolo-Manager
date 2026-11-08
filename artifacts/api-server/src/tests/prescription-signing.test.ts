@@ -101,7 +101,14 @@ vi.mock("../lib/clinical-demonstration-store", async (importOriginal) => {
     readDemonstration: mock.demoRead,
   };
 });
-vi.mock("../lib/cert-source", () => ({ getCertBufferSync: mock.globalBuffer, getCertPasswordsSync: mock.globalPasswords }));
+vi.mock("../lib/cert-source", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/cert-source")>();
+  return {
+    getCertBufferSync: mock.globalBuffer,
+    getCertPasswordsSync: mock.globalPasswords,
+    runWithDoctorCertificate: actual.runWithDoctorCertificate,
+  };
+});
 vi.mock("../lib/objectStorage", () => ({ ObjectStorageService: class { readPrivateObject = mock.read; } }));
 vi.mock("../lib/google-drive", () => ({
   uploadToFolderById: mock.upload, ensurePharmacyDayFolder: mock.upload, uploadFileToDrive: mock.upload,
@@ -128,6 +135,7 @@ vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: a
 vi.mock("../lib/receituario-worker", () => ({ liberarSlot: vi.fn(), processarReceituarioDiario: vi.fn() }));
 import { inspectPrescriptionCertificate, resolvePrescriptionSigner, signPrescriptionPdf,
   signExistingPrescriptionPdf, validatePrescriptionCertificate, requireExpiredPrescriptionCertificate,
+  withLoggedDoctorCertificate,
   type PrescriptionIdentity } from "../lib/prescription-signing";
 import { generatePdfFromPngBase64, generateReceituarioPdfV2, generateReceituarioPdf } from "../lib/receituario-pdf";
 import { generateExamRequestPdf } from "../lib/exam-request-pdf";
@@ -494,6 +502,24 @@ function verify(bytes: Uint8Array, tamper = false) {
 }
 
 describe("certificado por médico, sem acesso a certificados reais", () => {
+  it("permite a geração apenas quando o médico autenticado é o responsável registrado", async () => {
+    mock.syntheticResolver = async () => identity;
+    const render = vi.fn(async () => "documento sintético");
+    await expect(withLoggedDoctorCertificate({} as any, identity.client.id, render,
+      { expectedProfessionalId: identity.professional.id })).resolves.toBe("documento sintético");
+    expect(render).toHaveBeenCalledOnce();
+  });
+
+  it.each([null, 42])("recusa médico responsável ausente ou divergente antes de acessar o certificado", async (id) => {
+    mock.syntheticResolver = async () => identity;
+    const render = vi.fn(async () => "documento sintético");
+    await expect(withLoggedDoctorCertificate({} as any, identity.client.id, render,
+      { expectedProfessionalId: id })).rejects.toMatchObject({ status: 403 });
+    expect(render).not.toHaveBeenCalled();
+    expect(mock.getJson).not.toHaveBeenCalled();
+    expect(mock.globalBuffer).not.toHaveBeenCalled();
+  });
+
   it("rota HTTP real gera assinatura válida para identidade autorizada sem enviar nem subir arquivos", async () => {
     mock.rows = [
       [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],

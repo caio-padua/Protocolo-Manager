@@ -96,6 +96,11 @@ vi.mock("../lib/pdf-signer", () => ({
   getCertInfo:                 vi.fn(),
 }));
 
+vi.mock("../lib/prescription-signing", () => ({
+  resolveProtocolDoctor: vi.fn(async () => undefined),
+  withLoggedDoctorCertificate: (_req: unknown, _clientId: unknown, fn: () => Promise<unknown>) => fn(),
+}));
+
 vi.mock("../lib/pdf-carta-tratamento", () => ({
   generateProtocolLetterPdf: vi.fn(),
   buildCartaTratamentoDto:   vi.fn(),

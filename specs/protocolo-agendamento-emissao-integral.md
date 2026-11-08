@@ -277,3 +277,43 @@ Hashes SHA-256 dos arquivos da execução final:
 3. Emissão, assinatura e entrega na pasta escolhida ainda não foram executadas
    nem verificadas.
 4. Homologação da jornada exige revisão e evidências finais, não apenas os testes acima.
+
+## Complemento: reserva efetiva de aplicações planejadas
+
+Estado: BLOQUEADO. A autenticação profissional foi comprovada no ambiente de
+desenvolvimento, mas isso não corrige a falta de reserva. Um protocolo sugerido
+não equivale a compromisso agendado. O fluxo atual de validação não deve ser
+considerado prova de uma vaga.
+
+### Requisitos e dependências
+
+1. O mesmo fluxo de validação deve reservar o recurso de enfermagem correto
+   pelo motor de disponibilidade existente e registrar as aplicações na mesma
+   transação, com empresa, cliente, médico e protocolo verificados.
+2. O plano deve reunir substâncias, preservar cada ocorrência e as restrições
+   de data, intervalo e dia da semana expressamente definidas; se não houver
+   solução, retornar o motivo sem criar sessões parciais.
+3. Para frequências de pelo menos sete dias, buscar uma visita por semana;
+   frequências menores podem exigir mais visitas e confirmação da rotina.
+4. Os limites de tolerância autorizados devem ser uma entrada identificável do
+   planejamento; nunca aumentar a margem ou supor via, dose ou necessidade de
+   médico a partir de um campo de catálogo não definido.
+5. O período reservado deve corresponder ao procedimento e aos recursos
+   necessários. Não associar ao Google evento vazio, via diferente ou horário
+   que não corresponda à sessão persistida.
+6. Sincronizar apenas depois da reserva confirmada, usando o mecanismo
+   existente que protege contra resultado externo incerto; informar cada
+   falha sem repetir criação automaticamente.
+7. A interface, o formulário e a agenda devem usar o mesmo plano persistido.
+   Preservar leitura de registros antigos e não excluir histórico.
+
+### Falhas adicionais a prevenir
+
+| Falha | Gravidade | Barreira e evidência |
+|---|---|---|
+| Cadastro sem informação de participação médica | Alta | Não converter ausência em “não”; confirmar o procedimento e testar a recusa. |
+| Duas reservas disputam o mesmo período | Alta | Trava por empresa e nova consulta da vaga dentro da transação; testar concorrência real em banco isolado. |
+| Intervalo respeita datas previstas, mas não aplicações anteriores | Alta | Conferir cada intervalo consecutivo e cada ocorrência individual; testar casos de deslocamento oposto. |
+| Calendário externo recebe evento sem substâncias ou via incorreta | Alta | Usar as aplicações persistidas e a sincronização existente; testar criação e falha de resposta. |
+| Solicitação repetida cria reservas duplicadas | Alta | Serializar por protocolo e retornar as sessões existentes; testar repetição e resposta perdida. |
+| Agenda pertencente a outra empresa ou profissional | Crítica | Conferir acesso clínico e recurso antes e após aguardar bloqueios; testar recusa. |

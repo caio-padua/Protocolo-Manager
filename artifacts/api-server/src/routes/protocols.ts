@@ -7,7 +7,7 @@ import { substanceDurationMinutes } from "../lib/substance-duration";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
-import { withLoggedDoctorCertificate } from "../lib/prescription-signing";
+import { resolveProtocolDoctor, withLoggedDoctorCertificate } from "../lib/prescription-signing";
 import { generateProtocolDocumentPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import { generateProtocolLetterPdf, buildCartaTratamentoDto } from "../lib/pdf-carta-tratamento";
 import { contarAplicacoesRealizadas } from "../lib/contagem-aplicacoes-realizadas";
@@ -531,7 +531,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
         installments: p.installments,
         cardLabel: p.cardLabel,
       })),
-    }));
+    }), { expectedProfessionalId: protocol.professionalId });
 
     const pdfBuffer = Buffer.from(pdfBytes);
     const clientSlug = client.name.replace(/\s+/g, "_");
@@ -569,6 +569,19 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     return;
   }
   if (!await authorizeProtocol(req, protocol, res)) return;
+
+  // A autoria clínica é validada antes até do alerta preventivo ao Slack.
+  try {
+    await resolveProtocolDoctor(req, protocol.clientId, protocol.professionalId);
+  } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Falha ao validar o médico responsável pelo protocolo");
+    res.status(500).json({ error: "Não foi possível validar o médico responsável." });
+    return;
+  }
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
@@ -712,7 +725,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         installments: p.installments,
         cardLabel: p.cardLabel,
       })),
-    }));
+    }), { expectedProfessionalId: protocol.professionalId });
 
     const pdfBuffer = Buffer.from(pdfBytes);
 
@@ -1621,7 +1634,8 @@ async function montarCartaDeTratamento(
     sessions: sessions.map(s => ({ status: s.status, hasRecordedApplication: actual.visits.has(s.id) })),
   });
 
-  const { pdfBytes, certInfo } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolLetterPdf(dto));
+  const { pdfBytes, certInfo } = await withLoggedDoctorCertificate(req, protocol.clientId, () => generateProtocolLetterPdf(dto),
+    { expectedProfessionalId: protocol.professionalId });
   const slug = client.name.replace(/\s+/g, "_");
 
   return {

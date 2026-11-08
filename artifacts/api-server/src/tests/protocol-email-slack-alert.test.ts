@@ -119,6 +119,7 @@ const mockGeneratePhysicalRASPdf = vi.fn().mockResolvedValue(
 // doctor-certificate-context; aqui a geração do documento é o foco.
 vi.mock("../lib/prescription-signing", () => ({
   withLoggedDoctorCertificate: (_req: unknown, _clientId: unknown, fn: () => Promise<unknown>) => fn(),
+  resolveProtocolDoctor: vi.fn(async () => undefined),
 }));
 
 vi.mock("../lib/pdf-signer", () => ({

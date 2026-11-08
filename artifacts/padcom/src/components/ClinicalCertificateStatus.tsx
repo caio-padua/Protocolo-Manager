@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
-import { getCollabToken } from "@/lib/collab-auth";
+import { COLLAB_EVENT, getCollabToken } from "@/lib/collab-auth";
 
 type CertificateState =
   | "valid"
@@ -16,12 +16,14 @@ type CertificateResult = {
   validFrom: string | null;
   validTo: string | null;
   professionalType?: string | null;
+  professionalId?: number | null;
 };
 
 type Props = {
   scope?: "professional" | "system";
   professionalType?: string | null;
   responsibleDoctorName?: string | null;
+  responsibleProfessionalId?: number | null;
   allowUnsignedPrescription?: boolean;
   canGenerateUnsigned?: boolean;
   pending?: boolean;
@@ -29,7 +31,7 @@ type Props = {
 };
 
 const STATUS_COPY: Record<CertificateState, { title: string; detail: string; tone: string }> = {
-  valid: { title: "Certificado válido", detail: "Assinatura digital disponível.", tone: "text-emerald-800 dark:text-emerald-300" },
+  valid: { title: "Certificado válido", detail: "A autorização será conferida ao emitir.", tone: "text-emerald-800 dark:text-emerald-300" },
   expired: { title: "Certificado vencido", detail: "A assinatura digital está bloqueada.", tone: "text-amber-800 dark:text-amber-300" },
   not_yet_valid: { title: "Certificado ainda não vigente", detail: "A assinatura digital está bloqueada.", tone: "text-amber-800 dark:text-amber-300" },
   missing: { title: "Certificado não cadastrado", detail: "Cadastre o certificado do médico responsável.", tone: "text-amber-800 dark:text-amber-300" },
@@ -50,6 +52,7 @@ export function ClinicalCertificateStatus({
   scope = "professional",
   professionalType,
   responsibleDoctorName,
+  responsibleProfessionalId,
   allowUnsignedPrescription = false,
   canGenerateUnsigned = false,
   pending = false,
@@ -58,6 +61,21 @@ export function ClinicalCertificateStatus({
   const [certificate, setCertificate] = useState<CertificateResult | null>(null);
   const [checking, setChecking] = useState(true);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [sessionEpoch, setSessionEpoch] = useState(0);
+  const [resolvedEpoch, setResolvedEpoch] = useState(-1);
+
+  useEffect(() => {
+    const changed = () => setSessionEpoch(epoch => epoch + 1);
+    const storageChanged = (event: StorageEvent) => {
+      if (!event.key || event.key === "padcom_collab_token" || event.key === "padcom_collab_prof") changed();
+    };
+    window.addEventListener(COLLAB_EVENT, changed);
+    window.addEventListener("storage", storageChanged);
+    return () => {
+      window.removeEventListener(COLLAB_EVENT, changed);
+      window.removeEventListener("storage", storageChanged);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -65,22 +83,31 @@ export function ClinicalCertificateStatus({
       setChecking(true);
       setCertificate(null);
       if (scope === "professional" && professionalType && professionalType !== "medico") {
+        setResolvedEpoch(sessionEpoch);
         setChecking(false);
         return;
       }
       const token = getCollabToken();
       if (!token) {
-        if (active) setChecking(false);
+        if (active) {
+          setResolvedEpoch(sessionEpoch);
+          setChecking(false);
+        }
         return;
       }
       const endpoint = scope === "system"
         ? `${import.meta.env.BASE_URL}api/protocols/carta-pdf-certcheck`
         : `${import.meta.env.BASE_URL}api/settings/certificate`;
       try {
-        const response = await fetch(endpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        });
+        const requestOptions: RequestInit = {
+          headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+        };
+        const [response, identityResponse] = await Promise.all([
+          fetch(endpoint, requestOptions),
+          scope === "professional"
+            ? fetch(`${import.meta.env.BASE_URL}api/collaborator/me`, requestOptions)
+            : Promise.resolve(null),
+        ]);
         const data = await response.json() as {
           state?: CertificateState;
           validFrom?: string | null;
@@ -88,32 +115,48 @@ export function ClinicalCertificateStatus({
           professionalType?: string | null;
           cert?: { validFrom?: string; validTo?: string };
         };
+        const identity = identityResponse?.ok
+          ? await identityResponse.json() as { professional?: { id?: number } }
+          : null;
         if (!active) return;
-        const state = data.state ?? (response.ok && data.cert?.validTo ? "valid" : "unavailable");
+        const professionalId = Number.isSafeInteger(identity?.professional?.id)
+          ? identity!.professional!.id! : null;
+        const state = response.ok && (scope === "system" || professionalId !== null) &&
+          data.state && Object.prototype.hasOwnProperty.call(STATUS_COPY, data.state)
+          ? data.state
+          : "unavailable";
         setCertificate({
           state,
           validFrom: data.validFrom ?? data.cert?.validFrom ?? null,
           validTo: data.validTo ?? data.cert?.validTo ?? null,
           professionalType: data.professionalType ?? null,
+          professionalId,
         });
       } catch {
         if (active) setCertificate({ state: "unavailable", validFrom: null, validTo: null });
       } finally {
-        if (active) setChecking(false);
+        if (active) {
+          setResolvedEpoch(sessionEpoch);
+          setChecking(false);
+        }
       }
     };
     void load();
     return () => { active = false; };
-  }, [scope, professionalType]);
+  }, [scope, professionalType, sessionEpoch]);
 
-  const effectiveProfessionalType = professionalType ?? certificate?.professionalType;
+  const currentCertificate = resolvedEpoch === sessionEpoch ? certificate : null;
+  const effectiveProfessionalType = professionalType ?? currentCertificate?.professionalType;
+  const responsibleNotSelected = responsibleProfessionalId === null;
+  const responsibleMismatch = typeof responsibleProfessionalId === "number" &&
+    currentCertificate?.professionalId != null && responsibleProfessionalId !== currentCertificate.professionalId;
   const waitingForDoctor = scope === "professional" &&
-    effectiveProfessionalType !== null && effectiveProfessionalType !== undefined &&
-    effectiveProfessionalType !== "medico";
-  const state = waitingForDoctor ? null : certificate?.state ?? null;
+    ((effectiveProfessionalType !== null && effectiveProfessionalType !== undefined &&
+      effectiveProfessionalType !== "medico") || responsibleNotSelected || responsibleMismatch);
+  const state = waitingForDoctor ? null : currentCertificate?.state ?? null;
   const copy = state ? STATUS_COPY[state] : null;
-  const expiry = formatDate(certificate?.validTo ?? null);
-  const start = formatDate(certificate?.validFrom ?? null);
+  const expiry = formatDate(currentCertificate?.validTo ?? null);
+  const start = formatDate(currentCertificate?.validFrom ?? null);
   const showUnsignedAction = allowUnsignedPrescription && state === "expired" && !!onGenerateUnsigned;
 
   return (
@@ -130,18 +173,20 @@ export function ClinicalCertificateStatus({
         />
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {scope === "system" ? "Certificado digital do sistema" : "Certificado digital do médico"}
+            {scope === "system" ? "Certificado digital do sistema" : "Certificado digital do médico autenticado"}
           </p>
           {waitingForDoctor ? (
             <>
-              <p className="text-sm font-semibold">Aguardando o médico que fará a emissão</p>
+              <p className="text-sm font-semibold">
+                {responsibleNotSelected ? "Selecione o médico responsável pela emissão" : "Aguardando o médico responsável pela emissão"}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {responsibleDoctorName
                   ? `A validade será conferida na sessão de ${responsibleDoctorName}.`
                   : "A validade será conferida na sessão do médico responsável."}
               </p>
             </>
-          ) : checking ? (
+          ) : checking || resolvedEpoch !== sessionEpoch ? (
             <p className="text-sm font-semibold" role="status">Verificando certificado com o servidor…</p>
           ) : copy ? (
             <>

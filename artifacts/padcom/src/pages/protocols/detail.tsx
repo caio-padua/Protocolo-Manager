@@ -243,10 +243,12 @@ export default function ProtocolDetail() {
                 onClick={async () => {
                   setDocumentPdfLoading(true);
                   try {
-                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/document-pdf`);
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/document-pdf`, {
+                      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                    });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
-                      throw new Error(err?.details || "Erro ao gerar documento");
+                      throw new Error(err?.details || err?.error || "Erro ao gerar documento");
                     }
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
@@ -287,7 +289,9 @@ export default function ProtocolDetail() {
                       setEmitirLoading(true);
                       setEmitirConfirm(false);
                       try {
-                        const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/emit-document`, { method: "POST" });
+                        const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/emit-document`, {
+                          method: "POST", headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                        });
                         const body = await resp.json().catch(() => null);
                         if (body?.auditFailed) {
                           // Entrega ocorreu mas registro de auditoria falhou — mostrar aviso específico
@@ -345,7 +349,9 @@ export default function ProtocolDetail() {
                 onClick={async () => {
                   setCartaPdfLoading(true);
                   try {
-                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/carta-pdf`);
+                    const resp = await fetch(`${import.meta.env.BASE_URL}api/protocols/${id}/carta-pdf`, {
+                      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+                    });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
                       throw new Error(err?.details || err?.error || "Erro ao gerar Carta de Tratamento");
@@ -444,7 +450,7 @@ export default function ProtocolDetail() {
               <p className="text-muted-foreground text-sm uppercase tracking-wide font-medium mt-1">
                 {protocol.clientName} — <span className="tabular-nums">CPF: {protocol.clientCpf}</span>
               </p>
-              <ClinicalCertificateStatus scope="system" />
+              <ClinicalCertificateStatus responsibleProfessionalId={protocol.professionalId ?? null} />
             </div>
             <div className="screen-3d px-4 py-2.5 text-center flex-shrink-0">
               <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black mb-0.5">Progresso</p>

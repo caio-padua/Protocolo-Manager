@@ -440,7 +440,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
             <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">Preencha os dados e adicione as substâncias do protocolo.</p>
           </div>
         </div>
-        <ClinicalCertificateStatus scope="system" />
+        <ClinicalCertificateStatus
+          responsibleProfessionalId={professionalId ? Number(professionalId) : null}
+          responsibleDoctorName={selectedProfessional?.name}
+        />
         </>
       )}
 
