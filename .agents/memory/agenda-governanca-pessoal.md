@@ -80,3 +80,26 @@ médico e de vinte minutos para a enfermagem.
 
 **How to apply:** conferir e configurar os recursos reais sem supor que o
 cadastro atual já contém esses valores.
+
+O responsável definiu que uma a seis aplicações intramusculares e/ou
+subcutâneas na mesma visita ocupam quinze minutos de procedimento e reservam
+vinte minutos de enfermagem. Acima de seis exige horário adicional. Implantes
+hormonais e procedimentos estéticos reservam quarenta minutos de enfermagem
+e também exigem médico.
+
+**Why:** os cinco minutos finais servem à organização; procedimentos com
+participação do médico não podem aparentar disponibilidade na agenda dele.
+
+**How to apply:** separar duração clínica de tempo reservado, contar vias
+intramuscular e subcutânea juntas e verificar todos os recursos necessários.
+Não inferir que registros antigos dispensam médico, nem supor regras para
+quantidades além do que foi esclarecido.
+
+O responsável quer dias e horários preferenciais no cadastro do cliente para
+consultas e aplicações de enfermagem, respeitando as grades de cada serviço.
+
+**Why:** orientar a busca para horários convenientes sem produzir deslocamentos
+desnecessários.
+
+**How to apply:** preferência não é disponibilidade nem reserva; consultar o
+motor e a ocupação real, com identificação correta da clínica e do profissional.
