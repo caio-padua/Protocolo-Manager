@@ -86,5 +86,9 @@ export const clientVisitPreferenceRevisionsTable = pgTable("client_visit_prefere
   empresaId: integer("empresa_id").notNull(),
   preferences: jsonb("preferences").$type<ClientVisitPreferences>().notNull(),
   createdBy: integer("created_by").notNull(),
+  // Em operações delegadas, createdBy é o autorizador legado, não o executor.
+  executorKind: text("executor_kind").notNull().default("professional"),
+  executorLabel: text("executor_label"),
+  authorizerProfessionalId: integer("authorizer_professional_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

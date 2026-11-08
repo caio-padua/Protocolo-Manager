@@ -18,7 +18,7 @@ vi.mock("@workspace/db", async () => {
 });
 vi.mock("../lib/secure-settings", () => ({ getSetting: vi.fn(async () => "150") }));
 
-import { empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, substancesTable, substanceBlendComponentsTable } from "@workspace/db/schema";
+import { empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, substancesTable, substanceBlendComponentsTable, catalogoItensTable } from "@workspace/db/schema";
 import { basicAuthMiddleware } from "../middleware/basicAuth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
@@ -43,7 +43,7 @@ function createTableSql(table: any) {
 beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
-  for (const table of [empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, substancesTable, substanceBlendComponentsTable]) {
+  for (const table of [empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, substancesTable, substanceBlendComponentsTable, catalogoItensTable]) {
     await isolated.pool.query(createTableSql(table));
   }
   await isolated.pool.query(`
@@ -81,5 +81,28 @@ describe("participação médica com sessão e banco reais isolados", () => {
       .send({ doctorParticipation: false })).body.doctorParticipation).toBe(false);
     expect((await write({ ...base, doctorParticipation: null })).body.doctorParticipation).toBeNull();
     expect((await isolated.pool.query("SELECT doctor_participation FROM substances WHERE id=1")).rows[0].doctor_participation).toBeNull();
+  });
+
+  it("impede que edição autorizada contradiga a via clínica confirmada", async () => {
+    await isolated.pool.query(`UPDATE substances SET codigo_padcom='CODIGO-SINTETICO',procedure_type='im' WHERE id=1;
+      INSERT INTO catalogo_itens(codigo_padcom,via_uso,via_uso_revisada)
+      VALUES('CODIGO-SINTETICO','IM',true);`);
+    const base = { name: "Substância sintética", category: "Teste", color: "#123456", stockQuantity: 0 };
+    const put = await request(app).put("/substances/1").set("Authorization", `Bearer ${owner}`)
+      .send({ ...base, procedureType: "iv" });
+    const patch = await request(app).patch("/substances/1").set("Authorization", `Bearer ${owner}`)
+      .send({ procedureType: "iv" });
+    expect(put.status, put.text).toBe(409);
+    expect(patch.status, patch.text).toBe(409);
+    const compatible = await request(app).patch("/substances/1").set("Authorization", `Bearer ${owner}`)
+      .send({ procedureType: "im" });
+    expect(compatible.status, compatible.text).toBe(200);
+    const compatiblePut = await request(app).put("/substances/1").set("Authorization", `Bearer ${owner}`)
+      .send({ ...base, procedureType: "im" });
+    expect(compatiblePut.status, compatiblePut.text).toBe(200);
+    expect((await isolated.pool.query("SELECT procedure_type FROM substances WHERE id=1")).rows[0].procedure_type).toBe("im");
+    await isolated.pool.query("UPDATE catalogo_itens SET via_uso_revisada=false WHERE codigo_padcom='CODIGO-SINTETICO'");
+    expect((await request(app).patch("/substances/1").set("Authorization", `Bearer ${owner}`)
+      .send({ procedureType: "iv" })).status).toBe(200);
   });
 });

@@ -1,4 +1,5 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { exigirIdentidadeRevisada, travarCatalogoClinico } from "./catalogo-via-confirmada";
 import {
   db,
   clientsTable,
@@ -17,6 +18,15 @@ export const DEFAULT_PACIENTES_URL =
   "https://raw.githubusercontent.com/caio-padua/Integrative-Health-Engine/ver-l2-dr-claude/docs/dr-replit/PARA_MANAGER/pacientes_export_26.06.13.json";
 
 type Raw = Record<string, any>;
+type ReviewedItem = {
+  codigoPadcom: string; nome: string | null; categoria: string | null;
+  posologia: string | null; composicao: string | null;
+};
+type ReviewedInjectable = {
+  idIhe: number; codigoPadcom: string | null; nomeAmpola: string | null;
+  nomeExibicao: string | null; dosagem: string | null; volume: string | null;
+  substanciaBase: string | null;
+};
 
 type Logger = {
   info: (...args: any[]) => void;
@@ -71,6 +81,53 @@ function numId(v: unknown): number | null {
     return Number.isInteger(n) && n > 0 ? n : null;
   }
   return null;
+}
+
+// A origem usada aqui é um catálogo completo, não uma atualização parcial.
+// Exigir o código e o identificador de origem dos itens revisados impede que
+// uma troca simultânea de código, nome e dose passe como um item novo.
+async function conferirCatalogoRevisado(tx: any, catalogo: Raw) {
+  const itens: ReviewedItem[] = await tx.select({
+    codigoPadcom: catalogoItensTable.codigoPadcom,
+    nome: catalogoItensTable.nome,
+    categoria: catalogoItensTable.categoria,
+    posologia: catalogoItensTable.posologia,
+    composicao: catalogoItensTable.composicao,
+  }).from(catalogoItensTable).where(eq(catalogoItensTable.viaUsoRevisada, true));
+  const injetaveis: ReviewedInjectable[] = await tx.select({
+    idIhe: catalogoInjetaveisTable.idIhe,
+    codigoPadcom: catalogoInjetaveisTable.codigoPadcom,
+    nomeAmpola: catalogoInjetaveisTable.nomeAmpola,
+    nomeExibicao: catalogoInjetaveisTable.nomeExibicao,
+    dosagem: catalogoInjetaveisTable.dosagem,
+    volume: catalogoInjetaveisTable.volume,
+    substanciaBase: catalogoInjetaveisTable.substanciaBase,
+  }).from(catalogoInjetaveisTable).where(eq(catalogoInjetaveisTable.viaRevisada, true));
+
+  const externosItens: Raw[] = Array.isArray(catalogo.itens_terapeuticos) ? catalogo.itens_terapeuticos : [];
+  const externosInjetaveis: Raw[] = Array.isArray(catalogo.injetaveis) ? catalogo.injetaveis : [];
+  for (const item of itens) {
+    const matches = externosItens.filter(r => s(r.codigo_padcom) === item.codigoPadcom);
+    if (matches.length !== 1) {
+      throw new Error("Importação interrompida: item com via revisada ausente ou duplicado na origem completa.");
+    }
+    const r = matches[0];
+    exigirIdentidadeRevisada(item, {
+      nome: s(r.nome), categoria: s(r.categoria), posologia: s(r.posologia), composicao: s(r.composicao),
+    }, ["nome", "categoria", "posologia", "composicao"]);
+  }
+  for (const injectable of injetaveis) {
+    const matches = externosInjetaveis.filter(r => numId(r.id) === injectable.idIhe);
+    if (matches.length !== 1) {
+      throw new Error("Importação interrompida: injetável com via revisada ausente ou duplicado na origem completa.");
+    }
+    const r = matches[0];
+    exigirIdentidadeRevisada(injectable, {
+      codigoPadcom: s(r.codigo_padcom), nomeAmpola: s(r.nome_ampola), nomeExibicao: s(r.nome_exibicao),
+      dosagem: s(r.dosagem), volume: s(r.volume), substanciaBase: s(r.substancia_base),
+    }, ["codigoPadcom", "nomeAmpola", "nomeExibicao", "dosagem", "volume", "substanciaBase"]);
+  }
+  return { itens, injetaveis };
 }
 
 function digits(v: unknown): string {
@@ -159,9 +216,12 @@ export async function runTransmutacao(opts: {
   // ---- (2) catalogo_itens (chave: codigo_padcom) ----
   log.info("Transmutacao: catalogo_itens");
   await db.transaction(async (tx) => {
+    await travarCatalogoClinico(tx);
+    const confirmed = await conferirCatalogoRevisado(tx, catalogo);
     const existing = new Set(
       (await tx.select({ k: catalogoItensTable.codigoPadcom }).from(catalogoItensTable)).map((r) => r.k),
     );
+    const reviewed = new Map(confirmed.itens.map(row => [row.codigoPadcom, row] as const));
     for (const r of (catalogo.itens_terapeuticos ?? []) as Raw[]) {
       const codigoPadcom = s(r.codigo_padcom);
       if (!codigoPadcom) {
@@ -188,11 +248,25 @@ export async function runTransmutacao(opts: {
         unidadeId: typeof r.unidade_id === "number" ? r.unidade_id : null,
         posologiaEstruturada: r.posologia_estruturada ?? null,
       };
+      const previous = reviewed.get(codigoPadcom);
+      for (const approved of reviewed.values()) {
+        if (approved.codigoPadcom !== codigoPadcom && approved.nome === values.nome &&
+            approved.posologia === values.posologia && approved.composicao === values.composicao) {
+          throw new Error("Importação interrompida: possível remapeamento de item com via revisada.");
+        }
+      }
+      if (previous) {
+        exigirIdentidadeRevisada(previous, values, ["nome", "categoria", "posologia", "composicao"]);
+      }
       const isUpdate = existing.has(codigoPadcom);
       await tx
         .insert(catalogoItensTable)
         .values(values)
-        .onConflictDoUpdate({ target: catalogoItensTable.codigoPadcom, set: { ...values, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: catalogoItensTable.codigoPadcom, set: {
+          ...values,
+          viaUso: sql`CASE WHEN ${catalogoItensTable.viaUsoRevisada} THEN ${catalogoItensTable.viaUso} ELSE excluded.via_uso END`,
+          updatedAt: new Date(),
+        } });
       if (isUpdate) report.catalogo_itens.atualizados++;
       else report.catalogo_itens.criados++;
     }
@@ -249,9 +323,12 @@ export async function runTransmutacao(opts: {
   // ---- (4) catalogo_injetaveis (chave: id de origem do IHE) ----
   log.info("Transmutacao: catalogo_injetaveis");
   await db.transaction(async (tx) => {
+    await travarCatalogoClinico(tx);
+    const confirmed = await conferirCatalogoRevisado(tx, catalogo);
     const existing = new Set(
       (await tx.select({ k: catalogoInjetaveisTable.idIhe }).from(catalogoInjetaveisTable)).map((r) => r.k),
     );
+    const reviewed = new Map(confirmed.injetaveis.map(row => [row.idIhe, row] as const));
     for (const r of (catalogo.injetaveis ?? []) as Raw[]) {
       const idIhe = numId(r.id);
       if (idIhe == null) {
@@ -283,11 +360,30 @@ export async function runTransmutacao(opts: {
         seq: s(r.seq),
         substanciaBase: s(r.substancia_base),
       };
+      const previous = reviewed.get(idIhe);
+      for (const approved of reviewed.values()) {
+        const mesmoCodigo = approved.codigoPadcom !== null && approved.codigoPadcom === values.codigoPadcom;
+        const mesmaIdentidade = approved.nomeExibicao === values.nomeExibicao &&
+          approved.dosagem === values.dosagem && approved.volume === values.volume &&
+          approved.substanciaBase === values.substanciaBase;
+        if (approved.idIhe !== idIhe && (mesmoCodigo || mesmaIdentidade)) {
+          throw new Error("Importação interrompida: possível duplicação de injetável com via revisada.");
+        }
+      }
+      if (previous) {
+        exigirIdentidadeRevisada(previous, values, [
+          "codigoPadcom", "nomeAmpola", "nomeExibicao", "dosagem", "volume", "substanciaBase",
+        ]);
+      }
       const isUpdate = existing.has(idIhe);
       await tx
         .insert(catalogoInjetaveisTable)
         .values(values)
-        .onConflictDoUpdate({ target: catalogoInjetaveisTable.idIhe, set: { ...values, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: catalogoInjetaveisTable.idIhe, set: {
+          ...values,
+          via: sql`CASE WHEN ${catalogoInjetaveisTable.viaRevisada} THEN ${catalogoInjetaveisTable.via} ELSE excluded.via END`,
+          updatedAt: new Date(),
+        } });
       if (isUpdate) report.catalogo_injetaveis.atualizados++;
       else {
         report.catalogo_injetaveis.criados++;

@@ -154,5 +154,6 @@
 - [Locais: modalidade e sede](locais-modalidade-sede.md) — LOCAL=endereco da empresa, REMOTO=a definir (nao presumir); sede sobrepoe endereco na leitura; Padrao 27.
 - [PQQ: via do consultório](pqq-via-intramuscular.md) — médico confirmou via intramuscular, nunca endovenosa; corrigir divergências do cadastro na fonte.
 - [Intervalo de protocolos](intervalo-minimo-protocolos.md) — médico escolheu frequência menos quatro dias como mínimo; frequências curtas exigem trava positiva.
+- [Transmutação e origem privada](transmutacao-catalogo-fonte-privada.md) — endereço público pode retornar 404 enquanto a integração autenticada lê o catálogo.
 - [Importar .ics sem duplicar sessoes do sistema](ics-importacao-sessoes-do-sistema.md) — UID = sessions.google_event_id; previa separa sessoes do sistema; agenda Google unica por local na empresa.
 - [Governança e pessoal na agenda](agenda-governanca-pessoal.md) — preservar liberação gradual; secretaria pede autorização; compromisso pessoal bloqueia só recursos do titular.

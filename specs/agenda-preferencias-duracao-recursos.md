@@ -53,11 +53,50 @@ essa tela com uma sessão profissional autenticada na captura disponível.
 A conferência geral de tipos da interface e do servidor ainda apresenta erros
 preexistentes; essa verificação global não foi aprovada.
 
-No banco de desenvolvimento consultado, as agendas de enfermagem ativas
+Na consulta inicial ao banco de desenvolvimento, as agendas de enfermagem
 estavam com intervalos de trinta minutos e sem janelas de expediente ativas.
-Não foram gravadas preferências reais nem criados agendamentos como parte
-destes testes. A configuração de vinte minutos e do expediente autorizado
-continua necessária antes de usar esses horários no cadastro real.
+Depois da autorização expressa do responsável, o recurso presencial de
+enfermagem recebeu intervalos de vinte minutos e dez janelas de expediente;
+as preferências escolhidas foram registradas na ficha autorizada. A releitura
+do banco e do motor confirmou a ordem e os sábados alternados. Nenhum
+agendamento, documento ou evento externo foi criado por esta operação.
+A captura disponível não possuía sessão profissional; a tela autenticada
+real continua sem verificação visual.
+
+Na validação posterior à operação, vinte e cinco testes dos três conjuntos
+de preferências, operação delegada e motor de janelas passaram em bancos
+isolados. O motor real confirmou expediente em 21/11 e 05/12, sem expediente
+em 28/11. A consulta real para 09/11 às 10h foi bloqueada pela antecedência
+mínima vigente; não se deve apresentar esse horário como agendamento criado.
+
+### Operação administrativa expressamente autorizada
+
+O responsável autorizou diretamente a configuração do expediente informado e
+o preenchimento de preferências de uma cliente específica no ambiente de
+desenvolvimento, sem envio externo. É uma operação de dados supervisionada,
+não um teste agressivo no prontuário.
+
+1. Identificar cliente, empresa, recurso presencial e profissional responsável
+   nos registros existentes, sem inferir identidade apenas pelo primeiro nome.
+2. Preservar dados clínicos, preferências médicas e janelas anteriores;
+   interromper se o estado observado divergir do esperado, em vez de sobrescrever.
+3. Efetuar a alteração em transação com o bloqueio usado pelo motor; usar as
+   validações de repetição e a gravação de preferências existentes no sistema.
+4. Não falsificar uma sessão profissional: registrar que a operação foi
+   executada pelo agente de manutenção sob solicitação do proprietário.
+   O profissional indicado na revisão é o autorizador da operação delegada.
+5. Não criar reserva, prescrição, envio ou evento externo nesta operação.
+6. Antes de escrever dados reais, revisar a operação e executá-la em banco
+   isolado com identidades sintéticas; depois reler o estado real e conferir
+   a oferta com o motor, sem declarar que a jornada clínica está homologada.
+7. A revisão deve identificar na própria linha o executor agente e o
+   profissional que autorizou; manter `created_by` como autorizador legado
+   apenas quando o executor for explicitamente um agente. Nenhum leitor pode
+   apresentar `created_by` isoladamente como executor em revisões delegadas.
+   Para revisões normais, `created_by` continua identificando o executor.
+8. A conexão deve coincidir com a identidade do banco de desenvolvimento
+   obtida separadamente pela ferramenta de banco e recusar execução em
+   ambiente publicado. Estado preexistente, inclusive ordem órfã, bloqueia.
 
 ## Regras informadas pelo responsável
 

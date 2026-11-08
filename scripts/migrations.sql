@@ -391,6 +391,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Revisões não destrutivas de dias e horários preferenciais.
 \ir migrations/20261108_preferencias_visitas.sql
+\ir migrations/20261108_preferencias_visitas_proveniencia.sql
 
 -- Janelas com recorrência semanal ou quinzenal, preservando as antigas.
 \ir migrations/20261108_agenda_janelas_quinzenais.sql
@@ -400,3 +401,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Reserva durável para identificar tentativas externas com resultado incerto.
 \ir migrations/20261108_agenda_google_reserva_envio.sql
+
+-- Preservação de vias clínicas revisadas ao importar catálogos.
+\ir migrations/20261108_catalogo_via_revisada.sql

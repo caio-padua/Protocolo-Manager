@@ -124,6 +124,7 @@ function normalize(input: ClientVisitPreferences, previous?: ClientVisitPreferen
 export async function setVisitPreferences(
   executor: Executor, empresaId: number, clientId: number, professionalId: number,
   preferences: ClientVisitPreferences | undefined, expectedRevision: number | undefined,
+  origin?: { kind: "agent"; label: string; authorizerProfessionalId: number },
 ) {
   if (preferences === undefined) return getVisitPreferences(executor, empresaId, clientId);
   await executor.execute(sql`SELECT pg_advisory_xact_lock(19872026,${empresaId})`);
@@ -149,7 +150,15 @@ export async function setVisitPreferences(
       }
     }
   }
+  if (origin && (!origin.label.trim() || origin.authorizerProfessionalId !== professionalId)) {
+    throw new VisitPreferenceError("A origem da alteração delegada é inválida.");
+  }
   const [saved] = await executor.insert(clientVisitPreferenceRevisionsTable)
-    .values({ clientId, empresaId, preferences: desired, createdBy: professionalId }).returning();
+    .values({
+      clientId, empresaId, preferences: desired, createdBy: professionalId,
+      executorKind: origin ? "agent" : "professional",
+      executorLabel: origin?.label ?? null,
+      authorizerProfessionalId: origin?.authorizerProfessionalId ?? null,
+    }).returning();
   return { preferences: saved.preferences, revision: saved.id };
 }

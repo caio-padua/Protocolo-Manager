@@ -7,6 +7,7 @@ import {
   UpdateSubstanceBody,
 } from "@workspace/api-zod";
 import { configuredDurationSeconds, durationSecondsFromMinutes, substanceDurationMinutes } from "../lib/substance-duration";
+import { exigirTipoCompativelComVia, travarCatalogoClinico, ViaClinicaDivergente } from "../lib/catalogo-via-confirmada";
 import { requireCollaborator } from "./collaborator";
 
 const router: IRouter = Router();
@@ -40,6 +41,17 @@ function formatSubstance(s: typeof substancesTable.$inferSelect) {
     stockUnit: s.stockUnit ?? null,
     createdAt: s.createdAt.toISOString(),
   };
+}
+
+async function atualizarSubstancia(id: number, updates: Record<string, unknown>) {
+  if (!("procedureType" in updates)) {
+    return db.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  }
+  return db.transaction(async tx => {
+    await travarCatalogoClinico(tx);
+    await exigirTipoCompativelComVia(tx, id, updates.procedureType);
+    return tx.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  });
 }
 
 function serializeComponent(component: typeof substanceBlendComponentsTable.$inferSelect) {
@@ -199,9 +211,14 @@ router.put("/substances/:id", requireCatalogOwner, async (req, res): Promise<voi
     res.status(400).json({ error: error instanceof Error ? error.message : "Duração inválida." });
     return;
   }
-  const [substance] = await db.update(substancesTable)
-    .set({ ...data, ...(preciseDurationSeconds === undefined ? {} : { preciseDurationSeconds }) })
-    .where(eq(substancesTable.id, params.data.id)).returning();
+  let substance: typeof substancesTable.$inferSelect | undefined;
+  try {
+    [substance] = await atualizarSubstancia(params.data.id,
+      { ...data, ...(preciseDurationSeconds === undefined ? {} : { preciseDurationSeconds }) });
+  } catch (error) {
+    if (error instanceof ViaClinicaDivergente) { res.status(409).json({ error: error.message }); return; }
+    throw error;
+  }
   if (!substance) {
     res.status(404).json({ error: "Substance not found" });
     return;
@@ -251,7 +268,13 @@ router.patch("/substances/:id", requireCatalogOwner, async (req, res): Promise<v
     }
   }
 
-  const [substance] = await db.update(substancesTable).set(updates).where(eq(substancesTable.id, id)).returning();
+  let substance: typeof substancesTable.$inferSelect | undefined;
+  try {
+    [substance] = await atualizarSubstancia(id, updates);
+  } catch (error) {
+    if (error instanceof ViaClinicaDivergente) { res.status(409).json({ error: error.message }); return; }
+    throw error;
+  }
   if (!substance) {
     res.status(404).json({ error: "Substance not found" });
     return;

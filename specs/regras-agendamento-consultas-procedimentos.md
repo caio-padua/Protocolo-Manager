@@ -30,15 +30,31 @@ a sincronização, as reservas ou os documentos já estejam concluídos.
 - A validação atual de protocolo grava sessões com horário padrão sem reservar
   recursos nem comprovar disponibilidade. Não usar para agendar o protocolo
   real antes de corrigir esse fluxo.
-- Os recursos de enfermagem e médico consultados ainda registram períodos de
-  30 minutos, e não foram encontradas janelas cadastradas. As regras de 20
-  minutos, 60 minutos e horários informados não estão ativas apenas por terem
-  sido especificadas.
-- O cadastro de PQQ indica tipo intramuscular, mas o campo de via apresenta
-  “EV / IM”. O médico confirmou somente a via intramuscular; a divergência
-  ainda precisa de correção rastreável no cadastro real.
+- O recurso presencial de enfermagem foi configurado com períodos de vinte
+  minutos e o expediente autorizado, confirmado no motor em 08/11/2026.
+  Os demais recursos de enfermagem e médico consultados ainda registravam
+  períodos de trinta minutos e não tinham janelas ativas. A grade médica de
+  sessenta minutos ainda não foi configurada ou conferida nesta operação.
+- Em 08/11/2026, o motor bloqueou o horário de 09/11/2026 às 10h pela regra
+  de antecedência mínima existente. Preferência cadastrada não equivale à
+  liberação ou reserva deste horário.
+- O médico confirmou que a via da PQQ é intramuscular. Em desenvolvimento,
+  os três registros de catálogo foram corrigidos e auditados sem alterar dose
+  ou preço; o ensaio em banco isolado confirmou a preservação diante de
+  reimportação da fonte autenticada. A origem pública padrão de transmutação
+  respondeu 404 e continua sem comprovação de funcionamento pelo sistema.
 - Não foram criados os atendimentos reais solicitados, gerado o RAS/FAP real,
   nem emitidos ou enviados documentos reais assinados nesta etapa.
+
+### Conferência matemática da distribuição solicitada
+
+Foi examinada, sem reservar horários, a hipótese de primeira coenzima em
+09/11/2026, cinco aplicações semanais, margem de quatro dias e uma visita por
+semana. Para três aplicações em sábados alternados, iniciar em 21/11 ou
+05/12 não produz solução nessas condições. Iniciar em 19/12 produz soluções
+matemáticas; por exemplo, manter as cinco aplicações semanais às segundas.
+Essa análise não consulta ocupação, feriados, disponibilidade de profissionais
+ou autorização de exceção à antecedência e não é um planejamento homologado.
 
 ## Objetivo e nomes
 
