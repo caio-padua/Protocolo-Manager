@@ -7,21 +7,24 @@ implementada. Há correções técnicas anteriores em desenvolvimento.
 
 ## Direção atual: regra única de aplicações injetáveis
 
-O responsável determinou que o cliente não precise visitar a clínica mais de
-uma vez por semana para aplicações. A referência de semana é segunda-feira a
-domingo, como no motor existente da grade de RAS FAP. O início, a quantidade,
-a dose e o intervalo de cada substância vêm do protocolo real, não de valores
-inventados. A consolidação tem de ser compatível com a prescrição clínica.
+O responsável esclareceu que o objetivo é reduzir visitas desnecessárias,
+mas que frequências menores que sete dias podem exigir mais de uma visita na
+semana. A limitação absoluta de uma visita semanal, registrada anteriormente
+neste documento, está substituída por esse esclarecimento. A referência de
+semana é segunda-feira a domingo, como na grade existente de RAS FAP.
 
-Quando não for possível respeitar simultaneamente a prescrição e uma única
-visita semanal, a proposta de regra única não agenda nem muda a prescrição
-silenciosamente. Uma definição clínica autorizada é necessária para esse caso.
-Não presumir que o intervalo entre doses possa ser reduzido nem antecipar a
-primeira dose automaticamente.
+O início, a quantidade, a dose e o intervalo de cada substância vêm do protocolo
+real. Ocorrências prescritas em dias diferentes de uma mesma substância não
+podem ser fundidas em uma aplicação. Aplicações que coincidirem no mesmo dia
+podem compartilhar uma visita, desde que clinicamente compatíveis e com
+disponibilidade. Quando as datas não coincidirem, o ajuste de uma aplicação
+para outra visita ainda depende de definição clínica autorizada; não antecipar,
+postergar ou modificar intervalos silenciosamente.
 
 Para novas marcações, unificar os caminhos divergentes de geração de visitas
-em uma política consolidada e aposentar a opção de visitas por datas exatas
-que contradiz essa política. Uma visita deve ser vinculada ao recurso correto
+em uma política consolidada, capaz também de preservar frequências menores que
+sete dias. A decisão de retirar a opção de datas exatas não autoriza perder sua
+capacidade de respeitar inícios e intervalos. Uma visita deve ser vinculada ao recurso correto
 e passar pelo motor existente de disponibilidade. O formulário e as
 informações da agenda devem refletir as sessões e aplicações efetivamente
 registradas, sem recalcular uma segunda agenda divergente.
@@ -39,10 +42,27 @@ visita e futuras conforme sua situação verdadeira. Reutilizar o formato
 existente, conferir duração e destino e atualizar o evento existente quando
 possível. Nenhum evento externo deve ser modificado durante esta investigação.
 
+### Direção visual em discussão
+
+O responsável considera fundamentais o desenho da agenda interna e os dados
+exibidos no campo de informações do Google Agenda. A referência candidata é
+o formato detalhado do evento já existente: identificação, unidade, horário,
+procedimentos, situação, lista de substâncias e legenda, endereço e navegação.
+Na agenda interna, aproveitar o cartão existente com substâncias da sessão,
+aplicações futuras, situação e confirmação individual, mantendo posições fixas.
+Isto é direção de desenho, não implementação ou aprovação visual final.
+
+Os caminhos atuais não entregam os mesmos dados: a marcação pelo motor pode
+criar o evento sem substâncias; as sincronizações individuais e semanais
+remontam dados separadamente; o gerador tem telefone padrão e tempos fixos
+por tipo. Não assumir que esses valores correspondem ao local ou à duração
+real. Situações, duração, contatos, calendário e endereço devem vir da fonte
+correta, sem inventar dados, antes de afirmar equivalência entre telas.
+
 ### Verificação necessária para esta direção
 
-1. Inícios individuais, contagem e intervalos diferentes; virada de semana e
-   visitas já existentes do mesmo cliente.
+1. Inícios individuais, contagem e intervalos diferentes, inclusive dois em
+   dois dias; virada de semana e visitas já existentes do mesmo cliente.
 2. Dias e horários sem expediente, ocupados, fora da antecedência ou não
    liberados, inclusive indisponibilidade do Google.
 3. Sessões, formulário e evento com as mesmas datas e substâncias; próximas
@@ -142,10 +162,9 @@ substituir a lógica de novas marcações pela regra única.
 
 ## Registro histórico: proposta de datas separadas substituída
 
-Esta seção registra uma interpretação anterior que o responsável corrigiu:
-o cliente deve ir à clínica no máximo uma vez por semana. As oito visitas e
-a disponibilidade do modo exato descritas abaixo não são direção vigente e
-não autorizam criação de sessões.
+Esta seção registra interpretações anteriores, não regras vigentes nem
+autorização para criar sessões. O responsável esclareceu que frequências
+menores que sete dias podem exigir mais de uma visita na mesma semana.
 
 Em 08/11/2026 o responsável confirmou início da substância semanal na
 segunda-feira, 09/11/2026, às dez horas, e três aplicações da segunda substância

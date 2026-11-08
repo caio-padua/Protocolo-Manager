@@ -31,12 +31,13 @@ os sábados alternados são separados por quatorze dias.
 **How to apply:** usar essa referência ao configurar e conferir a oferta da
 agenda, sem presumir que o cadastro já foi alterado ou que uma exceção foi aprovada.
 
-No planejamento de aplicações injetáveis, o cliente deve precisar ir à clínica
-no máximo uma vez por semana; agrupar as substâncias dessa visita é uma regra de
-negócio, não um defeito a ser substituído por agendas independentes.
+No planejamento de aplicações injetáveis, procurar reduzir as visitas a uma por
+semana quando a frequência das substâncias permitir; frequência menor que sete
+dias pode exigir mais de uma visita na semana.
 
 **Why:** o responsável explicou que seus clientes, em geral empresários, não
-podem se deslocar mais de uma vez na semana para aplicações curtas.
+podem fazer deslocamentos desnecessários, mas confirmou a exceção para
+tratamentos que exigem aplicações mais frequentes.
 
 **How to apply:** procurar e aproveitar o motor existente de consolidação;
 verificar compatibilidade clínica, disponibilidade e consistência entre
@@ -49,9 +50,9 @@ aposentadas após a preservação dos registros existentes.
 **Why:** regras paralelas podem produzir datas e descrições divergentes para o
 mesmo protocolo.
 
-**How to apply:** manter a consolidação semanal e integrar agenda, sessões e
-formulário aos mesmos dados; preservar histórico e não antecipar dose ou
-alterar intervalo clínico sem autorização.
+**How to apply:** respeitar a exceção para frequências menores que sete dias;
+integrar agenda, sessões e formulário aos mesmos dados, preservar histórico e
+não antecipar dose ou alterar intervalo clínico sem autorização.
 
 O responsável definiu intervalos de agendamento de sessenta minutos para o
 médico e de vinte minutos para a enfermagem.
