@@ -21,6 +21,7 @@ export const GRAND_FINALE = {
   corpoTopo: py(558),
   corpoBase: py(1004),
   assinaturaBase: py(1226),
+  quadrosEspecialAltura: 130,
 } as const;
 
 export type IdentidadeGrandFinale = {
@@ -31,21 +32,22 @@ export type IdentidadeGrandFinale = {
 export type ArteGrandFinale = {
   fundo: PDFImage;
   simbolo: PDFImage;
+  quadrosEspecial: PDFImage;
   textos: TextosEmpresa2b;
 };
 
-function arquivoBase(): Uint8Array {
+function arquivoArte(nome: string): Uint8Array {
   const dir = path.dirname(fileURLToPath(import.meta.url));
   const candidatos = [
-    path.join(dir, "assets", "receituario-grand-finale", "base-neutra.jpg"),
-    path.resolve(dir, "../../../assets/receituario-grand-finale/base-neutra.jpg"),
+    path.join(dir, "assets", "receituario-grand-finale", nome),
+    path.resolve(dir, "../../../assets/receituario-grand-finale", nome),
   ];
   for (const candidato of candidatos) {
     try { return readFileSync(candidato); } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  throw new Error("A arte neutra do receituário não está disponível.");
+  throw new Error(`A arte do receituário não está disponível: ${nome}.`);
 }
 
 /** Exige uma identidade explícita: nunca completa com a marca do Instituto Pádua. */
@@ -56,14 +58,18 @@ export async function prepararArteGrandFinale(
   if (!identidade?.simboloDourado?.length || !identidade.textos?.nomeCabecalho?.trim()) {
     throw new Error("A identidade empresarial do receituário está incompleta.");
   }
-  const [fundo, simbolo] = await Promise.all([
-    doc.embedJpg(arquivoBase()),
+  const [fundo, simbolo, quadrosEspecial] = await Promise.all([
+    doc.embedJpg(arquivoArte("base-neutra.jpg")),
     doc.embedPng(identidade.simboloDourado),
+    doc.embedPng(arquivoArte("quadros-especial.png")),
   ]);
   if (fundo.width !== 1055 || fundo.height !== 1491) {
     throw new Error("As dimensões da arte neutra do receituário são inválidas.");
   }
-  return { fundo, simbolo, textos: identidade.textos };
+  if (quadrosEspecial.width !== 1055 || quadrosEspecial.height !== 210) {
+    throw new Error("As dimensões da arte dos quadros especiais são inválidas.");
+  }
+  return { fundo, simbolo, quadrosEspecial, textos: identidade.textos };
 }
 
 function tamanhoQueCabe(font: PDFFont, texto: string, largura: number, inicial: number, minimo: number): number {
@@ -78,6 +84,28 @@ function imagemContida(page: PDFPage, image: PDFImage, x: number, y: number, w: 
   const iw = image.width * escala;
   const ih = image.height * escala;
   page.drawImage(image, { x: x + (w - iw) / 2, y: y + (h - ih) / 2, width: iw, height: ih, opacity });
+}
+
+/** Reutiliza as molduras e a faixa da arte superior sem incorporar textos. */
+export function desenharQuadrosEspeciaisGrandFinale(
+  page: PDFPage, arte: ArteGrandFinale, fonte: PDFFont,
+  topo: number, altura: number, titulos: [string, string],
+): void {
+  const alturaImagem = altura * 210 / 190;
+  page.drawImage(arte.quadrosEspecial, {
+    x: 0, y: topo + alturaImagem * 3 / 210 - alturaImagem,
+    width: LARGURA, height: alturaImagem,
+  });
+  for (let i = 0; i < 2; i++) {
+    const x = px(i === 0 ? 83 : 582);
+    const largura = px(388);
+    const titulo = titulos[i];
+    const tamanho = tamanhoQueCabe(fonte, titulo, largura - 14, 10.5, 7);
+    page.drawText(titulo, {
+      x: x + (largura - fonte.widthOfTextAtSize(titulo, tamanho)) / 2,
+      y: topo - 16, font: fonte, size: tamanho, color: tinta,
+    });
+  }
 }
 
 /** Desenha apenas a moldura e a identidade; não gera, assina ou envia receitas. */

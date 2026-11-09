@@ -21,6 +21,8 @@ uma clínica ou profissional a outra pessoa.
    obrigatórios e particularidades existentes de cada um. No especial, os
    quadros existentes do comprador e do fornecedor ficam lado a lado, ancorados
    na parte inferior da área do conteúdo, acima da faixa do certificado.
+   Os quadros inferiores reproduzem a moldura dos superiores e a mesma faixa
+   ornamental atrás deles, sem apagar os campos do comprador e da farmácia.
    Se não couberem depois do conteúdo, vão juntos para a próxima página.
 7. Uma receita longa pagina sem perder textos e sem sobrepor o certificado;
    cada página identifica a clínica e o documento corretamente.

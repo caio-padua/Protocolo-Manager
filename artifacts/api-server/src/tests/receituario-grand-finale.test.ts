@@ -150,23 +150,23 @@ describe("Prova Grand Finale pelo gerador de receitas existente", () => {
   it("preserva o conteúdo especial obrigatório sem usar a faixa antiga", async () => {
     const result = texto(await generateReceituarioPdfV2({ ...base, tipoReceita: "especial", formulas: [base.formulas[0]] }));
     expect(result).toContain("Receituário de controle especial");
-    expect(result).toContain("IDENTIFICAÇÃO DO COMPRADOR");
-    expect(result).toContain("FORNECEDOR");
+    expect(result).toContain("Identificação do comprador");
+    expect(result).toContain("Identificação da farmácia");
     expect(result).toContain("Fórmula sintética 1");
   });
   it("ancora comprador e farmácia lado a lado acima da assinatura em receita longa", async () => {
     const bytes = await generateReceituarioPdfV2({ ...base, tipoReceita: "especial" });
     const paginas = extrair(bytes, "-bbox").match(/<page\b[\s\S]*?<\/page>/g) ?? [];
     expect(paginas.length).toBeGreaterThan(1);
-    expect(paginas.slice(0, -1).every(p => !p.includes(">COMPRADOR</word>"))).toBe(true);
+    expect(paginas.slice(0, -1).every(p => !p.includes(">comprador</word>"))).toBe(true);
     const ultima = paginas[paginas.length - 1];
     function posicao(pagina: string, palavra: string) {
       const match = pagina.match(new RegExp(`<word xMin="([\\d.]+)" yMin="([\\d.]+)"[^>]*>${palavra}</word>`));
       if (!match) throw new Error(`Palavra ausente: ${palavra}`);
       return { x: Number(match[1]), y: Number(match[2]) };
     }
-    const comprador = posicao(ultima, "COMPRADOR");
-    const fornecedor = posicao(ultima, "FORNECEDOR");
+    const comprador = posicao(ultima, "comprador");
+    const fornecedor = posicao(ultima, "farmácia");
     const assinatura = posicao(ultima, "GERADA");
     expect(comprador.x).toBeLessThan(fornecedor.x);
     expect(Math.abs(comprador.y - fornecedor.y)).toBeLessThan(1);
@@ -185,9 +185,9 @@ describe("Prova Grand Finale pelo gerador de receitas existente", () => {
     });
     const paginas = extrair(bytes, "-bbox").match(/<page\b[\s\S]*?<\/page>/g) ?? [];
     const ultima = paginas[paginas.length - 1];
-    expect(ultima).toContain(">COMPRADOR</word>");
-    expect(ultima).toContain(">FORNECEDOR</word>");
-    const topoQuadros = GRAND_FINALE.altura - (GRAND_FINALE.corpoBase + 8 + 120);
+    expect(ultima).toContain(">comprador</word>");
+    expect(ultima).toContain(">farmácia</word>");
+    const topoQuadros = GRAND_FINALE.altura - (GRAND_FINALE.corpoBase + 8 + GRAND_FINALE.quadrosEspecialAltura);
     for (const item of ultima.matchAll(/<word\b[^>]*yMax="([\d.]+)"[^>]*>ATIVO\d{3}<\/word>/g)) {
       expect(Number(item[1])).toBeLessThan(topoQuadros);
     }

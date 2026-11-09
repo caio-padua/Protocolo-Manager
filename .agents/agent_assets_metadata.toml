@@ -1068,3 +1068,17 @@ mtime_ms = 1794201429908
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/93d19d3e-f92b-4862-ad8f-4f478b98be11/26b27fb2-fa7f-41bf-a0d3-7a02e2dc9ca7"
 storage_version_token = "1794201664426234"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "uewM0cj0b_oejFJiyf1UQ"
+uri = "file://generated-artifacts/provas/receituario-especial-ornamentado.pdf"
+type = "pdf"
+title = "Receituário especial com quadros ornamentados"
+description = "Amostra visual com quadros inferiores no padrão dos superiores. Dados fictícios, sem assinatura digital e sem validade clínica."
+logical_id = "97178b55-e701-4fe7-bd5e-3fdbd6b0fd03"
+content_hash = "sha256:42e9926f4affd380b096ff1221acd7c4f1c05eaca461e7bf554810bd6691108d"
+size = 2977756
+mtime_ms = 1794201934200
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/97178b55-e701-4fe7-bd5e-3fdbd6b0fd03/0e018d6d-b58c-4b54-8554-15c649d45465"
+storage_version_token = "1794202180138854"
+content_type = "application/pdf"

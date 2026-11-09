@@ -8,7 +8,8 @@ async function main() {
   process.env.NODE_ENV = "test";
   const destino = process.argv[2];
   if (!destino) throw new Error("Informe o caminho do documento de prova.");
-  const especial = process.argv[3] === "especial";
+  const especial = process.argv[3] === "especial" || process.argv[3] === "especial-longo";
+  const longo = process.argv[3] === "especial-longo";
   const simbolo = new PNG({ width: 40, height: 40 });
   for (let y = 0; y < 40; y++) for (let x = 0; x < 40; x++) {
     const n = (y * 40 + x) * 4;
@@ -34,7 +35,9 @@ async function main() {
     dataEmissao: "2026-11-09", tipoReceita: especial ? "especial" : "simples",
     formulas: Array.from({ length: especial ? 1 : 6 }, (_, index) => ({
       nome: `Fórmula de demonstração ${index + 1}`,
-      ativos: "Conteúdo fictício para conferir a aparência.",
+      ativos: longo
+        ? Array.from({ length: 42 }, (_, i) => `Item fictício ${i + 1} para conferir a paginação.`).join("\n")
+        : "Conteúdo fictício para conferir a aparência.",
       posologia: "Não é uma receita e não deve ser dispensada.",
     })),
   });

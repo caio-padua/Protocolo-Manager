@@ -14,7 +14,7 @@ import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
 import { PAXMED_LIMITE_CONTEUDO, prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva, carimbarRodapesClinicos } from "./documentos/paxmed-modelo-2b-prova";
-import { GRAND_FINALE, prepararArteGrandFinale, desenharPaginaGrandFinale, carimbarRodapeGrandFinale } from "./documentos/receituario-grand-finale";
+import { GRAND_FINALE, prepararArteGrandFinale, desenharPaginaGrandFinale, desenharQuadrosEspeciaisGrandFinale, carimbarRodapeGrandFinale } from "./documentos/receituario-grand-finale";
 import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
@@ -766,10 +766,10 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const BOX_GAP = configNumber(designer, "boxBandGap", 4, 2, 15) * MM;
   const BOX_TOTAL_W = CW * configNumber(designer, "boxWidthPct", 100, 30, 100) / 100;
   const BOX_CONTENT_W = Math.max(1, BOX_TOTAL_W - BOX_GAP);
-  const BOX1_W = BOX_CONTENT_W * configNumber(designer, "boxLeftWidthPercent", 50, 30, 70) / 100;
-  const BOX2_W = BOX_CONTENT_W - BOX1_W;
-  const BX1 = M + (CW - BOX_TOTAL_W) / 2;
-  const BX2 = BX1 + BOX1_W + BOX_GAP;
+  const BOX1_W = grandFinale ? 388 * PAGE_W / 1055 : BOX_CONTENT_W * configNumber(designer, "boxLeftWidthPercent", 50, 30, 70) / 100;
+  const BOX2_W = grandFinale ? BOX1_W : BOX_CONTENT_W - BOX1_W;
+  const BX1 = grandFinale ? 83 * PAGE_W / 1055 : M + (CW - BOX_TOTAL_W) / 2;
+  const BX2 = grandFinale ? 582 * PAGE_W / 1055 : BX1 + BOX1_W + BOX_GAP;
   const TITLE_H  = 14;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1250,7 +1250,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   //    Apenas receituário especial. Arabescos ATRÁS. (motor: BandaComBoxes)
   // ══════════════════════════════════════════════════════════════════════════
   if (tipo === "especial") {
-    const BOX2_H   = Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
+    const BOX2_H = grandFinale ? GRAND_FINALE.quadrosEspecialAltura
+      : Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
     let BOX2_TOP = y;
     if (grandFinale) {
       BOX2_TOP = BODY_BOTTOM + 8 + BOX2_H;
@@ -1263,11 +1264,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       BOX2_TOP = y;
     }
 
-    if (!grandFinale) drawArabBand(BOX2_TOP, BOX2_H);
-    drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
-      configText(designer, "boxCompradorTitulo", data.boxCompradorTitulo ?? "IDENTIFICAÇÃO DO COMPRADOR"),
-      configText(designer, "boxFarmaciaTitulo", data.boxFarmaciaTitulo ?? "IDENTIFICAÇÃO DO FORNECEDOR / FARMÁCIA"),
-    );
+    if (grandFinale) {
+      const fonteQuadro = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+      desenharQuadrosEspeciaisGrandFinale(page, grandFinale, fonteQuadro, BOX2_TOP, BOX2_H, [
+        configText(designer, "boxCompradorTitulo", data.boxCompradorTitulo ?? "Identificação do comprador"),
+        configText(designer, "boxFarmaciaTitulo", data.boxFarmaciaTitulo ?? "Identificação da farmácia"),
+      ]);
+    } else {
+      drawArabBand(BOX2_TOP, BOX2_H);
+      drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
+        configText(designer, "boxCompradorTitulo", data.boxCompradorTitulo ?? "IDENTIFICAÇÃO DO COMPRADOR"),
+        configText(designer, "boxFarmaciaTitulo", data.boxFarmaciaTitulo ?? "IDENTIFICAÇÃO DO FORNECEDOR / FARMÁCIA"),
+      );
+    }
 
     // Box 3 — Comprador (motor: compradorRows — 5 linhas)
     // Labels do screenshot: "Nome", "Endereço", "Cidade" | "UF", "Ident." | "Org. Emissor", "Telefone"
