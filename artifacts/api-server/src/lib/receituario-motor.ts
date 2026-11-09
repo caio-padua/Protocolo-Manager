@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionIdentity } from "./prescription-signing";
 import { ClinicalIdentityError } from "./clinical-emitter";
+import { identidadeLocalReceituario } from "./identidade-local-receituario";
 import { buildPrescricaoHtml, type PrescricaoHtmlData } from "./receituario-html.js";
 import { htmlToPdfBytes } from "./puppeteer-capture.js";
 import { generateReceituarioPdfV2, type ReceituarioDataV2 } from "./receituario-pdf.js";
@@ -253,7 +254,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   // 2. Lê certificado real do PFX (best-effort — null se não configurado)
   const certMeta = signer.meta;
 
-  // 3. Carrega médico e clínica do banco (padrão: Dr. Caio=6, Instituto Padua=8)
+  // 3. Carrega médico e local vinculados ao contexto clínico autorizado.
   const medicoId = identity.professional.id;
   const clinicaId = identity.clinic.id;
 
@@ -282,9 +283,12 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   const medicoNome = identity.professional.name;
   const medicoCrm  = `CRM/${identity.professional.uf} ${identity.professional.crm}`;
   const medicoRqe  = (medico as any)?.specialty ?? undefined;
-  const clinicaNome = (clinica as any)?.nome_fantasia ?? clinica?.name ?? "Instituto Padua";
-  const clinicaEnd  = clinica?.address ?? "Av. Brigadeiro Faria Lima, 3000 — São Paulo / SP";
-  const clinicaTel  = clinica?.phone ?? undefined;
+  // Nunca preencher com dados de outra clínica quando o cadastro está incompleto.
+  const dadosLocal = identidadeLocalReceituario(clinica, identity.clinic.name);
+  const clinicaNome = dadosLocal.nome;
+  if (!clinicaNome) throw new ClinicalIdentityError(422, "O local de atendimento não possui nome cadastrado.");
+  const clinicaEnd  = dadosLocal.endereco;
+  const clinicaTel  = dadosLocal.telefone;
 
   // 4. Gera o PDF usando o motor correto para o tipo de modelo
   let pdfBytes: Uint8Array;

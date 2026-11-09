@@ -1,0 +1,61 @@
+# Receituário Grand Finale com identidade clínica variável
+
+## Objetivo
+
+Aplicar o modelo visual enviado ao receituário existente sem atribuir dados de
+uma clínica ou profissional a outra pessoa.
+
+## Contrato
+
+1. A prescrição real, a demonstração e as continuações usam o mesmo desenho,
+   sem criar outro motor para doses, fórmulas, roteamento ou autorização.
+2. Nome, símbolo, endereço e contatos da clínica vêm da identidade empresarial
+   do contexto clínico autorizado; nunca dos pixels da arte original.
+3. O nome, registro e rubrica do emitente vêm do profissional autorizado.
+4. O quadro e a indicação de assinatura refletem o certificado e o resultado
+   reais; a rubrica e o código de exemplo do arquivo não são prova.
+5. A assinatura criptográfica é feita depois de desenhar o documento completo;
+   o arquivo não pode ser alterado após a assinatura.
+6. Receituário comum e especial compartilham o modelo, mas preservam os campos
+   obrigatórios e particularidades existentes de cada um.
+7. Uma receita longa pagina sem perder textos e sem sobrepor o certificado;
+   cada página identifica a clínica e o documento corretamente.
+8. A falta de identidade válida, símbolo ou dados indispensáveis não pode
+   substituir silenciosamente a clínica pelo Instituto Pádua.
+9. Preservar os modelos históricos, as ferramentas e seus menus; não enviar,
+   emitir ou gravar documentos reais para executar testes de regressão.
+
+## Fontes e impacto
+
+- Arquivo colorido: prova de referência, com dados pessoais de exemplo.
+- Arquivo base e imagem: incluem nome e símbolo da clínica, marca d'água,
+  rubrica e dados de um médico e código ilustrativo; não são neutros.
+- Produtores: gerador de receita, rota clínica de prescrição e demonstração.
+- Há também rotas de receituário que passam pelo motor de modelos, o qual
+  escolhe entre duas renderizações; elas não podem ficar com outro visual.
+- O motor de modelos contém valores fixos de clínica e endereço como alternativa.
+  Eles precisam ser eliminados e substituídos por dados do contexto autorizado,
+  ou pela ausência explícita do endereço quando não houver cadastro.
+- Consumidores: visualização, documento assinado, histórico e entrega existente.
+- Identidade: carregada pela empresa do contexto autorizado; a autoria continua
+  ligada ao profissional validado e ao certificado correspondente.
+- Não trocar dados persistidos, destinatários, validações ou contratos clínicos.
+
+## Falhas previstas
+
+| Gravidade | Falha | Barreira | Evidência |
+| --- | --- | --- | --- |
+| Crítica | Clínica ou médico da arte aparecem em outra empresa | Remover todos os pixels e textos específicos antes de compor dados reais | Documento de duas clínicas e profissionais distintos, inclusive marca d'água e rodapé |
+| Crítica | Rubrica ou código de exemplo parecem assinatura real | Não incorporar imagem de exemplo; usar bloco existente de certificado e código real | Documento sem certificado e documento assinado sinteticamente |
+| Crítica | Dados clínicos somem, se sobrepõem ou são cortados | Medir linhas e reservar assinatura e rodapé; paginar de forma segura | Fórmulas longas, múltiplas páginas e caracteres acentuados |
+| Alta | Assinatura é quebrada após compor | Desenhar tudo antes da assinatura e verificar bytes finais | Verificação independente da integridade do arquivo |
+| Alta | Arte não está disponível no ambiente de execução | Usar recurso persistente, versionado e validado; falhar explicitamente | Teste com recurso ausente e execução do pacote gerado |
+| Alta | Receita especial perde campos obrigatórios | Preservar os campos do corpo já existentes | Comparar receita comum e especial |
+| Alta | Teste altera prontuário ou envia documento | Usar dados sintéticos em ambiente isolado, sem serviços externos | Verificar ausência de chamadas de escrita ou envio reais |
+
+## Pronto
+
+Revisão independente sequencial, inspeção visual de todas as páginas e testes
+isolados dos casos acima passam; demonstração e emissão utilizam o mesmo modelo;
+nenhum nome, símbolo, assinatura ou código de outra clínica permanece na arte.
+Na ausência dessas evidências, manter a emissão anterior e declarar bloqueio.
