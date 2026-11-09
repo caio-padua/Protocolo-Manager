@@ -16,11 +16,17 @@ function brandBaseUrl(): string | null {
   }
 }
 
+/** Domínio público da hospedagem em produção no Railway (nome de host, sem protocolo). */
+function railwayHost(): string | undefined {
+  const raw = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  return raw ? raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "") : undefined;
+}
+
 export function baseUrlFromEnv(): string {
   const brand = brandBaseUrl();
   if (brand) return brand;
   const fromDomains = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
-  const host = fromDomains || process.env.REPLIT_DEV_DOMAIN || "localhost";
+  const host = fromDomains || railwayHost() || process.env.REPLIT_DEV_DOMAIN || "localhost";
   const proto = host.includes("localhost") ? "http" : "https";
   return `${proto}://${host}`;
 }

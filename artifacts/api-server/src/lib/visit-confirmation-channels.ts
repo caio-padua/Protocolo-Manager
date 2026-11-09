@@ -1,26 +1,37 @@
 /**
  * Adaptadores REAIS de canal da confirmação por visita (K8).
- * Os testes nunca usam este arquivo: injetam canais simulados em ChannelSenders.
+ *
+ * Código Paxter Art. 66: todo envio passa pelo motor Hermes (lib/messaging). Aqui só se escolhe o
+ * canal e se traduz o resultado do motor para o relato por canal da K8; a marca (casco do e-mail,
+ * banner, legenda) é aplicada pelo motor. Os testes nunca usam este arquivo: injetam canais
+ * simulados em ChannelSenders.
  */
-import { sendGmailMessage } from "./google-gmail";
-import { sendWhatsapp } from "./whatsapp";
-import { sendTelegram } from "./telegram";
+import { enviarMensagemPaxter } from "./messaging/engine";
+import type { PaxterCanal, PaxterCanalResultado, PaxterDestino, PaxterDoc } from "./messaging/types";
 import type { ChannelSenders } from "./visit-confirmation";
 
+/**
+ * No log do WhatsApp a chave nunca fica em texto puro. Só a mensagem da chave segue por
+ * WhatsApp, por isso o corpo é sempre omitido neste canal.
+ */
+export const WHATSAPP_LOG_OMITIDO = "[chave de confirmação da visita omitida do log]";
+
+async function viaMotor(doc: PaxterDoc, destino: PaxterDestino, canal: PaxterCanal): Promise<PaxterCanalResultado> {
+  const { resultados } = await enviarMensagemPaxter(doc, destino, [canal], { corpoParaLog: WHATSAPP_LOG_OMITIDO });
+  return resultados[0] ?? { canal, sent: false, error: "motor sem resultado" };
+}
+
 export const realChannels: ChannelSenders = {
-  async sendEmail(to, subject, html) {
-    return sendGmailMessage({ to, subject, html });
+  async sendEmail(to, doc) {
+    const r = await viaMotor(doc, { email: to }, "EMAIL");
+    return { success: r.sent, error: r.error };
   },
-  async sendWhatsapp(phone, message) {
-    // Sem espelho no Telegram (canal próprio) e com o corpo mascarado no log: a chave
-    // nunca fica gravada em texto puro em whatsapp_mensagens_log.
-    return sendWhatsapp(phone, message, {
-      contexto: "chave_visita",
-      mirrorTelegram: false,
-      corpoParaLog: "[chave de confirmação da visita omitida do log]",
-    });
+  async sendWhatsapp(phone, doc) {
+    const r = await viaMotor(doc, { telefone: phone }, "WHATSAPP");
+    return { sent: r.sent, via: r.via ?? "twilio", error: r.error };
   },
-  async sendTelegram(chatId, text) {
-    return sendTelegram(chatId, text);
+  async sendTelegram(chatId, doc) {
+    const r = await viaMotor(doc, { telegramChatId: chatId }, "TELEGRAM");
+    return { sent: r.sent, mock: Boolean(r.mock), error: r.error };
   },
 };

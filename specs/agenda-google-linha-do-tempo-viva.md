@@ -278,3 +278,84 @@ P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). P2 R
 | F46 | Desafio travado deixa a visita sem encaminhamento | Alta | Trava liga sozinha o "Cliente confirma depois" | T-K8-21 |
 
 Definição de PRONTO de K8: T-K8-1 a T-K8-18 verdes em banco isolado com canais simulados; regressão das unidades K1 e K7 verde; revisão independente sem pendência; tela vista em captura quando for possível (a captura automática não entra em telas com login; o que não for visto será dito).
+
+## 14. Inventário do que já existia e correção de rumo (CEO, 09/11/2026, opção A)
+
+Motivo: o CEO disse que o desenho "já estava montado". A busca em 09/11/2026 confirmou. A K8 foi construída sem ler o repositório IHE (Integrative Health Engine, sistema antigo do CEO). Esta seção registra o passado verificado, o que a K8 duplicou e os formatos já decididos que a K9 e a K10 devem usar.
+
+### 14.1 Passado verificado (fontes)
+
+| Data | Onde | O que fazia |
+|---|---|---|
+| 12/06/2026 | IHE, ramo ver-l2-dr-claude, docs/dr-replit/PROPOSTAS/2026-06-12_arquitetura-app-enfermagem-ras-fap-pastas-clientes.md | Decisões do CEO: app da enfermagem; PIN do cliente derivado de dado do cadastro; rubrica no RAS FAP; RAS FAP por e-mail a cada aplicação confirmada; pasta do cliente no Drive; evento do Google com TODAS as substâncias do protocolo |
+| 12/06/2026 | IHE, docs/dr-replit/ras-kaizen-v8/AppEnfermagemRasFap.gs | Código: PIN só em hash com sal, 5 tentativas em 15 minutos, validação só no servidor, aplicação idempotente por "SUBSTÂNCIA\|sessão", e-mail do RAS FAP que nunca derruba o registro |
+| data não vista | IHE, artifacts/api-server/src/routes/sessoes.ts | Rota confirmar-substancia atualiza o evento do Google; rota whatsapp-codigo envia a "chave de validação" (modelo CODIGO_VALIDACAO) |
+| 26/06/2026 | Carta do IHE ao Manager (attached_assets) | Código de 6 caracteres como "aperto de mão"; assinatura remota do cliente (ZapSign) |
+| 08/04/2026 | Manager, validation_codes | Código de 6 letras/números por sessão; 2 itens de menu na Agenda; e-mail pré-sessão com o código |
+| 10/04/2026 | Manager, coluna clients.validation_password | Senha derivada de sobrenome e CPF, usada no vínculo do Telegram |
+| 17/06/2026 | Manager, lib/ras-fap.ts | RAS FAP com as colunas "CIÊNCIA / RUBRICA PACIENTE" e "RUBRICA ENF." (saem vazias) |
+| 28/06/2026 | Manager, lib/messaging (motor Hermes, Art. 66) | Envio de mensagem com a marca em e-mail, WhatsApp e Telegram |
+
+### 14.2 Falhas da K8 reconhecidas (verificadas na fonte)
+
+| Nº | Falha | Correção | Estado |
+|---|---|---|---|
+| 1 | Desenho de 12/06/2026 não lido antes da K8 | Esta seção; nota na memória do projeto | Feito |
+| 2 | E-mails da K8 montados à mão, fora do motor Hermes (Art. 66) | Passo 2 da opção A | Ver 14.4 |
+| 3 | Segundo ajudante de endereço público (publicBaseUrl) com ordem de busca diferente do ajudante único (messaging/base-url.ts) | Passo 2 da opção A | Ver 14.4 |
+| 4 | Agenda mostra 2 caminhos de validação na mesma visita (itens antigos "Gerar Código de Validação" e "Verificar Código do Cliente" e o painel novo) | Nada é retirado do menu (Regra de Ouro); decisão separada do CEO | Aberto |
+| 5 | Rotas antigas /validation-codes sem login e com código em texto puro (13.7.1) | Decisão do CEO (opção C não escolhida) | Aberto |
+
+### 14.3 Formatos já decididos pelo CEO em 12/06/2026 (a K9 usa, sem perguntar de novo)
+
+14.3.1 Rubrica do cliente: "Sobrenome, I.N.I." (exemplo: Padua, C.H.S.). Sobrenome longo encurta só o sobrenome, com folga de 2 caracteres.
+14.3.2 Rubrica da enfermeira: nome por extenso, cortado com folga de 2 caracteres.
+14.3.3 Aplicada: não muda a cor da barra; o terço direito fica sem pintura, com o caractere de check.
+14.3.4 Não mudar a estrutura de colunas do RAS FAP.
+14.3.5 O PIN é confirmação de presença, não assinatura com valor jurídico; para valor jurídico existe o ZapSign.
+14.3.6 O desenho de 12/06/2026 NÃO tem "Cliente confirma depois", link de um clique, 3 e-mails, aviso à gestão nem desafio de duas metades sorteadas; essas são decisões novas de 09/11/2026.
+
+### 14.4 Plano da opção A (um passo por vez, com teste)
+
+| Passo | Entrega | Estado |
+|---|---|---|
+| 1 | Registrar o inventário (esta seção 14) | Feito em 09/11/2026 |
+| 2 | Mensagens da K8 (chave, e-mail ao cliente, e-mail à gestão) passam pelo motor Hermes; endereço público passa pelo ajudante único | Feito e aprovado na revisão independente em 09/11/2026 (ver 14.5 e 14.6) |
+| 3 | K9 com os formatos de 14.3 | A fazer, depois do passo 2 |
+
+### 14.5 Passo 2 — especificação das mensagens da K8 no motor Hermes
+
+Requisitos (a revisão confere cada um):
+
+| Nº | Requisito | Prova |
+|---|---|---|
+| R1 | Nenhuma mensagem enviada da K8 é montada à mão; os três textos (chave, e-mail ao cliente, aviso à gestão) são conteúdo puro (PaxterDoc) vestido pelo motor Hermes | visit-confirmation-motor-hermes.test.ts (guarda do Art. 66 sobre o arquivo de mensagens) |
+| R2 | Toda saída (e-mail, WhatsApp, Telegram) chama enviarMensagemPaxter; nenhum acesso direto a Gmail, Twilio ou Telegram nos adaptadores da K8 | visit-confirmation-channels.ts e teste dos adaptadores |
+| R3 | A chave nunca vai no assunto do e-mail nem no log do WhatsApp | testes de assunto e de corpoParaLog |
+| R4 | O relato por canal continua honesto: e-mail aceito só se o provedor aceitou; WhatsApp aceito só via Twilio; Telegram distingue real, simulado e falha; motor sem resultado conta como falha | testes dos adaptadores |
+| R5 | O endereço do link vem do ajudante único (messaging/base-url.ts); sem endereço público, o link não é montado e o aviso "Endereço público não configurado" continua | testes de endereço e evento sem_url_publica |
+| R6 | A mudança no motor é aditiva: o campo corpoParaLog é opcional e, ausente, o chamado ao WhatsApp é idêntico ao anterior | messaging-engine-corpo-log.test.ts e testes do Guia Digital |
+| R7 | Nada foi apagado: rotas, itens de menu, colunas e tabelas ficam como estavam; a página pública de confirmação continua sendo tela da web | git diff |
+| R8 | O api-worker continua carregando os adaptadores sob Node 24 | build do worker e importação do pacote gerado |
+
+Falhas previstas deste passo:
+
+| ID | Falha | Barreira |
+|---|---|---|
+| F47 | A chave vazar no log do WhatsApp ao trocar para o motor | corpoParaLog fixo nos adaptadores da K8 |
+| F48 | O motor devolver lista vazia e a K8 contar como enviado | resultado ausente vira falha |
+| F49 | Texto do cliente com HTML ser interpretado no e-mail | o renderizador do motor escapa; o conteúdo é texto puro |
+| F50 | O worker não carregar o motor e parar os lembretes em silêncio | importação do pacote gerado; a falha do job já é registrada no log do worker |
+| F51 | Link montado com endereço de máquina local | linkBaseUrl recusa localhost |
+
+### 14.6 Passo 2 — resultado da revisão e dos testes (09/11/2026)
+
+Revisão independente: reprovada duas vezes, aprovada na terceira.
+
+| Rodada | Achado do revisor | Correção |
+|---|---|---|
+| 1 | O ajudante único perdia o domínio de produção do Railway (RAILWAY_PUBLIC_DOMAIN) que a K8 usava antes; endereço de máquina local diferente de "localhost" passava | Ajudante único inclui RAILWAY_PUBLIC_DOMAIN; recusa de endereço local e de rede privada |
+| 2 | "localhost." (com ponto final) e IPv6 mapeado ainda passavam | Nome normalizado; qualquer IPv6 literal recusado |
+| 3 | Sem impeditivo | Risco residual: provedores reais (Gmail, Twilio, Telegram) não testados |
+
+Limite do que foi provado: canais simulados; nenhum e-mail, WhatsApp ou Telegram real foi enviado neste passo.

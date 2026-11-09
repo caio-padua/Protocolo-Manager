@@ -20,6 +20,8 @@ import {
   type ChallengeClientData,
 } from "./visit-confirmation-challenge";
 import { clientConfirmEmail, keyMessage, managerEmail, whenLabel } from "./visit-confirmation-messages";
+import { baseUrlFromEnv } from "./messaging/base-url";
+import type { PaxterDoc } from "./messaging/types";
 
 // ---------------------------------------------------------------------------
 // Constantes (decisões do CEO)
@@ -72,10 +74,14 @@ export interface ConfirmationRow {
   challenge_pairs_used: string[]; challenge_locked: boolean;
 }
 
+/**
+ * Cada canal recebe o CONTEÚDO (PaxterDoc); quem veste a marca e envia é o motor Hermes
+ * (lib/messaging, Art. 66). Os testes injetam canais simulados nesta mesma interface.
+ */
 export interface ChannelSenders {
-  sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }>;
-  sendWhatsapp(phone: string, message: string): Promise<{ sent: boolean; via: string; error?: string }>;
-  sendTelegram(chatId: string, text: string): Promise<{ sent: boolean; mock: boolean; error?: string }>;
+  sendEmail(to: string, doc: PaxterDoc): Promise<{ success: boolean; error?: string }>;
+  sendWhatsapp(phone: string, doc: PaxterDoc): Promise<{ sent: boolean; via: string; error?: string }>;
+  sendTelegram(chatId: string, doc: PaxterDoc): Promise<{ sent: boolean; mock: boolean; error?: string }>;
 }
 
 export type ChannelStatus = "aceito" | "falhou" | "sem_contato" | "simulado";
@@ -341,13 +347,33 @@ export async function hasRegisteredApplication(sessionId: number): Promise<boole
   return rows.length > 0;
 }
 
-export function publicBaseUrl(): string | null {
-  const explicit = process.env.PUBLIC_BASE_URL?.trim();
-  const domain = explicit || process.env.RAILWAY_PUBLIC_DOMAIN?.trim()
-    || (process.env.REPLIT_DOMAINS ?? "").split(",")[0]?.trim();
-  if (!domain) return null;
-  const base = domain.startsWith("http") ? domain : `https://${domain}`;
-  return base.replace(/\/$/, "");
+/**
+ * Endereço de máquina local ou de rede privada: nunca abre no aparelho do cliente.
+ * Recebe o nome já normalizado por `new URL(...).hostname` (que converte formas como 2130706433 em
+ * 127.0.0.1). Endereço IPv6 literal (inclusive o mapeado de IPv4, como [::ffff:127.0.0.1]) não é
+ * aceito como endereço público do sistema: o domínio da clínica é sempre um nome.
+ */
+function isLocalOrPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/\.+$/, ""); // "localhost." (ponto final) é o mesmo nome
+  if (h === "" || h.includes(":") || h.startsWith("[")) return true;
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+/**
+ * Endereço público para o link de um clique. A resolução é do ajudante único do motor Hermes
+ * (messaging/base-url.ts); aqui só se recusa endereço de máquina local ou de rede privada.
+ */
+export function linkBaseUrl(): string | null {
+  const base = baseUrlFromEnv();
+  try {
+    return isLocalOrPrivateHost(new URL(base).hostname) ? null : base;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -355,26 +381,26 @@ export function publicBaseUrl(): string | null {
 // ---------------------------------------------------------------------------
 export async function sendKeyToClient(channels: ChannelSenders, ctx: VisitContext, key: string): Promise<ChannelReport[]> {
   const when = whenLabel(ctx.scheduledDate, ctx.scheduledTime);
-  const msg = keyMessage({ clientName: ctx.clientName, key, minutes: KEY_TTL_MS / 60_000, when });
+  const doc = keyMessage({ clientName: ctx.clientName, key, minutes: KEY_TTL_MS / 60_000, when });
   const report: ChannelReport[] = [];
 
   if (ctx.clientEmail) {
     try {
-      const r = await channels.sendEmail(ctx.clientEmail, msg.subject, msg.html);
+      const r = await channels.sendEmail(ctx.clientEmail, doc);
       report.push({ canal: "email", estado: r.success ? "aceito" : "falhou" });
     } catch { report.push({ canal: "email", estado: "falhou" }); }
   } else report.push({ canal: "email", estado: "sem_contato" });
 
   if (ctx.clientPhone) {
     try {
-      const r = await channels.sendWhatsapp(ctx.clientPhone, msg.text);
+      const r = await channels.sendWhatsapp(ctx.clientPhone, doc);
       report.push({ canal: "whatsapp", estado: r.sent && r.via === "twilio" ? "aceito" : "falhou" });
     } catch { report.push({ canal: "whatsapp", estado: "falhou" }); }
   } else report.push({ canal: "whatsapp", estado: "sem_contato" });
 
   if (ctx.telegramChatId) {
     try {
-      const r = await channels.sendTelegram(ctx.telegramChatId, msg.text);
+      const r = await channels.sendTelegram(ctx.telegramChatId, doc);
       report.push({ canal: "telegram", estado: r.sent ? (r.mock ? "simulado" : "aceito") : "falhou" });
     } catch { report.push({ canal: "telegram", estado: "falhou" }); }
   } else report.push({ canal: "telegram", estado: "sem_contato" });
@@ -505,7 +531,7 @@ async function sendToManagers(channels: ChannelSenders, row: ConfirmationRow, ct
     stats.avisos.push("Nenhum gestor administrador ou responsável técnico com e-mail cadastrado nesta clínica.");
     return;
   }
-  const mail = managerEmail({
+  const doc = managerEmail({
     kind, clientName: ctx.clientName, when: whenLabel(ctx.scheduledDate, ctx.scheduledTime),
     nurseName: await nurseName(fresh.pending_by_professional_id), origin: fresh.pending_origin ?? "enfermeira",
     clientHasEmail: Boolean(ctx.clientEmail), emailsSent: fresh.client_emails_sent, emailsFailed: fresh.client_email_failures,
@@ -513,7 +539,7 @@ async function sendToManagers(channels: ChannelSenders, row: ConfirmationRow, ct
   let ok = 0;
   for (const m of managers) {
     try {
-      const r = await channels.sendEmail(m.email, mail.subject, mail.html);
+      const r = await channels.sendEmail(m.email, doc);
       if (r.success) ok++; else stats.falhas++;
     } catch { stats.falhas++; }
   }
@@ -565,7 +591,7 @@ export async function dispatchDue(channels: ChannelSenders,
        RETURNING id`);
     if (claimed.length === 0) { stats.pulados++; continue; }
     const token = buildLinkToken(row);
-    const base = publicBaseUrl();
+    const base = linkBaseUrl();
     if (!ctx.clientEmail || !token || !base) {
       await db.execute(sql`UPDATE visit_confirmations SET client_email_failures = client_email_failures + 1 WHERE id = ${row.id}`);
       await logEvent(row, !ctx.clientEmail ? "cliente_sem_email" : "sem_url_publica", null, { n });
@@ -574,12 +600,12 @@ export async function dispatchDue(channels: ChannelSenders,
       if (ctx.clientEmail && !base) stats.avisos.push("Endereço público do sistema não configurado; o link de confirmação não pôde ser montado.");
       continue;
     }
-    const mail = clientConfirmEmail({
+    const doc = clientConfirmEmail({
       clientName: ctx.clientName, link: `${base}/api/confirmacao-visita/${token}`,
       when: whenLabel(ctx.scheduledDate, ctx.scheduledTime), n, total: CLIENT_EMAILS_TOTAL,
     });
     let accepted = false;
-    try { accepted = (await channels.sendEmail(ctx.clientEmail, mail.subject, mail.html)).success; } catch { accepted = false; }
+    try { accepted = (await channels.sendEmail(ctx.clientEmail, doc)).success; } catch { accepted = false; }
     if (accepted) stats.clienteEmails++;
     else {
       stats.falhas++;

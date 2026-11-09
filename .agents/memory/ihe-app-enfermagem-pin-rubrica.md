@@ -13,3 +13,8 @@ Formatos já decididos pelo CEO (usar na K9, sem perguntar de novo): rubrica do 
 - Antes de qualquer unidade sobre rubrica, PIN, RAS FAP vivo, evento do Google ou mensagem ao cliente, ler primeiro o IHE (e o cofre padua-segundo-cerebro), não só este repositório.
 - Ler o IHE daqui: o `GITHUB_PAT` lê os repositórios do CEO em modo leitura. A busca de código da API do GitHub devolve 0 ou 403 (limite); usar a API de árvore (`git/trees/<ramo>?recursive=1`) para listar caminhos e baixar o arquivo por URL raw. O IHE tem ~600 MB (não baixar o tarball); os demais repositórios são pequenos e o tarball serve.
 - Toda mensagem ao cliente deve passar pelo motor Hermes (`lib/messaging`, Art. 66); a K8 montou o e-mail à mão e ainda precisa ser migrada.
+
+## K8 migrada ao motor Hermes
+Mensagens da K8 são PaxterDoc (conteúdo puro) e saem só por enviarMensagemPaxter; o ajudante único de endereço público (messaging/base-url.ts) precisa conhecer RAILWAY_PUBLIC_DOMAIN ou o link some em produção.
+**Why:** a K8 nasceu com e-mail montado à mão e endereço próprio (violava o Art. 66); o revisor independente achou a perda do domínio Railway ao unificar.
+**How to apply:** ao trocar um ajudante local pelo único, comparar a ordem de variáveis de ambiente das duas versões; link para o cliente recusa localhost, rede privada e IPv6 literal.

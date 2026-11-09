@@ -74,6 +74,11 @@ export interface PaxterEnvioContexto {
   clienteId?: number;
   /** Contexto do envio, ex.: "lembrete_prescricao_voz", "campanha". */
   contexto?: string;
+  /**
+   * Texto que substitui o corpo da mensagem no log de WhatsApp. Usado quando a mensagem
+   * carrega segredo (ex.: chave de confirmação da visita) que não pode ficar gravado.
+   */
+  corpoParaLog?: string;
 }
 
 export interface PaxterCanalResultado {

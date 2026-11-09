@@ -6,9 +6,9 @@ import { startIsolatedPostgres } from "./helpers/postgres-isolado";
 
 const state = vi.hoisted(() => ({ database: null as any }));
 const sim = vi.hoisted(() => ({
-  emails: [] as Array<{ to: string; subject: string; html: string }>,
-  whats: [] as Array<{ phone: string; message: string }>,
-  tg: [] as Array<{ chatId: string; text: string }>,
+  emails: [] as Array<{ to: string; subject: string; html: string; doc: any }>,
+  whats: [] as Array<{ phone: string; message: string; doc: any }>,
+  tg: [] as Array<{ chatId: string; text: string; doc: any }>,
   emailOk: true, whatsOk: true, tgOk: true, tgMock: false, agendaOff: false,
 }));
 
@@ -32,22 +32,28 @@ vi.mock("../middleware/moduleGuard", () => ({
   moduleGuard: () => (_req: any, res: any, next: any) =>
     sim.agendaOff ? res.status(403).json({ error: "Módulo agenda desativado" }) : next(),
 }));
-vi.mock("../lib/visit-confirmation-channels", () => ({
-  realChannels: {
-    async sendEmail(to: string, subject: string, html: string) {
-      sim.emails.push({ to, subject, html });
-      return sim.emailOk ? { success: true } : { success: false, error: "simulado" };
+vi.mock("../lib/visit-confirmation-channels", async () => {
+  // Os canais simulados recebem o PaxterDoc e o tornam texto com os MESMOS renderizadores do motor
+  // Hermes, para os testes verem o que o cliente veria (assunto, e-mail de marca, legendas).
+  const { renderPaxterEmail, assuntoPadrao } = await import("../lib/messaging/render-email");
+  const { renderWhatsappCaption, renderTelegramCaption } = await import("../lib/messaging/render-text");
+  return {
+    realChannels: {
+      async sendEmail(to: string, doc: any) {
+        sim.emails.push({ to, subject: assuntoPadrao(doc), html: renderPaxterEmail(doc, "https://teste.paxter"), doc });
+        return sim.emailOk ? { success: true } : { success: false, error: "simulado" };
+      },
+      async sendWhatsapp(phone: string, doc: any) {
+        sim.whats.push({ phone, message: renderWhatsappCaption(doc), doc });
+        return sim.whatsOk ? { sent: true, via: "twilio" } : { sent: false, via: "link", error: "simulado" };
+      },
+      async sendTelegram(chatId: string, doc: any) {
+        sim.tg.push({ chatId, text: renderTelegramCaption(doc), doc });
+        return sim.tgOk ? { sent: true, mock: sim.tgMock } : { sent: false, mock: false, error: "simulado" };
+      },
     },
-    async sendWhatsapp(phone: string, message: string) {
-      sim.whats.push({ phone, message });
-      return sim.whatsOk ? { sent: true, via: "twilio" } : { sent: false, via: "link", error: "simulado" };
-    },
-    async sendTelegram(chatId: string, text: string) {
-      sim.tg.push({ chatId, text });
-      return sim.tgOk ? { sent: true, mock: sim.tgMock } : { sent: false, mock: false, error: "simulado" };
-    },
-  },
-}));
+  };
+});
 
 import visitRouter, { visitConfirmationPublicRouter } from "../routes/visit-confirmation";
 import { ensureVisitConfirmations } from "../lib/ensure-visit-confirmations";
@@ -55,6 +61,7 @@ import * as core from "../lib/visit-confirmation";
 import { realChannels } from "../lib/visit-confirmation-channels";
 import { availableFields, expectedValue } from "../lib/visit-confirmation-challenge";
 import { managerEmail, whenLabel } from "../lib/visit-confirmation-messages";
+import { renderPaxterEmail } from "../lib/messaging/render-email";
 
 const channels = realChannels as unknown as core.ChannelSenders;
 const app = express();
@@ -405,6 +412,26 @@ describe("K8b — Cliente confirma depois", () => {
     expect((await rowOf(1001)).state).toBe("rubrica_chave");
   });
 
+  it("R5: sem endereço público o link não é montado, a falha é registrada e a gestão é avisada", async () => {
+    await q("DELETE FROM visit_confirmations WHERE session_id=1005");
+    await core.markPending(ref(1005), { professionalId: 1, origin: "enfermeira" }, T0);
+    const id = (await rowOf(1005)).id;
+    for (const nome of ["PUBLIC_BASE_URL", "REPLIT_DOMAINS", "REPLIT_DEV_DOMAIN", "RAILWAY_PUBLIC_DOMAIN"]) vi.stubEnv(nome, "");
+    const antes = sim.emails.filter((e) => e.to === "maria@cliente.test").length;
+    try {
+      const stats = await core.dispatchDue(channels, { now: T0, onlyId: id });
+      expect(stats.falhas).toBe(1);
+      expect(stats.clienteEmails).toBe(0);
+      expect(stats.avisos.some((a) => a.includes("Endereço público do sistema não configurado"))).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(sim.emails.filter((e) => e.to === "maria@cliente.test").length).toBe(antes);
+    const ev = await q("SELECT count(*)::int AS n FROM visit_confirmation_events WHERE session_id=1005 AND event='sem_url_publica'");
+    expect(ev.rows[0].n).toBe(1);
+    expect((await rowOf(1005)).client_email_failures).toBe(1);
+  });
+
   it("cliente sem e-mail: registra a falha, avisa a gestão e nunca bloqueia", async () => {
     await core.markPending(ref(1012, 12), { professionalId: 1, origin: "enfermeira" }, T0).catch(() => undefined);
     const row = await rowOf(1012);
@@ -563,12 +590,13 @@ describe("Revisão independente — pré-condições e guardas", () => {
   it("aviso final não afirma que e-mails 'saíram' quando o provedor recusou", () => {
     const base = { kind: "final" as const, clientName: "Maria", when: "09/11/2026 às 14:30" };
     const full = { ...base, nurseName: null, origin: "enfermeira", clientHasEmail: true };
-    const todos = managerEmail({ ...full, emailsSent: 3, emailsFailed: 0 }).html;
+    const html = (a: Parameters<typeof managerEmail>[0]) => renderPaxterEmail(managerEmail(a), "https://teste.paxter");
+    const todos = html({ ...full, emailsSent: 3, emailsFailed: 0 });
     expect(todos).toContain("foram aceitos pelo provedor");
-    const nenhum = managerEmail({ ...full, emailsSent: 3, emailsFailed: 3 }).html;
+    const nenhum = html({ ...full, emailsSent: 3, emailsFailed: 3 });
     expect(nenhum).toContain("nenhuma foi aceita");
     expect(nenhum).not.toContain("saíram");
-    const parcial = managerEmail({ ...full, emailsSent: 3, emailsFailed: 1 }).html;
+    const parcial = html({ ...full, emailsSent: 3, emailsFailed: 1 });
     expect(parcial).toContain("2 aceitas e 1 recusadas");
   });
 });
