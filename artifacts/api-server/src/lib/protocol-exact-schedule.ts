@@ -1,3 +1,5 @@
+import { assertDurationSeconds, periodsForSeconds, sizeVisit, type VisitSizing } from "./protocol-visit-sizing";
+
 /** Date-only arithmetic: no current clock and no implicit server timezone. */
 export interface ExactScheduleItem {
   substanceId: number;
@@ -5,6 +7,14 @@ export interface ExactScheduleItem {
   totalSessions: number;
   intervalDays: number;
   startDate?: string | null;
+  /**
+   * Modo por tempo: se QUALQUER substância informar a duração, todas devem
+   * informar duração e participação médica, e toda vaga deve informar a
+   * capacidade em períodos. Sem isso vale apenas o limite por quantidade.
+   */
+  durationSeconds?: number;
+  /** null/undefined no modo por tempo = não definido; nunca presumido. */
+  requiresDoctor?: boolean | null;
 }
 export interface ExactApplication {
   substanceId: number;
@@ -75,6 +85,14 @@ export interface AvailableProtocolSlot {
   maxApplications: number;
   /** Ordem de preferência informada pelo cadastro; ausência não é confirmação. */
   preferenceRank?: number;
+  /** Períodos de 20 minutos, consecutivos e livres, da enfermagem a partir deste horário. */
+  capacityPeriods?: number;
+  /**
+   * Períodos de 20 minutos, a partir deste horário, em que o médico também está
+   * livre. A unidade é o tempo RESERVADO, não o tempo clínico: a visita precisa
+   * do médico durante todos os períodos que reserva. Ausente ou zero = indisponível.
+   */
+  doctorCapacityPeriods?: number;
 }
 export interface PlannedProtocolApplication extends ExactApplication {
   nominalDate: string;
@@ -83,6 +101,8 @@ export interface PlannedProtocolVisit {
   date: string;
   time: string;
   applications: PlannedProtocolApplication[];
+  /** Presente apenas no modo por tempo: períodos de enfermagem e médico exigidos. */
+  sizing?: VisitSizing;
 }
 export interface ProtocolPlanningRestriction {
   substanceId: number;
@@ -128,6 +148,18 @@ export function planProtocolWithAvailableSlots(
   }
   const nominal = buildExactProtocolSchedule(startDate, items);
   const byId = new Map(items.map(i => [i.substanceId, i]));
+  // Modo por tempo: ativado quando qualquer substância informa a duração.
+  const timeMode = items.some(i => i.durationSeconds !== undefined);
+  if (timeMode) {
+    for (const item of items) {
+      assertDurationSeconds(item.durationSeconds);
+      if (typeof item.requiresDoctor !== "boolean") {
+        throw new Error("Participação médica não definida para a substância");
+      }
+    }
+  } else if (slots.some(slot => slot.capacityPeriods !== undefined || slot.doctorCapacityPeriods !== undefined)) {
+    throw new Error("Capacidade em períodos exige a duração de todas as substâncias");
+  }
   const restrictions = new Map<number, {
     allowedWeekdays?: Set<number>;
     allowedDates?: Set<string>;
@@ -163,12 +195,20 @@ export function planProtocolWithAvailableSlots(
         (slot.preferenceRank != null && (!Number.isSafeInteger(slot.preferenceRank) || slot.preferenceRank < 1))) {
       throw new Error("Vaga inválida");
     }
+    if (timeMode) {
+      if (!Number.isSafeInteger(slot.capacityPeriods) || (slot.capacityPeriods as number) <= 0 ||
+          (slot.doctorCapacityPeriods !== undefined &&
+            (!Number.isSafeInteger(slot.doctorCapacityPeriods) || slot.doctorCapacityPeriods < 0))) {
+        throw new Error("Vaga sem capacidade em períodos válida");
+      }
+    }
     const key = `${slot.date} ${slot.time}`;
     if (seen.has(key)) throw new Error("Vaga duplicada");
     seen.add(key);
     // Mesma data e capacidade têm o mesmo efeito na viabilidade desta busca.
     // Conservar a opção mais preferida e, em empate, o horário mais cedo.
-    const equivalentKey = `${slot.date} ${slot.maxApplications}`;
+    const equivalentKey =
+      `${slot.date} ${slot.maxApplications} ${slot.capacityPeriods ?? ""} ${slot.doctorCapacityPeriods ?? ""}`;
     const prior = equivalentSlots.get(equivalentKey);
     if (!prior || (slot.preferenceRank ?? 10000) < (prior.preferenceRank ?? 10000)) {
       equivalentSlots.set(equivalentKey, slot);
@@ -249,6 +289,19 @@ export function planProtocolWithAvailableSlots(
       const key = `${slot.date} ${slot.time}`;
       const existing = candidate.visits.get(key);
       if (existing && existing.applications.length >= slot.maxApplications) continue;
+      if (timeMode) {
+        // Períodos que a visita reservaria COM esta ocorrência. Se qualquer
+        // aplicação da visita (já alocada ou a que chega agora) exigir o médico,
+        // ele precisa cobrir todos esses períodos, e não só o tempo clínico.
+        const together = [...(existing?.applications ?? []), occurrence];
+        const needed = periodsForSeconds(
+          together.reduce((sum, app) => sum + byId.get(app.substanceId)!.durationSeconds!, 0));
+        const needsDoctor = together.some(app => byId.get(app.substanceId)!.requiresDoctor === true);
+        const available = needsDoctor
+          ? Math.min(slot.capacityPeriods!, slot.doctorCapacityPeriods ?? 0)
+          : slot.capacityPeriods!;
+        if (needed > available) continue;
+      }
       // A capacidade da vaga já inclui os períodos adjacentes comprovados.
       // Duas vagas independentes no mesmo dia não provam adjacência e não
       // devem virar duas visitas separadas para o mesmo cliente.
@@ -279,6 +332,14 @@ export function planProtocolWithAvailableSlots(
   }
   const visits = [...candidates[0].visits.values()]
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  if (timeMode) {
+    for (const visit of visits) {
+      visit.sizing = sizeVisit(visit.applications.map(app => ({
+        durationSeconds: byId.get(app.substanceId)!.durationSeconds!,
+        requiresDoctor: byId.get(app.substanceId)!.requiresDoctor,
+      })));
+    }
+  }
   const counts = new Map<string, number>();
   for (const visit of visits) {
     const week = mondayOfWeek(visit.date);

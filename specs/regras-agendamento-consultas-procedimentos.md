@@ -25,6 +25,46 @@ a sincronização, as reservas ou os documentos já estejam concluídos.
   sem apagar os registros nem eventos do Google.
 - Revisão independente aprovou exclusivamente as subunidades acima.
 
+### Dimensionamento da visita e participação médica (09/11/2026)
+
+Decisão do responsável: na via endovenosa o médico não participa. Regra
+completa: intramuscular, subcutânea e endovenosa não reservam o médico;
+implantes e procedimentos estéticos reservam. Cada substância continua
+editável pelo controle sim/não do cadastro.
+
+1. Dado: no banco de desenvolvimento, as 213 substâncias com participação
+   médica indefinida receberam o valor da regra acima (163 intramusculares,
+   1 subcutânea e 16 endovenosas = não; 33 implantes = sim). Os 4 registros
+   que já tinham valor (intramusculares = não) foram preservados: 213 + 4 = 217.
+   Contagens lidas no banco antes e depois, na mesma transação (213 e 4 antes;
+   0 e 217 depois). Para desfazer: devolver a indefinição a todos, exceto esses
+   4. Outros ambientes não foram alterados e exigem a mesma conferência antes
+   de publicar.
+2. Código: `lib/protocol-visit-sizing.ts` converte tempos em períodos de
+   enfermagem. Cada período de 20 minutos guarda 5 de organização e comporta
+   900 segundos de procedimento. Seis aplicações de 150 segundos = 1 período;
+   sete = 2; implante de 1.800 segundos = 2 períodos (40 minutos) e médico.
+   Participação médica indefinida é recusada, nunca presumida.
+3. Consequência da regra, a ser lembrada ao reservar: implante mais uma
+   aplicação comum na mesma visita soma 1.950 segundos e pede 3 períodos.
+4. O planejador já existente (`planProtocolWithAvailableSlots`, com 26 testes
+   anteriores) passou a aceitar o modo por tempo: cada vaga informa quantos
+   períodos de 20 minutos a enfermagem tem livres e quantos o médico cobre ao
+   mesmo tempo. A unidade é o tempo RESERVADO, não o clínico: se alguma
+   aplicação da visita exige o médico, ele precisa cobrir todos os períodos que
+   a visita reserva (implante sozinho = 2; implante mais uma aplicação = 3), e
+   vale o menor entre enfermagem e médico, qualquer que seja a ordem em que as
+   aplicações entram na visita. Compatibilidade: vagas só com
+   `maxApplications` e substâncias sem duração seguem o comportamento antigo;
+   informar capacidade em períodos sem duração nas substâncias, ou duração em
+   apenas parte delas, é recusado como entrada ambígua. Cada visita planejada
+   no modo por tempo devolve o dimensionamento (períodos e médico) para a
+   reserva e para o evento do Google.
+5. O planejador ainda NÃO está ligado a nenhuma rota: nenhuma reserva,
+   sessão ou evento passa por ele. Falta a fonte de vagas (períodos adjacentes
+   livres da enfermagem e cobertura do médico, lidos do motor) e a reserva
+   atômica dos dois recursos.
+
 ### Impedimentos reais encontrados no desenvolvimento
 
 - A validação atual de protocolo grava sessões com horário padrão sem reservar

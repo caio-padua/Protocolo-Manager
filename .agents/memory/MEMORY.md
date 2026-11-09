@@ -154,3 +154,4 @@
 - [Governança e agenda pessoal](agenda-governanca-pessoal.md) — liberação gradual e bloqueio de recursos pessoais.
 - [Importação e sessões](ics-importacao-sessoes-do-sistema.md) — diferenciar compromissos importados de sessões do sistema.
 - [Informações clínicas no Google](agenda-evento-google-padrao.md) — conectar o formato existente às duas agendas, sem inventar dados ou estados.
+- [Planejador de protocolo + participação médica](protocolo-planejador-dimensionamento.md) — IV/IM/SC sem médico, implante com; planejador puro existe mas sem rota; lacuna = vagas + reserva conjunta.
