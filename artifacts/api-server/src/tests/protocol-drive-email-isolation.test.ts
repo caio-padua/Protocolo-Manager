@@ -166,6 +166,7 @@ const FAKE_PROTOCOL = {
   clientId:         7,
   empresaId:        5,
   professionalId:   null,
+  nurseId:          null as number | null,
   title:            "Longevidade IV",
   status:           "active",
   startDate:        "2026-08-01",
@@ -202,7 +203,11 @@ const FAKE_PROFESSIONAL = {
 const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", empresaId: 5 };
 let clinicMembershipIsValid = true;
 let syntheticItemsEnabled = false;
-afterEach(() => { syntheticItemsEnabled = false; });
+afterEach(() => {
+  syntheticItemsEnabled = false;
+  FAKE_PROTOCOL.nurseId = null;
+  FAKE_PROFESSIONAL.specialty = "Cardiologia";
+});
 
 // ── Thenable-chain mock para drizzle ─────────────────────────────────────────
 
@@ -503,6 +508,58 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
     expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf).mock.calls[1][0].substances[0].durationMinutes).toBe(2.5);
     expect(vi.mocked(driveLib.uploadFileToDrive)).not.toHaveBeenCalled();
     expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
+  });
+
+  it("não inventa um profissional de enfermagem quando o protocolo não indica nenhum", async () => {
+    FAKE_PROFESSIONAL.specialty = "Enfermagem";
+    vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(false);
+    const emission = await request(buildApp()).post("/api/protocols/99/emit-document")
+      .set("Authorization", "Bearer test-collaborator").send({});
+    expect(emission.status).toBe(200);
+    expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf).mock.calls[0][0].nurseName).toBeUndefined();
+    expect(vi.mocked(pdfSigner.generatePhysicalRASPdf).mock.calls[0][0].nurseName).toBeUndefined();
+  });
+
+  it("usa o profissional de enfermagem indicado no protocolo", async () => {
+    FAKE_PROTOCOL.nurseId = FAKE_PROFESSIONAL.id;
+    vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(false);
+    const emission = await request(buildApp()).post("/api/protocols/99/emit-document")
+      .set("Authorization", "Bearer test-collaborator").send({});
+    expect(emission.status).toBe(200);
+    expect(vi.mocked(pdfSigner.generateProtocolDocumentPdf).mock.calls[0][0].nurseName).toBe(FAKE_PROFESSIONAL.name);
+    expect(vi.mocked(pdfSigner.generatePhysicalRASPdf).mock.calls[0][0].nurseName).toBe(FAKE_PROFESSIONAL.name);
+  });
+
+  it("não atribui ao cadastro do cliente uma falha da conexão Gmail", async () => {
+    vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(false);
+    const response = await request(buildApp()).post("/api/protocols/99/emit-document")
+      .set("Authorization", "Bearer test-collaborator").send({});
+    expect(response.status).toBe(200);
+    expect(response.body.emailSent).toBe(false);
+    expect(response.body.emailError).toContain("Gmail indisponível");
+    expect(response.body.emailError).not.toContain("sem e-mail");
+    expect(vi.mocked(emailSvc.sendProtocolEmail)).not.toHaveBeenCalled();
+  });
+
+  it("preserva a incerteza quando o serviço não confirma o envio", async () => {
+    vi.mocked(emailSvc.sendProtocolEmail).mockResolvedValue({
+      success: false, error: "Não foi possível confirmar. Verifique antes de reenviar.",
+    });
+    const response = await request(buildApp()).post("/api/protocols/99/emit-document")
+      .set("Authorization", "Bearer test-collaborator").send({});
+    expect(response.status).toBe(200);
+    expect(response.body.emailSent).toBe(false);
+    expect(response.body.emailError).toContain("Verifique antes de reenviar");
+    expect(response.body.message).toContain("não confirmado");
+  });
+
+  it("não confirma o RAS FAP quando a geração falha", async () => {
+    vi.mocked(pdfSigner.generatePhysicalRASPdf).mockRejectedValueOnce(new Error("Falha sintética"));
+    const response = await request(buildApp()).post("/api/protocols/99/emit-document")
+      .set("Authorization", "Bearer test-collaborator").send({});
+    expect(response.status).toBe(200);
+    expect(response.body.rasFapGenerated).toBe(false);
+    expect(vi.mocked(emailSvc.sendProtocolEmail).mock.calls[0][0].rasFapBuffer).toBeUndefined();
   });
 });
 

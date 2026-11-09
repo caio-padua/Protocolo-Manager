@@ -425,7 +425,7 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
   }
 
   const allProfs = await db.select().from(professionalsTable);
-  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+  const nurseProf = protocol.nurseId ? allProfs.find(p => p.id === protocol.nurseId) : undefined;
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
@@ -620,7 +620,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
   }
 
   const allProfs = await db.select().from(professionalsTable);
-  const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+  const nurseProf = protocol.nurseId ? allProfs.find(p => p.id === protocol.nurseId) : undefined;
   if (nurseProf) nurseName = nurseProf.name;
 
   const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
@@ -854,7 +854,11 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     let emailSent = false;
     let emailError: string | undefined;
     let cadernosDispatched = 0;
-    if (client.email && await isGmailConnected()) {
+    if (!client.email) {
+      emailError = "Cliente sem e-mail cadastrado.";
+    } else if (!await isGmailConnected()) {
+      emailError = "Gmail indisponível ou não autorizado. Verifique a conexão.";
+    } else {
       try {
         const emailResult = await sendProtocolEmail({
           clientName: client.name,
@@ -1105,9 +1109,10 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       emailSent,
       emailError: emailError ?? null,
       driveUploaded: driveActuallyUploaded,
+      rasFapGenerated: Boolean(rasFapBuffer?.length),
       message: emailSent
-        ? `Protocolo emitido e e-mail enviado a ${client.email}.`
-        : `Protocolo gerado e subido no Drive. E-mail não enviado${emailError ? ": " + emailError : " (Gmail não conectado ou paciente sem e-mail)"}.`,
+        ? `E-mail do protocolo aceito pelo Gmail para ${client.email}.`
+        : `E-mail do protocolo não confirmado${emailError ? ": " + emailError : "; motivo não informado."}`,
     });
   } catch (err: any) {
     if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
@@ -1462,10 +1467,8 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   // SUB-04 item 5: onboarding ao fechar/validar o protocolo — e-mail de boas-vindas
   // com o .ics consolidado das sessões recém-geradas. Best-effort: cliente sem
   // e-mail ou falha no envio NÃO quebra a validação (caso extremo 1).
-  // O e-mail de boas-vindas e o comportamento PADRAO e continua ligado.
-  // O CEO pode suprimi-lo de forma EXPLICITA com ?skipOnboardingEmail=true
-  // quando valida um protocolo apenas para conferencia interna e o paciente
-  // ainda nao deve receber nada. Nunca e silencioso: fica registrado no log.
+  // Só enviar horários que já tenham reserva real na agenda. As sessões
+  // geradas pela validação ainda são previsões, não reservas.
   const skipOnboarding = query.data.skipOnboardingEmail === "true";
 
   try {
@@ -1478,17 +1481,21 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
       const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
       if (client?.email) {
         const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
-        sessions.sort((a, b) =>
-          a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
-        );
-        const events = await buildEventsForSessions(sessions, client.name);
-        const onboarding = await sendProtocolOnboardingEmail({
-          clientName: client.name,
-          clientEmail: client.email,
-          events,
-        });
-        if (!onboarding.success) {
-          req.log.warn({ protocolId: protocol.id, error: onboarding.error }, "Onboarding email não enviado");
+        if (sessions.length === 0 || sessions.some(s => !s.resourceId || !s.durationMinutes || s.durationMinutes <= 0)) {
+          req.log.warn({ protocolId: protocol.id }, "Convite não enviado: sessões ainda não têm horários reservados.");
+        } else {
+          sessions.sort((a, b) =>
+            a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime),
+          );
+          const events = await buildEventsForSessions(sessions, client.name);
+          const onboarding = await sendProtocolOnboardingEmail({
+            clientName: client.name,
+            clientEmail: client.email,
+            events,
+          });
+          if (!onboarding.success) {
+            req.log.warn({ protocolId: protocol.id, error: onboarding.error }, "Onboarding email não confirmado");
+          }
         }
       } else {
         req.log.info({ protocolId: protocol.id }, "Cliente sem e-mail — onboarding pulado");

@@ -436,9 +436,13 @@ export interface ProtocolEmailData {
   rasFapBuffer?: Buffer;
 
   rasFapFileName?: string;
+
+  /** O PDF principal é o próprio RAS FAP, como no reenvio individual. */
+  pdfIsRasFap?: boolean;
 }
 
 function protocolBlocks(data: ProtocolEmailData): string[] {
+  const hasRasFap = (data.rasFapBuffer?.length ?? 0) > 0 || data.pdfIsRasFap === true;
   // Substancias do protocolo em CARTOES ALINHADOS (mesma fonte unica). Este
   // e-mail de onboarding nao carrega dose por substancia — o detalhamento
   // completo (doses e cronograma) vai no RAS FAP anexo, como o texto avisa.
@@ -455,14 +459,14 @@ function protocolBlocks(data: ProtocolEmailData): string[] {
 
   return [`
     <p style="color: #c2cee0; font-size: 15px; margin: 0 0 16px; line-height: 1.7;">Este e-mail tem o objetivo de informar que o seu protocolo medico personalizado <strong style="color: #c9a24f;">${data.protocolTitle}</strong> foi elaborado pelo Dr(a). <strong style="color: #f3ead6;">${data.professionalName}</strong>, com inicio previsto para <strong style="color: #c9a24f;">${formatDateBR(data.startDate)}</strong>.</p>
-    <p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">Segue em anexo o documento <strong style="color: #c9a24f;">RAS FAP</strong> (Registro de Administracao de Substancias) contendo o detalhamento completo das substancias, cronograma de sessoes e espacos para controle presencial de cada aplicacao.</p>
+    ${hasRasFap ? `<p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">Segue em anexo o documento <strong style="color: #c9a24f;">RAS FAP</strong> (Registro de Administracao de Substancias) contendo o detalhamento completo das substancias, cronograma de sessoes e espacos para controle presencial de cada aplicacao.</p>` : `<p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">O documento do protocolo segue em anexo.</p>`}
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 20px; margin-bottom: 16px;">
       <h3 style="margin: 0 0 12px; color: #c9a24f; font-size: 15px;">Substancias do seu protocolo:</h3>
       ${substList}
     </div>
-    <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px;">
+    ${hasRasFap ? `<div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px;">
       <p style="margin: 0; color: #c2cee0; font-size: 13px; line-height: 1.6;"><strong style="color: #c9a24f;">Importante:</strong> Este documento deve ser apresentado em todas as sessoes presenciais para controle e rubrica da enfermeira responsavel. Em caso de duvidas, entre em contato com a clinica.</p>
-    </div>`];
+    </div>` : ""}`];
 }
 
 export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ success: boolean; error?: string }> {

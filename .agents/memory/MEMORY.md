@@ -146,7 +146,7 @@
 - [Modelo clínico PAXMED padrão](modelo-clinico-paxmed-padrao.md) — decisão: cabeçalho azul e rodapé PAXMED sem ativação; faixa do certificado na parte inferior.
 - [Rodapé HTML em várias páginas](rodape-html-multipagina.md) — posição fixa pode sobrepor fórmulas; verificar páginas renderizadas antes de assinar.
 - [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ativo false.
-- [Gmail desconectado = e-mail falha](gmail-conector-desconectado-401.md) — "Invalid Credentials" no envio = autorizacao Google expirada; reautorizar integracao, nao mexer na rota.
+- [Diagnóstico da conexão Gmail](gmail-conector-desconectado-401.md) — conferir perfil e autorização; conexão ativa não prova envio nem entrega.
 - [Locais: modalidade e sede](locais-modalidade-sede.md) — LOCAL=endereco da empresa, REMOTO=a definir (nao presumir); sede sobrepoe endereco na leitura; Padrao 27.
 - [PQQ: via do consultório](pqq-via-intramuscular.md) — médico confirmou via intramuscular, nunca endovenosa; corrigir divergências do cadastro na fonte.
 - [Intervalo de protocolos](intervalo-minimo-protocolos.md) — médico escolheu frequência menos quatro dias como mínimo; frequências curtas exigem trava positiva.

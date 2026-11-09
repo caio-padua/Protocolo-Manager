@@ -1,7 +1,15 @@
 // Replit Integration: Gmail (connector: google-mail)
 import { google } from 'googleapis';
+import { ReplitConnectors } from '@replit/connectors-sdk';
 
 let connectionSettings: any;
+const connectors = new ReplitConnectors();
+
+async function gmailProfile(): Promise<{ emailAddress?: string }> {
+  const response = await connectors.proxy("google-mail", "/gmail/v1/users/me/profile", { method: "GET" });
+  if (!response.ok) throw new Error(`Gmail indisponível ou não autorizado (código ${response.status}).`);
+  return await response.json() as { emailAddress?: string };
+}
 
 async function getAccessToken() {
   if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
@@ -105,7 +113,6 @@ export async function sendGmailMessage(options: {
   }>;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const gmail = await getUncachableGmailClient();
     const rawMessage = buildMimeMessage(options);
     const encodedMessage = Buffer.from(rawMessage)
       .toString('base64')
@@ -113,23 +120,30 @@ export async function sendGmailMessage(options: {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    const result = await gmail.users.messages.send({
-      userId: 'me',
-      requestBody: {
-        raw: encodedMessage,
-      },
+    // O envio não pode ser repetido silenciosamente: uma resposta perdida pode
+    // ocorrer depois de o Gmail aceitar a mensagem. A chamada única usa os
+    // métodos públicos do conector para montar endereço e cabeçalhos.
+    const headers = await connectors.getProxyHeaders("google-mail");
+    const response = await fetch(`${connectors.getProxyUrl()}/gmail/v1/users/me/messages/send`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw: encodedMessage }),
     });
-
-    return { success: true, messageId: result.data.id ?? undefined };
+    if (!response.ok) {
+      return { success: false, error: `O Gmail não confirmou o envio (código ${response.status}). Verifique antes de reenviar.` };
+    }
+    const result = await response.json() as { id?: string };
+    if (!result.id) return { success: false, error: "O Gmail não confirmou o envio. Verifique antes de reenviar." };
+    return { success: true, messageId: result.id };
   } catch (err: any) {
     console.error("Failed to send Gmail message:", err.message);
-    return { success: false, error: err.message ?? String(err) };
+    return { success: false, error: "Não foi possível confirmar o envio pelo Gmail. Verifique antes de reenviar." };
   }
 }
 
 export async function isGmailConnected(): Promise<boolean> {
   try {
-    await getUncachableGmailClient();
+    await gmailProfile();
     return true;
   } catch {
     return false;
@@ -140,9 +154,8 @@ export async function isGmailConnected(): Promise<boolean> {
 // e-mails de TESTE só para a própria caixa, nunca para terceiros.
 export async function getGmailAddress(): Promise<string | null> {
   try {
-    const gmail = await getUncachableGmailClient();
-    const prof = await gmail.users.getProfile({ userId: "me" });
-    return prof.data.emailAddress ?? null;
+    const prof = await gmailProfile();
+    return prof.emailAddress ?? null;
   } catch {
     return null;
   }

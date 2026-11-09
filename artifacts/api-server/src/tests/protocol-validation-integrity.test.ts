@@ -163,7 +163,7 @@ describe("Validação transacional do protocolo pelo motor existente", () => {
       .toEqual([["2030-01-01", "10:00"], ["2030-01-08", "10:00"]]);
     expect(state.rows.protocols[0].status).toBe("validated");
     expect(state.lockCalls).toBe(1);
-    expect(sendProtocolOnboardingEmail).toHaveBeenCalledTimes(1);
+    expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
   it("preserva o horário legado quando o chamador não informa outro", async () => {
     expect((await validate()).status).toBe(200);
@@ -183,14 +183,14 @@ describe("Validação transacional do protocolo pelo motor existente", () => {
     const before = structuredClone(state.rows);
     expect((await validate("?scheduledTime=11:00")).status).toBe(200);
     expect(state.rows).toEqual(before);
-    expect(sendProtocolOnboardingEmail).toHaveBeenCalledTimes(1);
+    expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
   it("serializa chamadas concorrentes sem duplicar sessões ou onboarding", async () => {
     const responses = await Promise.all([validate("?scheduledTime=10:00"), validate("?scheduledTime=10:00")]);
     expect(responses.map(r => r.status)).toEqual([200, 200]);
     expect(state.rows.sessions).toHaveLength(2);
     expect(state.rows.applications).toHaveLength(2);
-    expect(sendProtocolOnboardingEmail).toHaveBeenCalledTimes(1);
+    expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
   it("reverte sessões e estado quando a persistência das aplicações falha", async () => {
     state.failInsert = true;

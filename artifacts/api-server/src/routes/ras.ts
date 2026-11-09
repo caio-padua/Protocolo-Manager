@@ -171,7 +171,10 @@ router.post("/ras", requireCollaborator, requireRasTenant, async (req, res): Pro
 
   const substances = dispApps.map(a => {
     const sub = substanceMap.get(a.substanceId);
-    const route = sub?.procedureType === "im" ? "IM" : sub?.procedureType === "implant" ? "Impl" : "IV";
+    const route = sub?.procedureType === "im" ? "IM"
+      : sub?.procedureType === "sc" ? "SC"
+      : sub?.procedureType === "implant" ? "Impl"
+      : sub?.procedureType === "iv" ? "IV" : "Não informada";
     return {
       substanceName: sub?.name ?? "Substância",
       dose: a.dose,
@@ -418,7 +421,7 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
     }
 
     const allProfs = await db.select().from(professionalsTable);
-    const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+    const nurseProf = protocol.nurseId ? allProfs.find(p => p.id === protocol.nurseId) : undefined;
     if (nurseProf) nurseName = nurseProf.name;
 
     const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
@@ -428,8 +431,9 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
     const substancias = protocolItems.map(item => {
       const sub = substMap.get(item.substanceId);
       const via = sub?.procedureType === "im" ? "Intramuscular"
+        : sub?.procedureType === "sc" ? "Subcutânea"
         : sub?.procedureType === "implant" ? "Implante"
-        : "Endovenosa";
+        : sub?.procedureType === "iv" ? "Endovenosa" : "Via não informada";
       return {
         nome: sub?.name ?? "Substância",
         dose: item.dose,
@@ -438,7 +442,7 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
         frequenciaDias: item.intervalDays,
         inicio: item.startDate,
         cor: sub?.color ?? "#c9a24f",
-        procedureType: sub?.procedureType ?? "iv",
+        procedureType: sub?.procedureType ?? undefined,
       };
     });
 
@@ -467,8 +471,8 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
         });
 
       let sessNurse: string | null = null;
-      if (sess.professionalId) {
-        const sp = allProfs.find(p => p.id === sess.professionalId);
+      if (sess.nurseId) {
+        const sp = allProfs.find(p => p.id === sess.nurseId);
         if (sp) sessNurse = sp.name;
       }
 
@@ -559,7 +563,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     }
 
     const allProfs = await db.select().from(professionalsTable);
-    const nurseProf = allProfs.find(p => (p.specialty ?? "").toLowerCase().includes("enf"));
+    const nurseProf = protocol.nurseId ? allProfs.find(p => p.id === protocol.nurseId) : undefined;
     if (nurseProf) nurseName = nurseProf.name;
 
     const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
@@ -569,8 +573,9 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     const substancias = protocolItems.map(item => {
       const sub = substMap.get(item.substanceId);
       const via = sub?.procedureType === "im" ? "Intramuscular"
+        : sub?.procedureType === "sc" ? "Subcutânea"
         : sub?.procedureType === "implant" ? "Implante"
-        : "Endovenosa";
+        : sub?.procedureType === "iv" ? "Endovenosa" : "Via não informada";
       return {
         nome: sub?.name ?? "Substância",
         dose: item.dose,
@@ -579,7 +584,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
         frequenciaDias: item.intervalDays,
         inicio: item.startDate,
         cor: sub?.color ?? "#c9a24f",
-        procedureType: sub?.procedureType ?? "iv",
+        procedureType: sub?.procedureType ?? undefined,
       };
     });
 
@@ -608,8 +613,8 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
         });
 
       let sessNurse: string | null = null;
-      if (sess.professionalId) {
-        const sp = allProfs.find(p => p.id === sess.professionalId);
+      if (sess.nurseId) {
+        const sp = allProfs.find(p => p.id === sess.nurseId);
         if (sp) sessNurse = sp.name;
       }
 
@@ -666,6 +671,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
       })),
       pdfBuffer,
       pdfFileName: driveFileName,
+      pdfIsRasFap: true,
     });
 
     try {
@@ -685,7 +691,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     }
 
     if (!emailResult.success) {
-      res.status(502).json({ error: `Falha ao enviar e-mail: ${emailResult.error}` });
+      res.status(502).json({ error: `Envio do e-mail não confirmado: ${emailResult.error ?? "Verifique antes de reenviar."}` });
       return;
     }
 

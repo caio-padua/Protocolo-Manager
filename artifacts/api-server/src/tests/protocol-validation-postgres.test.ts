@@ -11,7 +11,7 @@ vi.mock("@workspace/db", async importOriginal => {
   const Pool = original.pool.constructor;
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const pool = new Pool({
-    host: "127.0.0.1", port: 55439, user: "runner",
+    host: process.env.PAXTER_ISOLATED_PG_SOCKET || "127.0.0.1", port: 55439, user: "runner",
     database: "paxter_isolated_protocols",
   });
   state.pool = pool;
@@ -137,7 +137,7 @@ describe.skipIf(process.env.PAXTER_ISOLATED_PG !== "1")("Validação em PostgreS
     expect(responses.map(r => r.status)).toEqual([200, 200]);
     const count = await state.pool.query("SELECT count(*)::int AS n FROM sessions");
     expect(count.rows[0].n).toBe(5);
-    expect(sendProtocolOnboardingEmail).toHaveBeenCalledTimes(1);
+    expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
   it("grava datas independentes e o RAS lê exatamente as oito visitas persistidas", async () => {
     await state.pool.query("UPDATE protocols SET scheduling_mode='exact', start_date='2030-01-07' WHERE id=1");
@@ -153,7 +153,7 @@ describe.skipIf(process.env.PAXTER_ISOLATED_PG !== "1")("Validação em PostgreS
     expect(grid?.map(row => row.date)).toEqual(dates);
     expect(grid?.[1].counters).toEqual([null, "1/3"]);
     expect(grid?.at(-1)?.counters).toEqual([null, "3/3"]);
-    expect(sendProtocolOnboardingEmail).toHaveBeenCalledTimes(1);
+    expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
     expect((await validate()).status).toBe(200);
     expect((await state.pool.query("SELECT count(*)::int AS n FROM sessions")).rows[0].n).toBe(8);
   });

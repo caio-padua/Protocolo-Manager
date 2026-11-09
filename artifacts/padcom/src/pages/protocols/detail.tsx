@@ -81,7 +81,11 @@ export default function ProtocolDetail() {
   const validateMutation = useValidateProtocol({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Protocolo validado!", description: "Sessões geradas com consolidação semanal." });
+        toast({
+          title: "Protocolo validado!",
+          description: "A validação não reserva horários nem cria eventos no Google Agenda. Convites sem reserva não são enviados.",
+          duration: 10000,
+        });
         refetch();
       },
       onError: () => {
@@ -308,8 +312,26 @@ export default function ProtocolDetail() {
                         }
                         if (body?.emailSent === false) {
                           toast({
-                            title: "Protocolo salvo no Drive, mas o paciente não tem e-mail cadastrado — entrega incompleta",
-                            description: "Cadastre o e-mail do paciente e reenvie manualmente.",
+                            title: body?.driveUploaded
+                              ? "Protocolo salvo no Drive; e-mail não confirmado"
+                              : "Entrega incompleta; Drive e e-mail não confirmados",
+                            description: `${body?.emailError || "Não foi possível confirmar o envio. Verifique o histórico antes de reenviar."}${body?.rasFapGenerated === false ? " O RAS FAP também não foi gerado." : ""}`,
+                            variant: "warning",
+                            duration: 8000,
+                          } as any);
+                        } else if (body?.rasFapGenerated === false) {
+                          toast({
+                            title: "E-mail aceito; RAS FAP não gerado",
+                            description: body?.driveUploaded
+                              ? "Somente o protocolo foi anexado ao e-mail."
+                              : "Somente o protocolo foi anexado; o arquivo no Drive também não foi confirmado.",
+                            variant: "warning",
+                            duration: 8000,
+                          } as any);
+                        } else if (!body?.driveUploaded) {
+                          toast({
+                            title: "E-mail aceito; arquivo não confirmado no Drive",
+                            description: "Verifique o histórico antes de emitir novamente.",
                             variant: "warning",
                             duration: 8000,
                           } as any);
@@ -496,7 +518,7 @@ export default function ProtocolDetail() {
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] font-bold uppercase tracking-widest">
                       <span className="flex items-center gap-1 text-muted-foreground"><User className="h-3 w-3" /> {e.autorizadoPor}</span>
                       <span className={e.emailSent ? "text-green-600 dark:text-green-400" : "text-rose-500 dark:text-rose-400"}>
-                        {e.emailSent ? "E-mail ✓" : e.emailError ? `E-mail ✗ ${e.emailError}` : "E-mail não enviado"}
+                        {e.emailSent ? "E-mail aceito ✓" : e.emailError ? `E-mail não confirmado — ${e.emailError}` : "E-mail não confirmado"}
                       </span>
                       <span className={e.driveUploaded ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
                         {e.driveUploaded ? "Drive ✓" : "Drive —"}
