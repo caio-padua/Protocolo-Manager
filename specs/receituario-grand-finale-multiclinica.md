@@ -28,6 +28,12 @@ uma clínica ou profissional a outra pessoa.
 
 ## Fontes e impacto
 
+- Construir primeiro uma prova isolada, sem ativar o modelo em emissão clínica;
+  só trocar as rotas após os testes de identidade, conteúdo e assinatura.
+- O preenchimento das caixas de identidade deve caber integralmente; dados que
+  excedam o espaço precisam de tratamento explícito, sem corte silencioso.
+- A área útil da arte é menor que a do modelo anterior. Calcular paginação com
+  os limites reais desta arte, inclusive na continuação e no receituário especial.
 - Arquivo colorido: prova de referência, com dados pessoais de exemplo.
 - Arquivo base e imagem: incluem nome e símbolo da clínica, marca d'água,
   rubrica e dados de um médico e código ilustrativo; não são neutros.

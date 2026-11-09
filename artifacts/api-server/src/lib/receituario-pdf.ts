@@ -14,6 +14,7 @@ import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
 import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "./documentos/bloco-assinatura-3a1c";
 import { PAXMED_LIMITE_CONTEUDO, prepararVisualProva, desenharCabecalhoProva, carimbarRodapesProva, carimbarRodapesClinicos } from "./documentos/paxmed-modelo-2b-prova";
+import { GRAND_FINALE, prepararArteGrandFinale, desenharPaginaGrandFinale, carimbarRodapeGrandFinale } from "./documentos/receituario-grand-finale";
 import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 
 // ─── Cores Paxter ────────────────────────────────────────────────────────────
@@ -416,6 +417,8 @@ export interface ReceituarioDataV2 {
   homologacao?: boolean;
   /** Exclusivo para testes sintéticos offline; não autoriza emissão clínica. */
   modelo2bProva?: boolean;
+  /** Prova do Grand Finale, restrita a dados sintéticos fora de produção. */
+  modeloGrandFinaleProva?: boolean;
   identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   identidade2bClinica?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
@@ -452,6 +455,14 @@ export async function generatePdfFromPngBase64(
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
+  if (data.modeloGrandFinaleProva &&
+      (!data.homologacao || !data.modelo2bProva || !data.identidade2bProva || process.env.NODE_ENV !== "test" || signer)) {
+    throw new Error("A prova Grand Finale exige homologação isolada em ambiente de teste e não aceita assinatura.");
+  }
+  if (data.modeloGrandFinaleProva &&
+      data.clinicaNome?.trim() !== data.identidade2bProva?.textos.nomeCabecalho.trim()) {
+    throw new Error("A identidade da clínica não corresponde à identidade da prova.");
+  }
   if ((data.modelo2bProva && (!data.homologacao || process.env.NODE_ENV === "production")) ||
       (data.identidade2bProva && !data.modelo2bProva) ||
       (data.identidade2bClinica && (data.modelo2bProva || data.homologacao))) {
@@ -466,6 +477,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
   const designer = data.designerConfig ?? {};
   const pdfDoc   = await PDFDocument.create();
+  const grandFinale = data.modeloGrandFinaleProva
+    ? await prepararArteGrandFinale(pdfDoc, data.identidade2bProva!) : null;
   const visualProva = data.modelo2bProva || data.identidade2bClinica
     ? await prepararVisualProva(pdfDoc, data.identidade2bClinica ?? data.identidade2bProva) : null;
   const fonteProva = visualProva ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
@@ -764,7 +777,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   let y = 0;
   const FOOTER_TOP = configNumber(designer, "sepInfBottom", 20, 8, 35) * MM + 7.3;
-  const BODY_BOTTOM = visualProva ? PAXMED_LIMITE_CONTEUDO : FOOTER_TOP + 12;
+  const BODY_BOTTOM = grandFinale ? GRAND_FINALE.corpoBase : visualProva ? PAXMED_LIMITE_CONTEUDO : FOOTER_TOP + 12;
 
   const footerMarkData = designer["rodapeSistemaModo"] === "imagem"
     ? designer["rodapeSistemaImagemDataUrl"] ?? designer["rodapeSistemaLogoDataUrl"]
@@ -818,10 +831,69 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     }
   }
 
+  /** Usa a área fixa das caixas da arte, sem truncar dados clínicos. */
+  function drawGrandIdentidade(): void {
+    const top = PAGE_H - 330 * PAGE_H / 1491;
+    const bottom = PAGE_H - 452 * PAGE_H / 1491;
+    const largura = 200;
+    function quadro(x: number, nome: string | undefined, infos: Array<{ label: string; value?: string | null }>, endereco?: string) {
+      const nomeLinhas = wrapLines(nome || "—", fontBold, 7.5, largura);
+      const enderecoLinhas = wrapLines(endereco || "—", fontReg, 6.8, largura);
+      const total = 9 + nomeLinhas.length * 9 + 4 + 9 + 10 + 4 + 9 + enderecoLinhas.length * 8;
+      if (top - total < bottom ||
+          nomeLinhas.some(t => fontBold.widthOfTextAtSize(t, 7.5) > largura) ||
+          enderecoLinhas.some(t => fontReg.widthOfTextAtSize(t, 6.8) > largura)) {
+        throw new Error("Os dados de identificação excedem o espaço do receituário.");
+      }
+      let fy = top;
+      page.drawText("NOME:", { x, y: fy, font: fontBold, size: 5.5, color: MUTED });
+      fy -= 9;
+      for (const line of nomeLinhas) {
+        page.drawText(line, { x, y: fy, font: fontBold, size: 7.5, color: DARK });
+        fy -= 9;
+      }
+      fy -= 4;
+      const colW = largura / infos.length;
+      for (let i = 0; i < infos.length; i++) {
+        const value = safeTxt(infos[i].value || "—");
+        if (fontReg.widthOfTextAtSize(value, 6.3) > colW - 3) {
+          throw new Error(`O campo ${infos[i].label} não cabe na identificação do receituário.`);
+        }
+        page.drawText(infos[i].label.toUpperCase(), { x: x + colW * i, y: fy, font: fontBold, size: 5, color: MUTED });
+        page.drawText(value, { x: x + colW * i, y: fy - 9, font: fontReg, size: 6.3, color: DARK });
+      }
+      fy -= 23;
+      page.drawText("ENDEREÇO:", { x, y: fy, font: fontBold, size: 5.5, color: MUTED });
+      fy -= 9;
+      for (const line of enderecoLinhas) {
+        page.drawText(line, { x, y: fy, font: fontReg, size: 6.8, color: DARK });
+        fy -= 8;
+      }
+    }
+    const nasc = data.pacienteNascimento?.trim()
+      ? (/^\d{2}\/\d{2}\/\d{4}$/.test(data.pacienteNascimento.trim())
+        ? data.pacienteNascimento.trim() : fmtData(data.pacienteNascimento.trim()))
+      : undefined;
+    quadro(56, data.pacienteNome, [
+      { label: "CPF", value: data.pacienteCpf }, { label: "Nascimento", value: nasc },
+      { label: "Telefone", value: data.pacienteTelefone },
+    ], data.pacienteEndereco);
+    quadro(338, data.medicoName, [
+      { label: "Conselho", value: data.medicoCrm }, { label: "RQE", value: data.medicoRqe },
+      { label: "Telefone", value: data.clinicaTelefone },
+    ], data.clinicaEndereco);
+  }
+
   /** Fecha a página corrente (rodapé) e abre a seguinte com cabeçalho de continuação. */
   function newPage(): void {
     drawFooter();
     page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    if (grandFinale) {
+      desenharPaginaGrandFinale(page, grandFinale, { titulo: titleBold, texto: fontReg }, tipo);
+      drawGrandIdentidade();
+      y = GRAND_FINALE.corpoTopo;
+      return;
+    }
     if (visualProva && fonteProva && fonteProvaNegrito) {
       y = desenharCabecalhoProva(page, visualProva, fonteProva, fonteProvaNegrito,
         "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS", !data.identidade2bClinica);
@@ -848,6 +920,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     opts: { x: number; maxWidth: number; font: PDFFont; size: number; color: ReturnType<typeof rgb>; lineHeight: number },
   ): void {
     for (const ln of wrapLines(text, opts.font, opts.size, opts.maxWidth)) {
+      if (grandFinale && opts.font.widthOfTextAtSize(ln, opts.size) > opts.maxWidth) {
+        throw new Error("Um trecho do conteúdo não cabe na largura do receituário.");
+      }
       ensureSpace(opts.lineHeight);
       page.drawText(ln, { x: opts.x, y, font: opts.font, size: opts.size, color: opts.color });
       y -= opts.lineHeight;
@@ -859,7 +934,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   const lineStyle = (["simples", "dupla", "ornamentada"].includes(String(designer["linhaEstiloCabecalho"]))
     ? designer["linhaEstiloCabecalho"] : "simples") as "simples" | "dupla" | "ornamentada";
-  if (visualProva && fonteProva && fonteProvaNegrito) {
+  if (grandFinale) {
+    desenharPaginaGrandFinale(page, grandFinale, { titulo: titleBold, texto: fontReg }, tipo);
+  } else if (visualProva && fonteProva && fonteProvaNegrito) {
     y = desenharCabecalhoProva(page, visualProva, fonteProva, fonteProvaNegrito,
       "PRESCRIÇÃO MÉDICA", "RECEITUÁRIO / MEDICAMENTOS", !data.identidade2bClinica);
   } else {
@@ -925,6 +1002,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const displayedTitle = tipo === "especial"
     ? configuredTitle
     : configuredTitle.replace(/(DE\s+)?CONTROLE\s+ESPECIAL/gi, "SIMPLES");
+  if (!grandFinale) {
   const titW = (titleBold as any).widthOfTextAtSize(displayedTitle, 16);
   page.drawText(displayedTitle,
     { x: (PAGE_W - titW) / 2, y, font: titleBold, size: 16, color: DARK });
@@ -943,6 +1021,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   drawDecorLine(y, designer["sepSup2Ativo"] !== false,
     configNumber(designer, "sepSup2Espessura", 0.5, 0.2, 2.5) * 0.6, lineStyle);
   y -= 10;
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // 3. FAIXA SUPERIOR — Box 1 (Emitente) + Box 2 (Paciente)
@@ -951,6 +1030,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const BOX1_H   = Math.max(116, configNumber(designer, "boxSuperiorMinHeight", 120, 100, 500) * 0.75);
   const BOX1_TOP = y;
 
+  if (grandFinale) {
+    drawGrandIdentidade();
+  } else {
   drawArabBand(BOX1_TOP, BOX1_H);
   drawBoxPair(BOX1_TOP, BOX1_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
     configText(designer, "boxPacienteTitulo", data.boxPacienteTitulo ?? "IDENTIFICAÇÃO DO PACIENTE"),
@@ -1011,12 +1093,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
 
   y = BOX1_TOP - BOX1_H - 17;
+  }
+  // Campos especiais usam o mesmo espaçamento nos dois modelos.
+  const BP_L = configNumber(designer, "boxInnerPaddingX", 4, 2, 12) * MM;
+  const BP_T = 3 * MM;
+  if (grandFinale) y = GRAND_FINALE.corpoTopo;
 
   // ══════════════════════════════════════════════════════════════════════════
   // 4. CORPO / FÓRMULAS (motor: "Prescrevo:" italic + FormulaReal)
   // ══════════════════════════════════════════════════════════════════════════
-  page.drawText(data.homologacao ? "Itens para demonstração:" : "Prescrevo:", { x: M, y, font: fontItal, size: 11, color: rgb(0, 0, 0) });
-  y -= 19;
+  if (!grandFinale) {
+    page.drawText(data.homologacao ? "Itens para demonstração:" : "Prescrevo:", { x: M, y, font: fontItal, size: 11, color: rgb(0, 0, 0) });
+    y -= 19;
+  }
 
   // Preto puro e a mesma fonte para ativos e posologia: impressão a laser.
   const TINTA = rgb(0, 0, 0);
@@ -1035,22 +1124,30 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     const tomadas = separarTomadas(f.posologia);
     const nPos = tomadas.reduce((total, t) =>
       total + wrapLines(`  ${t}`, fontReg, BODY_SIZE, CW - 14).length, 0);
-    const itemHeight = 16 + ((f.via || f.forma) ? 13 : 0) +
+    const linhasNome = grandFinale ? wrapLines(safeTxt(f.nome), titleBold, 11, CW - 18).length : 1;
+    const linhasObs = grandFinale && f.observacao?.trim()
+      ? wrapLines(`  Obs.: ${safeTxt(f.observacao)}`, fontItal, 7.5, CW - 14).length : 1;
+    const itemHeight = 16 * linhasNome + ((f.via || f.forma) ? 13 : 0) +
       nAtivos * BODY_LINE_HEIGHT + (nPos ? 15 + nPos * BODY_LINE_HEIGHT : 0) +
-      (f.observacao ? 11 : 0) + 18;
+      (f.observacao ? 11 * linhasObs : 0) + 18;
     // Regra do CEO: fórmula inteira + 1 linha em branco, senão vai inteira para a próxima página.
     if (blocoDeveIrParaProximaPagina({
       y, alturaBloco: itemHeight, limiteInferior: BODY_BOTTOM,
-      linhaEmBranco: BODY_LINE_HEIGHT, topoPaginaNova: PAGE_H - M - 32,
+      linhaEmBranco: BODY_LINE_HEIGHT, topoPaginaNova: grandFinale ? GRAND_FINALE.corpoTopo : PAGE_H - M - 32,
     })) newPage();
     else ensureSpace(55);
 
     // D03 corrigido: número MUTED (cinza #555), NÃO dourado
     // D04 corrigido: nome preserva case original (NÃO força uppercase)
     page.drawText(`${num}`, { x: M, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
-    page.drawText(safeTxt(f.nome),
-      { x: M + 18, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
-    y -= 16;
+    if (grandFinale) {
+      drawWrappedPaged(safeTxt(f.nome), { x: M + 18, maxWidth: CW - 18,
+        font: titleBold, size: 11, color: rgb(0, 0, 0), lineHeight: 16 });
+    } else {
+      page.drawText(safeTxt(f.nome),
+        { x: M + 18, y, font: titleBold, size: 11, color: rgb(0, 0, 0) });
+      y -= 16;
+    }
 
     // Via e Forma em UMA linha, alinhadas por duas guias verticais fixas
     // (iguais em todas as fórmulas), logo abaixo do nome.
@@ -1060,6 +1157,10 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       const par = (rotulo: string, valor: string, x: number) => {
         page.drawText(`${rotulo}:`, { x, y, font: fontRotulo, size: 9.5, color: TINTA });
         const w = fontRotulo.widthOfTextAtSize(`${rotulo}: `, 9.5);
+        const limite = rotulo === "Via" ? xForma : PAGE_W - M;
+        if (grandFinale && x + w + fontReg.widthOfTextAtSize(safeTxt(valor), BODY_SIZE) > limite - 4) {
+          throw new Error(`O campo ${rotulo} excede a largura do receituário.`);
+        }
         page.drawText(safeTxt(valor), { x: x + w, y, font: fontReg, size: BODY_SIZE, color: TINTA });
       };
       if (f.via) par("Via", f.via, xVia);
@@ -1093,10 +1194,15 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
     // Observação (italic muted) — mantida
     if (f.observacao?.trim()) {
-      ensureSpace(11);
-      page.drawText(`  Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
-        { x: M + 14, y, font: fontItal, size: 7.5, color: rgb(0, 0, 0) });
-      y -= 11;
+      if (grandFinale) {
+        drawWrappedPaged(`  Obs.: ${safeTxt(f.observacao)}`, { x: M + 14, maxWidth: CW - 14,
+          font: fontItal, size: 7.5, color: rgb(0, 0, 0), lineHeight: 11 });
+      } else {
+        ensureSpace(11);
+        page.drawText(`  Obs.: ${safeTxt(f.observacao).slice(0, 90)}`,
+          { x: M + 14, y, font: fontItal, size: 7.5, color: rgb(0, 0, 0) });
+        y -= 11;
+      }
     }
 
     // Separador pontilhado entre fórmulas
@@ -1121,14 +1227,22 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   ].filter(Boolean) as { label: string; value: string }[];
   // A faixa final é ancorada acima do rodapé, independentemente da quantidade
   // de texto. O conteúdo deve terminar antes da linha que a separa do corpo.
-  const assinaturaBase = BODY_BOTTOM + 6;
+  const assinaturaBase = grandFinale ? GRAND_FINALE.assinaturaBase : BODY_BOTTOM + 6;
   const assinaturaTopo = assinaturaBase + ASSINATURA_3A1C_ALTURA;
   const separadorAssinatura = assinaturaTopo + 14;
-  const limiteCorpoFinal = separadorAssinatura + 10;
+  const limiteCorpoFinal = grandFinale ? BODY_BOTTOM : separadorAssinatura + 10;
   if (details.length) {
-    if (y - 30 < limiteCorpoFinal) newPage();
-    y -= 3;
-    y = drawInlineRow(M, y, details, CW);
+    if (grandFinale) {
+      for (const detail of details) {
+        drawWrappedPaged(`${detail.label}: ${detail.value}`, {
+          x: M, maxWidth: CW, font: fontReg, size: BODY_SIZE, color: TINTA, lineHeight: BODY_LINE_HEIGHT,
+        });
+      }
+    } else {
+      if (y - 30 < limiteCorpoFinal) newPage();
+      y -= 3;
+      y = drawInlineRow(M, y, details, CW);
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1140,7 +1254,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     if (y - BOX2_H - 8 < limiteCorpoFinal) newPage();
     const BOX2_TOP = y;
 
-    drawArabBand(BOX2_TOP, BOX2_H);
+    if (!grandFinale) drawArabBand(BOX2_TOP, BOX2_H);
     drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,
       configText(designer, "boxCompradorTitulo", data.boxCompradorTitulo ?? "IDENTIFICAÇÃO DO COMPRADOR"),
       configText(designer, "boxFarmaciaTitulo", data.boxFarmaciaTitulo ?? "IDENTIFICAÇÃO DO FORNECEDOR / FARMÁCIA"),
@@ -1182,17 +1296,19 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     y = BOX2_TOP - BOX2_H - 8;
   }
 
-  // 6. ASSINATURA + CERTIFICADO: posição fixa na última página.
+  // 6. ASSINATURA + CERTIFICADO: posição fixa na parte inferior.
   if (y < limiteCorpoFinal) newPage();
-  drawDecorLine(separadorAssinatura, true, 0.5, "ornamentada", GOLD);
-  await desenharAssinatura3a1c(pdfDoc, page, assinaturaBase, {
-    certificado: certMeta,
-    profissional: data.medicoName,
-    crm: data.medicoCrm,
-    assinaturaImagem: data.assinaturaImagem,
-    vencimento: data.certificadoValidoAte,
-    dataEmissao: dataStr,
-  });
+  if (!grandFinale) drawDecorLine(separadorAssinatura, true, 0.5, "ornamentada", GOLD);
+  for (const paginaAssinatura of grandFinale ? pdfDoc.getPages() : [page]) {
+    await desenharAssinatura3a1c(pdfDoc, paginaAssinatura, assinaturaBase, {
+      certificado: certMeta,
+      profissional: data.medicoName,
+      crm: data.medicoCrm,
+      assinaturaImagem: data.assinaturaImagem,
+      vencimento: data.certificadoValidoAte,
+      dataEmissao: dataStr,
+    });
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // 7. RODAPÉ — fundo BRANCO, borda fina no topo (motor: posição absoluta)
@@ -1202,7 +1318,12 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // 7. RODAPÉ da última página + numeração "Página i de n" quando há mais de uma
   // ══════════════════════════════════════════════════════════════════════════
   drawFooter();
-  if (visualProva && fonteProva) {
+  if (grandFinale) {
+    const pages = pdfDoc.getPages();
+    pages.forEach((pg, index) => carimbarRodapeGrandFinale(
+      pg, grandFinale, { titulo: titleBold, texto: fontReg }, index + 1, pages.length,
+    ));
+  } else if (visualProva && fonteProva) {
     if (data.identidade2bClinica) carimbarRodapesClinicos(pdfDoc, visualProva, fonteProva, certQrImg);
     else carimbarRodapesProva(pdfDoc, visualProva, fonteProva);
   }

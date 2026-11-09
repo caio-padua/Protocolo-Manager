@@ -1040,3 +1040,17 @@ mtime_ms = 1794170191438
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/99820308-3c08-4b39-88fa-924165e05e5e/9fe9e735-b804-4a00-a86a-d0fedf818214"
 storage_version_token = "1794170203488978"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "FldCgAtSDvaeA2FPZp0NJ"
+uri = "file://generated-artifacts/provas/receituario-grand-finale-demonstracao.pdf"
+type = "pdf"
+title = "Prova visual do novo receituário"
+description = "Duas páginas com dados fictícios. Documento de teste sem validade clínica e sem assinatura digital."
+logical_id = "260ad4e4-697b-4e42-a40c-7e467120074f"
+content_hash = "sha256:a7d60e71d8231a1624dd19447e76f801eab361164b75cc39f77350107130140e"
+size = 2785424
+mtime_ms = 1794201288224
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/260ad4e4-697b-4e42-a40c-7e467120074f/c11ac874-0a18-4916-8a3d-ea96e0bd69b8"
+storage_version_token = "1794201296324634"
+content_type = "application/pdf"
