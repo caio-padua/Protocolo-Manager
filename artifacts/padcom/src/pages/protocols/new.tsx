@@ -98,7 +98,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   };
   const { toast } = useToast();
   const { data: clients } = useListClients();
-  const { data: substances } = useListSubstances();
+  const { data: substances, isError: substancesError, isFetching: substancesFetching } = useListSubstances();
   const { data: professionals } = useListProfessionals();
   const [locations, setLocations] = useState<Location[]>([]);
 
@@ -192,6 +192,16 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const selectedProfessional = authenticatedDoctor ?? professionals?.find(p => String(p.id) === professionalId);
   const selectedLocation = locations.find(l => String(l.id) === locationId);
   const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
+
+  const participacaoMedica = (substanceId: number): string => {
+    if (substancesError) return "Cadastro indisponível";
+    if (substancesFetching) return "Consultando cadastro";
+    const substance = substances?.find(s => s.id === substanceId);
+    if (!substance) return "Substância indisponível";
+    if (substance.doctorParticipation === true) return "Sim, participa";
+    if (substance.doctorParticipation === false) return "Não participa";
+    return "Ainda não definida no cadastro";
+  };
 
   const viaCounts = useMemo(() => {
     const c: Record<string, number> = { all: substances?.length ?? 0, im: 0, iv: 0, sc: 0, implant: 0, outros: 0 };
@@ -440,6 +450,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                         <span className="tabular-nums">Início: {slot.startDate.split("-").reverse().join("/")}</span>
                         <span className="tabular-nums">Término: {getEndDate(slot)}</span>
                       </div>
+                      <p className="mt-2 text-xs"><strong>Participação médica:</strong> {participacaoMedica(slot.substanceId)}</p>
                     </div>
                   </div>
                 );
@@ -455,8 +466,11 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
             <p className="text-[11px] text-muted-foreground mt-2 font-medium uppercase tracking-wide leading-relaxed">
               {schedulingMode === "exact"
                 ? "Cada substância mantém sua data inicial e seu intervalo. Somente aplicações no mesmo dia compartilham uma visita."
-                : "O sistema agrupará as substâncias por semana (segunda a domingo), elegendo um único dia de visita por semana."}
+                : "O sistema agrupará as aplicações em períodos de sete dias a partir do início do protocolo."}
               {" "}Horário padrão: <strong className="text-foreground">{scheduledTime}</strong>.
+            </p>
+            <p className="text-xs mt-3 font-semibold" role="status">
+              As sessões geradas ainda não reservam horários na enfermagem ou na agenda médica e não são enviadas automaticamente ao Google.
             </p>
           </div>
         </CardContent>
@@ -799,6 +813,13 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                     </SelectContent>
                   </Select>
                 </div>
+
+                {slot.substanceId > 0 && (
+                  <div className="col-span-2 concave-3d px-3 py-2 text-xs" role="status">
+                    <strong>Participação médica:</strong> {participacaoMedica(slot.substanceId)}
+                    <p className="mt-1 text-muted-foreground">Informação do cadastro da substância; não confirma reserva de agenda.</p>
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Dose *</Label>

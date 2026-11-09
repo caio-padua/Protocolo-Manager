@@ -415,6 +415,45 @@ Em outro ambiente, a coluna estrutural não preenche configurações nem tempos;
 é necessário identificar o banco, aprovar e conferir a etapa de dados antes de
 considerar esse ambiente pronto. A migração estrutural sozinha não é suficiente.
 
+### Subunidade: exibição da participação no lançador de protocolo
+
+Estado: EM CONSTRUÇÃO. Esta subunidade não cria nem confirma reservas.
+
+Objetivo: mostrar no lançador e no resumo a participação médica já cadastrada
+para cada substância, sem repetir a pergunta e sem alterar a fonte cadastral.
+O estado desconhecido e a falha de consulta devem permanecer explícitos.
+O resumo também deve dizer que sessões geradas não comprovam reserva.
+Preservar o fluxo existente, as doses, os horários e a edição do catálogo.
+
+Impacto: tela de lançamento individual e integrada ao Cockpit; consumo da
+consulta de substâncias existente. Não alterar o contrato, o catálogo, os
+protocolos, as sessões, o Google ou os cálculos comerciais.
+
+| Falha prevista | Gravidade | Barreira e teste |
+|---|---|---|
+| Cadastro sem valor tratado como não | Alta | Distinguir sim, não e indefinido em testes. |
+| Erro de consulta mostra valor anterior | Alta | Não reutilizar dados da consulta quando ela falhar; testar. |
+| A tela sugere que uma agenda foi reservada | Alta | Texto explícito no resumo; teste de interface. |
+| Substância trocada conserva informação anterior | Alta | Resolver pelo identificador atual e testar a troca. |
+| Visão no Cockpit diverge da tela autônoma | Alta | Mesmo componente e testes dos dois modos. |
+
+Pronto nesta subunidade: revisão independente, testes determinísticos e de
+interface, conferência visual autenticada no computador e no celular. A reserva
+simultânea, a sincronização e o cadastro separado de procedimentos permanecem
+pendentes e não são homologados por esta subunidade.
+
+Evidência parcial em 09/11/2026: revisão independente constatou que não há
+reserva simultânea e pediu testes adicionais de atualização e falha. O teste de
+interface isolado passou para sim, não, indefinido, troca e aviso no resumo.
+Na conferência autenticada o estado indefinido apareceu no computador e no
+celular; no celular, o formulário anterior apresenta conteúdo cortado na
+largura de 390 pixels. A execução integral da suíte foi interrompida pelo limite
+de tempo após 14 testes aprovados; os sete restantes passaram em execução
+separada. A verificação de tipos do aplicativo falhou
+com 35 erros em outros arquivos e não apontou erro em protocols/new.tsx.
+Sem teste de falha com dados em cache, sem verificação do resumo na tela
+autônoma e sem revisão final após o ajuste de atualização: NÃO HOMOLOGADO.
+
 ## Falhas e testes obrigatórios
 
 | Falha | Gravidade | Barreira ou verificação |

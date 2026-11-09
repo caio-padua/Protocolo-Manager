@@ -5,7 +5,7 @@ const clients = [
   { id: 43, name: "Cliente Beta Teste", cpf: "", phone: "", photoUrl: null, birthDate: null, status: "active" },
 ];
 
-async function isolatedServices(page: Page, options: { denyClient?: number; delayClient?: number; denyProtocols?: boolean; excludeFromList?: number; delayPost?: number; denyPulso?: boolean; identityControl?: { deny: boolean }; listControl?: { fail: boolean; status?: number }; clinicalControl?: { fail: boolean; type?: string } } = {}) {
+async function isolatedServices(page: Page, options: { denyClient?: number; delayClient?: number; denyProtocols?: boolean; excludeFromList?: number; delayPost?: number; denyPulso?: boolean; identityControl?: { deny: boolean }; listControl?: { fail: boolean; status?: number }; clinicalControl?: { fail: boolean; type?: string }; substanceList?: Array<{ id: number; name: string; unit: string; color: string; procedureType: string; doctorParticipation: boolean | null }> } = {}) {
   const created: unknown[] = [];
   await page.addInitScript(() => {
     localStorage.setItem("padcom_collab_token", "isolated-test-token");
@@ -37,7 +37,7 @@ async function isolatedServices(page: Page, options: { denyClient?: number; dela
     if (pathname === "/api/professionals") return json([{ id: 3, name: "Médico Teste", crm: "123", specialty: null }]);
     if (pathname.startsWith("/api/pulso-diario/") && options.denyPulso) return json({ error: "Indisponível" }, 503);
     if (pathname === "/api/locations") return json([{ id: 5, name: "Local Teste", color: "#88aa88", type: "clinic" }]);
-    if (pathname === "/api/substances") return json([{ id: 7, name: "Substância Teste", unit: "mg", color: "#abcabc", procedureType: "im" }]);
+    if (pathname === "/api/substances") return json(options.substanceList ?? [{ id: 7, name: "Substância Teste", unit: "mg", color: "#abcabc", procedureType: "im" }]);
     if (pathname === "/api/google-drive/setup-client/42" && options.identityControl) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       options.identityControl.deny = true;
@@ -53,6 +53,33 @@ async function isolatedServices(page: Page, options: { denyClient?: number; dela
   });
   return created;
 }
+
+test("participação médica acompanha a substância e não promete reserva", async ({ page }) => {
+  const substanceList = [
+    { id: 7, name: "Substância A", unit: "mg", color: "#abcabc", procedureType: "im", doctorParticipation: true },
+    { id: 8, name: "Substância B", unit: "mg", color: "#abcabc", procedureType: "im", doctorParticipation: false },
+    { id: 9, name: "Substância C", unit: "mg", color: "#abcabc", procedureType: "im", doctorParticipation: null },
+  ];
+  await isolatedServices(page, { substanceList });
+  await page.goto("/cockpit/42/protocolos");
+  await page.getByRole("button", { name: "NOVO PROTOCOLO", exact: true }).click();
+  const form = page.getByRole("region", { name: "Cadastro de protocolo" });
+  await form.getByRole("combobox").filter({ hasText: "Selecione o local" }).click();
+  await page.getByRole("option", { name: /Local Teste/ }).click();
+  await form.getByRole("combobox").filter({ hasText: "Escolha a substância" }).click();
+  await page.getByRole("option", { name: /Substância A/ }).click();
+  await expect(form.getByText("Participação médica:", { exact: true }).locator("..")).toContainText("Sim, participa");
+  await form.getByRole("combobox").filter({ hasText: "Substância A" }).click();
+  await page.getByRole("option", { name: /Substância B/ }).click();
+  await expect(form.getByText("Participação médica:", { exact: true }).locator("..")).toContainText("Não participa");
+  await form.getByRole("combobox").filter({ hasText: "Substância B" }).click();
+  await page.getByRole("option", { name: /Substância C/ }).click();
+  await expect(form.getByText("Participação médica:", { exact: true }).locator("..")).toContainText("Ainda não definida");
+  await form.getByPlaceholder("Ex: 600mg, 15g").fill("1 mg");
+  await form.getByRole("button", { name: "Ver Resumo" }).click();
+  await expect(form.getByText("Participação médica:", { exact: true }).locator("..")).toContainText("Ainda não definida");
+  await expect(form.getByText("As sessões geradas ainda não reservam horários", { exact: false })).toBeVisible();
+});
 
 test("abre o formulário existente sem sair do cliente e preserva as abas", async ({ page }) => {
   const created = await isolatedServices(page);
