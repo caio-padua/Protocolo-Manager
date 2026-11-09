@@ -67,7 +67,6 @@
 - [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open.
 - [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico.
 - PADTEAM hub 5 abas + raw SQL — módulo de equipe remota: hub único /padteam (5 abas); 8 tabelas via raw SQL; 10 posições seed no boot; Trello fail-graceful sem secrets.
-- [Cockpit por painéis autossuficientes](cockpit-painel-consolidacao.md) — consolidar telas num cockpit = painéis burros {clientId} que reusam o motor real e limpam estado ao trocar cliente.
 - [Fusão mestre-detalhe (exames)](fusao-mestre-detalhe-exames.md) — detalhe async exige guard de corrida por reqId em useRef; lista por merge tem de ser UNIÃO (left-join esconde linhas).
 - [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem acento = fallback silencioso.
 - [Seed idempotente por COMPLETUDE](seed-idempotencia-por-completude.md) — conjunto multi-linha mede N linhas, não presença de 1; parcial=apaga+reinsere; unidade só se vazia.
@@ -84,7 +83,6 @@
 - [Mensageria PAXMED (compositor editavel)](mensageria-paxmed-compositor.md) — composicao rica do WhatsApp existe DUAS vezes (montarMensagemPaxmed server + previa da tela): mexeu no blueprint, mexa nos dois.
 - [paxter-alert é só glow ring (sem fill)](paxter-alert-sem-fill.md) — paxter-alert dá bevel+halo na cor, NAO pinta fundo; verde usa bevel-3d-ok que já preenche.
 - Padrão lista de clientes (A-Z + scroll) — barra A-Z+busca no panel-3d-sub; scroll infinito PAGE_SIZE=100; card = foto portrait 64×88 + 4 linhas alinhadas.
-- [Cockpit telas-fonte-única embutidas](cockpit-tela-unica-embedded.md) — embutir a tela ORIGINAL via props opcionais {embedded?,clientId?}; ação de sucesso NÃO navega em embedded.
 - [Tabela nativa da transmutacao ja pode existir](transmutacao-periodos-dia-colisao.md) — antes de criar schema (ex.: periodos_dia), rg no schema/; duplicata = esbuild "Ambiguous import" derruba boot.
 - [recharts connectNulls não compacta o eixo](recharts-connectnulls-eixo-esticado.md) — gráfico de matriz esparsa estica com datas vazias; filtrar a série por curva ANTES do recharts.
 - [SVG id unico + eixos de variante](svg-id-e-eixos-variantes.md) — gradiente SVG repetido colide entre instancias (use useId()); eixo de variante so existe se TODO shell ramifica por ele.
@@ -93,10 +91,11 @@
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as internas repetem a 50%, marca e peca unica.
 - [Workspace travando = peso do repo](workspace-lento-peso-repo.md) — medir antes de culpar codigo: anexos versionados, size-pack do git e servidores simultaneos; nunca apagar sem ordem escrita.
 - [Área do Cliente: desejo IMPLÍCITO + faixas](area-cliente-desejo-implicito.md) — planos viram ícone-coroa a descobrir (sem upsell/preço na home); cabeçalho em 3 faixas, nome nunca sob PAXTER.
+- [Classificação e plano do cliente](classificacao-plano-cliente.md) — entrada em E e Bronze; nota e plano são distintos, sem regras de progressão inventadas.
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange.
 - [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de reverter.
 - [Lembrete por período do IHE (portar ao Manager)](ihe-mensageria-periodo.md) — motor cronobiológico: 1 msg POR JANELA (não por fórmula), 9 períodos canônicos, tolerância 5min, madrugada vazia.
-- [Cockpit v2 — arquitetura de componentes](cockpit-v2-arquitetura.md) — CockpitShell+lazy panels; URL=fonte de verdade; key={clientId} no Route; useListClients→useCockpitSearch.
+- [Cockpit — identidade, modos e arquitetura](cockpit-identidade-modos.md) — seleção única, nomes e vínculos às regras de painéis e agendamento.
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas.
 - [PaxterClientSelector — seletor universal canônico](paxter-client-selector.md) — substitui ClientPicker/ClientCombobox/CockpitSearch/Select nativo; state=number|null; placeholder canônico="Selecionar cliente…"; cpf+phone+photoUrl obrigatórios no map; skill em .agents/skills/skill-paxter-client-selector/SKILL.md.
 - [Protocolo da Planilha — colunas A-J + "Para que serve"](planilha-protocolo.md) — col I obrigatória em todo item novo (1 frase CEO); col J=Módulo; 4 requisitos p/ CONCLUÍDO; doc normativo em docs/PROTOCOLO-PLANILHA.md.

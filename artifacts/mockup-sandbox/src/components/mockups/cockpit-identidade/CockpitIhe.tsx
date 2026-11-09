@@ -428,6 +428,8 @@ function Panel({
   );
 }
 
+export { Panel as PainelFicha };
+
 export function CockpitIhe() {
   const [clientId, setClientId] = useState<number | null>(clientesDeExemplo[0]?.id ?? null);
   const [openPanels, setOpenPanels] = useState<Set<PainelId>>(() => new Set(ABAS.map((item) => item.id)));

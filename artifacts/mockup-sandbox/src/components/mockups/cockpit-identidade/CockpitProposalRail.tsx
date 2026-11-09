@@ -47,8 +47,17 @@ export function CockpitProposalRail({
   }, [updateOverflow]);
 
   useEffect(() => {
-    const selected = railRef.current?.querySelector<HTMLElement>(`[data-tool="${active}"]`);
-    selected?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    const rail = railRef.current;
+    const selected = rail?.querySelector<HTMLElement>(`[data-tool="${active}"]`);
+    if (!rail || !selected) return;
+    const bounds = rail.getBoundingClientRect();
+    const selectedBounds = selected.getBoundingClientRect();
+    const displacement = selectedBounds.left < bounds.left
+      ? selectedBounds.left - bounds.left
+      : selectedBounds.right > bounds.right
+        ? selectedBounds.right - bounds.right
+        : 0;
+    if (displacement) rail.scrollBy({ left: displacement, behavior: "smooth" });
   }, [active]);
 
   const moveRail = (direction: -1 | 1) => {
@@ -65,7 +74,7 @@ export function CockpitProposalRail({
     event.preventDefault();
     const next = ABAS[nextIndex];
     onChange(next.id);
-    requestAnimationFrame(() => document.getElementById(`cockpit-proposal-tool-${next.id}`)?.focus());
+    requestAnimationFrame(() => document.getElementById(`cockpit-proposal-tool-${next.id}`)?.focus({ preventScroll: true }));
   };
 
   const rail = (
