@@ -169,3 +169,89 @@ Requisitos:
 Limite conhecido de F23: uma chamada já enviada ao Google dentro do prazo pode, em tese, chegar depois de uma atualização mais nova. A rede não permite fechar isso por completo. Até K4/K5 existirem NÃO há correção automática: o risco é conhecido e a próxima ação clínica na visita (ou o botão de sincronizar) reenvia o estado atual. Quando K4/K5 forem feitas, passam a corrigir.
 
 Definição de PRONTO de K7: testes T-K7-1 a T-K7-10 verdes (função pura + banco isolado com Google simulado); testes existentes de agenda e Google verdes; revisão independente sem pendência; nenhuma chamada real ao Google.
+
+## 13. K8 — Chave por visita e rubrica do cliente (EM ESPECIFICAÇÃO; resposta do CEO em 09/11/2026)
+
+### 13.1 O que o CEO decidiu (palavras dele resumidas)
+
+13.1.1 A enfermeira REALIZA e registra a aplicação sempre. A falta da chave do cliente NUNCA bloqueia o registro.
+13.1.2 A coluna da ENFERMEIRA no RAS FAP é completada na hora, com ou sem a confirmação do cliente.
+13.1.3 Quando o cliente não valida na hora, a enfermeira aperta um botão (nome a escolher: sugestão "Cliente confirma depois"). Isso liga a "engrenagem":
+  a) e-mail ao cliente com confirmação de UM clique; ao clicar, a parte do cliente no RAS FAP é completada;
+  b) e-mail ao gestor administrador e ao responsável técnico da clínica (podem ser a mesma pessoa ou não);
+  c) um e-mail por dia, no total de 3, até o cliente validar.
+13.1.4 Segunda tela ("desafio presencial"), para resolver no local: campo 1 = os 6 dígitos enviados ao cliente; campo 2 = 6 posições em duas metades de 3, sorteadas, com uma legenda que "respira" (LED digital, piscar lento e contínuo) sob cada metade dizendo qual dado do cadastro o cliente deve informar (exemplos do CEO: 3 últimos ou 3 primeiros do CPF; número da casa completado com zero à esquerda; últimos números do ano de nascimento; 3 primeiras letras da rua). Mesmo resolvendo assim, o e-mail de confirmação continua sendo enviado.
+13.1.5 Palavra-chave aleatória que só o cliente sabe, registrada e trocada a cada semana, para validação.
+13.1.6 O CEO deu autonomia para escolher os dados do cadastro usados nas legendas.
+
+### 13.2 Verdades verificadas na fonte (09/11/2026)
+
+13.2.1 As rotas atuais /validation-codes/generate, /verify e GET /validation-codes/session/:id NÃO exigem login de profissional (o portão de colaborador só cobre /site-content e /cadastros), geram o código com Math.random (previsível), guardam e devolvem o código em texto puro (inclusive a lista por sessão) e não limitam tentativas. O e-mail pré-sessão também usa o mesmo gerador. Por isso o código atual NÃO serve como rubrica.
+13.2.2 Decisão de engenharia: K8 usa tabelas e rotas NOVAS; as rotas e o e-mail atuais ficam como estão (Regra de Ouro) e o código antigo não conta como rubrica. Fechar ou trocar as rotas antigas é decisão separada do CEO (achado registrado, ver 13.7).
+13.2.3 Gestor administrador e responsável técnico já existem como marcas por clínica na tabela clinical_access_grants (is_clinic_admin e is_responsible_doctor, por local e profissional); o profissional tem e-mail cadastrado.
+13.2.4 A mensageria já tem e-mail, WhatsApp (janela de 24 h) e Telegram; SMS não existe no Manager.
+
+### 13.3 Estados da confirmação do cliente (por visita)
+
+| Estado | Significa | RAS FAP, coluna do cliente |
+|---|---|---|
+| sem_pedido | Nenhuma chave foi pedida | vazia |
+| chave_enviada | Chave enviada, aguardando a enfermeira digitar | vazia |
+| rubrica_chave | Enfermeira digitou a chave correta | completa (prova plena) |
+| rubrica_desafio | Desafio presencial acertado | completa, marcada como "por dados do cadastro" até o clique do e-mail |
+| pendente | Enfermeira apertou "Cliente confirma depois" | vazia, marcada "aguardando" |
+| confirmada_email | Cliente clicou no e-mail | completa (confirmação remota) |
+| nao_confirmada | Os 3 e-mails saíram e o cliente não confirmou | vazia, marcada "NÃO CONFIRMADA" (nunca apagada) |
+
+A coluna da enfermeira não depende de nenhum desses estados.
+
+### 13.4 Requisitos de segurança da chave (Código Paxter + IHE)
+
+13.4.1 Chave de 6 dígitos gerada com sorteio criptográfico (crypto.randomInt), nunca Math.random.
+13.4.2 Guardada só como hash com segredo do servidor, amarrada à visita, ao cliente e à empresa. Nunca em texto puro no banco, no log nem na resposta da rota que envia (a tela da enfermeira nunca recebe a chave).
+13.4.3 Validade 10 minutos; uso único; 5 tentativas por chave; após 5 erros a chave morre e exige novo envio; reenvio no mínimo 60 segundos depois; nova chave invalida a anterior.
+13.4.4 Duplo clique, duas enfermeiras ou duas abas: só uma validação vale (reserva atômica no banco).
+13.4.5 Canais: e-mail, WhatsApp e Telegram prontos do cliente; status honesto por canal (enviado não é entregue). SMS fora até haver número Twilio com SMS. Falha de canal nunca bloqueia o registro.
+
+### 13.5 Requisitos do caminho "Cliente confirma depois"
+
+13.5.1 O botão só aparece para quem pode registrar a aplicação daquela visita e grava quem apertou, quando (horário de Brasília) e o motivo escolhido.
+13.5.2 E-mail ao cliente com um link de 32 bytes aleatórios (só o hash fica no banco), uso único, validade de 72 horas. O link abre uma página com UM botão de confirmar; quem só abre o link (antivírus, pré-visualização do e-mail) NÃO confirma. A confirmação grava data, hora e uma impressão do aparelho (sem dado pessoal extra).
+13.5.3 E-mail ao gestor administrador e ao responsável técnico do local da visita, sem repetir pessoa que acumula as duas funções. Se nenhum tiver e-mail, a tela da enfermeira avisa e o fato fica registrado; nunca bloqueia.
+13.5.4 Lembretes: 3 e-mails ao todo, um por dia (o primeiro no ato), parando na hora em que o cliente confirma. Rotina diária idempotente (reinício do servidor não duplica; confere o estado no momento do envio).
+
+### 13.6 Desafio presencial (pontos ainda a confirmar com o CEO)
+
+13.6.1 O servidor sorteia as duas metades e guarda o sorteio; o navegador só recebe as legendas, nunca o valor esperado.
+13.6.2 Só entram no sorteio dados que o cliente tem cadastrados; com menos de duas opções válidas o desafio fica indisponível, com mensagem clara.
+13.6.3 Alerta de honestidade: a enfermeira enxerga CPF, endereço e nascimento no sistema, então esses dados NÃO provam que quem respondeu é o cliente. Só a palavra-chave semanal (que a enfermeira nunca vê) prova. Por isso o desafio por dados do cadastro, sozinho, vale menos que a chave e é sempre marcado como tal.
+Pontos em aberto: P1 segredo do desafio; P2 quem recebe os 3 e-mails; P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão.
+
+### 13.7 Achados independentes (Art. 76), fora do escopo de K8
+
+13.7.1 Rotas antigas de código expostas sem login de profissional e com código em texto puro (gravidade alta). Recomendação: decisão própria do CEO para proteger ou desligar; não será mexido sem autorização.
+
+### 13.8 Falhas previstas
+
+| ID | Falha | Gravidade | Barreira | Teste |
+|---|---|---|---|---|
+| F26 | Chave previsível | Crítica | Sorteio criptográfico | T-K8-1 |
+| F27 | Chave em texto puro (banco, log, resposta) | Crítica | Só hash; a rota de envio não devolve a chave | T-K8-2 |
+| F28 | Força bruta | Crítica | 5 tentativas, morte da chave, 60 s entre envios | T-K8-3 |
+| F29 | Chave de outra visita, cliente ou empresa aceita | Crítica | Amarrada a visita+cliente+empresa | T-K8-4 |
+| F30 | Reuso da mesma chave | Alta | Uso único atômico | T-K8-5 |
+| F31 | Duas validações simultâneas | Alta | Reserva atômica | T-K8-6 |
+| F32 | Link confirmado por antivírus ou pré-visualização | Alta | Abrir não confirma; só o botão confirma | T-K8-7 |
+| F33 | Link reutilizado, expirado ou adivinhado | Alta | 32 bytes, hash, expira, uso único, resposta neutra | T-K8-8 |
+| F34 | Gestor ou responsável técnico sem e-mail | Média | Aviso explícito e registro; nunca bloqueia | T-K8-9 |
+| F35 | Lembrete duplicado após reinício | Média | Reserva atômica do próximo envio | T-K8-10 |
+| F36 | Lembrete enviado depois da confirmação | Média | Estado conferido no instante do envio | T-K8-11 |
+| F37 | Aplicação bloqueada por falha de canal | Crítica | Registro independente do envio | T-K8-12 |
+| F38 | Canal falha em silêncio | Alta | Status por canal honesto | T-K8-13 |
+| F39 | Desafio tratado como prova plena | Alta | Marcado e nunca sozinho como rubrica plena | T-K8-14 |
+| F40 | Legenda vaza o valor do cadastro | Crítica | Só o rótulo; valor só no servidor | T-K8-15 |
+| F41 | Cliente sem dados para o desafio | Média | Sorteio só entre dados existentes; indisponível com aviso | T-K8-16 |
+| F42 | Hora em UTC | Média | lib/brt | T-K8-17 |
+| F43 | Enfermeira de outra clínica valida | Crítica | Mesma guarda de empresa e vínculo da aplicação | T-K8-18 |
+
+Definição de PRONTO de K8: T-K8-1 a T-K8-18 verdes em banco isolado com canais simulados; regressão das unidades K1 e K7 verde; revisão independente sem pendência; tela vista em captura quando for possível (a captura automática não entra em telas com login; o que não for visto será dito).
