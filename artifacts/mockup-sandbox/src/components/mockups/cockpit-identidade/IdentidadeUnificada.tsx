@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarDays, Fingerprint, Mail, Phone, UserRound } from "lucide-react";
 import "./_group.css";
 import "./_identidade.css";
-import CockpitTabs, { type AbaId } from "./_source/CockpitTabs";
-import ActionButtons from "./_source/ActionButtons";
+import { ABAS, type AbaId } from "./_source/CockpitTabs";
 import { PaxterClientSelector } from "./_source/PaxterClientSelector";
 import { clientesDeExemplo } from "./_source/preview-deps";
+import { CockpitProposalRail } from "./CockpitProposalRail";
+import { IdentityActions } from "./IdentityActions";
 
 function idade(data: string | null | undefined) {
   if (!data) return "—";
@@ -64,13 +65,17 @@ export function IdentidadeUnificada() {
     [],
   );
 
-  useEffect(() => {
-    const onPreviewAction = (event: Event) => setAviso((event as CustomEvent<string>).detail);
-    window.addEventListener("cockpit-preview-action", onPreviewAction);
-    return () => window.removeEventListener("cockpit-preview-action", onPreviewAction);
-  }, []);
-
-  const initials = client?.name.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() ?? "";
+  const nameParts = client?.name.trim().split(/\s+/).filter(Boolean) ?? [];
+  const initials = (
+    nameParts.length > 1
+      ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+      : nameParts[0]?.[0] ?? ""
+  ).toUpperCase();
+  const handlePreviewAction = (action: "edit" | "drive") => {
+    setAviso(action === "edit"
+      ? "Prévia: a edição do cadastro não foi aberta nem alterada. Nenhuma ação foi executada."
+      : "Prévia: nenhuma pasta ou planilha foi criada, compartilhada ou acessada no Drive.");
+  };
 
   return (
     <div className="identity-page">
@@ -91,7 +96,7 @@ export function IdentidadeUnificada() {
 
           <section className="identity-card" aria-label="Identificação do cliente">
             <div className="identity-main">
-              <div className="identity-avatar-frame" aria-label={client ? `Foto de ${client.name}` : "Sem cliente selecionado"}>
+              <div className="identity-avatar-frame" aria-label={client ? `${client.photoUrl ? "Foto" : "Iniciais"} de ${client.name}` : "Sem cliente selecionado"}>
                 {client?.photoUrl
                   ? <img src={client.photoUrl} alt="" className="identity-avatar" />
                   : <span className="identity-avatar-fallback">{client ? initials : <UserRound size={30} strokeWidth={1.35} />}</span>}
@@ -131,11 +136,9 @@ export function IdentidadeUnificada() {
             </div>
             <div className="identity-action-wrap">
               <span className="identity-control-label">AÇÕES DA CONSULTA</span>
-              <ActionButtons
+              <IdentityActions
                 clientId={clientId}
-                driveSetupPending={false}
-                onDriveSetup={() => setAviso("Drive: ação demonstrativa — nenhuma operação foi executada.")}
-                onNewProtocol={() => setAviso("Protocolo: ação demonstrativa — nenhuma operação foi executada.")}
+                onAction={handlePreviewAction}
               />
             </div>
           </div>
@@ -143,12 +146,17 @@ export function IdentidadeUnificada() {
         </div>
       </header>
 
-      <CockpitTabs aba={aba} onAba={setAba} />
-      <main className="identity-content">
+      <CockpitProposalRail active={aba} onChange={setAba} mode="tabs" />
+      <main
+        className="identity-content"
+        id="cockpit-proposal-tool-content"
+        role="tabpanel"
+        aria-labelledby={`cockpit-proposal-tool-${aba}`}
+      >
         <div className="identity-tool-panel panel-3d-sub">
           <div className="identity-tool-heading">
             <span className="identity-tool-kicker">ÁREA DE TRABALHO</span>
-            <span className="identity-tool-current">{aba.replace("-", " ").toUpperCase()}</span>
+            <span className="identity-tool-current">{ABAS.find((item) => item.id === aba)?.rotulo.toUpperCase() ?? "FERRAMENTA"}</span>
           </div>
           <p className="identity-tool-title">{client ? "Contexto preservado entre ferramentas" : "Selecione um cliente para continuar"}</p>
           <p className="identity-tool-description">
@@ -156,6 +164,12 @@ export function IdentidadeUnificada() {
               ? "A ferramenta selecionada permanece no contexto do mesmo cliente. Esta área é apenas representativa e não executa ações clínicas."
               : "Os dados de identificação foram removidos. Selecione um cliente na faixa acima para retomar o contexto."}
           </p>
+          {aba === "protocolos" && (
+            <div className="identity-protocol-action">
+              <button type="button" disabled aria-disabled="true">NOVO PROTOCOLO</button>
+              <span>Indisponível nesta prévia · nenhum dado será criado.</span>
+            </div>
+          )}
           <div className="identity-tool-foot">
             <span>PRÉVIA INTERATIVA</span>
             <span>Conteúdo funcional não alterado</span>

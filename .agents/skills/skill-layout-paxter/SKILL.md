@@ -655,6 +655,24 @@ o seletor de cliente atual.
 Cockpit; reutilizar a tela original embutida quando isso preservar o fluxo e as
 validacoes existentes.
 
+### 4.4.1 Regua deslizante e acoes da identidade do Cockpit
+
+- Usar o padrao da regua deslizante aprovado na terceira previa do Cockpit para
+  os seus modos de visualizacao: mesmas ferramentas, ordem e identificacao clara
+  da ferramenta selecionada. Quando nao couberem, todas continuam acessiveis.
+- Editar cadastro e Pastas do Drive ocupam posicoes estaveis, alinhadas, com
+  controles de tamanho uniforme. Sem cliente selecionado, as acoes nao operam.
+- O atalho superior de protocolo nao compoe a nova proposta. A aba Protocolos e
+  o acesso ao gerador permanecem; nao apagar ferramentas ou entradas do menu.
+- Uma previa visual informa que suas acoes sao demonstrativas. Na integracao real,
+  preservar os efeitos existentes, as permissoes e a identidade do cliente.
+
+**Why:** em 08/11/2026, o responsavel aprovou a faixa deslizante do Cockpit 3 e
+pediu alinhamento fixo das acoes, sem duplicar o atalho superior de protocolo.
+
+**How to apply:** usar a mesma regua nas propostas e, quando o design for integrado,
+nas visualizacoes reais do Cockpit, mantendo suas ferramentas e protecoes.
+
 ### 4.5 Padrao 24 — Formulários do Corpo Clínico e ações no rodapé
 
 - A aba “Dados” é a referência visual para todas as abas do cadastro do profissional.

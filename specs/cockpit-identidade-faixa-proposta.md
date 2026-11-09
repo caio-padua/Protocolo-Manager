@@ -28,8 +28,9 @@ rotas ou o aplicativo real e não demonstra integração com o banco de dados.
 2. A identidade usa os campos comprovadamente disponíveis no contrato atual:
    nome, identificador, documento, data de nascimento, telefone, e-mail e foto
    quando existirem. Campos ausentes têm indicação neutra.
-3. Manter o seletor de cliente existente, as abas e as ações Editar, Drive e
-   Protocolo. Não introduzir um segundo seletor nem remover ferramentas.
+3. Manter o seletor de cliente existente, as abas e as ações Editar e Drive.
+   Retirar o atalho de protocolo da faixa superior das propostas, preservando
+   a aba Protocolos e o acesso ao seu gerador. Não remover ferramentas.
 4. Preservar a linguagem visual Paxter e priorizar leitura, contraste, alinhamento,
    clareza e navegação no computador e no celular.
 5. Não apresentar um estado clínico como confirmado quando não houver fonte real
@@ -65,3 +66,63 @@ rotas ou o aplicativo real e não demonstra integração com o banco de dados.
 
 Não modificar motores de cálculo, prescrição, agendamento ou emissão.
 Não excluir menus, telas ou cadastros. Não alterar dados reais nem enviar mensagens.
+
+## Terceira visualização — ficha expandida inspirada no IHE
+
+### Objetivo e escopo
+
+1. Preservar as duas propostas já apresentadas e preparar uma terceira visualização.
+2. No computador e no notebook, apresentar controles de demonstração para alternar
+   entre abas, painéis e ficha contínua, preservando a seleção do cliente.
+3. Na ficha contínua, mostrar ferramentas em blocos amplos, abertos e alinhados
+   verticalmente, com conteúdo ilustrativo visível e identificado como prévia,
+   não apenas cartões-resumo; permitir expandir e recolher os blocos.
+4. Manter um único cliente selecionado em toda a demonstração.
+5. A terceira prévia é destinada ao computador e ao notebook; no celular, informar
+   essa limitação. A navegação do aplicativo real permanece inalterada.
+6. Usar a linguagem visual Paxter e os componentes e ferramentas existentes como
+   referência, sem inventar marca, dados clínicos ou funcionalidades conectadas.
+7. A terceira visualização é uma prévia isolada, identificada como tal, com dados
+   fictícios exclusivamente visuais e sem conexões ou alterações no aplicativo.
+
+### Fonte consultada e limite de fidelidade
+
+Foi consultada a versão do repositório Integrative Health Engine no ramo
+`ver-l2-dr-claude`, em `artifacts/clinica-motor/src/components/cockpit/FichaCockpit.tsx`,
+além de uma captura correspondente. A ficha organiza seções completas em coluna,
+cada uma podendo ser recolhida; a prescrição inclui uma ferramenta extensa.
+Há conteúdo demonstrativo nessa versão. Não foi confirmado que ela corresponde à
+versão mais recente em uso no outro projeto.
+
+### Falhas previstas e verificação
+
+| Falha | Barreira na prévia |
+| --- | --- |
+| Trocar ou limpar o cliente e manter o anterior em outro bloco | Uma seleção compartilhada; sem cliente, todos os campos pessoais ficam vazios |
+| Exibir cartões de atalho no lugar das ferramentas abertas | Conteúdo de cada bloco visível na própria seção expandida |
+| Confundir dados fictícios ou controles demonstrativos com ação clínica | Identificação permanente da prévia e ausência de conexões reais |
+| Comprimir a visão ampla no celular | Avisar que a prévia é destinada ao computador e ao notebook |
+| Destruir a comparação solicitada | Preservar os quadros e componentes das propostas anteriores |
+| Afirmar paridade exata com uma versão desconhecida | Identificar a versão de referência consultada e seu limite |
+
+Conferir a apresentação em computador e celular e os controles de visualização,
+expansão, recolhimento e seleção de cliente que existirem na prévia.
+A integração das ferramentas, permissões e dados reais não é demonstrada por esta
+etapa e não pode ser considerada homologada a partir da prévia.
+
+## Ajuste aprovado — faixa deslizante e ações da identidade
+
+1. Usar a régua deslizante aprovada no Cockpit 3 como padrão visual das ferramentas
+   nas três propostas, com ordem e rótulos consistentes, seleção visível e acesso
+   a todas as ferramentas quando não couberem na largura disponível.
+2. Reorganizar Editar cadastro e Pastas do Drive em posições estáveis, com botões
+   de mesmo tamanho e alinhamento vertical; sem cliente, as ações ficam indisponíveis.
+3. Retirar apenas o atalho superior de protocolo nas propostas; manter a aba
+   Protocolos e a entrada para o gerador. Não alterar a referência do sistema atual.
+4. Na prévia, as ações informam que são demonstrativas e não alteram cadastros nem
+   criam, compartilham ou acessam arquivos reais.
+5. Na futura integração, Editar deve preservar a abertura da edição cadastral.
+   Drive deve preservar a operação existente de estrutura de pastas: a rota também
+   tenta criar uma planilha e pode compartilhar a pasta com o cliente.
+6. O padrão aprovado é de apresentação. A integração no aplicativo real, suas
+   permissões e o comportamento completo do gerador ainda exigem verificação própria.
