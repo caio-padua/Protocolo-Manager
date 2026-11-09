@@ -646,6 +646,72 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
       expect(text).toContain("FORMULA SINTETICA 12");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  it("assina a composição clínica Grand Finale com identidade e número específicos", async () => {
+    const signer = validatePrescriptionCertificate(pfx, password, identity);
+    const marca = readFileSync(new URL("../../assets/paxmed-modelo-2b/paxmed-simbolo-ouro-transparente.png", import.meta.url));
+    const pdf = await generateReceituarioPdfV2({
+      medicoName: identity.professional.name, medicoCrm: "CRM/SP 12345", clinicaNome: identity.clinic.name,
+      pacienteNome: identity.client.name, dataEmissao: "2026-10-29", tipoReceita: "especial",
+      numeroReceita: "SINTETICO-123", formulas: Array.from({ length: 7 }, (_, i) =>
+        ({ nome: `FORMULA SINTETICA ${i + 1}`, ativos: "CONTEUDO FICTICIO", posologia: "NAO UTILIZAR" })),
+      consultaUrl: `https://test.invalid/documento-clinico-receita/${"a".repeat(43)}`,
+      modeloGrandFinaleClinico: true,
+      identidade2bClinica: {
+        textos: { nomeCabecalho: "Empresa Sintética", rodapeLinha1: "Empresa Sintética",
+          rodapeLinha2: "Rua Sintética, 1", rodapeLinha3: "Cidade Sintética" },
+        simboloDourado: marca,
+      },
+    }, signer);
+    verify(pdf);
+    const dir = mkdtempSync(join(tmpdir(), "grand-finale-assinado-"));
+    try {
+      const path = join(dir, "sintetico.pdf");
+      writeFileSync(path, pdf);
+      if (process.env.PAXTER_RENDER_RECIPE_TEST === "1") writeFileSync("/tmp/grand-finale-assinada-sintetica.pdf", pdf);
+      const text = execFileSync("pdftotext", [path, "-"], { encoding: "utf8" });
+      expect(text).toContain("Empresa Sintética");
+      expect(text).toContain("SINTETICO-123");
+      expect(text).toContain("Acesso com login");
+      expect(text).toContain("FORMULA SINTETICA");
+      expect(text).toContain("ASSINADO DIGITALMENTE");
+      expect(text).not.toContain("Instituto Pádua");
+      expect(text).not.toContain("DOCUMENTO DE TESTE");
+      const paginas = (await PDFDocument.load(pdf)).getPageCount();
+      expect(paginas).toBeGreaterThan(1);
+      for (let i = 1; i <= paginas; i++) {
+        const pagina = execFileSync("pdftotext", ["-f", String(i), "-l", String(i), path, "-"], { encoding: "utf8" });
+        expect(pagina).toContain("SINTETICO-123");
+        expect(pagina).toContain("Acesso com login");
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }, 20_000);
+  it("recusa acesso público e identidade ausente na composição clínica Grand Finale", async () => {
+    const signer = validatePrescriptionCertificate(pfx, password, identity);
+    const marca = readFileSync(new URL("../../assets/paxmed-modelo-2b/paxmed-simbolo-ouro-transparente.png", import.meta.url));
+    const base = {
+      medicoName: identity.professional.name, medicoCrm: "CRM/SP 12345", clinicaNome: identity.clinic.name,
+      pacienteNome: identity.client.name, formulas: [{ nome: "FORMULA SINTETICA", posologia: "NAO UTILIZAR" }],
+      modeloGrandFinaleClinico: true,
+      identidade2bClinica: {
+        textos: { nomeCabecalho: "Empresa Sintética", rodapeLinha1: "Empresa Sintética",
+          rodapeLinha2: "Rua Sintética, 1", rodapeLinha3: "Cidade Sintética" },
+        simboloDourado: marca,
+      },
+    };
+    await expect(generateReceituarioPdfV2({ ...base, consultaUrl: "https://test.invalid/consulta-receituario?token=12345678" }, signer))
+      .rejects.toThrow(/acesso protegido/);
+    await expect(generateReceituarioPdfV2({ ...base, identidade2bClinica: undefined }, signer))
+      .rejects.toThrow(/identidade clínica autorizada/);
+    await expect(generateReceituarioPdfV2({ ...base, homologacao: true }, signer))
+      .rejects.toThrow(/não aceita modo de prova/);
+    const ambiente = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      await expect(generateReceituarioPdfV2({
+        ...base, consultaUrl: `https://test.invalid/documento-clinico-receita/${"a".repeat(43)}`,
+      }, signer)).rejects.toThrow(/não está liberado fora de testes/);
+    } finally { process.env.NODE_ENV = ambiente; }
+  });
   it("marca todas as páginas das demonstrações sintéticas antes de assiná-las", async () => {
     const signer = validatePrescriptionCertificate(pfx, password, identity);
     const formulas = Array.from({ length: 18 }, (_, i) => ({

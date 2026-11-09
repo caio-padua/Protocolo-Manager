@@ -39,6 +39,20 @@ uma clínica ou profissional a outra pessoa.
 
 ## Fontes e impacto
 
+- Integração clínica: o identificador empresarial e o emitente vêm exclusivamente
+  do contexto clínico autorizado; a identidade é carregada antes de qualquer
+  gravação ou consumo de numeração. Ausência ou inconsistência deve bloquear.
+- Identificar e preservar número regulatório, tipo da receita e acesso protegido
+  ao documento, inclusive em continuações; assinar somente após toda a composição.
+- A prova sintética permanece separada da operação: não retirar sua restrição
+  para permitir assinatura ou dados reais. Criar caminho clínico explícito e
+  testar isolamento de clínicas, assinatura e rotas antes de ativar.
+- Bloqueio identificado: o motor antigo usa um endereço público diferente do
+  acesso protegido da emissão principal. Não rotular essa consulta pública como
+  protegida, nem ativar parcialmente um botão com modelo diferente de outro.
+- O caminho experimental permanece restrito a testes até vincular empresa e
+  emitente ao contexto autorizado, validar origem do acesso, testar as duas
+  rotas e a demonstração e resolver os casos de numeração regulatória.
 - Construir primeiro uma prova isolada, sem ativar o modelo em emissão clínica;
   só trocar as rotas após os testes de identidade, conteúdo e assinatura.
 - O preenchimento das caixas de identidade deve caber integralmente; dados que

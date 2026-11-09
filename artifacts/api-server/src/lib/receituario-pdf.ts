@@ -419,6 +419,8 @@ export interface ReceituarioDataV2 {
   modelo2bProva?: boolean;
   /** Prova do Grand Finale, restrita a dados sintéticos fora de produção. */
   modeloGrandFinaleProva?: boolean;
+  /** Composição clínica experimental, permitida apenas em testes isolados. */
+  modeloGrandFinaleClinico?: boolean;
   identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array; nomeImagem?: Uint8Array };
   identidade2bClinica?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
@@ -455,6 +457,23 @@ export async function generatePdfFromPngBase64(
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
+  if (data.modeloGrandFinaleClinico && process.env.NODE_ENV !== "test") {
+    throw new Error("O Grand Finale clínico ainda não está liberado fora de testes isolados.");
+  }
+  if (data.modeloGrandFinaleClinico &&
+      (!data.identidade2bClinica || data.homologacao || data.modelo2bProva || data.modeloGrandFinaleProva)) {
+    throw new Error("O modelo clínico Grand Finale exige identidade clínica autorizada e não aceita modo de prova.");
+  }
+  if (data.modeloGrandFinaleClinico && signer) {
+    let caminhoProtegido = false;
+    try {
+      const url = new URL(data.consultaUrl ?? "");
+      caminhoProtegido = ["http:", "https:"].includes(url.protocol) &&
+        /^\/documento-clinico-receita\/[a-zA-Z0-9_-]{43}$/.test(url.pathname) &&
+        !url.search && !url.hash && !url.username && !url.password;
+    } catch { /* Sem endereço de acesso válido, a composição é recusada. */ }
+    if (!caminhoProtegido) throw new Error("O Grand Finale clínico exige acesso protegido à cópia da receita.");
+  }
   if (data.modeloGrandFinaleProva &&
       (!data.homologacao || !data.modelo2bProva || !data.identidade2bProva || process.env.NODE_ENV !== "test" || signer)) {
     throw new Error("A prova Grand Finale exige homologação isolada em ambiente de teste e não aceita assinatura.");
@@ -477,8 +496,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
   const designer = data.designerConfig ?? {};
   const pdfDoc   = await PDFDocument.create();
-  const grandFinale = data.modeloGrandFinaleProva
-    ? await prepararArteGrandFinale(pdfDoc, data.identidade2bProva!) : null;
+  const grandFinale = data.modeloGrandFinaleProva || data.modeloGrandFinaleClinico
+    ? await prepararArteGrandFinale(pdfDoc, (data.identidade2bClinica ?? data.identidade2bProva)!) : null;
   const visualProva = data.modelo2bProva || data.identidade2bClinica
     ? await prepararVisualProva(pdfDoc, data.identidade2bClinica ?? data.identidade2bProva) : null;
   const fonteProva = visualProva ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
@@ -897,7 +916,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     if (grandFinale) {
       desenharPaginaGrandFinale(page, grandFinale, { titulo: titleBold, texto: fontReg }, tipo);
       drawGrandIdentidade();
-      y = GRAND_FINALE.corpoTopo;
+      iniciarCorpoGrandFinale();
       return;
     }
     if (visualProva && fonteProva && fonteProvaNegrito) {
@@ -912,6 +931,17 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     page.drawText(cont, { x: PAGE_W - M - contW, y: y - 8, font: fontReg, size: 7, color: MUTED });
     y -= 18;
     page.drawLine({ start: { x: M, y }, end: { x: PAGE_W - M, y }, thickness: 0.4, color: LINE });
+    y -= 14;
+  }
+
+  function iniciarCorpoGrandFinale(): void {
+    y = GRAND_FINALE.corpoTopo;
+    if (!data.numeroReceita) return;
+    const numero = `Número da receita: ${safeTxt(data.numeroReceita)}`;
+    if (fontBold.widthOfTextAtSize(numero, 8) > CW) {
+      throw new Error("O número da receita excede a largura disponível.");
+    }
+    page.drawText(numero, { x: M, y, font: fontBold, size: 8, color: DARK });
     y -= 14;
   }
 
@@ -1103,7 +1133,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // Campos especiais usam o mesmo espaçamento nos dois modelos.
   const BP_L = configNumber(designer, "boxInnerPaddingX", 4, 2, 12) * MM;
   const BP_T = 3 * MM;
-  if (grandFinale) y = GRAND_FINALE.corpoTopo;
+  if (grandFinale) iniciarCorpoGrandFinale();
 
   // ══════════════════════════════════════════════════════════════════════════
   // 4. CORPO / FÓRMULAS (motor: "Prescrevo:" italic + FormulaReal)
@@ -1139,7 +1169,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     // Regra do CEO: fórmula inteira + 1 linha em branco, senão vai inteira para a próxima página.
     if (blocoDeveIrParaProximaPagina({
       y, alturaBloco: itemHeight, limiteInferior: BODY_BOTTOM,
-      linhaEmBranco: BODY_LINE_HEIGHT, topoPaginaNova: grandFinale ? GRAND_FINALE.corpoTopo : PAGE_H - M - 32,
+      linhaEmBranco: BODY_LINE_HEIGHT, topoPaginaNova: grandFinale
+        ? GRAND_FINALE.corpoTopo - (data.numeroReceita ? 14 : 0) : PAGE_H - M - 32,
     })) newPage();
     else ensureSpace(55);
 
@@ -1345,9 +1376,13 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   drawFooter();
   if (grandFinale) {
     const pages = pdfDoc.getPages();
-    pages.forEach((pg, index) => carimbarRodapeGrandFinale(
-      pg, grandFinale, { titulo: titleBold, texto: fontReg }, index + 1, pages.length,
-    ));
+    pages.forEach((pg, index) => {
+      carimbarRodapeGrandFinale(pg, grandFinale, { titulo: titleBold, texto: fontReg }, index + 1, pages.length);
+      if (data.modeloGrandFinaleClinico && certQrImg && data.consultaUrl) {
+        pg.drawImage(certQrImg, { x: 520, y: 67, width: 24, height: 24 });
+        pg.drawText("Acesso com login", { x: 444, y: 70, font: fontReg, size: 6, color: rgb(0.97, 0.95, 0.89) });
+      }
+    });
   } else if (visualProva && fonteProva) {
     if (data.identidade2bClinica) carimbarRodapesClinicos(pdfDoc, visualProva, fonteProva, certQrImg);
     else carimbarRodapesProva(pdfDoc, visualProva, fonteProva);
