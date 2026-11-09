@@ -181,7 +181,7 @@ Definição de PRONTO de K7: testes T-K7-1 a T-K7-10 verdes (função pura + ban
   b) e-mail ao gestor administrador e ao responsável técnico da clínica (podem ser a mesma pessoa ou não);
   c) um e-mail por dia, no total de 3, até o cliente validar.
 13.1.4 Segunda tela ("desafio presencial"), para resolver no local: campo 1 = os 6 dígitos enviados ao cliente; campo 2 = 6 posições em duas metades de 3, sorteadas, com uma legenda que "respira" (LED digital, piscar lento e contínuo) sob cada metade dizendo qual dado do cadastro o cliente deve informar (exemplos do CEO: 3 últimos ou 3 primeiros do CPF; número da casa completado com zero à esquerda; últimos números do ano de nascimento; 3 primeiras letras da rua). Mesmo resolvendo assim, o e-mail de confirmação continua sendo enviado.
-13.1.5 Palavra-chave aleatória que só o cliente sabe, registrada e trocada a cada semana, para validação.
+13.1.5 Palavra-chave aleatória que só o cliente sabe, registrada e trocada a cada semana, para validação. DECISÃO DO CEO (09/11/2026): DESCARTADA (não entra na K8 nem em unidade futura).
 13.1.6 O CEO deu autonomia para escolher os dados do cadastro usados nas legendas.
 
 ### 13.2 Verdades verificadas na fonte (09/11/2026)
@@ -227,7 +227,7 @@ A coluna da enfermeira não depende de nenhum desses estados.
 13.6.1 O servidor sorteia as duas metades e guarda o sorteio; o navegador só recebe as legendas, nunca o valor esperado.
 13.6.2 Só entram no sorteio dados que o cliente tem cadastrados; com menos de duas opções válidas o desafio fica indisponível, com mensagem clara.
 13.6.3 Alerta de honestidade: a enfermeira enxerga CPF, endereço e nascimento no sistema, então esses dados NÃO provam que quem respondeu é o cliente. Só a palavra-chave semanal (que a enfermeira nunca vê) prova. Por isso o desafio por dados do cadastro, sozinho, vale menos que a chave e é sempre marcado como tal.
-P1 RESOLVIDO (opção B). Pontos em aberto: P1b destino da palavra-chave semanal; P2 quem recebe os 3 e-mails; P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão (sugestão "Cliente confirma depois" já avisada ao CEO).
+P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). Pontos em aberto: P2 quem recebe os 3 e-mails; P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão (sugestão "Cliente confirma depois" já avisada ao CEO).
 
 ### 13.7 Achados independentes (Art. 76), fora do escopo de K8
 
