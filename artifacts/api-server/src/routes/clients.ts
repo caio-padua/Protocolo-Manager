@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, clientsTable, clientPreferredAgendasTable } from "@workspace/db";
+import { db, clientsTable, clientPreferredAgendasTable, empresasTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
 import { emitirLinkMagico } from "../lib/telegram-magic-link";
@@ -47,6 +47,18 @@ const router: IRouter = Router();
 })();
 
 type ClientRow = typeof clientsTable.$inferSelect;
+
+// Clínica de origem é informativa: jamais altera a empresa que protege o prontuário.
+async function validateClinicaOrigem(executor: Pick<typeof db, "select">, id: number | null | undefined) {
+  if (id == null) throw new InvalidPreferredAgendas("Selecione uma clínica de origem.");
+  const [company] = await executor.select({ id: empresasTable.id }).from(empresasTable).where(and(
+    eq(empresasTable.id, id), eq(empresasTable.tipo, "clinic"),
+    eq(empresasTable.ativa, true), eq(empresasTable.status, "ATIVO"),
+  ));
+  if (!company) throw new InvalidPreferredAgendas("A clínica de origem não existe ou está inativa.");
+}
+
+class ClinicaOrigemConflict extends Error {}
 
 // Serializa um cliente para o contrato (datas em ISO, campos nullable normalizados) e
 // anexa a lista de agendas preferenciais (junção client_preferred_agendas).
@@ -159,6 +171,20 @@ router.get("/clients", requireCollaborator, async (req, res): Promise<void> => {
   }
 
   res.json(clients.map((c) => serializeClient(c, byClient.get(c.id) ?? [])));
+});
+
+router.get("/clients/clinicas-origem", requireCollaborator, async (req, res): Promise<void> => {
+  if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
+    res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
+  }
+  const clinicas = await db.select({
+    id: empresasTable.id, nome: empresasTable.nome, nick: empresasTable.nick,
+    razaoSocial: empresasTable.razaoSocial,
+  }).from(empresasTable).where(and(
+    eq(empresasTable.tipo, "clinic"), eq(empresasTable.ativa, true),
+    eq(empresasTable.status, "ATIVO"),
+  ));
+  res.json({ empresaAtualId: req.tenantContext.empresaId, clinicas });
 });
 
 router.get("/clients/visit-preference-options", requireCollaborator, async (req, res): Promise<void> => {
@@ -276,14 +302,16 @@ router.post("/clients", requireClientWriter, async (req, res): Promise<void> => 
     return;
   }
 
-  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, ...clientData } = parsed.data;
-  const locationId = clientData.locationId ?? undefined;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada: _expected, ...clientData } = parsed.data;
+  const locationId = clientData.locationId ?? null;
   const empresaId = req.tenantContext.empresaId;
 
   try {
     const result = await db.transaction(async (tx) => {
+      const clinicaOrigemEmpresaId = clientData.clinicaOrigemEmpresaId ?? empresaId;
+      await validateClinicaOrigem(tx, clinicaOrigemEmpresaId);
       const [created] = await tx.insert(clientsTable)
-        .values({ ...clientData, empresaId, locationId }).returning();
+        .values({ ...clientData, empresaId, locationId, clinicaOrigemEmpresaId }).returning();
       if (!created) throw new Error("Falha ao criar cliente");
       await validateClientLocation(tx, empresaId, created.locationId);
       await setPreferredAgendas(tx, created, preferredAgendaResourceIds);
@@ -317,11 +345,19 @@ router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> 
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, ...clientData } = parsed.data;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, ...clientData } = parsed.data;
   try {
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
       if (!existing) return null;
+      if (clientData.clinicaOrigemEmpresaId !== undefined) {
+        if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
+          throw new ClinicaOrigemConflict("A clínica de origem mudou ou não pôde ser conferida. Recarregue antes de salvar.");
+        }
+        if (clientData.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId) {
+          await validateClinicaOrigem(tx, clientData.clinicaOrigemEmpresaId);
+        }
+      }
       if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
         await validateClientLocation(tx, empresaId, clientData.locationId);
       }
@@ -341,6 +377,7 @@ router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> 
     if (!result) { res.status(404).json({ error: "Client not found" }); return; }
     res.json(result);
   } catch (error) {
+    if (error instanceof ClinicaOrigemConflict) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
     if (error instanceof InvalidPreferredAgendas) {
       res.status(400).json({ error: error.message });
@@ -366,11 +403,19 @@ router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, ...clientData } = parsed.data;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, ...clientData } = parsed.data;
   try {
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
       if (!existing) return null;
+      if (clientData.clinicaOrigemEmpresaId !== undefined) {
+        if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
+          throw new ClinicaOrigemConflict("A clínica de origem mudou ou não pôde ser conferida. Recarregue antes de salvar.");
+        }
+        if (clientData.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId) {
+          await validateClinicaOrigem(tx, clientData.clinicaOrigemEmpresaId);
+        }
+      }
       if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
         await validateClientLocation(tx, empresaId, clientData.locationId);
       }
@@ -390,6 +435,7 @@ router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void
     if (!result) { res.status(404).json({ error: "Client not found" }); return; }
     res.json(result);
   } catch (error) {
+    if (error instanceof ClinicaOrigemConflict) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
     if (error instanceof InvalidPreferredAgendas) {
       res.status(400).json({ error: error.message });

@@ -20,6 +20,8 @@ export interface CreateClientBody {
   comoConheceu?: string | null;
   status: CreateClientBodyStatus;
   locationId?: number | null;
+  clinicaOrigemEmpresaId?: number | null;
+  clinicaOrigemEsperada?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;

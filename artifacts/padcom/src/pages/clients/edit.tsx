@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
+import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
 import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ const formSchema = z.object({
   instagram: z.string().optional(),
   comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
+  clinicaOrigemEmpresaId: z.string().optional(),
   locationId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
   visitPreferences: visitPreferencesSchema,
@@ -110,6 +112,7 @@ export default function EditClient() {
   const [saveError, setSaveError] = useState("");
   const loadedClientId = useRef<number | null>(null);
   const visitRevision = useRef<number | null>(null);
+  const clinicaOrigemInicial = useRef<number | null | undefined>(undefined);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -130,6 +133,7 @@ export default function EditClient() {
       instagram: "",
       comoConheceu: "",
       status: "active",
+      clinicaOrigemEmpresaId: "",
       locationId: "",
       preferredAgendaResourceIds: [],
       visitPreferences: emptyVisitPreferences(),
@@ -146,6 +150,7 @@ export default function EditClient() {
   useEffect(() => {
     if (client && client.id === id && (loadedClientId.current !== id || !form.formState.isDirty)) {
       visitRevision.current = typeof client.visitPreferencesRevision === "number" ? client.visitPreferencesRevision : null;
+      clinicaOrigemInicial.current = client.clinicaOrigemEmpresaId ?? null;
       const addrFields = parseAddressToFields(client.address);
       form.reset({
         name: client.name,
@@ -164,6 +169,7 @@ export default function EditClient() {
         instagram: (client as any).instagram || "",
         comoConheceu: (client as any).comoConheceu || "",
         status: (client.status as "active" | "inactive" | "pending") || "active",
+        clinicaOrigemEmpresaId: client.clinicaOrigemEmpresaId != null ? String(client.clinicaOrigemEmpresaId) : "",
         locationId: (client as any).locationId != null ? String((client as any).locationId) : "",
         preferredAgendaResourceIds: (client as any).preferredAgendaResourceIds ?? [],
         visitPreferences: client.visitPreferences ?? emptyVisitPreferences(),
@@ -204,6 +210,10 @@ export default function EditClient() {
 
   const onSubmit = (values: FormValues) => {
     setSaveError("");
+    if (form.formState.dirtyFields.clinicaOrigemEmpresaId && clinicaOrigemInicial.current === undefined) {
+      setSaveError("Não foi possível conferir a clínica de origem. Recarregue o cadastro antes de salvar.");
+      return;
+    }
     if (form.formState.dirtyFields.visitPreferences && visitRevision.current === null) {
       setSaveError("Não foi possível confirmar a versão das preferências. Recarregue o cadastro antes de salvar.");
       return;
@@ -230,6 +240,10 @@ export default function EditClient() {
         instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
+        ...(form.formState.dirtyFields.clinicaOrigemEmpresaId
+          ? { clinicaOrigemEmpresaId: values.clinicaOrigemEmpresaId ? Number(values.clinicaOrigemEmpresaId) : null,
+              clinicaOrigemEsperada: clinicaOrigemInicial.current }
+          : {}),
         ...(form.formState.dirtyFields.locationId
           ? { locationId: values.locationId ? Number(values.locationId) : null }
           : {}),
@@ -404,6 +418,11 @@ export default function EditClient() {
 
                   <FormField
                     control={form.control}
+                    name="clinicaOrigemEmpresaId"
+                    render={({ field }) => <ClinicaOrigemField value={field.value ?? ""} onChange={field.onChange} />}
+                  />
+                  <FormField
+                    control={form.control}
                     name="locationId"
                     render={({ field }) => {
                       const list = (locations ?? []).filter(
@@ -412,7 +431,7 @@ export default function EditClient() {
                       return (
                         <FormItem className="md:col-span-2">
                           <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
-                            <Building2 className="h-3 w-3 text-primary" /> Clínica de Origem
+                            <Building2 className="h-3 w-3 text-primary" /> Local para agendas
                           </FormLabel>
                           <div className="concave-3d p-1">
                             <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value || ""}>

@@ -911,6 +911,7 @@ export const ListClientsResponseItem = zod.object({
   comoConheceu: zod.string().nullish(),
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
+  clinicaOrigemEmpresaId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
@@ -1086,6 +1087,8 @@ export const CreateClientBody = zod.object({
   comoConheceu: zod.string().nullish(),
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
+  clinicaOrigemEmpresaId: zod.number().nullish(),
+  clinicaOrigemEsperada: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
@@ -1199,6 +1202,18 @@ export const CreateClientBody = zod.object({
   notes: zod.string().nullish(),
 });
 
+export const ListClientOriginClinicsResponse = zod.object({
+  empresaAtualId: zod.number(),
+  clinicas: zod.array(
+    zod.object({
+      id: zod.number(),
+      nome: zod.string(),
+      nick: zod.string().nullish(),
+      razaoSocial: zod.string().nullish(),
+    }),
+  ),
+});
+
 /**
  * @summary Referências de dias e horários por tipo de atendimento
  */
@@ -1283,6 +1298,7 @@ export const GetClientResponse = zod.object({
   comoConheceu: zod.string().nullish(),
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
+  clinicaOrigemEmpresaId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
@@ -1461,6 +1477,8 @@ export const UpdateClientBody = zod.object({
   comoConheceu: zod.string().nullish(),
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
+  clinicaOrigemEmpresaId: zod.number().nullish(),
+  clinicaOrigemEsperada: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
@@ -1627,6 +1645,7 @@ export const UpdateClientResponse = zod.object({
   comoConheceu: zod.string().nullish(),
   status: zod.enum(["active", "inactive", "pending"]),
   locationId: zod.number().nullish(),
+  clinicaOrigemEmpresaId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod

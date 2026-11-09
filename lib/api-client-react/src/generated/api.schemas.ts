@@ -1335,6 +1335,13 @@ export interface ClientVisitPreferenceOptions {
   nursing: ClientVisitPreferenceOptionsCategory;
 }
 
+export interface ClientOriginClinic {
+  id: number;
+  nome: string;
+  nick?: string | null;
+  razaoSocial?: string | null;
+}
+
 export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
 
 export const ClientStatus = {
@@ -1356,6 +1363,7 @@ export interface Client {
   comoConheceu?: string | null;
   status: ClientStatus;
   locationId?: number | null;
+  clinicaOrigemEmpresaId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
@@ -1387,6 +1395,8 @@ export interface CreateClientBody {
   comoConheceu?: string | null;
   status: CreateClientBodyStatus;
   locationId?: number | null;
+  clinicaOrigemEmpresaId?: number | null;
+  clinicaOrigemEsperada?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
@@ -3135,6 +3145,11 @@ export type GetExamRequestHistoryParams = {
 export type ListClientsParams = {
   search?: string;
   status?: string;
+};
+
+export type ListClientOriginClinics200 = {
+  empresaAtualId: number;
+  clinicas: ClientOriginClinic[];
 };
 
 export type UpdateSubstanceBlendComponentsBody = {

@@ -21,6 +21,7 @@ export interface Client {
   comoConheceu?: string | null;
   status: ClientStatus;
   locationId?: number | null;
+  clinicaOrigemEmpresaId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;

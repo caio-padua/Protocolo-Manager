@@ -38,3 +38,9 @@ Regra: Cadastro de clientes e locais de atendimento são coisas distintas; trans
 **Why:** O responsável esclareceu essa distinção ao solicitar a reorganização dos locais entre empresas.
 
 **How to apply:** Preservar a empresa dos clientes e corrigir eventuais vínculos internos com locais sem interpretar a mudança de agenda como transferência de clientes.
+
+Regra: Em 09/11/2026, o responsável informou que todos os clientes então cadastrados pertenciam ao Instituto Pádua.
+
+**Why:** Os antigos nomes de locais e agendas não indicavam a clínica de origem dos clientes.
+
+**How to apply:** Aplicar essa informação à base então existente; não presumir que clientes futuros ou de outras empresas pertençam ao Instituto Pádua.

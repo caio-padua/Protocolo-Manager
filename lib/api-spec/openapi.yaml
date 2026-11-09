@@ -750,6 +750,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Client"
 
+  /clients/clinicas-origem:
+    get:
+      operationId: listClientOriginClinics
+      tags: [clients]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Clínicas ativas e empresa da sessão.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [empresaAtualId, clinicas]
+                properties:
+                  empresaAtualId: { type: integer }
+                  clinicas:
+                    type: array
+                    items: { $ref: "#/components/schemas/ClientOriginClinic" }
+        "401": { description: Sessão inválida. }
   /clients/visit-preference-options:
     get:
       operationId: getClientVisitPreferenceOptions
@@ -5004,6 +5023,14 @@ components:
           $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
         nursing:
           $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
+    ClientOriginClinic:
+      type: object
+      required: [id, nome]
+      properties:
+        id: { type: integer }
+        nome: { type: string }
+        nick: { type: string, nullable: true }
+        razaoSocial: { type: string, nullable: true }
     Client:
       type: object
       properties:
@@ -5036,6 +5063,9 @@ components:
           type: string
           enum: [active, inactive, pending]
         locationId:
+          type: integer
+          nullable: true
+        clinicaOrigemEmpresaId:
           type: integer
           nullable: true
         photoUrl:
@@ -5098,6 +5128,12 @@ components:
           type: string
           enum: [active, inactive, pending]
         locationId:
+          type: integer
+          nullable: true
+        clinicaOrigemEmpresaId:
+          type: integer
+          nullable: true
+        clinicaOrigemEsperada:
           type: integer
           nullable: true
         photoUrl:

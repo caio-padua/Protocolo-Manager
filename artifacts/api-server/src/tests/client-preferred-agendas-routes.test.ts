@@ -56,7 +56,12 @@ beforeAll(async () => {
   }
   await isolated.pool.query(createTableSql(clientPreferredAgendasTable, ", UNIQUE(client_id, agenda_resource_id)"));
   await isolated.pool.query(`
-    INSERT INTO empresas (id, ativa, status) VALUES (5, true, 'ATIVO'), (6, true, 'ATIVO');
+    INSERT INTO empresas (id, nome, tipo, ativa, status, razao_social) VALUES
+      (5, 'Clínica A', 'clinic', true, 'ATIVO', 'Clínica A Ltda'),
+      (6, 'Clínica B', 'clinic', true, 'ATIVO', 'Clínica B Ltda'),
+      (7, 'Clínica C', 'clinic', true, 'ATIVO', 'Clínica C Ltda'),
+      (8, 'Clínica inativa', 'clinic', false, 'ATIVO', 'Inativa Ltda'),
+      (9, 'Laboratório', 'genesis_seed', true, 'ATIVO', 'Laboratório Ltda');
     INSERT INTO professionals (id, role, category, active, credential_version, empresa_id, is_platform_owner)
       VALUES (101, 'admin', 'admin', true, 0, 5, false), (102, 'admin', 'admin', true, 0, 6, false);
     INSERT INTO locations (id, empresa_id, active) VALUES (8, 5, 'true'), (9, 6, 'true');
@@ -374,5 +379,47 @@ describe("Cadastro de cliente e agendas preferenciais", () => {
     );
     expect(history.rows.map((row: { preferences: { nursing: { priority: unknown } } }) => row.preferences.nursing.priority))
       .toEqual([entries, reordered.nursing.priority, winner]);
+  });
+
+  it("cadastra e altera clínica de origem sem trocar a empresa nem o local", async () => {
+    const auth = { Authorization: `Bearer ${collaborator}` };
+    expect((await request(app).get("/clients/clinicas-origem")).status).toBe(401);
+    const options = await request(app).get("/clients/clinicas-origem").set(auth);
+    expect(options.status).toBe(200);
+    expect(options.body.empresaAtualId).toBe(5);
+    expect(options.body.clinicas.map((c: { id: number }) => c.id).sort()).toEqual([5, 6, 7]);
+    expect(options.body.clinicas.find((c: { id: number }) => c.id === 5).razaoSocial).toBe("Clínica A Ltda");
+
+    const made = await request(app).post("/clients").set(auth)
+      .send({ ...base, name: "Cliente sintético origem" });
+    expect(made.status, made.text).toBe(201);
+    expect(made.body.clinicaOrigemEmpresaId).toBe(5);
+    expect(made.body.locationId).toBe(8);
+    const withoutLocation = await request(app).post("/clients").set(auth)
+      .send({ ...base, name: "Cliente sintético sem local", locationId: null,
+        preferredAgendaResourceIds: [], clinicaOrigemEmpresaId: 6 });
+    expect(withoutLocation.status, withoutLocation.text).toBe(201);
+    expect(withoutLocation.body.clinicaOrigemEmpresaId).toBe(6);
+    expect(withoutLocation.body.locationId).toBeNull();
+    expect(withoutLocation.body.empresaId).toBe(5);
+    const invalid = await request(app).patch(`/clients/${made.body.id}`).set(auth)
+      .send({ clinicaOrigemEmpresaId: 8, clinicaOrigemEsperada: 5 });
+    expect(invalid.status).toBe(400);
+    const unconfirmed = await request(app).put(`/clients/${made.body.id}`).set(auth)
+      .send({ clinicaOrigemEmpresaId: 6 });
+    expect(unconfirmed.status).toBe(409);
+    const forbidden = await request(app).patch(`/clients/${made.body.id}`)
+      .set("Authorization", `Bearer ${otherCompany}`)
+      .send({ clinicaOrigemEmpresaId: 6, clinicaOrigemEsperada: 5 });
+    expect(forbidden.status).toBe(404);
+    const responses = await Promise.all([6, 7].map(clinicaOrigemEmpresaId =>
+      request(app).patch(`/clients/${made.body.id}`).set(auth)
+        .send({ clinicaOrigemEmpresaId, clinicaOrigemEsperada: 5 })));
+    expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
+    const result = await request(app).get(`/clients/${made.body.id}`).set(auth);
+    expect(result.body.clinicaOrigemEmpresaId).toBe(responses.find(r => r.status === 200)!.body.clinicaOrigemEmpresaId);
+    expect(result.body.empresaId).toBe(5);
+    expect(result.body.locationId).toBe(8);
+    expect(result.body.preferredAgendaResourceIds).toEqual([11]);
   });
 });

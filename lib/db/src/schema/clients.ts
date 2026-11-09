@@ -18,6 +18,7 @@ export const clientsTable = pgTable("clients", {
   status: text("status").notNull().default("active"),
   locationId: integer("location_id"),
   empresaId: integer("empresa_id"),
+  clinicaOrigemEmpresaId: integer("clinica_origem_empresa_id"),
   photoUrl: text("photo_url"),
   notes: text("notes"),
   validationPassword: text("validation_password"),

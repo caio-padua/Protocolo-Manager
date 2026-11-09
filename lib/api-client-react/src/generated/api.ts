@@ -136,6 +136,7 @@ import type {
   ListAnamnesePerguntasParams,
   ListBudgetsParams,
   ListCatalogOptionsParams,
+  ListClientOriginClinics200,
   ListClientsParams,
   ListClinicalDemonstrationsParams,
   ListFinancialGoalsParams,
@@ -3392,6 +3393,78 @@ export const useCreateClient = <
 > => {
   return useMutation(getCreateClientMutationOptions(options));
 };
+
+export const getListClientOriginClinicsUrl = () => {
+  return `/api/clients/clinicas-origem`;
+};
+
+export const listClientOriginClinics = async (
+  options?: RequestInit,
+): Promise<ListClientOriginClinics200> => {
+  return customFetch<ListClientOriginClinics200>(
+    getListClientOriginClinicsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClientOriginClinicsQueryKey = () => {
+  return [`/api/clients/clinicas-origem`] as const;
+};
+
+export const getListClientOriginClinicsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClientOriginClinics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClientOriginClinics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListClientOriginClinicsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClientOriginClinics>>
+  > = ({ signal }) => listClientOriginClinics({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClientOriginClinics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClientOriginClinicsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClientOriginClinics>>
+>;
+export type ListClientOriginClinicsQueryError = ErrorType<void>;
+
+export function useListClientOriginClinics<
+  TData = Awaited<ReturnType<typeof listClientOriginClinics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClientOriginClinics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClientOriginClinicsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Referências de dias e horários por tipo de atendimento

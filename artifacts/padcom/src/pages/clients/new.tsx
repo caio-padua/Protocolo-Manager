@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
+import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
 import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ const formSchema = z.object({
   instagram: z.string().optional(),
   comoConheceu: z.string().optional(),
   status: z.enum(["active", "inactive", "pending"]),
+  clinicaOrigemEmpresaId: z.string().optional(),
   locationId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
   visitPreferences: visitPreferencesSchema,
@@ -96,7 +98,8 @@ export default function NewClient() {
       instagram: "",
       comoConheceu: "",
       status: "active",
-      locationId: "8",
+      clinicaOrigemEmpresaId: "",
+      locationId: "",
       preferredAgendaResourceIds: [],
       visitPreferences: emptyVisitPreferences(),
       notes: "",
@@ -161,7 +164,8 @@ export default function NewClient() {
         instagram: values.instagram || undefined,
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
-        locationId: values.locationId ? Number(values.locationId) : 8,
+        ...(values.clinicaOrigemEmpresaId ? { clinicaOrigemEmpresaId: Number(values.clinicaOrigemEmpresaId) } : {}),
+        locationId: values.locationId ? Number(values.locationId) : null,
         preferredAgendaResourceIds: values.preferredAgendaResourceIds ?? [],
         ...(form.formState.dirtyFields.visitPreferences
           ? { visitPreferences: values.visitPreferences, visitPreferencesRevision: 0 }
@@ -312,6 +316,11 @@ export default function NewClient() {
 
                   <FormField
                     control={form.control}
+                    name="clinicaOrigemEmpresaId"
+                    render={({ field }) => <ClinicaOrigemField value={field.value ?? ""} onChange={field.onChange} defaultToCurrent />}
+                  />
+                  <FormField
+                    control={form.control}
                     name="locationId"
                     render={({ field }) => {
                       const list = (locations ?? []).filter(
@@ -320,7 +329,7 @@ export default function NewClient() {
                       return (
                         <FormItem className="md:col-span-2">
                           <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
-                            <Building2 className="h-3 w-3 text-primary" /> Clínica de Origem
+                            <Building2 className="h-3 w-3 text-primary" /> Local para agendas
                           </FormLabel>
                           <div className="concave-3d p-1">
                             <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value || ""}>

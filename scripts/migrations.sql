@@ -2,6 +2,7 @@
 -- MIGRAÇÕES DE SCHEMA DO PROJETO
 -- Aplicado automaticamente a cada merge de task agent por scripts/post-merge.sh
 -- -----------------------------------------------------------------------------
+
 --
 -- REGRAS DE ESCRITA (obrigatórias):
 --
@@ -404,3 +405,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Preservação de vias clínicas revisadas ao importar catálogos.
 \ir migrations/20261108_catalogo_via_revisada.sql
+
+-- Clínica de origem independente da empresa de acesso e do local operacional.
+\ir migrations/20261109_clinica_origem_cliente.sql
