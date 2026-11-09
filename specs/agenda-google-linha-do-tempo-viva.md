@@ -225,14 +225,23 @@ A coluna da enfermeira não depende de nenhum desses estados.
 
 13.6.0 DECISÃO DO CEO (09/11/2026, opção B): as duas metades do desafio saem só de dados do cadastro, sorteados. A palavra-chave semanal NÃO entra no desafio. O CEO foi avisado de que a prova é fraca (13.6.3) e manteve a opção B. Consequências aceitas: o desafio sempre fica marcado "por dados do cadastro" e o e-mail de confirmação de um clique continua sendo enviado e exigido para a parte do cliente ficar completa.
 
+13.6.0b DECISÃO DO CEO (09/11/2026, opção C): 3 respostas erradas encerram a rodada; o sistema sorteia um desafio novo (outras legendas) com mais 3 tentativas, no máximo 2 vezes. São no máximo 3 rodadas (a inicial e 2 novas), 9 tentativas ao todo. Depois disso o desafio trava na visita e o caminho "Cliente confirma depois" liga sozinho (e-mail de um clique ao cliente e e-mail à gestão). Decidido por mim e avisado: o mesmo par de dados nunca se repete na mesma visita; se não houver par novo possível, trava antes. Nada disso bloqueia o registro da enfermeira.
 13.6.1 O servidor sorteia as duas metades e guarda o sorteio; o navegador só recebe as legendas, nunca o valor esperado.
 13.6.2 Só entram no sorteio dados que o cliente tem cadastrados; com menos de duas opções válidas o desafio fica indisponível, com mensagem clara.
 13.6.3 Alerta de honestidade: a enfermeira enxerga CPF, endereço e nascimento no sistema, então esses dados NÃO provam que quem respondeu é o cliente. Só a palavra-chave semanal (que a enfermeira nunca vê) prova. Por isso o desafio por dados do cadastro, sozinho, vale menos que a chave e é sempre marcado como tal.
-P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). P2 RESOLVIDO (gestão recebe 2). Pontos em aberto: P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão (sugestão "Cliente confirma depois" já avisada ao CEO).
+P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). P2 RESOLVIDO (gestão recebe 2). P3 RESOLVIDO (opção C). P4 RESOLVIDO (estado "não confirmada", 13.5.4). P5 RESOLVIDO por aviso (botão "Cliente confirma depois"). Nenhum ponto de decisão do CEO em aberto na especificação.
 
 ### 13.7 Achados independentes (Art. 76), fora do escopo de K8
 
 13.7.1 Rotas antigas de código expostas sem login de profissional e com código em texto puro (gravidade alta). Recomendação: decisão própria do CEO para proteger ou desligar; não será mexido sem autorização.
+
+### 13.7b Divisão da construção (proposta; uma parte por vez, revisão e aceite entre elas)
+
+| Parte | Entrega | Depende de |
+|---|---|---|
+| K8a | Tabelas novas; chave segura por visita; envio aos canais; digitação pela enfermeira; rubrica gravada; botão e tela da chave | Nada |
+| K8b | Botão "Cliente confirma depois"; e-mail de um clique; página pública de confirmação; e-mail à gestão; lembretes diários; estados "pendente" e "não confirmada" | K8a |
+| K8c | Desafio presencial (2 metades sorteadas, legenda que respira, 3 rodadas); trava e entrada automática em K8b | K8a e K8b |
 
 ### 13.8 Falhas previstas
 
@@ -256,5 +265,8 @@ P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). P2 R
 | F41 | Cliente sem dados para o desafio | Média | Sorteio só entre dados existentes; indisponível com aviso | T-K8-16 |
 | F42 | Hora em UTC | Média | lib/brt | T-K8-17 |
 | F43 | Enfermeira de outra clínica valida | Crítica | Mesma guarda de empresa e vínculo da aplicação | T-K8-18 |
+| F44 | Sorteio do desafio previsível ou repetido entre rodadas | Alta | crypto.randomInt; par nunca repete; sorteio guardado no servidor | T-K8-19 |
+| F45 | Rodadas do desafio passam do limite (3 rodadas, 9 tentativas) | Alta | Contadores no banco, reserva atômica | T-K8-20 |
+| F46 | Desafio travado deixa a visita sem encaminhamento | Alta | Trava liga sozinha o "Cliente confirma depois" | T-K8-21 |
 
 Definição de PRONTO de K8: T-K8-1 a T-K8-18 verdes em banco isolado com canais simulados; regressão das unidades K1 e K7 verde; revisão independente sem pendência; tela vista em captura quando for possível (a captura automática não entra em telas com login; o que não for visto será dito).
