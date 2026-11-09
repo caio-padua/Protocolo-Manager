@@ -164,3 +164,4 @@
 - [Protocolo completo constante](protocolo-completo-constante.md) — constantes calculadas na leitura; evento do Google montado em 3 caminhos (mexer nos 3); guarda de empresa; rodar suíte com --maxWorkers=2.
 - [Confirmação do cliente por visita (K8)](confirmacao-visita-k8-licoes.md) — jobs vão no api-worker (cron.ts é código morto); guard de módulo explícito; só após aplicação registrada; boot não pode dar exit.
 - [Chat do CEO no Telegram — cofre x Secret](telegram-ceo-chatid-cofre-vs-secret.md) — Secret PADAXOR_TELEGRAM_CHAT_ID está errado; só a API hidrata o cofre; worker e scripts não.
+- [IHE já desenhou PIN, rubrica e app da enfermagem](ihe-app-enfermagem-pin-rubrica.md) — formatos de rubrica já decididos em 12/06/2026 no IHE; ler IHE antes de construir; como ler via PAT; K8 sem Hermes.
