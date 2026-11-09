@@ -18,3 +18,5 @@ Regras do CEO para a chave por visita (09/11/2026): a enfermeira realiza e regis
 **Why:** o CEO quer prova digital da presença do cliente sem travar o trabalho clínico.
 
 **How to apply:** a enfermeira vê CPF, endereço e nascimento, então dado de cadastro NÃO prova que respondeu o cliente; só segredo que ela nunca vê prova. Rotas antigas /validation-codes/* não exigem login de profissional, usam Math.random e devolvem o código em texto puro: nunca contam como rubrica; fechar é decisão do CEO. Gestor e responsável técnico = marcas is_clinic_admin e is_responsible_doctor em clinical_access_grants. Link de e-mail de confirmação: abrir não confirma (antivírus/pré-visualização); só o botão da página.
+
+Decisão do CEO (09/11/2026): no desafio presencial as duas metades saem SÓ de dados do cadastro (opção B), mesmo avisado de que a enfermeira enxerga esses dados e a prova é fraca; manter a marcação "por dados do cadastro" e o e-mail de um clique como exigência para completar a parte do cliente. Não reabrir sem pedido dele.

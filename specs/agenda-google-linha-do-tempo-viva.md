@@ -220,12 +220,14 @@ A coluna da enfermeira não depende de nenhum desses estados.
 13.5.3 E-mail ao gestor administrador e ao responsável técnico do local da visita, sem repetir pessoa que acumula as duas funções. Se nenhum tiver e-mail, a tela da enfermeira avisa e o fato fica registrado; nunca bloqueia.
 13.5.4 Lembretes: 3 e-mails ao todo, um por dia (o primeiro no ato), parando na hora em que o cliente confirma. Rotina diária idempotente (reinício do servidor não duplica; confere o estado no momento do envio).
 
-### 13.6 Desafio presencial (pontos ainda a confirmar com o CEO)
+### 13.6 Desafio presencial
+
+13.6.0 DECISÃO DO CEO (09/11/2026, opção B): as duas metades do desafio saem só de dados do cadastro, sorteados. A palavra-chave semanal NÃO entra no desafio. O CEO foi avisado de que a prova é fraca (13.6.3) e manteve a opção B. Consequências aceitas: o desafio sempre fica marcado "por dados do cadastro" e o e-mail de confirmação de um clique continua sendo enviado e exigido para a parte do cliente ficar completa.
 
 13.6.1 O servidor sorteia as duas metades e guarda o sorteio; o navegador só recebe as legendas, nunca o valor esperado.
 13.6.2 Só entram no sorteio dados que o cliente tem cadastrados; com menos de duas opções válidas o desafio fica indisponível, com mensagem clara.
 13.6.3 Alerta de honestidade: a enfermeira enxerga CPF, endereço e nascimento no sistema, então esses dados NÃO provam que quem respondeu é o cliente. Só a palavra-chave semanal (que a enfermeira nunca vê) prova. Por isso o desafio por dados do cadastro, sozinho, vale menos que a chave e é sempre marcado como tal.
-Pontos em aberto: P1 segredo do desafio; P2 quem recebe os 3 e-mails; P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão.
+P1 RESOLVIDO (opção B). Pontos em aberto: P1b destino da palavra-chave semanal; P2 quem recebe os 3 e-mails; P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão (sugestão "Cliente confirma depois" já avisada ao CEO).
 
 ### 13.7 Achados independentes (Art. 76), fora do escopo de K8
 
