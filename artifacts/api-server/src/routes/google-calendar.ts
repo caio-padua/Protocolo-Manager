@@ -1,6 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, eq, isNull } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   sessionsTable,
@@ -14,30 +13,18 @@ import {
   locationProfessionalsTable,
 } from "@workspace/db";
 import {
-  createCalendarEvent,
-  updateCalendarEvent,
-  updateCalendarEventDescription,
   listCalendars,
   verifyClinicAccount,
   type CalendarEventData,
   type CalendarSubstance,
 } from "../lib/google-calendar";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
+import { CalendarSyncUncertain, procedureTypeLabel, syncReservedEvent } from "../lib/session-google-sync";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalMember } from "../lib/clinical-emitter";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 
 const router: IRouter = Router();
-
-function procedureTypeLabel(type: string): string {
-  switch (type) {
-    case "iv": return "Aplicacao Endovenosa";
-    case "im": return "Aplicacao Intramuscular";
-    case "sc": return "Aplicacao Subcutanea";
-    case "implant": return "Implante";
-    default: return "Procedimento";
-  }
-}
 
 async function authorizeSession(req: Request, session: typeof sessionsTable.$inferSelect) {
   const empresaId = resolveEmpresaId(req);
@@ -67,70 +54,6 @@ async function explicitDestination(req: Request, session: typeof sessionsTable.$
   ));
   if (!membership) return null;
   return { resource, location, calendarId: resource.googleCalendarId };
-}
-
-class CalendarSyncUncertain extends Error {}
-
-/** Reserva durável: mesmo falha de resposta ou reinício nunca autoriza nova criação. */
-async function syncReservedEvent(
-  session: typeof sessionsTable.$inferSelect,
-  data: CalendarEventData,
-  expectedApplications: (typeof substanceApplicationsTable.$inferSelect)[],
-) {
-  const operation = randomUUID();
-  const eventId = session.googleEventId ?? randomUUID().replace(/-/g, "");
-  const calendarId = data.calendarId!;
-  const [reserved] = await db.update(sessionsTable).set({
-    googleSyncPendingOperation: operation,
-    googleSyncPendingEventId: eventId,
-    googleSyncPendingCalendarId: calendarId,
-  }).where(and(
-    eq(sessionsTable.id, session.id),
-    isNull(sessionsTable.googleSyncPendingOperation),
-    session.googleEventId ? eq(sessionsTable.googleEventId, session.googleEventId) : isNull(sessionsTable.googleEventId),
-  )).returning({ id: sessionsTable.id });
-  if (!reserved) throw new CalendarSyncUncertain("Há uma sincronização em andamento ou com resultado incerto. Confira antes de repetir.");
-
-  // A descrição pode ter sido montada antes da reserva. Depois da reserva,
-  // confirme que a sessão e suas aplicações ainda são exatamente as mesmas.
-  const stripReservation = (s: typeof sessionsTable.$inferSelect) => {
-    const { googleSyncPendingOperation: _op, googleSyncPendingEventId: _id,
-      googleSyncPendingCalendarId: _calendar, ...rest } = s;
-    return JSON.stringify(rest);
-  };
-  const serializeApplications = (items: (typeof substanceApplicationsTable.$inferSelect)[]) =>
-    JSON.stringify([...items].sort((a, b) => a.id - b.id));
-  const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
-  const freshApplications = await db.select().from(substanceApplicationsTable)
-    .where(eq(substanceApplicationsTable.sessionId, session.id));
-  if (!fresh || stripReservation(fresh) !== stripReservation(session) ||
-      serializeApplications(freshApplications) !== serializeApplications(expectedApplications)) {
-    await db.update(sessionsTable).set({
-      googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
-    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
-    throw new CalendarSyncUncertain("A sessão mudou antes do envio. Nenhum evento foi alterado; confira e tente novamente.");
-  }
-  try {
-    if (session.googleEventId) {
-      await updateCalendarEvent(eventId, calendarId, data);
-    } else {
-      const created = await createCalendarEvent({ ...data, eventId });
-      if (created !== eventId) throw new Error("O Google não confirmou o identificador reservado.");
-    }
-    const [saved] = await db.update(sessionsTable).set({
-      googleEventId: eventId,
-      googleCalendarId: calendarId,
-      googleSyncPendingOperation: null,
-      googleSyncPendingEventId: null,
-      googleSyncPendingCalendarId: null,
-    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)))
-      .returning({ id: sessionsTable.id });
-    if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
-    return eventId;
-  } catch {
-    // Não libera a reserva: o Google pode ter recebido a alteração.
-    throw new CalendarSyncUncertain("Não foi possível confirmar o resultado no Google. Confira o compromisso antes de repetir.");
-  }
 }
 
 router.get("/google-calendar/status", requireCollaborator, async (_req, res): Promise<void> => {

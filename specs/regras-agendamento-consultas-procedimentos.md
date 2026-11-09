@@ -141,6 +141,114 @@ editável pelo controle sim/não do cadastro.
    horários sobrepostos (uma só vence); falha no meio da gravação (volta tudo);
    resposta perdida após gravar (a nova tentativa recebe "já agendado", não
    duplica); plano adulterado (dose, total, substância de outro protocolo).
+8. Prévia e confirmação do agendamento do protocolo (etapa 4 de 7, 09/11/2026), só
+   enfermagem local: `lib/protocol-scheduling.ts` (cálculo), `routes/protocol-scheduling.ts`
+   (rotas) e `components/ProtocolSchedulingDialog.tsx` (botão "Agendar protocolo" no
+   detalhe do protocolo, só para protocolo sugerido e sem sessões).
+   Rotas: `POST /protocols/:id/scheduling/preview` (calcula e mostra; não grava nada) e
+   `POST /protocols/:id/scheduling/confirm`. O navegador NUNCA envia o plano: a prévia só
+   aceita a agenda (opcional) e a confirmação só aceita a impressão digital da prévia
+   (campo extra no pedido = 400). O servidor lê do banco cliente, protocolo, itens e
+   catálogo, roda o planejador (margem de 4 dias; intervalo mínimo = frequência menos 4
+   dias), recalcula tudo na confirmação e só reserva se a impressão digital for igual.
+   Se não for, responde 409 `plano_mudou` com a prévia nova e não grava.
+   A impressão digital cobre agenda, datas, horários, períodos, minutos reservados,
+   doses, totais, datas nominais e uma fotografia do protocolo (data de início, dose,
+   total, intervalo, data de cada item, duração e exigência de médico de cada substância).
+   A mesma fotografia vai para `reserveProtocolVisits` (`expectedSnapshot`), que a confere
+   de novo SOB o bloqueio da empresa: edição feita entre o recálculo e o bloqueio também
+   recusa com `plano_mudou`. O acesso clínico é reconferido imediatamente antes de reservar
+   (409 `acesso_alterado`).
+   Agenda de enfermagem: a escolhida, senão a padrão do cliente, senão a primeira
+   preferencial; precisa ser da empresa, de enfermagem e LOCAL. A preferência do cliente
+   (dia, horário, ordem) só ORDENA as vagas; nunca exclui nenhuma.
+   Recusas explícitas (nada gravado): protocolo que já tem qualquer sessão (legado
+   incluído) ou não sugerido; participação médica ou duração indefinida; substância que
+   exige médico ("ainda não há agenda médica com expediente"); período maior que o teto de
+   leitura da agenda; datas que já passaram; protocolo grande demais; sem combinação
+   (`sem_plano`, com o texto listando separadamente exceção, sem expediente, sem horário
+   livre); Google desatualizado tem código próprio (`agenda_desatualizada`) e nunca é
+   tratado como "ocupado".
+   NÃO faz nesta etapa: evento no Google Agenda (etapa 5), e-mail ou convite ao cliente,
+   cancelamento e reagendamento (etapa 6). A validação antiga (`POST /protocols/:id/validate`)
+   e o botão "Validar e Gerar Sessões" continuam intactos.
+   Custo medido em banco de ensaio: prévia de 3 substâncias semanais por 12 semanas
+   (36 aplicações, 82 dias de agenda) = 5,9 s. Em dados reais a leitura do motor custou
+   73 a 130 ms por dia, então a mesma prévia pode levar 6 a 11 s; a confirmação repete o
+   cálculo (mais 6 a 11 s) antes de reservar. Protocolos de 4 aplicações ou mais já podam a
+   busca (acima de 1.000 candidatas por etapa) e a prévia avisa que pode existir plano melhor.
+   Não ligado ainda: restrições por substância e data da última aplicação (`lastAppliedDate`)
+   do planejador.
+9. Envio das visitas ao Google Agenda (etapa 5 de 7, 09/11/2026): `lib/session-google-sync.ts`,
+   rota `POST /protocols/:id/scheduling/google-sync` (corpo opcional `{ refresh: true }`; campo
+   extra = 400) e `components/ProtocolGoogleSyncDialog.tsx` (abre sozinho depois de confirmar o
+   agendamento e pelo botão "Enviar ao Google Agenda" do detalhe do protocolo validado).
+   Regras: UM evento por visita (sessão), com todas as substâncias, doses e posição "n/total" na
+   descrição; sem participante e sem convite (`sendUpdates: none`); o sistema é a fonte da
+   verdade e falha do Google NUNCA desfaz a reserva. O identificador do evento é reservado no
+   banco antes do envio e o MESMO evento é atualizado depois (`refresh`). Resultado incerto
+   (queda, resposta perdida, reinício) fica marcado e a repetição faz a conferência com o
+   identificador já reservado: se o evento existe, atualiza; se não existe, cria com o mesmo
+   identificador; erro do Google na própria conferência mantém a visita incerta. Nunca se gera
+   identificador novo. Destino por visita (recusa com motivo, nada enviado): agenda ativa, com
+   calendário Google, local ativo da empresa e profissional logado vinculado ao local (mesma regra
+   do envio avulso); visita sem agenda (formato antigo) é informada, não enviada; visita já
+   ligada a outra agenda Google não é movida. Conta Google não confirmada = 503 e nada é
+   alterado. Limite de 40 visitas por chamada (o restante volta como `nao_processada` e
+   `remaining`); o acesso clínico é reconferido antes de cada visita. As rotas antigas
+   `sync-session` e `sync-week` seguem iguais (só passaram a importar os auxiliares do novo arquivo).
+   Não verificado: comportamento do Google ao atualizar evento que foi apagado lá (conta como
+   existente); corrida em que a visita muda entre a leitura e a reserva é protegida por
+   comparação sob reserva, mas só foi provada pelo caminho de cancelamento durante o envio.
+
+10. Remarcar e cancelar visita de protocolo (etapa 6 de 7, 09/11/2026): `lib/agenda-booking.ts`
+   (`rescheduleSession`, `cancelBooking`), `routes/sessions.ts` (`PUT /sessions/:id`),
+   `routes/area-paciente.ts` (remarcação pela cliente), `routes/agenda.ts` (`DELETE /agenda/book/:id`)
+   e auxiliares em `lib/session-google-sync.ts`.
+   Remarcar: a visita mantém os minutos reservados (arredondados para cima em períodos da agenda; nunca
+   encolhem para um período) e o trecho inteiro precisa estar livre no novo dia, senão 409 com o
+   horário que falhou e nada muda. Na mesma agenda ficam o profissional, a unidade e o tipo gravados na
+   reserva (a agenda de enfermagem não tem profissional próprio); em outra agenda valem os da nova.
+   Sessão avulsa de um período remarca exatamente como antes.
+   Google na remarcação: visita de protocolo (com aplicações) que já está no Google, na MESMA agenda
+   Google, tem o MESMO evento atualizado depois de gravar (mesmo identificador, descrição completa,
+   novo dia e horário; `refreshAfterReschedule`). Falha vira `googleSyncWarning` na resposta, nunca
+   desfaz a remarcação; resultado incerto fica marcado e o botão "Enviar ao Google Agenda" repete com o
+   mesmo identificador. Sessão avulsa (sem aplicações) ou troca para agenda com outro calendário Google
+   seguem o caminho antigo (apagar e criar evento genérico).
+   Cancelar (pelas duas rotas): o evento sai do Google; 404/410 conta como já removido; falha real do
+   Google MANTÉM o ponteiro do evento (nunca se perde o rastro) e devolve aviso; o cancelamento no
+   sistema vale sempre e as aplicações da visita cancelada ficam gravadas (nada é apagado).
+   Numeração na descrição: "Agendamento Número n/total" usa a posição cronológica entre as visitas
+   ativas, então cancelamento e remarcação nunca produzem "3/2". O número gravado na sessão
+   (`weekNumber`) não foi alterado (a grade do RAS e os PDFs continuam lendo o mesmo valor).
+   O botão "Enviar ao Google Agenda" agora também atualiza o que já está no Google (primeira chamada
+   de cada abertura com `refresh: true`; reenvios só tratam o que ficou pendente).
+   Revisão independente (09/11/2026) e correções: a atualização do evento depois de remarcar e a remoção
+   depois de cancelar só agem se a conta Google da clínica for confirmada (conta errada enxerga 404
+   num calendário alheio, e 404 não prova remoção); repetir o cancelamento de visita cujo evento ficou
+   no Google tenta remover de novo; remarcação pela rota de edição de visita que não pode seguir no
+   mesmo evento (calendário diferente ou sem aplicações) avisa que o evento ficou no dia antigo;
+   `GET /sessions/:id` passou a filtrar pela empresa do acesso (antes devolvia sessão de qualquer
+   clínica pelo número; falha anterior a estas etapas).
+   Limites conhecidos, anteriores a estas etapas e NÃO alterados: o caminho antigo de visita avulsa
+   (sem aplicações) apaga e recria o evento Google dentro da transação e ignora falha da exclusão
+   (pode deixar evento duplicado ou órfão); as leituras `GET /sessions` não exigem login de
+   colaborador (política antiga do sistema: leituras livres, escritas protegidas).
+   Não verificado: remarcação pela Área do Cliente (fio ligado e compilado, sem teste de rota);
+   documentos em PDF que listam todas as sessões continuam mostrando as canceladas com o estado delas
+   (não foi alterado); evento cancelado cujo ponteiro foi mantido não é limpo automaticamente depois.
+11. Aviso antes de agendar (etapa 7 de 7, 09/11/2026): `googleReadinessWarning` em
+   `lib/session-google-sync.ts`, devolvido como `googleWarning` fora da prévia (não entra na
+   impressão digital) em `preview` e em `confirm` quando o plano mudou. Usa a mesma regra do envio ao
+   Google (agenda ativa, calendário Google, local ativo da empresa, profissional logado vinculado ao
+   local), só lê e nunca chama o Google. Falha ao verificar vira aviso `verificacao_indisponivel`,
+   nunca "pronto". O aviso não bloqueia: a reserva no sistema continua valendo.
+   Licenciamento para outras clínicas: toda leitura e escrita desta cadeia filtra pela empresa do
+   acesso clínico (protocolo, cliente, agenda, local, sessão, evento); outra clínica recebe recusa
+   sem dados, sem aviso e sem chamar o Google (provado nos testes das etapas 4 a 7). Pendente do lado
+   comercial: cadastro de expediente das agendas, calendário Google por agenda e vínculo dos
+   profissionais ao local (o aviso passa a mostrar quando falta).
 
 ### Impedimentos reais encontrados no desenvolvimento
 

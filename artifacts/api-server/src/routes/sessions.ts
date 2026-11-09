@@ -4,6 +4,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { requireCollaborator } from "./collaborator";
 import { bookSession, rescheduleSession } from "../lib/agenda-booking";
+import { refreshAfterReschedule, removeSessionEvent } from "../lib/session-google-sync";
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable, locationsTable, locationProfessionalsTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
@@ -227,7 +228,9 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, params.data.id));
+  // Mesma regra da lista e do .ics: sessão de outra clínica é "não encontrada" (nunca expõe cliente nem aplicações).
+  const [session] = await db.select().from(sessionsTable)
+    .where(and(eq(sessionsTable.id, params.data.id), eq(sessionsTable.empresaId, resolveEmpresaId(req))));
   if (!session) {
     res.status(404).json({ error: "Session not found" });
     return;
@@ -276,7 +279,10 @@ router.put("/sessions/:id", requireCollaborator, async (req, res): Promise<void>
       time:parsed.data.scheduledTime??existing.scheduledTime,syncGoogle:false});
     if (!moved.ok) {res.status(moved.status).json({error:moved.error});return;}
     if (!moved.session) {res.status(500).json({error:"Não foi possível confirmar a remarcação; confira a agenda antes de repetir."});return;}
-    res.json(await buildSessionResponse(moved.session));
+    // Visita de protocolo que ja esta no Google: o MESMO evento acompanha o novo dia/horario (aviso, nunca bloqueio).
+    const googleSyncWarning = moved.googleRefreshNeeded
+      ? await refreshAfterReschedule(moved.session.id, resolveEmpresaId(req)) : moved.googleSyncWarning;
+    res.json({ ...(await buildSessionResponse(moved.session)), ...(googleSyncWarning ? { googleSyncWarning } : {}) });
     return;
   }
   const {scheduledDate:_date,scheduledTime:_time,...updates} = parsed.data;
@@ -290,8 +296,14 @@ router.put("/sessions/:id", requireCollaborator, async (req, res): Promise<void>
     return;
   }
 
+  // Cancelada pelo sistema: o evento sai do Google. Falha do Google mantem o rastro e vira aviso; o cancelamento vale.
+  let googleSyncWarning: string | undefined;
+  // Repetir o cancelamento de visita cancelada que ainda guarda o ponteiro do evento tenta remover o evento de novo.
+  if (parsed.data.status === "cancelled" && existing.googleEventId) {
+    googleSyncWarning = (await removeSessionEvent(session.id, resolveEmpresaId(req))).warning;
+  }
   const result = await buildSessionResponse(session);
-  res.json(result);
+  res.json(googleSyncWarning ? { ...result, googleSyncWarning } : result);
 });
 
 class ApplicationConfirmationError extends Error {

@@ -11,6 +11,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
+import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
+import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 
 const PAST_STATUSES = ["completed", "cancelled", "expired", "refunded"];
 const FALLBACK_COLOR = "#94a3b8";
@@ -56,6 +58,8 @@ export default function ProtocolDetail() {
   const [emitirConfirm, setEmitirConfirm] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
+  const [schedulingOpen, setSchedulingOpen] = useState(false);
+  const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
 
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
     query: { enabled: !!id, queryKey: ["protocol", id] }
@@ -156,6 +160,12 @@ export default function ProtocolDetail() {
           Voltar
         </Button>
         <div className="flex flex-wrap items-center gap-2">
+          {protocol.status === "suggested" && !hasSessions && (
+            <Button className="btn-3d" onClick={() => setSchedulingOpen(true)}>
+              <Calendar className="h-4 w-4 mr-1" />
+              Agendar protocolo
+            </Button>
+          )}
           {(protocol.status === "suggested" || protocol.status === "validated") && (
             <Button className="btn-3d" onClick={() => validateMutation.mutate({ id })} disabled={validateMutation.isPending}>
               <Zap className="h-4 w-4 mr-1" />
@@ -164,6 +174,12 @@ export default function ProtocolDetail() {
           )}
           {protocol.sessions.length > 0 && (
             <>
+              {protocol.status === "validated" && (
+                <Button className="btn-3d-soft" onClick={() => setGoogleSyncOpen(true)}>
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Enviar ao Google Agenda
+                </Button>
+              )}
               <Button className="btn-3d-soft" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
                 <Download className="h-4 w-4 mr-1" />
                 Baixar ICS
@@ -824,6 +840,14 @@ export default function ProtocolDetail() {
           )}
         </Card>
       )}
+
+      <ProtocolSchedulingDialog
+        protocolId={id}
+        open={schedulingOpen}
+        onOpenChange={setSchedulingOpen}
+        onScheduled={() => { void refetch(); setGoogleSyncOpen(true); }}
+      />
+      <ProtocolGoogleSyncDialog protocolId={id} open={googleSyncOpen} onOpenChange={setGoogleSyncOpen} />
     </div>
   );
 }

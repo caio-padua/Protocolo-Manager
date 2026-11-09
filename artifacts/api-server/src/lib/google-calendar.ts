@@ -415,6 +415,23 @@ export async function updateCalendarEventDescription(eventId: string, calendarId
   }
 }
 
+/**
+ * Confere se um identificador reservado já existe no calendário (somente leitura).
+ * 404 = não existe; qualquer outro erro é lançado, nunca tratado como "não existe".
+ * Evento apagado no Google continua existindo como "cancelled" e conta como existente,
+ * porque o Google não aceita criar de novo com o mesmo identificador.
+ */
+export async function calendarEventExists(eventId: string, calendarId: string): Promise<boolean> {
+  const calendar = await getUncachableGoogleCalendarClient();
+  try {
+    await calendar.events.get({ calendarId: calendarId || 'primary', eventId });
+    return true;
+  } catch (err: any) {
+    if (err?.code === 404 || err?.status === 404 || err?.response?.status === 404) return false;
+    throw err;
+  }
+}
+
 export async function deleteCalendarEvent(eventId: string, calendarId?: string): Promise<void> {
   const calendar = await getUncachableGoogleCalendarClient();
   await calendar.events.delete({

@@ -423,7 +423,7 @@ router.delete("/agenda/book/:id", async (req, res): Promise<void> => {
     res.status(r.status).json({ error: r.error });
     return;
   }
-  res.json({ session: r.session });
+  res.json({ session: r.session, ...(r.googleSyncWarning ? { googleSyncWarning: r.googleSyncWarning } : {}) });
 });
 
 const limparSchema = z.object({

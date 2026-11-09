@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   agendaResourcesTable, clientsTable, db, protocolItemsTable, protocolsTable,
@@ -40,7 +41,7 @@ export type ReservationErrorCode =
   | "protocolo_status_invalido" | "protocolo_incompleto" | "plano_incoerente"
   | "substancia_sem_duracao" | "participacao_medica_indefinida" | "medico_nao_habilitado"
   | "agenda_desatualizada" | "dia_sem_expediente" | "dia_com_excecao"
-  | "horario_indisponivel" | "cliente_ja_tem_visita_no_dia";
+  | "horario_indisponivel" | "cliente_ja_tem_visita_no_dia" | "plano_mudou";
 
 export interface ReservationVisitInput {
   date: string;
@@ -57,6 +58,12 @@ export interface ReserveProtocolVisitsParams {
   visits: ReservationVisitInput[];
   /** Marca as sessões com a etiqueta de simulação, como a marcação avulsa. */
   simulate?: boolean;
+  /**
+   * Fotografia (protocolPlanSnapshot) dos dados clínicos usados para calcular o plano. Sob o bloqueio a
+   * reserva relê protocolo, itens e catálogo e recusa ("plano_mudou") se algo mudou desde o cálculo,
+   * porque margem e intervalo mínimo dependem de doses, totais, intervalos, datas e durações.
+   */
+  expectedSnapshot?: string;
 }
 
 export interface ReservedVisit {
@@ -92,6 +99,35 @@ const refuse = (
 
 const brDate = (date: string) => date.split("-").reverse().join("/");
 
+/**
+ * Representação canônica dos dados clínicos que definem o plano de um protocolo (data de início, dose,
+ * total, intervalo e data de cada item, duração e exigência de médico de cada substância).
+ * Usada pelo planejador e pela reserva: se qualquer um destes dados mudar entre o cálculo e a gravação,
+ * as duas pontas divergem e nada é gravado.
+ */
+export function protocolPlanSnapshot(
+  protocolStartDate: string | null,
+  items: { substanceId: number; dose: string; totalSessions: number; intervalDays: number; startDate: string | null }[],
+  substanceById: Map<number, typeof substancesTable.$inferSelect>,
+): string {
+  const canonical = [...items].sort((a, b) => a.substanceId - b.substanceId).map(item => {
+    const substance = substanceById.get(item.substanceId);
+    let durationSeconds: number | null = null;
+    if (substance) {
+      try {
+        durationSeconds = durationSecondsFromMinutes(substanceDurationMinutes(substance));
+      } catch {
+        durationSeconds = null;
+      }
+    }
+    return [
+      item.substanceId, item.dose, item.totalSessions, item.intervalDays, item.startDate,
+      substance ? [substance.doctorParticipation, durationSeconds] : null,
+    ];
+  });
+  return createHash("sha256").update(JSON.stringify([protocolStartDate, canonical])).digest("hex").slice(0, 32);
+}
+
 function validDate(value: unknown): value is string {
   if (typeof value !== "string" || !ISO_DATE.test(value)) return false;
   const parsed = new Date(`${value}T12:00:00Z`);
@@ -106,6 +142,10 @@ function assertWellFormed(params: ReserveProtocolVisitsParams): void {
   const invalid = (error: string) => refuse(400, "visitas_invalidas", error);
   for (const key of ["empresaId", "clientId", "protocolId", "nursingResourceId"] as const) {
     if (!isPositiveInt(params[key])) invalid("Identificadores inválidos");
+  }
+  if (params.expectedSnapshot !== undefined &&
+      (typeof params.expectedSnapshot !== "string" || !/^[0-9a-f]{32}$/.test(params.expectedSnapshot))) {
+    invalid("Fotografia do protocolo inválida");
   }
   if (!Array.isArray(params.visits) || params.visits.length === 0) invalid("Nenhuma visita para reservar");
   if (params.visits.length > MAX_RESERVATION_VISITS) {
@@ -126,15 +166,27 @@ function assertWellFormed(params: ReserveProtocolVisitsParams): void {
   }
 }
 
-/** Erros conhecidos do motor/fonte de vagas viram recusa; qualquer outro continua sendo erro. */
-function refusalFromSlotSource(error: unknown): never {
+/**
+ * Erros conhecidos da fonte de vagas que significam "pedido recusado" (e não falha do servidor).
+ * Compartilhada com o agendamento por protocolo, para que prévia e reserva falem igual.
+ */
+export function classifySlotSourceError(
+  error: unknown,
+): { status: 404 | 422; code: "agenda_nao_encontrada" | "agenda_invalida"; error: string } | null {
   const message = error instanceof Error ? error.message : "";
   if (message === "Agenda não encontrada ou inativa") {
-    refuse(404, "agenda_nao_encontrada", message);
+    return { status: 404, code: "agenda_nao_encontrada", error: message };
   }
   if (message === "A agenda informada não é de enfermagem" || message.includes("horários de 20 minutos")) {
-    refuse(422, "agenda_invalida", message);
+    return { status: 422, code: "agenda_invalida", error: message };
   }
+  return null;
+}
+
+/** Erros conhecidos do motor/fonte de vagas viram recusa; qualquer outro continua sendo erro. */
+function refusalFromSlotSource(error: unknown): never {
+  const known = classifySlotSourceError(error);
+  if (known) refuse(known.status, known.code, known.error);
   throw error;
 }
 
@@ -224,6 +276,11 @@ export async function reserveProtocolVisits(
       const substances = await tx.select().from(substancesTable)
         .where(inArray(substancesTable.id, items.map(i => i.substanceId)));
       const substanceById = new Map(substances.map(s => [s.id, s]));
+      if (params.expectedSnapshot !== undefined &&
+          protocolPlanSnapshot(protocol.startDate, items, substanceById) !== params.expectedSnapshot) {
+        return refuse(409, "plano_mudou",
+          "Os dados do protocolo mudaram desde a prévia (dose, quantidade, intervalo, data ou duração). Nada foi agendado.");
+      }
       const periodsByDate = new Map<string, number>();
       for (const visit of visits) {
         const sized = visit.applications.map(app => {

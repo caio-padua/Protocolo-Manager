@@ -90,7 +90,7 @@ async function authorizeProtocolClient(
   }
 }
 
-async function authorizeProtocol(
+export async function authorizeProtocol(
   req: import("express").Request,
   protocol: typeof protocolsTable.$inferSelect,
   res: import("express").Response,

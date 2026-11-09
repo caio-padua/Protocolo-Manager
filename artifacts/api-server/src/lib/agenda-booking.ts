@@ -9,6 +9,7 @@ import {
   clientsTable,
   type Session,
   protocolsTable,
+  substanceApplicationsTable,
 } from "@workspace/db";
 import { loadAgendaOccupancy, type AgendaExecutor } from "./agenda-occupancy";
 import { windowOccursOnDate } from "./agenda-window-recurrence";
@@ -125,6 +126,9 @@ export interface BookResult {
   // Preenchido quando a marcacao foi criada no sistema mas a sincronizacao Google
   // foi pulada (conta conectada nao e a da clinica) ou falhou. Nao quebra a marcacao.
   googleSyncWarning?: string;
+  // Remarcacao de visita de protocolo que JA esta no Google: o evento nao foi mexido aqui (isto roda dentro de
+  // uma transacao); quem chamou deve atualizar o MESMO evento depois, com refreshAfterReschedule.
+  googleRefreshNeeded?: boolean;
 }
 
 export interface BookParams {
@@ -316,6 +320,27 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
     return { ok: false, status: 409, error: `Horário bloqueado: ${motivo}` };
   }
 
+  // Visita de protocolo reserva varios periodos seguidos: remarcar nunca encolhe a duracao reservada e o trecho
+  // inteiro precisa estar livre no novo dia. Sessao avulsa (duracao = um periodo) segue exatamente como antes.
+  const slotMinutes = computed.resource.slotMinutes;
+  const reservedMinutes = session.resourceId && session.durationMinutes && session.durationMinutes > 0
+    ? session.durationMinutes : slotMinutes;
+  const neededPeriods = Math.max(1, Math.ceil(reservedMinutes / slotMinutes));
+  const newDuration = neededPeriods * slotMinutes;
+  if (neededPeriods > 1) {
+    const [hh, mm] = time.split(":").map(Number);
+    const byTime = new Map(computed.result.slots.map((s) => [s.time, s]));
+    for (let i = 1; i < neededPeriods; i++) {
+      const minutes = hh * 60 + mm + i * slotMinutes;
+      const t = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+      const next = byTime.get(t);
+      if (!next || next.state !== "aberto") {
+        return { ok: false, status: 409,
+          error: `A visita reserva ${newDuration} minutos seguidos e o horário das ${t} não está livre nesse dia` };
+      }
+    }
+  }
+
   // Guarda de corrida: ocupacao no exato recurso+data+hora, IGNORANDO a propria sessao.
   const clashRows = await db
     .select({ id: sessionsTable.id })
@@ -336,11 +361,19 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
   const resourceName = computed.resource.name;
   const newServiceType = computed.resource.modality === "domiciliar" ? "home" : "clinic";
 
+  const sameResource = session.resourceId === resourceId;
+  const [hasApplication] = await db.select({ id: substanceApplicationsTable.id }).from(substanceApplicationsTable)
+    .where(eq(substanceApplicationsTable.sessionId, sessionId)).limit(1);
+  // Visita de protocolo ja no Google, na mesma agenda Google: o evento (com todas as aplicacoes na descricao)
+  // e atualizado no lugar, com o mesmo identificador, e nao apagado/recriado como evento generico.
+  const updateInPlace = !!session.googleEventId && !!hasApplication && !!session.googleCalendarId &&
+    session.googleCalendarId === (computed.resource.googleCalendarId || null);
+
   // MOVE no Google: remove o antigo e cria o novo. So empurra se a conta for a da clinica.
   let googleEventId: string | null = session.googleEventId ?? null;
   let googleCalendarId: string | null = session.googleCalendarId ?? null;
   let googleSyncWarning: string | undefined;
-  if (syncGoogle) {
+  if (syncGoogle && !updateInPlace) {
     const acct = await verifyClinicAccount();
     if (!acct.ok) {
       googleSyncWarning = acct.account
@@ -362,7 +395,7 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
           clientCpf: client.cpf ?? undefined,
           scheduledDate: date,
           scheduledTime: time,
-          durationMinutes: computed.resource.slotMinutes,
+          durationMinutes: newDuration,
           weekNumber: session.weekNumber,
           unit: resourceName,
           procedureLabel: resourceName,
@@ -384,16 +417,24 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
     }
   }
 
+  // Remarcação sem sincronização (rota de edição) de visita que está no Google mas não pode seguir no mesmo evento
+  // (calendário diferente ou sem aplicações): o evento antigo fica no dia e horário velhos. Avisa, nunca finge que seguiu.
+  if (!syncGoogle && session.googleEventId && !updateInPlace) {
+    googleSyncWarning = "Remarcação salva, mas o evento no Google Agenda continua no dia e horário antigos (a agenda ou o calendário da visita não permite atualizar o mesmo evento). Ajuste o evento manualmente no Google.";
+  }
+
   const [updated] = await db
     .update(sessionsTable)
     .set({
       resourceId,
-      professionalId: computed.resource.professionalId,
-      durationMinutes: computed.resource.slotMinutes,
+      // Na mesma agenda a visita mantem profissional, unidade e tipo gravados na reserva (agenda de enfermagem nao
+      // tem profissional proprio: sobrescrever apagaria o do protocolo). Em outra agenda, vale o da nova agenda.
+      professionalId: sameResource ? (computed.resource.professionalId ?? session.professionalId) : computed.resource.professionalId,
+      durationMinutes: newDuration,
       scheduledDate: date,
       scheduledTime: time,
-      unit: resourceName,
-      serviceType: newServiceType,
+      unit: sameResource && session.unit ? session.unit : resourceName,
+      serviceType: sameResource && session.serviceType ? session.serviceType : newServiceType,
       googleEventId,
       googleCalendarId,
       rescheduleCount: (session.rescheduleCount ?? 0) + 1,
@@ -403,7 +444,7 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
     .where(eq(sessionsTable.id, sessionId))
     .returning();
 
-  return { ok: true, status: 200, session: updated, googleEventId, googleSyncWarning };
+  return { ok: true, status: 200, session: updated, googleEventId, googleSyncWarning, googleRefreshNeeded: updateInPlace };
 }
 
 export async function cancelBooking(sessionId: number, empresaId?: number): Promise<BookResult> {
@@ -412,19 +453,36 @@ export async function cancelBooking(sessionId: number, empresaId?: number): Prom
     if (!session || session.agendaArchived || (empresaId != null && session.empresaId !== empresaId)) return { ok: false, status: 404, error: "Sessão não encontrada" };
     if (session.googleSyncPendingOperation) return { ok: false, status: 409, error: "A sincronização Google precisa ser concluída ou conferida antes do cancelamento." };
 
+    // O cancelamento no sistema vale sempre. Evento que ja nao existe (404/410) conta como removido; falha real do
+    // Google MANTEM o ponteiro (nunca se perde o rastro de um evento que continua na agenda) e avisa.
+    let removedFromGoogle = true;
+    let googleSyncWarning: string | undefined;
     if (session.googleEventId) {
-      try {
-        await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || undefined);
-      } catch {
-        /* evento ja removido ou Google indisponivel: segue cancelando no sistema */
+      // Conta errada vê 404 num calendário que não enxerga: sem confirmar a conta da clínica, "404" não prova remoção.
+      let accountConfirmed = false;
+      try { accountConfirmed = (await verifyClinicAccount()).ok; } catch { accountConfirmed = false; }
+      if (!accountConfirmed) {
+        removedFromGoogle = false;
+        googleSyncWarning = "Visita cancelada no sistema, mas a conta Google da clínica não foi confirmada e o evento continua na agenda. Apague-o manualmente ou repita o cancelamento depois.";
+      } else {
+        try {
+          await deleteCalendarEvent(session.googleEventId, session.googleCalendarId || undefined);
+        } catch (error: any) {
+          const gone = [404, 410].includes(error?.code) || [404, 410].includes(error?.status) ||
+            [404, 410].includes(error?.response?.status);
+          if (!gone) {
+            removedFromGoogle = false;
+            googleSyncWarning = "Visita cancelada no sistema, mas o evento no Google Agenda não pôde ser removido e continua lá. Apague-o manualmente na agenda.";
+          }
+        }
       }
     }
 
     const [updated] = await tx.update(sessionsTable)
-      .set({ status: "cancelled", googleEventId: null })
+      .set(removedFromGoogle ? { status: "cancelled", googleEventId: null, googleCalendarId: null } : { status: "cancelled" })
       .where(eq(sessionsTable.id, sessionId)).returning();
 
-    return { ok: true, status: 200, session: updated };
+    return { ok: true, status: 200, session: updated, googleSyncWarning };
   });
 }
 

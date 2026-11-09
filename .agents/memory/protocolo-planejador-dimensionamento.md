@@ -40,3 +40,19 @@ rodar mutação deliberada (tirar o bloqueio) e ver o teste cair. Testes de banc
 com estado compartilhado: TRUNCATE no beforeEach e cenário próprio em cada teste.
 Teste com Date congelado não mede tempo com Date.now — usar performance.now.
 DDL de teste vindo do Drizzle precisa criar as sequências dos defaults nextval.
+
+Prévia/confirmação de agendamento de protocolo: o plano é calculado FORA do
+bloqueio, então a impressão digital da prévia precisa cobrir tudo (doses,
+totais, intervalos, datas, durações) e a reserva precisa reconferir uma
+fotografia desses dados SOB o bloqueio; comparar só datas/horários deixa gravar
+dose diferente da que o colaborador confirmou (achado de revisão independente).
+
+**Why:** o hash só de data+horário+identidade passava com a dose trocada; e
+uma edição entre o recálculo e o bloqueio gerava sessões fora da prescrição.
+
+**How to apply:** nova entrada de dado que influencie o plano entra na função
+de fotografia (usada pelas duas pontas). Teste a janela com um gancho que edita
+o banco entre a comparação e a reserva (ex.: callback de reautorização).
+Google desatualizado tem código próprio (agenda_desatualizada), nunca "sem plano".
+O planejador poda a busca a partir de ~4 aplicações com 12 vagas cada
+(searchWasPruned=true é normal); prévia de 36 aplicações levou ~6 s em banco de ensaio.

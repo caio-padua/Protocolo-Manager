@@ -155,3 +155,5 @@
 - [Importação e sessões](ics-importacao-sessoes-do-sistema.md) — diferenciar compromissos importados de sessões do sistema.
 - [Informações clínicas no Google](agenda-evento-google-padrao.md) — conectar o formato existente às duas agendas, sem inventar dados ou estados.
 - [Planejador de protocolo + participação médica](protocolo-planejador-dimensionamento.md) — IV/IM/SC sem médico, implante com; planejador puro existe mas sem rota; lacuna = vagas + reserva conjunta.
+- [Google Agenda — resultado incerto](google-evento-resultado-incerto-conferencia.md) — conferência reaproveita o id reservado; id novo duplica; só 404 é "não existe".
+- [Remarcar e cancelar visita de protocolo](remarcar-cancelar-visita-protocolo.md) — duração reservada nunca encolhe; Google só fora da transação; cancelar mantém ponteiro se falhar; n/total pela posição.

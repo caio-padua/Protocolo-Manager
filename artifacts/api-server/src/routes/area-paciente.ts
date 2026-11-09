@@ -19,6 +19,7 @@ import { verifyPortalToken, createPortalToken } from "../lib/portal-token";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import { verifyPassword, hashPassword } from "../lib/patient-auth.js";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
+import { refreshAfterReschedule } from "../lib/session-google-sync";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
 import { z } from "zod/v4";
 
@@ -736,6 +737,10 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
 
     const r = await rescheduleSession({ sessionId, clientId, resourceId, date, time, syncGoogle: true });
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+    // Visita de protocolo ja no Google: o MESMO evento acompanha o novo horario (aviso, nunca bloqueio).
+    if (r.googleRefreshNeeded && r.session?.empresaId != null) {
+      r.googleSyncWarning = await refreshAfterReschedule(r.session.id, r.session.empresaId);
+    }
 
     // R7.2 e-mail de confirmacao (best-effort; nunca trava a remarcacao)
     try {
