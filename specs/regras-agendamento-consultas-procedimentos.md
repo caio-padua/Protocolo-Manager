@@ -60,9 +60,12 @@ editável pelo controle sim/não do cadastro.
    apenas parte delas, é recusado como entrada ambígua. Cada visita planejada
    no modo por tempo devolve o dimensionamento (períodos e médico) para a
    reserva e para o evento do Google.
-5. O planejador ainda NÃO está ligado a nenhuma rota: nenhuma reserva,
-   sessão ou evento passa por ele. Falta a reserva atômica dos dois recursos
-   e a rota única que une leitura de vagas, planejamento e reserva.
+5. O planejador ainda NÃO está ligado a nenhuma rota: nenhuma sessão ou
+   evento passa por ele. A fonte de vagas (item 6) e a reserva atômica só da
+   enfermagem local (item 7) já existem como bibliotecas, sem rota. Falta a
+   rota única que une leitura de vagas, planejamento e reserva (etapa 4) e a
+   reserva conjunta com o médico (depende de expediente das agendas médicas,
+   que só o responsável pode informar).
 6. Fonte de vagas (etapa 2 de 7, 09/11/2026): `lib/protocol-slot-source.ts`
    lê o motor de agenda existente, dia a dia, e entrega ao planejador as vagas
    em períodos. Cada horário livre da enfermagem informa quantos períodos
@@ -91,6 +94,53 @@ editável pelo controle sim/não do cadastro.
    Estado dos dados em desenvolvimento: só a Enfermagem Local tem expediente;
    as 6 agendas médicas e a Enfermagem Remoto não têm janelas, então
    implante, médico e remoto não geram vaga até o expediente ser cadastrado.
+7. Reserva atômica por períodos (etapa 3 de 7, 09/11/2026), só enfermagem local:
+   `lib/protocol-visit-reservation.ts`, função `reserveProtocolVisits`. Recebe
+   o plano (datas, horários e quais aplicações de cada visita) e grava tudo ou
+   nada, numa única transação, sob o MESMO bloqueio por empresa que a marcação
+   avulsa já usa (`lockAgendaResource`); assim reserva de protocolo e marcação
+   avulsa não disputam o mesmo horário.
+   Dentro do bloqueio a função refaz tudo por conta própria, sem confiar no
+   que o chamador diz: a empresa da agenda, o cliente (da empresa) e o
+   protocolo (do cliente e da empresa) são lidos do banco; as doses, as
+   quantidades e as durações vêm do protocolo e do catálogo de substâncias,
+   nunca do plano recebido; o plano precisa cobrir exatamente as aplicações
+   do protocolo (nenhuma a mais, nenhuma a menos, nenhuma repetida, cada
+   substância em ordem cronológica e no máximo uma vez por visita); cada
+   visita é dimensionada de novo (`sizeVisit`) e o horário é relido pelo motor
+   verdadeiro (`loadProtocolSlots` sobre a transação), exigindo períodos livres
+   e seguidos suficientes a partir do horário pedido.
+   Recusas explícitas (nunca silenciosas, nunca gravação parcial): dia sem
+   expediente, dia com exceção, Google desatualizado, horário sem períodos
+   suficientes (sobreposição parcial incluída), visita que exija médico
+   ("reserva com médico ainda não habilitada": não existe fonte de ocupação do
+   médico nesta etapa e ela não será inventada), participação médica ou
+   duração indefinida, cliente que já tem outra visita no mesmo dia, protocolo
+   de outra empresa ou de outro cliente, protocolo que não esteja "suggested"
+   ou que já tenha qualquer sessão (mesma regra do `validate` antigo).
+   Gravação: uma sessão por visita, com `resource_id` da enfermagem,
+   `duration_minutes` = períodos x 20 (tempo RESERVADO, não clínico),
+   `weekNumber` sequencial, aplicações "disp" da visita e "prox" das
+   substâncias que ainda voltam em visita posterior (convenção já usada pelo
+   `validate`), e o protocolo passa a "validated" na mesma transação.
+   NÃO faz nesta etapa: Google Agenda (etapa 5), rota e botão (etapa 4),
+   reavaliação de intervalos e tolerância (é do planejador; a rota da etapa 4
+   deve rodar o planejador no servidor e nunca aceitar plano vindo do
+   navegador), reagendamento de protocolo que já tenha sessões legadas
+   (etapas 4 e 6).
+   Modalidade: só a agenda de enfermagem LOCAL é aceita. Enfermagem
+   domiciliar ou online, mesmo com expediente e horários de 20 minutos, é
+   recusada (`agenda_invalida`), porque deslocamento e expediente remotos têm
+   outras regras ainda não definidas.
+   Custo: medido em banco de ensaio, 10 visitas levam 0,25 s, 40 levam 0,63 s e
+   80 (o teto) levam 1,15 s, com o bloqueio da empresa preso durante toda a
+   reserva. Em dados reais, com mais janelas e sessões, a leitura do motor
+   custou de 73 a 130 ms por dia na etapa 2: o teto de 80 visitas pode
+   prender o bloqueio por 6 a 10 segundos; é o motivo do teto.
+   Falhas previstas: duas reservas simultâneas no mesmo horário ou em
+   horários sobrepostos (uma só vence); falha no meio da gravação (volta tudo);
+   resposta perdida após gravar (a nova tentativa recebe "já agendado", não
+   duplica); plano adulterado (dose, total, substância de outro protocolo).
 
 ### Impedimentos reais encontrados no desenvolvimento
 

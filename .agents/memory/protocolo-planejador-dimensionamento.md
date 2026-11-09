@@ -13,8 +13,9 @@ nenhuma rota os usa; dizer que "não existe planejador" é falso.
 
 **How to apply:** a capacidade da vaga é medida em períodos de 20 minutos
 RESERVADOS (não em tempo clínico) e o médico precisa cobrir todos eles. A
-fonte de vagas lida do motor já existe; a lacuna real é a reserva atômica de
-dois recursos (a sessão só guarda um recurso) e a rota que une tudo.
+fonte de vagas lida do motor já existe, e a reserva atômica só da enfermagem
+local também (sem rota ainda); a lacuna real é a reserva conjunta com médico
+(a sessão só guarda um recurso) e a rota que une tudo.
 
 Duas infusões endovenosas na mesma visita somam o tempo (decisão do dono).
 
@@ -25,3 +26,17 @@ para exceção/feriado e para agenda do Google desatualizada).
 Ler o motor custa CPU (~100 ms por dia e agenda: ele expande todos os
 compromissos recorrentes do Google a cada dia). Ler dias em paralelo foi
 medido e NÃO ganhou tempo; limitar o período ao que o protocolo precisa.
+
+Reserva atômica de protocolo (enfermagem local): trava pelo MESMO bloqueio por
+empresa da marcação avulsa e só aceita agenda de modalidade "local" — conferir
+`kind` e slot de 20 min NÃO basta, domiciliar/online passam nessas checagens.
+
+**Why:** revisão independente achou agenda domiciliar com grade de 20 min sendo
+reservada; e teste de corrida que passa sem o bloqueio é prova vazia.
+
+**How to apply:** teste de concorrência precisa de gatilho `pg_sleep` no INSERT
+de sessions para forçar a sobreposição (sem ele a corrida depende de sorte);
+rodar mutação deliberada (tirar o bloqueio) e ver o teste cair. Testes de banco
+com estado compartilhado: TRUNCATE no beforeEach e cenário próprio em cada teste.
+Teste com Date congelado não mede tempo com Date.now — usar performance.now.
+DDL de teste vindo do Drizzle precisa criar as sequências dos defaults nextval.

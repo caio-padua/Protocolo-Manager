@@ -140,7 +140,7 @@ export interface BookParams {
   empresaId?: number;
 }
 
-async function lockAgendaResource(executor: AgendaExecutor, resourceId: number) {
+export async function lockAgendaResource(executor: AgendaExecutor, resourceId: number) {
   const result = await executor.execute(sql`SELECT l.empresa_id FROM agenda_resources r
     JOIN locations l ON l.id=r.location_id WHERE r.id=${resourceId} AND r.active AND l.active='true'`);
   const empresaId = Number(result.rows[0]?.empresa_id);
