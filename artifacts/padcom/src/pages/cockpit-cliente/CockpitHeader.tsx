@@ -25,6 +25,7 @@ interface CockpitHeaderProps {
   onSelectClient: (id: number | null) => void;
   driveSetupPending: boolean;
   onDriveSetup: () => void;
+  onNewProtocol: () => void;
 }
 
 const HEADER_STYLE: React.CSSProperties = {
@@ -39,6 +40,7 @@ export default function CockpitHeader({
   onSelectClient,
   driveSetupPending,
   onDriveSetup,
+  onNewProtocol,
 }: CockpitHeaderProps) {
   const temCliente = !!client && !!clientId;
 
@@ -99,9 +101,10 @@ export default function CockpitHeader({
 
         {/* Botões de ação — fantasma quando vazio */}
         <ActionButtons
-          clientId={clientId}
+          clientId={temCliente ? clientId : null}
           driveSetupPending={driveSetupPending}
           onDriveSetup={onDriveSetup}
+          onNewProtocol={onNewProtocol}
         />
       </div>
     </header>

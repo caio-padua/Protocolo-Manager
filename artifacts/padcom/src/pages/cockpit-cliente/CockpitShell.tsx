@@ -6,7 +6,7 @@
 //   R-ARCH-6: key={clientId} no Route garante remontagem ao trocar de cliente
 //   R-PICKER-4: useListClients() REMOVIDO deste componente
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,6 +20,7 @@ import CockpitHeader from "./CockpitHeader";
 import CockpitTabs, { type AbaId } from "./CockpitTabs";
 import CockpitContent from "./CockpitContent";
 import AcompanhamentoDiarioPanel from "./panels/AcompanhamentoDiarioPanel";
+import { useProtocoloNavigationGuard } from "./useProtocoloNavigationGuard";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 const CREAM = "hsl(40 33% 96%)";
@@ -42,6 +43,12 @@ export default function CockpitShell({
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [novoProtocoloAberto, setNovoProtocoloAberto] = useState(false);
+  const [protocoloEmAndamento, setProtocoloEmAndamento] = useState(false);
+  const avisoOperacaoPendente = useCallback(() => {
+    toast({ title: "Aguarde a conclusão do protocolo antes de sair desta tela." });
+  }, [toast]);
+  useProtocoloNavigationGuard(protocoloEmAndamento, avisoOperacaoPendente);
 
   // ── Estado local: somente o que não está na URL ──────────────────────────
   // clientId e aba vêm como props (derivadas da URL pelo Route no App.tsx).
@@ -49,9 +56,14 @@ export default function CockpitShell({
   const aba: AbaId = ABAS_VALIDAS.includes(initialAba) ? initialAba : "prescricao";
 
   // ── Dados ─────────────────────────────────────────────────────────────────
-  const { data: client } = useGetClient(clientId ?? 0, {
+  const { data: client, isLoading: clientLoading, isError: clientError, refetch: retryClient } = useGetClient(clientId ?? 0, {
     query: { enabled: !!clientId, queryKey: getGetClientQueryKey(clientId ?? 0) },
   });
+  const clientReady = !!clientId && !clientError && client?.id === clientId;
+  const clientConfirmado = useRef<typeof client>(undefined);
+  if (clientReady) clientConfirmado.current = client;
+  const manterOperacao = protocoloEmAndamento && clientConfirmado.current?.id === clientId;
+  const clientParaConteudo = clientReady ? client : manterOperacao ? clientConfirmado.current : undefined;
 
   // Contagens para badges nas abas
   const { data: protocols } = useListProtocols(
@@ -71,13 +83,43 @@ export default function CockpitShell({
 
   // ── Navegação (SPA — zero window.location) ────────────────────────────────
   function onSelectClient(id: number | null) {
+    if (protocoloEmAndamento) {
+      toast({ title: "Aguarde a conclusão do protocolo antes de trocar de cliente." });
+      return;
+    }
+    if (novoProtocoloAberto && !window.confirm("Ao trocar de cliente, o preenchimento do protocolo será perdido. Continuar?")) return;
+    setNovoProtocoloAberto(false);
     if (id == null) navigate("/cockpit");
     else navigate(`/cockpit/${id}/prescricao`);
   }
 
   function onAba(novaAba: AbaId) {
     if (!clientId) return;
+    if (protocoloEmAndamento && novaAba !== "protocolos") {
+      toast({ title: "Aguarde a conclusão do protocolo antes de trocar de aba." });
+      return;
+    }
+    if (novoProtocoloAberto && novaAba !== "protocolos") {
+      if (!window.confirm("Ao trocar de aba, o preenchimento do protocolo será perdido. Continuar?")) return;
+      setNovoProtocoloAberto(false);
+    }
     navigate(`/cockpit/${clientId}/${novaAba}`, { replace: true } as any);
+  }
+
+  function abrirNovoProtocolo() {
+    if (!clientReady || !clientId) return;
+    setNovoProtocoloAberto(true);
+    if (aba !== "protocolos") navigate(`/cockpit/${clientId}/protocolos`);
+  }
+
+  function fecharNovoProtocolo() {
+    if (protocoloEmAndamento) {
+      toast({ title: "Aguarde a conclusão do protocolo antes de fechar." });
+      return;
+    }
+    if (window.confirm("Ao fechar, o preenchimento do protocolo será perdido. Continuar?")) {
+      setNovoProtocoloAberto(false);
+    }
   }
 
   // ── Mutation: configurar Drive ────────────────────────────────────────────
@@ -102,13 +144,14 @@ export default function CockpitShell({
       {/* ── BLOCO STICKY: header + régua de abas ─────────────────────────── */}
       <div className="sticky top-0 z-50">
         <CockpitHeader
-          client={client ?? null}
+          client={clientReady ? client : null}
           clientId={clientId}
           onSelectClient={onSelectClient}
           driveSetupPending={driveSetup.isPending}
           onDriveSetup={() => driveSetup.mutate()}
+          onNewProtocol={abrirNovoProtocolo}
         />
-        {clientId && (
+        {clientReady && (
           <CockpitTabs
             aba={aba}
             onAba={onAba}
@@ -141,12 +184,36 @@ export default function CockpitShell({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <>
+          {!clientReady && <div className="panel-3d mx-auto mt-10 max-w-xl p-8 text-center" role="status">
+            {clientLoading && !clientError ? (
+              <p>Carregando os dados do cliente…</p>
+            ) : (
+              <>
+                <p>Não foi possível confirmar o cliente ou seu acesso. As ferramentas estão temporariamente indisponíveis.</p>
+                <button type="button" className="btn-3d-soft mt-4 px-4 py-2" onClick={() => void retryClient()}>
+                  Tentar novamente
+                </button>
+              </>
+            )}
+          </div>}
+          {clientParaConteudo && <div className="space-y-4" hidden={!clientReady}>
             {/* Acompanhamento diário sempre visível acima do conteúdo da aba */}
             <AcompanhamentoDiarioPanel clientId={clientId} />
             {/* Conteúdo da aba ativa — lazy loaded */}
-            <CockpitContent clientId={clientId} aba={aba} />
-          </div>
+            <CockpitContent
+              clientId={clientId}
+              client={clientParaConteudo}
+              aba={aba}
+              novoProtocoloAberto={novoProtocoloAberto}
+              protocoloEmAndamento={protocoloEmAndamento}
+              onProtocoloEmAndamento={setProtocoloEmAndamento}
+              onNovoProtocolo={abrirNovoProtocolo}
+              onFecharProtocolo={fecharNovoProtocolo}
+              onProtocoloCriado={() => setNovoProtocoloAberto(false)}
+            />
+          </div>}
+          </>
         )}
       </main>
     </div>

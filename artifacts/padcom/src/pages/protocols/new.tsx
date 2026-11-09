@@ -75,7 +75,13 @@ function getEndDate(slot: SubstanceSlot): string {
 
 interface Location { id: number; name: string; type: string; color: string; address: string | null; }
 
-export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCreated }: { clientId?: number; embedded?: boolean; onCreated?: (id: number) => void } = {}) {
+export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, embedded, onCreated, onBusyChange }: {
+  clientId?: number;
+  clientIdentity?: { id: number; name: string; cpf?: string | null };
+  embedded?: boolean;
+  onCreated?: (id: number) => void;
+  onBusyChange?: (pending: boolean) => void;
+} = {}) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   // Em modo embutido (Cockpit) o lançador NUNCA navega: fica inline, invalida as
@@ -109,7 +115,18 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   const [clientAddresses, setClientAddresses] = useState<Array<{id: number; label: string; street?: string | null; city?: string | null; zipCode?: string | null; isDefault: boolean}>>([]);
   const [serviceAddressId, setServiceAddressId] = useState("");
   const comboRef = useRef(false);
+  const operationRef = useRef(false);
+  const mountedRef = useRef(true);
+  const documentAbortRef = useRef<AbortController | null>(null);
   const slotsTopRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      documentAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (clientIdProp != null) setClientId(clientIdProp);
@@ -144,11 +161,17 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
     mutation: {
       onSuccess: (data) => {
         if (comboRef.current) return;
+        operationRef.current = false;
+        onBusyChange?.(false);
+        if (!mountedRef.current) return;
         toast({ title: "Protocolo lançado!", description: "Sessões serão geradas após validação." });
         irAoProtocolo(data.id);
       },
       onError: () => {
         if (comboRef.current) return;
+        operationRef.current = false;
+        onBusyChange?.(false);
+        if (!mountedRef.current) return;
         toast({ title: "Erro ao criar protocolo", variant: "destructive" });
       }
     }
@@ -156,7 +179,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
 
   const validateMutation = useValidateProtocol();
 
-  const selectedClient = clients?.find(c => c.id === clientId);
+  const selectedClient = clientIdentity?.id === clientId ? clientIdentity : clients?.find(c => c.id === clientId);
   const selectedProfessional = professionals?.find(p => String(p.id) === professionalId);
   const selectedLocation = locations.find(l => String(l.id) === locationId);
   const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
@@ -204,7 +227,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
     });
   };
 
-  const canAdvance = clientId && professionalId && locationId && filledSlots.length > 0;
+  const canAdvance = clientId && (!embedded || clientIdentity?.id === clientId) && professionalId && locationId && filledSlots.length > 0;
 
   const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
@@ -242,26 +265,38 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
   };
 
   const handleLancar = () => {
+    if (operationRef.current || !canAdvance) return;
+    operationRef.current = true;
+    onBusyChange?.(true);
     createMutation.mutate({ data: buildPayload() });
   };
 
   const handleLancarComRasFap = async () => {
-    if (comboRef.current) return;
+    if (operationRef.current || !canAdvance) return;
+    operationRef.current = true;
+    onBusyChange?.(true);
     comboRef.current = true;
     setComboLoading(true);
     let createdId: number | null = null;
     try {
       const created = await createMutation.mutateAsync({ data: buildPayload() });
       createdId = created.id;
+      if (!mountedRef.current) return;
       await validateMutation.mutateAsync({ id: created.id, params: { scheduledTime } });
+      if (!mountedRef.current) return;
+      const controller = new AbortController();
+      documentAbortRef.current = controller;
       const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${created.id}`, {
         headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+        signal: controller.signal,
       });
+      if (!mountedRef.current) return;
       if (!resp.ok) {
         const err = await resp.json().catch(() => null);
         throw new Error(err?.details || "Erro ao gerar RAS FAP");
       }
       const blob = await resp.blob();
+      if (!mountedRef.current) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -274,6 +309,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
       comboRef.current = false;
       irAoProtocolo(created.id);
     } catch (err: any) {
+      if (!mountedRef.current) return;
       if (createdId !== null) {
         toast({
           title: "Protocolo criado, mas o RAS FAP falhou",
@@ -287,7 +323,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, embedded, onCrea
       }
     } finally {
       comboRef.current = false;
-      setComboLoading(false);
+      operationRef.current = false;
+      documentAbortRef.current = null;
+      onBusyChange?.(false);
+      if (mountedRef.current) setComboLoading(false);
     }
   };
 

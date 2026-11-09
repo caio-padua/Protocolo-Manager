@@ -21,6 +21,12 @@ tela real (bug histórico). Fonte única elimina o retrabalho de manter duas UIs
 **How to apply:** ao consolidar qualquer tela num cockpit, torne as props embedded/clientId
 OPCIONAIS (rota solta continua sem elas), e proteja toda navegação de sucesso com o guard embedded.
 
+Operações clínicas pendentes precisam sobreviver a falhas de revalidação da identidade sem liberar ferramentas para novos lançamentos.
+
+**Why:** desmontar o formulário não cancela uma operação já enviada; ela pode terminar sem confirmação visual e induzir lançamento duplicado.
+
+**How to apply:** manter a operação ativa até seu resultado, ocultar ferramentas quando a identidade não puder ser confirmada e proteger mudanças de contexto; saída forçada ou conexão perdida exige reconciliação, não repetição presumida.
+
 ## Regra visual aprovada para o Cockpit
 
 A tela autônoma de Prescrição é a referência para tipografia, contraste, cores e componentes visuais do Cockpit. Cada ferramenta mantém a própria organização funcional; só a mesma ferramenta deve manter paridade estrutural entre as versões autônoma e embutida. O seletor de cliente e sua busca atual não devem ser alterados durante a harmonização visual.

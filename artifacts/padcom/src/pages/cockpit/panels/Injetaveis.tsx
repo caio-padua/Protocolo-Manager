@@ -71,11 +71,13 @@ export default function Injetaveis({
   clientId,
   filtroProcedimento,
   ocultarBotaoNovo,
+  onNovoProtocolo,
 }: {
   clientId: number;
   /** Sem filtro = todos (cockpit antigo). "implante" = só protocolos com implante; "injetavel" = só com IV/IM. */
   filtroProcedimento?: "implante" | "injetavel";
   ocultarBotaoNovo?: boolean;
+  onNovoProtocolo?: () => void;
 }) {
   const [, setLocation] = useLocation();
 
@@ -150,7 +152,7 @@ export default function Injetaveis({
         {!ocultarBotaoNovo && (
           <button
             type="button"
-            onClick={() => setLocation("/protocols/new")}
+            onClick={() => onNovoProtocolo ? onNovoProtocolo() : setLocation("/protocols/new")}
             className="btn-3d-soft inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
             style={{ color: GOLD_FORTE }}
           >
@@ -168,7 +170,7 @@ export default function Injetaveis({
           {!ocultarBotaoNovo && (
             <button
               type="button"
-              onClick={() => setLocation("/protocols/new")}
+              onClick={() => onNovoProtocolo ? onNovoProtocolo() : setLocation("/protocols/new")}
               className="btn-3d-soft mt-1 inline-flex items-center gap-2 rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
               style={{ color: GOLD_FORTE }}
             >

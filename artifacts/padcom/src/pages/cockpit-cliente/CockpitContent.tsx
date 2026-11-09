@@ -32,21 +32,28 @@ function PanelSkeleton() {
 
 interface CockpitContentProps {
   clientId: number;
+  client: { id: number; name: string; cpf?: string | null };
   aba: AbaId;
+  novoProtocoloAberto: boolean;
+  protocoloEmAndamento: boolean;
+  onProtocoloEmAndamento: (pending: boolean) => void;
+  onNovoProtocolo: () => void;
+  onFecharProtocolo: () => void;
+  onProtocoloCriado: () => void;
 }
 
-export default function CockpitContent({ clientId, aba }: CockpitContentProps) {
+export default function CockpitContent({ clientId, client, aba, novoProtocoloAberto, protocoloEmAndamento, onProtocoloEmAndamento, onNovoProtocolo, onFecharProtocolo, onProtocoloCriado }: CockpitContentProps) {
   return (
     <div className="cockpit-content font-sans text-foreground" data-cockpit-tab={aba}>
       <Suspense fallback={<PanelSkeleton />}>
         {aba === "prescricao"  && <PrescricaoPanel  clientId={clientId} />}
-        {aba === "injetaveis"  && <InjetaveisPanel  clientId={clientId} />}
-        {aba === "implantes"   && <ImplantesPanel   clientId={clientId} />}
+        {aba === "injetaveis"  && <InjetaveisPanel  clientId={clientId} onNovoProtocolo={onNovoProtocolo} />}
+        {aba === "implantes"   && <ImplantesPanel   clientId={clientId} onNovoProtocolo={onNovoProtocolo} />}
         {aba === "exames"      && <ExamesPanel      clientId={clientId} />}
         {aba === "evolucao"    && <EvolucaoPanel    clientId={clientId} />}
         {aba === "anamnese"    && <AnamnesePanel    clientId={clientId} />}
         {aba === "documentos"  && <DocumentosPanel  clientId={clientId} />}
-        {aba === "protocolos"  && <ProtocolosPanel  clientId={clientId} />}
+        {aba === "protocolos"  && <ProtocolosPanel clientId={clientId} client={client} novoAberto={novoProtocoloAberto} emAndamento={protocoloEmAndamento} onEmAndamento={onProtocoloEmAndamento} onNovo={onNovoProtocolo} onFechar={onFecharProtocolo} onCriado={onProtocoloCriado} />}
         {aba === "dieta-treino" && <DietaTreinoPanel clientId={clientId} />}
         {aba === "financeiro"  && <FinanceiroPanel  clientId={clientId} />}
         {aba === "cadastro"    && <CadastroPanel    clientId={clientId} />}

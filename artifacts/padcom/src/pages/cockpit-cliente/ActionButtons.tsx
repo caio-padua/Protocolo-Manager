@@ -10,9 +10,10 @@ interface ActionButtonsProps {
   clientId: number | null;
   driveSetupPending: boolean;
   onDriveSetup: () => void;
+  onNewProtocol: () => void;
 }
 
-export default function ActionButtons({ clientId, driveSetupPending, onDriveSetup }: ActionButtonsProps) {
+export default function ActionButtons({ clientId, driveSetupPending, onDriveSetup, onNewProtocol }: ActionButtonsProps) {
   const ghost = !clientId;
 
   return (
@@ -46,15 +47,15 @@ export default function ActionButtons({ clientId, driveSetupPending, onDriveSetu
       </Button>
 
       {/* PROTOCOLO */}
-      <Link href={clientId ? `/protocols/new?clientId=${clientId}` : "#"}>
-        <Button
-          className="btn-3d h-8 text-[10px] font-black px-3"
-          tabIndex={ghost ? -1 : 0}
-        >
-          <Plus className="w-3 h-3 mr-1.5" />
-          PROTOCOLO
-        </Button>
-      </Link>
+      <Button
+        className="btn-3d h-8 text-[10px] font-black px-3"
+        onClick={onNewProtocol}
+        disabled={ghost}
+        tabIndex={ghost ? -1 : 0}
+      >
+        <Plus className="w-3 h-3 mr-1.5" />
+        PROTOCOLO
+      </Button>
     </div>
   );
 }

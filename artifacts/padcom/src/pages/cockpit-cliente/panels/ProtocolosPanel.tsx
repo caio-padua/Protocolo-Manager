@@ -9,6 +9,7 @@ import { formatStatus, getStatusColor } from "@/lib/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import NovoProtocolo from "@/pages/protocols/new";
 import {
   Activity, Plus, ChevronDown, ChevronRight,
   Calendar, Clock, ExternalLink,
@@ -17,12 +18,21 @@ import {
 const NAVY = "#16294a";
 const GOLD = "#9a7b32";
 
-interface Props { clientId: number; }
+interface Props {
+  clientId: number;
+  client: { id: number; name: string; cpf?: string | null };
+  novoAberto: boolean;
+  emAndamento: boolean;
+  onEmAndamento: (pending: boolean) => void;
+  onNovo: () => void;
+  onFechar: () => void;
+  onCriado: () => void;
+}
 
-export default function ProtocolosPanel({ clientId }: Props) {
+export default function ProtocolosPanel({ clientId, client, novoAberto, emAndamento, onEmAndamento, onNovo, onFechar, onCriado }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const { data: protocols, isLoading: loadingProtocols } = useListProtocols(
+  const { data: protocols, isLoading: loadingProtocols, isError: protocolsError, refetch: retryProtocols } = useListProtocols(
     { clientId },
     { query: { enabled: !!clientId, queryKey: ["protocols", clientId] } },
   );
@@ -31,6 +41,17 @@ export default function ProtocolosPanel({ clientId }: Props) {
     { clientId },
     { query: { enabled: !!clientId, queryKey: ["sessions", clientId] } },
   );
+
+  if (protocolsError && !emAndamento) {
+    return (
+      <div className="panel-3d p-6" role="alert">
+        <p>Não foi possível consultar os protocolos deste cliente. O cadastro está indisponível até confirmar o acesso.</p>
+        <Button className="btn-3d-soft mt-4" onClick={() => void retryProtocols()}>Tentar novamente</Button>
+      </div>
+    );
+  }
+
+  if (loadingProtocols) return <Skeleton className="h-28 rounded-lg panel-3d-sub" />;
 
   return (
     <div className="space-y-6">
@@ -55,12 +76,21 @@ export default function ProtocolosPanel({ clientId }: Props) {
 
       {/* Novo protocolo */}
       <div className="flex justify-end">
-        <Link href={`/protocols/new?clientId=${clientId}`}>
-          <Button className="btn-3d">
+        {novoAberto ? (
+          <Button className="btn-3d-soft" onClick={onFechar} disabled={emAndamento}>FECHAR CADASTRO</Button>
+        ) : (
+          <Button className="btn-3d" onClick={onNovo}>
             <Plus className="w-4 h-4 mr-2" /> NOVO PROTOCOLO
           </Button>
-        </Link>
+        )}
       </div>
+
+      {novoAberto && (
+        <section className="panel-3d p-4 md:p-6" aria-label="Cadastro de protocolo">
+          <h2 className="mb-4 text-lg font-bold uppercase text-primary">Novo protocolo</h2>
+          <NovoProtocolo key={clientId} clientId={clientId} clientIdentity={client} embedded onCreated={onCriado} onBusyChange={onEmAndamento} />
+        </section>
+      )}
 
       {/* Lista com accordion */}
       {loadingProtocols ? (

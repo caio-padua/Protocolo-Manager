@@ -1,7 +1,7 @@
 import Injetaveis from "@/pages/cockpit/panels/Injetaveis";
 
-interface Props { clientId: number; }
+interface Props { clientId: number; onNovoProtocolo: () => void; }
 
-export default function InjetaveisPanel({ clientId }: Props) {
-  return <Injetaveis clientId={clientId} filtroProcedimento="injetavel" />;
+export default function InjetaveisPanel({ clientId, onNovoProtocolo }: Props) {
+  return <Injetaveis clientId={clientId} filtroProcedimento="injetavel" onNovoProtocolo={onNovoProtocolo} />;
 }
