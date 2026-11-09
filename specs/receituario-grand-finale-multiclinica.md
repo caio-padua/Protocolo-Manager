@@ -12,8 +12,9 @@ uma clínica ou profissional a outra pessoa.
 2. Nome, símbolo, endereço e contatos da clínica vêm da identidade empresarial
    do contexto clínico autorizado; nunca dos pixels da arte original.
 3. O nome, registro e rubrica do emitente vêm do profissional autorizado.
-4. O quadro e a indicação de assinatura refletem o certificado e o resultado
-   reais; a rubrica e o código de exemplo do arquivo não são prova.
+4. Preservar integralmente o quadro atual de assinatura digital, tanto o visual
+   quanto o funcionamento. Não substituir pelo quadro de exemplo da arte.
+   A indicação de assinatura deve refletir o certificado e o resultado reais.
 5. A assinatura criptográfica é feita depois de desenhar o documento completo;
    o arquivo não pode ser alterado após a assinatura.
 6. Receituário comum e especial compartilham o modelo, mas preservam os campos
@@ -33,9 +34,9 @@ uma clínica ou profissional a outra pessoa.
 - Produtores: gerador de receita, rota clínica de prescrição e demonstração.
 - Há também rotas de receituário que passam pelo motor de modelos, o qual
   escolhe entre duas renderizações; elas não podem ficar com outro visual.
-- O motor de modelos contém valores fixos de clínica e endereço como alternativa.
-  Eles precisam ser eliminados e substituídos por dados do contexto autorizado,
-  ou pela ausência explícita do endereço quando não houver cadastro.
+- No motor de modelos, os valores fixos de clínica e endereço como alternativa
+  foram removidos; verificar os demais caminhos e evitar substituição silenciosa
+  por dados de outra empresa.
 - Consumidores: visualização, documento assinado, histórico e entrega existente.
 - Identidade: carregada pela empresa do contexto autorizado; a autoria continua
   ligada ao profissional validado e ao certificado correspondente.
