@@ -158,3 +158,4 @@
 - [Google Agenda — resultado incerto](google-evento-resultado-incerto-conferencia.md) — conferência reaproveita o id reservado; id novo duplica; só 404 é "não existe".
 - [Remarcar e cancelar visita de protocolo](remarcar-cancelar-visita-protocolo.md) — duração reservada nunca encolhe; Google só fora da transação; cancelar mantém ponteiro se falhar; n/total pela posição.
 - [Vínculo empresarial do profissional](vinculo-empresarial-profissional.md) — originária + até 5 empresas; agenda só nas vinculadas; 409 em vez de desligar sozinho; fixtures precisam da tabela nova.
+- [Evento Google — comparação com o IHE](google-evento-ihe-comparacao.md) — IHE atualizava o evento ao aplicar (Manager perdeu); cor do print é renderização do Google, não divergência de código.
