@@ -74,6 +74,9 @@ export interface CalendarEventData {
   procedureLabel: string;
   activeProcedureTypes: string[];
   substances: CalendarSubstance[];
+  // K7: "NESTA VISITA: X de Y substâncias". Só aparece quando os dois números vêm do protocolo.
+  visitSubstanceCount?: number;
+  protocolSubstanceCount?: number;
   clientEmail?: string;
   sessionStatus?: string;
   rescheduleCount?: number;
@@ -272,6 +275,9 @@ export function buildDescriptionBody(data: CalendarEventData): string {
   const procedureChecklist = buildProcedureChecklist(data.activeProcedureTypes);
   const statusLine = getSessionStatusLine(data);
   const substanceList = buildSubstanceList(data.substances);
+  const visitCountLine = data.visitSubstanceCount !== undefined && data.protocolSubstanceCount !== undefined
+    ? `NESTA VISITA: ${data.visitSubstanceCount} de ${data.protocolSubstanceCount} substâncias do protocolo\n`
+    : "";
 
   const addressBlock = buildAddressBlock(data.locationAddress, data.unit);
   const mapsLink = data.locationAddress
@@ -299,7 +305,7 @@ export function buildDescriptionBody(data: CalendarEventData): string {
     `PROCEDIMENTOS:\n${procedureChecklist}\n` +
     `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
     `STATUS:\n${statusLine}\n\n` +
-    `SUBSTÂNCIAS PROTOCOLO:\n${substanceList}\n\n` +
+    `SUBSTÂNCIAS PROTOCOLO:\n${visitCountLine}${substanceList}\n\n` +
     `${SUBSTANCE_LEGEND}`;
 
   if (addressBlock) {
@@ -387,13 +393,21 @@ export async function updateCalendarEvent(
   eventId: string, calendarId: string, data: CalendarEventData, options: { timeoutMs?: number } = {},
 ): Promise<void> {
   try {
+    // O prazo cobre a chamada INTEIRA (token + envio). Se a obtenção do token já consumiu o prazo, nada é enviado:
+    // quem chamou já liberou a reserva e uma atualização mais nova pode ter saído; enviar agora gravaria descrição velha.
+    const startedAt = Date.now();
     const calendar = await getUncachableGoogleCalendarClient();
+    let remainingMs: number | undefined;
+    if (options.timeoutMs) {
+      remainingMs = options.timeoutMs - (Date.now() - startedAt);
+      if (remainingMs <= 0) throw new Error("Prazo esgotado antes do envio ao Google; nada foi enviado.");
+    }
     await calendar.events.update({
       calendarId: calendarId || 'primary',
       eventId,
       requestBody: buildEventRequestBody(data),
       sendUpdates: 'none',
-    }, options.timeoutMs ? { timeout: options.timeoutMs } : undefined);
+    }, remainingMs ? { timeout: remainingMs } : undefined);
   } catch (err: any) {
     console.error("Failed to update calendar event:", err.message);
     throw err;

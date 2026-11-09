@@ -19,7 +19,8 @@ import {
   type CalendarSubstance,
 } from "../lib/google-calendar";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
-import { CalendarSyncUncertain, procedureTypeLabel, syncReservedEvent } from "../lib/session-google-sync";
+import { CalendarSyncUncertain, montarConstantesDoEvento, procedureTypeLabel, syncReservedEvent } from "../lib/session-google-sync";
+import { carregarItensDoProtocolo } from "../lib/substancias-constantes";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalMember } from "../lib/clinical-emitter";
 import { resolveEmpresaId } from "../middleware/tenantContext";
@@ -186,7 +187,13 @@ router.post("/google-calendar/sync-session/:sessionId", requireCollaborator, asy
       rescheduleCount: session.rescheduleCount,
     };
 
-    const eventId = await syncReservedEvent(session, eventData, applications);
+    // K7: o evento enviado por aqui também lista todo o protocolo (mesma função do envio por protocolo).
+    const protocolItems = await carregarItensDoProtocolo(session.protocolId, session.empresaId);
+    const extra = await montarConstantesDoEvento(applications, protocolItems);
+    eventData.substances.push(...extra.constants);
+    Object.assign(eventData, extra.counts);
+
+    const eventId = await syncReservedEvent(session, eventData, applications, { expectedProtocolItems: protocolItems });
 
     res.json({ success: true, eventId });
   } catch (err: any) {
@@ -334,7 +341,13 @@ router.post("/google-calendar/sync-week", requireCollaborator, async (req, res):
         rescheduleCount: session.rescheduleCount,
       };
 
-      const eventId = await syncReservedEvent(session, eventData2, applications);
+      // K7: idem (mesma função do envio por protocolo).
+      const protocolItems2 = await carregarItensDoProtocolo(session.protocolId, session.empresaId);
+      const extra2 = await montarConstantesDoEvento(applications, protocolItems2);
+      eventData2.substances.push(...extra2.constants);
+      Object.assign(eventData2, extra2.counts);
+
+      const eventId = await syncReservedEvent(session, eventData2, applications, { expectedProtocolItems: protocolItems2 });
 
       results.push({ sessionId: session.id, clientName: client.name, success: true, eventId: eventId ?? undefined });
     } catch (err: any) {

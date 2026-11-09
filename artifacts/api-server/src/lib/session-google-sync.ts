@@ -5,6 +5,7 @@ import {
   sessionsTable, substanceApplicationsTable, substancesTable,
 } from "@workspace/db";
 import { estadoAplicacao } from "./estado-aplicacao-protocolo";
+import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "./substancias-constantes";
 import {
   calendarEventExists, createCalendarEvent, deleteCalendarEvent, updateCalendarEvent, verifyClinicAccount,
   type CalendarEventData, type CalendarSubstance,
@@ -48,6 +49,11 @@ export interface ReservedSyncOptions {
    * como a atualização reescreve o evento inteiro a partir do banco, repetir depois é seguro.
    */
   updateDeadlineMs?: number;
+  /**
+   * K7: itens do protocolo usados para listar as substâncias constantes. Conferidos de novo depois da reserva, como a
+   * sessão e as aplicações: se o protocolo mudou no intervalo, nada é enviado.
+   */
+  expectedProtocolItems?: ItemDoProtocolo[];
 }
 
 /** Prazo da atualização de evento existente disparada por ação clínica (menor que o limite de resposta da tela). */
@@ -91,14 +97,25 @@ export async function syncReservedEvent(
   };
   const serializeApplications = (items: (typeof substanceApplicationsTable.$inferSelect)[]) =>
     JSON.stringify([...items].sort((a, b) => a.id - b.id));
-  const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
-  const freshApplications = await db.select().from(substanceApplicationsTable)
-    .where(eq(substanceApplicationsTable.sessionId, session.id));
-  if (!fresh || stripReservation(fresh) !== stripReservation(session) ||
-      serializeApplications(freshApplications) !== serializeApplications(expectedApplications)) {
-    await db.update(sessionsTable).set({
-      googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
-    }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+  const releaseOwnReservation = () => db.update(sessionsTable).set({
+    googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
+  }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+  let drifted: boolean;
+  try {
+    const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
+    const freshApplications = await db.select().from(substanceApplicationsTable)
+      .where(eq(substanceApplicationsTable.sessionId, session.id));
+    const itemsChanged = options.expectedProtocolItems !== undefined &&
+      JSON.stringify(await carregarItensDoProtocolo(session.protocolId, session.empresaId)) !== JSON.stringify(options.expectedProtocolItems);
+    drifted = !fresh || stripReservation(fresh) !== stripReservation(session) ||
+      serializeApplications(freshApplications) !== serializeApplications(expectedApplications) || itemsChanged;
+  } catch (error) {
+    // Falha de leitura DEPOIS da reserva e ANTES de qualquer envio: nada foi ao Google, então a reserva própria é devolvida.
+    try { await releaseOwnReservation(); } catch { /* banco indisponível: a reserva fica e exigirá conferência */ }
+    throw error;
+  }
+  if (drifted) {
+    await releaseOwnReservation();
     throw new CalendarSyncUncertain("A sessão mudou antes do envio. Nenhum evento foi alterado; confira e tente novamente.");
   }
   try {
@@ -158,6 +175,7 @@ export async function reconcilePendingEvent(
   session: SessionRow,
   data: CalendarEventData,
   expectedApplications: ApplicationRow[],
+  expectedProtocolItems?: ItemDoProtocolo[],
 ): Promise<string> {
   const previousOperation = session.googleSyncPendingOperation;
   const eventId = session.googleSyncPendingEventId;
@@ -171,14 +189,25 @@ export async function reconcilePendingEvent(
     .returning({ id: sessionsTable.id });
   if (!taken) throw new CalendarSyncUncertain("Outra conferência desta sessão está em andamento.");
 
-  const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
-  const freshApplications = await db.select().from(substanceApplicationsTable)
-    .where(eq(substanceApplicationsTable.sessionId, session.id));
-  if (!fresh || sessionFingerprint(fresh) !== sessionFingerprint(session) ||
-      applicationsFingerprint(freshApplications) !== applicationsFingerprint(expectedApplications)) {
+  const restorePreviousReservation = () => db.update(sessionsTable).set({ googleSyncPendingOperation: previousOperation })
+    .where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+  let drifted: boolean;
+  try {
+    const [fresh] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session.id));
+    const freshApplications = await db.select().from(substanceApplicationsTable)
+      .where(eq(substanceApplicationsTable.sessionId, session.id));
+    const itemsChanged = expectedProtocolItems !== undefined &&
+      JSON.stringify(await carregarItensDoProtocolo(session.protocolId, session.empresaId)) !== JSON.stringify(expectedProtocolItems);
+    drifted = !fresh || sessionFingerprint(fresh) !== sessionFingerprint(session) ||
+      applicationsFingerprint(freshApplications) !== applicationsFingerprint(expectedApplications) || itemsChanged;
+  } catch (error) {
+    // Nada foi enviado nesta tentativa: devolve a reserva anterior (que continua incerta) mesmo se a leitura falhou.
+    try { await restorePreviousReservation(); } catch { /* banco indisponível: a conferência manual continua possível */ }
+    throw error;
+  }
+  if (drifted) {
     // Nada foi enviado nesta tentativa: devolve a reserva anterior, que continua incerta.
-    await db.update(sessionsTable).set({ googleSyncPendingOperation: previousOperation })
-      .where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+    await restorePreviousReservation();
     throw new CalendarSyncUncertain("A sessão mudou antes da conferência. Nenhum evento foi alterado.");
   }
   try {
@@ -276,10 +305,31 @@ export async function googleReadinessWarning(
   }
 }
 
+/**
+ * K7: substâncias do protocolo sem linha na visita, prontas para o evento do Google, e os números "X de Y".
+ * Usada pelo envio por protocolo E pelas rotas de envio por sessão/semana: o evento nunca depende do caminho.
+ * Constante = estado INDI, posição 0 ("–/total"), nunca devida, sem via; substância sem cadastro vira texto explícito.
+ */
+export async function montarConstantesDoEvento(
+  applications: { substanceId: number; availability: string }[], protocolItems: ItemDoProtocolo[],
+): Promise<{ constants: CalendarSubstance[]; counts: Pick<CalendarEventData, "visitSubstanceCount" | "protocolSubstanceCount"> }> {
+  const summary = resumirSubstanciasDaVisita(applications, protocolItems);
+  if (!summary) return { constants: [], counts: {} };
+  const constants: CalendarSubstance[] = [];
+  for (const item of summary.constants) {
+    const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
+    constants.push({
+      name: substance?.name ?? `Substância não cadastrada (${item.substanceId})`, dose: item.dose, sessionNumber: 0,
+      totalSessions: item.totalSessions, status: "unavailable",
+    });
+  }
+  return { constants, counts: { visitSubstanceCount: summary.visitCount, protocolSubstanceCount: summary.protocolCount } };
+}
+
 /** Evento de uma visita: todas as aplicações da sessão viram a lista de substâncias da descrição. */
 async function buildVisitEvent(
   session: SessionRow, client: typeof clientsTable.$inferSelect, destination: Extract<Destination, { ok: true }>,
-  applications: ApplicationRow[], position: number, totalVisits: number,
+  applications: ApplicationRow[], position: number, totalVisits: number, protocolItems: ItemDoProtocolo[] = [],
 ): Promise<{ ok: true; data: CalendarEventData } | { ok: false; code: string; error: string }> {
   if (!session.durationMinutes || session.durationMinutes <= 0) {
     return { ok: false, code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
@@ -307,6 +357,9 @@ async function buildVisitEvent(
   if (!primaryType) {
     return { ok: false, code: "procedimento_indefinido", error: "Procedimento da visita não identificado; nenhum evento foi enviado." };
   }
+  // K7: as demais substâncias do protocolo ficam constantes (informativas; nunca devidas, sem via, sem bloqueio).
+  const extra = await montarConstantesDoEvento(applications, protocolItems);
+  substances.push(...extra.constants);
   const location = destination.location;
   const itinerant = location.address?.toLowerCase().includes("itinerante") ||
     session.unit?.toLowerCase().includes("domiciliar") || session.unit?.toLowerCase().includes("nurse care");
@@ -324,6 +377,7 @@ async function buildVisitEvent(
       locationPhone: location.phone ?? undefined, calendarId: destination.calendarId,
       procedureType: primaryType, procedureLabel: procedureTypeLabel(primaryType),
       activeProcedureTypes: Array.from(dispTypes), substances,
+      ...extra.counts,
       // Só para a descrição: o envio nunca cria participante nem convite (sendUpdates "none").
       clientEmail: client.email || undefined,
       sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
@@ -349,13 +403,22 @@ async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitS
       error: "A visita pertence a outra agenda Google; a transferência exige conferência e não foi feita." };
   }
   const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
-  const built = await buildVisitEvent(session, ctx.client, destination, applications, ctx.position, ctx.total);
+  let protocolItems: ItemDoProtocolo[];
+  try {
+    protocolItems = await carregarItensDoProtocolo(session.protocolId, ctx.empresaId);
+  } catch {
+    // Falha explícita desta visita (o lote segue): não se envia evento com a composição do protocolo desconhecida.
+    return { ...base, status: "falhou", code: "itens_protocolo_indisponiveis",
+      error: "Não foi possível ler as substâncias do protocolo; nenhum evento foi enviado." };
+  }
+  const built = await buildVisitEvent(session, ctx.client, destination, applications, ctx.position, ctx.total, protocolItems);
   if (!built.ok) return { ...base, status: "falhou", code: built.code, error: built.error };
   try {
     const eventId = session.googleSyncPendingOperation
-      ? await reconcilePendingEvent(session, built.data, applications)
+      ? await reconcilePendingEvent(session, built.data, applications, protocolItems)
       : await syncReservedEvent(session, built.data, applications, {
         releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
+        expectedProtocolItems: protocolItems,
       });
     return { ...base, status: "sincronizado", eventId };
   } catch (error) {

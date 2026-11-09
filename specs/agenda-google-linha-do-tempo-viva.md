@@ -2,7 +2,7 @@
 
 Data: 09/11/2026. Autor: Dr. Replit Pawards (a mando do CEO Dr. Caio). Método: Paxter Loop.
 Aprovação do CEO: opção A de 09/11/2026 ("aprovar K1 a K6, na ordem, uma por vez, com revisão independente depois de cada uma").
-Estado de engenharia: K1 CONSTRUÍDA, TESTADA E REVISADA (revisão independente apontou 1 impeditivo e 1 importante; ambos corrigidos e testados); K2 a K6 EM ESPECIFICAÇÃO (cada uma é detalhada e revisada antes de construir).
+Estado de engenharia: K1 CONSTRUÍDA, TESTADA E REVISADA (2 revisões independentes; achados corrigidos e testados, incluindo prazo absoluto da chamada ao Google e devolução da reserva em falha de leitura). K7 (protocolo completo constante) CONSTRUÍDA E TESTADA (227 testes verdes em 3 lotes; 5 achados da revisão corrigidos; a última correção, devolução da reserva em falha de leitura, não passou por terceira revisão e é coberta por testes com mutação). K8, K9 e K10 EM ESPECIFICAÇÃO; K2 a K6 EM ESPECIFICAÇÃO (cada uma é detalhada e revisada antes de construir). Nada publicado; nenhum evento real do Google foi tocado.
 
 Pedidos novos do CEO em 09/11/2026 (ainda sem spec própria, aguardam decisões): ver seção 11.
 
@@ -110,7 +110,7 @@ Definição de PRONTO de K1: testes T-K1-1 a T-K1-11 verdes em banco isolado; te
 
 ## 10. Revisão e ordem
 
-Ordem: K1, K2, K3, K5 (usa a mesma função), K6, K4 (por último, pois depende de coluna nova e do restante). Revisão independente depois de cada uma, em sequência. Próxima unidade só depois do aceite da anterior.
+Ordem aprovada pelo CEO em 09/11/2026 ("quero tudo", opção A): K1 (pronta), K7, K8, K9, K10 (pedidos novos, seção 12), depois K2, K3, K5 (usa a mesma função), K6 e K4 (por último, pois depende de coluna nova e do restante). Revisão independente depois de cada uma, em sequência. Próxima unidade só depois do aceite da anterior.
 
 ## 11. Pedidos novos do CEO em 09/11/2026 (a especificar depois das decisões)
 
@@ -121,3 +121,51 @@ Vocabulário do CEO: mudança AGUDA = atualização imediata disparada por uma a
 11.3 RAS FAP vivo: cada chave validada preenche a linha da semana (data efetiva, hora, ciência/rubrica do cliente, rubrica da enfermagem, contadores) com ligação direta ao dado (data bind).
 11.4 Mensagem imediata ao cliente nos mesmos canais confirmando a aplicação realizada.
 11.5 Reaproveitar o melhor do IHE: código guardado só como hash, prazo curto, limite de tentativas, trava anti-repetição, modelo de mensagem por unidade.
+
+## 12. Pedidos novos viram unidades K7 a K10 (decisão do CEO em 09/11/2026)
+
+Decisão do CEO: fazer tudo; UMA chave por VISITA (por aplicação da semana, não por substância).
+
+| Unidade | Entrega | Depende de |
+|---|---|---|
+| K7 | Protocolo completo constante (todas as substâncias em toda visita + linha "NESTA VISITA: X de Y") no Google e na tela | Nada externo |
+| K8 | Chave de 6 dígitos por visita (hash, 10 min, 5 tentativas, trava de 60 s), envio aos canais do cliente, validação pela enfermagem, rubrica digital gravada | Canais externos (e-mail, Telegram, WhatsApp, SMS) |
+| K9 | RAS FAP vivo: linha da semana preenchida com data efetiva, hora, rubrica do cliente e da enfermagem | K8 |
+| K10 | Mensagem imediata "Aplicação realizada com sucesso" nos mesmos canais | K8 |
+
+### 12.1 K7 — Protocolo completo constante
+
+Requisitos:
+12.1.1 A lista de substâncias do protocolo vem de `protocol_items` (uma por substância). Toda substância do protocolo aparece em TODA visita do protocolo.
+12.1.2 Substância que já tem linha na visita (disponível, próxima, aplicada, não realizada, indisponível) aparece como hoje, sem duplicar.
+12.1.3 Substância SEM linha na visita aparece como "constante": no Google com o quadrado branco e a sigla [INDI] já existentes na legenda (nenhum símbolo novo) e posição "–/total"; na tela com o texto "Não nesta visita".
+12.1.4 Linha "NESTA VISITA: X de Y substâncias": X = substâncias distintas com linha disponível (DISP) na visita; Y = substâncias distintas LISTADAS (itens do protocolo mais qualquer linha da visita sem item correspondente). Assim X nunca passa de Y e Y é exatamente o que a enfermagem vê na lista.
+12.1.5 Constante nunca conta como devida: não muda "Aplicações Realizadas", não muda a cor nem o tipo do procedimento, não exige via.
+12.1.6 Cálculo na LEITURA, por função pura única usada pelo Google e pela tela. Nenhuma linha é gravada, nenhum dado antigo é alterado (Regra de Ouro). Vale também para visitas já existentes.
+12.1.7 Protocolo sem itens gravados: nenhuma constante e nenhuma linha de contagem; evento idêntico ao atual.
+12.1.8 Substância do item sem cadastro: aparece como "Substância não cadastrada (n)", nunca bloqueia o envio.
+12.1.9 A lista de sessões lê os itens uma vez por protocolo (sem repetir a consulta por visita).
+12.1.10 O mesmo cálculo vale para todos os caminhos que enviam evento ao Google: envio por protocolo, atualização ao aplicar/concluir, botão "sincronizar" da sessão e da semana (rotas /google-calendar/sync-session e sync-week).
+12.1.11 Isolamento: os itens só são lidos se o protocolo pertence à MESMA empresa da visita; referência inconsistente não expõe nada (lista vazia e aviso no registro do servidor).
+12.1.12 Os itens do protocolo entram na conferência feita depois da reserva (como a sessão e as aplicações): se mudaram no intervalo, nada é enviado.
+12.1.13 Quadrados por substância e legenda do CEO não mudam. A tela mantém os botões de aplicar só nas linhas DISP.
+
+| ID | Falha | Gravidade | Barreira | Teste |
+|---|---|---|---|---|
+| F13 | Substância aparece duas vezes | Média | Constante só se não há linha na visita; itens repetidos contam uma vez | T-K7-1, T-K7-2 |
+| F14 | Constante entra na conta das aplicações devidas e muda o status | Alta | Posição 0 e estado INDI já são excluídos da conta | T-K7-3 |
+| F15 | Itens de outro protocolo ou outra clínica aparecem | Crítica | Itens lidos pelo protocolo da sessão já autorizada | T-K7-4 |
+| F16 | Substância sem cadastro derruba o envio | Média | Texto explícito e envio segue | T-K7-5 |
+| F17 | Protocolo sem itens muda o evento | Média | Sem constantes e sem linha de contagem | T-K7-1 |
+| F18 | Tela e Google divergem | Média | Mesma função pura | T-K7-6 |
+| F19 | Consulta repetida por visita na lista | Baixa | Memória por protocolo na chamada | revisão |
+| F20 | Protocolo de outra empresa lido por referência inconsistente | Crítica | Itens só carregam se protocolo e visita têm a mesma empresa | T-K7-8 |
+| F21 | Protocolo editado entre a leitura e a reserva publica composição velha | Média | Itens conferidos de novo depois da reserva | T-K7-9 |
+| F22 | Botão "sincronizar" da sessão/semana apaga as constantes do evento | Alta | Mesma função nas rotas legadas | T-K7-10 |
+| F23 | Escrita tardia no Google (token lento) grava descrição velha depois de uma nova | Alta | Prazo absoluto cobre token + envio; vencido, não envia | T-K1-12 |
+| F25 | Leitura falha depois da reserva e antes do envio e a reserva fica presa | Alta | Reserva própria devolvida (CAS) em falha de leitura; na conferência, restaura a anterior | T-K7-11, T-K7-12 |
+| F24 | Y inflado ou X maior que Y | Média | Y = itens + linhas da visita sem item | T-K7-2c, T-K7-7 |
+
+Limite conhecido de F23: uma chamada já enviada ao Google dentro do prazo pode, em tese, chegar depois de uma atualização mais nova. A rede não permite fechar isso por completo. Até K4/K5 existirem NÃO há correção automática: o risco é conhecido e a próxima ação clínica na visita (ou o botão de sincronizar) reenvia o estado atual. Quando K4/K5 forem feitas, passam a corrigir.
+
+Definição de PRONTO de K7: testes T-K7-1 a T-K7-10 verdes (função pura + banco isolado com Google simulado); testes existentes de agenda e Google verdes; revisão independente sem pendência; nenhuma chamada real ao Google.

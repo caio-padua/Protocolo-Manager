@@ -81,4 +81,21 @@ describe("Evento do Google: sem convite, sem participante, o mesmo evento é atu
     await expect(calendarEventExists(EVENT_ID, CAL)).rejects.toThrow("rede caiu");
     expect(calls.get.mock.calls[0][0]).toMatchObject({ calendarId: CAL, eventId: EVENT_ID });
   });
+
+  it("prazo da atualização cobre token + envio: o que sobra vai ao Google como limite da chamada", async () => {
+    await updateCalendarEvent(EVENT_ID, CAL, data, { timeoutMs: 5000 });
+    const sent = calls.update.mock.calls[0][1] as { timeout: number };
+    expect(sent.timeout).toBeGreaterThan(0);
+    expect(sent.timeout).toBeLessThanOrEqual(5000);
+  });
+
+  it("T-K1-12: token que demora além do prazo NÃO envia nada ao Google (sem escrita tardia com descrição velha)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      await new Promise(resolve => setTimeout(resolve, 150));
+      return { json: async () => ({ items: [{ connector_name: "google-calendar", settings: { access_token: "token-sintetico", expires_at: null } }] }) };
+    }));
+    await expect(updateCalendarEvent(EVENT_ID, CAL, data, { timeoutMs: 30 })).rejects.toThrow("nada foi enviado");
+    expect(calls.update).not.toHaveBeenCalled();
+  });
 });
+

@@ -211,8 +211,12 @@ describe("Envio das visitas ao Google Agenda: um evento por visita, todas as sub
     expect(first).toContain("[1/1] IV sintética dose 2");
     expect(first).toContain("Agendamento Número: 1/3");
     expect(first).toContain("Cliente sintético 21");
+    expect(first).toContain("NESTA VISITA: 2 de 2 substâncias do protocolo");
     expect(buildDescriptionBody(events[1])).toContain("[2/3] IM sintética dose 1");
-    expect(buildDescriptionBody(events[1])).not.toContain("IV sintética");
+    // K7 (decisão do CEO, 09/11/2026): a IV, que só ocorre na 1ª visita, continua LISTADA como constante [INDI]
+    // nas demais visitas (antes sumia), sem contar como devida: "1 de 2".
+    expect(buildDescriptionBody(events[1])).toContain("[–/1] IV sintética dose 2 [INDI]");
+    expect(buildDescriptionBody(events[1])).toContain("NESTA VISITA: 1 de 2 substâncias do protocolo");
     expect(buildDescriptionBody(events[2])).toContain("[3/3] IM sintética dose 1");
     // O que vai ao Google não tem participante nenhum.
     for (const event of events) expect(Object.keys(event)).not.toContain("attendees");

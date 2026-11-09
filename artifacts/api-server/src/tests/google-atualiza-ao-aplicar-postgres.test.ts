@@ -36,7 +36,7 @@ vi.mock("@workspace/db", async () => {
 });
 import {
   agendaResourcesTable, clientsTable, empresasTable, locationProfessionalsTable, locationsTable,
-  professionalEmpresasTable, professionalsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable,
+  professionalEmpresasTable, professionalsTable, protocolItemsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable,
 } from "@workspace/db/schema";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 import { buildDescriptionBody } from "../lib/google-calendar";
@@ -74,7 +74,7 @@ beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   for (const table of [empresasTable, professionalsTable, locationsTable, locationProfessionalsTable,
-    clientsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable, agendaResourcesTable,
+    clientsTable, protocolsTable, protocolItemsTable, sessionsTable, substanceApplicationsTable, substancesTable, agendaResourcesTable,
     professionalEmpresasTable]) {
     await isolated.pool.query(createTableSql(table));
   }

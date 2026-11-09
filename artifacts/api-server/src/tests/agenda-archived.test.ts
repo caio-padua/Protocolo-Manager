@@ -14,6 +14,7 @@ vi.mock("@workspace/db", () => {
     sessionsTable: { name: "sessions", id: "id", empresaId: "empresaId" },
     clientsTable: { name: "clients", id: "id" },
     protocolsTable: { name: "protocols", id: "id" },
+    protocolItemsTable: { name: "protocolItems", id: "id", protocolId: "protocolId" },
     professionalsTable: { name: "professionals", id: "id" },
     substancesTable: { name: "substances", id: "id" },
     substanceApplicationsTable: { name: "applications", sessionId: "sessionId" },

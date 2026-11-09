@@ -10,3 +10,5 @@ Pedidos do CEO (palavras dele resumidas): toda visita lista TODAS as substância
 **Why:** o CEO quer que a enfermagem responda "quais as substâncias do meu protocolo" olhando a agenda e que a presença do cliente fique provada digitalmente.
 
 **How to apply:** código atual (validation_codes) é por SESSÃO, 6 letras/números em claro, não é exigido ao registrar aplicação; substâncias já concluídas somem das visitas seguintes; colunas de rubrica do RAS FAP saem vazias. Isso é o ponto de partida, não a meta. Entrega por WhatsApp fora da janela de 24 h exige modelo aprovado; SMS não existe no Manager.
+
+Decisão do CEO (09/11/2026): ordem A, "quero tudo", e UMA chave por VISITA (uma linha do RAS FAP = uma semana), não por substância. Ordem: substâncias constantes (feita), chave+rubrica, RAS FAP vivo, mensagem imediata, depois K2, K3, K5, K6, K4. Detalhe técnico das constantes em protocolo-completo-constante.md.

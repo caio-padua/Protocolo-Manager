@@ -10,6 +10,7 @@ import {
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable, locationsTable, locationProfessionalsTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
+import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "../lib/substancias-constantes";
 import {
   ListSessionsQueryParams,
   CreateSessionBody,
@@ -23,7 +24,9 @@ import {
 const router: IRouter = Router();
 router.use(moduleGuard("agenda"));
 
-async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) {
+async function buildSessionResponse(
+  session: typeof sessionsTable.$inferSelect, itemsMemo?: Map<number, Promise<ItemDoProtocolo[]>>,
+) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
 
@@ -48,6 +51,15 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
     if (!substanceMap[app.substanceId]) {
       const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
       if (s) substanceMap[app.substanceId] = s;
+    }
+  }
+
+  // K7: demais substâncias do protocolo ficam constantes (mesma função do evento do Google).
+  const summary = resumirSubstanciasDaVisita(applications, await carregarItensDoProtocolo(session.protocolId, session.empresaId, itemsMemo));
+  for (const item of summary?.constants ?? []) {
+    if (!substanceMap[item.substanceId]) {
+      const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
+      if (s) substanceMap[item.substanceId] = s;
     }
   }
 
@@ -89,6 +101,17 @@ async function buildSessionResponse(session: typeof sessionsTable.$inferSelect) 
       confirmedAt: app.confirmedAt ?? null,
       notes: app.notes ?? null,
     })),
+    protocolSummary: summary ? {
+      visitCount: summary.visitCount,
+      protocolCount: summary.protocolCount,
+      constants: summary.constants.map(item => ({
+        substanceId: item.substanceId,
+        substanceName: substanceMap[item.substanceId]?.name ?? `Substância não cadastrada (${item.substanceId})`,
+        substanceColor: substanceMap[item.substanceId]?.color ?? "#888888",
+        dose: item.dose,
+        totalSessions: item.totalSessions,
+      })),
+    } : null,
     createdAt: session.createdAt.toISOString(),
   };
 }
@@ -145,7 +168,8 @@ router.get("/sessions", async (req, res): Promise<void> => {
   if (query.data.dateFrom) sessions = sessions.filter(s => s.scheduledDate >= query.data.dateFrom!);
   if (query.data.dateTo) sessions = sessions.filter(s => s.scheduledDate <= query.data.dateTo!);
 
-  const results = await Promise.all(sessions.map(buildSessionResponse));
+  const itemsMemo = new Map<number, Promise<ItemDoProtocolo[]>>();
+  const results = await Promise.all(sessions.map(s => buildSessionResponse(s, itemsMemo)));
   res.json(results);
 });
 
@@ -165,7 +189,8 @@ router.get("/sessions/ics", async (req, res): Promise<void> => {
 
   sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.scheduledTime.localeCompare(b.scheduledTime));
 
-  const results = await Promise.all(sessions.map(buildSessionResponse));
+  const itemsMemo = new Map<number, Promise<ItemDoProtocolo[]>>();
+  const results = await Promise.all(sessions.map(s => buildSessionResponse(s, itemsMemo)));
 
   const icsContent = buildVCalendar(results.map(s => sessionToIcsInput(s)));
   const label = dateFrom && dateTo ? `${dateFrom}_a_${dateTo}` : "agenda";

@@ -155,6 +155,10 @@ function SessionCard({
   const proxCount = session.substanceApplications.filter((a: any) => a.availability === "prox").length;
   const confirmableCount = dispApps.filter(isPending).length;
   const visibleApps = expanded ? session.substanceApplications : dispApps;
+  // K7: demais substâncias do protocolo ficam constantes na tela (a enfermagem responde "quais são as do protocolo").
+  const protocolSummary = (session as any).protocolSummary as
+    { visitCount: number; protocolCount: number; constants: any[] } | null | undefined;
+  const constantSubstances = protocolSummary?.constants ?? [];
 
   const statusBarColor =
     session.status === "completed" && allConfirmed ? "bg-green-500/80" :
@@ -304,17 +308,26 @@ function SessionCard({
                     <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Substâncias</span>
                   )}
                 </div>
-                {proxCount > 0 && (
+                {(proxCount > 0 || constantSubstances.length > 0) && (
                   <button
                     type="button"
                     onClick={() => setExpanded(e => !e)}
                     className="btn-3d-soft flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary"
                   >
                     <Search className="h-3 w-3" />
-                    {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length})`}
+                    {expanded ? "Só do dia" : `Ver todas (${session.substanceApplications.length + constantSubstances.length})`}
                   </button>
                 )}
               </div>
+
+              {protocolSummary && (
+                <div
+                  className="px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+                  data-testid={`visit-substance-count-${session.id}`}
+                >
+                  Nesta visita: {protocolSummary.visitCount} de {protocolSummary.protocolCount} substâncias do protocolo
+                </div>
+              )}
 
               {visibleApps.length === 0 ? (
                 <div className="px-2 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
@@ -380,6 +393,28 @@ function SessionCard({
                   );
                 })
               )}
+
+              {expanded && constantSubstances.map((c: any) => (
+                <div
+                  key={`constante-${c.substanceId}`}
+                  data-testid={`constant-substance-${session.id}-${c.substanceId}`}
+                  className="bevel-3d grid grid-cols-[14px_minmax(0,1fr)_0.75rem_3rem_4.5rem_5.5rem] items-center gap-x-2 px-2.5 py-2 opacity-60"
+                >
+                  <span
+                    className="h-3.5 w-3.5 rounded-[3px] ring-1 ring-black/15 shadow-inner shrink-0"
+                    style={{ backgroundColor: c.substanceColor || "#94a3b8" }}
+                  />
+                  <span className="min-w-0 truncate text-xs font-bold uppercase tracking-tight text-foreground">
+                    {c.substanceName}
+                  </span>
+                  <span className="justify-self-center h-7 w-px bg-foreground/15" />
+                  <span className="text-[11px] font-bold tabular-nums text-right text-muted-foreground/80">
+                    {`—/${c.totalSessions}`}
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-center text-slate-400">Não nesta visita</span>
+                  <span className="justify-self-center" />
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>
