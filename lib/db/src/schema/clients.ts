@@ -19,6 +19,8 @@ export const clientsTable = pgTable("clients", {
   locationId: integer("location_id"),
   empresaId: integer("empresa_id"),
   clinicaOrigemEmpresaId: integer("clinica_origem_empresa_id"),
+  agendaEnfermagemPadraoId: integer("agenda_enfermagem_padrao_id"),
+  agendaMedicoPadraoId: integer("agenda_medico_padrao_id"),
   photoUrl: text("photo_url"),
   notes: text("notes"),
   validationPassword: text("validation_password"),
@@ -50,6 +52,13 @@ export const clientsTable = pgTable("clients", {
 export const insertClientSchema = createInsertSchema(clientsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clientsTable.$inferSelect;
+
+// Configuração da clínica para novos cadastros; escolhas individuais permanecem no cliente.
+export const clientClinicAgendaDefaultsTable = pgTable("client_clinic_agenda_defaults", {
+  empresaId: integer("empresa_id").primaryKey(),
+  enfermagemResourceId: integer("enfermagem_resource_id"),
+  medicoResourceId: integer("medico_resource_id"),
+});
 
 // Junção AGENDA PREFERENCIAL: liga um cliente a uma ou mais agendas (agenda_resources =
 // profissional × clínica). É metadado de preferência do cliente; NÃO altera o motor de agenda.

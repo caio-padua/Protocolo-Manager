@@ -68,6 +68,7 @@ import type {
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
   Client,
+  ClientAgendaOptions,
   ClientVisitPreferenceOptions,
   ClinicalAccessLocation,
   ClinicalAccessUpdate,
@@ -136,6 +137,7 @@ import type {
   ListAnamnesePerguntasParams,
   ListBudgetsParams,
   ListCatalogOptionsParams,
+  ListClientAgendaOptionsParams,
   ListClientOriginClinics200,
   ListClientsParams,
   ListClinicalDemonstrationsParams,
@@ -3458,6 +3460,102 @@ export function useListClientOriginClinics<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListClientOriginClinicsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getListClientAgendaOptionsUrl = (
+  params: ListClientAgendaOptionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/clients/agenda-opcoes?${stringifiedParams}`
+    : `/api/clients/agenda-opcoes`;
+};
+
+export const listClientAgendaOptions = async (
+  params: ListClientAgendaOptionsParams,
+  options?: RequestInit,
+): Promise<ClientAgendaOptions> => {
+  return customFetch<ClientAgendaOptions>(
+    getListClientAgendaOptionsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListClientAgendaOptionsQueryKey = (
+  params?: ListClientAgendaOptionsParams,
+) => {
+  return [`/api/clients/agenda-opcoes`, ...(params ? [params] : [])] as const;
+};
+
+export const getListClientAgendaOptionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClientAgendaOptions>>,
+  TError = ErrorType<void>,
+>(
+  params: ListClientAgendaOptionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClientAgendaOptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListClientAgendaOptionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listClientAgendaOptions>>
+  > = ({ signal }) =>
+    listClientAgendaOptions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClientAgendaOptions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClientAgendaOptionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClientAgendaOptions>>
+>;
+export type ListClientAgendaOptionsQueryError = ErrorType<void>;
+
+export function useListClientAgendaOptions<
+  TData = Awaited<ReturnType<typeof listClientAgendaOptions>>,
+  TError = ErrorType<void>,
+>(
+  params: ListClientAgendaOptionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listClientAgendaOptions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClientAgendaOptionsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useGetClient, useUpdateClient, getGetClientQueryKey, getListClientsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
+import { ClientAgendaDefaults } from "@/components/clients/client-agenda-defaults";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
 import { VisitPreferencesField, emptyVisitPreferences, visitPreferencesSchema } from "@/components/clients/visit-preferences-field";
 import { toast } from "sonner";
@@ -39,16 +40,12 @@ const formSchema = z.object({
   status: z.enum(["active", "inactive", "pending"]),
   clinicaOrigemEmpresaId: z.string().optional(),
   locationId: z.string().optional(),
+  agendaEnfermagemPadraoId: z.string().optional(),
+  agendaMedicoPadraoId: z.string().optional(),
   preferredAgendaResourceIds: z.array(z.number()).optional(),
   visitPreferences: visitPreferencesSchema,
   notes: z.string().optional(),
 });
-
-interface LocationOption {
-  id: number;
-  name: string;
-  active: boolean;
-}
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -113,6 +110,8 @@ export default function EditClient() {
   const loadedClientId = useRef<number | null>(null);
   const visitRevision = useRef<number | null>(null);
   const clinicaOrigemInicial = useRef<number | null | undefined>(undefined);
+  const enfermagemInicial = useRef<number | null | undefined>(undefined);
+  const medicoInicial = useRef<number | null | undefined>(undefined);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -135,22 +134,20 @@ export default function EditClient() {
       status: "active",
       clinicaOrigemEmpresaId: "",
       locationId: "",
+      agendaEnfermagemPadraoId: "",
+      agendaMedicoPadraoId: "",
       preferredAgendaResourceIds: [],
       visitPreferences: emptyVisitPreferences(),
       notes: "",
     },
   });
 
-  const apiBaseLoc = import.meta.env.VITE_API_URL || "/api";
-  const { data: locations } = useQuery<LocationOption[]>({
-    queryKey: ["locations"],
-    queryFn: async () => (await fetch(`${apiBaseLoc}/locations`)).json(),
-  });
-
   useEffect(() => {
     if (client && client.id === id && (loadedClientId.current !== id || !form.formState.isDirty)) {
       visitRevision.current = typeof client.visitPreferencesRevision === "number" ? client.visitPreferencesRevision : null;
       clinicaOrigemInicial.current = client.clinicaOrigemEmpresaId ?? null;
+      enfermagemInicial.current = client.agendaEnfermagemPadraoId ?? null;
+      medicoInicial.current = client.agendaMedicoPadraoId ?? null;
       const addrFields = parseAddressToFields(client.address);
       form.reset({
         name: client.name,
@@ -171,6 +168,8 @@ export default function EditClient() {
         status: (client.status as "active" | "inactive" | "pending") || "active",
         clinicaOrigemEmpresaId: client.clinicaOrigemEmpresaId != null ? String(client.clinicaOrigemEmpresaId) : "",
         locationId: (client as any).locationId != null ? String((client as any).locationId) : "",
+        agendaEnfermagemPadraoId: client.agendaEnfermagemPadraoId != null ? String(client.agendaEnfermagemPadraoId) : "",
+        agendaMedicoPadraoId: client.agendaMedicoPadraoId != null ? String(client.agendaMedicoPadraoId) : "",
         preferredAgendaResourceIds: (client as any).preferredAgendaResourceIds ?? [],
         visitPreferences: client.visitPreferences ?? emptyVisitPreferences(),
         notes: client.notes || "",
@@ -241,9 +240,14 @@ export default function EditClient() {
         comoConheceu: values.comoConheceu || undefined,
         status: values.status,
         ...(form.formState.dirtyFields.clinicaOrigemEmpresaId
-          ? { clinicaOrigemEmpresaId: values.clinicaOrigemEmpresaId ? Number(values.clinicaOrigemEmpresaId) : null,
-              clinicaOrigemEsperada: clinicaOrigemInicial.current }
+          ? { clinicaOrigemEmpresaId: values.clinicaOrigemEmpresaId ? Number(values.clinicaOrigemEmpresaId) : null }
           : {}),
+        ...(form.formState.dirtyFields.clinicaOrigemEmpresaId || form.formState.dirtyFields.agendaEnfermagemPadraoId || form.formState.dirtyFields.agendaMedicoPadraoId
+          ? { clinicaOrigemEsperada: clinicaOrigemInicial.current, agendaEnfermagemEsperada: enfermagemInicial.current, agendaMedicoEsperada: medicoInicial.current } : {}),
+        ...(form.formState.dirtyFields.agendaEnfermagemPadraoId
+          ? { agendaEnfermagemPadraoId: values.agendaEnfermagemPadraoId ? Number(values.agendaEnfermagemPadraoId) : null } : {}),
+        ...(form.formState.dirtyFields.agendaMedicoPadraoId
+          ? { agendaMedicoPadraoId: values.agendaMedicoPadraoId ? Number(values.agendaMedicoPadraoId) : null } : {}),
         ...(form.formState.dirtyFields.locationId
           ? { locationId: values.locationId ? Number(values.locationId) : null }
           : {}),
@@ -421,45 +425,19 @@ export default function EditClient() {
                     name="clinicaOrigemEmpresaId"
                     render={({ field }) => <ClinicaOrigemField value={field.value ?? ""} onChange={field.onChange} />}
                   />
-                  <FormField
-                    control={form.control}
-                    name="locationId"
-                    render={({ field }) => {
-                      const list = (locations ?? []).filter(
-                        (l) => l.active || String(l.id) === field.value,
-                      );
-                      return (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
-                            <Building2 className="h-3 w-3 text-primary" /> Local para agendas
-                          </FormLabel>
-                          <div className="concave-3d p-1">
-                            <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value || ""}>
-                              <FormControl>
-                                <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
-                                  <SelectValue placeholder="Selecione a clínica..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {list.map((l) => (
-                                  <SelectItem key={l.id} value={String(l.id)}>
-                                    {l.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
+                  <ClientAgendaDefaults clinicaId={form.watch("clinicaOrigemEmpresaId") ?? ""}
+                    location={form.watch("locationId") ?? ""} nursing={form.watch("agendaEnfermagemPadraoId") ?? ""}
+                    doctor={form.watch("agendaMedicoPadraoId") ?? ""}
+                    onLocation={v => form.setValue("locationId", v, { shouldDirty: true })}
+                    onNursing={v => form.setValue("agendaEnfermagemPadraoId", v, { shouldDirty: true })}
+                    onDoctor={v => form.setValue("agendaMedicoPadraoId", v, { shouldDirty: true })} />
 
                   <FormField
                     control={form.control}
                     name="preferredAgendaResourceIds"
                     render={({ field }) => (
                       <PreferredAgendasField
+                        clinicaId={form.watch("clinicaOrigemEmpresaId")}
                         locationId={form.watch("locationId")}
                         value={field.value ?? []}
                         onChange={field.onChange}

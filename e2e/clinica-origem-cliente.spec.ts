@@ -34,6 +34,10 @@ async function setup(context: BrowserContext, failClinics = false) {
       ] });
     }
     if (path === "/api/locations") return json([{ id: 30, name: "Local sintético", active: true }]);
+    if (path === "/api/clients/agenda-opcoes") return json({
+      locais: [{ id: 30, name: "Local sintético" }], agendas: [],
+      enfermagemPadraoId: null, medicoPadraoId: null,
+    });
     if (path === "/api/agenda/resources") return json([]);
     if (path === "/api/clients/visit-preference-options") return json({
       medical: { days: [], mismatchedResources: [] }, nursing: { days: [], mismatchedResources: [] },

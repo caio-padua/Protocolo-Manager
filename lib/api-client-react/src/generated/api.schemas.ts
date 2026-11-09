@@ -1335,6 +1335,25 @@ export interface ClientVisitPreferenceOptions {
   nursing: ClientVisitPreferenceOptionsCategory;
 }
 
+export interface ClientAgendaLocation {
+  id: number;
+  name: string;
+}
+
+export interface ClientAgendaOption {
+  id: number;
+  name: string;
+  kind: string;
+  locationId: number;
+}
+
+export interface ClientAgendaOptions {
+  locais: ClientAgendaLocation[];
+  agendas: ClientAgendaOption[];
+  enfermagemPadraoId: number | null;
+  medicoPadraoId: number | null;
+}
+
 export interface ClientOriginClinic {
   id: number;
   nome: string;
@@ -1364,6 +1383,8 @@ export interface Client {
   status: ClientStatus;
   locationId?: number | null;
   clinicaOrigemEmpresaId?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
@@ -1397,6 +1418,10 @@ export interface CreateClientBody {
   locationId?: number | null;
   clinicaOrigemEmpresaId?: number | null;
   clinicaOrigemEsperada?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
+  agendaEnfermagemEsperada?: number | null;
+  agendaMedicoEsperada?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
@@ -3150,6 +3175,13 @@ export type ListClientsParams = {
 export type ListClientOriginClinics200 = {
   empresaAtualId: number;
   clinicas: ClientOriginClinic[];
+};
+
+export type ListClientAgendaOptionsParams = {
+  /**
+   * @minimum 1
+   */
+  clinicaId: number;
 };
 
 export type UpdateSubstanceBlendComponentsBody = {

@@ -22,6 +22,10 @@ export interface CreateClientBody {
   locationId?: number | null;
   clinicaOrigemEmpresaId?: number | null;
   clinicaOrigemEsperada?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
+  agendaEnfermagemEsperada?: number | null;
+  agendaMedicoEsperada?: number | null;
   photoUrl?: string | null;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;

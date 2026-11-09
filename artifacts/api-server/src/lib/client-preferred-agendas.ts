@@ -5,6 +5,22 @@ type Executor = Pick<typeof db, "select" | "insert" | "update">;
 
 export class InvalidPreferredAgendas extends Error {}
 
+export async function validateDefaultAgenda(
+  executor: Executor, empresaId: number, clinicaId: number | null,
+  resourceId: number | null, kind: "enfermagem" | "medico",
+): Promise<void> {
+  if (resourceId === null) return;
+  if (!clinicaId || clinicaId !== empresaId) {
+    throw new InvalidPreferredAgendas("A agenda deve pertencer à clínica autorizada.");
+  }
+  const [match] = await executor.select({ id: agendaResourcesTable.id }).from(agendaResourcesTable)
+    .innerJoin(locationsTable, eq(locationsTable.id, agendaResourcesTable.locationId))
+    .where(and(eq(agendaResourcesTable.id, resourceId), eq(agendaResourcesTable.kind, kind),
+      eq(agendaResourcesTable.active, true), eq(locationsTable.empresaId, clinicaId),
+      eq(locationsTable.active, "true")));
+  if (!match) throw new InvalidPreferredAgendas("A agenda escolhida está inativa, é de outro tipo ou pertence a outra clínica.");
+}
+
 export async function validateClientLocation(
   executor: Executor, empresaId: number, locationId: number | null | undefined,
 ): Promise<void> {

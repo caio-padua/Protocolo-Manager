@@ -1,12 +1,12 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, clientsTable, clientPreferredAgendasTable, empresasTable } from "@workspace/db";
+import { db, clientsTable, clientPreferredAgendasTable, empresasTable, clientClinicAgendaDefaultsTable, agendaResourcesTable, locationsTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
 import { emitirLinkMagico } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
-import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
+import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, validateDefaultAgenda, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
 import { getVisitOptions, getVisitPreferences, setVisitPreferences, VisitPreferenceError } from "../lib/client-visit-preferences";
 import type { ClientVisitPreferences } from "@workspace/db";
 import { logIntegracao } from "./agentes-integracoes";
@@ -59,6 +59,31 @@ async function validateClinicaOrigem(executor: Pick<typeof db, "select">, id: nu
 }
 
 class ClinicaOrigemConflict extends Error {}
+
+type AgendaUpdate = {
+  clinicaOrigemEmpresaId?: number | null;
+  agendaEnfermagemPadraoId?: number | null;
+  agendaMedicoPadraoId?: number | null;
+};
+async function checkAgendaUpdate(
+  tx: any, empresaId: number, existing: ClientRow, data: AgendaUpdate,
+  expectedOrigin: number | null | undefined, expectedNursing: number | null | undefined,
+  expectedDoctor: number | null | undefined,
+) {
+  const originChanged = data.clinicaOrigemEmpresaId !== undefined && data.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId;
+  const nursingChanged = data.agendaEnfermagemPadraoId !== undefined;
+  const doctorChanged = data.agendaMedicoPadraoId !== undefined;
+  if (!(originChanged || nursingChanged || doctorChanged)) return;
+  const checkBoth = nursingChanged || doctorChanged || (originChanged && (existing.agendaEnfermagemPadraoId !== null || existing.agendaMedicoPadraoId !== null));
+  if (expectedOrigin === undefined || expectedOrigin !== existing.clinicaOrigemEmpresaId ||
+      (checkBoth && (expectedNursing === undefined || expectedNursing !== existing.agendaEnfermagemPadraoId ||
+                     expectedDoctor === undefined || expectedDoctor !== existing.agendaMedicoPadraoId))) {
+    throw new ClinicaOrigemConflict("A clínica ou uma agenda mudou. Recarregue o cadastro antes de salvar.");
+  }
+  const origin = data.clinicaOrigemEmpresaId === undefined ? existing.clinicaOrigemEmpresaId : data.clinicaOrigemEmpresaId;
+  if (originChanged || nursingChanged) await validateDefaultAgenda(tx, empresaId, origin, data.agendaEnfermagemPadraoId === undefined ? existing.agendaEnfermagemPadraoId : data.agendaEnfermagemPadraoId, "enfermagem");
+  if (originChanged || doctorChanged) await validateDefaultAgenda(tx, empresaId, origin, data.agendaMedicoPadraoId === undefined ? existing.agendaMedicoPadraoId : data.agendaMedicoPadraoId, "medico");
+}
 
 // Serializa um cliente para o contrato (datas em ISO, campos nullable normalizados) e
 // anexa a lista de agendas preferenciais (junção client_preferred_agendas).
@@ -187,6 +212,27 @@ router.get("/clients/clinicas-origem", requireCollaborator, async (req, res): Pr
   res.json({ empresaAtualId: req.tenantContext.empresaId, clinicas });
 });
 
+router.get("/clients/agenda-opcoes", requireClientWriter, async (req, res): Promise<void> => {
+  const clinicaId = Number(req.query.clinicaId);
+  if (!Number.isSafeInteger(clinicaId) || clinicaId <= 0) { res.status(400).json({ error: "Clínica inválida." }); return; }
+  if (clinicaId !== req.tenantContext.empresaId) { res.status(403).json({ error: "Agendas desta clínica não estão autorizadas nesta sessão." }); return; }
+  const locais = await db.select({ id: locationsTable.id, name: locationsTable.name }).from(locationsTable)
+    .where(and(eq(locationsTable.empresaId, clinicaId), eq(locationsTable.active, "true"))).orderBy(locationsTable.name);
+  const agendas = await db.select({ id: agendaResourcesTable.id, name: agendaResourcesTable.name,
+    kind: agendaResourcesTable.kind, locationId: locationsTable.id }).from(agendaResourcesTable)
+    .innerJoin(locationsTable, eq(locationsTable.id, agendaResourcesTable.locationId))
+    .where(and(eq(locationsTable.empresaId, clinicaId), eq(locationsTable.active, "true"),
+      eq(agendaResourcesTable.active, true)))
+    .orderBy(agendaResourcesTable.sortOrder, agendaResourcesTable.name);
+  const [defaults] = await db.select().from(clientClinicAgendaDefaultsTable)
+    .where(eq(clientClinicAgendaDefaultsTable.empresaId, clinicaId));
+  res.json({
+    locais, agendas,
+    enfermagemPadraoId: agendas.some(a => a.kind === "enfermagem" && a.id === defaults?.enfermagemResourceId) ? defaults!.enfermagemResourceId : null,
+    medicoPadraoId: agendas.some(a => a.kind === "medico" && a.id === defaults?.medicoResourceId) ? defaults!.medicoResourceId : null,
+  });
+});
+
 router.get("/clients/visit-preference-options", requireCollaborator, async (req, res): Promise<void> => {
   if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
     res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
@@ -302,7 +348,7 @@ router.post("/clients", requireClientWriter, async (req, res): Promise<void> => 
     return;
   }
 
-  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada: _expected, ...clientData } = parsed.data;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada: _expected, agendaEnfermagemEsperada: _nursing, agendaMedicoEsperada: _doctor, ...clientData } = parsed.data;
   const locationId = clientData.locationId ?? null;
   const empresaId = req.tenantContext.empresaId;
 
@@ -310,8 +356,15 @@ router.post("/clients", requireClientWriter, async (req, res): Promise<void> => 
     const result = await db.transaction(async (tx) => {
       const clinicaOrigemEmpresaId = clientData.clinicaOrigemEmpresaId ?? empresaId;
       await validateClinicaOrigem(tx, clinicaOrigemEmpresaId);
+      const [defaults] = clinicaOrigemEmpresaId === empresaId
+        ? await tx.select().from(clientClinicAgendaDefaultsTable).where(eq(clientClinicAgendaDefaultsTable.empresaId, empresaId)) : [];
+      const agendaEnfermagemPadraoId = clientData.agendaEnfermagemPadraoId === undefined ? (defaults?.enfermagemResourceId ?? null) : clientData.agendaEnfermagemPadraoId;
+      const agendaMedicoPadraoId = clientData.agendaMedicoPadraoId === undefined ? (defaults?.medicoResourceId ?? null) : clientData.agendaMedicoPadraoId;
+      await validateDefaultAgenda(tx, empresaId, clinicaOrigemEmpresaId, agendaEnfermagemPadraoId, "enfermagem");
+      await validateDefaultAgenda(tx, empresaId, clinicaOrigemEmpresaId, agendaMedicoPadraoId, "medico");
+      if (locationId !== null && clinicaOrigemEmpresaId !== empresaId) throw new InvalidPreferredAgendas("O local deve pertencer à clínica autorizada.");
       const [created] = await tx.insert(clientsTable)
-        .values({ ...clientData, empresaId, locationId, clinicaOrigemEmpresaId }).returning();
+        .values({ ...clientData, empresaId, locationId, clinicaOrigemEmpresaId, agendaEnfermagemPadraoId, agendaMedicoPadraoId }).returning();
       if (!created) throw new Error("Falha ao criar cliente");
       await validateClientLocation(tx, empresaId, created.locationId);
       await setPreferredAgendas(tx, created, preferredAgendaResourceIds);
@@ -345,20 +398,25 @@ router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> 
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, ...clientData } = parsed.data;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada, ...clientData } = parsed.data;
   try {
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
       if (!existing) return null;
+      await checkAgendaUpdate(tx, empresaId, existing, clientData, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada);
       if (clientData.clinicaOrigemEmpresaId !== undefined) {
         if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
           throw new ClinicaOrigemConflict("A clínica de origem mudou ou não pôde ser conferida. Recarregue antes de salvar.");
         }
         if (clientData.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId) {
           await validateClinicaOrigem(tx, clientData.clinicaOrigemEmpresaId);
+          const location = clientData.locationId === undefined ? existing.locationId : clientData.locationId;
+          if (location !== null) await validateClientLocation(tx, clientData.clinicaOrigemEmpresaId!, location);
         }
       }
       if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
+        const origin = clientData.clinicaOrigemEmpresaId === undefined ? existing.clinicaOrigemEmpresaId : clientData.clinicaOrigemEmpresaId;
+        if (clientData.locationId !== null && origin !== empresaId) throw new InvalidPreferredAgendas("O local deve pertencer à clínica autorizada.");
         await validateClientLocation(tx, empresaId, clientData.locationId);
       }
       if (preferredAgendaResourceIds === undefined && clientData.locationId !== undefined &&
@@ -403,20 +461,25 @@ router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void
 
   const empresaId = req.tenantContext.empresaId;
   const tenantWhere = and(eq(clientsTable.id, params.data.id), eq(clientsTable.empresaId, empresaId));
-  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, ...clientData } = parsed.data;
+  const { preferredAgendaResourceIds, visitPreferences, visitPreferencesRevision, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada, ...clientData } = parsed.data;
   try {
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
       if (!existing) return null;
+      await checkAgendaUpdate(tx, empresaId, existing, clientData, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada);
       if (clientData.clinicaOrigemEmpresaId !== undefined) {
         if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
           throw new ClinicaOrigemConflict("A clínica de origem mudou ou não pôde ser conferida. Recarregue antes de salvar.");
         }
         if (clientData.clinicaOrigemEmpresaId !== existing.clinicaOrigemEmpresaId) {
           await validateClinicaOrigem(tx, clientData.clinicaOrigemEmpresaId);
+          const location = clientData.locationId === undefined ? existing.locationId : clientData.locationId;
+          if (location !== null) await validateClientLocation(tx, clientData.clinicaOrigemEmpresaId!, location);
         }
       }
       if (clientData.locationId !== undefined && clientData.locationId !== existing.locationId) {
+        const origin = clientData.clinicaOrigemEmpresaId === undefined ? existing.clinicaOrigemEmpresaId : clientData.clinicaOrigemEmpresaId;
+        if (clientData.locationId !== null && origin !== empresaId) throw new InvalidPreferredAgendas("O local deve pertencer à clínica autorizada.");
         await validateClientLocation(tx, empresaId, clientData.locationId);
       }
       if (preferredAgendaResourceIds === undefined && clientData.locationId !== undefined &&

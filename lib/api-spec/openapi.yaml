@@ -769,6 +769,22 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/ClientOriginClinic" }
         "401": { description: Sessão inválida. }
+  /clients/agenda-opcoes:
+    get:
+      operationId: listClientAgendaOptions
+      tags: [clients]
+      parameters:
+        - name: clinicaId
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Locais e agendas da clínica autorizada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClientAgendaOptions" }
+        "403": { description: Clínica não autorizada. }
   /clients/visit-preference-options:
     get:
       operationId: getClientVisitPreferenceOptions
@@ -5023,6 +5039,32 @@ components:
           $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
         nursing:
           $ref: "#/components/schemas/ClientVisitPreferenceOptionsCategory"
+    ClientAgendaOptions:
+      type: object
+      required: [locais, agendas, enfermagemPadraoId, medicoPadraoId]
+      properties:
+        locais:
+          type: array
+          items: { $ref: "#/components/schemas/ClientAgendaLocation" }
+        agendas:
+          type: array
+          items: { $ref: "#/components/schemas/ClientAgendaOption" }
+        enfermagemPadraoId: { type: integer, nullable: true }
+        medicoPadraoId: { type: integer, nullable: true }
+    ClientAgendaLocation:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    ClientAgendaOption:
+      type: object
+      required: [id, name, kind, locationId]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        locationId: { type: integer }
     ClientOriginClinic:
       type: object
       required: [id, nome]
@@ -5066,6 +5108,12 @@ components:
           type: integer
           nullable: true
         clinicaOrigemEmpresaId:
+          type: integer
+          nullable: true
+        agendaEnfermagemPadraoId:
+          type: integer
+          nullable: true
+        agendaMedicoPadraoId:
           type: integer
           nullable: true
         photoUrl:
@@ -5134,6 +5182,18 @@ components:
           type: integer
           nullable: true
         clinicaOrigemEsperada:
+          type: integer
+          nullable: true
+        agendaEnfermagemPadraoId:
+          type: integer
+          nullable: true
+        agendaMedicoPadraoId:
+          type: integer
+          nullable: true
+        agendaEnfermagemEsperada:
+          type: integer
+          nullable: true
+        agendaMedicoEsperada:
           type: integer
           nullable: true
         photoUrl:

@@ -25,9 +25,10 @@ vi.mock("../lib/telegram-magic-link", () => ({ emitirLinkMagico: vi.fn() }));
 vi.mock("../routes/agentes-integracoes", () => ({ logIntegracao: vi.fn() }));
 
 import {
-  agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, clientsTable, empresasTable,
+  agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, clientsTable, empresasTable, clientClinicAgendaDefaultsTable,
   locationProfessionalsTable, locationsTable, professionalsTable,
 } from "@workspace/db/schema";
+import { readFileSync } from "node:fs";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import clientsRouter from "../routes/clients";
@@ -51,7 +52,7 @@ function createTableSql(table: any, extras = "") {
 beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
-  for (const table of [clientsTable, professionalsTable, empresasTable, locationsTable, locationProfessionalsTable, agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientVisitPreferenceRevisionsTable]) {
+  for (const table of [clientsTable, professionalsTable, empresasTable, locationsTable, locationProfessionalsTable, agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientVisitPreferenceRevisionsTable, clientClinicAgendaDefaultsTable]) {
     await isolated.pool.query(createTableSql(table));
   }
   await isolated.pool.query(createTableSql(clientPreferredAgendasTable, ", UNIQUE(client_id, agenda_resource_id)"));
@@ -412,14 +413,77 @@ describe("Cadastro de cliente e agendas preferenciais", () => {
       .set("Authorization", `Bearer ${otherCompany}`)
       .send({ clinicaOrigemEmpresaId: 6, clinicaOrigemEsperada: 5 });
     expect(forbidden.status).toBe(404);
+    expect((await request(app).patch(`/clients/${made.body.id}`).set(auth)
+      .send({ clinicaOrigemEmpresaId: 6, clinicaOrigemEsperada: 5 })).status).toBe(400);
     const responses = await Promise.all([6, 7].map(clinicaOrigemEmpresaId =>
       request(app).patch(`/clients/${made.body.id}`).set(auth)
-        .send({ clinicaOrigemEmpresaId, clinicaOrigemEsperada: 5 })));
+        .send({ clinicaOrigemEmpresaId, clinicaOrigemEsperada: 5, locationId: null, preferredAgendaResourceIds: [] })));
     expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
     const result = await request(app).get(`/clients/${made.body.id}`).set(auth);
     expect(result.body.clinicaOrigemEmpresaId).toBe(responses.find(r => r.status === 200)!.body.clinicaOrigemEmpresaId);
     expect(result.body.empresaId).toBe(5);
-    expect(result.body.locationId).toBe(8);
-    expect(result.body.preferredAgendaResourceIds).toEqual([11]);
+    expect(result.body.locationId).toBeNull();
+    expect(result.body.preferredAgendaResourceIds).toEqual([]);
+  });
+
+  it("filtra e persiste uma agenda por tipo sem trocar o local ou aceitar outra empresa", async () => {
+    const auth = { Authorization: `Bearer ${collaborator}` };
+    await isolated.pool.query(`
+      INSERT INTO locations (id, empresa_id, active, name) VALUES (10, 5, 'true', 'Segundo local');
+      INSERT INTO agenda_resources (id, name, kind, slot_minutes, location_id, active, sort_order)
+        VALUES (14, 'Enfermagem outro local', 'enfermagem', 20, 10, true, 1),
+               (15, 'Enfermagem inativa', 'enfermagem', 20, 8, false, 2),
+               (16, 'Nutrição', 'nutricao', 60, 8, true, 3);
+      INSERT INTO client_clinic_agenda_defaults (empresa_id, enfermagem_resource_id, medico_resource_id) VALUES (5, 11, 12);
+    `);
+    expect((await request(app).get("/clients/agenda-opcoes?clinicaId=5")).status).toBe(401);
+    expect((await request(app).get("/clients/agenda-opcoes?clinicaId=6").set(auth)).status).toBe(403);
+    const options = await request(app).get("/clients/agenda-opcoes?clinicaId=5").set(auth);
+    expect(options.status).toBe(200);
+    expect(options.body.agendas.map((a: { id: number }) => a.id).sort()).toEqual([11, 12, 14, 16]);
+    expect(options.body.locais.map((l: { id: number }) => l.id).sort((a: number, b: number) => a - b)).toEqual([8, 10]);
+    const created = await request(app).post("/clients").set(auth).send({ ...base, name: "Cliente agendas padrão" });
+    expect(created.status, created.text).toBe(201);
+    expect(created.body.agendaEnfermagemPadraoId).toBe(11);
+    expect(created.body.agendaMedicoPadraoId).toBe(12);
+    const id = created.body.id;
+    const invalidType = await request(app).patch(`/clients/${id}`).set(auth).send({ clinicaOrigemEsperada: 5, agendaEnfermagemEsperada: 11, agendaMedicoEsperada: 12, agendaEnfermagemPadraoId: 12 });
+    expect(invalidType.status).toBe(400);
+    const other = await request(app).patch(`/clients/${id}`).set(auth).send({ clinicaOrigemEsperada: 5, agendaEnfermagemEsperada: 11, agendaMedicoEsperada: 12, agendaEnfermagemPadraoId: 13 });
+    expect(other.status).toBe(400);
+    expect((await request(app).patch(`/clients/${id}`).set(auth).send({ clinicaOrigemEsperada: 5, agendaEnfermagemPadraoId: 14 })).status).toBe(409);
+    const updated = await request(app).patch(`/clients/${id}`).set(auth).send({ clinicaOrigemEsperada: 5, agendaEnfermagemEsperada: 11, agendaMedicoEsperada: 12, agendaEnfermagemPadraoId: 14 });
+    expect(updated.status, updated.text).toBe(200);
+    const read = await request(app).get(`/clients/${id}`).set(auth);
+    expect(read.body.agendaEnfermagemPadraoId).toBe(14);
+    expect(read.body.agendaMedicoPadraoId).toBe(12);
+    expect(read.body.locationId).toBe(8);
+    expect(read.body.preferredAgendaResourceIds).toEqual([11]);
+    expect((await request(app).patch(`/clients/${id}`).set(auth).send({ clinicaOrigemEsperada: 5, agendaEnfermagemEsperada: 11, agendaMedicoEsperada: 12, agendaEnfermagemPadraoId: null })).status).toBe(409);
+    expect((await request(app).put(`/clients/${id}`).set(auth).send({ ...base, clinicaOrigemEsperada: 5, agendaEnfermagemEsperada: 11, agendaMedicoEsperada: 12, agendaMedicoPadraoId: null })).status).toBe(409);
+    expect((await request(app).patch(`/clients/${id}`).set(auth).send({ clinicaOrigemEsperada: 5, agendaEnfermagemEsperada: 14, agendaMedicoEsperada: 12, clinicaOrigemEmpresaId: 6 })).status).toBe(400);
+  });
+
+  it("preenche padrões apenas uma vez e preserva escolhas existentes em banco isolado", async () => {
+    await isolated.pool.query(`
+      DELETE FROM client_clinic_agenda_defaults WHERE empresa_id = 5;
+      UPDATE empresas SET nome = 'Instituto Padua' WHERE id = 5;
+      INSERT INTO agenda_resources (id, name, kind, slot_minutes, location_id, active)
+        VALUES (23, 'AGENDA ENFERMAGEM - LOCAL', 'enfermagem', 20, 8, true),
+               (22, 'AGENDA MEDICO - CAIO PADUA - LOCAL', 'medico', 60, 10, true);
+      INSERT INTO clients (id, name, empresa_id, clinica_origem_empresa_id, location_id, agenda_enfermagem_padrao_id)
+        VALUES (9001, 'Sintético sem padrão', 5, 5, 8, NULL),
+               (9002, 'Sintético com escolha', 5, 5, 8, 14),
+               (9003, 'Outra clínica', 6, 6, 9, NULL);
+    `);
+    const script = readFileSync(new URL("../../../../scripts/preencher-agendas-padrao-instituto-padua.sql", import.meta.url), "utf8");
+    await isolated.pool.query(script);
+    const { rows } = await isolated.pool.query("SELECT id, location_id, agenda_enfermagem_padrao_id, agenda_medico_padrao_id FROM clients WHERE id IN (9001,9002,9003) ORDER BY id");
+    expect(rows).toEqual([
+      { id: 9001, location_id: 8, agenda_enfermagem_padrao_id: 23, agenda_medico_padrao_id: 22 },
+      { id: 9002, location_id: 8, agenda_enfermagem_padrao_id: 14, agenda_medico_padrao_id: 22 },
+      { id: 9003, location_id: 9, agenda_enfermagem_padrao_id: null, agenda_medico_padrao_id: null },
+    ]);
+    await expect(isolated.pool.query(script)).rejects.toThrow("operação única não será repetida");
   });
 });

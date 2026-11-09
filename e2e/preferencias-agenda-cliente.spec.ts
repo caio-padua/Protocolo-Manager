@@ -3,7 +3,7 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 async function setup(context: BrowserContext, options: { resourcesFail?: boolean; visitOptionsFail?: boolean; stale?: boolean; multiDay?: boolean } = {}) {
   const client = {
     id: 42, name: "Cliente Sintético", cpf: "12345678901", email: "cliente@example.invalid",
-    phone: "11999999999", status: "active", locationId: 8, preferredAgendaResourceIds: [11],
+    phone: "11999999999", status: "active", locationId: 8, clinicaOrigemEmpresaId: 5, preferredAgendaResourceIds: [11],
     birthDate: null, address: null, notes: null, createdAt: "2026-01-01T12:00:00Z",
     updatedAt: "2026-01-01T12:00:00Z",
     visitPreferencesRevision: 7,
@@ -41,6 +41,16 @@ async function setup(context: BrowserContext, options: { resourcesFail?: boolean
       });
     }
     if (path === "/api/locations") return json([{ id: 8, name: "Local sintético" }]);
+    if (path === "/api/clients/clinicas-origem") return json({
+      empresaAtualId: 5, clinicas: [{ id: 5, nome: "Clínica Sintética", nick: null, razaoSocial: "CLÍNICA SINTÉTICA" }],
+    });
+    if (path === "/api/clients/agenda-opcoes") return json({
+      locais: [{ id: 8, name: "Local sintético" }], agendas: [
+        { id: 11, name: "Enfermagem Sintética", kind: "enfermagem", locationId: 8 },
+        { id: 12, name: "Médico Sintético", kind: "medico", locationId: 8 },
+      ],
+      enfermagemPadraoId: null, medicoPadraoId: null,
+    });
     if (path === "/api/agenda/resources") {
       if (options.resourcesFail) return json({ error: "Indisponível" }, 503);
       return json([

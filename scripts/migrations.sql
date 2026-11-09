@@ -408,3 +408,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Clínica de origem independente da empresa de acesso e do local operacional.
 \ir migrations/20261109_clinica_origem_cliente.sql
+
+-- Agendas padrao por tipo no cadastro de clientes.
+\ir migrations/20261109_agendas_padrao_cliente.sql
