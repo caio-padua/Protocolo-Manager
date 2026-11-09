@@ -1,5 +1,5 @@
 // Prova offline com dados fictícios; não usa prontuário, banco ou serviços externos.
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { PNG } from "pngjs";
 import { generateReceituarioPdfV2 } from "../lib/receituario-pdf";
 
@@ -10,27 +10,27 @@ async function main() {
   if (!destino) throw new Error("Informe o caminho do documento de prova.");
   const especial = process.argv[3] === "especial" || process.argv[3] === "especial-longo";
   const longo = process.argv[3] === "especial-longo";
-  const simbolo = new PNG({ width: 40, height: 40 });
-  for (let y = 0; y < 40; y++) for (let x = 0; x < 40; x++) {
-    const n = (y * 40 + x) * 4;
-    const raio = Math.hypot(x - 19.5, y - 19.5);
+  // Amostra para o Instituto Pádua: mesma silhueta oficial adotada no sistema,
+  // com cor dourada e canal de transparência originais preservados.
+  const simbolo = PNG.sync.read(await readFile(new URL("../../../padcom/src/assets/padua-dp-mask.png", import.meta.url)));
+  for (let n = 0; n < simbolo.data.length; n += 4) {
     simbolo.data[n] = 214; simbolo.data[n + 1] = 175; simbolo.data[n + 2] = 88;
-    simbolo.data[n + 3] = raio > 12 && raio < 19 ? 255 : 0;
   }
   const pdf = await generateReceituarioPdfV2({
     homologacao: true, modelo2bProva: true, modeloGrandFinaleProva: true,
     identidade2bProva: {
       simboloDourado: PNG.sync.write(simbolo),
+      nomeImagem: await readFile(new URL("../../../padcom/src/assets/padua-wordmark.png", import.meta.url)),
       textos: {
-        nomeCabecalho: "Clínica Exemplo",
-        rodapeLinha1: "Clínica Exemplo",
+        nomeCabecalho: "Instituto Pádua",
+        rodapeLinha1: "Instituto Pádua",
         rodapeLinha2: "Endereço fictício",
         rodapeLinha3: "Cidade fictícia",
       },
     },
     assinaturaDigitalEstado: "sem_certificado_vencido",
     medicoName: "Profissional fictício", medicoCrm: "12345/SP",
-    clinicaNome: "Clínica Exemplo", clinicaEndereco: "Rua Exemplo, 10",
+    clinicaNome: "Instituto Pádua", clinicaEndereco: "Rua Exemplo, 10",
     pacienteNome: "Cliente fictício", pacienteEndereco: "Rua Teste, 20",
     dataEmissao: "2026-11-09", tipoReceita: especial ? "especial" : "simples",
     formulas: Array.from({ length: especial ? 1 : 6 }, (_, index) => ({

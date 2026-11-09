@@ -21,18 +21,25 @@ export const GRAND_FINALE = {
   corpoTopo: py(558),
   corpoBase: py(1004),
   assinaturaBase: py(1226),
-  quadrosEspecialAltura: 130,
+  quadrosEspecialAltura: 117,
+  quadrosEspecialEscala: 0.9,
+  quadrosEspecialBase: 146,
+  assinaturaEspecialBase: 271,
+  corpoEspecialBase: 351,
+  rodapeEspecialTopo: 130,
 } as const;
 
 export type IdentidadeGrandFinale = {
   textos: TextosEmpresa2b;
   simboloDourado: Uint8Array;
+  nomeImagem?: Uint8Array;
 };
 
 export type ArteGrandFinale = {
   fundo: PDFImage;
   simbolo: PDFImage;
   quadrosEspecial: PDFImage;
+  nomeImagem?: PDFImage;
   textos: TextosEmpresa2b;
 };
 
@@ -69,7 +76,8 @@ export async function prepararArteGrandFinale(
   if (quadrosEspecial.width !== 1055 || quadrosEspecial.height !== 210) {
     throw new Error("As dimensões da arte dos quadros especiais são inválidas.");
   }
-  return { fundo, simbolo, quadrosEspecial, textos: identidade.textos };
+  const nomeImagem = identidade.nomeImagem ? await doc.embedPng(identidade.nomeImagem) : undefined;
+  return { fundo, simbolo, quadrosEspecial, nomeImagem, textos: identidade.textos };
 }
 
 function tamanhoQueCabe(font: PDFFont, texto: string, largura: number, inicial: number, minimo: number): number {
@@ -91,19 +99,21 @@ export function desenharQuadrosEspeciaisGrandFinale(
   page: PDFPage, arte: ArteGrandFinale, fonte: PDFFont,
   topo: number, altura: number, titulos: [string, string],
 ): void {
+  const escala = GRAND_FINALE.quadrosEspecialEscala;
+  const deslocamentoX = (LARGURA * (1 - escala)) / 2;
   const alturaImagem = altura * 210 / 190;
   page.drawImage(arte.quadrosEspecial, {
-    x: 0, y: topo + alturaImagem * 3 / 210 - alturaImagem,
-    width: LARGURA, height: alturaImagem,
+    x: deslocamentoX, y: topo + alturaImagem * 3 / 210 - alturaImagem,
+    width: LARGURA * escala, height: alturaImagem,
   });
   for (let i = 0; i < 2; i++) {
-    const x = px(i === 0 ? 83 : 582);
-    const largura = px(388);
+    const x = deslocamentoX + px(i === 0 ? 83 : 582) * escala;
+    const largura = px(388) * escala;
     const titulo = titulos[i];
-    const tamanho = tamanhoQueCabe(fonte, titulo, largura - 14, 10.5, 7);
+    const tamanho = tamanhoQueCabe(fonte, titulo, largura - 14, 9.45, 7);
     page.drawText(titulo, {
       x: x + (largura - fonte.widthOfTextAtSize(titulo, tamanho)) / 2,
-      y: topo - 16, font: fonte, size: tamanho, color: tinta,
+      y: topo - 14.4, font: fonte, size: tamanho, color: tinta,
     });
   }
 }
@@ -119,10 +129,20 @@ export function desenharPaginaGrandFinale(
     throw new Error("O receituário Grand Finale exige página A4 retrato.");
   }
   page.drawImage(arte.fundo, { x: 0, y: 0, width: LARGURA, height: ALTURA });
+  if (tipo === "especial") {
+    // Remove apenas a moldura interna inferior da arte comum. A moldura externa
+    // e o rodapé permanecem; certificado e quadros são desenhados por cima.
+    page.drawRectangle({ x: 32, y: 136, width: LARGURA - 64, height: 144,
+      color: rgb(0.988, 0.984, 0.973) });
+  }
   imagemContida(page, arte.simbolo, px(82), py(170), px(75), py(60) - py(170));
   const nome = arte.textos.nomeCabecalho.trim();
   const tamanhoNome = tamanhoQueCabe(fontes.titulo, nome, px(300), 18, 8);
-  page.drawText(nome, { x: px(170), y: py(121), size: tamanhoNome, font: fontes.titulo, color: ouro });
+  if (arte.nomeImagem) {
+    imagemContida(page, arte.nomeImagem, px(170), py(152), px(270), px(57));
+  } else {
+    page.drawText(nome, { x: px(170), y: py(121), size: tamanhoNome, font: fontes.titulo, color: ouro });
+  }
   const titulo = tipo === "especial" ? "Receituário de controle especial" : "Receituário comum";
   const tamanhoTitulo = tamanhoQueCabe(fontes.titulo, titulo, px(330), 16, 9);
   page.drawText(titulo, {

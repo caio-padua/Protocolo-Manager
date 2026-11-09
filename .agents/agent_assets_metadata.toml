@@ -1082,3 +1082,17 @@ mtime_ms = 1794201934200
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/97178b55-e701-4fe7-bd5e-3fdbd6b0fd03/0e018d6d-b58c-4b54-8554-15c649d45465"
 storage_version_token = "1794202180138854"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "bbJAeGtWh2R2Qw5l0GLn0"
+uri = "file://generated-artifacts/provas/receituario-especial-instituto-padua.pdf"
+type = "pdf"
+title = "Receituário especial — Instituto Pádua"
+description = "Amostra visual com a marca oficial, faixa do certificado acima dos quadros e mais espaço para fórmulas. Dados fictícios; sem assinatura e sem validade clínica."
+logical_id = "9559fcbf-4817-4f7c-a899-c88430ec0282"
+content_hash = "sha256:99d0f692eb3e3d1647783b09f6a470c3f84163e5034d5f90039c20fa562d19f8"
+size = 3163752
+mtime_ms = 1794202738863
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9559fcbf-4817-4f7c-a899-c88430ec0282/f1a025d4-37ff-433c-8a01-b0705f47f4e9"
+storage_version_token = "1794202833091022"
+content_type = "application/pdf"

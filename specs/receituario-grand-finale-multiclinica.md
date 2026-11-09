@@ -20,10 +20,16 @@ uma clínica ou profissional a outra pessoa.
 6. Receituário comum e especial compartilham o modelo, mas preservam os campos
    obrigatórios e particularidades existentes de cada um. No especial, os
    quadros existentes do comprador e do fornecedor ficam lado a lado, ancorados
-   na parte inferior da área do conteúdo, acima da faixa do certificado.
+    na parte inferior da área do conteúdo, abaixo da faixa do certificado.
    Os quadros inferiores reproduzem a moldura dos superiores e a mesma faixa
    ornamental atrás deles, sem apagar os campos do comprador e da farmácia.
-   Se não couberem depois do conteúdo, vão juntos para a próxima página.
+    O bloco atual do certificado permanece íntegro acima dos quadros na receita
+    especial; no receituário comum, sua posição inferior não muda.
+    Os quadros especiais e suas letras diminuem proporcionalmente, sem cortar
+    campos, para liberar espaço às fórmulas; textos continuam legíveis.
+    Se o conteúdo não couber na área disponível, continua na página seguinte.
+    A amostra solicitada utiliza nome e símbolo oficiais do Instituto Pádua
+    explicitamente; o motor não deve impor essa identidade a outras empresas.
 7. Uma receita longa pagina sem perder textos e sem sobrepor o certificado;
    cada página identifica a clínica e o documento corretamente.
 8. A falta de identidade válida, símbolo ou dados indispensáveis não pode

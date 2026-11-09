@@ -9,7 +9,7 @@ import {
   GRAND_FINALE, carimbarRodapeGrandFinale, desenharPaginaGrandFinale,
   prepararArteGrandFinale,
 } from "../lib/documentos/receituario-grand-finale";
-import { desenharAssinatura3a1c } from "../lib/documentos/bloco-assinatura-3a1c";
+import { ASSINATURA_3A1C_ALTURA, desenharAssinatura3a1c } from "../lib/documentos/bloco-assinatura-3a1c";
 import { generateReceituarioPdfV2, type ReceituarioDataV2 } from "../lib/receituario-pdf";
 
 function simbolo(): Uint8Array {
@@ -154,7 +154,17 @@ describe("Prova Grand Finale pelo gerador de receitas existente", () => {
     expect(result).toContain("Identificação da farmácia");
     expect(result).toContain("Fórmula sintética 1");
   });
-  it("ancora comprador e farmácia lado a lado acima da assinatura em receita longa", async () => {
+  it("reserva espaço entre conteúdo, certificado, quadros e rodapé especial", () => {
+    const alturaImagem = GRAND_FINALE.quadrosEspecialAltura * 210 / 190;
+    const topoQuadros = GRAND_FINALE.quadrosEspecialBase + GRAND_FINALE.quadrosEspecialAltura;
+    const fundoImagem = topoQuadros + alturaImagem * 3 / 210 - alturaImagem;
+    expect(fundoImagem).toBeGreaterThan(GRAND_FINALE.rodapeEspecialTopo);
+    expect(GRAND_FINALE.assinaturaEspecialBase).toBeGreaterThan(topoQuadros);
+    expect(GRAND_FINALE.corpoEspecialBase).toBeGreaterThan(
+      GRAND_FINALE.assinaturaEspecialBase + ASSINATURA_3A1C_ALTURA,
+    );
+  });
+  it("ancora comprador e farmácia lado a lado abaixo da assinatura em receita longa", async () => {
     const bytes = await generateReceituarioPdfV2({ ...base, tipoReceita: "especial" });
     const paginas = extrair(bytes, "-bbox").match(/<page\b[\s\S]*?<\/page>/g) ?? [];
     expect(paginas.length).toBeGreaterThan(1);
@@ -171,7 +181,7 @@ describe("Prova Grand Finale pelo gerador de receitas existente", () => {
     expect(comprador.x).toBeLessThan(fornecedor.x);
     expect(Math.abs(comprador.y - fornecedor.y)).toBeLessThan(1);
     expect(comprador.y).toBeGreaterThan(400);
-    expect(comprador.y).toBeLessThan(assinatura.y);
+    expect(assinatura.y).toBeLessThan(comprador.y);
     for (const pagina of paginas) expect(pagina).toContain(">GERADA</word>");
     const textoCompleto = texto(bytes);
     for (let i = 1; i <= 7; i++) expect(textoCompleto).toContain(`Fórmula sintética ${i}`);
@@ -187,9 +197,9 @@ describe("Prova Grand Finale pelo gerador de receitas existente", () => {
     const ultima = paginas[paginas.length - 1];
     expect(ultima).toContain(">comprador</word>");
     expect(ultima).toContain(">farmácia</word>");
-    const topoQuadros = GRAND_FINALE.altura - (GRAND_FINALE.corpoBase + 8 + GRAND_FINALE.quadrosEspecialAltura);
+    const topoCertificado = GRAND_FINALE.altura - (GRAND_FINALE.assinaturaEspecialBase + ASSINATURA_3A1C_ALTURA);
     for (const item of ultima.matchAll(/<word\b[^>]*yMax="([\d.]+)"[^>]*>ATIVO\d{3}<\/word>/g)) {
-      expect(Number(item[1])).toBeLessThan(topoQuadros);
+      expect(Number(item[1])).toBeLessThan(topoCertificado);
     }
     const resultado = texto(bytes);
     for (let i = 1; i <= 42; i++) expect(resultado).toContain(`ATIVO${String(i).padStart(3, "0")}`);

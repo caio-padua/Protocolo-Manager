@@ -419,7 +419,7 @@ export interface ReceituarioDataV2 {
   modelo2bProva?: boolean;
   /** Prova do Grand Finale, restrita a dados sintéticos fora de produção. */
   modeloGrandFinaleProva?: boolean;
-  identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
+  identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array; nomeImagem?: Uint8Array };
   identidade2bClinica?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
 
@@ -575,19 +575,20 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     bx: number, by: number, label: string,
     value: string | null | undefined,
     maxW: number,
-    opts: { bold?: boolean; valueSize?: number } = {},
+    opts: { bold?: boolean; valueSize?: number; escala?: number } = {},
   ): number {
-    const vSize = opts.valueSize ?? 7;
+    const escala = opts.escala ?? 1;
+    const vSize = (opts.valueSize ?? 7) * escala;
     const vFont = opts.bold ? fontBold : fontReg;
     // Rótulo: 6pt bold #555, letterSpacing via espaçamento manual entre palavras
     page.drawText(`${label.toUpperCase()}:`, {
-      x: bx, y: by, font: fontBold, size: 6, color: MUTED,
+      x: bx, y: by, font: fontBold, size: 6 * escala, color: MUTED,
     });
-    by -= 9;
+    by -= 9 * escala;
     if (value?.trim()) {
       for (const ln of wrapLines(value, vFont, vSize, maxW)) {
         page.drawText(ln, { x: bx, y: by, font: vFont, size: vSize, color: DARK });
-        by -= (vSize + 2);
+        by -= (vSize + 2 * escala);
       }
     } else {
       // Linha pontilhada: 0.4px dotted #bbb (motor: borderBottom dotted #bbb)
@@ -595,9 +596,9 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         start: { x: bx, y: by + 2 }, end: { x: bx + maxW, y: by + 2 },
         thickness: 0.4, color: rgb(0.73, 0.73, 0.73), dashArray: [1, 2.5], dashPhase: 0,
       });
-      by -= 10;
+      by -= 10 * escala;
     }
-    return by - 2;
+    return by - 2 * escala;
   }
 
   /**
@@ -608,6 +609,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     bx: number, by: number,
     cols: { label: string; value?: string | null }[],
     totalW: number,
+    escala = 1,
   ): number {
     const GAP  = 6;  // gap em pt entre colunas (≈ 6mm seria 17pt mas comprimimos)
     const nCols = cols.length;
@@ -616,15 +618,15 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       const cx = bx + i * (colW + GAP);
       const c  = cols[i];
       page.drawText(`${c.label.toUpperCase()}:`, {
-        x: cx, y: by, font: fontBold, size: 6, color: MUTED,
+        x: cx, y: by, font: fontBold, size: 6 * escala, color: MUTED,
       });
-      const vy = by - 9;
+      const vy = by - 9 * escala;
       if (c.value?.trim()) {
         let txt = safeTxt(c.value);
-        while (txt.length > 1 && (fontReg as any).widthOfTextAtSize(txt, 7) > colW - 2) {
+        while (txt.length > 1 && (fontReg as any).widthOfTextAtSize(txt, 7 * escala) > colW - 2) {
           txt = txt.slice(0, -1);
         }
-        page.drawText(txt, { x: cx, y: vy, font: fontReg, size: 7, color: DARK });
+        page.drawText(txt, { x: cx, y: vy, font: fontReg, size: 7 * escala, color: DARK });
       } else {
         page.drawLine({
           start: { x: cx, y: vy + 2 }, end: { x: cx + colW - 2, y: vy + 2 },
@@ -632,7 +634,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
         });
       }
     }
-    return by - 9 - 9 - 3;
+    return by - 21 * escala;
   }
 
   /** Linha decorativa fina — igual ao <LinhaDecorativa/> do motor. */
@@ -766,10 +768,13 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const BOX_GAP = configNumber(designer, "boxBandGap", 4, 2, 15) * MM;
   const BOX_TOTAL_W = CW * configNumber(designer, "boxWidthPct", 100, 30, 100) / 100;
   const BOX_CONTENT_W = Math.max(1, BOX_TOTAL_W - BOX_GAP);
-  const BOX1_W = grandFinale ? 388 * PAGE_W / 1055 : BOX_CONTENT_W * configNumber(designer, "boxLeftWidthPercent", 50, 30, 70) / 100;
+  const especialCompacto = !!grandFinale && tipo === "especial";
+  const escalaQuadros = especialCompacto ? GRAND_FINALE.quadrosEspecialEscala : 1;
+  const deslocamentoQuadros = PAGE_W * (1 - escalaQuadros) / 2;
+  const BOX1_W = grandFinale ? 388 * PAGE_W / 1055 * escalaQuadros : BOX_CONTENT_W * configNumber(designer, "boxLeftWidthPercent", 50, 30, 70) / 100;
   const BOX2_W = grandFinale ? BOX1_W : BOX_CONTENT_W - BOX1_W;
-  const BX1 = grandFinale ? 83 * PAGE_W / 1055 : M + (CW - BOX_TOTAL_W) / 2;
-  const BX2 = grandFinale ? 582 * PAGE_W / 1055 : BX1 + BOX1_W + BOX_GAP;
+  const BX1 = grandFinale ? deslocamentoQuadros + 83 * PAGE_W / 1055 * escalaQuadros : M + (CW - BOX_TOTAL_W) / 2;
+  const BX2 = grandFinale ? deslocamentoQuadros + 582 * PAGE_W / 1055 * escalaQuadros : BX1 + BOX1_W + BOX_GAP;
   const TITLE_H  = 14;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -777,7 +782,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   let y = 0;
   const FOOTER_TOP = configNumber(designer, "sepInfBottom", 20, 8, 35) * MM + 7.3;
-  const BODY_BOTTOM = grandFinale ? GRAND_FINALE.corpoBase : visualProva ? PAXMED_LIMITE_CONTEUDO : FOOTER_TOP + 12;
+  const BODY_BOTTOM = especialCompacto ? GRAND_FINALE.corpoEspecialBase
+    : grandFinale ? GRAND_FINALE.corpoBase : visualProva ? PAXMED_LIMITE_CONTEUDO : FOOTER_TOP + 12;
 
   const footerMarkData = designer["rodapeSistemaModo"] === "imagem"
     ? designer["rodapeSistemaImagemDataUrl"] ?? designer["rodapeSistemaLogoDataUrl"]
@@ -1109,8 +1115,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   // Preto puro e a mesma fonte para ativos e posologia: impressão a laser.
   const TINTA = rgb(0, 0, 0);
-  const BODY_SIZE = 9;
-  const BODY_LINE_HEIGHT = 12;
+  const BODY_SIZE = especialCompacto ? 8.4 : 9;
+  const BODY_LINE_HEIGHT = especialCompacto ? 10.8 : 12;
 
   for (let i = 0; i < data.formulas.length; i++) {
     const f   = data.formulas[i];
@@ -1227,7 +1233,8 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   ].filter(Boolean) as { label: string; value: string }[];
   // A faixa final é ancorada acima do rodapé, independentemente da quantidade
   // de texto. O conteúdo deve terminar antes da linha que a separa do corpo.
-  const assinaturaBase = grandFinale ? GRAND_FINALE.assinaturaBase : BODY_BOTTOM + 6;
+  const assinaturaBase = especialCompacto ? GRAND_FINALE.assinaturaEspecialBase
+    : grandFinale ? GRAND_FINALE.assinaturaBase : BODY_BOTTOM + 6;
   const assinaturaTopo = assinaturaBase + ASSINATURA_3A1C_ALTURA;
   const separadorAssinatura = assinaturaTopo + 14;
   const limiteCorpoFinal = grandFinale ? BODY_BOTTOM : separadorAssinatura + 10;
@@ -1254,11 +1261,11 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       : Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
     let BOX2_TOP = y;
     if (grandFinale) {
-      BOX2_TOP = BODY_BOTTOM + 8 + BOX2_H;
+      BOX2_TOP = GRAND_FINALE.quadrosEspecialBase + BOX2_H;
       if (BOX2_TOP + 8 > GRAND_FINALE.corpoTopo) {
         throw new Error("Os quadros da receita especial não cabem na página.");
       }
-      if (y < BOX2_TOP + 8) newPage();
+      if (y < BODY_BOTTOM) newPage();
     } else if (y - BOX2_H - 8 < limiteCorpoFinal) {
       newPage();
       BOX2_TOP = y;
@@ -1284,15 +1291,15 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       const iW = BOX1_W - BP_L - 6;
       let fy = BOX2_TOP - TITLE_H - BP_T;
 
-      fy = drawField(BX1 + BP_L, fy, "Nome",     undefined, iW);
-      fy = drawField(BX1 + BP_L, fy, "Endereço", undefined, iW);
+      fy = drawField(BX1 + BP_L, fy, "Nome",     undefined, iW, { escala: escalaQuadros });
+      fy = drawField(BX1 + BP_L, fy, "Endereço", undefined, iW, { escala: escalaQuadros });
       // Cidade | UF — coluna UF estreita (motor: repeat(2,1fr))
       fy = drawInlineRow(BX1 + BP_L, fy,
-        [{ label: "Cidade" }, { label: "UF" }], iW);
+        [{ label: "Cidade" }, { label: "UF" }], iW, escalaQuadros);
       // Ident. | Org. Emissor — abreviados para caber (screenshot: "Ident." + "Org. Emissor")
       fy = drawInlineRow(BX1 + BP_L, fy,
-        [{ label: "Ident." }, { label: "Org. Emissor" }], iW);
-      drawField(BX1 + BP_L, fy, "Telefone", undefined, iW);
+        [{ label: "Ident." }, { label: "Org. Emissor" }], iW, escalaQuadros);
+      drawField(BX1 + BP_L, fy, "Telefone", undefined, iW, { escala: escalaQuadros });
     }
 
     // Box 4 — Fornecedor/Farmácia (motor: fornecedorRows — 2 campos ANCORADOS NO FUNDO)
@@ -1302,16 +1309,16 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       const boxBottom = BOX2_TOP - BOX2_H;
       // 2 campos × ~19pt + 9pt padding no fundo → começa em boxBottom + 47
       // drawField: label 6pt (-9pt) + value/linha (-10pt) + gap (-2pt) = -21pt por campo
-      const FIELD_H = 21;
+      const FIELD_H = 21 * escalaQuadros;
       const BOT_PAD = 9;  // ~3mm fundo
       const fyStart = boxBottom + BOT_PAD + 2 * FIELD_H; // ≈ boxBottom + 51
 
       let fy = fyStart;
-      fy = drawField(BX2 + BP_L, fy, "Assinatura do Farmacêutico", undefined, iW);
-      drawField(BX2 + BP_L, fy, "Data", undefined, iW);
+      fy = drawField(BX2 + BP_L, fy, "Assinatura do Farmacêutico", undefined, iW, { escala: escalaQuadros });
+      drawField(BX2 + BP_L, fy, "Data", undefined, iW, { escala: escalaQuadros });
     }
 
-    y = BOX2_TOP - BOX2_H - 8;
+    if (!grandFinale) y = BOX2_TOP - BOX2_H - 8;
   }
 
   // 6. ASSINATURA + CERTIFICADO: posição fixa na parte inferior.
