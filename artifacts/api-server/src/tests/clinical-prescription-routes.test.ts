@@ -208,6 +208,12 @@ it.each([
     .send({ ...body, items: [{ name: "Fórmula sintética", isControlled: true, anvisaType: "A" }] });
   expect(result.status, JSON.stringify(result.body)).toBe(201);
   expect(mock.generatePdf).toHaveBeenCalledOnce();
+  expect(mock.generatePdf.mock.calls[0][0]).toMatchObject({
+    modeloGrandFinaleClinico: true,
+    contextoGrandFinale: expect.objectContaining({ clinic: expect.objectContaining({ empresaId: 21 }) }),
+    identidade2bClinica: expect.objectContaining({ empresaId: 21 }),
+    numeroReceita: sncr.number ?? undefined,
+  });
   expect(mock.generatePdf.mock.calls[0][0]).not.toHaveProperty("designerConfig");
   expect(mock.generatePdf.mock.calls[0][0]).not.toHaveProperty("bandModel");
   expect(mock.alert).toHaveBeenCalledWith(expect.objectContaining({

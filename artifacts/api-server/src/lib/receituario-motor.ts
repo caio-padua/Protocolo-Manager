@@ -3,15 +3,12 @@
 // Qualquer rota que gera PDF de receita chama emitirReceituarioPdf().
 // Despacha para o motor correto com base no modelo ativo do banco.
 // ─────────────────────────────────────────────────────────────────────────────
-import { randomBytes } from "crypto";
-import { db, professionalsTable, locationsTable } from "@workspace/db";
+import { db, professionalsTable, locationsTable, clientsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { resolvePrescriptionSigner, signExistingPrescriptionPdf, type PrescriptionIdentity } from "./prescription-signing";
+import { resolvePrescriptionSigner, type PrescriptionIdentity } from "./prescription-signing";
 import { ClinicalIdentityError } from "./clinical-emitter";
 import { identidadeLocalReceituario } from "./identidade-local-receituario";
-import { buildPrescricaoHtml, type PrescricaoHtmlData } from "./receituario-html.js";
-import { htmlToPdfBytes } from "./puppeteer-capture.js";
 import { generateReceituarioPdfV2, type ReceituarioDataV2 } from "./receituario-pdf.js";
 import { uploadToFolderById } from "./google-drive.js";
 import { sendGmailMessage } from "./google-gmail.js";
@@ -21,10 +18,11 @@ import { paxterEmailShell } from "./messaging/render-email.js";
 import { blocoTabelaSubstancias, soMiligramas } from "./messaging/substance-table.js";
 import { ObjectStorageService } from "./objectStorage";
 import { PDFDocument } from "pdf-lib";
+import { carregarIdentidadeClinica2b } from "./documentos/paxmed-2b-identidade-clinica";
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 
-export type TipoModelo = "faixas_paxter" | "classico_anvisa";
+export type TipoModelo = "faixas_paxter" | "classico_anvisa" | "grand_finale";
 
 export interface ReceituarioModelo {
   id: number;
@@ -75,15 +73,11 @@ export interface EmitirResult {
   emailError?: string | null;
   modeloUsado: string;
   tipoMotor: TipoModelo;
-  consultaToken: string;   // token curto (8 hex) para a página de consulta pública
-  consultaUrl: string;     // URL completa: {dominio}/consulta-receituario?token=TOKEN
+  consultaToken: string | null;
+  consultaUrl: string | null;
 }
 
 // ── Token de consulta pública ─────────────────────────────────────────────────
-
-function gerarTokenCurto(): string {
-  return randomBytes(4).toString("hex").toUpperCase();
-}
 
 let _tokensGarantido = false;
 
@@ -230,8 +224,17 @@ export async function atualizarModelo(
 
 // ── Motor único ───────────────────────────────────────────────────────────────
 
-export async function emitirReceituarioPdf(params: EmitirParams): Promise<EmitirResult> {
+export async function emitirReceituarioPdf(_params: EmitirParams): Promise<EmitirResult> {
+  throw new ClinicalIdentityError(422, "Este atalho não classifica medicamentos controlados. Use o botão Emitir receitas na prescrição.");
+}
+
+// Preservado para futura adaptação; nenhuma rota deve emitir por este caminho
+// sem classificação clínica e regulatória confiável no servidor.
+async function emitirReceituarioPdfHistorico(params: EmitirParams): Promise<EmitirResult> {
   if (!params.identity) throw new ClinicalIdentityError(422, "Emissão exige contexto clínico autenticado; fluxo legado bloqueado.");
+  if (params.tipoReceita !== "simples") {
+    throw new ClinicalIdentityError(422, "Receita especial deve ser emitida pelo botão Emitir receitas, com a classificação e numeração aplicáveis.");
+  }
   const identity = params.identity;
   const signer = await resolvePrescriptionSigner(identity);
   // The patient printed in the signed document is always server-owned.
@@ -242,17 +245,11 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   const dataHoje = hoje();
   const [y, m, d] = dataHoje.split("-");
 
-  // 0. Gera token curto + URL de consulta pública (antes do PDF para embutir no QR)
-  const consultaToken = gerarTokenCurto();
   const baseUrl = baseUrlFromEnv();
-  const consultaUrl = `${baseUrl}/consulta-receituario?token=${consultaToken}`;
 
-  // 1. Carrega o modelo ativo (ou override por modeloId)
-  const modelo = await getModeloAtivo(params.modeloId);
-  logger.info({ modeloId: modelo.id, tipo: modelo.tipo }, "receituario-motor: modelo selecionado");
-
-  // 2. Lê certificado real do PFX (best-effort — null se não configurado)
-  const certMeta = signer.meta;
+  // A configuração histórica permanece disponível na sua tela, mas não
+  // determina a apresentação clínica. A empresa vem do contexto autorizado.
+  const identidade2bClinica = await carregarIdentidadeClinica2b(identity.clinic.empresaId);
 
   // 3. Carrega médico e local vinculados ao contexto clínico autorizado.
   const medicoId = identity.professional.id;
@@ -260,8 +257,13 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
 
   const [medico] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, medicoId));
   const [clinica] = await db.select().from(locationsTable).where(eq(locationsTable.id, clinicaId));
+  const [cliente] = await db.select({ address: clientsTable.address }).from(clientsTable).where(eq(clientsTable.id, identity.client.id));
 
   if (!medico || !clinica) throw new ClinicalIdentityError(403, "Médico ou clínica indisponível.");
+  if (medico.id !== identity.professional.id || clinica.id !== identity.clinic.id ||
+      clinica.empresaId !== identity.clinic.empresaId) {
+    throw new ClinicalIdentityError(403, "Médico ou clínica divergente do vínculo autorizado.");
+  }
   let assinaturaImagem: { bytes: Buffer; mime: "image/png" | "image/jpeg" } | undefined;
   if (medico.signatureUrl) {
     const objectPath = medico.signatureUrl.replace(/^\/api\/storage/, "");
@@ -285,16 +287,13 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
   const medicoRqe  = (medico as any)?.specialty ?? undefined;
   // Nunca preencher com dados de outra clínica quando o cadastro está incompleto.
   const dadosLocal = identidadeLocalReceituario(clinica, identity.clinic.name);
-  const clinicaNome = dadosLocal.nome;
+  const clinicaNome = identity.clinic.name;
   if (!clinicaNome) throw new ClinicalIdentityError(422, "O local de atendimento não possui nome cadastrado.");
   const clinicaEnd  = dadosLocal.endereco;
   const clinicaTel  = dadosLocal.telefone;
 
-  // 4. Gera o PDF usando o motor correto para o tipo de modelo
-  let pdfBytes: Uint8Array;
-
-  if (modelo.tipo === "classico_anvisa") {
-    // Motor M2: ANVISA 4-boxes (pdf-lib direto, assina ICP-Brasil)
+  // Todos os caminhos clínicos compartilham o mesmo compositor. A consulta
+  // legada pública continua no retorno, mas não é impressa como protegida.
     const pdfData: ReceituarioDataV2 = {
       medicoName:         medicoNome,
       medicoCrm:          medicoCrm,
@@ -306,7 +305,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       pacienteCpf:        params.patient.cpf,
       pacienteNascimento: params.patient.dataNascimento,
       pacienteTelefone:   params.patient.telefone,
-      pacienteEndereco:   params.patient.endereco,
+      pacienteEndereco:   cliente?.address ?? undefined,
       formulas: params.formulas.map(f => ({
         nome:      f.nome,
         ativos:    f.ativos ?? f.dose,
@@ -316,47 +315,12 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       })),
       tipoReceita: params.tipoReceita ?? "especial",
       dataEmissao: dataHoje,
-      bandModel:   (modelo.config.bandModel as string) ?? "padua-01-floral-islamico",
-      consultaUrl,
+      modeloGrandFinaleClinico: true,
+      contextoGrandFinale: identity,
+      identidade2bClinica,
       assinaturaImagem,
     };
-    pdfBytes = await generateReceituarioPdfV2(pdfData, signer);
-  } else {
-    // Motor M4: Faixas Paxter (Puppeteer captura HTML = exatamente o preview)
-    const assetsBase = params.assetsBaseUrl ?? "http://localhost:80/padcom";
-
-    const htmlData: PrescricaoHtmlData = {
-      medicoNome,
-      medicoCrm,
-      medicoRqe,
-      clinicaNome,
-      clinicaEndereco: clinicaEnd,
-      clinicaTelefone: clinicaTel,
-      pacienteNome:       params.patient.nome,
-      pacienteCpf:        params.patient.cpf ?? "",
-      pacienteNascimento: params.patient.dataNascimento,
-      pacienteTelefone:   params.patient.telefone,
-      pacienteEndereco:   params.patient.endereco,
-      formulas: params.formulas.map((f, i) => ({
-        numero:    i + 1,
-        nome:      f.nome,
-        ativos:    f.ativos ?? f.dose ?? f.nome,
-        posologia: f.posologia,
-        via:       f.via,
-        forma:     f.forma,
-      })),
-      tipoReceita: params.tipoReceita ?? "especial",
-      dataEmissao: dataHoje,
-      assetsBaseUrl: assetsBase,
-      certMeta,
-      consultaUrl,
-      assinaturaImagem,
-    };
-
-    const html = buildPrescricaoHtml(htmlData);
-    const pdfSemAssinatura = await htmlToPdfBytes(html);
-    pdfBytes = await signExistingPrescriptionPdf(pdfSemAssinatura, signer);
-  }
+    const pdfBytes = await generateReceituarioPdfV2(pdfData, signer);
 
   // 5. Nome do arquivo — padrão PAXTER
   const slug = slugNome(params.patient.nome);
@@ -397,7 +361,7 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
       data:        `${d}/${m}/${y}`,
       fileName,
       driveUrl,
-      modeloUsado: modelo.nome,
+      modeloUsado: "Grand Finale",
       formulas:    params.formulas,   // cartões alinhados blocoTabelaSubstancias
       baseUrl:     baseUrl,           // para o banner GIF e URLs absolutas
     });
@@ -418,32 +382,9 @@ export async function emitirReceituarioPdf(params: EmitirParams): Promise<Emitir
     logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: e-mail falhou");
   }
 
-  // 8. Salva token de consulta pública no banco (best-effort)
-  try {
-    await garantirTabelaTokens();
-    await db.execute(sql`
-      INSERT INTO receituario_tokens (token, paciente, medico, crm, clinica, data_emissao, arquivo, drive_url, formulas, cert_meta)
-      VALUES (
-        ${consultaToken},
-        ${params.patient.nome},
-        ${medicoNome},
-        ${medicoCrm},
-        ${clinicaNome},
-        ${dataHoje},
-        ${fileName},
-        ${driveUrl},
-        ${JSON.stringify(params.formulas)},
-        ${JSON.stringify({ titular: signer.meta.assinante, cpf: signer.meta.cpf, serial: signer.meta.serial,
-          validTo: signer.meta.validTo, issuer: signer.meta.ac, padrao: "PAdES" })}
-      )
-      ON CONFLICT (token) DO NOTHING
-    `);
-    logger.info({ consultaToken, consultaUrl }, "receituario-motor: token de consulta salvo");
-  } catch (e) {
-    logger.warn({ err: e instanceof Error ? e.message : String(e) }, "receituario-motor: falha ao salvar token");
-  }
-
-  return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, emailError, modeloUsado: modelo.nome, tipoMotor: modelo.tipo, consultaToken, consultaUrl };
+  // Não publica novos dados clínicos em consulta pública de token curto.
+  // Registros históricos continuam preservados para seus consumidores atuais.
+  return { pdf: pdfBytes, fileName, driveUrl, driveId, emailSent, emailError, modeloUsado: "Grand Finale", tipoMotor: "grand_finale", consultaToken: null, consultaUrl: null };
 }
 
 // ── HTML do e-mail de receituário — padrão Paxter terno/navy ─────────────────

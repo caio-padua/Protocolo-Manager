@@ -121,11 +121,12 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
     const signature = await loadSignature(identity.professional.id);
     // A nova identidade é aplicada apenas à demonstração em desenvolvimento.
     // A emissão clínica e a demonstração em produção continuam inalteradas.
-    const identidade2bProva = req.query.modelo === "paxmed-2b"
+    const identidade2bProva = body.kind === "exames" && req.query.modelo === "paxmed-2b"
       ? await carregarIdentidadeClinica2b(identity.clinic.empresaId)
       : undefined;
     let bytes: Uint8Array;
     if (body.kind === "prescricao") {
+      const identidade2bClinica = await carregarIdentidadeClinica2b(identity.clinic.empresaId);
       const [clinic] = await db.select({ name: locationsTable.name, address: locationsTable.address, phone: locationsTable.phone })
         .from(locationsTable).where(eq(locationsTable.id, identity.clinic.id)).limit(1);
       const [client] = await db.select({ birthDate: clientsTable.birthDate, address: clientsTable.address })
@@ -138,13 +139,16 @@ router.post("/clinical-demonstrations/:clientId", requireCollaborator, async (re
         clinicaTelefone: clinic?.phone ?? undefined,
         pacienteNome: identity.client.name,
         pacienteCpf: identity.client.cpf ?? undefined,
+        pacienteTelefone: identity.client.phone ?? undefined,
         pacienteNascimento: client?.birthDate ?? undefined,
         pacienteEndereco: client?.address ?? undefined,
         formulas: body.prescriptionItems!.map(prescriptionItemForDocument),
         tipoReceita: "simples",
         dataEmissao: brtISODate(),
         homologacao: true,
-        ...(identidade2bProva ? { modelo2bProva: true, identidade2bProva } : {}),
+        modeloGrandFinaleClinico: true,
+        contextoGrandFinale: identity,
+        identidade2bClinica,
         tituloSubtitulo: "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA",
         assinaturaImagem: signature,
       }, signer);

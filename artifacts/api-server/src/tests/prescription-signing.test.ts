@@ -87,6 +87,9 @@ vi.mock("../lib/receituario-pdf", async (importOriginal) => {
       if (mock.failOnRecipePdfCall === mock.recipePdfCallCount) {
         throw new Error("Falha sintética na geração do PDF");
       }
+      if (mock.useHomologationNotice && args[0].modeloGrandFinaleClinico) {
+        return mock.realReceituarioPdf({ ...args[0], homologacao: true }, args[1]);
+      }
       if (mock.useHomologationNotice && args[0].identidade2bClinica) {
         const { identidade2bClinica, ...data } = args[0];
         return mock.realReceituarioPdf({
@@ -535,7 +538,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     expect(mock.globalBuffer).not.toHaveBeenCalled();
   });
 
-  it("rota HTTP real gera assinatura válida para identidade autorizada sem enviar nem subir arquivos", async () => {
+  it("rota visual antiga recusa emissão livre sem enviar nem assinar", async () => {
     mock.rows = [
       [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
       [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
@@ -544,7 +547,8 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
       [{ ...identity.client, status: "active", locationId: 31, empresaId: 21 }],
       [{ ...identity.clinic, active: "true" }], [{ id: 1 }],
       [{ id: 41, name: identity.professional.name }],
-      [{ id: 31, name: identity.clinic.name }],
+      [{ id: 31, name: identity.clinic.name, empresaId: identity.clinic.empresaId }],
+      [{ address: null }],
     ];
     const app = express().use(express.json()).use((req, _res, next) => {
       req.log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any; next();
@@ -552,14 +556,41 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     const token = createCollaboratorToken({ professionalId: 41, role: "executor" });
     const response = await request(app).post("/receituario/assinar-imagem-pdf")
       .set("Authorization", `Bearer ${token}`).send({
-        clientId: 71, formulas: [{ nome: "FORMULA SINTETICA", posologia: "TESTE SEM VALIDADE" }],
+        clientId: 71, tipoReceita: "simples", formulas: [{ nome: "FORMULA SINTETICA", posologia: "TESTE SEM VALIDADE" }],
       });
-    expect(response.status, JSON.stringify(response.body)).toBe(200);
-    verify(Buffer.from(response.body.pdfBase64, "base64"));
-    expect(response.body.emailSent).toBe(false);
+    expect(response.status, JSON.stringify(response.body)).toBe(422);
+    expect(response.body.error).toContain("Emitir receitas");
+    expect(mock.globalBuffer).not.toHaveBeenCalled();
     expect(mock.email).not.toHaveBeenCalled();
     expect(mock.upload).not.toHaveBeenCalled();
   });
+  it("impede receitas comuns e especiais sem classificação no motor antigo", async () => {
+    mock.syntheticResolver = async () => identity;
+    const app = express().use(express.json()).use((req, _res, next) => {
+      req.log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any; next();
+    }).use(prescriptionRouter);
+    const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
+    const dir = mkdtempSync(join(tmpdir(), "grand-finale-motor-"));
+    try {
+      for (const tipoReceita of ["simples", "especial"]) {
+        mock.rows = [
+          [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
+          [{ id: 41, role: "executor", active: true, credentialVersion: 0 }],
+          [{ id: 41, name: identity.professional.name, signatureUrl: null }],
+          [{ id: 31, name: identity.clinic.name, empresaId: identity.clinic.empresaId }],
+          [{ address: "ENDERECO SINTETICO" }],
+        ];
+        const response = await request(app).post("/receituario/emitir-prescricao")
+          .set("Authorization", authorization)
+          .send({ clientId: 71, tipoReceita, formulas: [{ nome: "FORMULA SINTETICA", posologia: "NAO UTILIZAR" }] });
+        expect(response.status).toBe(422);
+        expect(response.body.error).toContain("Emitir receitas");
+      }
+      expect(mock.email).not.toHaveBeenCalled();
+      expect(mock.upload).not.toHaveBeenCalled();
+      expect(mock.execute).not.toHaveBeenCalled();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }, 30_000);
   it("verifica CMS/ByteRange e vínculo assinado, e detecta adulteração", async () => {
     const signer = validatePrescriptionCertificate(pfx, password, identity);
     const doc = await PDFDocument.create();
@@ -651,12 +682,14 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     const marca = readFileSync(new URL("../../assets/paxmed-modelo-2b/paxmed-simbolo-ouro-transparente.png", import.meta.url));
     const pdf = await generateReceituarioPdfV2({
       medicoName: identity.professional.name, medicoCrm: "CRM/SP 12345", clinicaNome: identity.clinic.name,
-      pacienteNome: identity.client.name, dataEmissao: "2026-10-29", tipoReceita: "especial",
+      pacienteNome: identity.client.name, pacienteCpf: identity.client.cpf!, dataEmissao: "2026-10-29", tipoReceita: "especial",
       numeroReceita: "SINTETICO-123", formulas: Array.from({ length: 7 }, (_, i) =>
         ({ nome: `FORMULA SINTETICA ${i + 1}`, ativos: "CONTEUDO FICTICIO", posologia: "NAO UTILIZAR" })),
       consultaUrl: `https://test.invalid/documento-clinico-receita/${"a".repeat(43)}`,
       modeloGrandFinaleClinico: true,
+      contextoGrandFinale: identity,
       identidade2bClinica: {
+        empresaId: identity.clinic.empresaId,
         textos: { nomeCabecalho: "Empresa Sintética", rodapeLinha1: "Empresa Sintética",
           rodapeLinha2: "Rua Sintética, 1", rodapeLinha3: "Cidade Sintética" },
         simboloDourado: marca,
@@ -690,9 +723,11 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     const marca = readFileSync(new URL("../../assets/paxmed-modelo-2b/paxmed-simbolo-ouro-transparente.png", import.meta.url));
     const base = {
       medicoName: identity.professional.name, medicoCrm: "CRM/SP 12345", clinicaNome: identity.clinic.name,
-      pacienteNome: identity.client.name, formulas: [{ nome: "FORMULA SINTETICA", posologia: "NAO UTILIZAR" }],
+      pacienteNome: identity.client.name, pacienteCpf: identity.client.cpf!, formulas: [{ nome: "FORMULA SINTETICA", posologia: "NAO UTILIZAR" }],
       modeloGrandFinaleClinico: true,
+      contextoGrandFinale: identity,
       identidade2bClinica: {
+        empresaId: identity.clinic.empresaId,
         textos: { nomeCabecalho: "Empresa Sintética", rodapeLinha1: "Empresa Sintética",
           rodapeLinha2: "Rua Sintética, 1", rodapeLinha3: "Cidade Sintética" },
         simboloDourado: marca,
@@ -702,15 +737,24 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
       .rejects.toThrow(/acesso protegido/);
     await expect(generateReceituarioPdfV2({ ...base, identidade2bClinica: undefined }, signer))
       .rejects.toThrow(/identidade clínica autorizada/);
-    await expect(generateReceituarioPdfV2({ ...base, homologacao: true }, signer))
-      .rejects.toThrow(/não aceita modo de prova/);
-    const ambiente = process.env.NODE_ENV;
-    try {
-      process.env.NODE_ENV = "production";
-      await expect(generateReceituarioPdfV2({
-        ...base, consultaUrl: `https://test.invalid/documento-clinico-receita/${"a".repeat(43)}`,
-      }, signer)).rejects.toThrow(/não está liberado fora de testes/);
-    } finally { process.env.NODE_ENV = ambiente; }
+    await expect(generateReceituarioPdfV2({
+      ...base, consultaUrl: `https://site-estranho.invalid/documento-clinico-receita/${"a".repeat(43)}`,
+    }, signer)).rejects.toThrow(/acesso protegido/);
+    await expect(generateReceituarioPdfV2({
+      ...base, identidade2bClinica: { ...base.identidade2bClinica, empresaId: 999 },
+    }, signer)).rejects.toThrow(/contexto clínico autorizado/);
+    await expect(generateReceituarioPdfV2({
+      ...base, pacienteNome: "OUTRO CLIENTE",
+    }, signer)).rejects.toThrow(/contexto clínico autorizado/);
+    await expect(generateReceituarioPdfV2({ ...base, pacienteCpf: undefined }, signer))
+      .rejects.toThrow(/contexto clínico autorizado/);
+    await expect(generateReceituarioPdfV2({ ...base, clinicaNome: "OUTRA CLINICA" }, signer))
+      .rejects.toThrow(/contexto clínico autorizado/);
+    await expect(generateReceituarioPdfV2({ ...base, medicoCrm: "CRM/SP 999" }, signer))
+      .rejects.toThrow(/contexto clínico autorizado/);
+    await expect(generateReceituarioPdfV2({
+      ...base, contextoGrandFinale: { ...identity, professional: { ...identity.professional, id: 99 } },
+    }, signer)).rejects.toThrow(/contexto clínico autorizado/);
   });
   it("marca todas as páginas das demonstrações sintéticas antes de assiná-las", async () => {
     const signer = validatePrescriptionCertificate(pfx, password, identity);
@@ -787,6 +831,7 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     const authorization = `Bearer ${createCollaboratorToken({ professionalId: 41, role: "executor" })}`;
     const id = "prescricao-11111111-1111-4111-8111-111111111111";
     queueExamIdentity(71, identity.client.name);
+    mock.rows[2][0].phone = "11999990000";
     mock.rows.push(
       [{ signatureUrl: null }],
       [{ name: identity.clinic.name, address: null, phone: null }],
@@ -802,6 +847,17 @@ describe("certificado por médico, sem acesso a certificados reais", () => {
     expect(response.body.id).toBe(id);
     const bytes = Buffer.from(mock.demoSave.mock.calls[0][2]);
     verify(bytes);
+    const dir = mkdtempSync(join(tmpdir(), "grand-finale-demonstracao-"));
+    try {
+      const path = join(dir, "teste.pdf");
+      writeFileSync(path, bytes);
+      const text = execFileSync("pdftotext", [path, "-"], { encoding: "utf8" });
+      expect(text).toContain("Empresa Sintética");
+      expect(text).toContain("DOCUMENTO DE TESTE");
+      expect(text).toContain("SEM VALIDADE");
+      expect(text).toContain("FORMULA SINTETICA");
+      expect(text).toContain("11999990000");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
     mock.demoRead.mockResolvedValue(bytes);
     queueExamIdentity(71, identity.client.name);
     const read = await request(app).get(`/api/clinical-demonstrations/71/${id}`)

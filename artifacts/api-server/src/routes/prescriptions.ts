@@ -475,6 +475,8 @@ router.post("/prescriptions/emit", requireCollaborator, async (req, res): Promis
       dataEmissao: todayBR(),
       validadeDias: 30,
       numeroReceita: sncrNumber ?? undefined,
+      modeloGrandFinaleClinico: true,
+      contextoGrandFinale: identity,
       consultaUrl: qrUrl,
       tituloSubtitulo: plan.title,
       assinaturaDigitalEstado: signatureStatus === "signed" ? "assinado" : "sem_certificado_vencido",

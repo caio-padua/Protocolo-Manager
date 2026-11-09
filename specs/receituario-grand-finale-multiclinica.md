@@ -50,9 +50,29 @@ uma clínica ou profissional a outra pessoa.
 - Bloqueio identificado: o motor antigo usa um endereço público diferente do
   acesso protegido da emissão principal. Não rotular essa consulta pública como
   protegida, nem ativar parcialmente um botão com modelo diferente de outro.
-- O caminho experimental permanece restrito a testes até vincular empresa e
-  emitente ao contexto autorizado, validar origem do acesso, testar as duas
-  rotas e a demonstração e resolver os casos de numeração regulatória.
+- A emissão principal e a demonstração entregam ao gerador a identidade
+  clínica obtida no servidor e a identidade visual carregada pela empresa.
+  O gerador confere seus vínculos, registro e assinante antes de desenhar.
+- Atalhos sem classificação foram suspensos e permanecem visíveis com orientação;
+  não declará-los migrados. A validação autenticada com o certificado real
+  permanece pendente e não se confunde com o certificado sintético dos testes.
+- A emissão principal continua a utilizar o acesso protegido existente. O motor
+  antigo não publica novas consultas com dados clínicos em endereço público;
+  consultas históricas não são apagadas. A assinatura permanece verificável pelo
+  validador oficial no quadro atual.
+- Preservar o comportamento existente de numeração e seus alertas, sem criar
+  números: quando recebido, exibir o número em todas as páginas.
+- Evidência nesta etapa: construção dos serviços, testes sintéticos de emissão,
+  assinatura, paginação e isolamento, revisão independente e demonstrações
+  autenticadas marcadas sem validade com certificado real e dados do catálogo.
+  A assinatura das demonstrações passou na verificação local de integridade.
+  O verificador local não confirmou a confiança da cadeia do emissor.
+  A emissão clínica principal com certificado real, o acesso pelo código visual
+  e a confiança da cadeia no validador oficial ainda não foram homologados.
+- A rota antiga aceita fórmulas livres sem classificação confiável nem
+  numeração de controlados: suspender sua emissão e orientar a usar o caminho
+  principal, preservando o código histórico e o motor de desmembramento.
+  Não inferir que uma fórmula é comum a partir de um campo do navegador.
 - Construir primeiro uma prova isolada, sem ativar o modelo em emissão clínica;
   só trocar as rotas após os testes de identidade, conteúdo e assinatura.
 - O preenchimento das caixas de identidade deve caber integralmente; dados que

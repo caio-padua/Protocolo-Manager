@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont } from "pdf-lib";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner } from "./prescription-signing";
+import { assertPrescriptionSigner, signPrescriptionPdf, type PrescriptionSigner, type PrescriptionIdentity } from "./prescription-signing";
+import { baseUrlFromEnv } from "./messaging/base-url.js";
 import { marcarDemonstracao } from "./documentos/marca-demonstracao";
 import QRCode from "qrcode";
 import { blocoDeveIrParaProximaPagina, separarTomadas } from "./pdf-bloco-integro";
@@ -419,10 +420,11 @@ export interface ReceituarioDataV2 {
   modelo2bProva?: boolean;
   /** Prova do Grand Finale, restrita a dados sintéticos fora de produção. */
   modeloGrandFinaleProva?: boolean;
-  /** Composição clínica experimental, permitida apenas em testes isolados. */
+  /** Selecionado apenas pelo servidor após autorização clínica. */
   modeloGrandFinaleClinico?: boolean;
+  contextoGrandFinale?: PrescriptionIdentity;
   identidade2bProva?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array; nomeImagem?: Uint8Array };
-  identidade2bClinica?: { textos: TextosEmpresa2b; simboloDourado: Uint8Array };
+  identidade2bClinica?: { empresaId?: number; textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   assinaturaTextoFallback?: string; // ex: "Caio H. Pádua" (cursivo acima da linha)
 
   // Rodapé: até 4 linhas de texto à esquerda (endereço, CNPJ, etc.)
@@ -457,18 +459,33 @@ export async function generatePdfFromPngBase64(
 }
 
 export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?: PrescriptionSigner): Promise<Uint8Array> {
-  if (data.modeloGrandFinaleClinico && process.env.NODE_ENV !== "test") {
-    throw new Error("O Grand Finale clínico ainda não está liberado fora de testes isolados.");
-  }
   if (data.modeloGrandFinaleClinico &&
-      (!data.identidade2bClinica || data.homologacao || data.modelo2bProva || data.modeloGrandFinaleProva)) {
+      (!data.identidade2bClinica || !data.contextoGrandFinale || data.modelo2bProva || data.modeloGrandFinaleProva)) {
     throw new Error("O modelo clínico Grand Finale exige identidade clínica autorizada e não aceita modo de prova.");
   }
-  if (data.modeloGrandFinaleClinico && signer) {
+  if (data.modeloGrandFinaleClinico) {
+    const identidade = data.contextoGrandFinale!;
+    const crm = (data.medicoCrm ?? "").toUpperCase();
+    const cpfEsperado = (identidade.client.cpf ?? "").replace(/\D/g, "");
+    if (!identidade.canPrescribe || data.identidade2bClinica!.empresaId !== identidade.clinic.empresaId ||
+        data.medicoName !== identidade.professional.name || data.pacienteNome !== identidade.client.name ||
+        data.clinicaNome !== identidade.clinic.name ||
+        crm.replace(/\D/g, "") !== identidade.professional.crm.replace(/\D/g, "") ||
+        !identidade.professional.uf || !new RegExp(`\\b${identidade.professional.uf}\\b`).test(crm) ||
+        (data.pacienteCpf ?? "").replace(/\D/g, "") !== cpfEsperado ||
+        (signer && (signer.identity.professional.id !== identidade.professional.id ||
+          signer.identity.clinic.id !== identidade.clinic.id ||
+          signer.identity.clinic.empresaId !== identidade.clinic.empresaId ||
+          signer.identity.client.id !== identidade.client.id))) {
+      throw new Error("A identidade do documento não corresponde ao contexto clínico autorizado.");
+    }
+  }
+  if (data.modeloGrandFinaleClinico && data.consultaUrl) {
     let caminhoProtegido = false;
     try {
-      const url = new URL(data.consultaUrl ?? "");
+      const url = new URL(data.consultaUrl);
       caminhoProtegido = ["http:", "https:"].includes(url.protocol) &&
+        url.origin === new URL(baseUrlFromEnv()).origin &&
         /^\/documento-clinico-receita\/[a-zA-Z0-9_-]{43}$/.test(url.pathname) &&
         !url.search && !url.hash && !url.username && !url.password;
     } catch { /* Sem endereço de acesso válido, a composição é recusada. */ }
@@ -484,10 +501,10 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   }
   if ((data.modelo2bProva && (!data.homologacao || process.env.NODE_ENV === "production")) ||
       (data.identidade2bProva && !data.modelo2bProva) ||
-      (data.identidade2bClinica && (data.modelo2bProva || data.homologacao))) {
+      (data.identidade2bClinica && (data.modelo2bProva || (data.homologacao && !data.modeloGrandFinaleClinico)))) {
     throw new Error("Modelo 2B de prova exige homologação sintética fora de produção.");
   }
-  if (data.identidade2bClinica && signer && !data.consultaUrl) {
+  if (data.identidade2bClinica && signer && !data.consultaUrl && !data.modeloGrandFinaleClinico) {
     throw new Error("A receita assinada exige endereço de acesso protegido.");
   }
   if (signer) assertPrescriptionSigner(signer);
@@ -498,7 +515,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   const pdfDoc   = await PDFDocument.create();
   const grandFinale = data.modeloGrandFinaleProva || data.modeloGrandFinaleClinico
     ? await prepararArteGrandFinale(pdfDoc, (data.identidade2bClinica ?? data.identidade2bProva)!) : null;
-  const visualProva = data.modelo2bProva || data.identidade2bClinica
+  const visualProva = !grandFinale && (data.modelo2bProva || data.identidade2bClinica)
     ? await prepararVisualProva(pdfDoc, data.identidade2bClinica ?? data.identidade2bProva) : null;
   const fonteProva = visualProva ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
   const fonteProvaNegrito = visualProva ? await pdfDoc.embedFont(StandardFonts.HelveticaBold) : null;
@@ -814,7 +831,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
 
   /** Rodapé da página corrente (identidade da clínica + marca do modelo). */
   function drawFooter(): void {
-    if (visualProva) return;
+    if (visualProva || grandFinale) return;
     if (designer["sepInfAtivo"] !== false) {
       page.drawLine({
         start: { x: M, y: FOOTER_TOP }, end: { x: PAGE_W - M, y: FOOTER_TOP },
@@ -934,15 +951,23 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     y -= 14;
   }
 
+  function linhasClinicasGrandFinale(): string[] {
+    const textos = [
+      ...(data.tituloSubtitulo && !data.homologacao ? [safeTxt(data.tituloSubtitulo)] : []),
+      ...(data.numeroReceita ? [`Número da receita: ${safeTxt(data.numeroReceita)}`] : []),
+    ];
+    const linhas = textos.flatMap(texto => wrapLines(texto, fontBold, 8, CW));
+    if (linhas.length > 4 || linhas.some(linha => fontBold.widthOfTextAtSize(linha, 8) > CW)) {
+      throw new Error("Os dados de identificação da receita excedem o espaço disponível.");
+    }
+    return linhas;
+  }
   function iniciarCorpoGrandFinale(): void {
     y = GRAND_FINALE.corpoTopo;
-    if (!data.numeroReceita) return;
-    const numero = `Número da receita: ${safeTxt(data.numeroReceita)}`;
-    if (fontBold.widthOfTextAtSize(numero, 8) > CW) {
-      throw new Error("O número da receita excede a largura disponível.");
+    for (const linha of linhasClinicasGrandFinale()) {
+      page.drawText(linha, { x: M, y, font: fontBold, size: 8, color: DARK });
+      y -= 14;
     }
-    page.drawText(numero, { x: M, y, font: fontBold, size: 8, color: DARK });
-    y -= 14;
   }
 
   /** Garante `needed` pontos livres acima do rodapé; senão quebra a página. */
@@ -1170,7 +1195,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     if (blocoDeveIrParaProximaPagina({
       y, alturaBloco: itemHeight, limiteInferior: BODY_BOTTOM,
       linhaEmBranco: BODY_LINE_HEIGHT, topoPaginaNova: grandFinale
-        ? GRAND_FINALE.corpoTopo - (data.numeroReceita ? 14 : 0) : PAGE_H - M - 32,
+        ? GRAND_FINALE.corpoTopo - linhasClinicasGrandFinale().length * 14 : PAGE_H - M - 32,
     })) newPage();
     else ensureSpace(55);
 
@@ -1388,7 +1413,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
     else carimbarRodapesProva(pdfDoc, visualProva, fonteProva);
   }
   const allPages = pdfDoc.getPages();
-  if (!visualProva && allPages.length > 1) {
+  if (!visualProva && !grandFinale && allPages.length > 1) {
     // Cada página carrega sua própria identificação: nº da receita, paciente,
     // "Página X de Y" e o QR que abre a receita completa.
     const CENTER_X = 300;

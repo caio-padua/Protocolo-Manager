@@ -829,11 +829,11 @@ export default function PrescricaoPage(
             {copied ? "Copiado!" : "Copiar texto"}
           </button>
           <button
-            onClick={handleGerarReceituario}
-            disabled={!selected.length || gerandoPdf}
+            onClick={handleEmit}
+            disabled={!selected.length || emitMutation.isPending}
             className="btn-3d font-semibold py-2.5 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-40"
           >
-            {gerandoPdf
+            {emitMutation.isPending
               ? <><span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full inline-block" />Gerando...</>
               : <><FileSignature className="w-4 h-4" />Gerar Receituário Assinado</>
             }
@@ -846,8 +846,8 @@ export default function PrescricaoPage(
         <section className="no-print panel-3d p-5">
           <BlockTitle icon={Eye} color="text-primary">Modelo Visual do PDF</BlockTitle>
           <p className="text-[11px] text-muted-foreground mt-1 mb-3">
-            Este é o motor completo — arabescos, boxes ANVISA e fórmulas reais.
-            O botão "Gerar Receituário Assinado" captura exatamente este layout.
+            Visualização histórica das faixas.
+            A emissão usa o novo modelo de receituário; esta visualização não representa o arquivo emitido.
           </p>
           {/* Wrapper capturável pelo html2canvas — largura A4 em px */}
           <div

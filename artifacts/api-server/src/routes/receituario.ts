@@ -39,6 +39,7 @@ import { sql } from "drizzle-orm";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
 import { ClinicalAccessError, clinicalToolAccess } from "../lib/clinical-access";
 
 const router = Router();
@@ -581,7 +582,7 @@ router.post("/receituario/emitir-prescricao", requireCollaborator, async (req, r
       tipoMotor: result.tipoMotor,
     });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError || err instanceof IdentidadeEmpresa2bError) {
       res.status(err.status).json({ error: err.message });
       return;
     }
@@ -619,7 +620,7 @@ router.post("/receituario/assinar-imagem-pdf", requireCollaborator, async (req, 
     res.json({ ok: true, pdfBase64: Buffer.from(result.pdf).toString("base64"),
       fileName: result.fileName, driveUrl: result.driveUrl, driveId: result.driveId, emailSent: false });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError || err instanceof IdentidadeEmpresa2bError) {
       res.status(err.status).json({ error: err.message }); return;
     }
     req.log.error({ err }, "assinar-imagem-pdf: falha na assinatura");
@@ -836,7 +837,7 @@ router.post("/receituario/emitir-cliente", requireCollaborator, async (req, res)
       tipoMotor:   result.tipoMotor,
     });
   } catch (err) {
-    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError) {
+    if (err instanceof ClinicalIdentityError || err instanceof ClinicalAccessError || err instanceof IdentidadeEmpresa2bError) {
       res.status(err.status).json({ error: err.message });
       return;
     }

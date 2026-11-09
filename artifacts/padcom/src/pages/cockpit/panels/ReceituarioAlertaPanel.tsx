@@ -184,7 +184,8 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
           <Button
             className="btn-3d h-7 text-xs gap-1"
             onClick={() => { setEmitirResultado(null); setEmitirAberto(true); }}
-            title="Motor único — lê o modelo ativo do banco"
+            disabled
+            title="Use Emitir receitas na ferramenta Prescrição."
           >
             <FileText className="w-3.5 h-3.5" />
             Emitir Receituário
@@ -192,14 +193,17 @@ export function ReceituarioAlertaPanel({ clientId }: Props) {
           <Button
             className="btn-3d-soft h-7 text-xs gap-1"
             onClick={() => { void gerarPdfVisual(); }}
-            disabled={gerarLoading}
-            title="Puppeteer server-side — fiel ao template HTML"
+            disabled
+            title="Use Gerar documento teste na ferramenta Prescrição."
           >
             {gerarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
             PDF Visual
           </Button>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Atalhos suspensos: use a ferramenta Prescrição para emitir ou gerar documento de teste.
+      </p>
 
       {/* Modal emissão rápida ICP-Brasil */}
       {emitirAberto && (

@@ -802,7 +802,7 @@ export default function ReceituarioAutomatico() {
               Emissão Rápida ICP-Brasil
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              Dr. Caio — CRM SP 125.475 · Certificado digital ativo · Carlucia Santos Fernandes
+              Atalhos suspensos. Use a ferramenta Prescrição para emitir ou gerar documento de teste.
             </div>
           </div>
         </div>
@@ -810,16 +810,17 @@ export default function ReceituarioAutomatico() {
           <Button
             className="btn-3d gap-2 text-sm"
             onClick={() => { setEmitirResultado(null); setEmitirFormula({ nome: "", dose: "", posologia: "", via: "oral" }); setEmitirAberto(true); }}
-            title="Motor único — lê o modelo ativo do banco"
+            disabled
+            title="Use Emitir receitas na ferramenta Prescrição."
           >
             <FileText className="w-4 h-4" />
             Emitir Receituário
           </Button>
           <Button
             className="btn-3d-soft gap-2 text-sm"
-            disabled={gerarLoading}
+            disabled
             onClick={() => { void gerarPdfVisual(); }}
-            title="Puppeteer server-side — fiel ao template HTML"
+            title="Use Gerar documento teste na ferramenta Prescrição."
           >
             {gerarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             PDF Visual
