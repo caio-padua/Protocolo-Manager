@@ -13,6 +13,7 @@ import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatu
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Trash2, ChevronRight, Beaker, User, MapPin, CalendarDays, CheckCircle2, Printer, Loader2, Clock, Stethoscope } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getCollabToken } from "@/lib/collab-auth";
@@ -103,7 +104,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
 
   const [step, setStep] = useState<"configurar" | "resumo">("configurar");
   const [clientId, setClientId] = useState<number | null>(clientIdProp ?? null);
-  const [professionalId, setProfessionalId] = useState("");
+  const [manualProfessionalId, setProfessionalId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [scheduledTime, setScheduledTime] = useState("08:00");
   const [schedulingMode, setSchedulingMode] = useState<"weekly" | "exact">("weekly");
@@ -114,6 +115,14 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const [nurseId, setNurseId] = useState("");
   const [clientAddresses, setClientAddresses] = useState<Array<{id: number; label: string; street?: string | null; city?: string | null; zipCode?: string | null; isDefault: boolean}>>([]);
   const [serviceAddressId, setServiceAddressId] = useState("");
+  const clinicalIdentity = useClinicalIdentity(embedded ? clientId : null, { refetchOnWindowFocus: true });
+  const identityConfirmed = !embedded || (
+    !clinicalIdentity.isError && !clinicalIdentity.isFetching &&
+    clinicalIdentity.data?.client.id === clientId
+  );
+  const authenticatedDoctor = identityConfirmed && clinicalIdentity.data?.professional.professionalType === "medico"
+    ? clinicalIdentity.data.professional : null;
+  const professionalId = authenticatedDoctor ? String(authenticatedDoctor.id) : manualProfessionalId;
   const comboRef = useRef(false);
   const operationRef = useRef(false);
   const mountedRef = useRef(true);
@@ -180,7 +189,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const validateMutation = useValidateProtocol();
 
   const selectedClient = clientIdentity?.id === clientId ? clientIdentity : clients?.find(c => c.id === clientId);
-  const selectedProfessional = professionals?.find(p => String(p.id) === professionalId);
+  const selectedProfessional = authenticatedDoctor ?? professionals?.find(p => String(p.id) === professionalId);
   const selectedLocation = locations.find(l => String(l.id) === locationId);
   const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
 
@@ -227,7 +236,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     });
   };
 
-  const canAdvance = clientId && (!embedded || clientIdentity?.id === clientId) && professionalId && locationId && filledSlots.length > 0;
+  const canAdvance = clientId && identityConfirmed && (!embedded || clientIdentity?.id === clientId) && professionalId && locationId && filledSlots.length > 0;
 
   const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
@@ -340,6 +349,18 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
         </Button>
         <h1 className="text-2xl font-bold uppercase tracking-tight">Resumo do Protocolo</h1>
       </div>
+      {embedded && !identityConfirmed && (
+        <div className="panel-3d p-4" role="alert">
+          <p>{clinicalIdentity.isError
+            ? "Não foi possível confirmar o profissional. O lançamento está bloqueado."
+            : "Confirmando o profissional. Aguarde antes de lançar."}</p>
+          {clinicalIdentity.isError && (
+            <button type="button" className="btn-3d-soft mt-2 px-3 py-2" onClick={() => void clinicalIdentity.refetch()}>
+              Tentar novamente
+            </button>
+          )}
+        </div>
+      )}
 
       <Card className="panel-3d">
         <CardHeader className="pb-3">
@@ -446,7 +467,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar e Editar
         </Button>
-        <Button size="lg" className="btn-3d px-8" onClick={handleLancar} disabled={createMutation.isPending || comboLoading}>
+        <Button size="lg" className="btn-3d px-8" onClick={handleLancar} disabled={!canAdvance || createMutation.isPending || comboLoading}>
           {createMutation.isPending && !comboRef.current ? "Lançando..." : "Confirmar e Lançar Protocolo"}
           <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
@@ -455,7 +476,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           variant="secondary"
           className="btn-3d px-8"
           onClick={handleLancarComRasFap}
-          disabled={comboLoading || createMutation.isPending}
+          disabled={!canAdvance || comboLoading || createMutation.isPending}
         >
           {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
           {comboLoading ? "Gerando RAS FAP..." : "Lançar + Gerar RAS FAP"}
@@ -520,7 +541,20 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Médico Responsável *</Label>
-              <Select value={professionalId} onValueChange={setProfessionalId}>
+              {embedded && !identityConfirmed ? (
+                <div className="field-engraved rounded-md px-3 py-2.5" role="status">
+                  {clinicalIdentity.isError ? (
+                    <>Não foi possível confirmar o profissional.{" "}
+                      <button type="button" className="underline" onClick={() => void clinicalIdentity.refetch()}>Tentar novamente</button>
+                    </>
+                  ) : "Confirmando profissional…"}
+                </div>
+              ) : authenticatedDoctor ? (
+                <div className="field-engraved rounded-md px-3 py-2.5" aria-label="Médico autenticado">
+                  {authenticatedDoctor.name}
+                  {authenticatedDoctor.crm ? ` — CRM ${authenticatedDoctor.crm}${authenticatedDoctor.uf ? `/${authenticatedDoctor.uf}` : ""}` : ""}
+                </div>
+              ) : <Select value={professionalId} onValueChange={setProfessionalId}>
                 <SelectTrigger className="field-engraved">
                   <SelectValue placeholder="Selecione o médico" />
                 </SelectTrigger>
@@ -531,7 +565,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                     </SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+              </Select>}
             </div>
           </div>
           {/* Enfermeira + Endereço de Visita */}

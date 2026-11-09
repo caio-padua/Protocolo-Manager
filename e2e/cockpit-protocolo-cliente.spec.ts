@@ -5,7 +5,7 @@ const clients = [
   { id: 43, name: "Cliente Beta Teste", cpf: "", phone: "", photoUrl: null, birthDate: null, status: "active" },
 ];
 
-async function isolatedServices(page: Page, options: { denyClient?: number; delayClient?: number; denyProtocols?: boolean; excludeFromList?: number; delayPost?: number; denyPulso?: boolean; identityControl?: { deny: boolean } } = {}) {
+async function isolatedServices(page: Page, options: { denyClient?: number; delayClient?: number; denyProtocols?: boolean; excludeFromList?: number; delayPost?: number; denyPulso?: boolean; identityControl?: { deny: boolean }; listControl?: { fail: boolean; status?: number }; clinicalControl?: { fail: boolean; type?: string } } = {}) {
   const created: unknown[] = [];
   await page.addInitScript(() => {
     localStorage.setItem("padcom_collab_token", "isolated-test-token");
@@ -17,11 +17,16 @@ async function isolatedServices(page: Page, options: { denyClient?: number; dela
     const json = (body: unknown, status = 200) => route.fulfill({
       status, contentType: "application/json", body: JSON.stringify(body),
     });
-    if (pathname === "/api/collaborator/me") return json({ professional: { id: 1, name: "Profissional Teste", role: "medico" } });
-    if (pathname === "/api/clients") return json(clients.filter(c => c.id !== options.excludeFromList));
+    if (pathname === "/api/collaborator/me") return options.listControl?.status === 401
+      ? json({ error: "Sessão inválida" }, 401)
+      : json({ professional: { id: 1, name: "Profissional Teste", role: "medico" } });
+    if (pathname === "/api/clients") return options.listControl?.fail
+      ? json({ error: "Serviço indisponível" }, options.listControl.status ?? 503)
+      : json(clients.filter(c => c.id !== options.excludeFromList));
     if (/^\/api\/clinical-context\/\d+$/.test(pathname)) {
+      if (options.clinicalControl?.fail) return json({ error: "Identidade indisponível" }, 503);
       const id = Number(pathname.split("/").at(-1));
-      return json({ client: clients.find(c => c.id === id), professional: { id: 3, name: "Médico Teste", crm: "123", uf: "SP", professionalType: "medico" }, clinic: { id: 5, empresaId: 1, name: "Clínica Teste" }, canPrescribe: true, canRequestExams: true, canPreparePrescription: true, canPrepareExamRequest: true, responsibleDoctorName: "Médico Teste", issue: null });
+      return json({ client: clients.find(c => c.id === id), professional: { id: 3, name: "Médico Teste", crm: "123", uf: "SP", professionalType: options.clinicalControl?.type ?? "medico" }, clinic: { id: 5, empresaId: 1, name: "Clínica Teste" }, canPrescribe: true, canRequestExams: true, canPreparePrescription: true, canPrepareExamRequest: true, responsibleDoctorName: "Médico Teste", issue: null });
     }
     if (/^\/api\/clients\/\d+$/.test(pathname)) {
       const id = Number(pathname.split("/").at(-1));
@@ -74,6 +79,99 @@ test("abre o formulário existente sem sair do cliente e preserva as abas", asyn
   expect(created).toHaveLength(0);
 });
 
+test("falha na lista de clientes pode ser recuperada sem recarregar a página", async ({ page }) => {
+  const listControl = { fail: true };
+  await isolatedServices(page, { listControl });
+  await page.goto("/cockpit");
+  const aviso = page.getByRole("alert").filter({ hasText: "Não foi possível carregar a lista de clientes." });
+  await expect(aviso).toBeVisible();
+  await expect(page.getByRole("button", { name: "Selecionar cliente…" })).toBeDisabled();
+  listControl.fail = false;
+  await aviso.getByRole("button", { name: "Tentar novamente" }).click();
+  await page.getByRole("button", { name: "Selecionar cliente…" }).click();
+  await page.getByRole("button", { name: /Cliente Alpha Teste/ }).click();
+  await expect(page).toHaveURL(/\/cockpit\/42\/prescricao$/);
+  await expect(page.getByRole("region", { name: "Identificação do cliente" })).toBeVisible();
+});
+
+test("sessão recusada oferece entrada e preserva o destino", async ({ page }) => {
+  await isolatedServices(page, { listControl: { fail: true, status: 401 } });
+  await page.goto("/cockpit");
+  const aviso = page.getByRole("alert").filter({ hasText: "Seu acesso precisa ser confirmado" });
+  await expect(aviso).toBeVisible();
+  await expect(page.getByRole("button", { name: "Selecionar cliente…" })).toBeDisabled();
+  await aviso.getByRole("button", { name: "Entrar no sistema" }).click();
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Fcockpit/);
+});
+
+test("o protocolo usa o médico autenticado e bloqueia enquanto a identidade falha", async ({ page }) => {
+  const clinicalControl = { fail: true };
+  await isolatedServices(page, { clinicalControl });
+  await page.goto("/cockpit/42/protocolos");
+  await page.getByRole("button", { name: "NOVO PROTOCOLO", exact: true }).click();
+  const form = page.getByRole("region", { name: "Cadastro de protocolo" });
+  await expect(form.getByText("Não foi possível confirmar o profissional.", { exact: false })).toBeVisible();
+  await expect(form.getByLabel("Médico autenticado")).toHaveCount(0);
+  await expect(form.getByRole("combobox").filter({ hasText: "Selecione o médico" })).toHaveCount(0);
+  clinicalControl.fail = false;
+  await form.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(form.getByLabel("Médico autenticado")).toContainText("Médico Teste");
+  await expect(form.getByRole("combobox").filter({ hasText: "Selecione o médico" })).toHaveCount(0);
+});
+
+test("profissional não médico conserva a escolha do responsável", async ({ page }) => {
+  await isolatedServices(page, { clinicalControl: { fail: false, type: "enfermagem" } });
+  await page.goto("/cockpit/42/protocolos");
+  await page.getByRole("button", { name: "NOVO PROTOCOLO", exact: true }).click();
+  const form = page.getByRole("region", { name: "Cadastro de protocolo" });
+  await expect(form.getByRole("combobox").filter({ hasText: "Selecione o médico" })).toBeVisible();
+  await expect(form.getByLabel("Médico autenticado")).toHaveCount(0);
+});
+
+test("resumo bloqueia lançamento quando a identidade deixa de ser confirmada", async ({ page }) => {
+  const clinicalControl = { fail: false };
+  const created = await isolatedServices(page, { clinicalControl });
+  await page.goto("/cockpit/42/protocolos");
+  await page.getByRole("button", { name: "NOVO PROTOCOLO", exact: true }).click();
+  const form = page.getByRole("region", { name: "Cadastro de protocolo" });
+  await expect(form.getByLabel("Médico autenticado")).toBeVisible();
+  await form.getByRole("combobox").filter({ hasText: "Selecione o local" }).click();
+  await page.getByRole("option", { name: /Local Teste/ }).click();
+  await form.getByRole("combobox").filter({ hasText: "Escolha a substância" }).click();
+  await page.getByRole("option", { name: /Substância Teste/ }).click();
+  await form.getByPlaceholder("Ex: 600mg, 15g").fill("1 mg");
+  await form.getByRole("button", { name: "Ver Resumo" }).click();
+  clinicalControl.fail = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+  const aviso = form.getByRole("alert").filter({ hasText: "O lançamento está bloqueado." });
+  await expect(aviso).toBeVisible();
+  await expect(form.getByRole("button", { name: /Confirmar e Lançar Protocolo/ })).toBeDisabled();
+  expect(created).toHaveLength(0);
+  clinicalControl.fail = false;
+  await aviso.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(form.getByRole("button", { name: /Confirmar e Lançar Protocolo/ })).toBeEnabled();
+});
+
+for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+  test(`tema do cockpit alterna e persiste na largura ${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await isolatedServices(page);
+    await page.goto("/cockpit/42/protocolos");
+    const cockpit = page.locator(".cc-shell");
+    await expect(cockpit).not.toHaveClass(/dark/);
+    const corClara = await page.locator(".cc-header").evaluate(el => getComputedStyle(el).backgroundImage);
+    await page.getByRole("button", { name: "Mudar para tema escuro" }).click();
+    await expect(cockpit).toHaveClass(/dark/);
+    const corEscura = await page.locator(".cc-header").evaluate(el => getComputedStyle(el).backgroundImage);
+    expect(corEscura).not.toBe(corClara);
+    await expect(page.getByRole("region", { name: "Identificação do cliente" })).toContainText("Cliente Alpha Teste");
+    await page.reload();
+    await expect(cockpit).toHaveClass(/dark/);
+    await page.getByRole("button", { name: "Mudar para tema claro" }).click();
+    await expect(cockpit).not.toHaveClass(/dark/);
+  });
+}
+
 test("falha do pulso não é apresentada como ausência de registros", async ({ page }) => {
   await isolatedServices(page, { denyPulso: true });
   await page.goto("/cockpit/42/protocolos");
@@ -118,8 +216,7 @@ test("durante a criação protege abas, menu, histórico e fechamento", async ({
   await page.goto("/cockpit/42/injetaveis");
   await page.getByRole("button", { name: /Lançar novo protocolo/i }).first().click();
   const form = page.getByRole("region", { name: "Cadastro de protocolo" });
-  await form.getByRole("combobox").filter({ hasText: "Selecione o médico" }).click();
-  await page.getByRole("option", { name: /Médico Teste/ }).click();
+  await expect(form.getByLabel("Médico autenticado")).toContainText("Médico Teste");
   await form.getByRole("combobox").filter({ hasText: "Selecione o local" }).click();
   await page.getByRole("option", { name: /Local Teste/ }).click();
   await form.getByRole("combobox").filter({ hasText: "Escolha a substância" }).click();
@@ -147,8 +244,7 @@ test("erro de identidade durante o envio não interrompe nem duplica a criação
   await page.goto("/cockpit/42/protocolos");
   await page.getByRole("button", { name: "NOVO PROTOCOLO", exact: true }).click();
   const form = page.getByRole("region", { name: "Cadastro de protocolo" });
-  await form.getByRole("combobox").filter({ hasText: "Selecione o médico" }).click();
-  await page.getByRole("option", { name: /Médico Teste/ }).click();
+  await expect(form.getByLabel("Médico autenticado")).toContainText("Médico Teste");
   await form.getByRole("combobox").filter({ hasText: "Selecione o local" }).click();
   await page.getByRole("option", { name: /Local Teste/ }).click();
   await form.getByRole("combobox").filter({ hasText: "Escolha a substância" }).click();
@@ -189,8 +285,7 @@ test("criação simulada envia o identificador do cliente e permanece no Cockpit
   await page.goto("/cockpit/42/protocolos");
   await page.getByRole("button", { name: "NOVO PROTOCOLO", exact: true }).click();
   const form = page.getByRole("region", { name: "Cadastro de protocolo" });
-  await form.getByRole("combobox").filter({ hasText: "Selecione o médico" }).click();
-  await page.getByRole("option", { name: /Médico Teste/ }).click();
+  await expect(form.getByLabel("Médico autenticado")).toContainText("Médico Teste");
   await form.getByRole("combobox").filter({ hasText: "Selecione o local" }).click();
   await page.getByRole("option", { name: /Local Teste/ }).click();
   await form.getByRole("combobox").filter({ hasText: "Escolha a substância" }).click();

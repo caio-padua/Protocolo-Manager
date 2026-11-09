@@ -5,8 +5,13 @@ import { UserRound } from "lucide-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import ClientIdentity from "./ClientIdentity";
 import ActionButtons from "./ActionButtons";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import type { ScreenTheme } from "@/components/theme/useScreenTheme";
+import { useLocation } from "wouter";
 
 interface CockpitHeaderProps {
+  theme: ScreenTheme;
+  onToggleTheme: () => void;
   client: Client | null | undefined;
   clientId: number | null;
   sessionScope: string;
@@ -20,12 +25,14 @@ interface CockpitHeaderProps {
 }
 
 export default function CockpitHeader({
-  client, clientId, sessionScope, onSelectClient, driveSetupPending,
+  theme, onToggleTheme, client, clientId, sessionScope, onSelectClient, driveSetupPending,
   onDriveSetup, onEvolucao, onMensagens, onAgendar, onBeforeEdit,
 }: CockpitHeaderProps) {
-  const { data: clients, isError } = useListClients(undefined, {
+  const [location, navigate] = useLocation();
+  const { data: clients, error, isError, isLoading, isFetching, refetch } = useListClients(undefined, {
     query: { queryKey: ["cockpit-clientes", sessionScope], retry: false, gcTime: 0 },
   });
+  const loginNecessario = !!error && typeof error === "object" && "status" in error && error.status === 401;
   const opcoes = useMemo(() => {
     const lista = (clients ?? []).map((c) => ({
       id: c.id, name: c.name, cpf: c.cpf, phone: c.phone, photoUrl: c.photoUrl,
@@ -42,7 +49,7 @@ export default function CockpitHeader({
 
   return (
     <header className="cc-header">
-      <div className="cc-heading"><span>COCKPIT DA CONSULTA</span></div>
+      <div className="cc-heading"><span>COCKPIT DA CONSULTA</span><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
       {confirmado ? (
         <ClientIdentity client={client} onMensagens={onMensagens} />
       ) : (
@@ -59,8 +66,21 @@ export default function CockpitHeader({
           <span>CLIENTE</span>
           <PaxterClientSelector clientes={opcoes}
             value={confirmado ? clientId : null} onChange={onSelectClient}
-            placeholder="Selecionar cliente…" />
-          {isError && <small role="alert">Não foi possível carregar a lista de clientes.</small>}
+            placeholder="Selecionar cliente…" disabled={isLoading || isError} />
+          {isLoading && <small role="status">Carregando clientes…</small>}
+          {isError && <div className="cc-selector-error" role="alert">
+            {loginNecessario ? <>
+              <span>Seu acesso precisa ser confirmado para selecionar um cliente.</span>
+              <button type="button" onClick={() => navigate(`/login?returnTo=${encodeURIComponent(location)}`)}>
+                Entrar no sistema
+              </button>
+            </> : <>
+              <span>Não foi possível carregar a lista de clientes.</span>
+              <button type="button" disabled={isFetching} onClick={() => void refetch()}>
+                {isFetching ? "Tentando novamente…" : "Tentar novamente"}
+              </button>
+            </>}
+          </div>}
         </div>
         <ActionButtons clientId={confirmado ? clientId : null}
           driveSetupPending={driveSetupPending} onDriveSetup={onDriveSetup}

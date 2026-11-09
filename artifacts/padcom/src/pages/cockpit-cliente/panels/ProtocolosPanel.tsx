@@ -66,7 +66,7 @@ export default function ProtocolosPanel({ clientId, client, novoAberto, emAndame
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">{k.label}</div>
             <div
               className="text-3xl font-black tabular-nums"
-              style={{ color: k.color, fontFamily: "'EB Garamond', serif" }}
+              style={{ color: k.label === "Total" ? "hsl(var(--foreground))" : k.color, fontFamily: "'EB Garamond', serif" }}
             >
               {k.value}
             </div>

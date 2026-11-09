@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { COLLAB_EVENT } from "@/lib/collab-auth";
 import { UserRound } from "lucide-react";
+import { useScreenTheme } from "@/components/theme/useScreenTheme";
 
 import CockpitHeader from "./CockpitHeader";
 import CockpitTabs, { type AbaId } from "./CockpitTabs";
@@ -44,6 +45,7 @@ export default function CockpitShell({
 }: CockpitShellProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { theme, toggle: toggleTheme } = useScreenTheme("light", "paxter.cockpit.theme");
   const queryClient = useQueryClient();
   const mutationsInFlight = useIsMutating();
   const [novoProtocoloAberto, setNovoProtocoloAberto] = useState(false);
@@ -237,8 +239,10 @@ export default function CockpitShell({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="cc-shell min-h-screen w-full font-sans">
+    <div className={`cc-shell min-h-screen w-full font-sans ${theme === "dark" ? "dark" : ""}`}>
       <CockpitHeader
+        theme={theme}
+        onToggleTheme={toggleTheme}
         client={clientReady ? client : null}
         clientId={clientId}
         sessionScope={escopoSessao}
@@ -270,13 +274,10 @@ export default function CockpitShell({
               className="mx-auto mb-3 h-8 w-8"
               style={{ color: "#9a7b32" }}
             />
-            <div
-              className="text-[15px] font-bold uppercase tracking-[0.12em]"
-              style={{ color: "#16294a" }}
-            >
+            <div className="text-[15px] font-bold uppercase tracking-[0.12em] text-foreground">
               Busque o Cliente
             </div>
-            <p className="mt-2 text-sm text-[#647c97]">
+            <p className="mt-2 text-sm text-muted-foreground">
               Use o campo de busca acima para encontrar o cliente pelo nome ou CPF.
               Todas as ferramentas da consulta — prescrição, injetáveis, implantes,
               exames, evolução, anamnese, protocolos, financeiro e cadastro — ficam
