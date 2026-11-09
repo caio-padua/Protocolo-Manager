@@ -1251,8 +1251,17 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
   // ══════════════════════════════════════════════════════════════════════════
   if (tipo === "especial") {
     const BOX2_H   = Math.max(120, configNumber(designer, "boxMinHeight", 150, 100, 500) * 0.75);
-    if (y - BOX2_H - 8 < limiteCorpoFinal) newPage();
-    const BOX2_TOP = y;
+    let BOX2_TOP = y;
+    if (grandFinale) {
+      BOX2_TOP = BODY_BOTTOM + 8 + BOX2_H;
+      if (BOX2_TOP + 8 > GRAND_FINALE.corpoTopo) {
+        throw new Error("Os quadros da receita especial não cabem na página.");
+      }
+      if (y < BOX2_TOP + 8) newPage();
+    } else if (y - BOX2_H - 8 < limiteCorpoFinal) {
+      newPage();
+      BOX2_TOP = y;
+    }
 
     if (!grandFinale) drawArabBand(BOX2_TOP, BOX2_H);
     drawBoxPair(BOX2_TOP, BOX2_H, TITLE_H, BX1, BX2, BOX1_W, BOX2_W,

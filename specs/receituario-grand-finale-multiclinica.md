@@ -18,7 +18,10 @@ uma clínica ou profissional a outra pessoa.
 5. A assinatura criptográfica é feita depois de desenhar o documento completo;
    o arquivo não pode ser alterado após a assinatura.
 6. Receituário comum e especial compartilham o modelo, mas preservam os campos
-   obrigatórios e particularidades existentes de cada um.
+   obrigatórios e particularidades existentes de cada um. No especial, os
+   quadros existentes do comprador e do fornecedor ficam lado a lado, ancorados
+   na parte inferior da área do conteúdo, acima da faixa do certificado.
+   Se não couberem depois do conteúdo, vão juntos para a próxima página.
 7. Uma receita longa pagina sem perder textos e sem sobrepor o certificado;
    cada página identifica a clínica e o documento corretamente.
 8. A falta de identidade válida, símbolo ou dados indispensáveis não pode

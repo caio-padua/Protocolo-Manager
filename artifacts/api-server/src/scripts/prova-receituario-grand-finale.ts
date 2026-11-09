@@ -8,6 +8,7 @@ async function main() {
   process.env.NODE_ENV = "test";
   const destino = process.argv[2];
   if (!destino) throw new Error("Informe o caminho do documento de prova.");
+  const especial = process.argv[3] === "especial";
   const simbolo = new PNG({ width: 40, height: 40 });
   for (let y = 0; y < 40; y++) for (let x = 0; x < 40; x++) {
     const n = (y * 40 + x) * 4;
@@ -30,8 +31,8 @@ async function main() {
     medicoName: "Profissional fictício", medicoCrm: "12345/SP",
     clinicaNome: "Clínica Exemplo", clinicaEndereco: "Rua Exemplo, 10",
     pacienteNome: "Cliente fictício", pacienteEndereco: "Rua Teste, 20",
-    dataEmissao: "2026-11-09", tipoReceita: "simples",
-    formulas: Array.from({ length: 6 }, (_, index) => ({
+    dataEmissao: "2026-11-09", tipoReceita: especial ? "especial" : "simples",
+    formulas: Array.from({ length: especial ? 1 : 6 }, (_, index) => ({
       nome: `Fórmula de demonstração ${index + 1}`,
       ativos: "Conteúdo fictício para conferir a aparência.",
       posologia: "Não é uma receita e não deve ser dispensada.",

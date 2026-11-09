@@ -28,14 +28,15 @@ function identidade(nome: string) {
   };
 }
 
-function texto(bytes: Uint8Array): string {
+function extrair(bytes: Uint8Array, modo: "-layout" | "-bbox" = "-layout"): string {
   const dir = mkdtempSync(join(tmpdir(), "grand-finale-"));
   try {
     const file = join(dir, "prova.pdf");
     writeFileSync(file, bytes);
-    return execFileSync("pdftotext", ["-layout", file, "-"], { encoding: "utf8" });
+    return execFileSync("pdftotext", [modo, file, "-"], { encoding: "utf8" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
+const texto = (bytes: Uint8Array) => extrair(bytes);
 
 describe("Arte Grand Finale com identidade variável", () => {
   it.each(["Clínica Alfa", "Clínica Beta"])("compõe somente a identidade %s e a faixa existente", async (nome) => {
@@ -153,4 +154,44 @@ describe("Prova Grand Finale pelo gerador de receitas existente", () => {
     expect(result).toContain("FORNECEDOR");
     expect(result).toContain("Fórmula sintética 1");
   });
+  it("ancora comprador e farmácia lado a lado acima da assinatura em receita longa", async () => {
+    const bytes = await generateReceituarioPdfV2({ ...base, tipoReceita: "especial" });
+    const paginas = extrair(bytes, "-bbox").match(/<page\b[\s\S]*?<\/page>/g) ?? [];
+    expect(paginas.length).toBeGreaterThan(1);
+    expect(paginas.slice(0, -1).every(p => !p.includes(">COMPRADOR</word>"))).toBe(true);
+    const ultima = paginas[paginas.length - 1];
+    function posicao(pagina: string, palavra: string) {
+      const match = pagina.match(new RegExp(`<word xMin="([\\d.]+)" yMin="([\\d.]+)"[^>]*>${palavra}</word>`));
+      if (!match) throw new Error(`Palavra ausente: ${palavra}`);
+      return { x: Number(match[1]), y: Number(match[2]) };
+    }
+    const comprador = posicao(ultima, "COMPRADOR");
+    const fornecedor = posicao(ultima, "FORNECEDOR");
+    const assinatura = posicao(ultima, "GERADA");
+    expect(comprador.x).toBeLessThan(fornecedor.x);
+    expect(Math.abs(comprador.y - fornecedor.y)).toBeLessThan(1);
+    expect(comprador.y).toBeGreaterThan(400);
+    expect(comprador.y).toBeLessThan(assinatura.y);
+    for (const pagina of paginas) expect(pagina).toContain(">GERADA</word>");
+    const textoCompleto = texto(bytes);
+    for (let i = 1; i <= 7; i++) expect(textoCompleto).toContain(`Fórmula sintética ${i}`);
+  }, 15_000);
+  it("mantém uma fórmula extensa e suas linhas fora dos quadros inferiores", async () => {
+    const ativos = Array.from({ length: 42 }, (_, i) => `ATIVO${String(i + 1).padStart(3, "0")} texto de demonstração`).join("\n");
+    const bytes = await generateReceituarioPdfV2({
+      ...base, tipoReceita: "especial",
+      formulas: [{ nome: "Fórmula longa", ativos, posologia: "Somente para demonstração." }],
+      farmaciaNome: "Farmácia de demonstração",
+    });
+    const paginas = extrair(bytes, "-bbox").match(/<page\b[\s\S]*?<\/page>/g) ?? [];
+    const ultima = paginas[paginas.length - 1];
+    expect(ultima).toContain(">COMPRADOR</word>");
+    expect(ultima).toContain(">FORNECEDOR</word>");
+    const topoQuadros = GRAND_FINALE.altura - (GRAND_FINALE.corpoBase + 8 + 120);
+    for (const item of ultima.matchAll(/<word\b[^>]*yMax="([\d.]+)"[^>]*>ATIVO\d{3}<\/word>/g)) {
+      expect(Number(item[1])).toBeLessThan(topoQuadros);
+    }
+    const resultado = texto(bytes);
+    for (let i = 1; i <= 42; i++) expect(resultado).toContain(`ATIVO${String(i).padStart(3, "0")}`);
+  }, 15_000);
 });

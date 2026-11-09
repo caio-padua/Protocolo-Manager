@@ -1054,3 +1054,17 @@ mtime_ms = 1794201288224
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/260ad4e4-697b-4e42-a40c-7e467120074f/c11ac874-0a18-4916-8a3d-ea96e0bd69b8"
 storage_version_token = "1794201296324634"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "xmlGlGXhBV6KDQB_WJdPP"
+uri = "file://generated-artifacts/provas/receituario-especial-demonstracao.pdf"
+type = "pdf"
+title = "Modelo de receituário especial"
+description = "Amostra visual com dados fictícios, sem validade clínica e sem assinatura digital."
+logical_id = "93d19d3e-f92b-4862-ad8f-4f478b98be11"
+content_hash = "sha256:3dcfa063a37422d1bd06de19f659f095459852a25c5e7b44d6c8512738fa0a01"
+size = 2771123
+mtime_ms = 1794201429908
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/93d19d3e-f92b-4862-ad8f-4f478b98be11/26b27fb2-fa7f-41bf-a0d3-7a02e2dc9ca7"
+storage_version_token = "1794201664426234"
+content_type = "application/pdf"
