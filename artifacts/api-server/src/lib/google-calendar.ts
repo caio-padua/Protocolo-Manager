@@ -383,7 +383,9 @@ function buildEventRequestBody(data: CalendarEventData) {
 
 // Convite B (decisao CEO): atualiza o MESMO evento (events.update, corpo completo) em vez de
 // apagar+recriar. Mantem o evento no celular de quem ja salvou; NAO dispara "Evento cancelado".
-export async function updateCalendarEvent(eventId: string, calendarId: string, data: CalendarEventData): Promise<void> {
+export async function updateCalendarEvent(
+  eventId: string, calendarId: string, data: CalendarEventData, options: { timeoutMs?: number } = {},
+): Promise<void> {
   try {
     const calendar = await getUncachableGoogleCalendarClient();
     await calendar.events.update({
@@ -391,7 +393,7 @@ export async function updateCalendarEvent(eventId: string, calendarId: string, d
       eventId,
       requestBody: buildEventRequestBody(data),
       sendUpdates: 'none',
-    });
+    }, options.timeoutMs ? { timeout: options.timeoutMs } : undefined);
   } catch (err: any) {
     console.error("Failed to update calendar event:", err.message);
     throw err;

@@ -35,10 +35,38 @@ export function procedureTypeLabel(type: string): string {
 export class CalendarSyncUncertain extends Error {}
 
 /** Reserva durável: mesmo falha de resposta ou reinício nunca autoriza nova criação. */
+export interface ReservedSyncOptions {
+  /**
+   * Só vale para evento que JÁ existe no Google. Falha ao atualizá-lo libera a reserva (comparando com a operação
+   * própria) em vez de deixá-la presa: repetir events.update com o mesmo identificador é seguro, e a reserva presa
+   * bloquearia o próximo registro clínico da mesma visita. Sem esta opção (remarcação, envio manual) a reserva fica.
+   */
+  releaseOnUpdateFailure?: boolean;
+  /**
+   * Prazo máximo da chamada events.update quando releaseOnUpdateFailure está ligado. Sem prazo, uma chamada que nunca
+   * responde deixaria a reserva presa para sempre. A chamada HTTP também recebe esse limite (é abortada no cliente);
+   * como a atualização reescreve o evento inteiro a partir do banco, repetir depois é seguro.
+   */
+  updateDeadlineMs?: number;
+}
+
+/** Prazo da atualização de evento existente disparada por ação clínica (menor que o limite de resposta da tela). */
+export const EVENT_UPDATE_DEADLINE_MS = 7000;
+
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_ok, reject) => {
+    timer = setTimeout(() => reject(new Error("O Google não respondeu no prazo.")), ms);
+  });
+  work.catch(() => undefined); // se o prazo vencer, a falha tardia não pode virar rejeição sem tratamento
+  return Promise.race([work, limit]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
 export async function syncReservedEvent(
   session: typeof sessionsTable.$inferSelect,
   data: CalendarEventData,
   expectedApplications: (typeof substanceApplicationsTable.$inferSelect)[],
+  options: ReservedSyncOptions = {},
 ) {
   const operation = randomUUID();
   const eventId = session.googleEventId ?? randomUUID().replace(/-/g, "");
@@ -75,7 +103,12 @@ export async function syncReservedEvent(
   }
   try {
     if (session.googleEventId) {
-      await updateCalendarEvent(eventId, calendarId, data);
+      if (options.releaseOnUpdateFailure) {
+        const deadline = options.updateDeadlineMs ?? EVENT_UPDATE_DEADLINE_MS;
+        await withDeadline(updateCalendarEvent(eventId, calendarId, data, { timeoutMs: deadline }), deadline);
+      } else {
+        await updateCalendarEvent(eventId, calendarId, data);
+      }
     } else {
       const created = await createCalendarEvent({ ...data, eventId });
       if (created !== eventId) throw new Error("O Google não confirmou o identificador reservado.");
@@ -91,6 +124,15 @@ export async function syncReservedEvent(
     if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
     return eventId;
   } catch {
+    if (options.releaseOnUpdateFailure && session.googleEventId) {
+      // Atualização de evento existente é idempotente: libera SÓ a reserva própria e devolve falha comum (não incerta).
+      try {
+        await db.update(sessionsTable).set({
+          googleSyncPendingOperation: null, googleSyncPendingEventId: null, googleSyncPendingCalendarId: null,
+        }).where(and(eq(sessionsTable.id, session.id), eq(sessionsTable.googleSyncPendingOperation, operation)));
+      } catch { /* banco indisponível: a reserva fica e exigirá conferência, como no fluxo padrão */ }
+      throw new Error("Não foi possível atualizar o evento existente no Google.");
+    }
     // Não libera a reserva: o Google pode ter recebido a alteração.
     throw new CalendarSyncUncertain("Não foi possível confirmar o resultado no Google. Confira o compromisso antes de repetir.");
   }
@@ -292,6 +334,9 @@ async function buildVisitEvent(
 interface VisitContext {
   empresaId: number; professionalId: number | null; client: typeof clientsTable.$inferSelect;
   position: number; total: number;
+  /** Ver ReservedSyncOptions.releaseOnUpdateFailure. */
+  releaseOnUpdateFailure?: boolean;
+  updateDeadlineMs?: number;
 }
 
 /** Uma visita: destino, evento completo e envio seguro (reserva -> Google -> grava). Nunca lança. */
@@ -309,7 +354,9 @@ async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitS
   try {
     const eventId = session.googleSyncPendingOperation
       ? await reconcilePendingEvent(session, built.data, applications)
-      : await syncReservedEvent(session, built.data, applications);
+      : await syncReservedEvent(session, built.data, applications, {
+        releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
+      });
     return { ...base, status: "sincronizado", eventId };
   } catch (error) {
     const uncertain = error instanceof CalendarSyncUncertain;
@@ -331,10 +378,19 @@ async function activeVisits(protocolId: number, empresaId: number): Promise<Sess
  * com a descrição completa e o novo dia/horário. Devolve null quando não há nada a atualizar.
  * Quem chama já autorizou a sessão; aqui não há profissional logado para conferir vínculo.
  */
-export async function refreshSessionEventInPlace(sessionId: number, empresaId: number): Promise<VisitSyncResult | null> {
+export async function refreshSessionEventInPlace(
+  sessionId: number, empresaId: number, options: { releaseUpdateFailure?: boolean; updateDeadlineMs?: number } = {},
+): Promise<VisitSyncResult | null> {
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
   if (!session || session.agendaArchived || session.status === "cancelled" || session.empresaId !== empresaId ||
       (!session.googleEventId && !session.googleSyncPendingOperation)) return null;
+  if (options.releaseUpdateFailure && session.googleSyncPendingOperation) {
+    // Ação clínica nunca reivindica a reserva de outra operação (envio manual, criação ou remarcação em andamento):
+    // reconciliar aqui escreveria no Google enquanto o dono da reserva ainda pode estar escrevendo.
+    return { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime, status: "falhou",
+      code: "sincronizacao_em_andamento",
+      error: "Há outra sincronização com o Google em andamento nesta visita." };
+  }
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
   if (!client || client.empresaId !== empresaId) return null;
   const visits = await activeVisits(session.protocolId, empresaId);
@@ -345,7 +401,10 @@ export async function refreshSessionEventInPlace(sessionId: number, empresaId: n
     return { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime, status: "falhou",
       code: "google_indisponivel", error: "a conta Google da clínica não foi confirmada; nenhum evento foi alterado" };
   }
-  return syncVisit(session, { empresaId, professionalId: null, client, position: index + 1, total: visits.length });
+  return syncVisit(session, {
+    empresaId, professionalId: null, client, position: index + 1, total: visits.length,
+    releaseOnUpdateFailure: options.releaseUpdateFailure, updateDeadlineMs: options.updateDeadlineMs,
+  });
 }
 
 async function accountConfirmed(): Promise<boolean> {
@@ -360,6 +419,70 @@ export async function refreshAfterReschedule(sessionId: number, empresaId: numbe
     return `Remarcação salva, mas o evento no Google Agenda não foi atualizado (${result.error ?? "sem detalhe"}). Use "Enviar ao Google Agenda" no protocolo para tentar de novo.`;
   } catch {
     return 'Remarcação salva, mas o evento no Google Agenda não foi atualizado. Use "Enviar ao Google Agenda" no protocolo para tentar de novo.';
+  }
+}
+
+/** Espera máxima por uma atualização de evento já em andamento antes de recusar o próximo registro da visita. */
+export const EVENT_UPDATE_SETTLE_MS = 3000;
+
+/**
+ * Registrar duas substâncias da mesma visita em seguida é o fluxo normal: a atualização do Google disparada pelo
+ * primeiro registro mantém a reserva por 1 a 2 s. Em vez de recusar o segundo registro (409), espera um pouco que
+ * a reserva de uma ATUALIZAÇÃO (evento já existe) termine. Reserva de primeiro envio (criação) ou que dure mais que
+ * o limite continua sendo recusada pela regra de sempre; aqui nada é decidido, só se espera.
+ */
+export async function waitForEventUpdateToSettle(
+  sessionId: number, empresaId: number, maxMs: number = EVENT_UPDATE_SETTLE_MS,
+): Promise<void> {
+  const deadline = Date.now() + maxMs;
+  for (;;) {
+    const [row] = await db.select({
+      pendingOperation: sessionsTable.googleSyncPendingOperation,
+      pendingEventId: sessionsTable.googleSyncPendingEventId,
+      eventId: sessionsTable.googleEventId,
+    }).from(sessionsTable).where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.empresaId, empresaId)));
+    const updating = !!row?.pendingOperation && !!row.eventId && row.pendingEventId === row.eventId;
+    if (!updating || Date.now() >= deadline) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}
+
+/** Limite de espera do registro de aplicação: o Google nunca pode segurar a resposta ao profissional. */
+export const APPLICATION_REFRESH_TIMEOUT_MS = 8000;
+
+/**
+ * Depois de registrar uma ação clínica na visita (aplicada, não realizada, concluída, faltou): atualiza o MESMO
+ * evento no Google. Devolve o aviso para a tela; nunca lança e nunca desfaz o registro clínico. Visita que nunca foi
+ * ao Google não chama o Google. Falha ao atualizar evento existente não deixa reserva presa (ver ReservedSyncOptions).
+ */
+export async function refreshAfterApplication(
+  sessionId: number, empresaId: number,
+  options: { what?: string; timeoutMs?: number; updateDeadlineMs?: number } = {},
+): Promise<string | undefined> {
+  const what = options.what ?? "Aplicação registrada";
+  const retry = 'A atualização será refeita na próxima ação ou pelo botão "Enviar ao Google Agenda" no protocolo.';
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<"timeout">(resolve => {
+      timer = setTimeout(() => resolve("timeout"), options.timeoutMs ?? APPLICATION_REFRESH_TIMEOUT_MS);
+    });
+    const work = refreshSessionEventInPlace(sessionId, empresaId, {
+      releaseUpdateFailure: true, updateDeadlineMs: options.updateDeadlineMs,
+    });
+    work.catch(() => undefined); // se o tempo esgotar, a falha tardia não pode virar rejeição sem tratamento
+    const result = await Promise.race([work, timeout]);
+    if (result === "timeout") return `${what}, mas o Google Agenda demorou para responder e o evento pode estar desatualizado. ${retry}`;
+    if (!result || result.status === "sincronizado") return undefined;
+    const reason = result.code === "google_indisponivel"
+      ? "a conta Google da clínica não foi confirmada"
+      : result.code === "sincronizacao_em_andamento"
+        ? "há outra sincronização com o Google em andamento"
+        : "o Google não confirmou a atualização";
+    return `${what}, mas o evento no Google Agenda não foi atualizado (${reason}). ${retry}`;
+  } catch {
+    return `${what}, mas o evento no Google Agenda não foi atualizado. ${retry}`;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

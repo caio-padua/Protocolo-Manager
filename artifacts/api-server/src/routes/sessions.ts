@@ -4,7 +4,9 @@ import { eq, and, isNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { requireCollaborator } from "./collaborator";
 import { bookSession, rescheduleSession } from "../lib/agenda-booking";
-import { refreshAfterReschedule, removeSessionEvent } from "../lib/session-google-sync";
+import {
+  refreshAfterApplication, refreshAfterReschedule, removeSessionEvent, waitForEventUpdateToSettle,
+} from "../lib/session-google-sync";
 import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable, locationsTable, locationProfessionalsTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
@@ -301,6 +303,10 @@ router.put("/sessions/:id", requireCollaborator, async (req, res): Promise<void>
   // Repetir o cancelamento de visita cancelada que ainda guarda o ponteiro do evento tenta remover o evento de novo.
   if (parsed.data.status === "cancelled" && existing.googleEventId) {
     googleSyncWarning = (await removeSessionEvent(session.id, resolveEmpresaId(req))).warning;
+  } else if ((parsed.data.status === "completed" || parsed.data.status === "missed") &&
+      parsed.data.status !== existing.status) {
+    // Visita concluída ou faltou: o MESMO evento muda de situação. Aviso, nunca bloqueio.
+    googleSyncWarning = await refreshAfterApplication(session.id, resolveEmpresaId(req), { what: "Situação da visita salva" });
   }
   const result = await buildSessionResponse(session);
   res.json(googleSyncWarning ? { ...result, googleSyncWarning } : result);
@@ -324,6 +330,8 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
   }
 
   try {
+    // O registro anterior da mesma visita pode ainda estar atualizando o evento no Google (1 a 2 s): espera um pouco.
+    await waitForEventUpdateToSettle(params.data.id, resolveEmpresaId(req));
     const session = await db.transaction(async tx => {
       const [current] = await tx.select().from(sessionsTable)
         .where(eq(sessionsTable.id, params.data.id)).for("update");
@@ -385,7 +393,10 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
       }
       return current;
     });
-    res.json(await buildSessionResponse(session));
+    // Depois do commit: o MESMO evento do Google acompanha a ação registrada (aviso, nunca desfaz o registro).
+    const googleSyncWarning = await refreshAfterApplication(session.id, resolveEmpresaId(req));
+    const result = await buildSessionResponse(session);
+    res.json(googleSyncWarning ? { ...result, googleSyncWarning } : result);
   } catch (error) {
     if (error instanceof ApplicationConfirmationError) {
       res.status(error.statusCode).json({ error: error.message });

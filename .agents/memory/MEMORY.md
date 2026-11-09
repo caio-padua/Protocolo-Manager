@@ -159,3 +159,5 @@
 - [Remarcar e cancelar visita de protocolo](remarcar-cancelar-visita-protocolo.md) — duração reservada nunca encolhe; Google só fora da transação; cancelar mantém ponteiro se falhar; n/total pela posição.
 - [Vínculo empresarial do profissional](vinculo-empresarial-profissional.md) — originária + até 5 empresas; agenda só nas vinculadas; 409 em vez de desligar sozinho; fixtures precisam da tabela nova.
 - [Evento Google — comparação com o IHE](google-evento-ihe-comparacao.md) — IHE atualizava o evento ao aplicar (Manager perdeu); cor do print é renderização do Google, não divergência de código.
+- [Ação clínica que atualiza o Google — reserva e prazo](google-evento-acao-clinica-reserva.md) — nunca reivindicar reserva alheia; prazo próprio na chamada; teste sem timer curto.
+- [Linha do Tempo Viva — pedidos do CEO](linha-do-tempo-viva-regras-ceo.md) — K1–K6 aprovadas; aguda/crônica; substâncias constantes, chave de 6 dígitos como rubrica, RAS FAP vivo.

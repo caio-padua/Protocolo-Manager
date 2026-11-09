@@ -544,8 +544,13 @@ export default function Agenda() {
 
   const confirmMutation = useConfirmSubstanceApplication({
     mutation: {
-      onSuccess: (_response, variables) => {
+      onSuccess: (response, variables) => {
         toast({ title: variables.data.confirmed ? "Aplicação registrada" : "Aplicação registrada como não realizada" });
+        // O registro vale mesmo quando o Google Agenda não acompanhou; o aviso diz o que fazer.
+        const googleSyncWarning = (response as { googleSyncWarning?: string } | undefined)?.googleSyncWarning;
+        if (googleSyncWarning) {
+          toast({ title: "Google Agenda não atualizado", description: googleSyncWarning, variant: "destructive" });
+        }
         refetch();
       },
       onError: () => { toast({ title: "Erro ao confirmar", variant: "destructive" }); },
