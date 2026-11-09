@@ -72,7 +72,7 @@ vi.mock("../lib/session-ics", () => ({ buildEventsForSessions: vi.fn(async () =>
 vi.mock("../lib/ics", () => ({ buildVCalendar: vi.fn() }));
 import {
   agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
-  locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable,
+  locationsTable, professionalsTable, professionalEmpresasTable, sessionsTable, substanceApplicationsTable,
   clientsTable, protocolsTable, protocolItemsTable, substancesTable,
   clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable,
   locationProfessionalsTable,
@@ -138,7 +138,7 @@ beforeAll(async () => {
   for (const table of [agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
     locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable, clientsTable,
     protocolsTable, protocolItemsTable, substancesTable, clientPreferredAgendasTable,
-    clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable, locationProfessionalsTable]) {
+    clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable, locationProfessionalsTable, professionalEmpresasTable]) {
     await query(createTableFromSchema(table));
   }
   await query(`

@@ -95,6 +95,24 @@ export const professionalsTable = pgTable(
   ],
 );
 
+// Empresas adicionais onde o profissional presta servico (posicoes 2 a 5).
+// A posicao 1 (vinculo originario) mora em professionals.empresa_id. Tabela criada
+// por SQL aditivo (ensure no boot + scripts/migrations); nunca por drizzle-kit push.
+export const professionalEmpresasTable = pgTable(
+  "professional_empresas",
+  {
+    id: serial("id").primaryKey(),
+    professionalId: integer("professional_id").notNull(),
+    empresaId: integer("empresa_id").notNull(),
+    ordem: integer("ordem").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("professional_empresas_prof_empresa_uk").on(t.professionalId, t.empresaId),
+    uniqueIndex("professional_empresas_prof_ordem_uk").on(t.professionalId, t.ordem),
+  ],
+);
+
 export const insertProfessionalSchema = createInsertSchema(professionalsTable).omit({ id: true, createdAt: true });
 export type InsertProfessional = z.infer<typeof insertProfessionalSchema>;
 export type Professional = typeof professionalsTable.$inferSelect;

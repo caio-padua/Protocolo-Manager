@@ -21,6 +21,7 @@ import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schem
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
+import { ensureProfessionalEmpresasSchema } from "./lib/ensure-professional-empresas-schema";
 import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
 import { refreshCertCache } from "./lib/cert-source";
 import { recoverStuckDocuments } from "./routes/exames-lab";
@@ -51,6 +52,14 @@ if (Number.isNaN(port) || port <= 0) {
     logger.info("identidades Google por ambiente: schema pronto antes do listen");
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao garantir identidades Google — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureProfessionalEmpresasSchema();
+    logger.info("vínculos empresariais do profissional: schema pronto antes do listen");
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao garantir vínculos empresariais do profissional — abortando boot");
     process.exit(1);
   }
 

@@ -33,7 +33,7 @@ vi.mock("@workspace/db", async () => {
 });
 import {
   agendaResourcesTable, clientsTable, empresasTable, locationProfessionalsTable, locationsTable,
-  professionalsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable,
+  professionalEmpresasTable, professionalsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable,
 } from "@workspace/db/schema";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
@@ -60,7 +60,8 @@ beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   for (const table of [empresasTable, professionalsTable, locationsTable, locationProfessionalsTable,
-    clientsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable, agendaResourcesTable]) {
+    clientsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable, agendaResourcesTable,
+    professionalEmpresasTable]) {
     await isolated.pool.query(createTableSql(table));
   }
   await isolated.pool.query(`

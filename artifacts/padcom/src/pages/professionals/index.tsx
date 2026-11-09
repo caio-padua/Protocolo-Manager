@@ -34,6 +34,7 @@ import {
   Mail,
   Stethoscope,
   Building2,
+  Landmark,
   Pencil,
   BadgeCheck,
   ShieldCheck,
@@ -59,6 +60,16 @@ import { getCollabToken } from "@/lib/collab-auth";
 import { formatCpfInput } from "@/lib/cpf";
 import AccountAccessPanel from "./AccountAccessPanel";
 import ProfessionalHistoryPanel from "./ProfessionalHistoryPanel";
+import {
+  EmpresaOriginariaSelect,
+  EmpresasPrestacaoPanel,
+  lerErroDoServidor,
+  rotuloDaPosicao,
+  textoDoErro,
+  useEmpresasOpcoes,
+  type EmpresaOpcao,
+  type VinculoEmpresaLinha,
+} from "./empresas-vinculo";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -251,9 +262,11 @@ function SignatureUpload({
 }
 
 // ─── Painel de Vínculos (clínicas) — agrupamento geográfico ──────────────────
-type LinkRow = { id: number; locationId: number; role: string; agendaCalendarId: number | null };
+type LinkRow = { id: number; locationId: number; role: string; agendaCalendarId: number | null; empresaId?: number };
 type LocRow  = {
   id: number; name: string; type: string; address: string | null;
+  // Empresa dona do local (null = Instituto Pádua, empresa padrão 5) e situação do local.
+  empresaId?: number | null; active?: boolean;
   // Campos estruturados — data-binders para agrupamento geográfico automático
   zona: string | null; bairro: string | null; cidade: string | null; estado: string | null;
 };
@@ -457,30 +470,114 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
   );
 }
 
-function VinculosPanel({ professionalId }: { professionalId: number }) {
+// Agendas liberadas por empresa: só aparecem as empresas em que o profissional está cadastrado.
+function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle }: {
+  vinculo: VinculoEmpresaLinha;
+  locs: LocRow[];
+  linkedFn: (id: number) => boolean;
+  busyFn: (id: number) => boolean;
+  onToggle: (id: number) => void;
+}) {
+  // Estados com agenda liberada primeiro; depois ordem alfabética.
+  const byState = new Map<string, LocRow[]>();
+  for (const loc of locs) {
+    const state = loc.estado?.toUpperCase().trim() || (extractGeo(loc.address).state);
+    byState.set(state, [...(byState.get(state) ?? []), loc]);
+  }
+  const statesSorted = [...byState.entries()].sort(([sa, la], [sb, lb]) => {
+    const aActive = la.some((l) => linkedFn(l.id));
+    const bActive = lb.some((l) => linkedFn(l.id));
+    if (aActive !== bActive) return aActive ? -1 : 1;
+    return sa.localeCompare(sb, "pt-BR");
+  });
+  const liberadas = locs.filter((l) => linkedFn(l.id)).length;
+
+  return (
+    <section className="panel-3d-sub space-y-2 px-2 py-2.5" aria-label={`Agendas de ${vinculo.nome}`}>
+      <div className="flex items-center gap-2 px-1">
+        <Building2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <p className="truncate text-[11px] font-black uppercase tracking-widest text-foreground">{vinculo.nome}</p>
+        <span className="concave-3d shrink-0 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+          {rotuloDaPosicao(vinculo.ordem)}
+        </span>
+        <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-widest text-muted-foreground tabular-nums">
+          {liberadas}/{locs.length} agenda{locs.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      {statesSorted.length === 0 ? (
+        <div className="concave-3d px-3 py-3 text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Nenhum local cadastrado nesta empresa.
+          </p>
+        </div>
+      ) : (
+        statesSorted.map(([state, stateLocs]) => (
+          <StateBucket
+            key={state}
+            state={state}
+            locs={stateLocs}
+            linkedFn={linkedFn}
+            busyFn={busyFn}
+            onToggle={onToggle}
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpresasChanged }: {
+  professionalId: number;
+  empresas: EmpresaOpcao[];
+  empresasErro: string | null;
+  canEdit: boolean;
+  onEmpresasChanged: () => void;
+}) {
   const { toast } = useToast();
   const [locations, setLocations] = useState<LocRow[]>([]);
   const [links, setLinks] = useState<LinkRow[]>([]);
+  const [vinculos, setVinculos] = useState<VinculoEmpresaLinha[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<number | null>(null);
 
   const fetchLinks = useCallback(async () => {
-    const [locRes, lnkRes] = await Promise.all([
-      fetch(`${BASE}/api/locations`),
-      fetch(`${BASE}/api/professionals/${professionalId}/locations`, {
-        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
-      }),
-    ]);
-    const [locs, lnks] = await Promise.all([locRes.json(), lnkRes.json()]);
-    setLocations(locs ?? []);
-    setLinks(lnks ?? []);
-    setLoading(false);
+    try {
+      const authHeaders = { Authorization: `Bearer ${getCollabToken() ?? ""}` };
+      const [locRes, lnkRes, empRes] = await Promise.all([
+        fetch(`${BASE}/api/locations`),
+        fetch(`${BASE}/api/professionals/${professionalId}/locations`, { headers: authHeaders }),
+        fetch(`${BASE}/api/professionals/${professionalId}/empresas`, { headers: authHeaders }),
+      ]);
+      for (const res of [locRes, lnkRes, empRes]) {
+        if (!res.ok) {
+          const corpo = await res.json().catch(() => null);
+          throw new Error(lerErroDoServidor(corpo, "Não foi possível carregar os vínculos.").mensagem);
+        }
+      }
+      const [locs, lnks, emps] = await Promise.all([locRes.json(), lnkRes.json(), empRes.json()]);
+      setLocations(locs ?? []);
+      setLinks(lnks ?? []);
+      setVinculos((emps as { vinculos: VinculoEmpresaLinha[] }).vinculos ?? []);
+      setLoadError(null);
+    } catch (falha) {
+      setLoadError(falha instanceof Error ? falha.message : "Não foi possível carregar os vínculos.");
+    } finally {
+      setLoading(false);
+    }
   }, [professionalId]);
 
   useEffect(() => { fetchLinks(); }, [fetchLinks]);
 
   const isLinked  = useCallback((id: number) => links.some((l) => l.locationId === id), [links]);
   const isBusy    = useCallback((id: number) => toggling === id, [toggling]);
+
+  // Mudou a lista de empresas: o servidor passa a mostrar (ou esconder) as agendas dessas empresas.
+  async function aoMudarEmpresas(proximos: VinculoEmpresaLinha[]) {
+    setVinculos(proximos);
+    onEmpresasChanged();
+    await fetchLinks();
+  }
 
   async function toggle(locationId: number) {
     setToggling(locationId);
@@ -490,22 +587,31 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (t) headers.Authorization = `Bearer ${t}`;
       if (linked) {
-        await fetch(`${BASE}/api/professionals/${professionalId}/locations/${locationId}`, {
+        const r = await fetch(`${BASE}/api/professionals/${professionalId}/locations/${locationId}`, {
           method: "DELETE", headers,
         });
+        if (!r.ok) {
+          const erro = lerErroDoServidor(await r.json().catch(() => null), "Não foi possível remover o vínculo.");
+          toast({ title: "Falha ao alterar vínculo", description: textoDoErro(erro), variant: "destructive" });
+          return;
+        }
         setLinks((prev) => prev.filter((l) => l.locationId !== locationId));
         toast({ title: "Vínculo removido" });
       } else {
         const r = await fetch(`${BASE}/api/professionals/${professionalId}/locations`, {
           method: "POST", headers, body: JSON.stringify({ locationId, role: "executor" }),
         });
-        if (!r.ok) throw new Error("link");
+        if (!r.ok) {
+          const erro = lerErroDoServidor(await r.json().catch(() => null), "Não foi possível adicionar o vínculo.");
+          toast({ title: "Falha ao alterar vínculo", description: textoDoErro(erro), variant: "destructive" });
+          return;
+        }
         const row = await r.json() as LinkRow;
         setLinks((prev) => [...prev, row]);
         toast({ title: "Vínculo adicionado" });
       }
     } catch {
-      toast({ title: "Falha ao alterar vínculo", variant: "destructive" });
+      toast({ title: "Falha ao alterar vínculo", description: "Sem resposta do servidor. Nada foi alterado.", variant: "destructive" });
     } finally {
       setToggling(null);
     }
@@ -519,31 +625,39 @@ function VinculosPanel({ professionalId }: { professionalId: number }) {
     );
   }
 
-  // ── Agrupar por estado — usa campo direto `loc.estado` (data-binder) ─────
-  const byState = new Map<string, LocRow[]>();
-  for (const loc of locations) {
-    const state = loc.estado?.toUpperCase().trim() || (extractGeo(loc.address).state);
-    byState.set(state, [...(byState.get(state) ?? []), loc]);
+  if (loadError) {
+    return (
+      <div role="alert" className="concave-3d px-4 py-6 text-center space-y-3">
+        <p className="text-[11px] font-bold text-destructive">{loadError}</p>
+        <Button type="button" className="btn-3d-soft min-h-10" onClick={() => { setLoading(true); void fetchLinks(); }}>
+          TENTAR DE NOVO
+        </Button>
+      </div>
+    );
   }
 
-  // Ordem: estados com vínculos ativos primeiro, depois alfabético
-  const statesSorted = [...byState.entries()].sort(([sa, la], [sb, lb]) => {
-    const aActive = la.some((l) => isLinked(l.id));
-    const bActive = lb.some((l) => isLinked(l.id));
-    if (aActive !== bActive) return aActive ? -1 : 1;
-    return sa.localeCompare(sb, "pt-BR");
-  });
+  // Agendas por empresa: só empresas do profissional; local sem empresa gravada = Instituto Pádua (5).
+  const locaisDaEmpresa = (empresaId: number) =>
+    locations.filter((l) => (l.empresaId ?? 5) === empresaId && (l.active !== false || isLinked(l.id)));
 
   return (
     <div className="space-y-3 py-2">
+      <EmpresasPrestacaoPanel
+        professionalId={professionalId}
+        vinculos={vinculos}
+        empresas={empresas}
+        empresasErro={empresasErro}
+        canEdit={canEdit}
+        onChange={(proximos) => { void aoMudarEmpresas(proximos); }}
+      />
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-        O vínculo é salvo imediatamente ao acionar o switch.
+        Agendas liberadas — só das empresas acima. O vínculo é salvo imediatamente ao acionar o switch.
       </p>
-      {statesSorted.map(([state, locs]) => (
-        <StateBucket
-          key={state}
-          state={state}
-          locs={locs}
+      {vinculos.map((vinculo) => (
+        <EmpresaAgendas
+          key={vinculo.empresaId}
+          vinculo={vinculo}
+          locs={locaisDaEmpresa(vinculo.empresaId)}
           linkedFn={isLinked}
           busyFn={isBusy}
           onToggle={toggle}
@@ -591,9 +705,18 @@ const EMPTY_FORM = {
   cnpj: "",
   homeServiceFeePerVisit: "" as string,
   contractType: "" as string,
+  // Empresa de origem (posição 1 do vínculo empresarial); "" = ainda não escolhida.
+  empresaOriginariaId: "" as string,
 };
 
 type FormState = typeof EMPTY_FORM;
+
+// Campos de vínculo empresarial que o servidor acrescenta à lista de profissionais (dono da plataforma).
+type ProfissionalComEmpresas = Professional & {
+  empresaOriginariaId?: number | null;
+  empresaOriginariaNome?: string | null;
+  empresasVinculadas?: VinculoEmpresaLinha[];
+};
 
 // Iniciais (máx. 2 letras) para fallback no card
 function initials(name: string): string {
@@ -622,6 +745,9 @@ export default function Professionals() {
   const [editingPhotoUrl, setEditingPhotoUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("dados");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  // Vínculo originário gravado hoje (para enviar só quando mudar e para mostrar o nome mesmo se a empresa estiver inativa).
+  const [originariaGravada, setOriginariaGravada] = useState<{ id: string; nome: string | null }>({ id: "", nome: null });
+  const { empresas, carregando: empresasCarregando, erro: empresasErro } = useEmpresasOpcoes();
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -652,7 +778,10 @@ export default function Professionals() {
         closeDialog();
         refetch();
       },
-      onError: () => toast({ title: "Erro ao cadastrar", variant: "destructive" }),
+      onError: (error) => {
+        const erro = lerErroDoServidor(error, "Não foi possível cadastrar o profissional.");
+        toast({ title: "Erro ao cadastrar", description: textoDoErro(erro), variant: "destructive" });
+      },
     },
   });
 
@@ -663,7 +792,10 @@ export default function Professionals() {
         closeDialog();
         refetch();
       },
-      onError: () => toast({ title: "Erro ao salvar", variant: "destructive" }),
+      onError: (error) => {
+        const erro = lerErroDoServidor(error, "Não foi possível salvar as alterações.");
+        toast({ title: "Erro ao salvar", description: textoDoErro(erro), variant: "destructive" });
+      },
     },
   });
 
@@ -674,18 +806,23 @@ export default function Professionals() {
     setEditingPhotoUrl(null);
     setActiveTab("dados");
     setForm(EMPTY_FORM);
+    setOriginariaGravada({ id: "", nome: null });
   };
 
   const openCreate = () => {
     setEditingId(null);
     setActiveTab("dados");
     setForm(EMPTY_FORM);
+    setOriginariaGravada({ id: "", nome: null });
     setOpen(true);
   };
 
   const openEdit = (pro: Professional) => {
     setEditingId(pro.id);
     setActiveTab("dados");
+    const comEmpresas = pro as ProfissionalComEmpresas;
+    const originariaId = comEmpresas.empresaOriginariaId != null ? String(comEmpresas.empresaOriginariaId) : "";
+    setOriginariaGravada({ id: originariaId, nome: comEmpresas.empresaOriginariaNome ?? null });
     const p = pro as Professional & {
       nurseType?: string | null;
       cpf?: string | null;
@@ -718,6 +855,7 @@ export default function Professionals() {
       cnpj: p.cnpj ?? "",
       homeServiceFeePerVisit: p.homeServiceFeePerVisit != null ? String(p.homeServiceFeePerVisit) : "",
       contractType: p.contractType ?? "",
+      empresaOriginariaId: originariaId,
     });
     setOpen(true);
   };
@@ -810,6 +948,14 @@ export default function Professionals() {
       });
       return;
     }
+    if (!editingId && !form.empresaOriginariaId) {
+      toast({
+        title: "Vínculo originário é obrigatório",
+        description: "Escolha a empresa de origem do profissional na aba DADOS.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!form.areaId) {
       toast({ title: "Área é obrigatória", variant: "destructive" });
       return;
@@ -840,6 +986,10 @@ export default function Professionals() {
       complemento: form.complemento.trim() || null,
       serviceTypes: form.serviceTypes,
       active: form.active,
+      // Número (nunca texto): o servidor recusa texto. Na edição só vai quando a empresa mudou.
+      ...(form.empresaOriginariaId && (!editingId || form.empresaOriginariaId !== originariaGravada.id)
+        ? { empresaOriginariaId: Number(form.empresaOriginariaId) }
+        : {}),
       ...(isNurse ? {
         nurseType: form.nurseType || null,
         cnpj: form.cnpj.trim() || null,
@@ -948,6 +1098,17 @@ export default function Professionals() {
                     className="field-engraved"
                   />
                 </div>
+
+                <EmpresaOriginariaSelect
+                  value={form.empresaOriginariaId}
+                  onChange={(id) => set("empresaOriginariaId", id)}
+                  empresas={empresas}
+                  carregando={empresasCarregando}
+                  erro={empresasErro}
+                  valorAtual={originariaGravada.id}
+                  nomeAtual={originariaGravada.nome}
+                  disabled={!!editingId && !sessionIsPlatformOwner}
+                />
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -1252,7 +1413,14 @@ export default function Professionals() {
               {/* ── Aba: Vínculos ── */}
               <TabsContent value="vinculos" className="focus:outline-none">
                 {editingId
-                  ? <VinculosPanel professionalId={editingId} />
+                  ? <VinculosPanel
+                      key={editingId}
+                      professionalId={editingId}
+                      empresas={empresas}
+                      empresasErro={empresasErro}
+                      canEdit={sessionIdentityLoaded && sessionIsPlatformOwner}
+                      onEmpresasChanged={() => { void refetch(); }}
+                    />
                   : <div className="concave-3d px-4 py-6 text-center">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Salve o profissional primeiro.</p>
                     </div>
@@ -1337,6 +1505,9 @@ export default function Professionals() {
                   const ini = initials(pro.name ?? "?");
                   const hasPhoto = !!p.photoUrl;
                   const hasContact = !!(pro.unit || pro.phone || pro.email);
+                  const empresasDoPro = pro as ProfissionalComEmpresas;
+                  const empresaOrigem = empresasDoPro.empresaOriginariaNome ?? null;
+                  const outrasEmpresas = (empresasDoPro.empresasVinculadas ?? []).filter((v) => v.papel === "adicional");
 
                   return (
                     <Card key={pro.id} className="panel-3d-sub overflow-hidden neon-hover transition-all">
@@ -1404,6 +1575,28 @@ export default function Professionals() {
                               HOME NURSE
                             </div>
                           )}
+                        </div>
+
+                        {/* ── EMPRESAS: originária + "+N" adicionais — slots fixos, vazio = "—" / "+0" ── */}
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="concave-3d flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1"
+                            title="Vínculo originário"
+                          >
+                            <Landmark className="h-3 w-3 shrink-0 text-primary" />
+                            <span className="truncate text-[10px] font-black uppercase tracking-wide text-foreground">
+                              {empresaOrigem ?? "—"}
+                            </span>
+                          </div>
+                          <div
+                            className="bevel-3d shrink-0 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-primary tabular-nums"
+                            title={outrasEmpresas.length
+                              ? `Também presta serviço em: ${outrasEmpresas.map((v) => v.nome).join(" · ")}`
+                              : "Sem empresas adicionais"}
+                            aria-label={`Empresas adicionais: ${outrasEmpresas.length}`}
+                          >
+                            +{outrasEmpresas.length}
+                          </div>
                         </div>
 
                         {/* ── CAMPOS DE CONTATO em concave-3d — sempre visível (slot vazio = "—") ── */}

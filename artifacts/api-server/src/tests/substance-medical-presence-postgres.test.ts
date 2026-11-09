@@ -18,7 +18,7 @@ vi.mock("@workspace/db", async () => {
 });
 vi.mock("../lib/secure-settings", () => ({ getSetting: vi.fn(async () => "150") }));
 
-import { empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, substancesTable, substanceBlendComponentsTable, catalogoItensTable } from "@workspace/db/schema";
+import { empresasTable, locationsTable, locationProfessionalsTable, professionalEmpresasTable, professionalsTable, substancesTable, substanceBlendComponentsTable, catalogoItensTable } from "@workspace/db/schema";
 import { basicAuthMiddleware } from "../middleware/basicAuth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
@@ -43,7 +43,7 @@ function createTableSql(table: any) {
 beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
-  for (const table of [empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, substancesTable, substanceBlendComponentsTable, catalogoItensTable]) {
+  for (const table of [empresasTable, locationsTable, locationProfessionalsTable, professionalsTable, professionalEmpresasTable, substancesTable, substanceBlendComponentsTable, catalogoItensTable]) {
     await isolated.pool.query(createTableSql(table));
   }
   await isolated.pool.query(`

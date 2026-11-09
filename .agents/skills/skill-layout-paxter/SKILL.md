@@ -754,6 +754,21 @@ Lei promulgada em 07/11/2026. Fonte: `pages/cadastros/locais/AgendaGoogleTab.tsx
 
 **How to apply:** qualquer nova fonte de agenda (outra conta Google, outro formato) entra nesta aba com previa antes de gravar.
 
+### 4.10 Padrao 32 — Vinculo empresarial do profissional (originario + ate 5 empresas)
+
+Lei promulgada em 09/11/2026. Fontes: `pages/professionals/empresas-vinculo.tsx` e `pages/professionals/index.tsx`; regra no servidor em `api-server/src/lib/professional-empresas.ts`; spec em `specs/vinculo-empresas-profissional.md`.
+- Posicao 1 = VINCULO ORIGINARIO: dropdown "Vinculo originario" na faixa Identidade da aba DADOS (`field-engraved`, obrigatorio no cadastro novo). E a unica porta para trocar a empresa de origem.
+- Posicoes 2 a 5 (Secundaria, Terciaria, Quaternaria, Quinaria) = empresas onde tambem presta servico, na aba VINCULOS, em painel `panel-3d-sub` com as 5 posicoes SEMPRE presentes e na mesma ordem. A Principal e espelho somente leitura (`concave-3d` com cadeado e "Altere na aba Dados"); posicao livre sem anterior preenchida fica desabilitada com "—"; sem lacunas.
+- Cada escolha salva na hora (indicador de carregando ao lado, nunca botao SALVAR escondido). Opcoes excluem empresas ja usadas; empresa inativa so aparece se ja estiver gravada; "— Remover este vinculo —" no fim da lista.
+- Agenda so abre nas empresas da lista: a aba VINCULOS agrupa os locais POR EMPRESA (cabecalho com nome, selo da posicao e "liberadas/total agendas"); empresa sem local mostra "Nenhum local cadastrado nesta empresa."; nunca listar locais de empresa fora do vinculo.
+- Remover (ou trocar) empresa que ainda tem agenda liberada = servidor recusa com 409 listando as agendas; a tela mostra o aviso inline (`role="alert"`) e nada some. A tela nunca desliga agenda sozinha.
+- Card da lista: linha fixa com chip `concave-3d` da empresa originaria ("—" se vazio) + selo `bevel-3d` "+N" de empresas adicionais ("+0" quando nenhuma; `title` com os nomes).
+- Apenas o dono da plataforma edita; os demais enxergam sem alterar. Erro do servidor sempre aparece com a mensagem real, nunca "Erro ao salvar" generico.
+
+**Why:** o CEO pediu que cada profissional tenha empresa de origem e ate 5 empresas de atuacao, e que a agenda so abra nas empresas onde ele esta cadastrado (antes a aba listava os 26 locais de todas as empresas).
+
+**How to apply:** qualquer tela que vincule profissional a local, agenda ou empresa (inclusive `cadastros/equipe`) filtra pelas empresas do profissional e repassa a mensagem de recusa do servidor.
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

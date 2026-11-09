@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable, empresasTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
+import { requirePlatformOwner } from "../middleware/tenantContext";
+import { validarLocalParaProfissional } from "../lib/professional-empresas";
 import { mayWriteLocation } from "../lib/location-write-access";
 
 const router: IRouter = Router();
@@ -470,17 +472,39 @@ router.delete("/locations/:id", requireCollaborator, async (req, res): Promise<v
   res.json({ ok: true, deleted: id });
 });
 
-router.post("/locations/:id/professionals", async (req, res): Promise<void> => {
-  const locationId = parseInt(req.params.id);
-  const { professionalId, role } = req.body;
-  if (!professionalId) {
+// Libera a agenda do profissional neste local. Exige colaborador + dono da plataforma e
+// só aceita local de empresa em que o profissional está cadastrado (vínculo empresarial).
+router.post("/locations/:id/professionals", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const locationId = Number(req.params.id);
+  const professionalId = Number(req.body?.professionalId);
+  const role = typeof req.body?.role === "string" && req.body.role.trim() ? req.body.role.trim() : "executor";
+  if (!Number.isSafeInteger(locationId) || locationId <= 0) {
+    res.status(400).json({ error: "Id de clínica inválido" });
+    return;
+  }
+  if (!Number.isSafeInteger(professionalId) || professionalId <= 0) {
     res.status(400).json({ error: "professionalId is required" });
+    return;
+  }
+  const [existing] = await db.select().from(locationProfessionalsTable)
+    .where(and(
+      eq(locationProfessionalsTable.locationId, locationId),
+      eq(locationProfessionalsTable.professionalId, professionalId),
+    ))
+    .limit(1);
+  if (existing) {
+    res.status(200).json(existing);
+    return;
+  }
+  const decision = await validarLocalParaProfissional(professionalId, locationId);
+  if (!decision.permitido) {
+    res.status(decision.status).json({ error: decision.erro, ...(decision.code ? { code: decision.code } : {}) });
     return;
   }
   const [link] = await db.insert(locationProfessionalsTable).values({
     locationId,
-    professionalId: parseInt(professionalId),
-    role: role ?? "executor",
+    professionalId,
+    role,
   }).returning();
   res.status(201).json(link);
 });

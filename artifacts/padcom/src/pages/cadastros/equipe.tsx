@@ -29,7 +29,7 @@ interface Professional {
   active: boolean;
   createdAt: string;
 }
-interface Clinica { id: number; name: string }
+interface Clinica { id: number; name: string; empresaId?: number | null }
 interface AgendaCal { id: number; name: string; locationId: number | null; active: boolean }
 interface Vinculo { id: number; locationId: number; professionalId: number; role: string; agendaCalendarId: number | null }
 
@@ -356,6 +356,21 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
     enabled: open,
   });
 
+  // Agenda só abre nas empresas onde o profissional está cadastrado (local sem empresa = Instituto Pádua, 5).
+  const { data: empresasDoProfissional, isError: empresasFalhou } = useQuery<number[]>({
+    queryKey: ["professional-empresas", professional?.id],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/professionals/${professional!.id}/empresas`, { headers: collabAuthHeaders() });
+      const corpo = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(corpo.error || "Não foi possível carregar as empresas do profissional.");
+      return (corpo.vinculos as { empresaId: number }[]).map((v) => v.empresaId);
+    },
+    enabled: open,
+  });
+  const clinicasDoProfissional = empresasDoProfissional
+    ? clinicas.filter((c) => empresasDoProfissional.includes(c.empresaId ?? 5) || !!vinculos.find((v) => v.locationId === c.id))
+    : [];
+
   const agendaCals = agendas?.calendars ?? [];
 
   const upsertMutation = useMutation({
@@ -404,12 +419,18 @@ function VinculosDialog({ professional, onClose }: { professional: Professional 
         </DialogHeader>
         <p className="text-[11px] text-muted-foreground">
           Marque as clínicas onde o profissional atende e escolha a agenda Google preferida do par. O evento da sessão cai nessa agenda.
+          Só aparecem as clínicas das empresas onde o profissional está cadastrado (edite em Corpo Clínico, aba VÍNCULOS).
         </p>
         <div className="space-y-3 py-1">
-          {clinicas.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-6">Nenhuma clínica cadastrada.</p>
+          {empresasFalhou && (
+            <p role="alert" className="text-sm font-bold text-destructive text-center py-6">
+              Não foi possível carregar as empresas do profissional. Nenhuma clínica foi liberada.
+            </p>
           )}
-          {clinicas.map((c) => {
+          {!empresasFalhou && clinicasDoProfissional.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">Nenhuma clínica nas empresas deste profissional.</p>
+          )}
+          {clinicasDoProfissional.map((c) => {
             const v = vinculoFor(c.id);
             const linked = !!v;
             const clinicAgendas = agendaCals.filter((a) => a.active && (a.locationId === c.id || a.locationId === null));

@@ -21,6 +21,7 @@ import {
   empresasTable,
   locationProfessionalsTable,
   locationsTable,
+  professionalEmpresasTable,
   professionalsTable,
 } from "@workspace/db";
 import { verifyCollaboratorToken } from "../lib/collaborator-auth.js";
@@ -130,6 +131,13 @@ async function resolveTenantContext(req: Request, res: Response): Promise<void> 
   for (const location of linkedLocations) {
     if (location.empresaId && location.empresaId > 0) memberships.add(location.empresaId);
   }
+
+  // Vínculo empresarial adicional (posições 2 a 5) também é vínculo de acesso.
+  const additionalCompanies = await db
+    .select({ empresaId: professionalEmpresasTable.empresaId })
+    .from(professionalEmpresasTable)
+    .where(eq(professionalEmpresasTable.professionalId, professional.id));
+  for (const company of additionalCompanies) memberships.add(company.empresaId);
 
   let empresaId: number | null = null;
   if (professional.isPlatformOwner && requestedCompany.value !== null) {

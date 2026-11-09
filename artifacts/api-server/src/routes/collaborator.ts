@@ -184,6 +184,8 @@ const PROFESSIONAL_HISTORY_FIELDS = {
   contractType: "Tipo de contrato",
   complemento: "Complemento da unidade",
   active: "Conta ativa",
+  empresaOriginariaNome: "Vínculo originário",
+  empresasAdicionaisNomes: "Empresas onde presta serviço (além da originária)",
 } as const;
 
 /**

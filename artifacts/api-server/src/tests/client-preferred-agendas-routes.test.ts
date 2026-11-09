@@ -26,7 +26,7 @@ vi.mock("../routes/agentes-integracoes", () => ({ logIntegracao: vi.fn() }));
 
 import {
   agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, clientsTable, empresasTable, clientClinicAgendaDefaultsTable,
-  locationProfessionalsTable, locationsTable, professionalsTable,
+  locationProfessionalsTable, locationsTable, professionalEmpresasTable, professionalsTable,
 } from "@workspace/db/schema";
 import { readFileSync } from "node:fs";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
@@ -52,7 +52,7 @@ function createTableSql(table: any, extras = "") {
 beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
-  for (const table of [clientsTable, professionalsTable, empresasTable, locationsTable, locationProfessionalsTable, agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientVisitPreferenceRevisionsTable, clientClinicAgendaDefaultsTable]) {
+  for (const table of [clientsTable, professionalsTable, empresasTable, locationsTable, locationProfessionalsTable, agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, clientVisitPreferenceRevisionsTable, clientClinicAgendaDefaultsTable, professionalEmpresasTable]) {
     await isolated.pool.query(createTableSql(table));
   }
   await isolated.pool.query(createTableSql(clientPreferredAgendasTable, ", UNIQUE(client_id, agenda_resource_id)"));
