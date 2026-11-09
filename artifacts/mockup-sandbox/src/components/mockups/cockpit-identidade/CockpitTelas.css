@@ -3027,6 +3027,110 @@
   }
 }
 
+/* Três superfícies Paxter elevadas sobre um único fundo de tecido risca de giz. */
+.ct-header {
+  background-color: #172a47;
+  background-image:
+    repeating-linear-gradient(
+      170deg,
+      transparent 0 9px,
+      rgba(190, 215, 255, .12) 9px 10px,
+      transparent 10px 13px,
+      rgba(190, 215, 255, .055) 13px 13.5px,
+      transparent 13.5px 22px
+    ),
+    linear-gradient(180deg, #1e3658 0%, #142641 100%);
+}
+
+.ct-header::after,
+.ct-theme-light .ct-header::after {
+  display: none;
+}
+
+.ct-identity {
+  transform: translateY(-2px);
+  border: 1px solid rgba(231, 205, 143, .56);
+  border-radius: 9px;
+  background:
+    radial-gradient(ellipse at 22% 0%, rgba(116, 155, 207, .2), transparent 54%),
+    linear-gradient(145deg, #284772 0%, #1c3355 57%, #162947 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .22),
+    inset 0 -1px 0 rgba(7, 18, 35, .4),
+    0 2px 0 rgba(238, 217, 170, .2),
+    0 8px 0 #0c1a30,
+    0 17px 27px rgba(3, 10, 21, .36);
+}
+
+.ct-fabric-deck .ct-controls {
+  padding: 12px;
+  border: 1px solid rgba(225, 204, 155, .54);
+  border-radius: 9px;
+  background:
+    linear-gradient(145deg, rgba(46, 76, 118, .98), rgba(24, 45, 75, .98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .2),
+    inset 0 -1px 0 rgba(6, 16, 31, .4),
+    0 2px 0 rgba(236, 217, 174, .2),
+    0 8px 0 #0e1c33,
+    0 16px 25px rgba(3, 10, 21, .34);
+}
+
+.ct-fabric-deck .ct-fabric-rail {
+  border-radius: 9px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .24),
+    inset 0 -1px 0 rgba(7, 18, 35, .52),
+    0 2px 0 rgba(235, 215, 169, .18),
+    0 8px 0 #0c1a30,
+    0 16px 25px rgba(3, 10, 21, .34);
+}
+
+.ct-theme-light .ct-header {
+  background-color: #e8e0cf;
+  background-image:
+    repeating-linear-gradient(
+      170deg,
+      transparent 0 9px,
+      rgba(138, 109, 47, .14) 9px 10px,
+      transparent 10px 13px,
+      rgba(138, 109, 47, .065) 13px 13.5px,
+      transparent 13.5px 22px
+    ),
+    linear-gradient(180deg, #f4eedf 0%, #e8dfcf 100%);
+}
+
+.ct-theme-light .ct-identity {
+  border-color: rgba(154, 123, 50, .52);
+  background:
+    radial-gradient(ellipse at 22% 0%, rgba(255, 255, 255, .72), transparent 55%),
+    linear-gradient(145deg, #fffdf7 0%, #f3edde 59%, #e9dfcc 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .98),
+    0 2px 0 rgba(150, 119, 53, .22),
+    0 8px 0 #d4c7ad,
+    0 17px 27px rgba(24, 36, 55, .18);
+}
+
+.ct-theme-light .ct-fabric-deck .ct-controls {
+  border-color: rgba(155, 126, 68, .5);
+  background: linear-gradient(145deg, #faf6eb 0%, #e9dfcc 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .98),
+    0 2px 0 rgba(145, 114, 51, .2),
+    0 8px 0 #d0c3a8,
+    0 16px 25px rgba(24, 36, 55, .16);
+}
+
+.ct-theme-light .ct-fabric-deck .ct-fabric-rail {
+  border-color: rgba(155, 126, 68, .55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .98),
+    0 2px 0 rgba(145, 114, 51, .2),
+    0 8px 0 #d0c3a8,
+    0 16px 25px rgba(24, 36, 55, .16);
+}
+
 /* A ficha contínua reaproveita os painéis da referência, sem outro cliente. */
 .ct-ficha-heading { align-items: flex-start; gap: 12px; }
 .ct-ficha-controls {
