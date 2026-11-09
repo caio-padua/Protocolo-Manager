@@ -1,0 +1,1751 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap");
+@reference "../../../index.css";
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NUMERAIS PAXMED — EB Garamond somente nos algarismos, dentro do texto SANS
+   ------------------------------------------------------------------------------
+   DECISAO DO CEO (13/08/2026): o EB Garamond e a fonte unica do sistema, e o
+   CORMORANT GARAMOND foi APOSENTADO. Motivo registrado: o algarismo do Cormorant
+   e old-style (baixo, com descida) e so ficava alto depois de uma cirurgia manual
+   no arquivo da fonte — remendo que ninguem conseguiria reproduzir no futuro.
+   O EB Garamond ja nasce com algarismo alto E de largura fixa. Nada e adaptado
+   aqui: os .woff abaixo sao instancias diretas da fonte oficial, sem edicao.
+
+   COMO FUNCIONA: o "unicode-range" declara que esta face so sabe desenhar os
+   caracteres 0 a 9. Toda LETRA cai automaticamente para a proxima familia da
+   pilha (Inter). Por isso o numero do sistema inteiro fica igual sem tocar em
+   nenhum componente, e some por completo se estes blocos sairem daqui.
+
+   ONDE ELA ENTRA: SO na pilha --app-font-sans. As pilhas serif/display ja SAO
+   EB Garamond, entao o algarismo delas e nativo e no tamanho natural — meter a
+   gaveta ali deixaria o numero maior que a letra ao lado.
+
+   size-adjust: 115.1% — MEDIDO na fonte, nao estimado. O algarismo do EB Garamond
+   mede 0,6323 em; o do Inter mede 0,7275 em. Sem esse ajuste todo numero dentro
+   de texto Inter sairia cerca de 13% menor que a palavra ao lado dele.
+
+   PESOS REAIS, SEM FALSIFICAR: 800 existe de verdade no EB Garamond, entao o KPI
+   em font-black nao depende mais do navegador engrossar a letra artificialmente.
+   ══════════════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/EBGaramond-SemiBold.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 100 500;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 115.1%;
+}
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/EBGaramond-Bold.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 501 700;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 115.1%;
+}
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/EBGaramond-ExtraBold.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 701 1000;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 115.1%;
+}
+@font-face {
+  font-family: "PaxmedNum";
+  src: url("./assets/fonts/EBGaramond-SemiBoldItalic.woff") format("woff");
+  unicode-range: U+0030-0039;
+  font-weight: 100 1000;
+  font-style: italic;
+  font-display: swap;
+  size-adjust: 115.1%;
+}
+html {
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+
+
+/* Bloqueia pull-to-refresh nativo do iOS/Chrome — a faixa da nav não pode "puxar" a página */
+html,
+body,
+#root {
+  overscroll-behavior-y: none;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-display: var(--app-font-display);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+
+  --opaque-button-border-intensity: -8;
+
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+
+  --background: 40 33% 96%;
+  --foreground: 214 54% 19%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 214 54% 19%;
+  --card-border: 41 38% 70%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 214 54% 19%;
+  --popover-border: 41 38% 70%;
+
+  --primary: 214 54% 19%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 180 8% 90%;
+  --secondary-foreground: 214 54% 19%;
+
+  --muted: 180 8% 90%;
+  --muted-foreground: 180 8% 45%;
+
+  --accent: 39 41% 51%;
+  --accent-foreground: 214 54% 12%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 41 38% 70%;
+  --input: 41 38% 70%;
+  --ring: 214 54% 19%;
+
+  --sidebar: 218 50% 18%;
+  --sidebar-foreground: 40 30% 90%;
+  --sidebar-border: 218 35% 27%;
+  --sidebar-primary: 39 48% 56%;
+  --sidebar-primary-foreground: 218 50% 12%;
+  --sidebar-accent: 218 42% 26%;
+  --sidebar-accent-foreground: 40 35% 92%;
+  --sidebar-ring: 39 48% 56%;
+
+  --chart-1: 214 54% 19%;
+  --chart-2: 39 41% 51%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 0 72% 51%;
+  --chart-5: 280 65% 60%;
+
+  --app-font-sans: "PaxmedNum", "Inter", sans-serif;
+  /* serif/display JA sao EB Garamond: algarismo alto e tabular sao nativos,
+     por isso a gaveta "PaxmedNum" nao entra aqui (deixaria o numero maior que
+     a letra ao lado). A gaveta so existe para o texto SANS (Inter). */
+  --app-font-serif: "EB Garamond", Georgia, serif;
+  --app-font-display: "EB Garamond", Georgia, serif;
+  --app-font-mono: Menlo, monospace;
+  --radius: 0.375rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+
+  --opaque-button-border-intensity: 9;
+
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+
+  --background: 215 44% 8%;
+  --foreground: 210 22% 92%;
+
+  --card: 215 38% 13%;
+  --card-foreground: 210 22% 92%;
+  --card-border: 214 28% 24%;
+
+  --popover: 215 38% 13%;
+  --popover-foreground: 210 22% 92%;
+  --popover-border: 214 28% 24%;
+
+  --primary: 210 22% 92%;
+  --primary-foreground: 215 44% 8%;
+
+  --secondary: 214 28% 22%;
+  --secondary-foreground: 210 22% 92%;
+
+  --muted: 214 28% 22%;
+  --muted-foreground: 212 14% 62%;
+
+  --accent: 39 41% 51%;
+  --accent-foreground: 214 54% 12%;
+
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 210 22% 92%;
+
+  --border: 214 28% 24%;
+  --input: 214 28% 24%;
+  --ring: 210 22% 92%;
+
+  --sidebar: 218 48% 12%;
+  --sidebar-foreground: 40 25% 88%;
+  --sidebar-border: 218 30% 22%;
+  --sidebar-primary: 39 50% 58%;
+  --sidebar-primary-foreground: 218 50% 10%;
+  --sidebar-accent: 218 38% 21%;
+  --sidebar-accent-foreground: 40 30% 90%;
+  --sidebar-ring: 39 50% 58%;
+
+  --chart-1: 39 41% 51%;
+  --chart-2: 180 15% 92%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 0 72% 51%;
+  --chart-5: 280 65% 60%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    background:
+      radial-gradient(circle at 88% 1%, rgba(184, 146, 77, 0.10), transparent 30%),
+      linear-gradient(135deg, #ffffff 0%, #f8f9fb 50%, #faf6ec 100%);
+    background-attachment: fixed;
+  }
+  .dark body {
+    background: hsl(var(--background));
+  }
+  h1, h2, h3 {
+    font-family: var(--app-font-display);
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .lbl {
+    @apply uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground;
+  }
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+}
+
+/* ============================================================
+   RELEVO 3D ("Console Clinico") — blocos brancos elevados com
+   sombra em camadas. Regras SEM @layer de proposito: ficam fora
+   das camadas do Tailwind e por isso sobrepoem utilitarios como
+   bg-card / shadow-sm / rounded-* de forma previsivel.
+   Cores da marca preservadas (sombras em tom petroleo).
+   Reutilizavel no sistema inteiro.
+   ============================================================ */
+.panel-3d {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border: 1px solid hsl(var(--card-border));
+  border-radius: 0.5rem;
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.40),
+    0 16px 28px -10px rgba(7, 22, 43, 0.26),
+    inset 0 2px 0 rgba(255, 255, 255, 0.97),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.11);
+}
+
+.panel-3d-sub {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border: 1px solid hsl(var(--card-border));
+  border-radius: 0.375rem;
+  box-shadow:
+    0 26px 40px -14px rgba(7, 22, 43, 0.32),
+    0 10px 18px -6px rgba(7, 22, 43, 0.20),
+    inset 0 2px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -4px 9px rgba(0, 53, 58, 0.09);
+}
+
+.panel-3d-hero {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border: 1px solid rgba(184, 146, 77, 0.42);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 40px 60px -18px rgba(7, 22, 43, 0.38),
+    0 16px 26px -10px rgba(7, 22, 43, 0.24),
+    inset 0 2px 0 #ffffff,
+    inset 0 -7px 12px rgba(0, 51, 55, 0.11);
+}
+
+/* Estado "selecionado" do bloco: borda + halo na cor primaria da marca,
+   somado ao relevo. Definido DEPOIS do .panel-3d para vencer no cascade. */
+.panel-3d-active {
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow:
+    0 30px 48px -16px rgba(7, 22, 43, 0.34),
+    0 11px 20px -8px rgba(7, 22, 43, 0.21),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -4px 9px rgba(0, 53, 58, 0.09),
+    0 0 0 2px hsl(var(--primary) / 0.16);
+}
+
+/* Cartao RECOMENDADO (Apresentacao ao cliente): em vez de botao colorido,
+   o destaque vem de CONTORNO na cor da marca + SOMBRA verde-petroleo
+   projetada por baixo. Definido depois de .panel-3d para vencer no cascade. */
+.panel-3d-rec {
+  border: 2px solid hsl(var(--primary) / 0.62);
+  box-shadow:
+    0 36px 56px -18px rgba(7, 22, 43, 0.30),
+    0 22px 36px -12px hsl(var(--primary) / 0.45),
+    inset 0 2px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -4px 9px rgba(0, 53, 58, 0.10);
+}
+.dark .panel-3d-rec {
+  border-color: hsl(var(--accent) / 0.72);
+  box-shadow:
+    0 20px 34px -16px rgba(0, 0, 0, 0.55),
+    0 18px 30px -12px hsl(var(--accent) / 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.40);
+}
+
+/* Campo "gravado" (recuado) — usado na dose travada dentro do subbloco. */
+.field-engraved {
+  background: linear-gradient(180deg, #efe9da 0%, #ffffff 28%);
+  border-color: rgba(184, 146, 77, 0.45);
+  box-shadow:
+    inset 0 3px 6px rgba(7, 22, 43, 0.24),
+    inset 0 8px 12px rgba(7, 22, 43, 0.11),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.96);
+}
+
+/* CONCAVO (entrando na tela) — rotulos/nomes "afundados", lembrando o menu
+   principal pressionado. Usado nos titulos dos blocos e no chip de dose.
+   Sombra interna forte no topo + leve realce embaixo = impressao de baixo-relevo. */
+.concave-3d {
+  background: linear-gradient(160deg, #ece6d7 0%, #f6f1e6 100%);
+  border: 1px solid rgba(184, 146, 77, 0.40);
+  border-radius: 0.25rem;
+  box-shadow:
+    inset 0 4px 7px rgba(7, 22, 43, 0.18),
+    inset 0 10px 16px rgba(7, 22, 43, 0.07),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.82);
+}
+
+/* TELA DE TELEVISAO — moldura em relevo CONCAVO (afundada), mas o miolo
+   continua CLARO e brilhante como um monitor ligado (pedido do CEO
+   24/07/2026: inset bevel "sem ficar obscuro"). */
+.screen-tv-3d {
+  background: linear-gradient(150deg, #ffffff 0%, #fdfbf5 55%, #f6f1e4 100%);
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  border-radius: 0.375rem;
+  box-shadow:
+    inset 0 4px 8px rgba(7, 22, 43, 0.16),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 26px rgba(255, 255, 255, 0.85);
+}
+
+/* Barra de rolagem do grafico (pedido do CEO 25/07/2026): polegar
+   RETANGULAR pouco arredondado, da COR DO PAINEL, como um up bevel
+   deslizando num trilho concavo. */
+.scroll-gold {
+  scrollbar-width: thin;
+  scrollbar-color: #f8f5ec #e2dbc8;
+}
+.scroll-gold::-webkit-scrollbar {
+  height: 12px;
+}
+.scroll-gold::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #ddd5c0 0%, #ebe4d2 100%);
+  border-radius: 2px;
+  box-shadow: inset 0 2px 4px rgba(7, 22, 43, 0.22);
+}
+.scroll-gold::-webkit-scrollbar-thumb {
+  /* MESMO acabamento do .bevel-3d (cor do painel): topo branco iluminado,
+     base creme, borda dourada fina — um up bevel deslizando no trilho. */
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  border-radius: 2px;
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -3px 5px rgba(0, 53, 58, 0.14),
+    0 2px 4px rgba(7, 22, 43, 0.30);
+}
+.scroll-gold::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #fbf8f0 55%, #f3ecdb 100%);
+}
+
+/* CONVEXO (saindo da tela) — "mini telas" onde os numeros aparecem em
+   alto-relevo, afastando-se da folha. Sombra externa profunda + topo iluminado. */
+.screen-3d {
+  background: linear-gradient(150deg, #ffffff 0%, #f8f4ea 100%);
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  border-radius: 0.25rem;
+  box-shadow:
+    0 26px 38px -12px rgba(7, 22, 43, 0.40),
+    0 11px 18px -6px rgba(7, 22, 43, 0.26),
+    inset 0 3px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -7px 12px rgba(0, 53, 58, 0.12);
+}
+
+/* Variantes para tema escuro — paineis NAVY AZUL PROFUNDO (nao preto).
+   Alta elevacao 3D: borda superior iluminada + sombra profunda embaixo. */
+.dark .panel-3d,
+.dark .panel-3d-sub,
+.dark .panel-3d-hero {
+  background: linear-gradient(145deg, #1e3e62 0%, #163050 48%, #0f2340 100%);
+  border-color: rgba(100, 148, 210, 0.18);
+  box-shadow:
+    0 32px 52px -16px rgba(0, 0, 0, 0.75),
+    0 14px 26px -10px rgba(0, 0, 0, 0.58),
+    inset 0 2px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -5px 12px rgba(0, 0, 0, 0.50);
+}
+
+.dark .panel-3d-active {
+  border-color: hsl(var(--primary) / 0.6);
+  box-shadow:
+    0 18px 30px -14px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 2px hsl(var(--primary) / 0.25);
+}
+
+.dark .field-engraved {
+  background: linear-gradient(180deg, hsl(215 50% 9%) 0%, hsl(215 44% 14%) 40%, hsl(215 40% 17%) 100%);
+  border-color: hsl(39 38% 36% / 0.40);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.55),
+    inset 0 8px 14px rgba(0, 0, 0, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.09),
+    0 0 0 0.5px hsl(39 38% 36% / 0.18);
+}
+
+.dark .concave-3d {
+  background: linear-gradient(160deg, hsl(215 50% 10%) 0%, hsl(215 44% 15%) 50%, hsl(215 40% 18%) 100%);
+  border-color: hsl(39 38% 36% / 0.42);
+  box-shadow:
+    inset 0 4px 9px rgba(0, 0, 0, 0.52),
+    inset 0 10px 18px rgba(0, 0, 0, 0.26),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 0.5px hsl(39 38% 36% / 0.18);
+}
+
+.dark .screen-3d {
+  background: linear-gradient(150deg, hsl(215 20% 18%) 0%, hsl(215 22% 15%) 100%);
+  border-color: hsl(215 16% 24%);
+  box-shadow:
+    0 20px 32px -14px rgba(0, 0, 0, 0.60),
+    0 8px 14px -6px rgba(0, 0, 0, 0.45),
+    inset 0 2px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.40);
+}
+
+/* Faixa de incentivo (incita aumentar sessoes): degrade mint delicado com
+   sombra suave. Carrega o "quanto falta para melhorar o preco" em destaque. */
+.incentive-banner {
+  background: linear-gradient(135deg, #ecfbf6 0%, #ddf3ee 52%, #d2eeee 100%);
+  border: 1px solid #bfe6df;
+  border-radius: 0.375rem;
+  box-shadow:
+    0 16px 26px -14px rgba(7, 22, 43, 0.20),
+    0 5px 10px -5px rgba(7, 22, 43, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.dark .incentive-banner {
+  background: linear-gradient(135deg, hsl(215 28% 16%) 0%, hsl(216 30% 14%) 100%);
+  border-color: hsl(216 24% 26%);
+  box-shadow:
+    0 16px 26px -14px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================================
+   PAXTER — luz latente (LED), bevel GROSSO e pulso de atencao.
+   Vocabulario reutilizavel no sistema inteiro (clonar do
+   Console de Orcamento para qualquer tela do Manager).
+   ============================================================ */
+@keyframes paxterPulse {
+  0%, 100% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 0 transparent, inset 0 0 2px rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 9px 2px var(--led-glow), inset 0 0 3px rgba(255, 255, 255, 0.95);
+  }
+}
+/* Respiro de VELA com halo CONTIDO: brilho delimitado (blur curto, sem
+   espalhamento), nao se difunde pela tela ao acender. */
+@keyframes paxterBreathe {
+  0%, 100% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 0 transparent, inset 0 0 2px rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 3px 0 var(--led-glow), inset 0 0 3px rgba(255, 255, 255, 0.95);
+  }
+}
+.paxter-led {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  --led-glow: hsl(39 75% 55% / 0.85);
+  background: radial-gradient(circle at 35% 30%, #fff4dd 0%, hsl(39 65% 55%) 45%, hsl(39 55% 38%) 100%);
+  border: 1px solid hsl(39 45% 30% / 0.55);
+}
+/* Tons da luz — todas usam a MESMA cadencia (paxterPulse 1.4s), logo acendem
+   e apagam EM SINCRONIA. Amarela = Agora; verde = Meta / melhor faixa. */
+.paxter-led-amber {
+  --led-glow: hsl(45 95% 55% / 0.9);
+  background: radial-gradient(circle at 35% 30%, #fff7e0 0%, hsl(45 95% 58%) 45%, hsl(40 90% 42%) 100%);
+  border-color: hsl(40 70% 35% / 0.6);
+}
+.paxter-led-green {
+  --led-glow: hsl(140 72% 46% / 0.9);
+  background: radial-gradient(circle at 35% 30%, #e8ffe9 0%, hsl(140 65% 48%) 45%, hsl(140 60% 32%) 100%);
+  border-color: hsl(140 45% 26% / 0.6);
+}
+.paxter-led-red {
+  --led-glow: hsl(0 85% 60% / 0.9);
+  background: radial-gradient(circle at 35% 30%, #ffe2e2 0%, hsl(0 80% 60%) 45%, hsl(0 70% 42%) 100%);
+  border-color: hsl(0 60% 32% / 0.6);
+}
+.paxter-led-on {
+  animation: paxterPulse 1.4s ease-in-out infinite;
+}
+/* Respiro de VELA — acende e apaga LENTO (cadencia da vela). Herda a cor do
+   LED via --led-glow, entao funciona com -green/-amber/-red. Padrao oficial
+   para luz de status de FERRAMENTA/integracao (ex.: ZapSign). */
+.paxter-led-breathe {
+  animation: paxterBreathe 3.6s ease-in-out infinite;
+}
+/* Neon RESPIRANDO em botao/painel selecionado — halo na cor de --neon-glow que
+   cresce e recua na cadencia da vela (3.6s), SEM apagar o relevo 3D. Padrao
+   oficial para botao-filtro SELECIONADO (ex.: filtros da Sala de Triagem). */
+@keyframes paxterNeonBreathe {
+  0%, 100% {
+    box-shadow: 0 0 4px 1px var(--neon-glow, hsl(187 72% 48% / 0.4));
+  }
+  50% {
+    box-shadow: 0 0 12px 3px var(--neon-glow, hsl(187 72% 48% / 0.65));
+  }
+}
+/* O halo mora num pseudo-elemento ::after para NAO substituir o box-shadow
+   multi-camada do relevo 3D (btn-3d) — box-shadow nao e aditivo. */
+.paxter-neon-breathe {
+  position: relative;
+}
+.paxter-neon-breathe::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: paxterNeonBreathe 3.6s ease-in-out infinite;
+}
+.paxter-led-off {
+  background: #cfdada;
+  border-color: #b9c8c8;
+  opacity: 0.55;
+  animation: none;
+}
+
+/* Faixa ATUAL da barra: luz pulsando POR DETRAS (acende/apaga), sem bolinha
+   por cima. Mesma cadencia 1.4s das LEDs — fica em sincronia com elas. */
+@keyframes paxterTierGlow {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent) brightness(0.95); }
+  50% { filter: drop-shadow(0 0 7px hsl(39 75% 55% / 0.9)) brightness(1.15); }
+}
+.paxter-tier-live {
+  animation: paxterTierGlow 1.4s ease-in-out infinite;
+}
+
+/* Bevel GROSSO — chanfro saliente, da impressao de "botao grosso" que salta
+   da folha. Topo iluminado forte + sombra externa profunda. */
+.bevel-3d {
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  border-radius: 0.375rem;
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.14),
+    0 16px 24px -10px rgba(7, 22, 43, 0.44),
+    0 7px 12px -4px rgba(7, 22, 43, 0.30);
+}
+.dark .bevel-3d {
+  background: linear-gradient(180deg, hsl(215 20% 21%) 0%, hsl(215 22% 15%) 100%);
+  border-color: hsl(215 16% 27%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -6px 11px rgba(0, 0, 0, 0.48),
+    0 16px 24px -10px rgba(0, 0, 0, 0.62),
+    0 7px 12px -4px rgba(0, 0, 0, 0.5);
+}
+/* No cadastro empresarial, a seleção precisa vencer o fundo do bevel
+   tanto nas abas Radix quanto nos botões da identidade dos documentos. */
+.empresa-aba[data-state="active"],
+.empresa-aba[aria-pressed="true"],
+.dark .empresa-aba[data-state="active"],
+.dark .empresa-aba[aria-pressed="true"] {
+  background: linear-gradient(180deg, #22406a 0%, #16294a 52%, #0a1f3a 100%);
+  border-color: #b8924d;
+  color: #ffffff;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.18),
+    0 3px 7px -2px rgba(7, 22, 43, 0.4);
+}
+.empresa-aba:focus-visible {
+  outline: 2px solid #48b6cc;
+  outline-offset: 2px;
+}
+/* FAIXA DE MARCA do rodape — faixa LONGITUDINAL CONTINUA (full-bleed, SEM cantos
+   curvos), na MESMA COR do painel de questao (.leva-card), com relevo "up breve"
+   (realce no topo + sombra ascendente). Decisao do CEO 24/06/2026. UNLAYERED de
+   proposito (fora de @layer) para vencer utilitarios do Tailwind, como o bevel-3d. */
+.footer-brand-band {
+  background: linear-gradient(180deg, #ece1c8 0%, #e6d9bd 54%, #ded0b0 100%);
+  border-top: 1px solid rgba(138, 109, 47, 0.28);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.6),
+    0 -10px 22px -8px rgba(7, 22, 43, 0.18);
+}
+.dark .footer-brand-band {
+  background: linear-gradient(180deg, #14304f 0%, #0f2442 52%, #0b1c34 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.08),
+    0 -10px 22px -8px rgba(0, 0, 0, 0.55);
+}
+/* Bevel OK — variante VERDE CALMA do bevel (alerta clinico "dentro do alvo").
+   Mantem relevo/sombra do .bevel-3d e so TINGE fundo + borda de esmeralda.
+   SEM @layer de proposito: vence os utilitarios "bg" e "border" do Tailwind
+   (que ficam em @layer utilities), como o bevel-3d base. Usar SEMPRE junto
+   de .bevel-3d (este so sobrepoe background e border). */
+.bevel-3d-ok {
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 55%, #a7f3d0 100%);
+  border-color: #6ee7b7;
+}
+.dark .bevel-3d-ok {
+  background: linear-gradient(180deg, hsl(155 38% 15%) 0%, hsl(155 42% 10%) 100%);
+  border-color: hsl(155 28% 28%);
+}
+
+/* Pulso de ATENCAO no hover — acende/apaga via outline, sem apagar o relevo. */
+.paxter-attention {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+  transition: outline-color 0.2s ease;
+}
+.paxter-attention:hover {
+  animation: paxterAttention 1.2s ease-in-out infinite;
+}
+@keyframes paxterAttention {
+  0%, 100% { outline-color: hsl(39 75% 52% / 0); }
+  50% { outline-color: hsl(39 75% 52% / 0.75); }
+}
+
+/* Neon ESTAVEL (NAO pisca) saindo de BAIXO do bloco — luz intensa subindo
+   do rodape. Usar onde o bloco precisa "chamar" sem ficar acendendo/apagando
+   (ex.: bloco de Sessoes). Apenas presentational (::after, sem captura de mouse). */
+.paxter-underglow {
+  position: relative;
+}
+.paxter-underglow::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -5px;
+  height: 14px;
+  border-radius: 4px;
+  background: radial-gradient(60% 100% at 50% 0%, hsl(39 70% 55% / 0.55) 0%, hsl(39 70% 55% / 0.18) 45%, transparent 72%);
+  filter: blur(7px);
+  pointer-events: none;
+}
+
+/* Painel de ALERTA clinico em RELEVO 3D (bevel + sombra) com NEON na propria
+   cor quando ativo: vermelho = excede o limite clinico; ambar = abaixo do minimo.
+   A cor do neon vem da variavel --alert-glow (setada pela variante). */
+.paxter-alert {
+  border-radius: 0.375rem;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -5px 10px rgba(7, 22, 43, 0.10),
+    0 12px 22px -10px rgba(7, 22, 43, 0.35),
+    0 0 0 1px var(--alert-glow, transparent),
+    0 0 10px 1px var(--alert-glow, transparent);
+}
+.paxter-alert-red { --alert-glow: hsl(0 84% 60% / 0.42); }
+.paxter-alert-amber { --alert-glow: hsl(38 92% 50% / 0.42); }
+.dark .paxter-alert {
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -5px 10px rgba(0, 0, 0, 0.45),
+    0 12px 22px -10px rgba(0, 0, 0, 0.6),
+    0 0 0 1px var(--alert-glow, transparent),
+    0 0 10px 1px var(--alert-glow, transparent);
+}
+
+/* ============================================================
+   BOTOES 3D ("tecla" classica na paleta da marca) — cantos
+   quadrados, bisel no topo, elevacao embaixo; AFUNDAM no :active.
+   Unlayered de proposito (vencem utilitarios do shadcn Button).
+   ============================================================ */
+.btn-3d {
+  border-radius: 0.375rem;
+  border: 1px solid rgba(184, 146, 77, 0.55);
+  background: linear-gradient(180deg, #22406a 0%, #16294a 52%, #0a1f3a 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px -5px rgba(7, 22, 43, 0.5),
+    0 3px 6px -2px rgba(7, 22, 43, 0.32);
+  transition: transform 0.08s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+.btn-3d:hover {
+  filter: brightness(1.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 10px 20px -5px rgba(7, 22, 43, 0.5),
+    0 0 16px -2px hsl(39 60% 55% / 0.6);
+}
+.btn-3d:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.32),
+    0 2px 5px -2px rgba(7, 22, 43, 0.35);
+}
+
+.btn-3d-soft {
+  border-radius: 0.375rem;
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f1e6 55%, #ece4d2 100%);
+  color: hsl(var(--primary));
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 6px rgba(0, 53, 58, 0.12),
+    0 7px 14px -5px rgba(7, 22, 43, 0.34),
+    0 2px 5px -2px rgba(7, 22, 43, 0.22);
+  transition: transform 0.08s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+.btn-3d-soft:hover {
+  filter: brightness(1.02);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 6px rgba(0, 53, 58, 0.12),
+    0 9px 18px -5px rgba(7, 22, 43, 0.34),
+    0 0 14px -2px hsl(39 60% 55% / 0.45);
+}
+.btn-3d-soft:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 53, 58, 0.18),
+    0 2px 5px -2px rgba(7, 22, 43, 0.22);
+}
+
+.dark .btn-3d-soft {
+  border-color: hsl(215 16% 26%);
+  background: linear-gradient(180deg, hsl(215 18% 20%) 0%, hsl(215 20% 15%) 100%);
+  color: hsl(214 60% 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.4),
+    0 7px 14px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* Botao 3D de CONFIRMACAO ("Aceito") — verde sucesso SOLIDO, distinto do
+   teal da marca para nunca confundir "escolher" com "aceitar". So aparece
+   apos o cliente aceitar um cenario. */
+.btn-3d-ok {
+  border-radius: 0.375rem;
+  border: 1px solid hsl(146 50% 26%);
+  background: linear-gradient(180deg, hsl(145 58% 45%) 0%, hsl(147 50% 36%) 52%, hsl(150 46% 28%) 100%);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.22),
+    0 8px 16px -5px rgba(7, 22, 43, 0.45),
+    0 3px 6px -2px rgba(7, 22, 43, 0.30);
+  transition: transform 0.08s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+.btn-3d-ok:hover { filter: brightness(1.05); }
+.btn-3d-ok:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.30),
+    0 2px 5px -2px rgba(7, 22, 43, 0.30);
+}
+
+/* Botao 3D DOURADO POLIDO — ouro 18K champanhe, SEM ambar/laranja.
+   Gradiente inspirado no ParxisWordmark (§6.2): topo claro champanhe,
+   centro brilhante tipo metal polido, base ouro profundo. */
+.btn-3d-gold {
+  border-radius: 0.375rem;
+  border: 1px solid rgba(120, 88, 18, 0.65);
+  /* Gradiente champanhe mato — sem varredura de reflexo */
+  background: linear-gradient(180deg,
+    #d8c060 0%,
+    #c4a238 45%,
+    #a88020 100%
+  );
+  color: #1e0e00;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  /* Face inferior grossa = bevel alto; sombra difusa = levitação */
+  box-shadow:
+    0 5px 0 rgba(88, 60, 6, 0.82),
+    0 9px 22px -2px rgba(70, 46, 4, 0.52),
+    0 2px 5px rgba(70, 46, 4, 0.18);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.12s ease;
+}
+.btn-3d-gold:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 6px 0 rgba(88, 60, 6, 0.82),
+    0 12px 26px -2px rgba(70, 46, 4, 0.55),
+    0 3px 6px rgba(70, 46, 4, 0.20);
+}
+.btn-3d-gold:active {
+  /* Aperta até o chão: translateY = altura da face inferior */
+  transform: translateY(5px);
+  filter: brightness(0.94);
+  box-shadow:
+    0 0px 0 rgba(88, 60, 6, 0.82),
+    0 3px 8px rgba(70, 46, 4, 0.28);
+}
+.btn-3d-gold:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.dark .btn-3d-gold {
+  border-color: rgba(160, 120, 30, 0.70);
+  background: linear-gradient(180deg,
+    #c8a840 0%,
+    #a88020 48%,
+    #886010 100%
+  );
+  color: #fff8e0;
+  box-shadow:
+    0 5px 0 rgba(30, 18, 0, 0.88),
+    0 9px 22px -2px rgba(0, 0, 0, 0.60),
+    0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+/* Faixa superior do painel de login — substitui bg-primary (navy) por bevel
+   claro dourado, responsivo ao tema. Sem border-radius pois o card pai usa
+   overflow-hidden + rounded-xl. */
+.login-card-topbar {
+  background: linear-gradient(180deg, #fffdf8 0%, #f5eedd 55%, #ebe0c8 100%);
+  border-bottom: 1px solid rgba(184, 146, 77, 0.32);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.97),
+    inset 0 -3px 8px rgba(0, 53, 58, 0.07);
+}
+.dark .login-card-topbar {
+  background: linear-gradient(180deg, #2e5282 0%, #1f3f6a 55%, #172d52 100%);
+  border-top: 1px solid rgba(198, 160, 90, 0.60);
+  border-bottom: 1px solid rgba(180, 145, 62, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.32);
+}
+
+/* Corpo do painel de login — fundo creme quente no claro, navy profundo no escuro.
+   Substitui o branco neutro default. */
+.login-card-body {
+  background: linear-gradient(180deg, #fdfaf5 0%, #f6eddb 100%);
+}
+.dark .login-card-body {
+  background: linear-gradient(180deg, #163050 0%, #0f2440 100%);
+}
+
+/* ============================================================
+   NEON HOVER — luz ciano discreta saindo de BAIXO do item ao
+   passar o mouse. Apenas presentational (::after, pointer-events
+   none). Cantos quadrados mantidos pelo elemento base.
+   ============================================================ */
+.neon-hover {
+  position: relative;
+}
+.neon-hover::after {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: -3px;
+  height: 12px;
+  border-radius: 4px;
+  background: radial-gradient(60% 100% at 50% 0%, rgba(184, 146, 77, 0.40) 0%, transparent 72%);
+  filter: blur(6px);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+.neon-hover:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================================
+   LINGUAGEM DE ESTADO (calibrada 21/06/2026) — luz como SINAL,
+   nunca decoracao. Brilho discreto, alcance curto, baixa opacidade.
+   Regra de ouro: no TOQUE (mobile) a luz so acende por ESTADO real,
+   nunca por hover. Hover-glow fica restrito a mouse fino (desktop).
+   ============================================================ */
+
+/* 1) Hover de luxo — sub-brilho dourado MUITO discreto, so no desktop. */
+.pw-hover-luxury {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pw-hover-luxury:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 10px 20px -8px rgba(7, 22, 43, 0.32),
+      0 0 12px -4px hsl(39 55% 55% / 0.40);
+  }
+}
+
+/* 2) Atencao (ESTADO, nao hover) — borda champanhe + leve elevacao. */
+.is-attention {
+  border-color: hsl(39 60% 55% / 0.75) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 8px 18px -8px rgba(7, 22, 43, 0.30),
+    0 0 0 1px hsl(39 60% 55% / 0.45);
+  transform: translateY(-1px);
+}
+
+/* 3) Farol lateral — barra fina (4px) na lateral esquerda indicando status.
+   So cor solida, sem brilho expandido. */
+.has-side-beacon {
+  position: relative;
+  padding-left: 0.25rem;
+}
+.has-side-beacon::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8%;
+  bottom: 8%;
+  width: 4px;
+  border-radius: 4px;
+  background: #94a3b8;
+}
+.has-side-beacon.beacon-amber::before { background: hsl(40 92% 52%); }
+.has-side-beacon.beacon-red::before   { background: hsl(0 80% 58%); }
+.has-side-beacon.beacon-green::before { background: hsl(146 60% 42%); }
+.has-side-beacon.beacon-blue::before  { background: hsl(200 80% 50%); }
+
+/* 4) Urgente — pulso curto e contido (8px), reservado a alerta clinico real. */
+@keyframes pwUrgent {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(0 80% 58% / 0); }
+  50% { box-shadow: 0 0 8px 1px hsl(0 80% 58% / 0.45); }
+}
+.pw-urgent {
+  animation: pwUrgent 1.6s ease-in-out infinite;
+}
+
+/* Guarda de toque: hover-glows nunca acendem em telas sem mouse fino. */
+@media (hover: none) {
+  .neon-hover:hover::after { opacity: 0; }
+  .paxter-attention:hover { animation: none; }
+}
+
+/* ====================================================================== */
+/* TEMA ELITE — escopo EXCLUSIVO do portal /area (area.tsx)                */
+/* Decisao do CEO Dr. Caio (20/06/2026): ar "rico, sofisticacao, elite".  */
+/* REGRA: muda SO a COR. Relevo 3D (panel-3d/concave-3d/btn-3d), estrutura */
+/* e regras Paxter permanecem 100% intactos. So remapeia verde-petroleo-> */
+/* azul-marinho profundo e ciano-> dourado champanhe. Bloco UNLAYERED de   */
+/* proposito (vence as utilities do Tailwind v4, como as classes 3D).      */
+/* ====================================================================== */
+.area-elite {
+  --elite-navy-900:#16294a; --elite-navy-700:#22406a;
+  --elite-gold:#b8924d; --elite-gold-soft:#c2a05a; --elite-gold-light:#d9bd7e;
+}
+
+/* ── Pele de terno claro — painéis da Área do Paciente (light mode only) ──────
+   O panel-3d global começa em #ffffff (ideal para o fundo admin escuro/neutro).
+   Na área do paciente o fundo é #f3ecdd (creme quente): o branco puro destoa.
+   Solução: gradiente champanhe-linho nos painéis — mais quente, sem perder o 3D.
+   .area-elite:not(.dark) — garantia de zero impacto no tema escuro.            */
+.area-elite:not(.dark) .panel-3d,
+.area-elite:not(.dark) .panel-3d-sub {
+  background: linear-gradient(145deg, #faf5eb 0%, #f2e9d4 48%, #e8dcc6 100%);
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.36),
+    0 16px 28px -10px rgba(7, 22, 43, 0.22),
+    inset 0 2px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.09);
+}
+.area-elite:not(.dark) .bevel-3d {
+  background: linear-gradient(180deg, #faf5eb 0%, #f2e9d4 55%, #e8dcc6 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.11),
+    0 16px 24px -10px rgba(7, 22, 43, 0.38),
+    0 7px 12px -4px rgba(7, 22, 43, 0.24);
+}
+.area-elite:not(.dark) .screen-3d {
+  background: linear-gradient(150deg, #faf5eb 0%, #f0e7d4 100%);
+}
+.area-elite:not(.dark) .btn-3d-soft {
+  background: linear-gradient(180deg, #f8f3e8 0%, #ede3ce 55%, #e3d4b8 100%);
+}
+
+/* ── Wrapper base do Guia Digital — herança de cor correta ─────────────────────
+   O .dark fica em .guia-digital (não em :root). Tailwind define color só no body,
+   que está fora do escopo .dark. Sem esta regra, filhos que herdam color do body
+   recebem texto navy-escuro sobre fundo navy-escuro em dark mode.
+   Declarar color explicitamente aqui força todos os descendentes a usar a variável
+   --foreground do escopo correto (claro=navy, escuro=quase-branco). */
+.guia-digital {
+  color: hsl(var(--foreground));
+}
+
+/* ── Pele de terno claro — Guia Digital do Paciente (light mode only) ──────────
+   Mesma paleta champanhe-linho da área do paciente. Seletor :not(.dark) garante
+   zero impacto no tema escuro. Decretado quando o CEO aprovou a área do paciente. */
+.guia-digital:not(.dark) .panel-3d,
+.guia-digital:not(.dark) .panel-3d-sub {
+  background: linear-gradient(145deg, #faf5eb 0%, #f2e9d4 48%, #e8dcc6 100%);
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.36),
+    0 16px 28px -10px rgba(7, 22, 43, 0.22),
+    inset 0 2px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.09);
+}
+.guia-digital:not(.dark) .bevel-3d {
+  background: linear-gradient(180deg, #faf5eb 0%, #f2e9d4 55%, #e8dcc6 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.11),
+    0 16px 24px -10px rgba(7, 22, 43, 0.38),
+    0 7px 12px -4px rgba(7, 22, 43, 0.24);
+}
+.guia-digital:not(.dark) .screen-3d {
+  background: linear-gradient(150deg, #faf5eb 0%, #f0e7d4 100%);
+}
+.guia-digital:not(.dark) .btn-3d-soft {
+  background: linear-gradient(180deg, #f8f3e8 0%, #ede3ce 55%, #e3d4b8 100%);
+}
+
+/* ── Anamnese V2 — pele de terno claro ──────────────────────────────────────
+   Mesma paleta champanhe-linho da área do paciente e do guia digital.
+   Ancora em .anamnese-light (classe adicionada ao root só no tema claro),
+   não em :not(.dark), para evitar que o <header class="anamnese-solo"> —
+   que nunca carrega "dark" — herde os estilos claros em modo escuro. */
+.anamnese-light .panel-3d,
+.anamnese-light .panel-3d-sub {
+  background: linear-gradient(145deg, #faf5eb 0%, #f2e9d4 48%, #e8dcc6 100%);
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.36),
+    0 16px 28px -10px rgba(7, 22, 43, 0.22),
+    inset 0 2px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.09);
+}
+.anamnese-light .bevel-3d {
+  background: linear-gradient(180deg, #faf5eb 0%, #f2e9d4 55%, #e8dcc6 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.11),
+    0 16px 24px -10px rgba(7, 22, 43, 0.38),
+    0 7px 12px -4px rgba(7, 22, 43, 0.24);
+}
+.anamnese-light .screen-3d {
+  background: linear-gradient(150deg, #faf5eb 0%, #f0e7d4 100%);
+}
+.anamnese-light .btn-3d-soft {
+  background: linear-gradient(180deg, #f8f3e8 0%, #ede3ce 55%, #e3d4b8 100%);
+}
+
+/* ── Wrapper base + pele de terno claro — Marcação de Consulta (light mode only) ─
+   Mesma paleta champanhe-linho e mesma correção de herança de cor do guia-digital.
+   agendar-novo:not(.dark) garante zero impacto no tema escuro.                     */
+.agendar-novo {
+  color: hsl(var(--foreground));
+}
+.agendar-novo:not(.dark) .panel-3d,
+.agendar-novo:not(.dark) .panel-3d-sub {
+  background: linear-gradient(145deg, #faf5eb 0%, #f2e9d4 48%, #e8dcc6 100%);
+  box-shadow:
+    0 38px 62px -18px rgba(7, 22, 43, 0.36),
+    0 16px 28px -10px rgba(7, 22, 43, 0.22),
+    inset 0 2px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 12px rgba(0, 53, 58, 0.09);
+}
+.agendar-novo:not(.dark) .bevel-3d {
+  background: linear-gradient(180deg, #faf5eb 0%, #f2e9d4 55%, #e8dcc6 100%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -6px 11px rgba(0, 53, 58, 0.11),
+    0 16px 24px -10px rgba(7, 22, 43, 0.38),
+    0 7px 12px -4px rgba(7, 22, 43, 0.24);
+}
+.agendar-novo:not(.dark) .screen-3d {
+  background: linear-gradient(150deg, #faf5eb 0%, #f0e7d4 100%);
+}
+.agendar-novo:not(.dark) .btn-3d-soft {
+  background: linear-gradient(180deg, #f8f3e8 0%, #ede3ce 55%, #e3d4b8 100%);
+}
+
+/* Fundos de pagina e cartoes -> marfim quente / azul-claro elegante */
+.area-elite .bg-slate-50  { background-color:#f4f1ea; }
+.area-elite .bg-slate-100 { background-color:#e9e4d8; }
+.area-elite .bg-teal-50   { background-color:#eef2f6; }
+.area-elite .bg-teal-100  { background-color:#e2eaf1; }
+.area-elite .bg-cyan-100  { background-color:#f1e7cf; }   /* badge ativo -> dourado claro */
+
+/* Faixas/bandas verde-petroleo -> azul-marinho com fio dourado (assinatura elite) */
+.area-elite .bg-teal-700 {
+  background-color:#16294a;
+  background-image:linear-gradient(135deg,#16294a 0%,#22406a 100%);
+  box-shadow: inset 0 -1.5px 0 0 rgba(194,160,90,.45);
+}
+.area-elite .bg-teal-700\/10 { background-color:rgba(22,41,74,.06); }
+.area-elite .bg-teal-200\/60 { background-color:rgba(184,146,77,.30); }  /* divisores -> dourado */
+
+/* Textos verde-petroleo -> azul-marinho graduado */
+.area-elite .text-teal-900 { color:#16294a; }
+.area-elite .text-teal-800 { color:#1c3252; }
+.area-elite .text-teal-700 { color:#274265; }
+.area-elite .text-teal-600 { color:#365a80; }
+.area-elite .text-teal-500 { color:#647c97; }
+.area-elite .text-teal-400 { color:#9aa7b9; }
+.area-elite .text-teal-300 { color:#b8c2d0; }
+.area-elite .text-teal-200 { color:#d3bd84; }   /* texto sobre banda marinho -> dourado claro */
+
+/* Acentos ciano -> dourado champanhe */
+.area-elite .text-cyan-500 { color:#b8924d; }
+.area-elite .text-cyan-700 { color:#9a7a38; }
+.area-elite .text-cyan-300 { color:#d9bd7e; }
+.area-elite .text-slate-500 { color:#647c97; }
+
+/* Bordas verde-petroleo/ciano -> fios dourados sutis */
+.area-elite .border-teal-200\/40 { border-color:rgba(184,146,77,.22); }
+.area-elite .border-teal-200\/60 { border-color:rgba(184,146,77,.30); }
+.area-elite .border-teal-200     { border-color:rgba(184,146,77,.35); }
+.area-elite .border-teal-300     { border-color:rgba(184,146,77,.45); }
+.area-elite .border-teal-400     { border-color:rgba(184,146,77,.55); }
+.area-elite .border-cyan-400     { border-color:#c2a05a; }
+.area-elite .border-cyan-200     { border-color:#e0cd9b; }
+.area-elite .border-slate-200    { border-color:#ddd6c9; }
+.area-elite .border-slate-300    { border-color:#cfc7b6; }
+
+/* Placeholders dos campos do portal -> tom marinho suave (era ciano/teal) */
+.area-elite .placeholder\:text-teal-300::placeholder { color:#aeb9c8; }
+
+/* Variantes :hover do portal -> mesma paleta elite (evita "piscar" teal/ciano no hover) */
+.area-elite .hover\:bg-teal-50:hover     { background-color:#eef2f6; }
+.area-elite .hover\:border-cyan-400:hover { border-color:#c2a05a; }
+.area-elite .hover\:text-teal-600:hover  { color:#365a80; }
+.area-elite .hover\:text-teal-700:hover  { color:#274265; }
+.area-elite .hover\:text-teal-800:hover  { color:#1c3252; }
+
+/* ====================================================================== */
+/* TEMA PAWARDS — escopo EXCLUSIVO da TELA INICIAL (dashboard.tsx, rota /) */
+/* Decisao CEO Dr. Caio (20/06/2026, opcao A — identidade completa).       */
+/* REGRA: muda SO a COR (superficie + tokens) e a TIPOGRAFIA dos titulos.  */
+/* Relevo 3D (panel/bevel/concave/screen/btn), estrutura e comportamento   */
+/* Paxter permanecem 100% intactos (box-shadow preservado). Bloco          */
+/* UNLAYERED de proposito: vence utilities Tailwind v4 e os blocos .dark .X */
+/* por ordem de fonte + especificidade classe+classe.                      */
+/* ====================================================================== */
+.pw-home {
+  /* tokens de marca remapeados (status verde/vermelho/ambar ficam intactos) */
+  --primary: 214 54% 19%;          /* verde-petroleo -> marinho #16294a */
+  --accent: 39 41% 51%;            /* ciano -> dourado champanhe #b8924d */
+  --foreground: 214 54% 19%;       /* texto base -> marinho ink */
+  --muted-foreground: 213 21% 49%; /* texto secundario -> slate #647c97 */
+  --card-border: 41 38% 70%;       /* fio dourado claro */
+  --border: 41 38% 70%;
+  --ring: 214 54% 19%;
+  --pw-title: var(--app-font-display);
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(circle at 88% 1%, rgba(184, 146, 77, 0.10), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f8f9fb 50%, #faf6ec 100%);
+}
+
+/* Titulos classicos (Cinzel caixa-alta de x-height baixa: tamanho igual ao
+   atual, so ajusto o espacamento para ocupar o MESMO espaco visual). */
+.pw-home .pw-title-serif {
+  font-family: var(--pw-title);
+  font-weight: 600;
+  letter-spacing: 0.045em;
+}
+
+/* --- PECAS 3D: troca SO background + border-color; relevo (box-shadow) intacto --- */
+.pw-home .panel-3d,
+.pw-home .panel-3d-sub,
+.pw-home .panel-3d-hero {
+  background: linear-gradient(145deg, #ffffff 0%, #fbfaf4 48%, #f2ede1 100%);
+  border-color: rgba(184, 146, 77, 0.42);
+}
+.pw-home .bevel-3d {
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  border-color: rgba(184, 146, 77, 0.45);
+}
+.pw-home .concave-3d {
+  background: linear-gradient(160deg, #ece6d7 0%, #f6f1e6 100%);
+  border-color: rgba(184, 146, 77, 0.40);
+}
+.pw-home .screen-3d {
+  background: linear-gradient(150deg, #ffffff 0%, #f8f4ea 100%);
+  border-color: rgba(184, 146, 77, 0.45);
+}
+.pw-home .field-engraved {
+  background: linear-gradient(180deg, #efe9da 0%, #ffffff 28%);
+  border-color: rgba(184, 146, 77, 0.45);
+}
+
+/* Botao primario 3D -> tecla MARINHO com fio dourado (relevo intacto). */
+.pw-home .btn-3d {
+  border-color: rgba(184, 146, 77, 0.55);
+  background: linear-gradient(180deg, #22406a 0%, #16294a 52%, #0a1f3a 100%);
+  color: #ffffff;
+}
+/* Botao secundario 3D -> marfim com texto marinho. */
+.pw-home .btn-3d-soft {
+  border-color: rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f1e6 55%, #ece4d2 100%);
+  color: #16294a;
+}
+
+/* Nome do cliente nos cards da tela inicial: serifa classica (EB Garamond)
+   no lugar do Inter pesado/maiusculo — refinado, mesmo espaco visual. */
+.pw-home .pw-client-name {
+  font-family: var(--app-font-display);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: hsl(var(--foreground));
+  text-transform: none;
+}
+
+/* ============================================================
+   ANAMNESE ESCURA (Lora) — pele "leva" portada do mockup aprovado
+   (anamnese-escura/FonteLora · bevel="misto" · qfont="lora").
+   Pergunta em Lora serifada, painel "misto" suavizado, chips
+   concavos (anel ouro no ativo) e fileira de acoes ciano embutida.
+   Tema claro coerente + variante .dark (navy profundo do mockup).
+   Classes UNLAYERED de proposito (vencem utilitarios Tailwind);
+   nao reordenar camadas. So aparencia — a logica nunca muda.
+   ============================================================ */
+
+/* Fundo "solo" da anamnese — FIEL ao Canvas (degrade + brilho no topo).
+   Claro = creme; escuro = navy + brilho ciano. So aparencia. */
+.anamnese-solo {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(180deg, #ece1c8 0%, #e6d9bd 54%, #ded0b0 100%);
+}
+.dark .anamnese-solo,
+.dark.anamnese-solo {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(70, 184, 204, 0.07) 0%, rgba(70, 184, 204, 0) 42%),
+    linear-gradient(180deg, #0b1d38 0%, #091831 52%, #07142a 100%);
+}
+
+/* Fonte da pergunta = Lora (serifa humanista calma e legivel). */
+.leva-q {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Painel da pergunta — TEMA CLARO coerente (cartao creme elevado). */
+.leva-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: linear-gradient(180deg, #ffffff 0%, #fffdf8 100%);
+  border: 1px solid rgba(138, 109, 47, 0.18);
+  border-top-color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 8px rgba(138, 109, 47, 0.08),
+    0 9px 0 -3px rgba(15, 28, 53, 0.08),
+    0 18px 26px -10px rgba(15, 28, 53, 0.30);
+}
+/* Painel da pergunta — TEMA ESCURO "misto" SUAVIZADO: navy profundo CHAPADO
+   (#14304f -> #0f2442 -> #0b1c34) + verniz discreto no topo. Porte fiel do
+   mockup levaAnamnese (bevel="misto"). Sem vidro/backdrop-filter. */
+.dark .leva-card {
+  background: linear-gradient(180deg, #14304f 0%, #0f2442 52%, #0b1c34 100%);
+  border: 1px solid rgba(0, 0, 0, 0.46);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.5),
+    0 10px 0 -3px rgba(0, 0, 0, 0.52),
+    0 20px 30px -10px rgba(0, 0, 0, 0.78);
+}
+/* Verniz no topo — faixa glossy SUAVIZADA (~0.18), nao diagonal de vidro. */
+.dark .leva-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.5rem;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.06) 9%,
+    rgba(255, 255, 255, 0.015) 22%,
+    rgba(255, 255, 255, 0) 40%
+  );
+  mix-blend-mode: screen;
+}
+
+/* Chip de resposta — botao mecanico concavo; ao SELECIONAR afunda no painel
+   e ganha anel ouro. TEMA CLARO. */
+.leva-chip {
+  position: relative;
+  border-radius: 7px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .12s cubic-bezier(.16, 1, .3, 1), box-shadow .18s ease;
+  background: linear-gradient(180deg, #faf2df 0%, #efe3c9 100%);
+  border: 1px solid rgba(138, 109, 47, 0.30);
+  border-top-color: #fcf6ea;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -2px 5px rgba(138, 109, 47, 0.14),
+    0 5px 0 -1px rgba(15, 28, 53, 0.16),
+    0 9px 14px -5px rgba(15, 28, 53, 0.26);
+  color: #3b4860;
+}
+.leva-chip:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 2px 5px rgba(15, 28, 53, 0.18),
+    0 1px 0 -1px rgba(15, 28, 53, 0.16);
+}
+.leva-chip[data-active="true"] {
+  background: linear-gradient(180deg, #efe6d2 0%, #f7f0e1 100%);
+  border-color: #b9923f;
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 3px 6px rgba(138, 109, 47, 0.30),
+    inset 0 1px 1px rgba(138, 109, 47, 0.18),
+    0 0 14px rgba(185, 146, 63, 0.30);
+  color: #8a6d2f;
+}
+/* Chip de resposta — TEMA ESCURO. */
+.dark .leva-chip {
+  background: linear-gradient(180deg, #31507e 0%, #244067 100%);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.40),
+    0 5px 0 -1px #112444,
+    0 9px 14px -5px rgba(0, 0, 0, 0.60);
+  color: #e3ebf6;
+}
+.dark .leva-chip[data-active="true"] {
+  background: linear-gradient(180deg, #1a3055 0%, #234063 100%);
+  border-color: #c2a05a;
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 3px 7px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(194, 160, 90, 0.30);
+  color: #f4e2a8;
+}
+.leva-chip[data-active="true"] .leva-chip-txt { color: #8a6d2f; }
+.dark .leva-chip[data-active="true"] .leva-chip-txt { color: #f4e2a8; }
+.leva-chip:focus-visible { outline: 2px solid #45B8CC; outline-offset: 2px; }
+
+/* Fileira de acoes da pergunta — selos EMBUTIDOS (concavos).
+   Ouvir e Video = ciano; Gravar/voz = ouro (.leva-action-rec). TEMA CLARO. */
+.leva-action {
+  border-radius: 9px;
+  font-weight: 700;
+  transition: filter .18s ease, transform .12s ease;
+  color: #0e7d92;
+  background: rgba(15, 28, 53, 0.05);
+  border: 1px solid rgba(15, 28, 53, 0.08);
+  box-shadow: inset 0 1px 3px rgba(15, 28, 53, 0.12);
+}
+.leva-action:active { transform: translateY(1px); }
+/* Fileira de acoes — TEMA ESCURO (Ouvir/Video ciano #5cc4d6). */
+.dark .leva-action {
+  color: #5cc4d6;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+/* Gravar / responder por voz = OURO (estilo revertido/original). */
+.leva-action-rec { color: #8a6d2f; }
+.dark .leva-action-rec { color: #f0c674; }
+.leva-action:focus-visible { outline: 2px solid #45B8CC; outline-offset: 2px; }
+
+/* ===== BARRA UNIFICADA (faixa superior + barras do mapa de saude) =====
+   UM tratamento: trilho concavo (well 3D) + preenchimento ENVIDRACADO (verniz glossy).
+   Cor do preenchimento via --fill (default = ouro de progresso). */
+.paxter-bar-track {
+  position: relative;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(15, 28, 53, 0.10);
+  border: 1px solid rgba(15, 28, 53, 0.06);
+  box-shadow: inset 0 2px 5px rgba(15, 28, 53, 0.22);
+}
+.dark .paxter-bar-track {
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.62);
+}
+.paxter-bar-fill {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--fill, linear-gradient(180deg, #f4e2a8 0%, #c2a05a 52%, #8a6d2f 100%));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.30);
+}
+/* verniz glossy (vidro) por cima do preenchimento */
+.paxter-bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.60) 0%,
+    rgba(255, 255, 255, 0.14) 40%,
+    rgba(255, 255, 255, 0) 62%
+  );
+  mix-blend-mode: screen;
+}
+
+/* ===== KPI PREMIUM (Concluido / Perguntas / Grupos / Faltam) =====
+   Placa 3D saliente (mesma familia do chip, porem estatica). Valor em ouro. */
+.leva-kpi {
+  position: relative;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5eedd 100%);
+  border: 1px solid rgba(138, 109, 47, 0.22);
+  border-top-color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -2px 5px rgba(138, 109, 47, 0.10),
+    0 4px 0 -1px rgba(15, 28, 53, 0.12),
+    0 8px 12px -5px rgba(15, 28, 53, 0.22);
+}
+.leva-kpi-label { color: #6b7689; }
+.leva-kpi-value { color: #8a6d2f; }
+.dark .leva-kpi {
+  background: linear-gradient(180deg, #173052 0%, #112744 100%);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.45),
+    0 4px 0 -1px #0e1f3b,
+    0 8px 12px -5px rgba(0, 0, 0, 0.6);
+}
+.dark .leva-kpi-label { color: #93a4bd; }
+.dark .leva-kpi-value { color: #f4e2a8; }
+
+/* ===== TECIDO TERNO — base premium da anamnese =====
+   CLARO = risca de giz (chalk-stripe) dupla sobre creme: linha principal (1px)
+           + linha companheira fina (0.5px) a 3px, ciclo de 22px, angulo 170deg
+           (imitacao de tecido de la premium — nunca grade cruzada).
+   ESCURO = mesma logica no navy: dupla stripe azul-platina sobre marinho profundo. */
+.leva-fabric {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      170deg,
+      transparent 0px,
+      transparent 10px,
+      rgba(138, 109, 47, 0.16) 10px,
+      rgba(138, 109, 47, 0.16) 11px,
+      transparent 11px,
+      transparent 14px,
+      rgba(138, 109, 47, 0.08) 14px,
+      rgba(138, 109, 47, 0.08) 14.5px,
+      transparent 14.5px,
+      transparent 22px
+    );
+  opacity: 0.80;
+}
+.dark .leva-fabric {
+  /* Risca de giz navy: linha principal azul-platina (1.5px) +
+     linha companheira (0.5px) a 2.5px, ciclo 22px — tecido de terno exclusivo */
+  background-image:
+    repeating-linear-gradient(
+      170deg,
+      transparent 0px,
+      transparent 9px,
+      rgba(190, 215, 255, 0.22) 9px,
+      rgba(190, 215, 255, 0.22) 10.5px,
+      transparent 10.5px,
+      transparent 13px,
+      rgba(190, 215, 255, 0.10) 13px,
+      rgba(190, 215, 255, 0.10) 13.5px,
+      transparent 13.5px,
+      transparent 22px
+    );
+  opacity: 0.90;
+}
+
+/* ===== WORDMARK TERNO — fonte Cinzel, gradiente ouro (rodapé de assinatura) ===== */
+.mt-wordmark {
+  font-family: 'Cinzel', 'Playfair Display', serif;
+  letter-spacing: 0.28em;
+  background: linear-gradient(180deg, #f6e6b0 0%, #d8b667 46%, #a8823c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ===== FAIXA DE GRUPOS — painel LISO sobre o tecido terno, limitado SO aos
+   botoes de sigla (em cima e embaixo). NAO mexe no tecido; e uma camada por cima.
+   CLARO = placa creme suave; ESCURO = placa navy suave. ===== */
+.leva-band {
+  position: relative;
+  background: linear-gradient(180deg, #fffdf9 0%, #f4ecdb 100%);
+  border: 1px solid rgba(138, 109, 47, 0.22);
+  border-top-color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 7px rgba(138, 109, 47, 0.10),
+    0 8px 18px -10px rgba(15, 28, 53, 0.28);
+}
+.dark .leva-band {
+  background: linear-gradient(180deg, #173052 0%, #102540 100%);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-top-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.45),
+    0 8px 18px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* Legenda do Instituto Padua no rodape (correspondente ao "Engineered by").
+   "Branco intenso" decidido pelo CEO (24/06/2026) — vale no tema ESCURO; no
+   tema CLARO o branco sumiria no fundo creme, entao usa-se navy intenso. */
+.footer-credit-padua { color: #16294a; }
+.dark .footer-credit-padua { color: #ffffff; }
+
+/* ===== LED do alerta — acende/apaga MUITO lento e suave. Classe dedicada
+   (paxter-led-alert) para NAO colidir com o sistema canonico .paxter-led
+   (amber/green/red/on/off definido mais acima). ===== */
+@keyframes paxter-led-slow {
+  0%, 100% { opacity: 0.2; box-shadow: 0 0 2px rgba(239, 68, 68, 0.45); }
+  50% { opacity: 1; box-shadow: 0 0 7px 1px rgba(239, 68, 68, 0.95); }
+}
+.paxter-led-alert {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #fecaca, #ef4444 58%, #b91c1c);
+  animation: paxter-led-slow 3.6s ease-in-out infinite;
+}
+
+/* ===== GLINT dos simbolos do rodape (Padua / PADCON): sweep de luz mascarado
+   pelo proprio PNG do simbolo, lento, sobre fundo transparente. ===== */
+.symbol-glint {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.symbol-glint-band {
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 247, 214, 0.85) 50%, transparent 100%);
+  transform: translateX(-160%) skewX(-12deg);
+  animation: paxter-symbol-sweep 6.5s ease-in-out infinite;
+}
+@keyframes paxter-symbol-sweep {
+  0% { transform: translateX(-160%) skewX(-12deg); }
+  55%, 100% { transform: translateX(320%) skewX(-12deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .paxter-led, .paxter-led-alert, .paxter-led-breathe { animation: none; opacity: 1; }
+  .paxter-neon-breathe::after { animation: none; box-shadow: 0 0 8px 2px var(--neon-glow, hsl(187 72% 48% / 0.5)); }
+  .symbol-glint-band { animation: none; opacity: 0; }
+}
+
+/* =============================================================================
+   ONDA D — CRANIOTOMIA VIVA (sinapses). Linhas SVG que correm da esquerda para a
+   direita no Modo Simular; escore que pisca no centro; reducao de movimento OK.
+   ============================================================================= */
+@keyframes craniotomia-flow { to { stroke-dashoffset: -28; } }
+.craniotomia-edge-active {
+  stroke-dasharray: 7 7;
+  animation: craniotomia-flow 0.55s linear infinite;
+}
+@keyframes craniotomia-pisca {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.07); }
+}
+.craniotomia-pisca { animation: craniotomia-pisca 0.9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .craniotomia-edge-active { animation: none; }
+  .craniotomia-pisca { animation: none; opacity: 1; }
+}
+
+/* Scroll affordance — seta da nav inferior que aparece e some */
+@keyframes scrollHintBounce {
+  0%, 100% { transform: translateX(0);   opacity: 0.9; }
+  50%       { transform: translateX(5px); opacity: 1;   }
+}
+@keyframes scrollHintFade {
+  0%, 60% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+.scroll-hint-arrow {
+  animation: scrollHintFade 2.8s ease forwards;
+}
+.scroll-hint-arrow svg {
+  animation: scrollHintBounce 0.55s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint-arrow { animation: none; opacity: 0; }
+}
