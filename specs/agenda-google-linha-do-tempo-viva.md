@@ -216,9 +216,10 @@ A coluna da enfermeira não depende de nenhum desses estados.
 ### 13.5 Requisitos do caminho "Cliente confirma depois"
 
 13.5.1 O botão só aparece para quem pode registrar a aplicação daquela visita e grava quem apertou, quando (horário de Brasília) e o motivo escolhido.
-13.5.2 E-mail ao cliente com um link de 32 bytes aleatórios (só o hash fica no banco), uso único, validade de 72 horas. O link abre uma página com UM botão de confirmar; quem só abre o link (antivírus, pré-visualização do e-mail) NÃO confirma. A confirmação grava data, hora e uma impressão do aparelho (sem dado pessoal extra).
-13.5.3 E-mail ao gestor administrador e ao responsável técnico do local da visita, sem repetir pessoa que acumula as duas funções. Se nenhum tiver e-mail, a tela da enfermeira avisa e o fato fica registrado; nunca bloqueia.
-13.5.4 Lembretes: 3 e-mails ao todo, um por dia (o primeiro no ato), parando na hora em que o cliente confirma. Rotina diária idempotente (reinício do servidor não duplica; confere o estado no momento do envio).
+13.5.2 E-mail ao cliente com um link de 32 bytes aleatórios (só o hash fica no banco), uso único, validade de 7 dias (13.5.5). O link abre uma página com UM botão de confirmar; quem só abre o link (antivírus, pré-visualização do e-mail) NÃO confirma. A confirmação grava data, hora e uma impressão do aparelho (sem dado pessoal extra).
+13.5.3 Gestão (gestor administrador e responsável técnico do local da visita, sem repetir pessoa que acumula as duas funções) recebe 2 e-mails por visita pendente: um no ato do botão e um aviso final se o prazo dos 3 e-mails passar sem confirmação. DECISÃO DO CEO (09/11/2026, opção A). Se nenhum tiver e-mail, a tela da enfermeira avisa e o fato fica registrado; nunca bloqueia.
+13.5.4 Cliente recebe 3 e-mails ao todo, um por dia (o primeiro no ato; depois +24 h e +48 h), parando na hora em que confirma. O aviso final à gestão sai 24 h depois do 3º e-mail do cliente, se não houve confirmação; nesse instante o estado vira nao_confirmada. Rotina diária idempotente (reinício do servidor não duplica; confere o estado no instante do envio).
+13.5.5 Decidido por mim e avisado ao CEO: o link do e-mail continua valendo por 7 dias. Clique depois do aviso final muda nao_confirmada para confirmada_email com a marca "confirmada com atraso"; o histórico do atraso nunca é apagado.
 
 ### 13.6 Desafio presencial
 
@@ -227,7 +228,7 @@ A coluna da enfermeira não depende de nenhum desses estados.
 13.6.1 O servidor sorteia as duas metades e guarda o sorteio; o navegador só recebe as legendas, nunca o valor esperado.
 13.6.2 Só entram no sorteio dados que o cliente tem cadastrados; com menos de duas opções válidas o desafio fica indisponível, com mensagem clara.
 13.6.3 Alerta de honestidade: a enfermeira enxerga CPF, endereço e nascimento no sistema, então esses dados NÃO provam que quem respondeu é o cliente. Só a palavra-chave semanal (que a enfermeira nunca vê) prova. Por isso o desafio por dados do cadastro, sozinho, vale menos que a chave e é sempre marcado como tal.
-P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). Pontos em aberto: P2 quem recebe os 3 e-mails; P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão (sugestão "Cliente confirma depois" já avisada ao CEO).
+P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). P2 RESOLVIDO (gestão recebe 2). Pontos em aberto: P3 o que acontece "após as 3 tentativas"; P4 o que acontece depois do 3º e-mail sem confirmação; P5 nome do botão (sugestão "Cliente confirma depois" já avisada ao CEO).
 
 ### 13.7 Achados independentes (Art. 76), fora do escopo de K8
 
