@@ -1,61 +1,52 @@
-// ActionButtons — EDITAR · DRIVE · PROTOCOLO
-// Estado vazio: botões fantasma (opacity-40, não clicáveis)
-// Estado preenchido: botões ativos btn-3d-soft / btn-3d
-
-import { Loader2, Pencil, FolderOpen, Plus } from "lucide-react";
+import { Activity, CalendarDays, FolderOpen, Loader2, PencilLine } from "lucide-react";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
 
 interface ActionButtonsProps {
   clientId: number | null;
   driveSetupPending: boolean;
   onDriveSetup: () => void;
-  onNewProtocol: () => void;
+  onEvolucao: () => void;
+  onAgendar?: () => void;
+  onBeforeEdit: () => boolean;
 }
 
-export default function ActionButtons({ clientId, driveSetupPending, onDriveSetup, onNewProtocol }: ActionButtonsProps) {
-  const ghost = !clientId;
-
+export default function ActionButtons({
+  clientId, driveSetupPending, onDriveSetup, onEvolucao, onAgendar, onBeforeEdit,
+}: ActionButtonsProps) {
+  const indisponivel = clientId == null;
+  const edicao = (
+    <>
+      <PencilLine size={16} aria-hidden="true" />
+      <span><strong>EDITAR CADASTRO</strong><small>Dados do cliente</small></span>
+    </>
+  );
   return (
-    <div
-      className="flex items-center gap-2 transition-opacity duration-200"
-      style={{ opacity: ghost ? 0.38 : 1, pointerEvents: ghost ? "none" : "auto" }}
-      aria-disabled={ghost}
-    >
-      {/* EDITAR */}
-      <Link href={clientId ? `/clients/${clientId}/edit` : "#"}>
-        <Button
-          className="btn-3d-soft h-8 text-[10px] font-black px-3"
-          tabIndex={ghost ? -1 : 0}
-        >
-          <Pencil className="w-3 h-3 mr-1.5" />
-          EDITAR
-        </Button>
-      </Link>
-
-      {/* DRIVE */}
-      <Button
-        className="btn-3d-soft h-8 text-[10px] font-black px-3"
-        onClick={onDriveSetup}
-        disabled={driveSetupPending}
-        tabIndex={ghost ? -1 : 0}
-      >
+    <div className="cc-actions" role="group" aria-label="Ações do cliente">
+      <button type="button" className="cc-action" disabled={indisponivel || !onAgendar}
+        title={onAgendar ? "Abrir marcação" : "A passagem segura do cliente para a marcação ainda não está conectada."}
+        onClick={onAgendar}>
+        <CalendarDays size={16} aria-hidden="true" />
+        <span><strong>NOVO AGENDAMENTO</strong><small>{onAgendar ? "Abrir marcação" : "Integração pendente"}</small></span>
+      </button>
+      <button type="button" className="cc-action" disabled={indisponivel} onClick={onEvolucao}>
+        <Activity size={16} aria-hidden="true" />
+        <span><strong>EVOLUÇÃO</strong><small>Histórico clínico</small></span>
+      </button>
+      <button type="button" className="cc-action" disabled={indisponivel || driveSetupPending}
+        onClick={onDriveSetup}>
         {driveSetupPending
-          ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-          : <FolderOpen className="w-3 h-3 mr-1.5" />}
-        DRIVE
-      </Button>
-
-      {/* PROTOCOLO */}
-      <Button
-        className="btn-3d h-8 text-[10px] font-black px-3"
-        onClick={onNewProtocol}
-        disabled={ghost}
-        tabIndex={ghost ? -1 : 0}
-      >
-        <Plus className="w-3 h-3 mr-1.5" />
-        PROTOCOLO
-      </Button>
+          ? <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          : <FolderOpen size={16} aria-hidden="true" />}
+        <span><strong>PASTAS DO DRIVE</strong><small>{driveSetupPending ? "Preparando pastas…" : "Preparar pastas"}</small></span>
+      </button>
+      {clientId == null ? (
+        <button type="button" className="cc-action" disabled>{edicao}</button>
+      ) : (
+        <Link href={`/clients/${clientId}/edit`} className="cc-action"
+          onClick={(evento) => { if (!onBeforeEdit()) evento.preventDefault(); }}>
+          {edicao}
+        </Link>
+      )}
     </div>
   );
 }

@@ -6,24 +6,26 @@
 //   R-ARCH-6: key={clientId} no Route garante remontagem ao trocar de cliente
 //   R-PICKER-4: useListClients() REMOVIDO deste componente
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useGetClient, useListProtocols, useListPayments,
   getGetClientQueryKey, getListPaymentsQueryKey,
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { COLLAB_EVENT } from "@/lib/collab-auth";
 import { UserRound } from "lucide-react";
 
 import CockpitHeader from "./CockpitHeader";
 import CockpitTabs, { type AbaId } from "./CockpitTabs";
-import CockpitContent from "./CockpitContent";
+import CockpitViews, { type ModoCockpit } from "./CockpitViews";
 import AcompanhamentoDiarioPanel from "./panels/AcompanhamentoDiarioPanel";
 import { useProtocoloNavigationGuard } from "./useProtocoloNavigationGuard";
+import "./cockpit-identidade.css";
 
 const API = import.meta.env.VITE_API_URL || "/api";
-const CREAM = "hsl(40 33% 96%)";
+let proximaInstancia = 0;
 
 const ABAS_VALIDAS: AbaId[] = [
   "prescricao","injetaveis","implantes","exames","evolucao",
@@ -43,8 +45,55 @@ export default function CockpitShell({
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const mutationsInFlight = useIsMutating();
   const [novoProtocoloAberto, setNovoProtocoloAberto] = useState(false);
   const [protocoloEmAndamento, setProtocoloEmAndamento] = useState(false);
+  const [modo, setModo] = useState<ModoCockpit>("abas");
+  const [abaVisivel, setAbaVisivel] = useState<AbaId>(initialAba);
+  const [focoSolicitado, setFocoSolicitado] = useState<{ id: AbaId; sequencia: number } | null>(null);
+  const [versaoSessao, setVersaoSessao] = useState(0);
+  const [instancia] = useState(() => ++proximaInstancia);
+  const escopoSessao = `${instancia}-${versaoSessao}`;
+  const escopoAtual = useRef(escopoSessao);
+  escopoAtual.current = escopoSessao;
+  const escopoProtocolo = useRef<string | null>(null);
+  const protocoloOcupado = useRef(false);
+  const limparConsultasDepois = useRef(false);
+
+  // Nunca reaproveitar os dados consultados por outro acesso profissional.
+  // Se houver criação de protocolo em trânsito, mantê-la oculta até concluir.
+  useEffect(() => {
+    const mudouAcesso = () => {
+      if (protocoloOcupado.current) limparConsultasDepois.current = true;
+      else queryClient.removeQueries();
+      setVersaoSessao((anterior) => anterior + 1);
+    };
+    const mudouStorage = (evento: StorageEvent) => {
+      if (!evento.key || evento.key === "padcom_collab_token" || evento.key === "padcom_collab_prof") mudouAcesso();
+    };
+    window.addEventListener(COLLAB_EVENT, mudouAcesso);
+    window.addEventListener("storage", mudouStorage);
+    return () => {
+      window.removeEventListener(COLLAB_EVENT, mudouAcesso);
+      window.removeEventListener("storage", mudouStorage);
+    };
+  }, [queryClient]);
+
+  const atualizarProtocoloEmAndamento = useCallback((ocupado: boolean) => {
+    if (ocupado && !protocoloOcupado.current) escopoProtocolo.current = escopoAtual.current;
+    protocoloOcupado.current = ocupado;
+    if (!ocupado) {
+      if (escopoProtocolo.current && escopoProtocolo.current !== escopoAtual.current) {
+        setNovoProtocoloAberto(false);
+      }
+      escopoProtocolo.current = null;
+      if (limparConsultasDepois.current) {
+        limparConsultasDepois.current = false;
+        queryClient.removeQueries();
+      }
+    }
+    setProtocoloEmAndamento(ocupado);
+  }, [queryClient]);
   const avisoOperacaoPendente = useCallback(() => {
     toast({ title: "Aguarde a conclusão do protocolo antes de sair desta tela." });
   }, [toast]);
@@ -56,23 +105,40 @@ export default function CockpitShell({
   const aba: AbaId = ABAS_VALIDAS.includes(initialAba) ? initialAba : "prescricao";
 
   // ── Dados ─────────────────────────────────────────────────────────────────
-  const { data: client, isLoading: clientLoading, isError: clientError, refetch: retryClient } = useGetClient(clientId ?? 0, {
-    query: { enabled: !!clientId, queryKey: getGetClientQueryKey(clientId ?? 0) },
+  const clientQueryKey = ["cockpit-cliente", escopoSessao, clientId ?? 0];
+  const { data: client, isLoading: clientLoading, isError: clientError, error: clientQueryError, refetch: retryClient } = useGetClient(clientId ?? 0, {
+    query: { enabled: !!clientId, queryKey: clientQueryKey, retry: false, gcTime: 0 },
   });
-  const clientReady = !!clientId && !clientError && client?.id === clientId;
-  const clientConfirmado = useRef<typeof client>(undefined);
-  if (clientReady) clientConfirmado.current = client;
-  const manterOperacao = protocoloEmAndamento && clientConfirmado.current?.id === clientId;
-  const clientParaConteudo = clientReady ? client : manterOperacao ? clientConfirmado.current : undefined;
+  const aguardandoSessaoAnterior = protocoloEmAndamento && escopoProtocolo.current !== escopoSessao;
+  const clientReady = !!clientId && !clientError && client?.id === clientId && !aguardandoSessaoAnterior;
+  const clientConfirmado = useRef<{ client: NonNullable<typeof client>; escopo: string } | null>(null);
+  if (clientReady && client) clientConfirmado.current = { client, escopo: escopoSessao };
+  const statusErro = clientQueryError && typeof clientQueryError === "object" && "status" in clientQueryError
+    ? clientQueryError.status : undefined;
+  const acessoNegado = statusErro === 401 || statusErro === 403 || statusErro === 404;
+  useEffect(() => {
+    if (acessoNegado && !protocoloEmAndamento) {
+      clientConfirmado.current = null;
+      setNovoProtocoloAberto(false);
+    }
+  }, [acessoNegado, protocoloEmAndamento]);
+  const mesmoClienteConfirmado = clientConfirmado.current?.client.id === clientId;
+  const manterConteudo = mesmoClienteConfirmado &&
+    (clientConfirmado.current?.escopo === escopoSessao || protocoloEmAndamento) &&
+    (!acessoNegado || protocoloEmAndamento);
+  const clientParaConteudo = clientReady ? client : manterConteudo ? clientConfirmado.current?.client : undefined;
+  const escopoDoConteudo = aguardandoSessaoAnterior
+    ? clientConfirmado.current?.escopo ?? escopoSessao
+    : escopoSessao;
 
   // Contagens para badges nas abas
   const { data: protocols } = useListProtocols(
     { clientId: clientId ?? 0 },
-    { query: { enabled: !!clientId, queryKey: ["protocols", clientId] } },
+    { query: { enabled: clientReady, queryKey: ["protocols", clientId] } },
   );
   const { data: payments } = useListPayments(
     { clientId: clientId ?? 0 },
-    { query: { enabled: !!clientId, queryKey: getListPaymentsQueryKey({ clientId: clientId ?? 0 }) } },
+    { query: { enabled: clientReady, queryKey: getListPaymentsQueryKey({ clientId: clientId ?? 0 }) } },
   );
 
   const protocolCount = useMemo(() => protocols?.length ?? 0, [protocols]);
@@ -83,8 +149,13 @@ export default function CockpitShell({
 
   // ── Navegação (SPA — zero window.location) ────────────────────────────────
   function onSelectClient(id: number | null) {
+    if (id === clientId) return;
     if (protocoloEmAndamento) {
       toast({ title: "Aguarde a conclusão do protocolo antes de trocar de cliente." });
+      return;
+    }
+    if (mutationsInFlight > 0) {
+      toast({ title: "Aguarde a conclusão da operação antes de trocar de cliente." });
       return;
     }
     if (novoProtocoloAberto && !window.confirm("Ao trocar de cliente, o preenchimento do protocolo será perdido. Continuar?")) return;
@@ -99,9 +170,13 @@ export default function CockpitShell({
       toast({ title: "Aguarde a conclusão do protocolo antes de trocar de aba." });
       return;
     }
-    if (novoProtocoloAberto && novaAba !== "protocolos") {
+    if (modo === "abas" && novoProtocoloAberto && novaAba !== "protocolos") {
       if (!window.confirm("Ao trocar de aba, o preenchimento do protocolo será perdido. Continuar?")) return;
       setNovoProtocoloAberto(false);
+    }
+    setAbaVisivel(novaAba);
+    if (modo !== "abas") {
+      setFocoSolicitado((anterior) => ({ id: novaAba, sequencia: (anterior?.sequencia ?? 0) + 1 }));
     }
     navigate(`/cockpit/${clientId}/${novaAba}`, { replace: true } as any);
   }
@@ -109,7 +184,29 @@ export default function CockpitShell({
   function abrirNovoProtocolo() {
     if (!clientReady || !clientId) return;
     setNovoProtocoloAberto(true);
+    setAbaVisivel("protocolos");
+    if (modo !== "abas") {
+      setFocoSolicitado((anterior) => ({ id: "protocolos", sequencia: (anterior?.sequencia ?? 0) + 1 }));
+    }
     if (aba !== "protocolos") navigate(`/cockpit/${clientId}/protocolos`);
+  }
+
+  function mudarModo(proximo: ModoCockpit) {
+    if (proximo === "abas" && novoProtocoloAberto && aba !== "protocolos" && clientId) {
+      setAbaVisivel("protocolos");
+      navigate(`/cockpit/${clientId}/protocolos`, { replace: true } as any);
+    } else if (proximo === "abas") {
+      setAbaVisivel(aba);
+    }
+    setModo(proximo);
+  }
+
+  function podeSairParaEdicao() {
+    if (protocoloEmAndamento || mutationsInFlight > 0) {
+      toast({ title: "Aguarde a conclusão da operação antes de sair." });
+      return false;
+    }
+    return !novoProtocoloAberto || window.confirm("Ao sair, o preenchimento do protocolo será perdido. Continuar?");
   }
 
   function fecharNovoProtocolo() {
@@ -131,6 +228,7 @@ export default function CockpitShell({
     },
     onSuccess: () => {
       toast({ title: "Drive configurado!" });
+      queryClient.invalidateQueries({ queryKey: clientQueryKey });
       queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(clientId ?? 0) });
     },
     onError: (err: Error) =>
@@ -139,30 +237,32 @@ export default function CockpitShell({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen w-full font-sans" style={{ background: CREAM }}>
-
-      {/* ── BLOCO STICKY: header + régua de abas ─────────────────────────── */}
-      <div className="sticky top-0 z-50">
-        <CockpitHeader
-          client={clientReady ? client : null}
-          clientId={clientId}
-          onSelectClient={onSelectClient}
-          driveSetupPending={driveSetup.isPending}
-          onDriveSetup={() => driveSetup.mutate()}
-          onNewProtocol={abrirNovoProtocolo}
-        />
-        {clientReady && (
+    <div className="cc-shell min-h-screen w-full font-sans">
+      <CockpitHeader
+        client={clientReady ? client : null}
+        clientId={clientId}
+        sessionScope={escopoSessao}
+        onSelectClient={onSelectClient}
+        driveSetupPending={driveSetup.isPending}
+        onDriveSetup={() => driveSetup.mutate()}
+        onEvolucao={() => onAba("evolucao")}
+        onMensagens={() => onAba("telegram")}
+        onBeforeEdit={podeSairParaEdicao}
+      />
+      {clientReady && (
+        <div className="cc-rail-wrap">
           <CockpitTabs
-            aba={aba}
+            aba={modo === "abas" ? aba : abaVisivel}
             onAba={onAba}
             protocolCount={protocolCount}
             paymentCount={paymentCount}
+            modo={modo}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Conteúdo principal ───────────────────────────────────────────── */}
-      <main className="px-4 py-6">
+      <main className="cc-main">
         {!clientId ? (
           // Estado vazio — guia o usuário
           <div className="panel-3d mx-auto mt-10 max-w-xl p-8 text-center">
@@ -174,10 +274,10 @@ export default function CockpitShell({
               className="text-[15px] font-bold uppercase tracking-[0.12em]"
               style={{ color: "#16294a" }}
             >
-              Busque o Paciente
+              Busque o Cliente
             </div>
             <p className="mt-2 text-sm text-[#647c97]">
-              Use o campo de busca acima para encontrar o paciente pelo nome ou CPF.
+              Use o campo de busca acima para encontrar o cliente pelo nome ou CPF.
               Todas as ferramentas da consulta — prescrição, injetáveis, implantes,
               exames, evolução, anamnese, protocolos, financeiro e cadastro — ficam
               nesta tela sem trocar de página.
@@ -186,7 +286,9 @@ export default function CockpitShell({
         ) : (
           <>
           {!clientReady && <div className="panel-3d mx-auto mt-10 max-w-xl p-8 text-center" role="status">
-            {clientLoading && !clientError ? (
+            {aguardandoSessaoAnterior ? (
+              <p>Aguardando a conclusão da operação iniciada no acesso anterior. As ferramentas permanecem ocultas.</p>
+            ) : clientLoading && !clientError ? (
               <p>Carregando os dados do cliente…</p>
             ) : (
               <>
@@ -197,17 +299,22 @@ export default function CockpitShell({
               </>
             )}
           </div>}
-          {clientParaConteudo && <div className="space-y-4" hidden={!clientReady}>
+          {clientParaConteudo && <div key={escopoDoConteudo} className="space-y-4" hidden={!clientReady}>
             {/* Acompanhamento diário sempre visível acima do conteúdo da aba */}
             <AcompanhamentoDiarioPanel clientId={clientId} />
             {/* Conteúdo da aba ativa — lazy loaded */}
-            <CockpitContent
+            <CockpitViews
               clientId={clientId}
               client={clientParaConteudo}
               aba={aba}
+              modo={modo}
+              onModo={mudarModo}
+              onFerramentaVisivel={setAbaVisivel}
+              focoSolicitado={focoSolicitado}
+              clienteVisivel={clientReady}
               novoProtocoloAberto={novoProtocoloAberto}
               protocoloEmAndamento={protocoloEmAndamento}
-              onProtocoloEmAndamento={setProtocoloEmAndamento}
+              onProtocoloEmAndamento={atualizarProtocoloEmAndamento}
               onNovoProtocolo={abrirNovoProtocolo}
               onFecharProtocolo={fecharNovoProtocolo}
               onProtocoloCriado={() => setNovoProtocoloAberto(false)}

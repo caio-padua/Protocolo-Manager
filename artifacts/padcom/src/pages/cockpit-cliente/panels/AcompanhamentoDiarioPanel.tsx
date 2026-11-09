@@ -191,7 +191,7 @@ function CardPeriodo({
 }
 
 export default function AcompanhamentoDiarioPanel({ clientId }: { clientId: number }) {
-  const { data, isLoading } = useQuery<Pulso[]>({
+  const { data, isLoading, isError, refetch } = useQuery<Pulso[]>({
     queryKey: ["pulso-diario", clientId],
     queryFn: async () => {
       const r = await fetch(`${BASE}/api/pulso-diario/${clientId}?dias=14`);
@@ -233,13 +233,18 @@ export default function AcompanhamentoDiarioPanel({ clientId }: { clientId: numb
           <Activity className="h-3.5 w-3.5" style={{ color: GOLD }} /> Pulso Diário
         </div>
         <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: MUTE }}>
-          {diaAlvo ? `Último registro · ${dataBr(diaAlvo)}` : "Sem registros"}
+          {isError ? "Consulta indisponível" : isLoading ? "Carregando" : diaAlvo ? `Último registro · ${dataBr(diaAlvo)}` : "Sem registros"}
         </span>
       </div>
 
       {isLoading ? (
         <div className="py-6 text-center text-[12px] font-semibold" style={{ color: MUTE }}>
           Carregando…
+        </div>
+      ) : isError ? (
+        <div className="concave-3d px-3 py-6 text-center text-[12px] font-semibold" role="alert">
+          Não foi possível consultar o pulso diário.{" "}
+          <button type="button" className="underline" onClick={() => void refetch()}>Tentar novamente</button>
         </div>
       ) : !diaAlvo ? (
         <div className="concave-3d px-3 py-6 text-center text-[12px] font-semibold" style={{ color: MUTE }}>

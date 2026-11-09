@@ -21,7 +21,9 @@ interface InboxPage {
 const api = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
 const headers = () => ({ Authorization: `Bearer ${getCollabToken() ?? ""}` });
 
-export default function TelegramPanel({ clientId }: { clientId: number }) {
+export default function TelegramPanel({
+  clientId, marcarAoAbrir = true, visivel = true,
+}: { clientId: number; marcarAoAbrir?: boolean; visivel?: boolean }) {
   const [text, setText] = useState("");
   const [pageSize, setPageSize] = useState(20);
   const [direction, setDirection] = useState("todas");
@@ -31,6 +33,7 @@ export default function TelegramPanel({ clientId }: { clientId: number }) {
   const inbox = useInfiniteQuery({
     queryKey: key,
     initialPageParam: 1,
+    enabled: visivel,
     retry: false,
     queryFn: async ({ pageParam, signal }): Promise<InboxPage> => {
       const response = await fetch(`${api}/cockpit/${clientId}/telegram-inbox?pagina=${pageParam}&quantidade=${pageSize}&direcao=${direction}`, {
@@ -40,7 +43,7 @@ export default function TelegramPanel({ clientId }: { clientId: number }) {
       return response.json();
     },
     getNextPageParam: (page, _pages, pageNumber) => page.temMais ? pageNumber + 1 : undefined,
-    refetchInterval: 15_000,
+    refetchInterval: visivel ? 15_000 : false,
     gcTime: 0,
   });
   const messages = useMemo(() => {
@@ -67,7 +70,11 @@ export default function TelegramPanel({ clientId }: { clientId: number }) {
       void queryClient.invalidateQueries({ queryKey: ["telegram-inbox-badge"] });
     },
   });
-  useEffect(() => { markRead.mutate(); }, [clientId]);
+  // Uma visão geral pode montar várias ferramentas. Só a abertura explícita
+  // da aba Telegram mantém a marcação automática já existente.
+  useEffect(() => {
+    if (marcarAoAbrir && visivel) markRead.mutate();
+  }, [clientId, marcarAoAbrir, visivel]);
 
   const send = useMutation({
     mutationFn: async (message: string) => {

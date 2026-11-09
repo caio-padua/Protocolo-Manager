@@ -1,127 +1,175 @@
-// ClientIdentity — avatar + nome EB Garamond + badge de alarme clínico
-// Posição: lado esquerdo do CockpitHeader quando cliente selecionado.
-// Segue skill-layout-paxter: serifa grife para nome; sem infantilidades.
-
-import { useMemo } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { Client } from "@workspace/api-client-react";
+import {
+  Activity, Camera, ChevronDown, ClipboardList, HeartPulse, Image,
+  MessageCircle, Ruler, ScanLine, Scale, Stethoscope, UserRound,
+} from "lucide-react";
+import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
+import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
+import { formatarNascimento, idadeCompleta } from "./idadeCliente";
 
-interface Client {
-  id: number;
-  name: string;
-  birthDate?: string | null;
-  photo?: string | null;
+type Pulso = {
+  data: string;
+  periodo: string;
+  pressaoSistolica: number | null;
+  pressaoDiastolica: number | null;
+  energia: number | null;
+};
+
+function formatarCpf(cpf?: string | null) {
+  if (!cpf) return "—";
+  const digitos = cpf.replace(/\D/g, "");
+  return digitos.length === 11
+    ? digitos.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+    : cpf;
+}
+
+function iniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "";
+  return (partes.length === 1
+    ? partes[0].slice(0, 2)
+    : `${partes[0][0]}${partes[partes.length - 1][0]}`).toUpperCase();
+}
+
+function ResumoRegistrado({ clientId }: { clientId: number }) {
+  const { data, isLoading, isError, refetch } = useQuery<Pulso[]>({
+    queryKey: ["pulso-diario", clientId],
+    queryFn: async ({ signal }) => {
+      const resposta = await fetch(`${BASE}/api/pulso-diario/${clientId}?dias=14`, { signal });
+      if (!resposta.ok) throw new Error("Falha ao carregar o acompanhamento.");
+      return resposta.json();
+    },
+    retry: false,
+  });
+  if (isLoading) return <p role="status">Carregando o acompanhamento…</p>;
+  if (isError) return (
+    <div role="alert">
+      <p>Não foi possível consultar o acompanhamento.</p>
+      <button type="button" className="cc-inline-action" onClick={() => void refetch()}>Tentar novamente</button>
+    </div>
+  );
+  const ultimo = [...(data ?? [])].sort((a, b) =>
+    b.data.localeCompare(a.data) ||
+    (["manha", "tarde", "noite"].indexOf(b.periodo) - ["manha", "tarde", "noite"].indexOf(a.periodo)),
+  )[0];
+  if (!ultimo) return <p>Nenhum registro de acompanhamento encontrado.</p>;
+  const pressao = ultimo.pressaoSistolica != null || ultimo.pressaoDiastolica != null
+    ? `${ultimo.pressaoSistolica ?? "—"}/${ultimo.pressaoDiastolica ?? "—"}`
+    : "Não informada";
+  return (
+    <div className="cc-summary-data">
+      <div><span>Último registro</span><strong>{formatarNascimento(ultimo.data) ?? ultimo.data}</strong></div>
+      <div><span>Período</span><strong>{({ manha: "Manhã", tarde: "Tarde", noite: "Noite" } as Record<string, string>)[ultimo.periodo] ?? ultimo.periodo}</strong></div>
+      <div><span>Pressão registrada</span><strong>{pressao}</strong></div>
+      <div><span>Energia registrada</span><strong>{ultimo.energia == null ? "Não informada" : `${ultimo.energia}/10`}</strong></div>
+    </div>
+  );
 }
 
 interface ClientIdentityProps {
   client: Client;
-  alarmColor?: "green" | "amber" | "red";
+  onMensagens: () => void;
 }
 
-const NAVY = "#16294a";
-const GOLD = "#9a7b32";
-
-function calcAge(birthDate: string | null | undefined): number | null {
-  if (!birthDate) return null;
-  const b = new Date(birthDate);
-  if (isNaN(b.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - b.getFullYear();
-  const m = today.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
-  return age;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-const ALARM_MAP: Record<string, { dot: string; label: string; ring: string }> = {
-  green:  { dot: "#22c55e", label: "SEM ALARME",  ring: "rgba(34,197,94,0.35)" },
-  amber:  { dot: "#f59e0b", label: "SINAL",        ring: "rgba(245,158,11,0.35)" },
-  red:    { dot: "#ef4444", label: "URGÊNCIA",     ring: "rgba(239,68,68,0.40)" },
-};
-
-export default function ClientIdentity({ client, alarmColor = "green" }: ClientIdentityProps) {
-  const age = useMemo(() => calcAge(client.birthDate), [client.birthDate]);
-  const alarm = ALARM_MAP[alarmColor];
-  const ini = useMemo(() => initials(client.name), [client.name]);
+export default function ClientIdentity({ client, onMensagens }: ClientIdentityProps) {
+  const [aberto, setAberto] = useState<"resumo" | "imagem" | null>(null);
+  const idade = idadeCompleta(client.birthDate);
+  const campos = [
+    { label: "CPF", value: formatarCpf(client.cpf) },
+    { label: "NASCIMENTO", value: formatarNascimento(client.birthDate) ?? "—" },
+    { label: "TELEFONE", value: client.phone || "—" },
+    { label: "E-MAIL", value: client.email || "—" },
+    { label: "ENDEREÇO", value: client.address || "Não informado", address: true },
+  ];
+  const indisponiveis = [
+    { label: "BIOIMPEDÂNCIA", Icon: Scale },
+    { label: "ANTROPOMETRIA", Icon: Ruler },
+    { label: "DINAMOMETRIA", Icon: HeartPulse },
+    { label: "CALORIMETRIA", Icon: Activity },
+    { label: "ULTRASSOM", Icon: ScanLine },
+    { label: "OUTRAS AVALIAÇÕES", Icon: ClipboardList },
+  ];
 
   return (
-    <div className="flex items-center gap-3 min-w-0">
-      {/* Avatar */}
-      <div className="relative shrink-0">
-        {client.photo ? (
-          <img
-            src={client.photo}
-            alt={client.name}
-            className="w-11 h-11 object-cover"
-            style={{ borderRadius: 6, border: `2px solid ${GOLD}` }}
-          />
-        ) : (
-          <div
-            className="w-11 h-11 flex items-center justify-center font-black text-sm"
-            style={{
-              background: `linear-gradient(135deg, #1e3668 0%, #0f1e3a 100%)`,
-              border: `2px solid ${GOLD}`,
-              borderRadius: 6,
-              color: GOLD,
-              fontFamily: "'EB Garamond', serif",
-              fontSize: 16,
-              letterSpacing: "0.06em",
-            }}
-          >
-            {ini}
-          </div>
-        )}
-        {/* Badge de alarme no canto inferior direito do avatar */}
-        <span
-          className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
-          style={{
-            background: alarm.dot,
-            borderColor: "#16294a",
-            boxShadow: `0 0 5px ${alarm.ring}`,
-          }}
-          title={alarm.label}
-        />
+    <section className="cc-identity" aria-label="Identificação do cliente">
+      <div className="cc-profile">
+        <div className="cc-portrait">
+          {client.photoUrl ? (
+            <img src={client.photoUrl} alt="" />
+          ) : (
+            <span aria-hidden="true">{iniciais(client.name) || <UserRound size={26} />}</span>
+          )}
+        </div>
+        <div className="cc-grade-plan" aria-label="Classificação e plano não disponíveis no cadastro consultado">
+          <span title="Classificação não disponível">—</span>
+          <span title="Plano não disponível">—</span>
+        </div>
       </div>
 
-      {/* Nome + metadados */}
-      <div className="min-w-0">
-        <div
-          className="font-bold leading-tight truncate max-w-[240px]"
-          style={{
-            fontFamily: "'EB Garamond', serif",
-            fontSize: 18,
-            color: "#fffbf0",
-            textShadow: "0 1px 8px rgba(0,0,0,0.55)",
-            letterSpacing: "0.01em",
-          }}
-        >
-          {tituloProprio(client.name)}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          {age !== null && (
-            <span
-              className="text-[10px] font-black uppercase tracking-[0.18em]"
-              style={{ color: "rgba(255,251,240,0.55)" }}
-            >
-              {age} anos
-            </span>
-          )}
-          <span
-            className="text-[9px] font-black uppercase tracking-[0.22em] px-1.5 py-0.5 rounded-[3px]"
-            style={{
-              background: `${alarm.ring}`,
-              color: alarm.dot,
-              border: `1px solid ${alarm.dot}40`,
-            }}
-          >
-            {alarm.label}
-          </span>
-        </div>
+      <div className="cc-identity-information">
+        <div className="cc-client-code">CÓDIGO CLIENTE: {client.id}</div>
+        <NomeClienteResponsivo nome={tituloProprio(client.name)} />
+        <div className="cc-age">{idade ?? "Data de nascimento não informada ou inválida"}</div>
+        <dl className="cc-client-details">
+          {campos.map((campo) => (
+            <div key={campo.label} className={campo.address ? "cc-detail cc-detail-address" : "cc-detail"}>
+              <dt>{campo.label}</dt>
+              <dd title={campo.value}>{campo.value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
-    </div>
+
+      <div className="cc-context">
+        <div className="cc-context-grid" role="group" aria-label="Informações do cliente">
+          <button type="button" className="cc-context-button" data-active={aberto === "resumo"}
+            aria-expanded={aberto === "resumo"} aria-controls="cc-resumo-cliente"
+            onClick={() => setAberto((atual) => atual === "resumo" ? null : "resumo")}>
+            <Stethoscope size={15} aria-hidden="true" />
+            <span><strong>RESUMO</strong><small>Acompanhamento</small></span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          <button type="button" className="cc-context-button" onClick={onMensagens}>
+            <MessageCircle size={15} aria-hidden="true" />
+            <span><strong>MENSAGENS</strong><small>Abrir Telegram</small></span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          <button type="button" className="cc-context-button" data-active={aberto === "imagem"}
+            aria-expanded={aberto === "imagem"} aria-controls="cc-imagem-cliente"
+            onClick={() => setAberto((atual) => atual === "imagem" ? null : "imagem")}>
+            <Image size={15} aria-hidden="true" />
+            <span><strong>IMAGENS</strong><small>Foto do cadastro</small></span>
+            <ChevronDown size={13} aria-hidden="true" />
+          </button>
+          {indisponiveis.map(({ label, Icon }) => (
+            <button key={label} type="button" className="cc-context-button"
+              disabled title="Ainda não conectado a uma fonte de dados real.">
+              <Icon size={15} aria-hidden="true" />
+              <span><strong>{label}</strong><small>Não conectado</small></span>
+            </button>
+          ))}
+        </div>
+        {aberto === "resumo" && (
+          <div id="cc-resumo-cliente" className="cc-context-content">
+            <ResumoRegistrado clientId={client.id} />
+          </div>
+        )}
+        {aberto === "imagem" && (
+          <div id="cc-imagem-cliente" className="cc-context-content cc-photo-content">
+            {client.photoUrl
+              ? <img src={client.photoUrl} alt={`Foto cadastrada de ${client.name}`} />
+              : <Camera size={23} aria-hidden="true" />}
+            <div>
+              <strong>Foto do cadastro</strong>
+              <p>{client.photoUrl ? "Imagem de identificação do cliente." : "Nenhuma foto de cadastro informada."}</p>
+              <p>A galeria de imagens clínicas ainda não está conectada.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

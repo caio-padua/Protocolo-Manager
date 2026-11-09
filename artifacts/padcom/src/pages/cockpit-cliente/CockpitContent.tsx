@@ -30,7 +30,7 @@ function PanelSkeleton() {
   );
 }
 
-interface CockpitContentProps {
+export interface CockpitContentProps {
   clientId: number;
   client: { id: number; name: string; cpf?: string | null };
   aba: AbaId;
@@ -40,9 +40,11 @@ interface CockpitContentProps {
   onNovoProtocolo: () => void;
   onFecharProtocolo: () => void;
   onProtocoloCriado: () => void;
+  marcarTelegramAoAbrir?: boolean;
+  visivel?: boolean;
 }
 
-export default function CockpitContent({ clientId, client, aba, novoProtocoloAberto, protocoloEmAndamento, onProtocoloEmAndamento, onNovoProtocolo, onFecharProtocolo, onProtocoloCriado }: CockpitContentProps) {
+export default function CockpitContent({ clientId, client, aba, novoProtocoloAberto, protocoloEmAndamento, onProtocoloEmAndamento, onNovoProtocolo, onFecharProtocolo, onProtocoloCriado, marcarTelegramAoAbrir = true, visivel = true }: CockpitContentProps) {
   return (
     <div className="cockpit-content font-sans text-foreground" data-cockpit-tab={aba}>
       <Suspense fallback={<PanelSkeleton />}>
@@ -57,7 +59,7 @@ export default function CockpitContent({ clientId, client, aba, novoProtocoloAbe
         {aba === "dieta-treino" && <DietaTreinoPanel clientId={clientId} />}
         {aba === "financeiro"  && <FinanceiroPanel  clientId={clientId} />}
         {aba === "cadastro"    && <CadastroPanel    clientId={clientId} />}
-        {aba === "telegram"    && <TelegramPanel key={clientId} clientId={clientId} />}
+        {aba === "telegram"    && <TelegramPanel key={clientId} clientId={clientId} marcarAoAbrir={marcarTelegramAoAbrir} visivel={visivel} />}
       </Suspense>
     </div>
   );
