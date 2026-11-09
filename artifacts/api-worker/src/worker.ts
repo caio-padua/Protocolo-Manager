@@ -333,6 +333,47 @@ export function startWorkerJobs(logger: pino.Logger): void {
     { timezone: "America/Sao_Paulo" }
   );
 
+  // ─── Job 10: Confirmação do cliente por visita (K8) — a cada 10 min ───────
+  // Envia os lembretes vencidos: até 3 e-mails ao cliente (no ato, +24 h, +48 h)
+  // e o aviso final à gestão (24 h após o 3º). Cada envio é reservado por UPDATE
+  // condicional antes de sair (nunca duplica, mesmo com duas execuções juntas).
+  // As tabelas são garantidas aqui também: o worker pode subir antes da API.
+  let visitConfirmationsReady = false;
+  let visitConfirmationsRunning = false;
+  cron.schedule(
+    "*/10 * * * *",
+    async () => {
+      if (visitConfirmationsRunning) return;
+      visitConfirmationsRunning = true;
+      try {
+        if (!visitConfirmationsReady) {
+          const { ensureVisitConfirmations } = await import(
+            "../../api-server/src/lib/ensure-visit-confirmations.js" as string
+          );
+          await ensureVisitConfirmations();
+          visitConfirmationsReady = true;
+        }
+        const { dispatchDue } = await import("../../api-server/src/lib/visit-confirmation.js" as string);
+        const { realChannels } = await import("../../api-server/src/lib/visit-confirmation-channels.js" as string);
+        const r = await dispatchDue(realChannels);
+        if (r.clienteEmails + r.gestaoInicio + r.gestaoFinal + r.falhas + r.curados > 0) {
+          logger.info(
+            { clienteEmails: r.clienteEmails, gestaoInicio: r.gestaoInicio, gestaoFinal: r.gestaoFinal, falhas: r.falhas, curados: r.curados },
+            "Worker: lembretes de confirmação do cliente"
+          );
+        }
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha nos lembretes de confirmação do cliente"
+        );
+      } finally {
+        visitConfirmationsRunning = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
   logger.info(
     "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h"
   );

@@ -117,6 +117,11 @@ export interface SendWhatsappOptions {
   clienteId?: number;
   /** Explicit single-channel clinical sends must not mirror into an unconfirmed channel. */
   mirrorTelegram?: boolean;
+  /**
+   * Texto gravado no log no lugar do corpo real (ex.: mensagem que carrega uma chave
+   * secreta). A mensagem enviada ao Twilio continua inteira; só o log fica mascarado.
+   */
+  corpoParaLog?: string;
 }
 
 /**
@@ -265,13 +270,14 @@ export async function sendWhatsapp(
   opts: SendWhatsappOptions = {},
 ): Promise<WhatsappResult> {
   const link = buildWhatsappLink(phone, message);
+  const corpoLog = opts.corpoParaLog ?? message;
 
   const { accountSid, authToken, whatsappFrom } = await loadTwilioCreds();
   if (!(accountSid && authToken && whatsappFrom)) {
     // Sem Twilio: registra como "link" (não é falha de entrega, é fallback manual).
     const logId = await registrarLog({
       telefone: phone,
-      corpo: message,
+      corpo: corpoLog,
       status: "link",
       contexto: opts.contexto,
       clienteId: opts.clienteId,
@@ -316,13 +322,13 @@ export async function sendWhatsapp(
       const whatsappError = `HTTP_${resp.status}`;
       const logId = await registrarLog({
         telefone: phone,
-        corpo: message,
+        corpo: corpoLog,
         status: "failed",
         errorCode: whatsappError,
         contexto: opts.contexto,
         clienteId: opts.clienteId,
       });
-      void registrarTelegramBloqueado(phone, message, whatsappError, opts);
+      void registrarTelegramBloqueado(phone, corpoLog, whatsappError, opts);
       return { sent: false, via: "link", link, error: `HTTP ${resp.status}`, logId };
     }
 
@@ -340,7 +346,7 @@ export async function sendWhatsapp(
 
     const logId = await registrarLog({
       telefone: phone,
-      corpo: message,
+      corpo: corpoLog,
       sid: created.sid ?? null,
       status: created.status || "queued",
       errorCode: created.error_code ? `twilio_${created.error_code}` : null,
@@ -352,7 +358,7 @@ export async function sendWhatsapp(
       const code = `twilio_${created.error_code}`;
       logger.warn({ code, sid: created.sid }, "Twilio WhatsApp erro imediato");
       await atualizarLog(logId, { status: "failed", errorCode: code });
-      void registrarTelegramBloqueado(phone, message, code, opts);
+      void registrarTelegramBloqueado(phone, corpoLog, code, opts);
       return { sent: false, via: "twilio", link, error: code, logId };
     }
     if (created.sid) {
@@ -367,7 +373,7 @@ export async function sendWhatsapp(
           "Twilio WhatsApp não entregue (status final)",
         );
         await atualizarLog(logId, { status: "failed", errorCode: finalError });
-        void registrarTelegramBloqueado(phone, message, finalError, opts);
+        void registrarTelegramBloqueado(phone, corpoLog, finalError, opts);
         return { sent: false, via: "twilio", link, error: finalError, logId };
       }
     }
@@ -382,13 +388,13 @@ export async function sendWhatsapp(
     logger.warn({ err: err?.message }, "Twilio WhatsApp exception");
     const logId = await registrarLog({
       telefone: phone,
-      corpo: message,
+      corpo: corpoLog,
       status: "failed",
       errorCode: "exception",
       contexto: opts.contexto,
       clienteId: opts.clienteId,
     });
-    void registrarTelegramBloqueado(phone, message, "exception", opts);
+    void registrarTelegramBloqueado(phone, corpoLog, "exception", opts);
     return { sent: false, via: "link", link, error: err?.message ?? String(err), logId };
   }
 }

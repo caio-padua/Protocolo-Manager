@@ -79,6 +79,7 @@ import atestadosRouter from "./atestados";
 import cid10Router from "./cid10";
 import encaminhamentosRouter from "./encaminhamentos";
 import clinicalDocumentDeliveryRouter, { clinicalDocumentShareRouter } from "./clinical-document-delivery";
+import visitConfirmationRouter, { visitConfirmationPublicRouter } from "./visit-confirmation";
 import documentTemplatesRouter from "./document-templates";
 import clientServiceAddressesRouter from "./client-service-addresses";
 import empresasRouter from "./empresas";
@@ -157,6 +158,10 @@ router.use("/onboarding", onboardingPublicRouter);
 // de 43 caracteres + validade curta (a propria rota valida). ANTES do portao.
 router.use(clinicalDocumentShareRouter);
 
+// K8: link de um clique da confirmação do cliente por visita. O token HMAC é a credencial;
+// abrir não confirma, só o POST. ANTES do portão.
+router.use(visitConfirmationPublicRouter);
+
 // Portao do Colaborador (Onda 8.2): protege as ESCRITAS da Central de Cadastro
 // (site-content + cadastros) e registra auditoria. Precisa vir ANTES das rotas
 // protegidas. Leituras seguem livres.
@@ -172,6 +177,8 @@ router.use(semanticCodesRouter);
 router.use(protocolsRouter);
 router.use(protocolSchedulingRouter);
 router.use(sessionsRouter);
+// K8: confirmação do cliente por visita (chave, "Cliente confirma depois", desafio). Depois do sessionsRouter (módulo agenda).
+router.use(visitConfirmationRouter);
 router.use(rasRouter);
 router.use(stockRouter);
 router.use(paymentsRouter);

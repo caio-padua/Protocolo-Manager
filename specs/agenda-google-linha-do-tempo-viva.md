@@ -170,7 +170,7 @@ Limite conhecido de F23: uma chamada já enviada ao Google dentro do prazo pode,
 
 Definição de PRONTO de K7: testes T-K7-1 a T-K7-10 verdes (função pura + banco isolado com Google simulado); testes existentes de agenda e Google verdes; revisão independente sem pendência; nenhuma chamada real ao Google.
 
-## 13. K8 — Chave por visita e rubrica do cliente (EM ESPECIFICAÇÃO; resposta do CEO em 09/11/2026)
+## 13. K8 — Chave por visita e rubrica do cliente (CONSTRUÍDA e testada em 09/11/2026; resposta do CEO em 09/11/2026)
 
 ### 13.1 O que o CEO decidiu (palavras dele resumidas)
 
@@ -216,9 +216,9 @@ A coluna da enfermeira não depende de nenhum desses estados.
 ### 13.5 Requisitos do caminho "Cliente confirma depois"
 
 13.5.1 O botão só aparece para quem pode registrar a aplicação daquela visita e grava quem apertou, quando (horário de Brasília) e o motivo escolhido.
-13.5.2 E-mail ao cliente com um link de 32 bytes aleatórios (só o hash fica no banco), uso único, validade de 7 dias (13.5.5). O link abre uma página com UM botão de confirmar; quem só abre o link (antivírus, pré-visualização do e-mail) NÃO confirma. A confirmação grava data, hora e uma impressão do aparelho (sem dado pessoal extra).
+13.5.2 E-mail ao cliente com um link de assinatura HMAC de 256 bits recalculável a partir de um nonce aleatório de 32 bytes guardado na visita (o token em si não é gravado), uso único, validade de 7 dias (13.5.5). O link abre uma página com UM botão de confirmar; quem só abre o link (antivírus, pré-visualização do e-mail) NÃO confirma. A confirmação grava data, hora e uma impressão do aparelho (sem dado pessoal extra).
 13.5.3 Gestão (gestor administrador e responsável técnico do local da visita, sem repetir pessoa que acumula as duas funções) recebe 2 e-mails por visita pendente: um no ato do botão e um aviso final se o prazo dos 3 e-mails passar sem confirmação. DECISÃO DO CEO (09/11/2026, opção A). Se nenhum tiver e-mail, a tela da enfermeira avisa e o fato fica registrado; nunca bloqueia.
-13.5.4 Cliente recebe 3 e-mails ao todo, um por dia (o primeiro no ato; depois +24 h e +48 h), parando na hora em que confirma. O aviso final à gestão sai 24 h depois do 3º e-mail do cliente, se não houve confirmação; nesse instante o estado vira nao_confirmada. Rotina diária idempotente (reinício do servidor não duplica; confere o estado no instante do envio).
+13.5.4 Cliente recebe 3 e-mails ao todo, um por dia (o primeiro no ato; depois +24 h e +48 h), parando na hora em que confirma. O aviso final à gestão sai 24 h depois do 3º e-mail do cliente, se não houve confirmação; nesse instante o estado vira nao_confirmada (quando a visita estava só em "pendente"; se já havia rubrica por desafio, o estado continua rubrica_desafio e apenas o aviso final é registrado). O aviso final diz quantos e-mails o provedor aceitou e quantos recusou; nunca afirma que "saíram" se foram recusados. Rotina diária idempotente (reinício do servidor não duplica; confere o estado no instante do envio).
 13.5.5 Decidido por mim e avisado ao CEO: o link do e-mail continua valendo por 7 dias. Clique depois do aviso final muda nao_confirmada para confirmada_email com a marca "confirmada com atraso"; o histórico do atraso nunca é apagado.
 
 ### 13.6 Desafio presencial
@@ -242,6 +242,14 @@ P1 RESOLVIDO (opção B). P1b RESOLVIDO (palavra-chave semanal descartada). P2 R
 | K8a | Tabelas novas; chave segura por visita; envio aos canais; digitação pela enfermeira; rubrica gravada; botão e tela da chave | Nada |
 | K8b | Botão "Cliente confirma depois"; e-mail de um clique; página pública de confirmação; e-mail à gestão; lembretes diários; estados "pendente" e "não confirmada" | K8a |
 | K8c | Desafio presencial (2 metades sorteadas, legenda que respira, 3 rodadas); trava e entrada automática em K8b | K8a e K8b |
+
+### 13.7c Estado de engenharia (09/11/2026)
+
+13.7c.1 Construído: tabelas visit_confirmations e visit_confirmation_events (SQL bruto, criadas no boot da API e também pelo worker); rotas autenticadas e públicas; núcleo com chave HMAC, link de um clique, desafio, lembretes; job do api-worker a cada 10 minutos (Job 10); componente da tela na agenda (painel "Confirmação do cliente" dentro de cada visita).
+13.7c.2 Pré-condição adicionada na revisão independente: chave, "Cliente confirma depois" e desafio só são aceitos depois de a enfermagem registrar ao menos uma aplicação da visita (a confirmação diz "a aplicação aconteceu"). Isso NÃO condiciona o registro da aplicação à confirmação; é o contrário.
+13.7c.3 O módulo Agenda é aplicado explicitamente às rotas da confirmação. Falha ao criar as tabelas no boot não derruba a API (registra erro; a confirmação fica indisponível).
+13.7c.4 Limite honesto: o corpo da mensagem WhatsApp com a chave é mascarado no log do Manager (corpoParaLog), mas o provedor (Twilio) e a caixa de Enviados do Gmail retêm a mensagem. A chave vale 10 minutos e é de uso único.
+13.7c.5 Não verificado em ambiente real: envio de e-mail, WhatsApp e Telegram reais (só simulados); execução do worker com os crons ligados; a tela logada com dados reais de uma visita com aplicação (a tela foi vista com respostas simuladas; a rota real respondeu 200 com login de teste).
 
 ### 13.8 Falhas previstas
 

@@ -20,6 +20,7 @@ import { ensureSubstanceApplicationsUnique } from "./lib/ensure-substance-applic
 import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schema";
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
+import { ensureVisitConfirmations } from "./lib/ensure-visit-confirmations";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
 import { ensureProfessionalEmpresasSchema } from "./lib/ensure-professional-empresas-schema";
 import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
@@ -154,6 +155,15 @@ if (Number.isNaN(port) || port <= 0) {
   } catch (e) {
     logger.error({ err: e }, "Falha ao garantir coluna email_log.protocol_id — abortando boot");
     process.exit(1);
+  }
+
+  try {
+    await ensureVisitConfirmations();
+    logger.info("visit_confirmations: tabelas da confirmação do cliente por visita garantidas antes do listen");
+  } catch (e) {
+    // Não derruba a API: a confirmação do cliente nunca pode impedir o registro de aplicações.
+    // As rotas da K8 respondem com erro claro e o worker tenta garantir as tabelas de novo.
+    logger.error({ err: e }, "Falha ao garantir tabelas visit_confirmations — a confirmação do cliente fica indisponível; o restante da API segue");
   }
 
   // Semeado (aguardado, não fire-and-forget): protocolos/catálogo/receitas

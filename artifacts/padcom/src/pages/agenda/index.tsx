@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { collabAuthHeaders } from "@/lib/collab-auth";
+import { collabAuthHeaders, getCollabToken } from "@/lib/collab-auth";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import {
@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 import { RescheduleDrawer } from "@/components/RescheduleDrawer";
 import { GoogleCommitments } from "./GoogleCommitments";
+import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
 import { useGoogleRefreshCycle } from "./agenda-integration-api";
 
 type ViewMode = "dia" | "semana" | "mes";
@@ -415,6 +416,9 @@ function SessionCard({
                   <span className="justify-self-center" />
                 </div>
               ))}
+              {session.status !== "cancelled" && session.status !== "missed" && (
+                <ConfirmacaoCliente sessionId={session.id} enabled={Boolean(getCollabToken())} />
+              )}
             </div>
           </div>
         </CardContent>

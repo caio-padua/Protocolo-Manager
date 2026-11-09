@@ -162,3 +162,4 @@
 - [Ação clínica que atualiza o Google — reserva e prazo](google-evento-acao-clinica-reserva.md) — nunca reivindicar reserva alheia; prazo próprio na chamada; teste sem timer curto.
 - [Linha do Tempo Viva — pedidos do CEO](linha-do-tempo-viva-regras-ceo.md) — K1–K6 aprovadas; aguda/crônica; substâncias constantes, chave de 6 dígitos como rubrica, RAS FAP vivo.
 - [Protocolo completo constante](protocolo-completo-constante.md) — constantes calculadas na leitura; evento do Google montado em 3 caminhos (mexer nos 3); guarda de empresa; rodar suíte com --maxWorkers=2.
+- [Confirmação do cliente por visita (K8)](confirmacao-visita-k8-licoes.md) — jobs vão no api-worker (cron.ts é código morto); guard de módulo explícito; só após aplicação registrada; boot não pode dar exit.
