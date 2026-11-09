@@ -121,6 +121,8 @@ export type ConsolidatedPlan =
 const DAY_MS = 86_400_000;
 const PLANNING_BEAM_WIDTH = 1000;
 const MAX_PLAN_EXPANSIONS = 300_000;
+/** Limite de vagas que o planejador aceita; fontes de vagas devem respeitá-lo. */
+export const MAX_PLANNING_SLOTS = 5000;
 
 function mondayOfWeek(date: string): string {
   const ms = dayMs(date);
@@ -141,7 +143,7 @@ export function planProtocolWithAvailableSlots(
     throw new Error("Limites de planejamento inválidos");
   }
   if (items.length > 100 || items.some(i => !Number.isSafeInteger(i.totalSessions) || i.totalSessions > 200) ||
-      items.reduce((sum, i) => sum + i.totalSessions, 0) > 500 || slots.length > 5000 ||
+      items.reduce((sum, i) => sum + i.totalSessions, 0) > 500 || slots.length > MAX_PLANNING_SLOTS ||
       items.some(i => !Number.isSafeInteger(i.substanceId) || i.substanceId <= 0 ||
         typeof i.dose !== "string" || !i.dose.trim())) {
     throw new Error("Protocolo ou conjunto de vagas excede o limite de planejamento");

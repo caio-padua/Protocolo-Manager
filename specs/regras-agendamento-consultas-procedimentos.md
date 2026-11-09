@@ -61,9 +61,36 @@ editável pelo controle sim/não do cadastro.
    no modo por tempo devolve o dimensionamento (períodos e médico) para a
    reserva e para o evento do Google.
 5. O planejador ainda NÃO está ligado a nenhuma rota: nenhuma reserva,
-   sessão ou evento passa por ele. Falta a fonte de vagas (períodos adjacentes
-   livres da enfermagem e cobertura do médico, lidos do motor) e a reserva
-   atômica dos dois recursos.
+   sessão ou evento passa por ele. Falta a reserva atômica dos dois recursos
+   e a rota única que une leitura de vagas, planejamento e reserva.
+6. Fonte de vagas (etapa 2 de 7, 09/11/2026): `lib/protocol-slot-source.ts`
+   lê o motor de agenda existente, dia a dia, e entrega ao planejador as vagas
+   em períodos. Cada horário livre da enfermagem informa quantos períodos
+   livres e consecutivos existem a partir dele; horário ocupado, bloqueado ou
+   ainda não liberado pela cadeia, e o intervalo do almoço, interrompem a
+   sequência. A cobertura do médico é a união dos horários abertos da agenda
+   médica (grade de 60 minutos); sem agenda médica informada a cobertura fica
+   ausente, com agenda informada e sem horário fica zero. A leitura só
+   fotografa: não reserva nada, e quem reservar (etapa 3) confere de novo
+   sob bloqueio.
+   Decisão do responsável (09/11/2026): duas infusões endovenosas de 30
+   minutos na mesma visita contam uma depois da outra (3.600 segundos = 4
+   períodos = 80 minutos).
+   Honestidade do diagnóstico: "sem expediente", "exceção" (feriado) e "agenda
+   do Google desatualizada" são devolvidos à parte, para a enfermagem e para o
+   médico, e nunca viram "sem vaga"; motivo desconhecido do motor falha em vez
+   de ser tratado como ausência. A agenda precisa pertencer à empresa
+   informada, ter local ativo e (enfermagem) horários de 20 minutos; a
+   recusa tem a mesma mensagem para inexistente, de outra empresa e inativa.
+   Limites: o custo medido é de 73 a 130 ms por dia e por agenda (é
+   processamento; ler dias em paralelo não ganhou tempo). Orçamento de 240
+   agenda-dias: 200 dias só com enfermagem, 120 com enfermagem e médico
+   (cerca de 30 s no pior caso). Teto de 5.000 vagas, o mesmo do planejador:
+   a leitura recusa assim que o teto é ultrapassado, em vez de entregar algo
+   que o planejador rejeitaria.
+   Estado dos dados em desenvolvimento: só a Enfermagem Local tem expediente;
+   as 6 agendas médicas e a Enfermagem Remoto não têm janelas, então
+   implante, médico e remoto não geram vaga até o expediente ser cadastrado.
 
 ### Impedimentos reais encontrados no desenvolvimento
 
