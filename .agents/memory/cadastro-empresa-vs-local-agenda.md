@@ -44,3 +44,9 @@ Regra: Em 09/11/2026, o responsável informou que todos os clientes então cadas
 **Why:** Os antigos nomes de locais e agendas não indicavam a clínica de origem dos clientes.
 
 **How to apply:** Aplicar essa informação à base então existente; não presumir que clientes futuros ou de outras empresas pertençam ao Instituto Pádua.
+
+Regra: O cadastro do cliente deve oferecer uma agenda médica padrão e uma agenda de enfermagem padrão, vinculadas à clínica de origem escolhida.
+
+**Why:** O responsável pediu que os seletores aproveitem a classificação já existente das agendas e não misturem locais ou agendas de outras clínicas.
+
+**How to apply:** Filtrar locais e agendas pela clínica correspondente e pelo tipo cadastrado; preservar escolhas anteriores e não tratar preferência como reserva de horário.
