@@ -15,7 +15,7 @@ async function abrirProtocolo(page: Page, responsavel: number | null = 41) {
       if ((route.request().headers().authorization ?? "").includes("identidade-indisponivel")) {
         return reply({ error: "indisponível" }, 503);
       }
-      return reply({ professional: { id: 41, name: "Médico sintético", role: "medico" } });
+      return reply({ professional: { id: 41, name: "Médico sintético", role: "medico", category: "medico", isPlatformOwner: true } });
     }
     if (url.pathname === "/api/protocols/carta-pdf-certcheck") {
       consultasGlobais++;
@@ -42,54 +42,62 @@ async function abrirProtocolo(page: Page, responsavel: number | null = 41) {
           status: "scheduled", weekNumber: 1, substanceApplications: [] }], items: [],
       });
     }
+    if (url.pathname === "/api/clients/100") {
+      return reply({ id: 100, name: "Cliente sintético", cpf: null, phone: null, photoUrl: null, birthDate: null });
+    }
+    if (url.pathname === "/api/clients") return reply([{ id: 100, name: "Cliente sintético", cpf: null, phone: null, photoUrl: null }]);
+    if (url.pathname === "/api/settings/governanca") return reply({ matriz: null });
+    if (url.pathname === "/api/menu") return reply({ items: [] });
+    if (url.pathname === "/api/telegram-inbox/badge") return reply({ naoLidas: 0 });
     if (/\/api\/protocols\/123\/(document-pdf|carta-pdf|emit-document)$/.test(url.pathname)) {
       acessos.push({ caminho: url.pathname, autorizacao: route.request().headers().authorization ?? "" });
       return reply({ error: "Recusa sintética" }, 403);
     }
     return reply([]);
   });
-  await page.goto("/protocols/123");
+  await page.goto("/protocols/123", { waitUntil: "domcontentloaded" });
   return { consultasGlobais: () => consultasGlobais, acessos };
 }
 
-test("mostra o certificado pessoal, não o certificado global antigo", async ({ page }) => {
+test("mostra no Cockpit o certificado pessoal, não o global antigo", async ({ page }) => {
   const { consultasGlobais } = await abrirProtocolo(page);
-  const painel = page.getByRole("region", { name: "Validade do certificado do médico" });
-  await expect(painel.getByText("Certificado válido")).toBeVisible();
-  await expect(painel.getByText(/15\/01\/2040/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Validade do certificado do médico" })).toHaveCount(0);
+  await page.goto("/cockpit/100/evolucao", { waitUntil: "domcontentloaded" });
+  const painel = page.locator('[aria-label^="Certificado do médico autenticado:"]');
+  await expect(painel).toContainText("Certificado válido");
   expect(consultasGlobais()).toBe(0);
 });
 
-test("não apresenta certificado disponível quando o responsável é outro médico", async ({ page }) => {
+test("o detalhe de outro responsável não apresenta o certificado da conta como seu", async ({ page }) => {
   await abrirProtocolo(page, 42);
-  const painel = page.getByRole("region", { name: "Validade do certificado do médico" });
-  await expect(painel.getByText("Aguardando o médico responsável pela emissão")).toBeVisible();
-  await expect(painel.getByText("Certificado válido")).toHaveCount(0);
+  await expect(page.getByText("PROTOCOLO SINTÉTICO").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Validade do certificado do médico" })).toHaveCount(0);
+  await expect(page.getByText("Certificado válido")).toHaveCount(0);
 });
 
 test("troca de sessão oculta o estado anterior e falha nunca aparece como válido", async ({ page }) => {
   await abrirProtocolo(page);
-  const painel = page.getByRole("region", { name: "Validade do certificado do médico" });
-  await expect(painel.getByText("Certificado válido")).toBeVisible();
+  await page.goto("/cockpit/100/evolucao", { waitUntil: "domcontentloaded" });
+  const painel = page.locator('[aria-label^="Certificado do médico autenticado:"]');
+  await expect(painel).toContainText("Certificado válido");
   await page.evaluate(() => {
     localStorage.setItem("padcom_collab_token", "teste-sintetico-novo");
     window.dispatchEvent(new Event("collab-auth-changed"));
   });
-  await expect(painel.getByText("Verificando certificado com o servidor…")).toBeVisible();
-  await expect(painel.getByText("Certificado válido")).toHaveCount(0);
-  await expect(painel.getByText("Certificado vencido")).toBeVisible();
+  await expect(painel).not.toContainText("Certificado válido");
+  await expect(painel).toContainText("Certificado vencido");
   await page.evaluate(() => {
     localStorage.setItem("padcom_collab_token", "teste-sintetico-falha");
     window.dispatchEvent(new Event("collab-auth-changed"));
   });
-  await expect(painel.getByText("Validação indisponível")).toBeVisible();
-  await expect(painel.getByText("Certificado válido")).toHaveCount(0);
+  await expect(painel).toContainText("Validação indisponível");
+  await expect(painel).not.toContainText("Certificado válido");
   await page.evaluate(() => {
     localStorage.setItem("padcom_collab_token", "identidade-indisponivel");
     window.dispatchEvent(new Event("collab-auth-changed"));
   });
-  await expect(painel.getByText("Validação indisponível")).toBeVisible();
-  await expect(painel.getByText("Certificado válido")).toHaveCount(0);
+  await expect(painel).not.toContainText("Certificado válido");
+  await expect(painel).toContainText("Aguardando confirmação do médico autenticado");
 });
 
 test("as três ações enviam a identificação da sessão ao serviço", async ({ page }) => {

@@ -21,6 +21,8 @@ type CertificateResult = {
 
 type Props = {
   scope?: "professional" | "system";
+  compact?: boolean;
+  iconOnly?: boolean;
   professionalType?: string | null;
   responsibleDoctorName?: string | null;
   responsibleProfessionalId?: number | null;
@@ -50,6 +52,8 @@ function formatDate(value: string | null): string | null {
 
 export function ClinicalCertificateStatus({
   scope = "professional",
+  compact = false,
+  iconOnly = false,
   professionalType,
   responsibleDoctorName,
   responsibleProfessionalId,
@@ -158,6 +162,26 @@ export function ClinicalCertificateStatus({
   const expiry = formatDate(currentCertificate?.validTo ?? null);
   const start = formatDate(currentCertificate?.validFrom ?? null);
   const showUnsignedAction = allowUnsignedPrescription && state === "expired" && !!onGenerateUnsigned;
+
+  if (compact) {
+    const description = waitingForDoctor
+      ? "Aguardando confirmação do médico autenticado"
+      : checking || resolvedEpoch !== sessionEpoch
+        ? "Verificando certificado"
+        : copy?.title ?? "Faça login para consultar o certificado";
+    const label = `Certificado do médico autenticado: ${description}`;
+    return (
+      <div
+        role="status"
+        aria-label={label}
+        title={`${label}. A autorização e a identidade do responsável são conferidas na emissão.`}
+        className={`mt-2 flex min-h-8 items-center gap-1.5 rounded border border-[#c6a35a]/50 bg-[#10233e] px-2 py-1 text-[10px] font-semibold ${state === "valid" ? "text-emerald-200" : "text-amber-100"} ${iconOnly ? "justify-center" : ""}`}
+      >
+        {state === "valid" ? <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" /> : <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />}
+        <span className={iconOnly ? "sr-only" : "min-w-0"}>{description}</span>
+      </div>
+    );
+  }
 
   return (
     <section className="panel-3d-sub mt-3 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"

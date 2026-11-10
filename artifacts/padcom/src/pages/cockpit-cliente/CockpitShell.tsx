@@ -266,6 +266,7 @@ export default function CockpitShell({
       )}
 
       {/* ── Conteúdo principal ───────────────────────────────────────────── */}
+      <div className="cc-workspace-background">
       <main className="cc-main">
         {!clientId ? (
           // Estado vazio — guia o usuário
@@ -324,6 +325,7 @@ export default function CockpitShell({
           </>
         )}
       </main>
+      </div>
     </div>
   );
 }

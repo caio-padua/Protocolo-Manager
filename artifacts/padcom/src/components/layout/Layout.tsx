@@ -84,6 +84,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
+import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -342,6 +343,7 @@ const HREF_FERRAMENTA: Record<string, string> = {
 
 export function Layout({ children }: LayoutProps) {
   const [location, navigate] = useLocation();
+  const isCockpit = location === "/cockpit" || location.startsWith("/cockpit/");
   const { available: clerkAvailable, signOut: signOutGoogle } = useClerkActions();
   const { pode, me, loading: identityLoading } = usePermissoes();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -501,7 +503,8 @@ export function Layout({ children }: LayoutProps) {
       <div
         className={`
           fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground
-          transition-all duration-300 ease-in-out md:relative md:translate-x-0
+          transition-all duration-300 ease-in-out md:translate-x-0
+          ${isCockpit ? "md:sticky md:top-0 md:h-screen md:self-start" : "md:relative"}
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           ${collapsed ? "md:w-[78px]" : "md:w-64"}
         `}
@@ -528,7 +531,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           {/* Navegacao */}
-          <nav className="flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
+          <nav className={`flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden ${isCockpit ? "min-h-0" : ""}`}>
             {navFiltrada.map((item) => {
               const Icon = item.icon;
 
@@ -880,15 +883,18 @@ export function Layout({ children }: LayoutProps) {
                 </>
               ) : null}
             </button>
+            {isCockpit && hasCollaboratorSession && (
+              <ClinicalCertificateStatus compact iconOnly={collapsed} responsibleProfessionalId={me?.id ?? null} />
+            )}
           </div>
         </div>
       </div>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className={`flex-1 flex flex-col min-w-0 ${isCockpit ? "overflow-x-clip" : "overflow-hidden"}`}>
         {/* A marca PAXTER vive no canto superior ESQUERDO (topo do menu lateral)
             dentro do sistema. O canto superior DIREITO e reservado so para os
             PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
-        <div className="flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6">{children}</div>
+        <div className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>{children}</div>
       </main>
 
       {sidebarOpen && (

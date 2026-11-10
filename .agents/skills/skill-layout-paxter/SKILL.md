@@ -673,6 +673,24 @@ pediu alinhamento fixo das acoes, sem duplicar o atalho superior de protocolo.
 **How to apply:** usar a mesma regua nas propostas e, quando o design for integrado,
 nas visualizacoes reais do Cockpit, mantendo suas ferramentas e protecoes.
 
+### 4.4.2 Cockpit — tecido contínuo e identificação do certificado
+
+- O responsável escolheu o modelo B: tecido azul mais claro com risca de giz
+  dupla igual à marcação de consulta, contínuo por trás do cabeçalho e da régua.
+- O tecido alcança a borda do menu aberto ou recolhido, sem faixa branca.
+  A régua mantém seu comportamento durante a rolagem; botões e abas não mudam.
+- A área de trabalho preserva os temas claro e escuro e os controles reais.
+- O certificado no Cockpit pertence ao médico autenticado e acompanha a
+  identidade da própria conta, nunca a fotografia ou identidade do cliente.
+- Um estado visual de certificado não substitui autorização e conferência do
+  médico responsável pelo documento no momento de sua emissão.
+
+**Why:** em 10/11/2026, o responsável escolheu o modelo B após relatar emenda
+no tecido e espaço branco junto ao menu.
+
+**How to apply:** usar uma pintura coordenada para a superfície e a régua
+fixa; conferir menu aberto e recolhido, contraste e estados reais do certificado.
+
 ### 4.5 Padrao 24 — Formulários do Corpo Clínico e ações no rodapé
 
 - A aba “Dados” é a referência visual para todas as abas do cadastro do profissional.
