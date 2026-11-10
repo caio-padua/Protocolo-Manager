@@ -382,6 +382,14 @@ export function linkBaseUrl(): string | null {
 export async function sendKeyToClient(channels: ChannelSenders, ctx: VisitContext, key: string): Promise<ChannelReport[]> {
   const when = whenLabel(ctx.scheduledDate, ctx.scheduledTime);
   const doc = keyMessage({ clientName: ctx.clientName, key, minutes: KEY_TTL_MS / 60_000, when });
+  return sendDocToClient(channels, ctx, doc);
+}
+
+/**
+ * Envia um documento aos 3 canais do cliente (e-mail, WhatsApp, Telegram) com relato honesto por canal.
+ * Compartilhado pela chave (K8) e pelo aviso de aplicação realizada (K10). Nunca lança por falha de canal.
+ */
+export async function sendDocToClient(channels: ChannelSenders, ctx: VisitContext, doc: PaxterDoc): Promise<ChannelReport[]> {
   const report: ChannelReport[] = [];
 
   if (ctx.clientEmail) {

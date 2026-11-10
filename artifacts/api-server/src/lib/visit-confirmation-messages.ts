@@ -50,6 +50,34 @@ export function keyMessage(args: { clientName: string; key: string; minutes: num
   };
 }
 
+/** Assunto fixo do aviso de aplicação realizada (K10). */
+export const APPLICATION_DONE_SUBJECT = "Aplicação realizada com sucesso";
+
+/**
+ * Aviso imediato ao cliente quando a visita é fechada com aplicação registrada (K10).
+ * Os parágrafos (que vão a todos os canais) levam só data, hora e contagem; nomes e doses das
+ * substâncias entram apenas no e-mail, por `blocosHtml` (ignorado pelos cartões de WhatsApp e Telegram).
+ */
+export function applicationDoneMessage(args: {
+  clientName: string; when: string; applied: number; due: number; blocosHtml?: string[];
+}): PaxterDoc {
+  const name = firstName(args.clientName);
+  const paragrafos = [
+    `Olá, ${name}.`,
+    `A enfermagem registrou a sua aplicação de ${args.when}.`,
+    `Aplicadas: ${args.applied} de ${args.due}.`,
+  ];
+  if (args.applied < args.due) paragrafos.push("As demais não foram aplicadas nesta visita.");
+  return {
+    eyebrow: "Aplicação registrada",
+    titulo: APPLICATION_DONE_SUBJECT,
+    paragrafos,
+    ...(args.blocosHtml && args.blocosHtml.length > 0 ? { blocosHtml: args.blocosHtml } : {}),
+    notaRodape: "Se não reconhece esta aplicação, avise a clínica.",
+    assunto: APPLICATION_DONE_SUBJECT,
+  };
+}
+
 /** E-mail ao cliente com o botão de um clique. n = 1, 2 ou 3. */
 export function clientConfirmEmail(args: { clientName: string; link: string; when: string; n: number; total: number }): PaxterDoc {
   const name = firstName(args.clientName);

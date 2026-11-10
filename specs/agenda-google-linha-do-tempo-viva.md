@@ -506,3 +506,65 @@ Imagem escolhida: a de número 3 (PNG, proporção 3,54 para 1). As de número 1
 Provas (Código Paxter, Art. 69): testes T-RUB-0 a T-RUB-18 (inclui 3b, 5b, 10b, 10c, 13b, 13c, 13d, 14b, 14c), todos verdes em banco isolado e com dados sintéticos; mutações derrubam os testes certos (filtro de empresa removido, trava removida, carregador sem imagem, rota sem escopo, imagem não desenhada, imagem desenhada em marca errada, imagem embutida por linha, hash não conferido, entrelaçado aceito); regressão da K8 e da K9 verde.
 
 Não verificado: impressão em papel; produção; RAS com dados reais de cliente com visita confirmada; o cartão visto em captura (a captura automática não entra em telas com login). O RAS só mostra a imagem quando a visita tem a marca "plena" ou "cadastro" (confirmação do cliente, K8); sem isso continuam as iniciais ou AGUARDANDO.
+
+## 17. K10 — Mensagem imediata "Aplicação realizada com sucesso" ao cliente (pedido do CEO, 09/11/2026)
+
+### 17.1 O que o CEO pediu
+
+17.1.1 Seção 11.4 e 12: "Mensagem imediata ao cliente nos mesmos canais confirmando a aplicação realizada" (e-mail, WhatsApp e Telegram, os canais da K8; SMS não existe no Manager). Depende da K8, já construída.
+17.1.2 Em 10/11/2026 o CEO respondeu "a" (seguir para a K10, depois das imagens de rubrica). Nenhum texto, gatilho ou volume foi detalhado por ele; as escolhas abaixo são minhas e estão avisadas na seção 17.4.
+
+### 17.2 Verdades verificadas na fonte (10/11/2026)
+
+| Fato | Fonte |
+|---|---|
+| A aplicação é registrada substância por substância em `POST /sessions/:id/confirm-substance`; a visita vira `completed` na mesma transação quando todas as ocorrências devidas (`availability = disp`) estão `applied` ou `missed` | routes/sessions.ts |
+| A visita também pode ser fechada a mão por `PUT /sessions/:id` com `status = completed` (outro caminho de fechamento) | routes/sessions.ts |
+| Repetir o mesmo registro (mesmo resultado) devolve a sessão sem mudar nada (repetição idempotente); a visita pode estar fechada há semanas | routes/sessions.ts |
+| A K8 já envia ao cliente pelos 3 canais com relato honesto por canal, pelo motor Hermes (Art. 66); WhatsApp só conta como aceito por Twilio; Telegram só com chat vinculado | lib/visit-confirmation.ts, lib/visit-confirmation-channels.ts |
+| O canal da K8 grava no log do WhatsApp o texto "chave de confirmação da visita omitida"; serve só para a chave | lib/visit-confirmation-channels.ts |
+| A tabela alinhada de substâncias do e-mail tem fonte única (dose só em miligramas, nome escapado) | lib/messaging/substance-table.ts |
+| Já existe um e-mail "pós-sessão" manual (botão na Agenda), só e-mail, que também anexa o RAS | routes/email.ts, lib/email-service.ts |
+| A rota manual `POST /email/send-post-session/:sessionId` não exige login de profissional nem confere a empresa da sessão (achado independente, Art. 76; fora do escopo; não será tocada sem ordem) | routes/email.ts |
+
+### 17.3 Requisitos
+
+17.3.1 (R21) Gatilho: UMA mensagem por visita, no instante em que a visita é fechada (`completed`) com pelo menos uma aplicação `applied`. Fecham a visita: o registro da última ocorrência devida (confirm-substance) e o fechamento manual (PUT). O gatilho só dispara quando ESTA chamada mudou o estado da visita para fechada; repetição idempotente e reclique não enviam nada.
+17.3.2 (R22) Nenhuma mensagem de "sucesso" quando nenhuma ocorrência foi aplicada (todas não realizadas, ou fechamento manual sem aplicação).
+17.3.3 (R23) Tabela nova `visit_application_notices` (SQL bruto, criada no boot e pelo worker junto com as da K8), uma linha por visita (índice único em `session_id`): empresa, cliente, estado (`reservado`, `enviado`, `nao_enviado`), aplicadas, previstas, relato por canal, horários. A reserva é feita ANTES do envio por INSERT com conflito ignorado; quem perde a corrida não envia. Nada é apagado.
+17.3.4 (R24) Reserva nunca expira e nunca autoriza reenvio automático: se o servidor cair no meio, a linha fica `reservado` e a tela diz que o resultado é incerto (regra do projeto para envio com resultado incerto).
+17.3.5 (R25) Isolamento: só se envia se visita, cliente e protocolo são da MESMA empresa da chamada, o protocolo pertence ao cliente da visita e o cliente está ativo; senão nada é enviado e o motivo vai ao registro do servidor.
+17.3.6 (R26) O envio acontece DEPOIS do commit, fora da resposta ao profissional (não atrasa o clique) e fora de qualquer transação. Qualquer erro é capturado e gravado; nunca desfaz nem bloqueia o registro da aplicação.
+17.3.7 (R27) Conteúdo (função pura, motor Hermes): título "Aplicação realizada com sucesso"; saudação com o primeiro nome; "A enfermagem registrou a sua aplicação de DD/MM/AAAA às HH:MM."; "Aplicadas: X de Y." (X = ocorrências `applied`, Y = ocorrências devidas `disp` da visita; se X < Y, uma frase honesta dizendo que as demais não foram aplicadas nesta visita); rodapé "Se não reconhece esta aplicação, avise a clínica."; assunto "Aplicação realizada com sucesso".
+17.3.8 (R28) Nomes de substâncias e doses só no e-mail (tabela alinhada da fonte única, status Aplicado / Não aplicado, nome escapado). WhatsApp e Telegram levam apenas data, hora e a contagem (sem dado clínico), como as mensagens da K8.
+17.3.9 (R29) Canais: e-mail, WhatsApp e Telegram, com relato honesto por canal (`aceito`, `falhou`, `sem_contato`, `simulado`); "aceito" não é "entregue". O estado vira `enviado` se pelo menos um canal aceitou; senão `nao_enviado`. Os canais do aviso NÃO gravam "chave omitida" no log.
+17.3.10 (R30) Tela: no painel "Confirmação do cliente" de cada visita aparece a linha "Aviso de aplicação realizada ao cliente" com o estado, a hora e o relato por canal, lida do servidor junto com o resumo da K8.
+17.3.11 (R31) Nada da K8 muda de comportamento: o envio da chave passa a usar uma função de envio compartilhada com a K10, e os testes da K8 continuam verdes.
+17.3.12 (R32) O botão antigo "pós-aplicação" da Agenda e a rota manual de e-mail ficam como estão (Regra de Ouro). Quem apertar o botão antigo depois da K10 faz o cliente receber dois e-mails; isso é avisado ao CEO.
+
+### 17.4 Decisões minhas, avisadas ao CEO
+
+1. Uma mensagem por visita (não uma por substância): o CEO já decidiu "UMA chave por VISITA"; uma mensagem por substância faria o cliente receber vários avisos em poucos minutos.
+2. O aviso sai quando a visita fecha. Se a enfermagem deixar uma ocorrência pendente e nunca fechar a visita, nenhum aviso sai (não há lembrete nem relógio nesta unidade).
+3. Sem reenvio automático e sem botão de reenviar (não foi pedido; evita duplicar).
+4. Nomes e doses só no e-mail.
+
+### 17.5 Falhas previstas
+
+| ID | Falha | Gravidade | Barreira | Teste |
+|---|---|---|---|---|
+| F77 | Mensagem duplicada (duplo clique, duas abas, PUT e confirm ao mesmo tempo) | Alta | Reserva única por visita antes do envio | T-K10-2, T-K10-3 |
+| F78 | Mensagem de visita antiga disparada por repetição idempotente ou reclique | Alta | Só dispara quando esta chamada mudou o estado | T-K10-4 |
+| F79 | "Sucesso" sem nenhuma aplicação feita | Alta | Exige pelo menos uma aplicada | T-K10-5 |
+| F80 | Envio a cliente de outra empresa, protocolo inconsistente ou cliente inativo | Crítica | Consulta de isolamento (R25) | T-K10-6 |
+| F81 | Falha de canal bloqueia ou desfaz o registro da aplicação | Crítica | Envio depois do commit, erros capturados | T-K10-7 |
+| F82 | Ninguém sabe se o cliente recebeu | Alta | Relato por canal gravado e mostrado na tela | T-K10-8 |
+| F83 | Reenvio automático após queda ou resposta perdida | Média | Reserva sem expiração | T-K10-9 |
+| F84 | Números errados no texto (X maior que Y; linhas não devidas contadas) | Média | Só ocorrências `disp` | T-K10-10 |
+| F85 | Dado clínico em WhatsApp ou Telegram | Média | Cartões só com data e contagem | T-K10-11 |
+| F86 | Nome com HTML quebra ou injeta no e-mail | Média | Escape da fonte única da tabela | T-K10-12 |
+| F87 | Mensagem de marca montada fora do motor Hermes | Média | Passa pelo motor (Art. 66) | T-K10-13 |
+| F88 | Log do WhatsApp diz "chave omitida" no aviso | Baixa | Canais do aviso sem a omissão | T-K10-14 |
+| F89 | Refatoração do envio da chave quebra a K8 | Alta | Regressão completa da K8 | suíte da K8 |
+
+Definição de PRONTO: T-K10-1 a T-K10-14 verdes em banco isolado, com dados sintéticos e canais simulados (nenhuma mensagem real); mutações derrubam os testes certos; regressão da K8, da K9 e da Agenda verde; revisão independente sem pendência; linha do painel compilada (a captura automática não entra em telas com login: o que não for visto será dito).

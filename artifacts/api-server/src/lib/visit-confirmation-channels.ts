@@ -16,22 +16,34 @@ import type { ChannelSenders } from "./visit-confirmation";
  */
 export const WHATSAPP_LOG_OMITIDO = "[chave de confirmação da visita omitida do log]";
 
-async function viaMotor(doc: PaxterDoc, destino: PaxterDestino, canal: PaxterCanal): Promise<PaxterCanalResultado> {
-  const { resultados } = await enviarMensagemPaxter(doc, destino, [canal], { corpoParaLog: WHATSAPP_LOG_OMITIDO });
+type OpcoesMotor = { corpoParaLog?: string };
+
+async function viaMotor(
+  doc: PaxterDoc, destino: PaxterDestino, canal: PaxterCanal, opcoes: OpcoesMotor,
+): Promise<PaxterCanalResultado> {
+  const { resultados } = await enviarMensagemPaxter(doc, destino, [canal], opcoes);
   return resultados[0] ?? { canal, sent: false, error: "motor sem resultado" };
 }
 
-export const realChannels: ChannelSenders = {
-  async sendEmail(to, doc) {
-    const r = await viaMotor(doc, { email: to }, "EMAIL");
-    return { success: r.sent, error: r.error };
-  },
-  async sendWhatsapp(phone, doc) {
-    const r = await viaMotor(doc, { telefone: phone }, "WHATSAPP");
-    return { sent: r.sent, via: r.via ?? "twilio", error: r.error };
-  },
-  async sendTelegram(chatId, doc) {
-    const r = await viaMotor(doc, { telegramChatId: chatId }, "TELEGRAM");
-    return { sent: r.sent, mock: Boolean(r.mock), error: r.error };
-  },
-};
+function criarCanais(opcoes: OpcoesMotor): ChannelSenders {
+  return {
+    async sendEmail(to, doc) {
+      const r = await viaMotor(doc, { email: to }, "EMAIL", opcoes);
+      return { success: r.sent, error: r.error };
+    },
+    async sendWhatsapp(phone, doc) {
+      const r = await viaMotor(doc, { telefone: phone }, "WHATSAPP", opcoes);
+      return { sent: r.sent, via: r.via ?? "twilio", error: r.error };
+    },
+    async sendTelegram(chatId, doc) {
+      const r = await viaMotor(doc, { telegramChatId: chatId }, "TELEGRAM", opcoes);
+      return { sent: r.sent, mock: Boolean(r.mock), error: r.error };
+    },
+  };
+}
+
+/** Canais da chave: o corpo do WhatsApp (que carrega a chave) nunca fica no log. */
+export const realChannels: ChannelSenders = criarCanais({ corpoParaLog: WHATSAPP_LOG_OMITIDO });
+
+/** Canais do aviso de aplicação realizada (K10): o texto não é segredo, então o log guarda o corpo real. */
+export const realNoticeChannels: ChannelSenders = criarCanais({});

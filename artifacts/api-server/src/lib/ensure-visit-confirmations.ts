@@ -81,6 +81,26 @@ export async function ensureVisitConfirmations(): Promise<void> {
         CREATE INDEX IF NOT EXISTS visit_confirmation_events_session_idx
         ON visit_confirmation_events (session_id, created_at)
       `);
+      // K10: aviso "Aplicação realizada com sucesso". Uma linha por visita; a reserva (INSERT com conflito
+      // ignorado) vem ANTES do envio, então a linha é também a prova de que o aviso já foi tentado.
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS visit_application_notices (
+          id SERIAL PRIMARY KEY,
+          session_id INTEGER NOT NULL,
+          empresa_id INTEGER NOT NULL,
+          client_id INTEGER NOT NULL,
+          state TEXT NOT NULL DEFAULT 'reservado',
+          applied_count INTEGER NOT NULL,
+          due_count INTEGER NOT NULL,
+          channels JSONB NOT NULL DEFAULT '[]'::jsonb,
+          reserved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          finished_at TIMESTAMPTZ
+        )
+      `);
+      await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS visit_application_notices_session_uk
+        ON visit_application_notices (session_id)
+      `);
     })().catch((error) => {
       _ready = null;
       throw error;
