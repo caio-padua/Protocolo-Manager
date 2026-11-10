@@ -6,7 +6,8 @@ import { moduleGuard } from "../middleware/moduleGuard";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
 import {
-  confirmProtocolScheduling, planProtocolScheduling, type SchedulingRefusal,
+  confirmProtocolRecovery, confirmProtocolScheduling, planProtocolRecovery, planProtocolScheduling,
+  type SchedulingRefusal,
 } from "../lib/protocol-scheduling";
 import { googleReadinessWarning, syncProtocolSessionsToGoogle } from "../lib/session-google-sync";
 import { requireCollaborator } from "./collaborator";
@@ -18,6 +19,8 @@ import { authorizeProtocol } from "./protocols";
  *   POST /protocols/:id/scheduling/preview  -> calcula e mostra; não grava nada.
  *   POST /protocols/:id/scheduling/confirm  -> recalcula no servidor e reserva se
  *                                              o plano for idêntico ao da prévia.
+ *   POST /protocols/:id/recovery/preview   -> confere o legado sem gravar.
+ *   POST /protocols/:id/recovery/confirm   -> atualiza as mesmas sessões após confirmação.
  *   POST /protocols/:id/scheduling/google-sync -> envia (ou atualiza) no Google Agenda um evento
  *                                              por visita já reservada (etapa 5). Falha aqui nunca
  *                                              desfaz a reserva.
@@ -113,6 +116,66 @@ router.post("/protocols/:id/scheduling/confirm", moduleGuard("protocolos"), requ
     }
     req.log.info({ protocolId: protocol.id, visits: result.reserved.length },
       "Protocolo agendado por períodos na agenda de enfermagem");
+    res.status(201).json({
+      protocolStatus: result.protocolStatus, preview: result.preview, reserved: result.reserved,
+    });
+  });
+
+router.post("/protocols/:id/recovery/preview", moduleGuard("protocolos"), requireCollaborator,
+  async (req, res): Promise<void> => {
+    const body = PreviewBody.safeParse(req.body ?? {});
+    if (!body.success) {
+      res.status(400).json({ code: "pedido_invalido", error: "Pedido inválido" });
+      return;
+    }
+    const authorized = await loadAuthorized(req, res);
+    if (!authorized) return;
+    const result = await planProtocolRecovery({
+      empresaId: authorized.empresaId, clientId: authorized.protocol.clientId,
+      protocolId: authorized.protocol.id, nursingResourceId: body.data.nursingResourceId ?? null,
+    });
+    if (!result.ok) {
+      res.status(result.status).json(refusalBody(result));
+      return;
+    }
+    const googleWarning = await googleReadinessWarning(
+      result.preview.nursingResourceId, authorized.empresaId, req.collaborator!.professionalId);
+    // Não expor os identificadores internos usados para preservar as linhas antigas.
+    res.json({ preview: result.preview, googleWarning });
+  });
+
+router.post("/protocols/:id/recovery/confirm", moduleGuard("protocolos"), requireCollaborator,
+  async (req, res): Promise<void> => {
+    const body = ConfirmBody.safeParse(req.body ?? {});
+    if (!body.success) {
+      res.status(400).json({ code: "confirmacao_ausente", error: "Confirme a partir de uma prévia atual da recuperação" });
+      return;
+    }
+    const authorized = await loadAuthorized(req, res);
+    if (!authorized) return;
+    const { protocol, empresaId } = authorized;
+    const result = await confirmProtocolRecovery({
+      empresaId, clientId: protocol.clientId, protocolId: protocol.id,
+      nursingResourceId: body.data.nursingResourceId ?? null, fingerprint: body.data.fingerprint,
+      stillAuthorized: async () => {
+        try {
+          const current = await resolveClinicalMember(req, protocol.clientId);
+          return current.clinic.empresaId === resolveEmpresaId(req) &&
+            current.clinic.empresaId === protocol.empresaId;
+        } catch {
+          return false;
+        }
+      },
+    });
+    if (!result.ok) {
+      const googleWarning = result.code === "plano_mudou" && result.preview
+        ? await googleReadinessWarning(result.preview.nursingResourceId, empresaId, req.collaborator!.professionalId)
+        : undefined;
+      res.status(result.status).json({ ...refusalBody(result), ...(googleWarning !== undefined ? { googleWarning } : {}) });
+      return;
+    }
+    req.log.info({ protocolId: protocol.id, recoveredSessions: result.reserved.length },
+      "Sessões legadas recuperadas após confirmação explícita");
     res.status(201).json({
       protocolStatus: result.protocolStatus, preview: result.preview, reserved: result.reserved,
     });

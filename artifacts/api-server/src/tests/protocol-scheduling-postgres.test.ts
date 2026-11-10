@@ -69,7 +69,8 @@ import {
 import protocolsRouter from "../routes/protocols";
 import schedulingRouter from "../routes/protocol-scheduling";
 import {
-  confirmProtocolScheduling, planProtocolScheduling, preferenceRankFor, type SchedulingPreview,
+  confirmProtocolRecovery, confirmProtocolScheduling, planProtocolRecovery, planProtocolScheduling,
+  preferenceRankFor, type SchedulingPreview,
 } from "../lib/protocol-scheduling";
 import { reserveProtocolVisits } from "../lib/protocol-visit-reservation";
 
@@ -621,6 +622,91 @@ describe("Rotas HTTP: o navegador nunca entrega o plano", () => {
     expect((await counts()).sessions).toBe(0);
     const preview = await post(`/api/protocols/${protocolId}/scheduling/preview`);
     expect(preview.status).toBe(200);
+  });
+});
+
+describe("Recuperação controlada de sessões legadas", () => {
+  async function addLegacySession(protocolId: number, options: {
+    substanceId?: number; sessionNumber?: number; status?: string;
+  } = {}) {
+    const [session] = (await rows(`INSERT INTO sessions
+      (protocol_id,client_id,professional_id,scheduled_date,scheduled_time,status,unit,service_type,week_number,empresa_id)
+      VALUES($1,21,77,$2,'08:00','scheduled','Unidade antiga','clinic',1,5) RETURNING id`,
+    [protocolId, MON1])) as Array<{ id: number }>;
+    const [application] = (await rows(`INSERT INTO substance_applications
+      (session_id,substance_id,dose,session_number,total_sessions,status,availability)
+      VALUES($1,$2,$3,$4,1,$5,'disp') RETURNING id`,
+    [session.id, options.substanceId ?? IM, `dose ${options.substanceId ?? IM}`,
+      options.sessionNumber ?? 1, options.status ?? "pending"])) as Array<{ id: number }>;
+    return { sessionId: session.id, applicationId: application.id };
+  }
+
+  it("atualiza a mesma sessão e preserva o identificador e o histórico das aplicações", async () => {
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
+    const legacy = await addLegacySession(protocolId);
+    const before = await counts();
+
+    const preview = await post(`/api/protocols/${protocolId}/recovery/preview`, { nursingResourceId: 1 });
+    expect(preview.status, JSON.stringify(preview.body)).toBe(200);
+    expect(preview.body.preview.recoverySessionCount).toBe(1);
+    expect(await counts()).toEqual(before);
+
+    const confirm = await post(`/api/protocols/${protocolId}/recovery/confirm`, {
+      nursingResourceId: 1, fingerprint: preview.body.preview.fingerprint,
+    });
+    expect(confirm.status, JSON.stringify(confirm.body)).toBe(201);
+    expect(confirm.body.reserved).toMatchObject([{ sessionId: legacy.sessionId, date: MON1, time: "09:00" }]);
+    const session = (await rows(`SELECT id,resource_id,duration_minutes,scheduled_date,scheduled_time,unit
+      FROM sessions WHERE protocol_id=$1`, [protocolId]))[0];
+    expect(session).toMatchObject({
+      id: legacy.sessionId, resource_id: 1, duration_minutes: 20,
+      scheduled_date: MON1, scheduled_time: "09:00", unit: "Local sintético A",
+    });
+    const applications = await rows(`SELECT id,session_id,substance_id,dose,session_number,status,availability
+      FROM substance_applications WHERE session_id=$1`, [legacy.sessionId]);
+    expect(applications).toEqual([expect.objectContaining({
+      id: legacy.applicationId, session_id: legacy.sessionId, substance_id: IM,
+      dose: `dose ${IM}`, session_number: 1, status: "pending", availability: "disp",
+    })]);
+    expect(await counts()).toEqual(before);
+  });
+
+  it("recusa aplicação divergente sem alterar sessões ou aplicações", async () => {
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
+    const legacy = await addLegacySession(protocolId, { substanceId: 6 });
+    const before = await counts();
+    const preview = await post(`/api/protocols/${protocolId}/recovery/preview`, { nursingResourceId: 1 });
+    expect(preview.status).toBe(409);
+    expect(preview.body).toMatchObject({ code: "legacy_session_insegura" });
+    expect(await counts()).toEqual(before);
+    expect((await rows(`SELECT resource_id,duration_minutes FROM sessions WHERE id=$1`, [legacy.sessionId]))[0])
+      .toMatchObject({ resource_id: null, duration_minutes: null });
+  });
+
+  it("recusa aplicações já realizadas e preserva o estado clínico", async () => {
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
+    const legacy = await addLegacySession(protocolId, { status: "applied" });
+    const before = await counts();
+    const preview = await planProtocolRecovery({ empresaId: 5, clientId: 21, protocolId, nursingResourceId: 1 });
+    expect(preview).toMatchObject({ ok: false, status: 409, code: "legacy_session_insegura" });
+    expect(await counts()).toEqual(before);
+    expect((await rows(`SELECT resource_id,duration_minutes FROM sessions WHERE id=$1`, [legacy.sessionId]))[0])
+      .toMatchObject({ resource_id: null, duration_minutes: null });
+  });
+
+  it("recalcula e recusa confirmação baseada em fotografia antiga", async () => {
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
+    const legacy = await addLegacySession(protocolId);
+    const preview = await planProtocolRecovery({ empresaId: 5, clientId: 21, protocolId, nursingResourceId: 1 });
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+    await query(`UPDATE sessions SET scheduled_time='08:30' WHERE id=$1`, [legacy.sessionId]);
+    const result = await confirmProtocolRecovery({
+      empresaId: 5, clientId: 21, protocolId, nursingResourceId: 1, fingerprint: preview.preview.fingerprint,
+    });
+    expect(result).toMatchObject({ ok: false, status: 409, code: "plano_mudou" });
+    expect((await rows(`SELECT resource_id,duration_minutes,scheduled_time FROM sessions WHERE id=$1`, [legacy.sessionId]))[0])
+      .toMatchObject({ resource_id: null, duration_minutes: null, scheduled_time: "08:30" });
   });
 });
 

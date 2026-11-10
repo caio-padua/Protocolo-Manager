@@ -461,11 +461,15 @@ de enviar ao sistema de agenda ou ao Google Agenda.
 7. A sincronização com o Google Agenda usa somente sessões já reservadas e o
    recurso de enfermagem e o local correspondentes à prévia confirmada. Falha do Google não desfaz a reserva;
    recusa ou falha do agendamento não cria eventos.
-8. Protocolos legados com sessões sem recurso permanecem preservados e não são
-   convertidos nem reenviados automaticamente. Sua recuperação exige fluxo
-   separado, prévia e autorização operacional explícita.
-9. Protocolo já validado, mas sem sessões, pode seguir pela nova prévia; só é
-   agendado após confirmação e reserva real.
+8. Protocolos legados com sessões sem recurso só podem ser recuperados em fluxo
+   separado, com prévia e confirmação explícita. Cada sessão existente precisa
+   corresponder a exatamente uma visita planejada pelo conjunto de aplicações
+   efetivas; sessões, aplicações e histórico não são apagados nem recriados.
+9. A recuperação é recusada sem gravação se houver aplicação já realizada,
+   sessão mista reservada/não reservada, quantidade diferente, aplicação
+   divergente ou qualquer mudança desde a prévia.
+10. Protocolo já validado, mas sem sessões, pode seguir pela nova prévia; só é
+    agendado após confirmação e reserva real.
 
 ### Falhas previstas e barreiras
 
@@ -476,13 +480,17 @@ de enviar ao sistema de agenda ou ao Google Agenda.
 | Cadastro muda entre leitura e confirmação | Revalidar agenda e impressão digital | Conflito sem reserva parcial |
 | Validação antiga chamada para protocolo novo | Recusar sem criar sessões | Resposta de recusa e banco inalterado |
 | Google falha depois da reserva | Manter reserva e mostrar erro por visita | Sessões preservadas e evento não duplicado |
-| Protocolo legado sem recurso | Preservar e impedir envio como reservado | Histórico sem alteração automática |
+| Protocolo legado sem recurso | Recuperar somente com correspondência exata; atualizar as mesmas sessões sob bloqueio | Identificadores e aplicações preservados; rejeição sem escrita se houver diferença |
+| Aplicação já realizada ou sessão mista | Recusar recuperação | Nenhuma alteração |
+| Sessão ou aplicação muda após a prévia | Recomparar a fotografia sob bloqueio | Conflito sem reserva parcial |
 
 ### Definição de pronto
 
 Os seletores mostram apenas os vínculos do cadastro do cliente, e a clínica
 permanece fixa. O caminho validado reserva no sistema a agenda correta antes de
 oferecer envio ao Google. A validação antiga não cria sessões sem reserva.
+A recuperação de legado preserva os identificadores das sessões e aplicações,
+recusa divergências sem escrita e só oferece o Google depois da confirmação.
 Testes usam dados sintéticos em banco isolado e simulam o Google; a tela
 autenticada é conferida em computador e celular.
 

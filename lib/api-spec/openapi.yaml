@@ -1079,6 +1079,118 @@ paths:
         "409":
           description: Estado do protocolo incompatível ou sessões existentes que exigem conferência
 
+  /protocols/{id}/scheduling/preview:
+    post:
+      operationId: previewProtocolScheduling
+      tags: [protocols]
+      summary: Calcular prévia de agenda de protocolo
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewInput" }
+      responses:
+        "200":
+          description: Prévia sem gravação
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewEnvelope" }
+        "400": { description: Pedido inválido. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Agenda indisponível ou protocolo incompatível. }
+        "422": { description: Dados clínicos incompletos ou incompatíveis. }
+
+  /protocols/{id}/scheduling/confirm:
+    post:
+      operationId: confirmProtocolScheduling
+      tags: [protocols]
+      summary: Confirmar e reservar protocolo
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmInput" }
+      responses:
+        "201":
+          description: Visitas reservadas no sistema
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmEnvelope" }
+        "400": { description: Confirmação inválida. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Prévia desatualizada ou horário ocupado. }
+        "422": { description: Dados incompatíveis com o motor de agenda. }
+
+  /protocols/{id}/recovery/preview:
+    post:
+      operationId: previewProtocolRecovery
+      tags: [protocols]
+      summary: Conferir recuperação de sessões antigas
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewInput" }
+      responses:
+        "200":
+          description: Prévia sem gravação, com as sessões antigas preservadas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingPreviewEnvelope" }
+        "400": { description: Pedido inválido. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Sessões antigas não correspondem exatamente ou agenda indisponível. }
+        "422": { description: Dados clínicos incompletos ou incompatíveis. }
+
+  /protocols/{id}/recovery/confirm:
+    post:
+      operationId: confirmProtocolRecovery
+      tags: [protocols]
+      summary: Confirmar recuperação sem recriar sessões ou aplicações
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmInput" }
+      responses:
+        "201":
+          description: Sessões existentes atualizadas no sistema
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProtocolSchedulingConfirmEnvelope" }
+        "400": { description: Confirmação inválida. }
+        "401": { description: Sessão de colaborador ausente ou expirada. }
+        "404": { description: Protocolo ou agenda não encontrados. }
+        "409": { description: Fotografia desatualizada ou recuperação insegura. }
+        "422": { description: Dados incompatíveis com o motor de agenda. }
+
   /protocols/{id}/generate-ics:
     post:
       operationId: generateProtocolICS
@@ -5752,6 +5864,237 @@ components:
         linhaVenda:
           type: string
           nullable: true
+
+    ProtocolSchedulingPreviewInput:
+      type: object
+      additionalProperties: false
+      properties:
+        nursingResourceId:
+          type: ["integer", "null"]
+          minimum: 1
+
+    ProtocolSchedulingConfirmInput:
+      type: object
+      additionalProperties: false
+      properties:
+        nursingResourceId:
+          type: ["integer", "null"]
+          minimum: 1
+        fingerprint:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required: [fingerprint]
+
+    ProtocolSchedulingPreviewEnvelope:
+      type: object
+      properties:
+        preview:
+          $ref: "#/components/schemas/ProtocolSchedulingPreview"
+        googleWarning:
+          oneOf:
+            - $ref: "#/components/schemas/ProtocolGoogleReadinessWarning"
+            - type: "null"
+      required: [preview, googleWarning]
+
+    ProtocolSchedulingConfirmEnvelope:
+      type: object
+      properties:
+        protocolStatus:
+          type: string
+          enum: [validated]
+        preview:
+          $ref: "#/components/schemas/ProtocolSchedulingPreview"
+        reserved:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservedProtocolVisit"
+      required: [protocolStatus, preview, reserved]
+
+    ProtocolGoogleReadinessWarning:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required: [code, message]
+
+    ProtocolSchedulingPreview:
+      type: object
+      properties:
+        protocolId:
+          type: integer
+        nursingResourceId:
+          type: integer
+        nursingResourceName:
+          type: string
+        nursingLocationId:
+          type: integer
+        nursingLocationName:
+          type: string
+        visits:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProtocolSchedulingVisit"
+        visitCount:
+          type: integer
+        firstDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        lastDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        requiresRoutineConfirmation:
+          type: boolean
+        searchWasPruned:
+          type: boolean
+        matchesClientPreference:
+          type: boolean
+        fingerprint:
+          type: string
+        snapshot:
+          type: string
+        recoverySessionCount:
+          type: integer
+        diagnostics:
+          $ref: "#/components/schemas/ProtocolSchedulingDiagnostics"
+      required:
+        - protocolId
+        - nursingResourceId
+        - nursingResourceName
+        - nursingLocationId
+        - nursingLocationName
+        - visits
+        - visitCount
+        - firstDate
+        - lastDate
+        - requiresRoutineConfirmation
+        - searchWasPruned
+        - matchesClientPreference
+        - fingerprint
+        - snapshot
+        - diagnostics
+
+    ProtocolSchedulingVisit:
+      type: object
+      properties:
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        time:
+          type: string
+          pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        nursingPeriods:
+          type: integer
+        reservedMinutes:
+          type: integer
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProtocolSchedulingApplication"
+      required: [date, time, weekday, nursingPeriods, reservedMinutes, applications]
+
+    ProtocolSchedulingApplication:
+      type: object
+      properties:
+        substanceId:
+          type: integer
+        substanceName:
+          type: string
+        dose:
+          type: string
+        sessionNumber:
+          type: integer
+        totalSessions:
+          type: integer
+        nominalDate:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        shiftDays:
+          type: integer
+      required:
+        - substanceId
+        - substanceName
+        - dose
+        - sessionNumber
+        - totalSessions
+        - nominalDate
+        - shiftDays
+
+    ProtocolSchedulingDiagnostics:
+      type: object
+      properties:
+        datesRead:
+          type: integer
+        nursingDatesWithoutSchedule:
+          type: array
+          items: { type: string }
+        nursingDatesWithException:
+          type: array
+          items: { type: string }
+        integrationPendingDates:
+          type: array
+          items: { type: string }
+        nursingDatesWithoutOpenSlot:
+          type: array
+          items: { type: string }
+        doctorDatesWithoutSchedule:
+          type: array
+          items: { type: string }
+        doctorDatesWithException:
+          type: array
+          items: { type: string }
+        doctorIntegrationPendingDates:
+          type: array
+          items: { type: string }
+        doctorDatesWithoutOpenSlot:
+          type: array
+          items: { type: string }
+      required:
+        - datesRead
+        - nursingDatesWithoutSchedule
+        - nursingDatesWithException
+        - integrationPendingDates
+        - nursingDatesWithoutOpenSlot
+        - doctorDatesWithoutSchedule
+        - doctorDatesWithException
+        - doctorIntegrationPendingDates
+        - doctorDatesWithoutOpenSlot
+
+    ReservedProtocolVisit:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        time:
+          type: string
+          pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+        nursingPeriods:
+          type: integer
+        reservedMinutes:
+          type: integer
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservedProtocolApplication"
+      required: [sessionId, date, time, nursingPeriods, reservedMinutes, applications]
+
+    ReservedProtocolApplication:
+      type: object
+      properties:
+        substanceId:
+          type: integer
+        sessionNumber:
+          type: integer
+      required: [substanceId, sessionNumber]
 
     Session:
       type: object

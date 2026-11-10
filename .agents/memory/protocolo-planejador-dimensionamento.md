@@ -71,3 +71,15 @@ podem ter locais operacionais diferentes.
 **How to apply:** ao alterar seletores, prévia ou reserva, derive opções do cadastro
 do cliente e confira o mesmo recurso e local dentro da reserva. Não transforme
 sessões legadas em compromissos sem uma ação de recuperação explícita.
+
+Recuperação de sessões legadas exige correspondência um a um com as visitas e
+aplicações efetivas; atualizar as mesmas sessões sob bloqueio, nunca apagar ou
+recriar aplicações. Google permanece como confirmação separada.
+
+**Why:** reexecutar validação antiga pode duplicar sessões e perder o vínculo
+entre aplicações clínicas e o histórico que já existe.
+
+**How to apply:** permitir recuperação só após prévia e confirmação explícita;
+comparar as sessões e aplicações novamente dentro da transação. Divergência,
+aplicação concluída, agenda externa existente ou sessão já reservada = recusar
+sem gravação.

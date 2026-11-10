@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import {
   agendaResourcesTable, clientsTable, db, locationsTable, protocolItemsTable, protocolsTable,
   sessionsTable, substanceApplicationsTable, substancesTable,
@@ -8,6 +8,7 @@ import { lockAgendaResource, SIM_TAG } from "./agenda-booking";
 import { loadProtocolSlots } from "./protocol-slot-source";
 import { NURSING_PERIOD_MINUTES, sizeVisit } from "./protocol-visit-sizing";
 import { durationSecondsFromMinutes, substanceDurationMinutes } from "./substance-duration";
+import { legacyRecoverySnapshot, type LegacyRecoveryExpectation } from "./protocol-legacy-recovery";
 
 /**
  * Reserva atômica das visitas de um protocolo na agenda de enfermagem local
@@ -41,7 +42,8 @@ export type ReservationErrorCode =
   | "protocolo_status_invalido" | "protocolo_incompleto" | "plano_incoerente"
   | "substancia_sem_duracao" | "participacao_medica_indefinida" | "medico_nao_habilitado"
   | "agenda_desatualizada" | "dia_sem_expediente" | "dia_com_excecao"
-  | "horario_indisponivel" | "cliente_ja_tem_visita_no_dia" | "plano_mudou";
+  | "horario_indisponivel" | "cliente_ja_tem_visita_no_dia" | "plano_mudou"
+  | "legacy_session_insegura";
 
 export interface ReservationVisitInput {
   date: string;
@@ -66,6 +68,8 @@ export interface ReserveProtocolVisitsParams {
   expectedSnapshot?: string;
   /** Local conferido na prévia, para não trocar silenciosamente após o recálculo. */
   expectedNursingLocationId?: number;
+  /** Dados internos calculados no servidor; nunca aceitos diretamente do navegador. */
+  legacyRecovery?: LegacyRecoveryExpectation;
 }
 
 export interface ReservedVisit {
@@ -148,6 +152,11 @@ function assertWellFormed(params: ReserveProtocolVisitsParams): void {
   if (params.expectedSnapshot !== undefined &&
       (typeof params.expectedSnapshot !== "string" || !/^[0-9a-f]{32}$/.test(params.expectedSnapshot))) {
     invalid("Fotografia do protocolo inválida");
+  }
+  if (params.legacyRecovery !== undefined &&
+      (!/^[0-9a-f]{32}$/.test(params.legacyRecovery.snapshot) ||
+        !Array.isArray(params.legacyRecovery.assignments) || params.legacyRecovery.assignments.length === 0)) {
+    invalid("Fotografia das sessões antigas inválida");
   }
   if (!Array.isArray(params.visits) || params.visits.length === 0) invalid("Nenhuma visita para reservar");
   if (params.visits.length > MAX_RESERVATION_VISITS) {
@@ -240,15 +249,50 @@ export async function reserveProtocolVisits(
       if (!protocol || protocol.clientId !== params.clientId || protocol.empresaId !== empresaId) {
         return refuse(404, "protocolo_nao_encontrado", "Protocolo não pertence ao cliente");
       }
-      const anySession = await tx.select({ id: sessionsTable.id }).from(sessionsTable)
-        .where(eq(sessionsTable.protocolId, protocol.id)).limit(1);
-      if (anySession.length > 0) {
+      const existingSessions = await tx.select().from(sessionsTable)
+        .where(eq(sessionsTable.protocolId, protocol.id))
+        .orderBy(sessionsTable.id).for("update");
+      if (existingSessions.length > 0 && !params.legacyRecovery) {
         return refuse(409, "protocolo_ja_agendado",
           "Protocolo já tem sessões; confira o histórico sem recriar os agendamentos");
+      }
+      if (params.legacyRecovery && existingSessions.length === 0) {
+        return refuse(409, "legacy_session_insegura",
+          "As sessões antigas não existem mais. Nada foi alterado.");
       }
       if (protocol.status !== "suggested" && protocol.status !== "validated") {
         return refuse(409, "protocolo_status_invalido",
           "O protocolo precisa estar sugerido ou validado sem sessões para ser agendado");
+      }
+      if (params.legacyRecovery && protocol.status !== "validated") {
+        return refuse(409, "legacy_session_insegura",
+          "A recuperação exige um protocolo legado já validado. Nada foi alterado.");
+      }
+      if (params.legacyRecovery) {
+        const expectedIds = params.legacyRecovery.assignments.map(assignment => assignment.sessionId);
+        if (new Set(expectedIds).size !== expectedIds.length ||
+            expectedIds.length !== existingSessions.length ||
+            existingSessions.some(session => !expectedIds.includes(session.id))) {
+          return refuse(409, "plano_mudou",
+            "As sessões existentes mudaram desde a prévia. Confira novamente; nada foi alterado.");
+        }
+        const existingApplications = await tx.select().from(substanceApplicationsTable)
+          .where(inArray(substanceApplicationsTable.sessionId, expectedIds))
+          .orderBy(substanceApplicationsTable.id).for("update");
+        if (legacyRecoverySnapshot(existingSessions, existingApplications) !== params.legacyRecovery.snapshot) {
+          return refuse(409, "plano_mudou",
+            "As sessões ou aplicações mudaram desde a prévia. Confira novamente; nada foi alterado.");
+        }
+        if (existingSessions.some(session =>
+          session.resourceId !== null || session.durationMinutes !== null ||
+          session.status !== "scheduled" || session.agendaArchived ||
+          session.googleEventId !== null || session.googleCalendarId !== null ||
+          session.googleSyncPendingOperation !== null || session.googleSyncPendingEventId !== null ||
+          session.googleSyncPendingCalendarId !== null
+        )) {
+          return refuse(409, "legacy_session_insegura",
+            "Uma sessão já foi reservada, arquivada ou sincronizada. Nada foi alterado.");
+        }
       }
 
       // 3. O plano precisa cobrir exatamente as aplicações do protocolo.
@@ -289,6 +333,21 @@ export async function reserveProtocolVisits(
             return refuse(422, "plano_incoerente", "O plano não corresponde às aplicações do protocolo");
           }
           previous = date;
+        }
+      }
+      if (params.legacyRecovery) {
+        const assignmentBySession = new Map(params.legacyRecovery.assignments.map(item => [item.sessionId, item]));
+        const appKey = (app: { substanceId: number; sessionNumber: number }) =>
+          `${app.substanceId}:${app.sessionNumber}`;
+        if (params.legacyRecovery.assignments.length !== visits.length ||
+            visits.some(visit => !params.legacyRecovery!.assignments.some(assignment =>
+              assignment.date === visit.date && assignment.time === visit.time &&
+              JSON.stringify(assignment.applications.map(appKey).sort()) ===
+                JSON.stringify(visit.applications.map(appKey).sort())
+            )) ||
+            existingSessions.some(session => !assignmentBySession.has(session.id))) {
+          return refuse(409, "plano_mudou",
+            "A correspondência entre sessões e visitas mudou desde a prévia. Nada foi alterado.");
         }
       }
 
@@ -332,13 +391,15 @@ export async function reserveProtocolVisits(
       }
 
       // 5. Cliente com no máximo uma visita por dia.
+      const sameDayConditions = [
+        eq(sessionsTable.clientId, params.clientId),
+        inArray(sessionsTable.scheduledDate, visits.map(v => v.date)),
+        inArray(sessionsTable.status, LIVE_SESSION_STATUSES),
+        eq(sessionsTable.agendaArchived, false),
+      ];
+      if (params.legacyRecovery) sameDayConditions.push(ne(sessionsTable.protocolId, protocol.id));
       const sameDay = await tx.select({ date: sessionsTable.scheduledDate }).from(sessionsTable)
-        .where(and(
-          eq(sessionsTable.clientId, params.clientId),
-          inArray(sessionsTable.scheduledDate, visits.map(v => v.date)),
-          inArray(sessionsTable.status, LIVE_SESSION_STATUSES),
-          eq(sessionsTable.agendaArchived, false),
-        )).limit(1);
+        .where(and(...sameDayConditions)).limit(1);
       if (sameDay.length > 0) {
         return refuse(409, "cliente_ja_tem_visita_no_dia",
           `O cliente já tem uma visita em ${brDate(sameDay[0].date)}`, { date: sameDay[0].date });
@@ -377,7 +438,7 @@ export async function reserveProtocolVisits(
         }
       }
 
-      // 7. Gravação: uma sessão por visita, com as aplicações e o protocolo validado.
+      // 7. Gravação: em recuperação, atualiza as mesmas sessões e preserva todas as aplicações.
       const lastDateBySubstance = new Map<number, string>();
       for (const [substanceId, byNumber] of datesBySubstance) {
         lastDateBySubstance.set(substanceId, [...byNumber.values()].sort().at(-1)!);
@@ -385,34 +446,67 @@ export async function reserveProtocolVisits(
       const reserved: ReservedVisit[] = [];
       for (const [index, visit] of visits.entries()) {
         const periods = periodsByDate.get(visit.date)!;
-        const [session] = await tx.insert(sessionsTable).values({
-          protocolId: protocol.id, clientId: params.clientId, professionalId: protocol.professionalId,
-          resourceId: params.nursingResourceId, durationMinutes: periods * NURSING_PERIOD_MINUTES,
-          scheduledDate: visit.date, scheduledTime: visit.time, status: "scheduled",
-          unit: resource.locationName, serviceType: "clinic",
-          weekNumber: index + 1, notes: params.simulate ? SIM_TAG : null, empresaId,
-        }).returning();
-        const inThisVisit = new Set(visit.applications.map(a => a.substanceId));
-        await tx.insert(substanceApplicationsTable).values([
-          ...visit.applications.map(app => {
-            const item = itemBySubstance.get(app.substanceId)!;
-            return {
-              sessionId: session.id, substanceId: item.substanceId, dose: item.dose,
-              sessionNumber: app.sessionNumber, totalSessions: item.totalSessions,
-              status: "pending", availability: "disp",
-            };
-          }),
-          // Substâncias que ainda voltam em visita posterior aparecem como "prox".
-          ...items.filter(item => !inThisVisit.has(item.substanceId) &&
-              lastDateBySubstance.get(item.substanceId)! > visit.date)
-            .map(item => ({
-              sessionId: session.id, substanceId: item.substanceId, dose: item.dose,
-              sessionNumber: 0, totalSessions: item.totalSessions,
-              status: "pending", availability: "prox",
-            })),
-        ]);
+        let sessionId: number;
+        if (params.legacyRecovery) {
+          const assignment = params.legacyRecovery.assignments.find(item =>
+            item.date === visit.date && item.time === visit.time &&
+            JSON.stringify(item.applications.map(app => `${app.substanceId}:${app.sessionNumber}`).sort()) ===
+              JSON.stringify(visit.applications.map(app => `${app.substanceId}:${app.sessionNumber}`).sort())
+          );
+          if (!assignment) {
+            return refuse(409, "plano_mudou",
+              "A correspondência entre sessões e visitas mudou antes da gravação. Nada foi alterado.");
+          }
+          const [updated] = await tx.update(sessionsTable).set({
+            resourceId: params.nursingResourceId,
+            durationMinutes: periods * NURSING_PERIOD_MINUTES,
+            scheduledDate: visit.date, scheduledTime: visit.time, status: "scheduled",
+            unit: resource.locationName, serviceType: "clinic",
+            weekNumber: index + 1, empresaId,
+          }).where(and(
+            eq(sessionsTable.id, assignment.sessionId),
+            eq(sessionsTable.protocolId, protocol.id),
+            isNull(sessionsTable.resourceId),
+            isNull(sessionsTable.durationMinutes),
+            eq(sessionsTable.status, "scheduled"),
+            eq(sessionsTable.agendaArchived, false),
+          )).returning({ id: sessionsTable.id });
+          if (!updated) {
+            return refuse(409, "plano_mudou",
+              "Uma sessão antiga mudou antes da gravação. Nada foi alterado.");
+          }
+          sessionId = updated.id;
+        } else {
+          const [session] = await tx.insert(sessionsTable).values({
+            protocolId: protocol.id, clientId: params.clientId, professionalId: protocol.professionalId,
+            resourceId: params.nursingResourceId, durationMinutes: periods * NURSING_PERIOD_MINUTES,
+            scheduledDate: visit.date, scheduledTime: visit.time, status: "scheduled",
+            unit: resource.locationName, serviceType: "clinic",
+            weekNumber: index + 1, notes: params.simulate ? SIM_TAG : null, empresaId,
+          }).returning();
+          sessionId = session.id;
+          const inThisVisit = new Set(visit.applications.map(a => a.substanceId));
+          await tx.insert(substanceApplicationsTable).values([
+            ...visit.applications.map(app => {
+              const item = itemBySubstance.get(app.substanceId)!;
+              return {
+                sessionId: session.id, substanceId: item.substanceId, dose: item.dose,
+                sessionNumber: app.sessionNumber, totalSessions: item.totalSessions,
+                status: "pending", availability: "disp",
+              };
+            }),
+            // Substâncias que ainda voltam em visita posterior aparecem como "prox".
+            ...items.filter(item => !inThisVisit.has(item.substanceId) &&
+                lastDateBySubstance.get(item.substanceId)! > visit.date)
+              .map(item => ({
+                sessionId: session.id, substanceId: item.substanceId, dose: item.dose,
+                sessionNumber: 0, totalSessions: item.totalSessions,
+                status: "pending", availability: "prox",
+              })),
+          ]);
+        }
         reserved.push({
-          sessionId: session.id, date: visit.date, time: visit.time, nursingPeriods: periods,
+          sessionId, date: visit.date, time: visit.time, nursingPeriods: periods,
           reservedMinutes: periods * NURSING_PERIOD_MINUTES,
           applications: visit.applications.map(a => ({ substanceId: a.substanceId, sessionNumber: a.sessionNumber })),
         });

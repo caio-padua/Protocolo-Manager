@@ -2604,6 +2604,240 @@ export const ValidateProtocolResponse = zod.object({
 });
 
 /**
+ * @summary Calcular prévia de agenda de protocolo
+ */
+
+export const PreviewProtocolSchedulingParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const PreviewProtocolSchedulingBody = zod.object({
+  nursingResourceId: zod.number().min(1).nullish(),
+});
+
+export const previewProtocolSchedulingResponsePreviewVisitsItemDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const previewProtocolSchedulingResponsePreviewVisitsItemTimeRegExp =
+  new RegExp("^(?:[01][0-9]|2[0-3]):[0-5][0-9]$");
+export const previewProtocolSchedulingResponsePreviewVisitsItemWeekdayMin = 0;
+export const previewProtocolSchedulingResponsePreviewVisitsItemWeekdayMax = 6;
+
+export const previewProtocolSchedulingResponsePreviewVisitsItemApplicationsItemNominalDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const previewProtocolSchedulingResponsePreviewFirstDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const previewProtocolSchedulingResponsePreviewLastDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const PreviewProtocolSchedulingResponse = zod.object({
+  preview: zod.object({
+    protocolId: zod.number(),
+    nursingResourceId: zod.number(),
+    nursingResourceName: zod.string(),
+    nursingLocationId: zod.number(),
+    nursingLocationName: zod.string(),
+    visits: zod.array(
+      zod.object({
+        date: zod
+          .string()
+          .regex(previewProtocolSchedulingResponsePreviewVisitsItemDateRegExp),
+        time: zod
+          .string()
+          .regex(previewProtocolSchedulingResponsePreviewVisitsItemTimeRegExp),
+        weekday: zod
+          .number()
+          .min(previewProtocolSchedulingResponsePreviewVisitsItemWeekdayMin)
+          .max(previewProtocolSchedulingResponsePreviewVisitsItemWeekdayMax),
+        nursingPeriods: zod.number(),
+        reservedMinutes: zod.number(),
+        applications: zod.array(
+          zod.object({
+            substanceId: zod.number(),
+            substanceName: zod.string(),
+            dose: zod.string(),
+            sessionNumber: zod.number(),
+            totalSessions: zod.number(),
+            nominalDate: zod
+              .string()
+              .regex(
+                previewProtocolSchedulingResponsePreviewVisitsItemApplicationsItemNominalDateRegExp,
+              ),
+            shiftDays: zod.number(),
+          }),
+        ),
+      }),
+    ),
+    visitCount: zod.number(),
+    firstDate: zod
+      .string()
+      .regex(previewProtocolSchedulingResponsePreviewFirstDateRegExp),
+    lastDate: zod
+      .string()
+      .regex(previewProtocolSchedulingResponsePreviewLastDateRegExp),
+    requiresRoutineConfirmation: zod.boolean(),
+    searchWasPruned: zod.boolean(),
+    matchesClientPreference: zod.boolean(),
+    fingerprint: zod.string(),
+    snapshot: zod.string(),
+    recoverySessionCount: zod.number().optional(),
+    diagnostics: zod.object({
+      datesRead: zod.number(),
+      nursingDatesWithoutSchedule: zod.array(zod.string()),
+      nursingDatesWithException: zod.array(zod.string()),
+      integrationPendingDates: zod.array(zod.string()),
+      nursingDatesWithoutOpenSlot: zod.array(zod.string()),
+      doctorDatesWithoutSchedule: zod.array(zod.string()),
+      doctorDatesWithException: zod.array(zod.string()),
+      doctorIntegrationPendingDates: zod.array(zod.string()),
+      doctorDatesWithoutOpenSlot: zod.array(zod.string()),
+    }),
+  }),
+  googleWarning: zod.union([
+    zod.object({
+      code: zod.string(),
+      message: zod.string(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Confirmar e reservar protocolo
+ */
+
+export const ConfirmProtocolSchedulingParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const confirmProtocolSchedulingBodyFingerprintMax = 200;
+
+export const ConfirmProtocolSchedulingBody = zod.object({
+  nursingResourceId: zod.number().min(1).nullish(),
+  fingerprint: zod
+    .string()
+    .min(1)
+    .max(confirmProtocolSchedulingBodyFingerprintMax),
+});
+
+/**
+ * @summary Conferir recuperação de sessões antigas
+ */
+
+export const PreviewProtocolRecoveryParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const PreviewProtocolRecoveryBody = zod.object({
+  nursingResourceId: zod.number().min(1).nullish(),
+});
+
+export const previewProtocolRecoveryResponsePreviewVisitsItemDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const previewProtocolRecoveryResponsePreviewVisitsItemTimeRegExp =
+  new RegExp("^(?:[01][0-9]|2[0-3]):[0-5][0-9]$");
+export const previewProtocolRecoveryResponsePreviewVisitsItemWeekdayMin = 0;
+export const previewProtocolRecoveryResponsePreviewVisitsItemWeekdayMax = 6;
+
+export const previewProtocolRecoveryResponsePreviewVisitsItemApplicationsItemNominalDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const previewProtocolRecoveryResponsePreviewFirstDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const previewProtocolRecoveryResponsePreviewLastDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
+export const PreviewProtocolRecoveryResponse = zod.object({
+  preview: zod.object({
+    protocolId: zod.number(),
+    nursingResourceId: zod.number(),
+    nursingResourceName: zod.string(),
+    nursingLocationId: zod.number(),
+    nursingLocationName: zod.string(),
+    visits: zod.array(
+      zod.object({
+        date: zod
+          .string()
+          .regex(previewProtocolRecoveryResponsePreviewVisitsItemDateRegExp),
+        time: zod
+          .string()
+          .regex(previewProtocolRecoveryResponsePreviewVisitsItemTimeRegExp),
+        weekday: zod
+          .number()
+          .min(previewProtocolRecoveryResponsePreviewVisitsItemWeekdayMin)
+          .max(previewProtocolRecoveryResponsePreviewVisitsItemWeekdayMax),
+        nursingPeriods: zod.number(),
+        reservedMinutes: zod.number(),
+        applications: zod.array(
+          zod.object({
+            substanceId: zod.number(),
+            substanceName: zod.string(),
+            dose: zod.string(),
+            sessionNumber: zod.number(),
+            totalSessions: zod.number(),
+            nominalDate: zod
+              .string()
+              .regex(
+                previewProtocolRecoveryResponsePreviewVisitsItemApplicationsItemNominalDateRegExp,
+              ),
+            shiftDays: zod.number(),
+          }),
+        ),
+      }),
+    ),
+    visitCount: zod.number(),
+    firstDate: zod
+      .string()
+      .regex(previewProtocolRecoveryResponsePreviewFirstDateRegExp),
+    lastDate: zod
+      .string()
+      .regex(previewProtocolRecoveryResponsePreviewLastDateRegExp),
+    requiresRoutineConfirmation: zod.boolean(),
+    searchWasPruned: zod.boolean(),
+    matchesClientPreference: zod.boolean(),
+    fingerprint: zod.string(),
+    snapshot: zod.string(),
+    recoverySessionCount: zod.number().optional(),
+    diagnostics: zod.object({
+      datesRead: zod.number(),
+      nursingDatesWithoutSchedule: zod.array(zod.string()),
+      nursingDatesWithException: zod.array(zod.string()),
+      integrationPendingDates: zod.array(zod.string()),
+      nursingDatesWithoutOpenSlot: zod.array(zod.string()),
+      doctorDatesWithoutSchedule: zod.array(zod.string()),
+      doctorDatesWithException: zod.array(zod.string()),
+      doctorIntegrationPendingDates: zod.array(zod.string()),
+      doctorDatesWithoutOpenSlot: zod.array(zod.string()),
+    }),
+  }),
+  googleWarning: zod.union([
+    zod.object({
+      code: zod.string(),
+      message: zod.string(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Confirmar recuperação sem recriar sessões ou aplicações
+ */
+
+export const ConfirmProtocolRecoveryParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const confirmProtocolRecoveryBodyFingerprintMax = 200;
+
+export const ConfirmProtocolRecoveryBody = zod.object({
+  nursingResourceId: zod.number().min(1).nullish(),
+  fingerprint: zod
+    .string()
+    .min(1)
+    .max(confirmProtocolRecoveryBodyFingerprintMax),
+});
+
+/**
  * @summary Generate ICS file for protocol sessions
  */
 export const GenerateProtocolICSParams = zod.object({

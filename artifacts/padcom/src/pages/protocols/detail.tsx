@@ -58,7 +58,7 @@ export default function ProtocolDetail() {
   const [emitirConfirm, setEmitirConfirm] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
-  const [schedulingOpen, setSchedulingOpen] = useState(false);
+  const [schedulingMode, setSchedulingMode] = useState<"new" | "recovery" | null>(null);
   const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
 
   const { data: protocol, isLoading, refetch } = useGetProtocol(id, {
@@ -117,6 +117,9 @@ export default function ProtocolDetail() {
   const hasUnreservedSessions = protocol.sessions.some(session =>
     !(session as any).resourceId || !(session as any).durationMinutes
   );
+  const hasOnlyUnreservedSessions = protocol.sessions.length > 0 && protocol.sessions.every(session =>
+    !(session as any).resourceId && !(session as any).durationMinutes
+  );
 
   const allApps = protocol.sessions.flatMap(s =>
     s.substanceApplications.map(a => ({ ...a, sessionDate: s.scheduledDate, weekNumber: s.weekNumber }))
@@ -148,7 +151,7 @@ export default function ProtocolDetail() {
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           {["suggested", "validated"].includes(protocol.status) && !hasSessions && (
-            <Button className="btn-3d" onClick={() => setSchedulingOpen(true)}>
+            <Button className="btn-3d" onClick={() => setSchedulingMode("new")}>
               <Calendar className="h-4 w-4 mr-1" />
               Agendar protocolo
             </Button>
@@ -450,9 +453,15 @@ export default function ProtocolDetail() {
       </div>
 
       {hasUnreservedSessions && (
-        <div className="panel-3d-sub p-4 text-sm" role="alert">
+        <div className="panel-3d-sub p-4 text-sm" role="alert" data-testid="status-protocol-unreserved-sessions">
           <p className="font-bold text-amber-700">Estas sessões não têm reserva de agenda.</p>
-          <p className="mt-1">Elas foram preservadas, mas não podem ser enviadas ao Google nem exportadas como compromissos. A validação antiga foi bloqueada; a recuperação deste protocolo precisa de conferência própria.</p>
+          <p className="mt-1">Elas foram preservadas, mas não podem ser enviadas ao Google nem exportadas como compromissos. A recuperação confere cada aplicação e só atualiza as mesmas sessões após sua confirmação.</p>
+          {hasOnlyUnreservedSessions && protocol.status === "validated" && !isPast && (
+            <Button className="btn-3d-soft mt-3" onClick={() => setSchedulingMode("recovery")} data-testid="button-protocol-recovery">
+              <Calendar className="h-4 w-4 mr-1" />
+              Preparar recuperação segura
+            </Button>
+          )}
         </div>
       )}
 
@@ -832,8 +841,9 @@ export default function ProtocolDetail() {
       <ProtocolSchedulingDialog
         protocolId={id}
         clientId={protocol.clientId}
-        open={schedulingOpen}
-        onOpenChange={setSchedulingOpen}
+        open={schedulingMode !== null}
+        recovery={schedulingMode === "recovery"}
+        onOpenChange={(open) => { if (!open) setSchedulingMode(null); }}
         onScheduled={() => { void refetch(); setGoogleSyncOpen(true); }}
       />
       <ProtocolGoogleSyncDialog protocolId={id} open={googleSyncOpen} onOpenChange={setGoogleSyncOpen} />

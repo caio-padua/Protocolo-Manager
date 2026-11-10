@@ -5,6 +5,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import {
+  useConfirmProtocolRecovery, useConfirmProtocolScheduling,
+  usePreviewProtocolRecovery, usePreviewProtocolScheduling,
+  type ProtocolSchedulingPreviewEnvelope,
+} from "@workspace/api-client-react";
 
 /**
  * Agendamento de protocolo com prévia (etapa 4 de 7); o envio ao Google fica no ProtocolGoogleSyncDialog (etapa 5).
@@ -12,24 +17,9 @@ import { getCollabToken } from "@/lib/collab-auth";
  * quem calcula e grava o plano é sempre o servidor.
  */
 
-interface PreviewApplication {
-  substanceId: number; substanceName: string; dose: string; sessionNumber: number;
-  totalSessions: number; nominalDate: string; shiftDays: number;
-}
-interface PreviewVisit {
-  date: string; time: string; weekday: number; nursingPeriods: number; reservedMinutes: number;
-  applications: PreviewApplication[];
-}
-interface Preview {
-  protocolId: number; nursingResourceName: string; nursingLocationName: string; visits: PreviewVisit[]; visitCount: number;
-  firstDate: string; lastDate: string; requiresRoutineConfirmation: boolean; searchWasPruned: boolean;
-  matchesClientPreference: boolean; fingerprint: string;
-}
-interface Diagnostics {
-  nursingDatesWithoutSchedule: string[]; nursingDatesWithException: string[];
-  integrationPendingDates: string[]; nursingDatesWithoutOpenSlot: string[];
-}
-interface Refusal { code?: string; error: string; diagnostics?: Diagnostics }
+type Preview = ProtocolSchedulingPreviewEnvelope["preview"];
+type Diagnostics = Preview["diagnostics"];
+interface Refusal { code?: string; error: string; diagnostics?: Diagnostics; preview?: Preview }
 interface NursingAgendaOption { id: number; name: string; locationName: string }
 interface AgendaOptionsResponse {
   nursingAgendaId: number;
@@ -46,18 +36,15 @@ const shiftText = (days: number) => {
   return `${abs} dia${abs > 1 ? "s" : ""} ${days > 0 ? "depois" : "antes"} da data prevista`;
 };
 
-async function call(protocolId: number, action: "preview" | "confirm", body: object) {
-  const response = await fetch(`${import.meta.env.BASE_URL}api/protocols/${protocolId}/scheduling/${action}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${getCollabToken() ?? ""}` },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  return { status: response.status, ok: response.ok, data };
+function errorPayload(error: unknown): Record<string, any> {
+  if (!error || typeof error !== "object" || !("data" in error)) return {};
+  const data = (error as { data?: unknown }).data;
+  return data && typeof data === "object" ? data as Record<string, any> : {};
 }
 
-export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenChange, onScheduled }: {
+export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenChange, onScheduled, recovery = false }: {
   protocolId: number; clientId: number; open: boolean; onOpenChange: (open: boolean) => void; onScheduled: () => void;
+  recovery?: boolean;
 }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -70,6 +57,10 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
   const [nursingAgendas, setNursingAgendas] = useState<NursingAgendaOption[]>([]);
   const [nursingResourceId, setNursingResourceId] = useState("");
   const requestId = useRef(0);
+  const schedulingPreviewMutation = usePreviewProtocolScheduling();
+  const recoveryPreviewMutation = usePreviewProtocolRecovery();
+  const schedulingConfirmMutation = useConfirmProtocolScheduling();
+  const recoveryConfirmMutation = useConfirmProtocolRecovery();
 
   useEffect(() => {
     if (!open) {
@@ -108,16 +99,28 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
     const mine = ++requestId.current;
     setLoading(true); setPreview(null); setRefusal(null); setChanged(false); setGoogleWarning(null);
     try {
-      const result = await call(protocolId, "preview", { nursingResourceId: Number(resourceId) });
+      const result = recovery
+        ? await recoveryPreviewMutation.mutateAsync({
+          id: protocolId, data: { nursingResourceId: Number(resourceId) },
+        })
+        : await schedulingPreviewMutation.mutateAsync({
+          id: protocolId, data: { nursingResourceId: Number(resourceId) },
+        });
       if (mine !== requestId.current) return;
-      if (result.ok) { setPreview(result.data.preview as Preview); setGoogleWarning(result.data.googleWarning ?? null); }
-      else setRefusal({ code: result.data?.code, error: result.data?.error ?? "Não foi possível calcular a prévia.", diagnostics: result.data?.diagnostics });
-    } catch {
-      if (mine === requestId.current) setRefusal({ error: "Sem conexão com o servidor. Nada foi agendado." });
+      setPreview(result.preview);
+      setGoogleWarning(result.googleWarning ?? null);
+    } catch (error) {
+      if (mine === requestId.current) {
+        const data = errorPayload(error);
+        setRefusal({
+          code: data.code, error: data.error ?? "Não foi possível calcular a prévia.",
+          diagnostics: data.diagnostics,
+        });
+      }
     } finally {
       if (mine === requestId.current) setLoading(false);
     }
-  }, [protocolId]);
+  }, [protocolId, recovery, recoveryPreviewMutation.mutateAsync, schedulingPreviewMutation.mutateAsync]);
 
   useEffect(() => {
     if (open && !agendaOptionsLoading && nursingResourceId) void loadPreview(nursingResourceId);
@@ -127,28 +130,47 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
     if (!preview || confirming) return;
     setConfirming(true);
     try {
-      const result = await call(protocolId, "confirm", {
-        nursingResourceId: Number(nursingResourceId),
-        fingerprint: preview.fingerprint,
-      });
-      if (result.ok) {
-        toast({
-          title: "Protocolo agendado",
-          description: `${result.data.reserved?.length ?? preview.visitCount} visita(s) reservada(s) na agenda de enfermagem. Em seguida os eventos são enviados ao Google Agenda; nenhum e-mail ou convite vai ao cliente.`,
-          duration: 10000,
+      const result = recovery
+        ? await recoveryConfirmMutation.mutateAsync({
+          id: protocolId,
+          data: { nursingResourceId: Number(nursingResourceId), fingerprint: preview.fingerprint },
+        })
+        : await schedulingConfirmMutation.mutateAsync({
+          id: protocolId,
+          data: { nursingResourceId: Number(nursingResourceId), fingerprint: preview.fingerprint },
         });
-        onScheduled();
-        onOpenChange(false);
-        return;
+      toast({
+        title: recovery ? "Sessões antigas recuperadas" : "Protocolo agendado",
+        description: recovery
+          ? `${result.reserved?.length ?? preview.visitCount} sessão(ões) existente(s) foram atualizadas sem apagar os identificadores ou as aplicações. Confira o envio ao Google Agenda na etapa seguinte.`
+          : `${result.reserved?.length ?? preview.visitCount} visita(s) reservada(s) na agenda de enfermagem. Em seguida os eventos são enviados ao Google Agenda; nenhum e-mail ou convite vai ao cliente.`,
+        duration: 10000,
+      });
+      onScheduled();
+      onOpenChange(false);
+      return;
+    } catch (error) {
+      const data = errorPayload(error);
+      if (data.code === "plano_mudou" && data.preview) {
+        setPreview(data.preview as Preview);
+        setChanged(true);
+        setRefusal(null);
+        setGoogleWarning(data.googleWarning ?? null);
+      } else if (data.error) {
+        setPreview(null);
+        setRefusal({
+          code: data.code, error: data.error,
+          diagnostics: data.diagnostics,
+        });
+      } else {
+        toast({
+          title: "Sem conexão com o servidor",
+          description: recovery
+            ? "Confira se as sessões foram recuperadas antes de tentar novamente."
+            : "Confira se o protocolo foi agendado antes de tentar de novo.",
+          variant: "destructive",
+        });
       }
-      if (result.data?.code === "plano_mudou" && result.data.preview) {
-        setPreview(result.data.preview as Preview); setChanged(true); setRefusal(null); setGoogleWarning(result.data.googleWarning ?? null);
-        return;
-      }
-      setPreview(null);
-      setRefusal({ code: result.data?.code, error: result.data?.error ?? "Não foi possível agendar. Nada foi agendado.", diagnostics: result.data?.diagnostics });
-    } catch {
-      toast({ title: "Sem conexão com o servidor", description: "Confira se o protocolo foi agendado antes de tentar de novo.", variant: "destructive" });
     } finally {
       setConfirming(false);
     }
@@ -158,20 +180,24 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
     <Dialog open={open} onOpenChange={(next) => { if (!confirming) onOpenChange(next); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Agendar protocolo na agenda de enfermagem</DialogTitle>
-          <DialogDescription>
-            Confira a prévia. Os horários só são reservados quando você confirmar.
+          <DialogTitle data-testid={recovery ? "title-protocol-recovery" : "title-protocol-scheduling"}>
+            {recovery ? "Recuperar sessões antigas do protocolo" : "Agendar protocolo na agenda de enfermagem"}
+          </DialogTitle>
+          <DialogDescription data-testid="text-protocol-scheduling-description">
+            {recovery
+              ? "Confira a correspondência e os horários. As sessões só são atualizadas depois da sua confirmação."
+              : "Confira a prévia. Os horários só são reservados quando você confirmar."}
           </DialogDescription>
         </DialogHeader>
 
         {loading && (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground" role="status">
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground" role="status" data-testid="status-protocol-scheduling-loading">
             <Loader2 className="h-4 w-4 animate-spin" /> Calculando os horários livres. Pode levar alguns segundos.
           </div>
         )}
 
         {agendaOptionsLoading && (
-          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground" role="status">
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground" role="status" data-testid="status-protocol-agenda-loading">
             <Loader2 className="h-4 w-4 animate-spin" /> Conferindo as agendas vinculadas ao cliente…
           </div>
         )}
@@ -186,7 +212,7 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
                 setNursingResourceId(value);
               }}
             >
-              <SelectTrigger className="field-engraved"><SelectValue placeholder="Selecione a agenda vinculada" /></SelectTrigger>
+              <SelectTrigger className="field-engraved" data-testid="select-protocol-nursing-agenda"><SelectValue placeholder="Selecione a agenda vinculada" /></SelectTrigger>
               <SelectContent>
                 {nursingAgendas.map(agenda => (
                   <SelectItem key={agenda.id} value={String(agenda.id)}>
@@ -199,8 +225,8 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
         )}
 
         {refusal && (
-          <div className="panel-3d-sub p-4 space-y-2" role="alert">
-            <p className="flex items-center gap-2 font-bold text-sm"><AlertTriangle className="h-4 w-4 text-amber-500" /> Não foi possível agendar</p>
+          <div className="panel-3d-sub p-4 space-y-2" role="alert" data-testid="status-protocol-scheduling-error">
+            <p className="flex items-center gap-2 font-bold text-sm"><AlertTriangle className="h-4 w-4 text-amber-500" /> {recovery ? "Não foi possível recuperar" : "Não foi possível agendar"}</p>
             <p className="text-sm">{refusal.error}</p>
             {refusal.code === "agenda_enfermagem_indefinida" && (
               <p className="text-xs text-muted-foreground">Defina a agenda de enfermagem padrão no cadastro do cliente (tela de edição do cliente).</p>
@@ -221,23 +247,38 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
                 )}
               </ul>
             )}
-            <p className="text-xs text-muted-foreground">Nada foi agendado. A validação antiga não reserva horários; corrija o vínculo do cliente ou tente novamente.</p>
-            <Button className="btn-3d-soft" onClick={() => nursingResourceId && void loadPreview(nursingResourceId)}>Calcular de novo</Button>
+            <p className="text-xs text-muted-foreground">
+              {recovery
+                ? "Nenhuma sessão ou aplicação foi alterada. Corrija o vínculo ou os dados divergentes antes de tentar novamente."
+                : "Nada foi agendado. A validação antiga não reserva horários; corrija o vínculo do cliente ou tente novamente."}
+            </p>
+            <Button className="btn-3d-soft" onClick={() => nursingResourceId && void loadPreview(nursingResourceId)}>{recovery ? "Conferir novamente" : "Calcular de novo"}</Button>
           </div>
         )}
 
         {preview && (
           <div className="space-y-4">
             {changed && (
-              <div className="panel-3d-sub p-3 text-sm" role="alert">
+              <div className="panel-3d-sub p-3 text-sm" role="alert" data-testid="status-protocol-scheduling-changed">
                 <AlertTriangle className="inline h-4 w-4 mr-1 text-amber-500" />
                 A agenda mudou desde a prévia anterior. Esta é a prévia atualizada; nada foi agendado ainda.
               </div>
             )}
             {googleWarning && (
-              <div className="panel-3d-sub p-3 text-sm" role="alert">
+              <div className="panel-3d-sub p-3 text-sm" role="alert" data-testid="status-protocol-google-readiness">
                 <AlertTriangle className="inline h-4 w-4 mr-1 text-amber-500" />
                 {googleWarning.message}
+              </div>
+            )}
+            {recovery && (
+              <div className="panel-3d-sub p-4 text-sm" role="alert" data-testid="status-legacy-recovery-warning">
+                <p className="font-bold text-amber-700">Recuperação sem recriar o histórico.</p>
+                <p className="mt-1">
+                  A confirmação atualizará {preview.recoverySessionCount ?? preview.visitCount} sessão(ões) já existentes.
+                  Os identificadores e as aplicações serão preservados; nenhuma sessão ou aplicação será apagada ou duplicada.
+                  Se qualquer dado não corresponder exatamente, o sistema recusará sem gravar.
+                </p>
+                <p className="mt-1">O envio ao Google Agenda é uma etapa separada, depois desta confirmação.</p>
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
@@ -259,7 +300,7 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
                   {preview.visits.map(visit => (
                     <tr key={visit.date} className="border-t align-top">
                       <td className="p-2 whitespace-nowrap"><span className="font-bold tabular-nums">{brDate(visit.date)}</span><br /><span className="text-xs text-muted-foreground">{WEEKDAYS[visit.weekday]}</span></td>
-                      <td className="p-2 tabular-nums font-bold">{visit.time}</td>
+                      <td className="p-2 tabular-nums font-bold" data-testid={`text-protocol-visit-time-${visit.date}`}>{visit.time}</td>
                       <td className="p-2 space-y-1">
                         {visit.applications.map(app => (
                           <div key={app.substanceId}>
@@ -279,14 +320,21 @@ export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenCha
               {preview.requiresRoutineConfirmation && <li><strong>Mais de uma visita na mesma semana.</strong> Confirme só se isso fizer sentido para a rotina do cliente.</li>}
               {preview.searchWasPruned && <li>A busca foi limitada pelo tamanho do protocolo: pode existir uma combinação ainda melhor.</li>}
               <li>{preview.matchesClientPreference ? "Há horário que coincide com a preferência cadastrada do cliente." : "Nenhum horário coincide com a preferência cadastrada do cliente (a preferência só ordena, não impede)."}</li>
-              <li>Ao confirmar, os horários são reservados no sistema e um evento por visita é enviado ao Google Agenda. Se o Google falhar, a reserva continua valendo e o envio pode ser repetido. Nenhum e-mail ou convite vai ao cliente.</li>
+              <li>
+                {recovery
+                  ? "Ao confirmar, as sessões antigas são reservadas no sistema sem recriar aplicações. O envio ao Google Agenda será apresentado em seguida, separado desta confirmação."
+                  : "Ao confirmar, os horários são reservados no sistema e um evento por visita é enviado ao Google Agenda. Se o Google falhar, a reserva continua valendo e o envio pode ser repetido. Nenhum e-mail ou convite vai ao cliente."}
+              </li>
             </ul>
 
             <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="ghost" className="btn-3d-soft" onClick={() => onOpenChange(false)} disabled={confirming}>Cancelar</Button>
-              <Button className="btn-3d" onClick={() => void confirm()} disabled={confirming}>
+              <Button variant="ghost" className="btn-3d-soft" onClick={() => onOpenChange(false)} disabled={confirming} data-testid="button-cancel-protocol-scheduling">Cancelar</Button>
+              <Button className="btn-3d" onClick={() => void confirm()} disabled={confirming}
+                data-testid={recovery ? "button-confirm-protocol-recovery" : "button-confirm-protocol-scheduling"}>
                 {confirming ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CalendarCheck className="h-4 w-4 mr-1" />}
-                {confirming ? "Reservando..." : "Confirmar agendamento"}
+                {confirming
+                  ? (recovery ? "Recuperando sessões..." : "Reservando...")
+                  : (recovery ? "Confirmar recuperação" : "Confirmar agendamento")}
               </Button>
             </div>
           </div>

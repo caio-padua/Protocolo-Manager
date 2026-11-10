@@ -172,6 +172,10 @@ import type {
   ProfessionalArea,
   ProfessionalSpecialty,
   Protocol,
+  ProtocolSchedulingConfirmEnvelope,
+  ProtocolSchedulingConfirmInput,
+  ProtocolSchedulingPreviewEnvelope,
+  ProtocolSchedulingPreviewInput,
   ProtocolStats,
   Ras,
   RecipePlan,
@@ -4699,6 +4703,370 @@ export const useValidateProtocol = <
   TContext
 > => {
   return useMutation(getValidateProtocolMutationOptions(options));
+};
+
+/**
+ * @summary Calcular prévia de agenda de protocolo
+ */
+export const getPreviewProtocolSchedulingUrl = (id: number) => {
+  return `/api/protocols/${id}/scheduling/preview`;
+};
+
+export const previewProtocolScheduling = async (
+  id: number,
+  protocolSchedulingPreviewInput: ProtocolSchedulingPreviewInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingPreviewEnvelope> => {
+  return customFetch<ProtocolSchedulingPreviewEnvelope>(
+    getPreviewProtocolSchedulingUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingPreviewInput),
+    },
+  );
+};
+
+export const getPreviewProtocolSchedulingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  const mutationKey = ["previewProtocolScheduling"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewProtocolScheduling>>,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return previewProtocolScheduling(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewProtocolSchedulingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewProtocolScheduling>>
+>;
+export type PreviewProtocolSchedulingMutationBody =
+  BodyType<ProtocolSchedulingPreviewInput>;
+export type PreviewProtocolSchedulingMutationError = ErrorType<void>;
+
+/**
+ * @summary Calcular prévia de agenda de protocolo
+ */
+export const usePreviewProtocolScheduling = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  return useMutation(getPreviewProtocolSchedulingMutationOptions(options));
+};
+
+/**
+ * @summary Confirmar e reservar protocolo
+ */
+export const getConfirmProtocolSchedulingUrl = (id: number) => {
+  return `/api/protocols/${id}/scheduling/confirm`;
+};
+
+export const confirmProtocolScheduling = async (
+  id: number,
+  protocolSchedulingConfirmInput: ProtocolSchedulingConfirmInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingConfirmEnvelope> => {
+  return customFetch<ProtocolSchedulingConfirmEnvelope>(
+    getConfirmProtocolSchedulingUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingConfirmInput),
+    },
+  );
+};
+
+export const getConfirmProtocolSchedulingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  const mutationKey = ["confirmProtocolScheduling"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return confirmProtocolScheduling(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmProtocolSchedulingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmProtocolScheduling>>
+>;
+export type ConfirmProtocolSchedulingMutationBody =
+  BodyType<ProtocolSchedulingConfirmInput>;
+export type ConfirmProtocolSchedulingMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirmar e reservar protocolo
+ */
+export const useConfirmProtocolScheduling = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmProtocolScheduling>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  return useMutation(getConfirmProtocolSchedulingMutationOptions(options));
+};
+
+/**
+ * @summary Conferir recuperação de sessões antigas
+ */
+export const getPreviewProtocolRecoveryUrl = (id: number) => {
+  return `/api/protocols/${id}/recovery/preview`;
+};
+
+export const previewProtocolRecovery = async (
+  id: number,
+  protocolSchedulingPreviewInput: ProtocolSchedulingPreviewInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingPreviewEnvelope> => {
+  return customFetch<ProtocolSchedulingPreviewEnvelope>(
+    getPreviewProtocolRecoveryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingPreviewInput),
+    },
+  );
+};
+
+export const getPreviewProtocolRecoveryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  const mutationKey = ["previewProtocolRecovery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewProtocolRecovery>>,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return previewProtocolRecovery(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewProtocolRecoveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewProtocolRecovery>>
+>;
+export type PreviewProtocolRecoveryMutationBody =
+  BodyType<ProtocolSchedulingPreviewInput>;
+export type PreviewProtocolRecoveryMutationError = ErrorType<void>;
+
+/**
+ * @summary Conferir recuperação de sessões antigas
+ */
+export const usePreviewProtocolRecovery = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingPreviewInput> },
+  TContext
+> => {
+  return useMutation(getPreviewProtocolRecoveryMutationOptions(options));
+};
+
+/**
+ * @summary Confirmar recuperação sem recriar sessões ou aplicações
+ */
+export const getConfirmProtocolRecoveryUrl = (id: number) => {
+  return `/api/protocols/${id}/recovery/confirm`;
+};
+
+export const confirmProtocolRecovery = async (
+  id: number,
+  protocolSchedulingConfirmInput: ProtocolSchedulingConfirmInput,
+  options?: RequestInit,
+): Promise<ProtocolSchedulingConfirmEnvelope> => {
+  return customFetch<ProtocolSchedulingConfirmEnvelope>(
+    getConfirmProtocolRecoveryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(protocolSchedulingConfirmInput),
+    },
+  );
+};
+
+export const getConfirmProtocolRecoveryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  const mutationKey = ["confirmProtocolRecovery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return confirmProtocolRecovery(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmProtocolRecoveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmProtocolRecovery>>
+>;
+export type ConfirmProtocolRecoveryMutationBody =
+  BodyType<ProtocolSchedulingConfirmInput>;
+export type ConfirmProtocolRecoveryMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirmar recuperação sem recriar sessões ou aplicações
+ */
+export const useConfirmProtocolRecovery = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+    TError,
+    { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmProtocolRecovery>>,
+  TError,
+  { id: number; data: BodyType<ProtocolSchedulingConfirmInput> },
+  TContext
+> => {
+  return useMutation(getConfirmProtocolRecoveryMutationOptions(options));
 };
 
 /**

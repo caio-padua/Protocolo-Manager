@@ -1797,6 +1797,125 @@ export interface UpdateProtocolBody {
   linhaVenda?: string | null;
 }
 
+export interface ProtocolSchedulingPreviewInput {
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  nursingResourceId?: number | null;
+}
+
+export interface ProtocolSchedulingConfirmInput {
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  nursingResourceId?: number | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  fingerprint: string;
+}
+
+export interface ProtocolSchedulingApplication {
+  substanceId: number;
+  substanceName: string;
+  dose: string;
+  sessionNumber: number;
+  totalSessions: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  nominalDate: string;
+  shiftDays: number;
+}
+
+export interface ProtocolSchedulingVisit {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  time: string;
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  weekday: number;
+  nursingPeriods: number;
+  reservedMinutes: number;
+  applications: ProtocolSchedulingApplication[];
+}
+
+export interface ProtocolSchedulingDiagnostics {
+  datesRead: number;
+  nursingDatesWithoutSchedule: string[];
+  nursingDatesWithException: string[];
+  integrationPendingDates: string[];
+  nursingDatesWithoutOpenSlot: string[];
+  doctorDatesWithoutSchedule: string[];
+  doctorDatesWithException: string[];
+  doctorIntegrationPendingDates: string[];
+  doctorDatesWithoutOpenSlot: string[];
+}
+
+export interface ProtocolSchedulingPreview {
+  protocolId: number;
+  nursingResourceId: number;
+  nursingResourceName: string;
+  nursingLocationId: number;
+  nursingLocationName: string;
+  visits: ProtocolSchedulingVisit[];
+  visitCount: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  firstDate: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  lastDate: string;
+  requiresRoutineConfirmation: boolean;
+  searchWasPruned: boolean;
+  matchesClientPreference: boolean;
+  fingerprint: string;
+  snapshot: string;
+  recoverySessionCount?: number;
+  diagnostics: ProtocolSchedulingDiagnostics;
+}
+
+export interface ProtocolGoogleReadinessWarning {
+  code: string;
+  message: string;
+}
+
+export interface ProtocolSchedulingPreviewEnvelope {
+  preview: ProtocolSchedulingPreview;
+  googleWarning: ProtocolGoogleReadinessWarning | null;
+}
+
+export type ProtocolSchedulingConfirmEnvelopeProtocolStatus =
+  (typeof ProtocolSchedulingConfirmEnvelopeProtocolStatus)[keyof typeof ProtocolSchedulingConfirmEnvelopeProtocolStatus];
+
+export const ProtocolSchedulingConfirmEnvelopeProtocolStatus = {
+  validated: "validated",
+} as const;
+
+export interface ReservedProtocolApplication {
+  substanceId: number;
+  sessionNumber: number;
+}
+
+export interface ReservedProtocolVisit {
+  sessionId: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  /** @pattern ^(?:[01][0-9]|2[0-3]):[0-5][0-9]$ */
+  time: string;
+  nursingPeriods: number;
+  reservedMinutes: number;
+  applications: ReservedProtocolApplication[];
+}
+
+export interface ProtocolSchedulingConfirmEnvelope {
+  protocolStatus: ProtocolSchedulingConfirmEnvelopeProtocolStatus;
+  preview: ProtocolSchedulingPreview;
+  reserved: ReservedProtocolVisit[];
+}
+
 export type CreateSessionBodyStatus =
   (typeof CreateSessionBodyStatus)[keyof typeof CreateSessionBodyStatus];
 

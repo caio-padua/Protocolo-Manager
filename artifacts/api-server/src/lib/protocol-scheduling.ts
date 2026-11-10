@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   agendaResourcesTable, clientsTable, db, locationsTable, protocolItemsTable, protocolsTable,
-  sessionsTable, substancesTable,
+  sessionsTable, substanceApplicationsTable, substancesTable,
 } from "@workspace/db";
 import { brtISODate } from "./brt";
 import { getVisitPreferences } from "./client-visit-preferences";
@@ -16,6 +16,9 @@ import {
   classifySlotSourceError, protocolPlanSnapshot, reserveProtocolVisits, type ReservationErrorCode,
   type ReservedVisit,
 } from "./protocol-visit-reservation";
+import {
+  legacyRecoverySnapshot, type LegacyRecoveryExpectation, type RecoveryApplication, type RecoverySession,
+} from "./protocol-legacy-recovery";
 import { NURSING_PERIOD_MINUTES } from "./protocol-visit-sizing";
 import { durationSecondsFromMinutes, substanceDurationMinutes } from "./substance-duration";
 
@@ -45,7 +48,7 @@ export type SchedulingErrorCode =
   | ReservationErrorCode
   | "pedido_invalido" | "agenda_enfermagem_indefinida" | "agenda_nao_autorizada" | "periodo_longo_demais" | "datas_no_passado"
   | "protocolo_grande_demais" | "sem_plano" | "busca_limitada" | "plano_mudou" | "confirmacao_ausente"
-  | "acesso_alterado";
+  | "acesso_alterado" | "legacy_session_insegura";
 
 export interface PlannedApplicationView {
   substanceId: number;
@@ -87,6 +90,8 @@ export interface SchedulingPreview {
   fingerprint: string;
   /** Fotografia dos dados clínicos do protocolo; a reserva a confere de novo sob o bloqueio. */
   snapshot: string;
+  /** Quantidade de sessões preservadas, presente somente na prévia de recuperação de legado. */
+  recoverySessionCount?: number;
   diagnostics: ProtocolSlotDiagnostics;
 }
 
@@ -103,6 +108,13 @@ export type SchedulingRefusal = {
 };
 
 export type SchedulingPreviewResult = { ok: true; preview: SchedulingPreview } | SchedulingRefusal;
+export type ProtocolRecoveryPreviewResult =
+  | { ok: true; preview: SchedulingPreview; recovery: LegacyRecoveryExpectation }
+  | SchedulingRefusal;
+
+type InternalPlanningResult =
+  | { ok: true; preview: SchedulingPreview; recovery?: LegacyRecoveryExpectation }
+  | SchedulingRefusal;
 
 export type SchedulingConfirmResult =
   | { ok: true; preview: SchedulingPreview; protocolStatus: "validated"; reserved: ReservedVisit[] }
@@ -175,8 +187,82 @@ export interface PlanProtocolSchedulingParams {
   nursingResourceId?: number | null;
 }
 
+function buildLegacyRecoveryExpectation(
+  protocolId: number,
+  clientId: number,
+  empresaId: number,
+  professionalId: number | null,
+  items: { substanceId: number }[],
+  sessions: RecoverySession[],
+  applications: RecoveryApplication[],
+  visits: PlannedVisitView[],
+): LegacyRecoveryExpectation | null {
+  if (sessions.length === 0 || sessions.length !== visits.length) return null;
+  const sessionIds = new Set(sessions.map(session => session.id));
+  const substanceIds = new Set(items.map(item => item.substanceId));
+  if (applications.some(app =>
+    !sessionIds.has(app.sessionId) || !substanceIds.has(app.substanceId) ||
+    app.status !== "pending" || app.appliedAt !== null || app.confirmedAt !== null ||
+    app.confirmedBy !== null ||
+    !((app.availability === "disp" && app.sessionNumber > 0) ||
+      (app.availability === "prox" && app.sessionNumber === 0))
+  )) return null;
+
+  if (sessions.some(session =>
+    session.protocolId !== protocolId || session.clientId !== clientId ||
+    session.professionalId !== professionalId || session.resourceId !== null ||
+    session.durationMinutes !== null || session.status !== "scheduled" ||
+    session.agendaArchived || session.serviceType !== "clinic" ||
+    session.nurseId !== null || session.serviceAddress !== null ||
+    session.googleEventId !== null || session.googleCalendarId !== null ||
+    session.googleSyncPendingOperation !== null || session.googleSyncPendingEventId !== null ||
+    session.googleSyncPendingCalendarId !== null || session.rescheduleCount !== 0 ||
+    session.rescheduledAt !== null || session.rescheduledBy !== null ||
+    (session.empresaId !== null && session.empresaId !== empresaId)
+  )) return null;
+
+  const applicationsBySession = new Map<number, RecoveryApplication[]>();
+  for (const app of applications) {
+    const group = applicationsBySession.get(app.sessionId) ?? [];
+    group.push(app);
+    applicationsBySession.set(app.sessionId, group);
+  }
+  const applicationKey = (application: { substanceId: number; sessionNumber: number; dose: string; totalSessions: number }) =>
+    JSON.stringify([application.substanceId, application.sessionNumber, application.dose, application.totalSessions]);
+  const sessionByVisitKey = new Map<string, RecoverySession>();
+  for (const session of sessions) {
+    const current = applicationsBySession.get(session.id) ?? [];
+    const disp = current.filter(app => app.availability === "disp")
+      .map(applicationKey).sort();
+    if (disp.length === 0) return null;
+    const key = JSON.stringify(disp);
+    if (sessionByVisitKey.has(key)) return null;
+    sessionByVisitKey.set(key, session);
+  }
+
+  const assignments: LegacyRecoveryExpectation["assignments"] = [];
+  for (const visit of visits) {
+    const key = JSON.stringify(visit.applications.map(applicationKey).sort());
+    const session = sessionByVisitKey.get(key);
+    if (!session) return null;
+    sessionByVisitKey.delete(key);
+    assignments.push({
+      sessionId: session.id, date: visit.date, time: visit.time,
+      applications: visit.applications.map(app => ({
+        substanceId: app.substanceId, sessionNumber: app.sessionNumber,
+      })),
+    });
+  }
+  if (sessionByVisitKey.size > 0) return null;
+
+  return { snapshot: legacyRecoverySnapshot(sessions, applications), assignments };
+}
+
 /** Calcula a prévia no servidor. Não grava nada. */
-export async function planProtocolScheduling(params: PlanProtocolSchedulingParams): Promise<SchedulingPreviewResult> {
+async function planProtocolSchedulingInternal(
+  params: PlanProtocolSchedulingParams,
+  allowLegacyRecovery: boolean,
+): Promise<InternalPlanningResult> {
   const { empresaId, clientId, protocolId } = params;
   if (![empresaId, clientId, protocolId].every(isPositiveInt) ||
       (params.nursingResourceId != null && !isPositiveInt(params.nursingResourceId))) {
@@ -203,16 +289,25 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
   if (!protocol || protocol.clientId !== clientId || protocol.empresaId !== empresaId) {
     return refusal(404, "protocolo_nao_encontrado", "Protocolo não pertence ao cliente");
   }
-  const anySession = await db.select({ id: sessionsTable.id }).from(sessionsTable)
-    .where(eq(sessionsTable.protocolId, protocol.id)).limit(1);
-  if (anySession.length > 0) {
+  const legacySessions = await db.select().from(sessionsTable)
+    .where(eq(sessionsTable.protocolId, protocol.id)).orderBy(asc(sessionsTable.id));
+  if (legacySessions.length > 0 && !allowLegacyRecovery) {
     return refusal(409, "protocolo_ja_agendado",
       "Protocolo já tem sessões; confira o histórico sem recriar os agendamentos");
+  }
+  if (allowLegacyRecovery && (legacySessions.length === 0 || protocol.status !== "validated")) {
+    return refusal(409, "legacy_session_insegura",
+      "A recuperação está disponível somente para sessões antigas preservadas de um protocolo validado.");
   }
   if (protocol.status !== "suggested" && protocol.status !== "validated") {
     return refusal(409, "protocolo_status_invalido",
       "O protocolo precisa estar sugerido ou validado sem sessões para ser agendado");
   }
+  const legacyApplications = legacySessions.length > 0
+    ? await db.select().from(substanceApplicationsTable)
+      .where(inArray(substanceApplicationsTable.sessionId, legacySessions.map(session => session.id)))
+      .orderBy(asc(substanceApplicationsTable.id))
+    : [];
 
   // Itens e catálogo: dose, total, intervalo e duração vêm do banco, nunca do navegador.
   const items = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocol.id))
@@ -367,12 +462,23 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
       })),
     };
   });
+  const recovery = allowLegacyRecovery
+    ? buildLegacyRecoveryExpectation(
+      protocol.id, clientId, empresaId, protocol.professionalId, items,
+      legacySessions, legacyApplications, visits,
+    )
+    : undefined;
+  if (allowLegacyRecovery && !recovery) {
+    return refusal(409, "legacy_session_insegura",
+      "As sessões antigas ou suas aplicações não correspondem exatamente ao protocolo atual. Nada foi alterado.");
+  }
   // A impressão digital cobre TUDO o que a prévia mostra e tudo o que define o plano (doses, totais,
   // intervalos, datas e durações via fotografia do protocolo, períodos e minutos reservados).
   const snapshot = protocolPlanSnapshot(protocol.startDate, items, substanceById);
   const fingerprint = createHash("sha256").update(JSON.stringify({
     snapshot, protocolId: protocol.id, nursingResourceId,
     nursingLocationId: resource.locationId, nursingLocationName: resource.locationName,
+    recoverySnapshot: recovery?.snapshot ?? null,
     visits: visits.map(v => [v.date, v.time, v.nursingPeriods, v.reservedMinutes,
       v.applications.map(a => [a.substanceId, a.dose, a.sessionNumber, a.totalSessions, a.nominalDate])]),
   })).digest("hex").slice(0, 32);
@@ -387,8 +493,27 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
       matchesClientPreference: slots.some(slot => slot.preferenceRank !== undefined &&
         visits.some(v => v.date === slot.date && v.time === slot.time)),
       fingerprint, snapshot, diagnostics,
+      ...(recovery ? { recoverySessionCount: recovery.assignments.length } : {}),
     },
+    ...(recovery ? { recovery } : {}),
   };
+}
+
+export async function planProtocolScheduling(
+  params: PlanProtocolSchedulingParams,
+): Promise<SchedulingPreviewResult> {
+  return planProtocolSchedulingInternal(params, false);
+}
+
+export async function planProtocolRecovery(
+  params: PlanProtocolSchedulingParams,
+): Promise<ProtocolRecoveryPreviewResult> {
+  const result = await planProtocolSchedulingInternal(params, true);
+  if (!result.ok) return result;
+  if (!result.recovery) {
+    return refusal(409, "legacy_session_insegura", "Não foi possível confirmar a correspondência das sessões antigas.");
+  }
+  return { ok: true, preview: result.preview, recovery: result.recovery };
 }
 
 export interface ConfirmProtocolSchedulingParams extends PlanProtocolSchedulingParams {
@@ -420,6 +545,43 @@ export async function confirmProtocolScheduling(params: ConfirmProtocolSchedulin
     empresaId: params.empresaId, clientId: params.clientId, protocolId: params.protocolId,
     nursingResourceId: preview.nursingResourceId, expectedSnapshot: preview.snapshot,
     expectedNursingLocationId: preview.nursingLocationId,
+    visits: preview.visits.map(visit => ({
+      date: visit.date, time: visit.time,
+      applications: visit.applications.map(app => ({ substanceId: app.substanceId, sessionNumber: app.sessionNumber })),
+    })),
+  });
+  if (!reserved.ok) {
+    const { ok: _ok, ...rest } = reserved;
+    return { ok: false, ...rest };
+  }
+  return { ok: true, preview, protocolStatus: reserved.protocolStatus, reserved: reserved.visits };
+}
+
+/** Recalcula a recuperação legada e atualiza somente as mesmas sessões, após confirmação explícita. */
+export async function confirmProtocolRecovery(
+  params: ConfirmProtocolSchedulingParams,
+): Promise<SchedulingConfirmResult> {
+  if (typeof params.fingerprint !== "string" || !FINGERPRINT.test(params.fingerprint)) {
+    return refusal(400, "confirmacao_ausente", "Confirme a recuperação a partir de uma prévia atual");
+  }
+  const planned = await planProtocolSchedulingInternal(params, true);
+  if (!planned.ok) return planned;
+  if (!planned.recovery) {
+    return refusal(409, "legacy_session_insegura", "Não foi possível confirmar a correspondência das sessões antigas.");
+  }
+  const { preview, recovery } = planned;
+  if (preview.fingerprint !== params.fingerprint) {
+    return refusal(409, "plano_mudou",
+      "As sessões, aplicações ou agendas mudaram desde a prévia. Confira a nova prévia; nada foi alterado.",
+      { preview });
+  }
+  if (params.stillAuthorized && !(await params.stillAuthorized())) {
+    return refusal(409, "acesso_alterado", "O acesso clínico mudou; recarregue e confira antes de recuperar");
+  }
+  const reserved = await reserveProtocolVisits({
+    empresaId: params.empresaId, clientId: params.clientId, protocolId: params.protocolId,
+    nursingResourceId: preview.nursingResourceId, expectedSnapshot: preview.snapshot,
+    expectedNursingLocationId: preview.nursingLocationId, legacyRecovery: recovery,
     visits: preview.visits.map(visit => ({
       date: visit.date, time: visit.time,
       applications: visit.applications.map(app => ({ substanceId: app.substanceId, sessionNumber: app.sessionNumber })),
