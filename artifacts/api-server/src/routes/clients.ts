@@ -112,7 +112,7 @@ function serializeClient(c: ClientRow, preferredAgendaResourceIds: number[],
   };
 }
 
-function requireClientWriter(req: Request, res: Response, next: NextFunction) {
+export function requireClientWriter(req: Request, res: Response, next: NextFunction) {
   requireCollaborator(req, res, () => {
     if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
       res.status(401).json({ error: "Entre com seu acesso profissional para alterar clientes." });

@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
+import { ClientRubricaCard } from "@/components/clients/rubrica-card";
 import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
 import { ClientAgendaDefaults } from "@/components/clients/client-agenda-defaults";
 import { PreferredAgendasField } from "@/components/clients/preferred-agendas-field";
@@ -343,6 +344,8 @@ export default function NewClient() {
               </div>
 
               <ClientPhotoCard photoUrl={null} onUpdated={() => {}} />
+
+              <ClientRubricaCard clientId={null} />
 
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">

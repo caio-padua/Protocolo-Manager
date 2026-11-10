@@ -727,6 +727,8 @@ interface PhysicalRASData {
   substances: PhysicalRASSubstance[];
   sessions: PhysicalRASSession[];
   persistedGrid?: import("./protocol-ras-grid").PersistedRasRow[];
+  /** K9: registros por visita (por número da linha da grade); só protocolos de datas exatas. */
+  registros?: Map<number, import("./ras-fap-rubrica").RegistroRasFap>;
   todayDate?: string;
 }
 
@@ -801,6 +803,7 @@ function viaLabel(t?: string): string | undefined {
 
 function physicalDataToFap(data: PhysicalRASData): DadosRasFap {
   return {
+    registros: data.registros,
     gradePersistida: data.persistedGrid?.map(row => ({
       numero: row.number,
       data: parseISODateLocal(row.date, "sessão persistida"),

@@ -1096,3 +1096,45 @@ mtime_ms = 1794202738863
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9559fcbf-4817-4f7c-a899-c88430ec0282/f1a025d4-37ff-433c-8a01-b0705f47f4e9"
 storage_version_token = "1794202833091022"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "48q9eqSF0WrhxLK6vgeS9"
+uri = "file://generated-artifacts/ras-fap-k9-exemplo-sintetico.png"
+type = "image"
+title = "RAS FAP com a K9 ligada (dados de teste)"
+description = "Cliente e visitas fictícios. Linhas 1 a 4 mostram data efetiva, hora, rubrica, enfermeira e check por aplicação."
+logical_id = "66150d29-634e-472e-9053-5facc371b370"
+content_hash = "sha256:d4e93b6b230314bde0966882493969150c3c563de088ce25a8b42dc376ae0077"
+size = 160388
+mtime_ms = 1794269966227
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/66150d29-634e-472e-9053-5facc371b370/252800ec-4046-4f12-b221-6efd22e5a8ec"
+storage_version_token = "1794269970141768"
+content_type = "image/png"
+
+[[outputs]]
+id = "7_Qo1Y_yj8V4TiMr1qSWD"
+uri = "file://generated-artifacts/ras-rubrica-carlucia-recorte.png"
+type = "image"
+title = "RAS FAP com a rubrica da Carlúcia (recorte)"
+description = "Linhas 1 e 2: rubrica em imagem (a 2 com o aviso (cadastro)). Linha 3: sem imagem, iniciais. Linha 4: AGUARDANDO. Dados de visita sintéticos; a imagem é a gravada no cadastro."
+logical_id = "b091df84-8eb1-486d-acb7-cb58edc93f9f"
+content_hash = "sha256:e32af6e21cc118477cc10baf3ecd87e35eb8b65d6c2e11f73d65cec5d7649b63"
+size = 61374
+mtime_ms = 1794271097652
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/b091df84-8eb1-486d-acb7-cb58edc93f9f/0fb9c983-a7a0-4d40-a45c-d6561cf50d37"
+storage_version_token = "1794271520086178"
+content_type = "image/png"
+
+[[outputs]]
+id = "_L0TAvFGRiorZcLrQ-aaH"
+uri = "file://generated-artifacts/ras-rubrica-carlucia-prova.pdf"
+type = "pdf"
+title = "RAS FAP de prova (PDF)"
+description = "PDF completo com dados de visita sintéticos e a rubrica real lida do cadastro."
+logical_id = "75cdafd6-8cea-4876-91ea-6041dfad5ac7"
+content_hash = "sha256:dd120eeee1f2c2d437404fe2d03a374a737b6cb4e9f3431d3f28b50afc278e21"
+size = 14225
+mtime_ms = 1794271089836
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/75cdafd6-8cea-4876-91ea-6041dfad5ac7/f1bc98e6-f42e-4084-93a8-9ceca06c7dbf"
+storage_version_token = "1794271521436814"
+content_type = "application/pdf"

@@ -21,6 +21,7 @@ import { ensureSubstanceBlendsSchema } from "./lib/ensure-substance-blends-schem
 import { ensureProtocolEmissoesTable } from "./routes/protocols.js";
 import { ensureEmailLogProtocolId } from "./lib/ensure-email-log-protocol-id";
 import { ensureVisitConfirmations } from "./lib/ensure-visit-confirmations";
+import { ensureClientRubricas } from "./lib/client-rubrica";
 import { ensureProfessionalClerkIdentitySchema } from "./lib/ensure-professional-clerk-identity-schema";
 import { ensureProfessionalEmpresasSchema } from "./lib/ensure-professional-empresas-schema";
 import { ensureRecipeQrSchema } from "./lib/ensure-recipe-qr-schema";
@@ -164,6 +165,15 @@ if (Number.isNaN(port) || port <= 0) {
     // Não derruba a API: a confirmação do cliente nunca pode impedir o registro de aplicações.
     // As rotas da K8 respondem com erro claro e o worker tenta garantir as tabelas de novo.
     logger.error({ err: e }, "Falha ao garantir tabelas visit_confirmations — a confirmação do cliente fica indisponível; o restante da API segue");
+  }
+
+  try {
+    await ensureClientRubricas();
+    logger.info("client_rubricas: tabela da rubrica em imagem do cliente garantida antes do listen");
+  } catch (e) {
+    // Não derruba a API: sem a tabela, só a rubrica em imagem fica indisponível (o RAS FAP cai nas iniciais
+    // apenas quando NÃO existe imagem; leitura com a tabela quebrada lança erro explícito).
+    logger.error({ err: e }, "Falha ao garantir tabela client_rubricas — a rubrica em imagem fica indisponível; o restante da API segue");
   }
 
   // Semeado (aguardado, não fire-and-forget): protocolos/catálogo/receitas

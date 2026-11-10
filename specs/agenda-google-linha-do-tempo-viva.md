@@ -2,7 +2,7 @@
 
 Data: 09/11/2026. Autor: Dr. Replit Pawards (a mando do CEO Dr. Caio). Método: Paxter Loop.
 Aprovação do CEO: opção A de 09/11/2026 ("aprovar K1 a K6, na ordem, uma por vez, com revisão independente depois de cada uma").
-Estado de engenharia: K1 CONSTRUÍDA, TESTADA E REVISADA (2 revisões independentes; achados corrigidos e testados, incluindo prazo absoluto da chamada ao Google e devolução da reserva em falha de leitura). K7 (protocolo completo constante) CONSTRUÍDA E TESTADA (227 testes verdes em 3 lotes; 5 achados da revisão corrigidos; a última correção, devolução da reserva em falha de leitura, não passou por terceira revisão e é coberta por testes com mutação). K8, K9 e K10 EM ESPECIFICAÇÃO; K2 a K6 EM ESPECIFICAÇÃO (cada uma é detalhada e revisada antes de construir). Nada publicado; nenhum evento real do Google foi tocado.
+Estado de engenharia: K1 CONSTRUÍDA, TESTADA E REVISADA (2 revisões independentes; achados corrigidos e testados, incluindo prazo absoluto da chamada ao Google e devolução da reserva em falha de leitura). K7 (protocolo completo constante) CONSTRUÍDA E TESTADA (227 testes verdes em 3 lotes; 5 achados da revisão corrigidos; a última correção, devolução da reserva em falha de leitura, não passou por terceira revisão e é coberta por testes com mutação). K8 CONSTRUÍDA, TESTADA E REVISADA (ver seções 13 e 14); K9 construída e testada (seção 15); rubrica do cliente em imagem CONSTRUÍDA E TESTADA (seção 16, revisão independente com 2 achados corrigidos); K10 e K2 a K6 EM ESPECIFICAÇÃO (cada uma é detalhada e revisada antes de construir). Nada publicado; nenhum evento real do Google foi tocado.
 
 Pedidos novos do CEO em 09/11/2026 (ainda sem spec própria, aguardam decisões): ver seção 11.
 
@@ -359,3 +359,150 @@ Revisão independente: reprovada duas vezes, aprovada na terceira.
 | 3 | Sem impeditivo | Risco residual: provedores reais (Gmail, Twilio, Telegram) não testados |
 
 Limite do que foi provado: canais simulados; nenhum e-mail, WhatsApp ou Telegram real foi enviado neste passo.
+
+
+## 15. Varredura de peças soltas e K9 — ligar a confirmação do cliente ao RAS FAP (CEO, 09/11/2026)
+
+Regra do CEO (09/11/2026): "não arquitete e monte sem conectar ao motor; peça sem ligação vira ectoplasma / walking dead". Toda entrega abaixo só conta como pronta se tiver rota ou chamador real, tela quando houver, e prova.
+
+### 15.1 Varredura da cadeia montagem do protocolo -> agendamento (verificada na fonte em 09/11/2026)
+
+| Peça | Ligada ao motor? | Quem chama | Prova |
+|---|---|---|---|
+| Prévia e confirmação do agendamento (protocol-scheduling) | Sim | Telas "Agendar protocolo" e envio ao Google em protocols/detail.tsx; rotas montadas em routes/index.ts | Chamada real à rota de prévia do protocolo 66 (dados de desenvolvimento, sem gravar): HTTP 200, 5 visitas; 61 testes verdes (agendamento, reserva, datas exatas) |
+| Vagas, dimensionamento, reserva, ocupação, regras de agenda | Sim | protocol-scheduling e agenda-* | Mesmos testes |
+| Envio das visitas ao Google (session-google-sync) | Sim | Rota google-sync e tela ProtocolGoogleSyncDialog | Testes de envio (Postgres isolado); sem teste com Google real |
+| K1 e K7 (evento vivo no Google ao aplicar e protocolo completo) | Sim | routes/sessions.ts chama refreshAfterApplication depois do registro | Testes das K1 e K7; sem teste com Google real |
+| K8 (chave, desafio, "cliente confirma depois", 3 e-mails) | Parcial | Rotas montadas, tela na Agenda, rotina no api-worker | Só a própria K8 lê o que ela grava (visit_confirmations): nenhuma outra parte do sistema consome o resultado |
+| Colunas "CIÊNCIA / RUBRICA PACIENTE" e "RUBRICA ENF." do RAS FAP | Não (saem vazias) | Nenhum | Ectoplasma da K8: o estado da confirmação não chega ao documento. A K9 liga |
+| Arquivos lib/create-client-safe, googleAuth, objectStorageS3, seed-clinics, seed-mega-anamnese, seed-team, consumo | Sem chamador em produção, nem em teste | Ninguém | Fora da cadeia de agenda; registrados, nada apagado (Regra de Ouro); decisão do CEO |
+| Nomes "protocol-visit-planner" e "protocol-visit-changes" | Não existem como arquivo | Eram nomes de notas antigas da memória | Erro de registro corrigido: eram falsos órfãos |
+
+Limite honesto: confirmação e envio reais ao Google NÃO foram feitos hoje (exigem visita de teste autorizada e escreveriam na agenda real).
+
+### 15.2 K9 — o que liga
+
+Fontes já existentes (nada novo no banco): substance_applications (applied_at, confirmed_by, status), professionals (nome), visit_confirmations (estado), clients (nome), sessions (weekNumber, ordem da grade).
+
+Escopo: protocolos de datas exatas (os agendados pelo fluxo novo). Protocolos semanais antigos mantêm o documento idêntico ao de hoje, porque a linha da grade semanal não é uma visita e ligar as duas seria adivinhar.
+
+| Nº | Requisito | Prova |
+|---|---|---|
+| R1 | DATA EFETIVA e HORA saem do primeiro registro de aplicação "aplicada" da visita, no fuso de Brasília | teste do carregador e do PDF |
+| R2 | RUBRICA ENF. = nome por extenso de quem registrou, cortado com folga de 2 caracteres | teste puro e do PDF |
+| R3 | CIÊNCIA / RUBRICA PACIENTE = "Sobrenome, I.N.I." (iniciais de todos os nomes do meio; só o sobrenome encurta; folga de 2) quando o estado é rubrica_chave ou confirmada_email | teste puro e do PDF |
+| R4 | rubrica_desafio mostra a rubrica com a marca "(cadastro)"; pendente mostra "AGUARDANDO"; nao_confirmada mostra "NÃO CONFIRMADA" (nunca apagada); sem pedido ou chave só enviada deixa vazio | teste do carregador e do PDF |
+| R5 | Célula aplicada: a barra mantém a cor e o terço direito fica sem pintura com um check desenhado por linhas (a fonte padrão do PDF não tem o caractere); célula não aplicada fica idêntica a hoje | teste do PDF (texto extraído e comparação com PDF sem registros) |
+| R6 | Nenhuma coluna, tabela ou rota nova; sem registros, o PDF é byte a byte igual em estrutura ao de hoje | teste de regressão |
+| R7 | Isolamento: só entram visitas do protocolo, confirmações da mesma empresa e do mesmo cliente | teste com outra empresa |
+| R8 | Visita sem aplicação registrada mostra DATA EFETIVA, HORA e RUBRICA ENF. vazias, mesmo que exista confirmação | teste |
+| R9 | Numeração de visitas ambígua (duas visitas com o mesmo número) recusa com erro claro; nunca liga na linha errada | teste |
+| R10 | As 3 rotas que emitem o RAS FAP passam os registros (ligação ao motor) | rg nos 3 pontos de chamada + teste da rota quando existir |
+
+Falhas previstas:
+
+| ID | Falha | Barreira |
+|---|---|---|
+| F52 | Rubrica ligada na linha errada da grade | chave = número da visita da própria sessão; duplicidade recusa (R9) |
+| F53 | Fuso: aplicação às 22h BRT aparecer no dia seguinte | conversão BRT na leitura; teste com 01:30 UTC |
+| F54 | Nome com acento ou partícula ("da", "de") | acentos preservados; partículas contam como nome do meio (decisão do CEO de 12/06/2026: "iniciais de TODOS os nomes do meio") |
+| F55 | Nome que não cabe | corte medido pela largura real da fonte, com folga de 2 caracteres |
+| F56 | Texto de marca ("NÃO CONFIRMADA") estourar a célula | texto curto e medido |
+| F57 | Cliente de outra empresa com o mesmo número de sessão | filtro por empresa e cliente na consulta |
+| F58 | Falha na leitura quebrar a emissão do RAS | erro explícito e claro (nunca documento com rubrica errada) |
+
+### 15.3 Resultado da K9 (09/11/2026)
+
+Prova (Art. 69). Dados sintéticos em banco descartável; nada gravado no banco real, nada enviado.
+
+| Nível | Esperado | Obtido | Passou |
+|---|---|---|---|
+| Formatos puros (R2, R3, R4, F54, F55) | rubrica "Sobrenome, I.N.I.", só o sobrenome encurta, enfermeira cortada com folga | 6 testes (T-K9-1 a 6) | Sim |
+| PDF (R1 a R6) | data, hora, enfermeira, rubrica, marcas e um check por aplicação; sem registros, mesmo texto de antes; 5 modos de impressão | 4 testes (T-K9-7 a 10); PDF gerado e conferido por imagem | Sim |
+| Carregador no banco (R1, R7, R8, R9, F52, F53, F57, F58) | fuso de Brasília (01:30 UTC = 22:30 do dia anterior), enfermeira da primeira aplicação, nada de outra empresa/cliente, numeração ambígua recusa | 8 testes (T-K9-11 a 18); mutação (tirar filtro de empresa/cliente, trocar fuso, tirar trava de cliente/numeração) derruba os testes | Sim |
+| Ligação ao motor (R10) | rotas entregam os registros ao gerador; falha de leitura = nenhum PDF e nenhum e-mail | 3 testes de rota (T-K9-19 a 21), 2 das 3 chamadas; mutação (apagar a linha) derruba os 3 | Sim |
+| Chamada em protocols.ts (/emit) | passa os registros | Conferida por leitura do código; sem teste de rota | Parcial |
+| Regressão | RAS, K8, agendamento, e-mail do RAS | 188 testes verdes (RAS, K9, K8, agendamento) + 138 de protocolo e documentos; falha preexistente em cadernos-entrega-consentimentos (dupla simulada sem ClinicalIdentityError), igual com o arquivo original | Sim, com 1 falha antiga |
+| Revisão independente | sem achados graves abertos | 1ª rodada REPROVOU (visita de outro cliente; número 0; erro na emissão): 2 corrigidos e testados; o 3º é o desenho antigo da /emit, mantido | Corrigido |
+
+Não verificado em ambiente real: aparência do PDF impresso em papel, RAS com dados reais (no desenvolvimento não há protocolo de datas exatas com visitas), envio real.
+
+## 16. Rubrica do cliente como imagem no cadastro e no RAS FAP (pedido do CEO, 09/11/2026)
+
+### 16.1 O que o CEO pediu (palavras dele resumidas)
+
+16.1.1 O cadastro do cliente ganha um campo para enviar a imagem da rubrica, como já existe para a assinatura do médico administrador, do médico responsável e das clínicas. O campo vale para TODOS os clientes.
+16.1.2 No RAS FAP, quando o cliente tem a imagem, o sistema puxa a imagem. Na ausência, aparecem as iniciais do nome.
+16.1.3 Teste com a cliente Carlúcia: três imagens (dois JPEG e um PNG). Cadastrar, estudar qual ficou melhor no RAS e deixar UMA no cadastro dela.
+16.1.4 O CEO reforçou que as mudanças de cor (K3, K5, K6) e as últimas unidades (K10, K2 a K6) são fundamentais para ele. Isto NÃO muda a ordem aprovada; nada daquilo foi tocado nesta unidade.
+
+### 16.2 Verdades verificadas na fonte (09/11/2026)
+
+| Fato | Fonte |
+|---|---|
+| A assinatura do profissional é PNG/JPEG de até 2 MB em `professionals.signature_url`, gravada em `uploads/signatures/` (pasta que a rota pública de objetos serve) | routes/professionals.ts |
+| A foto do cliente também vive em `uploads/` (pública por endereço); a rubrica é mais sensível (serve para falsificar) | routes/client-photo.ts |
+| Existe armazenamento PRIVADO nunca servido por HTTP (`savePrivateObject` / `readPrivateObject`) | lib/objectStorage.ts |
+| A célula CIÊNCIA / RUBRICA PACIENTE do RAS FAP mede 120 x 15 pontos; o gerador é pdfkit e abre imagem uma vez se reaproveitado | lib/ras-fap.ts, pdfkit 0.19 |
+| Decoders de JavaScript puro disponíveis (jpeg-js, pngjs); decoder nativo já derrubou o Node 24 | package.json, memória do projeto |
+| Leitura de cliente por rota exige profissional autenticado da mesma empresa e cliente não excluído | routes/clients.ts |
+
+### 16.3 Requisitos
+
+16.3.1 (R11) Tabela nova `client_rubricas` (SQL bruto, criada no boot e na primeira leitura): uma linha por envio, com empresa, cliente, caminho privado, hash, dimensões, tipo de origem, quem enviou e quando. No máximo UMA ativa por cliente (índice parcial único). Nenhuma linha e nenhum arquivo é apagado.
+16.3.2 (R12) A imagem é guardada em armazenamento PRIVADO, fora de `uploads/`. Só sai por rota autenticada da mesma empresa, com `Cache-Control: private, no-store`.
+16.3.3 (R13) Enviar exige o mesmo portão de alterar cliente (login profissional completo) e cliente da mesma empresa, não excluído; senão 404.
+16.3.4 (R14) Preparo do arquivo: tipo pelos bytes; até 2 MB; até 12 megapixels; decodificação completa por biblioteca de JavaScript puro; recusa vazio, truncado, sem traço, fundo escuro/foto e resolução baixa; saída PNG só com tinta (fundo transparente), cortado rente ao traço, no máximo 900 x 600, sem EXIF.
+16.3.5 (R15) Trocar cria uma versão nova ativa e mantém a anterior. O mesmo arquivo repetido não gera versão nova. Duas trocas ao mesmo tempo são serializadas e nenhuma se perde.
+16.3.6 (R16) Tela: cartão "Rubrica do Cliente" na edição do cadastro (pré-visualização carregada com o login do profissional; botão ENVIAR ou TROCAR). No cadastro novo o cartão aparece desabilitado com o aviso "salve o cadastro para enviar a rubrica".
+16.3.7 (R17) RAS FAP: nas marcas `plena` e `cadastro` a imagem é desenhada no lugar das iniciais; a marca `(cadastro)` continua escrita ao lado. Sem imagem, a coluna mostra "Sobrenome, I.N.I." como na K9. As marcas AGUARDANDO e NÃO CONFIRMADA não mudam. A imagem não aparece antes da confirmação do cliente: ela diz "o cliente rubricou".
+16.3.8 (R18) Imagem registrada que não pode ser lida: erro explícito (RAS não é gerado, como nos demais erros de leitura da K9); nunca troca por iniciais em silêncio.
+16.3.9 (R19) A imagem lida pelo RAS é a do cliente do protocolo e da empresa do protocolo, e só a ativa.
+16.3.10 (R20) O PDF abre a imagem uma única vez por documento (não embute uma cópia por linha).
+
+Decisões de engenharia avisadas ao CEO: o formato das iniciais continua "Sobrenome, I.N.I." (decidido por ele em 12/06/2026), porque ele já contém as iniciais; as iniciais só aparecem quando há confirmação do cliente naquela visita (a K8 não muda); o envio pelo próprio cliente (link de cadastro) e o uso em outros documentos NÃO fazem parte desta unidade.
+
+### 16.4 Estudo das três imagens no RAS FAP (célula de 120 x 15 pontos)
+
+| Imagem | Origem | Proporção do traço | Resultado impresso na célula |
+|---|---|---|---|
+| 1 | JPEG 400x320, rabisco | 1,17 : 1 | ocupa só ~15 pontos de largura; traço fino vira rabisco ilegível |
+| 2 | JPEG 399x287, manuscrita | 1,19 : 1 | idem; fica um risco pequeno com texto minúsculo |
+| 3 | PNG 579x169 | 3,54 : 1 | ocupa ~46 pontos de largura; formato largo combina com a célula; traço mais grosso, legível |
+
+Escolhida: imagem 3 (PNG). Motivo: a célula é larga e baixa; o que decide é a proporção, e só a imagem 3 é larga. As imagens 1 e 2 foram testadas apenas na prova e NÃO foram gravadas.
+
+### 16.5 Falhas previstas
+
+| ID | Falha | Gravidade | Barreira | Teste |
+|---|---|---|---|---|
+| F59 | Arquivo disfarçado (tipo falso) | Alta | Tipo pelos bytes | T-RUB-1 |
+| F60 | JPEG truncado derruba o decoder ou o processo | Alta | Decoder de JavaScript puro e recusa | T-RUB-2 |
+| F61 | Imagem enorme consome a memória | Alta | 2 MB, 12 MP, cabeçalho conferido antes de alocar | T-RUB-3 |
+| F62 | EXIF/GPS permanece no arquivo guardado | Média | Só PNG regravado | T-RUB-4 |
+| F63 | Rubrica de outra empresa lida ou gravada | Crítica | Filtro por empresa em toda consulta e rota | T-RUB-8, T-RUB-9 |
+| F64 | Rubrica servida pela rota pública | Crítica | Armazenamento privado; rota autenticada | T-RUB-10 |
+| F65 | Duas trocas simultâneas deixam duas ativas ou perdem uma | Alta | Trava por cliente e índice único parcial | T-RUB-11 |
+| F66 | Trocar apaga a rubrica antiga | Alta | Nunca apaga (Regra de Ouro) | T-RUB-12 |
+| F67 | RAS imprime rubrica de outro cliente | Crítica | Consulta pelo cliente e empresa do protocolo | T-RUB-13 |
+| F68 | Fundo branco do JPEG cobre a linha zebrada | Média | Fundo transparente | T-RUB-5 |
+| F69 | Imagem ilegível no armazenamento vira iniciais em silêncio | Alta | Erro explícito (R18) | T-RUB-14 |
+| F70 | Imagem sem traço, escura ou minúscula aceita | Média | Recusas de R14 | T-RUB-6 |
+| F71 | PDF incha com uma cópia da imagem por linha | Baixa | Imagem aberta uma vez | T-RUB-15 |
+| F72 | Cliente novo sem número tenta enviar | Baixa | Cartão desabilitado | tela |
+| F73 | "(cadastro)" some quando há imagem | Média | Texto mantido ao lado | T-RUB-16 |
+| F74 | PNG entrelaçado pequeno descomprime para centenas de MB (o decoder não tem teto nesse caminho) | Alta | PNG entrelaçado é recusado pelo cabeçalho, com mensagem de como corrigir | T-RUB-3b |
+| F75 | Arquivo guardado trocado por outro PNG válido seria impresso como rubrica do cliente | Alta | Leitura confere o hash SHA-256 contra o registro; divergência lança erro (GET e RAS falham explicitamente) | T-RUB-14c |
+| F76 | PNG cortado ao meio vira rubrica pela metade (o decoder aceita) | Alta | Estrutura do PNG conferida (capítulos inteiros, dados de imagem e capítulo final) | T-RUB-2 |
+
+Definição de PRONTO: T-RUB-1 a T-RUB-18 verdes; regressão da K9 verde; revisão independente sem pendência; cartão visto em captura quando possível (a captura automática não entra em telas com login: o que não for visto será dito); imagem escolhida gravada no cadastro da Carlúcia no ambiente de desenvolvimento (a produção não é tocada sem ordem).
+
+### 16.6 Estado de engenharia (10/11/2026)
+
+Construído: preparo da imagem (client-rubrica-imagem.ts), persistência com histórico (client-rubrica.ts, tabela client_rubricas criada no boot), rotas POST e GET /clients/:id/rubrica, leitura no carregador do RAS FAP, desenho da imagem no PDF (aberta uma vez por documento), cartão "Rubrica do Cliente" no cadastro (edição; no cadastro novo aparece desabilitado até o cliente ser salvo).
+
+Imagem escolhida: a de número 3 (PNG, proporção 3,54 para 1). As de número 1 e 2 (proporção cerca de 1,2 para 1) ficam com cerca de 15 pontos de largura na célula e não são legíveis. Gravada no cliente 11 (Carlucia Santos Fernandes) do ambiente de DESENVOLVIMENTO pela rota real, com login real. A produção não foi tocada.
+
+Provas (Código Paxter, Art. 69): testes T-RUB-0 a T-RUB-18 (inclui 3b, 5b, 10b, 10c, 13b, 13c, 13d, 14b, 14c), todos verdes em banco isolado e com dados sintéticos; mutações derrubam os testes certos (filtro de empresa removido, trava removida, carregador sem imagem, rota sem escopo, imagem não desenhada, imagem desenhada em marca errada, imagem embutida por linha, hash não conferido, entrelaçado aceito); regressão da K8 e da K9 verde.
+
+Não verificado: impressão em papel; produção; RAS com dados reais de cliente com visita confirmada; o cartão visto em captura (a captura automática não entra em telas com login). O RAS só mostra a imagem quando a visita tem a marca "plena" ou "cadastro" (confirmação do cliente, K8); sem isso continuam as iniciais ou AGUARDANDO.

@@ -1,6 +1,7 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import type { Request, Response } from "express";
 import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
+import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
 import { eq, and, inArray, desc } from "drizzle-orm";
@@ -500,6 +501,7 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
       startDate: protocol.startDate,
       protocolNumber: protocol.id,
       persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
+      registros: await loadProtocolRasRegistros(protocol, protocolItems.map(item => item.substanceId)),
       valorTratamento: undefined,
       substances: substancias.map(s => ({
         name: s.nome,
@@ -642,6 +644,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
       startDate: protocol.startDate,
       protocolNumber: protocol.id,
       persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
+      registros: await loadProtocolRasRegistros(protocol, protocolItems.map(item => item.substanceId)),
       valorTratamento: undefined,
       substances: substancias.map(s => ({
         name: s.nome,

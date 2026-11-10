@@ -26,6 +26,7 @@ import { buildEventsForSessions } from "../lib/session-ics";
 import { buildVCalendar } from "../lib/ics";
 import { buildExactProtocolSchedule } from "../lib/protocol-exact-schedule";
 import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
+import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
 import { requireCollaborator } from "./collaborator";
 import { isGmailConnected } from "../lib/google-gmail";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
@@ -789,6 +790,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 
       const rasFapBytes = await generatePhysicalRASPdf({
         persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
+        registros: await loadProtocolRasRegistros(protocol, protocolItems.map(item => item.substanceId)),
         clientName: client.name,
         clientCpf: client.cpf ?? "000.000.000-00",
         clientPhone: client.phone ?? "",
