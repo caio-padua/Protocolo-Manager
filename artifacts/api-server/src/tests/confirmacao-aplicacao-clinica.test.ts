@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -6,6 +6,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { startIsolatedPostgres } from "./helpers/postgres-isolado";
 
 const state = vi.hoisted(() => ({ database: null as any }));
+const notice = vi.hoisted(() => ({ queue: vi.fn() }));
 const google = vi.hoisted(() => ({
   verify: vi.fn(async () => ({ ok: true, account: "conta-sintetica" })),
   create: vi.fn(async (data: { eventId?: string }) => data.eventId ?? null),
@@ -31,6 +32,9 @@ vi.mock("@workspace/db", async () => {
   });
   return { ...schema, db };
 });
+vi.mock("../lib/visit-application-notice", () => ({
+  queueApplicationNotice: notice.queue,
+}));
 import {
   agendaResourcesTable, clientsTable, empresasTable, locationProfessionalsTable, locationsTable,
   professionalEmpresasTable, professionalsTable, protocolItemsTable, protocolsTable, sessionsTable, substanceApplicationsTable, substancesTable,
@@ -96,7 +100,8 @@ beforeAll(async () => {
              (8,1,1,5,'2030-02-18','09:00','scheduled',7,false,1,20),
              (9,2,2,6,'2030-02-18','09:00','scheduled',7,false,2,20),
              (10,1,1,5,'2030-02-25','09:00','scheduled',8,false,3,20),
-             (11,1,1,5,'2030-03-04','09:00','scheduled',9,false,1,20);
+             (11,1,1,5,'2030-03-04','09:00','scheduled',9,false,1,20),
+             (12,1,1,5,'2030-03-11','09:00','scheduled',10,false,1,20);
     UPDATE sessions SET notes='[SIMULACAO]', google_event_id='evento-preexistente', google_calendar_id='calendario-sintetico' WHERE id IN (8,9);
     INSERT INTO substance_applications (id,session_id,substance_id,dose,session_number,total_sessions,status,availability)
       VALUES (1,1,1,'Dose sintética',1,3,'pending','disp'),
@@ -107,7 +112,8 @@ beforeAll(async () => {
              (6,6,1,'Dose sintética',1,1,'pending','disp'),
              (7,7,1,'Dose sintética',1,1,'pending','disp'),
              (10,10,1,'Dose sintética',1,1,'pending','disp'),
-             (11,11,1,'Dose sintética',0,1,'pending','prox');
+             (11,11,1,'Dose sintética',0,1,'pending','prox'),
+             (12,12,1,'Dose sintética',1,1,'pending','disp');
   `);
 }, 60000);
 
@@ -115,6 +121,8 @@ afterAll(async () => {
   state.database = null;
   if (isolated) await isolated.stop();
 }, 60000);
+
+beforeEach(() => notice.queue.mockClear());
 
 describe("Confirmação de aplicação clínica", () => {
   const base = { substanceId: 1, confirmed: true };
@@ -126,7 +134,7 @@ describe("Confirmação de aplicação clínica", () => {
     expect(rows.rows).toEqual([{ status: "pending", applied_at: null }, { status: "pending", applied_at: null }]);
   });
 
-  it("recusa ocorrência ambígua e confirma somente a ocorrência identificada", async () => {
+  it("T-K10-6: só o fechamento pela última aplicação agenda aviso; repetição não agenda", async () => {
     const authorization = { Authorization: token(101) };
     expect((await request(app).post("/sessions/1/confirm-substance").set(authorization).send(base)).status).toBe(409);
     expect((await request(app).post("/sessions/1/confirm-substance").set(authorization).send({ ...base, applicationId: 3 })).status).toBe(404);
@@ -147,6 +155,23 @@ describe("Confirmação de aplicação clínica", () => {
     expect(second.status, second.text).toBe(200);
     expect(second.body.status).toBe("completed");
     expect(second.body.substanceApplications.map((a: any) => a.status)).toEqual(["applied", "missed"]);
+    expect(notice.queue).toHaveBeenCalledOnce();
+    expect(notice.queue).toHaveBeenCalledWith(1, 5);
+    expect((await request(app).post("/sessions/1/confirm-substance").set(authorization)
+      .send({ ...base, applicationId: 2, confirmed: false })).status).toBe(200);
+    expect(notice.queue).toHaveBeenCalledOnce();
+  });
+
+  it("T-K10-7: o fechamento manual agenda aviso somente na transição para concluída", async () => {
+    const authorization = { Authorization: token(101) };
+    const first = await request(app).put("/sessions/12").set(authorization).send({ status: "completed" });
+    expect(first.status, first.text).toBe(200);
+    expect(notice.queue).toHaveBeenCalledOnce();
+    expect(notice.queue).toHaveBeenCalledWith(12, 5);
+
+    const repeated = await request(app).put("/sessions/12").set(authorization).send({ status: "completed" });
+    expect(repeated.status, repeated.text).toBe(200);
+    expect(notice.queue).toHaveBeenCalledOnce();
   });
 
   it("serializa resultados contraditórios sem sobrescrever o primeiro registro", async () => {

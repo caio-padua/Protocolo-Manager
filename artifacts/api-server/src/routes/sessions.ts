@@ -11,6 +11,7 @@ import { db, sessionsTable, substanceApplicationsTable, clientsTable, profession
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
 import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "../lib/substancias-constantes";
+import { queueApplicationNotice } from "../lib/visit-application-notice";
 import {
   ListSessionsQueryParams,
   CreateSessionBody,
@@ -322,6 +323,10 @@ router.put("/sessions/:id", requireCollaborator, async (req, res): Promise<void>
     res.status(409).json({ error: "A sessão mudou ou está em sincronização. Confira a situação antes de continuar." });
     return;
   }
+  // K10: agenda o aviso logo após a gravação, antes de aguardar a sincronização do calendário.
+  if (parsed.data.status === "completed" && existing.status !== "completed") {
+    queueApplicationNotice(session.id, resolveEmpresaId(req));
+  }
 
   // Cancelada pelo sistema: o evento sai do Google. Falha do Google mantem o rastro e vira aviso; o cancelamento vale.
   let googleSyncWarning: string | undefined;
@@ -357,7 +362,7 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
   try {
     // O registro anterior da mesma visita pode ainda estar atualizando o evento no Google (1 a 2 s): espera um pouco.
     await waitForEventUpdateToSettle(params.data.id, resolveEmpresaId(req));
-    const session = await db.transaction(async tx => {
+    const outcome = await db.transaction(async tx => {
       const [current] = await tx.select().from(sessionsTable)
         .where(eq(sessionsTable.id, params.data.id)).for("update");
       const notFound = () => new ApplicationConfirmationError(404, "Registro não encontrado neste acesso.");
@@ -396,7 +401,7 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
         const sameResult = target.status === desiredStatus &&
           (desiredStatus === "applied" ? !!target.appliedAt : !target.appliedAt) &&
           (body.data.notes === undefined || body.data.notes === target.notes);
-        if (sameResult) return current;
+        if (sameResult) return { session: current, closedNow: false };
         throw new ApplicationConfirmationError(409, "Esta aplicação já possui um registro. A correção exige retificação rastreável.");
       }
       if (["completed", "cancelled", "missed"].includes(current.status)) {
@@ -414,10 +419,14 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
       if (due.length > 0 && due.every(a => a.status === "applied" || a.status === "missed")) {
         const [closed] = await tx.update(sessionsTable).set({ status: "completed" })
           .where(eq(sessionsTable.id, current.id)).returning();
-        return closed;
+        return { session: closed, closedNow: true };
       }
-      return current;
+      return { session: current, closedNow: false };
     });
+    const { session } = outcome;
+    // K10: somente a requisição que efetivamente fechou a visita agenda o aviso.
+    // Repetições idempotentes e novas chamadas sobre visita já fechada não reenviam.
+    if (outcome.closedNow) queueApplicationNotice(session.id, resolveEmpresaId(req));
     // Depois do commit: o MESMO evento do Google acompanha a ação registrada (aviso, nunca desfaz o registro).
     const googleSyncWarning = await refreshAfterApplication(session.id, resolveEmpresaId(req));
     const result = await buildSessionResponse(session);

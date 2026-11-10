@@ -22,7 +22,7 @@
 - [Asaas integration quirks](asaas-integration-quirks.md) — header access_token (não Bearer); base prod /v3 vs sandbox /api/v3; criar customer antes do payment; saque bloqueado por padrão (insufficient_permission até liberar no painel).
 - [NULL nao colide em UNIQUE (Postgres)](postgres-null-unique-idempotencia.md) — onConflictDoNothing falha em coluna nullable do indice unico; idempotencia exige guarda de existencia manual.
 - [PUT/PATCH descarta campos fora do contrato](substancias-put-contrato.md) — campo editavel deve estar no OpenAPI body; zod.object faz strip, 200 nao prova persistencia; nao marcar nullable em coluna NOT NULL.
-- [PDF: cursor de pagina unico contra paginas em branco](pdf-cursor-quebra-pagina.md) — gerador multi-pagina usa `let page`+`ensureSpace` reapontavel; `const page` por bloco quebra; pdf-lib nao avisa y fora da folha.
+- **PDF clínico** — [paginação](pdf-cursor-quebra-pagina.md) · [fontes](pdf-woff-subset-obrigatorio.md) · [sanitização](pdf-sanitizer-latin1.md) · [vetores](pdflib-drawsvgpath-y-flip.md) · [rodapés](rodape-html-multipagina.md).
 - [Testes de banco descartável](testes-banco-descartavel.md) — migração e escrita em banco próprio isolado, nunca na conexão configurada da aplicação.
 - [Multi-local do medico + endereco no lembrete](multi-local-agenda-endereco.md) — quadro de Clinicas NUNCA aposentar; agenda virtual por cidade espelha no Google e endereco do local entra automatico no lembrete.
 - [Governança multiclínica autorizada](governanca-multiclinica-parada.md) — isolamento completo autorizado em 30/10/2026; executar sequencialmente; sem alterar cobranças.
@@ -51,9 +51,7 @@
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
 - [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configurado".
-- [E-mail Paxter v2 (terno + tabela)](email-paxter-v2-terno-tabela.md) — e-mail branded = fundo navy "terno" + substâncias SEMPRE em tabela alinhada; dose só a massa (tira "/ml"); WhatsApp só banner+texto.
-- [Twilio WhatsApp janela 24h (erro 63016)](twilio-whatsapp-janela-24h.md) — sent:true NÃO é entregue; 63016=fora da janela 24h; sandbox=+14155238886.
-- [E-mail de marca: assets em rota pública sob /api](email-marca-assets-rota-publica.md) — img de e-mail/Twilio/Telegram exige URL absoluta COM /api + rota pública antes do guard.
+- **Envios Paxter** — [formato do e-mail](email-paxter-v2-terno-tabela.md) · [assets públicos](email-marca-assets-rota-publica.md) · [janela WhatsApp](twilio-whatsapp-janela-24h.md) · [limite de caracteres](whatsapp-limite-1600-paxmed.md).
 - [Movimentacao de dinheiro: travas antes do provedor](transferencia-travas-whitelist.md) — ordem confirm→whitelist→min→max ANTES do Asaas; confirm no backend (não só UI); auditoria com destino mascarado.
 - [ZapSign token amarra ambiente (sandbox×prod)](zapsign-ambiente-sandbox-prod.md) — token de produção dá 403 no sandbox; prod publicada funciona auto; override ZAPSIGN_BASE_URL.
 - [Cofre de integracoes — contrato de chaves](cofre-integracoes-contrato-chaves.md) — motor declarativo /api/integrations; `key` do campo é contrato com libs (getSecret) — só ADICIONAR, nunca renomear.
@@ -69,15 +67,13 @@
 - PADTEAM hub 5 abas + raw SQL — módulo de equipe remota: hub único /padteam (5 abas); 8 tabelas via raw SQL; 10 posições seed no boot; Trello fail-graceful sem secrets.
 - [Fusão mestre-detalhe (exames)](fusao-mestre-detalhe-exames.md) — detalhe async exige guard de corrida por reqId em useRef; lista por merge tem de ser UNIÃO (left-join esconde linhas).
 - [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem acento = fallback silencioso.
-- [Seed idempotente por COMPLETUDE](seed-idempotencia-por-completude.md) — conjunto multi-linha mede N linhas, não presença de 1; parcial=apaga+reinsere; unidade só se vazia.
-- [Seed materializer não destrutivo](seed-materializer-nao-destrutivo.md) — UPSERT do boot NÃO pode sobrescrever no conflito coluna que a UI edita (canonicalUnit/isCanonical/direction); só semear no INSERT.
+- **Seeds** — [idempotência por completude](seed-idempotencia-por-completude.md) · [materializer não destrutivo](seed-materializer-nao-destrutivo.md).
 - [Governança por camada de tela](governanca-camada-de-tela.md) — matriz Ferramenta×Papel obedecida no front; item read-only NÃO entra no filtro de menu; rota legada fora do gate = brecha.
 - [Halo neon sem apagar relevo 3D](neon-halo-pseudoelemento.md) — box-shadow não é aditivo: brilho animado vai em ::after, nunca no elemento com bevel/btn-3d (Padrão 21).
 - [Telegram bot compartilhado — takeover](telegram-bot-compartilhado-takeover.md) — quem faz polling consome updates; setWebhook assume com exclusividade (quebra o primo); setMyName renomeia via API.
 - Card de profissional — padrão correto — foto=concave-3d+rounded-[6px] (NUNCA rounded-full); card=panel-3d-sub+faixa 4px; nome=Inter uppercase; upload foto=cópia fiel do ClientPhotoCard.
 - Auditoria walking-dead: rotas x menu — páginas registradas em App.tsx podem existir sem entrada no menu; auditar periodicamente cruzando arquivos em pages/ vs rotas vs sidebar.
 - [Cockpit lembrete deriva da anamnese, não do protocolo](cockpit-lembrete-deriva-anamnese.md) — /cockpit/:id/emitir monta períodos do motor de anamnese (item_doenca), não dos protocol_items.
-- [WhatsApp 1600 chars (Twilio 21617) x PAXMED](whatsapp-limite-1600-paxmed.md) — mensagem rica do PAXMED estoura 1600; truncar <1500 em quebra de paragrafo antes de enviar.
 - [Lembrete de fórmula manipulada](lembrete-formula-manipulada.md) — nome canônico=TITL; parser+semAcento na lib @workspace/posologia; posologiaManual sobrevive a re-sync; 9 períodos JE..CE.
 - [Grade de horarios fabricados (slice de pool)](grade-horarios-fabricados.md) — pool que alimenta slice(0,2) e slice(0,3) precisa ter >=3 itens; fluxo Dr.Caio = horarios fabricados intencionais.
 - [Mensageria PAXMED (compositor editavel)](mensageria-paxmed-compositor.md) — composicao rica do WhatsApp existe DUAS vezes (montarMensagemPaxmed server + previa da tela): mexeu no blueprint, mexa nos dois.
@@ -109,26 +105,20 @@
 - [Entrada do Licenciado — regras comerciais](entrada-licenciado-regras.md) — 2 logins (CEO x licenciado); adesao promo 48h, 10% so na adesao por indicacao, mensalidade fixa; valores placeholders.
 - [Motor de Avatar — Tier system + metering](avatar-motor-tiers.md) — 3 tiers (texto/voz/video) com módulos contratados; avatar_uso_log mede chars+segundos; audio-temp cache serve MP3 p/ Twilio.
 - [Órgão Dieta — 2 motores + gaps](dieta-dois-motores-e-gaps.md) — manual=TS determinístico, PDF=IA/Claude; Cockpit/Prontuário NÃO mostram Dieta/Treino; sem receitas/lista de compras.
-- [Fonte .woff em PDF exige subset:true](pdf-woff-subset-obrigatorio.md) — EXCECAO: instancia de fonte variavel inverte a regra (subset:true corrompe, recortar antes com fontTools e usar subset:false).
 - [Prévia e emissão clínica](protocolo-document-pdf-envia-email.md) — conferir aparência não autoriza envio; verificar efeitos atuais, sem confiar no verbo da rota ou em descrições históricas.
-- [Sanitizador Latin-1 em PDF é armadilha](pdf-sanitizer-latin1.md) — filtro por faixa vira "?" no documento do paciente; apagar é pior; fonte EMBUTIDA não lança por glifo ausente (StandardFonts lança).
-- [Git — transporte gerenciado](git-http-auth-fallback.md) — proxy do Replit permite sincronizar sem acessar tokens; verificar divergência antes e comparar versões local e remota depois.
-- [Sync do painel Git interrompido deixa rebase travada](git-panel-rebase-travada.md) — "DIRTY_WORKTREE"/"GitHub travado" sem causa óbvia = rebase interativa órfã do botão Sync; `git status --short` esconde isso, só o completo mostra; `rebase --abort` é seguro.
+- **Git e sincronização** — [transporte gerenciado](git-http-auth-fallback.md) · [rebase travada](git-panel-rebase-travada.md) · [conflito semântico](rebase-limpo-conflito-semantico.md).
 - [Log do Vite pode mostrar erro já resolvido](vite-hmr-log-durante-merge.md) — burst de escrita (merge de task agent) gera "Failed to reload" transitório; conferir arquivo/tela atual antes de "corrigir" bug fantasma.
 - [Cache Vite após alinhar React](vite-cache-react-peer.md) — após atualizar React/React DOM, erro de versão pode persistir no otimizador Vite; confirmar a origem resolvida e limpar apenas o cache do artefato.
 - ["Tipo de dieta" reaproveita protocolo existente](tipo-dieta-reutiliza-protocolo.md) — antes de criar tabela nova p/ conceito de negócio, checar se uma tabela existente já É esse conceito com outro nome.
 - [unidadeCompraEquivalenteG — dual propósito](unidade-compra-equivalente-g.md) — 1 campo cobre conversão de embalagem E rendimento de cocção, na mesma base que kcal100g já usa; robô de preços deve preencher assim.
-- [drizzle-kit push pode propor DROP destrutivo por drift](drizzle-push-drift-destrutivo.md) — drift preexistente faz push de mudança aditiva pequena arrastar DROP de colunas com dados reais; preferir SQL bruto.
 - [tsc --build ignora .ts editado sem rebuild da lib](tsc-build-dist-projeto-referencias.md) — project references resolvem contra dist/ compilado; rodar `typecheck:libs` após mudar lib/db/src/schema antes de typecheckar consumidores.
 - [Select controlado nasce com "", nunca undefined](radix-select-value-undefined-controlled.md) — `value={id?String(id):undefined}` dispara warning uncontrolled→controlled; usar "" como sentinela desde o primeiro render.
-- [Rebase "limpo" pode esconder conflito semântico](rebase-limpo-conflito-semantico.md) — sem marcadores de conflito ≠ sem bug; sempre buildar/bootar após continueMergeResolution antes de markTaskComplete.
 - [Apify — contrato REST assíncrono (run/poll/dataset)](apify-async-run-contract.md) — nunca usar run-sync (bloqueia até 300s); runs/actor-runs embrulham em {data}, dataset/items não.
 - [Extração genérica de preço em JSON de schema incerto](extracao-preco-json-generica.md) — regex recursiva de moeda BR em qualquer profundidade do JSON; sem match = null explícito, nunca inventa resultado.
 - [Unicidade em substance_applications](substance-applications-unicidade.md) — chave única é o trio com session_number; consolidação semanal repete substância na mesma sessão quando intervalDays<7.
-- [pdf-lib drawSvgPath y invertido](pdflib-drawsvgpath-y-flip.md) — path é SVG y-down relativo à opção y; y:0 desenha fora da página sem erro; ancorar y=pageH e flipar cada ponto.
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
-- [Post-merge — migração falha em silêncio](post-merge-migracao-pg.md) — require('pg') na raiz do monorepo sempre falha (usar psql + scripts/migrations.sql); corrigir o script NÃO aplica a coluna, conferir no banco.
+- **Migrações de banco** — [drift destrutivo](drizzle-push-drift-destrutivo.md) · [post-merge que falha em silêncio](post-merge-migracao-pg.md).
 - [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicionar-item.mjs); token do Sheets vem do conector google-drive.
 - [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color é enum de nomes.
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.
@@ -144,7 +134,6 @@
 - [Pedido médico do cliente](pedido-medico-cliente.md) — cliente pede e paga; destino = médico habitual com certificado vigente, senão responsável técnico; sem preço = 503; reembolso é humano.
 - [Receituário V2 pagina em vez de recusar](receituario-pdf-paginacao.md) — limite de 1 página causava 500 genérico na emissão; usar ensureSpace/newPage; erro real só no log.
 - [Modelo clínico PAXMED padrão](modelo-clinico-paxmed-padrao.md) — decisão: cabeçalho azul e rodapé PAXMED sem ativação; faixa do certificado na parte inferior.
-- [Rodapé HTML em várias páginas](rodape-html-multipagina.md) — posição fixa pode sobrepor fórmulas; verificar páginas renderizadas antes de assinar.
 - [Central de Erros + protocolos salvos](central-erros-protocolos-salvos.md) — erros 5xx em system_error_log (tela do CEO); protocolo de prescricao = conjunto de formulas salvo por medico, remover=ativo false.
 - [Diagnóstico da conexão Gmail](gmail-conector-desconectado-401.md) — conferir perfil e autorização; conexão ativa não prova envio nem entrega.
 - [Locais: modalidade e sede](locais-modalidade-sede.md) — LOCAL=endereco da empresa, REMOTO=a definir (nao presumir); sede sobrepoe endereco na leitura; Padrao 27.
@@ -162,7 +151,7 @@
 - [Ação clínica que atualiza o Google — reserva e prazo](google-evento-acao-clinica-reserva.md) — nunca reivindicar reserva alheia; prazo próprio na chamada; teste sem timer curto.
 - [Linha do Tempo Viva — pedidos do CEO](linha-do-tempo-viva-regras-ceo.md) — K1–K6 aprovadas; aguda/crônica; substâncias constantes, chave de 6 dígitos como rubrica, RAS FAP vivo.
 - [Protocolo completo constante](protocolo-completo-constante.md) — constantes calculadas na leitura; evento do Google montado em 3 caminhos (mexer nos 3); guarda de empresa; rodar suíte com --maxWorkers=2.
-- [Confirmação do cliente por visita (K8)](confirmacao-visita-k8-licoes.md) — jobs vão no api-worker (cron.ts é código morto); guard de módulo explícito; só após aplicação registrada; boot não pode dar exit.
+- [Confirmação do cliente por visita (K8/K10)](confirmacao-visita-k8-licoes.md) — jobs no api-worker; guard explícito; blocos clínicos HTML só no e-mail; envio nunca bloqueia registro.
 - [Chat do CEO no Telegram — cofre x Secret](telegram-ceo-chatid-cofre-vs-secret.md) — Secret PADAXOR_TELEGRAM_CHAT_ID está errado; só a API hidrata o cofre; worker e scripts não.
 - [IHE já desenhou PIN, rubrica e app da enfermagem](ihe-app-enfermagem-pin-rubrica.md) — formatos de rubrica já decididos em 12/06/2026 no IHE; ler IHE antes de construir; como ler via PAT; K8 sem Hermes.
 - [Rubrica do cliente em imagem](rubrica-cliente-imagem.md) — tabela com histórico + arquivo privado; RAS troca iniciais por imagem só em plena/cadastro; pngjs aceita PNG cortado e entrelaçado sem teto.

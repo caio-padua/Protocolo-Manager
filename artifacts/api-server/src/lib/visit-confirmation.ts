@@ -391,6 +391,12 @@ export async function sendKeyToClient(channels: ChannelSenders, ctx: VisitContex
  */
 export async function sendDocToClient(channels: ChannelSenders, ctx: VisitContext, doc: PaxterDoc): Promise<ChannelReport[]> {
   const report: ChannelReport[] = [];
+  // Blocos HTML podem conter informação clínica e são exclusivos do e-mail.
+  // Não basta o renderizador ignorá-los: o documento que chega a cada canal de texto
+  // também deve estar livre desses dados.
+  const textDoc: PaxterDoc = doc.blocosHtml?.length
+    ? { ...doc, blocosHtml: undefined }
+    : doc;
 
   if (ctx.clientEmail) {
     try {
@@ -401,14 +407,14 @@ export async function sendDocToClient(channels: ChannelSenders, ctx: VisitContex
 
   if (ctx.clientPhone) {
     try {
-      const r = await channels.sendWhatsapp(ctx.clientPhone, doc);
+      const r = await channels.sendWhatsapp(ctx.clientPhone, textDoc);
       report.push({ canal: "whatsapp", estado: r.sent && r.via === "twilio" ? "aceito" : "falhou" });
     } catch { report.push({ canal: "whatsapp", estado: "falhou" }); }
   } else report.push({ canal: "whatsapp", estado: "sem_contato" });
 
   if (ctx.telegramChatId) {
     try {
-      const r = await channels.sendTelegram(ctx.telegramChatId, doc);
+      const r = await channels.sendTelegram(ctx.telegramChatId, textDoc);
       report.push({ canal: "telegram", estado: r.sent ? (r.mock ? "simulado" : "aceito") : "falhou" });
     } catch { report.push({ canal: "telegram", estado: "falhou" }); }
   } else report.push({ canal: "telegram", estado: "sem_contato" });

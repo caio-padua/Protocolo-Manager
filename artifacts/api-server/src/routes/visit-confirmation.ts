@@ -29,6 +29,7 @@ import {
 } from "../lib/visit-confirmation";
 import { firstName, publicPage, whenLabel, escapeHtml } from "../lib/visit-confirmation-messages";
 import { logger } from "../lib/logger";
+import { getApplicationNoticeSummary } from "../lib/visit-application-notice";
 
 const NOT_FOUND = "Registro não encontrado neste acesso.";
 
@@ -97,10 +98,23 @@ export function createVisitConfirmationRouter(channels: ChannelSenders = realCha
     return auth;
   }
 
-  const resumoDe = async (a: Authorized) => ({
-    ...summarize(await getBySession(a.ref.sessionId, a.ref.empresaId), new Date()),
-    aplicacaoRegistrada: await hasRegisteredApplication(a.ref.sessionId),
-  });
+  const resumoDe = async (a: Authorized) => {
+    let avisoAplicacao = null;
+    let avisoAplicacaoIndisponivel = false;
+    try {
+      avisoAplicacao = await getApplicationNoticeSummary(a.ref.sessionId, a.ref.empresaId);
+    } catch (error) {
+      avisoAplicacaoIndisponivel = true;
+      logger.error({ err: (error as Error).message, sessionId: a.ref.sessionId },
+        "[visit-confirmation] consulta do aviso de aplicação indisponível");
+    }
+    return {
+      ...summarize(await getBySession(a.ref.sessionId, a.ref.empresaId), new Date()),
+      aplicacaoRegistrada: await hasRegisteredApplication(a.ref.sessionId),
+      avisoAplicacao,
+      avisoAplicacaoIndisponivel,
+    };
+  };
 
   router.get("/sessions/:id/confirmacao", requireCollaborator, async (req, res): Promise<void> => {
     try {

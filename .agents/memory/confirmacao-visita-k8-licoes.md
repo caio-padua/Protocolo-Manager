@@ -14,3 +14,9 @@ A confirmação do cliente por visita (chave de 6 dígitos, "Cliente confirma de
 - Union TS `{status:"a"|"b"}` não estreita por discriminante; separar em um membro por literal.
 - Teste de `dispatchDue` sem `onlyId` varre linhas de outros testes e infla contagens; sempre usar `onlyId`.
 - Chave em log: `sendWhatsapp` aceita `corpoParaLog`; o provedor ainda guarda a mensagem inteira.
+
+Em mensagens com conteúdo clínico exclusivo do e-mail, remover `blocosHtml` do documento antes de entregá-lo aos canais de texto; não depender só de o renderizador ignorar esse campo.
+
+**Why:** canais de texto recebem o objeto completo antes da renderização; dados clínicos poderiam chegar ao registro do provedor ou a adaptadores que não usam o renderizador esperado.
+
+**How to apply:** ao enviar um `PaxterDoc` com blocos clínicos, produzir uma versão sem `blocosHtml` para WhatsApp e Telegram, mantendo o documento integral somente no e-mail.

@@ -573,6 +573,30 @@ describe("Revisão independente — pré-condições e guardas", () => {
     expect((await request(app).post("/sessions/1006/confirmacao/pendente").set(H(1, 5)).send({})).status).toBe(200);
   });
 
+  it("T-K10-8: entrega ao painel o estado e o relato dos canais do aviso", async () => {
+    await q("DELETE FROM visit_application_notices WHERE session_id=1000");
+    const canais = [
+      { canal: "email", estado: "aceito" },
+      { canal: "whatsapp", estado: "falhou" },
+      { canal: "telegram", estado: "sem_contato" },
+    ];
+    await q(`INSERT INTO visit_application_notices
+      (session_id, empresa_id, client_id, state, applied_count, due_count, channels)
+      VALUES (1000,5,10,'enviado',1,2,$1::jsonb)`, [JSON.stringify(canais)]);
+
+    try {
+      const response = await request(app).get("/sessions/1000/confirmacao").set(H(1, 5));
+      expect(response.status, response.text).toBe(200);
+      expect(response.body.resumo.avisoAplicacao).toMatchObject({
+        estado: "enviado", aplicadas: 1, previstas: 2, canais,
+      });
+      expect(response.body.resumo.avisoAplicacao.em).toBeTruthy();
+      expect(response.body.resumo).not.toHaveProperty("key_hash");
+    } finally {
+      await q("DELETE FROM visit_application_notices WHERE session_id=1000");
+    }
+  });
+
   it("empresa com o módulo Agenda desligado recebe 403 em todas as rotas da confirmação e nada é gravado", async () => {
     sim.agendaOff = true;
     const calls = [

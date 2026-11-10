@@ -2,7 +2,7 @@
 
 Data: 09/11/2026. Autor: Dr. Replit Pawards (a mando do CEO Dr. Caio). Método: Paxter Loop.
 Aprovação do CEO: opção A de 09/11/2026 ("aprovar K1 a K6, na ordem, uma por vez, com revisão independente depois de cada uma").
-Estado de engenharia: K1 CONSTRUÍDA, TESTADA E REVISADA (2 revisões independentes; achados corrigidos e testados, incluindo prazo absoluto da chamada ao Google e devolução da reserva em falha de leitura). K7 (protocolo completo constante) CONSTRUÍDA E TESTADA (227 testes verdes em 3 lotes; 5 achados da revisão corrigidos; a última correção, devolução da reserva em falha de leitura, não passou por terceira revisão e é coberta por testes com mutação). K8 CONSTRUÍDA, TESTADA E REVISADA (ver seções 13 e 14); K9 construída e testada (seção 15); rubrica do cliente em imagem CONSTRUÍDA E TESTADA (seção 16, revisão independente com 2 achados corrigidos); K10 e K2 a K6 EM ESPECIFICAÇÃO (cada uma é detalhada e revisada antes de construir). Nada publicado; nenhum evento real do Google foi tocado.
+Estado de engenharia: K1 CONSTRUÍDA, TESTADA E REVISADA (2 revisões independentes; achados corrigidos e testados, incluindo prazo absoluto da chamada ao Google e devolução da reserva em falha de leitura). K7 (protocolo completo constante) CONSTRUÍDA E TESTADA (227 testes verdes em 3 lotes; 5 achados da revisão corrigidos; a última correção, devolução da reserva em falha de leitura, não passou por terceira revisão e é coberta por testes com mutação). K8 CONSTRUÍDA, TESTADA E REVISADA (ver seções 13 e 14); K9 construída e testada (seção 15); rubrica do cliente em imagem CONSTRUÍDA E TESTADA (seção 16, revisão independente com 2 achados corrigidos); K10 CONSTRUÍDA E TESTADA localmente; revisão independente pendente, sem publicação nem envio real; K2 a K6 EM ESPECIFICAÇÃO. Nada publicado; nenhum evento real do Google foi tocado.
 
 Pedidos novos do CEO em 09/11/2026 (ainda sem spec própria, aguardam decisões): ver seção 11.
 
@@ -523,7 +523,7 @@ Não verificado: impressão em papel; produção; RAS com dados reais de cliente
 | Repetir o mesmo registro (mesmo resultado) devolve a sessão sem mudar nada (repetição idempotente); a visita pode estar fechada há semanas | routes/sessions.ts |
 | A K8 já envia ao cliente pelos 3 canais com relato honesto por canal, pelo motor Hermes (Art. 66); WhatsApp só conta como aceito por Twilio; Telegram só com chat vinculado | lib/visit-confirmation.ts, lib/visit-confirmation-channels.ts |
 | O canal da K8 grava no log do WhatsApp o texto "chave de confirmação da visita omitida"; serve só para a chave | lib/visit-confirmation-channels.ts |
-| A tabela alinhada de substâncias do e-mail tem fonte única (dose só em miligramas, nome escapado) | lib/messaging/substance-table.ts |
+| Os cartões alinhados de substâncias do e-mail têm fonte única (dose sem concentração, nome escapado) | lib/messaging/substance-table.ts |
 | Já existe um e-mail "pós-sessão" manual (botão na Agenda), só e-mail, que também anexa o RAS | routes/email.ts, lib/email-service.ts |
 | A rota manual `POST /email/send-post-session/:sessionId` não exige login de profissional nem confere a empresa da sessão (achado independente, Art. 76; fora do escopo; não será tocada sem ordem) | routes/email.ts |
 
@@ -536,7 +536,7 @@ Não verificado: impressão em papel; produção; RAS com dados reais de cliente
 17.3.5 (R25) Isolamento: só se envia se visita, cliente e protocolo são da MESMA empresa da chamada, o protocolo pertence ao cliente da visita e o cliente está ativo; senão nada é enviado e o motivo vai ao registro do servidor.
 17.3.6 (R26) O envio acontece DEPOIS do commit, fora da resposta ao profissional (não atrasa o clique) e fora de qualquer transação. Qualquer erro é capturado e gravado; nunca desfaz nem bloqueia o registro da aplicação.
 17.3.7 (R27) Conteúdo (função pura, motor Hermes): título "Aplicação realizada com sucesso"; saudação com o primeiro nome; "A enfermagem registrou a sua aplicação de DD/MM/AAAA às HH:MM."; "Aplicadas: X de Y." (X = ocorrências `applied`, Y = ocorrências devidas `disp` da visita; se X < Y, uma frase honesta dizendo que as demais não foram aplicadas nesta visita); rodapé "Se não reconhece esta aplicação, avise a clínica."; assunto "Aplicação realizada com sucesso".
-17.3.8 (R28) Nomes de substâncias e doses só no e-mail (tabela alinhada da fonte única, status Aplicado / Não aplicado, nome escapado). WhatsApp e Telegram levam apenas data, hora e a contagem (sem dado clínico), como as mensagens da K8.
+17.3.8 (R28) Nomes de substâncias e doses só no e-mail (cartões alinhados da fonte única, status Aplicado / Não aplicado, nome escapado). WhatsApp e Telegram levam apenas data, hora e a contagem (sem nomes ou doses), como as mensagens da K8.
 17.3.9 (R29) Canais: e-mail, WhatsApp e Telegram, com relato honesto por canal (`aceito`, `falhou`, `sem_contato`, `simulado`); "aceito" não é "entregue". O estado vira `enviado` se pelo menos um canal aceitou; senão `nao_enviado`. Os canais do aviso NÃO gravam "chave omitida" no log.
 17.3.10 (R30) Tela: no painel "Confirmação do cliente" de cada visita aparece a linha "Aviso de aplicação realizada ao cliente" com o estado, a hora e o relato por canal, lida do servidor junto com o resumo da K8.
 17.3.11 (R31) Nada da K8 muda de comportamento: o envio da chave passa a usar uma função de envio compartilhada com a K10, e os testes da K8 continuam verdes.
@@ -547,24 +547,24 @@ Não verificado: impressão em papel; produção; RAS com dados reais de cliente
 1. Uma mensagem por visita (não uma por substância): o CEO já decidiu "UMA chave por VISITA"; uma mensagem por substância faria o cliente receber vários avisos em poucos minutos.
 2. O aviso sai quando a visita fecha. Se a enfermagem deixar uma ocorrência pendente e nunca fechar a visita, nenhum aviso sai (não há lembrete nem relógio nesta unidade).
 3. Sem reenvio automático e sem botão de reenviar (não foi pedido; evita duplicar).
-4. Nomes e doses só no e-mail.
+4. Nomes e doses só no e-mail; a lista reutiliza os cartões alinhados que a aplicação já usa, sem inventar um formato paralelo.
 
 ### 17.5 Falhas previstas
 
 | ID | Falha | Gravidade | Barreira | Teste |
 |---|---|---|---|---|
-| F77 | Mensagem duplicada (duplo clique, duas abas, PUT e confirm ao mesmo tempo) | Alta | Reserva única por visita antes do envio | T-K10-2, T-K10-3 |
-| F78 | Mensagem de visita antiga disparada por repetição idempotente ou reclique | Alta | Só dispara quando esta chamada mudou o estado | T-K10-4 |
-| F79 | "Sucesso" sem nenhuma aplicação feita | Alta | Exige pelo menos uma aplicada | T-K10-5 |
-| F80 | Envio a cliente de outra empresa, protocolo inconsistente ou cliente inativo | Crítica | Consulta de isolamento (R25) | T-K10-6 |
-| F81 | Falha de canal bloqueia ou desfaz o registro da aplicação | Crítica | Envio depois do commit, erros capturados | T-K10-7 |
-| F82 | Ninguém sabe se o cliente recebeu | Alta | Relato por canal gravado e mostrado na tela | T-K10-8 |
-| F83 | Reenvio automático após queda ou resposta perdida | Média | Reserva sem expiração | T-K10-9 |
-| F84 | Números errados no texto (X maior que Y; linhas não devidas contadas) | Média | Só ocorrências `disp` | T-K10-10 |
-| F85 | Dado clínico em WhatsApp ou Telegram | Média | Cartões só com data e contagem | T-K10-11 |
-| F86 | Nome com HTML quebra ou injeta no e-mail | Média | Escape da fonte única da tabela | T-K10-12 |
-| F87 | Mensagem de marca montada fora do motor Hermes | Média | Passa pelo motor (Art. 66) | T-K10-13 |
-| F88 | Log do WhatsApp diz "chave omitida" no aviso | Baixa | Canais do aviso sem a omissão | T-K10-14 |
+| F77 | Mensagem duplicada (duplo clique, duas abas, PUT e confirm ao mesmo tempo) | Alta | Reserva única por visita antes do envio | T-K10-2, T-K10-6, T-K10-7 |
+| F78 | Mensagem de visita antiga disparada por repetição idempotente ou reclique | Alta | Só dispara quando esta chamada mudou o estado | T-K10-6, T-K10-7 |
+| F79 | "Sucesso" sem nenhuma aplicação feita | Alta | Exige pelo menos uma aplicada | T-K10-3 |
+| F80 | Envio a cliente de outra empresa, protocolo inconsistente ou cliente inativo | Crítica | Consulta de isolamento (R25) | T-K10-3 |
+| F81 | Falha de canal bloqueia ou desfaz o registro da aplicação | Crítica | Envio depois do commit, erros capturados | T-K10-4, T-K10-6, T-K10-7 |
+| F82 | Ninguém sabe se o cliente recebeu | Alta | Relato por canal gravado e mostrado na tela | T-K10-1, T-K10-8 |
+| F83 | Reenvio automático após queda ou resposta perdida | Média | Reserva sem expiração | T-K10-4 |
+| F84 | Números errados no texto (X maior que Y; linhas não devidas contadas) | Média | Só ocorrências `disp` | T-K10-1 |
+| F85 | Dado clínico em WhatsApp ou Telegram | Média | Cartões só com data e contagem | T-K10-1, T-K10-5 |
+| F86 | Nome com HTML quebra ou injeta no e-mail | Média | Escape da fonte única da tabela | T-K10-1 |
+| F87 | Mensagem de marca montada fora do motor Hermes | Média | Passa pelo motor (Art. 66) | T-K10-5 |
+| F88 | Log do WhatsApp diz "chave omitida" no aviso | Baixa | Canais do aviso sem a omissão | T-K10-5 |
 | F89 | Refatoração do envio da chave quebra a K8 | Alta | Regressão completa da K8 | suíte da K8 |
 
-Definição de PRONTO: T-K10-1 a T-K10-14 verdes em banco isolado, com dados sintéticos e canais simulados (nenhuma mensagem real); mutações derrubam os testes certos; regressão da K8, da K9 e da Agenda verde; revisão independente sem pendência; linha do painel compilada (a captura automática não entra em telas com login: o que não for visto será dito).
+Definição de PRONTO: T-K10-1 a T-K10-8 verdes em banco isolado, com dados sintéticos e canais simulados (nenhuma mensagem real); regressão da K8, da K9 e da Agenda verde; tela autenticada conferida; revisão independente sem pendência. A revisão independente e a conferência visual autenticada ainda estão pendentes.

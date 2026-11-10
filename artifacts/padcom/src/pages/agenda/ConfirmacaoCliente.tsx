@@ -11,6 +11,11 @@ interface Resumo {
   completa: boolean; pendente: boolean; emailsEnviadosCliente: number; emailsTotal: number;
   desafioTravado: boolean; rubrica: { metodo: string; em: string } | null;
   confirmadaEm: string | null; confirmadaComAtraso: boolean; aplicacaoRegistrada: boolean;
+  avisoAplicacao: {
+    estado: "reservado" | "enviado" | "nao_enviado"; em: string; finalizadoEm: string | null;
+    aplicadas: number; previstas: number; canais: Canal[];
+  } | null;
+  avisoAplicacaoIndisponivel: boolean;
 }
 interface Desafio {
   rodada: number; maxRodadas: number; tentativasRestantes: number;
@@ -62,10 +67,14 @@ export function ConfirmacaoCliente({ sessionId, enabled }: { sessionId: number; 
 
   const carregar = useCallback(async () => {
     const r = await call(base, "GET");
-    if (r.ok) aplicar(r.data); else setMsg({ tipo: "erro", texto: r.data?.error ?? "Não foi possível consultar a confirmação." });
+    if (r.ok) aplicar(r.data);
+    else {
+      setResumo(null);
+      setMsg({ tipo: "erro", texto: r.data?.error ?? "Não foi possível consultar a confirmação." });
+    }
   }, [base, aplicar]);
 
-  useEffect(() => { if (open && !resumo) void carregar(); }, [open, resumo, carregar]);
+  useEffect(() => { if (open) void carregar(); }, [open, carregar]);
   useEffect(() => { setAguarde(resumo?.aguardeSegundos ?? 0); }, [resumo]);
   useEffect(() => {
     if (aguarde <= 0) return;
@@ -157,6 +166,33 @@ export function ConfirmacaoCliente({ sessionId, enabled }: { sessionId: number; 
           {resumo?.pendente && (
             <div className="flex items-center gap-1.5 text-[11px] text-amber-800">
               <MailCheck className="h-3.5 w-3.5" /> E-mails ao cliente: {resumo.emailsEnviadosCliente} de {resumo.emailsTotal}
+            </div>
+          )}
+          {resumo?.avisoAplicacaoIndisponivel && (
+            <div className="text-[11px] font-bold text-amber-800">
+              O estado do aviso de aplicação não pôde ser consultado.
+            </div>
+          )}
+          {resumo?.avisoAplicacao && (
+            <div className="space-y-1 border-t border-foreground/10 pt-2 text-[11px]" data-testid={`aviso-aplicacao-${sessionId}`}>
+              <div className="font-bold">Aviso de aplicação realizada ao cliente</div>
+              <div>
+                {resumo.avisoAplicacao.estado === "reservado"
+                  ? "Em conferência: o envio pode ter sido iniciado. Atualize o painel para conferir."
+                  : resumo.avisoAplicacao.estado === "enviado"
+                    ? `Ao menos um canal aceitou o aviso · ${resumo.avisoAplicacao.aplicadas} de ${resumo.avisoAplicacao.previstas} aplicações`
+                    : "Nenhum canal confirmou o aceite do aviso."}
+              </div>
+              <div className="text-muted-foreground">
+                Reservado em {new Date(resumo.avisoAplicacao.em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </div>
+              {resumo.avisoAplicacao.canais.length > 0 && (
+                <ul className="text-muted-foreground">
+                  {resumo.avisoAplicacao.canais.map((c) => (
+                    <li key={c.canal}>{CANAL_NOME[c.canal]}: {CANAL_ESTADO[c.estado]}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
