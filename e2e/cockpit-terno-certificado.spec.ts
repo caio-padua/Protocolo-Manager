@@ -1,6 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type CertificateScenario = "valid" | "expired" | "unavailable" | "nonDoctor";
+const selectedClient = {
+  id: 999,
+  name: "Cliente Exemplo Com Nome Bastante Comprido Para Teste",
+  cpf: "00000000000",
+  phone: null,
+  email: null,
+  address: null,
+  photoUrl: null,
+  birthDate: null,
+};
 
 async function isolateServices(page: Page, scenario: CertificateScenario = "valid") {
   await page.addInitScript(() => {
@@ -27,19 +37,62 @@ async function isolateServices(page: Page, scenario: CertificateScenario = "vali
         validFrom: null, validTo: null,
       });
     }
-    if (path === "/api/clients/999") return respond({
-      id: 999, name: "Cliente Exemplo", cpf: null, phone: null,
-      email: null, address: null, photoUrl: null, birthDate: null,
-    });
-    if (path === "/api/clients") return respond([{
-      id: 999, name: "Cliente Exemplo", cpf: null, phone: null, photoUrl: null,
-    }]);
+    if (path === "/api/clients/999") return respond(selectedClient);
+    if (path === "/api/clients") return respond([selectedClient]);
     if (path === "/api/settings/governanca") return respond({ matriz: null });
     if (path === "/api/menu") return respond({ items: [] });
     if (path === "/api/telegram-inbox/badge") return respond({ naoLidas: 0 });
     return respond([]);
   });
 }
+
+test("seletor do cliente não invade os cartões em tela intermediária", async ({ page }) => {
+  await page.setViewportSize({ width: 1134, height: 631 });
+  await isolateServices(page);
+  await page.goto("/cockpit/999/evolucao", { waitUntil: "domcontentloaded" });
+  const selector = page.locator(".cc-selector");
+  const control = selector.locator("> button");
+  const firstAction = page.locator(".cc-action").first();
+  await expect(control).toContainText("Cliente Exemplo");
+  const verifyGeometry = async (state: string) => {
+    const values = await page.evaluate(() => {
+      const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+      const field = rect(".cc-selector");
+      const input = rect(".cc-selector > button");
+      const action = rect(".cc-action");
+      return { fieldLeft: field.left, fieldRight: field.right, inputLeft: input.left, inputRight: input.right,
+        fieldTop: field.top, inputTop: input.top, inputBottom: input.bottom,
+        actionLeft: action.left, actionTop: action.top, actionBottom: action.bottom };
+    });
+    console.log(`${state}: ${JSON.stringify(values)}`);
+    expect(values.inputLeft).toBeGreaterThanOrEqual(values.fieldLeft);
+    expect(values.inputRight).toBeLessThanOrEqual(values.fieldRight);
+    const sameRow = values.inputBottom > values.actionTop && values.inputTop < values.actionBottom;
+    if (sameRow) expect(values.inputRight).toBeLessThan(values.actionLeft);
+    await expect(firstAction).toBeVisible();
+  };
+  for (const width of [1134, 1101, 1100, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 631 });
+    await verifyGeometry(`Menu aberto, ${width}`);
+  }
+  await page.setViewportSize({ width: 1134, height: 631 });
+  if (process.env.COCKPIT_VISUAL_EVIDENCE === "1") {
+    await page.screenshot({ path: "/tmp/cockpit-cliente-menu-aberto.png" });
+  }
+  await page.getByRole("button", { name: "Recolher menu" }).click();
+  await expect(page.getByRole("button", { name: "Expandir menu" })).toBeVisible();
+  await page.waitForTimeout(400);
+  for (const width of [1134, 1101, 1100, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 631 });
+    await verifyGeometry(`Menu recolhido, ${width}`);
+  }
+  await page.setViewportSize({ width: 1134, height: 631 });
+  if (process.env.COCKPIT_VISUAL_EVIDENCE === "1") {
+    await page.screenshot({ path: "/tmp/cockpit-cliente-menu-recolhido.png" });
+  }
+  await control.click();
+  await expect(page.getByPlaceholder(/Buscar por nome/i)).toBeVisible();
+});
 
 test("tecido e régua acompanham menu e rolagem sem mudar as ferramentas", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });

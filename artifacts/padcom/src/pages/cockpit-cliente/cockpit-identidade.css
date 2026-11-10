@@ -60,9 +60,9 @@
 .cc-empty-identity strong, .cc-empty-identity span { display: block; }
 .cc-empty-identity span { color: #dbcba9; font-size: 11px; }
 .cc-controls { display: grid; grid-template-columns: minmax(220px,.7fr) minmax(0,1.5fr); gap: 10px; padding: 10px; margin-top: 18px; }
-.cc-selector { min-width: 0; display: grid; align-content: center; gap: 4px; padding: 7px; border: 1px solid #d3bd8870; border-radius: 4px; background: #203b61; }
+.cc-selector { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr); align-content: center; gap: 4px; padding: 7px; border: 1px solid #d3bd8870; border-radius: 4px; background: #203b61; }
 .cc-selector > span { color: #f0dca9; font-size: 8px; font-weight: 800; letter-spacing: .12em; }
-.cc-selector > button { width: 100%; }
+.cc-selector > button { width: 100%; min-width: 0; max-width: 100%; }
 .cc-selector > small { color: #ffe1cf; }
 .cc-selector-error { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: #ffe1cf; font-size: 11px; }
 .cc-selector-error button { min-height: 32px; padding: 4px 9px; border: 1px solid #dcc38b; border-radius: 3px; background: #f7f2e6; color: #16294a; font-weight: 700; }

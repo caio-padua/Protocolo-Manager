@@ -14,6 +14,8 @@ continuam na ordem atual.
 - A régua continua fixa durante a rolagem e utilizável no celular.
 - No computador, o menu e a identificação da conta permanecem visíveis
   enquanto o conteúdo é rolado; a lista do menu tem rolagem própria.
+- Em larguras intermediárias, o seletor com cliente escolhido permanece dentro
+  do seu cartão, sem avançar sobre Novo Agendamento, com o menu aberto ou recolhido.
 - O indicador compacto pertence à conta do médico autenticado e aparece
   junto à própria conta no menu, não junto à foto do cliente.
 - Retirar a faixa de certificado do detalhe do protocolo; manter os demais
