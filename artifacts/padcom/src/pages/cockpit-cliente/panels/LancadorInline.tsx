@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useCreateProtocol,
-  useValidateProtocol,
   useListSubstances,
-  useListProfessionals,
   useListClients,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +23,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays } from "date-fns";
+import { getCollabToken } from "@/lib/collab-auth";
+import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
+import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 
 // ===========================================================================
 // LANÇADOR INLINE (T004) — mini-lançador de protocolo dentro do Cockpit da
@@ -71,12 +72,21 @@ function emptySlot(): SubstanceSlot {
   };
 }
 
-interface Location {
-  id: number;
-  name: string;
-  type: string;
-  color: string;
-  address: string | null;
+interface AgendaOption {
+  id: number; name: string; kind: string; modality: string; professionalId: number | null;
+  locationId: number; locationName: string; locationType: string; locationColor: string; locationAddress: string | null;
+}
+interface AgendaProfessional { id: number; name: string; crm: string | null }
+interface ProtocolAgendaOptions {
+  clinic: { id: number; name: string };
+  nursingAgendaId: number;
+  medicalAgendaId: number;
+  nursingAgendas: AgendaOption[];
+  medicalAgendas: AgendaOption[];
+  nursingAgenda: AgendaOption;
+  medicalAgenda: AgendaOption;
+  nurses: AgendaProfessional[];
+  doctors: AgendaProfessional[];
 }
 
 const MAX_SLOTS = 5;
@@ -92,15 +102,19 @@ export default function LancadorInline({
   const queryClient = useQueryClient();
   const { data: clients } = useListClients();
   const { data: substances } = useListSubstances();
-  const { data: professionals } = useListProfessionals();
 
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [agendaOptions, setAgendaOptions] = useState<ProtocolAgendaOptions | null>(null);
+  const [agendaOptionsError, setAgendaOptionsError] = useState("");
+  const [agendaOptionsLoading, setAgendaOptionsLoading] = useState(false);
   const [professionalId, setProfessionalId] = useState("");
-  const [locationId, setLocationId] = useState("");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
   const [semAnamnese, setSemAnamnese] = useState(false);
   const [validando, setValidando] = useState(false);
+  const [protocolToSchedule, setProtocolToSchedule] = useState<number | null>(null);
+  const [schedulingOpen, setSchedulingOpen] = useState(false);
+  const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
+  const schedulingConfirmedRef = useRef(false);
 
   const cliente = useMemo(
     () => (clients ?? []).find((c) => c.id === clientId) ?? null,
@@ -108,11 +122,29 @@ export default function LancadorInline({
   );
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}api/locations`)
-      .then((r) => r.json())
-      .then(setLocations)
-      .catch(() => {});
-  }, []);
+    const controller = new AbortController();
+    setAgendaOptions(null);
+    setAgendaOptionsError("");
+    setAgendaOptionsLoading(true);
+    fetch(`${import.meta.env.BASE_URL}api/clients/${clientId}/protocol-agenda-options`, {
+      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      signal: controller.signal,
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error ?? "Não foi possível carregar as agendas vinculadas ao cliente.");
+      return data as ProtocolAgendaOptions;
+    }).then(data => {
+      if (!controller.signal.aborted) {
+        setAgendaOptions(data);
+        setProfessionalId(data.doctors.length === 1 ? String(data.doctors[0].id) : "");
+      }
+    }).catch(error => {
+      if (!controller.signal.aborted) setAgendaOptionsError(error instanceof Error ? error.message : "Falha ao carregar as agendas do cliente.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setAgendaOptionsLoading(false);
+    });
+    return () => controller.abort();
+  }, [clientId]);
 
   // Aviso âmbar: cliente sem anamnese registrada (só aviso, não bloqueia).
   useEffect(() => {
@@ -136,13 +168,18 @@ export default function LancadorInline({
     return lista.filter((s) => s.procedureType === "iv" || s.procedureType === "im" || s.procedureType === "sc");
   }, [substances, tipo]);
 
-  const selectedProfessional = professionals?.find((p) => String(p.id) === professionalId);
-  const selectedLocation = locations.find((l) => String(l.id) === locationId);
+  const availableDoctors = agendaOptions?.doctors ?? [];
+  const selectedProfessional = availableDoctors.find((p) => String(p.id) === professionalId);
+  const selectedLocation = agendaOptions ? {
+    id: agendaOptions.nursingAgenda.locationId,
+    name: agendaOptions.nursingAgenda.locationName,
+    type: agendaOptions.nursingAgenda.locationType,
+    color: agendaOptions.nursingAgenda.locationColor,
+    address: agendaOptions.nursingAgenda.locationAddress,
+  } : null;
   const filledSlots = slots.filter((s) => s.substanceId > 0 && s.dose);
 
   const createMutation = useCreateProtocol();
-  const validateMutation = useValidateProtocol();
-
   const isBusy = createMutation.isPending || validando;
 
   const addSlot = () => {
@@ -168,7 +205,10 @@ export default function LancadorInline({
     });
   };
 
-  const canLaunch = professionalId && locationId && filledSlots.length > 0;
+  const canLaunch = Boolean(
+    professionalId && availableDoctors.some(doctor => String(doctor.id) === professionalId) &&
+    agendaOptions && !agendaOptionsLoading && !agendaOptionsError && filledSlots.length > 0
+  );
 
   const buildPayload = () => {
     const autoTitle =
@@ -181,9 +221,7 @@ export default function LancadorInline({
       title: autoTitle,
       status: "suggested" as const,
       startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
-      serviceType: (selectedLocation?.type === "homecare" ? "homecare" : "clinic") as
-        | "homecare"
-        | "clinic",
+      serviceType: "clinic" as const,
       professionalId: parseInt(professionalId),
       unit: selectedLocation?.name ?? null,
       totalValue: 0,
@@ -219,7 +257,7 @@ export default function LancadorInline({
       await createMutation.mutateAsync({ data: buildPayload() });
       toast({
         title: "Protocolo lançado!",
-        description: "Criado com status sugerido. Sessões após validação.",
+        description: "Criado como sugerido. Use Agendar protocolo para prévia e reserva.",
       });
       invalidarLista();
       resetForm();
@@ -233,22 +271,45 @@ export default function LancadorInline({
     setValidando(true);
     try {
       const created = await createMutation.mutateAsync({ data: buildPayload() });
-      await validateMutation.mutateAsync({ id: created.id });
-      toast({
-        title: "Protocolo lançado e validado!",
-        description: "Sessões geradas a partir do protocolo.",
-      });
       invalidarLista();
       resetForm();
+      schedulingConfirmedRef.current = false;
+      setProtocolToSchedule(created.id);
+      setSchedulingOpen(true);
     } catch {
       toast({
-        title: "Erro ao lançar e validar",
+        title: "Erro ao criar protocolo",
         description: "Verifique o protocolo e tente novamente.",
         variant: "destructive",
       });
-    } finally {
       setValidando(false);
     }
+  };
+
+  const handleSchedulingComplete = () => {
+    schedulingConfirmedRef.current = true;
+    setSchedulingOpen(false);
+    setGoogleSyncOpen(true);
+    setValidando(false);
+    invalidarLista();
+  };
+
+  const handleSchedulingDialogChange = (open: boolean) => {
+    setSchedulingOpen(open);
+    if (!open && protocolToSchedule && !schedulingConfirmedRef.current) {
+      setProtocolToSchedule(null);
+      setValidando(false);
+      invalidarLista();
+      toast({
+        title: "Protocolo criado, mas ainda não agendado",
+        description: "Nenhum horário foi reservado. O protocolo continua disponível para agendamento.",
+      });
+    }
+  };
+
+  const handleGoogleSyncDialogChange = (open: boolean) => {
+    setGoogleSyncOpen(open);
+    if (!open) setProtocolToSchedule(null);
   };
 
   const TipoIcon = tipo === "implante" ? Gem : Syringe;
@@ -292,7 +353,7 @@ export default function LancadorInline({
                 <SelectValue placeholder="Selecione o profissional" />
               </SelectTrigger>
               <SelectContent>
-                {professionals?.map((p) => (
+                {availableDoctors.map((p) => (
                   <SelectItem key={p.id} value={String(p.id)}>
                     {p.name}
                     {p.crm ? ` — ${p.crm}` : ""}
@@ -305,24 +366,22 @@ export default function LancadorInline({
             <Label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#647c97]">
               <MapPin className="h-3 w-3" /> Local *
             </Label>
-            <Select value={locationId} onValueChange={setLocationId}>
-              <SelectTrigger className="field-engraved h-10">
-                <SelectValue placeholder="Selecione o local" />
-              </SelectTrigger>
-              <SelectContent>
-                {locations.map((l) => (
-                  <SelectItem key={l.id} value={String(l.id)}>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.color }} />
-                      <span>{l.name}</span>
-                      <span className="text-xs text-[#647c97]">
-                        {l.type === "homecare" ? "Domiciliar" : "Clínica"}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="field-engraved rounded-md px-3 py-2.5 text-sm space-y-1" aria-readonly="true">
+              {agendaOptionsLoading ? (
+                <span role="status">Carregando vínculo do cliente…</span>
+              ) : agendaOptionsError ? (
+                <span className="text-destructive" role="alert">{agendaOptionsError}</span>
+              ) : agendaOptions ? (
+                <>
+                  <p><strong>Clínica:</strong> {agendaOptions.clinic.name}</p>
+                  <p><strong>Agenda de enfermagem:</strong> {agendaOptions.nursingAgenda.name}</p>
+                  <p><strong>Agenda médica:</strong> {agendaOptions.medicalAgenda.name}</p>
+                  <p><strong>Local:</strong> {selectedLocation?.name}</p>
+                </>
+              ) : (
+                <span className="text-[#647c97]">Vínculos do cliente indisponíveis.</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -535,10 +594,42 @@ export default function LancadorInline({
             ) : (
               <ShieldCheck className="h-4 w-4" />
             )}
-            Lançar e validar
+            Lançar e agendar
           </button>
         </div>
       </div>
+      <ProtocolSchedulingDialog
+        protocolId={protocolToSchedule ?? 0}
+        clientId={clientId}
+        open={schedulingOpen}
+        onOpenChange={open => {
+          setSchedulingOpen(open);
+          if (!open && protocolToSchedule && !schedulingConfirmedRef.current) {
+            setProtocolToSchedule(null);
+            setValidando(false);
+            invalidarLista();
+            toast({
+              title: "Protocolo criado, mas ainda não agendado",
+              description: "Nenhum horário foi reservado. O protocolo continua disponível para agendamento.",
+            });
+          }
+        }}
+        onScheduled={() => {
+          schedulingConfirmedRef.current = true;
+          setSchedulingOpen(false);
+          setGoogleSyncOpen(true);
+          setValidando(false);
+          invalidarLista();
+        }}
+      />
+      <ProtocolGoogleSyncDialog
+        protocolId={protocolToSchedule ?? 0}
+        open={googleSyncOpen}
+        onOpenChange={open => {
+          setGoogleSyncOpen(open);
+          if (!open) setProtocolToSchedule(null);
+        }}
+      />
     </div>
   );
 }

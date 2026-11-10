@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CalendarCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
 
@@ -20,7 +21,7 @@ interface PreviewVisit {
   applications: PreviewApplication[];
 }
 interface Preview {
-  protocolId: number; nursingResourceName: string; visits: PreviewVisit[]; visitCount: number;
+  protocolId: number; nursingResourceName: string; nursingLocationName: string; visits: PreviewVisit[]; visitCount: number;
   firstDate: string; lastDate: string; requiresRoutineConfirmation: boolean; searchWasPruned: boolean;
   matchesClientPreference: boolean; fingerprint: string;
 }
@@ -29,6 +30,11 @@ interface Diagnostics {
   integrationPendingDates: string[]; nursingDatesWithoutOpenSlot: string[];
 }
 interface Refusal { code?: string; error: string; diagnostics?: Diagnostics }
+interface NursingAgendaOption { id: number; name: string; locationName: string }
+interface AgendaOptionsResponse {
+  nursingAgendaId: number;
+  nursingAgendas: NursingAgendaOption[];
+}
 
 const WEEKDAYS = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 const brDate = (iso: string) => iso.split("-").reverse().join("/");
@@ -50,8 +56,8 @@ async function call(protocolId: number, action: "preview" | "confirm", body: obj
   return { status: response.status, ok: response.ok, data };
 }
 
-export function ProtocolSchedulingDialog({ protocolId, open, onOpenChange, onScheduled }: {
-  protocolId: number; open: boolean; onOpenChange: (open: boolean) => void; onScheduled: () => void;
+export function ProtocolSchedulingDialog({ protocolId, clientId, open, onOpenChange, onScheduled }: {
+  protocolId: number; clientId: number; open: boolean; onOpenChange: (open: boolean) => void; onScheduled: () => void;
 }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -60,13 +66,49 @@ export function ProtocolSchedulingDialog({ protocolId, open, onOpenChange, onSch
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [changed, setChanged] = useState(false);
   const [googleWarning, setGoogleWarning] = useState<{ code: string; message: string } | null>(null);
+  const [agendaOptionsLoading, setAgendaOptionsLoading] = useState(false);
+  const [nursingAgendas, setNursingAgendas] = useState<NursingAgendaOption[]>([]);
+  const [nursingResourceId, setNursingResourceId] = useState("");
   const requestId = useRef(0);
 
-  const loadPreview = useCallback(async () => {
+  useEffect(() => {
+    if (!open) {
+      requestId.current++;
+      return;
+    }
+    const controller = new AbortController();
+    setAgendaOptionsLoading(true);
+    setNursingAgendas([]);
+    setNursingResourceId("");
+    setPreview(null);
+    setRefusal(null);
+    fetch(`${import.meta.env.BASE_URL}api/clients/${clientId}/protocol-agenda-options`, {
+      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      signal: controller.signal,
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error ?? "Não foi possível carregar as agendas permitidas.");
+      return data as AgendaOptionsResponse;
+    }).then(data => {
+      if (controller.signal.aborted) return;
+      setNursingAgendas(data.nursingAgendas);
+      setNursingResourceId(String(data.nursingAgendaId));
+    }).catch(error => {
+      if (!controller.signal.aborted) {
+        setRefusal({ error: error instanceof Error ? error.message : "Não foi possível carregar as agendas permitidas." });
+      }
+    }).finally(() => {
+      if (!controller.signal.aborted) setAgendaOptionsLoading(false);
+    });
+    return () => controller.abort();
+  }, [open, clientId]);
+
+  const loadPreview = useCallback(async (resourceId: string) => {
+    if (!resourceId) return;
     const mine = ++requestId.current;
     setLoading(true); setPreview(null); setRefusal(null); setChanged(false); setGoogleWarning(null);
     try {
-      const result = await call(protocolId, "preview", {});
+      const result = await call(protocolId, "preview", { nursingResourceId: Number(resourceId) });
       if (mine !== requestId.current) return;
       if (result.ok) { setPreview(result.data.preview as Preview); setGoogleWarning(result.data.googleWarning ?? null); }
       else setRefusal({ code: result.data?.code, error: result.data?.error ?? "Não foi possível calcular a prévia.", diagnostics: result.data?.diagnostics });
@@ -78,23 +120,25 @@ export function ProtocolSchedulingDialog({ protocolId, open, onOpenChange, onSch
   }, [protocolId]);
 
   useEffect(() => {
-    if (open) void loadPreview();
-    else requestId.current++;
-  }, [open, loadPreview]);
+    if (open && !agendaOptionsLoading && nursingResourceId) void loadPreview(nursingResourceId);
+  }, [open, agendaOptionsLoading, nursingResourceId, loadPreview]);
 
   async function confirm() {
     if (!preview || confirming) return;
     setConfirming(true);
     try {
-      const result = await call(protocolId, "confirm", { fingerprint: preview.fingerprint });
+      const result = await call(protocolId, "confirm", {
+        nursingResourceId: Number(nursingResourceId),
+        fingerprint: preview.fingerprint,
+      });
       if (result.ok) {
         toast({
           title: "Protocolo agendado",
           description: `${result.data.reserved?.length ?? preview.visitCount} visita(s) reservada(s) na agenda de enfermagem. Em seguida os eventos são enviados ao Google Agenda; nenhum e-mail ou convite vai ao cliente.`,
           duration: 10000,
         });
-        onOpenChange(false);
         onScheduled();
+        onOpenChange(false);
         return;
       }
       if (result.data?.code === "plano_mudou" && result.data.preview) {
@@ -126,6 +170,34 @@ export function ProtocolSchedulingDialog({ protocolId, open, onOpenChange, onSch
           </div>
         )}
 
+        {agendaOptionsLoading && (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" /> Conferindo as agendas vinculadas ao cliente…
+          </div>
+        )}
+
+        {!agendaOptionsLoading && nursingAgendas.length > 1 && (
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Agenda de enfermagem permitida</p>
+            <Select
+              value={nursingResourceId}
+              onValueChange={value => {
+                setPreview(null);
+                setNursingResourceId(value);
+              }}
+            >
+              <SelectTrigger className="field-engraved"><SelectValue placeholder="Selecione a agenda vinculada" /></SelectTrigger>
+              <SelectContent>
+                {nursingAgendas.map(agenda => (
+                  <SelectItem key={agenda.id} value={String(agenda.id)}>
+                    {agenda.name} — {agenda.locationName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {refusal && (
           <div className="panel-3d-sub p-4 space-y-2" role="alert">
             <p className="flex items-center gap-2 font-bold text-sm"><AlertTriangle className="h-4 w-4 text-amber-500" /> Não foi possível agendar</p>
@@ -149,8 +221,8 @@ export function ProtocolSchedulingDialog({ protocolId, open, onOpenChange, onSch
                 )}
               </ul>
             )}
-            <p className="text-xs text-muted-foreground">Nada foi agendado. O botão "Validar e Gerar Sessões" continua disponível.</p>
-            <Button className="btn-3d-soft" onClick={() => void loadPreview()}>Calcular de novo</Button>
+            <p className="text-xs text-muted-foreground">Nada foi agendado. A validação antiga não reserva horários; corrija o vínculo do cliente ou tente novamente.</p>
+            <Button className="btn-3d-soft" onClick={() => nursingResourceId && void loadPreview(nursingResourceId)}>Calcular de novo</Button>
           </div>
         )}
 
@@ -168,8 +240,9 @@ export function ProtocolSchedulingDialog({ protocolId, open, onOpenChange, onSch
                 {googleWarning.message}
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
               <div className="concave-3d p-2"><p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Agenda</p><p className="font-bold">{preview.nursingResourceName}</p></div>
+              <div className="concave-3d p-2"><p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Local</p><p className="font-bold">{preview.nursingLocationName}</p></div>
               <div className="concave-3d p-2"><p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Visitas</p><p className="font-bold tabular-nums">{preview.visitCount}</p></div>
               <div className="concave-3d p-2"><p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Primeira</p><p className="font-bold tabular-nums">{brDate(preview.firstDate)}</p></div>
               <div className="concave-3d p-2"><p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Última</p><p className="font-bold tabular-nums">{brDate(preview.lastDate)}</p></div>

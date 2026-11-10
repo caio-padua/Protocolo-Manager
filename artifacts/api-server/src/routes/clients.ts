@@ -8,6 +8,7 @@ import { emitirLinkMagico } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
 import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, validateDefaultAgenda, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
 import { getVisitOptions, getVisitPreferences, setVisitPreferences, VisitPreferenceError } from "../lib/client-visit-preferences";
+import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
 import type { ClientVisitPreferences } from "@workspace/db";
 import { logIntegracao } from "./agentes-integracoes";
 import { sql } from "drizzle-orm";
@@ -231,6 +232,46 @@ router.get("/clients/agenda-opcoes", requireClientWriter, async (req, res): Prom
     enfermagemPadraoId: agendas.some(a => a.kind === "enfermagem" && a.id === defaults?.enfermagemResourceId) ? defaults!.enfermagemResourceId : null,
     medicoPadraoId: agendas.some(a => a.kind === "medico" && a.id === defaults?.medicoResourceId) ? defaults!.medicoResourceId : null,
   });
+});
+
+router.get("/clients/:id/protocol-agenda-options", requireClientWriter, async (req, res): Promise<void> => {
+  const clientId = Number(req.params.id);
+  if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+    res.status(400).json({ code: "cliente_invalido", error: "Cliente inválido." });
+    return;
+  }
+  if (!req.tenantContext?.empresaId) {
+    res.status(401).json({ code: "sessao_profissional_ausente", error: "Entre com seu acesso profissional." });
+    return;
+  }
+  try {
+    const options = await loadClientProtocolAgendas(clientId, req.tenantContext.empresaId);
+    if (!options.medicalAgenda) {
+      res.status(409).json({
+        code: "agenda_medica_indefinida",
+        error: "Vincule uma agenda médica ao cadastro do cliente antes de lançar o protocolo.",
+      });
+      return;
+    }
+    res.json({
+      clientId,
+      clinic: options.clinic,
+      nursingAgendaId: options.nursingAgenda.id,
+      medicalAgendaId: options.medicalAgenda.id,
+      nursingAgendas: options.nursingAgendas,
+      medicalAgendas: options.medicalAgendas,
+      nursingAgenda: options.nursingAgenda,
+      medicalAgenda: options.medicalAgenda,
+      nurses: options.nurses,
+      doctors: options.doctors,
+    });
+  } catch (error) {
+    if (error instanceof ClientProtocolAgendaError) {
+      res.status(error.status).json({ code: error.code, error: error.message });
+      return;
+    }
+    throw error;
+  }
 });
 
 router.get("/clients/visit-preference-options", requireCollaborator, async (req, res): Promise<void> => {

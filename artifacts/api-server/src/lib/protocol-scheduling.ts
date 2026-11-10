@@ -5,8 +5,8 @@ import {
   sessionsTable, substancesTable,
 } from "@workspace/db";
 import { brtISODate } from "./brt";
-import { getPreferredAgendas } from "./client-preferred-agendas";
 import { getVisitPreferences } from "./client-visit-preferences";
+import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "./protocol-client-agendas";
 import {
   buildExactProtocolSchedule, planProtocolWithAvailableSlots,
   type AvailableProtocolSlot, type ExactScheduleItem,
@@ -43,7 +43,7 @@ const DAY_MS = 86_400_000;
 
 export type SchedulingErrorCode =
   | ReservationErrorCode
-  | "pedido_invalido" | "agenda_enfermagem_indefinida" | "periodo_longo_demais" | "datas_no_passado"
+  | "pedido_invalido" | "agenda_enfermagem_indefinida" | "agenda_nao_autorizada" | "periodo_longo_demais" | "datas_no_passado"
   | "protocolo_grande_demais" | "sem_plano" | "busca_limitada" | "plano_mudou" | "confirmacao_ausente"
   | "acesso_alterado";
 
@@ -72,6 +72,8 @@ export interface SchedulingPreview {
   protocolId: number;
   nursingResourceId: number;
   nursingResourceName: string;
+  nursingLocationId: number;
+  nursingLocationName: string;
   visits: PlannedVisitView[];
   visitCount: number;
   firstDate: string;
@@ -90,7 +92,7 @@ export interface SchedulingPreview {
 
 export type SchedulingRefusal = {
   ok: false;
-  status: 400 | 404 | 409 | 422;
+  status: 400 | 403 | 404 | 409 | 422;
   code: SchedulingErrorCode;
   error: string;
   date?: string;
@@ -181,10 +183,21 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
     return refusal(400, "pedido_invalido", "Identificadores inválidos");
   }
 
-  const [client] = await db.select({
-    id: clientsTable.id, empresaId: clientsTable.empresaId, defaultNursing: clientsTable.agendaEnfermagemPadraoId,
-  }).from(clientsTable).where(eq(clientsTable.id, clientId));
-  if (!client || client.empresaId !== empresaId) return refusal(404, "cliente_nao_encontrado", "Cliente não encontrado");
+  let clientAgendas;
+  try {
+    clientAgendas = await loadClientProtocolAgendas(clientId, empresaId, { requireMedical: false });
+  } catch (error) {
+    if (error instanceof ClientProtocolAgendaError) {
+      const code: SchedulingErrorCode =
+        error.code === "cliente_nao_encontrado" || error.code === "agenda_enfermagem_indefinida" ||
+        error.code === "agenda_invalida"
+          ? error.code
+          : "agenda_nao_autorizada";
+      return refusal(error.status, code, error.message);
+    }
+    throw error;
+  }
+  const client = clientAgendas.client;
 
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
   if (!protocol || protocol.clientId !== clientId || protocol.empresaId !== empresaId) {
@@ -196,8 +209,9 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
     return refusal(409, "protocolo_ja_agendado",
       "Protocolo já tem sessões; confira o histórico sem recriar os agendamentos");
   }
-  if (protocol.status !== "suggested") {
-    return refusal(409, "protocolo_status_invalido", "O protocolo precisa estar sugerido para ser agendado");
+  if (protocol.status !== "suggested" && protocol.status !== "validated") {
+    return refusal(409, "protocolo_status_invalido",
+      "O protocolo precisa estar sugerido ou validado sem sessões para ser agendado");
   }
 
   // Itens e catálogo: dose, total, intervalo e duração vêm do banco, nunca do navegador.
@@ -240,25 +254,21 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
       "Nada foi agendado.");
   }
 
-  // Agenda de enfermagem: a escolhida, a padrão do cliente ou a primeira preferencial.
-  let nursingResourceId: number | null = params.nursingResourceId ?? client.defaultNursing ?? null;
-  if (nursingResourceId == null) {
-    const preferred = await getPreferredAgendas(clientId);
-    if (preferred.length) {
-      const [first] = await db.select({ id: agendaResourcesTable.id }).from(agendaResourcesTable)
-        .where(and(inArray(agendaResourcesTable.id, preferred), eq(agendaResourcesTable.kind, "enfermagem"),
-          eq(agendaResourcesTable.active, true)))
-        .orderBy(asc(agendaResourcesTable.id)).limit(1);
-      nursingResourceId = first?.id ?? null;
-    }
+  // A agenda escolhida precisa estar explicitamente vinculada ao cadastro deste cliente.
+  const nursingResourceId = params.nursingResourceId ?? clientAgendas.nursingAgenda.id;
+  const selectedAgenda = clientAgendas.resources.find(resource => resource.id === nursingResourceId);
+  if (!selectedAgenda) {
+    return refusal(404, "agenda_nao_encontrada",
+      "A agenda de enfermagem não está vinculada ao cadastro deste cliente. Nada foi agendado.");
   }
-  if (nursingResourceId == null) {
-    return refusal(422, "agenda_enfermagem_indefinida",
-      "O cliente não tem agenda de enfermagem padrão nem preferencial; escolha uma agenda de enfermagem");
+  if (selectedAgenda.kind !== "enfermagem" || selectedAgenda.modality !== "local") {
+    return refusal(422, "agenda_invalida",
+      "O agendamento por períodos só está habilitado para uma agenda de enfermagem local.");
   }
   const [resource] = await db.select({
     id: agendaResourcesTable.id, name: agendaResourcesTable.name, kind: agendaResourcesTable.kind,
     modality: agendaResourcesTable.modality, active: agendaResourcesTable.active,
+    locationId: locationsTable.id, locationName: locationsTable.name,
   }).from(agendaResourcesTable)
     .innerJoin(locationsTable, eq(locationsTable.id, agendaResourcesTable.locationId))
     .where(and(eq(agendaResourcesTable.id, nursingResourceId), eq(locationsTable.empresaId, empresaId),
@@ -362,6 +372,7 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
   const snapshot = protocolPlanSnapshot(protocol.startDate, items, substanceById);
   const fingerprint = createHash("sha256").update(JSON.stringify({
     snapshot, protocolId: protocol.id, nursingResourceId,
+    nursingLocationId: resource.locationId, nursingLocationName: resource.locationName,
     visits: visits.map(v => [v.date, v.time, v.nursingPeriods, v.reservedMinutes,
       v.applications.map(a => [a.substanceId, a.dose, a.sessionNumber, a.totalSessions, a.nominalDate])]),
   })).digest("hex").slice(0, 32);
@@ -370,6 +381,7 @@ export async function planProtocolScheduling(params: PlanProtocolSchedulingParam
     ok: true,
     preview: {
       protocolId: protocol.id, nursingResourceId, nursingResourceName: resource.name,
+      nursingLocationId: resource.locationId, nursingLocationName: resource.locationName,
       visits, visitCount: visits.length, firstDate: visits[0].date, lastDate: visits[visits.length - 1].date,
       requiresRoutineConfirmation: plan.requiresRoutineConfirmation, searchWasPruned: plan.searchWasPruned,
       matchesClientPreference: slots.some(slot => slot.preferenceRank !== undefined &&
@@ -407,6 +419,7 @@ export async function confirmProtocolScheduling(params: ConfirmProtocolSchedulin
   const reserved = await reserveProtocolVisits({
     empresaId: params.empresaId, clientId: params.clientId, protocolId: params.protocolId,
     nursingResourceId: preview.nursingResourceId, expectedSnapshot: preview.snapshot,
+    expectedNursingLocationId: preview.nursingLocationId,
     visits: preview.visits.map(visit => ({
       date: visit.date, time: visit.time,
       applications: visit.applications.map(app => ({ substanceId: app.substanceId, sessionNumber: app.sessionNumber })),

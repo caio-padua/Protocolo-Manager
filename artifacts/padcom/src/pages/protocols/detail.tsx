@@ -1,5 +1,5 @@
 import { useRoute, useLocation } from "wouter";
-import { useGetProtocol, useValidateProtocol, useGenerateProtocolICS } from "@workspace/api-client-react";
+import { useGetProtocol, useGenerateProtocolICS } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,22 +82,6 @@ export default function ProtocolDetail() {
     fetchRasFapLogs();
   }, [fetchRasFapLogs]);
 
-  const validateMutation = useValidateProtocol({
-    mutation: {
-      onSuccess: () => {
-        toast({
-          title: "Protocolo validado!",
-          description: "A validação não reserva horários nem cria eventos no Google Agenda. Convites sem reserva não são enviados.",
-          duration: 10000,
-        });
-        refetch();
-      },
-      onError: () => {
-        toast({ title: "Erro ao validar protocolo", variant: "destructive" });
-      }
-    }
-  });
-
   const icsMutation = useGenerateProtocolICS({
     mutation: {
       onSuccess: (data) => {
@@ -130,6 +114,9 @@ export default function ProtocolDetail() {
 
   const isPast = PAST_STATUSES.includes(protocol.status);
   const hasSessions = protocol.sessions.length > 0;
+  const hasUnreservedSessions = protocol.sessions.some(session =>
+    !(session as any).resourceId || !(session as any).durationMinutes
+  );
 
   const allApps = protocol.sessions.flatMap(s =>
     s.substanceApplications.map(a => ({ ...a, sessionDate: s.scheduledDate, weekNumber: s.weekNumber }))
@@ -160,19 +147,13 @@ export default function ProtocolDetail() {
           Voltar
         </Button>
         <div className="flex flex-wrap items-center gap-2">
-          {protocol.status === "suggested" && !hasSessions && (
+          {["suggested", "validated"].includes(protocol.status) && !hasSessions && (
             <Button className="btn-3d" onClick={() => setSchedulingOpen(true)}>
               <Calendar className="h-4 w-4 mr-1" />
               Agendar protocolo
             </Button>
           )}
-          {(protocol.status === "suggested" || protocol.status === "validated") && (
-            <Button className="btn-3d" onClick={() => validateMutation.mutate({ id })} disabled={validateMutation.isPending}>
-              <Zap className="h-4 w-4 mr-1" />
-              {validateMutation.isPending ? "Validando..." : "Validar e Gerar Sessões"}
-            </Button>
-          )}
-          {protocol.sessions.length > 0 && (
+          {hasSessions && !hasUnreservedSessions && (
             <>
               {protocol.status === "validated" && (
                 <Button className="btn-3d-soft" onClick={() => setGoogleSyncOpen(true)}>
@@ -467,6 +448,13 @@ export default function ProtocolDetail() {
           )}
         </div>
       </div>
+
+      {hasUnreservedSessions && (
+        <div className="panel-3d-sub p-4 text-sm" role="alert">
+          <p className="font-bold text-amber-700">Estas sessões não têm reserva de agenda.</p>
+          <p className="mt-1">Elas foram preservadas, mas não podem ser enviadas ao Google nem exportadas como compromissos. A validação antiga foi bloqueada; a recuperação deste protocolo precisa de conferência própria.</p>
+        </div>
+      )}
 
       {/* R2 — Painel-herói de identidade (ATUAL x PASSADO) */}
       <Card className="panel-3d" style={{ borderLeftWidth: "5px", borderLeftColor: isPast ? "#94a3b8" : "#16294a" }}>
@@ -843,6 +831,7 @@ export default function ProtocolDetail() {
 
       <ProtocolSchedulingDialog
         protocolId={id}
+        clientId={protocol.clientId}
         open={schedulingOpen}
         onOpenChange={setSchedulingOpen}
         onScheduled={() => { void refetch(); setGoogleSyncOpen(true); }}

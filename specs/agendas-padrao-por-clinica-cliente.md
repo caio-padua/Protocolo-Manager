@@ -12,6 +12,8 @@ Oferecer uma agenda padrão de enfermagem e uma médica, selecionadas entre recu
 6. Não expor nem aceitar agendas de empresa não autorizada; clínica de origem diferente da empresa da sessão é informativa, não concede acesso a dados de outra empresa.
 7. Falha de leitura, seleção desatualizada ou alteração simultânea deve preservar a escolha anterior e comunicar o problema.
 8. Guardar os padrões da clínica para sugeri-los em novos cadastros, sem fixar identificadores ou nomes no código.
+9. No lançamento de protocolo, herdar a clínica e as agendas permitidas do cliente; exibir o local correspondente à agenda de enfermagem, sem listas globais nem troca de clínica.
+10. O servidor deve revalidar a agenda e o local do cliente antes de criar o protocolo e antes da reserva; filtro no navegador não é autorização.
 
 ## Falhas previstas
 * Recurso desativado, tipo incorreto, local de outra clínica ou acesso sem sessão: recusar gravação.

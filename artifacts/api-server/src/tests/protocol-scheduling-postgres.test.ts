@@ -62,7 +62,7 @@ vi.mock("../lib/session-ics", () => ({ buildEventsForSessions: vi.fn(async () =>
 vi.mock("../lib/ics", () => ({ buildVCalendar: vi.fn() }));
 import {
   agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
-  locationsTable, professionalsTable, professionalEmpresasTable, sessionsTable, substanceApplicationsTable,
+  locationsTable, locationProfessionalsTable, professionalsTable, professionalEmpresasTable, empresasTable, sessionsTable, substanceApplicationsTable,
   clientsTable, protocolsTable, protocolItemsTable, substancesTable,
   clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable,
 } from "@workspace/db/schema";
@@ -131,7 +131,7 @@ beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   for (const table of [agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
-    locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable, clientsTable,
+    locationsTable, locationProfessionalsTable, professionalsTable, empresasTable, sessionsTable, substanceApplicationsTable, clientsTable,
     protocolsTable, protocolItemsTable, substancesTable, clientPreferredAgendasTable,
     clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable, professionalEmpresasTable]) {
     await query(createTableFromSchema(table));
@@ -142,23 +142,31 @@ beforeAll(async () => {
     CREATE TABLE agenda_google_sync(enabled BOOLEAN, location_id INTEGER, last_success TIMESTAMPTZ, error TEXT);
     CREATE TABLE agenda_compromissos(id INTEGER, titulo TEXT, inicio TIMESTAMPTZ, fim TIMESTAMPTZ, dia_inteiro BOOLEAN,
       recorrencia TEXT, origem TEXT, location_id INTEGER, status TEXT, chave TEXT, google_calendar_id TEXT);
-    INSERT INTO locations(id,name,empresa_id,active) VALUES (8,'Local sintético A',5,'true'),(9,'Local de outra empresa',6,'true');
+    INSERT INTO empresas(id,nome,tipo,ativa,status) VALUES
+      (5,'Clínica sintética','clinic',true,'ATIVO'),(6,'Outra clínica sintética','clinic',true,'ATIVO');
+    INSERT INTO locations(id,name,empresa_id,active) VALUES
+      (8,'Local sintético A',5,'true'),(9,'Local de outra empresa',6,'true'),(10,'Local sintético B',5,'true');
     INSERT INTO agenda_resources(id,name,kind,modality,slot_minutes,location_id,professional_id,active) VALUES
       (1,'Enfermagem sintética','enfermagem','local',20,8,NULL,true),
       (2,'Enfermagem de outra empresa','enfermagem','local',20,9,NULL,true),
       (3,'Enfermagem domiciliar','enfermagem','domiciliar',20,8,NULL,true),
       (5,'Enfermagem segunda e sexta','enfermagem','local',20,8,NULL,true),
-      (6,'Agenda médica sintética','medico','local',60,8,NULL,true);
+      (6,'Agenda médica sintética','medico','local',60,8,77,true),
+      (7,'Enfermagem em outro local autorizado','enfermagem','local',20,10,NULL,true);
+    INSERT INTO professionals(id,name,category,professional_type,active)
+      VALUES(77,'Médico sintético','medico','medico',true);
     INSERT INTO agenda_settings(id,block_minutes,trigger_percent,min_lead_hours) VALUES(1,120,60,24);
     INSERT INTO agenda_windows(resource_id,weekday,start_time,end_time,repeat_weeks,anchor_date,active) VALUES
       (1,1,'09:00','11:00',1,NULL,true),(1,3,'09:00','11:00',1,NULL,true),(2,1,'09:00','11:00',1,NULL,true),
-      (3,1,'09:00','11:00',1,NULL,true),(5,1,'09:00','10:00',1,NULL,true),(5,5,'09:00','10:00',1,NULL,true);
-    INSERT INTO clients(id,name,empresa_id,agenda_enfermagem_padrao_id) VALUES
-      (21,'Cliente sintético 21',5,1),(22,'Cliente sintético 22',5,1),(23,'Cliente de outra empresa',6,2),
-      (24,'Cliente sintético 24',5,1),(25,'Cliente sintético 25',5,1),(26,'Cliente sem agenda padrão',5,NULL),
-      (27,'Cliente sintético 27',5,1),(28,'Cliente sintético 28',5,1),(29,'Cliente sintético 29',5,5),
-      (30,'Cliente com agenda preferencial',5,NULL),(31,'Cliente sintético 31',5,1),(32,'Cliente sintético 32',5,1);
-    INSERT INTO client_preferred_agendas(client_id,agenda_resource_id,active) VALUES (30,5,true);
+      (3,1,'09:00','11:00',1,NULL,true),(5,1,'09:00','10:00',1,NULL,true),(5,5,'09:00','10:00',1,NULL,true),
+      (7,1,'09:00','11:00',1,NULL,true),(7,3,'09:00','11:00',1,NULL,true);
+    INSERT INTO clients(id,name,empresa_id,clinica_origem_empresa_id,agenda_enfermagem_padrao_id,agenda_medico_padrao_id) VALUES
+      (21,'Cliente sintético 21',5,5,1,6),(22,'Cliente sintético 22',5,5,1,6),(23,'Cliente de outra empresa',6,6,2,NULL),
+      (24,'Cliente sintético 24',5,5,1,6),(25,'Cliente sintético 25',5,5,1,6),(26,'Cliente sem agenda padrão',5,5,NULL,6),
+      (27,'Cliente sintético 27',5,5,1,6),(28,'Cliente sintético 28',5,5,1,6),(29,'Cliente sintético 29',5,5,5,6),
+      (30,'Cliente com agenda preferencial',5,5,5,6),(31,'Cliente sintético 31',5,5,1,6),(32,'Cliente sintético 32',5,5,1,6);
+    INSERT INTO client_preferred_agendas(client_id,agenda_resource_id,active) VALUES
+      (21,3,true),(21,5,true),(21,7,true),(24,5,true),(30,1,true);
     INSERT INTO substances(id,name,category,color,procedure_type,doctor_participation,duration_minutes,precise_duration_seconds) VALUES
       (${IM},'IM sintética','x','#000','im',false,3,150),
       (${IV},'IV sintética','x','#000','iv',false,30,1800),
@@ -269,12 +277,26 @@ describe("Prévia do agendamento de protocolo (nada é gravado)", () => {
 
   it("agenda de enfermagem: padrão do cliente, depois a preferencial, e a escolhida vale", async () => {
     const protocolId = await newProtocol(30, [{ substanceId: IM, total: 1 }]);
-    // Cliente 30 não tem padrão; a agenda preferencial dele é a 5.
+    // Cliente 30 usa a agenda padrão 5 e tem a agenda 1 como alternativa permitida.
     expect((await previewOf(30, protocolId)).nursingResourceId).toBe(5);
     expect((await previewOf(30, protocolId, 1)).nursingResourceId).toBe(1);
     const other = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
     expect((await previewOf(21, other)).nursingResourceId).toBe(1);
     expect((await previewOf(21, other, 5)).nursingResourceId).toBe(5);
+  });
+
+  it("reserva e persiste o local da agenda alternativa vinculada ao cliente", async () => {
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    const preview = await previewOf(21, protocolId, 7);
+    expect(preview).toMatchObject({ nursingLocationId: 10, nursingLocationName: "Local sintético B" });
+    const result = await confirmProtocolScheduling({
+      empresaId: 5, clientId: 21, protocolId, nursingResourceId: 7, fingerprint: preview.fingerprint,
+    });
+    expect(result.ok).toBe(true);
+    const [session] = await rows(`SELECT unit, resource_id FROM sessions WHERE protocol_id=$1`, [protocolId]);
+    const [protocol] = await rows(`SELECT unit FROM protocols WHERE id=$1`, [protocolId]);
+    expect(session).toMatchObject({ unit: "Local sintético B", resource_id: 7 });
+    expect(protocol.unit).toBe("Local sintético B");
   });
 });
 
@@ -299,14 +321,20 @@ describe("Recusas explícitas da prévia (nada é gravado)", () => {
     expect(await refused(21, b)).toMatchObject({ status: 422, code: "substancia_sem_duracao" });
   });
 
-  it("protocolo que já tem sessões (legado) ou não está sugerido é recusado sem tocar nas sessões", async () => {
+  it("protocolo com sessões antigas é recusado; validado sem sessões ainda pode ser reservado", async () => {
     const legacy = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
     await query(`INSERT INTO sessions(protocol_id,client_id,scheduled_date,scheduled_time,status,empresa_id)
       VALUES($1,21,'${MON1}','09:00','scheduled',5)`, [legacy]);
     expect(await refused(21, legacy)).toMatchObject({ status: 409, code: "protocolo_ja_agendado" });
     expect((await rows(`SELECT resource_id FROM sessions WHERE protocol_id=$1`, [legacy]))[0].resource_id).toBeNull();
-    const validated = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
-    expect(await refused(21, validated)).toMatchObject({ status: 409, code: "protocolo_status_invalido" });
+    const validated = await newProtocol(22, [{ substanceId: IM, total: 1 }], { status: "validated" });
+    const preview = await previewOf(22, validated);
+    const confirmed = await confirmProtocolScheduling({
+      empresaId: 5, clientId: 22, protocolId: validated, fingerprint: preview.fingerprint,
+    });
+    expect(confirmed.ok).toBe(true);
+    expect((await rows(`SELECT resource_id, duration_minutes FROM sessions WHERE protocol_id=$1`, [validated]))[0])
+      .toMatchObject({ resource_id: 1, duration_minutes: 20 });
   });
 
   it("isolamento por empresa e por cliente: não revela o que é de outra clínica ou de outro cliente", async () => {
@@ -490,16 +518,10 @@ describe("Confirmação: recalcula no servidor e só reserva se o plano for o da
     expect((await counts()).sessions).toBe(0);
   });
 
-  it("impressão digital de outro protocolo ou de outra agenda não confirma", async () => {
-    const a = await newProtocol(24, [{ substanceId: IM, total: 1 }]);
-    const b = await newProtocol(25, [{ substanceId: IM, total: 1 }]);
-    const previewA = await previewOf(24, a);
-    expect(await confirmProtocolScheduling({ empresaId: 5, clientId: 25, protocolId: b, fingerprint: previewA.fingerprint }))
-      .toMatchObject({ ok: false, code: "plano_mudou" });
-    const onOther = await previewOf(24, a, 5);
-    expect(onOther.fingerprint).not.toBe(previewA.fingerprint);
-    expect(await confirmProtocolScheduling({ empresaId: 5, clientId: 24, protocolId: a, fingerprint: previewA.fingerprint, nursingResourceId: 5 }))
-      .toMatchObject({ ok: false, code: "plano_mudou" });
+  it("recusa confirmação em agenda que não está vinculada ao cliente", async () => {
+    const a = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    const response = await plan(21, a, 2);
+    expect(response).toMatchObject({ ok: false, status: 404, code: "agenda_nao_encontrada" });
     expect((await counts()).sessions).toBe(0);
   });
 
@@ -592,15 +614,13 @@ describe("Rotas HTTP: o navegador nunca entrega o plano", () => {
     expect((await counts()).sessions).toBe(0);
   });
 
-  it("a validação antiga continua funcionando para o mesmo protocolo (rota intacta)", async () => {
+  it("a validação antiga não cria sessões sem reserva", async () => {
     const protocolId = await newProtocol(21, [{ substanceId: IM, total: 2 }]);
     const response = await post(`/api/protocols/${protocolId}/validate`);
-    expect(response.status, JSON.stringify(response.body)).toBe(200);
-    expect((await counts()).sessions).toBeGreaterThan(0);
-    // E, depois dela, o agendamento por períodos recusa (já tem sessões) sem mexer nelas.
-    const blocked = await post(`/api/protocols/${protocolId}/scheduling/preview`);
-    expect(blocked.status).toBe(409);
-    expect(blocked.body).toMatchObject({ code: "protocolo_ja_agendado" });
+    expect(response.status, JSON.stringify(response.body)).toBe(409);
+    expect((await counts()).sessions).toBe(0);
+    const preview = await post(`/api/protocols/${protocolId}/scheduling/preview`);
+    expect(preview.status).toBe(200);
   });
 });
 

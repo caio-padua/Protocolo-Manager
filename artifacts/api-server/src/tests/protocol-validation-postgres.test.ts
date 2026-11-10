@@ -105,7 +105,9 @@ describe.skipIf(process.env.PAXTER_ISOLATED_PG !== "1")("Validação em PostgreS
     await state.pool.query("DROP TRIGGER IF EXISTS synthetic_failure ON substance_applications");
     await state.pool.query("DROP TRIGGER IF EXISTS synthetic_delay ON sessions");
     await state.pool.query(`TRUNCATE ${tables.map(t => `"${getTableConfig(t).name}"`).join(",")} RESTART IDENTITY`);
-    await schema.db.insert(schema.clientsTable).values({ id: 96, name: "Cliente sintético", email: "synthetic@example.invalid" });
+    await schema.db.insert(schema.clientsTable).values({
+      id: 96, name: "Cliente sintético", email: "synthetic@example.invalid", empresaId: 99,
+    });
     await schema.db.insert(schema.protocolsTable).values({
       id: 1, clientId: 96, empresaId: 99, title: "Protocolo sintético",
       startDate: "2030-01-01", scheduledTime: "10:00", status: "suggested",
@@ -120,44 +122,39 @@ describe.skipIf(process.env.PAXTER_ISOLATED_PG !== "1")("Validação em PostgreS
     await state.pool?.end();
     await state.applicationPool?.end();
   });
-  it("lê horário persistido e grava as oito aplicações pelo consolidado existente", async () => {
+  it("recusa gerar sessões sem reserva e mantém o protocolo sugerido", async () => {
     const response = await validate();
-    expect(response.status, JSON.stringify(response.body)).toBe(200);
-    const sessions = await state.pool.query("SELECT scheduled_time FROM sessions");
-    expect(sessions.rows).toHaveLength(5);
-    expect(sessions.rows.every((r: any) => r.scheduled_time === "10:00")).toBe(true);
+    expect(response.status, JSON.stringify(response.body)).toBe(409);
+    const sessions = await state.pool.query("SELECT id FROM sessions");
+    expect(sessions.rows).toHaveLength(0);
     const apps = await state.pool.query("SELECT count(*)::int AS n FROM substance_applications WHERE availability='disp'");
-    expect(apps.rows[0].n).toBe(8);
+    expect(apps.rows[0].n).toBe(0);
+    const protocol = await state.pool.query("SELECT status FROM protocols WHERE id=1");
+    expect(protocol.rows[0].status).toBe("suggested");
   });
-  it("bloqueio de linha real impede duas gerações concorrentes", async () => {
+  it("chamadas concorrentes não criam sessões sem reserva", async () => {
     await state.pool.query(`CREATE OR REPLACE FUNCTION synthetic_delay_fn() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN PERFORM pg_sleep(0.08); RETURN NEW; END $$;
       CREATE TRIGGER synthetic_delay BEFORE INSERT ON sessions FOR EACH ROW EXECUTE FUNCTION synthetic_delay_fn()`);
     const responses = await Promise.all([validate(), validate()]);
-    expect(responses.map(r => r.status)).toEqual([200, 200]);
+    expect(responses.map(r => r.status)).toEqual([409, 409]);
     const count = await state.pool.query("SELECT count(*)::int AS n FROM sessions");
-    expect(count.rows[0].n).toBe(5);
+    expect(count.rows[0].n).toBe(0);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
-  it("grava datas independentes e o RAS lê exatamente as oito visitas persistidas", async () => {
+  it("não cria visitas no modo de datas exatas", async () => {
     await state.pool.query("UPDATE protocols SET scheduling_mode='exact', start_date='2030-01-07' WHERE id=1");
     await state.pool.query("UPDATE protocol_items SET start_date='2030-01-07' WHERE substance_id=95");
     await state.pool.query("UPDATE protocol_items SET start_date='2030-01-12', interval_days=14 WHERE substance_id=94");
     const responses = await Promise.all([validate(), validate()]);
-    expect(responses.map(r => r.status)).toEqual([200, 200]);
+    expect(responses.map(r => r.status)).toEqual([409, 409]);
     const visits = await state.pool.query("SELECT scheduled_date, scheduled_time FROM sessions ORDER BY scheduled_date");
-    const dates = ["2030-01-07", "2030-01-12", "2030-01-14", "2030-01-21", "2030-01-26", "2030-01-28", "2030-02-04", "2030-02-09"];
-    expect(visits.rows.map((r: any) => r.scheduled_date)).toEqual(dates);
-    expect(visits.rows.every((r: any) => r.scheduled_time === "10:00")).toBe(true);
-    const grid = await loadProtocolRasGrid({ id: 1, schedulingMode: "exact" }, [95, 94]);
-    expect(grid?.map(row => row.date)).toEqual(dates);
-    expect(grid?.[1].counters).toEqual([null, "1/3"]);
-    expect(grid?.at(-1)?.counters).toEqual([null, "3/3"]);
+    expect(visits.rows).toHaveLength(0);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
-    expect((await validate()).status).toBe(200);
-    expect((await state.pool.query("SELECT count(*)::int AS n FROM sessions")).rows[0].n).toBe(8);
+    expect((await validate()).status).toBe(409);
+    expect((await state.pool.query("SELECT count(*)::int AS n FROM sessions")).rows[0].n).toBe(0);
   });
-  it("criação pela interface salva modo, horário e início individual sem valores inventados", async () => {
+  it("recusa protocolo sem agenda clínica no cadastro do cliente", async () => {
     // Separate synthetic protocol; real HTTP route and real SQL persistence.
     const response = await request(app).post("/api/protocols")
       .set("Authorization", "Bearer synthetic-session")
@@ -170,17 +167,14 @@ describe.skipIf(process.env.PAXTER_ISOLATED_PG !== "1")("Validação em PostgreS
           { substanceId: 94, dose: "dose sintética B", totalSessions: 3, intervalDays: 14, frequency: "custom", startDate: "2030-01-12" },
         ],
       });
-    expect(response.status, JSON.stringify(response.body)).toBe(201);
-    const record = await state.pool.query("SELECT scheduling_mode, scheduled_time FROM protocols WHERE id=$1", [response.body.id]);
-    expect(record.rows[0]).toEqual({ scheduling_mode: "exact", scheduled_time: "10:00" });
-    const saved = await state.pool.query("SELECT start_date FROM protocol_items WHERE protocol_id=$1 ORDER BY start_date", [response.body.id]);
-    expect(saved.rows.map((r: any) => r.start_date)).toEqual(["2030-01-07", "2030-01-12"]);
+    expect(response.status, JSON.stringify(response.body)).toBe(409);
+    expect((await state.pool.query("SELECT count(*)::int AS n FROM protocols")).rows[0].n).toBe(1);
   });
-  it("erro real no banco reverte todas as sessões e o status", async () => {
+  it("não chega a gravar mesmo quando o banco teria falhado", async () => {
     await state.pool.query(`CREATE OR REPLACE FUNCTION synthetic_failure_fn() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN RAISE EXCEPTION 'synthetic failure'; END $$;
       CREATE TRIGGER synthetic_failure BEFORE INSERT ON substance_applications FOR EACH ROW EXECUTE FUNCTION synthetic_failure_fn()`);
-    expect((await validate()).status).toBe(500);
+    expect((await validate()).status).toBe(409);
     const count = await state.pool.query("SELECT count(*)::int AS n FROM sessions");
     expect(count.rows[0].n).toBe(0);
     const protocol = await state.pool.query("SELECT status FROM protocols WHERE id=1");

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { tituloProprio } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { useCreateProtocol, useValidateProtocol, useListClients, useListSubstances, useListProfessionals } from "@workspace/api-client-react";
+import { useCreateProtocol, useListClients, useListSubstances } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getCollabToken } from "@/lib/collab-auth";
+import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
+import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 
 const FREQUENCY_OPTIONS = [
   { value: "weekly", label: "Semanal (a cada 7 dias)", days: 7 },
@@ -74,7 +76,26 @@ function getEndDate(slot: SubstanceSlot): string {
   return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10).split("-").reverse().join("/") : "—";
 }
 
-interface Location { id: number; name: string; type: string; color: string; address: string | null; }
+interface AgendaOption {
+  id: number; name: string; kind: string; modality: string; professionalId: number | null;
+  locationId: number; locationName: string; locationType: string; locationColor: string; locationAddress: string | null;
+}
+interface AgendaProfessional {
+  id: number; name: string; crm: string | null; category: string; professionalType: string;
+  nurseType: string | null; homeServiceFeePerVisit: number | null;
+}
+interface ProtocolAgendaOptions {
+  clientId: number;
+  clinic: { id: number; name: string };
+  nursingAgendaId: number;
+  medicalAgendaId: number;
+  nursingAgendas: AgendaOption[];
+  medicalAgendas: AgendaOption[];
+  nursingAgenda: AgendaOption;
+  medicalAgenda: AgendaOption;
+  nurses: AgendaProfessional[];
+  doctors: AgendaProfessional[];
+}
 
 export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, embedded, onCreated, onBusyChange }: {
   clientId?: number;
@@ -99,13 +120,13 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const { toast } = useToast();
   const { data: clients } = useListClients();
   const { data: substances, isError: substancesError, isFetching: substancesFetching } = useListSubstances();
-  const { data: professionals } = useListProfessionals();
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [agendaOptions, setAgendaOptions] = useState<ProtocolAgendaOptions | null>(null);
+  const [agendaOptionsError, setAgendaOptionsError] = useState("");
+  const [agendaOptionsLoading, setAgendaOptionsLoading] = useState(false);
 
   const [step, setStep] = useState<"configurar" | "resumo">("configurar");
   const [clientId, setClientId] = useState<number | null>(clientIdProp ?? null);
   const [manualProfessionalId, setProfessionalId] = useState("");
-  const [locationId, setLocationId] = useState("");
   const [scheduledTime, setScheduledTime] = useState("08:00");
   const [schedulingMode, setSchedulingMode] = useState<"weekly" | "exact">("weekly");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
@@ -113,8 +134,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const [comboLoading, setComboLoading] = useState(false);
   const [activeVia, setActiveVia] = useState<string>("all");
   const [nurseId, setNurseId] = useState("");
-  const [clientAddresses, setClientAddresses] = useState<Array<{id: number; label: string; street?: string | null; city?: string | null; zipCode?: string | null; isDefault: boolean}>>([]);
-  const [serviceAddressId, setServiceAddressId] = useState("");
+  const [scheduleProtocolId, setScheduleProtocolId] = useState<number | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
+  const [generateRasAfterSync, setGenerateRasAfterSync] = useState(false);
   const clinicalIdentity = useClinicalIdentity(embedded ? clientId : null, { refetchOnWindowFocus: true });
   const identityConfirmed = !embedded || (
     !clinicalIdentity.isError && !clinicalIdentity.isFetching &&
@@ -124,16 +147,15 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     ? clinicalIdentity.data.professional : null;
   const professionalId = authenticatedDoctor ? String(authenticatedDoctor.id) : manualProfessionalId;
   const comboRef = useRef(false);
+  const scheduleConfirmedRef = useRef(false);
   const operationRef = useRef(false);
   const mountedRef = useRef(true);
-  const documentAbortRef = useRef<AbortController | null>(null);
   const slotsTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      documentAbortRef.current?.abort();
     };
   }, []);
 
@@ -142,29 +164,33 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   }, [clientIdProp]);
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}api/locations`)
-      .then(r => r.json())
-      .then(setLocations)
-      .catch(() => {});
-  }, []);
-
-  // Busca endereços de visita do cliente quando o local for homecare.
-  useEffect(() => {
-    const loc = locations.find(l => String(l.id) === locationId);
-    if (!clientId || loc?.type !== "homecare") {
-      setClientAddresses([]);
-      setServiceAddressId("");
+    if (!clientId) {
+      setAgendaOptions(null);
+      setAgendaOptionsError("");
+      setAgendaOptionsLoading(false);
       return;
     }
-    fetch(`${import.meta.env.BASE_URL}api/client-service-addresses?clientId=${clientId}`)
-      .then(r => r.json())
-      .then((data: any[]) => {
-        setClientAddresses(data);
-        const def = data.find(a => a.isDefault);
-        if (def) setServiceAddressId(String(def.id));
-      })
-      .catch(() => {});
-  }, [clientId, locationId, locations]);
+    const controller = new AbortController();
+    setAgendaOptions(null);
+    setAgendaOptionsError("");
+    setAgendaOptionsLoading(true);
+    fetch(`${import.meta.env.BASE_URL}api/clients/${clientId}/protocol-agenda-options`, {
+      headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      signal: controller.signal,
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error ?? "Não foi possível carregar as agendas vinculadas ao cliente.");
+      return data as ProtocolAgendaOptions;
+    }).then(data => {
+      if (controller.signal.aborted) return;
+      setAgendaOptions(data);
+    }).catch(error => {
+      if (!controller.signal.aborted) setAgendaOptionsError(error instanceof Error ? error.message : "Falha ao carregar as agendas do cliente.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setAgendaOptionsLoading(false);
+    });
+    return () => controller.abort();
+  }, [clientId]);
 
   const createMutation = useCreateProtocol({
     mutation: {
@@ -173,7 +199,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
         operationRef.current = false;
         onBusyChange?.(false);
         if (!mountedRef.current) return;
-        toast({ title: "Protocolo lançado!", description: "Sessões serão geradas após validação." });
+        toast({ title: "Protocolo lançado!", description: "Abra o detalhe e confirme a prévia em Agendar protocolo." });
         irAoProtocolo(data.id);
       },
       onError: () => {
@@ -186,12 +212,24 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     }
   });
 
-  const validateMutation = useValidateProtocol();
-
   const selectedClient = clientIdentity?.id === clientId ? clientIdentity : clients?.find(c => c.id === clientId);
-  const selectedProfessional = authenticatedDoctor ?? professionals?.find(p => String(p.id) === professionalId);
-  const selectedLocation = locations.find(l => String(l.id) === locationId);
+  const nurses = agendaOptions?.nurses ?? [];
+  const availableDoctors = agendaOptions?.doctors ?? [];
+  const selectedProfessional = authenticatedDoctor ?? availableDoctors.find(p => String(p.id) === professionalId);
+  const selectedLocation = agendaOptions?.nursingAgenda ? {
+    id: agendaOptions.nursingAgenda.locationId,
+    name: agendaOptions.nursingAgenda.locationName,
+    type: agendaOptions.nursingAgenda.locationType,
+    color: agendaOptions.nursingAgenda.locationColor,
+    address: agendaOptions.nursingAgenda.locationAddress,
+  } : undefined;
+  const doctorAllowed = Boolean(selectedProfessional && availableDoctors.some(p => p.id === selectedProfessional.id));
   const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
+
+  useEffect(() => {
+    if (nurseId && !nurses.some(n => String(n.id) === nurseId)) setNurseId("");
+    if (manualProfessionalId && !availableDoctors.some(p => String(p.id) === manualProfessionalId)) setProfessionalId("");
+  }, [agendaOptions, availableDoctors, nurses, nurseId, manualProfessionalId]);
 
   const participacaoMedica = (substanceId: number): string => {
     if (substancesError) return "Cadastro indisponível";
@@ -214,10 +252,6 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     if (activeVia === "all") return all;
     return all.filter(s => viaOf(s.procedureType) === activeVia);
   }, [substances, activeVia]);
-
-  const nurses = useMemo(() => {
-    return (professionals ?? []).filter((p: any) => p.category === "enfermagem");
-  }, [professionals]);
 
   const addSlot = useCallback(() => {
     if (slots.length >= 10) return;
@@ -246,7 +280,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     });
   };
 
-  const canAdvance = clientId && identityConfirmed && (!embedded || clientIdentity?.id === clientId) && professionalId && locationId && filledSlots.length > 0;
+  const canAdvance = clientId && identityConfirmed && (!embedded || clientIdentity?.id === clientId) &&
+    agendaOptions && !agendaOptionsLoading && !agendaOptionsError && doctorAllowed &&
+    professionalId && filledSlots.length > 0;
 
   const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
@@ -261,7 +297,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       startDate: filledSlots.map(s => s.startDate).sort()[0] ?? format(new Date(), "yyyy-MM-dd"),
       scheduledTime,
       schedulingMode,
-      serviceType: (selectedLocation?.type === "homecare" ? "homecare" : "clinic") as "homecare" | "clinic",
+      serviceType: "clinic" as const,
       professionalId: parseInt(professionalId),
       unit: selectedLocation?.name ?? null,
       totalValue: 0,
@@ -301,51 +337,84 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       const created = await createMutation.mutateAsync({ data: buildPayload() });
       createdId = created.id;
       if (!mountedRef.current) return;
-      await validateMutation.mutateAsync({ id: created.id, params: { scheduledTime } });
-      if (!mountedRef.current) return;
-      const controller = new AbortController();
-      documentAbortRef.current = controller;
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${created.id}`, {
-        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
-        signal: controller.signal,
-      });
-      if (!mountedRef.current) return;
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => null);
-        throw new Error(err?.details || "Erro ao gerar RAS FAP");
-      }
-      const blob = await resp.blob();
-      if (!mountedRef.current) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const cd = resp.headers.get("Content-Disposition");
-      const m = cd?.match(/filename="(.+)"/);
-      a.download = m?.[1] ?? `RAS_FAP_${created.id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "Protocolo lançado e RAS FAP gerado!", description: "PDF baixado para impressao e enviado ao Drive do cliente." });
-      comboRef.current = false;
-      irAoProtocolo(created.id);
+      scheduleConfirmedRef.current = false;
+      setScheduleProtocolId(created.id);
+      setGenerateRasAfterSync(true);
+      setScheduleOpen(true);
     } catch (err: any) {
       if (!mountedRef.current) return;
-      if (createdId !== null) {
-        toast({
-          title: "Protocolo criado, mas o RAS FAP falhou",
-          description: "Abrindo o detalhe — gere o RAS FAP pelo botão da tela.",
-          variant: "destructive",
-        });
-        comboRef.current = false;
-        irAoProtocolo(createdId);
-      } else {
-        toast({ title: "Erro ao criar protocolo", description: err?.message ?? "Falha ao lançar com RAS FAP", variant: "destructive" });
-      }
-    } finally {
+      toast({ title: "Erro ao criar protocolo", description: err?.message ?? "Falha ao lançar com RAS FAP", variant: "destructive" });
+    }
+    if (createdId === null) {
       comboRef.current = false;
       operationRef.current = false;
-      documentAbortRef.current = null;
       onBusyChange?.(false);
       if (mountedRef.current) setComboLoading(false);
+    }
+  };
+
+  const releaseCombo = () => {
+    comboRef.current = false;
+    operationRef.current = false;
+    onBusyChange?.(false);
+    if (mountedRef.current) setComboLoading(false);
+  };
+
+  const handleGenerateRasAfterScheduling = async (protocolId: number) => {
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}api/ras/physical/${protocolId}`, {
+        headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` },
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.details || "Erro ao gerar RAS FAP");
+      }
+      const blob = await response.blob();
+      if (!mountedRef.current) return;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const disposition = response.headers.get("Content-Disposition");
+      anchor.download = disposition?.match(/filename="(.+)"/)?.[1] ?? `RAS_FAP_${protocolId}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Protocolo agendado e RAS FAP gerado", description: "A reserva foi feita antes da emissão do documento." });
+    } catch (error) {
+      toast({
+        title: "Protocolo agendado; o RAS FAP falhou",
+        description: error instanceof Error ? error.message : "Gere o documento pela tela do protocolo.",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerateRasAfterSync(false);
+      setScheduleProtocolId(null);
+      releaseCombo();
+      if (mountedRef.current) irAoProtocolo(protocolId);
+    }
+  };
+
+  const handleScheduleDialogChange = (open: boolean) => {
+    setScheduleOpen(open);
+    if (!open && scheduleProtocolId && !scheduleConfirmedRef.current) {
+      const createdId = scheduleProtocolId;
+      setGenerateRasAfterSync(false);
+      setScheduleProtocolId(null);
+      releaseCombo();
+      toast({ title: "Protocolo criado, mas ainda não agendado", description: "Nenhum horário foi reservado. Você pode agendar pela tela do protocolo." });
+      irAoProtocolo(createdId);
+    }
+  };
+
+  const handleSchedulingComplete = () => {
+    scheduleConfirmedRef.current = true;
+    setScheduleOpen(false);
+    setGoogleSyncOpen(true);
+  };
+
+  const handleGoogleSyncDialogChange = (open: boolean) => {
+    setGoogleSyncOpen(open);
+    if (!open && generateRasAfterSync && scheduleProtocolId) {
+      void handleGenerateRasAfterScheduling(scheduleProtocolId);
     }
   };
 
@@ -400,7 +469,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               </div>
               <p className="font-bold uppercase tracking-tight text-lg leading-tight">{selectedLocation?.name}</p>
               <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                {selectedLocation?.type === "homecare" ? "Nurse Care Domiciliar" : "Clínica"}
+                Clínica: {agendaOptions?.clinic.name ?? "Carregando vínculo…"}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Enfermagem: {agendaOptions?.nursingAgenda.name ?? "—"} · Médico: {agendaOptions?.medicalAgenda.name ?? "—"}
               </p>
             </div>
             {nurseId && (() => {
@@ -470,7 +542,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               {" "}Horário padrão: <strong className="text-foreground">{scheduledTime}</strong>.
             </p>
             <p className="text-xs mt-3 font-semibold" role="status">
-              As sessões geradas ainda não reservam horários na enfermagem ou na agenda médica e não são enviadas automaticamente ao Google.
+              Este resumo ainda não reserva horários. A prévia seguinte mostra as datas; a reserva só acontece depois da sua confirmação.
             </p>
           </div>
         </CardContent>
@@ -493,9 +565,21 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           disabled={!canAdvance || comboLoading || createMutation.isPending}
         >
           {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
-          {comboLoading ? "Gerando RAS FAP..." : "Lançar + Gerar RAS FAP"}
+          {comboLoading ? "Agendando antes do RAS FAP..." : "Lançar + Gerar RAS FAP"}
         </Button>
       </div>
+      <ProtocolSchedulingDialog
+        protocolId={scheduleProtocolId ?? 0}
+        clientId={clientId ?? 0}
+        open={scheduleOpen}
+        onOpenChange={handleScheduleDialogChange}
+        onScheduled={handleSchedulingComplete}
+      />
+      <ProtocolGoogleSyncDialog
+        protocolId={scheduleProtocolId ?? 0}
+        open={googleSyncOpen}
+        onOpenChange={handleGoogleSyncDialogChange}
+      />
       </div>
     );
   }
@@ -573,16 +657,21 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                   <SelectValue placeholder="Selecione o médico" />
                 </SelectTrigger>
                 <SelectContent>
-                  {professionals?.map(p => (
+                  {availableDoctors.map(p => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.name}{p.crm ? ` — ${p.crm}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>}
+              {authenticatedDoctor && agendaOptions && !doctorAllowed && (
+                <p className="text-xs text-destructive" role="alert">
+                  O médico autenticado não está vinculado à agenda médica cadastrada para este cliente.
+                </p>
+              )}
             </div>
           </div>
-          {/* Enfermeira + Endereço de Visita */}
+          {/* Enfermagem vinculada ao local do cliente */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
@@ -623,71 +712,29 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               )}
             </div>
 
-            {/* Endereço de visita — só para homecare */}
-            {selectedLocation?.type === "homecare" && (
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
-                  <MapPin className="h-3 w-3" /> Endereço de Visita
-                </Label>
-                {clientAddresses.length > 0 ? (
-                  <>
-                    <Select value={serviceAddressId || "none"} onValueChange={v => setServiceAddressId(v === "none" ? "" : v)}>
-                      <SelectTrigger className="field-engraved">
-                        <SelectValue placeholder="Selecione o endereço" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— Sem endereço específico —</SelectItem>
-                        {clientAddresses.map(a => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            <div className="flex items-center gap-2">
-                              <span>{a.label}</span>
-                              {a.isDefault && <span className="text-muted-foreground text-xs">✦ padrão</span>}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {serviceAddressId && clientAddresses.find(a => String(a.id) === serviceAddressId) && (
-                      <p className="text-[10px] text-muted-foreground font-medium">
-                        {(() => {
-                          const a = clientAddresses.find(ad => String(ad.id) === serviceAddressId)!;
-                          return [a.street, a.city, a.zipCode && `CEP ${a.zipCode}`].filter(Boolean).join(", ");
-                        })()}
-                      </p>
-                    )}
-                  </>
-                ) : clientId ? (
-                  <div className="field-engraved rounded-md px-3 py-2.5 text-[10px] text-muted-foreground font-medium">
-                    Nenhum endereço cadastrado. Adicione na aba <strong>Endereços</strong> do cliente.
-                  </div>
-                ) : (
-                  <div className="field-engraved rounded-md px-3 py-2.5 text-[10px] text-muted-foreground font-medium">
-                    Selecione o cliente para ver seus endereços.
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Local de Atendimento *</Label>
-              <Select value={locationId} onValueChange={setLocationId}>
-                <SelectTrigger className="field-engraved">
-                  <SelectValue placeholder="Selecione o local" />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map(l => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
-                        <span>{l.name}</span>
-                        <span className="text-muted-foreground text-xs">{l.type === "homecare" ? "Domiciliar" : "Clínica"}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Clínica e agendas vinculadas</Label>
+              {agendaOptionsLoading ? (
+                <div className="field-engraved rounded-md px-3 py-2.5 text-sm" role="status">Carregando vínculos do cliente…</div>
+              ) : agendaOptionsError ? (
+                <div className="panel-3d-sub rounded-md px-3 py-2.5 text-sm text-destructive" role="alert">
+                  {agendaOptionsError}
+                </div>
+              ) : agendaOptions ? (
+                <div className="field-engraved rounded-md px-3 py-2.5 text-sm space-y-1" aria-readonly="true">
+                  <p><strong>Clínica:</strong> {agendaOptions.clinic.name}</p>
+                  <p><strong>Agenda de enfermagem:</strong> {agendaOptions.nursingAgenda.name}</p>
+                  <p><strong>Agenda médica:</strong> {agendaOptions.medicalAgenda.name}</p>
+                  <p><strong>Local de atendimento:</strong> {selectedLocation?.name}</p>
+                </div>
+              ) : (
+                <div className="field-engraved rounded-md px-3 py-2.5 text-sm text-muted-foreground">
+                  Selecione o cliente para carregar somente os vínculos do cadastro.
+                </div>
+              )}
               {selectedLocation?.address && (
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-1">{selectedLocation.address}</p>
               )}

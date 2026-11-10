@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import {
-  agendaResourcesTable, clientsTable, db, protocolItemsTable, protocolsTable,
+  agendaResourcesTable, clientsTable, db, locationsTable, protocolItemsTable, protocolsTable,
   sessionsTable, substanceApplicationsTable, substancesTable,
 } from "@workspace/db";
 import { lockAgendaResource, SIM_TAG } from "./agenda-booking";
@@ -64,6 +64,8 @@ export interface ReserveProtocolVisitsParams {
    * porque margem e intervalo mínimo dependem de doses, totais, intervalos, datas e durações.
    */
   expectedSnapshot?: string;
+  /** Local conferido na prévia, para não trocar silenciosamente após o recálculo. */
+  expectedNursingLocationId?: number;
 }
 
 export interface ReservedVisit {
@@ -203,10 +205,27 @@ export async function reserveProtocolVisits(
       if (!empresaId || empresaId !== params.empresaId) {
         return refuse(404, "agenda_nao_encontrada", "Agenda não encontrada ou inativa");
       }
-      const [resource] = await tx.select({ name: agendaResourcesTable.name, modality: agendaResourcesTable.modality })
-        .from(agendaResourcesTable).where(eq(agendaResourcesTable.id, params.nursingResourceId));
+      const [resource] = await tx.select({
+        name: agendaResourcesTable.name,
+        kind: agendaResourcesTable.kind,
+        modality: agendaResourcesTable.modality,
+        locationId: locationsTable.id,
+        locationName: locationsTable.name,
+        locationEmpresaId: locationsTable.empresaId,
+        locationActive: locationsTable.active,
+      }).from(agendaResourcesTable)
+        .innerJoin(locationsTable, eq(locationsTable.id, agendaResourcesTable.locationId))
+        .where(eq(agendaResourcesTable.id, params.nursingResourceId));
+      if (!resource || resource.locationEmpresaId !== empresaId || resource.locationActive !== "true") {
+        return refuse(404, "agenda_nao_encontrada", "Agenda não encontrada ou inativa");
+      }
+      if (params.expectedNursingLocationId !== undefined &&
+          resource.locationId !== params.expectedNursingLocationId) {
+        return refuse(409, "plano_mudou",
+          "O local de atendimento mudou desde a prévia. Confira a nova prévia antes de confirmar. Nada foi agendado.");
+      }
       // Esta etapa só habilita a enfermagem LOCAL; domiciliar e online têm outras regras de deslocamento e expediente.
-      if (resource?.modality !== "local") {
+      if (resource.kind !== "enfermagem" || resource.modality !== "local") {
         return refuse(422, "agenda_invalida", "A reserva por períodos só está habilitada para a agenda de enfermagem local");
       }
 
@@ -227,8 +246,9 @@ export async function reserveProtocolVisits(
         return refuse(409, "protocolo_ja_agendado",
           "Protocolo já tem sessões; confira o histórico sem recriar os agendamentos");
       }
-      if (protocol.status !== "suggested") {
-        return refuse(409, "protocolo_status_invalido", "O protocolo precisa estar sugerido para ser agendado");
+      if (protocol.status !== "suggested" && protocol.status !== "validated") {
+        return refuse(409, "protocolo_status_invalido",
+          "O protocolo precisa estar sugerido ou validado sem sessões para ser agendado");
       }
 
       // 3. O plano precisa cobrir exatamente as aplicações do protocolo.
@@ -369,7 +389,7 @@ export async function reserveProtocolVisits(
           protocolId: protocol.id, clientId: params.clientId, professionalId: protocol.professionalId,
           resourceId: params.nursingResourceId, durationMinutes: periods * NURSING_PERIOD_MINUTES,
           scheduledDate: visit.date, scheduledTime: visit.time, status: "scheduled",
-          unit: protocol.unit ?? resource?.name ?? null, serviceType: protocol.serviceType,
+          unit: resource.locationName, serviceType: "clinic",
           weekNumber: index + 1, notes: params.simulate ? SIM_TAG : null, empresaId,
         }).returning();
         const inThisVisit = new Set(visit.applications.map(a => a.substanceId));
@@ -398,7 +418,7 @@ export async function reserveProtocolVisits(
         });
       }
       await tx.update(protocolsTable)
-        .set({ status: "validated", scheduledTime: visits[0].time })
+        .set({ status: "validated", scheduledTime: visits[0].time, unit: resource.locationName, serviceType: "clinic" })
         .where(eq(protocolsTable.id, protocol.id));
       return { ok: true, protocolStatus: "validated", visits: reserved };
     });

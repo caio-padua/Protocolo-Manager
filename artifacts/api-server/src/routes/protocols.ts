@@ -28,6 +28,7 @@ import { buildExactProtocolSchedule } from "../lib/protocol-exact-schedule";
 import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
 import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
 import { requireCollaborator } from "./collaborator";
+import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
 import { isGmailConnected } from "../lib/google-gmail";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
 import {
@@ -173,6 +174,8 @@ async function buildProtocolResponse(protocol: typeof protocolsTable.$inferSelec
       id: session.id,
       protocolId: session.protocolId,
       clientId: session.clientId,
+      resourceId: session.resourceId ?? null,
+      durationMinutes: session.durationMinutes ?? null,
       clientName: client?.name ?? "",
       clientCpf: client?.cpf ?? "",
       scheduledDate: session.scheduledDate,
@@ -321,6 +324,16 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
   const { items, ...protocolData } = parsed.data;
   const member = await authorizeProtocolClient(req, protocolData.clientId, res);
   if (!member) return;
+  let clientAgendas;
+  try {
+    clientAgendas = await loadClientProtocolAgendas(protocolData.clientId, member.clinic.empresaId);
+  } catch (error) {
+    if (error instanceof ClientProtocolAgendaError) {
+      res.status(error.status).json({ code: error.code, error: error.message });
+      return;
+    }
+    throw error;
+  }
   if (protocolData.schedulingMode === "exact") {
     try {
       buildExactProtocolSchedule(protocolData.startDate, items);
@@ -330,9 +343,9 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
     }
   }
 
-  if (protocolData.professionalId != null &&
-      !await professionalLinkedToClinic(protocolData.professionalId, member.clinic.id)) {
-    res.status(403).json({ error: "O profissional selecionado não está vinculado a esta clínica." });
+  if (!protocolData.professionalId ||
+      !clientAgendas.doctors.some(professional => professional.id === protocolData.professionalId)) {
+    res.status(403).json({ code: "medico_fora_do_cadastro", error: "Selecione um médico vinculado à agenda médica cadastrada para este cliente." });
     return;
   }
 
@@ -343,8 +356,8 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
     res.status(400).json({ error: "O profissional de enfermagem selecionado é inválido." });
     return;
   }
-  if (rawNurseId != null && !await professionalLinkedToClinic(rawNurseId, member.clinic.id)) {
-    res.status(403).json({ error: "O profissional de enfermagem não está vinculado a esta clínica." });
+  if (rawNurseId != null && !clientAgendas.nurses.some(professional => professional.id === rawNurseId)) {
+    res.status(403).json({ code: "enfermagem_fora_do_cadastro", error: "A profissional de enfermagem não está vinculada à agenda cadastrada para este cliente." });
     return;
   }
 
@@ -368,6 +381,8 @@ router.post("/protocols", requireCollaborator, async (req, res): Promise<void> =
   const protocol = await db.transaction(async tx => {
   const [created] = await tx.insert(protocolsTable).values({
     ...protocolData,
+    serviceType: "clinic",
+    unit: clientAgendas.nursingAgenda.locationName,
     totalValue: finalTotalValue,
     totalSessions,
     empresaId: member.clinic.empresaId,
@@ -1220,7 +1235,7 @@ router.put("/protocols/:id", requireCollaborator, async (req, res): Promise<void
   res.json(result);
 });
 
-// Validate protocol and auto-generate sessions with weekly consolidation logic
+// Legacy route: never creates sessions, because it does not reserve agenda slots.
 router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Promise<void> => {
   const params = ValidateProtocolParams.safeParse(req.params);
   if (!params.success) {
@@ -1267,7 +1282,17 @@ router.post("/protocols/:id/validate", requireCollaborator, async (req, res): Pr
   const db = tx;
   const existingSessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocol.id));
   if (lockedProtocol.status === "validated" && existingSessions.length > 0) {
+    if (existingSessions.some(session => !session.resourceId || !session.durationMinutes)) {
+      throw new ProtocolValidationConflict(
+        "Este protocolo tem sessões antigas sem reserva. Elas foram preservadas; não podem ser tratadas como agendadas.",
+      );
+    }
     return lockedProtocol;
+  }
+  if (lockedProtocol.status === "suggested" && existingSessions.length === 0) {
+    throw new ProtocolValidationConflict(
+      "A validação antiga não reserva horários. Use a prévia e a confirmação em “Agendar protocolo”. Nada foi gravado.",
+    );
   }
   if (lockedProtocol.status !== "suggested" || existingSessions.length > 0) {
     throw new ProtocolValidationConflict("Protocolo já processado ou com sessões existentes; confira o histórico sem recriar os agendamentos.");

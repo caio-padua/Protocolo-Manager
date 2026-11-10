@@ -22,9 +22,8 @@ import { authorizeProtocol } from "./protocols";
  *                                              por visita já reservada (etapa 5). Falha aqui nunca
  *                                              desfaz a reserva.
  *
- * O navegador nunca envia o plano, só a agenda escolhida (opcional) e a
- * impressão digital da prévia. A validação antiga (POST /protocols/:id/validate)
- * continua existindo, intacta.
+ * O navegador nunca envia o plano, só uma agenda autorizada no cadastro do
+ * cliente e a impressão digital da prévia. A validação antiga não cria sessões.
  */
 const router: IRouter = Router();
 

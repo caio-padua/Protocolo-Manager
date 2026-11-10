@@ -155,48 +155,55 @@ beforeEach(() => {
   };
 });
 
-describe("Validação transacional do protocolo pelo motor existente", () => {
-  it("persiste o horário escolhido e mantém a consolidação semanal", async () => {
+describe("Bloqueio da validação antiga sem reserva", () => {
+  it("recusa criar sessões sem passar pela prévia e reserva", async () => {
     const response = await validate("?scheduledTime=10:00");
-    expect(response.status, JSON.stringify(response.body)).toBe(200);
-    expect(state.rows.sessions.map(s => [s.scheduledDate, s.scheduledTime]))
-      .toEqual([["2030-01-01", "10:00"], ["2030-01-08", "10:00"]]);
-    expect(state.rows.protocols[0].status).toBe("validated");
+    expect(response.status, JSON.stringify(response.body)).toBe(409);
+    expect(response.body.message).toContain("não reserva horários");
+    expect(state.rows.sessions).toEqual([]);
+    expect(state.rows.protocols[0].status).toBe("suggested");
     expect(state.lockCalls).toBe(1);
+    expect(state.inserts).toBe(0);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
-  it("preserva o horário legado quando o chamador não informa outro", async () => {
-    expect((await validate()).status).toBe(200);
-    expect(state.rows.sessions.every(s => s.scheduledTime === "09:00")).toBe(true);
+  it("recusa repetição sem criar sessões", async () => {
+    expect((await validate()).status).toBe(409);
+    expect((await validate()).status).toBe(409);
+    expect(state.rows.sessions).toEqual([]);
+    expect(state.inserts).toBe(0);
   });
-  it("recupera o horário salvo no lançamento normal ao validar pelo detalhe", async () => {
-    state.rows.protocols[0].scheduledTime = "10:00";
-    expect((await validate()).status).toBe(200);
-    expect(state.rows.sessions.map(s => s.scheduledTime)).toEqual(["10:00", "10:00"]);
+  it("preserva sessões históricas sem convertê-las em reservas", async () => {
+    state.rows.protocols[0].status = "validated";
+    state.rows.sessions.push({ id: 90, status: "scheduled", resourceId: null, durationMinutes: null });
+    const before = structuredClone(state.rows.sessions);
+    expect((await validate()).status).toBe(409);
+    expect(state.rows.sessions).toEqual(before);
+    expect(state.inserts).toBe(0);
   });
   it.each(["24:00", "10:60", "9:00", "invalid", ""])("recusa horário inválido %s", async time => {
     expect((await validate(`?scheduledTime=${time}`)).status).toBe(400);
     expect(state.inserts).toBe(0);
   });
-  it("não recria nem reenvia após repetição", async () => {
-    await validate("?scheduledTime=10:00");
+  it("mantém o banco inalterado após nova chamada", async () => {
+    expect((await validate("?scheduledTime=10:00")).status).toBe(409);
     const before = structuredClone(state.rows);
-    expect((await validate("?scheduledTime=11:00")).status).toBe(200);
+    expect((await validate("?scheduledTime=11:00")).status).toBe(409);
     expect(state.rows).toEqual(before);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
-  it("serializa chamadas concorrentes sem duplicar sessões ou onboarding", async () => {
+  it("recusa chamadas concorrentes sem gravar sessões", async () => {
     const responses = await Promise.all([validate("?scheduledTime=10:00"), validate("?scheduledTime=10:00")]);
-    expect(responses.map(r => r.status)).toEqual([200, 200]);
-    expect(state.rows.sessions).toHaveLength(2);
-    expect(state.rows.applications).toHaveLength(2);
+    expect(responses.map(r => r.status)).toEqual([409, 409]);
+    expect(state.rows.sessions).toHaveLength(0);
+    expect(state.rows.applications).toHaveLength(0);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
-  it("reverte sessões e estado quando a persistência das aplicações falha", async () => {
+  it("não tenta persistir mesmo quando o banco teria falhado", async () => {
     state.failInsert = true;
-    expect((await validate()).status).toBe(500);
+    expect((await validate()).status).toBe(409);
     expect(state.rows.sessions).toHaveLength(0);
     expect(state.rows.protocols[0].status).toBe("suggested");
+    expect(state.inserts).toBe(0);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
   it.each(["active", "completed", "cancelled"])("não reconstrói protocolo %s", async status => {
@@ -215,7 +222,7 @@ describe("Validação transacional do protocolo pelo motor existente", () => {
     expect(state.inserts).toBe(0);
   });
   it("respeita supressão explícita de onboarding", async () => {
-    expect((await validate("?skipOnboardingEmail=true")).status).toBe(200);
+    expect((await validate("?skipOnboardingEmail=true")).status).toBe(409);
     expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
   });
   it("não inicia persistência sem sessão", async () => {

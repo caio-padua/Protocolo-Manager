@@ -56,3 +56,18 @@ o banco entre a comparação e a reserva (ex.: callback de reautorização).
 Google desatualizado tem código próprio (agenda_desatualizada), nunca "sem plano".
 O planejador poda a busca a partir de ~4 aplicações com 12 vagas cada
 (searchWasPruned=true é normal); prévia de 36 aplicações levou ~6 s em banco de ensaio.
+
+Lançamento de protocolo usa somente a clínica e as agendas ativas vinculadas ao
+cadastro do cliente; listas globais não são fonte de autorização. A prévia e a
+reserva conferem a agenda e o local, e a sessão persistida usa o local realmente
+confirmado. Um protocolo validado sem sessões pode ser reservado pelo fluxo novo;
+sessões antigas sem recurso ficam preservadas e não são reenviadas nem reparadas
+automaticamente.
+
+**Why:** uma lista global permitiu selecionar enfermagem e local de outras clínicas;
+a validação antiga também criou sessões sem reservar horário, e agendas alternativas
+podem ter locais operacionais diferentes.
+
+**How to apply:** ao alterar seletores, prévia ou reserva, derive opções do cadastro
+do cliente e confira o mesmo recurso e local dentro da reserva. Não transforme
+sessões legadas em compromissos sem uma ação de recuperação explícita.

@@ -170,8 +170,10 @@ editável pelo controle sim/não do cadastro.
    livre); Google desatualizado tem código próprio (`agenda_desatualizada`) e nunca é
    tratado como "ocupado".
    NÃO faz nesta etapa: evento no Google Agenda (etapa 5), e-mail ou convite ao cliente,
-   cancelamento e reagendamento (etapa 6). A validação antiga (`POST /protocols/:id/validate`)
-   e o botão "Validar e Gerar Sessões" continuam intactos.
+   cancelamento e reagendamento (etapa 6).
+   A validação antiga permanece compatível com protocolos já processados, mas
+   não pode criar sessões novas sem reserva real; a interface não a oferece como
+   alternativa de agendamento.
    Custo medido em banco de ensaio: prévia de 3 substâncias semanais por 12 semanas
    (36 aplicações, 82 dias de agenda) = 5,9 s. Em dados reais a leitura do motor custou
    73 a 130 ms por dia, então a mesma prévia pode levar 6 a 11 s; a confirmação repete o
@@ -427,5 +429,70 @@ Testes isolados devem cobrir sessões com uma, seis e sete aplicações; mistura
 intramuscular e subcutânea; implante; ocupação; almoço; concorrência; frequência
 menor que sete dias; margem; eventos alterados; falta; remarcação; aplicação;
 exceções; privacidade; consistência entre agenda interna, Google e formulário.
+
+## Complemento: clínica e agendas do cliente no protocolo
+
+### Objetivo
+
+Ao criar e agendar um protocolo, usar exclusivamente a clínica, o local de
+atendimento e os recursos de agenda previamente vinculados ao cliente. Evitar
+que uma seleção ampla ou uma validação sem reserva produza sessões impossíveis
+de enviar ao sistema de agenda ou ao Google Agenda.
+
+### Requisitos
+
+1. A clínica de origem vem do cadastro do cliente e é somente leitura no
+   lançamento do protocolo; não pode ser substituída por outra clínica.
+2. O local operacional e a agenda de enfermagem vêm da agenda padrão de
+   enfermagem do cliente; opções adicionais só podem vir das agendas
+   explicitamente permitidas no cadastro do mesmo cliente.
+3. A agenda médica exibida, quando aplicável, vem da agenda médica padrão do
+   cadastro. Substância que exige participação médica continua bloqueada
+   enquanto a reserva conjunta de enfermagem e médico não estiver habilitada.
+4. A interface não carrega listas globais de locais, médicos ou enfermagem
+   como opções do protocolo. Dados ausentes, inativos, incompatíveis ou de
+   outra clínica bloqueiam o lançamento com mensagem explícita.
+5. O servidor revalida cliente, clínica, local, agenda e vínculo profissional
+   na criação e novamente antes da reserva. Valores enviados pelo navegador
+   não ampliam as opções autorizadas pelo cadastro.
+6. Todo agendamento novo passa pela prévia e confirmação do planejador e pela
+   reserva atômica existente; sessões novas sem recurso, duração e horário
+   realmente reservado não podem ser criadas.
+7. A sincronização com o Google Agenda usa somente sessões já reservadas e o
+   recurso de enfermagem e o local correspondentes à prévia confirmada. Falha do Google não desfaz a reserva;
+   recusa ou falha do agendamento não cria eventos.
+8. Protocolos legados com sessões sem recurso permanecem preservados e não são
+   convertidos nem reenviados automaticamente. Sua recuperação exige fluxo
+   separado, prévia e autorização operacional explícita.
+9. Protocolo já validado, mas sem sessões, pode seguir pela nova prévia; só é
+   agendado após confirmação e reserva real.
+
+### Falhas previstas e barreiras
+
+| Falha | Barreira | Evidência obrigatória |
+|---|---|---|
+| Clínica ou local de outra clínica | Recusa no servidor, não apenas filtro visual | Nenhuma sessão gravada |
+| Agenda padrão ausente, inativa ou de tipo errado | Interromper antes da reserva | Recusa explícita e banco inalterado |
+| Cadastro muda entre leitura e confirmação | Revalidar agenda e impressão digital | Conflito sem reserva parcial |
+| Validação antiga chamada para protocolo novo | Recusar sem criar sessões | Resposta de recusa e banco inalterado |
+| Google falha depois da reserva | Manter reserva e mostrar erro por visita | Sessões preservadas e evento não duplicado |
+| Protocolo legado sem recurso | Preservar e impedir envio como reservado | Histórico sem alteração automática |
+
+### Definição de pronto
+
+Os seletores mostram apenas os vínculos do cadastro do cliente, e a clínica
+permanece fixa. O caminho validado reserva no sistema a agenda correta antes de
+oferecer envio ao Google. A validação antiga não cria sessões sem reserva.
+Testes usam dados sintéticos em banco isolado e simulam o Google; a tela
+autenticada é conferida em computador e celular.
+
+### Evidência do defeito observado
+
+As capturas anexadas mostram enfermagem e locais de várias clínicas no
+lançamento do protocolo. A tela também ofereceu "Validar e Gerar Sessões" e
+informou que essa validação não reserva horários. As visitas resultantes
+chegaram à sincronização sem recurso de enfermagem e o Google as recusou como
+registros antigos sem agenda. Esconder apenas o erro não satisfaz esta
+especificação.
 Revisão independente, captura e prova externa autorizada são necessárias antes
 de declarar o conjunto homologado.
