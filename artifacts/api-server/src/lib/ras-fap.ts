@@ -22,6 +22,7 @@
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import { nomeEnfermeira, rubricaCliente, type RegistroRasFap } from "./ras-fap-rubrica";
+import { dosePrescritaParaDocumento, nomeSubstanciaNoProtocolo } from "./protocol-dose-presentation";
 
 // Site institucional do Paxter (placeholder). QR no rodape do RAS FAP aponta aqui
 // para que medicos/farmacias achem o sistema. Trocar so esta linha quando o site existir.
@@ -546,7 +547,15 @@ function desenharProtocolo(doc: Doc, pal: Paleta, grupo: SubstanciaFap[], y: num
   const cols = slots5(grupo);
 
   const linhas: { label: string; valor: (s: SubstanciaFap) => string; destaque?: boolean }[] = [
-    { label: "SUBSTÂNCIAS", valor: (s) => `${s.nome}${s.dose ? " " + s.dose : ""}`, destaque: true },
+    {
+      label: "SUBSTÂNCIAS",
+      valor: (s) => {
+        const name = nomeSubstanciaNoProtocolo(s.nome);
+        const dose = dosePrescritaParaDocumento(s.dose);
+        return `${name}${dose ? ` ${dose}` : ""}`;
+      },
+      destaque: true,
+    },
     { label: "APLICAÇÕES", valor: (s) => String(s.sessoes) },
     { label: "FREQUÊNCIA", valor: (s) => `A cada ${s.frequenciaDias} dias.` },
     { label: "INÍCIO DA APLICAÇÃO", valor: (s) => fmtData(s.inicio) },

@@ -34,7 +34,7 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const MAX_RESERVATION_VISITS = 80;
 const MAX_APPLICATIONS_PER_VISIT = 60;
 /** Mesmos estados que o motor de agenda trata como ocupação real. */
-const LIVE_SESSION_STATUSES = ["scheduled", "confirmed", "completed"];
+export const LIVE_SESSION_STATUSES = ["scheduled", "confirmed", "completed"];
 
 export type ReservationErrorCode =
   | "visitas_invalidas" | "agenda_nao_encontrada" | "agenda_invalida"

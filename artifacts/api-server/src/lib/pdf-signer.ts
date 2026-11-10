@@ -7,6 +7,12 @@ import { P12Signer } from "@signpdf/signer-p12";
 import { pdflibAddPlaceholder } from "@signpdf/placeholder-pdf-lib";
 import { gerarRasFapPdf, type DadosRasFap, type ModoRasFap } from "./ras-fap";
 import QRCode from "qrcode";
+import {
+  MENSAGEM_DOSE_CLINICA_REVISAO,
+  detalheCatalogoSeguroParaProtocolo,
+  dosePrescritaParaDocumento,
+  nomeSubstanciaNoProtocolo,
+} from "./protocol-dose-presentation";
 
 const signpdf = new SignPdf();
 
@@ -1662,7 +1668,8 @@ function drawSubstancePremiumPage(
   // Fio fino fechando o cabecalho: substitui a borda que a faixa navy dava.
   pg.drawLine({ start: { x: MARGIN, y: bandY + 1 }, end: { x: MARGIN + CONTENT_W, y: bandY + 1 }, thickness: 0.6, color: LINE_P });
 
-  const cleanDose = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
+  const cleanDose = dosePrescritaParaDocumento(sub.dose);
+  if (!cleanDose) throw new Error(MENSAGEM_DOSE_CLINICA_REVISAO);
   const doW = pf.manReg.widthOfTextAtSize(cleanDose || EMPTY_SHORT, 7);
   pg.drawText(cleanDose || EMPTY_SHORT, { x: MARGIN + CONTENT_W - doW, y: bandY + 9, size: 7, font: pf.manReg, color: INK_P });
 
@@ -1708,36 +1715,36 @@ function drawSubstancePremiumPage(
     }
   }
 
-  // ── GRADE 1b: segunda fila — concentração, volume e duração (task-266) ─────
-  // Estes 3 campos estavam cadastrados na substância mas nunca chegavam ao PDF.
-  // Campo sem dado exibe marcador "—" (grade invariável, R2.2).
-  const PRES2_H = 30;
-  const pres2Y = presY - PRES2_H;
-  pg.drawRectangle({ x: MARGIN, y: pres2Y, width: CONTENT_W, height: PRES2_H, color: MIST_P, opacity: 0.22 });
-  pg.drawLine({ start: { x: MARGIN, y: presY }, end: { x: MARGIN + CONTENT_W, y: presY }, thickness: 0.3, color: LINE_P });
-  const pres2Cells: Array<{ lbl: string; val: string }> = [
-    { lbl: "CONCENTRAÇÃO",   val: safeTxt(sub.concentrationMg) },
-    { lbl: "VOLUME (AMPOLA)",val: safeTxt(sub.volumeAmpola) },
-    { lbl: "DURAÇÃO (MIN)",  val: sub.durationMinutes != null && sub.durationMinutes > 0 ? new Intl.NumberFormat("pt-BR").format(sub.durationMinutes) : "" },
-  ];
-  const cell2W = CONTENT_W / pres2Cells.length;
-  for (let ci = 0; ci < pres2Cells.length; ci++) {
-    const cx0 = MARGIN + ci * cell2W;
-    if (ci > 0) {
-      pg.drawLine({ start: { x: cx0, y: pres2Y + 3 }, end: { x: cx0, y: pres2Y + PRES2_H - 3 }, thickness: 0.4, color: LINE_P });
-    }
-    pg.drawText(pres2Cells[ci].lbl, { x: cx0 + 5, y: pres2Y + PRES2_H - 10, size: 4.4, font: pf.manBold, color: INK_P });
-    const raw2 = pres2Cells[ci].val;
-    const has2 = raw2.trim().length > 0;
-    const shown2 = has2 ? raw2 : EMPTY_SHORT;
-    const cell2Font = has2 ? pf.cgBold : pf.cgReg;
-    let vs2 = 9;
-    while (cell2Font.widthOfTextAtSize(shown2, vs2) > cell2W - 10 && vs2 > 5.2) vs2 -= 0.25;
-    pg.drawText(shown2, { x: cx0 + 5, y: pres2Y + 9, size: vs2, font: cell2Font, color: has2 ? NAVY_P : EMPTY_C });
-  }
-
   // ── GRADE 2: duas colunas de altura fixa ───────────────────────────────────
-  const bodyTop = pres2Y - 20;
+  const DUR_H = 30;
+  const durY = presY - DUR_H;
+  pg.drawRectangle({ x: MARGIN, y: durY, width: CONTENT_W, height: DUR_H, color: MIST_P, opacity: 0.22 });
+  pg.drawLine({ start: { x: MARGIN, y: presY }, end: { x: MARGIN + CONTENT_W, y: presY }, thickness: 0.3, color: LINE_P });
+  const durationText = sub.durationMinutes != null && sub.durationMinutes > 0
+    ? new Intl.NumberFormat("pt-BR").format(sub.durationMinutes)
+    : "";
+  const durationLabelY = durY + DUR_H - 10;
+  pg.drawText("DURAÇÃO (MIN)", {
+    x: MARGIN + 5,
+    y: durationLabelY,
+    size: 4.4,
+    font: pf.manBold,
+    color: INK_P,
+  });
+  const shownDuration = durationText || EMPTY_SHORT;
+  const durationFont = durationText ? pf.cgBold : pf.cgReg;
+  let durationSize = 9;
+  while (durationFont.widthOfTextAtSize(shownDuration, durationSize) > CONTENT_W - 10 && durationSize > 5.2) {
+    durationSize -= 0.25;
+  }
+  pg.drawText(shownDuration, {
+    x: MARGIN + 5,
+    y: durY + 8,
+    size: durationSize,
+    font: durationFont,
+    color: durationText ? NAVY_P : EMPTY_C,
+  });
+  const bodyTop = durY - 20;
   const leftW = 200;
   const rightX = MARGIN + leftW + 16;
   const rightW = CONTENT_W - leftW - 16;
@@ -2635,6 +2642,45 @@ export async function buildProtocolDocumentLayout(
   data: ProtocolDocumentData,
   certData: PdfCertData = null,
 ): Promise<void> {
+  data = {
+    ...data,
+    notes: detalheCatalogoSeguroParaProtocolo(data.notes),
+    substances: data.substances.map(substance => {
+      const dose = dosePrescritaParaDocumento(substance.dose);
+      if (!dose) throw new Error(MENSAGEM_DOSE_CLINICA_REVISAO);
+      const bodySystemEffectsText = substance.bodySystemEffects
+        ? JSON.stringify(substance.bodySystemEffects)
+        : "";
+      return {
+        ...substance,
+        name: nomeSubstanciaNoProtocolo(substance.name),
+        dose,
+        description: detalheCatalogoSeguroParaProtocolo(substance.description),
+        mainFunction: detalheCatalogoSeguroParaProtocolo(substance.mainFunction),
+        perceivedEffects: detalheCatalogoSeguroParaProtocolo(substance.perceivedEffects),
+        composicao: detalheCatalogoSeguroParaProtocolo(substance.composicao),
+        posologia: detalheCatalogoSeguroParaProtocolo(substance.posologia),
+        contraindications: detalheCatalogoSeguroParaProtocolo(substance.contraindications),
+        scientificEvidence: detalheCatalogoSeguroParaProtocolo(substance.scientificEvidence),
+        longevityBenefit: detalheCatalogoSeguroParaProtocolo(substance.longevityBenefit),
+        qualityOfLifeImpact: detalheCatalogoSeguroParaProtocolo(substance.qualityOfLifeImpact),
+        sleepBenefit: detalheCatalogoSeguroParaProtocolo(substance.sleepBenefit),
+        energyBenefit: detalheCatalogoSeguroParaProtocolo(substance.energyBenefit),
+        libidoBenefit: detalheCatalogoSeguroParaProtocolo(substance.libidoBenefit),
+        physicalPerformance: detalheCatalogoSeguroParaProtocolo(substance.physicalPerformance),
+        muscleStrength: detalheCatalogoSeguroParaProtocolo(substance.muscleStrength),
+        mentalClarity: detalheCatalogoSeguroParaProtocolo(substance.mentalClarity),
+        skinHairNails: detalheCatalogoSeguroParaProtocolo(substance.skinHairNails),
+        immuneSupport: detalheCatalogoSeguroParaProtocolo(substance.immuneSupport),
+        bodySystemEffects: detalheCatalogoSeguroParaProtocolo(bodySystemEffectsText)
+          ? substance.bodySystemEffects
+          : undefined,
+        concentrationMg: undefined,
+        volumeAmpola: undefined,
+      };
+    }),
+  };
+
   const cert = certData?.cert ?? null;
   const certInfo = certData?.certInfo ?? null;
 
@@ -2792,7 +2838,7 @@ export async function buildProtocolDocumentLayout(
       if (fy < MARGIN + 30) { finPg = newDocPage(pdfDoc, allPages); finPg.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: IVORY_P }); fy = PAGE_H - MARGIN; }
       if (fzebra) finPg.drawRectangle({ x: MARGIN, y: fy - fRowH + 4, width: CONTENT_W, height: fRowH, color: MIST_P, opacity: 0.4 });
       fzebra = !fzebra;
-      const cleanD = safeTxt(sub.dose).replace(/\s*\/\s*\d+[\.,]?\d*\s*(ml|mL|ML)/gi, "").trim();
+      const cleanD = dosePrescritaParaDocumento(sub.dose);
       const unitPr = sub.unitPrice ?? 0;
       const subTotal = unitPr * sub.totalSessions;
       const fmtUnit = unitPr > 0 ? `R$ ${unitPr.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "-";

@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { useState } from "react";
 
@@ -318,7 +319,7 @@ export default function ClientDetail() {
                             <div className="flex items-center gap-2 mt-1">
                               <Calendar className="w-3 h-3 text-muted-foreground" />
                               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Início: {format(new Date(protocol.startDate), "dd/MM/yyyy")}
+                                Início: {formatCivilDate(protocol.startDate, "dd/MM/yyyy")}
                               </span>
                             </div>
                           </div>
@@ -371,10 +372,10 @@ export default function ClientDetail() {
                         <div className="flex items-center gap-6">
                           <div className="concave-3d flex flex-col items-center justify-center w-16 h-16 shrink-0 shadow-sm border-none">
                             <div className="text-[10px] uppercase font-black text-muted-foreground/60 leading-none mb-1">
-                              {format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}
+                              {formatCivilDate(session.scheduledDate, "MMM", { locale: ptBR })}
                             </div>
                             <div className="text-xl font-black text-primary leading-none tabular-nums">
-                              {format(new Date(session.scheduledDate), "dd")}
+                              {formatCivilDate(session.scheduledDate, "dd")}
                             </div>
                           </div>
                           <div>

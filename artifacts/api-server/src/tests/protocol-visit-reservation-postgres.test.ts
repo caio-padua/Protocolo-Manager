@@ -154,8 +154,8 @@ describe("Reserva atômica de visitas do protocolo em banco descartável", () =>
       week_number AS w, empresa_id AS e, status, notes, unit, service_type AS st, professional_id AS p
       FROM sessions WHERE protocol_id=$1 ORDER BY scheduled_date`, [protocolId]);
     expect(sessions).toEqual([
-      { d: MON1, t: "09:20", m: 20, r: 1, w: 1, e: 5, status: "scheduled", notes: null, unit: "Unidade sintética", st: "clinic", p: 77 },
-      { d: WED1, t: "09:00", m: 60, r: 1, w: 2, e: 5, status: "scheduled", notes: null, unit: "Unidade sintética", st: "clinic", p: 77 },
+      { d: MON1, t: "09:20", m: 20, r: 1, w: 1, e: 5, status: "scheduled", notes: null, unit: "Local sintético A", st: "clinic", p: 77 },
+      { d: WED1, t: "09:00", m: 60, r: 1, w: 2, e: 5, status: "scheduled", notes: null, unit: "Local sintético A", st: "clinic", p: 77 },
     ]);
     const apps = await rows(`SELECT s.scheduled_date AS d, a.substance_id AS sub, a.session_number AS n, a.total_sessions AS total,
       a.availability AS av, a.status, a.dose FROM substance_applications a JOIN sessions s ON s.id=a.session_id
@@ -270,8 +270,8 @@ describe("Reserva atômica de visitas do protocolo em banco descartável", () =>
     const foreign = await newProtocol(21, [{ substanceId: IM, total: 1 }], { empresaId: 6 });
     expect(await reserveProtocolVisits({ ...base, clientId: 21, protocolId: foreign, visits: plan }))
       .toMatchObject({ ok: false, status: 404, code: "protocolo_nao_encontrado" });
-    const notSuggested = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "validated" });
-    expect(await reserveProtocolVisits({ ...base, clientId: 21, protocolId: notSuggested, visits: plan }))
+    const invalidStatus = await newProtocol(21, [{ substanceId: IM, total: 1 }], { status: "completed" });
+    expect(await reserveProtocolVisits({ ...base, clientId: 21, protocolId: invalidStatus, visits: plan }))
       .toMatchObject({ ok: false, status: 409, code: "protocolo_status_invalido" });
     expect(await counts()).toEqual(before);
   });

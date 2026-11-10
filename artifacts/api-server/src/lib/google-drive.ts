@@ -194,37 +194,41 @@ async function findOldClientFolder(drive: any, rootId: string, cpf: string, _cli
 }
 
 // ID fixo da pasta "CLIENTES (INSTITUTO PADUA)" — única empresa ativa (24/07/2026).
-// Quando outra empresa for ativada, passar drive_clientes_folder_id da empresa
-// como parâmetro rootFolderId em ensureClientFolderStructure().
+// Rotas clínicas multiempresa devem informar explicitamente a raiz de clientes
+// da empresa. A raiz fixa abaixo permanece apenas para fluxos legados ainda não
+// migrados e nunca deve ser usada como fallback em uma emissão clínica.
 const ACTIVE_CLIENTES_FOLDER_ID = "15y0SgIkeOnaTGYSTCQfZqscPyOBMT_w9";
 
 async function ensureRootFolder(_drive: any, rootFolderId?: string): Promise<string> {
-  // Usa o ID explícito quando fornecido (multi-empresa futuro).
-  // Para a empresa ativa, usa a constante gravada na sessão de 24/07/2026.
-  return rootFolderId ?? ACTIVE_CLIENTES_FOLDER_ID;
+  if (rootFolderId !== undefined) {
+    const configuredRoot = rootFolderId.trim();
+    if (!configuredRoot) throw new Error("A empresa não possui uma pasta de clientes configurada no Drive.");
+    return configuredRoot;
+  }
+  return ACTIVE_CLIENTES_FOLDER_ID;
 }
 
-export async function ensureClientFolderStructure(clientName: string, cpf: string): Promise<{
+export async function ensureClientFolderStructure(clientName: string, cpf: string, rootFolderId?: string): Promise<{
   rootFolderId: string;
   clientFolderId: string;
   subfolders: Record<string, string>;
 }> {
   const drive = await getUncachableDriveClient();
 
-  const rootFolderId = await ensureRootFolder(drive);
+  const resolvedRootFolderId = await ensureRootFolder(drive, rootFolderId);
 
   const newFolderName = buildClientFolderName(clientName, cpf);
-  let clientFolderId = await findFolder(drive, newFolderName, rootFolderId);
+  let clientFolderId = await findFolder(drive, newFolderName, resolvedRootFolderId);
 
   if (!clientFolderId) {
-    const oldFolderId = await findOldClientFolder(drive, rootFolderId, cpf, clientName);
+    const oldFolderId = await findOldClientFolder(drive, resolvedRootFolderId, cpf, clientName);
 
     if (oldFolderId) {
       await renameFolder(drive, oldFolderId, newFolderName);
       clientFolderId = oldFolderId;
       console.log(`[Drive] Pasta antiga renomeada para: ${newFolderName}`);
     } else {
-      clientFolderId = await createFolder(drive, newFolderName, rootFolderId);
+      clientFolderId = await createFolder(drive, newFolderName, resolvedRootFolderId);
       console.log(`[Drive] Pasta nova criada: ${newFolderName}`);
     }
   }
@@ -236,7 +240,7 @@ export async function ensureClientFolderStructure(clientName: string, cpf: strin
 
   await findOrCreateFolder(drive, "CADASTROS ANTIGOS", subfolders["CADASTRO"]);
 
-  return { rootFolderId, clientFolderId, subfolders };
+  return { rootFolderId: resolvedRootFolderId, clientFolderId, subfolders };
 }
 
 export async function createClientSpreadsheet(

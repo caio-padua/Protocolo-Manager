@@ -9,7 +9,7 @@
 - [BRT centralizado — fonte única de data/hora](brt-centralizado.md) — lib/brt.ts é a ÚNICA fonte de data BRT; nunca usar new Date() nu para arquivo/exibição; GET /api/brt prova o fuso ao vivo (público, sem auth).
 - ProcedenciaDocumentosBloco — Kaizen-001 — ClassificationPanel bevel-3d 5 canais fixos; ZONA 1 sem LED/origem; Col 1 bi-line (canônico/extraído); Col 3 = leitura original quando convertido; watcher 5min+boot.
 - **Exames — catalogo, faixas e triagem** — [direcao mora em direcao_favoravel_exame](direcao-exame-fonte-verdade.md) · [synonyms ja ensina o scanner](aliases-unidades-exames.md) · [filtrar por zone.key, nunca zone.name](exames-faixa-filtro-por-key.md) · [hormonio sexo-dependente nao aceita faixa unica](curadoria-faixas-classe.md) · [chaveFaixa compara, slugInterno gera](exame-code-identidade-slug.md) · [active=false polissemico](exam-catalog-active-polissemico.md) · [resolver carimba o cluster inteiro](exames-triagem-resolucao.md) · [zerar fila nao zera exam_results](triagem-fila-vs-crus.md) · [2 fases C1/C2, maior-id-vence](conferencia-humana-exames.md) · [Gemini+pdf-parse, 70-106s, UI assincrona](exam-extraction-motor.md) · [isHistory + lab name so por vision](motor-extracao-v2-ishistory.md)
-- [Documentos clínicos e faixas do Instituto](indice-documentos-clinicos.md) — emissão, fontes, assinatura, entrega e segurança.
+- [Documentos clínicos e faixas do Instituto](indice-documentos-clinicos.md) — emissão, fontes, assinatura, entrega, segurança e apresentação da dose prescrita.
 - [Regra de Ouro — Nunca Destruir](regra-de-ouro-preservar.md) — preservar dados, arquivos e menus; desativar funções sem retirá-las do menu.
 - Precedência < vs ?? no for-loop — `i < arr.items?.length ?? arr.length` → `<` vence `??`; loop nunca roda. Sempre parentesize: `i < (arr.items?.length ?? arr.length)`.
 - [Lei do Numeral — "O Mostrador"](lei-do-numeral-mostrador.md) — numero é expressão (símbolo+inteiro+centavos+unidade) e nasce de components/numeral/Numeral.tsx; a gaveta unicode-range NUNCA conserta "R$" porque o R é letra.
@@ -35,6 +35,7 @@
 - [Marca navy/ouro nas telas (padcom)](paxter-navy-gold-marca-telas.md) — chrome=navy/ouro (mata teal/#3D7A7A); STATUS sobrevive (verde=done, emerald NAO trocar em massa); toggle tema useScreenTheme.
 - [Motor de Agenda — fuso e fonte](motor-agenda-fuso-fonte.md) — horario ancora no fuso da clinica (BRT UTC-3, sufixo -03:00); nao inventar fonte de ocupacao de fase futura, usar entrada explicita.
 - [Object Storage — servir exige prefixo](object-storage-serve-prefixo.md) — rota publica que serve PRIVATE_OBJECT_DIR deve limitar prefixo (uploads/); dir e compartilhado; upload presigned em 2 passos valida tipo so no presign.
+- [Documentos clínicos no Drive por empresa](documentos-drive-tenant.md) — emissão clínica usa a raiz de clientes da empresa explicitamente; raiz ausente bloqueia a cópia, nunca cai na pasta global.
 - [Rebrand: marca x identificadores tecnicos](rebrand-marca-vs-identificadores.md) — trocar texto/marca visivel (wordmark, calName, SUMMARY, PRODID, filenames .ics); PRESERVAR UID .ics, colunas (codigoPadcom), package, tokens, CSS.
 - [Drive uploadFileToDrive apaga homonimos](drive-upload-homonimos.md) — deleta homonimos por padrao; arquivos que coexistem precisam de nome unico (id) + allowDuplicates=true; inserir-no-banco-primeiro p/ ter id no nome.
 - [Reagendamento e fuso da sessao](reagendamento-fuso-sessao.md) — scheduled_date/time sao BRT em texto; ancorar -03:00 ao comparar com now(); Google mover=delete+create (best-effort, zerar id em falha).
@@ -119,6 +120,7 @@
 - [Carta de Tratamento Premium PDF](carta-tratamento-premium-pdf.md) — reusar embedPadesSignature/getCertInfo exportados; fontkit+woff latin p/ fonte custom; arcos via drawLine.
 - [O ELO — ordem do veredito e honestidade causal](elo-veredito-honestidade.md) — cruzar faixa de referência vence o limiar de ruído; faixa ausente = SEM VEREDITO; nenhuma tela afirma causa a partir de 2 coletas.
 - **Migrações de banco** — [drift destrutivo](drizzle-push-drift-destrutivo.md) · [post-merge que falha em silêncio](post-merge-migracao-pg.md).
+- [Deriva de esquema em protocol_items](protocol-items-schema-drift.md) — preserve empresa_id fora do Drizzle; confira antes de aceitar sugestão de renomeação.
 - [Sheets :append desloca colunas](sheets-append-desloca-colunas.md) — célula solta fora da col A ancora a tabela e a linha sai em F:O com 200 OK; usar PUT em faixa explícita (scripts/planilha-adicionar-item.mjs); token do Sheets vem do conector google-drive.
 - [Canvas — suggestedActions só no update](canvas-suggestedactions-so-no-update.md) — "procedure init failed validation" não diz o campo; suggestedActions reprova no create, fontSize não existe, color é enum de nomes.
 - [Bundle ESM no Node 24](api-worker-esm-node24.md) — build verde não detecta incompatibilidade CommonJS; sempre executar um smoke test do artefato gerado.

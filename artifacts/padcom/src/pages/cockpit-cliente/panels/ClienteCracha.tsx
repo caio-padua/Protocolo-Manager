@@ -202,7 +202,7 @@ export default function ClienteCracha({ clientId }: { clientId: number }) {
   const { data: cockpit } = useQuery<CockpitDto>({
     queryKey: ["cracha-cockpit", clientId],
     queryFn: async () => {
-      const r = await fetch(`${BASE}/api/cockpit/${clientId}`);
+      const r = await fetch(`${BASE}/api/cockpit/${clientId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("Falha ao carregar consulta");
       return r.json();
     },

@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 // ===========================================================================
 // COCKPIT DA ANAMNESE (anamnese externa) — mesma moldura do Cockpit da Consulta:
@@ -205,7 +206,7 @@ function useCockpit(clientId: number) {
     let ativo = true;
     setLoading(true);
     setErro(false);
-    fetch(`/api/cockpit/${clientId}`)
+    fetch(`/api/cockpit/${clientId}`, { headers: collabAuthHeaders() })
       .then((r) => {
         if (!r.ok) throw new Error("falha");
         return r.json();

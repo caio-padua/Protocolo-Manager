@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { useLocation } from "wouter";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import { Plus, ChevronRight, Activity, Home, Building2, Calendar, UserRound, Circle } from "lucide-react";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ function ProtocolCard({ protocol, onClick }: ProtocolCardProps) {
     : 0;
 
   const clinicLabel = protocol.serviceType === "homecare" ? "Nurse Care" : (protocol.unit ?? "Clínica");
-  const startFormatted = format(new Date(protocol.startDate), "dd/MM/yyyy", { locale: ptBR });
+  const startFormatted = formatCivilDate(protocol.startDate, "dd/MM/yyyy", { locale: ptBR });
 
   return (
     <div

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import {
   agendaResourcesTable, clientsTable, db, locationsTable, protocolItemsTable, protocolsTable,
   sessionsTable, substanceApplicationsTable, substancesTable,
@@ -13,7 +13,7 @@ import {
 } from "./protocol-exact-schedule";
 import { loadProtocolSlots, MAX_SLOT_SOURCE_DAYS, type ProtocolSlotDiagnostics } from "./protocol-slot-source";
 import {
-  classifySlotSourceError, protocolPlanSnapshot, reserveProtocolVisits, type ReservationErrorCode,
+  classifySlotSourceError, LIVE_SESSION_STATUSES, protocolPlanSnapshot, reserveProtocolVisits, type ReservationErrorCode,
   type ReservedVisit,
 } from "./protocol-visit-reservation";
 import {
@@ -160,6 +160,13 @@ function describeAgendaGaps(d: ProtocolSlotDiagnostics): string {
     parts.push(`${d.nursingDatesWithoutOpenSlot.length} com expediente, mas sem horário livre (ocupado, bloqueado ou dentro da antecedência mínima)`);
   }
   return parts.join("; ");
+}
+
+function describeOccupiedClientDates(dates: string[]): string {
+  if (dates.length === 0) return "";
+  const shown = dates.slice(0, 6).map(brDate).join(", ");
+  const suffix = dates.length > 6 ? ` e mais ${dates.length - 6}` : "";
+  return `O cliente já tem outra visita em ${shown}${suffix}; essas datas foram retiradas da busca.`;
 }
 
 type NursingPreferences = Awaited<ReturnType<typeof getVisitPreferences>>["preferences"]["nursing"];
@@ -409,9 +416,29 @@ async function planProtocolSchedulingInternal(
     throw error;
   }
 
+  // A regra do motor permite no máximo uma visita por cliente ao dia,
+  // inclusive quando a outra visita está em uma agenda diferente.
+  // A reserva repete essa checagem sob bloqueio para proteger contra corridas.
+  const candidateDates = [...new Set(source.slots.map(slot => slot.date))];
+  const occupiedConditions = [
+    eq(sessionsTable.clientId, clientId),
+    inArray(sessionsTable.status, LIVE_SESSION_STATUSES),
+    eq(sessionsTable.agendaArchived, false),
+    inArray(sessionsTable.scheduledDate, candidateDates),
+  ];
+  if (allowLegacyRecovery) occupiedConditions.push(ne(sessionsTable.protocolId, protocol.id));
+  const occupiedSessions = candidateDates.length > 0
+    ? await db.select({ date: sessionsTable.scheduledDate }).from(sessionsTable)
+      .where(and(...occupiedConditions))
+    : [];
+  const occupiedClientDates = [...new Set(occupiedSessions.map(session => session.date))].sort();
+  const occupiedClientDateSet = new Set(occupiedClientDates);
+
   // Preferência do cliente ordena as vagas; não exclui nenhuma.
   const { preferences } = await getVisitPreferences(db, empresaId, clientId);
-  const slots: AvailableProtocolSlot[] = source.slots.map(slot => {
+  const slots: AvailableProtocolSlot[] = source.slots.filter(slot =>
+    !occupiedClientDateSet.has(slot.date)
+  ).map(slot => {
     const rank = preferenceRankFor(preferences.nursing, slot.date, slot.time);
     return rank === undefined ? slot : { ...slot, preferenceRank: rank };
   });
@@ -435,8 +462,10 @@ async function planProtocolSchedulingInternal(
         "A busca por horários atingiu o limite de cálculo sem achar um plano; nada foi agendado", { diagnostics });
     }
     const reasons = describeAgendaGaps(diagnostics);
+    const occupiedReason = describeOccupiedClientDates(occupiedClientDates);
     const common = "Não foi encontrada combinação de horários que respeite a margem de 4 dias e os intervalos mínimos do protocolo. " +
       (reasons ? `Nos dias lidos: ${reasons}. ` : "") +
+      (occupiedReason ? `${occupiedReason} ` : "") +
       (firstStart < today ? "A data de início do protocolo já passou; ajuste-a se for o caso. " : "") +
       "Nada foi agendado.";
     if (diagnostics.integrationPendingDates.length > 0) {

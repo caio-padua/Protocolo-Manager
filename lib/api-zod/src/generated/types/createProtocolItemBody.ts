@@ -7,9 +7,13 @@
  */
 
 export interface CreateProtocolItemBody {
+  /** @minimum 1 */
   substanceId: number;
+  /** @minLength 1 */
   dose: string;
+  /** @minimum 1 */
   totalSessions: number;
+  /** @minimum 1 */
   intervalDays: number;
   frequency: string;
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */

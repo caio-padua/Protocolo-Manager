@@ -246,6 +246,29 @@ describe("Prévia do agendamento de protocolo (nada é gravado)", () => {
     expect(preview.searchWasPruned).toBe(false);
   });
 
+  it("retira da prévia uma data em que o próprio cliente já tem visita em outra agenda", async () => {
+    await occupy(5, MON1, "09:00", 21);
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    const preview = await previewOf(21, protocolId);
+
+    expect(preview.visits.map(visit => visit.date)).not.toContain(MON1);
+    expect(preview.visits[0].date).toBe(WED1);
+    expect((await rows(`SELECT count(*)::int AS n FROM sessions WHERE protocol_id=$1`, [protocolId]))[0].n).toBe(0);
+  });
+
+  it("visita cancelada ou arquivada não bloqueia a data preferida do cliente", async () => {
+    const cancelledProtocol = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    await occupy(5, MON1, "09:00", 21);
+    await query(`UPDATE sessions SET status='cancelled' WHERE protocol_id=9000`);
+    expect((await previewOf(21, cancelledProtocol)).visits[0].date).toBe(MON1);
+
+    await query(`TRUNCATE sessions`);
+    const archivedProtocol = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    await occupy(5, MON1, "09:00", 21);
+    await query(`UPDATE sessions SET agenda_archived=true WHERE protocol_id=9000`);
+    expect((await previewOf(21, archivedProtocol)).visits[0].date).toBe(MON1);
+  });
+
   it("preferência nunca exclui vaga: quem só quer terça ainda recebe segunda e quarta (não há terça)", async () => {
     await query(`INSERT INTO client_visit_preference_revisions(client_id,empresa_id,preferences,created_by)
       VALUES(24,5,$1,1)`, [JSON.stringify({
@@ -376,6 +399,36 @@ describe("Recusas explícitas da prévia (nada é gravado)", () => {
     // A causa vem escrita e separada: exceção não é "ocupado" nem "desatualizado".
     expect(result.error).toContain("2 com exceção cadastrada (04/03/2030, 06/03/2030)");
     expect(result.error).not.toContain("Google desatualizada");
+  });
+
+  it("todos os dias possíveis ocupados pelo próprio cliente geram recusa clara sem gravação", async () => {
+    await occupy(5, MON1, "09:00", 21);
+    await occupy(5, WED1, "09:00", 21);
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    const before = await counts();
+
+    const result = await plan(21, protocolId);
+
+    expect(result).toMatchObject({ ok: false, status: 409, code: "sem_plano" });
+    if (result.ok) return;
+    expect(result.error).toContain("O cliente já tem outra visita em 04/03/2030, 06/03/2030");
+    expect(result.error).toContain("essas datas foram retiradas da busca");
+    expect(await counts()).toEqual(before);
+  });
+
+  it("visita criada depois da prévia invalida o plano antigo e oferece nova prévia", async () => {
+    const protocolId = await newProtocol(21, [{ substanceId: IM, total: 1 }]);
+    const original = await previewOf(21, protocolId);
+    await occupy(5, original.visits[0].date, "09:00", 21);
+
+    const result = await confirmProtocolScheduling({
+      empresaId: 5, clientId: 21, protocolId, fingerprint: original.fingerprint,
+    });
+
+    expect(result).toMatchObject({ ok: false, status: 409, code: "plano_mudou" });
+    if (result.ok || !result.preview) return;
+    expect(result.preview.visits[0].date).not.toBe(original.visits[0].date);
+    expect((await rows(`SELECT count(*)::int AS n FROM sessions WHERE protocol_id=$1`, [protocolId]))[0].n).toBe(0);
   });
 
   it("agenda do Google desatualizada aparece no motivo da recusa, separada de 'sem vaga'", async () => {

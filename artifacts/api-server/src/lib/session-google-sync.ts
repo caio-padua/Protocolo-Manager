@@ -296,9 +296,22 @@ export async function googleReadinessWarning(
 ): Promise<{ code: string; message: string } | null> {
   try {
     const destination = await resolveResourceDestination(resourceId, empresaId, professionalId);
-    if (destination.ok) return null;
-    return { code: destination.code,
-      message: `O agendamento ficará salvo no sistema, mas o envio ao Google Agenda não vai funcionar: ${destination.error} Corrija o cadastro antes ou envie depois.` };
+    if (!destination.ok) {
+      return { code: destination.code,
+        message: `O agendamento ficará salvo no sistema, mas o envio ao Google Agenda não vai funcionar: ${destination.error} Corrija o cadastro antes ou envie depois.` };
+    }
+
+    const account = await verifyClinicAccount();
+    if (!account.ok) {
+      const accountMismatch = account.account !== null;
+      return {
+        code: accountMismatch ? "conta_google_divergente" : "google_indisponivel",
+        message: accountMismatch
+          ? "O agendamento ficará salvo no sistema, mas a conta Google conectada não é a conta autorizada da clínica. Corrija a conexão antes de enviar."
+          : "O agendamento ficará salvo no sistema, mas não foi possível confirmar a conta Google autorizada da clínica. Verifique a conexão antes de enviar.",
+      };
+    }
+    return null;
   } catch {
     return { code: "verificacao_indisponivel",
       message: "Não foi possível verificar se o envio ao Google Agenda está pronto. O agendamento ficará salvo no sistema." };

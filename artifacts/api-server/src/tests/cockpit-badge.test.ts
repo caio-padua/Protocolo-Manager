@@ -15,6 +15,8 @@
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
+const authState = vi.hoisted(() => ({ enforce: false, whereCalls: [] as unknown[] }));
+
 // ── Mocks OBRIGATORIAMENTE antes dos imports das rotas ────────────────────────
 //
 // db usa uma FILA interna: cada chamada a db.select() consome um item da fila.
@@ -23,10 +25,14 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("@workspace/db", () => {
   const _queue: unknown[][] = [];
+  const _whereCalls: unknown[] = authState.whereCalls;
 
   function makeChain(result: unknown[]) {
     const chain: Record<string, unknown> = {};
-    chain.where   = vi.fn().mockReturnValue(chain);
+    chain.where   = vi.fn((condition: unknown) => {
+      _whereCalls.push(condition);
+      return chain;
+    });
     chain.from    = vi.fn().mockReturnValue(chain);
     chain.orderBy = vi.fn().mockReturnValue(chain);
     chain.limit   = vi.fn().mockResolvedValue(result);
@@ -40,6 +46,7 @@ vi.mock("@workspace/db", () => {
     select:        vi.fn().mockImplementation(() => makeChain(_queue.shift() ?? [])),
     execute:       vi.fn().mockResolvedValue({ rows: [] }),
     _queueResults: (...rows: unknown[][]) => { _queue.splice(0); _queue.push(...rows); },
+    _whereCalls,
   };
 
   // Colunas do clientsTable precisam ser objetos (o cockpit faz clientsTable.id, etc.)
@@ -68,6 +75,15 @@ vi.mock("@workspace/db", () => {
   };
 });
 
+vi.mock("drizzle-orm", () => ({
+  eq: (col: unknown, val: unknown) => ({ op: "eq", col, val }),
+  and: (...args: unknown[]) => ({ op: "and", args }),
+  inArray: (col: unknown, vals: unknown[]) => ({ op: "inArray", col, vals }),
+  desc: (col: unknown) => ({ op: "desc", col }),
+  ne: (col: unknown, val: unknown) => ({ op: "ne", col, val }),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+}));
+
 vi.mock("../lib/motor-anamnese", () => ({
   computeMotor: vi.fn().mockResolvedValue({
     escoreTotal: 0, gradeGlobal: "BASICA", redFlag: false,
@@ -94,7 +110,14 @@ vi.mock("../middleware/moduleGuard", () => ({
   moduleGuard: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 vi.mock("../routes/collaborator", () => ({
-  requireCollaborator: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireCollaborator: (req: { headers: Record<string, string | undefined>; collaborator?: unknown }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void) => {
+    if (authState.enforce && req.headers.authorization !== "Bearer test-authorized") {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    req.collaborator = { professionalId: 1, role: "executor", credentialVersion: 0 };
+    next();
+  },
   collaboratorGuard:   (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 // A rota real confirma o vínculo da clínica no banco; neste teste isolado
@@ -142,6 +165,11 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use(tenantContextMiddleware);
+  app.use((req, _res, next) => {
+    const requested = req.headers["x-test-company"];
+    if (typeof requested === "string") req.tenantContext.empresaId = Number(requested);
+    next();
+  });
   app.use(cockpitRouter);
   return app;
 }
@@ -192,6 +220,43 @@ describe("GET /cockpit/:clientId — badge Telegram + DTO básico", () => {
   it("HTTP 400 para clientId não inteiro", async () => {
     const res = await request(buildApp()).get("/cockpit/abc");
     expect(res.status).toBe(400);
+  });
+
+  it("nega as leituras sem sessão antes de consultar o banco", async () => {
+    authState.enforce = true;
+    try {
+      const before = vi.mocked(dbModule.db.select).mock.calls.length;
+      const dto = await request(buildApp()).get("/cockpit/42");
+      const pdf = await request(buildApp()).get("/cockpit/42/pdf");
+      expect(dto.status).toBe(401);
+      expect(pdf.status).toBe(401);
+      expect(vi.mocked(dbModule.db.select)).toHaveBeenCalledTimes(before);
+    } finally {
+      authState.enforce = false;
+    }
+  });
+
+  it("usa a empresa autenticada no filtro de cliente para impedir leitura entre clínicas", async () => {
+    authState.enforce = true;
+    authState.whereCalls.splice(0);
+    queueForCockpitGet(undefined);
+    try {
+      const response = await request(buildApp())
+        .get("/cockpit/42")
+        .set("Authorization", "Bearer test-authorized")
+        .set("x-test-company", "6");
+      expect(response.status).toBe(404);
+      const containsCompanyFilter = (value: any): boolean => {
+        if (!value || typeof value !== "object") return false;
+        if (value.op === "eq" && value.col?.name === "empresa_id" && value.val === 6) return true;
+        return Object.values(value).some(child => Array.isArray(child)
+          ? child.some(containsCompanyFilter)
+          : containsCompanyFilter(child));
+      };
+      expect(authState.whereCalls.some(containsCompanyFilter)).toBe(true);
+    } finally {
+      authState.enforce = false;
+    }
   });
 });
 

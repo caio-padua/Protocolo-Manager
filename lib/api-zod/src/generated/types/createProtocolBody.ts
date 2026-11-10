@@ -23,5 +23,6 @@ export interface CreateProtocolBody {
   serviceType: CreateProtocolBodyServiceType;
   totalValue: number;
   notes?: string | null;
+  /** @minItems 1 */
   items: CreateProtocolItemBody[];
 }

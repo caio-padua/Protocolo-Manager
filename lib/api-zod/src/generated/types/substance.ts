@@ -8,6 +8,7 @@
 import type { SubstanceBlendComponent } from "./substanceBlendComponent";
 import type { SubstanceBodySystemEffects } from "./substanceBodySystemEffects";
 import type { SubstanceCategoryMeters } from "./substanceCategoryMeters";
+import type { SubstancePosologiaEstruturada } from "./substancePosologiaEstruturada";
 
 export interface Substance {
   id: number;
@@ -23,6 +24,8 @@ export interface Substance {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  viaUso?: string | null;
+  frequenciaBase?: string | null;
   doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
@@ -45,6 +48,18 @@ export interface Substance {
   contraindications?: string | null;
   scientificEvidence?: string | null;
   categoryType?: string | null;
+  codigoPadcom?: string | null;
+  subCategoria?: string | null;
+  disponivel?: boolean | null;
+  tags?: string[] | null;
+  blocoId?: string | null;
+  grau?: string | null;
+  areaSemantica?: string | null;
+  exigeValidacaoHumana?: boolean | null;
+  unidadeId?: number | null;
+  posologiaEstruturada?: SubstancePosologiaEstruturada;
+  concentrationMg?: string | null;
+  volumeAmpola?: string | null;
   composicao?: string | null;
   posologia?: string | null;
   isBlend?: boolean;

@@ -16,6 +16,7 @@ vi.mock("@workspace/db", () => {
   const names = {
     protocolsTable: "protocols", protocolItemsTable: "items",
     clientsTable: "clients", substancesTable: "substances",
+    substanceBlendComponentsTable: "blendComponents",
     professionalsTable: "professionals", sessionsTable: "sessions",
     substanceApplicationsTable: "applications", paymentsTable: "payments",
     assinaturaSolicitacoesTable: "solicitacoes", assinaturaTemplatesTable: "templates",
@@ -37,7 +38,12 @@ vi.mock("@workspace/db", () => {
           state.inserts++;
           const promise = Promise.resolve().then(() => {
             if (state.failInsert && table.name === "applications") throw new Error("synthetic database failure");
-            const row = { id: state.inserts, createdAt: new Date("2030-01-01T12:00:00Z"), ...values };
+            const row = {
+              id: state.inserts,
+              createdAt: new Date("2030-01-01T12:00:00Z"),
+              updatedAt: new Date("2030-01-01T12:00:00Z"),
+              ...values,
+            };
             (rows[table.name] ??= []).push(row);
             return [row];
           });
@@ -81,6 +87,14 @@ vi.mock("@workspace/db", () => {
 });
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: any, n: any) => n() }));
 vi.mock("../middleware/tenantContext", () => ({ resolveEmpresaId: () => 99 }));
+vi.mock("../lib/protocol-client-agendas", () => ({
+  ClientProtocolAgendaError: class ClientProtocolAgendaError extends Error {},
+  loadClientProtocolAgendas: vi.fn(async () => ({
+    nursingAgenda: { locationId: 81, locationName: "Local sintético" },
+    doctors: [{ id: 98 }],
+    nurses: [],
+  })),
+}));
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (r: any, s: any, n: any) => {
     if (r.headers.authorization !== "Bearer synthetic-session") { s.sendStatus(401); return; }
@@ -134,6 +148,91 @@ const validate = (query = "") => request(app)
   .post(`/api/protocols/1/validate${query}`)
   .set("Authorization", "Bearer synthetic-session");
 
+const syntheticSubstance = (id: number, defaultDose: string, pricePerUnit: number) => ({
+  id,
+  name: "Substância sintética duplicada",
+  category: "injetável",
+  color: "#336699",
+  defaultDose,
+  unit: "ampola",
+  maxSessionsPerWeek: null,
+  intervalDays: 15,
+  notes: null,
+  stockQuantity: 10,
+  stockUnit: "ampola",
+  pricePerUnit,
+  procedureType: "im",
+  doctorParticipation: true,
+  durationMinutes: 30,
+  preciseDurationSeconds: 150,
+  description: "Descrição sintética",
+  mainFunction: null,
+  perceivedEffects: null,
+  timeToEffect: null,
+  starRating: 5,
+  bodySystemEffects: {},
+  categoryMeters: {},
+  longevityBenefit: null,
+  qualityOfLifeImpact: null,
+  sleepBenefit: null,
+  energyBenefit: null,
+  libidoBenefit: null,
+  physicalPerformance: null,
+  muscleStrength: null,
+  mentalClarity: null,
+  skinHairNails: null,
+  immuneSupport: null,
+  contraindications: null,
+  scientificEvidence: null,
+  categoryType: null,
+  codigoPadcom: null,
+  subCategoria: null,
+  disponivel: true,
+  tags: ["teste"],
+  blocoId: null,
+  grau: null,
+  viaUso: "IM",
+  frequenciaBase: "a cada quinze dias",
+  composicao: "Composição sintética",
+  posologia: "Posologia sintética",
+  areaSemantica: null,
+  exigeValidacaoHumana: false,
+  unidadeId: null,
+  posologiaEstruturada: null,
+  concentrationMg: "100 MG",
+  volumeAmpola: "2 ML",
+  isBlend: true,
+  presentationQuantity: 1,
+  presentationUnit: "ampola",
+  ampouleVolumeMl: 2,
+  createdAt: new Date("2030-01-01T12:00:00Z"),
+});
+
+const createProtocol = (substanceId = 99, dose = "100 mg") => request(app)
+  .post("/api/protocols")
+  .set("Authorization", "Bearer synthetic-session")
+  .send({
+    clientId: 96,
+    title: "Protocolo sintético de catálogo",
+    status: "suggested",
+    startDate: "2030-01-07",
+    scheduledTime: "10:00",
+    schedulingMode: "weekly",
+    serviceType: "clinic",
+    professionalId: 98,
+    unit: "Local sintético",
+    totalValue: 0,
+    notes: null,
+    items: [{
+      substanceId,
+      dose,
+      totalSessions: 2,
+      intervalDays: 15,
+      frequency: "biweekly",
+      startDate: "2030-01-07",
+    }],
+  });
+
 beforeEach(() => {
   vi.clearAllMocks();
   state.tail = Promise.resolve();
@@ -150,6 +249,16 @@ beforeEach(() => {
       updatedAt: new Date("2030-01-01T12:00:00Z"),
     }],
     clients: [{ id: 96, name: "Cliente sintético", email: "synthetic@example.invalid" }],
+    professionals: [{ id: 98, name: "Médico sintético", active: true }],
+    substances: [
+      syntheticSubstance(14, "dose padrão da apresentação A", 10.7),
+      syntheticSubstance(99, "dose padrão da apresentação B", 49.47),
+    ],
+    blendComponents: [{
+      id: 301, substanceId: 99, componentSubstanceId: 14, sortOrder: 0,
+      componentName: "Componente sintético", doseValue: 100, doseUnit: "MG",
+      quantity: 1, quantityUnit: "ampola", notes: "Nota sintética",
+    }],
     items: [{ substanceId: 95, dose: "dose sintética", totalSessions: 2, intervalDays: 7 }],
     sessions: [], applications: [],
   };
@@ -234,4 +343,82 @@ describe("Bloqueio da validação antiga sem reserva", () => {
     expect((await validate()).status).toBe(404);
     expect(state.lockCalls).toBe(0);
   });
+});
+
+describe("Criação vinculada ao registro exato do cadastro de substâncias", () => {
+  it("grava a dose revisada, o preço do registro exato e a fotografia completa", async () => {
+    state.rows.protocols = [];
+    state.rows.items = [];
+    state.rows.sessions = [];
+    state.rows.applications = [];
+    const catalogBefore = structuredClone(state.rows.substances);
+    const response = await createProtocol(99, "100 mg");
+
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect(response.body.items[0]).toMatchObject({
+      substanceId: 99,
+      substanceName: "Substância sintética duplicada",
+      dose: "100 mg",
+      unitPrice: 49.47,
+      catalogSnapshot: {
+        id: 99,
+        defaultDose: "dose padrão da apresentação B",
+        viaUso: "IM",
+        concentrationMg: "100 MG",
+        volumeAmpola: "2 ML",
+        presentationQuantity: 1,
+        presentationUnit: "ampola",
+        ampouleVolumeMl: 2,
+        pricePerUnit: 49.47,
+        intervalDays: 15,
+        components: [{ id: 301, componentSubstanceId: 14, componentName: "Componente sintético" }],
+      },
+    });
+    expect(response.body.totalValue).toBe(98.94);
+    expect(state.rows.items[0].catalogSnapshot.id).toBe(99);
+    expect(state.rows.substances).toEqual(catalogBefore);
+    expect(sendProtocolOnboardingEmail).not.toHaveBeenCalled();
+  });
+
+  it("recusa um identificador ausente sem criar protocolo", async () => {
+    state.rows.protocols = [];
+    state.rows.items = [];
+    state.rows.sessions = [];
+    state.rows.applications = [];
+    const response = await createProtocol(999);
+    expect(response.status).toBe(422);
+    expect(response.body.code).toBe("substancia_nao_encontrada");
+    expect(state.rows.protocols).toHaveLength(0);
+    expect(state.rows.items).toHaveLength(0);
+  });
+
+  it("recusa dose vazia mesmo quando o campo contém somente espaços", async () => {
+    state.rows.protocols = [];
+    state.rows.items = [];
+    state.rows.sessions = [];
+    state.rows.applications = [];
+    const response = await createProtocol(99, "   ");
+    expect(response.status).toBe(400);
+    expect(state.rows.protocols).toHaveLength(0);
+    expect(state.rows.items).toHaveLength(0);
+  });
+
+  it.each(["100 mg / 2 mL", "1 ampola", "20 mcg/mL"])(
+    "exige revisão e não cria protocolo para apresentação ambígua: %s",
+    async dose => {
+      state.rows.protocols = [];
+      state.rows.items = [];
+      state.rows.sessions = [];
+      state.rows.applications = [];
+      const catalogBefore = structuredClone(state.rows.substances);
+
+      const response = await createProtocol(99, dose);
+
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe("dose_clinica_revisao");
+      expect(state.rows.protocols).toHaveLength(0);
+      expect(state.rows.items).toHaveLength(0);
+      expect(state.rows.substances).toEqual(catalogBefore);
+    },
+  );
 });

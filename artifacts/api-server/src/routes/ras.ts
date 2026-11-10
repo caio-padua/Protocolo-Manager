@@ -4,9 +4,9 @@ import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
 import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { requireCollaborator } from "./collaborator";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
-import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, emailLogTable } from "@workspace/db";
+import { db, rasTable, sessionsTable, substanceApplicationsTable, substancesTable, professionalsTable, clientsTable, protocolsTable, protocolItemsTable, assinaturaSolicitacoesTable, assinaturaTemplatesTable, emailLogTable, locationProfessionalsTable } from "@workspace/db";
 import { enviarAssinatura } from "../lib/assinatura/service";
 import { resolverCodigosCadernos } from "../lib/cadernos-resolver";
 import {
@@ -15,7 +15,7 @@ import {
   GetRASParams,
 } from "@workspace/api-zod";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
-import { withLoggedDoctorCertificate } from "../lib/prescription-signing";
+import { resolveProtocolDoctor, withLoggedDoctorCertificate } from "../lib/prescription-signing";
 import { generateSignedRASPdf, generatePhysicalRASPdf, getCertInfo } from "../lib/pdf-signer";
 import type { ModoRasFap } from "../lib/ras-fap";
 import {
@@ -31,6 +31,12 @@ import { sendProtocolEmail } from "../lib/email-service";
 import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
+import {
+  MENSAGEM_DOSE_CLINICA_REVISAO,
+  dosePrescritaParaDocumento,
+  doseTemApresentacaoProibida,
+  nomeSubstanciaNoProtocolo,
+} from "../lib/protocol-dose-presentation";
 
 const router: IRouter = Router();
 router.use(moduleGuard("ras"));
@@ -57,18 +63,120 @@ async function canAccessRasClient(req: Request, clientId: number, empresaId: num
   }
 }
 
+type ClinicalMember = Awaited<ReturnType<typeof resolveClinicalMember>>;
+
 async function authorizeRasProtocol(
   req: Request,
   protocol: typeof protocolsTable.$inferSelect,
   res: Response,
-): Promise<boolean> {
-  const empresaId = protocol.empresaId;
-  if (typeof empresaId !== "number" || empresaId <= 0 ||
-      !(await canAccessRasClient(req, protocol.clientId, empresaId))) {
+): Promise<ClinicalMember | null> {
+  try {
+    const member = await resolveClinicalMember(req, protocol.clientId);
+    if (protocol.empresaId !== member.clinic.empresaId ||
+        member.clinic.empresaId !== resolveEmpresaId(req)) {
+      res.status(404).json({ error: "Registro não encontrado" });
+      return null;
+    }
+    return member;
+  } catch {
     res.status(404).json({ error: "Registro não encontrado" });
-    return false;
+    return null;
   }
-  return true;
+}
+
+async function companyClientDriveRoot(empresaId: number): Promise<string | null> {
+  const result = await db.execute(
+    sql`SELECT drive_clientes_folder_id FROM empresas WHERE id = ${empresaId} LIMIT 1`,
+  );
+  const value = (result.rows as Array<{ drive_clientes_folder_id?: unknown }>)[0]?.drive_clientes_folder_id;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+async function resolveProtocolDocumentIdentity(
+  req: Request,
+  protocol: typeof protocolsTable.$inferSelect,
+  member: ClinicalMember,
+  res: Response,
+): Promise<{ professionalName: string; professionalCrm: string | null; unit: string } | null> {
+  if (protocol.unit?.trim() && protocol.unit.trim() !== member.clinic.name) {
+    res.status(409).json({
+      code: "protocol_clinic_unit_mismatch",
+      error: "A unidade salva no protocolo não corresponde à clínica vinculada ao cliente.",
+    });
+    return null;
+  }
+  try {
+    const identity = await resolveProtocolDoctor(req, protocol.clientId, protocol.professionalId);
+    return {
+      professionalName: identity.professional.name,
+      professionalCrm: identity.professional.uf
+        ? `${identity.professional.crm}/${identity.professional.uf}`
+        : identity.professional.crm,
+      unit: member.clinic.name,
+    };
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function loadAuthorizedNurseNames(
+  nurseIds: Array<number | null | undefined>,
+  locationId: number,
+): Promise<Map<number, string>> {
+  const names = new Map<number, string>();
+  for (const nurseId of [...new Set(nurseIds.filter((id): id is number => Number.isSafeInteger(id) && Number(id) > 0))]) {
+    const [professional] = await db.select().from(professionalsTable)
+      .where(eq(professionalsTable.id, nurseId)).limit(1);
+    const [membership] = await db.select({ id: locationProfessionalsTable.id })
+      .from(locationProfessionalsTable)
+      .where(and(
+        eq(locationProfessionalsTable.professionalId, nurseId),
+        eq(locationProfessionalsTable.locationId, locationId),
+      )).limit(1);
+    if (!professional?.active || !membership) {
+      throw new ClinicalIdentityError(409, "A enfermagem registrada no protocolo não está ativa ou não pertence à clínica do cliente.");
+    }
+    names.set(nurseId, professional.name);
+  }
+  return names;
+}
+
+async function authorizeRasDocument(
+  req: Request,
+  ras: typeof rasTable.$inferSelect,
+  res: Response,
+): Promise<{
+  protocol: typeof protocolsTable.$inferSelect;
+  member: ClinicalMember;
+  identity: { professionalName: string; professionalCrm: string | null; unit: string };
+} | null> {
+  const [protocol] = await db.select().from(protocolsTable)
+    .where(and(
+      eq(protocolsTable.id, ras.protocolId),
+      eq(protocolsTable.clientId, ras.clientId),
+      eq(protocolsTable.empresaId, req.tenantContext.empresaId),
+    ))
+    .limit(1);
+  if (!protocol) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return null;
+  }
+  const member = await authorizeRasProtocol(req, protocol, res);
+  if (!member) return null;
+  const identity = await resolveProtocolDocumentIdentity(req, protocol, member, res);
+  if (!identity) return null;
+  if (ras.unit !== identity.unit || ras.professionalName !== identity.professionalName) {
+    res.status(409).json({
+      code: "ras_identity_mismatch",
+      error: "Os dados de clínica ou profissional do RAS não correspondem ao protocolo autorizado.",
+    });
+    return null;
+  }
+  return { protocol, member, identity };
 }
 
 async function authorizeRasRecord(
@@ -150,14 +258,43 @@ router.post("/ras", requireCollaborator, requireRasTenant, async (req, res): Pro
     return;
   }
 
-  let professionalName = "Profissional";
-  let professionalCrm: string | null = null;
-  if (session.professionalId) {
-    const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, session.professionalId));
-    if (prof) {
-      professionalName = prof.name;
-      professionalCrm = prof.crm ?? null;
+  if (!session.protocolId) {
+    res.status(409).json({ error: "A sessão não está vinculada a um protocolo autorizado." });
+    return;
+  }
+  const [protocol] = await db.select().from(protocolsTable).where(and(
+    eq(protocolsTable.id, session.protocolId),
+    eq(protocolsTable.clientId, session.clientId),
+    eq(protocolsTable.empresaId, empresaId),
+  ));
+  if (!protocol) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return;
+  }
+  if (protocol.professionalId !== session.professionalId) {
+    res.status(409).json({ error: "O médico responsável da sessão não corresponde ao médico responsável do protocolo." });
+    return;
+  }
+  let clinicalMember: ClinicalMember;
+  try {
+    clinicalMember = await resolveClinicalMember(req, session.clientId);
+  } catch {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return;
+  }
+  if (session.unit?.trim() && session.unit.trim() !== clinicalMember.clinic.name) {
+    res.status(409).json({ code: "ras_unit_mismatch", error: "A unidade da sessão não corresponde à clínica vinculada ao cliente." });
+    return;
+  }
+  let professionalIdentity: Awaited<ReturnType<typeof resolveProtocolDoctor>>;
+  try {
+    professionalIdentity = await resolveProtocolDoctor(req, client.id, session.professionalId);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return;
     }
+    throw error;
   }
 
   const applications = await db.select().from(substanceApplicationsTable)
@@ -195,9 +332,11 @@ router.post("/ras", requireCollaborator, requireRasTenant, async (req, res): Pro
     clientId: client.id,
     clientName: client.name,
     clientCpf: client.cpf ?? "",
-    professionalName,
-    professionalCrm,
-    unit: session.unit ?? "",
+    professionalName: professionalIdentity.professional.name,
+    professionalCrm: professionalIdentity.professional.uf
+      ? `${professionalIdentity.professional.crm}/${professionalIdentity.professional.uf}`
+      : professionalIdentity.professional.crm,
+    unit: clinicalMember.clinic.name,
     serviceDate: session.scheduledDate,
     serviceType: session.serviceType,
     substances,
@@ -247,6 +386,8 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
     return;
   }
   if (!(await authorizeRasRecord(req, ras, res))) return;
+  const rasContext = await authorizeRasDocument(req, ras, res);
+  if (!rasContext) return;
 
   try {
     const formatted = formatRAS(ras);
@@ -273,29 +414,34 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
       sessionId: ras.sessionId,
       clientName: ras.clientName,
       clientCpf: ras.clientCpf,
-      professionalName: ras.professionalName,
-      professionalCrm: ras.professionalCrm ?? null,
-      unit: ras.unit,
+      professionalName: rasContext.identity.professionalName,
+      professionalCrm: rasContext.identity.professionalCrm,
+      unit: rasContext.identity.unit,
       serviceDate: ras.serviceDate,
       serviceType: ras.serviceType,
       observations: ras.observations ?? null,
       substances: enrichedSubstances,
-    }));
+    }), { expectedProfessionalId: rasContext.protocol.professionalId });
 
     const filename = formatRASFileName(ras.serviceDate, ras.clientName, ras.clientCpf);
 
-    // Upload automático não-bloqueante ao Drive (não atrasa a resposta ao usuário)
+    // Cópia automática não-bloqueante, sempre dentro da raiz exclusiva da empresa.
     (async () => {
       try {
         if (await isDriveConnected()) {
           const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, ras.clientId));
-          if (client) {
-            const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
-            const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", filename, "application/pdf", Buffer.from(pdfBytes));
+          const companyRoot = await companyClientDriveRoot(ras.empresaId!);
+          if (client && client.cpf && companyRoot) {
+            const folders = await ensureClientFolderStructure(client.name, client.cpf, companyRoot);
+            const protocolsFolderId = folders.subfolders["PROTOCOLOS"];
+            if (!protocolsFolderId) throw new Error("A pasta PROTOCOLOS do cliente não foi localizada.");
+            const result = await uploadFileToDrive(protocolsFolderId, filename, "application/pdf", Buffer.from(pdfBytes), true);
             if (client.email) {
               await shareWithClient(result.fileId, client.email);
             }
             console.log(`RAS ${ras.id} uploaded to Drive: ${result.webViewLink}`);
+          } else {
+            req.log.warn({ rasId: ras.id, empresaId: ras.empresaId }, "Upload automático do RAS ignorado: falta CPF ou pasta da empresa");
           }
         }
       } catch (driveErr: any) {
@@ -327,6 +473,8 @@ router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, asyn
     return;
   }
   if (!(await authorizeRasRecord(req, ras, res))) return;
+  const rasContext = await authorizeRasDocument(req, ras, res);
+  if (!rasContext) return;
 
   if (!(await isDriveConnected())) {
     res.status(503).json({ error: "Google Drive nao conectado" });
@@ -362,18 +510,32 @@ router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, asyn
       sessionId: ras.sessionId,
       clientName: ras.clientName,
       clientCpf: ras.clientCpf,
-      professionalName: ras.professionalName,
-      professionalCrm: ras.professionalCrm ?? null,
-      unit: ras.unit,
+      professionalName: rasContext.identity.professionalName,
+      professionalCrm: rasContext.identity.professionalCrm,
+      unit: rasContext.identity.unit,
       serviceDate: ras.serviceDate,
       serviceType: ras.serviceType,
       observations: ras.observations ?? null,
       substances: enrichedSubstances,
-    }));
+    }), { expectedProfessionalId: rasContext.protocol.professionalId });
 
     const driveFileName = formatRASFileName(ras.serviceDate, ras.clientName, ras.clientCpf);
-    const folders = await ensureClientFolderStructure(client.name, client.cpf ?? "");
-    const result = await uploadFileToDrive(folders.subfolders["PROTOCOLOS"] ?? "", driveFileName, "application/pdf", Buffer.from(pdfBytes));
+    if (!client.cpf) {
+      res.status(409).json({ error: "O cliente não possui CPF cadastrado para localizar sua pasta exclusiva no Drive." });
+      return;
+    }
+    const companyRoot = await companyClientDriveRoot(ras.empresaId!);
+    if (!companyRoot) {
+      res.status(409).json({ error: "A empresa não possui a pasta de clientes configurada no Drive." });
+      return;
+    }
+    const folders = await ensureClientFolderStructure(client.name, client.cpf, companyRoot);
+    const protocolsFolderId = folders.subfolders["PROTOCOLOS"];
+    if (!protocolsFolderId) {
+      res.status(409).json({ error: "A pasta PROTOCOLOS do cliente não foi localizada no Drive." });
+      return;
+    }
+    const result = await uploadFileToDrive(protocolsFolderId, driveFileName, "application/pdf", Buffer.from(pdfBytes), true);
 
     if (client.email) {
       await shareWithClient(result.fileId, client.email);
@@ -405,26 +567,18 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
-  if (!await authorizeRasProtocol(req, protocol, res)) return;
+  const clinicalMember = await authorizeRasProtocol(req, protocol, res);
+  if (!clinicalMember) return;
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, protocol.clientId));
   if (!client) {
     res.status(404).json({ error: "Client not found" });
     return;
   }
+  const documentIdentity = await resolveProtocolDocumentIdentity(req, protocol, clinicalMember, res);
+  if (!documentIdentity) return;
 
   try {
-    let professionalName = "Profissional";
-    let nurseName = "";
-    if (protocol.professionalId) {
-      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-      if (prof) professionalName = prof.name;
-    }
-
-    const allProfs = await db.select().from(professionalsTable);
-    const nurseProf = protocol.nurseId ? allProfs.find(p => p.id === protocol.nurseId) : undefined;
-    if (nurseProf) nurseName = nurseProf.name;
-
     const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
     const allSubstances = await db.select().from(substancesTable);
     const substMap = new Map(allSubstances.map(s => [s.id, s]));
@@ -436,8 +590,8 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
         : sub?.procedureType === "implant" ? "Implante"
         : sub?.procedureType === "iv" ? "Endovenosa" : "Via não informada";
       return {
-        nome: sub?.name ?? "Substância",
-        dose: item.dose,
+        nome: nomeSubstanciaNoProtocolo(sub?.name ?? "Substância"),
+        dose: dosePrescritaParaDocumento(item.dose),
         via,
         sessoes: item.totalSessions,
         frequenciaDias: item.intervalDays,
@@ -446,9 +600,18 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
         procedureType: sub?.procedureType ?? undefined,
       };
     });
+    if (substancias.some(substance => !substance.dose)) {
+      res.status(409).json({ code: "dose_clinica_revisao", error: MENSAGEM_DOSE_CLINICA_REVISAO });
+      return;
+    }
 
     const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
     sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
+    const nurseNames = await loadAuthorizedNurseNames(
+      [protocol.nurseId, ...sessions.map(session => session.nurseId)],
+      clinicalMember.clinic.id,
+    );
+    const nurseName = protocol.nurseId ? nurseNames.get(protocol.nurseId) ?? "" : "";
 
     const physicalSessions: Array<{
       number: number;
@@ -473,8 +636,7 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
 
       let sessNurse: string | null = null;
       if (sess.nurseId) {
-        const sp = allProfs.find(p => p.id === sess.nurseId);
-        if (sp) sessNurse = sp.name;
+        sessNurse = nurseNames.get(sess.nurseId) ?? null;
       }
 
       physicalSessions.push({
@@ -492,12 +654,12 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
 
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
-      clientCpf: client.cpf ?? "000.000.000-00",
+      clientCpf: client.cpf ?? "",
       clientPhone: client.phone ?? "",
       clientAge: idadeAnos,
-      professionalName,
+      professionalName: documentIdentity.professionalName,
       nurseName,
-      unit: protocol.unit ?? "",
+      unit: documentIdentity.unit,
       startDate: protocol.startDate,
       protocolNumber: protocol.id,
       persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
@@ -522,6 +684,7 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(Buffer.from(pdfBytes));
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("Physical RAS PDF generation error:", err);
     res.status(500).json({ error: "Erro ao gerar RAS FAP", details: err.message });
   }
@@ -540,7 +703,8 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     res.status(404).json({ error: "Protocol not found" });
     return;
   }
-  if (!(await authorizeRasProtocol(req, protocol, res))) return;
+  const clinicalMember = await authorizeRasProtocol(req, protocol, res);
+  if (!clinicalMember) return;
 
   const [client] = await db.select().from(clientsTable).where(and(eq(clientsTable.id, protocol.clientId), eq(clientsTable.empresaId, empresaId)));
   if (!client) {
@@ -551,23 +715,14 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
     res.status(400).json({ error: "Cliente sem e-mail cadastrado" });
     return;
   }
+  const documentIdentity = await resolveProtocolDocumentIdentity(req, protocol, clinicalMember, res);
+  if (!documentIdentity) return;
 
   try {
     if (!(await isGmailConnected())) {
       res.status(503).json({ error: "Gmail não está conectado." });
       return;
     }
-    let professionalName = "Profissional";
-    let nurseName = "";
-    if (protocol.professionalId) {
-      const [prof] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, protocol.professionalId));
-      if (prof) professionalName = prof.name;
-    }
-
-    const allProfs = await db.select().from(professionalsTable);
-    const nurseProf = protocol.nurseId ? allProfs.find(p => p.id === protocol.nurseId) : undefined;
-    if (nurseProf) nurseName = nurseProf.name;
-
     const protocolItems = await db.select().from(protocolItemsTable).where(eq(protocolItemsTable.protocolId, protocolId));
     const allSubstances = await db.select().from(substancesTable);
     const substMap = new Map(allSubstances.map(s => [s.id, s]));
@@ -579,8 +734,8 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
         : sub?.procedureType === "implant" ? "Implante"
         : sub?.procedureType === "iv" ? "Endovenosa" : "Via não informada";
       return {
-        nome: sub?.name ?? "Substância",
-        dose: item.dose,
+        nome: nomeSubstanciaNoProtocolo(sub?.name ?? "Substância"),
+        dose: dosePrescritaParaDocumento(item.dose),
         via,
         sessoes: item.totalSessions,
         frequenciaDias: item.intervalDays,
@@ -589,9 +744,18 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
         procedureType: sub?.procedureType ?? undefined,
       };
     });
+    if (substancias.some(substance => !substance.dose)) {
+      res.status(409).json({ code: "dose_clinica_revisao", error: MENSAGEM_DOSE_CLINICA_REVISAO });
+      return;
+    }
 
     const sessions = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId));
     sessions.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.weekNumber - b.weekNumber);
+    const nurseNames = await loadAuthorizedNurseNames(
+      [protocol.nurseId, ...sessions.map(session => session.nurseId)],
+      clinicalMember.clinic.id,
+    );
+    const nurseName = protocol.nurseId ? nurseNames.get(protocol.nurseId) ?? "" : "";
 
     const physicalSessions: Array<{
       number: number;
@@ -616,8 +780,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
 
       let sessNurse: string | null = null;
       if (sess.nurseId) {
-        const sp = allProfs.find(p => p.id === sess.nurseId);
-        if (sp) sessNurse = sp.name;
+        sessNurse = nurseNames.get(sess.nurseId) ?? null;
       }
 
       physicalSessions.push({
@@ -635,12 +798,12 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
 
     const pdfBytes = await generatePhysicalRASPdf({
       clientName: client.name,
-      clientCpf: client.cpf ?? "000.000.000-00",
+      clientCpf: client.cpf ?? "",
       clientPhone: client.phone ?? "",
       clientAge: idadeAnos,
-      professionalName,
+      professionalName: documentIdentity.professionalName,
       nurseName,
-      unit: protocol.unit ?? "",
+      unit: documentIdentity.unit,
       startDate: protocol.startDate,
       protocolNumber: protocol.id,
       persistedGrid: await loadProtocolRasGrid(protocol, protocolItems.map(item => item.substanceId)),
@@ -665,7 +828,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
       clientName: client.name,
       clientEmail: client.email,
       protocolTitle: protocol.title,
-      professionalName,
+      professionalName: documentIdentity.professionalName,
       startDate: protocol.startDate,
       substances: substancias.map(s => ({
         name: s.nome,
@@ -700,6 +863,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
 
     res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
   } catch (err: any) {
+    if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("Reenviar RAS FAP error:", err);
     res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP", details: err.message });
   }
@@ -806,7 +970,7 @@ function demoBlocks(subs: DemoSub[], clientName: string, valor: string): string[
     </tr>
     ${subs.map((s, i) => `<tr style="background:${i % 2 === 0 ? "#f7f5f0" : "#ffffff"};">
       <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.name}</td>
-      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.dose}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${dosePrescritaParaDocumento(s.dose)}</td>
       <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.via}</td>
       <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.totalSessions}x / ${s.frequencyDays}d</td>
     </tr>`).join("")}
@@ -957,8 +1121,8 @@ function fichasBlocks(items: Array<{ name: string; dose: string; via: string; co
   for (const it of items) {
     blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;border-collapse:collapse;border-left:4px solid ${it.color};background:#f7f5f0;">
       <tr><td style="padding:12px 16px;">
-        <div style="font-size:14px;font-weight:700;color:#0a1e3d;">${it.name}</div>
-        <div style="font-size:12px;color:#666;margin-top:2px;">${it.dose} — ${it.via}</div>
+        <div style="font-size:14px;font-weight:700;color:#0a1e3d;">${nomeSubstanciaNoProtocolo(it.name)}</div>
+        <div style="font-size:12px;color:#666;margin-top:2px;">${dosePrescritaParaDocumento(it.dose)} — ${it.via}</div>
         ${it.whatIs ? `<div style="font-size:12px;color:#444;margin-top:6px;">${it.whatIs}</div>` : ""}
       </td></tr>
     </table>`);
@@ -1124,8 +1288,8 @@ function buildEntregaBlocks(
       <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Sessoes</td>
     </tr>
     ${substancias.map((s, i) => `<tr style="background:${i % 2 === 0 ? "#f7f5f0" : "#ffffff"};">
-      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.nome}</td>
-      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.dose}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${nomeSubstanciaNoProtocolo(s.nome)}</td>
+      <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${dosePrescritaParaDocumento(s.dose)}</td>
       <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.via}</td>
       <td style="padding:9px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #e8e4d8;">${s.sessoes}x / ${s.frequenciaDias}d</td>
     </tr>`).join("")}
@@ -1136,6 +1300,19 @@ function buildEntregaBlocks(
   return blocks;
 }
 
+router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant, async (_req, res): Promise<void> => {
+  res.status(410).json({
+    code: "rota_legada_desativada",
+    error: "Esta rota não emite documentos. Use a emissão de um protocolo persistido.",
+  });
+});
+
+/*
+ * Implementação histórica preservada abaixo apenas para referência durante a
+ * transição. A rota pública acima encerra antes deste código, sem gerar PDF,
+ * consultar provedores, enviar mensagens, assinar documentos ou gravar no Drive.
+ */
+if (false) {
 router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const { clientId, substancias, titulo, incluirCadernosJuridicos } = req.body as {
     clientId: number;
@@ -1171,6 +1348,18 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
   if (!client) { res.status(404).json({ error: "Cliente nao encontrado" }); return; }
   if (!client.email) { res.status(400).json({ error: "Cliente sem e-mail cadastrado" }); return; }
 
+  const substanciasSeguras = substancias.map(substance => ({
+    ...substance,
+    nome: nomeSubstanciaNoProtocolo(substance.nome),
+    dose: dosePrescritaParaDocumento(substance.dose),
+  }));
+  if (substancias.some((substance, index) =>
+    doseTemApresentacaoProibida(substance.dose) || !substanciasSeguras[index].dose,
+  )) {
+    res.status(409).json({ code: "dose_clinica_revisao", error: MENSAGEM_DOSE_CLINICA_REVISAO });
+    return;
+  }
+
   const agora = new Date(Date.now() - 3 * 60 * 60 * 1000); // BRT
   const dd = String(agora.getUTCDate()).padStart(2, "0");
   const mm = String(agora.getUTCMonth() + 1).padStart(2, "0");
@@ -1199,7 +1388,7 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
       startDate: substancias[0]?.inicio ?? agora.toISOString().slice(0, 10),
       protocolNumber: `FAP-${yy}${mm}${dd}-${clientId}`,
       valorTratamento: undefined,
-      substances: substancias.map(s => ({
+      substances: substanciasSeguras.map(s => ({
         name: s.nome,
         color: s.cor ?? "#c9a24f",
         totalSessions: s.sessoes,
@@ -1228,7 +1417,7 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
 
     try {
       const blocos = buildEntregaBlocks(
-        substancias, client.name, protocoloTitulo, dataHojeBR,
+        substanciasSeguras, client.name, protocoloTitulo, dataHojeBR,
         incluirCadernosJuridicos ?? false,
       );
       const doc: PaxterDoc = {
@@ -1406,5 +1595,6 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
     // ── fim cadernos ───────────────────────────────────────────────────────
   })();
 });
+}
 
 export default router;

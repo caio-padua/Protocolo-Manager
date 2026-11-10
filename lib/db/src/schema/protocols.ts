@@ -1,6 +1,74 @@
-import { pgTable, text, serial, timestamp, integer, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+
+export type ProtocolSubstanceCatalogSnapshot = {
+  id: number;
+  name: string;
+  category: string;
+  color: string;
+  defaultDose: string | null;
+  unit: string | null;
+  maxSessionsPerWeek: number | null;
+  intervalDays: number | null;
+  notes: string | null;
+  pricePerUnit: number;
+  procedureType: string;
+  viaUso: string | null;
+  frequenciaBase: string | null;
+  doctorParticipation: boolean | null;
+  durationMinutes: number;
+  description: string | null;
+  mainFunction: string | null;
+  perceivedEffects: string | null;
+  timeToEffect: string | null;
+  starRating: number;
+  bodySystemEffects: unknown;
+  categoryMeters: unknown;
+  longevityBenefit: string | null;
+  qualityOfLifeImpact: string | null;
+  sleepBenefit: string | null;
+  energyBenefit: string | null;
+  libidoBenefit: string | null;
+  physicalPerformance: string | null;
+  muscleStrength: string | null;
+  mentalClarity: string | null;
+  skinHairNails: string | null;
+  immuneSupport: string | null;
+  contraindications: string | null;
+  scientificEvidence: string | null;
+  categoryType: string | null;
+  codigoPadcom: string | null;
+  subCategoria: string | null;
+  disponivel: boolean | null;
+  tags: string[] | null;
+  blocoId: string | null;
+  grau: string | null;
+  composicao: string | null;
+  posologia: string | null;
+  areaSemantica: string | null;
+  exigeValidacaoHumana: boolean | null;
+  unidadeId: number | null;
+  posologiaEstruturada: unknown;
+  concentrationMg: string | null;
+  volumeAmpola: string | null;
+  isBlend: boolean;
+  presentationQuantity: number | null;
+  presentationUnit: string | null;
+  ampouleVolumeMl: number | null;
+  components: Array<{
+    id: number;
+    substanceId: number;
+    componentSubstanceId: number | null;
+    sortOrder: number;
+    componentName: string;
+    doseValue: number | null;
+    doseUnit: string | null;
+    quantity: number | null;
+    quantityUnit: string | null;
+    notes: string | null;
+  }>;
+};
 
 export const protocolsTable = pgTable("protocols", {
   id: serial("id").primaryKey(),
@@ -43,6 +111,8 @@ export const protocolItemsTable = pgTable("protocol_items", {
   intervalDays: integer("interval_days").notNull().default(7),
   startDate: text("start_date").notNull(),
   frequency: text("frequency").notNull().default("weekly"),
+  // Fotografia do catálogo usada na criação; nulo para protocolos históricos.
+  catalogSnapshot: jsonb("catalog_snapshot").$type<ProtocolSubstanceCatalogSnapshot | null>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

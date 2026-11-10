@@ -5366,6 +5366,12 @@ components:
           type: number
         procedureType:
           type: string
+        viaUso:
+          type: string
+          nullable: true
+        frequenciaBase:
+          type: string
+          nullable: true
         doctorParticipation:
           type: boolean
           nullable: true
@@ -5432,6 +5438,45 @@ components:
           type: string
           nullable: true
         categoryType:
+          type: string
+          nullable: true
+        codigoPadcom:
+          type: string
+          nullable: true
+        subCategoria:
+          type: string
+          nullable: true
+        disponivel:
+          type: boolean
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        blocoId:
+          type: string
+          nullable: true
+        grau:
+          type: string
+          nullable: true
+        areaSemantica:
+          type: string
+          nullable: true
+        exigeValidacaoHumana:
+          type: boolean
+          nullable: true
+        unidadeId:
+          type: integer
+          nullable: true
+        posologiaEstruturada:
+          type: object
+          additionalProperties: true
+          nullable: true
+        concentrationMg:
+          type: string
+          nullable: true
+        volumeAmpola:
           type: string
           nullable: true
         composicao:
@@ -5752,6 +5797,10 @@ components:
           type: string
         frequency:
           type: string
+        catalogSnapshot:
+          allOf:
+            - $ref: "#/components/schemas/ProtocolSubstanceSnapshot"
+          nullable: true
       required:
         - id
         - substanceId
@@ -5765,6 +5814,182 @@ components:
         - intervalDays
         - startDate
         - frequency
+
+    ProtocolSubstanceSnapshot:
+      type: object
+      description: Fotografia dos dados do cadastro usados ao criar este item; não inclui estoque.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        color:
+          type: string
+        defaultDose:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        maxSessionsPerWeek:
+          type: integer
+          nullable: true
+        intervalDays:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        pricePerUnit:
+          type: number
+        procedureType:
+          type: string
+        viaUso:
+          type: string
+          nullable: true
+        frequenciaBase:
+          type: string
+          nullable: true
+        doctorParticipation:
+          type: boolean
+          nullable: true
+        durationMinutes:
+          type: number
+        description:
+          type: string
+          nullable: true
+        mainFunction:
+          type: string
+          nullable: true
+        perceivedEffects:
+          type: string
+          nullable: true
+        timeToEffect:
+          type: string
+          nullable: true
+        starRating:
+          type: integer
+        bodySystemEffects:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        categoryMeters:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+        longevityBenefit:
+          type: string
+          nullable: true
+        qualityOfLifeImpact:
+          type: string
+          nullable: true
+        sleepBenefit:
+          type: string
+          nullable: true
+        energyBenefit:
+          type: string
+          nullable: true
+        libidoBenefit:
+          type: string
+          nullable: true
+        physicalPerformance:
+          type: string
+          nullable: true
+        muscleStrength:
+          type: string
+          nullable: true
+        mentalClarity:
+          type: string
+          nullable: true
+        skinHairNails:
+          type: string
+          nullable: true
+        immuneSupport:
+          type: string
+          nullable: true
+        contraindications:
+          type: string
+          nullable: true
+        scientificEvidence:
+          type: string
+          nullable: true
+        categoryType:
+          type: string
+          nullable: true
+        codigoPadcom:
+          type: string
+          nullable: true
+        subCategoria:
+          type: string
+          nullable: true
+        disponivel:
+          type: boolean
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        blocoId:
+          type: string
+          nullable: true
+        grau:
+          type: string
+          nullable: true
+        composicao:
+          type: string
+          nullable: true
+        posologia:
+          type: string
+          nullable: true
+        areaSemantica:
+          type: string
+          nullable: true
+        exigeValidacaoHumana:
+          type: boolean
+          nullable: true
+        unidadeId:
+          type: integer
+          nullable: true
+        posologiaEstruturada:
+          type: object
+          additionalProperties: true
+          nullable: true
+        concentrationMg:
+          type: string
+          nullable: true
+        volumeAmpola:
+          type: string
+          nullable: true
+        isBlend:
+          type: boolean
+        presentationQuantity:
+          type: number
+          nullable: true
+        presentationUnit:
+          type: string
+          nullable: true
+        ampouleVolumeMl:
+          type: number
+          nullable: true
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubstanceBlendComponent"
+      required:
+        - id
+        - name
+        - category
+        - color
+        - pricePerUnit
+        - procedureType
+        - durationMinutes
+        - isBlend
+        - components
 
     CreateProtocolBody:
       type: object
@@ -5800,6 +6025,7 @@ components:
           nullable: true
         items:
           type: array
+          minItems: 1
           items:
             $ref: "#/components/schemas/CreateProtocolItemBody"
       required:
@@ -5816,12 +6042,16 @@ components:
       properties:
         substanceId:
           type: integer
+          minimum: 1
         dose:
           type: string
+          minLength: 1
         totalSessions:
           type: integer
+          minimum: 1
         intervalDays:
           type: integer
+          minimum: 1
         frequency:
           type: string
         startDate:

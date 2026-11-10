@@ -19,14 +19,18 @@ import { ptBR } from "date-fns/locale";
 import { getCollabToken } from "@/lib/collab-auth";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
+import {
+  PROTOCOL_FREQUENCY_OPTIONS,
+  UNCONFIGURED_PROTOCOL_INTERVAL,
+  dosePrescritaExibivel,
+  dosePrescritaTemApresentacao,
+  dosePrescritaValida,
+  nomeSubstanciaProtocolo,
+  protocolIntervalDays,
+  resolveProtocolSubstanceDefaults,
+} from "@/lib/protocol-substance-selection";
 
-const FREQUENCY_OPTIONS = [
-  { value: "weekly", label: "Semanal (a cada 7 dias)", days: 7 },
-  { value: "biweekly", label: "Quinzenal (a cada 15 dias)", days: 15 },
-  { value: "triweekly", label: "A cada 21 dias", days: 21 },
-  { value: "monthly", label: "Mensal (a cada 30 dias)", days: 30 },
-  { value: "custom", label: "Personalizado", days: 0 },
-];
+const FREQUENCY_OPTIONS = PROTOCOL_FREQUENCY_OPTIONS;
 
 const VIA_CATEGORIES = [
   { id: "im", label: "Intramuscular" },
@@ -50,7 +54,7 @@ interface SubstanceSlot {
   dose: string;
   totalSessions: number;
   frequency: string;
-  customDays: number;
+  customDays: number | null;
   startDate: string;
 }
 
@@ -62,15 +66,15 @@ function emptySlot(): SubstanceSlot {
     substanceColor: "#888",
     dose: "",
     totalSessions: 8,
-    frequency: "weekly",
-    customDays: 14,
+    frequency: UNCONFIGURED_PROTOCOL_INTERVAL,
+    customDays: null,
     startDate: format(new Date(), "yyyy-MM-dd"),
   };
 }
 
 function getEndDate(slot: SubstanceSlot): string {
-  const freq = FREQUENCY_OPTIONS.find(f => f.value === slot.frequency);
-  const days = slot.frequency === "custom" ? slot.customDays : (freq?.days ?? 7);
+  const days = protocolIntervalDays(slot.frequency, slot.customDays);
+  if (days == null) return "—";
   const totalDays = days * (slot.totalSessions - 1);
   const ms = Date.parse(`${slot.startDate}T12:00:00Z`) + totalDays * 86_400_000;
   return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10).split("-").reverse().join("/") : "—";
@@ -224,7 +228,10 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     address: agendaOptions.nursingAgenda.locationAddress,
   } : undefined;
   const doctorAllowed = Boolean(selectedProfessional && availableDoctors.some(p => p.id === selectedProfessional.id));
-  const filledSlots = slots.filter(s => s.substanceId > 0 && s.dose);
+  const selectedSlots = slots.filter(s => s.substanceId > 0);
+  const filledSlots = selectedSlots.filter(s =>
+    s.dose.trim().length > 0 && protocolIntervalDays(s.frequency, s.customDays) != null
+  );
 
   useEffect(() => {
     if (nurseId && !nurses.some(n => String(n.id) === nurseId)) setNurseId("");
@@ -273,16 +280,21 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const handleSelectSubstance = (slotId: string, substanceId: string) => {
     const sub = substances?.find(s => String(s.id) === substanceId);
     if (!sub) return;
+    const defaults = resolveProtocolSubstanceDefaults(sub);
     updateSlot(slotId, {
       substanceId: sub.id,
-      substanceName: sub.name,
+      substanceName: nomeSubstanciaProtocolo(sub.name),
       substanceColor: sub.color,
+      dose: defaults.dose,
+      frequency: defaults.frequency,
+      customDays: defaults.customDays,
     });
   };
 
   const canAdvance = clientId && identityConfirmed && (!embedded || clientIdentity?.id === clientId) &&
     agendaOptions && !agendaOptionsLoading && !agendaOptionsError && doctorAllowed &&
-    professionalId && filledSlots.length > 0;
+    professionalId && selectedSlots.length > 0 && filledSlots.length === selectedSlots.length &&
+    filledSlots.every(slot => dosePrescritaValida(slot.dose));
 
   const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
@@ -303,8 +315,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       totalValue: 0,
       notes: null,
       items: filledSlots.map(s => {
-        const freq = FREQUENCY_OPTIONS.find(f => f.value === s.frequency);
-        const intervalDays = s.frequency === "custom" ? s.customDays : (freq?.days ?? 7);
+        const intervalDays = protocolIntervalDays(s.frequency, s.customDays)!;
         return {
           substanceId: s.substanceId,
           dose: s.dose,
@@ -503,8 +514,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
             <p className="text-[10px] font-bold text-muted-foreground mb-3 uppercase tracking-widest">Substâncias ({filledSlots.length})</p>
             <div className="space-y-4">
               {filledSlots.map((slot, idx) => {
-                const freq = FREQUENCY_OPTIONS.find(f => f.value === slot.frequency);
-                const days = slot.frequency === "custom" ? slot.customDays : (freq?.days ?? 7);
+                const days = protocolIntervalDays(slot.frequency, slot.customDays);
                 return (
                   <div key={slot.id} className="flex items-center gap-4 p-4 panel-3d-sub">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white text-lg font-black shadow-md"
@@ -518,7 +528,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                       </div>
                       <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         <span className="tabular-nums">{slot.totalSessions} sessões</span>
-                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> a cada {days} dias</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> a cada {days ?? "—"} dias</span>
                         <span className="tabular-nums">Início: {slot.startDate.split("-").reverse().join("/")}</span>
                         <span className="tabular-nums">Término: {getEndDate(slot)}</span>
                       </div>
@@ -818,7 +828,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
             </div>
           </div>
 
-          {slots.map((slot, idx) => (
+          {slots.map((slot, idx) => {
+            const selectedSubstance = substances?.find(substance => substance.id === slot.substanceId);
+            return (
             <div key={slot.id} className="relative p-5 panel-3d-sub space-y-4 transition-all"
               style={{ borderLeftColor: slot.substanceId ? slot.substanceColor : undefined, borderLeftWidth: slot.substanceId ? 5 : 1 }}>
               <div className="flex items-center justify-between mb-1">
@@ -850,10 +862,15 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                     <SelectContent>
                       {substancesFiltered.map(s => (
                         <SelectItem key={s.id} value={String(s.id)}>
-                          <div className="flex items-center gap-2">
+                          <div className="flex min-w-0 flex-col gap-0.5 py-1">
+                            <div className="flex min-w-0 items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                            <span>{s.name}</span>
-                            {s.unit && <span className="text-muted-foreground text-xs">({s.unit})</span>}
+                              <span className="truncate font-semibold">{nomeSubstanciaProtocolo(s.name)}</span>
+                              <span className="shrink-0 text-[10px] text-muted-foreground">Cadastro #{s.id}</span>
+                            </div>
+                            <span className="max-w-[30rem] whitespace-normal text-[10px] leading-tight text-muted-foreground">
+                              Via {VIA_CATEGORIES.find(category => category.id === viaOf(s.procedureType))?.label ?? "Outra"} · dose padrão {dosePrescritaExibivel(resolveProtocolSubstanceDefaults(s).dose) || "revisão clínica necessária"}
+                            </span>
                           </div>
                         </SelectItem>
                       ))}
@@ -869,13 +886,27 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                 )}
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Dose *</Label>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Dose por aplicação *</Label>
                   <Input
                     className="field-engraved h-10"
                     value={slot.dose}
                     onChange={e => updateSlot(slot.id, { dose: e.target.value })}
-                    placeholder="Ex: 600mg, 15g"
+                    placeholder="Dose prescrita por aplicação"
+                    data-testid={`input-prescribed-dose-${slot.id}`}
                   />
+                  <p
+                    className={`text-[10px] ${slot.dose && !dosePrescritaValida(slot.dose) ? "text-destructive" : "text-muted-foreground"}`}
+                    role={slot.dose && !dosePrescritaValida(slot.dose) ? "alert" : undefined}
+                    data-testid={`text-dose-review-${slot.id}`}
+                  >
+                    {slot.dose && !dosePrescritaValida(slot.dose)
+                      ? "Informe uma dose inequívoca, sem concentração, volume ou ampolas."
+                      : selectedSubstance?.defaultDose && !slot.dose
+                        ? "O cadastro não permite extrair uma dose inequívoca; revisão médica obrigatória."
+                        : slot.dose
+                          ? "Dose prescrita preenchida; revise antes de criar o protocolo."
+                          : "Sem dose padrão inequívoca; revisão médica obrigatória."}
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -888,15 +919,22 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                     value={slot.totalSessions}
                     onChange={e => updateSlot(slot.id, { totalSessions: parseInt(e.target.value) || 1 })}
                   />
+                  <p className="text-[10px] text-muted-foreground">Quantidade inicial do formulário; revise antes de criar.</p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Frequência</Label>
-                  <Select value={slot.frequency} onValueChange={v => updateSlot(slot.id, { frequency: v })}>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Frequência / intervalo *</Label>
+                  <Select value={slot.frequency} onValueChange={v => updateSlot(slot.id, {
+                    frequency: v,
+                    customDays: v === "custom"
+                      ? (slot.frequency === "custom" ? slot.customDays : protocolIntervalDays(slot.frequency, slot.customDays))
+                      : null,
+                  })}>
                     <SelectTrigger className="field-engraved h-10">
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione o intervalo" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={UNCONFIGURED_PROTOCOL_INTERVAL}>Intervalo não informado — escolha</SelectItem>
                       {FREQUENCY_OPTIONS.map(f => (
                         <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                       ))}
@@ -911,8 +949,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                       className="field-engraved h-10"
                       type="number"
                       min={1}
-                      value={slot.customDays}
-                      onChange={e => updateSlot(slot.id, { customDays: parseInt(e.target.value) || 1 })}
+                      value={slot.customDays ?? ""}
+                      onChange={e => updateSlot(slot.id, { customDays: e.target.value ? parseInt(e.target.value) : null })}
+                      placeholder="Informe os dias"
                     />
                   </div>
                 ) : (
@@ -951,7 +990,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {slots.length < 10 && (
             <button
@@ -969,7 +1009,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       <div className="flex items-center justify-between">
         <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
           {!canAdvance && (
-            <span>Preencha: cliente, médico, local e ao menos uma substância com dose.</span>
+            <span>Preencha cliente, médico, local, dose por aplicação e intervalo de cada substância selecionada.</span>
           )}
           {canAdvance && (
             <span className="text-emerald-600">Pronto para revisar — {filledSlots.length} substância{filledSlots.length !== 1 ? "s" : ""} configurada{filledSlots.length !== 1 ? "s" : ""}.</span>

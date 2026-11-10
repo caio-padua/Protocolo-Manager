@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import {
   useListClients,
   useGetClient,
@@ -743,7 +744,7 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                                 <div className="flex items-center gap-3 mt-1 flex-wrap">
                                   <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
-                                    Início: {format(new Date(protocol.startDate), "dd/MM/yyyy")}
+                                    Início: {formatCivilDate(protocol.startDate, "dd/MM/yyyy")}
                                   </span>
                                   <div className="screen-3d px-2 py-0.5 text-[10px] font-black tabular-nums">
                                     {protocol.completedSessions} / {protocol.totalSessions} sessões
@@ -795,10 +796,10 @@ export default function CockpitCliente({ initialClientId }: { initialClientId?: 
                                       <div className="flex items-center gap-4">
                                         <div className="concave-3d flex flex-col items-center justify-center w-12 h-12 shrink-0 border-none text-center">
                                           <span className="text-[9px] uppercase font-black text-muted-foreground/60 leading-none">
-                                            {format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}
+                                            {formatCivilDate(session.scheduledDate, "MMM", { locale: ptBR })}
                                           </span>
                                           <span className="text-lg font-black text-primary leading-none tabular-nums">
-                                            {format(new Date(session.scheduledDate), "dd")}
+                                            {formatCivilDate(session.scheduledDate, "dd")}
                                           </span>
                                         </div>
                                         <div>

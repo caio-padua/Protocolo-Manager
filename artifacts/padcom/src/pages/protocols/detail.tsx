@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatStatus } from "@/lib/status";
-import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCivilDate } from "@/lib/civil-date";
 import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader2, FileText, Activity, TrendingDown, Calendar, CheckCircle2, ChevronDown, Layers, Hourglass, Mail, Award, Send, History, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -117,6 +117,7 @@ export default function ProtocolDetail() {
   const hasUnreservedSessions = protocol.sessions.some(session =>
     !(session as any).resourceId || !(session as any).durationMinutes
   );
+  const hasReservedSessions = hasSessions && !hasUnreservedSessions;
   const hasOnlyUnreservedSessions = protocol.sessions.length > 0 && protocol.sessions.every(session =>
     !(session as any).resourceId && !(session as any).durationMinutes
   );
@@ -151,22 +152,32 @@ export default function ProtocolDetail() {
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           {["suggested", "validated"].includes(protocol.status) && !hasSessions && (
-            <Button className="btn-3d" onClick={() => setSchedulingMode("new")}>
+            <Button className="btn-3d" onClick={() => setSchedulingMode("new")} data-testid="button-protocol-schedule">
               <Calendar className="h-4 w-4 mr-1" />
-              Agendar protocolo
+              Validar e agendar sessões
             </Button>
           )}
-          {hasSessions && !hasUnreservedSessions && (
-            <>
-              {protocol.status === "validated" && (
-                <Button className="btn-3d-soft" onClick={() => setGoogleSyncOpen(true)}>
+              <Button
+                  className="btn-3d-soft"
+                  disabled={!hasReservedSessions || protocol.status !== "validated"}
+                  title={!hasReservedSessions
+                    ? "Reserve as sessões no sistema antes de enviar ao Google Agenda."
+                    : protocol.status !== "validated"
+                      ? "Valide e reserve o protocolo antes de enviar ao Google Agenda."
+                      : undefined}
+                  onClick={() => setGoogleSyncOpen(true)}
+                >
                   <Calendar className="h-4 w-4 mr-1" />
                   Enviar ao Google Agenda
                 </Button>
-              )}
-              <Button className="btn-3d-soft" onClick={() => icsMutation.mutate({ id })} disabled={icsMutation.isPending}>
+              <Button
+                className="btn-3d-soft"
+                onClick={() => icsMutation.mutate({ id })}
+                disabled={icsMutation.isPending || !hasReservedSessions}
+                title={!hasReservedSessions ? "Reserve as sessões antes de exportar os horários." : undefined}
+              >
                 <Download className="h-4 w-4 mr-1" />
-                Baixar ICS
+                {icsMutation.isPending ? "Gerando..." : "Baixar ICS"}
               </Button>
               <Button
                 className="btn-3d-soft"
@@ -447,8 +458,11 @@ export default function ProtocolDetail() {
                 {cartaEmailLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
                 {cartaEmailLoading ? "Enviando..." : "Enviar Carta"}
               </Button>
-            </>
-          )}
+              {!hasReservedSessions && (
+                <p className="w-full basis-full text-xs text-muted-foreground" role="note">
+                  O envio ao Google Agenda e a exportação de horários ficam disponíveis após a reserva das sessões.
+                </p>
+              )}
         </div>
       </div>
 
@@ -580,7 +594,7 @@ export default function ProtocolDetail() {
         <Card className="panel-3d-sub"><CardContent className="p-4">
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Início</p>
           <div className="concave-3d px-3 py-1.5 mt-1 inline-block">
-            <p className="font-bold tabular-nums text-sm">{format(new Date(protocol.startDate), "dd/MM/yyyy", { locale: ptBR })}</p>
+            <p className="font-bold tabular-nums text-sm">{formatCivilDate(protocol.startDate, "dd/MM/yyyy", { locale: ptBR })}</p>
           </div>
           {protocol.professionalName && (
             <div className="flex items-center gap-1.5 mt-2">
@@ -619,7 +633,7 @@ export default function ProtocolDetail() {
                       name={app.substanceName}
                       counter={`${app.sessionNumber}/${app.totalSessions}`}
                       applied
-                      extra={format(new Date(app.sessionDate), "dd/MM/yyyy", { locale: ptBR })}
+                      extra={formatCivilDate(app.sessionDate, "dd/MM/yyyy", { locale: ptBR })}
                     />
                   ))
                 )}
@@ -642,7 +656,7 @@ export default function ProtocolDetail() {
                       name={app.substanceName}
                       counter={`${app.sessionNumber}/${app.totalSessions}`}
                       muted
-                      extra={format(new Date(app.sessionDate), "dd/MM/yyyy", { locale: ptBR })}
+                      extra={formatCivilDate(app.sessionDate, "dd/MM/yyyy", { locale: ptBR })}
                     />
                   ))
                 )}
@@ -791,8 +805,8 @@ export default function ProtocolDetail() {
                 {protocol.sessions.map(session => (
                   <div key={session.id} className="flex items-start gap-4 p-4 panel-3d-sub">
                     <div className="flex-shrink-0 text-center w-16 concave-3d p-2">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{format(new Date(session.scheduledDate), "MMM", { locale: ptBR })}</div>
-                      <div className="text-2xl font-black leading-none tabular-nums text-primary">{format(new Date(session.scheduledDate), "dd")}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{formatCivilDate(session.scheduledDate, "MMM", { locale: ptBR })}</div>
+                      <div className="text-2xl font-black leading-none tabular-nums text-primary">{formatCivilDate(session.scheduledDate, "dd")}</div>
                       <div className="text-[9px] text-muted-foreground font-bold mt-1 uppercase tracking-widest">Semana {session.weekNumber}</div>
                     </div>
                     <div className="flex-1 min-w-0">

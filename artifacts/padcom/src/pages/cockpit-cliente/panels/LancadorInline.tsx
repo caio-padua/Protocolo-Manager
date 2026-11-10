@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays } from "date-fns";
-import { getCollabToken } from "@/lib/collab-auth";
+import { collabAuthHeaders } from "@/lib/collab-auth";
+import { toCivilDate } from "@/lib/civil-date";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 
@@ -149,7 +150,7 @@ export default function LancadorInline({
   // Aviso âmbar: cliente sem anamnese registrada (só aviso, não bloqueia).
   useEffect(() => {
     let ativo = true;
-    fetch(`${import.meta.env.BASE_URL}api/cockpit/${clientId}`)
+    fetch(`${import.meta.env.BASE_URL}api/cockpit/${clientId}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((dto) => {
         if (!ativo || !dto) return;
@@ -639,5 +640,5 @@ export function getEndDate(startDate: string, frequency: string, customDays: num
   const freq = FREQUENCY_OPTIONS.find((f) => f.value === frequency);
   const days = frequency === "custom" ? customDays : freq?.days ?? 7;
   const totalDays = days * (totalSessions - 1);
-  return format(addDays(new Date(startDate), totalDays), "dd/MM/yyyy");
+  return format(addDays(toCivilDate(startDate), totalDays), "dd/MM/yyyy");
 }

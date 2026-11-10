@@ -46,6 +46,7 @@ vi.mock("@workspace/db", () => {
     db: {
       select: vi.fn(),
       insert: vi.fn(),
+    execute: vi.fn(),
     },
     eq:      vi.fn((col: any, val: any) => ({ col, val })),
     and:     vi.fn((...args: any[]) => args),
@@ -97,6 +98,14 @@ vi.mock("../lib/google-gmail", () => ({
 // doctor-certificate-context; aqui a geração do documento é o foco.
 vi.mock("../lib/prescription-signing", () => ({
   withLoggedDoctorCertificate: (_req: unknown, _clientId: unknown, fn: () => Promise<unknown>) => fn(),
+  resolveProtocolDoctor: vi.fn(async (_req: unknown, _clientId: unknown, expectedProfessionalId: number | null) => ({
+    professional: {
+      id: expectedProfessionalId ?? 1,
+      name: "Médico sintético",
+      crm: "12345",
+      uf: "SP",
+    },
+  })),
 }));
 
 vi.mock("../lib/pdf-signer", () => ({
@@ -140,7 +149,8 @@ const FAKE_PROTOCOL = {
   id:             42,
   clientId:       7,
   empresaId:      5,
-  professionalId: null,
+  professionalId: 1,
+  nurseId: null,
   title:          "Longevidade IV",
   status:         "active",
   startDate:      "2026-08-01",
@@ -148,7 +158,7 @@ const FAKE_PROTOCOL = {
   totalSessions:  4,
   completedSessions: 0,
   totalValue:     5000,
-  unit:           "Instituto Pádua",
+  unit:           "Clínica sintética",
   serviceType:    "iv",
   notes:          null,
   createdAt:      new Date("2026-08-01T12:00:00Z"),
@@ -176,6 +186,7 @@ const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", emp
 
 const FAKE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 let clinicMembershipAllowed = true;
+let lastRasInsertValues: Record<string, unknown> | null = null;
 const FAKE_RAS = {
   id: 99,
   sessionId: 77,
@@ -261,12 +272,17 @@ function buildApp() {
 
 function setupMocks() {
   clinicMembershipAllowed = true;
+  lastRasInsertValues = null;
   vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(true);
   vi.mocked(db.select).mockReturnValue(new DbChain([]) as any);
+  vi.mocked(db.execute).mockResolvedValue({
+    rows: [{ drive_clientes_folder_id: "company-clients-root-5" }],
+  } as any);
   vi.mocked(db.insert).mockImplementation(() => ({
-    values: (values: Record<string, unknown>) => ({
-      returning: async () => [{ ...FAKE_RAS, ...values, createdAt: new Date("2026-11-02T12:00:00Z") }],
-    }),
+    values: (values: Record<string, unknown>) => {
+      lastRasInsertValues = values;
+      return { returning: async () => [{ ...FAKE_RAS, ...values, createdAt: new Date("2026-11-02T12:00:00Z") }] };
+    },
   } as any));
   vi.mocked(pdfSigner.generatePhysicalRASPdf).mockResolvedValue(FAKE_PDF_BYTES as any);
   vi.mocked(pdfSigner.generateSignedRASPdf).mockResolvedValue({ pdfBytes: FAKE_PDF_BYTES } as any);
@@ -423,6 +439,11 @@ describe("RAS clínico — identidade e vínculo antes de ler ou produzir docume
     expect(response.status).toBe(201);
     expect(response.body.clientId).toBe(FAKE_CLIENT.id);
     expect(vi.mocked(db.insert)).toHaveBeenCalledTimes(1);
+    expect(lastRasInsertValues).toEqual(expect.objectContaining({
+      professionalName: FAKE_PROFESSIONAL.name,
+      unit: FAKE_LOCATION.name,
+      empresaId: 5,
+    }));
   });
 
   it("nega criação de RAS sem vínculo e não grava registro", async () => {
@@ -444,6 +465,24 @@ describe("RAS clínico — identidade e vínculo antes de ler ou produzir docume
 
     expect(response.status).toBe(200);
     expect(vi.mocked(driveLib.uploadFileToDrive)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(driveLib.ensureClientFolderStructure)).toHaveBeenCalledWith(
+      FAKE_CLIENT.name,
+      FAKE_CLIENT.cpf,
+      "company-clients-root-5",
+    );
+  });
+
+  it("não usa a raiz global do Drive quando a empresa não tem pasta própria", async () => {
+    vi.mocked(driveLib.isDriveConnected).mockResolvedValue(true);
+    vi.mocked(db.execute).mockResolvedValue({ rows: [] } as any);
+    const response = await request(buildApp())
+      .post(`/api/ras/${FAKE_RAS.id}/upload-drive`)
+      .set("Authorization", "Bearer test-collaborator");
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toContain("pasta de clientes configurada");
+    expect(vi.mocked(driveLib.ensureClientFolderStructure)).not.toHaveBeenCalled();
+    expect(vi.mocked(driveLib.uploadFileToDrive)).not.toHaveBeenCalled();
   });
 
   it("nega upload ao Drive sem vínculo antes de chamar integração externa", async () => {
@@ -561,7 +600,7 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
     expect(response.status).toBe(404);
   });
 
-  it("bloqueia a entrega do RAS FAP antes do PDF e do e-mail se não houver vínculo clínico", async () => {
+  it("encerra a rota legada sem gerar PDF, enviar mensagem ou consultar vínculo", async () => {
     clinicMembershipAllowed = false;
 
     const response = await request(buildApp())
@@ -572,12 +611,12 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
         substancias: [{ nome: "Substância sintética", dose: "1 mg", via: "IV", sessoes: 1, frequenciaDias: 7, inicio: "2026-11-02" }],
       });
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(410);
     expect(vi.mocked(pdfSigner.generatePhysicalRASPdf)).not.toHaveBeenCalled();
     expect(vi.mocked(messaging.enviarMensagemPaxter)).not.toHaveBeenCalled();
   });
 
-  it("autoriza a entrega sintética dentro da clínica e usa apenas provedores simulados", async () => {
+  it("informa que a emissão exige protocolo persistido", async () => {
     const response = await request(buildApp())
       .post("/api/ras-fap/entregar-protocolo")
       .send({
@@ -587,11 +626,10 @@ describe("POST /api/ras/physical/:protocolId/reenviar-email — chama e-mail exa
         substancias: [{ nome: "Substância sintética", dose: "1 mg", via: "IV", sessoes: 1, frequenciaDias: 7, inicio: "2026-11-02" }],
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body.queued).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    expect(vi.mocked(pdfSigner.generatePhysicalRASPdf)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(messaging.enviarMensagemPaxter)).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(410);
+    expect(response.body.code).toBe("rota_legada_desativada");
+    expect(vi.mocked(pdfSigner.generatePhysicalRASPdf)).not.toHaveBeenCalled();
+    expect(vi.mocked(messaging.enviarMensagemPaxter)).not.toHaveBeenCalled();
   });
 });
 

@@ -1434,6 +1434,8 @@ export type SubstanceBodySystemEffects = { [key: string]: number } | null;
 
 export type SubstanceCategoryMeters = { [key: string]: number } | null;
 
+export type SubstancePosologiaEstruturada = { [key: string]: unknown } | null;
+
 export interface SubstanceBlendComponent {
   id: number;
   substanceId: number;
@@ -1461,6 +1463,8 @@ export interface Substance {
   stockUnit?: string | null;
   pricePerUnit?: number;
   procedureType?: string;
+  viaUso?: string | null;
+  frequenciaBase?: string | null;
   doctorParticipation?: boolean | null;
   durationMinutes?: number;
   description?: string | null;
@@ -1483,6 +1487,18 @@ export interface Substance {
   contraindications?: string | null;
   scientificEvidence?: string | null;
   categoryType?: string | null;
+  codigoPadcom?: string | null;
+  subCategoria?: string | null;
+  disponivel?: boolean | null;
+  tags?: string[] | null;
+  blocoId?: string | null;
+  grau?: string | null;
+  areaSemantica?: string | null;
+  exigeValidacaoHumana?: boolean | null;
+  unidadeId?: number | null;
+  posologiaEstruturada?: SubstancePosologiaEstruturada;
+  concentrationMg?: string | null;
+  volumeAmpola?: string | null;
   composicao?: string | null;
   posologia?: string | null;
   isBlend?: boolean;
@@ -1581,6 +1597,78 @@ export const ProtocolServiceType = {
   homecare: "homecare",
 } as const;
 
+export type ProtocolSubstanceSnapshotBodySystemEffects = {
+  [key: string]: number;
+} | null;
+
+export type ProtocolSubstanceSnapshotCategoryMeters = {
+  [key: string]: number;
+} | null;
+
+export type ProtocolSubstanceSnapshotPosologiaEstruturada = {
+  [key: string]: unknown;
+} | null;
+
+/**
+ * Fotografia dos dados do cadastro usados ao criar este item; não inclui estoque.
+ */
+export interface ProtocolSubstanceSnapshot {
+  id: number;
+  name: string;
+  category: string;
+  color: string;
+  defaultDose?: string | null;
+  unit?: string | null;
+  maxSessionsPerWeek?: number | null;
+  intervalDays?: number | null;
+  notes?: string | null;
+  pricePerUnit: number;
+  procedureType: string;
+  viaUso?: string | null;
+  frequenciaBase?: string | null;
+  doctorParticipation?: boolean | null;
+  durationMinutes: number;
+  description?: string | null;
+  mainFunction?: string | null;
+  perceivedEffects?: string | null;
+  timeToEffect?: string | null;
+  starRating?: number;
+  bodySystemEffects?: ProtocolSubstanceSnapshotBodySystemEffects;
+  categoryMeters?: ProtocolSubstanceSnapshotCategoryMeters;
+  longevityBenefit?: string | null;
+  qualityOfLifeImpact?: string | null;
+  sleepBenefit?: string | null;
+  energyBenefit?: string | null;
+  libidoBenefit?: string | null;
+  physicalPerformance?: string | null;
+  muscleStrength?: string | null;
+  mentalClarity?: string | null;
+  skinHairNails?: string | null;
+  immuneSupport?: string | null;
+  contraindications?: string | null;
+  scientificEvidence?: string | null;
+  categoryType?: string | null;
+  codigoPadcom?: string | null;
+  subCategoria?: string | null;
+  disponivel?: boolean | null;
+  tags?: string[] | null;
+  blocoId?: string | null;
+  grau?: string | null;
+  composicao?: string | null;
+  posologia?: string | null;
+  areaSemantica?: string | null;
+  exigeValidacaoHumana?: boolean | null;
+  unidadeId?: number | null;
+  posologiaEstruturada?: ProtocolSubstanceSnapshotPosologiaEstruturada;
+  concentrationMg?: string | null;
+  volumeAmpola?: string | null;
+  isBlend: boolean;
+  presentationQuantity?: number | null;
+  presentationUnit?: string | null;
+  ampouleVolumeMl?: number | null;
+  components: SubstanceBlendComponent[];
+}
+
 export interface ProtocolItem {
   id: number;
   substanceId: number;
@@ -1594,6 +1682,7 @@ export interface ProtocolItem {
   intervalDays: number;
   startDate: string;
   frequency: string;
+  catalogSnapshot?: ProtocolSubstanceSnapshot | null;
 }
 
 export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
@@ -1740,9 +1829,13 @@ export const CreateProtocolBodyServiceType = {
 } as const;
 
 export interface CreateProtocolItemBody {
+  /** @minimum 1 */
   substanceId: number;
+  /** @minLength 1 */
   dose: string;
+  /** @minimum 1 */
   totalSessions: number;
+  /** @minimum 1 */
   intervalDays: number;
   frequency: string;
   /** @pattern ^\d{4}-\d{2}-\d{2}$ */
@@ -1762,6 +1855,7 @@ export interface CreateProtocolBody {
   serviceType: CreateProtocolBodyServiceType;
   totalValue: number;
   notes?: string | null;
+  /** @minItems 1 */
   items: CreateProtocolItemBody[];
 }
 

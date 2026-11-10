@@ -2,9 +2,9 @@
 
 ## Estado
 
-EM ESPECIFICAÇÃO. Este documento registra o inventário e os critérios para
-unificar o comportamento solicitado. Ele não afirma que o motor unificado,
-a sincronização, as reservas ou os documentos já estejam concluídos.
+BLOQUEADO. As correções deste recorte foram implementadas e testadas, mas a
+revisão independente não ficou disponível e a tela autenticada não pôde ser
+conferida. Não declarar este recorte homologado até concluir essas provas.
 
 ### Subunidades verificadas em ambiente isolado
 
@@ -241,16 +241,50 @@ editável pelo controle sim/não do cadastro.
    documentos em PDF que listam todas as sessões continuam mostrando as canceladas com o estado delas
    (não foi alterado); evento cancelado cujo ponteiro foi mantido não é limpo automaticamente depois.
 11. Aviso antes de agendar (etapa 7 de 7, 09/11/2026): `googleReadinessWarning` em
-   `lib/session-google-sync.ts`, devolvido como `googleWarning` fora da prévia (não entra na
-   impressão digital) em `preview` e em `confirm` quando o plano mudou. Usa a mesma regra do envio ao
-   Google (agenda ativa, calendário Google, local ativo da empresa, profissional logado vinculado ao
-   local), só lê e nunca chama o Google. Falha ao verificar vira aviso `verificacao_indisponivel`,
-   nunca "pronto". O aviso não bloqueia: a reserva no sistema continua valendo.
+    `lib/session-google-sync.ts`, devolvido como `googleWarning` fora da prévia (não entra na
+    impressão digital) em `preview` e em `confirm` quando o plano mudou. Usa a mesma regra do envio ao
+    Google: agenda ativa, calendário Google, local ativo da empresa, profissional logado vinculado ao
+    local e conta Google autorizada da clínica. A checagem da conta é somente leitura; não cria nem
+    atualiza eventos. Falha de consulta ou conta divergente vira aviso explícito, nunca "pronto".
+    O aviso não bloqueia: a reserva no sistema continua valendo.
    Licenciamento para outras clínicas: toda leitura e escrita desta cadeia filtra pela empresa do
    acesso clínico (protocolo, cliente, agenda, local, sessão, evento); outra clínica recebe recusa
    sem dados, sem aviso e sem chamar o Google (provado nos testes das etapas 4 a 7). Pendente do lado
-   comercial: cadastro de expediente das agendas, calendário Google por agenda e vínculo dos
-   profissionais ao local (o aviso passa a mostrar quando falta).
+    comercial: cadastro de expediente das agendas, calendário Google por agenda e vínculo dos
+    profissionais ao local (o aviso passa a mostrar quando falta).
+
+### Falhas confirmadas pelos prints de 10/11/2026
+
+1. A barra de ações do protocolo depende de existirem sessões já reservadas.
+   Quando a reserva falha e nenhuma sessão é gravada, desaparecem também ações
+   independentes da agenda: gerar e imprimir RAS FAP, reenviar RAS FAP, gerar o
+   protocolo completo, emitir o protocolo ao cliente, gerar a carta e enviá-la.
+   Correção exigida: manter a barra e seus comandos visíveis. Ações que realmente
+   dependam de horário reservado ficam desabilitadas com o motivo à vista; as
+   ações de documento e comunicação permanecem acessíveis segundo seus contratos
+   atuais. A validação deve abrir a prévia segura que reserva horários, nunca
+   voltar a criar sessões sem reserva.
+2. O planejador oferece datas com outra visita ativa do mesmo cliente; a
+   confirmação só então recusa com `cliente_ja_tem_visita_no_dia`. Correção
+   exigida: retirar essas datas da busca antes de gerar a prévia, preservando a
+   conferência dentro da reserva para proteger contra uma visita concorrente.
+   Durante a recuperação, as sessões antigas do próprio protocolo não bloqueiam
+   suas datas; as visitas de outros protocolos continuam bloqueando.
+3. Falhas previstas e provas necessárias: visita existente na mesma data deve
+   levar a outra data válida; todos os dias possíveis ocupados devem gerar uma
+   recusa clara sem gravação; uma visita criada depois da prévia deve impedir a
+   gravação na confirmação; sessões canceladas ou arquivadas não bloqueiam;
+   ações da barra aparecem sem sessões, com sessões antigas sem reserva e com
+   sessões reservadas; envio ao Google e exportação de calendário permanecem
+   bloqueados até existir reserva válida.
+4. A verificação de prontidão do Google conferia o cadastro da agenda, o local
+   e o vínculo profissional, mas não confirmava a conta Google conectada. A
+   reserva podia ser confirmada e o envio só depois recusado com conta
+   indisponível. Correção: a prévia também consulta, sem escrita, a conta
+   autorizada da clínica. Conta errada ou indisponível gera aviso antes da
+   confirmação, sem bloquear a reserva local. Provar conta correta, conta
+   divergente, consulta indisponível e ausência de criação ou atualização de
+   eventos durante a prévia.
 
 ### Impedimentos reais encontrados no desenvolvimento
 

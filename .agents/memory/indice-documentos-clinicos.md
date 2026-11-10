@@ -14,3 +14,4 @@ description: Índice das decisões para emissão e entrega de documentos clínic
 - [Homologação clínica sintética](homologacao-documento-sintetico.md) — distinguir claramente documentos de teste dos documentos clínicos.
 - [Destinatários implícitos em documentos clínicos](recibos-clinicos-copia-implicita.md) — conferir destinatários herdados para evitar vazamento entre clínicas.
 - [Paginação bloco inteiro](paginacao-bloco-integro-documentos.md) — itens e fórmulas não devem ser cortados entre páginas.
+- [Dose prescrita em protocolo e RAS FAP](dose-prescrita-protocolo.md) — mostrar dose inequívoca; manter concentração, volume e ampolas fora dos documentos.

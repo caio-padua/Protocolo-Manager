@@ -82,7 +82,7 @@ function itensPorTipo(rows: (typeof itemDoencaTable.$inferSelect)[], tipo: strin
 }
 
 // 1) GET /cockpit/:clientId — monta o DTO consolidado das 3 colunas.
-router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
+router.get("/cockpit/:clientId", requireCollaborator, async (req, res): Promise<void> => {
   const clienteId = Number(req.params.clientId);
   if (!Number.isInteger(clienteId)) {
     res.status(400).json({ error: "clientId invalido" });
@@ -212,7 +212,7 @@ router.get("/cockpit/:clientId", async (req, res): Promise<void> => {
 });
 
 // 2) GET /cockpit/:clientId/pdf — PDF consolidado da consulta (passado/presente/futuro).
-router.get("/cockpit/:clientId/pdf", async (req, res): Promise<void> => {
+router.get("/cockpit/:clientId/pdf", requireCollaborator, async (req, res): Promise<void> => {
   const clienteId = Number(req.params.clientId);
   if (!Number.isInteger(clienteId)) {
     res.status(400).json({ error: "clientId invalido" });

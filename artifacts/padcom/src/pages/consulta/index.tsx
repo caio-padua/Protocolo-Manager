@@ -388,7 +388,7 @@ export default function ConsultaProntuario() {
     }
     setCarregandoCockpit(true);
     setErroCockpit(false);
-    fetch(`${BASE}/api/cockpit/${cid}`)
+    fetch(`${BASE}/api/cockpit/${cid}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("cockpit"))))
       .then((d: CockpitData) => setCockpit(d))
       .catch(() => {

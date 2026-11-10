@@ -5,6 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { ProtocolSubstanceSnapshot } from "./protocolSubstanceSnapshot";
 
 export interface ProtocolItem {
   id: number;
@@ -19,4 +20,5 @@ export interface ProtocolItem {
   intervalDays: number;
   startDate: string;
   frequency: string;
+  catalogSnapshot?: ProtocolSubstanceSnapshot | null;
 }

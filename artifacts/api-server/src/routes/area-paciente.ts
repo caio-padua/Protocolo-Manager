@@ -16,6 +16,7 @@ import {
   agendaResourcesTable,
 } from "@workspace/db";
 import { verifyPortalToken, createPortalToken } from "../lib/portal-token";
+import { dosePrescritaParaDocumento, nomeSubstanciaNoProtocolo } from "../lib/protocol-dose-presentation";
 import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password-policy";
 import { verifyPassword, hashPassword } from "../lib/patient-auth.js";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
@@ -277,10 +278,10 @@ router.get("/area-paciente/protocolos", async (req: Request, res: Response): Pro
           const sub = subMap.get(it.substanceId);
           return {
             id: it.id,
-            substanceName: sub?.name ?? `Substância ${it.substanceId}`,
+            substanceName: nomeSubstanciaNoProtocolo(sub?.name ?? `Substância ${it.substanceId}`),
             color: sub?.color ?? "yellow",
             procedureType: sub?.procedureType ?? "iv",
-            dose: it.dose,
+            dose: dosePrescritaParaDocumento(it.dose),
             totalSessions: it.totalSessions,
             completedSessions: it.completedSessions,
             intervalDays: it.intervalDays,
@@ -338,9 +339,9 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
         substances: apps.map((a) => {
           const sub = subMap.get(a.substanceId);
           return {
-            substanceName: sub?.name ?? `Substância ${a.substanceId}`,
+            substanceName: nomeSubstanciaNoProtocolo(sub?.name ?? `Substância ${a.substanceId}`),
             color: sub?.color ?? "yellow",
-            dose: a.dose,
+            dose: dosePrescritaParaDocumento(a.dose),
             sessionNumber: a.sessionNumber,
             totalSessions: a.totalSessions,
             status: a.status,

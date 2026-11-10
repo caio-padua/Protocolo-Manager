@@ -191,7 +191,7 @@ export default function Cockpit() {
     queryKey: ["cockpit", clienteId],
     enabled: clienteId != null,
     queryFn: async () => {
-      const r = await fetch(`/api/cockpit/${clienteId}`);
+      const r = await fetch(`/api/cockpit/${clienteId}`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error("falha ao carregar cockpit");
       return r.json();
     },

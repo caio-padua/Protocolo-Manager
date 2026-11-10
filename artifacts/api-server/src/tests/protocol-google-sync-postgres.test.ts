@@ -489,7 +489,50 @@ describe("Aviso antes de agendar: o Google vai receber os eventos desta agenda? 
     const id = await suggested(21, items);
     expect((await post(`/api/protocols/${id}/scheduling/preview`)).status).toBe(200);
     expect((await counts()).sessions).toBe(0);
-    for (const fn of Object.values(google)) expect(fn).not.toHaveBeenCalled();
+    expect(google.verify).toHaveBeenCalledTimes(1); // leitura da conta autorizada
+    expect(google.create).not.toHaveBeenCalled();
+    expect(google.update).not.toHaveBeenCalled();
+    expect(google.exists).not.toHaveBeenCalled();
+  });
+
+  it("conta Google divergente: avisa antes, reserva no sistema se confirmado e não envia evento", async () => {
+    const id = await suggested(21, items);
+    google.verify.mockResolvedValue({ ok: false, account: "conta-diferente@example.invalid" });
+
+    const preview = await post(`/api/protocols/${id}/scheduling/preview`);
+    expect(preview.status, JSON.stringify(preview.body)).toBe(200);
+    expect(preview.body.googleWarning).toMatchObject({ code: "conta_google_divergente" });
+    expect(preview.body.googleWarning.message).not.toContain("conta-diferente@example.invalid");
+    expect((await counts()).sessions).toBe(0);
+    expect(google.create).not.toHaveBeenCalled();
+    expect(google.update).not.toHaveBeenCalled();
+
+    const confirmed = await post(`/api/protocols/${id}/scheduling/confirm`, {
+      fingerprint: preview.body.preview.fingerprint,
+    });
+    expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(201);
+    const beforeSync = await counts();
+    expect(beforeSync.sessions).toBeGreaterThan(0);
+
+    const syncResult = await sync(id);
+    expect(syncResult.status).toBe(503);
+    expect(syncResult.body.code).toBe("google_indisponivel");
+    expect(google.create).not.toHaveBeenCalled();
+    expect(google.update).not.toHaveBeenCalled();
+    expect(await counts()).toEqual(beforeSync);
+    expect((await sessionRows(id)).every(session => session.ev === null)).toBe(true);
+  });
+
+  it("falha ao consultar a conta Google: aviso explícito e prévia sem escrita", async () => {
+    const id = await suggested(21, items);
+    google.verify.mockRejectedValue(new Error("falha sintética de consulta"));
+
+    const preview = await post(`/api/protocols/${id}/scheduling/preview`);
+    expect(preview.status).toBe(200);
+    expect(preview.body.googleWarning).toMatchObject({ code: "verificacao_indisponivel" });
+    expect((await counts()).sessions).toBe(0);
+    expect(google.create).not.toHaveBeenCalled();
+    expect(google.update).not.toHaveBeenCalled();
   });
 
   it("local inativo ou de outra clínica e falha na verificação viram aviso explícito, nunca silêncio", async () => {
