@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Printer, FileDown, ShieldCheck, Loader2, FolderUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { dosePrescritaExibivel, nomeSubstanciaProtocolo } from "@/lib/protocol-substance-selection";
 
 interface CertInfo {
   subject: string;
@@ -220,8 +221,10 @@ export default function RASDetail() {
             <tbody>
               {ras.substances.map((sub, idx) => (
                 <tr key={idx} className={`border border-gray-300 dark:border-gray-700 ${idx % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-900/40"}`}>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 font-black text-gray-900 dark:text-gray-100 uppercase tracking-tight text-xs">{sub.substanceName}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">{sub.dose}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 font-black text-gray-900 dark:text-gray-100 uppercase tracking-tight text-xs">{nomeSubstanciaProtocolo(sub.substanceName)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">
+                    {dosePrescritaExibivel(sub.dose) || "Revisão clínica necessária"}
+                  </td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-center font-black tabular-nums text-xs">{sub.sessionNumber}/{sub.totalSessions}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">{sub.route}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs">{sub.lot ?? "—"}</td>

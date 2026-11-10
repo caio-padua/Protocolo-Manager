@@ -23,9 +23,10 @@ outros detalhes do cadastro dentro da apresentação do protocolo ou do RAS FAP.
 
 ## Estado
 
-IMPLEMENTAÇÃO PARCIAL — a regra de dose prescrita foi aplicada ao formulário,
-detalhe, geração do protocolo e RAS FAP. A integração de agendas e a verificação
-visual autenticada continuam pendentes; esta entrega não está homologada.
+BLOQUEADO — a conferência autenticada encontrou um caminho de leitura do RAS que
+devolvia a dose armazenada sem aplicar o normalizador clínico. A correção foi
+aplicada e os testes focados passaram; falta conferência visual autenticada da
+correção e revisão independente. O banco e o cadastro não foram alterados.
 
 ## Objetivo
 
@@ -196,3 +197,36 @@ internamente, sem apresentá-los como dose no protocolo.
    preservando `budget_catalog` como fonte comercial separada.
 4. Testar sincronização Google e cada ação de comunicação em destinos de teste
    identificados, sem destinatários reais.
+
+## Reteste autenticado e nova descoberta — 10/11/2026
+
+- O responsável conferiu ADEK, identificador 832, e Coenzima Q10, identificador
+  14, sem criar protocolo. A tela mostrou, respectivamente, a composição com
+  `/ 2 ML` e `100 MG / 2 ML`; o intervalo quinzenal de ADEK e a ausência de
+  intervalo de Q10 estavam corretos.
+- A conferência também observou campos de volume e concentração. Esses campos
+  pertencem ao cadastro e devem continuar nele; não podem aparecer como dose no
+  protocolo nem no RAS FAP.
+- A inspeção do código local encontrou `formatRAS` devolvendo `r.substances`
+  diretamente. Esse caminho de leitura contorna `dosePrescritaParaDocumento`
+  mesmo quando a geração do PDF já a utiliza.
+- ADEK contém vários componentes e uma apresentação em 2 mL. Como a dose
+  prescrita não pode ser identificada com segurança apenas removendo o volume,
+  a regra é deixar a dose vazia e exigir revisão clínica. Para Q10, a convenção
+  previamente aprovada permite preencher somente `100 mg` a partir de
+  `100 MG / 2 ML`.
+- Correção prevista: normalizar as doses no retorno do RAS e ocultar conteúdo
+  inseguro em toda prévia de protocolo. Testes devem provar que a resposta não
+  revela `/ 2 ML`, que o valor original armazenado não é modificado e que
+  composições ambíguas exigem revisão. Nenhum dado clínico será criado ou
+  regravado.
+- Resultado da correção: 38 testes do servidor e 10 testes da interface
+  passaram. A resposta do RAS e a entrada do gerador de PDF mostram `100 mg`
+  para Q10 e deixam ADEK vazia para revisão; o texto original do registro de
+  teste permanece inalterado.
+- As compilações do servidor e da interface terminaram. A verificação completa
+  de tipos continua com 162 erros em 48 arquivos; não apontou erro nas rotas e
+  testes do servidor alterados nesta correção.
+- A captura desta execução não tinha sessão autenticada e não permitiu selecionar
+  Q10 ou ADEK. Portanto, a apresentação autenticada depois da correção permanece
+  sem verificação independente; nenhum protocolo foi criado.

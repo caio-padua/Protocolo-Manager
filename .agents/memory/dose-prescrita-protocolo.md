@@ -7,4 +7,4 @@ Em protocolo e RAS FAP, mostrar o nome da substância e somente a dose prescrita
 
 **Why:** O responsável clínico corrigiu a especificação para impedir que concentração ou apresentação de ampola sejam confundidas com a dose prescrita, sem perder os dados completos do cadastro.
 
-**How to apply:** Aplicar ao formulário de protocolo, detalhe, documentos PDF/impressos, RAS FAP e tabelas de mensagens. Antes de ampliar a mesma regra para agenda, orçamento ou outros documentos, verificar seus contratos e preservar os atributos operacionais que já são válidos.
+**How to apply:** Aplicar ao formulário de protocolo, detalhe, documentos PDF/impressos, RAS FAP e tabelas de mensagens. Sanear também a fronteira de serialização das leituras de registros persistidos; não confiar apenas no gerador de PDF. Em qualquer caminho, manter dose ambígua vazia para revisão e nunca modificar a fonte original do cadastro ou do histórico. Antes de ampliar a mesma regra para agenda, orçamento ou outros documentos, verificar seus contratos e preservar os atributos operacionais que já são válidos.

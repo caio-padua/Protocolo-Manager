@@ -33,6 +33,7 @@ import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/me
 import { resolveClinicalMember } from "../lib/clinical-emitter";
 import {
   MENSAGEM_DOSE_CLINICA_REVISAO,
+  detalheCatalogoSeguroParaProtocolo,
   dosePrescritaParaDocumento,
   doseTemApresentacaoProibida,
   nomeSubstanciaNoProtocolo,
@@ -195,11 +196,33 @@ async function authorizeRasRecord(
 }
 
 function formatRAS(r: typeof rasTable.$inferSelect) {
+  const storedSubstances = Array.isArray(r.substances)
+    ? r.substances as Array<{
+        substanceName: string;
+        dose: string;
+        route: string;
+        sessionNumber: number;
+        totalSessions: number;
+        lot: string | null;
+        validity: string | null;
+        appliedAt: string | null;
+        status: string;
+      }>
+    : [];
+
   return {
     ...r,
     professionalCrm: r.professionalCrm ?? null,
     observations: r.observations ?? null,
-    substances: r.substances as Array<{ substanceName: string; dose: string; route: string; sessionNumber: number; totalSessions: number; lot: string | null; validity: string | null; appliedAt: string | null; status: string }>,
+    substances: storedSubstances.map(substance => ({
+      ...substance,
+      substanceName: typeof substance.substanceName === "string"
+        ? nomeSubstanciaNoProtocolo(substance.substanceName)
+        : "",
+      dose: dosePrescritaParaDocumento(
+        typeof substance.dose === "string" ? substance.dose : "",
+      ),
+    })),
     createdAt: r.createdAt.toISOString(),
   };
 }
@@ -394,17 +417,26 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
 
     const allSubstances = await db.select().from(substancesTable);
     const substanceMap = new Map(allSubstances.map(s => [s.name, s]));
+    const originalSubstances = Array.isArray(ras.substances)
+      ? ras.substances as Array<{ substanceName?: unknown }>
+      : [];
 
-    const enrichedSubstances = formatted.substances.map(sub => {
-      const dbSub = substanceMap.get(sub.substanceName);
+    const enrichedSubstances = formatted.substances.map((sub, index) => {
+      const sourceName = originalSubstances[index]?.substanceName;
+      const dbSub = typeof sourceName === "string" ? substanceMap.get(sourceName) : undefined;
+      const bodySystemEffects = dbSub?.bodySystemEffects as Record<string, string> | null | undefined;
+      const bodySystemEffectsText = bodySystemEffects ? JSON.stringify(bodySystemEffects) : undefined;
       return {
         ...sub,
-        description: dbSub?.description ?? undefined,
-        mainFunction: dbSub?.mainFunction ?? undefined,
-        perceivedEffects: dbSub?.perceivedEffects ?? undefined,
-        timeToEffect: dbSub?.timeToEffect ?? undefined,
+        description: detalheCatalogoSeguroParaProtocolo(dbSub?.description),
+        mainFunction: detalheCatalogoSeguroParaProtocolo(dbSub?.mainFunction),
+        perceivedEffects: detalheCatalogoSeguroParaProtocolo(dbSub?.perceivedEffects),
+        timeToEffect: detalheCatalogoSeguroParaProtocolo(dbSub?.timeToEffect),
         starRating: dbSub?.starRating ?? undefined,
-        bodySystemEffects: (dbSub?.bodySystemEffects as Record<string, string>) ?? undefined,
+        bodySystemEffects: bodySystemEffectsText &&
+          detalheCatalogoSeguroParaProtocolo(bodySystemEffectsText)
+          ? bodySystemEffects ?? undefined
+          : undefined,
         procedureType: dbSub?.procedureType ?? undefined,
       };
     });

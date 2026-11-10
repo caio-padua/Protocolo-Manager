@@ -13,6 +13,7 @@ import { getCollabToken } from "@/lib/collab-auth";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
+import { dosePrescritaExibivel, nomeSubstanciaProtocolo } from "@/lib/protocol-substance-selection";
 
 const PAST_STATUSES = ["completed", "cancelled", "expired", "refunded"];
 const FALLBACK_COLOR = "#94a3b8";
@@ -685,10 +686,12 @@ export default function ProtocolDetail() {
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                       <span className="font-bold uppercase tracking-tight text-lg inline-flex items-center gap-1.5 min-w-0" style={{ color: item.substanceColor || FALLBACK_COLOR }}>
                         {done && <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />}
-                        <span className="truncate">{item.substanceName}</span>
+                        <span className="truncate">{nomeSubstanciaProtocolo(item.substanceName)}</span>
                       </span>
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">{item.dose}</span>
+                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">
+                          {dosePrescritaExibivel(item.dose) || "Revisão clínica necessária"}
+                        </span>
                         <span className="text-sm font-bold text-primary tabular-nums">{item.completedSessions}/{item.totalSessions} <span className="text-[10px] text-muted-foreground uppercase tracking-widest">sessões</span></span>
                       </div>
                     </div>

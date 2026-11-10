@@ -187,6 +187,7 @@ const FAKE_LOCATION = { id: 31, name: "Clínica sintética", active: "true", emp
 const FAKE_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 let clinicMembershipAllowed = true;
 let lastRasInsertValues: Record<string, unknown> | null = null;
+let rasCatalogRows: Array<Record<string, unknown>> = [];
 const FAKE_RAS = {
   id: 99,
   sessionId: 77,
@@ -199,7 +200,7 @@ const FAKE_RAS = {
   unit: FAKE_LOCATION.name,
   serviceDate: "2026-11-02",
   serviceType: "clinic",
-  substances: [],
+  substances: [] as Array<Record<string, unknown>>,
   observations: null,
   empresaId: 5,
   createdAt: new Date("2026-11-02T12:00:00Z"),
@@ -233,7 +234,7 @@ class DbChain {
       case "locations":             return new DbChain([FAKE_LOCATION]);
       case "location_professionals":return new DbChain(clinicMembershipAllowed ? [{ id: 1 }] : []);
       case "protocol_items":        return new DbChain([]);
-      case "substances":            return new DbChain([]);
+      case "substances":            return new DbChain(rasCatalogRows);
       case "sessions":              return new DbChain([FAKE_SESSION]);
       case "substance_applications":return new DbChain([]);
       case "email_log":             return new DbChain([]);
@@ -273,6 +274,8 @@ function buildApp() {
 function setupMocks() {
   clinicMembershipAllowed = true;
   lastRasInsertValues = null;
+  FAKE_RAS.substances = [];
+  rasCatalogRows = [];
   vi.mocked(gmailLib.isGmailConnected).mockResolvedValue(true);
   vi.mocked(db.select).mockReturnValue(new DbChain([]) as any);
   vi.mocked(db.execute).mockResolvedValue({
@@ -387,6 +390,72 @@ describe("RAS clínico — identidade e vínculo antes de ler ou produzir docume
 
     expect(response.status).toBe(200);
     expect(response.body.id).toBe(FAKE_RAS.id);
+  });
+
+  it("remove volume da leitura e do PDF sem modificar os dados armazenados", async () => {
+    const originalSubstances = [
+      {
+        substanceName: "Coenzima Q10 100 MG / 2 ML",
+        dose: "100 MG / 2 ML",
+        route: "IM",
+        sessionNumber: 1,
+        totalSessions: 4,
+        lot: null,
+        validity: null,
+        appliedAt: null,
+        status: "pending",
+      },
+      {
+        substanceName: "ADEK 2 ML",
+        dose: "A 25.000 UI + D3 100.000 UI + E 200 UI + K2 1.300 MCG / 2 ML",
+        route: "IM",
+        sessionNumber: 1,
+        totalSessions: 4,
+        lot: null,
+        validity: null,
+        appliedAt: null,
+        status: "pending",
+      },
+    ];
+    FAKE_RAS.substances = originalSubstances;
+    rasCatalogRows = [
+      {
+        name: "Coenzima Q10 100 MG / 2 ML",
+        description: "Apresentação em ampola de 2 mL",
+        mainFunction: "Informação de cadastro sem volume",
+      },
+      {
+        name: "ADEK 2 ML",
+        description: "Composição em 2 mL",
+        mainFunction: "Revisar a dose antes de exibir",
+      },
+    ];
+
+    const response = await request(buildApp())
+      .get(`/api/ras/${FAKE_RAS.id}`)
+      .set("Authorization", "Bearer test-collaborator");
+
+    expect(response.status).toBe(200);
+    expect(response.body.substances).toMatchObject([
+      { substanceName: "Coenzima Q10", dose: "100 mg" },
+      { substanceName: "ADEK", dose: "" },
+    ]);
+    expect(JSON.stringify(response.body)).not.toMatch(/2\s*ml/i);
+    expect(originalSubstances[0].dose).toBe("100 MG / 2 ML");
+    expect(originalSubstances[1].dose).toContain("/ 2 ML");
+
+    const pdfResponse = await request(buildApp())
+      .get(`/api/ras/${FAKE_RAS.id}/pdf`)
+      .set("Authorization", "Bearer test-collaborator");
+    expect(pdfResponse.status).toBe(200);
+    const pdfInput = vi.mocked(pdfSigner.generateSignedRASPdf).mock.calls[0]?.[0] as any;
+    expect(pdfInput.substances).toMatchObject([
+      { substanceName: "Coenzima Q10", dose: "100 mg", description: undefined },
+      { substanceName: "ADEK", dose: "", description: undefined },
+    ]);
+    expect(JSON.stringify(pdfInput.substances)).not.toMatch(/2\s*ml/i);
+    expect(originalSubstances[0].dose).toBe("100 MG / 2 ML");
+    expect(originalSubstances[1].dose).toContain("/ 2 ML");
   });
 
   it("permite consultar o histórico de envios após validar o vínculo", async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   protocolIntervalDays,
+  dosePrescritaExibivel,
   nomeSubstanciaProtocolo,
   resolveProtocolSubstanceDefaults,
   UNCONFIGURED_PROTOCOL_INTERVAL,
@@ -27,6 +28,13 @@ describe("defaults from the exact substance catalog record", () => {
       frequency: "biweekly",
       customDays: null,
     });
+  });
+
+  it("shows only an unambiguous dose and flags a mixture for review", () => {
+    expect(dosePrescritaExibivel("100 MG / 2 ML")).toBe("100 mg");
+    expect(dosePrescritaExibivel(
+      "A 25.000 UI + D3 100.000 UI + E 200 UI + K2 1.300 MCG / 2 ML",
+    )).toBe("");
   });
 
   it("preserves a custom interval while leaving an unclear default dose blank", () => {

@@ -524,7 +524,9 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-1">
                         <span className="font-bold uppercase tracking-tight text-lg">{slot.substanceName}</span>
-                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">{slot.dose}</span>
+                        <span className="concave-3d px-2 py-0.5 text-[10px] font-bold tabular-nums">
+                          {dosePrescritaExibivel(slot.dose) || "Revisão clínica necessária"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         <span className="tabular-nums">{slot.totalSessions} sessões</span>
