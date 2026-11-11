@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { semAcento, compararEmpresas, ehInstitutoPadua } from "./locais/locais-modo";
 import "./locais/locais.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,11 @@ import {
   Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
   FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
   Fingerprint, Landmark, Receipt, Link2, Plug, ScrollText, Navigation,
+  Scale, UserCheck, Calculator, FileSignature, MessageCircle, Smartphone, Send, History,
+  type LucideIcon,
 } from "lucide-react";
 import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
+import { PlacaSecao, ContadorPreenchido } from "@/components/ui/placa-secao";
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
@@ -284,6 +287,84 @@ const ABAS_EMPRESA: ItemTrilho[] = [
   { value: "locais-atendimento", label: "Locais",         icon: Building2,   grupo: "locais" },
   { value: "locais-externos", label: "Externos",          icon: Navigation,  grupo: "locais" },
 ];
+
+// ── Seções do cadastro (Padrão 37): título em placa Saliente + contador de preenchimento ──────
+type CampoForm = keyof FormValues;
+interface SecaoDef { icone: LucideIcon; titulo: string; dica?: string; campos?: CampoForm[] }
+const SECOES: Record<string, SecaoDef> = {
+  identificacao: { icone: Building2, titulo: "Identificação", campos: ["nome", "nomeFantasia", "razaoSocial", "cnpj", "donoNome"] },
+  contatos: { icone: Phone, titulo: "Contatos", campos: ["telefone", "emailGeral", "emailAgenda", "emailEnfermagem", "emailFinanceiro"] },
+  historico: { icone: History, titulo: "Dados comerciais históricos", dica: "somente consulta" },
+  juridicos: { icone: Scale, titulo: "Dados jurídicos", campos: ["naturezaJuridica", "regimeTributario", "cnae", "cnaeDescricao", "inscricaoEstadual", "inscricaoMunicipal", "dataAbertura", "capitalSocial"] },
+  responsavel: { icone: UserCheck, titulo: "Responsável legal", campos: ["responsavelLegalNome", "responsavelLegalCpf"] },
+  contador: { icone: Calculator, titulo: "Contador", campos: ["contadorNome", "contadorCrc", "contadorEmail", "contadorTelefone"] },
+  endComercial: { icone: MapPin, titulo: "Endereço comercial", campos: ["cep", "endereco", "numero", "bairro", "cidade", "estado"] },
+  endFiscal: { icone: Landmark, titulo: "Endereço fiscal", dica: "para a NF-e; pode ser igual ao comercial", campos: ["cepFiscal", "enderecoFiscal", "bairroFiscal", "cidadeFiscal", "estadoFiscal", "codigoIbge"] },
+  nfe: { icone: Receipt, titulo: "Nota fiscal eletrônica", dica: "NFS-e / NF-e", campos: ["nfeSerie", "nfeCodigoServico", "nfeAliquotaIss", "nfeCodigoIss", "nfeDiscriminacaoPadrao"] },
+  certificado: { icone: ShieldCheck, titulo: "Certificado digital", dica: "A1 / A3", campos: ["certValidade"] },
+  zapsign: { icone: FileSignature, titulo: "ZapSign", dica: "assinatura digital" },
+  whatsapp: { icone: MessageCircle, titulo: "WhatsApp Business", dica: "API da Meta" },
+  twilio: { icone: Smartphone, titulo: "Twilio", dica: "SMS / WhatsApp sandbox" },
+  telegram: { icone: Send, titulo: "Telegram" },
+  zoho: { icone: Mail, titulo: "Zoho", dica: "e-mail da empresa" },
+  google: { icone: Globe, titulo: "Google" },
+};
+// Aba -> seções que contam para o selo da aba (só abas de cadastro; integrações são opcionais).
+const SECOES_DA_ABA: Record<string, string[]> = {
+  ident: ["identificacao", "contatos"],
+  end: ["endComercial", "endFiscal"],
+  fiscal: ["juridicos", "responsavel", "contador"],
+  nfe: ["nfe", "certificado"],
+};
+
+function preenchido(v: unknown): boolean {
+  return typeof v === "number" ? true : String(v ?? "").trim() !== "";
+}
+function contarSecao(valores: Partial<FormValues>, campos: CampoForm[]): number {
+  return campos.filter((c) => preenchido(valores[c])).length;
+}
+function camposDaAba(aba: string): CampoForm[] {
+  return (SECOES_DA_ABA[aba] ?? []).flatMap((id) => SECOES[id].campos ?? []);
+}
+
+/** Título de seção + contador; só este componente reage ao que se digita (useWatch). */
+function SecaoEmpresa({ control, id }: { control: Control<FormValues>; id: keyof typeof SECOES | string }) {
+  const def = SECOES[id];
+  const valores = useWatch({ control }) as Partial<FormValues>;
+  const campos = def.campos;
+  return (
+    <PlacaSecao
+      icone={def.icone}
+      titulo={def.titulo}
+      dica={def.dica}
+      total={campos?.length}
+      preenchidos={campos ? contarSecao(valores, campos) : undefined}
+    />
+  );
+}
+
+/** Trilho com selo por aba (verde = completa, âmbar = quantos campos faltam). */
+function TrilhoEmpresa({ control }: { control: Control<FormValues> }) {
+  const valores = useWatch({ control }) as Partial<FormValues>;
+  const pendencias: Record<string, number> = {};
+  for (const aba of Object.keys(SECOES_DA_ABA)) {
+    const campos = camposDaAba(aba);
+    pendencias[aba] = campos.length - contarSecao(valores, campos);
+  }
+  return <TrilhoAbas itens={ABAS_EMPRESA} rotulo="Seções do cadastro empresarial" testidPrefixo="empresa-aba" pendencias={pendencias} />;
+}
+
+/** Resumo do cadastro inteiro, no cabeçalho do diálogo. */
+function ResumoCadastro({ control }: { control: Control<FormValues> }) {
+  const valores = useWatch({ control }) as Partial<FormValues>;
+  const campos = Object.keys(SECOES_DA_ABA).flatMap(camposDaAba);
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+      Cadastro preenchido
+      <ContadorPreenchido preenchidos={contarSecao(valores, campos)} total={campos.length} />
+    </span>
+  );
+}
 
 // ── Card da empresa ────────────────────────────────────────────────────────────
 function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
@@ -1244,15 +1325,17 @@ export default function CadastroEmpresas() {
       {/* Dialog — Formulário criar/editar com abas */}
       <Dialog open={formOpen} onOpenChange={handleFormOpen}>
         <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 w-[calc(100vw-1rem)] max-w-5xl p-0 gap-0" data-testid="empresa-dialogo">
-          <DialogHeader className="px-6 py-3 pr-12 border-b border-border/40 shrink-0 flex-row items-baseline gap-3 space-y-0">
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest shrink-0">
-              {editingId ? "EDITAR EMPRESA" : "NOVA EMPRESA"}
+          <DialogHeader className="px-6 py-3 pr-12 border-b border-border/40 shrink-0 flex-row items-center gap-3 space-y-0">
+            <DialogTitle className="bevel-3d inline-flex h-7 shrink-0 items-center px-3 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
+              {editingId ? "Editar empresa" : "Nova empresa"}
             </DialogTitle>
             {selectedEmpresa && (
-              <p className="text-[12px] font-bold truncate min-w-0" data-testid="empresa-dialogo-identificacao">
-                {selectedEmpresa.nome} <span className="font-mono text-muted-foreground">#{selectedEmpresa.id}</span>
+              <p className="min-w-0 truncate text-[13px] font-black uppercase tracking-tight" data-testid="empresa-dialogo-identificacao">
+                {selectedEmpresa.nome} <span className="font-mono text-[11px] font-bold text-muted-foreground">#{selectedEmpresa.id}</span>
+                {selectedEmpresa.cnpj && <span className="ml-3 hidden font-mono text-[11px] font-semibold text-muted-foreground md:inline">{selectedEmpresa.cnpj}</span>}
               </p>
             )}
+            <ResumoCadastro control={form.control} />
           </DialogHeader>
 
           <Form {...form}>
@@ -1269,7 +1352,7 @@ export default function CadastroEmpresas() {
 
                 {/* Trilho de abas: uma linha, altura fixa (Padrão 36) */}
                 <div className="mx-4 sm:mx-6 mt-3 shrink-0">
-                  <TrilhoAbas itens={ABAS_EMPRESA} rotulo="Seções do cadastro empresarial" testidPrefixo="empresa-aba" />
+                  <TrilhoEmpresa control={form.control} />
                 </div>
 
                 <TabsContent value="marca-documento" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
@@ -1285,6 +1368,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA: DADOS ────────────────────────────────────────────────── */}
                 <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SecaoEmpresa control={form.control} id="identificacao" />
                     <FormField control={form.control} name="nome" render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel className="lbl">Nome no Sistema *</FormLabel>
@@ -1294,13 +1378,13 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="nomeFantasia" render={({ field }) => (
-                      <FormItem className="md:col-span-2">
+                      <FormItem>
                         <FormLabel className="lbl">Nome Fantasia</FormLabel>
                         <FormControl><Input placeholder="Nome de divulgação da empresa" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="razaoSocial" render={({ field }) => (
-                      <FormItem className="md:col-span-2">
+                      <FormItem>
                         <FormLabel className="lbl">Razão Social</FormLabel>
                         <FormControl><Input placeholder="Nome jurídico completo (para NF-e e contratos)" {...field} className="field-engraved" /></FormControl>
                       </FormItem>
@@ -1385,7 +1469,7 @@ export default function CadastroEmpresas() {
                         </p>
                       </FormItem>
                     )} />
-                    <Divider label="Contatos" />
+                    <SecaoEmpresa control={form.control} id="contatos" />
                     <FormField control={form.control} name="telefone" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Telefone / WhatsApp</FormLabel>
@@ -1416,7 +1500,7 @@ export default function CadastroEmpresas() {
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
-                    <Divider label="Dados comerciais históricos" />
+                    <SecaoEmpresa control={form.control} id="historico" />
                     <div className="concave-3d space-y-2 p-3 text-[11px]">
                       <p className="text-muted-foreground">
                         Informações antigas preservadas apenas para consulta. Esta tela não cria cobranças
@@ -1440,7 +1524,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 2: JURÍDICO & FISCAL ───────────────────────────────────── */}
                 <TabsContent value="fiscal" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <Divider label="Dados Jurídicos" />
+                  <SecaoEmpresa control={form.control} id="juridicos" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="naturezaJuridica" render={({ field }) => (
                       <FormItem>
@@ -1526,7 +1610,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
-                  <Divider label="Responsável Legal" />
+                  <SecaoEmpresa control={form.control} id="responsavel" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="responsavelLegalNome" render={({ field }) => (
                       <FormItem>
@@ -1541,7 +1625,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
-                  <Divider label="Contador" />
+                  <SecaoEmpresa control={form.control} id="contador" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="contadorNome" render={({ field }) => (
                       <FormItem>
@@ -1572,7 +1656,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 3: ENDEREÇOS ───────────────────────────────────────────── */}
                 <TabsContent value="end" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <Divider label="Endereço Comercial" />
+                  <SecaoEmpresa control={form.control} id="endComercial" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cep" render={({ field }) => (
                       <FormItem>
@@ -1625,7 +1709,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Endereço Fiscal (para NF-e — pode ser igual ao comercial)" />
+                  <SecaoEmpresa control={form.control} id="endFiscal" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cepFiscal" render={({ field }) => (
                       <FormItem>
@@ -1729,7 +1813,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 4: NF-e & CERTIFICADO ─────────────────────────────────── */}
                 <TabsContent value="nfe" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <Divider label="Nota Fiscal Eletrônica (NFS-e / NF-e)" />
+                  <SecaoEmpresa control={form.control} id="nfe" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
                     Estes dados são puxados automaticamente pelo emissor de NF-e e pelo ZapSign na geração de contratos. Mantenha corretos.
                   </div>
@@ -1795,7 +1879,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Certificado Digital A1 / A3" />
+                  <SecaoEmpresa control={form.control} id="certificado" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
                     O arquivo .pfx do certificado A1 é enviado via botão "Upload" e salvo na pasta CERTIFICADOS do Google Drive da empresa. Nunca fica no servidor.
                   </div>
@@ -1844,7 +1928,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA 5: INTEGRAÇÕES ─────────────────────────────────────────── */}
                 <TabsContent value="integ" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
 
-                  <Divider label="ZapSign — Assinatura Digital" />
+                  <SecaoEmpresa control={form.control} id="zapsign" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground">
                     Cada empresa precisa de sua própria conta ZapSign. O sistema usa o token desta empresa para assinar contratos e documentos independentemente.
                   </div>
@@ -1863,7 +1947,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="WhatsApp Business API (Meta)" />
+                  <SecaoEmpresa control={form.control} id="whatsapp" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="waNumero" render={({ field }) => (
                       <FormItem>
@@ -1891,7 +1975,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Twilio (SMS / WhatsApp Sandbox)" />
+                  <SecaoEmpresa control={form.control} id="twilio" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="twilioAccountSid" render={({ field }) => (
                       <FormItem>
@@ -1913,7 +1997,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Telegram" />
+                  <SecaoEmpresa control={form.control} id="telegram" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="telegramBotUsername" render={({ field }) => (
                       <FormItem>
@@ -1935,7 +2019,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Zoho / E-mail da Empresa" />
+                  <SecaoEmpresa control={form.control} id="zoho" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="zohoEmail" render={({ field }) => (
                       <FormItem>
@@ -1961,7 +2045,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <Divider label="Google" />
+                  <SecaoEmpresa control={form.control} id="google" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
                       <FormItem>

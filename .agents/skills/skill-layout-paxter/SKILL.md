@@ -841,6 +841,32 @@ Anti-padroes: `TabsList` com `flex-wrap` (altura do trilho muda conforme a largu
 na FRENTE do card quando o lugar dele e uma aba interna (ex.: lista de locais da empresa foi para a aba "Locais").
 Teste de aceite: mesmo `top` e mesma altura do dialogo em TODAS as abas, em 1024x576 e 1440x900.
 
+### 4.15 Padrao 37 — Cadastro "bater o olho" (TOC + TDAH): titulo Saliente, contador, selo por aba
+
+Pedido do CEO (11/11/2026): "os titulos tem que estar em up bevel" e "bater o olho e ja extrair a informacao".
+Erro que gerou o padrao: titulo de secao em texto solto com filete (`Divider`) dentro do cadastro — viola o Padrao 3.
+
+Base de pesquisa (validada em design de formularios e acessibilidade cognitiva): proximidade e agrupamento (Gestalt),
+posicao FIXA de cada elemento (memoria espacial), feedback de progresso sem precisar procurar (visibilidade do estado do
+sistema, Nielsen), uma coluna de leitura com rotulo acima do campo, divulgacao progressiva (so a aba aberta).
+
+| Camada | Regra | Componente |
+|---|---|---|
+| 1. Cabecalho | Titulo do dialogo em placa Saliente (`bevel-3d`) + NOME da entidade em negrito MAIUSCULO + #id + CNPJ em mono; a direita, contador do cadastro inteiro ("CADASTRO PREENCHIDO 18/31") | `ResumoCadastro` |
+| 2. Trilho | Uma linha (Padrao 36). Cada aba de cadastro tem SELO no canto: circulo verde com check = completa; circulo ambar com numero = quantos campos faltam. Abas sem campo contavel (lista, consulta, opcionais) ficam sem selo | `TrilhoAbas` com `pendencias` |
+| 3. Secao | Titulo SEMPRE em placa Saliente (altura `h-7`, MAIUSCULO, icone Lucide a esquerda, cor primary); filete fino leva o olho ate a direita; legenda curta opcional ("para a NF-e; pode ser igual ao comercial"); contador `n/total` num slot Concavo de largura fixa (`w-[4.5rem]`), verde com check quando completo, ambar quando parcial, cinza quando zero | `PlacaSecao` + `ContadorPreenchido` (`components/ui/placa-secao.tsx`) |
+| 4. Campo | Rotulo `.lbl` acima, campo gravado (`field-engraved`) abaixo; campos curtos (nome fantasia, razao social, bairro, cidade) lado a lado na grade, campo longo ocupa a linha | tela |
+
+Regras duras:
+1. Titulo de secao NUNCA e texto solto; sempre placa Saliente. `Divider` so serve para separar listas na tela principal.
+2. Titulo curto na placa (ate 3 palavras); explicacao longa vai na legenda a direita, nunca dentro da placa.
+3. Contador de preenchimento usa Check/numero e cor do texto — NUNCA LED (LED em contagem e proibido, Grade Imaginaria).
+4. O criterio "campo conta para o selo" fica numa tabela unica (`SECOES` + `SECOES_DA_ABA`); campo opcional (complemento, zona, apelido, slug) nao entra. Integracoes sao opcionais: sem selo.
+5. Contadores usam `useWatch` dentro do proprio componente: digitar nao re-renderiza o formulario inteiro.
+6. Placa dentro de grade usa `col-span-full` (ja embutido); um titulo preso numa celula da grade desalinha tudo.
+7. Slot do selo e do contador e fixo: nada aparece/some e desloca vizinhos.
+Aceite: abrir cada aba e, sem rolar, saber (a) qual empresa, (b) qual aba, (c) quantos campos faltam por secao e por aba.
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

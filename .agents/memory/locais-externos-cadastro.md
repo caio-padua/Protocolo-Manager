@@ -9,3 +9,5 @@ Locais externos NÃO são menu: são a aba "Locais Externos" do cadastro da empr
 **Lição:** "Tirar de uso" sem confirmação foi clicado sem querer pelo CEO; botão destrutivo/ocultador nunca sem interruptor reversível e confirmação (skill Padrão 35). Trash de empresa e de local foram trocados por interruptor.
 
 **Locais de atendimento x Locais externos (esclarecido pelo CEO em 11/11/2026):** são coisas diferentes. "Locais" = locais próprios da empresa (tabela locations), "Externos" = profissionais da empresa-mãe atendendo noutro endereço sob o mesmo CNPJ e a mesma agenda de profissionais. Ambos moram em ABAS dentro do cadastro da empresa; o card da frente não mostra mais lista de locais. Abas do diálogo seguem o Padrão 36 (trilho de uma linha, diálogo alto e de altura fixa).
+
+**Cadastro "bater o olho" (CEO tem TOC e TDAH, 11/11/2026):** titulo de secao dentro do cadastro SEMPRE em placa Saliente (nunca texto solto/Divider), com contador n/total e selo por aba (verde completa, ambar = faltam n). Detalhe e regras no Padrão 37 da skill-layout-paxter. O criterio de "campo conta" (SECOES/SECOES_DA_ABA em empresas.tsx) foi escolha minha, ajustavel.

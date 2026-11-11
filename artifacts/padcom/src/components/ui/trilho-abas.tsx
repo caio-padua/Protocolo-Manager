@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { Check } from "lucide-react";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
@@ -16,10 +17,12 @@ export interface ItemTrilho {
   grupo: string;
 }
 
-export function TrilhoAbas({ itens, rotulo, testidPrefixo }: {
+/** pendencias[value] = quantos campos faltam na aba (0 = completa). Aba fora do mapa nao mostra selo. */
+export function TrilhoAbas({ itens, rotulo, testidPrefixo, pendencias }: {
   itens: ItemTrilho[];
   rotulo: string;
   testidPrefixo: string;
+  pendencias?: Record<string, number>;
 }) {
   return (
     <TabsList
@@ -32,12 +35,24 @@ export function TrilhoAbas({ itens, rotulo, testidPrefixo }: {
           value={value}
           data-testid={`${testidPrefixo}-${value}`}
           title={label}
-          className={`bevel-3d empresa-aba flex-1 min-w-[5rem] h-full flex-col gap-1 whitespace-normal px-1 py-1 text-[9px] font-black uppercase leading-tight tracking-wide ${
+          className={`relative bevel-3d empresa-aba flex-1 min-w-[5rem] h-full flex-col gap-1 whitespace-normal px-1 py-1 text-[9px] font-black uppercase leading-tight tracking-wide ${
             i > 0 && itens[i - 1].grupo !== grupo ? "ml-2" : ""
           }`}
         >
           <Icone className="w-4 h-4 shrink-0" aria-hidden />
           <span className="text-center">{label}</span>
+          {pendencias && value in pendencias && (
+            <span
+              data-testid={`${testidPrefixo}-selo-${value}`}
+              data-pendentes={pendencias[value]}
+              title={pendencias[value] === 0 ? "Aba completa" : `${pendencias[value]} campo(s) sem preencher`}
+              className={`absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black leading-none text-white ${
+                pendencias[value] === 0 ? "bg-emerald-600" : "bg-amber-600"
+              }`}
+            >
+              {pendencias[value] === 0 ? <Check className="h-2.5 w-2.5" aria-hidden /> : pendencias[value]}
+            </span>
+          )}
         </TabsTrigger>
       ))}
     </TabsList>
