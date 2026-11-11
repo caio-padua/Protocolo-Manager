@@ -38,6 +38,7 @@ import { requireCollaborator } from "./collaborator";
 import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
 import { isGmailConnected } from "../lib/google-gmail";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
+import { comNomeDaClinica, unidadePertenceAClinica, MENSAGEM_UNIDADE_FORA_DA_CLINICA } from "../lib/clinic-unit";
 import {
   ListProtocolsQueryParams,
   CreateProtocolBody,
@@ -110,7 +111,16 @@ export async function authorizeProtocol(
     res.status(404).json({ error: "Registro não encontrado" });
     return null;
   }
-  return member;
+  // A clínica dos documentos é a empresa do cliente, não o nome da agenda.
+  try {
+    return await comNomeDaClinica(member);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function professionalLinkedToClinic(professionalId: number, locationId: number): Promise<boolean> {
@@ -479,10 +489,10 @@ router.get("/protocols/:id/document-pdf", requireCollaborator, async (req, res):
   }
   const clinicalMember = await authorizeProtocol(req, protocol, res);
   if (!clinicalMember) return;
-  if (protocol.unit?.trim() && protocol.unit.trim() !== clinicalMember.clinic.name) {
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, protocol.unit, clinicalMember.clinic.name))) {
     res.status(409).json({
       code: "protocol_clinic_unit_mismatch",
-      error: "A unidade salva no protocolo não corresponde à clínica vinculada ao cliente. Confira o vínculo antes de emitir.",
+      error: `${MENSAGEM_UNIDADE_FORA_DA_CLINICA} Confira o vínculo antes de emitir.`,
     });
     return;
   }
@@ -675,10 +685,10 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
   }
   const clinicalMember = await authorizeProtocol(req, protocol, res);
   if (!clinicalMember) return;
-  if (protocol.unit?.trim() && protocol.unit.trim() !== clinicalMember.clinic.name) {
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, protocol.unit, clinicalMember.clinic.name))) {
     res.status(409).json({
       code: "protocol_clinic_unit_mismatch",
-      error: "A unidade salva no protocolo não corresponde à clínica vinculada ao cliente. Confira o vínculo antes de emitir.",
+      error: `${MENSAGEM_UNIDADE_FORA_DA_CLINICA} Confira o vínculo antes de emitir.`,
     });
     return;
   }
@@ -1711,7 +1721,7 @@ async function montarCartaDeTratamento(
 
   let clinicalMember: ClinicalMember;
   try {
-    clinicalMember = await resolveClinicalMember(req, protocol.clientId);
+    clinicalMember = await comNomeDaClinica(await resolveClinicalMember(req, protocol.clientId));
   } catch (error) {
     if (error instanceof ClinicalIdentityError) {
       return { ok: false, status: error.status, error: error.message };
@@ -1722,8 +1732,8 @@ async function montarCartaDeTratamento(
       clinicalMember.clinic.empresaId !== protocol.empresaId) {
     return { ok: false, status: 404, error: "Registro não encontrado" };
   }
-  if (protocol.unit?.trim() && protocol.unit.trim() !== clinicalMember.clinic.name) {
-    return { ok: false, status: 409, error: "A unidade salva no protocolo não corresponde à clínica vinculada ao cliente." };
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, protocol.unit, clinicalMember.clinic.name))) {
+    return { ok: false, status: 409, error: MENSAGEM_UNIDADE_FORA_DA_CLINICA };
   }
   try {
     await resolveProtocolDoctor(req, protocol.clientId, protocol.professionalId);

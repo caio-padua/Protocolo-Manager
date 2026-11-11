@@ -147,7 +147,7 @@ const FAKE_PROTOCOL = {
   id:                42,
   clientId:          7,
   empresaId:         5,
-  professionalId:    null,
+  professionalId:    1,
   title:             "IV Longevidade Premium",
   status:            "active",
   startDate:         "2026-08-01",
@@ -421,3 +421,12 @@ describe("emit-document — falha no e-mail com RAS FAP pronto: PADAXOR_SLACK_CH
     }
   });
 });
+
+// A identidade da clínica (empresas.nome) e a pertença da unidade têm teste próprio em clinic-unit.test.ts;
+// aqui o foco é outro, então o módulo fica fixo e sem consulta ao banco simulado.
+vi.mock("../lib/clinic-unit", () => ({
+  comNomeDaClinica: async (m: any) => ({ ...m, clinic: { ...m.clinic, name: m.clinic.name ?? "Clínica sintética" } }),
+  nomeDaClinica: async () => "Clínica sintética",
+  unidadePertenceAClinica: async () => true,
+  MENSAGEM_UNIDADE_FORA_DA_CLINICA: "A unidade salva no protocolo pertence a outra clínica e não corresponde à clínica vinculada ao cliente.",
+}));

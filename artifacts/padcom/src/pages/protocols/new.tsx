@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { tituloProprio } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { useCreateProtocol, useListClients, useListSubstances } from "@workspace/api-client-react";
+import { useCreateProtocol, useListClients, useListSubstances, useListProcedimentos } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useClinicalIdentity } from "@/hooks/use-clinical-identity";
 import { format, addDays, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getCollabToken } from "@/lib/collab-auth";
+import { getCollabToken, collabAuthHeaders } from "@/lib/collab-auth";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 import { ProtocolSubstancePicker } from "@/components/ProtocolSubstancePicker";
@@ -26,7 +26,6 @@ import {
   dosePrescritaExibivel,
   dosePrescritaTemApresentacao,
   dosePrescritaValida,
-  nomeSubstanciaProtocolo,
   protocolIntervalDays,
   resolveProtocolSubstanceDefaults,
 } from "@/lib/protocol-substance-selection";
@@ -50,6 +49,8 @@ function viaOf(procedureType?: string | null): string {
 interface SubstanceSlot {
   id: string;
   substanceId: number;
+  /** Procedimento escolhido no lançador; a substância por baixo mantém preço, estoque, RASP e agenda. */
+  procedureId?: number;
   substanceName: string;
   substanceColor: string;
   dose: string;
@@ -249,17 +250,36 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     return "Ainda não definida no cadastro";
   };
 
-  const viaCounts = useMemo(() => {
-    const c: Record<string, number> = { all: substances?.length ?? 0, im: 0, iv: 0, sc: 0, implant: 0, outros: 0 };
-    (substances ?? []).forEach(s => { c[viaOf(s.procedureType)]++; });
-    return c;
-  }, [substances]);
+  // O lançador escolhe PROCEDIMENTOS ativos que apontam para uma única substância do cadastro.
+  const procedimentosQuery = useListProcedimentos({ request: { headers: collabAuthHeaders() } });
+  const procedureOptions = useMemo(() => {
+    const out: { procedure: { id: number; nome: string; tipo?: string | null }; sub: NonNullable<typeof substances>[number] }[] = [];
+    for (const procedure of procedimentosQuery.data?.procedimentos ?? []) {
+      if (!procedure.ativo || procedure.produtoIds.length !== 1) continue;
+      const sub = substances?.find(s => s.id === procedure.produtoIds[0]);
+      if (sub) out.push({ procedure, sub });
+    }
+    return out.sort((a, b) => a.procedure.nome.localeCompare(b.procedure.nome, "pt-BR"));
+  }, [procedimentosQuery.data, substances]);
 
-  const substancesFiltered = useMemo(() => {
-    const all = substances ?? [];
-    if (activeVia === "all") return all;
-    return all.filter(s => viaOf(s.procedureType) === activeVia);
-  }, [substances, activeVia]);
+  const viaCounts = useMemo(() => {
+    const c: Record<string, number> = { all: procedureOptions.length, im: 0, iv: 0, sc: 0, implant: 0, outros: 0 };
+    procedureOptions.forEach(o => { c[viaOf(o.sub.procedureType)]++; });
+    return c;
+  }, [procedureOptions]);
+
+  const proceduresFiltered = useMemo(() => {
+    if (activeVia === "all") return procedureOptions;
+    return procedureOptions.filter(o => viaOf(o.sub.procedureType) === activeVia);
+  }, [procedureOptions, activeVia]);
+
+  const equipeDoProcedimento = (substanceId: number): string => {
+    const substance = substances?.find(s => s.id === substanceId);
+    if (!substance) return "Cadastro indisponível";
+    if (substance.doctorParticipation === true) return "Médico + Enfermagem";
+    if (substance.doctorParticipation === false) return "Enfermagem";
+    return "Ainda não definida no cadastro";
+  };
 
   const addSlot = useCallback(() => {
     if (slots.length >= 10) return;
@@ -278,13 +298,15 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
     setSlots(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
   };
 
-  const handleSelectSubstance = (slotId: string, substanceId: string) => {
-    const sub = substances?.find(s => String(s.id) === substanceId);
-    if (!sub) return;
+  const handleSelectProcedure = (slotId: string, procedureId: string) => {
+    const option = procedureOptions.find(o => String(o.procedure.id) === procedureId);
+    if (!option) return;
+    const sub = option.sub;
     const defaults = resolveProtocolSubstanceDefaults(sub);
     updateSlot(slotId, {
+      procedureId: option.procedure.id,
       substanceId: sub.id,
-      substanceName: nomeSubstanciaProtocolo(sub.name),
+      substanceName: option.procedure.nome,
       substanceColor: sub.color,
       dose: defaults.dose,
       frequency: defaults.frequency,
@@ -535,7 +557,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                         <span className="tabular-nums">Início: {slot.startDate.split("-").reverse().join("/")}</span>
                         <span className="tabular-nums">Término: {getEndDate(slot)}</span>
                       </div>
-                      <p className="mt-2 text-xs"><strong>Participação médica:</strong> {participacaoMedica(slot.substanceId)}</p>
+                      <p className="mt-2 text-xs"><strong>Equipe do procedimento:</strong> {equipeDoProcedimento(slot.substanceId)}</p>
                     </div>
                   </div>
                 );
@@ -791,7 +813,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           <div className="flex items-center justify-between">
             <CardTitle className="bevel-3d px-3 py-1.5 uppercase tracking-wider text-sm font-bold inline-flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-black">2</span>
-              Substâncias ({slots.filter(s => s.substanceId > 0).length}/{slots.length})
+              Procedimentos ({slots.filter(s => s.substanceId > 0).length}/{slots.length})
             </CardTitle>
             <Button
               variant="outline"
@@ -832,7 +854,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           </div>
 
           {slots.map((slot, idx) => {
-            const selectedSubstance = substances?.find(substance => substance.id === slot.substanceId);
+            const selectedOption = procedureOptions.find(o => o.procedure.id === slot.procedureId)
+              ?? procedureOptions.find(o => o.sub.id === slot.substanceId);
             return (
             <div key={slot.id} className="relative p-5 panel-3d-sub space-y-4 transition-all"
               style={{ borderLeftColor: slot.substanceId ? slot.substanceColor : undefined, borderLeftWidth: slot.substanceId ? 5 : 1 }}>
@@ -843,7 +866,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                   ) : (
                     <Beaker className="h-5 w-5 text-muted-foreground" />
                   )}
-                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Substância {idx + 1}</span>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Procedimento {idx + 1}</span>
                   {slot.substanceName && (
                     <span className="text-base font-bold uppercase tracking-tight ml-2">{slot.substanceName}</span>
                   )}
@@ -857,31 +880,32 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1.5">
-                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Substância *</Label>
+                  <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Procedimento *</Label>
                   <ProtocolSubstancePicker
-                    options={substancesFiltered.map(s => ({
-                      id: s.id, name: nomeSubstanciaProtocolo(s.name),
-                      dose: resolveProtocolSubstanceDefaults(s).dose,
-                      via: VIA_CATEGORIES.find(category => category.id === viaOf(s.procedureType))?.label ?? "Não informada",
-                      color: s.color,
+                    noun="procedimento"
+                    options={proceduresFiltered.map(o => ({
+                      id: o.procedure.id, name: o.procedure.nome,
+                      dose: resolveProtocolSubstanceDefaults(o.sub).dose,
+                      via: `${VIA_CATEGORIES.find(category => category.id === viaOf(o.sub.procedureType))?.label ?? "Não informada"} · ${equipeDoProcedimento(o.sub.id)}`,
+                      color: o.sub.color,
                     }))}
-                    selected={selectedSubstance ? {
-                      id: selectedSubstance.id, name: nomeSubstanciaProtocolo(selectedSubstance.name),
-                      dose: resolveProtocolSubstanceDefaults(selectedSubstance).dose,
-                      via: VIA_CATEGORIES.find(category => category.id === viaOf(selectedSubstance.procedureType))?.label ?? "Não informada",
-                      color: selectedSubstance.color,
+                    selected={selectedOption ? {
+                      id: selectedOption.procedure.id, name: selectedOption.procedure.nome,
+                      dose: resolveProtocolSubstanceDefaults(selectedOption.sub).dose,
+                      via: equipeDoProcedimento(selectedOption.sub.id),
+                      color: selectedOption.sub.color,
                     } : slot.substanceId ? {
-                      id: slot.substanceId, name: slot.substanceName,
+                      id: slot.procedureId ?? slot.substanceId, name: slot.substanceName,
                       dose: "", via: "Não informada", color: slot.substanceColor,
                     } : undefined}
-                    onSelect={id => handleSelectSubstance(slot.id, String(id))}
+                    onSelect={id => handleSelectProcedure(slot.id, String(id))}
                   />
                 </div>
 
                 {slot.substanceId > 0 && (
                   <div className="col-span-2 concave-3d px-3 py-2 text-xs" role="status">
-                    <strong>Participação médica:</strong> {participacaoMedica(slot.substanceId)}
-                    <p className="mt-1 text-muted-foreground">Informação do cadastro da substância; não confirma reserva de agenda.</p>
+                    <strong>Equipe do procedimento:</strong> {equipeDoProcedimento(slot.substanceId)}
+                    <p className="mt-1 text-muted-foreground">Define quais agendas serão usadas (enfermagem local; implante também usa a agenda do médico); não confirma reserva de agenda.</p>
                   </div>
                 )}
 
@@ -901,7 +925,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                   >
                     {slot.dose && !dosePrescritaValida(slot.dose)
                       ? "Informe uma dose inequívoca, sem concentração, volume ou ampolas."
-                      : selectedSubstance?.defaultDose && !slot.dose
+                      : selectedOption?.sub.defaultDose && !slot.dose
                         ? "O cadastro não permite extrair uma dose inequívoca; revisão médica obrigatória."
                         : slot.dose
                           ? "Dose prescrita preenchida; revise antes de criar o protocolo."

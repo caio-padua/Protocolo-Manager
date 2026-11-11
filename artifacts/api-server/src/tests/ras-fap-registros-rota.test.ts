@@ -126,3 +126,18 @@ describe("K9 — as rotas do RAS FAP entregam os registros ao gerador", () => {
     expect(sendProtocolEmail).not.toHaveBeenCalled();
   });
 });
+
+// A identidade da clínica (empresas.nome) e a pertença da unidade têm teste próprio em clinic-unit.test.ts;
+// aqui o foco é outro, então o módulo fica fixo e sem consulta ao banco simulado.
+vi.mock("../lib/clinic-unit", () => ({
+  comNomeDaClinica: async (m: any) => ({ ...m, clinic: { ...m.clinic, name: m.clinic.name ?? "Clínica sintética" } }),
+  nomeDaClinica: async () => "Clínica sintética",
+  unidadePertenceAClinica: async () => true,
+  MENSAGEM_UNIDADE_FORA_DA_CLINICA: "A unidade salva no protocolo pertence a outra clínica e não corresponde à clínica vinculada ao cliente.",
+}));
+
+// A identidade do médico do protocolo tem teste próprio; aqui o foco é a entrega dos registros ao PDF.
+vi.mock("../lib/prescription-signing", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/prescription-signing")>(),
+  resolveProtocolDoctor: vi.fn(async () => ({ professional: { name: "Médico sintético", crm: "123", uf: "SP" } })),
+}));

@@ -1,6 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
+import { gerarProcedimentosDeSubstancias, GeracaoProcedimentosErro } from "../lib/procedimentos-de-substancias";
 import { listarProcedimentos, ProcedimentoErro, salvarProcedimento, temVersaoEdicao, validarProcedimento } from "../lib/procedimentos-store";
 
 const router = Router();
@@ -99,6 +100,15 @@ async function salvar(req: Request, res: Response, id?: number): Promise<void> {
     throw error;
   }
 }
+
+router.post("/procedimentos/gerar-de-substancias", requireCollaborator, exigirContexto, exigirProprietario, exigirEstruturaSegura, async (req, res) => {
+  try {
+    res.status(200).json(await gerarProcedimentosDeSubstancias(pool, req.tenantContext.empresaId));
+  } catch (error) {
+    if (error instanceof GeracaoProcedimentosErro) { res.status(error.status).json({ error: error.message }); return; }
+    throw error;
+  }
+});
 
 router.post("/procedimentos", requireCollaborator, exigirContexto, exigirProprietario, exigirEstruturaSegura, async (req, res) => {
   await salvar(req, res);

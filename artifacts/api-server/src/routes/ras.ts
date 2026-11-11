@@ -31,6 +31,7 @@ import { sendProtocolEmail } from "../lib/email-service";
 import { isGmailConnected } from "../lib/google-gmail";
 import { enviarMensagemPaxter, absoluteBaseUrl, type PaxterDoc } from "../lib/messaging/index.js";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
+import { comNomeDaClinica, unidadePertenceAClinica, MENSAGEM_UNIDADE_FORA_DA_CLINICA } from "../lib/clinic-unit";
 import {
   MENSAGEM_DOSE_CLINICA_REVISAO,
   detalheCatalogoSeguroParaProtocolo,
@@ -71,17 +72,27 @@ async function authorizeRasProtocol(
   protocol: typeof protocolsTable.$inferSelect,
   res: Response,
 ): Promise<ClinicalMember | null> {
+  let member: Awaited<ReturnType<typeof resolveClinicalMember>>;
   try {
-    const member = await resolveClinicalMember(req, protocol.clientId);
-    if (protocol.empresaId !== member.clinic.empresaId ||
-        member.clinic.empresaId !== resolveEmpresaId(req)) {
-      res.status(404).json({ error: "Registro não encontrado" });
-      return null;
-    }
-    return member;
+    member = await resolveClinicalMember(req, protocol.clientId);
   } catch {
     res.status(404).json({ error: "Registro não encontrado" });
     return null;
+  }
+  if (protocol.empresaId !== member.clinic.empresaId ||
+      member.clinic.empresaId !== resolveEmpresaId(req)) {
+    res.status(404).json({ error: "Registro não encontrado" });
+    return null;
+  }
+  // A clínica dos documentos é a empresa do cliente, não o nome da agenda.
+  try {
+    return await comNomeDaClinica(member);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -99,10 +110,10 @@ async function resolveProtocolDocumentIdentity(
   member: ClinicalMember,
   res: Response,
 ): Promise<{ professionalName: string; professionalCrm: string | null; unit: string } | null> {
-  if (protocol.unit?.trim() && protocol.unit.trim() !== member.clinic.name) {
+  if (!(await unidadePertenceAClinica(member.clinic.empresaId, protocol.unit, member.clinic.name))) {
     res.status(409).json({
       code: "protocol_clinic_unit_mismatch",
-      error: "A unidade salva no protocolo não corresponde à clínica vinculada ao cliente.",
+      error: MENSAGEM_UNIDADE_FORA_DA_CLINICA,
     });
     return null;
   }
@@ -170,7 +181,10 @@ async function authorizeRasDocument(
   if (!member) return null;
   const identity = await resolveProtocolDocumentIdentity(req, protocol, member, res);
   if (!identity) return null;
-  if (ras.unit !== identity.unit || ras.professionalName !== identity.professionalName) {
+  // RAS gravados antes da correção guardam o nome do local; vale se pertence à MESMA empresa.
+  const unidadeConfere = ras.unit === identity.unit ||
+    await unidadePertenceAClinica(member.clinic.empresaId, ras.unit, identity.unit);
+  if (!unidadeConfere || ras.professionalName !== identity.professionalName) {
     res.status(409).json({
       code: "ras_identity_mismatch",
       error: "Os dados de clínica ou profissional do RASP não correspondem ao protocolo autorizado.",
@@ -300,13 +314,13 @@ router.post("/ras", requireCollaborator, requireRasTenant, async (req, res): Pro
   }
   let clinicalMember: ClinicalMember;
   try {
-    clinicalMember = await resolveClinicalMember(req, session.clientId);
+    clinicalMember = await comNomeDaClinica(await resolveClinicalMember(req, session.clientId));
   } catch {
     res.status(404).json({ error: "Registro não encontrado" });
     return;
   }
-  if (session.unit?.trim() && session.unit.trim() !== clinicalMember.clinic.name) {
-    res.status(409).json({ code: "ras_unit_mismatch", error: "A unidade da sessão não corresponde à clínica vinculada ao cliente." });
+  if (!(await unidadePertenceAClinica(clinicalMember.clinic.empresaId, session.unit, clinicalMember.clinic.name))) {
+    res.status(409).json({ code: "ras_unit_mismatch", error: "A unidade da sessão pertence a outra clínica e não corresponde à clínica vinculada ao cliente." });
     return;
   }
   let professionalIdentity: Awaited<ReturnType<typeof resolveProtocolDoctor>>;

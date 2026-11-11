@@ -71,7 +71,7 @@ vi.mock("../lib/email-service", () => ({
 vi.mock("../lib/session-ics", () => ({ buildEventsForSessions: vi.fn(async () => []) }));
 vi.mock("../lib/ics", () => ({ buildVCalendar: vi.fn() }));
 import {
-  agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
+  agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable, empresasTable,
   locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable,
   clientsTable, protocolsTable, protocolItemsTable, substancesTable,
   clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable,
@@ -141,12 +141,14 @@ beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   for (const table of [agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
-    locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable, clientsTable,
+    empresasTable, locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable, clientsTable,
     protocolsTable, protocolItemsTable, substancesTable, clientPreferredAgendasTable,
     clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable, locationProfessionalsTable]) {
     await query(createTableFromSchema(table));
   }
   await query(`
+    INSERT INTO empresas(id,nome,tipo,ativa,status)
+      SELECT g,'Clínica sintética '||g,'clinic',true,'ATIVO' FROM generate_series(1,20) g;
     CREATE UNIQUE INDEX applications_unique ON substance_applications(session_id, substance_id, session_number);
     CREATE TABLE agenda_personal_owners(location_id INTEGER, empresa_id INTEGER, professional_id INTEGER);
     CREATE TABLE agenda_google_sync(enabled BOOLEAN, location_id INTEGER, last_success TIMESTAMPTZ, error TEXT);
@@ -160,13 +162,13 @@ beforeAll(async () => {
     INSERT INTO agenda_settings(id,block_minutes,trigger_percent,min_lead_hours) VALUES(1,120,60,24);
     INSERT INTO agenda_windows(resource_id,weekday,start_time,end_time,repeat_weeks,anchor_date,active) VALUES
       (1,1,'09:00','11:00',1,NULL,true),(1,3,'09:00','11:00',1,NULL,true);
-    INSERT INTO clients(id,name,cpf,email,empresa_id,agenda_enfermagem_padrao_id) VALUES
-      (21,'Cliente sintético 21','000.000.000-21','cliente21@example.invalid',5,1),
-      (22,'Cliente sintético 22','000.000.000-22','cliente22@example.invalid',5,1),
-      (23,'Cliente sintético 23','000.000.000-23','cliente23@example.invalid',5,1),
-      (24,'Cliente sintético 24','000.000.000-24','cliente24@example.invalid',5,1),
-      (25,'Cliente sintético 25','000.000.000-25','cliente25@example.invalid',5,1),
-      (26,'Cliente sintético 26','000.000.000-26','cliente26@example.invalid',5,1);
+    INSERT INTO clients(id,name,cpf,email,empresa_id,clinica_origem_empresa_id,agenda_enfermagem_padrao_id) VALUES
+      (21,'Cliente sintético 21','000.000.000-21','cliente21@example.invalid',5,5,1),
+      (22,'Cliente sintético 22','000.000.000-22','cliente22@example.invalid',5,5,1),
+      (23,'Cliente sintético 23','000.000.000-23','cliente23@example.invalid',5,5,1),
+      (24,'Cliente sintético 24','000.000.000-24','cliente24@example.invalid',5,5,1),
+      (25,'Cliente sintético 25','000.000.000-25','cliente25@example.invalid',5,5,1),
+      (26,'Cliente sintético 26','000.000.000-26','cliente26@example.invalid',5,5,1);
     INSERT INTO substances(id,name,category,color,procedure_type,doctor_participation,duration_minutes,precise_duration_seconds) VALUES
       (${IM},'IM sintética','x','#000','im',false,3,150),
       (${IV},'IV sintética','x','#000','iv',false,30,1800);
@@ -213,11 +215,11 @@ describe("Remarcar visita de protocolo: duração reservada, trecho inteiro, mes
     const protocolId = await scheduled(21, [{ substanceId: IM, total: 3 }, { substanceId: IV, total: 1 }]);
     const [first] = await sessionRows(protocolId);
     const before = await detail(first.id);
-    expect(before).toMatchObject({ dur: 60, prof: 77, unit: "Unidade sintética" });
+    expect(before).toMatchObject({ dur: 60, prof: 77, unit: "Local sintético A" });
     const response = await put(`/api/sessions/${first.id}`, { scheduledDate: WED1, scheduledTime: "09:00" });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(await detail(first.id)).toMatchObject({
-      d: WED1, t: "09:00", dur: 60, prof: 77, unit: "Unidade sintética", service: before.service, res: 1, moved: 1,
+      d: WED1, t: "09:00", dur: 60, prof: 77, unit: "Local sintético A", service: before.service, res: 1, moved: 1,
     });
     // O motor enxerga o trecho inteiro ocupado: ninguém marca 09h20 nem 09h40 em cima da visita.
     const day = await computeResourceSlots(1, WED1);
