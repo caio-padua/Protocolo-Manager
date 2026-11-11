@@ -17,6 +17,8 @@ psicólogo), não só médicos assistentes.
   Exemplos de áreas de atuação: Saúde, Administrativo, Financeiro e Gestão.
   Um profissional pode atuar em várias áreas, conforme confirmação do responsável em 11/11/2026.
   Não presumir que a tabela chamada "áreas" corresponda diretamente ao novo significado.
+- **Regra do responsável:** categoria identifica a profissão; Médico, Enfermeiro,
+  Farmacêutico e Biomédico atuam na área Saúde, que pode coexistir com outras áreas.
 - **Why:** a lista anterior mistura profissões e setores; categoria profissional não é cargo
   e não deve conceder, por si só, novas permissões.
 - **How to apply:** preservar o histórico e as permissões existentes, sem reclassificar pessoas;

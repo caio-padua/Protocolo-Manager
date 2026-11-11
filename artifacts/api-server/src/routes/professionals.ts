@@ -13,7 +13,7 @@ import {
 } from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext.js";
 import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
-import { normalizedCatalogName, saveWorkAreaLinks, WorkAreaError, workAreaIdsSchema } from "../lib/professional-work-areas.js";
+import { HEALTH_CATEGORY_SLUGS, includeRequiredWorkAreas, normalizedCatalogName, professionalCategoryIdentity, saveWorkAreaLinks, WorkAreaError, workAreaIdsSchema } from "../lib/professional-work-areas.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import {
   LIMITE_EMPRESAS_POR_PROFISSIONAL,
@@ -371,9 +371,10 @@ router.post("/professional-areas", requireCollaborator, requirePlatformOwner, as
   if (name.length < 2 || !slug) { res.status(400).json({ error: "Nome de categoria inválido." }); return; }
   try {
     const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`category:${slug}`}))`);
+      const identity = professionalCategoryIdentity(name);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`category:${identity}`}))`);
       const existing = await tx.select({ id: professionalAreasTable.id, name: professionalAreasTable.name, slug: professionalAreasTable.slug }).from(professionalAreasTable);
-      if (existing.some((row) => row.slug === slug || normalizedCatalogName(row.name) === slug)) {
+      if (existing.some((row) => professionalCategoryIdentity(row.name) === identity || professionalCategoryIdentity(row.slug) === identity)) {
         throw new WorkAreaError(409, "Já existe uma categoria com esse nome.");
       }
       const [created] = await tx.insert(professionalAreasTable).values({
@@ -393,10 +394,10 @@ router.post("/professional-areas", requireCollaborator, requirePlatformOwner, as
 });
 
 router.get("/professional-work-areas", requireCollaborator, async (_req, res): Promise<void> => {
-  const rows = await db.select({ id: professionalWorkAreasTable.id, name: professionalWorkAreasTable.name })
+  const rows = await db.select({ id: professionalWorkAreasTable.id, name: professionalWorkAreasTable.name, slug: professionalWorkAreasTable.slug })
     .from(professionalWorkAreasTable).where(eq(professionalWorkAreasTable.active, true));
   rows.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  res.json(rows);
+  res.json(rows.map(({ id, name, slug }) => ({ id, name, requiredForCategories: slug === "saude" ? HEALTH_CATEGORY_SLUGS : [] })));
 });
 
 router.post("/professional-work-areas", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
@@ -530,8 +531,9 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
   try {
     await db.transaction(async (tx) => {
       [professional] = await tx.insert(professionalsTable).values(values).returning();
-      if (professional && workAreaIds !== undefined) {
-        await saveWorkAreaLinks(tx, empresaOriginariaId, professional.id, req.tenantContext.professionalId!, workAreaIds);
+      if (professional) {
+        const required = await includeRequiredWorkAreas(tx, empresaOriginariaId, professional.id, professional.areaId, workAreaIds);
+        if (required !== undefined) await saveWorkAreaLinks(tx, empresaOriginariaId, professional.id, req.tenantContext.professionalId!, required);
       }
     });
   } catch (error) {
@@ -755,8 +757,9 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
           .returning();
       }
       if (updated && updated !== current) await recordProfessionalProfileChange(tx, req, current, updated);
-      if (updated && workAreaIds !== undefined) {
-        await saveWorkAreaLinks(tx, req.tenantContext.empresaId, id, req.tenantContext.professionalId!, workAreaIds);
+      if (updated && (workAreaIds !== undefined || areaId !== undefined)) {
+        const required = await includeRequiredWorkAreas(tx, req.tenantContext.empresaId, id, updated.areaId, workAreaIds);
+        if (required !== undefined) await saveWorkAreaLinks(tx, req.tenantContext.empresaId, id, req.tenantContext.professionalId!, required);
       }
       if (updated && requestedOriginaria !== undefined) {
         const resultado = await aplicarVinculosEmpresa(tx, id, { originariaId: requestedOriginaria as number });

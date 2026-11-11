@@ -62,6 +62,7 @@ import AccountAccessPanel from "./AccountAccessPanel";
 import ProfessionalHistoryPanel from "./ProfessionalHistoryPanel";
 import { AreasAtuacao, type EstadoAreas } from "./AreasAtuacao";
 import { NovaCategoria } from "./NovaCategoria";
+import { nomeDaProfissao } from "@/lib/categoria-profissional";
 import {
   EmpresaOriginariaSelect,
   EmpresasPrestacaoPanel,
@@ -1029,7 +1030,7 @@ export default function Professionals() {
       const key = p.areaId ? String(p.areaId) : "nao-informada";
       if (!map.has(key)) map.set(key, {
         category: key,
-        label: p.areaName || (p.areaId ? "Categoria indisponível" : "Categoria não informada"),
+        label: p.areaName ? nomeDaProfissao(p.areaName) : (p.areaId ? "Categoria indisponível" : "Categoria não informada"),
         items: [],
       });
       map.get(key)!.items.push(p);
@@ -1145,8 +1146,6 @@ export default function Professionals() {
                   </div>
                 </div>
 
-                <AreasAtuacao key={editingId ?? "novo"} professionalId={editingId} canEdit={sessionIsPlatformOwner} onChange={setEstadoAreas} />
-
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo *</Label>
                   <div className="grid grid-cols-2 gap-3">
@@ -1179,7 +1178,7 @@ export default function Professionals() {
                       <SelectTrigger className="field-engraved"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
                         {areasForType.map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
+                          <SelectItem key={a.id} value={String(a.id)}>{nomeDaProfissao(a.name)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1202,6 +1201,9 @@ export default function Professionals() {
                     </Select>
                   </div>
                 </div>
+
+                <AreasAtuacao key={editingId ?? "novo"} professionalId={editingId} canEdit={sessionIsPlatformOwner} onChange={setEstadoAreas}
+                  categorySlug={areas?.find((a) => String(a.id) === form.areaId)?.slug ?? null} />
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">

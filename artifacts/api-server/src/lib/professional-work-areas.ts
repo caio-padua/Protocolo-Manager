@@ -17,6 +17,50 @@ export function normalizedCatalogName(value: string): string {
 
 type Transaction = { execute: (query: SQL) => Promise<{ rows: Record<string, unknown>[] }> };
 
+const CATEGORY_ALIASES: Record<string, string> = {
+  medico: "medicina", medica: "medicina",
+  enfermeiro: "enfermagem", enfermeira: "enfermagem",
+  farmaceutico: "farmacia", farmaceutica: "farmacia",
+  biomedico: "biomedicina", biomedica: "biomedicina",
+};
+export const HEALTH_CATEGORY_SLUGS = [
+  "medicina", "medico", "medica", "enfermagem", "enfermeiro", "enfermeira",
+  "farmacia", "farmaceutico", "farmaceutica", "biomedicina", "biomedico", "biomedica",
+];
+
+export function professionalCategoryIdentity(name: string): string {
+  const normalized = normalizedCatalogName(name);
+  return CATEGORY_ALIASES[normalized] ?? normalized;
+}
+
+// A categoria profissional nunca implica uma permissão ou um vínculo de agenda.
+export async function includeRequiredWorkAreas(
+  tx: Transaction, empresaId: number, professionalId: number, categoryId: number | null,
+  ids: number[] | undefined,
+): Promise<number[] | undefined> {
+  if (!categoryId) return ids;
+  const category = await tx.execute(sql`SELECT slug FROM professional_areas WHERE id=${categoryId} FOR SHARE`);
+  if (!HEALTH_CATEGORY_SLUGS.includes(String(category.rows[0]?.slug ?? ""))) return ids;
+  const health = await tx.execute(sql`SELECT id FROM professional_work_areas WHERE slug='saude' AND active=TRUE FOR SHARE`);
+  if (!health.rows.length) throw new WorkAreaError(503, "A área Saúde não está disponível no cadastro.");
+  const healthId = Number(health.rows[0].id);
+  const previousHealth = await tx.execute(sql`
+    SELECT active FROM professional_work_area_links
+    WHERE empresa_id=${empresaId} AND professional_id=${professionalId} AND work_area_id=${healthId}
+    FOR UPDATE
+  `);
+  if (previousHealth.rows[0]?.active === false) {
+    throw new WorkAreaError(409, "O vínculo com Saúde foi desativado anteriormente e precisa ser conferido.");
+  }
+  if (ids !== undefined) return ids.includes(healthId) ? ids : [...ids, healthId];
+  const existing = await tx.execute(sql`
+    SELECT work_area_id FROM professional_work_area_links
+    WHERE empresa_id=${empresaId} AND professional_id=${professionalId} AND active=TRUE FOR UPDATE
+  `);
+  const current = existing.rows.map((row) => Number(row.work_area_id));
+  return current.includes(healthId) ? current : [...current, healthId];
+}
+
 // Deve ser chamada na transação que grava o profissional, com a linha dele travada.
 export async function saveWorkAreaLinks(
   tx: Transaction, empresaId: number, professionalId: number, actorId: number, ids: number[],

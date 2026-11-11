@@ -4221,6 +4221,7 @@ export const CreateProfessionalAreaBody = zod.object({
 export const ListProfessionalWorkAreasResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  requiredForCategories: zod.array(zod.string()).optional(),
 });
 export const ListProfessionalWorkAreasResponse = zod.array(
   ListProfessionalWorkAreasResponseItem,

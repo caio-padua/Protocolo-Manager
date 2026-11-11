@@ -72,6 +72,8 @@ describe("categorias e áreas de atuação", () => {
     expect((await get("/professional-areas")).body.find((x: any) => x.id === item.id).name).toBe("Biomedicina");
     expect((await state.pool.query("SELECT count(*)::int AS n FROM professional_category_history WHERE category_id=$1", [item.id])).rows[0].n).toBe(1);
     expect((await post("/professional-areas", { name: "Enfermágem", professionalType: "nao_medico" })).status).toBe(409);
+    expect((await post("/professional-areas", { name: "Médico", professionalType: "medico" })).status).toBe(409);
+    expect((await post("/professional-areas", { name: "Biomédico", professionalType: "nao_medico" })).status).toBe(409);
   });
   it("cria e vincula duas áreas, com histórico e sem trocar perfil", async () => {
     const health = await post("/professional-work-areas", { name: "Saúde" });
@@ -112,6 +114,55 @@ describe("categorias e áreas de atuação", () => {
     const response = await post("/professionals", { name: "Não gravar", email, serviceTypes: ["presencial"], category: "outro", workAreaIds: [999999] });
     expect(response.status).toBe(400);
     expect((await state.pool.query("SELECT id FROM professionals WHERE email=$1", [email])).rowCount).toBe(0);
+  });
+  it("exige Saúde para as quatro profissões e preserva outras áreas", async () => {
+    const pharmacy = await post("/professional-areas", { name: "Farmacêutico", professionalType: "nao_medico" });
+    expect(pharmacy.status).toBe(201);
+    const areas = (await get("/professional-areas")).body;
+    const health = (await get("/professional-work-areas")).body.find((a: any) => a.name === "Saúde");
+    const management = (await get("/professional-work-areas")).body.find((a: any) => a.name === "Gestão");
+    for (const categoryName of ["Medicina", "Enfermagem", "Biomedicina", "Farmacêutico"]) {
+      const category = areas.find((a: any) => a.name === categoryName);
+      const created = await post("/professionals", {
+        name: `Sintético ${categoryName}`,
+        email: `classe-${category.id}@example.invalid`,
+        serviceTypes: ["presencial"],
+        category: "outro",
+        professionalType: category.professionalType,
+        areaId: category.id,
+        workAreaIds: [management.id],
+      });
+      expect(created.status).toBe(201);
+      expect((await get(`/professionals/${created.body.id}/work-areas`)).body.sort()).toEqual([health.id, management.id].sort());
+      const changed = await auth(request(app).put(`/professionals/${created.body.id}`)).send({ workAreaIds: [management.id] });
+      expect(changed.status).toBe(200);
+      expect((await get(`/professionals/${created.body.id}/work-areas`)).body.sort()).toEqual([health.id, management.id].sort());
+      expect((await get(`/professionals/${created.body.id}/work-areas`, 2)).status).toBe(404);
+    }
+  });
+  it("recusa criar profissional de Saúde se a área não estiver ativa", async () => {
+    await state.pool.query("UPDATE professional_work_areas SET active=false WHERE slug='saude'");
+    try {
+      const response = await post("/professionals", {
+        name: "Sem área disponível", email: "sem-saude@example.invalid",
+        serviceTypes: ["presencial"], category: "outro", areaId: 10,
+      });
+      expect(response.status).toBe(503);
+      expect((await state.pool.query("SELECT id FROM professionals WHERE email='sem-saude@example.invalid'")).rowCount).toBe(0);
+    } finally {
+      await state.pool.query("UPDATE professional_work_areas SET active=true WHERE slug='saude'");
+    }
+  });
+  it("não reativa silenciosamente um vínculo de Saúde desativado", async () => {
+    const created = await post("/professionals", {
+      name: "Médico sintético com vínculo desativado", email: "vinculo-inativo@example.invalid",
+      serviceTypes: ["presencial"], category: "outro", areaId: 10,
+    });
+    expect(created.status).toBe(201);
+    await state.pool.query("UPDATE professional_work_area_links SET active=false WHERE professional_id=$1", [created.body.id]);
+    const updated = await auth(request(app).put(`/professionals/${created.body.id}`)).send({ areaId: 10 });
+    expect(updated.status).toBe(409);
+    expect((await state.pool.query("SELECT active FROM professional_work_area_links WHERE professional_id=$1", [created.body.id])).rows[0].active).toBe(false);
   });
   it("cadastra uma categoria e duas áreas pela interface, com gravação no banco isolado", async () => {
     const browser = await chromium.launch({
@@ -168,6 +219,26 @@ describe("categorias e áreas de atuação", () => {
       expect(result.rows[0]).toMatchObject({ category: "outro", professional_type: "nao_medico", category_name: "Fisioterapia" });
       const links = await state.pool.query("SELECT count(*)::int AS n FROM professional_work_area_links WHERE professional_id=$1 AND empresa_id=1 AND active", [result.rows[0].id]);
       expect(links.rows[0].n).toBe(2);
+      await page.getByRole("button", { name: "NOVO PROFISSIONAL" }).click();
+      await page.getByPlaceholder("Nome completo do profissional").fill("Biomédico sintético da interface");
+      await page.getByPlaceholder("nome@clinica.com.br").fill("biomedico-interface@example.invalid");
+      await page.getByRole("combobox", { name: "Vínculo originário" }).click();
+      await page.getByRole("option", { name: "Clínica A" }).click();
+      await page.getByText("Perfil de acesso", { exact: false }).locator("..").getByRole("combobox").click();
+      await page.getByRole("option", { name: "Outro" }).click();
+      await page.getByRole("button", { name: "Não-médico", exact: true }).click();
+      await page.getByText("Categoria profissional *", { exact: true }).locator("..").getByRole("combobox").click();
+      await page.getByRole("option", { name: "Biomédico(a)" }).click();
+      const saude = page.getByLabel("Saúde (obrigatória para esta profissão)");
+      await saude.waitFor();
+      expect(await saude.isChecked()).toBe(true);
+      expect(await saude.isDisabled()).toBe(true);
+      await page.getByLabel("Gestão", { exact: true }).check();
+      await page.getByRole("button", { name: "CADASTRAR", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      const saved = (await state.pool.query("SELECT id FROM professionals WHERE email='biomedico-interface@example.invalid'")).rows[0];
+      expect(saved).toBeDefined();
+      expect((await state.pool.query("SELECT count(*)::int AS n FROM professional_work_area_links WHERE professional_id=$1 AND active", [saved.id])).rows[0].n).toBe(2);
     } finally { await browser.close(); }
   }, 60_000);
 });

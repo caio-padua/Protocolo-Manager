@@ -9,4 +9,5 @@
 export interface ProfessionalWorkArea {
   id: number;
   name: string;
+  requiredForCategories?: string[];
 }

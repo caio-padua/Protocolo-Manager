@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-type Area = { id: number; name: string };
+type Area = { id: number; name: string; requiredForCategories?: string[] };
 export type EstadoAreas = { ids: number[]; disponivel: boolean; alterado: boolean };
 
-export function AreasAtuacao({ professionalId, canEdit, onChange }: {
+export function AreasAtuacao({ professionalId, canEdit, onChange, categorySlug }: {
   professionalId: number | null;
   canEdit: boolean;
   onChange: (state: EstadoAreas) => void;
+  categorySlug: string | null;
 }) {
   const [areas, setAreas] = useState<Area[]>([]);
   const [ids, setIds] = useState<number[]>([]);
@@ -46,6 +47,14 @@ export function AreasAtuacao({ professionalId, canEdit, onChange }: {
     })();
     return () => { alive = false; };
   }, [professionalId, onChange]);
+
+  const requiredArea = areas.find((area) => categorySlug && area.requiredForCategories?.includes(categorySlug));
+  useEffect(() => {
+    if (!ready || !requiredArea || ids.includes(requiredArea.id)) return;
+    const next = [...ids, requiredArea.id];
+    setIds(next);
+    onChange({ ids: next, disponivel: true, alterado: true });
+  }, [ready, requiredArea, ids, onChange]);
 
   const toggle = (id: number) => {
     const next = ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id];
@@ -83,8 +92,8 @@ export function AreasAtuacao({ professionalId, canEdit, onChange }: {
     {ready && areas.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma área cadastrada.</p>}
     {ready && <div className="grid gap-2 sm:grid-cols-2">
       {areas.map((area) => <label key={area.id} className="concave-3d flex items-center gap-2 p-2 text-xs">
-        <input type="checkbox" checked={ids.includes(area.id)} disabled={!canEdit} onChange={() => toggle(area.id)} />
-        {area.name}
+        <input type="checkbox" checked={ids.includes(area.id)} disabled={!canEdit || area.id === requiredArea?.id} onChange={() => toggle(area.id)} />
+        {area.name}{area.id === requiredArea?.id ? " (obrigatória para esta profissão)" : ""}
       </label>)}
       {ids.filter((id) => !areas.some((area) => area.id === id)).map((id) => <label key={id} className="concave-3d flex items-center gap-2 p-2 text-xs">
         <input type="checkbox" checked disabled={!canEdit} onChange={() => toggle(id)} />

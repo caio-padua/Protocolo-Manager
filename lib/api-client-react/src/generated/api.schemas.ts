@@ -2390,6 +2390,7 @@ export interface ProfessionalWorkAreaInput {
 export interface ProfessionalWorkArea {
   id: number;
   name: string;
+  requiredForCategories?: string[];
 }
 
 export interface ProfessionalArea {

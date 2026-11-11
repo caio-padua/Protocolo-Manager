@@ -2,6 +2,7 @@ import * as ApiClient from "@workspace/api-client-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { nomeDaProfissao } from "@/lib/categoria-profissional";
 
 export type GrupoProfissional = { areaId: number; localId: number; professionalIds: number[] };
 
@@ -43,7 +44,7 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
                 <select className="field-engraved mt-1 min-h-11 w-full px-2" value={grupo.areaId || ""}
                   onChange={(e) => alterar(index, { ...grupo, areaId: Number(e.target.value), professionalIds: [] })}>
                   <option value="">Selecione a categoria</option>
-                  {(query.data?.areas ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {(query.data?.areas ?? []).map((a) => <option key={a.id} value={a.id}>{nomeDaProfissao(a.name)}</option>)}
                 </select>
               </label>
             </div>

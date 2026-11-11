@@ -7294,6 +7294,9 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
+        requiredForCategories:
+          type: array
+          items: { type: string }
 
     ProfessionalArea:
       type: object

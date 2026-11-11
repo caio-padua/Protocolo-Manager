@@ -4,6 +4,17 @@
 
 ### Retificação de 11/11/2026: categoria, áreas de atuação e cargo
 
+#### Regra obrigatória de Saúde
+
+- As categorias exibem profissões: Médico, Enfermeiro, Farmacêutico e Biomédico pertencem à área de atuação Saúde.
+- Saúde é obrigatória para essas categorias, sem impedir outras áreas de atuação.
+- Associar Saúde aos profissionais do Instituto Pádua dessas categorias sem alterar categoria, cargo, acesso, agenda ou outros vínculos.
+- Não reativar vínculos desativados anteriormente sem conferência; não inferir categoria de cadastros sem categoria.
+- Para novos cadastros e alterações pela aplicação, apresentar Saúde automaticamente e validar a exigência no servidor.
+- Se Saúde estiver ausente ou inativa no catálogo, impedir a gravação com mensagem clara.
+- Farmácia pode ser cadastrada como categoria não médica, sem criar profissional, registro de conselho ou permissões.
+- Testar criação e edição, múltiplas áreas, dados incompletos, a preservação de outras áreas e o isolamento entre clínicas.
+
 O cadastro deve distinguir: categoria profissional (ex.: Biomedicina), áreas
 de atuação (ex.: Saúde, Administrativo, Financeiro, Gestão), cargo e perfil de
 acesso. Um profissional pode atuar em várias áreas. A escolha de uma categoria
