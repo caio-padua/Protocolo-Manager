@@ -5,14 +5,17 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
-export type ProcedimentoEntradaTipo =
-  (typeof ProcedimentoEntradaTipo)[keyof typeof ProcedimentoEntradaTipo];
-
-export const ProcedimentoEntradaTipo = {
-  consulta: "consulta",
-  enfermagem: "enfermagem",
-  medico: "medico",
-} as const;
+export type ProcedimentoEntradaProfissionaisNecessariosItem = {
+  /** @minimum 1 */
+  areaId: number;
+  /** @minimum 1 */
+  localId: number;
+  /**
+   * @minItems 1
+   * @maxItems 30
+   */
+  professionalIds: number[];
+};
 
 export interface ProcedimentoEntrada {
   /**
@@ -20,7 +23,11 @@ export interface ProcedimentoEntrada {
    * @maxLength 200
    */
   nome: string;
-  tipo: ProcedimentoEntradaTipo;
+  /** Classificação histórica, preservada sem atribuição automática. */
+  tipo?: "consulta" | "enfermagem" | "medico" | null;
+  dose: string | null;
+  /** @maxItems 20 */
+  profissionaisNecessarios: ProcedimentoEntradaProfissionaisNecessariosItem[];
   descricao: string | null;
   duracaoMinutos: number | null;
   ativo: boolean;
@@ -36,6 +43,10 @@ export type Procedimento = ProcedimentoEntrada & {
 export interface ListaProcedimentos {
   empresaId: number;
   empresaNome: string;
+  /** Confirma que o servidor e o banco preservam a duração em segundos inteiros. */
+  duracaoSegundosHabilitada?: boolean;
+  /** Confirma o contrato de profissionais necessários e dose separados. */
+  profissionaisNecessariosHabilitado?: boolean;
   procedimentos: Procedimento[];
 }
 
@@ -3367,6 +3378,45 @@ export interface BudgetSeedResult {
   catalogTotal: number;
   settingsCreated: boolean;
 }
+
+export type ListProcedimentoOpcoesProfissionais200LocaisItem = {
+  id: number;
+  name: string;
+};
+
+export type ListProcedimentoOpcoesProfissionais200AreasItem = {
+  id: number;
+  name: string;
+};
+
+export type ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem =
+  (typeof ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem)[keyof typeof ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem];
+
+export const ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem =
+  {
+    Sistema: "Sistema",
+    Google: "Google",
+  } as const;
+
+export type ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItem =
+  {
+    nome: string;
+    origem: ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItemOrigem;
+  };
+
+export type ListProcedimentoOpcoesProfissionais200ProfissionaisItem = {
+  id: number;
+  nome: string;
+  areaId: number;
+  localId: number;
+  agendas: ListProcedimentoOpcoesProfissionais200ProfissionaisItemAgendasItem[];
+};
+
+export type ListProcedimentoOpcoesProfissionais200 = {
+  locais: ListProcedimentoOpcoesProfissionais200LocaisItem[];
+  areas: ListProcedimentoOpcoesProfissionais200AreasItem[];
+  profissionais: ListProcedimentoOpcoesProfissionais200ProfissionaisItem[];
+};
 
 export type ListClinicalDemonstrationsParams = {
   kind: ListClinicalDemonstrationsKind;

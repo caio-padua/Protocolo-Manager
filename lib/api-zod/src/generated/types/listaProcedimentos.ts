@@ -10,5 +10,9 @@ import type { Procedimento } from "./procedimento";
 export interface ListaProcedimentos {
   empresaId: number;
   empresaNome: string;
+  /** Confirma que o servidor e o banco preservam a duração em segundos inteiros. */
+  duracaoSegundosHabilitada?: boolean;
+  /** Confirma o contrato de profissionais necessários e dose separados. */
+  profissionaisNecessariosHabilitado?: boolean;
   procedimentos: Procedimento[];
 }

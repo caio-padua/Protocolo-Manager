@@ -12,9 +12,15 @@ psicólogo), não só médicos assistentes.
 - **Quem é agendável na Entrada 4:** qualquer profissional `active=true` e `isPrimaryDoctor=false`
   (Dr. Caio é a Entrada 3, isolada). As 4 entradas (injetável / estético / Dr. Caio / corpo clínico)
   NUNCA se misturam — o backend valida a entrada no POST de scheduling request.
-- **Taxonomia:** `professionalType` (medico vs nao_medico) → área → especialização, tudo data-driven
-  (tabelas `professional_areas` / `professional_specialties`, ambas com `active`). Médico mostra
-  "especialidade"; não-médico mostra "especialização". Nada hardcoded na tela.
+- **Taxonomia anterior:** `professionalType` (medico vs nao_medico) → área → especialização.
+  Em 11/11/2026, o responsável pediu separar área de atuação, categoria profissional e cargo.
+  Exemplos de áreas de atuação: Saúde, Administrativo, Financeiro e Gestão.
+  A relação entre as novas áreas e as categorias ainda precisa de definição; não presumir que
+  a tabela chamada "áreas" corresponda diretamente ao novo significado.
+- **Why:** a lista anterior mistura profissões e setores; categoria profissional não é cargo
+  e não deve conceder, por si só, novas permissões.
+- **How to apply:** preservar o histórico e as permissões existentes, sem reclassificar pessoas;
+  qualquer mudança precisa manter as quatro entradas de agendamento separadas.
 - **Catálogo só ativo para o paciente:** `/scheduling/areas`, `/professional-areas` e
   `/professional-specialties` filtram `active=true`. `/scheduling/areas` só lista área que tem
   profissional agendável.

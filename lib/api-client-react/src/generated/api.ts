@@ -143,6 +143,7 @@ import type {
   ListClinicalDemonstrationsParams,
   ListFinancialGoalsParams,
   ListPaymentsParams,
+  ListProcedimentoOpcoesProfissionais200,
   ListProfessionalAreasParams,
   ListProfessionalSpecialtiesParams,
   ListProtocolsParams,
@@ -222,6 +223,80 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getListProcedimentoOpcoesProfissionaisUrl = () => {
+  return `/api/procedimentos/opcoes-profissionais`;
+};
+
+export const listProcedimentoOpcoesProfissionais = async (
+  options?: RequestInit,
+): Promise<ListProcedimentoOpcoesProfissionais200> => {
+  return customFetch<ListProcedimentoOpcoesProfissionais200>(
+    getListProcedimentoOpcoesProfissionaisUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListProcedimentoOpcoesProfissionaisQueryKey = () => {
+  return [`/api/procedimentos/opcoes-profissionais`] as const;
+};
+
+export const getListProcedimentoOpcoesProfissionaisQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProcedimentoOpcoesProfissionaisQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>
+  > = ({ signal }) =>
+    listProcedimentoOpcoesProfissionais({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProcedimentoOpcoesProfissionaisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>
+>;
+export type ListProcedimentoOpcoesProfissionaisQueryError = ErrorType<void>;
+
+export function useListProcedimentoOpcoesProfissionais<
+  TData = Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentoOpcoesProfissionais>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions =
+    getListProcedimentoOpcoesProfissionaisQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getListProcedimentosUrl = () => {
   return `/api/procedimentos`;

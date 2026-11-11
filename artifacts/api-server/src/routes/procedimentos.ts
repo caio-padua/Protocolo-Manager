@@ -6,7 +6,7 @@ import { listarProcedimentos, ProcedimentoErro, salvarProcedimento, validarProce
 const router = Router();
 
 function exigirContexto(req: Request, res: Response, next: NextFunction) {
-  if (!req.tenantContext?.authenticated || !req.collaborator ||
+  if (!req.tenantContext?.authenticated || !req.tenantContext.professionalId || !req.collaborator ||
       req.tenantContext.professionalId !== req.collaborator.professionalId) {
     res.status(401).json({ error: "Entre com seu acesso profissional." });
     return;
@@ -24,7 +24,15 @@ function exigirProprietario(req: Request, res: Response, next: NextFunction) {
 async function exigirEstruturaSegura(_req: Request, res: Response, next: NextFunction) {
   const result = await pool.query(`SELECT 1 FROM information_schema.columns
     WHERE table_schema = current_schema() AND table_name = 'procedimentos_clinicos'
-      AND column_name = 'duracao_minutos' AND data_type = 'numeric' AND numeric_scale = 2`);
+      AND column_name = 'duracao_minutos' AND data_type = 'numeric' AND numeric_scale = 2
+      AND EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'procedimentos_clinicos'
+          AND column_name = 'duracao_segundos' AND data_type = 'integer')
+      AND EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'procedimentos_clinicos' AND column_name = 'dose')
+      AND to_regclass('procedimento_equipes') IS NOT NULL
+      AND to_regclass('procedimento_equipes_profissionais') IS NOT NULL
+      AND to_regclass('procedimento_revisoes') IS NOT NULL`);
   if (result.rowCount !== 1) {
     res.status(503).json({ error: "O cadastro de procedimentos está indisponível: estrutura pendente de conferência." });
     return;
@@ -42,7 +50,29 @@ router.get("/procedimentos", requireCollaborator, exigirContexto, exigirEstrutur
     res.status(403).json({ error: "A clínica da sessão não está disponível." });
     return;
   }
-  res.json({ empresaId, empresaNome: empresa.rows[0].nome, procedimentos: await listarProcedimentos(pool, empresaId) });
+  res.json({ empresaId, empresaNome: empresa.rows[0].nome, duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true, procedimentos: await listarProcedimentos(pool, empresaId) });
+});
+
+router.get("/procedimentos/opcoes-profissionais", requireCollaborator, exigirContexto, async (req, res) => {
+  const empresaId = req.tenantContext.empresaId;
+  const [locais, areas, profissionais] = await Promise.all([
+    pool.query("SELECT id, name FROM locations WHERE empresa_id=$1 AND active='true' ORDER BY name,id", [empresaId]),
+    pool.query("SELECT id, name FROM professional_areas WHERE active=TRUE ORDER BY name,id"),
+    pool.query(`SELECT p.id, p.name, p.area_id, lp.location_id,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('nome', a.name, 'origem', 'Sistema') ORDER BY a.name)
+        FROM agenda_resources a WHERE a.active=TRUE AND a.location_id=lp.location_id AND a.professional_id=p.id), '[]'::jsonb) AS agendas_sistema,
+      CASE WHEN ac.id IS NOT NULL AND ac.active=TRUE AND ac.location_id=lp.location_id
+        THEN jsonb_build_object('nome',ac.name,'origem','Google') ELSE NULL END AS agenda_google
+      FROM location_professionals lp JOIN professionals p ON p.id=lp.professional_id AND p.active=TRUE
+      JOIN professional_areas pa ON pa.id=p.area_id AND pa.active=TRUE
+      JOIN locations l ON l.id=lp.location_id AND l.active='true' AND l.empresa_id=$1
+      LEFT JOIN agenda_calendars ac ON ac.id=lp.agenda_calendar_id
+      ORDER BY p.name,p.id`, [empresaId]),
+  ]);
+  res.json({ locais: locais.rows, areas: areas.rows, profissionais: profissionais.rows.map((p) => ({
+    id: p.id, nome: p.name, areaId: p.area_id, localId: p.location_id,
+    agendas: [...p.agendas_sistema, ...(p.agenda_google ? [p.agenda_google] : [])],
+  })) });
 });
 
 async function salvar(req: Request, res: Response, id?: number): Promise<void> {
@@ -52,7 +82,7 @@ async function salvar(req: Request, res: Response, id?: number): Promise<void> {
     return;
   }
   try {
-    const result = await salvarProcedimento(pool, req.tenantContext.empresaId, parsed.data, id);
+    const result = await salvarProcedimento(pool, req.tenantContext.empresaId, parsed.data, req.tenantContext.professionalId!, id);
     res.status(id === undefined ? 201 : 200).json(result);
   } catch (error) {
     if (error instanceof ProcedimentoErro) {

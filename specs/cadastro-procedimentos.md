@@ -2,11 +2,41 @@
 
 ## Objetivo e limites
 
+### Retificação de 11/11/2026: profissionais necessários
+
+Consulta é um procedimento, não uma categoria profissional. Retirar os cartões
+fixos do formulário e não preencher silenciosamente a classificação antiga.
+Cada necessidade registra área profissional ativa, local ativo pertencente à
+empresa da sessão e uma ou mais alternativas profissionais ativas que possuam
+vínculo explícito com o local e com a área. Alternativas do mesmo grupo são OU;
+grupos diferentes são E. Mostrar as agendas efetivamente vinculadas ao par
+profissional/local, ou ausência de vínculo. Não criar agenda nem reserva.
+
+Preservar tipo histórico anterior; novos registros usam tipo antigo nulo. Não
+deduzir área, autorização, agenda ou dose por nome, via ou concentração.
+Dose textual separada pode ser sugerida apenas quando o campo de dose padrão
+contiver quantidade e unidade de massa ou unidades internacionais inequívocas,
+sem volume, razão, porcentagem ou múltiplos componentes; sempre revisável.
+Ao editar, manter históricos de requisitos e preservar produtos originais.
+Implante requer confirmação das áreas médica e de enfermagem, sem inferir pela
+via intramuscular. Validar vínculos e autorização também no servidor, na mesma
+transação. Um produto composto segue sendo um único produto.
+
+Falhas impeditivas: gravação cruzada entre empresas; categoria ou local inativo;
+profissional sem vínculo; dose confundida com concentração; alteração de
+requisitos antigos por outro usuário; estrutura ausente; servidor antigo.
+Provar com dados sintéticos e banco descartável; não reiniciar servidor que
+executa sementes em dados existentes. A interface não deve alegar que está
+integrada ao agendamento. O Corpo Clínico permite atribuir área existente;
+criação de nova área não foi encontrada no cadastro existente.
+
 Acrescentar a tela e a entrada de menu "Procedimentos" sem retirar, ocultar ou
 alterar as entradas existentes. Procedimento descreve o ato; substância é o
-produto já cadastrado. Consultas não exigem substância ou dose. Implantes e
-outros procedimentos médicos exigem médico e enfermagem; procedimentos de
-enfermagem exigem somente enfermagem. Não inferir classificação pela via.
+produto já cadastrado. Consultas não exigem substância ou dose. As equipes não
+são deduzidas da classificação atual: consulta é um procedimento, e um
+procedimento médico pode precisar apenas de médico. A reserva conjunta fica
+para outra etapa. Implantes precisam de
+médico e enfermagem. Não inferir equipe pela via.
 
 O cadastro novo é independente do fluxo de protocolo e agenda: não reserva
 horários, não cria eventos, não muda o catálogo, não altera protocolos e não
@@ -16,7 +46,19 @@ afirma que essas integrações já funcionam.
 
 - Procedimento pertence à clínica identificada pela sessão profissional.
 - A clínica efetiva é identificada na tela, inclusive quando a lista está vazia.
-- Nome, classificação explícita, descrição opcional e duração opcional.
+- Nome, requisitos profissionais explícitos, descrição opcional e duração obrigatória para
+  procedimento ativo/agendável, em segundos inteiros, com edição em minutos.
+- Ao vincular o primeiro produto, sugerir nome seguro e duração do cadastro
+  apenas em campos ainda não editados. Nunca sobrescrever edição manual.
+- Retirar dose, concentração e volume eventualmente presentes no nome sugerido;
+  manter a identidade exata do produto e permitir procedimento sem produto.
+- Guardar segundos em coluna aditiva; preservar a coluna antiga e os registros.
+  Sem a estrutura nova, falhar com mensagem clara, sem converter dados antigos.
+- Enviar a credencial da sessão atual nas chamadas protegidas de leitura e
+  escrita, sem flexibilizar autenticação nem permissões. Conservar formulário
+  em falhas de validação, sessão, rede ou servidor.
+- A interface não deve gravar enquanto o servidor não confirmar suporte a
+  segundos exatos; exibir pendência sem esconder a lista nem outros menus.
 - Produtos associados por identidade exata do catálogo existente, sem cópia,
   e sem obrigatoriedade para consultas.
 - Leituras exigem sessão e empresa autenticadas; escritas são restritas ao
@@ -28,7 +70,7 @@ afirma que essas integrações já funcionam.
 
 ## Falhas previstas e provas
 
-- Recusar entrada inválida, classificação ausente ou produto inexistente.
+- Recusar entrada inválida, requisito profissional ausente ou produto inexistente.
 - Recusar acesso sem sessão e acesso cruzado entre clínicas.
 - Gravar procedimento e vínculos na mesma transação; falha não salva parcialmente.
 - Testar criar, editar, consultar e inativar em banco descartável com dados
@@ -37,3 +79,7 @@ afirma que essas integrações já funcionam.
   está protegido. Conferir a tela autenticada em computador e celular quando
   disponível; sem essa prova, não declarar homologação visual.
 - Executar revisão independente após a construção, sem alterar regras da agenda.
+- Cobrir segundos exatos, duração ausente, nome manual, produto de múltiplos
+  componentes como único vínculo, criação autenticada e recusa sem permissão.
+- Não reiniciar serviços com rotinas que escrevem dados, executar seeds, operar
+  dados reais em testes, publicar, enviar mensagens nem iniciar o próximo bloco.

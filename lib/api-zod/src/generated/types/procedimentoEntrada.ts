@@ -5,7 +5,7 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
-import type { ProcedimentoEntradaTipo } from "./procedimentoEntradaTipo";
+import type { ProcedimentoEntradaProfissionaisNecessariosItem } from "./procedimentoEntradaProfissionaisNecessariosItem";
 
 export interface ProcedimentoEntrada {
   /**
@@ -13,7 +13,11 @@ export interface ProcedimentoEntrada {
    * @maxLength 200
    */
   nome: string;
-  tipo: ProcedimentoEntradaTipo;
+  /** Classificação histórica, preservada sem atribuição automática. */
+  tipo?: "consulta" | "enfermagem" | "medico" | null;
+  dose: string | null;
+  /** @maxItems 20 */
+  profissionaisNecessarios: ProcedimentoEntradaProfissionaisNecessariosItem[];
   descricao: string | null;
   duracaoMinutos: number | null;
   ativo: boolean;

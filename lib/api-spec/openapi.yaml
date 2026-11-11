@@ -41,6 +41,55 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /procedimentos/opcoes-profissionais:
+    get:
+      operationId: listProcedimentoOpcoesProfissionais
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Áreas, locais e profissionais vinculados à clínica autenticada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [locais, areas, profissionais]
+                properties:
+                  locais:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                  areas:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                  profissionais:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, nome, areaId, localId, agendas]
+                      properties:
+                        id: { type: integer }
+                        nome: { type: string }
+                        areaId: { type: integer }
+                        localId: { type: integer }
+                        agendas:
+                          type: array
+                          items:
+                            type: object
+                            required: [nome, origem]
+                            properties:
+                              nome: { type: string }
+                              origem: { type: string, enum: [Sistema, Google] }
+        "401": { description: Sessão inválida. }
   /procedimentos:
     get:
       operationId: listProcedimentos
@@ -3658,16 +3707,45 @@ components:
       properties:
         empresaId: { type: integer }
         empresaNome: { type: string }
+        duracaoSegundosHabilitada:
+          type: boolean
+          description: Confirma que o servidor e o banco preservam a duração em segundos inteiros.
+        profissionaisNecessariosHabilitado:
+          type: boolean
+          description: Confirma o contrato de profissionais necessários e dose separados.
         procedimentos:
           type: array
           items: { $ref: "#/components/schemas/Procedimento" }
     ProcedimentoEntrada:
       type: object
       additionalProperties: false
-      required: [nome, tipo, descricao, duracaoMinutos, ativo, produtoIds]
+      required: [nome, descricao, duracaoMinutos, ativo, produtoIds, dose, profissionaisNecessarios]
       properties:
         nome: { type: string, minLength: 1, maxLength: 200 }
-        tipo: { type: string, enum: [consulta, enfermagem, medico] }
+        tipo:
+          anyOf:
+            - { type: string, enum: [consulta, enfermagem, medico] }
+            - { type: "null" }
+          description: Classificação histórica, preservada sem atribuição automática.
+        dose:
+          anyOf:
+            - { type: string, maxLength: 500 }
+            - { type: "null" }
+        profissionaisNecessarios:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [areaId, localId, professionalIds]
+            properties:
+              areaId: { type: integer, minimum: 1 }
+              localId: { type: integer, minimum: 1 }
+              professionalIds:
+                type: array
+                minItems: 1
+                maxItems: 30
+                items: { type: integer, minimum: 1 }
         descricao:
           anyOf:
             - { type: string, maxLength: 2000 }

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ApiClient from "@workspace/api-client-react";
 import type { Substance } from "@workspace/api-client-react";
 import {
@@ -20,6 +20,9 @@ import {
   X,
 } from "lucide-react";
 import { usePermissoes } from "@/lib/permissoes";
+import { collabAuthHeaders } from "@/lib/collab-auth";
+import { doseSeguraProduto, duracaoValidaMinutos, nomeSugeridoProduto } from "./sugestao-produto";
+import { ProfissionaisNecessarios, type GrupoProfissional } from "./ProfissionaisNecessarios";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -31,7 +34,9 @@ type FiltroStatus = "todos" | "ativos" | "inativos";
 
 interface ProcedimentoEntrada {
   nome: string;
-  tipo: TipoProcedimento;
+  tipo?: TipoProcedimento | null;
+  dose: string | null;
+  profissionaisNecessarios: GrupoProfissional[];
   descricao: string | null;
   duracaoMinutos: number | null;
   ativo: boolean;
@@ -46,6 +51,9 @@ interface Procedimento extends ProcedimentoEntrada {
 interface Formulario {
   nome: string;
   tipo: TipoProcedimento | "";
+  dose: string;
+  doseRevisada: boolean;
+  profissionaisNecessarios: GrupoProfissional[];
   descricao: string;
   duracaoMinutos: string;
   ativo: boolean;
@@ -58,15 +66,12 @@ const TIPO_LABEL: Record<TipoProcedimento, string> = {
   medico: "Médico",
 };
 
-const TIPO_EQUIPE: Record<TipoProcedimento, string> = {
-  consulta: "Médico",
-  enfermagem: "Enfermagem",
-  medico: "Médico e enfermagem",
-};
-
 const FORMULARIO_VAZIO: Formulario = {
   nome: "",
   tipo: "",
+  dose: "",
+  doseRevisada: false,
+  profissionaisNecessarios: [],
   descricao: "",
   duracaoMinutos: "",
   ativo: true,
@@ -74,6 +79,9 @@ const FORMULARIO_VAZIO: Formulario = {
 };
 
 function mensagemErro(erro: unknown): string {
+  if (typeof erro === "object" && erro !== null && "status" in erro && erro.status === 401) {
+    return "A sessão profissional não foi reconhecida. Entre novamente em outra aba e tente salvar; os campos preenchidos permanecem nesta tela.";
+  }
   if (erro instanceof Error && erro.message) return erro.message;
   if (typeof erro === "object" && erro !== null && "message" in erro) {
     const message = (erro as { message?: unknown }).message;
@@ -85,7 +93,10 @@ function mensagemErro(erro: unknown): string {
 function formularioDe(procedimento: Procedimento): Formulario {
   return {
     nome: procedimento.nome,
-    tipo: procedimento.tipo,
+    tipo: procedimento.tipo ?? "",
+    dose: procedimento.dose ?? "",
+    doseRevisada: true,
+    profissionaisNecessarios: procedimento.profissionaisNecessarios ?? [],
     descricao: procedimento.descricao ?? "",
     duracaoMinutos: procedimento.duracaoMinutos == null ? "" : String(procedimento.duracaoMinutos),
     ativo: procedimento.ativo,
@@ -104,13 +115,16 @@ function quantidadeSubstancias(total: number): string {
 
 function erroDeValidacao(formulario: Formulario): string | null {
   if (!formulario.nome.trim()) return "Informe o nome do procedimento.";
-  if (!formulario.tipo) return "Selecione a classificação do procedimento.";
+  if (formulario.ativo && !formulario.profissionaisNecessarios.length) return "Adicione os profissionais necessários.";
+  if (formulario.profissionaisNecessarios.some((g) => !g.areaId || !g.localId || !g.professionalIds.length)) return "Escolha local, área e ao menos um profissional para cada necessidade.";
+  if (formulario.produtoIds.length && !formulario.dose && !formulario.doseRevisada) return "Confira a dose e confirme se o procedimento não possui dose definida.";
+  if (/(?:ml\b|%|\/)/i.test(formulario.dose)) return "Informe a dose sem volume ou concentração.";
   const duracao = Number(formulario.duracaoMinutos.replace(",", "."));
-  if (formulario.duracaoMinutos && (!Number.isFinite(duracao) || duracao < 0.01 || duracao > 1440)) {
-    return "A duração deve ser de 0,01 a 1.440 minutos, ou ficar vazia.";
+  if (!formulario.duracaoMinutos.trim() && formulario.ativo) {
+    return "Informe a duração do procedimento ativo.";
   }
-  if (formulario.duracaoMinutos && Math.abs(duracao * 100 - Math.round(duracao * 100)) >= 1e-8) {
-    return "A duração aceita até duas casas decimais.";
+  if (formulario.duracaoMinutos.trim() && !duracaoValidaMinutos(duracao)) {
+    return "Informe duração de até 1.440 minutos que corresponda a segundos inteiros.";
   }
   if (formulario.produtoIds.length > 100) return "É possível vincular até 100 substâncias.";
   return null;
@@ -120,6 +134,7 @@ export default function Procedimentos() {
   const queryClient = useQueryClient();
   const { isCeo, me, loading: carregandoPermissoes, refetch: verificarPermissoes } = usePermissoes();
   const procedimentosQuery = ApiClient.useListProcedimentos({
+    request: { headers: collabAuthHeaders() },
     query: {
       queryKey: [...ApiClient.getListProcedimentosQueryKey(), me?.id ?? null],
       enabled: !!me,
@@ -127,20 +142,30 @@ export default function Procedimentos() {
     },
   });
   const substanciasQuery = ApiClient.useListSubstances();
-  const criarProcedimento = ApiClient.useCreateProcedimento();
-  const atualizarProcedimento = ApiClient.useUpdateProcedimento();
+  // Ler a credencial no momento da gravação, inclusive após renovação da sessão.
+  const criarProcedimento = useMutation({
+    mutationFn: ({ data }: { data: ProcedimentoEntrada }) =>
+      ApiClient.createProcedimento(data, { headers: collabAuthHeaders() }),
+  });
+  const atualizarProcedimento = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ProcedimentoEntrada }) =>
+      ApiClient.updateProcedimento(id, data, { headers: collabAuthHeaders() }),
+  });
   const procedimentos = procedimentosQuery.data?.procedimentos ?? [];
   const substancias = substanciasQuery.data ?? [];
+  const servidorAtualizado = procedimentosQuery.data?.duracaoSegundosHabilitada === true
+    && procedimentosQuery.data?.profissionaisNecessariosHabilitado === true;
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ativos");
-  const [filtroTipo, setFiltroTipo] = useState<TipoProcedimento | "todos">("todos");
   const [formularioAberto, setFormularioAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [formulario, setFormulario] = useState<Formulario>(FORMULARIO_VAZIO);
   const [erroFormulario, setErroFormulario] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [termoSubstancia, setTermoSubstancia] = useState("");
+  const camposEditados = useRef({ nome: false, duracaoMinutos: false, dose: false });
+  const sugestoesAutomaticas = useRef<{ nome: string | null; duracaoMinutos: string | null; dose: string | null }>({ nome: null, duracaoMinutos: null, dose: null });
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLocaleLowerCase("pt-BR");
@@ -148,17 +173,18 @@ export default function Procedimentos() {
       const correspondeBusca = !termo || [
         item.nome,
         item.descricao ?? "",
-        TIPO_LABEL[item.tipo],
+        item.tipo ? TIPO_LABEL[item.tipo] : "",
       ].some((texto) => texto.toLocaleLowerCase("pt-BR").includes(termo));
       const correspondeStatus = filtroStatus === "todos"
         || (filtroStatus === "ativos" && item.ativo)
         || (filtroStatus === "inativos" && !item.ativo);
-      const correspondeTipo = filtroTipo === "todos" || item.tipo === filtroTipo;
-      return correspondeBusca && correspondeStatus && correspondeTipo;
+      return correspondeBusca && correspondeStatus;
     });
-  }, [procedimentos, busca, filtroStatus, filtroTipo]);
+  }, [procedimentos, busca, filtroStatus]);
 
   const iniciarNovo = () => {
+    camposEditados.current = { nome: false, duracaoMinutos: false, dose: false };
+    sugestoesAutomaticas.current = { nome: null, duracaoMinutos: null, dose: null };
     setEditandoId(null);
     setFormulario(FORMULARIO_VAZIO);
     setErroFormulario(null);
@@ -168,6 +194,8 @@ export default function Procedimentos() {
   };
 
   const iniciarEdicao = (procedimento: Procedimento) => {
+    camposEditados.current = { nome: true, duracaoMinutos: true, dose: true };
+    sugestoesAutomaticas.current = { nome: null, duracaoMinutos: null, dose: null };
     setFormulario(formularioDe(procedimento));
     setEditandoId(procedimento.id);
     setErroFormulario(null);
@@ -184,23 +212,68 @@ export default function Procedimentos() {
   };
 
   const alterarCampo = <K extends keyof Formulario>(campo: K, valor: Formulario[K]) => {
+    if (campo === "nome") camposEditados.current.nome = true;
+    if (campo === "duracaoMinutos") camposEditados.current.duracaoMinutos = true;
+    if (campo === "dose") camposEditados.current.dose = true;
     setFormulario((atual) => ({ ...atual, [campo]: valor }));
+    setErroFormulario(null);
+  };
+
+  const alternarProduto = (substance: Substance, selecionado: boolean) => {
+    const ids = selecionado
+      ? [...new Set([...formulario.produtoIds, substance.id])]
+      : formulario.produtoIds.filter((id) => id !== substance.id);
+    if (ids[0] === formulario.produtoIds[0]) {
+      setFormulario((atual) => ({
+        ...atual, produtoIds: ids, doseRevisada: false,
+        dose: !camposEditados.current.dose && ids.length !== 1 ? "" : atual.dose,
+      }));
+      setErroFormulario(null);
+      return;
+    }
+    const primeiro = ids[0] === substance.id ? substance : substancias.find((item) => item.id === ids[0]);
+    const nome = primeiro ? nomeSugeridoProduto(primeiro.name) : "";
+    const duracao = primeiro?.durationMinutes;
+    const duracaoSugerida = typeof duracao === "number" && duracaoValidaMinutos(duracao)
+      ? String(duracao).replace(".", ",") : "";
+    const doseSugerida = ids.length === 1 ? doseSeguraProduto(primeiro?.defaultDose) ?? "" : "";
+    const substituirNome = !camposEditados.current.nome
+      && (!formulario.nome || formulario.nome === sugestoesAutomaticas.current.nome);
+    const substituirDuracao = !camposEditados.current.duracaoMinutos
+      && (!formulario.duracaoMinutos || formulario.duracaoMinutos === sugestoesAutomaticas.current.duracaoMinutos);
+    const substituirDose = !camposEditados.current.dose
+      && (!formulario.dose || formulario.dose === sugestoesAutomaticas.current.dose);
+    setFormulario((atual) => ({
+      ...atual,
+      produtoIds: ids,
+      nome: substituirNome ? nome : atual.nome,
+      duracaoMinutos: substituirDuracao ? duracaoSugerida : atual.duracaoMinutos,
+      dose: substituirDose ? doseSugerida : atual.dose,
+      doseRevisada: false,
+    }));
+    if (substituirNome) sugestoesAutomaticas.current.nome = nome || null;
+    if (substituirDuracao) sugestoesAutomaticas.current.duracaoMinutos = duracaoSugerida || null;
+    if (substituirDose) sugestoesAutomaticas.current.dose = doseSugerida || null;
     setErroFormulario(null);
   };
 
   const salvar = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAviso(null);
+    if (!servidorAtualizado) {
+      setErroFormulario("O serviço de procedimentos ainda não está atualizado. O formulário foi preservado; tente novamente depois da atualização segura do serviço.");
+      return;
+    }
     const erro = erroDeValidacao(formulario);
     if (erro) {
       setErroFormulario(erro);
       return;
     }
-    if (!formulario.tipo) return;
-
     const payload: ProcedimentoEntrada = {
       nome: formulario.nome.trim(),
-      tipo: formulario.tipo,
+      tipo: formulario.tipo || null,
+      dose: formulario.dose.trim() || null,
+      profissionaisNecessarios: formulario.profissionaisNecessarios,
       descricao: formulario.descricao.trim() || null,
       duracaoMinutos: formulario.duracaoMinutos ? Number(formulario.duracaoMinutos.replace(",", ".")) : null,
       ativo: formulario.ativo,
@@ -224,6 +297,10 @@ export default function Procedimentos() {
 
   const alternarAtivo = async (procedimento: Procedimento) => {
     if (!isCeo) return;
+    if (!servidorAtualizado) {
+      setAviso("O serviço de procedimentos ainda não está atualizado; a alteração não foi realizada.");
+      return;
+    }
     const proximoEstado = !procedimento.ativo;
     const acao = proximoEstado ? "reativar" : "inativar";
     if (!window.confirm(`Deseja ${acao} “${procedimento.nome}”? O cadastro e os vínculos serão preservados.`)) return;
@@ -233,7 +310,9 @@ export default function Procedimentos() {
         id: procedimento.id,
         data: {
           nome: procedimento.nome,
-          tipo: procedimento.tipo,
+          tipo: procedimento.tipo ?? null,
+          dose: procedimento.dose ?? null,
+          profissionaisNecessarios: procedimento.profissionaisNecessarios ?? [],
           descricao: procedimento.descricao,
           duracaoMinutos: procedimento.duracaoMinutos,
           ativo: proximoEstado,
@@ -329,6 +408,12 @@ export default function Procedimentos() {
         </div>
       </div>
 
+      {procedimentosQuery.isSuccess && !servidorAtualizado && (
+        <div className="panel-3d-sub p-4 text-sm text-amber-800" role="alert" data-testid="aviso-servidor-desatualizado">
+          A atualização segura do serviço ainda está pendente. Os cadastros continuam visíveis, mas não podem ser alterados até o serviço estar atualizado.
+        </div>
+      )}
+
       {aviso && (
         <div className="panel-3d-sub flex items-start gap-3 p-3 text-sm" role="status" data-testid="status-procedimentos">
           <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
@@ -407,28 +492,19 @@ export default function Procedimentos() {
                   />
                 </div>
 
-                <fieldset className="space-y-2">
-                  <legend className="text-xs font-bold text-foreground">
-                    Classificação <span className="text-red-700" aria-hidden="true">*</span>
-                  </legend>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {(["consulta", "enfermagem", "medico"] as TipoProcedimento[]).map((tipo) => (
-                      <button
-                        key={tipo}
-                        type="button"
-                        className={`bevel-3d min-h-[72px] px-3 py-2 text-left transition-transform active:translate-y-0.5 ${formulario.tipo === tipo ? "panel-3d-active" : ""}`}
-                        aria-pressed={formulario.tipo === tipo}
-                        onClick={() => alterarCampo("tipo", tipo)}
-                        data-testid={`button-tipo-${tipo}`}
-                      >
-                        <span className="block text-xs font-black uppercase tracking-wider text-primary">{TIPO_LABEL[tipo]}</span>
-                        <span className="mt-1 block text-[11px] text-muted-foreground">
-                          Equipe: {TIPO_EQUIPE[tipo]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
+                <label className="block space-y-1.5 text-xs font-bold">
+                  <span>Dose prescrita, quando houver</span>
+                  <Input className="field-engraved min-h-11" value={formulario.dose}
+                    onChange={(event) => alterarCampo("dose", event.target.value)}
+                    placeholder="Informe apenas a dose" data-testid="input-procedimento-dose" />
+                  <span className="block text-xs text-muted-foreground">Não informe volume ou concentração. Revise antes de salvar.</span>
+                </label>
+                {formulario.produtoIds.length > 0 && !formulario.dose && (
+                  <label className="flex items-center gap-2 text-xs">
+                    <Checkbox checked={formulario.doseRevisada} onCheckedChange={(checked) => alterarCampo("doseRevisada", checked === true)} />
+                    Confirmei que a dose está ausente ou será definida depois.
+                  </label>
+                )}
               </div>
             </div>
 
@@ -438,7 +514,7 @@ export default function Procedimentos() {
                 <div className="space-y-1.5">
                   <label htmlFor="procedimento-duracao" className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                     <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-                    Duração em minutos <span className="font-normal text-muted-foreground">(opcional)</span>
+                    Duração em minutos {formulario.ativo && <span className="text-red-700" aria-hidden="true">*</span>}
                   </label>
                   <Input
                     id="procedimento-duracao"
@@ -447,9 +523,16 @@ export default function Procedimentos() {
                     inputMode="decimal"
                     value={formulario.duracaoMinutos}
                     onChange={(event) => alterarCampo("duracaoMinutos", event.target.value)}
-                    placeholder="Deixe em branco se não definida"
+                    placeholder="Informe a duração, por exemplo 2,5"
                     data-testid="input-procedimento-duracao"
                   />
+                  <p className="text-xs text-muted-foreground">Obrigatória para procedimento ativo; aceita minutos fracionários com segundos inteiros.</p>
+                  {formulario.produtoIds.length > 0 && !formulario.duracaoMinutos && (() => {
+                    const produto = substancias.find((item) => item.id === formulario.produtoIds[0]);
+                    return produto && (typeof produto.durationMinutes !== "number" || !duracaoValidaMinutos(produto.durationMinutes))
+                      ? <p className="text-xs font-semibold text-amber-800" data-testid="aviso-duracao-produto">O produto não tem duração válida informada. Informe a duração manualmente.</p>
+                      : null;
+                  })()}
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="procedimento-descricao" className="text-xs font-bold text-foreground">
@@ -474,6 +557,7 @@ export default function Procedimentos() {
                   <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Substâncias do catálogo</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Vínculos usam os registros existentes. Consulta não exige substância.
+                    O primeiro produto pode sugerir nome e duração; revise os campos.
                   </p>
                 </div>
               </div>
@@ -510,25 +594,27 @@ export default function Procedimentos() {
                     {substanciasFiltradas.length ? substanciasFiltradas.map((substance) => {
                       const marcado = formulario.produtoIds.includes(substance.id);
                       return (
-                        <label
+                        <div
                           key={substance.id}
-                          className="bevel-3d flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2"
+                          className="bevel-3d min-h-11 px-3 py-2"
                           data-testid={`row-substancia-${substance.id}`}
                         >
-                          <Checkbox
-                            checked={marcado}
-                            onCheckedChange={(checked) => {
-                              const ids = checked
-                                ? [...new Set([...formulario.produtoIds, substance.id])]
-                                : formulario.produtoIds.filter((id) => id !== substance.id);
-                              alterarCampo("produtoIds", ids);
-                            }}
-                            aria-label={`Vincular ${nomeSubstancia(substance)}`}
-                            data-testid={`checkbox-substancia-${substance.id}`}
-                          />
-                          <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{nomeSubstancia(substance)}</span>
-                          {marcado && <Check className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />}
-                        </label>
+                          <label className="flex cursor-pointer items-center gap-3">
+                            <Checkbox
+                              checked={marcado}
+                              onCheckedChange={(checked) => alternarProduto(substance, checked === true)}
+                              aria-label={`Vincular ${nomeSubstancia(substance)}`}
+                              data-testid={`checkbox-substancia-${substance.id}`}
+                            />
+                            <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{nomeSugeridoProduto(substance.name) || substance.name}</span>
+                            {marcado && <Check className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />}
+                          </label>
+                          <details className="mt-1 pl-7 text-xs">
+                            <summary className="cursor-pointer text-primary underline">Detalhes da apresentação</summary>
+                            <p>Identificador {substance.id} · Cadastro: {substance.name}</p>
+                            <p>Dose ou apresentação cadastrada: {substance.defaultDose || "—"}</p>
+                          </details>
+                        </div>
                       );
                     }) : (
                       <p className="py-4 text-center text-sm text-muted-foreground" data-testid="empty-substancias">
@@ -548,6 +634,11 @@ export default function Procedimentos() {
                 </>
               )}
             </div>
+
+            <ProfissionaisNecessarios grupos={formulario.profissionaisNecessarios}
+              onChange={(grupos) => alterarCampo("profissionaisNecessarios", grupos)}
+              identidade={`${me?.id ?? "sem-sessao"}:${procedimentosQuery.data?.empresaId ?? "sem-clinica"}`}
+              enabled={formularioAberto && servidorAtualizado} />
 
             <div className="concave-3d flex items-start gap-3 p-3">
               <Checkbox
@@ -614,18 +705,6 @@ export default function Procedimentos() {
               <option value="inativos">Inativos</option>
               <option value="todos">Todos os status</option>
             </select>
-            <select
-              value={filtroTipo}
-              onChange={(event) => setFiltroTipo(event.target.value as TipoProcedimento | "todos")}
-              className="field-engraved min-h-11 rounded-md border border-input px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Filtrar por classificação"
-              data-testid="select-filter-tipo"
-            >
-              <option value="todos">Todas as classificações</option>
-              <option value="consulta">Consulta</option>
-              <option value="enfermagem">Enfermagem</option>
-              <option value="medico">Médico</option>
-            </select>
           </div>
         </div>
 
@@ -690,8 +769,8 @@ export default function Procedimentos() {
           <div className="panel-3d-sub mt-5 flex flex-col items-center px-5 py-10 text-center" data-testid="empty-filtered-procedimentos">
             <Search className="h-7 w-7 text-muted-foreground/60" aria-hidden="true" />
             <h3 className="mt-3 font-bold text-primary">Nenhum resultado para estes filtros</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Tente outra busca, classificação ou status.</p>
-            <Button type="button" variant="outline" className="btn-3d-soft mt-4 min-h-10" onClick={() => { setBusca(""); setFiltroStatus("todos"); setFiltroTipo("todos"); }} data-testid="button-clear-filters">
+            <p className="mt-1 text-sm text-muted-foreground">Tente outra busca ou status.</p>
+            <Button type="button" variant="outline" className="btn-3d-soft mt-4 min-h-10" onClick={() => { setBusca(""); setFiltroStatus("todos"); }} data-testid="button-clear-filters">
               Limpar filtros
             </Button>
           </div>
@@ -719,17 +798,19 @@ export default function Procedimentos() {
                         <h3 className="truncate text-lg font-extrabold text-primary" data-testid={`text-procedimento-nome-${procedimento.id}`}>
                           {procedimento.nome}
                         </h3>
-                        <p className="mt-1 text-xs text-muted-foreground">{TIPO_LABEL[procedimento.tipo]}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{procedimento.dose ? `Dose: ${procedimento.dose}` : "Dose: —"}</p>
                       </div>
                       <span className="screen-3d hidden shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-primary sm:inline-flex">
-                        {TIPO_LABEL[procedimento.tipo]}
+                        Procedimento
                       </span>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                       <div className="concave-3d min-w-0 p-2.5">
                         <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Equipe</p>
-                        <p className="mt-1 truncate text-xs font-bold text-foreground">{TIPO_EQUIPE[procedimento.tipo]}</p>
+                        <p className="mt-1 truncate text-xs font-bold text-foreground">
+                          {procedimento.profissionaisNecessarios?.length ? `${procedimento.profissionaisNecessarios.length} necessidade(s)` : "Equipe a definir"}
+                        </p>
                       </div>
                       <div className="concave-3d min-w-0 p-2.5">
                         <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Duração</p>

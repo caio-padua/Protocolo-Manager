@@ -7,7 +7,42 @@
  */
 import * as zod from "zod";
 
+export const ListProcedimentoOpcoesProfissionaisResponse = zod.object({
+  locais: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+    }),
+  ),
+  areas: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+    }),
+  ),
+  profissionais: zod.array(
+    zod.object({
+      id: zod.number(),
+      nome: zod.string(),
+      areaId: zod.number(),
+      localId: zod.number(),
+      agendas: zod.array(
+        zod.object({
+          nome: zod.string(),
+          origem: zod.enum(["Sistema", "Google"]),
+        }),
+      ),
+    }),
+  ),
+});
+
 export const listProcedimentosResponseProcedimentosItemOneNomeMax = 200;
+
+export const listProcedimentosResponseProcedimentosItemOneDoseOneMax = 500;
+
+export const listProcedimentosResponseProcedimentosItemOneProfissionaisNecessariosItemProfessionalIdsMax = 30;
+
+export const listProcedimentosResponseProcedimentosItemOneProfissionaisNecessariosMax = 20;
 
 export const listProcedimentosResponseProcedimentosItemOneDescricaoOneMax = 2000;
 
@@ -19,6 +54,18 @@ export const listProcedimentosResponseProcedimentosItemOneProdutoIdsMax = 100;
 export const ListProcedimentosResponse = zod.object({
   empresaId: zod.number(),
   empresaNome: zod.string(),
+  duracaoSegundosHabilitada: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Confirma que o servidor e o banco preservam a duração em segundos inteiros.",
+    ),
+  profissionaisNecessariosHabilitado: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Confirma o contrato de profissionais necessários e dose separados.",
+    ),
   procedimentos: zod.array(
     zod
       .object({
@@ -26,7 +73,34 @@ export const ListProcedimentosResponse = zod.object({
           .string()
           .min(1)
           .max(listProcedimentosResponseProcedimentosItemOneNomeMax),
-        tipo: zod.enum(["consulta", "enfermagem", "medico"]),
+        tipo: zod
+          .union([zod.enum(["consulta", "enfermagem", "medico"]), zod.null()])
+          .optional()
+          .describe(
+            "Classificação histórica, preservada sem atribuição automática.",
+          ),
+        dose: zod.union([
+          zod
+            .string()
+            .max(listProcedimentosResponseProcedimentosItemOneDoseOneMax),
+          zod.null(),
+        ]),
+        profissionaisNecessarios: zod
+          .array(
+            zod.object({
+              areaId: zod.number().min(1),
+              localId: zod.number().min(1),
+              professionalIds: zod
+                .array(zod.number().min(1))
+                .min(1)
+                .max(
+                  listProcedimentosResponseProcedimentosItemOneProfissionaisNecessariosItemProfessionalIdsMax,
+                ),
+            }),
+          )
+          .max(
+            listProcedimentosResponseProcedimentosItemOneProfissionaisNecessariosMax,
+          ),
         descricao: zod.union([
           zod
             .string()
@@ -60,6 +134,12 @@ export const ListProcedimentosResponse = zod.object({
 
 export const createProcedimentoBodyNomeMax = 200;
 
+export const createProcedimentoBodyDoseOneMax = 500;
+
+export const createProcedimentoBodyProfissionaisNecessariosItemProfessionalIdsMax = 30;
+
+export const createProcedimentoBodyProfissionaisNecessariosMax = 20;
+
 export const createProcedimentoBodyDescricaoOneMax = 2000;
 
 export const createProcedimentoBodyDuracaoMinutosOneMin = 0.01;
@@ -69,7 +149,28 @@ export const createProcedimentoBodyProdutoIdsMax = 100;
 
 export const CreateProcedimentoBody = zod.object({
   nome: zod.string().min(1).max(createProcedimentoBodyNomeMax),
-  tipo: zod.enum(["consulta", "enfermagem", "medico"]),
+  tipo: zod
+    .union([zod.enum(["consulta", "enfermagem", "medico"]), zod.null()])
+    .optional()
+    .describe("Classificação histórica, preservada sem atribuição automática."),
+  dose: zod.union([
+    zod.string().max(createProcedimentoBodyDoseOneMax),
+    zod.null(),
+  ]),
+  profissionaisNecessarios: zod
+    .array(
+      zod.object({
+        areaId: zod.number().min(1),
+        localId: zod.number().min(1),
+        professionalIds: zod
+          .array(zod.number().min(1))
+          .min(1)
+          .max(
+            createProcedimentoBodyProfissionaisNecessariosItemProfessionalIdsMax,
+          ),
+      }),
+    )
+    .max(createProcedimentoBodyProfissionaisNecessariosMax),
   descricao: zod.union([
     zod.string().max(createProcedimentoBodyDescricaoOneMax),
     zod.null(),
@@ -93,6 +194,12 @@ export const UpdateProcedimentoParams = zod.object({
 
 export const updateProcedimentoBodyNomeMax = 200;
 
+export const updateProcedimentoBodyDoseOneMax = 500;
+
+export const updateProcedimentoBodyProfissionaisNecessariosItemProfessionalIdsMax = 30;
+
+export const updateProcedimentoBodyProfissionaisNecessariosMax = 20;
+
 export const updateProcedimentoBodyDescricaoOneMax = 2000;
 
 export const updateProcedimentoBodyDuracaoMinutosOneMin = 0.01;
@@ -102,7 +209,28 @@ export const updateProcedimentoBodyProdutoIdsMax = 100;
 
 export const UpdateProcedimentoBody = zod.object({
   nome: zod.string().min(1).max(updateProcedimentoBodyNomeMax),
-  tipo: zod.enum(["consulta", "enfermagem", "medico"]),
+  tipo: zod
+    .union([zod.enum(["consulta", "enfermagem", "medico"]), zod.null()])
+    .optional()
+    .describe("Classificação histórica, preservada sem atribuição automática."),
+  dose: zod.union([
+    zod.string().max(updateProcedimentoBodyDoseOneMax),
+    zod.null(),
+  ]),
+  profissionaisNecessarios: zod
+    .array(
+      zod.object({
+        areaId: zod.number().min(1),
+        localId: zod.number().min(1),
+        professionalIds: zod
+          .array(zod.number().min(1))
+          .min(1)
+          .max(
+            updateProcedimentoBodyProfissionaisNecessariosItemProfessionalIdsMax,
+          ),
+      }),
+    )
+    .max(updateProcedimentoBodyProfissionaisNecessariosMax),
   descricao: zod.union([
     zod.string().max(updateProcedimentoBodyDescricaoOneMax),
     zod.null(),
@@ -122,6 +250,12 @@ export const UpdateProcedimentoBody = zod.object({
 
 export const updateProcedimentoResponseOneNomeMax = 200;
 
+export const updateProcedimentoResponseOneDoseOneMax = 500;
+
+export const updateProcedimentoResponseOneProfissionaisNecessariosItemProfessionalIdsMax = 30;
+
+export const updateProcedimentoResponseOneProfissionaisNecessariosMax = 20;
+
 export const updateProcedimentoResponseOneDescricaoOneMax = 2000;
 
 export const updateProcedimentoResponseOneDuracaoMinutosOneMin = 0.01;
@@ -132,7 +266,30 @@ export const updateProcedimentoResponseOneProdutoIdsMax = 100;
 export const UpdateProcedimentoResponse = zod
   .object({
     nome: zod.string().min(1).max(updateProcedimentoResponseOneNomeMax),
-    tipo: zod.enum(["consulta", "enfermagem", "medico"]),
+    tipo: zod
+      .union([zod.enum(["consulta", "enfermagem", "medico"]), zod.null()])
+      .optional()
+      .describe(
+        "Classificação histórica, preservada sem atribuição automática.",
+      ),
+    dose: zod.union([
+      zod.string().max(updateProcedimentoResponseOneDoseOneMax),
+      zod.null(),
+    ]),
+    profissionaisNecessarios: zod
+      .array(
+        zod.object({
+          areaId: zod.number().min(1),
+          localId: zod.number().min(1),
+          professionalIds: zod
+            .array(zod.number().min(1))
+            .min(1)
+            .max(
+              updateProcedimentoResponseOneProfissionaisNecessariosItemProfessionalIdsMax,
+            ),
+        }),
+      )
+      .max(updateProcedimentoResponseOneProfissionaisNecessariosMax),
     descricao: zod.union([
       zod.string().max(updateProcedimentoResponseOneDescricaoOneMax),
       zod.null(),

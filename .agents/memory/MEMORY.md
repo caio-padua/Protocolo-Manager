@@ -49,6 +49,7 @@
 - [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por origem antes de abrir a outras fontes).
 - [Background bash não sobrevive entre chamadas](bash-background-nao-sobrevive.md) — nohup/& morrem ao retornar a tool; trabalho tem de caber em 1 chamada (~120s) ou virar workflow.
 - [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o POST.
+- [Reinício seguro e importações](boot-servidor-efeitos-importacao.md) — inicialização também ocorre ao importar rotas; teste isolado da migração não comprova todo o reinício.
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
 - [Painel de status honesto (erro != desligado)](comunicacao-status-honesto.md) — console de status real distingue 3 estados (pending/erro/on); status=null por fetch falho NÃO pode virar "não configurado".
@@ -96,6 +97,7 @@
 - [Base única de clientes — regra de ouro](base-unica-clientes.md) — empresa_id=5, location_id=8, status='active' são OBRIGATÓRIOS; DB DEFAULT aplicado; createClientSafe() para novas rotas.
 - [PaxterClientSelector — seletor universal canônico](paxter-client-selector.md) — substitui ClientPicker/ClientCombobox/CockpitSearch/Select nativo; state=number|null; placeholder canônico="Selecionar cliente…"; cpf+phone+photoUrl obrigatórios no map; skill em .agents/skills/skill-paxter-client-selector/SKILL.md.
 - [Protocolo da Planilha — colunas A-J + "Para que serve"](planilha-protocolo.md) — col I obrigatória em todo item novo (1 frase CEO); col J=Módulo; 4 requisitos p/ CONCLUÍDO; doc normativo em docs/PROTOCOLO-PLANILHA.md.
+- [Procedimento — produto e dose](seletor-produto-procedimento.md) — nome limpo, detalhes para homônimos, dose segura separada e nome do procedimento no RASP.
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
 - [Dicionário — fonte única e sync automático](dicionario-fonte-unica.md) — GLOSSARIO em slack-glossario.ts é a lei; boot + rota sync propagam para Sheets sem tocar CEO edits.
 - [Telegram — arquitetura do canal com pacientes](telegram-arquitetura.md) — @Paduaclinica_bot; vinculação por validationPassword; espelho WhatsApp→Telegram; e-mail onboarding; webhook encaminha ao CEO.

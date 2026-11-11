@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { startIsolatedPostgres } from "./helpers/postgres-isolado";
+import { chromium } from "@playwright/test";
 
 const state = vi.hoisted(() => ({ pool: null as any, db: null as any }));
 vi.mock("@workspace/db", async () => {
@@ -20,8 +21,16 @@ let isolated: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const ownerA = () => createCollaboratorToken({ professionalId: 1, role: "admin" });
 const ownerB = () => createCollaboratorToken({ professionalId: 2, role: "admin" });
 const clinicianB = () => createCollaboratorToken({ professionalId: 3, role: "executor" });
-const post = (token: string, body: object) => request(app).post("/procedimentos").set("Authorization", `Bearer ${token}`).send(body);
-const put = (token: string, id: number, body: object) => request(app).put(`/procedimentos/${id}`).set("Authorization", `Bearer ${token}`).send(body);
+function novoContrato(token: string, body: any) {
+  const professionalId = Number(Buffer.from(token, "base64url").toString().split(":")[1]);
+  const b = professionalId === 2 || professionalId === 3;
+  const localId = b ? 9 : 8;
+  const medico = { areaId: 1, localId, professionalIds: [b ? 2 : 1] };
+  const enfermeiro = { areaId: 2, localId, professionalIds: [b ? 6 : 5] };
+  return { dose: null, profissionaisNecessarios: body.tipo === "enfermagem" ? [enfermeiro] : [medico, enfermeiro], ...body };
+}
+const post = (token: string, body: object) => request(app).post("/procedimentos").set("Authorization", `Bearer ${token}`).send(novoContrato(token, body));
+const put = (token: string, id: number, body: object) => request(app).put(`/procedimentos/${id}`).set("Authorization", `Bearer ${token}`).send(novoContrato(token, body));
 const get = (token: string) => request(app).get("/procedimentos").set("Authorization", `Bearer ${token}`);
 const consulta = { nome: "Consulta sintética", tipo: "consulta", descricao: null, duracaoMinutos: 60, ativo: true, produtoIds: [] };
 
@@ -34,12 +43,19 @@ beforeAll(async () => {
     CREATE TABLE empresas (id integer primary key, nome text, nome_fantasia text, ativa boolean, status text);
     INSERT INTO empresas VALUES (1,'Clínica A',null,true,'ATIVO'), (2,'Clínica B',null,true,'ATIVO');
     CREATE TABLE professionals (id integer primary key, role text, category text, active boolean,
-      credential_version integer, empresa_id integer, is_platform_owner boolean);
+      credential_version integer, empresa_id integer, is_platform_owner boolean, name text, area_id integer);
     INSERT INTO professionals VALUES
-      (1,'admin','medico',true,0,1,true), (2,'admin','medico',true,0,2,true),
-      (3,'executor','medico',true,0,2,false), (4,'admin','medico',false,0,1,true);
-    CREATE TABLE locations (id integer primary key, empresa_id integer, active text);
-    CREATE TABLE location_professionals (id integer primary key, professional_id integer, location_id integer);
+      (1,'admin','medico',true,0,1,true,'Médico A',1), (2,'admin','medico',true,0,2,true,'Médico B',1),
+      (3,'executor','medico',true,0,2,false,'Profissional B',1), (4,'admin','medico',false,0,1,true,'Inativo',1),
+      (5,'executor','enfermagem',true,0,1,false,'Enfermagem A',2), (6,'executor','enfermagem',true,0,2,false,'Enfermagem B',2);
+    CREATE TABLE professional_areas (id integer primary key, name text, slug text, active boolean);
+    INSERT INTO professional_areas VALUES (1,'Medicina','medicina',true),(2,'Enfermagem','enfermagem',true);
+    CREATE TABLE locations (id integer primary key, empresa_id integer, active text, name text);
+    INSERT INTO locations VALUES (8,1,'true','Local A'),(9,2,'true','Local B');
+    CREATE TABLE location_professionals (id serial primary key, professional_id integer, location_id integer, agenda_calendar_id integer);
+    INSERT INTO location_professionals(professional_id,location_id) VALUES (1,8),(5,8),(2,9),(6,9);
+    CREATE TABLE agenda_calendars (id integer primary key, name text, active boolean, location_id integer);
+    CREATE TABLE agenda_resources (id integer primary key, name text, active boolean, location_id integer, professional_id integer);
     CREATE TABLE professional_empresas (id integer primary key, professional_id integer, empresa_id integer);
     CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean);
     INSERT INTO substances VALUES (10,'Produto sintético IM','im',false),
@@ -85,7 +101,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
   it("salva consulta sem substância e a relê da clínica correta", async () => {
     const result = await post(ownerA(), consulta);
     expect(result.status).toBe(201);
-    expect(result.body).toMatchObject({ ...consulta, empresaId: 1 });
+    expect(result.body).toMatchObject({ ...consulta, tipo: null, empresaId: 1 });
     consultaId = result.body.id;
     const list = await get(ownerA());
     expect(list.status).toBe(200);
@@ -100,7 +116,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       ativo: true, produtoIds: [11],
     });
     expect(result.status).toBe(201);
-    expect(result.body).toMatchObject({ empresaId: 2, tipo: "medico", produtoIds: [11], duracaoMinutos: 2.5 });
+    expect(result.body).toMatchObject({ empresaId: 2, tipo: null, produtoIds: [11], duracaoMinutos: 2.5 });
     implantId = result.body.id;
     expect((await state.pool.query("SELECT * FROM substances ORDER BY id")).rows).toEqual(before.rows);
   });
@@ -116,26 +132,99 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       { ...consulta, nome: "  " }, { ...consulta, tipo: "desconhecido" },
       { ...consulta, produtoIds: [10, 10] }, { ...consulta, produtoIds: [10.5] },
       { ...consulta, produtoIds: [999] }, { ...consulta, tipo: "enfermagem", produtoIds: [11] },
-      { ...consulta, tipo: "enfermagem", produtoIds: [12] }, { ...consulta, empresaId: 2 },
-      { ...consulta, duracaoMinutos: 0.001 },
+      { ...consulta, dose: "100 mg / 2 ml" }, { ...consulta, empresaId: 2 },
+      { ...consulta, duracaoMinutos: 0.001 }, { ...consulta, duracaoMinutos: null },
+      { ...consulta, duracaoMinutos: 2.51 }, { ...consulta, duracaoMinutos: -1 },
     ]) expect((await post(ownerA(), body)).status, JSON.stringify(body)).toBe(400);
   });
-  it("preserva 0,01 e 0,1 minuto sem aproximação no banco", async () => {
-    for (const duracaoMinutos of [0.01, 0.1]) {
+  it("preserva 2,5 minutos e durações que não cabem em duas casas decimais sem arredondar segundos", async () => {
+    for (const duracaoMinutos of [2.5, 1 / 60, 151 / 60]) {
       const result = await post(ownerA(), { ...consulta, nome: `Duração ${duracaoMinutos}`, duracaoMinutos });
       expect(result.status).toBe(201);
       expect(result.body.duracaoMinutos).toBe(duracaoMinutos);
-      const stored = await state.pool.query("SELECT duracao_minutos::text AS n FROM procedimentos_clinicos WHERE id=$1", [result.body.id]);
-      expect(stored.rows[0].n).toBe(duracaoMinutos.toFixed(2));
+      const stored = await state.pool.query("SELECT duracao_minutos::text AS n, duracao_segundos AS segundos FROM procedimentos_clinicos WHERE id=$1", [result.body.id]);
+      expect(stored.rows[0].segundos).toBe(Math.round(duracaoMinutos * 60));
+      if (duracaoMinutos === 2.5) expect(stored.rows[0].n).toBe("2.50");
+      else expect(stored.rows[0].n).toBeNull();
     }
   });
+  it("preserva um registro antigo sem duração ao inativar e não permite reativá-lo incompleto", async () => {
+    const antigo = await state.pool.query(`INSERT INTO procedimentos_clinicos
+      (empresa_id,nome,tipo,duracao_minutos,ativo) VALUES (1,'Legado','consulta',null,true) RETURNING id`);
+    const id = antigo.rows[0].id;
+    const legado = { ...consulta, nome: "Legado", duracaoMinutos: null, ativo: false };
+    expect((await put(ownerA(), id, legado)).status).toBe(200);
+    expect((await put(ownerA(), id, { ...legado, ativo: true })).status).toBe(400);
+    expect((await state.pool.query("SELECT ativo FROM procedimentos_clinicos WHERE id=$1", [id])).rows[0].ativo).toBe(false);
+  });
+  it("grava pela interface com autenticação real e banco descartável, e preserva os campos após 401", async () => {
+    const browser = await chromium.launch({
+      executablePath: process.env.CHROMIUM_PATH || "/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium",
+      args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    });
+    try {
+      const page = await browser.newPage();
+      await page.addInitScript(({ token }) => {
+        localStorage.setItem("padcom_collab_token", token);
+        localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 1, name: "Profissional sintético", role: "admin" }));
+      }, { token: ownerA() });
+      await page.route("**/api/**", async route => {
+        const req = route.request();
+        const path = new URL(req.url()).pathname;
+        const json = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
+        if (path === "/api/collaborator/me") return json({ professional: { id: 1, name: "Profissional sintético", role: "admin", isPlatformOwner: true } });
+        if (path === "/api/substances") return json([{ id: 10, name: "Produto sintético IM", defaultDose: "100 mg / 2 mL", durationMinutes: 2.5 }]);
+        if (path === "/api/procedimentos/opcoes-profissionais") {
+          const result = await request(app).get("/procedimentos/opcoes-profissionais").set("Authorization", req.headers().authorization ?? "");
+          return json(result.body, result.status);
+        }
+        if (path === "/api/procedimentos") {
+          const authorization = req.headers().authorization ?? "";
+          const result = req.method() === "GET"
+            ? await request(app).get("/procedimentos").set("Authorization", authorization)
+            : await request(app).post("/procedimentos").set("Authorization", authorization).send(req.postDataJSON());
+          return json(result.body, result.status);
+        }
+        return json([]);
+      });
+      await page.goto("http://localhost:18148/procedimentos");
+      await page.getByTestId("button-new-procedimento").click();
+      await page.getByRole("button", { name: "Adicionar área necessária" }).click();
+      await page.getByLabel("Local da clínica").selectOption("8");
+      await page.getByLabel("Área profissional").selectOption("2");
+      await page.getByLabel("Selecionar Enfermagem A").click();
+      await page.getByTestId("checkbox-substancia-10").click();
+      await page.getByTestId("input-procedimento-dose").fill("100 mg");
+      expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
+      await page.getByTestId("button-save-procedimento").click();
+      await page.getByText("Procedimento cadastrado.").waitFor();
+      const stored = await state.pool.query("SELECT duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético IM'");
+      expect(stored.rows).toEqual([{ duracao_segundos: 150 }]);
+      await page.getByTestId("button-new-procedimento").click();
+      await page.getByRole("button", { name: "Adicionar área necessária" }).click();
+      await page.getByLabel("Local da clínica").selectOption("8");
+      await page.getByLabel("Área profissional").selectOption("2");
+      await page.getByLabel("Selecionar Enfermagem A").click();
+      await page.getByTestId("checkbox-substancia-10").click();
+      await page.getByTestId("input-procedimento-dose").fill("100 mg");
+      await page.evaluate(() => localStorage.setItem("padcom_collab_token", "sessao-invalida"));
+      await page.getByTestId("button-save-procedimento").click();
+      await page.getByTestId("error-procedimento-form").waitFor();
+      expect(await page.getByTestId("error-procedimento-form").innerText()).toContain("sessão profissional");
+      expect(await page.getByTestId("input-procedimento-nome").inputValue()).toBe("Produto sintético IM");
+      expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
+      expect((await state.pool.query("SELECT count(*)::int AS n FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético IM'")).rows[0].n).toBe(1);
+    } finally {
+      await browser.close();
+    }
+  }, 60000);
   it("altera vínculos sem apagar histórico e reativa o mesmo procedimento", async () => {
     const body = { nome: "Implante sintético", tipo: "medico", descricao: "Revisado", duracaoMinutos: 30, ativo: false, produtoIds: [10] };
-    expect((await put(ownerB(), implantId, body)).body).toMatchObject(body);
+    expect((await put(ownerB(), implantId, body)).body).toMatchObject({ ...body, tipo: null });
     const vinculos = await state.pool.query("SELECT produto_id, ativo FROM procedimento_produtos WHERE procedimento_id=$1 ORDER BY produto_id", [implantId]);
     expect(vinculos.rows).toEqual([{ produto_id: 10, ativo: true }, { produto_id: 11, ativo: false }]);
     expect((await put(ownerB(), implantId, { ...body, ativo: true, produtoIds: [11] })).body)
-      .toMatchObject({ ...body, ativo: true, produtoIds: [11] });
+      .toMatchObject({ ...body, tipo: null, ativo: true, produtoIds: [11] });
     expect((await state.pool.query("SELECT count(*)::int AS n FROM procedimentos_clinicos WHERE id=$1", [implantId])).rows[0].n).toBe(1);
   });
   it("uma falha no vínculo desfaz a atualização por inteiro", async () => {
