@@ -58,7 +58,7 @@ export function ListaAgendas({ itens, selecionadaId, onSelecionar, onMover, ocup
             >
               <span className="h-8 w-1.5 shrink-0" style={{ backgroundColor: r.color, borderRadius: "2px" }} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold">{r.name}</span>
+                <span className="line-clamp-2 break-words text-sm font-bold leading-tight">{r.name}</span>
                 <span className="tecla-sub block truncate text-[10px] font-semibold uppercase tracking-wide">
                   {r.categoryName ?? "Categoria pendente"} · {r.modalityLabel} · {r.sharing === "individual" ? "individual" : "compartilhada"}
                 </span>

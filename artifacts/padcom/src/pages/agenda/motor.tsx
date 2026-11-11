@@ -905,7 +905,15 @@ export default function AgendaMotor() {
                 Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.
               </p>
             )}
-            <JanelasAtendimento rascunho={windowsDraft} onChange={changeWindows} desabilitado={replaceWindows.isPending} />
+            <JanelasAtendimento
+              rascunho={windowsDraft}
+              onChange={changeWindows}
+              desabilitado={replaceWindows.isPending}
+              onSalvar={saveWindows}
+              podeSalvar={!!selectedId && draftResource.current === selectedId && !!windowsSnapshot && canManageSelected}
+              salvando={replaceWindows.isPending}
+              sujo={windowsDirty}
+            />
           </div>
         </div>
       </div>

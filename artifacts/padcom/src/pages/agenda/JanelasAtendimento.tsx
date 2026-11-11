@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Plus, Trash2, Clock, Copy, CalendarCheck2, Repeat } from "lucide-react";
+import { Plus, Trash2, Clock, Copy, CalendarCheck2, Repeat, Save } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Registro } from "@/components/MarcadorVinculo";
 import {
@@ -19,12 +19,17 @@ const textoFaixas = (n: number) => (n === 0 ? "Fechado" : n === 1 ? "1 faixa" : 
 /**
  * Janelas de atendimento da agenda: uma linha larga por dia da semana.
  * Cada faixa é um poço Côncavo com horário, repetição e o botão Excluir sempre visível;
- * as alterações ficam em rascunho até o botão Salvar Janelas.
+ * as alterações ficam em rascunho até o botão Salvar (um por dia, mais o do cabeçalho).
  */
-export function JanelasAtendimento({ rascunho, onChange, desabilitado }: {
+export function JanelasAtendimento({ rascunho, onChange, desabilitado, onSalvar, podeSalvar = false, salvando = false, sujo = false }: {
   rascunho: JanelasRascunho;
   onChange: (proximo: JanelasRascunho) => void;
   desabilitado?: boolean;
+  /** Grava todas as janelas (a gravação é da semana inteira). Aparece um botão em cada dia. */
+  onSalvar?: () => void;
+  podeSalvar?: boolean;
+  salvando?: boolean;
+  sujo?: boolean;
 }) {
   const resumo = useMemo(() => {
     const dias = ORDEM.filter((d) => (rascunho[d] ?? []).length > 0).length;
@@ -85,6 +90,22 @@ export function JanelasAtendimento({ rascunho, onChange, desabilitado }: {
               <span className={`text-[10px] font-semibold uppercase tracking-wide md:text-center ${faixas.length ? "text-foreground" : "text-muted-foreground"}`}>
                 {textoFaixas(faixas.length)}
               </span>
+              {onSalvar && (
+                <span className="relative mt-1">
+                  <Registro codigo="J1" nota={`salvar a semana (${NOME_DIA[dia]})`} />
+                  <button
+                    type="button"
+                    onClick={onSalvar}
+                    disabled={!podeSalvar || salvando}
+                    aria-label={`Gravar alterações da semana (botão de ${NOME_DIA[dia]})`}
+                    title="Grava as janelas de todos os dias da semana"
+                    data-testid={`salvar-dia-${dia}`}
+                    className={`${sujo ? "btn-3d" : "btn-3d-soft"} inline-flex h-9 w-full items-center justify-center gap-1.5 px-3 text-[11px] font-bold uppercase tracking-wide disabled:opacity-40`}
+                  >
+                    <Save className="h-3.5 w-3.5" /> {salvando ? "Salvando" : "Salvar"}
+                  </button>
+                </span>
+              )}
             </div>
 
             <div className="space-y-2 min-w-0">

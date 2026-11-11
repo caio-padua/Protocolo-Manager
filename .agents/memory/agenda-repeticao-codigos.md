@@ -6,3 +6,10 @@ Repetição da janela vive em `agenda_windows.repeat_weeks` (inteiro, sem CHECK)
 **Why:** coluna única preserva a comparação `expectedWindows` (concorrência otimista) e ~60 testes; mensais começam em 100 para nunca colidir com nº de semanas.
 **How to apply:** registro espelhado em `api-server/src/lib/agenda-window-recurrence.ts` e `padcom/src/lib/agenda-repeticao.ts` — mexeu num, mexa no outro. Sobreposição só vale se os padrões podem coincidir (`janelasSobrepostas`). Após codegen, api-zod/index.ts deve continuar exportando só `generated/api`.
 Vocabulário (decisão do CEO 11/11/2026): "recurso" NÃO é usado para o usuário — é "agenda de atendimento por profissional"; a tela/menu chama-se "Agenda Configuração" (rota /agenda/motor mantida, nunca "Motor de Agenda").
+
+## Tela Agenda Configuração — padrões de interface
+- Item de lista clicável = classe `.tecla-3d` (Saliente solto; `aria-pressed="true"` = APERTADO navy/dourado). Reutilizar em outras listas selecionáveis.
+- Ordem das agendas persiste em `sortOrder` via PUT por agenda (só as que mudam de posição; reaproveita os valores existentes para não colidir com agendas inativas ocultas).
+- Marca de registro no canto (`Registro`/`ComRegistro` em MarcadorVinculo.tsx, classe `.registro-canto`): mesmo código = mesmo conceito em todas as telas; novos códigos J1, X1, K1, T1, S1.
+- Janelas: botão Salvar em cada dia grava a SEMANA inteira (o endpoint substitui todas as janelas); rótulo visível "Salvar" para não colidir com o "Salvar Janelas" dos testes.
+**Why:** pedido do CEO — o Salvar do topo ficava longe ao rolar.
