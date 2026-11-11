@@ -20,6 +20,7 @@ import { getCollabToken, collabAuthHeaders } from "@/lib/collab-auth";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 import { ProtocolSubstancePicker } from "@/components/ProtocolSubstancePicker";
+import { CampoLigado, PlacaComOrigem } from "@/components/CampoLigado";
 import {
   PROTOCOL_FREQUENCY_OPTIONS,
   UNCONFIGURED_PROTOCOL_INTERVAL,
@@ -101,7 +102,10 @@ interface ProtocolAgendaOptions {
   medicalAgenda: AgendaOption;
   nurses: AgendaProfessional[];
   doctors: AgendaProfessional[];
+  /** Lido do cadastro de janelas do Motor de Agenda; null = agenda sem expediente cadastrado. */
+  horarioPadrao?: { enfermagem: HorarioPadrao | null; medico: HorarioPadrao | null };
 }
+interface HorarioPadrao { time: string; diasComEsseInicio: number; diasComExpediente: number }
 
 export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, embedded, onCreated, onBusyChange }: {
   clientId?: number;
@@ -133,7 +137,6 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const [step, setStep] = useState<"configurar" | "resumo">("configurar");
   const [clientId, setClientId] = useState<number | null>(clientIdProp ?? null);
   const [manualProfessionalId, setProfessionalId] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("08:00");
   const [schedulingMode, setSchedulingMode] = useState<"weekly" | "exact">("weekly");
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
@@ -222,6 +225,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const nurses = agendaOptions?.nurses ?? [];
   const availableDoctors = agendaOptions?.doctors ?? [];
   const selectedProfessional = authenticatedDoctor ?? availableDoctors.find(p => String(p.id) === professionalId);
+  // Horário padrão não é digitado: vem do Motor de Agenda (início do expediente da agenda de enfermagem).
+  const scheduledTime = agendaOptions?.horarioPadrao?.enfermagem?.time;
   const selectedLocation = agendaOptions?.nursingAgenda ? {
     id: agendaOptions.nursingAgenda.locationId,
     name: agendaOptions.nursingAgenda.locationName,
@@ -574,7 +579,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               {schedulingMode === "exact"
                 ? "Cada substância mantém sua data inicial e seu intervalo. Somente aplicações no mesmo dia compartilham uma visita."
                 : "O sistema agrupará as aplicações em períodos de sete dias a partir do início do protocolo."}
-              {" "}Horário padrão: <strong className="text-foreground">{scheduledTime}</strong>.
+              {" "}Horário padrão (Motor de Agenda): <strong className="text-foreground">{scheduledTime ?? "sem expediente cadastrado"}</strong>.
             </p>
             <p className="text-xs mt-3 font-semibold" role="status">
               Este resumo ainda não reserva horários. A prévia seguinte mostra as datas; a reserva só acontece depois da sua confirmação.
@@ -651,7 +656,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Cliente *</Label>
+              <PlacaComOrigem titulo="Cliente *" codigo="C1" legendaAbaixo />
               {clientIdProp != null ? (
                 <div className="field-engraved rounded-md px-3 py-2.5">
                   <span className="font-bold uppercase tracking-tight text-sm">
@@ -673,7 +678,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               )}
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Médico Responsável *</Label>
+              <PlacaComOrigem titulo="Médico responsável *" codigo="E1" legendaAbaixo />
               {embedded && !identityConfirmed ? (
                 <div className="field-engraved rounded-md px-3 py-2.5" role="status">
                   {clinicalIdentity.isError ? (
@@ -709,9 +714,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           {/* Enfermagem vinculada ao local do cliente */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
-                <Stethoscope className="h-3 w-3" /> Enfermeira Responsável
-              </Label>
+              <PlacaComOrigem titulo="Enfermeira responsável" codigo="E2" legendaAbaixo icone={<Stethoscope className="h-3 w-3" />} />
               <Select value={nurseId || "none"} onValueChange={v => setNurseId(v === "none" ? "" : v)}>
                 <SelectTrigger className="field-engraved">
                   <SelectValue placeholder="Sem enfermeira (opcional)" />
@@ -749,37 +752,55 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
 
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Clínica e agendas vinculadas</Label>
-              {agendaOptionsLoading ? (
-                <div className="field-engraved rounded-md px-3 py-2.5 text-sm" role="status">Carregando vínculos do cliente…</div>
-              ) : agendaOptionsError ? (
-                <div className="panel-3d-sub rounded-md px-3 py-2.5 text-sm text-destructive" role="alert">
-                  {agendaOptionsError}
-                </div>
-              ) : agendaOptions ? (
-                <div className="field-engraved rounded-md px-3 py-2.5 text-sm space-y-1" aria-readonly="true">
-                  <p><strong>Clínica:</strong> {agendaOptions.clinic.name}</p>
-                  <p><strong>Agenda de enfermagem:</strong> {agendaOptions.nursingAgenda.name}</p>
-                  <p><strong>Agenda médica:</strong> {agendaOptions.medicalAgenda.name}</p>
-                  <p><strong>Local de atendimento:</strong> {selectedLocation?.name}</p>
-                </div>
-              ) : (
-                <div className="field-engraved rounded-md px-3 py-2.5 text-sm text-muted-foreground">
-                  Selecione o cliente para carregar somente os vínculos do cadastro.
-                </div>
-              )}
-              {selectedLocation?.address && (
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-1">{selectedLocation.address}</p>
-              )}
+          {/* Vínculos do cadastro do cliente + horários do Motor de Agenda: tudo somente leitura e ligado à origem. */}
+          {agendaOptionsLoading ? (
+            <div className="concave-3d rounded-md px-3 py-2.5 text-sm" role="status">Carregando vínculos do cliente…</div>
+          ) : agendaOptionsError ? (
+            <div className="panel-3d-sub rounded-md px-3 py-2.5 text-sm text-destructive" role="alert">{agendaOptionsError}</div>
+          ) : agendaOptions ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+              <CampoLigado titulo="Clínica vinculada" codigo="C2" icone={<MapPin className="h-3 w-3" />}>
+                {agendaOptions.clinic.name}
+              </CampoLigado>
+              <div className="hidden md:block" aria-hidden="true" />
+              <CampoLigado titulo="Agenda da enfermagem" codigo="C3">
+                <p>{agendaOptions.nursingAgenda.name}</p>
+                {selectedLocation?.address && (
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-1">{selectedLocation.address}</p>
+                )}
+              </CampoLigado>
+              <CampoLigado titulo="Agenda do médico" codigo="C4">
+                {agendaOptions.medicalAgenda.name}
+              </CampoLigado>
+              {([
+                { chave: "enfermagem", titulo: "Horário da enfermagem", codigo: "M1", agenda: agendaOptions.nursingAgenda },
+                { chave: "medico", titulo: "Horário do médico", codigo: "M2", agenda: agendaOptions.medicalAgenda },
+              ] as const).map(({ chave, titulo, codigo, agenda }) => {
+                const horario = agendaOptions.horarioPadrao?.[chave];
+                return (
+                  <CampoLigado key={chave} titulo={titulo} codigo={codigo} icone={<Clock className="h-3 w-3" />}
+                    estado={horario ? "ok" : "ausente"}>
+                    {horario ? (
+                      <>
+                        <p className="text-lg font-black tabular-nums leading-none">{horario.time}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-1">
+                          Início em {horario.diasComEsseInicio} de {horario.diasComExpediente} dias de expediente
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs">
+                        Sem expediente cadastrado. Cadastre as janelas da agenda “{agenda.name}” no Motor de Agenda.
+                      </p>
+                    )}
+                  </CampoLigado>
+                );
+              })}
             </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Horário Padrão das Sessões</Label>
-              <Input type="time" className="field-engraved" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} />
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Horário local para os agendamentos gerados</p>
+          ) : (
+            <div className="concave-3d rounded-md px-3 py-2.5 text-sm text-muted-foreground">
+              Selecione o cliente para carregar somente os vínculos do cadastro.
             </div>
-          </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="scheduling-mode" className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Organização das aplicações</Label>
             <Select value={schedulingMode} onValueChange={value => setSchedulingMode(value as "weekly" | "exact")}>

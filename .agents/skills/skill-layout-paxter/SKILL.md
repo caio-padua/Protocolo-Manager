@@ -787,6 +787,18 @@ Lei promulgada em 09/11/2026. Fontes: `pages/professionals/empresas-vinculo.tsx`
 
 **How to apply:** qualquer tela que vincule profissional a local, agenda ou empresa (inclusive `cadastros/equipe`) filtra pelas empresas do profissional e repassa a mensagem de recusa do servidor.
 
+### 4.11 Padrao 33 — Campo ligado: titulo Saliente, resposta Concava, legenda de origem
+
+Lei promulgada em 11/11/2026 (pedido do CEO). Fontes: `components/CampoLigado.tsx` e `lib/legendas-origem-protocolo.ts`; aplicada em `pages/protocols/new.tsx` (Dados Gerais do lancador).
+- Todo dado que NAO e digitado (vem de cadastro ou do Motor de Agenda) e mostrado como `CampoLigado`: titulo na placa Saliente (`bevel-3d`), resposta em poco Concavo (`concave-3d`), somente leitura.
+- Legenda de origem: chip com LETRA + NUMERO no canto superior direito da placa e, em letra pequena logo abaixo, o caminho da tela/planilha de origem ("C3 = Cliente > Agenda de enfermagem"). Letras: C = cadastro do cliente, M = Motor de Agenda, E = Equipe. Codigo novo entra primeiro em `LEGENDAS_ORIGEM`.
+- "Local de atendimento" NAO e campo separado: a agenda comporta o local (o endereco aparece dentro da resposta da agenda).
+- Horario padrao nunca e digitado: vem do inicio do expediente (`agenda_windows`) da agenda. Regra: inicio mais cedo de cada dia; vale o inicio que mais se repete (empate = o mais cedo). Sem expediente cadastrado = mensagem em vermelho dizendo onde cadastrar; nunca um horario inventado.
+
+**Why:** o CEO se perdia sem saber de onde cada dado vinha e o bloco antigo era texto corrido numa caixa so.
+
+**How to apply:** qualquer tela que mostre dado ligado a outra tela/planilha usa `CampoLigado` com um codigo registrado.
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

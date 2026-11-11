@@ -162,3 +162,4 @@
 - [Rubrica do cliente em imagem](rubrica-cliente-imagem.md) — tabela com histórico + arquivo privado; RAS troca iniciais por imagem só em plena/cadastro; pngjs aceita PNG cortado e entrelaçado sem teto.
 - [Agenda por categoria, local polimórfico, equipe](agenda-categoria-local-equipe.md) — categoria pendente≠inferida; locations mistura espaço físico e agenda Google (não fundir); tabelas de equipe por migração explícita.
 - [Clínica x unidade da agenda nos documentos](clinica-vs-unidade-agenda-documentos.md) — unit é local de agenda; documentos usam empresas.nome; lançador escolhe procedimentos (217 gerados das substâncias).
+- [Campo ligado + legenda de origem](campo-ligado-legenda-origem.md) — dado não digitado = título Saliente + resposta Côncava + chip C/M/E; horário padrão lido de agenda_windows.

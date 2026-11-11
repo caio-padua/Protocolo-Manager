@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { carregarHorarioPadraoDaAgenda } from "../lib/agenda-horario-padrao";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, empresasTable, clientClinicAgendaDefaultsTable, agendaResourcesTable, locationsTable } from "@workspace/db";
@@ -264,6 +265,11 @@ router.get("/clients/:id/protocol-agenda-options", requireClientWriter, async (r
       medicalAgenda: options.medicalAgenda,
       nurses: options.nurses,
       doctors: options.doctors,
+      // Lido do cadastro de janelas do Motor de Agenda; null = a agenda não tem expediente cadastrado.
+      horarioPadrao: {
+        enfermagem: await carregarHorarioPadraoDaAgenda(options.nursingAgenda.id),
+        medico: await carregarHorarioPadraoDaAgenda(options.medicalAgenda.id),
+      },
     });
   } catch (error) {
     if (error instanceof ClientProtocolAgendaError) {
