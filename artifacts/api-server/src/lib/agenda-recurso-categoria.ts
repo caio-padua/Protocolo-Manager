@@ -3,7 +3,7 @@ import { condicaoCorpoClinico } from "./corpo-clinico.js";
 import { enderecoDoRecurso, textoDoEndereco, linksDoEndereco, type ColunasEnderecoExterno } from "./agenda-endereco-externo.js";
 
 /**
- * Ligação entre recurso do Motor de Agenda e categoria profissional.
+ * Ligação entre recurso da Agenda Configuração e categoria profissional.
  *
  * O campo legado `kind` continua sendo a chave que os consumidores antigos usam
  * (reserva de protocolo, Google, preferências do cliente). Ele passa a ser

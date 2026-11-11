@@ -102,7 +102,7 @@ interface ProtocolAgendaOptions {
   medicalAgenda: AgendaOption;
   nurses: AgendaProfessional[];
   doctors: AgendaProfessional[];
-  /** Lido do cadastro de janelas do Motor de Agenda; null = agenda sem expediente cadastrado. */
+  /** Lido do cadastro de janelas da Agenda Configuração; null = agenda sem expediente cadastrado. */
   horarioPadrao?: { enfermagem: HorarioPadrao | null; medico: HorarioPadrao | null };
 }
 interface HorarioPadrao { time: string; diasComEsseInicio: number; diasComExpediente: number }
@@ -225,7 +225,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const nurses = agendaOptions?.nurses ?? [];
   const availableDoctors = agendaOptions?.doctors ?? [];
   const selectedProfessional = authenticatedDoctor ?? availableDoctors.find(p => String(p.id) === professionalId);
-  // Horário padrão não é digitado: vem do Motor de Agenda (início do expediente da agenda de enfermagem).
+  // Horário padrão não é digitado: vem da Agenda Configuração (início do expediente da agenda de enfermagem).
   const scheduledTime = agendaOptions?.horarioPadrao?.enfermagem?.time;
   const selectedLocation = agendaOptions?.nursingAgenda ? {
     id: agendaOptions.nursingAgenda.locationId,
@@ -579,7 +579,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               {schedulingMode === "exact"
                 ? "Cada substância mantém sua data inicial e seu intervalo. Somente aplicações no mesmo dia compartilham uma visita."
                 : "O sistema agrupará as aplicações em períodos de sete dias a partir do início do protocolo."}
-              {" "}Horário padrão (Motor de Agenda): <strong className="text-foreground">{scheduledTime ?? "sem expediente cadastrado"}</strong>.
+              {" "}Horário padrão (Agenda Configuração): <strong className="text-foreground">{scheduledTime ?? "sem expediente cadastrado"}</strong>.
             </p>
             <p className="text-xs mt-3 font-semibold" role="status">
               Este resumo ainda não reserva horários. A prévia seguinte mostra as datas; a reserva só acontece depois da sua confirmação.
@@ -752,7 +752,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
 
           </div>
 
-          {/* Vínculos do cadastro do cliente + horários do Motor de Agenda: tudo somente leitura e ligado à origem. */}
+          {/* Vínculos do cadastro do cliente + horários da Agenda Configuração: tudo somente leitura e ligado à origem. */}
           {agendaOptionsLoading ? (
             <div className="concave-3d rounded-md px-3 py-2.5 text-sm" role="status">Carregando vínculos do cliente…</div>
           ) : agendaOptionsError ? (
@@ -789,7 +789,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
                       </>
                     ) : (
                       <p className="text-xs">
-                        Sem expediente cadastrado. Cadastre as janelas da agenda “{agenda.name}” no Motor de Agenda.
+                        Sem expediente cadastrado. Cadastre as janelas da agenda “{agenda.name}” na Agenda Configuração.
                       </p>
                     )}
                   </CampoLigado>

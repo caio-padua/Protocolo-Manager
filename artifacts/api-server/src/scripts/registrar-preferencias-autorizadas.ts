@@ -86,12 +86,12 @@ export async function registrarPreferenciasAutorizadas(
     if (!resource || !resource.resource.active || resource.location.active !== "true" ||
         resource.resource.name !== input.resourceName || resource.resource.kind !== "enfermagem" ||
         resource.resource.modality !== "local" || resource.resource.slotMinutes !== input.expectedSlotMinutes) {
-      throw new Error("Recurso ou duração atual não corresponde ao esperado.");
+      throw new Error("Agenda ou duração atual não corresponde ao esperado.");
     }
     const oldWindows = await tx.select().from(agendaWindowsTable).where(and(
       eq(agendaWindowsTable.resourceId, input.resourceId), eq(agendaWindowsTable.active, true),
     ));
-    if (oldWindows.length) throw new Error("O recurso já tem expediente; nenhuma janela foi substituída.");
+    if (oldWindows.length) throw new Error("A agenda já tem expediente; nenhuma janela foi substituída.");
     const previous = await getVisitPreferences(tx, input.empresaId, input.clientId);
     if (previous.revision !== input.expectedRevision || previous.preferences.nursing.weekdays.length ||
         previous.preferences.nursing.times.length || (previous.preferences.nursing.priority?.length ?? 0)) {
@@ -109,7 +109,7 @@ export async function registrarPreferenciasAutorizadas(
     })), blockMinutes);
     for (const entry of input.priority) {
       if (!options.nursing.days.some(day => day.weekday === entry.weekday && day.times.includes(entry.time))) {
-        throw new Error("A preferência não pertence à grade do recurso selecionado.");
+        throw new Error("A preferência não pertence à grade da agenda selecionada.");
       }
     }
     await tx.update(agendaResourcesTable).set({ slotMinutes: input.slotMinutes })

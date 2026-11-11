@@ -163,3 +163,4 @@
 - [Agenda por categoria, local polimórfico, equipe](agenda-categoria-local-equipe.md) — categoria pendente≠inferida; locations mistura espaço físico e agenda Google (não fundir); tabelas de equipe por migração explícita.
 - [Clínica x unidade da agenda nos documentos](clinica-vs-unidade-agenda-documentos.md) — unit é local de agenda; documentos usam empresas.nome; lançador escolhe procedimentos (217 gerados das substâncias).
 - [Campo ligado + legenda de origem](campo-ligado-legenda-origem.md) — dado não digitado = título Saliente + resposta Côncava + chip C/M/E; horário padrão lido de agenda_windows.
+- [Agenda Configuração — códigos de repetição](agenda-repeticao-codigos.md) — repeat_weeks: 1, 2/3/4/6/8 semanas, 101–105 mensal; "recurso" vira "agenda de atendimento"; tela = Agenda Configuração.

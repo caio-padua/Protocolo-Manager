@@ -88,7 +88,7 @@ router.post("/google-calendar/sync-session/:sessionId", requireCollaborator, asy
   const { client } = authorization;
   const destination = await explicitDestination(req, session);
   if (!destination || !session.durationMinutes || session.durationMinutes <= 0) {
-    res.status(409).json({ error: "Defina o recurso, a agenda Google e a duração da sessão antes de sincronizar." });
+    res.status(409).json({ error: "Defina a agenda de atendimento, a agenda Google e a duração da sessão antes de sincronizar." });
     return;
   }
   if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
@@ -239,7 +239,7 @@ router.post("/google-calendar/sync-week", requireCollaborator, async (req, res):
     if (!destination || !session.durationMinutes || session.durationMinutes <= 0 ||
         (session.googleEventId && session.googleCalendarId !== destination.calendarId)) {
       results.push({ sessionId: session.id, clientName: client.name, success: false,
-        error: "Recurso, agenda ou duração exigem conferência; nenhum evento foi alterado." });
+        error: "Agenda de atendimento, agenda Google ou duração exigem conferência; nenhum evento foi alterado." });
       continue;
     }
     if (!(await verifyClinicAccount()).ok) {

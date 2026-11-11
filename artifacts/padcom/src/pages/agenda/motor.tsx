@@ -29,6 +29,8 @@ import { MarcadorVinculo } from "@/components/MarcadorVinculo";
 import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
 import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
+import { JanelasAtendimento, type JanelasRascunho } from "./JanelasAtendimento";
+import { dataInicialValida, exigeDataInicial } from "@/lib/agenda-repeticao";
 import { AgendaChangeRequests } from "./AgendaChangeRequests";
 import { useAgendaIntegration, useCollabIdentity, describeError } from "./agenda-integration-api";
 import {
@@ -45,11 +47,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type Win = { startTime: string; endTime: string; repeatWeeks: 1 | 2; anchorDate: string };
-type WindowsDraft = Record<number, Win[]>;
+type WindowsDraft = JanelasRascunho;
 
 const WEEK_LABEL = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 const KIND_LABEL: Record<string, string> = {
   enfermagem: "Enfermagem",
@@ -168,7 +168,7 @@ export default function AgendaMotor() {
     ? (integration.data?.agendas ?? []).find((a) => a.id === selected.locationId) ?? null
     : null;
 
-  // ---- Identidade do recurso (draft) ----
+  // ---- Identidade da agenda (draft) ----
   const [resDraft, setResDraft] = useState<{
     name: string;
     categoryId: number | null;
@@ -201,7 +201,7 @@ export default function AgendaMotor() {
   });
   const [windowsDraft, setWindowsDraft] = useState<WindowsDraft>({});
   const [windowsDirty, setWindowsDirty] = useState(false);
-  const [windowsSnapshot, setWindowsSnapshot] = useState<{ weekday: number; startTime: string; endTime: string; repeatWeeks: 1 | 2; anchorDate: string | null }[] | null>(null);
+  const [windowsSnapshot, setWindowsSnapshot] = useState<{ weekday: number; startTime: string; endTime: string; repeatWeeks: number; anchorDate: string | null }[] | null>(null);
   const draftResource = useRef<number | null>(null);
 
   useEffect(() => {
@@ -210,7 +210,7 @@ export default function AgendaMotor() {
       for (const w of windows) {
         (draft[w.weekday] ||= []).push({
           startTime: w.startTime, endTime: w.endTime,
-          repeatWeeks: w.repeatWeeks === 2 ? 2 : 1, anchorDate: w.anchorDate ?? "",
+          repeatWeeks: Number(w.repeatWeeks) || 1, anchorDate: w.anchorDate ?? "",
         });
       }
       for (const k of Object.keys(draft)) {
@@ -219,7 +219,7 @@ export default function AgendaMotor() {
       setWindowsDraft(draft);
       setWindowsSnapshot(windows.map(w => ({
         weekday: w.weekday, startTime: w.startTime, endTime: w.endTime,
-        repeatWeeks: w.repeatWeeks === 2 ? 2 : 1, anchorDate: w.anchorDate ?? null,
+        repeatWeeks: Number(w.repeatWeeks) || 1, anchorDate: w.anchorDate ?? null,
       })));
       draftResource.current = selectedId;
       setWindowsDirty(false);
@@ -368,7 +368,7 @@ export default function AgendaMotor() {
 
   function confirmBooking() {
     if (!slotResource || !slotDate || !bookClient || !bookProtocol || !bookTime || !openTimes.includes(bookTime)) {
-      toast({ title: "Faltam dados", description: "Escolha recurso, data, cliente, protocolo e horário.", variant: "destructive" });
+      toast({ title: "Faltam dados", description: "Escolha agenda, data, cliente, protocolo e horário.", variant: "destructive" });
       return;
     }
     bookSession.mutate({
@@ -398,7 +398,7 @@ export default function AgendaMotor() {
   const createResource = useCreateAgendaResource({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Recurso criado" });
+        toast({ title: "Agenda criada" });
         refetchResources();
       },
       onError: (err: unknown) => toast({ title: "Agenda não criada", description: describeError(err, "Confira categoria, profissional e, se for externa, o endereço."), variant: "destructive" }),
@@ -407,10 +407,10 @@ export default function AgendaMotor() {
   const updateResource = useUpdateAgendaResource({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Recurso salvo" });
+        toast({ title: "Agenda salva" });
         refetchResources();
       },
-      onError: (err: unknown) => toast({ title: "Recurso não salvo", description: describeError(err, "Confira os dados e tente novamente."), variant: "destructive" }),
+      onError: (err: unknown) => toast({ title: "Agenda não salva", description: describeError(err, "Confira os dados e tente novamente."), variant: "destructive" }),
     },
   });
   const replaceWindows = useReplaceAgendaWindows({
@@ -466,7 +466,7 @@ export default function AgendaMotor() {
 
   function addResource() {
     if (!newRes.name.trim()) {
-      toast({ title: "Informe o nome do recurso", variant: "destructive" });
+      toast({ title: "Informe o nome da agenda", variant: "destructive" });
       return;
     }
     if (!newRes.categoryId) {
@@ -517,48 +517,25 @@ export default function AgendaMotor() {
     });
   }
 
-  function addWindow(weekday: number) {
+  function changeWindows(next: WindowsDraft) {
     setWindowsDirty(true);
-    setWindowsDraft((d) => ({
-      ...d,
-      [weekday]: [...(d[weekday] ?? []), { startTime: "08:00", endTime: "12:00", repeatWeeks: 1, anchorDate: "" }],
-    }));
-  }
-  function removeWindow(weekday: number, idx: number) {
-    setWindowsDirty(true);
-    setWindowsDraft((d) => ({
-      ...d,
-      [weekday]: (d[weekday] ?? []).filter((_, i) => i !== idx),
-    }));
-  }
-  function setWindowField(weekday: number, idx: number, field: "startTime" | "endTime" | "anchorDate", value: string) {
-    setWindowsDirty(true);
-    setWindowsDraft((d) => ({
-      ...d,
-      [weekday]: (d[weekday] ?? []).map((w, i) => (i === idx ? { ...w, [field]: value } : w)),
-    }));
-  }
-  function setWindowRepeat(weekday: number, idx: number, repeatWeeks: 1 | 2) {
-    setWindowsDirty(true);
-    setWindowsDraft(d => ({
-      ...d, [weekday]: (d[weekday] ?? []).map((w, i) => i === idx ? { ...w, repeatWeeks } : w),
-    }));
+    setWindowsDraft(next);
   }
   function saveWindows() {
     if (!selectedId || draftResource.current !== selectedId || !windowsSnapshot) return;
-    const flat: { weekday: number; startTime: string; endTime: string; repeatWeeks: 1 | 2; anchorDate: string | null }[] = [];
+    const flat: { weekday: number; startTime: string; endTime: string; repeatWeeks: number; anchorDate: string | null }[] = [];
     for (const wd of Object.keys(windowsDraft)) {
       for (const w of windowsDraft[Number(wd)]) {
-        if (w.repeatWeeks === 2) {
-          const date = new Date(`${w.anchorDate}T12:00:00Z`);
-          if (!w.anchorDate || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== w.anchorDate
-              || date.getUTCDay() !== Number(wd)) {
-            toast({ title: "Confira a data inicial", description: `Escolha uma data válida no dia ${WEEK_LABEL[Number(wd)]}.`, variant: "destructive" });
-            return;
-          }
+        if (w.endTime <= w.startTime) {
+          toast({ title: "Confira o horário", description: `${WEEK_LABEL[Number(wd)]}: o fim precisa ser depois do início.`, variant: "destructive" });
+          return;
+        }
+        if (exigeDataInicial(w.repeatWeeks) && !dataInicialValida(w.anchorDate, Number(wd))) {
+          toast({ title: "Confira a data inicial", description: `Escolha uma data válida no dia ${WEEK_LABEL[Number(wd)]}.`, variant: "destructive" });
+          return;
         }
         flat.push({ weekday: Number(wd), startTime: w.startTime, endTime: w.endTime,
-          repeatWeeks: w.repeatWeeks, anchorDate: w.repeatWeeks === 2 ? w.anchorDate : null });
+          repeatWeeks: w.repeatWeeks, anchorDate: exigeDataInicial(w.repeatWeeks) ? w.anchorDate : null });
       }
     }
     replaceWindows.mutate({ id: selectedId, data: { windows: flat, expectedWindows: windowsSnapshot } });
@@ -592,19 +569,19 @@ export default function AgendaMotor() {
             <CalendarCog className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold uppercase tracking-wide text-foreground">Motor de Agenda</h1>
+            <h1 className="text-2xl font-bold uppercase tracking-wide text-foreground">Agenda Configuração</h1>
             <p className="text-sm text-muted-foreground">
-              Recursos, janelas de atendimento e liberação inteligente anti-ilha de horários.
+              Agendas de atendimento por profissional, janelas de atendimento e liberação inteligente anti-ilha de horários.
             </p>
           </div>
         </div>
       </header>
 
-      {/* RECURSOS + IDENTIDADE + JANELAS */}
+      {/* AGENDAS + IDENTIDADE + JANELAS */}
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        {/* Coluna recursos */}
+        {/* Coluna agendas */}
         <div className="panel-3d p-4 space-y-4">
-          <BlockTitle icon={Layers}>Recursos</BlockTitle>
+          <BlockTitle icon={Layers}>Agendas de atendimento</BlockTitle>
           <div className="space-y-2">
             {(resources ?? []).map((r) => {
               const isSel = r.id === selectedId;
@@ -639,7 +616,7 @@ export default function AgendaMotor() {
 
           <div className="panel-3d-sub p-3 space-y-2.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Novo recurso
+              Nova agenda de atendimento
             </span>
             <Input
               className="field-engraved"
@@ -705,7 +682,7 @@ export default function AgendaMotor() {
                 value={newRes.color}
                 onChange={(e) => setNewRes((s) => ({ ...s, color: e.target.value }))}
                 className="h-9 w-12 cursor-pointer border-0 bg-transparent p-0"
-                aria-label="Cor do recurso"
+                aria-label="Cor da agenda"
               />
               <Button className="btn-3d flex-1" onClick={addResource} disabled={!anyCanManage || createResource.isPending}>
                 <Plus className="mr-1 h-4 w-4" /> Adicionar
@@ -719,7 +696,7 @@ export default function AgendaMotor() {
           {/* Identidade */}
           <div className="panel-3d p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <BlockTitle icon={SlidersHorizontal}>Identidade do Recurso</BlockTitle>
+              <BlockTitle icon={SlidersHorizontal}>Identidade da Agenda</BlockTitle>
               <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || !canManageSelected || updateResource.isPending}>
                 <Save className="mr-1 h-4 w-4" /> Salvar
               </Button>
@@ -776,7 +753,7 @@ export default function AgendaMotor() {
                     value={resDraft.categoryId != null ? String(resDraft.categoryId) : ""}
                     onValueChange={(v) => v && setResDraft((d) => (d ? { ...d, categoryId: Number(v) } : d))}
                   >
-                    <SelectTrigger className="field-engraved" aria-label="Categoria profissional do recurso">
+                    <SelectTrigger className="field-engraved" aria-label="Categoria profissional da agenda">
                       <SelectValue placeholder="Categoria pendente de conferência" />
                     </SelectTrigger>
                     <SelectContent>
@@ -845,11 +822,11 @@ export default function AgendaMotor() {
                     checked={resDraft.active}
                     onCheckedChange={(v) => setResDraft((d) => (d ? { ...d, active: v } : d))}
                   />
-                  <Label className="text-sm">Recurso ativo</Label>
+                  <Label className="text-sm">Agenda ativa</Label>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Selecione um recurso à esquerda.</p>
+              <p className="text-sm text-muted-foreground">Selecione uma agenda à esquerda.</p>
             )}
           </div>
 
@@ -866,81 +843,16 @@ export default function AgendaMotor() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Horários em que o recurso atende, por dia da semana. Várias faixas por dia (manhã/tarde).
+              Horários em que esta agenda atende, por dia da semana. Várias faixas por dia (manhã/tarde) e repetição semanal, por várias semanas ou por posição no mês.
+              {windowsDirty && <b className="paxter-alert paxter-alert-amber ml-2 px-2 py-0.5 text-[10px] uppercase">Alterações não salvas</b>}
             </p>
             {selected && !canManageSelected && (
               <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-locked">
-                Você não administra a sede ou a clínica deste recurso: identidade e janelas não podem ser gravadas aqui.
+                Você não administra a sede ou a clínica desta agenda: identidade e janelas não podem ser gravadas aqui.
                 Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.
               </p>
             )}
-            <fieldset disabled={replaceWindows.isPending} className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-              {WEEK_ORDER.map((wd) => (
-                <div key={wd} className="panel-3d-sub p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                      {WEEK_LABEL[wd]}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => addWindow(wd)}
-                      className="text-primary hover:opacity-70"
-                      aria-label={`Adicionar faixa em ${WEEK_LABEL[wd]}`}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  {(windowsDraft[wd] ?? []).length === 0 && (
-                    <span className="block text-[11px] text-muted-foreground">Fechado</span>
-                  )}
-                  {(windowsDraft[wd] ?? []).map((w, idx) => (
-                    <div key={idx} className="flex flex-col gap-2">
-                      <div className="flex items-center gap-1">
-                      <Input
-                        type="time"
-                        className="field-engraved h-8 px-1 text-xs"
-                        value={w.startTime}
-                        onChange={(e) => setWindowField(wd, idx, "startTime", e.target.value)}
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        className="field-engraved h-8 px-1 text-xs"
-                        value={w.endTime}
-                        onChange={(e) => setWindowField(wd, idx, "endTime", e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeWindow(wd, idx)}
-                        className="text-destructive hover:opacity-70"
-                        aria-label="Remover faixa"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                      </div>
-                      <label className="text-[10px] font-semibold text-muted-foreground">
-                        Repetição
-                        <select
-                          className="field-engraved mt-1 h-8 w-full rounded px-2 text-xs text-foreground"
-                          value={w.repeatWeeks}
-                          onChange={e => setWindowRepeat(wd, idx, e.target.value === "2" ? 2 : 1)}
-                        >
-                          <option value="1">Toda semana</option>
-                          <option value="2">A cada duas semanas</option>
-                        </select>
-                      </label>
-                      {w.repeatWeeks === 2 && (
-                        <label className="text-[10px] font-semibold text-muted-foreground">
-                          Primeiro dia de atendimento
-                          <Input type="date" className="field-engraved mt-1 h-8 px-1 text-xs"
-                            value={w.anchorDate} onChange={e => setWindowField(wd, idx, "anchorDate", e.target.value)} />
-                        </label>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </fieldset>
+            <JanelasAtendimento rascunho={windowsDraft} onChange={changeWindows} desabilitado={replaceWindows.isPending} />
           </div>
         </div>
       </div>
@@ -957,7 +869,7 @@ export default function AgendaMotor() {
           </div>
           {globalLocked && (
             <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-settings-locked">
-              Parâmetros globais do motor são exclusivos do proprietário. Para mudar o expediente de um recurso, envie uma solicitação.
+              Parâmetros globais do motor são exclusivos do proprietário. Para mudar o expediente de uma agenda, envie uma solicitação.
             </p>
           )}
           {setDraft ? (
@@ -1055,7 +967,7 @@ export default function AgendaMotor() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os recursos</SelectItem>
+                <SelectItem value="all">Todas as agendas</SelectItem>
                 {(resources ?? []).map((r) => (
                   <SelectItem key={r.id} value={String(r.id)}>
                     {r.name}
@@ -1069,7 +981,7 @@ export default function AgendaMotor() {
           </div>
           {!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) && (
             <p role="note" className="text-[11px] text-muted-foreground">
-              Exceção para todos os recursos exige o proprietário; para um recurso, exige administrar o local dele.
+              Exceção para todas as agendas exige o proprietário; para uma agenda, exige administrar o local dela.
             </p>
           )}
           <div className="space-y-2">
@@ -1087,7 +999,7 @@ export default function AgendaMotor() {
                       <span className="uppercase">{ex.kind}</span>
                     </span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      {res ? res.name : "Todos os recursos"}
+                      {res ? res.name : "Todas as agendas"}
                       {ex.description ? ` — ${ex.description}` : ""}
                     </span>
                   </span>
@@ -1111,7 +1023,7 @@ export default function AgendaMotor() {
         <BlockTitle icon={CalendarCog}>Prova Viva — Liberação Anti-Ilha</BlockTitle>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Recurso</Label>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Agenda</Label>
             <Select
               value={slotResource ? String(slotResource) : ""}
               onValueChange={(v) => setSlotResource(Number(v))}
@@ -1202,7 +1114,7 @@ export default function AgendaMotor() {
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">{slotsFetching ? "Calculando…" : "Selecione recurso e data."}</p>
+          <p className="text-sm text-muted-foreground">{slotsFetching ? "Calculando…" : "Selecione a agenda e a data."}</p>
         )}
       </div>
 
@@ -1210,7 +1122,7 @@ export default function AgendaMotor() {
       <div className="panel-3d p-4 space-y-4 paxter-underglow" data-testid="agenda-marcacao-real">
         <BlockTitle icon={CalendarDays}>Marcar Cliente</BlockTitle>
         <p className="text-[11px] text-muted-foreground">
-          Usa o recurso e a data escolhidos acima. Só horários <strong>abertos</strong> pelo motor podem ser
+          Usa a agenda e a data escolhidas acima. Só horários <strong>abertos</strong> pelo motor podem ser
           marcados — a cadeia anti-ilha continua valendo.
         </p>
 
@@ -1270,7 +1182,7 @@ export default function AgendaMotor() {
           </p>}
           {preferredDay && <p className="text-xs text-primary">Dia preferido pelo cliente. Preferência não garante disponibilidade.</p>}
           {openTimes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum horário aberto para este recurso/data.</p>
+            <p className="text-sm text-muted-foreground">Nenhum horário aberto para esta agenda/data.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {openTimes.map((t) => (

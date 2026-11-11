@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import { mayManageAgenda } from "../lib/agenda-governance";
 import { condicaoCorpoClinico } from "../lib/corpo-clinico.js";
-import { canonicalWindows, validWindowRecurrence } from "../lib/agenda-window-recurrence";
+import { canonicalWindows, janelasSobrepostas, validWindowRecurrence } from "../lib/agenda-window-recurrence";
 import { syncGoogleAgenda } from "../lib/agenda-google-sync";
 import {
   CreateAgendaChangeRequestBody as AgendaWindowChangeInput,
@@ -99,18 +99,18 @@ router.post("/agenda/requests", async (req,res): Promise<void> => {
     res.status(409).json({error:"Atualize a tela e confira o expediente antes de solicitar."});return;
   }
   const windows = canonical(input.data.windows);
-  if (windows.some((w,i) => !validWindowRecurrence(w.weekday,w.repeatWeeks,w.anchorDate) ||
-      w.endTime<=w.startTime || (i>0 && windows[i-1].weekday===w.weekday && windows[i-1].endTime>w.startTime))) {
+  if (windows.some(w => !validWindowRecurrence(w.weekday,w.repeatWeeks,w.anchorDate) || w.endTime<=w.startTime)
+      || janelasSobrepostas(windows)) {
     res.status(400).json({error:"Expedientes inválidos ou sobrepostos."});return;
   }
   const result = await db.transaction(async tx => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
     const resource = await tx.execute(sql`SELECT r.id FROM agenda_resources r JOIN locations l ON l.id=r.location_id
       WHERE r.id=${input.data.resourceId} AND r.active AND l.empresa_id=${req.tenantContext.empresaId}`);
-    if (!resource.rows.length) return {status:404,error:"Recurso não encontrado."};
+    if (!resource.rows.length) return {status:404,error:"Agenda não encontrada."};
     const before = await tx.execute(windowsQuery(input.data.resourceId));
     if (JSON.stringify(canonical(before.rows as any[])) !== JSON.stringify(canonical(input.data.expectedWindows!)) ||
-        (canonical(before.rows as any[]).some(w => w.repeatWeeks===2) && input.data.windows.some(w => w.repeatWeeks===undefined))) {
+        (canonical(before.rows as any[]).some(w => w.repeatWeeks>1) && input.data.windows.some(w => w.repeatWeeks===undefined))) {
       return {status:409,error:"O expediente mudou; recarregue e confira antes de solicitar."};
     }
     const created = await tx.execute(sql`INSERT INTO agenda_change_requests

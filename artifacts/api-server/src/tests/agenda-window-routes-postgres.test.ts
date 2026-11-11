@@ -132,3 +132,31 @@ describe("janelas quinzenais no banco isolado", () => {
     expect(rows.rows[0].count).toBe(1);
   });
 });
+
+describe("novos padrões de repetição no banco isolado", () => {
+  const put = (windows: unknown[], expectedWindows: unknown[]) =>
+    request(app).put(path).set("x-test-role", "admin").send({ windows, expectedWindows });
+  const atual = async () => (await getWindows()).body.map((w: any) => ({
+    weekday: w.weekday, startTime: w.startTime, endTime: w.endTime, repeatWeeks: w.repeatWeeks, anchorDate: w.anchorDate,
+  }));
+
+  it("salva 1º e 3º sábado do mês na mesma faixa de horário e a cada 3 semanas", async () => {
+    const primeiro = { weekday: 6, startTime: "09:00", endTime: "13:00", repeatWeeks: 101, anchorDate: null };
+    const terceiro = { ...primeiro, repeatWeeks: 103 };
+    const aCada3 = { weekday: 2, startTime: "09:00", endTime: "12:00", repeatWeeks: 3, anchorDate: "2026-11-17" };
+    const antes = await atual();
+    const response = await put([primeiro, terceiro, aCada3], antes);
+    expect(response.status).toBe(200);
+    expect(await atual()).toHaveLength(3);
+  });
+
+  it("recusa padrões fora da lista, mensal com data e sobreposição que pode coincidir", async () => {
+    const base = { weekday: 6, startTime: "09:00", endTime: "13:00" };
+    const antes = await atual();
+    expect((await put([{ ...base, repeatWeeks: 5, anchorDate: "2026-11-21" }], antes)).status).toBe(400);
+    expect((await put([{ ...base, repeatWeeks: 101, anchorDate: "2026-11-07" }], antes)).status).toBe(400);
+    expect((await put([{ ...base, repeatWeeks: 106, anchorDate: null }], antes)).status).toBe(400);
+    expect((await put([{ ...base, repeatWeeks: 1, anchorDate: null }, { ...base, startTime: "12:00", endTime: "14:00", repeatWeeks: 101, anchorDate: null }], antes)).status).toBe(400);
+    expect(await atual()).toEqual(antes);
+  });
+});

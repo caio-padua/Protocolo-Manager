@@ -565,7 +565,7 @@ router.get("/area-paciente/agenda-recursos", async (req: Request, res: Response)
     );
   } catch (err: any) {
     console.error("[AreaPaciente] agenda-recursos:", err.message);
-    res.status(500).json({ error: "Erro ao carregar recursos" });
+    res.status(500).json({ error: "Erro ao carregar agendas" });
   }
 });
 
@@ -583,7 +583,7 @@ router.get("/area-paciente/agenda-slots", async (req: Request, res: Response): P
 
   try {
     const computed = await computeResourceSlots(resourceId, date, null);
-    if (!computed) { res.status(404).json({ error: "Recurso não encontrado" }); return; }
+    if (!computed) { res.status(404).json({ error: "Agenda não encontrada" }); return; }
     // Paciente so enxerga horarios ABERTOS (nunca ocupados/bloqueados de outros).
     const slots = computed.result.slots
       .filter((s) => s.state === "aberto")

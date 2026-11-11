@@ -164,7 +164,7 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
   if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
   return db.transaction(async (tx) => {
     const empresaId = await lockAgendaResource(tx, params.resourceId);
-    if (!empresaId || (params.empresaId && params.empresaId !== empresaId)) return {ok:false,status:404,error:"Recurso não encontrado"};
+    if (!empresaId || (params.empresaId && params.empresaId !== empresaId)) return {ok:false,status:404,error:"Agenda não encontrada"};
     return bookSessionLocked({...params, empresaId}, tx);
   });
 }
@@ -174,13 +174,13 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
   if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
 
   const computed = await computeResourceSlots(resourceId, date, null, db);
-  if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
+  if (!computed) return { ok: false, status: 404, error: "Agenda não encontrada" };
   if (!RESERVABLE_KINDS.has(computed.resource.kind)) {
     return { ok: false, status: 422, error: "Esta agenda é de uma categoria profissional sem reserva de procedimento habilitada. Nada foi agendado." };
   }
 
   const slot = computed.result.slots.find((s) => s.time === time);
-  if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };
+  if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente desta agenda" };
   if (slot.state === "ocupado") return { ok: false, status: 409, error: "Horário já ocupado" };
   if (slot.state === "bloqueado") {
     const motivo = blockReason(slot.reason);
@@ -301,7 +301,7 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
   if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
   return db.transaction(async (tx) => {
     const empresaId = await lockAgendaResource(tx, params.resourceId);
-    if (!empresaId) return {ok:false,status:404,error:"Recurso não encontrado"};
+    if (!empresaId) return {ok:false,status:404,error:"Agenda não encontrada"};
     return rescheduleSessionLocked(params, tx, empresaId);
   });
 }
@@ -316,13 +316,13 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
   if (session.status !== "scheduled") return { ok: false, status: 409, error: "Só é possível remarcar sessões agendadas." };
 
   const computed = await computeResourceSlots(resourceId, date, null, db, sessionId);
-  if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
+  if (!computed) return { ok: false, status: 404, error: "Agenda não encontrada" };
   if (!RESERVABLE_KINDS.has(computed.resource.kind)) {
     return { ok: false, status: 422, error: "Esta agenda é de uma categoria profissional sem reserva de procedimento habilitada. Nada foi remarcado." };
   }
 
   const slot = computed.result.slots.find((s) => s.time === time);
-  if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };
+  if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente desta agenda" };
   if (slot.state === "ocupado") return { ok: false, status: 409, error: "Horário já ocupado" };
   if (slot.state === "bloqueado") {
     const motivo = blockReason(slot.reason);

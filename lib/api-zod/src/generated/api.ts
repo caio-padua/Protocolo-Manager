@@ -6429,13 +6429,22 @@ export const ListAgendaWindowsParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const listAgendaWindowsResponseRepeatWeeksMax = 105;
+
 export const ListAgendaWindowsResponseItem = zod.object({
   id: zod.number(),
   resourceId: zod.number(),
   weekday: zod.number(),
   startTime: zod.string(),
   endTime: zod.string(),
-  repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+  repeatWeeks: zod
+    .number()
+    .min(1)
+    .max(listAgendaWindowsResponseRepeatWeeksMax)
+    .optional()
+    .describe(
+      "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+    ),
   anchorDate: zod.string().nullish(),
 });
 export const ListAgendaWindowsResponse = zod.array(
@@ -6449,13 +6458,24 @@ export const ReplaceAgendaWindowsParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const replaceAgendaWindowsBodyWindowsItemRepeatWeeksMax = 105;
+
+export const replaceAgendaWindowsBodyExpectedWindowsItemRepeatWeeksMax = 105;
+
 export const ReplaceAgendaWindowsBody = zod.object({
   windows: zod.array(
     zod.object({
       weekday: zod.number(),
       startTime: zod.string(),
       endTime: zod.string(),
-      repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+      repeatWeeks: zod
+        .number()
+        .min(1)
+        .max(replaceAgendaWindowsBodyWindowsItemRepeatWeeksMax)
+        .optional()
+        .describe(
+          "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+        ),
       anchorDate: zod.string().nullish(),
     }),
   ),
@@ -6465,12 +6485,21 @@ export const ReplaceAgendaWindowsBody = zod.object({
         weekday: zod.number(),
         startTime: zod.string(),
         endTime: zod.string(),
-        repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+        repeatWeeks: zod
+          .number()
+          .min(1)
+          .max(replaceAgendaWindowsBodyExpectedWindowsItemRepeatWeeksMax)
+          .optional()
+          .describe(
+            "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+          ),
         anchorDate: zod.string().nullish(),
       }),
     )
     .optional(),
 });
+
+export const replaceAgendaWindowsResponseRepeatWeeksMax = 105;
 
 export const ReplaceAgendaWindowsResponseItem = zod.object({
   id: zod.number(),
@@ -6478,7 +6507,14 @@ export const ReplaceAgendaWindowsResponseItem = zod.object({
   weekday: zod.number(),
   startTime: zod.string(),
   endTime: zod.string(),
-  repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+  repeatWeeks: zod
+    .number()
+    .min(1)
+    .max(replaceAgendaWindowsResponseRepeatWeeksMax)
+    .optional()
+    .describe(
+      "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+    ),
   anchorDate: zod.string().nullish(),
 });
 export const ReplaceAgendaWindowsResponse = zod.array(
@@ -6593,6 +6629,7 @@ export const listAgendaChangeRequestsResponseRequestsItemWindowsItemStartTimeReg
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const listAgendaChangeRequestsResponseRequestsItemWindowsItemEndTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const listAgendaChangeRequestsResponseRequestsItemWindowsItemRepeatWeeksMax = 105;
 
 export const ListAgendaChangeRequestsResponse = zod.object({
   requests: zod.array(
@@ -6622,7 +6659,16 @@ export const ListAgendaChangeRequestsResponse = zod.object({
             .regex(
               listAgendaChangeRequestsResponseRequestsItemWindowsItemEndTimeRegExp,
             ),
-          repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+          repeatWeeks: zod
+            .number()
+            .min(1)
+            .max(
+              listAgendaChangeRequestsResponseRequestsItemWindowsItemRepeatWeeksMax,
+            )
+            .optional()
+            .describe(
+              "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+            ),
           anchorDate: zod.string().nullish(),
         }),
       ),
@@ -6645,6 +6691,8 @@ export const createAgendaChangeRequestBodyWindowsItemStartTimeRegExp =
 export const createAgendaChangeRequestBodyWindowsItemEndTimeRegExp = new RegExp(
   "^([01]\\d|2[0-3]):[0-5]\\d$",
 );
+export const createAgendaChangeRequestBodyWindowsItemRepeatWeeksMax = 105;
+
 export const createAgendaChangeRequestBodyWindowsMax = 100;
 
 export const createAgendaChangeRequestBodyExpectedWindowsItemWeekdayMin = 0;
@@ -6654,6 +6702,8 @@ export const createAgendaChangeRequestBodyExpectedWindowsItemStartTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
 export const createAgendaChangeRequestBodyExpectedWindowsItemEndTimeRegExp =
   new RegExp("^([01]\\d|2[0-3]):[0-5]\\d$");
+export const createAgendaChangeRequestBodyExpectedWindowsItemRepeatWeeksMax = 105;
+
 export const createAgendaChangeRequestBodyExpectedWindowsMax = 100;
 
 export const CreateAgendaChangeRequestBody = zod.object({
@@ -6675,7 +6725,14 @@ export const CreateAgendaChangeRequestBody = zod.object({
         endTime: zod
           .string()
           .regex(createAgendaChangeRequestBodyWindowsItemEndTimeRegExp),
-        repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+        repeatWeeks: zod
+          .number()
+          .min(1)
+          .max(createAgendaChangeRequestBodyWindowsItemRepeatWeeksMax)
+          .optional()
+          .describe(
+            "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+          ),
         anchorDate: zod.string().nullish(),
       }),
     )
@@ -6695,7 +6752,14 @@ export const CreateAgendaChangeRequestBody = zod.object({
         endTime: zod
           .string()
           .regex(createAgendaChangeRequestBodyExpectedWindowsItemEndTimeRegExp),
-        repeatWeeks: zod.union([zod.literal(1), zod.literal(2)]).optional(),
+        repeatWeeks: zod
+          .number()
+          .min(1)
+          .max(createAgendaChangeRequestBodyExpectedWindowsItemRepeatWeeksMax)
+          .optional()
+          .describe(
+            "Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.",
+          ),
         anchorDate: zod.string().nullish(),
       }),
     )

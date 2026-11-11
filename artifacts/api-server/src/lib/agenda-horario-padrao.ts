@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { agendaWindowsTable, db } from "@workspace/db";
 
 /**
- * Horário padrão = horário em que o expediente COMEÇA, lido do cadastro do Motor de Agenda
+ * Horário padrão = horário em que o expediente COMEÇA, lido do cadastro da Agenda Configuração
  * (tabela agenda_windows). Não olha vaga livre: disponibilidade é conferida depois, na prévia.
  * Regra: para cada dia da semana, vale o início mais cedo; o horário padrão é o início que mais se repete
  * entre os dias com expediente (empate: o mais cedo).

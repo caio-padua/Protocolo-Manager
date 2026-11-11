@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { horarioPadraoDeJanelas } from "../lib/agenda-horario-padrao";
 
-describe("horário padrão lido do cadastro do Motor de Agenda", () => {
+describe("horário padrão lido do cadastro da Agenda Configuração", () => {
   it("sem expediente cadastrado devolve null, nunca um horário inventado", () => {
     expect(horarioPadraoDeJanelas([])).toBeNull();
   });

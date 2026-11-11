@@ -562,7 +562,7 @@ de FOCO de teclado continua CIANO (acessibilidade) — so o estado SELECIONADO v
   vermelho=exige decisao, cinza=ignorado) + frase de UMA linha com seta "→" separando causa e efeito.
   Maximo ~5 passos; texto `text-[10px]` navy. Referencia viva: Sala de Triagem (`ConsoleExamesTool.tsx`).
 
-- **Padrao 30 — ESTADO DE INTEGRACAO EM CHIP FIXO + ACAO BLOQUEADA EXPLICADA (Motor de Agenda, 2026)**:
+- **Padrao 30 — ESTADO DE INTEGRACAO EM CHIP FIXO + ACAO BLOQUEADA EXPLICADA (Agenda Configuração, 2026)**:
   cada agenda externa mostra estado num chip `concave-3d` de largura FIXA (`w-[148px]`) com LED:
   verde estavel = atualizada, ambar `-breathe` = aguardando, vermelho `-on` = erro (texto do erro
   em `paxter-alert-red` logo abaixo), `paxter-led-off` = leitura desligada. "Ultima atualizacao" e
@@ -790,8 +790,8 @@ Lei promulgada em 09/11/2026. Fontes: `pages/professionals/empresas-vinculo.tsx`
 ### 4.11 Padrao 33 — Campo ligado: titulo Saliente, resposta Concava, legenda de origem
 
 Lei promulgada em 11/11/2026 (pedido do CEO). Fontes: `components/CampoLigado.tsx` e `lib/legendas-origem-protocolo.ts`; aplicada em `pages/protocols/new.tsx` (Dados Gerais do lancador).
-- Todo dado que NAO e digitado (vem de cadastro ou do Motor de Agenda) e mostrado como `CampoLigado`: titulo na placa Saliente (`bevel-3d`), resposta em poco Concavo (`concave-3d`), somente leitura.
-- Legenda de origem: chip com LETRA + NUMERO no canto superior direito da placa e, em letra pequena logo abaixo, o caminho da tela/planilha de origem ("C3 = Cliente > Agenda de enfermagem"). Letras: C = cadastro do cliente, M = Motor de Agenda, E = Equipe. Codigo novo entra primeiro em `LEGENDAS_ORIGEM`.
+- Todo dado que NAO e digitado (vem de cadastro ou do Agenda Configuração) e mostrado como `CampoLigado`: titulo na placa Saliente (`bevel-3d`), resposta em poco Concavo (`concave-3d`), somente leitura.
+- Legenda de origem: chip com LETRA + NUMERO no canto superior direito da placa e, em letra pequena logo abaixo, o caminho da tela/planilha de origem ("C3 = Cliente > Agenda de enfermagem"). Letras: C = cadastro do cliente, M = Agenda Configuração, E = Equipe. Codigo novo entra primeiro em `LEGENDAS_ORIGEM`.
 - "Local de atendimento" NAO e campo separado: a agenda comporta o local (o endereco aparece dentro da resposta da agenda).
 - Horario padrao nunca e digitado: vem do inicio do expediente (`agenda_windows`) da agenda. Regra: inicio mais cedo de cada dia; vale o inicio que mais se repete (empate = o mais cedo). Sem expediente cadastrado = mensagem em vermelho dizendo onde cadastrar; nunca um horario inventado.
 

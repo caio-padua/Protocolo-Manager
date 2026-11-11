@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { INTERVALOS, MENSAIS, NOME_DIA, dataInicialValida, exigeDataInicial, proximaDataDoDia, resumoRepeticao, rotuloRepeticao } from "@/lib/agenda-repeticao";
 import { Check, ClipboardEdit, Loader2, Plus, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,10 +41,8 @@ function WindowsSummary({ windows }: { windows: AgendaProposedWindow[] }) {
               list.map((w, i) => (
                 <div key={i} className="text-[11px] font-semibold tabular-nums">
                   <div>{w.startTime}–{w.endTime}</div>
-                  {w.repeatWeeks === 2 && (
-                    <div className="text-muted-foreground">
-                      A cada duas semanas, desde {w.anchorDate?.split("-").reverse().join("/") ?? "data não informada"}
-                    </div>
+                  {resumoRepeticao(w) && (
+                    <div className="text-muted-foreground">{resumoRepeticao(w)}</div>
                   )}
                 </div>
               ))
@@ -72,7 +71,7 @@ function RequestForm() {
     if (!resourceId || !current.data || loadedResource.current === resourceId) return;
     setExpectedWindows(current.data.map(w => ({
       weekday: w.weekday, startTime: w.startTime, endTime: w.endTime,
-      repeatWeeks: w.repeatWeeks === 2 ? 2 : 1, anchorDate: w.anchorDate ?? null,
+      repeatWeeks: Number(w.repeatWeeks) || 1, anchorDate: w.anchorDate ?? null,
     })));
     loadedResource.current = resourceId;
   }, [resourceId, current.data]);
@@ -89,10 +88,7 @@ function RequestForm() {
 
   const invalid = windows.some((w) => {
     if (!HHMM.test(w.startTime) || !HHMM.test(w.endTime) || w.startTime >= w.endTime) return true;
-    if (w.repeatWeeks !== 2) return false;
-    const date = new Date(`${w.anchorDate ?? ""}T12:00:00Z`);
-    return !w.anchorDate || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== w.anchorDate
-      || date.getUTCDay() !== w.weekday;
+    return exigeDataInicial(w.repeatWeeks ?? 1) && !dataInicialValida(w.anchorDate ?? "", w.weekday);
   });
   const reasonOk = reason.trim().length >= 8 && reason.trim().length <= 500;
 
@@ -117,13 +113,13 @@ function RequestForm() {
     <div className="panel-3d-sub p-3 space-y-3">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Nova solicitação</span>
       {integration.isError ? (
-        <p role="alert" className="concave-3d p-3 text-sm">{describeError(integration.error, "Recursos indisponíveis.")}</p>
+        <p role="alert" className="concave-3d p-3 text-sm">{describeError(integration.error, "Agendas indisponíveis.")}</p>
       ) : (
         <div className="space-y-1">
-          <Label htmlFor="req-resource" className="lbl">Recurso</Label>
+          <Label htmlFor="req-resource" className="lbl">Agenda</Label>
           <Select value={resourceId} onValueChange={changeResource} disabled={integration.isPending}>
             <SelectTrigger id="req-resource" className="field-engraved h-11" data-testid="select-request-resource">
-              <SelectValue placeholder={integration.isPending ? "Carregando…" : "Escolha o recurso"} />
+              <SelectValue placeholder={integration.isPending ? "Carregando…" : "Escolha a agenda"} />
             </SelectTrigger>
             <SelectContent>
               {resources.map((r) => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
@@ -153,7 +149,7 @@ function RequestForm() {
             />
           </div>
           <p className="concave-3d px-3 py-2 text-xs text-muted-foreground">
-            A proposta substitui o expediente inteiro do recurso. Dia sem faixa fica fechado. Enviar sem nenhuma faixa propõe fechar todos os dias.
+            A proposta substitui o expediente inteiro da agenda. Dia sem faixa fica fechado. Enviar sem nenhuma faixa propõe fechar todos os dias.
           </p>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {ORDER.map((wd) => (
@@ -201,14 +197,22 @@ function RequestForm() {
                       <label className="text-[10px] font-semibold text-muted-foreground">
                         Repetição
                         <select className="field-engraved mt-1 h-10 w-full rounded px-2 text-sm" value={w.repeatWeeks ?? 1}
-                          onChange={e => setWindows(ws => ws.map((item, i) => i === idx
-                            ? { ...item, repeatWeeks: e.target.value === "2" ? 2 : 1, anchorDate: e.target.value === "2" ? item.anchorDate : null }
-                            : item))}>
-                          <option value="1">Toda semana</option>
-                          <option value="2">A cada duas semanas</option>
+                          onChange={e => {
+                            const codigo = Number(e.target.value);
+                            setWindows(ws => ws.map((item, i) => i === idx
+                              ? { ...item, repeatWeeks: codigo, anchorDate: exigeDataInicial(codigo) ? (item.anchorDate || proximaDataDoDia(item.weekday)) : null }
+                              : item));
+                          }}>
+                          <option value={1}>{rotuloRepeticao(1, wd)}</option>
+                          <optgroup label="A cada algumas semanas">
+                            {INTERVALOS.map(n => <option key={n} value={n}>{rotuloRepeticao(n, wd)}</option>)}
+                          </optgroup>
+                          <optgroup label={`Dentro do mês (${NOME_DIA[wd]})`}>
+                            {MENSAIS.map(n => <option key={n} value={n}>{rotuloRepeticao(n, wd)}</option>)}
+                          </optgroup>
                         </select>
                       </label>
-                      {w.repeatWeeks === 2 && (
+                      {exigeDataInicial(w.repeatWeeks ?? 1) && (
                         <label className="text-[10px] font-semibold text-muted-foreground">
                           Primeiro dia de atendimento
                           <Input type="date" className="field-engraved mt-1 h-10" value={w.anchorDate ?? ""}
@@ -221,7 +225,7 @@ function RequestForm() {
               </div>
             ))}
           </div>
-          {invalid && <p role="alert" className="text-xs text-red-600">Confira os horários e, para repetição quinzenal, a data inicial no dia correto.</p>}
+          {invalid && <p role="alert" className="text-xs text-red-600">Confira os horários e, para repetição a cada N semanas, a data inicial no dia correto.</p>}
           <Button
             className="btn-3d h-11 w-full"
             disabled={!reasonOk || invalid || !expectedWindows || loadedResource.current !== resourceId || create.isPending}

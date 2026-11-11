@@ -1208,3 +1208,17 @@ mtime_ms = 1794412898757
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c81343d-73d4-4185-aaa9-5e79dbe4ad29/7dc8bcc6-41cf-405c-95e0-4d9fe6f959c8"
 storage_version_token = "1794412903263383"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "xeFW2gJFVX0KYY1qwO2kK"
+uri = "file://screenshots/janelas-novo.jpg"
+type = "image"
+title = "Janelas de Atendimento redesenhadas"
+description = "Prévia isolada da nova seção de janelas (dados fictícios)."
+logical_id = "9c00e11d-1fb4-41f2-bcbe-3d8781679c56"
+content_hash = "sha256:00684000eb46a6f061d8631bff7fc4457983f2c730e1f6356e02b6571e0f6798"
+size = 143585
+mtime_ms = 1794413993393
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c00e11d-1fb4-41f2-bcbe-3d8781679c56/3859db43-692d-4e87-ae0d-5370d256d2c4"
+storage_version_token = "1794414005655378"
+content_type = "image/jpeg"

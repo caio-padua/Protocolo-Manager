@@ -265,7 +265,7 @@ router.get("/clients/:id/protocol-agenda-options", requireClientWriter, async (r
       medicalAgenda: options.medicalAgenda,
       nurses: options.nurses,
       doctors: options.doctors,
-      // Lido do cadastro de janelas do Motor de Agenda; null = a agenda não tem expediente cadastrado.
+      // Lido do cadastro de janelas da Agenda Configuração; null = a agenda não tem expediente cadastrado.
       horarioPadrao: {
         enfermagem: await carregarHorarioPadraoDaAgenda(options.nursingAgenda.id),
         medico: await carregarHorarioPadraoDaAgenda(options.medicalAgenda.id),

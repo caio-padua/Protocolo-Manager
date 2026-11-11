@@ -237,7 +237,7 @@ router.post("/sessions", requireCollaborator, async (req, res): Promise<void> =>
 
   const empresaId = resolveEmpresaId(req);
   if (!parsed.data.resourceId || parsed.data.status !== "scheduled") {
-    res.status(422).json({error:"Uma nova marcação exige agenda e status agendado; utilize o Motor de Agenda."}); return;
+    res.status(422).json({error:"Uma nova marcação exige agenda e status agendado; utilize a Agenda Configuração."}); return;
   }
   const booked = await bookSession({
     resourceId: parsed.data.resourceId, clientId: parsed.data.clientId,

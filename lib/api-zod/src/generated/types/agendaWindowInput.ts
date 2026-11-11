@@ -5,12 +5,16 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
-import type { AgendaWindowInputRepeatWeeks } from "./agendaWindowInputRepeatWeeks";
 
 export interface AgendaWindowInput {
   weekday: number;
   startTime: string;
   endTime: string;
-  repeatWeeks?: AgendaWindowInputRepeatWeeks;
+  /**
+   * Padrão de repetição: 1 toda semana; 2, 3, 4, 6 ou 8 a cada N semanas (exige anchorDate); 101 a 104 = 1ª a 4ª ocorrência do dia no mês; 105 = última do mês.
+   * @minimum 1
+   * @maximum 105
+   */
+  repeatWeeks?: number;
   anchorDate?: string | null;
 }

@@ -2,7 +2,7 @@ import { Router, type IRouter, type Response } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { agendaWriteGuard, mayManageAgenda, mayManageAgendaEmpresa } from "../lib/agenda-governance";
 import { colunasDoEndereco, enderecoDoRecurso, enderecoExternoSchema, normalizarEnderecoExterno } from "../lib/agenda-endereco-externo.js";
-import { canonicalWindows, validWindowRecurrence } from "../lib/agenda-window-recurrence";
+import { canonicalWindows, janelasSobrepostas, validWindowRecurrence } from "../lib/agenda-window-recurrence";
 import { requireCollaborator } from "./collaborator";
 import { eq, and, or, isNull, sql, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -68,7 +68,7 @@ const windowSchema = z.object({
   weekday: z.number().int().min(0).max(6),
   startTime: z.string().regex(HHMM, "horário inválido (HH:mm)"),
   endTime: z.string().regex(HHMM, "horário inválido (HH:mm)"),
-  repeatWeeks: z.union([z.literal(1), z.literal(2)]).optional(),
+  repeatWeeks: z.number().int().min(1).max(105).optional(),
   anchorDate: z.string().nullable().optional(),
 });
 const replaceWindowsSchema = z.object({ windows: z.array(windowSchema), expectedWindows: z.array(windowSchema).optional() });
@@ -244,7 +244,7 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${empresaId})`);
     const [current] = await tx.select().from(agendaResourcesTable)
       .where(eq(agendaResourcesTable.id, id)).for("update");
-    if (!current) return { status: 404 as const, error: "Recurso não encontrado" };
+    if (!current) return { status: 404 as const, error: "Agenda não encontrada" };
     const modalityFinal = data.modality ?? current.modality;
     if (data.externalAddress !== undefined && modalityFinal !== "externo") {
       return { status: 400 as const, error: "Endereço externo só vale para a modalidade EXTERNO." };
@@ -256,7 +256,7 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
     // Agenda legada sem clínica gravada: o vínculo existente prova a clínica; nunca se infere de outra fonte.
     const empresaDona = current.empresaId ?? null;
     if (current.locationId == null && empresaDona != null && empresaDona !== empresaId) {
-      return { status: 404 as const, error: "Recurso não encontrado" };
+      return { status: 404 as const, error: "Agenda não encontrada" };
     }
     if (data.locationId === null && current.locationId != null) {
       return { status: 409 as const, error: "Não é possível desligar uma agenda existente do seu local. Crie uma nova agenda e inative esta, para preservar o histórico." };
@@ -327,7 +327,7 @@ router.get("/agenda/resources/:id/windows", requireCollaborator, async (req, res
     .leftJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
     .where(and(eq(agendaResourcesTable.id, id),
       sql`COALESCE(${agendaResourcesTable.empresaId}, ${locationsTable.empresaId}) = ${req.tenantContext.empresaId}`));
-  if (!owner.length) { res.status(404).json({ error: "Recurso não encontrado." }); return; }
+  if (!owner.length) { res.status(404).json({ error: "Agenda não encontrada." }); return; }
   const rows = await db.select().from(agendaWindowsTable).where(and(
     eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
   ));
@@ -353,23 +353,17 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
       return;
     }
     if (!validWindowRecurrence(w.weekday, w.repeatWeeks ?? 1, w.anchorDate ?? null)) {
-      res.status(400).json({ error: "Informe uma data inicial válida no mesmo dia da semana para a repetição quinzenal." });
+      res.status(400).json({ error: "Confira a repetição: padrões \"a cada N semanas\" exigem uma data inicial no mesmo dia da semana; padrões mensais não levam data." });
       return;
     }
   }
-  // sobreposição no mesmo weekday
-  const byDay: Record<number, { s: string; e: string }[]> = {};
-  for (const w of windows) {
-    (byDay[w.weekday] ||= []).push({ s: w.startTime, e: w.endTime });
-  }
-  for (const day of Object.keys(byDay)) {
-    const arr = byDay[Number(day)].sort((a, b) => (a.s < b.s ? -1 : 1));
-    for (let i = 1; i < arr.length; i++) {
-      if (arr[i].s < arr[i - 1].e) {
-        res.status(400).json({ error: `janelas sobrepostas no dia ${day}` });
-        return;
-      }
-    }
+  // sobreposição: só conta quando as duas janelas podem cair na mesma data
+  if (janelasSobrepostas(windows.map(w => ({
+    weekday: w.weekday, startTime: w.startTime, endTime: w.endTime,
+    repeatWeeks: w.repeatWeeks ?? 1, anchorDate: w.anchorDate ?? null,
+  })))) {
+    res.status(400).json({ error: "Há janelas sobrepostas no mesmo dia da semana." });
+    return;
   }
 
   const saved = await db.transaction(async tx => {
@@ -378,7 +372,7 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
       eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
     ));
     if (JSON.stringify(canonicalWindows(old)) !== JSON.stringify(canonicalWindows(data.expectedWindows!)) ||
-        (old.some(w => w.repeatWeeks === 2) && windows.some(w => w.repeatWeeks === undefined))) {
+        (old.some(w => w.repeatWeeks > 1) && windows.some(w => w.repeatWeeks === undefined))) {
       return false;
     }
     await tx.update(agendaWindowsTable).set({ active: false }).where(and(
@@ -393,7 +387,7 @@ router.put("/agenda/resources/:id/windows", async (req, res): Promise<void> => {
     return true;
   });
   if (!saved) {
-    res.status(409).json({ error: "Atualize a tela antes de alterar janelas quinzenais." });
+    res.status(409).json({ error: "Atualize a tela antes de alterar janelas com repetição." });
     return;
   }
   const rows = await db.select().from(agendaWindowsTable).where(and(
@@ -467,7 +461,7 @@ router.get("/agenda/slots", async (req, res): Promise<void> => {
     .leftJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
     .where(and(eq(agendaResourcesTable.id, resourceId),
       sql`COALESCE(${agendaResourcesTable.empresaId}, ${locationsTable.empresaId}) = ${req.tenantContext.empresaId ?? -1}`));
-  if (!owner.length) { res.status(404).json({ error: "Recurso não encontrado." }); return; }
+  if (!owner.length) { res.status(404).json({ error: "Agenda não encontrada." }); return; }
 
   // Ocupacao: por padrao vem das sessoes REAIS marcadas neste recurso+data (F2.3).
   // O parametro `occupied` (CSV HH:mm) e um OVERRIDE para a Prova Viva demonstrar a liberacao em cadeia.
@@ -484,7 +478,7 @@ router.get("/agenda/slots", async (req, res): Promise<void> => {
 
   const computed = await computeResourceSlots(resourceId, date, override);
   if (!computed) {
-    res.status(404).json({ error: "Recurso não encontrado" });
+    res.status(404).json({ error: "Agenda não encontrada" });
     return;
   }
 
