@@ -1,3 +1,5 @@
+import { doseSugeridaProduto, type ProdutoComposto } from "../../../../lib/procedimentos-shared/src/index";
+
 export const UNCONFIGURED_PROTOCOL_INTERVAL = "unconfigured";
 
 export const PROTOCOL_FREQUENCY_OPTIONS = [
@@ -9,9 +11,10 @@ export const PROTOCOL_FREQUENCY_OPTIONS = [
 ] as const;
 
 type CatalogDefaults = {
+  name?: string;
   defaultDose?: string | null;
   intervalDays?: number | null;
-};
+} & Partial<Omit<ProdutoComposto, "name">>;
 
 export type ProtocolSubstanceDefaults = {
   dose: string;
@@ -47,14 +50,11 @@ export function dosePrescritaDoCadastro(defaultDose?: string | null): string {
   const value = (defaultDose ?? "").replace(/\s+/g, " ").trim();
   if (!value) return "";
 
-  const withVolume = value.match(MASS_WITH_VOLUME);
-  if (withVolume) return formatDose(withVolume[1], withVolume[2]);
-
   const mass = value.match(SINGLE_MASS);
-  if (mass) return formatDose(mass[1], mass[2]);
+  if (mass && Number(mass[1].replace(",", ".")) > 0) return formatDose(mass[1], mass[2]);
 
   const form = value.match(SINGLE_FORM_DOSE);
-  if (form) return `${form[1].replace(",", ".")} ${form[2].toLowerCase()}`;
+  if (form && Number(form[1].replace(",", ".")) > 0) return `${form[1].replace(",", ".")} ${form[2].toLowerCase()}`;
 
   return "";
 }
@@ -95,7 +95,10 @@ export function dosePrescritaExibivel(dose?: string | null): string {
 }
 
 export function dosePrescritaValida(dose?: string | null): boolean {
-  return !dosePrescritaTemApresentacao(dose ?? "") && Boolean(dosePrescritaExibivel(dose));
+  const exibivel = dosePrescritaExibivel(dose);
+  if (!exibivel || dosePrescritaTemApresentacao(dose ?? "")) return false;
+  const valores: string[] = exibivel.match(/\d+(?:[.,]\d+)?/g) ?? [];
+  return valores.length > 0 && valores.every(valor => Number(valor.replace(",", ".")) > 0);
 }
 
 export function nomeSubstanciaProtocolo(nome?: string | null): string {
@@ -119,7 +122,11 @@ export function nomeSubstanciaProtocolo(nome?: string | null): string {
 export function resolveProtocolSubstanceDefaults(
   substance: CatalogDefaults,
 ): ProtocolSubstanceDefaults {
-  const dose = dosePrescritaDoCadastro(substance.defaultDose);
+  const sugestao = doseSugeridaProduto({ ...substance, name: substance.name ?? "" });
+  const dose = sugestao ? dosePrescritaExibivel(sugestao) :
+    ((substance.components != null && (!Array.isArray(substance.components) || substance.components.length > 0)) ||
+      substance.isBlend || substance.composicao?.trim() || substance.concentrationMg || substance.volumeAmpola
+      ? "" : dosePrescritaDoCadastro(substance.defaultDose));
   const intervalDays = substance.intervalDays;
 
   if (!Number.isSafeInteger(intervalDays) || intervalDays == null || intervalDays <= 0) {

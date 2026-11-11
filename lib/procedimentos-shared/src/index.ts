@@ -36,6 +36,7 @@ export type ProdutoComposto = {
   presentationUnit?: string | null;
   ampouleVolumeMl?: number | null;
   isBlend?: boolean | null;
+  composicao?: string | null;
   components?: Array<{ componentName: string; doseValue?: number | null; doseUnit?: string | null }> | null;
 };
 
@@ -105,11 +106,16 @@ function composicaoConfere(produto: ProdutoComposto): boolean {
 /** Só sugere uma composição completa, ordenável pelo nome e revisável. */
 export function doseSugeridaProduto(produto: ProdutoComposto | undefined): string | null {
   if (!produto) return null;
+  if (typeof produto.name !== "string" ||
+      (produto.components != null && (!Array.isArray(produto.components) || produto.components.some(c =>
+        !c || typeof c.componentName !== "string")))) return null;
+  // Texto livre pode incluir componentes não presentes na lista estruturada.
+  if (produto.composicao?.trim()) return null;
   if (!volumesCompativeis(produto)) return null;
   const componentes = produto.components ?? [];
   if (componentes.length < 2) {
     // Uma composição incompleta ou marcada como composta não vira dose simples.
-    if (produto.isBlend === true || componentes.length === 1) return null;
+    if (produto.isBlend === true || componentes.length === 1 || produto.composicao?.trim()) return null;
     const simples = doseSeguraProduto(produto.defaultDose);
     if (simples) {
       const quantidade = /^(\d+(?:[.,]\d+)?)\s*mg$/i.exec(simples);

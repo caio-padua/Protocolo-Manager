@@ -184,3 +184,12 @@ unidades devem corresponder a todos os componentes; caso contrário, não sugeri
 Se houver volume textual no composto, também deve coincidir com a apresentação
 estruturada. Uma concentração legada cujo significado não possa ser validado
 não pode servir de prova da dose. Alertas devem preservar os valores de origem.
+
+O lançador antigo usa o cadastro de substâncias diretamente e a criação exige
+identificador de substância e dose; não renomear o seletor para procedimentos
+sem alterar o contrato, a persistência e os consumidores do protocolo.
+Sua sugestão de dose não pode extrair o numerador de "dose / volume" quando
+o volume total da apresentação não está comprovado. O preenchimento deve usar
+as mesmas salvaguardas aplicadas ao cadastro de procedimentos. Filtragem por
+procedimentos, categoria, preferidos e subtipos de implante permanece pendente
+da integração real, com dados de classificação explicitamente cadastrados.

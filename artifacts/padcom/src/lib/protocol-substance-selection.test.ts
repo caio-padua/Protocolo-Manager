@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   protocolIntervalDays,
   dosePrescritaExibivel,
+  dosePrescritaValida,
   nomeSubstanciaProtocolo,
   resolveProtocolSubstanceDefaults,
   UNCONFIGURED_PROTOCOL_INTERVAL,
@@ -13,10 +14,31 @@ describe("defaults from the exact substance catalog record", () => {
       defaultDose: "100 MG / 2 ML",
       intervalDays: null,
     })).toEqual({
-      dose: "100 mg",
+      dose: "",
       frequency: UNCONFIGURED_PROTOCOL_INTERVAL,
       customDays: null,
     });
+  });
+  it("só usa dose legada com volume total confirmado e sem divergência", () => {
+    const base = { defaultDose: "100 MG / 2 ML", intervalDays: 15,
+      presentationQuantity: 1, presentationUnit: "ampola", ampouleVolumeMl: 2 };
+    expect(resolveProtocolSubstanceDefaults(base).dose).toBe("100 mg");
+    expect(resolveProtocolSubstanceDefaults({ ...base, ampouleVolumeMl: 4 }).dose).toBe("");
+    expect(resolveProtocolSubstanceDefaults({ ...base, concentrationMg: "25 mg/mL" }).dose).toBe("");
+    expect(resolveProtocolSubstanceDefaults({ ...base, defaultDose: "50 MG / 2 ML", concentrationMg: "25 mg/mL" }).dose).toBe("50 mg");
+  });
+  it("exige revisão de composição textual não estruturada", () => {
+    expect(resolveProtocolSubstanceDefaults({ name: "ADEK", defaultDose: "100 mg",
+      composicao: "Vitaminas A, D, E e K", isBlend: false }).dose).toBe("");
+  });
+  it("recusa componente malformado e dose zero digitada", () => {
+    expect(resolveProtocolSubstanceDefaults({ name: "ADEK", isBlend: true,
+      components: [null, null] as unknown as NonNullable<Parameters<typeof resolveProtocolSubstanceDefaults>[0]["components"]> }).dose).toBe("");
+    expect(dosePrescritaValida("0 mg")).toBe(false);
+    expect(dosePrescritaValida("10 mg + 0 mg")).toBe(false);
+    expect(dosePrescritaValida("10 mg + 1 mg")).toBe(true);
+    expect(resolveProtocolSubstanceDefaults({ name: "ADEK", defaultDose: "100 mg",
+      components: {} as unknown as NonNullable<Parameters<typeof resolveProtocolSubstanceDefaults>[0]["components"]> }).dose).toBe("");
   });
 
   it("keeps ADEK's 15-day interval but requires dose review for a mixture", () => {
@@ -75,6 +97,7 @@ describe("defaults from the exact substance catalog record", () => {
       "15mg/200mcg",
       "150+50 MG — 2 A 4 pellets",
       "1amp",
+      "0 mg",
     ]) {
       expect(resolveProtocolSubstanceDefaults({ defaultDose, intervalDays: 7 }).dose).toBe("");
     }
