@@ -12,7 +12,10 @@ Exibir o nome RASP nas telas, documentos novos e comunicações, preservando a t
 4. Preservar rotas, chaves, tabelas, identificadores e contratos usados por registros e integrações anteriores.
 5. Não editar arquivos anteriormente emitidos, dados de clientes, permissões, doses, reservas ou comportamento de envio.
 6. Esta mudança de nome não acrescenta procedimentos ou consultas ao modelo clínico.
-7. Não alterar documentos jurídicos já existentes nem identificadores formais persistidos; textos novos de apresentação devem usar o novo nome quando se referirem ao registro.
+7. Preservar documentos jurídicos já emitidos e identificadores formais persistidos.
+8. Atualizar os dois modelos jurídicos salvos encontrados, limitando a mudança aos três trechos de nome comunicados ao responsável; manter as demais palavras, o formato e os códigos internos.
+9. No banco de desenvolvimento, conferir os modelos e suas impressões digitais antes da atualização, guardar uma cópia dos originais fora do controle de versão e atualizar os dois em uma única operação com proteção contra alterações simultâneas.
+10. Na matriz de responsabilidades da equipe, apresentar RASP sem renomear a chave única usada pela semeadura e criar responsabilidade duplicada.
 
 ## Impactos e falhas previstas
 
@@ -23,6 +26,7 @@ Exibir o nome RASP nas telas, documentos novos e comunicações, preservando a t
 | Nome antigo em comunicação | Inconsistência na emissão ou no reenvio | Testar corpo e anexos, nomes de arquivo, alertas e busca direcionada. |
 | Visualização envia e-mail | Entrega não autorizada | Manter separação das rotas de consulta e envio; executar testes existentes. |
 | Documento anterior alterado | Assinatura ou histórico comprometido | Não migrar nem reescrever arquivos anteriores. |
+| Modelo jurídico mudou durante a conferência | Edição de terceiro sobrescrita | Exigir impressão digital esperada em ambos os modelos; se divergir, não alterar nenhum. |
 
 ## Critérios
 
