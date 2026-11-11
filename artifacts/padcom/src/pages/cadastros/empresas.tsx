@@ -18,7 +18,9 @@ import {
   Building2, Users, Briefcase, Plus, Loader2, Save, Pencil,
   Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
   FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
+  Fingerprint, Landmark, Receipt, Link2, Plug, ScrollText, Navigation,
 } from "lucide-react";
+import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
@@ -269,14 +271,26 @@ function PermBadge({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
+// ── Abas do cadastro da empresa (Padrão 36): grupos = assunto, ordem de preenchimento ──────────
+const ABAS_EMPRESA: ItemTrilho[] = [
+  { value: "ident",           label: "Dados",             icon: FileText,    grupo: "cadastro" },
+  { value: "end",             label: "Endereço",          icon: MapPin,      grupo: "cadastro" },
+  { value: "marca-documento", label: "Identidade",        icon: Fingerprint, grupo: "cadastro" },
+  { value: "fiscal",          label: "Fiscal e CNAE",     icon: Landmark,    grupo: "fiscal" },
+  { value: "nfe",             label: "Notas fiscais",     icon: Receipt,     grupo: "fiscal" },
+  { value: "referencias",     label: "Origem",            icon: Link2,       grupo: "fiscal" },
+  { value: "integ",           label: "Integrações",       icon: Plug,        grupo: "sistema" },
+  { value: "contratos",       label: "Contratos",         icon: ScrollText,  grupo: "sistema" },
+  { value: "locais-atendimento", label: "Locais",         icon: Building2,   grupo: "locais" },
+  { value: "locais-externos", label: "Externos",          icon: Navigation,  grupo: "locais" },
+];
+
 // ── Card da empresa ────────────────────────────────────────────────────────────
-function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen, locaisAbertos, onToggleLocais }: {
+function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
   empresa: Empresa;
   onEdit: () => void;
   onToggleAtiva: (ativa: boolean) => void;
   onOpen: () => void;
-  locaisAbertos: boolean;
-  onToggleLocais: () => void;
 }) {
   return (
     <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${ehInstitutoPadua(empresa.nome) ? "panel-3d-active" : ""}`} data-testid={`empresa-card-${empresa.id}`}>
@@ -348,16 +362,6 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen, locaisAbertos, on
               Modelo comercial histórico: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
             </div>
           )}
-        </div>
-
-        <div className="space-y-2">
-          <button type="button" onClick={onToggleLocais} aria-expanded={locaisAbertos}
-            aria-label={`${locaisAbertos ? "Recolher" : "Mostrar"} locais de ${empresa.nome}`}
-            className="bevel-3d w-full px-3 py-2 flex items-center gap-2 text-left text-[10px] font-black uppercase tracking-wide">
-            <MapPin className="w-3.5 h-3.5" /> Locais de atendimento
-            {locaisAbertos ? <ChevronDown className="w-4 h-4 ml-auto" /> : <ChevronRight className="w-4 h-4 ml-auto" />}
-          </button>
-          {locaisAbertos && <LocaisDaEmpresa empresaId={empresa.id} />}
         </div>
 
         {/* Botões */}
@@ -945,7 +949,6 @@ export default function CadastroEmpresas() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
-  const [locaisAbertos, setLocaisAbertos] = useState<Set<number>>(() => new Set());
 
   const { data: empresas = [], isLoading, isError, refetch } = useQuery<Empresa[]>({
     queryKey: ["empresas"],
@@ -1117,12 +1120,6 @@ export default function CadastroEmpresas() {
 
   const ativas   = empresas.filter((e) => e.ativa);
   const inativas = empresas.filter((e) => !e.ativa);
-  const todosLocaisAbertos = empresas.length > 0 && empresas.every((e) => locaisAbertos.has(e.id));
-  const toggleLocais = (id: number) => setLocaisAbertos((previous) => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
 
   return (
     <div className="flex h-full gap-4">
@@ -1148,15 +1145,6 @@ export default function CadastroEmpresas() {
               <Plus className="w-4 h-4 mr-2" /> NOVA EMPRESA
             </Button>
           </div>
-        </div>
-
-        <div className="concave-3d px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <label htmlFor="mostrar-todos-locais" className="text-xs font-black uppercase">Mostrar locais de todas as empresas</label>
-            <p className="text-xs text-muted-foreground mt-1">Cadastrar um local não cria outra empresa.</p>
-          </div>
-          <Switch id="mostrar-todos-locais" checked={todosLocaisAbertos}
-            onCheckedChange={(checked) => setLocaisAbertos(checked ? new Set(empresas.map((e) => e.id)) : new Set())} />
         </div>
 
         <details className="panel-3d-sub p-4">
@@ -1208,7 +1196,6 @@ export default function CadastroEmpresas() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                             {items.map((e) => (
                               <EmpresaCard key={e.id} empresa={e}
-                                locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
                                 onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
                                 onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                             ))}
@@ -1220,7 +1207,6 @@ export default function CadastroEmpresas() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                       {lista.map((e) => (
                         <EmpresaCard key={e.id} empresa={e}
-                          locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
                           onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
                           onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                       ))}
@@ -1235,7 +1221,6 @@ export default function CadastroEmpresas() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
                   {inativas.map((e) => (
                     <EmpresaCard key={e.id} empresa={e}
-                    locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
                       onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
                       onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                   ))}
@@ -1258,13 +1243,13 @@ export default function CadastroEmpresas() {
 
       {/* Dialog — Formulário criar/editar com abas */}
       <Dialog open={formOpen} onOpenChange={handleFormOpen}>
-        <DialogContent className="pax-dialogo-fixo max-w-3xl p-0 gap-0" data-testid="empresa-dialogo">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40 shrink-0">
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
+        <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 w-[calc(100vw-1rem)] max-w-5xl p-0 gap-0" data-testid="empresa-dialogo">
+          <DialogHeader className="px-6 py-3 pr-12 border-b border-border/40 shrink-0 flex-row items-baseline gap-3 space-y-0">
+            <DialogTitle className="text-[13px] font-black uppercase tracking-widest shrink-0">
               {editingId ? "EDITAR EMPRESA" : "NOVA EMPRESA"}
             </DialogTitle>
             {selectedEmpresa && (
-              <p className="text-[11px] font-bold truncate" data-testid="empresa-dialogo-identificacao">
+              <p className="text-[12px] font-bold truncate min-w-0" data-testid="empresa-dialogo-identificacao">
                 {selectedEmpresa.nome} <span className="font-mono text-muted-foreground">#{selectedEmpresa.id}</span>
               </p>
             )}
@@ -1282,28 +1267,9 @@ export default function CadastroEmpresas() {
             })} className="flex flex-col flex-1 min-h-0">
               <Tabs value={activeFormTab} onValueChange={changeFormTab} className="flex flex-col flex-1 min-h-0">
 
-                {/* Barra de abas */}
+                {/* Trilho de abas: uma linha, altura fixa (Padrão 36) */}
                 <div className="mx-4 sm:mx-6 mt-3 shrink-0">
-                  <TabsList aria-label="Seções do cadastro empresarial"
-                    className="w-full flex flex-wrap justify-start gap-2 h-auto bg-transparent p-1 border-b border-border/30 rounded-none">
-                    {[
-                      { value: "ident",      label: "Dados" },
-                      { value: "marca-documento", label: "Identidade dos documentos" },
-                      { value: "fiscal",     label: "Fiscal e CNAE" },
-                      { value: "end",        label: "Endereço" },
-                      { value: "referencias",label: "Origem e Referências" },
-                      { value: "nfe",        label: "Documentos Fiscais" },
-                      { value: "integ",      label: "Integrações" },
-                      { value: "contratos",  label: "Documentos e Contratos" },
-                      { value: "locais-externos", label: "Locais Externos" },
-                    ].map(({ value, label }) => (
-                      <TabsTrigger key={value} value={value}
-                        data-testid={`empresa-aba-${value}`}
-                        className="bevel-3d empresa-aba whitespace-normal text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-3 py-2">
-                        {label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                  <TrilhoAbas itens={ABAS_EMPRESA} rotulo="Seções do cadastro empresarial" testidPrefixo="empresa-aba" />
                 </div>
 
                 <TabsContent value="marca-documento" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
@@ -2017,6 +1983,20 @@ export default function CadastroEmpresas() {
                   <ContratosList empresaId={selectedEmpresa?.id ?? 0} />
                 </TabsContent>
 
+                {/* ── ABA: LOCAIS DE ATENDIMENTO (locais da empresa; saiu da frente do card) ── */}
+                <TabsContent value="locais-atendimento" className="flex-1 overflow-y-auto px-6 py-4 space-y-3 mt-0">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para ver os locais de atendimento.</p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Locais físicos próprios desta empresa. Cadastrar um local não cria outra empresa. Profissionais que atendem em outro endereço usando o CNPJ desta empresa ficam na aba Externos.
+                      </p>
+                      <LocaisDaEmpresa empresaId={editingId} />
+                    </>
+                  )}
+                </TabsContent>
+
                 {/* ── ABA: LOCAIS EXTERNOS (cadastro interno, mesmos campos da empresa) ── */}
                 <TabsContent value="locais-externos" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 mt-0">
                   {!editingId ? (
@@ -2030,8 +2010,8 @@ export default function CadastroEmpresas() {
 
               {/* Rodapé fixo com botões */}
               <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0" data-testid="empresa-dialogo-rodape">
-                {activeFormTab === "locais-externos" ? (
-                  // Os locais externos têm botão próprio de salvar; aqui só fecha a janela.
+                {activeFormTab === "locais-externos" || activeFormTab === "locais-atendimento" ? (
+                  // Estas abas não usam o salvar da empresa (externos têm botão próprio); aqui só fecha a janela.
                   <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>FECHAR</Button>
                 ) : (
                   <>

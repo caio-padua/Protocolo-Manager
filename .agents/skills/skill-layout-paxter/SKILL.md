@@ -821,6 +821,26 @@ Lei promulgada em 11/11/2026 (pedido do CEO). Fonte: `components/empresa/LocaisE
   abre dialogo que exige digitar o nome exato. O servidor valida de novo e apenas carimba (`excluido_em`), nunca apaga a linha.
 - Desativar EMPRESA pede `window.confirm` (impacto maior); local e local externo desativam direto.
 
+### 4.14 Padrao 36 — Dialogo de cadastro com trilho de abas (posicao alta, altura fixa)
+
+Decisao do CEO (11/11/2026): abas internas "espalhadas" em varias linhas e dialogo que encolhia/subia ao trocar de aba.
+
+| Regra | Como fica | Onde vive |
+|---|---|---|
+| Trilho = UMA linha | Retangulos Salientes (`bevel-3d`) de mesma altura (`4.25rem`), icone em cima + nome CURTO embaixo, `flex-nowrap`; em tela estreita o trilho rola de lado, nunca quebra | `components/ui/trilho-abas.tsx` (`TrilhoAbas`) |
+| Grupos por assunto | Cada item tem `grupo`; entre grupos o respiro e maior (`ml-2`). Ordem = ordem de preenchimento (cadastro, fiscal, sistema, locais) | constante de abas da tela (ex.: `ABAS_EMPRESA`) |
+| Aba ativa | Navy com borda dourada (`.empresa-aba[data-state="active"]`) | `index.css` |
+| Altura FIXA | `pax-dialogo-fixo`: `min(52rem, 100dvh - 1rem)`, cabecalho e rodape fixos, so o miolo rola | `locais/locais.css` |
+| Posicao ALTA | `top-2 translate-y-0` no `DialogContent` (nunca centralizado na vertical) — trocar de aba nao move nem encolhe o dialogo | tela |
+| Cabecalho em 1 linha | Titulo + nome da entidade lado a lado (`flex-row items-baseline`), para sobrar altura ao miolo | tela |
+| Largura | `w-[calc(100vw-1rem)] max-w-5xl` quando o trilho tem 8 ou mais abas | tela |
+| Aba sem salvar proprio | Rodape mostra so FECHAR (aba de lista/consulta) | tela |
+
+Anti-padroes: `TabsList` com `flex-wrap` (altura do trilho muda conforme a largura); rotulo longo no trilho
+("Identidade dos documentos" vira "Identidade", o titulo completo vai no `title`); dado do cadastro mostrado
+na FRENTE do card quando o lugar dele e uma aba interna (ex.: lista de locais da empresa foi para a aba "Locais").
+Teste de aceite: mesmo `top` e mesma altura do dialogo em TODAS as abas, em 1024x576 e 1440x900.
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

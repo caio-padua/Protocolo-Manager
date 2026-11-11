@@ -7,3 +7,5 @@ Locais externos NÃO são menu: são a aba "Locais Externos" do cadastro da empr
 **How to apply:** editar um local NÃO atualiza agendas que já copiaram o endereço. Nunca rodar o seed em produção. Toaster do sonner não está montado no app: usar `useToast` (radix). Teste Playwright com POST/PUT precisa de PADCOM_BASE_URL=https://$REPLIT_DEV_DOMAIN, senão o CORS recusa localhost.
 
 **Lição:** "Tirar de uso" sem confirmação foi clicado sem querer pelo CEO; botão destrutivo/ocultador nunca sem interruptor reversível e confirmação (skill Padrão 35). Trash de empresa e de local foram trocados por interruptor.
+
+**Locais de atendimento x Locais externos (esclarecido pelo CEO em 11/11/2026):** são coisas diferentes. "Locais" = locais próprios da empresa (tabela locations), "Externos" = profissionais da empresa-mãe atendendo noutro endereço sob o mesmo CNPJ e a mesma agenda de profissionais. Ambos moram em ABAS dentro do cadastro da empresa; o card da frente não mostra mais lista de locais. Abas do diálogo seguem o Padrão 36 (trilho de uma linha, diálogo alto e de altura fixa).

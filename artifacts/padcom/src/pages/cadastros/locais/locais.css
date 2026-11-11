@@ -30,8 +30,9 @@
 .pax-dialogo-fixo {
   display: flex;
   flex-direction: column;
-  height: min(46rem, calc(100dvh - 2rem));
-  max-height: calc(100dvh - 2rem);
+  /* Posicao ALTA e altura FIXA (Padrao 36): o dialogo nao encolhe nem sobe ao trocar de aba. */
+  height: min(52rem, calc(100dvh - 1rem));
+  max-height: calc(100dvh - 1rem);
   overflow: hidden;
 }
 .pax-dialogo-fixo > form,

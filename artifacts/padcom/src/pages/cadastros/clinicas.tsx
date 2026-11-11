@@ -355,7 +355,7 @@ export default function CadastroClinicas() {
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpen}>
-        <DialogContent className="pax-dialogo-fixo max-w-3xl p-0 gap-0" data-testid="local-dialogo">
+        <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 max-w-3xl p-0 gap-0" data-testid="local-dialogo">
           <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/40 shrink-0 space-y-2">
             <DialogTitle className="text-[13px] font-black uppercase tracking-widest">
               {editingId ? "EDITAR LOCAL" : "NOVO LOCAL"}
