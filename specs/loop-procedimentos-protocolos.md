@@ -60,6 +60,32 @@ uma inicialização segura. Preservar o menu. Alterações manuais e documentos 
 emitidos não são sobrescritos silenciosamente. Não inventar doses, agenda,
 profissionais, permissões nem sequenciamento clínico.
 
+## Investigação de reinício do servidor
+
+A entrada do servidor executa migrações, sementes, recuperação e limpeza;
+há ainda rotinas executadas na importação das rotas e sincronização externa
+no carregamento da aplicação. Portanto, apenas compilar não coloca as mudanças
+do servidor em funcionamento, e reiniciar sem um controle comprovado pode
+alterar dados ou serviços. A atualização segura tem de cobrir tanto os efeitos
+na importação quanto os executados antes e depois da abertura da porta.
+
+Uma eventual inicialização protegida deve ser de uso explícito em desenvolvimento,
+não alterar a inicialização normal em produção, preservar autenticação e menus,
+mostrar claramente serviços automáticos suspensos e ser testada com banco isolado
+e acesso externo bloqueado. Não instalar a migração da versão antes de atualizar
+os escritores: versões antigas teriam sua edição bloqueada pelo banco. Não ativar
+o modo protegido na aplicação em uso antes de testar seus efeitos operacionais,
+inclusive na sincronização periódica da agenda.
+
+A primeira tentativa foi reprovada na revisão independente. Ela desligava a
+sincronização periódica e a hidratação do cofre, e algumas requisições de
+leitura ainda podem criar registros. Além disso, um processo acessível sem
+perímetro adequado não é seguro apenas por usar o ambiente de desenvolvimento.
+Essa tentativa foi retirada do código e não foi ativada. O servidor atual
+continua sem prova de reinício seguro. A solução precisa preservar as operações
+necessárias, controlar as primeiras requisições e provar autenticação,
+persistência e isolamento externo antes de qualquer ativação.
+
 ## Estado inicial
 
 - O catálogo de produtos foi disponibilizado na tela e testado em ambiente
