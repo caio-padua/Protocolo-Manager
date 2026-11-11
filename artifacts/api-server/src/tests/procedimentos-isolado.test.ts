@@ -189,7 +189,8 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
         if (path === "/api/substances") return json([
           { id: 10, name: "Produto sintético IM", defaultDose: "100 mg", durationMinutes: 2.5 },
           { id: 14, name: "Produto sintético IM", defaultDose: "200 mg / 2 mL", durationMinutes: 2.5 },
-          { id: 13, name: "ADEK (VITAMINAS A, D, E, K)", defaultDose: "mistura / 2 mL", durationMinutes: 2.5, components: [
+          { id: 13, name: "ADEK (VITAMINAS A, D, E, K)", defaultDose: "A 25.000 UI + D3 100.000 UI + E 200 UI + K2 1.300 MCG / 2 ML", durationMinutes: 2.5,
+            isBlend: true, presentationQuantity: 1, presentationUnit: "ampola", ampouleVolumeMl: 2, components: [
             { id: 1, componentName: "Vitamina A", doseValue: 25000, doseUnit: "UI", sortOrder: 1 },
             { id: 2, componentName: "Vitamina D3", doseValue: 100000, doseUnit: "UI", sortOrder: 2 },
             { id: 3, componentName: "Vitamina E", doseValue: 200, doseUnit: "UI", sortOrder: 3 },
@@ -232,7 +233,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       await page.getByTestId("checkbox-substancia-14").click();
       expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("100 mg");
       expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
-      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
+      await page.getByLabel("Conferi que esta é a dose padrão.").click();
       await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Procedimento cadastrado.").waitFor();
       const stored = await state.pool.query("SELECT duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético IM'");
@@ -260,7 +261,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       await page.getByLabel("Local da clínica").selectOption("8");
       await page.getByLabel("Categoria profissional").selectOption("2");
       await page.getByLabel("Selecionar Enfermagem A").click();
-      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
+      await page.getByLabel("Conferi que esta é a dose padrão.").click();
       await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Procedimento cadastrado.").waitFor();
       const secondProducts = await state.pool.query(`SELECT pp.produto_id FROM procedimento_produtos pp
@@ -276,8 +277,8 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("25.000 UI + 100.000 UI + 200 UI + 1.300 mcg");
       await page.getByTestId("input-procedimento-dose").locator("..").screenshot({ path: "/tmp/procedimento-dose-composta-sintetica.png" });
       await page.getByTestId("button-save-procedimento").click();
-      await page.getByText("Confirme a dose prescrita antes de salvar.").waitFor();
-      await page.getByLabel("Conferi a dose prescrita e a ordem de cada componente.").click();
+      await page.getByText("Confirme a dose padrão antes de salvar.").waitFor();
+      await page.getByLabel("Conferi a dose padrão e a ordem de cada componente.").click();
       await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Procedimento cadastrado.").waitFor();
       const blend = await state.pool.query(`SELECT p.dose, array_agg(pp.produto_id) AS produtos
@@ -291,7 +292,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       await page.getByLabel("Selecionar Enfermagem A").click();
       await page.getByTestId("checkbox-substancia-10").click();
       await page.getByTestId("input-procedimento-dose").fill("100 mg");
-      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
+      await page.getByLabel("Conferi que esta é a dose padrão.").click();
       await page.evaluate(() => localStorage.setItem("padcom_collab_token", "sessao-invalida"));
       await page.getByTestId("button-save-procedimento").click();
       await page.getByTestId("error-procedimento-form").waitFor();

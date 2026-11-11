@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { chromium } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { startIsolatedPostgres } from "./helpers/postgres-isolado";
 
 const state = vi.hoisted(() => ({ pool: null as any, db: null as any }));
@@ -59,7 +60,8 @@ beforeAll(async () => {
     INSERT INTO agenda_resources VALUES (600,'Agenda interna A',true,101,11),(601,'Agenda interna B',true,102,15);
     CREATE TABLE professional_empresas (id integer primary key, professional_id integer, empresa_id integer);
     CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean,
-      default_dose text, duration_minutes integer, precise_duration_seconds integer, is_blend boolean NOT NULL DEFAULT false);
+      default_dose text, duration_minutes integer, precise_duration_seconds integer, is_blend boolean NOT NULL DEFAULT false,
+      concentration_mg text, volume_ampola text, presentation_quantity real, presentation_unit text, ampoule_volume_ml real);
     INSERT INTO substances(id,name,procedure_type,doctor_participation) VALUES
       (100,'Implante sintético','implant',true),(101,'Produto sintético','im',false),
       (102,'Produto sintético','im',false),(103,'Produto composto','im',false);
@@ -183,12 +185,26 @@ describe("profissionais necessários — rotas e banco isolados", () => {
     expect(r.status).toBe(201);
     expect(r.body.profissionaisNecessarios).toEqual([medicos]);
   });
+  it("permite duas necessidades da mesma categoria quando existem duas pessoas distintas", async () => {
+    const grupos = [medicos, { areaId: 10, localId: 101, professionalIds: [11] }];
+    const resposta = await post({ ...consulta, nome: "Dois profissionais sintéticos", profissionaisNecessarios: grupos });
+    expect(resposta.status).toBe(201);
+    expect(resposta.body.profissionaisNecessarios).toEqual(grupos);
+    const salvo = (await get("/procedimentos")).body.procedimentos.find((p: { id: number }) => p.id === resposta.body.id);
+    expect(salvo.profissionaisNecessarios).toEqual(grupos);
+  });
+  it("rejeita quarta necessidade e impossibilidade de pessoas distintas", async () => {
+    const quatro = [medicos, enfermagem, biomedico, { areaId: 10, localId: 101, professionalIds: [11] }];
+    expect((await post({ ...consulta, profissionaisNecessarios: quatro })).status).toBe(400);
+    const soUm = { areaId: 10, localId: 101, professionalIds: [11] };
+    expect((await post({ ...consulta, profissionaisNecessarios: [soUm, soUm] })).status).toBe(400);
+  });
   it("recusa vínculo entre clínicas, área errada e quantidade ambígua de recursos", async () => {
     for (const grupos of [
       [{ areaId: 20, localId: 102, professionalIds: [15] }],
       [{ areaId: 20, localId: 101, professionalIds: [11] }],
       [{ ...medicos, professionalIds: [11, 11] }],
-      [medicos, medicos],
+      [{ ...medicos, professionalIds: [11] }, { ...medicos, professionalIds: [11] }],
     ]) expect((await post({ ...consulta, profissionaisNecessarios: grupos })).status).toBe(400);
   });
   it("preserva a identidade de homônimos e de produto composto sem alterar catálogo", async () => {
@@ -233,6 +249,16 @@ describe("profissionais necessários — rotas e banco isolados", () => {
         if (path === "/api/substances") return json([
           { id: 101, name: nomeProduto, defaultDose: "100 MG / 2 ML", durationMinutes: duracaoProduto },
           { id: 102, name: "Produto sintético - 200 MG / 2 ML", defaultDose: "200 MG / 2 ML", durationMinutes: 2.5 },
+          { id: 107, name: "Produto verificado - 10 MG / 2 ML", defaultDose: "10 MG / 2 ML", durationMinutes: 2.5,
+            presentationQuantity: 1, presentationUnit: "ampola", ampouleVolumeMl: 2,
+            concentrationMg: "5 mg/mL", viaUso: "IM" },
+          { id: 106, name: "ADEK (VITAMINAS A, D, E, K)", defaultDose: "A 25.000 UI + D3 100.000 UI + E 200 UI + K2 1.300 MCG / 2 ML", durationMinutes: 2.5,
+            isBlend: true, presentationQuantity: 1, presentationUnit: "ampola", ampouleVolumeMl: 2, components: [
+            { id: 1, componentName: "Vitamina A", doseValue: 25000, doseUnit: "UI" },
+            { id: 2, componentName: "Vitamina D3", doseValue: 100000, doseUnit: "UI" },
+            { id: 3, componentName: "Vitamina E", doseValue: 200, doseUnit: "UI" },
+            { id: 4, componentName: "Vitamina K2", doseValue: 1300, doseUnit: "mcg" },
+          ] },
         ]);
         if (path.startsWith("/api/procedimentos")) {
           const url = path.replace("/api", "");
@@ -248,6 +274,20 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       });
       await page.goto("http://localhost:80/procedimentos");
       await page.getByTestId("button-new-procedimento").click();
+      const itemVerificado = page.getByTestId("row-substancia-107");
+      expect(await itemVerificado.getByText("10 MG", { exact: false }).count()).toBeGreaterThan(0);
+      expect(await itemVerificado.getByText("5 mg/mL", { exact: false }).count()).toBeGreaterThan(0);
+      expect(await itemVerificado.getByText("intramuscular", { exact: false }).count()).toBeGreaterThan(0);
+      await itemVerificado.getByTestId("checkbox-substancia-107").click();
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("10 MG");
+      await itemVerificado.getByTestId("checkbox-substancia-107").click();
+      await page.getByTestId("checkbox-substancia-106").click();
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("25.000 UI + 100.000 UI + 200 UI + 1.300 mcg");
+      const componentes = page.getByTestId("componentes-dose-padrao");
+      for (const texto of ["Vitamina A: 25.000 UI", "Vitamina D3: 100.000 UI", "Vitamina E: 200 UI", "Vitamina K2: 1.300 mcg"]) {
+        expect(await componentes.getByText(texto).count()).toBe(1);
+      }
+      await page.getByTestId("checkbox-substancia-106").click();
       await page.getByTestId("checkbox-substancia-101").click();
       expect(await page.getByTestId("input-procedimento-nome").inputValue()).toBe("Produto sintético");
       expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
@@ -268,8 +308,8 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       await page.getByLabel("Selecionar Biomédico A").click();
       expect(await page.getByRole("button", { name: /^Consulta$/ }).count()).toBe(0);
       await page.getByTestId("button-save-procedimento").click();
-      await page.getByText("Confirme a dose prescrita antes de salvar.").waitFor();
-      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
+      await page.getByText("Confirme a dose padrão antes de salvar.").waitFor();
+      await page.getByLabel("Conferi que esta é a dose padrão.").click();
       await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Procedimento cadastrado.").waitFor();
       const stored = await state.pool.query("SELECT dose,duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético'");
@@ -334,6 +374,76 @@ describe("profissionais necessários — rotas e banco isolados", () => {
     } finally {
       await lock.query("ROLLBACK").catch(() => undefined);
       lock.release();
+    }
+  }, 20000);
+  it("registra na revisão as mudanças A → B → A pela rota real de componentes", async () => {
+    const sql = await readFile(new URL("../../../../lib/db/migrations/20261111-revisao-dose-substancia.sql", import.meta.url), "utf8");
+    await state.pool.query(sql);
+    const editar = (dose: number) => request(app).put("/substances/103/components")
+      .set("Authorization", `Bearer ${token(1)}`)
+      .send({ isBlend: true, components: [
+        { componentName: "Vitamina A", doseValue: dose, doseUnit: "UI" },
+        { componentName: "Vitamina D", doseValue: 100, doseUnit: "UI" },
+      ] });
+    expect((await editar(10)).status).toBe(200);
+    const depoisA = (await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose;
+    expect((await editar(20)).status).toBe(200);
+    expect((await editar(10)).status).toBe(200);
+    const depoisABA = (await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose;
+    expect(BigInt(depoisABA)).toBeGreaterThan(BigInt(depoisA));
+    const componentes = await state.pool.query("SELECT component_name,dose_value,dose_unit FROM substance_blend_components WHERE substance_id=103 ORDER BY sort_order");
+    expect(componentes.rows).toEqual([
+      { component_name: "Vitamina A", dose_value: 10, dose_unit: "UI" },
+      { component_name: "Vitamina D", dose_value: 100, dose_unit: "UI" },
+    ]);
+  });
+  it("desfaz integralmente a operação que perder disputa entre rota e escritor direto", async () => {
+    const componente = (await state.pool.query("SELECT id FROM substance_blend_components WHERE substance_id=103 ORDER BY sort_order LIMIT 1")).rows[0].id;
+    const antes = BigInt((await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose);
+    const externo = await state.pool.connect();
+    try {
+      await externo.query("BEGIN");
+      await externo.query("SELECT id FROM substance_blend_components WHERE id=$1 FOR UPDATE", [componente]);
+      const rota = request(app).put("/substances/103/components")
+        .set("Authorization", `Bearer ${token(1)}`)
+        .send({ isBlend: true, components: [
+          { componentName: "Rota A", doseValue: 1, doseUnit: "UI" },
+          { componentName: "Rota B", doseValue: 2, doseUnit: "UI" },
+        ] }).then((res) => res);
+      const prazo = Date.now() + 5000;
+      let aguardando = 0;
+      do {
+        const result = await state.pool.query(`SELECT count(*)::int AS total FROM pg_stat_activity
+          WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE 'delete%substance_blend_components%'`);
+        aguardando = result.rows[0].total;
+        if (!aguardando) await new Promise((resolve) => setTimeout(resolve, 25));
+      } while (!aguardando && Date.now() < prazo);
+      expect(aguardando).toBeGreaterThan(0);
+      let externoErro: string | null = null;
+      try {
+        await externo.query("UPDATE substance_blend_components SET dose_value=99 WHERE id=$1", [componente]);
+        await externo.query("COMMIT");
+      } catch (error: any) {
+        externoErro = error.code;
+        await externo.query("ROLLBACK");
+      }
+      const resposta = await rota;
+      const rows = (await state.pool.query("SELECT component_name,dose_value FROM substance_blend_components WHERE substance_id=103 ORDER BY sort_order")).rows;
+      const depois = BigInt((await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose);
+      if (externoErro === "40P01") {
+        expect(resposta.status).toBe(200);
+        expect(rows).toEqual([{ component_name: "Rota A", dose_value: 1 }, { component_name: "Rota B", dose_value: 2 }]);
+        expect(depois).toBe(antes + 4n);
+      } else {
+        expect(externoErro).toBeNull();
+        expect(resposta.status).toBe(409);
+        expect(resposta.body.error).toContain("Recarregue");
+        expect(rows).toEqual([{ component_name: "Vitamina A", dose_value: 99 }, { component_name: "Vitamina D", dose_value: 100 }]);
+        expect(depois).toBe(antes + 1n);
+      }
+    } finally {
+      await externo.query("ROLLBACK").catch(() => undefined);
+      externo.release();
     }
   }, 20000);
   it("preserva listagem e gravação mesmo sem a nova coluna", async () => {

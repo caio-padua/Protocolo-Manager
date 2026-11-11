@@ -2,7 +2,7 @@ import type { pool } from "@workspace/db";
 import { CreateProcedimentoBody } from "@workspace/api-zod";
 import { z } from "zod";
 import { durationSecondsFromMinutes } from "./substance-duration";
-import { nomeSugeridoProduto, doseSugeridaProduto, duracaoValidaMinutos } from "../../../../lib/procedimentos-shared/src/index";
+import { nomeSugeridoProduto, doseSugeridaProduto, duracaoValidaMinutos, existeCombinacaoDistinta } from "../../../../lib/procedimentos-shared/src/index";
 
 type Pool = typeof pool;
 
@@ -22,11 +22,15 @@ const entrada = CreateProcedimentoBody.strict().superRefine((value, ctx) => {
   if (value.ativo && grupos.length === 0) {
     ctx.addIssue({ code: "custom", path: ["profissionaisNecessarios"], message: "Informe os profissionais necessários." });
   }
-  if (new Set(grupos.map((g) => `${g.areaId}:${g.localId}`)).size !== grupos.length ||
-      grupos.some((g) => !Number.isSafeInteger(g.areaId) || !Number.isSafeInteger(g.localId) ||
+  if (grupos.length > 3) {
+    ctx.addIssue({ code: "custom", path: ["profissionaisNecessarios"], message: "O procedimento pode exigir até três profissionais simultâneos." });
+  }
+  if (grupos.some((g) => !Number.isSafeInteger(g.areaId) || !Number.isSafeInteger(g.localId) ||
         g.professionalIds.some((id) => !Number.isSafeInteger(id)) ||
         new Set(g.professionalIds).size !== g.professionalIds.length)) {
-    ctx.addIssue({ code: "custom", path: ["profissionaisNecessarios"], message: "Confira as áreas, locais e profissionais sem repetição." });
+    ctx.addIssue({ code: "custom", path: ["profissionaisNecessarios"], message: "Confira as áreas, locais e alternativas sem repetição na mesma necessidade." });
+  } else if (grupos.length <= 3 && !existeCombinacaoDistinta(grupos.map((grupo) => grupo.professionalIds))) {
+    ctx.addIssue({ code: "custom", path: ["profissionaisNecessarios"], message: "Escolha alternativas que permitam profissionais diferentes em cada necessidade." });
   }
   if (value.dose && /(?:ml\b|%|\/)/i.test(value.dose)) {
     ctx.addIssue({ code: "custom", path: ["dose"], message: "Informe a dose, sem volume nem concentração." });
@@ -61,6 +65,8 @@ async function temColunaFontes(db: Queryable): Promise<boolean> {
 type FontesCampos = { nome?: number; dose?: number; duracaoMinutos?: number };
 type ProdutoOrigem = {
   id: number; name: string; defaultDose: string | null; durationMinutes: number | null;
+  concentrationMg: string | null; volumeAmpola: string | null; presentationQuantity: number | null;
+  presentationUnit: string | null; ampouleVolumeMl: number | null; isBlend: boolean | null;
   components: { componentName: string; doseValue: number | null; doseUnit: string | null }[];
 };
 async function buscarOrigens(db: Queryable, ids: number[], lock = false): Promise<Map<number, ProdutoOrigem>> {
@@ -69,7 +75,9 @@ async function buscarOrigens(db: Queryable, ids: number[], lock = false): Promis
   // alteração dos componentes também atualiza a apresentação na transação.
   if (lock) await db.query("SELECT id FROM substances WHERE id=ANY($1::integer[]) FOR SHARE", [ids]);
   const result = await db.query<ProdutoOrigem>(`
-    SELECT s.id, s.name, s.default_dose AS "defaultDose",
+    SELECT s.id, s.name, s.default_dose AS "defaultDose", s.concentration_mg AS "concentrationMg",
+      s.volume_ampola AS "volumeAmpola", s.presentation_quantity AS "presentationQuantity",
+      s.presentation_unit AS "presentationUnit", s.ampoule_volume_ml AS "ampouleVolumeMl", s.is_blend AS "isBlend",
       COALESCE(s.precise_duration_seconds::double precision / 60, s.duration_minutes::double precision) AS "durationMinutes",
       COALESCE((SELECT jsonb_agg(jsonb_build_object('componentName',c.component_name,
         'doseValue',c.dose_value,'doseUnit',c.dose_unit) ORDER BY c.sort_order,c.id)

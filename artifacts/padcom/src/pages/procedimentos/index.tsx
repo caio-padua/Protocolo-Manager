@@ -21,9 +21,10 @@ import {
 } from "lucide-react";
 import { usePermissoes } from "@/lib/permissoes";
 import { collabAuthHeaders } from "@/lib/collab-auth";
-import { doseSugeridaProduto, duracaoValidaMinutos, nomeSugeridoProduto } from "./sugestao-produto";
+import { doseSugeridaProduto, duracaoValidaMinutos, existeCombinacaoDistinta, nomeSugeridoProduto } from "./sugestao-produto";
 import { ProfissionaisNecessarios, type GrupoProfissional } from "./ProfissionaisNecessarios";
 import { CatalogoProdutos } from "./CatalogoProdutos";
+import { FichaApresentacao } from "./FichaApresentacao";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -125,9 +126,11 @@ function quantidadeSubstancias(total: number): string {
 function erroDeValidacao(formulario: Formulario): string | null {
   if (!formulario.nome.trim()) return "Informe o nome do procedimento.";
   if (formulario.ativo && !formulario.profissionaisNecessarios.length) return "Adicione os profissionais necessários.";
+  if (formulario.profissionaisNecessarios.length > 3) return "O procedimento pode exigir até três profissionais simultâneos.";
   if (formulario.profissionaisNecessarios.some((g) => !g.areaId || !g.localId || !g.professionalIds.length)) return "Escolha local, área e ao menos um profissional para cada necessidade.";
+  if (!existeCombinacaoDistinta(formulario.profissionaisNecessarios.map((g) => g.professionalIds))) return "Escolha alternativas que permitam profissionais diferentes em cada necessidade.";
   if (formulario.produtoIds.length && !formulario.dose && !formulario.doseRevisada) return "Confira a dose e confirme se o procedimento não possui dose definida.";
-  if (formulario.produtoIds.length && formulario.dose && !formulario.doseRevisada) return "Confirme a dose prescrita antes de salvar.";
+  if (formulario.produtoIds.length && formulario.dose && !formulario.doseRevisada) return "Confirme a dose padrão antes de salvar.";
   if (/(?:ml\b|%|\/)/i.test(formulario.dose)) return "Informe a dose sem volume ou concentração.";
   const duracao = Number(formulario.duracaoMinutos.replace(",", "."));
   if (!formulario.duracaoMinutos.trim() && formulario.ativo) {
@@ -595,12 +598,31 @@ export default function Procedimentos() {
                 </div>
 
                 <label className="block space-y-1.5 text-xs font-bold">
-                  <span>Dose prescrita, quando houver</span>
+                  <span>Dose padrão do procedimento, quando houver</span>
                   <Input className="field-engraved min-h-11" value={formulario.dose}
                     onChange={(event) => alterarCampo("dose", event.target.value)}
                     placeholder="Informe apenas a dose" data-testid="input-procedimento-dose" />
-                  <span className="block text-xs text-muted-foreground">Não informe volume ou concentração. Revise antes de salvar.</span>
+                  <span className="block text-xs text-muted-foreground">Não informe volume ou concentração. A dose individual será prescrita no protocolo.</span>
                 </label>
+                {formulario.produtoIds.length === 1 && (() => {
+                  const produto = substancias.find((item) => item.id === formulario.produtoIds[0]);
+                  if (!produto?.components || produto.components.length < 2) return null;
+                  return (
+                    <div className="concave-3d p-3 text-xs" data-testid="componentes-dose-padrao">
+                      <p className="font-bold">Componentes da apresentação selecionada</p>
+                      <p className="text-muted-foreground">Valores do cadastro, para conferência; não são uma prescrição individual.</p>
+                      {produto.components.map((componente) => {
+                        const unidade = componente.doseUnit?.trim() ?? "";
+                        const valor = componente.doseValue;
+                        const identificado = typeof valor === "number" && Number.isFinite(valor) && valor > 0
+                          && /^(?:mg|mcg|µg|μg|ug|g|ui|iu)$/i.test(unidade);
+                        return <p key={componente.id}>{componente.componentName}: {identificado
+                          ? `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 8 })} ${unidade}`
+                          : "dose não identificada"}</p>;
+                      })}
+                    </div>
+                  );
+                })()}
                 {vinculosHabilitados && formulario.produtoIds.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {formulario.fontesCampos.dose ? "Dose vinculada ao produto; alterações exigem nova conferência." : "Dose personalizada."}{" "}
@@ -611,7 +633,7 @@ export default function Procedimentos() {
                   <label className="flex items-center gap-2 text-xs">
                     <Checkbox checked={formulario.doseRevisada} onCheckedChange={(checked) => alterarCampo("doseRevisada", checked === true)} />
                     {formulario.dose
-                      ? produtoComposto ? "Conferi a dose prescrita e a ordem de cada componente." : "Conferi que esta é a dose prescrita."
+                      ? produtoComposto ? "Conferi a dose padrão e a ordem de cada componente." : "Conferi que esta é a dose padrão."
                       : "Confirmei que a dose está ausente ou será definida depois."}
                   </label>
                 )}
@@ -725,7 +747,10 @@ export default function Procedimentos() {
                               aria-label={`Vincular ${nomeSubstancia(substance)}`}
                               data-testid={`checkbox-substancia-${substance.id}`}
                             />
-                            <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{nomeSugeridoProduto(substance.name) || substance.name}</span>
+                            <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+                              {nomeSugeridoProduto(substance.name) || substance.name}
+                              <FichaApresentacao produto={substance} />
+                            </span>
                             {marcado && <Check className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />}
                           </label>
                           <details className="mt-1 pl-7 text-xs">

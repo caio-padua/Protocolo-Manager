@@ -22,14 +22,14 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
     <section className="panel-3d-sub space-y-3 p-4" aria-label="Profissionais necessários">
       <h3 className="text-xs font-black uppercase tracking-widest text-primary">Profissionais necessários</h3>
       <p className="text-sm text-muted-foreground">
-        Escolha uma ou mais alternativas na mesma categoria. Todas as categorias adicionadas serão necessárias.
+        Escolha uma ou mais alternativas em cada necessidade. Cada necessidade exige uma pessoa diferente.
         As agendas são informativas; nenhum horário será reservado.
       </p>
       <div className="concave-3d space-y-1 p-3 text-xs text-foreground">
         <p>Aplicação de substância: enfermagem.</p>
         <p>Implante: médico e enfermagem.</p>
         <p>Consulta e procedimento estético: médico.</p>
-        <p>Combine as categorias necessárias para cada procedimento, inclusive três ou mais.</p>
+        <p>Combine até três necessidades simultâneas; elas podem pertencer à mesma categoria.</p>
       </div>
       {query.isLoading && <p role="status">Carregando vínculos da clínica…</p>}
       {query.isError && <p role="alert" className="text-red-800">Não foi possível carregar os vínculos. Confira a sessão e tente novamente.</p>}
@@ -83,7 +83,7 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
           </fieldset>
         );
       })}
-      <Button type="button" className="btn-3d-soft min-h-11" disabled={!query.isSuccess}
+      <Button type="button" className="btn-3d-soft min-h-11" disabled={!query.isSuccess || grupos.length >= 3}
         onClick={() => onChange([...grupos, { areaId: 0, localId: 0, professionalIds: [] }])}>
         Adicionar categoria necessária
       </Button>

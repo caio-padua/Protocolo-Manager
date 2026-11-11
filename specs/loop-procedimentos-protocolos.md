@@ -86,3 +86,101 @@ informada como indisponível. A nova versão do servidor não foi ativada no
 ambiente real, porque ainda não há prova de uma inicialização sem escritas.
 Clientes antigos que enviem uma dose sem confirmação poderão ter a gravação
 recusada pelo servidor novo; a compatibilidade precisa de revisão.
+
+## Retomada — revisão monotônica da dose
+
+O identificador da apresentação é a origem; o valor prescrito e documentos
+anteriores permanecem independentes. A revisão da dose deve ser um contador
+persistido no banco, alterado na mesma transação de qualquer mudança de nome,
+dose padrão ou componentes que influenciem a sugestão, inclusive alterações
+feitas fora da tela. Componentes adquirem os bloqueios das apresentações na
+ordem dos identificadores; alterações concorrentes que falhem não avançam a
+revisão. A confirmação guarda a revisão observada, nunca apenas o texto.
+
+| Falha | Consequência | Barreira e prova |
+| --- | --- | --- |
+| Dose A → B → A | Falsa aparência de revisão | Contador monotônico; teste com as três alterações. |
+| Dois escritores simultâneos | Revisão perdida ou mistura | Bloqueio no banco; teste com transações concorrentes. |
+| Excluir ou mover componente | Composição muda sem aviso | Contador das duas apresentações; teste de inserção, alteração e exclusão. |
+| Origem ausente ou não migrada | Dose inventada ou função insegura | Falhar explicitamente; manter a ligação desativada até completar a integração. |
+| Reinicialização no ambiente atual | Regravação de cadastro | Não executar migrações na inicialização; testes em banco descartável. |
+| Troca ou retirada de origem | Revisão médica contornada | Impedir salvamento sem confronto transacional da revisão anterior e atual. |
+
+O contador é uma infraestrutura, não comprova a integração nem autoriza retirar
+o bloqueio de segurança existente. A migração deve ser aditiva e validada em
+banco descartável antes de qualquer aplicação ao ambiente de desenvolvimento.
+
+A conferência transacional bloqueia as apresentações anterior e nova antes de
+ler as revisões. Se uma origem antiga mudou, foi removida ou foi substituída,
+exige confirmação médica da revisão atual da origem antiga; a nova origem
+também exige revisão e confirmação. A função de conferência deve ser chamada
+dentro da mesma transação que salva o procedimento. A identidade médica tem de
+ser validada pelo servidor, não aceita como declaração do navegador. Esta etapa
+isolada não integra a tela nem libera o cadastro.
+
+### Resultado da revisão independente
+
+A primeira versão foi reprovada: a trava dos componentes era adquirida depois
+da verificação de chave estrangeira, permitindo espera circular em movimentos
+concorrentes; faltavam teste do caso e validação dos limites da revisão.
+Corrigir a aquisição antes da alteração, testar movimentos opostos e manter
+a função indisponível enquanto não houver integração transacional completa.
+Os bloqueios das apresentações usam NO KEY UPDATE, compatível com a verificação
+de chaves estrangeiras, e seguem a ordem dos identificadores. Um escritor direto
+que bloqueie primeiro um componente ainda pode concorrer com a rota que bloqueia
+primeiro a apresentação; se houver impasse, o banco deve abortar integralmente
+uma transação. Esse cenário também precisa ser exercitado antes da ativação.
+Na rota de componentes, uma transação abortada por impasse deve devolver
+conflito com instrução para recarregar, e não erro de preenchimento. Repetir
+automaticamente a gravação não é seguro, pois outra pessoa pode ter alterado a
+composição. A migração deve recusar gatilho existente com definição inesperada
+em vez de presumir que ele foi atualizado.
+Por segurança, substituir componentes por uma lista idêntica ainda altera o
+contador: isso pode exigir revisão desnecessária, mas não confirma dose alterada
+sem conferência. A comparação semântica de listas fica pendente antes da ativação.
+
+## Complemento de conferência do cadastro
+
+O catálogo de substâncias apresentado na tela não representa procedimentos já
+cadastrados. Não criar procedimentos em massa. Chamar o campo do cadastro de
+“dose padrão”, distinguindo-o da prescrição individual que será feita no
+protocolo. Quando um produto composto estiver selecionado, mostrar cada nome
+de componente e sua dose e unidade de origem; valor ausente ou unidade não
+interpretável aparece como não identificado. Não alterar o valor salvo nem
+documentos já emitidos. Confirmar a exibição com dados sintéticos em navegador.
+
+Cada necessidade profissional terá identidade própria: duas necessidades podem
+ter a mesma categoria e local, exigindo duas pessoas diferentes. Alternativas
+dentro de uma necessidade representam uma única pessoa. A escolha padrão não
+será inventada. Esta mudança precisa persistência e teste no servidor e ainda
+não está integrada. A revisão do fluxo de protocolo também deve tratar
+consulta sem produto ou dose, captura de catálogo dentro da transação e
+identificação da ocorrência pelo item, não pela substância.
+
+Na edição do catálogo, permitir até três necessidades simultâneas, incluindo
+duas da mesma categoria e local, com quantas alternativas autorizadas o
+contrato já permite. Exigir que exista ao menos uma combinação de pessoas
+distintas para todas as necessidades. Necessidades gravadas ainda não têm
+identidade estável exposta ao protocolo; não considerá-las integradas à reserva.
+
+### Identificação direta de apresentações
+
+As duas listas exibem, sem abrir detalhes, o nome, dose total identificável,
+apresentação, concentração e via informadas no cadastro, além do identificador.
+Ausência ou conflito não vira valor presumido. A seleção preserva o identificador
+e preenche somente a dose no campo, não concentração ou volume.
+
+Dados legados no formato “quantidade / volume” só podem gerar uma sugestão
+quando a apresentação for uma ampola única, o volume final estruturado coincidir
+com o denominador e não houver informação conflitante de volume ou concentração.
+Sem esses dados não se deduz o total. Valores dos componentes compostos permanecem
+um único ato, identificados por nome e unidade. Revisão clínica permanece
+obrigatória. A revisão monotônica precisa incluir os campos de apresentação
+usados nesse cálculo, além da dose, nome e componentes.
+
+A revisão independente encontrou risco de sugestão diante de informações
+contraditórias. Para um composto com dose textual, os nomes, quantidades e
+unidades devem corresponder a todos os componentes; caso contrário, não sugerir.
+Se houver volume textual no composto, também deve coincidir com a apresentação
+estruturada. Uma concentração legada cujo significado não possa ser validado
+não pode servir de prova da dose. Alertas devem preservar os valores de origem.

@@ -98,6 +98,7 @@
 - [PaxterClientSelector — seletor universal canônico](paxter-client-selector.md) — substitui ClientPicker/ClientCombobox/CockpitSearch/Select nativo; state=number|null; placeholder canônico="Selecionar cliente…"; cpf+phone+photoUrl obrigatórios no map; skill em .agents/skills/skill-paxter-client-selector/SKILL.md.
 - [Protocolo da Planilha — colunas A-J + "Para que serve"](planilha-protocolo.md) — col I obrigatória em todo item novo (1 frase CEO); col J=Módulo; 4 requisitos p/ CONCLUÍDO; doc normativo em docs/PROTOCOLO-PLANILHA.md.
 - [Procedimento — produto e dose](seletor-produto-procedimento.md) — nome limpo, detalhes para homônimos, dose segura separada e nome do procedimento no RASP.
+- [Substâncias, apresentações e ofertas](substancia-mestre-apresentacoes-ofertas.md) — doses ou formas diferentes exigem cadastros separados; até cinco ofertas; preservar referências antigas.
 - [Portao-captacao das vitrines + push GitHub](vitrine-gate-leads.md) — login do gate E o lead (contrato só adiciona campo); push git falha sem credencial: usar painel Git do Replit.
 - [Dicionário — fonte única e sync automático](dicionario-fonte-unica.md) — GLOSSARIO em slack-glossario.ts é a lei; boot + rota sync propagam para Sheets sem tocar CEO edits.
 - [Telegram — arquitetura do canal com pacientes](telegram-arquitetura.md) — @Paduaclinica_bot; vinculação por validationPassword; espelho WhatsApp→Telegram; e-mail onboarding; webhook encaminha ao CEO.

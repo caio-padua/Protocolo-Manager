@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { Substance } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { nomeSugeridoProduto } from "./sugestao-produto";
+import { FichaApresentacao } from "./FichaApresentacao";
 
 interface Props {
   produtos: Substance[];
@@ -44,13 +44,12 @@ export function CatalogoProdutos({ produtos, carregando, erro, tentarNovamente, 
           <div className="concave-3d max-h-96 space-y-2 overflow-y-auto p-3" aria-label="Produtos disponíveis">
             {itens.map((produto) => (
               <div key={produto.id} className="bevel-3d p-3" data-testid={`catalogo-produto-${produto.id}`}>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <span className="min-w-0 flex-1 text-sm font-semibold">{nomeSugeridoProduto(produto.name) || produto.name}</span>
-                  <Button type="button" className="btn-3d-soft min-h-10" onClick={() => onEscolher(produto)}
-                    aria-label={`Cadastrar procedimento para ${produto.name}, identificador ${produto.id}`}>
-                    Cadastrar procedimento
-                  </Button>
-                </div>
+                <button type="button" className="block w-full text-left" onClick={() => onEscolher(produto)}
+                  aria-label={`Cadastrar procedimento para ${produto.name}, identificador ${produto.id}`}>
+                  <span className="block text-sm font-semibold">{nomeSugeridoProduto(produto.name) || produto.name}</span>
+                  <FichaApresentacao produto={produto} />
+                  <span className="btn-3d-soft mt-2 inline-block px-3 py-2 text-xs font-semibold">Cadastrar procedimento</span>
+                </button>
                 <details className="mt-1 text-xs">
                   <summary className="cursor-pointer text-primary underline">Detalhes da apresentação</summary>
                   <p>Identificador {produto.id} · Cadastro: {produto.name}</p>

@@ -160,6 +160,12 @@ router.put("/substances/:id/components", requireCatalogOwner, async (req, res): 
       }
     });
   } catch (error: any) {
+    // O banco já desfez toda a transação. Não repetir automaticamente uma
+    // edição que pode ter sido substituída por outra pessoa.
+    if (error?.code === "40P01" || error?.cause?.code === "40P01") {
+      res.status(409).json({ error: "A composição foi alterada ao mesmo tempo. Recarregue o produto e confira antes de tentar novamente." });
+      return;
+    }
     res.status(400).json({ error: error?.message ?? "Could not save blend components" });
     return;
   }

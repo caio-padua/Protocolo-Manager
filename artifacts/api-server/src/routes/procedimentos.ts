@@ -78,7 +78,8 @@ router.get("/procedimentos/opcoes-profissionais", requireCollaborator, exigirCon
 async function salvar(req: Request, res: Response, id?: number): Promise<void> {
   const parsed = validarProcedimento(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Confira os campos do procedimento.", detalhes: parsed.error.issues });
+    const equipe = parsed.error.issues.find((issue) => issue.path[0] === "profissionaisNecessarios");
+    res.status(400).json({ error: equipe?.message ?? "Confira os campos do procedimento.", detalhes: parsed.error.issues });
     return;
   }
   try {
