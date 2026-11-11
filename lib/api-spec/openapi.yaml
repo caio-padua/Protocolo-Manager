@@ -41,6 +41,63 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /procedimentos:
+    get:
+      operationId: listProcedimentos
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Procedimentos da clínica autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListaProcedimentos"
+        "401": { description: Sessão inválida. }
+        "403": { description: Clínica não autorizada. }
+    post:
+      operationId: createProcedimento
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProcedimentoEntrada" }
+      responses:
+        "201":
+          description: Procedimento cadastrado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Procedimento" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Edição não autorizada. }
+  /procedimentos/{id}:
+    put:
+      operationId: updateProcedimento
+      tags: [procedimentos]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProcedimentoEntrada" }
+      responses:
+        "200":
+          description: Procedimento atualizado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Procedimento" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Edição não autorizada. }
+        "404": { description: Procedimento não encontrado. }
   /paxmed-2b/empresas/{empresaId}:
     parameters:
       - name: empresaId
@@ -3595,6 +3652,43 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    ListaProcedimentos:
+      type: object
+      required: [empresaId, empresaNome, procedimentos]
+      properties:
+        empresaId: { type: integer }
+        empresaNome: { type: string }
+        procedimentos:
+          type: array
+          items: { $ref: "#/components/schemas/Procedimento" }
+    ProcedimentoEntrada:
+      type: object
+      additionalProperties: false
+      required: [nome, tipo, descricao, duracaoMinutos, ativo, produtoIds]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 200 }
+        tipo: { type: string, enum: [consulta, enfermagem, medico] }
+        descricao:
+          anyOf:
+            - { type: string, maxLength: 2000 }
+            - { type: "null" }
+        duracaoMinutos:
+          anyOf:
+            - { type: number, minimum: 0.01, maximum: 1440 }
+            - { type: "null" }
+        ativo: { type: boolean }
+        produtoIds:
+          type: array
+          maxItems: 100
+          items: { type: integer, minimum: 1 }
+    Procedimento:
+      allOf:
+        - $ref: "#/components/schemas/ProcedimentoEntrada"
+        - type: object
+          required: [id, empresaId]
+          properties:
+            id: { type: integer }
+            empresaId: { type: integer }
     Paxmed2bEmpresa:
       type: object
       required: [nomeCabecalho, rodapeLinha1, rodapeLinha2, rodapeLinha3, versao]

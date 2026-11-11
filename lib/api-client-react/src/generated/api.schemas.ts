@@ -5,6 +5,40 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export type ProcedimentoEntradaTipo =
+  (typeof ProcedimentoEntradaTipo)[keyof typeof ProcedimentoEntradaTipo];
+
+export const ProcedimentoEntradaTipo = {
+  consulta: "consulta",
+  enfermagem: "enfermagem",
+  medico: "medico",
+} as const;
+
+export interface ProcedimentoEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  nome: string;
+  tipo: ProcedimentoEntradaTipo;
+  descricao: string | null;
+  duracaoMinutos: number | null;
+  ativo: boolean;
+  /** @maxItems 100 */
+  produtoIds: number[];
+}
+
+export type Procedimento = ProcedimentoEntrada & {
+  id: number;
+  empresaId: number;
+};
+
+export interface ListaProcedimentos {
+  empresaId: number;
+  empresaNome: string;
+  procedimentos: Procedimento[];
+}
+
 export interface Paxmed2bEmpresa {
   nomeCabecalho: string;
   rodapeLinha1: string;

@@ -31,6 +31,8 @@ import { purgeOldDeviceOfferLimits } from "./lib/concierge-device-throttle";
 import { startWebhookGuard } from "./lib/telegram-webhook-guard";
 import { purgeOldDietaPdfs } from "./lib/dieta-planos-storage";
 import { checkDicionarioAndAlert } from "./lib/dicionario-sync-alert";
+import { pool } from "@workspace/db";
+import { PROCEDIMENTOS_SCHEMA_SQL } from "./lib/procedimentos-schema";
 
 const rawPort = process.env["PORT"];
 
@@ -49,6 +51,12 @@ if (Number.isNaN(port) || port <= 0) {
 // Boot sequenciado: migrações críticas rodam ANTES do listen para evitar
 // race condition entre requests e criação de tabelas auxiliares.
 (async () => {
+  try {
+    await pool.query(PROCEDIMENTOS_SCHEMA_SQL);
+    logger.info("cadastro de procedimentos: estrutura aditiva pronta");
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao preparar cadastro de procedimentos; a tela pode ficar indisponível");
+  }
   try {
     await ensureProfessionalClerkIdentitySchema();
     logger.info("identidades Google por ambiente: schema pronto antes do listen");

@@ -18,6 +18,7 @@ import ClientDetail from "@/pages/clients/detail";
 import EditClient from "@/pages/clients/edit";
 import NewClient from "@/pages/clients/new";
 import Substances from "@/pages/substances";
+import Procedimentos from "@/pages/procedimentos";
 import Protocols from "@/pages/protocols";
 import ProtocolDetail from "@/pages/protocols/detail";
 import NewProtocol from "@/pages/protocols/new";
@@ -220,6 +221,7 @@ function Router() {
             <Route path="/cockpit-cliente/:rest*"><Redirect to="/cockpit" replace /></Route>
             
             <Route path="/substances" component={Substances} />
+            <Route path="/procedimentos"><CollaboratorGate><Procedimentos /></CollaboratorGate></Route>
 
             <Route path="/prescricao" component={() => {
               const id = new URLSearchParams(window.location.search).get("clientId");

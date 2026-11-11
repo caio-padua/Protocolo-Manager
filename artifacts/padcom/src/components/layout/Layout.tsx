@@ -181,6 +181,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Portfólio Clínico", href: "/portfolio-clinico", icon: FlaskConical },
       { name: "Protocolos", href: "/protocols", icon: FlaskConical },
+      { name: "Procedimentos", href: "/procedimentos", icon: ClipboardList },
       { name: "RASP", href: "/ras", icon: FileText },
       { name: "Catálogos", href: "/catalogos", icon: Library },
       { name: "Estoque", href: "/stock", icon: Box },

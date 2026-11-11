@@ -151,6 +151,7 @@ import type {
   ListSchedulingRequestsParams,
   ListSessionsParams,
   ListSiteContentParams,
+  ListaProcedimentos,
   LocationCodigoSemantico,
   LocationCodigoSemanticoLista,
   Paxmed2bClinicas,
@@ -168,6 +169,8 @@ import type {
   Prescription,
   PrescriptionDetail,
   PreviewBody,
+  Procedimento,
+  ProcedimentoEntrada,
   Professional,
   ProfessionalArea,
   ProfessionalSpecialty,
@@ -219,6 +222,235 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getListProcedimentosUrl = () => {
+  return `/api/procedimentos`;
+};
+
+export const listProcedimentos = async (
+  options?: RequestInit,
+): Promise<ListaProcedimentos> => {
+  return customFetch<ListaProcedimentos>(getListProcedimentosUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListProcedimentosQueryKey = () => {
+  return [`/api/procedimentos`] as const;
+};
+
+export const getListProcedimentosQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProcedimentos>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListProcedimentosQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProcedimentos>>
+  > = ({ signal }) => listProcedimentos({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentos>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProcedimentosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProcedimentos>>
+>;
+export type ListProcedimentosQueryError = ErrorType<void>;
+
+export function useListProcedimentos<
+  TData = Awaited<ReturnType<typeof listProcedimentos>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcedimentos>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProcedimentosQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateProcedimentoUrl = () => {
+  return `/api/procedimentos`;
+};
+
+export const createProcedimento = async (
+  procedimentoEntrada: ProcedimentoEntrada,
+  options?: RequestInit,
+): Promise<Procedimento> => {
+  return customFetch<Procedimento>(getCreateProcedimentoUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(procedimentoEntrada),
+  });
+};
+
+export const getCreateProcedimentoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcedimento>>,
+    TError,
+    { data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProcedimento>>,
+  TError,
+  { data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  const mutationKey = ["createProcedimento"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProcedimento>>,
+    { data: BodyType<ProcedimentoEntrada> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProcedimento(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProcedimentoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProcedimento>>
+>;
+export type CreateProcedimentoMutationBody = BodyType<ProcedimentoEntrada>;
+export type CreateProcedimentoMutationError = ErrorType<void>;
+
+export const useCreateProcedimento = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcedimento>>,
+    TError,
+    { data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProcedimento>>,
+  TError,
+  { data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  return useMutation(getCreateProcedimentoMutationOptions(options));
+};
+
+export const getUpdateProcedimentoUrl = (id: number) => {
+  return `/api/procedimentos/${id}`;
+};
+
+export const updateProcedimento = async (
+  id: number,
+  procedimentoEntrada: ProcedimentoEntrada,
+  options?: RequestInit,
+): Promise<Procedimento> => {
+  return customFetch<Procedimento>(getUpdateProcedimentoUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(procedimentoEntrada),
+  });
+};
+
+export const getUpdateProcedimentoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcedimento>>,
+    TError,
+    { id: number; data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProcedimento>>,
+  TError,
+  { id: number; data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  const mutationKey = ["updateProcedimento"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProcedimento>>,
+    { id: number; data: BodyType<ProcedimentoEntrada> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateProcedimento(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateProcedimentoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProcedimento>>
+>;
+export type UpdateProcedimentoMutationBody = BodyType<ProcedimentoEntrada>;
+export type UpdateProcedimentoMutationError = ErrorType<void>;
+
+export const useUpdateProcedimento = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcedimento>>,
+    TError,
+    { id: number; data: BodyType<ProcedimentoEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateProcedimento>>,
+  TError,
+  { id: number; data: BodyType<ProcedimentoEntrada> },
+  TContext
+> => {
+  return useMutation(getUpdateProcedimentoMutationOptions(options));
+};
 
 export const getGetPaxmed2bEmpresaUrl = (empresaId: number) => {
   return `/api/paxmed-2b/empresas/${empresaId}`;
