@@ -19,7 +19,7 @@ import {
   Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
   FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
   Fingerprint, Landmark, Receipt, Link2, Plug, ScrollText, Navigation,
-  Scale, UserCheck, Calculator, FileSignature, MessageCircle, Smartphone, Send, History,
+  Scale, UserCheck, Calculator, FileSignature, MessageCircle, Smartphone, Send, History, Tags,
   type LucideIcon,
 } from "lucide-react";
 import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
 import { LocaisDaEmpresa } from "./LocaisDaEmpresa";
+import { ClassificacaoEmpresa, ResumoClassificacao } from "./ClassificacaoEmpresa";
 import { Switch } from "@/components/ui/switch";
 import { LocaisExternosAba } from "@/components/empresa/LocaisExternosAba";
 
@@ -38,7 +39,7 @@ interface Empresa {
   id: number; iheId: number | null;
   nome: string; nomeFantasia: string | null; razaoSocial: string | null;
   nick: string | null; cnpj: string | null;
-  tipo: string; tipoUnidade: string | null; status: string; ativa: boolean;
+  tipo: string; tipoUnidade: string | null; classificacaoAssistencial: string | null; grauComplexidade: string | null; status: string; ativa: boolean;
   donoNome: string | null; slug: string | null; areaUrl: string | null; timezone: string | null;
   endereco: string | null; numero: string | null; complemento: string | null;
   cep: string | null; bairro: string | null;
@@ -103,6 +104,8 @@ const formSchema = z.object({
   cnpj:            z.string().optional(),
   tipo:            z.string(),
   tipoUnidade:     z.string().optional(),
+  classificacaoAssistencial: z.string().optional(),
+  grauComplexidade: z.string().optional(),
   status:          z.string(),
   ativa:           z.boolean(),
   donoNome:        z.string().optional(),
@@ -189,7 +192,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 const EMPTY: FormValues = {
   nome: "", nomeFantasia: "", razaoSocial: "", nick: "", cnpj: "", tipo: "clinic",
-  tipoUnidade: "CLINICA", status: "ATIVO", ativa: true,
+  tipoUnidade: "", classificacaoAssistencial: "", grauComplexidade: "", status: "ATIVO", ativa: true,
   donoNome: "", slug: "", areaUrl: "", timezone: "America/Sao_Paulo",
   cnae: "", cnaeDescricao: "", naturezaJuridica: "Ltda",
   regimeTributario: "", inscricaoEstadual: "",
@@ -210,7 +213,7 @@ const EMPTY: FormValues = {
   googleCalendarId: "", googleDriveFolderId: "",
 };
 
-const ABAS_VALIDAS = ["ident", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos", "locais-externos"];
+const ABAS_VALIDAS = ["ident", "classificacao", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos", "locais-externos"];
 
 // ── Labels de referência ───────────────────────────────────────────────────────
 const TIPO_LABELS: Record<string, string> = {
@@ -277,6 +280,7 @@ function PermBadge({ ok, label }: { ok: boolean; label: string }) {
 // ── Abas do cadastro da empresa (Padrão 36): grupos = assunto, ordem de preenchimento ──────────
 const ABAS_EMPRESA: ItemTrilho[] = [
   { value: "ident",           label: "Dados",             icon: FileText,    grupo: "cadastro" },
+  { value: "classificacao",   label: "Classificação",     icon: Tags,        grupo: "cadastro" },
   { value: "end",             label: "Endereço",          icon: MapPin,      grupo: "cadastro" },
   { value: "marca-documento", label: "Identidade",        icon: Fingerprint, grupo: "cadastro" },
   { value: "fiscal",          label: "Fiscal e CNAE",     icon: Landmark,    grupo: "fiscal" },
@@ -294,6 +298,7 @@ interface SecaoDef { icone: LucideIcon; titulo: string; dica?: string; campos?: 
 const SECOES: Record<string, SecaoDef> = {
   identificacao: { icone: Building2, titulo: "Identificação", campos: ["nome", "nomeFantasia", "razaoSocial", "cnpj", "donoNome"] },
   contatos: { icone: Phone, titulo: "Contatos", campos: ["telefone", "emailGeral", "emailAgenda", "emailEnfermagem", "emailFinanceiro"] },
+  classificacao: { icone: Tags, titulo: "Classificação", campos: ["tipoUnidade", "classificacaoAssistencial", "grauComplexidade"] },
   historico: { icone: History, titulo: "Dados comerciais históricos", dica: "somente consulta" },
   juridicos: { icone: Scale, titulo: "Dados jurídicos", campos: ["naturezaJuridica", "regimeTributario", "cnae", "cnaeDescricao", "inscricaoEstadual", "inscricaoMunicipal", "dataAbertura", "capitalSocial"] },
   responsavel: { icone: UserCheck, titulo: "Responsável legal", campos: ["responsavelLegalNome", "responsavelLegalCpf"] },
@@ -312,6 +317,7 @@ const SECOES: Record<string, SecaoDef> = {
 // Aba -> seções que contam para o selo da aba (só abas de cadastro; integrações são opcionais).
 const SECOES_DA_ABA: Record<string, string[]> = {
   ident: ["identificacao", "contatos"],
+  classificacao: ["classificacao"],
   end: ["endComercial", "endFiscal"],
   fiscal: ["juridicos", "responsavel", "contador"],
   nfe: ["nfe", "certificado"],
@@ -374,7 +380,7 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
   onOpen: () => void;
 }) {
   return (
-    <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${ehInstitutoPadua(empresa.nome) ? "panel-3d-active" : ""}`} data-testid={`empresa-card-${empresa.id}`}>
+    <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${ehInstitutoPadua(empresa.nome) ? "panel-3d-active" : ""} ${empresa.ativa ? "" : "opacity-60"}`} data-testid={`empresa-card-${empresa.id}`}>
       {/* Faixa lateral: genesis=dourado, ativa=teal, inativa=amber */}
       <div className={`absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px] ${
         empresa.tipo === "genesis_seed" ? "bg-amber-400" :
@@ -1029,6 +1035,8 @@ export default function CadastroEmpresas() {
   const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
+  // Por enquanto as inativas continuam visíveis (no fim do próprio grupo); o interruptor do topo as esconde.
+  const [mostrarInativas, setMostrarInativas] = useState(true);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
 
   const { data: empresas = [], isLoading, isError, refetch } = useQuery<Empresa[]>({
@@ -1103,7 +1111,9 @@ export default function CadastroEmpresas() {
     form.reset({
       nome: e.nome, nomeFantasia: e.nomeFantasia || "", razaoSocial: e.razaoSocial || "",
       nick: e.nick || "", cnpj: e.cnpj || "",
-      tipo: e.tipo, tipoUnidade: normalizarTipoUnidade(e.tipoUnidade), status: e.status, ativa: e.ativa,
+      tipo: e.tipo, tipoUnidade: normalizarTipoUnidade(e.tipoUnidade),
+      classificacaoAssistencial: e.classificacaoAssistencial || "", grauComplexidade: e.grauComplexidade || "",
+      status: e.status, ativa: e.ativa,
       donoNome: e.donoNome || "", slug: e.slug || "", areaUrl: e.areaUrl || "", timezone: e.timezone || "America/Sao_Paulo",
       cnae: e.cnae ? formatarCnaeExistente(e.cnae) : "", cnaeDescricao: e.cnaeDescricao || "",
       naturezaJuridica: e.naturezaJuridica || "Ltda",
@@ -1158,9 +1168,10 @@ export default function CadastroEmpresas() {
   // ── Agrupamento geográfico normalizado ("São Paulo" = "Sao Paulo") ──────────
   // Grupo do Instituto Padua primeiro; demais em ordem alfabética determinística.
   const grupos = useMemo(() => {
-    const ativas = empresas.filter((e) => e.ativa);
+    // Inativas ficam no MESMO grupo de cidade (e de zona), só que no fim dele; o interruptor do topo as esconde.
+    const visiveis = mostrarInativas ? empresas : empresas.filter((e) => e.ativa);
     const map = new Map<string, { rotulo: string; lista: Empresa[] }>();
-    for (const e of ativas) {
+    for (const e of visiveis) {
       const cidade = e.cidade?.trim() || "";
       const uf = e.estado?.trim().toUpperCase() || "";
       const chave = `${semAcento(cidade)}|${uf}`;
@@ -1173,7 +1184,8 @@ export default function CadastroEmpresas() {
         if (rotulo.normalize("NFD").length > atual.rotulo.normalize("NFD").length) atual.rotulo = rotulo;
       }
     }
-    const entradas = [...map.entries()].map(([chave, g]) => ({ chave, rotulo: g.rotulo, lista: [...g.lista].sort(compararEmpresas) }));
+    const ativasPrimeiro = (a: Empresa, b: Empresa) => Number(b.ativa) - Number(a.ativa) || compararEmpresas(a, b);
+    const entradas = [...map.entries()].map(([chave, g]) => ({ chave, rotulo: g.rotulo, lista: [...g.lista].sort(ativasPrimeiro) }));
     return entradas.sort((a, b) => {
       const pa = a.lista.some((e) => ehInstitutoPadua(e.nome)) ? 0 : 1;
       const pb = b.lista.some((e) => ehInstitutoPadua(e.nome)) ? 0 : 1;
@@ -1182,7 +1194,7 @@ export default function CadastroEmpresas() {
       if (sa !== sb) return sa - sb;
       return a.rotulo.localeCompare(b.rotulo, "pt-BR", { sensitivity: "base" });
     });
-  }, [empresas]);
+  }, [empresas, mostrarInativas]);
 
   // ── Navegação profunda: /cadastros/empresas?empresa=ID&aba=marca-documento ──
   const deepLinkTratado = useRef(false);
@@ -1216,6 +1228,11 @@ export default function CadastroEmpresas() {
               <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
                 Cadastros clínicos · {ativas.length} ativa{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativa{inativas.length !== 1 ? "s" : ""}
               </p>
+              <label className="bevel-3d mt-2 inline-flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                Mostrar inativas ({inativas.length})
+                <Switch checked={mostrarInativas} onCheckedChange={setMostrarInativas} data-testid="empresas-mostrar-inativas"
+                  aria-label="Mostrar empresas inativas na lista" />
+              </label>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
@@ -1263,13 +1280,17 @@ export default function CadastroEmpresas() {
                       <span className="font-black text-[11px] uppercase tracking-widest" data-testid="empresas-grupo-rotulo">{cidadeKey}</span>
                       <span className="text-[9px] text-muted-foreground/60 font-bold">
                         {lista.length} empresa{lista.length !== 1 ? "s" : ""}
+                        {lista.some((e) => !e.ativa) && ` · ${lista.filter((e) => !e.ativa).length} inativa${lista.filter((e) => !e.ativa).length !== 1 ? "s" : ""}`}
                       </span>
                     </div>
                     <div className="h-px bg-primary/15 flex-1" />
                   </div>
                   {temMultiplaZonas ? (
                     <div className="space-y-5 pl-4 border-l-2 border-primary/10">
-                      {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR")).map(([zona, items]) => (
+                      {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
+                        .map(([zona, todos]) => [zona, todos.filter((e) => e.ativa)] as const)
+                        .filter(([, items]) => items.length > 0)
+                        .map(([zona, items]) => (
                         <div key={zona}>
                           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
                             <Tag className="w-3 h-3" /> {zona}
@@ -1283,6 +1304,20 @@ export default function CadastroEmpresas() {
                           </div>
                         </div>
                       ))}
+                      {lista.some((e) => !e.ativa) && (
+                        <div data-testid="empresas-grupo-inativas">
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
+                            <Tag className="w-3 h-3" /> Inativas de {cidadeKey}
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {lista.filter((e) => !e.ativa).map((e) => (
+                              <EmpresaCard key={e.id} empresa={e}
+                                onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
+                                onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1296,18 +1331,6 @@ export default function CadastroEmpresas() {
                 </div>
               );
             })}
-            {inativas.length > 0 && (
-              <div className="opacity-60">
-                <Divider label={`${inativas.length} inativa${inativas.length > 1 ? "s" : ""}`} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
-                  {inativas.map((e) => (
-                    <EmpresaCard key={e.id} empresa={e}
-                      onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
-                      onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -1324,7 +1347,7 @@ export default function CadastroEmpresas() {
 
       {/* Dialog — Formulário criar/editar com abas */}
       <Dialog open={formOpen} onOpenChange={handleFormOpen}>
-        <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 w-[calc(100vw-1rem)] max-w-5xl p-0 gap-0" data-testid="empresa-dialogo">
+        <DialogContent className="pax-dialogo-fixo top-2 translate-y-0 w-[calc(100vw-1rem)] max-w-6xl p-0 gap-0" data-testid="empresa-dialogo">
           <DialogHeader className="px-6 py-3 pr-12 border-b border-border/40 shrink-0 flex-row items-center gap-3 space-y-0">
             <DialogTitle className="bevel-3d inline-flex h-7 shrink-0 items-center px-3 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
               {editingId ? "Editar empresa" : "Nova empresa"}
@@ -1365,6 +1388,18 @@ export default function CadastroEmpresas() {
                   )}
                 </TabsContent>
 
+                {/* ── ABA: CLASSIFICAÇÃO (Padrão 38): escolher clicando, nunca digitar ─────────── */}
+                <TabsContent value="classificacao" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                  <ClassificacaoEmpresa
+                    control={form.control}
+                    espelho={selectedEmpresa?.tipo === "genesis_seed"}
+                    onEscolher={(campo, valor, extras) => {
+                      form.setValue(campo, valor, { shouldDirty: true });
+                      if (extras?.cnaeDescricao) form.setValue("cnaeDescricao", extras.cnaeDescricao, { shouldDirty: true });
+                    }}
+                  />
+                </TabsContent>
+
                 {/* ── ABA: DADOS ────────────────────────────────────────────────── */}
                 <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1401,37 +1436,7 @@ export default function CadastroEmpresas() {
                         <FormControl><Input placeholder="00.000.000/0001-00" {...field} className="field-engraved font-mono" /></FormControl>
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="tipo" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Tipo</FormLabel>
-                        <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="clinic">Clínica</SelectItem>
-                              <SelectItem value="genesis_seed">Genesis (Template-Mestre)</SelectItem>
-                              <SelectItem value="telemedicina">Telemedicina</SelectItem>
-                              <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="tipoUnidade" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Categoria</FormLabel>
-                        <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
-                            <FormControl><SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0 text-[11px]"><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="CLINICA">Clínica</SelectItem>
-                              <SelectItem value="LABORATORIO">Laboratório</SelectItem>
-                              <SelectItem value="OUTRO">Outro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </FormItem>
-                    )} />
+                    <ResumoClassificacao control={form.control} espelho={selectedEmpresa?.tipo === "genesis_seed"} onAbrir={() => changeFormTab("classificacao")} />
                     <FormField control={form.control} name="status" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Status</FormLabel>

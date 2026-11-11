@@ -422,3 +422,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 \ir migrations/20261117_locais_externos_cadastro.sql
 -- Locais externos: exclusao definitiva so com confirmacao do CEO (carimbo, sem apagar a linha).
 \ir migrations/20261118_locais_externos_exclusao.sql
+
+-- Classificacao da empresa: porte assistencial e grau de complexidade (opcionais, sem preenchimento automatico).
+\ir migrations/20261119_empresa_classificacao.sql

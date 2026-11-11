@@ -867,6 +867,29 @@ Regras duras:
 7. Slot do selo e do contador e fixo: nada aparece/some e desloca vizinhos.
 Aceite: abrir cada aba e, sem rolar, saber (a) qual empresa, (b) qual aba, (c) quantos campos faltam por secao e por aba.
 
+### 4.16 Padrao 38 — Classificacao por clique (nada digitado) e Padrao 39 — inativas no proprio grupo
+
+Pedido do CEO (11/11/2026): "eu nao quero digitar; deixe os tipos disponiveis para eu so clicar, em up bevel, e ao lado a explicacao".
+
+| Parte | Regra |
+|---|---|
+| Escolha por clique | Todo dado que e uma lista fechada (categoria, porte, grau, CNAE) e uma COLUNA de botoes Salientes (`bevel-3d pax-escolha`) um sobre o outro; nunca `Select`, nunca campo de digitar. Largura do botao fixa (`15.5rem`), altura minima `h-12` |
+| Estado | Nao escolhido = Saliente. Escolhido = AFUNDADO em ouro (`aria-pressed="true"`, classe `pax-escolha` em `locais/locais.css`). Clicar no escolhido desmarca, exceto dado obrigatorio (CNAE) |
+| Explicacao | Ao lado de cada botao, num poco Concavo da mesma altura. Linha escolhida: texto forte + barra ouro a esquerda; as demais em cinza. A explicacao diz o que a opcao SIGNIFICA, nunca repete o rotulo |
+| Eixos | Cada eixo (um assunto) tem placa Saliente de titulo + contador `0/1` ou `1/1` (Padrao 37). Ordem: do mais amplo para o mais especifico |
+| Resumo no topo | Faixa fixa (`sticky top-0`) com um chip por eixo mostrando a escolha atual ("nao escolhido" em ambar): da para ler a classificacao inteira sem rolar |
+| Valor fora da lista | Dado antigo que nao esta na lista aparece como linha escolhida "Outro: ..." com aviso; nunca e apagado nem convertido em silencio |
+| Nunca supor | Cadastro novo nasce SEM escolha (nada pre-marcado). Empresa antiga sem valor mostra "nao escolhido" |
+| Papel x classificacao | O papel no sistema (empresa independente x espelho Genesis) e uma FAIXA informativa, nunca uma opcao de tipo. Genesis = espelho do Instituto Padua: classificacao desabilitada, nada gravado |
+| Dados da aba principal | Onde a classificacao aparecia como `Select`, fica so um resumo somente leitura (titulo Saliente + resposta Concava) com o botao "Abrir classificacao" |
+
+Implementacao: `pages/cadastros/ClassificacaoEmpresa.tsx` (eixos em `EIXOS_CLASSIFICACAO`; para criar outro eixo, acrescentar la).
+Valores espelhados no servidor (`validarClassificacao` em `routes/empresas.ts`): mexeu num, mexa no outro.
+
+**Padrao 39 — empresa inativa fica no proprio grupo.** Em lista agrupada (cidade, zona), item desativado NAO vai para o fim da pagina:
+fica no mesmo grupo, depois dos ativos (se o grupo tem varias zonas, num bloco "Inativas de <grupo>" ao fim do grupo), com opacidade reduzida
+e interruptor "Inativa". Um interruptor no topo da lista, "Mostrar inativas (n)", esconde todas de uma vez (padrao: ligado, para nada "sumir").
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

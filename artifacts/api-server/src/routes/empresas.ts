@@ -66,7 +66,7 @@ function sanitizarEmpresa(row: EmpresaRow) {
 
 // Todos os campos editáveis da tabela empresas (exceto credenciais — essas têm rota própria)
 const CAMPOS_EMPRESA = [
-  "nome","nomeFantasia","razaoSocial","nick","cnpj","tipo","tipoUnidade","status","ativa","donoNome","slug","areaUrl","timezone",
+  "nome","nomeFantasia","razaoSocial","nick","cnpj","tipo","tipoUnidade","classificacaoAssistencial","grauComplexidade","status","ativa","donoNome","slug","areaUrl","timezone",
   // Fiscal/Jurídico
   "cnae","cnaeDescricao","cnaesSecundarios","naturezaJuridica","regimeTributario",
   "inscricaoEstadual","inscricaoMunicipal","dataAbertura","capitalSocial",
@@ -416,6 +416,24 @@ const REGIMES_TRIBUTARIOS_VALIDOS = new Set([
   "lucro_real",
 ]);
 
+// Classificacao (estudo do CEO): valores aceitos. Lista espelhada em pages/cadastros/empresas.tsx (mexeu num, mexa no outro).
+const CLASSIFICACAO_ASSISTENCIAL = new Set(["consultorio_isolado", "clinica_especializada", "policlinica"]);
+const GRAU_COMPLEXIDADE = new Set(["I", "II", "III_IV"]);
+
+/** Valida e normaliza ("" vira null) os dois campos de classificacao. Devolve a mensagem de erro, se houver. */
+function validarClassificacao(body: Record<string, unknown>): string | null {
+  for (const [campo, aceitos, nome] of [
+    ["classificacaoAssistencial", CLASSIFICACAO_ASSISTENCIAL, "classificação assistencial"],
+    ["grauComplexidade", GRAU_COMPLEXIDADE, "grau de complexidade"],
+  ] as const) {
+    const v = body[campo];
+    if (v === undefined) continue;
+    if (v === null || v === "") { body[campo] = null; continue; }
+    if (typeof v !== "string" || !aceitos.has(v)) return `Valor inválido para ${nome}.`;
+  }
+  return null;
+}
+
 function validarRegimeTributario(value: unknown, required: boolean): string | null {
   if (value === undefined || value === null || value === "") {
     return required ? "Selecione o regime tributário da empresa." : null;
@@ -440,6 +458,8 @@ router.post("/empresas", async (req, res): Promise<void> => {
     res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
     return;
   }
+  const erroClassificacao = validarClassificacao(body);
+  if (erroClassificacao) { res.status(422).json({ error: erroClassificacao }); return; }
   const cnpjDigits = String(body.cnpj ?? "").replace(/\D/g, "");
   if (cnpjDigits.length === 14) {
     const existingCompanies = await db.select({
@@ -523,6 +543,8 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
     res.status(422).json({ error: "Este cadastro aceita somente empresas clínicas." });
     return;
   }
+  const erroClassificacaoPut = validarClassificacao(req.body ?? {});
+  if (erroClassificacaoPut) { res.status(422).json({ error: erroClassificacaoPut }); return; }
 
   // ── Normaliza e valida slug ────────────────────────────────────────────────
   if (req.body.slug !== undefined) {
