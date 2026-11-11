@@ -1194,3 +1194,17 @@ mtime_ms = 1794403887405
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/fe56fd13-3cfe-4704-83f6-91e14d1dce8a/a5191c41-9d82-4b43-8af5-aa58e4ac6113"
 storage_version_token = "1794403904794668"
 content_type = "image/png"
+
+[[outputs]]
+id = "_rqSDAmZxhjdY6SWVFcBl"
+uri = "file://screenshots/titulo-placa-coluna-estreita.jpg"
+type = "image"
+title = "Título da placa: coluna larga x coluna estreita"
+description = "Em cima, o título cabe em uma linha. Embaixo, com a coluna estreita, o título desce para a segunda linha e nada é cortado."
+logical_id = "9c81343d-73d4-4185-aaa9-5e79dbe4ad29"
+content_hash = "sha256:5efe86d99be521f84d0a6270688af8e3c4865645790dc0a202d2068779465831"
+size = 32103
+mtime_ms = 1794412898757
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c81343d-73d4-4185-aaa9-5e79dbe4ad29/7dc8bcc6-41cf-405c-95e0-4d9fe6f959c8"
+storage_version_token = "1794412903263383"
+content_type = "image/jpeg"
