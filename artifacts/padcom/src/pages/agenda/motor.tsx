@@ -645,7 +645,7 @@ export default function AgendaMotor() {
         <div className="panel-3d space-y-4 p-4 lg:self-start">
           <BlockTitle icon={Layers}>Agendas de atendimento</BlockTitle>
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Clique para abrir a agenda no painel ao lado. Arraste, ou use as setas, para mudar a ordem; a ordem fica gravada.
+            Clique para abrir a agenda no painel ao lado. Arraste o item, ou use as setas, para mudar a ordem; a ordem fica gravada.
           </p>
           <ListaAgendas
             itens={listaAgendas.map((r) => ({
