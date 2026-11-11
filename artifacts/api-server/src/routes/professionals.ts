@@ -1,8 +1,8 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import multer, { MulterError } from "multer";
 import { randomUUID } from "node:crypto";
-import { db, professionalsTable, locationProfessionalsTable, locationsTable, agendaCalendarsTable, professionalAreasTable, professionalSpecialtiesTable, professionalEmpresasTable, empresasTable } from "@workspace/db";
-import { CreateProfessionalBody } from "@workspace/api-zod";
+import { db, professionalsTable, locationProfessionalsTable, locationsTable, agendaCalendarsTable, professionalAreasTable, professionalSpecialtiesTable, professionalEmpresasTable, empresasTable, professionalWorkAreasTable, professionalCategoryHistoryTable } from "@workspace/db";
+import { CreateProfessionalBody, CreateProfessionalAreaBody, CreateProfessionalWorkAreaBody } from "@workspace/api-zod";
 import { eq, and, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   isValidCpf,
@@ -13,6 +13,7 @@ import {
 } from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext.js";
 import { resolveClerkEnvironmentForRequest } from "../lib/clerk-environment.js";
+import { normalizedCatalogName, saveWorkAreaLinks, WorkAreaError, workAreaIdsSchema } from "../lib/professional-work-areas.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
 import {
   LIMITE_EMPRESAS_POR_PROFISSIONAL,
@@ -362,6 +363,79 @@ router.get("/professional-specialties", async (req, res): Promise<void> => {
   res.json(rows.map((r) => ({ ...r, slug: r.slug ?? null })));
 });
 
+router.post("/professional-areas", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const parsed = CreateProfessionalAreaBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Informe o nome e o tipo da categoria." }); return; }
+  const name = parsed.data.name.trim().replace(/\s+/g, " ");
+  const slug = normalizedCatalogName(name);
+  if (name.length < 2 || !slug) { res.status(400).json({ error: "Nome de categoria inválido." }); return; }
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`category:${slug}`}))`);
+      const existing = await tx.select({ id: professionalAreasTable.id, name: professionalAreasTable.name, slug: professionalAreasTable.slug }).from(professionalAreasTable);
+      if (existing.some((row) => row.slug === slug || normalizedCatalogName(row.name) === slug)) {
+        throw new WorkAreaError(409, "Já existe uma categoria com esse nome.");
+      }
+      const [created] = await tx.insert(professionalAreasTable).values({
+        name, slug, professionalType: parsed.data.professionalType, active: true,
+      }).returning();
+      await tx.insert(professionalCategoryHistoryTable).values({
+        categoryId: created.id, actorId: req.tenantContext.professionalId!,
+      });
+      return created;
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    if (error instanceof WorkAreaError) { res.status(error.status).json({ error: error.message }); return; }
+    if (isUniqueConstraintError(error)) { res.status(409).json({ error: "Já existe uma categoria com esse nome." }); return; }
+    throw error;
+  }
+});
+
+router.get("/professional-work-areas", requireCollaborator, async (_req, res): Promise<void> => {
+  const rows = await db.select({ id: professionalWorkAreasTable.id, name: professionalWorkAreasTable.name })
+    .from(professionalWorkAreasTable).where(eq(professionalWorkAreasTable.active, true));
+  rows.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  res.json(rows);
+});
+
+router.post("/professional-work-areas", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
+  const parsed = CreateProfessionalWorkAreaBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Informe o nome da área." }); return; }
+  const name = parsed.data.name.trim().replace(/\s+/g, " ");
+  const slug = normalizedCatalogName(name);
+  if (name.length < 2 || !slug) { res.status(400).json({ error: "Nome de área inválido." }); return; }
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`workarea:${slug}`}))`);
+      const existing = await tx.select({ name: professionalWorkAreasTable.name, slug: professionalWorkAreasTable.slug }).from(professionalWorkAreasTable);
+      if (existing.some((row) => row.slug === slug || normalizedCatalogName(row.name) === slug)) {
+        throw new WorkAreaError(409, "Já existe uma área com esse nome.");
+      }
+      const [created] = await tx.insert(professionalWorkAreasTable).values({
+        name, slug, createdBy: req.tenantContext.professionalId!,
+      }).returning();
+      return created;
+    });
+    res.status(201).json({ id: result.id, name: result.name });
+  } catch (error) {
+    if (error instanceof WorkAreaError) { res.status(error.status).json({ error: error.message }); return; }
+    if (isUniqueConstraintError(error)) { res.status(409).json({ error: "Já existe uma área com esse nome." }); return; }
+    throw error;
+  }
+});
+
+router.get("/professionals/:id/work-areas", requireCollaborator, async (req, res): Promise<void> => {
+  const id = parseRouteId(req.params.id);
+  if (!id || !await belongsToRequestCompany(req, id)) { res.status(404).json({ error: "Profissional não encontrado." }); return; }
+  const rows = await db.execute(sql`
+    SELECT work_area_id FROM professional_work_area_links
+    WHERE empresa_id=${req.tenantContext.empresaId} AND professional_id=${id} AND active=TRUE
+    ORDER BY work_area_id
+  `);
+  res.json(rows.rows.map((row) => Number(row.work_area_id)));
+});
+
 router.post("/professionals", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   // Categoria fora da lista -> 400 (caso extremo 4).
   if (req.body?.category !== undefined && req.body?.category !== null) {
@@ -432,8 +506,12 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
     empresaOriginariaId = requestedOriginaria;
   }
 
+  const { workAreaIds, ...professionalData } = parsed.data;
+  if (workAreaIds !== undefined && !workAreaIdsSchema.safeParse(workAreaIds).success) {
+    res.status(400).json({ error: "Áreas de atuação inválidas ou repetidas." }); return;
+  }
   const values = {
-    ...parsed.data,
+    ...professionalData,
     email: normalizedEmail,
     secondaryEmail: normalizedSecondaryEmail,
     cpf: normalizedCpf,
@@ -450,8 +528,14 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
   };
   let professional: typeof professionalsTable.$inferSelect | undefined;
   try {
-    [professional] = await db.insert(professionalsTable).values(values).returning();
+    await db.transaction(async (tx) => {
+      [professional] = await tx.insert(professionalsTable).values(values).returning();
+      if (professional && workAreaIds !== undefined) {
+        await saveWorkAreaLinks(tx, empresaOriginariaId, professional.id, req.tenantContext.professionalId!, workAreaIds);
+      }
+    });
   } catch (error) {
+    if (error instanceof WorkAreaError) { res.status(error.status).json({ error: error.message }); return; }
     if (isUniqueConstraintError(error)) {
       res.status(409).json({ error: "E-mail ou CPF já está vinculado a outro cadastro." });
       return;
@@ -484,7 +568,7 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
 
   const {
     name, crm, specialty, email, secondaryEmail, phone, unit, complemento, serviceTypes, category, role, active,
-    professionalType, areaId, specialtyId, registrationCouncil, registrationNumber,
+    professionalType, areaId, specialtyId, workAreaIds, registrationCouncil, registrationNumber,
     nurseType, cpf, cnpj, homeServiceFeePerVisit, contractType,
   } = req.body as {
     name?: string;
@@ -502,6 +586,7 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
     professionalType?: string | null;
     areaId?: number | null;
     specialtyId?: number | null;
+    workAreaIds?: number[];
     registrationCouncil?: string | null;
     registrationNumber?: string | null;
     nurseType?: string | null;
@@ -514,6 +599,9 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
   if (name !== undefined && !String(name).trim()) {
     res.status(400).json({ error: "Nome não pode ficar vazio" });
     return;
+  }
+  if (workAreaIds !== undefined && !workAreaIdsSchema.safeParse(workAreaIds).success) {
+    res.status(400).json({ error: "Áreas de atuação inválidas ou repetidas." }); return;
   }
   if (category !== undefined && category !== null) {
     const s = String(category).trim().toLowerCase();
@@ -667,6 +755,9 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
           .returning();
       }
       if (updated && updated !== current) await recordProfessionalProfileChange(tx, req, current, updated);
+      if (updated && workAreaIds !== undefined) {
+        await saveWorkAreaLinks(tx, req.tenantContext.empresaId, id, req.tenantContext.professionalId!, workAreaIds);
+      }
       if (updated && requestedOriginaria !== undefined) {
         const resultado = await aplicarVinculosEmpresa(tx, id, { originariaId: requestedOriginaria as number });
         if (resultado.mudou) {
@@ -679,6 +770,7 @@ router.put("/professionals/:id", requireCollaborator, requirePlatformOwner, asyn
       }
     });
   } catch (error) {
+    if (error instanceof WorkAreaError) { res.status(error.status).json({ error: error.message }); return; }
     if (error instanceof VinculoEmpresaError) {
       res.status(error.status).json(error.body);
       return;

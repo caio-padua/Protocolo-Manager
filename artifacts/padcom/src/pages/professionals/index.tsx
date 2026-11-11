@@ -60,6 +60,8 @@ import { getCollabToken } from "@/lib/collab-auth";
 import { formatCpfInput } from "@/lib/cpf";
 import AccountAccessPanel from "./AccountAccessPanel";
 import ProfessionalHistoryPanel from "./ProfessionalHistoryPanel";
+import { AreasAtuacao, type EstadoAreas } from "./AreasAtuacao";
+import { NovaCategoria } from "./NovaCategoria";
 import {
   EmpresaOriginariaSelect,
   EmpresasPrestacaoPanel,
@@ -687,7 +689,7 @@ const SERVICE_OPTIONS = [
 const EMPTY_FORM = {
   name: "",
   professionalType: "medico" as ProfType,
-  category: "medico" as string,
+  category: "" as string,
   role: "",
   areaId: "" as string,
   specialtyId: "" as string,
@@ -729,10 +731,11 @@ function initials(name: string): string {
 export default function Professionals() {
   const [location, navigate] = useLocation();
   const { data: professionals, isLoading, refetch } = useListProfessionals();
-  const { data: areas } = useListProfessionalAreas();
+  const { data: areas, refetch: refetchAreas, isFetching: carregandoCategorias } = useListProfessionalAreas();
   const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
+  const [estadoAreas, setEstadoAreas] = useState<EstadoAreas>({ ids: [], disponivel: false, alterado: false });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [sessionProfessionalId, setSessionProfessionalId] = useState<number | null>(null);
   const [sessionIsPlatformOwner, setSessionIsPlatformOwner] = useState(false);
@@ -757,7 +760,7 @@ export default function Professionals() {
     [areas, form.professionalType],
   );
 
-  const { data: allSpecialties } = useListProfessionalSpecialties();
+  const { data: allSpecialties, isLoading: carregandoEspecialidades, isError: erroEspecialidades } = useListProfessionalSpecialties();
   const areaIdNum = form.areaId ? Number(form.areaId) : undefined;
   const specialties = useMemo(
     () => (allSpecialties ?? []).filter((s) => s.areaId === areaIdNum),
@@ -766,10 +769,10 @@ export default function Professionals() {
 
   useEffect(() => {
     if (!open) return;
-    if (form.areaId && !areasForType.some((a) => String(a.id) === form.areaId)) {
+    if (!carregandoCategorias && form.areaId && !areasForType.some((a) => String(a.id) === form.areaId)) {
       setForm((f) => ({ ...f, areaId: "", specialtyId: "" }));
     }
-  }, [open, form.professionalType, areasForType, form.areaId]);
+  }, [open, form.professionalType, areasForType, form.areaId, carregandoCategorias]);
 
   const createMutation = useCreateProfessional({
     mutation: {
@@ -810,6 +813,7 @@ export default function Professionals() {
   };
 
   const openCreate = () => {
+    setEstadoAreas({ ids: [], disponivel: false, alterado: false });
     setEditingId(null);
     setActiveTab("dados");
     setForm(EMPTY_FORM);
@@ -818,6 +822,7 @@ export default function Professionals() {
   };
 
   const openEdit = (pro: Professional) => {
+    setEstadoAreas({ ids: [], disponivel: false, alterado: false });
     setEditingId(pro.id);
     setActiveTab("dados");
     const comEmpresas = pro as ProfissionalComEmpresas;
@@ -956,11 +961,15 @@ export default function Professionals() {
       });
       return;
     }
-    if (!form.areaId) {
-      toast({ title: "Área é obrigatória", variant: "destructive" });
+    if (!form.category) {
+      toast({ title: "Perfil de acesso é obrigatório", variant: "destructive" });
       return;
     }
-    if (!form.specialtyId) {
+    if (!form.areaId) {
+      toast({ title: "Categoria profissional é obrigatória", variant: "destructive" });
+      return;
+    }
+    if (!form.specialtyId && (carregandoEspecialidades || erroEspecialidades || specialties.length > 0)) {
       toast({
         title: form.professionalType === "medico" ? "Especialidade é obrigatória" : "Especialização é obrigatória",
         variant: "destructive",
@@ -975,7 +984,8 @@ export default function Professionals() {
       category: form.category,
       role: form.role.trim() || null,
       areaId: Number(form.areaId),
-      specialtyId: Number(form.specialtyId),
+      specialtyId: form.specialtyId ? Number(form.specialtyId) : null,
+      ...(estadoAreas.disponivel && (!editingId || estadoAreas.alterado) ? { workAreaIds: estadoAreas.ids } : {}),
       registrationCouncil: form.registrationCouncil.trim() || null,
       registrationNumber: form.registrationNumber.trim() || null,
       phone: form.phone.trim() || null,
@@ -1011,20 +1021,21 @@ export default function Professionals() {
   const isPending = createMutation.isPending || updateMutation.isPending;
   const councilPlaceholder = form.professionalType === "medico" ? "CRM" : "COREN / CRP / CRN";
 
-  // Agrupamento por categoria para exibição ordenada
+  // A categoria profissional é independente do perfil de acesso legado.
   const grouped = useMemo(() => {
     if (!professionals) return [];
-    const order = ["medico", "enfermagem", "recepcao", "administrativo", "financeiro", "outro"];
-    const map = new Map<string, typeof professionals>();
+    const map = new Map<string, { category: string; label: string; items: typeof professionals }>();
     for (const p of professionals) {
-      const cat = (p as typeof p & { category?: string }).category ?? "outro";
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat)!.push(p);
+      const key = p.areaId ? String(p.areaId) : "nao-informada";
+      if (!map.has(key)) map.set(key, {
+        category: key,
+        label: p.areaName || (p.areaId ? "Categoria indisponível" : "Categoria não informada"),
+        items: [],
+      });
+      map.get(key)!.items.push(p);
     }
-    return order.filter((c) => map.has(c)).map((c) => ({ category: c, items: map.get(c)! }));
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
   }, [professionals]);
-
-  const catLabel = (c: string) => CATEGORY_OPTIONS.find((o) => o.value === c)?.label ?? c;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1112,7 +1123,7 @@ export default function Professionals() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categoria funcional</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Perfil de acesso *</Label>
                     <Select value={form.category} onValueChange={(v) => v && set("category", v)}>
                       <SelectTrigger className="field-engraved"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
@@ -1121,6 +1132,7 @@ export default function Professionals() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">Controle de acesso existente; não define a categoria profissional.</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cargo / Título</Label>
@@ -1132,6 +1144,8 @@ export default function Professionals() {
                     />
                   </div>
                 </div>
+
+                <AreasAtuacao key={editingId ?? "novo"} professionalId={editingId} canEdit={sessionIsPlatformOwner} onChange={setEstadoAreas} />
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo *</Label>
@@ -1160,7 +1174,7 @@ export default function Professionals() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Área *</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categoria profissional *</Label>
                     <Select value={form.areaId} onValueChange={(v) => setForm((f) => ({ ...f, areaId: v, specialtyId: "" }))}>
                       <SelectTrigger className="field-engraved"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
@@ -1169,13 +1183,17 @@ export default function Professionals() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {sessionIsPlatformOwner && <NovaCategoria onCreated={async (category) => {
+                      await refetchAreas();
+                      setForm((f) => ({ ...f, professionalType: category.professionalType, areaId: String(category.id), specialtyId: "" }));
+                    }} />}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                      {form.professionalType === "medico" ? "Especialidade *" : "Especialização *"}
+                      {form.professionalType === "medico" ? "Especialidade" : "Especialização"}{specialties.length > 0 ? " *" : ""}
                     </Label>
                     <Select value={form.specialtyId} onValueChange={(v) => set("specialtyId", v)} disabled={!form.areaId}>
-                      <SelectTrigger className="field-engraved"><SelectValue placeholder={form.areaId ? "Selecione" : "Escolha a área"} /></SelectTrigger>
+                      <SelectTrigger className="field-engraved"><SelectValue placeholder={form.areaId ? (specialties.length ? "Selecione" : "Nenhuma cadastrada") : "Escolha a categoria"} /></SelectTrigger>
                       <SelectContent>
                         {(specialties ?? []).map((s) => (
                           <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
@@ -1479,14 +1497,14 @@ export default function Professionals() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {grouped.map(({ category, items }) => (
+          {grouped.map(({ category, label, items }) => (
             /* ── Cada categoria num painel bevel-3d elevado ── */
             <div key={category} className="bevel-3d p-5 space-y-4">
 
               {/* Cabeçalho dentro do painel */}
               <div className="flex items-center gap-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-foreground">
-                  {catLabel(category)}
+                  {label}
                 </p>
                 <span className="concave-3d px-2 py-0.5 text-[9px] font-black text-muted-foreground tabular-nums">
                   {items.length}

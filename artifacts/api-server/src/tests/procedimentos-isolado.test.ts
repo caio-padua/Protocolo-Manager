@@ -189,9 +189,9 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       });
       await page.goto("http://localhost:18148/procedimentos");
       await page.getByTestId("button-new-procedimento").click();
-      await page.getByRole("button", { name: "Adicionar área necessária" }).click();
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
       await page.getByLabel("Local da clínica").selectOption("8");
-      await page.getByLabel("Área profissional").selectOption("2");
+      await page.getByLabel("Categoria profissional").selectOption("2");
       await page.getByLabel("Selecionar Enfermagem A").click();
       await page.getByTestId("checkbox-substancia-10").click();
       await page.getByTestId("input-procedimento-dose").fill("100 mg");
@@ -201,9 +201,9 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       const stored = await state.pool.query("SELECT duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético IM'");
       expect(stored.rows).toEqual([{ duracao_segundos: 150 }]);
       await page.getByTestId("button-new-procedimento").click();
-      await page.getByRole("button", { name: "Adicionar área necessária" }).click();
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
       await page.getByLabel("Local da clínica").selectOption("8");
-      await page.getByLabel("Área profissional").selectOption("2");
+      await page.getByLabel("Categoria profissional").selectOption("2");
       await page.getByLabel("Selecionar Enfermagem A").click();
       await page.getByTestId("checkbox-substancia-10").click();
       await page.getByTestId("input-procedimento-dose").fill("100 mg");

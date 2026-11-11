@@ -2,6 +2,28 @@
 
 ## Objetivo e limites
 
+### Retificação de 11/11/2026: categoria, áreas de atuação e cargo
+
+O cadastro deve distinguir: categoria profissional (ex.: Biomedicina), áreas
+de atuação (ex.: Saúde, Administrativo, Financeiro, Gestão), cargo e perfil de
+acesso. Um profissional pode atuar em várias áreas. A escolha de uma categoria
+ou área não altera automaticamente cargo nem permissões. A classificação antiga,
+usada também pela autorização, permanece preservada.
+
+Criar categorias no catálogo compartilhado existente, com autorização de
+proprietário, evitando duplicatas por nome normalizado e sem criar profissionais.
+Novas áreas de atuação e seus vínculos são aditivos; só uma ação explícita
+de pessoa autorizada vincula áreas a um profissional. Não migrar nem inferir
+áreas de pessoas já cadastradas. A categoria continua conectada aos consumidores
+existentes, incluindo o cadastro de procedimentos, sem criar outra lista falsa.
+Profissionais para procedimentos continuam filtrados por empresa e local.
+
+Falhas previstas: confundir categoria com perfil de acesso; dupla criação
+simultânea; apagar histórico ao trocar áreas; permitir escrita sem autorização;
+exibir categorias ainda indisponíveis no servidor; presumir especialização que
+não existe. Testar com banco descartável, duas clínicas e sessões sintéticas.
+Nenhum dado clínico, profissional real, agenda ou evento é alterado em testes.
+
 ### Retificação de 11/11/2026: profissionais necessários
 
 Consulta é um procedimento, não uma categoria profissional. Retirar os cartões

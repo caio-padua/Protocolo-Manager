@@ -1726,6 +1726,74 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ProfessionalArea"
+    post:
+      operationId: createProfessionalArea
+      tags: [clients]
+      summary: Cadastrar categoria profissional no catálogo compartilhado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfessionalCategoryInput"
+      responses:
+        "201":
+          description: Categoria criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfessionalArea"
+
+  /professional-work-areas:
+    get:
+      operationId: listProfessionalWorkAreas
+      tags: [clients]
+      summary: Listar áreas de atuação
+      responses:
+        "200":
+          description: Áreas disponíveis
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProfessionalWorkArea"
+    post:
+      operationId: createProfessionalWorkArea
+      tags: [clients]
+      summary: Cadastrar área de atuação
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfessionalWorkAreaInput"
+      responses:
+        "201":
+          description: Área criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfessionalWorkArea"
+
+  /professionals/{id}/work-areas:
+    get:
+      operationId: getProfessionalWorkAreas
+      tags: [clients]
+      summary: Listar áreas do profissional na clínica da sessão
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Identificadores das áreas vinculadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: integer }
 
   /professional-specialties:
     get:
@@ -7029,6 +7097,9 @@ components:
         areaId:
           type: integer
           nullable: true
+        workAreaIds:
+          type: array
+          items: { type: integer }
         specialtyId:
           type: integer
           nullable: true
@@ -7102,6 +7173,9 @@ components:
         areaId:
           type: integer
           nullable: true
+        workAreaIds:
+          type: array
+          items: { type: integer }
         specialtyId:
           type: integer
           nullable: true
@@ -7200,6 +7274,26 @@ components:
         - label
         - logradouro
         - cidade
+
+    ProfessionalCategoryInput:
+      type: object
+      required: [name, professionalType]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        professionalType: { type: string, enum: [medico, nao_medico] }
+
+    ProfessionalWorkAreaInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+
+    ProfessionalWorkArea:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
 
     ProfessionalArea:
       type: object

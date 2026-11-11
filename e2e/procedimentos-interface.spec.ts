@@ -55,9 +55,9 @@ async function servicosSinteticos(page: Page, owner: boolean, failList = false, 
 }
 
 async function selecionarEquipe(page: Page, area = "2") {
-  await page.getByRole("button", { name: "Adicionar área necessária" }).click();
+  await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
   await page.getByLabel("Local da clínica").last().selectOption("8");
-  await page.getByLabel("Área profissional").last().selectOption(area);
+  await page.getByLabel("Categoria profissional").last().selectOption(area);
   await page.getByLabel(area === "1" ? "Selecionar Médico sintético" : "Selecionar Enfermagem sintética").last().click();
 }
 

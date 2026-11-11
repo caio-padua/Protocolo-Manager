@@ -174,9 +174,9 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
       expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("");
       await page.getByTestId("input-procedimento-dose").fill("100 mg");
-      await page.getByRole("button", { name: "Adicionar área necessária" }).click();
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
       await page.getByLabel("Local da clínica").selectOption("101");
-      await page.getByLabel("Área profissional").selectOption("10");
+      await page.getByLabel("Categoria profissional").selectOption("10");
       await page.getByLabel("Selecionar Médico A").click();
       await page.getByLabel("Selecionar Médico B").click();
       await page.getByTestId("button-save-procedimento").click();

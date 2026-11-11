@@ -21,7 +21,7 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
     <section className="panel-3d-sub space-y-3 p-4" aria-label="Profissionais necessários">
       <h3 className="text-xs font-black uppercase tracking-widest text-primary">Profissionais necessários</h3>
       <p className="text-sm text-muted-foreground">
-        Escolha uma ou mais alternativas na mesma área. Todas as áreas adicionadas serão necessárias.
+        Escolha uma ou mais alternativas na mesma categoria. Todas as categorias adicionadas serão necessárias.
         As agendas são informativas; nenhum horário será reservado.
       </p>
       {query.isLoading && <p role="status">Carregando vínculos da clínica…</p>}
@@ -39,16 +39,16 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
                   {(query.data?.locais ?? []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold">Área profissional
+              <label className="text-xs font-bold">Categoria profissional
                 <select className="field-engraved mt-1 min-h-11 w-full px-2" value={grupo.areaId || ""}
                   onChange={(e) => alterar(index, { ...grupo, areaId: Number(e.target.value), professionalIds: [] })}>
-                  <option value="">Selecione a área</option>
+                  <option value="">Selecione a categoria</option>
                   {(query.data?.areas ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </label>
             </div>
             {grupo.areaId > 0 && grupo.localId > 0 && pessoas.length === 0 &&
-              <p className="text-sm text-amber-800">Nenhum profissional ativo desta área está vinculado a este local.</p>}
+              <p className="text-sm text-amber-800">Nenhum profissional ativo desta categoria está vinculado a este local.</p>}
             {pessoas.map((p) => (
               <label key={p.id} className="bevel-3d flex items-start gap-3 p-3 text-sm">
                 <Checkbox checked={grupo.professionalIds.includes(p.id)} onCheckedChange={(checked) => alterar(index, {
@@ -78,7 +78,7 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
       })}
       <Button type="button" className="btn-3d-soft min-h-11" disabled={!query.isSuccess}
         onClick={() => onChange([...grupos, { areaId: 0, localId: 0, professionalIds: [] }])}>
-        Adicionar área necessária
+        Adicionar categoria necessária
       </Button>
     </section>
   );

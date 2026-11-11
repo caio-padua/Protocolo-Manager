@@ -2296,6 +2296,7 @@ export interface CreateProfessionalBody {
   role?: string | null;
   professionalType?: string | null;
   areaId?: number | null;
+  workAreaIds?: number[];
   specialtyId?: number | null;
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
@@ -2322,6 +2323,7 @@ export interface UpdateProfessionalBody {
   role?: string | null;
   professionalType?: string | null;
   areaId?: number | null;
+  workAreaIds?: number[];
   specialtyId?: number | null;
   registrationCouncil?: string | null;
   registrationNumber?: string | null;
@@ -2358,6 +2360,36 @@ export interface CreateClientServiceAddressBody {
   cidade: string;
   estado?: string;
   isDefault?: boolean;
+}
+
+export type ProfessionalCategoryInputProfessionalType =
+  (typeof ProfessionalCategoryInputProfessionalType)[keyof typeof ProfessionalCategoryInputProfessionalType];
+
+export const ProfessionalCategoryInputProfessionalType = {
+  medico: "medico",
+  nao_medico: "nao_medico",
+} as const;
+
+export interface ProfessionalCategoryInput {
+  /**
+   * @minLength 2
+   * @maxLength 100
+   */
+  name: string;
+  professionalType: ProfessionalCategoryInputProfessionalType;
+}
+
+export interface ProfessionalWorkAreaInput {
+  /**
+   * @minLength 2
+   * @maxLength 100
+   */
+  name: string;
+}
+
+export interface ProfessionalWorkArea {
+  id: number;
+  name: string;
 }
 
 export interface ProfessionalArea {

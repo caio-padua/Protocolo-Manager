@@ -15,8 +15,8 @@ psicólogo), não só médicos assistentes.
 - **Taxonomia anterior:** `professionalType` (medico vs nao_medico) → área → especialização.
   Em 11/11/2026, o responsável pediu separar área de atuação, categoria profissional e cargo.
   Exemplos de áreas de atuação: Saúde, Administrativo, Financeiro e Gestão.
-  A relação entre as novas áreas e as categorias ainda precisa de definição; não presumir que
-  a tabela chamada "áreas" corresponda diretamente ao novo significado.
+  Um profissional pode atuar em várias áreas, conforme confirmação do responsável em 11/11/2026.
+  Não presumir que a tabela chamada "áreas" corresponda diretamente ao novo significado.
 - **Why:** a lista anterior mistura profissões e setores; categoria profissional não é cargo
   e não deve conceder, por si só, novas permissões.
 - **How to apply:** preservar o histórico e as permissões existentes, sem reclassificar pessoas;

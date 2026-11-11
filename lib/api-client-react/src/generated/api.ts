@@ -174,7 +174,10 @@ import type {
   ProcedimentoEntrada,
   Professional,
   ProfessionalArea,
+  ProfessionalCategoryInput,
   ProfessionalSpecialty,
+  ProfessionalWorkArea,
+  ProfessionalWorkAreaInput,
   Protocol,
   ProtocolSchedulingConfirmEnvelope,
   ProtocolSchedulingConfirmInput,
@@ -6996,6 +6999,348 @@ export function useListProfessionalAreas<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListProfessionalAreasQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cadastrar categoria profissional no catálogo compartilhado
+ */
+export const getCreateProfessionalAreaUrl = () => {
+  return `/api/professional-areas`;
+};
+
+export const createProfessionalArea = async (
+  professionalCategoryInput: ProfessionalCategoryInput,
+  options?: RequestInit,
+): Promise<ProfessionalArea> => {
+  return customFetch<ProfessionalArea>(getCreateProfessionalAreaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(professionalCategoryInput),
+  });
+};
+
+export const getCreateProfessionalAreaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalArea>>,
+    TError,
+    { data: BodyType<ProfessionalCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProfessionalArea>>,
+  TError,
+  { data: BodyType<ProfessionalCategoryInput> },
+  TContext
+> => {
+  const mutationKey = ["createProfessionalArea"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProfessionalArea>>,
+    { data: BodyType<ProfessionalCategoryInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProfessionalArea(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProfessionalAreaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProfessionalArea>>
+>;
+export type CreateProfessionalAreaMutationBody =
+  BodyType<ProfessionalCategoryInput>;
+export type CreateProfessionalAreaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cadastrar categoria profissional no catálogo compartilhado
+ */
+export const useCreateProfessionalArea = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalArea>>,
+    TError,
+    { data: BodyType<ProfessionalCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProfessionalArea>>,
+  TError,
+  { data: BodyType<ProfessionalCategoryInput> },
+  TContext
+> => {
+  return useMutation(getCreateProfessionalAreaMutationOptions(options));
+};
+
+/**
+ * @summary Listar áreas de atuação
+ */
+export const getListProfessionalWorkAreasUrl = () => {
+  return `/api/professional-work-areas`;
+};
+
+export const listProfessionalWorkAreas = async (
+  options?: RequestInit,
+): Promise<ProfessionalWorkArea[]> => {
+  return customFetch<ProfessionalWorkArea[]>(
+    getListProfessionalWorkAreasUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListProfessionalWorkAreasQueryKey = () => {
+  return [`/api/professional-work-areas`] as const;
+};
+
+export const getListProfessionalWorkAreasQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProfessionalWorkAreasQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>
+  > = ({ signal }) => listProfessionalWorkAreas({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProfessionalWorkAreasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProfessionalWorkAreas>>
+>;
+export type ListProfessionalWorkAreasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Listar áreas de atuação
+ */
+
+export function useListProfessionalWorkAreas<
+  TData = Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProfessionalWorkAreas>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProfessionalWorkAreasQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cadastrar área de atuação
+ */
+export const getCreateProfessionalWorkAreaUrl = () => {
+  return `/api/professional-work-areas`;
+};
+
+export const createProfessionalWorkArea = async (
+  professionalWorkAreaInput: ProfessionalWorkAreaInput,
+  options?: RequestInit,
+): Promise<ProfessionalWorkArea> => {
+  return customFetch<ProfessionalWorkArea>(getCreateProfessionalWorkAreaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(professionalWorkAreaInput),
+  });
+};
+
+export const getCreateProfessionalWorkAreaMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+    TError,
+    { data: BodyType<ProfessionalWorkAreaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+  TError,
+  { data: BodyType<ProfessionalWorkAreaInput> },
+  TContext
+> => {
+  const mutationKey = ["createProfessionalWorkArea"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+    { data: BodyType<ProfessionalWorkAreaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProfessionalWorkArea(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProfessionalWorkAreaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProfessionalWorkArea>>
+>;
+export type CreateProfessionalWorkAreaMutationBody =
+  BodyType<ProfessionalWorkAreaInput>;
+export type CreateProfessionalWorkAreaMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cadastrar área de atuação
+ */
+export const useCreateProfessionalWorkArea = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+    TError,
+    { data: BodyType<ProfessionalWorkAreaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProfessionalWorkArea>>,
+  TError,
+  { data: BodyType<ProfessionalWorkAreaInput> },
+  TContext
+> => {
+  return useMutation(getCreateProfessionalWorkAreaMutationOptions(options));
+};
+
+/**
+ * @summary Listar áreas do profissional na clínica da sessão
+ */
+export const getGetProfessionalWorkAreasUrl = (id: number) => {
+  return `/api/professionals/${id}/work-areas`;
+};
+
+export const getProfessionalWorkAreas = async (
+  id: number,
+  options?: RequestInit,
+): Promise<number[]> => {
+  return customFetch<number[]>(getGetProfessionalWorkAreasUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProfessionalWorkAreasQueryKey = (id: number) => {
+  return [`/api/professionals/${id}/work-areas`] as const;
+};
+
+export const getGetProfessionalWorkAreasQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProfessionalWorkAreasQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProfessionalWorkAreas>>
+  > = ({ signal }) =>
+    getProfessionalWorkAreas(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProfessionalWorkAreasQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfessionalWorkAreas>>
+>;
+export type GetProfessionalWorkAreasQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Listar áreas do profissional na clínica da sessão
+ */
+
+export function useGetProfessionalWorkAreas<
+  TData = Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProfessionalWorkAreas>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProfessionalWorkAreasQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

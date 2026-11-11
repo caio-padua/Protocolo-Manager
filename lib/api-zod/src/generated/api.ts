@@ -4110,6 +4110,7 @@ export const CreateProfessionalBody = zod.object({
   role: zod.string().nullish(),
   professionalType: zod.string().nullish(),
   areaId: zod.number().nullish(),
+  workAreaIds: zod.array(zod.number()).optional(),
   specialtyId: zod.number().nullish(),
   registrationCouncil: zod.string().nullish(),
   registrationNumber: zod.string().nullish(),
@@ -4144,6 +4145,7 @@ export const UpdateProfessionalBody = zod.object({
   role: zod.string().nullish(),
   professionalType: zod.string().nullish(),
   areaId: zod.number().nullish(),
+  workAreaIds: zod.array(zod.number()).optional(),
   specialtyId: zod.number().nullish(),
   registrationCouncil: zod.string().nullish(),
   registrationNumber: zod.string().nullish(),
@@ -4197,6 +4199,56 @@ export const ListProfessionalAreasResponseItem = zod.object({
 });
 export const ListProfessionalAreasResponse = zod.array(
   ListProfessionalAreasResponseItem,
+);
+
+/**
+ * @summary Cadastrar categoria profissional no catálogo compartilhado
+ */
+export const createProfessionalAreaBodyNameMin = 2;
+export const createProfessionalAreaBodyNameMax = 100;
+
+export const CreateProfessionalAreaBody = zod.object({
+  name: zod
+    .string()
+    .min(createProfessionalAreaBodyNameMin)
+    .max(createProfessionalAreaBodyNameMax),
+  professionalType: zod.enum(["medico", "nao_medico"]),
+});
+
+/**
+ * @summary Listar áreas de atuação
+ */
+export const ListProfessionalWorkAreasResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+});
+export const ListProfessionalWorkAreasResponse = zod.array(
+  ListProfessionalWorkAreasResponseItem,
+);
+
+/**
+ * @summary Cadastrar área de atuação
+ */
+export const createProfessionalWorkAreaBodyNameMin = 2;
+export const createProfessionalWorkAreaBodyNameMax = 100;
+
+export const CreateProfessionalWorkAreaBody = zod.object({
+  name: zod
+    .string()
+    .min(createProfessionalWorkAreaBodyNameMin)
+    .max(createProfessionalWorkAreaBodyNameMax),
+});
+
+/**
+ * @summary Listar áreas do profissional na clínica da sessão
+ */
+export const GetProfessionalWorkAreasParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetProfessionalWorkAreasResponseItem = zod.number();
+export const GetProfessionalWorkAreasResponse = zod.array(
+  GetProfessionalWorkAreasResponseItem,
 );
 
 /**
