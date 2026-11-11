@@ -165,6 +165,7 @@ paths:
                 $ref: "#/components/schemas/ListaProcedimentos"
         "401": { description: Sessão inválida. }
         "403": { description: Clínica não autorizada. }
+        "503": { description: Estrutura de proteção incompleta. }
     post:
       operationId: createProcedimento
       tags: [procedimentos]
@@ -183,6 +184,7 @@ paths:
         "400": { description: Dados inválidos. }
         "401": { description: Sessão inválida. }
         "403": { description: Edição não autorizada. }
+        "503": { description: Estrutura de proteção incompleta. }
   /procedimentos/{id}:
     put:
       operationId: updateProcedimento
@@ -208,6 +210,8 @@ paths:
         "401": { description: Sessão inválida. }
         "403": { description: Edição não autorizada. }
         "404": { description: Procedimento não encontrado. }
+        "409": { description: O procedimento foi alterado desde a abertura do formulário. }
+        "503": { description: Estrutura de proteção incompleta. }
   /paxmed-2b/empresas/{empresaId}:
     parameters:
       - name: empresaId
@@ -3879,6 +3883,9 @@ components:
         vinculosCamposHabilitados:
           type: boolean
           description: Confirma suporte a campos vinculados ao catálogo.
+        versaoEdicaoHabilitada:
+          type: boolean
+          description: Confirma proteção contra edição simultânea.
         procedimentos:
           type: array
           items: { $ref: "#/components/schemas/Procedimento" }
@@ -3902,6 +3909,10 @@ components:
         confirmarDoseAtual:
           type: boolean
           description: Confirma explicitamente a dose atual quando ela é vinculada.
+        versaoEdicao:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,18})$'
+          description: Versão lida ao abrir o procedimento para edição.
         profissionaisNecessarios:
           type: array
           maxItems: 20

@@ -230,6 +230,9 @@ export const listProcedimentosResponseProcedimentosItemOneNomeMax = 200;
 
 export const listProcedimentosResponseProcedimentosItemOneDoseOneMax = 500;
 
+export const listProcedimentosResponseProcedimentosItemOneVersaoEdicaoRegExp =
+  new RegExp("^(0|[1-9][0-9]{0,18})$");
+
 export const listProcedimentosResponseProcedimentosItemOneProfissionaisNecessariosItemProfessionalIdsMax = 30;
 
 export const listProcedimentosResponseProcedimentosItemOneProfissionaisNecessariosMax = 20;
@@ -260,6 +263,10 @@ export const ListProcedimentosResponse = zod.object({
     .boolean()
     .optional()
     .describe("Confirma suporte a campos vinculados ao catálogo."),
+  versaoEdicaoHabilitada: zod
+    .boolean()
+    .optional()
+    .describe("Confirma proteção contra edição simultânea."),
   procedimentos: zod.array(
     zod
       .object({
@@ -292,6 +299,13 @@ export const ListProcedimentosResponse = zod.object({
           .describe(
             "Confirma explicitamente a dose atual quando ela é vinculada.",
           ),
+        versaoEdicao: zod
+          .string()
+          .regex(
+            listProcedimentosResponseProcedimentosItemOneVersaoEdicaoRegExp,
+          )
+          .optional()
+          .describe("Versão lida ao abrir o procedimento para edição."),
         profissionaisNecessarios: zod
           .array(
             zod.object({
@@ -345,6 +359,10 @@ export const createProcedimentoBodyNomeMax = 200;
 
 export const createProcedimentoBodyDoseOneMax = 500;
 
+export const createProcedimentoBodyVersaoEdicaoRegExp = new RegExp(
+  "^(0|[1-9][0-9]{0,18})$",
+);
+
 export const createProcedimentoBodyProfissionaisNecessariosItemProfessionalIdsMax = 30;
 
 export const createProcedimentoBodyProfissionaisNecessariosMax = 20;
@@ -377,6 +395,11 @@ export const CreateProcedimentoBody = zod.object({
     .boolean()
     .optional()
     .describe("Confirma explicitamente a dose atual quando ela é vinculada."),
+  versaoEdicao: zod
+    .string()
+    .regex(createProcedimentoBodyVersaoEdicaoRegExp)
+    .optional()
+    .describe("Versão lida ao abrir o procedimento para edição."),
   profissionaisNecessarios: zod
     .array(
       zod.object({
@@ -416,6 +439,10 @@ export const updateProcedimentoBodyNomeMax = 200;
 
 export const updateProcedimentoBodyDoseOneMax = 500;
 
+export const updateProcedimentoBodyVersaoEdicaoRegExp = new RegExp(
+  "^(0|[1-9][0-9]{0,18})$",
+);
+
 export const updateProcedimentoBodyProfissionaisNecessariosItemProfessionalIdsMax = 30;
 
 export const updateProcedimentoBodyProfissionaisNecessariosMax = 20;
@@ -448,6 +475,11 @@ export const UpdateProcedimentoBody = zod.object({
     .boolean()
     .optional()
     .describe("Confirma explicitamente a dose atual quando ela é vinculada."),
+  versaoEdicao: zod
+    .string()
+    .regex(updateProcedimentoBodyVersaoEdicaoRegExp)
+    .optional()
+    .describe("Versão lida ao abrir o procedimento para edição."),
   profissionaisNecessarios: zod
     .array(
       zod.object({
@@ -482,6 +514,10 @@ export const UpdateProcedimentoBody = zod.object({
 export const updateProcedimentoResponseOneNomeMax = 200;
 
 export const updateProcedimentoResponseOneDoseOneMax = 500;
+
+export const updateProcedimentoResponseOneVersaoEdicaoRegExp = new RegExp(
+  "^(0|[1-9][0-9]{0,18})$",
+);
 
 export const updateProcedimentoResponseOneProfissionaisNecessariosItemProfessionalIdsMax = 30;
 
@@ -518,6 +554,11 @@ export const UpdateProcedimentoResponse = zod
       .boolean()
       .optional()
       .describe("Confirma explicitamente a dose atual quando ela é vinculada."),
+    versaoEdicao: zod
+      .string()
+      .regex(updateProcedimentoResponseOneVersaoEdicaoRegExp)
+      .optional()
+      .describe("Versão lida ao abrir o procedimento para edição."),
     profissionaisNecessarios: zod
       .array(
         zod.object({

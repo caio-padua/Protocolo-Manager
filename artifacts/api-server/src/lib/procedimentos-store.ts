@@ -62,6 +62,20 @@ async function temColunaFontes(db: Queryable): Promise<boolean> {
       AND table_name='procedimentos_clinicos' AND column_name='fontes_campos') AS existe`);
   return result.rows[0]?.existe === true;
 }
+export async function temVersaoEdicao(db: Queryable): Promise<boolean> {
+  const result = await db.query<{ coluna: boolean; coluna_valida: boolean; gatilho: boolean }>(`
+    SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema()
+      AND table_name='procedimentos_clinicos' AND column_name='versao_edicao') AS coluna,
+      EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema()
+        AND table_name='procedimentos_clinicos' AND column_name='versao_edicao'
+        AND data_type='bigint' AND is_nullable='NO' AND column_default IN ('0','0::bigint')) AS coluna_valida,
+      EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='procedimentos_clinicos'::regclass
+        AND tgname='paxter_versao_edicao_procedimento' AND NOT tgisinternal AND tgtype=19
+        AND tgenabled IN ('O','A') AND tgfoid=to_regprocedure('paxter_versao_edicao_procedimento()')) AS gatilho`);
+  const { coluna, coluna_valida, gatilho } = result.rows[0];
+  if ((coluna || gatilho) && (!coluna_valida || !gatilho)) throw new ProcedimentoErro(503, "Proteção de edição do procedimento incompleta.");
+  return coluna_valida && gatilho;
+}
 type FontesCampos = { nome?: number; dose?: number; duracaoMinutos?: number };
 type ProdutoOrigem = {
   id: number; name: string; defaultDose: string | null; durationMinutes: number | null;
@@ -96,6 +110,7 @@ type Linha = {
   descricao: string | null; duracao_minutos: number | null; ativo: boolean; produto_ids: number[];
   profissionais_necessarios: { areaId: number; localId: number; professionalIds: number[] }[];
   fontes_campos: FontesCampos;
+  versao_edicao: string | null;
 };
 function formatar(row: Linha) {
   const fontes = row.fontes_campos;
@@ -105,6 +120,7 @@ function formatar(row: Linha) {
     descricao: row.descricao, duracaoMinutos: row.duracao_minutos, ativo: row.ativo,
     produtoIds: row.produto_ids,
     fontesCampos: fontes,
+    ...(row.versao_edicao !== null ? { versaoEdicao: row.versao_edicao } : {}),
     // O recurso permanece desativado até que histórico e concorrência tenham
     // proteção completa; nunca indicar que uma dose vinculada está conferida.
     dosePendenteRevisao: !!fontes.dose,
@@ -113,7 +129,7 @@ function formatar(row: Linha) {
 }
 
 const LISTA_SQL = `
-  SELECT p.id, p.empresa_id, p.nome, p.tipo, p.dose, p.descricao, p.fontes_campos,
+  SELECT p.id, p.empresa_id, p.nome, p.tipo, p.dose, p.descricao, p.fontes_campos, p.versao_edicao::text AS versao_edicao,
     COALESCE(p.duracao_segundos::double precision / 60, p.duracao_minutos::double precision) AS duracao_minutos, p.ativo,
          COALESCE(array_agg(pp.produto_id ORDER BY pp.produto_id)
            FILTER (WHERE pp.ativo = TRUE AND pp.produto_id IS NOT NULL), '{}') AS produto_ids,
@@ -129,7 +145,9 @@ const LISTA_SQL = `
 
 export async function listarProcedimentos(db: Queryable, empresaId: number, id: number | null = null) {
   const temFontes = await temColunaFontes(db);
-  const consulta = temFontes ? LISTA_SQL : LISTA_SQL.replace("p.fontes_campos", "'{}'::jsonb AS fontes_campos");
+  const temVersao = await temVersaoEdicao(db);
+  let consulta = temFontes ? LISTA_SQL : LISTA_SQL.replace("p.fontes_campos", "'{}'::jsonb AS fontes_campos");
+  if (!temVersao) consulta = consulta.replace("p.versao_edicao::text AS versao_edicao", "NULL::text AS versao_edicao");
   const result = await db.query<Linha>(consulta, [empresaId, id]);
   return result.rows.map(formatar);
 }
@@ -138,17 +156,24 @@ export async function salvarProcedimento(pool: Pool, empresaId: number, data: En
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Impede que a migração altere o contrato entre detectar a versão e gravar.
+    await client.query("LOCK TABLE procedimentos_clinicos IN ROW SHARE MODE");
     const temFontes = await temColunaFontes(client);
+    const temVersao = await temVersaoEdicao(client);
     if (Object.keys(data.fontesCampos ?? {}).length) {
       throw new ProcedimentoErro(503, "A atualização automática dos campos está em revisão de segurança e ainda não está disponível.");
     }
     let previousDose: string | null = null;
     if (id !== undefined) {
-      const current = await client.query<{ nome: string; dose: string | null; duracao_segundos: number | null; fontes_campos: FontesCampos }>(
-        `SELECT nome, dose, duracao_segundos, ${temFontes ? "fontes_campos" : "'{}'::jsonb AS fontes_campos"}
+      const current = await client.query<{ nome: string; dose: string | null; duracao_segundos: number | null; fontes_campos: FontesCampos; versao_edicao: string | null }>(
+        `SELECT nome, dose, duracao_segundos, ${temVersao ? "versao_edicao::text" : "NULL::text AS versao_edicao"},
+          ${temFontes ? "fontes_campos" : "'{}'::jsonb AS fontes_campos"}
          FROM procedimentos_clinicos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`, [id, empresaId],
       );
       if (!current.rowCount) throw new ProcedimentoErro(404, "Procedimento não encontrado nesta clínica.");
+      if (temVersao && data.versaoEdicao !== current.rows[0].versao_edicao) {
+        throw new ProcedimentoErro(409, "O procedimento foi alterado. Recarregue e confira antes de salvar.");
+      }
       previousDose = current.rows[0].dose;
       if (Object.keys(current.rows[0].fontes_campos).length) {
         throw new ProcedimentoErro(503, "Os campos vinculados estão em revisão de segurança e não podem ser editados agora.");
@@ -217,6 +242,9 @@ export async function salvarProcedimento(pool: Pool, empresaId: number, data: En
       && Math.abs(data.duracaoMinutos * 100 - Math.round(data.duracaoMinutos * 100)) < 1e-8
       ? data.duracaoMinutos : null;
     const values = [empresaId, data.nome.trim(), data.descricao?.trim() || null, minutosLegados, data.ativo, segundos, data.dose?.trim() || null];
+    if (id !== undefined && temVersao) {
+      await client.query("SELECT set_config('paxter.procedimento_versao', $1, true)", [`${id}:${data.versaoEdicao}`]);
+    }
     const result = id === undefined
       ? await client.query<{ id: number }>(
         `INSERT INTO procedimentos_clinicos (empresa_id, nome, descricao, duracao_minutos, ativo, duracao_segundos, dose)

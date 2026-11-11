@@ -1,7 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
-import { listarProcedimentos, ProcedimentoErro, salvarProcedimento, validarProcedimento } from "../lib/procedimentos-store";
+import { listarProcedimentos, ProcedimentoErro, salvarProcedimento, temVersaoEdicao, validarProcedimento } from "../lib/procedimentos-store";
 
 const router = Router();
 
@@ -50,7 +50,13 @@ router.get("/procedimentos", requireCollaborator, exigirContexto, exigirEstrutur
     res.status(403).json({ error: "A clínica da sessão não está disponível." });
     return;
   }
-  res.json({ empresaId, empresaNome: empresa.rows[0].nome, duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true, vinculosCamposHabilitados: false, procedimentos: await listarProcedimentos(pool, empresaId) });
+  try {
+    const versaoEdicaoHabilitada = await temVersaoEdicao(pool);
+    res.json({ empresaId, empresaNome: empresa.rows[0].nome, duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true, vinculosCamposHabilitados: false, versaoEdicaoHabilitada, procedimentos: await listarProcedimentos(pool, empresaId) });
+  } catch (error) {
+    if (error instanceof ProcedimentoErro) { res.status(error.status).json({ error: error.message }); return; }
+    throw error;
+  }
 });
 
 router.get("/procedimentos/opcoes-profissionais", requireCollaborator, exigirContexto, async (req, res) => {

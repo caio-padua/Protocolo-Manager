@@ -16,5 +16,7 @@ export interface ListaProcedimentos {
   profissionaisNecessariosHabilitado?: boolean;
   /** Confirma suporte a campos vinculados ao catálogo. */
   vinculosCamposHabilitados?: boolean;
+  /** Confirma proteção contra edição simultânea. */
+  versaoEdicaoHabilitada?: boolean;
   procedimentos: Procedimento[];
 }

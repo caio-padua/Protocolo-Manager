@@ -502,4 +502,61 @@ describe("profissionais necessários — rotas e banco isolados", () => {
     expect((await get("/procedimentos")).status).toBe(200);
     expect((await post({ ...consulta, nome: "Consulta sem coluna nova" })).status).toBe(201);
   });
+  it("recusa alterações obsoletas e mantém isolamento após migração explícita", async () => {
+    await state.pool.query("ALTER TABLE procedimentos_clinicos ADD COLUMN fontes_campos jsonb NOT NULL DEFAULT '{}'::jsonb");
+    const migration = await readFile(new URL("../../../../lib/db/migrations/20261111-versao-edicao-procedimento.sql", import.meta.url), "utf8");
+    await state.pool.query(migration);
+    await state.pool.query(migration);
+    expect((await get("/procedimentos")).body.versaoEdicaoHabilitada).toBe(true);
+    const criado = await post({ ...consulta, nome: "Versão concorrente" });
+    expect(criado.status).toBe(201);
+    expect(criado.body.versaoEdicao).toBe("0");
+    const editar = (body: object, profissional = 1) => request(app).put(`/procedimentos/${criado.body.id}`)
+      .set("Authorization", `Bearer ${token(profissional)}`).send(body).then(r => r);
+    expect((await editar({ ...consulta })).status).toBe(409);
+    expect((await editar({ ...consulta, versaoEdicao: "inválida" })).status).toBe(400);
+    expect((await editar({ ...consulta, versaoEdicao: "0" }, 2)).status).toBe(404);
+    const resultados = await Promise.all([
+      editar({ ...consulta, nome: "Edição A", versaoEdicao: "0" }),
+      editar({ ...consulta, nome: "Edição B", versaoEdicao: "0" }),
+    ]);
+    expect(resultados.map(r => r.status).sort()).toEqual([200, 409]);
+    const vencedor = resultados.find(r => r.status === 200)!;
+    expect(vencedor.body.versaoEdicao).toBe("1");
+    const gravado = await state.pool.query("SELECT nome,versao_edicao FROM procedimentos_clinicos WHERE id=$1", [criado.body.id]);
+    expect(gravado.rows[0].nome).toBe(vencedor.body.nome);
+    const gruposAntes = await state.pool.query("SELECT * FROM procedimento_equipes WHERE procedimento_id=$1 ORDER BY id", [criado.body.id]);
+    expect((await editar({ ...consulta, versaoEdicao: "0" })).status).toBe(409);
+    expect((await state.pool.query("SELECT * FROM procedimento_equipes WHERE procedimento_id=$1 ORDER BY id", [criado.body.id])).rows).toEqual(gruposAntes.rows);
+    expect((await state.pool.query("SELECT versao_edicao FROM procedimentos_clinicos WHERE id=$1", [criado.body.id])).rows[0].versao_edicao).toBe("1");
+    // Simula uma instância antiga: não pode sobrescrever uma edição confirmada.
+    await expect(state.pool.query("UPDATE procedimentos_clinicos SET descricao='Servidor antigo' WHERE id=$1", [criado.body.id]))
+      .rejects.toThrow("sem confirmação da versão atual");
+    const externo = await state.pool.connect();
+    try {
+      await externo.query("BEGIN");
+      await externo.query("SELECT set_config('paxter.procedimento_versao', $1, true)", [`${criado.body.id}:1`]);
+      await externo.query("UPDATE procedimentos_clinicos SET descricao='Edição externa' WHERE id=$1", [criado.body.id]);
+      await externo.query("COMMIT");
+    } finally {
+      await externo.query("ROLLBACK").catch(() => undefined);
+      externo.release();
+    }
+    expect((await editar({ ...consulta, versaoEdicao: "1" })).status).toBe(409);
+    const desativado = await editar({ ...consulta, nome: vencedor.body.nome, ativo: false, versaoEdicao: "2" });
+    expect(desativado.status).toBe(200);
+    expect(desativado.body).toMatchObject({ ativo: false, versaoEdicao: "3" });
+    await expect(state.pool.query("UPDATE procedimentos_clinicos SET versao_edicao=0 WHERE id=$1", [criado.body.id]))
+      .rejects.toThrow("não pode ser modificada diretamente");
+  });
+  it("falha de forma explícita se a proteção de versão estiver incompleta", async () => {
+    await state.pool.query("ALTER TABLE procedimentos_clinicos DISABLE TRIGGER paxter_versao_edicao_procedimento");
+    try {
+      const resposta = await get("/procedimentos");
+      expect(resposta.status).toBe(503);
+      expect(resposta.body.error).toContain("incompleta");
+    } finally {
+      await state.pool.query("ALTER TABLE procedimentos_clinicos ENABLE TRIGGER paxter_versao_edicao_procedimento");
+    }
+  });
 });

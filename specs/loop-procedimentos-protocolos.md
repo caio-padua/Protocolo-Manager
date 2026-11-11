@@ -155,6 +155,26 @@ registrada; sessões concorrentes não misturam componentes; falhas revertem
 integralmente; autorização existente é preservada. Não alterar o banco de
 desenvolvimento nem reiniciar o serviço com rotinas de escrita.
 
+### Concorrência na edição de procedimentos
+
+Cada procedimento recebe uma versão crescente persistida, mantida em qualquer
+alteração da sua linha. Uma edição informa a versão que viu ao abrir o
+formulário. Após bloquear o registro na transação, o servidor compara essa
+versão; se não coincidir, devolve conflito e conserva todos os dados anteriores.
+O banco também exige uma confirmação temporária da versão e identidade na mesma
+transação, impedindo a escrita por servidores antigos durante a atualização.
+Isso exige atualizar os escritores antes da migração; qualquer tentativa antiga
+de alteração depois da migração falha, nunca sobrescreve silenciosamente.
+Reativação e inativação também informam a versão lida. A versão é texto decimal
+no contrato para preservar a precisão dos números grandes. O suporte é anunciado
+apenas se a estrutura está presente; a sincronização automática permanece
+bloqueada até a proteção da revisão clínica estar integrada. A migração é
+explícita e não é executada na inicialização. Servidores antigos continuam
+reconhecidos sem supor suporte; um servidor novo recusa edição sem a versão
+quando a estrutura está instalada. O formulário preserva o rascunho no conflito.
+Testar duas edições da mesma versão, mudança direta, clínicas diferentes,
+versões inválidas, ausência da estrutura e inativação em banco isolado.
+
 ## Complemento de conferência do cadastro
 
 O catálogo de substâncias apresentado na tela não representa procedimentos já

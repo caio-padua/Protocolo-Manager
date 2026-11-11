@@ -46,6 +46,7 @@ interface ProcedimentoEntrada {
   produtoIds: number[];
   fontesCampos?: FontesCampos;
   confirmarDoseAtual?: boolean;
+  versaoEdicao?: string;
 }
 
 interface Procedimento extends ProcedimentoEntrada {
@@ -176,6 +177,7 @@ export default function Procedimentos() {
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("ativos");
   const [formularioAberto, setFormularioAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const versaoAberta = useRef<string | undefined>(undefined);
   const [formulario, setFormulario] = useState<Formulario>(FORMULARIO_VAZIO);
   const produtoComposto = formulario.produtoIds.some((id) =>
     (substancias.find((produto) => produto.id === id)?.components?.length ?? 0) > 1);
@@ -202,6 +204,7 @@ export default function Procedimentos() {
 
   const iniciarNovo = (produto?: Substance) => {
     if (formularioAberto) return;
+    versaoAberta.current = undefined;
     camposEditados.current = { nome: false, duracaoMinutos: false, dose: false };
     const nome = produto ? nomeSugeridoProduto(produto.name) : "";
     const duracao = produto?.durationMinutes;
@@ -223,6 +226,7 @@ export default function Procedimentos() {
 
   const iniciarEdicao = (procedimento: Procedimento) => {
     if (formularioAberto) return;
+    versaoAberta.current = procedimento.versaoEdicao;
     camposEditados.current = {
       nome: !procedimento.fontesCampos?.nome,
       duracaoMinutos: !procedimento.fontesCampos?.duracaoMinutos,
@@ -353,6 +357,10 @@ export default function Procedimentos() {
       setErroFormulario("O serviço de procedimentos ainda não está atualizado. O formulário foi preservado; tente novamente depois da atualização segura do serviço.");
       return;
     }
+    if (editandoId != null && procedimentosQuery.data?.versaoEdicaoHabilitada && versaoAberta.current == null) {
+      setErroFormulario("Não foi possível confirmar a versão aberta. Recarregue o cadastro antes de editar.");
+      return;
+    }
     const erro = erroDeValidacao(formulario);
     if (erro) {
       setErroFormulario(erro);
@@ -367,6 +375,8 @@ export default function Procedimentos() {
       duracaoMinutos: formulario.duracaoMinutos ? Number(formulario.duracaoMinutos.replace(",", ".")) : null,
       ativo: formulario.ativo,
       produtoIds: [...formulario.produtoIds],
+      ...(editandoId != null && procedimentosQuery.data?.versaoEdicaoHabilitada
+        ? { versaoEdicao: versaoAberta.current } : {}),
       ...(vinculosHabilitados ? { fontesCampos: formulario.fontesCampos } : {}),
       ...(typeof procedimentosQuery.data?.vinculosCamposHabilitados === "boolean"
         ? { confirmarDoseAtual: formulario.doseRevisada } : {}),
@@ -393,6 +403,10 @@ export default function Procedimentos() {
       setAviso("O serviço de procedimentos ainda não está atualizado; a alteração não foi realizada.");
       return;
     }
+    if (procedimentosQuery.data?.versaoEdicaoHabilitada && procedimento.versaoEdicao == null) {
+      setAviso("Não foi possível confirmar a versão do cadastro. Recarregue antes de alterar.");
+      return;
+    }
     if (procedimento.dosePendenteRevisao || procedimento.camposOrigemIndisponivel?.length) {
       setAviso("Confira os campos vinculados e a dose antes de alterar o estado do procedimento.");
       return;
@@ -413,6 +427,7 @@ export default function Procedimentos() {
           duracaoMinutos: procedimento.duracaoMinutos,
           ativo: proximoEstado,
           produtoIds: [...procedimento.produtoIds],
+          ...(procedimentosQuery.data?.versaoEdicaoHabilitada ? { versaoEdicao: procedimento.versaoEdicao } : {}),
           ...(vinculosHabilitados ? { fontesCampos: procedimento.fontesCampos ?? {} } : {}),
           ...(typeof procedimentosQuery.data?.vinculosCamposHabilitados === "boolean" ? { confirmarDoseAtual: false } : {}),
         },

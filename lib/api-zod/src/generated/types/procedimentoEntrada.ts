@@ -20,6 +20,11 @@ export interface ProcedimentoEntrada {
   fontesCampos?: ProcedimentoFontesCampos;
   /** Confirma explicitamente a dose atual quando ela é vinculada. */
   confirmarDoseAtual?: boolean;
+  /**
+   * Versão lida ao abrir o procedimento para edição.
+   * @pattern ^(0|[1-9][0-9]{0,18})$
+   */
+  versaoEdicao?: string;
   /** @maxItems 20 */
   profissionaisNecessarios: ProcedimentoEntradaProfissionaisNecessariosItem[];
   descricao: string | null;

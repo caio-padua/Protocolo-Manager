@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 async function servicosSinteticos(page: Page, owner: boolean, failList = false, servidorAtualizado = true) {
   const itens: any[] = [];
   const pedidos: any[] = [];
-  const controle = { rejeitarGravacao: false, autorizacoes: [] as string[] };
+  const controle = { rejeitarGravacao: false, rejeitarConflito: false, versaoHabilitada: false, autorizacoes: [] as string[] };
   await page.addInitScript(() => {
     localStorage.setItem("padcom_collab_token", "sessao-sintetica-sem-acesso-real");
     localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 1, name: "Profissional de teste", role: "medico" }));
@@ -26,7 +26,7 @@ async function servicosSinteticos(page: Page, owner: boolean, failList = false, 
         || (controle.rejeitarGravacao && req.method() !== "GET")) return json({ error: "Sessão não reconhecida." }, 401);
     }
     if (path === "/api/procedimentos" && req.method() === "GET") {
-      return failList ? json({ error: "Teste de indisponibilidade" }, 503) : json({ empresaId: 1, empresaNome: "Clínica Sintética", ...(servidorAtualizado ? { duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true } : {}), procedimentos: itens });
+      return failList ? json({ error: "Teste de indisponibilidade" }, 503) : json({ empresaId: 1, empresaNome: "Clínica Sintética", ...(servidorAtualizado ? { duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true } : {}), versaoEdicaoHabilitada: controle.versaoHabilitada, procedimentos: itens });
     }
     if (path === "/api/procedimentos/opcoes-profissionais") return json({
       locais: [{ id: 8, name: "Local sintético" }],
@@ -44,6 +44,10 @@ async function servicosSinteticos(page: Page, owner: boolean, failList = false, 
     }
     const match = path.match(/^\/api\/procedimentos\/(\d+)$/);
     if (match && req.method() === "PUT") {
+      if (controle.rejeitarConflito) {
+        pedidos.push(req.postDataJSON());
+        return json({ error: "O procedimento foi alterado. Recarregue e confira antes de salvar." }, 409);
+      }
       const index = itens.findIndex(item => item.id === Number(match[1]));
       itens[index] = { ...req.postDataJSON(), id: Number(match[1]), empresaId: 1 };
       pedidos.push(itens[index]);
@@ -53,6 +57,22 @@ async function servicosSinteticos(page: Page, owner: boolean, failList = false, 
   });
   return { itens, pedidos, controle };
 }
+
+test("conflito de versão preserva rascunho e envia a versão aberta", async ({ page }) => {
+  const { itens, pedidos, controle } = await servicosSinteticos(page, true);
+  controle.versaoHabilitada = true;
+  controle.rejeitarConflito = true;
+  itens.push({ id: 88, empresaId: 1, nome: "Consulta sintética", descricao: null, dose: null,
+    duracaoMinutos: 60, ativo: true, produtoIds: [], versaoEdicao: "5",
+    profissionaisNecessarios: [{ areaId: 1, localId: 8, professionalIds: [1] }] });
+  await page.goto("/procedimentos");
+  await page.getByTestId("button-edit-procedimento-88").click();
+  await page.getByTestId("input-procedimento-nome").fill("Rascunho preservado");
+  await page.getByTestId("button-save-procedimento").click();
+  await expect(page.getByTestId("error-procedimento-form")).toBeVisible();
+  await expect(page.getByTestId("input-procedimento-nome")).toHaveValue("Rascunho preservado");
+  expect(pedidos[0].versaoEdicao).toBe("5");
+});
 
 async function selecionarEquipe(page: Page, area = "2") {
   await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
@@ -82,6 +102,7 @@ test("sugere nome sem apresentação e duração exata do produto escolhido", as
   await expect(page.getByTestId("input-procedimento-nome")).toHaveValue("Produto Sintético");
   await expect(page.getByTestId("input-procedimento-duracao")).toHaveValue("2,5");
   await page.getByTestId("input-procedimento-dose").fill("100 mg");
+  await page.getByLabel("Conferi que esta é a dose padrão.").click();
   await page.getByTestId("button-save-procedimento").click();
   await expect.poll(() => pedidos.length).toBe(1);
   expect(pedidos[0]).toMatchObject({ nome: "Produto Sintético", duracaoMinutos: 2.5, produtoIds: [10] });
@@ -114,6 +135,7 @@ test("duração ausente exige preenchimento e não escolhe outra apresentação"
   await page.getByTestId("input-procedimento-dose").fill("200 mg");
   await expect(page.getByTestId("input-procedimento-duracao")).toHaveValue("");
   await expect(page.getByTestId("aviso-duracao-produto")).toBeVisible();
+  await page.getByLabel("Conferi que esta é a dose padrão.").click();
   await page.getByTestId("button-save-procedimento").click();
   await expect(page.getByTestId("error-procedimento-form")).toContainText("Informe a duração");
   expect(pedidos).toHaveLength(0);
@@ -159,6 +181,7 @@ test("erro de sessão preserva os campos e o reenvio usa credencial renovada", a
   await selecionarEquipe(page);
   await page.getByTestId("checkbox-substancia-10").click();
   await page.getByTestId("input-procedimento-dose").fill("100 mg");
+  await page.getByLabel("Conferi que esta é a dose padrão.").click();
   controle.rejeitarGravacao = true;
   await page.getByTestId("button-save-procedimento").click();
   await expect(page.getByTestId("error-procedimento-form")).toContainText("sessão profissional");
@@ -187,6 +210,7 @@ test("cadastro sintético cria consulta sem produto e preserva seleção exata",
   await page.getByTestId("button-edit-procedimento-1").click();
   await page.getByTestId("checkbox-substancia-11").click();
   await page.getByTestId("input-procedimento-dose").fill("200 mg");
+  await page.getByLabel("Conferi que esta é a dose padrão.").click();
   await page.getByTestId("button-save-procedimento").click();
   await page.getByText("Ver vínculos de substâncias").click();
   await expect(page.getByTestId("linked-substance-1-11")).toBeVisible();
