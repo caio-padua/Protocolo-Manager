@@ -19,6 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { getCollabToken } from "@/lib/collab-auth";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
+import { ProtocolSubstancePicker } from "@/components/ProtocolSubstancePicker";
 import {
   PROTOCOL_FREQUENCY_OPTIONS,
   UNCONFIGURED_PROTOCOL_INTERVAL,
@@ -857,27 +858,24 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Substância *</Label>
-                  <Select value={String(slot.substanceId || "")} onValueChange={v => handleSelectSubstance(slot.id, v)}>
-                    <SelectTrigger className="field-engraved h-10">
-                      <SelectValue placeholder="Escolha a substância..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {substancesFiltered.map(s => (
-                        <SelectItem key={s.id} value={String(s.id)}>
-                          <div className="flex min-w-0 flex-col gap-0.5 py-1">
-                            <div className="flex min-w-0 items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                              <span className="truncate font-semibold">{nomeSubstanciaProtocolo(s.name)}</span>
-                              <span className="shrink-0 text-[10px] text-muted-foreground">Cadastro #{s.id}</span>
-                            </div>
-                            <span className="max-w-[30rem] whitespace-normal text-[10px] leading-tight text-muted-foreground">
-                              Via {VIA_CATEGORIES.find(category => category.id === viaOf(s.procedureType))?.label ?? "Outra"} · dose padrão {dosePrescritaExibivel(resolveProtocolSubstanceDefaults(s).dose) || "revisão clínica necessária"}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ProtocolSubstancePicker
+                    options={substancesFiltered.map(s => ({
+                      id: s.id, name: nomeSubstanciaProtocolo(s.name),
+                      dose: resolveProtocolSubstanceDefaults(s).dose,
+                      via: VIA_CATEGORIES.find(category => category.id === viaOf(s.procedureType))?.label ?? "Não informada",
+                      color: s.color,
+                    }))}
+                    selected={selectedSubstance ? {
+                      id: selectedSubstance.id, name: nomeSubstanciaProtocolo(selectedSubstance.name),
+                      dose: resolveProtocolSubstanceDefaults(selectedSubstance).dose,
+                      via: VIA_CATEGORIES.find(category => category.id === viaOf(selectedSubstance.procedureType))?.label ?? "Não informada",
+                      color: selectedSubstance.color,
+                    } : slot.substanceId ? {
+                      id: slot.substanceId, name: slot.substanceName,
+                      dose: "", via: "Não informada", color: slot.substanceColor,
+                    } : undefined}
+                    onSelect={id => handleSelectSubstance(slot.id, String(id))}
+                  />
                 </div>
 
                 {slot.substanceId > 0 && (
