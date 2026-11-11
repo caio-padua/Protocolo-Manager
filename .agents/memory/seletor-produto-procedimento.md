@@ -17,6 +17,17 @@ não converter nem apresentar concentrações ou volumes como dose prescrita.
 Se faltarem valores ou a ordem não puder ser identificada com segurança, pedir
 revisão em vez de preencher parcialmente. A sugestão exige confirmação clínica.
 
+O médico determinou que os campos do procedimento herdados de uma substância
+acompanhem automaticamente as alterações na apresentação original. Manter a
+identificação de origem e distinguir campos herdados de alterações manuais.
+Não alterar automaticamente protocolos ou documentos clínicos já emitidos;
+mudanças de dose precisam de nova conferência clínica antes de uso.
+
+O médico indicou as equipes de referência: aplicação de substância com
+enfermagem, implante com médico e enfermagem, consulta e procedimento estético
+com médico. O seletor escolhe categorias profissionais e permite combiná-las,
+inclusive três em conjunto; consulta é procedimento, não categoria.
+
 **Why:** o médico pediu identificação clara das apresentações e separação entre
 o nome, a apresentação comercial e a dose efetivamente prescrita.
 

@@ -3781,6 +3781,9 @@ components:
         profissionaisNecessariosHabilitado:
           type: boolean
           description: Confirma o contrato de profissionais necessários e dose separados.
+        vinculosCamposHabilitados:
+          type: boolean
+          description: Confirma suporte a campos vinculados ao catálogo.
         procedimentos:
           type: array
           items: { $ref: "#/components/schemas/Procedimento" }
@@ -3799,6 +3802,11 @@ components:
           anyOf:
             - { type: string, maxLength: 500 }
             - { type: "null" }
+        fontesCampos:
+          $ref: "#/components/schemas/ProcedimentoFontesCampos"
+        confirmarDoseAtual:
+          type: boolean
+          description: Confirma explicitamente a dose atual quando ela é vinculada.
         profissionaisNecessarios:
           type: array
           maxItems: 20
@@ -3827,12 +3835,23 @@ components:
           type: array
           maxItems: 100
           items: { type: integer, minimum: 1 }
+    ProcedimentoFontesCampos:
+      type: object
+      additionalProperties: false
+      properties:
+        nome: { type: integer, minimum: 1 }
+        dose: { type: integer, minimum: 1 }
+        duracaoMinutos: { type: integer, minimum: 1 }
     Procedimento:
       allOf:
         - $ref: "#/components/schemas/ProcedimentoEntrada"
         - type: object
           required: [id, empresaId]
           properties:
+            dosePendenteRevisao: { type: boolean }
+            camposOrigemIndisponivel:
+              type: array
+              items: { type: string }
             id: { type: integer }
             empresaId: { type: integer }
     Paxmed2bEmpresa:

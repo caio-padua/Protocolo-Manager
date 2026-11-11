@@ -14,8 +14,9 @@ import { PROCEDIMENTOS_SCHEMA_SQL } from "../lib/procedimentos-schema";
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import router from "../routes/procedimentos";
+import substancesRouter from "../routes/substances";
 
-const app = express().use(express.json(), tenantContextMiddleware, router);
+const app = express().use(express.json(), tenantContextMiddleware, router, substancesRouter);
 let isolated: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const token = (professionalId: number, role = "admin") => createCollaboratorToken({ professionalId, role });
 const post = (body: object, professionalId = 1) => request(app).post("/procedimentos")
@@ -38,13 +39,15 @@ beforeAll(async () => {
     INSERT INTO professional_areas VALUES (10,'Medicina','medicina',true),(20,'Enfermagem','enfermagem',true),
       (30,'Biomedicina','biomedicina',true),(40,'Área inativa','inativa',false);
     CREATE TABLE professionals (id integer primary key, role text, category text, active boolean,
-      credential_version integer, empresa_id integer, is_platform_owner boolean, name text, area_id integer);
-    INSERT INTO professionals VALUES
+      credential_version integer, empresa_id integer, is_platform_owner boolean, name text, area_id integer,
+      professional_type text NOT NULL DEFAULT 'medico');
+    INSERT INTO professionals(id,role,category,active,credential_version,empresa_id,is_platform_owner,name,area_id) VALUES
       (1,'admin','medico',true,0,1,true,'Dona A',10),(2,'admin','medico',true,0,2,true,'Dono B',10),
       (3,'executor','medico',true,0,1,false,'Profissional sem gestão',10),
       (11,'executor','medico',true,0,1,false,'Médico A',10),(12,'executor','medico',true,0,1,false,'Médico B',10),
       (13,'executor','enfermagem',true,0,1,false,'Enfermagem A',20),(14,'executor','outro',true,0,1,false,'Biomédico A',30),
       (15,'executor','enfermagem',true,0,2,false,'Enfermagem B',20);
+    INSERT INTO professionals VALUES (16,'admin','outro',true,0,1,true,'Gestor sintético',30,'nao_medico');
     CREATE TABLE locations (id integer primary key, empresa_id integer, active text, name text);
     INSERT INTO locations VALUES (101,1,'true','Local A'),(102,2,'true','Local B');
     CREATE TABLE agenda_calendars (id integer primary key, name text, active boolean, location_id integer);
@@ -55,11 +58,24 @@ beforeAll(async () => {
     CREATE TABLE agenda_resources (id integer primary key, name text, active boolean, location_id integer, professional_id integer);
     INSERT INTO agenda_resources VALUES (600,'Agenda interna A',true,101,11),(601,'Agenda interna B',true,102,15);
     CREATE TABLE professional_empresas (id integer primary key, professional_id integer, empresa_id integer);
-    CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean);
-    INSERT INTO substances VALUES (100,'Implante sintético','implant',true),(101,'Produto sintético','im',false),
+    CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean,
+      default_dose text, duration_minutes integer, precise_duration_seconds integer, is_blend boolean NOT NULL DEFAULT false);
+    INSERT INTO substances(id,name,procedure_type,doctor_participation) VALUES
+      (100,'Implante sintético','implant',true),(101,'Produto sintético','im',false),
       (102,'Produto sintético','im',false),(103,'Produto composto','im',false);
+    UPDATE substances SET precise_duration_seconds=150 WHERE id IN (101,102);
+    INSERT INTO substances(id,name,procedure_type,doctor_participation,default_dose,duration_minutes,precise_duration_seconds) VALUES
+      (104,'Produto vinculado','im',false,'100 mg',2,150),(105,'Produto vinculado','im',false,'200 mg',2,150),
+      (106,'ADEK (VITAMINAS A, D, E, K)','im',false,'mistura / 2 mL',2,150);
+    CREATE TABLE substance_blend_components (id serial primary key, substance_id integer, sort_order integer,
+      component_name text, dose_value real, dose_unit text, component_substance_id integer,
+      quantity real, quantity_unit text, notes text, created_at timestamptz NOT NULL DEFAULT now());
+    INSERT INTO substance_blend_components(substance_id,sort_order,component_name,dose_value,dose_unit) VALUES
+      (106,1,'Vitamina A',25000,'UI'),(106,2,'Vitamina D3',100000,'UI'),
+      (106,3,'Vitamina E',200,'UI'),(106,4,'Vitamina K2',1300,'mcg');
   `);
   await state.pool.query(PROCEDIMENTOS_SCHEMA_SQL);
+  await state.pool.query("ALTER TABLE procedimentos_clinicos ADD COLUMN fontes_campos JSONB NOT NULL DEFAULT '{}'::jsonb");
   await state.pool.query(PROCEDIMENTOS_SCHEMA_SQL);
 }, 60_000);
 afterAll(async () => { if (isolated) await isolated.stop(); }, 60_000);
@@ -90,6 +106,64 @@ describe("profissionais necessários — rotas e banco isolados", () => {
     expect((await get("/procedimentos")).body.procedimentos).toContainEqual(r.body);
     expect((await get("/procedimentos", 2)).body.procedimentos).toEqual([]);
   });
+  it("preserva três categorias conjuntas e médicos alternativos na mesma clínica", async () => {
+    const r = await post({ ...consulta, nome: "Procedimento com três categorias",
+      profissionaisNecessarios: [medicos, enfermagem, biomedico] });
+    expect(r.status).toBe(201);
+    const groups = r.body.profissionaisNecessarios;
+    expect(groups).toEqual([medicos, enfermagem, biomedico]);
+    const persisted = (await get("/procedimentos")).body.procedimentos.find((p: { id: number }) => p.id === r.body.id);
+    expect(persisted.profissionaisNecessarios).toEqual(groups);
+    expect((await get("/procedimentos", 2)).body.procedimentos.some((p: { id: number }) => p.id === r.body.id)).toBe(false);
+  });
+  it.skip("aguarda proteção completa antes de atualizar campos vinculados", async () => {
+    const entrada = { ...consulta, nome: "Produto vinculado", dose: "100 mg", duracaoMinutos: 2.5,
+      produtoIds: [104], profissionaisNecessarios: [enfermagem],
+      fontesCampos: { nome: 104, dose: 104, duracaoMinutos: 104 }, confirmarDoseAtual: true };
+    const criado = await post(entrada);
+    expect(criado.status).toBe(201);
+    expect((await post({ ...entrada, confirmarDoseAtual: false })).status).toBe(409);
+    expect((await post(entrada, 16)).status).toBe(403);
+    await state.pool.query("UPDATE substances SET default_dose='300 mg' WHERE id=105");
+    expect((await get("/procedimentos")).body.procedimentos.find((p: { id: number }) => p.id === criado.body.id).dose).toBe("100 mg");
+    const manual = await post({ ...consulta, nome: "Nome manual", dose: "80 mg", produtoIds: [104], confirmarDoseAtual: true });
+    expect(manual.status).toBe(201);
+    await state.pool.query("UPDATE substances SET name=$1,default_dose=$2,precise_duration_seconds=$3 WHERE id=104",
+      ["Produto novo", "150 mg", 300]);
+    const lista = (await get("/procedimentos")).body.procedimentos;
+    const atualizado = lista.find((p: { id: number }) => p.id === criado.body.id);
+    expect(atualizado).toMatchObject({ nome: "Produto novo", dose: "150 mg", duracaoMinutos: 5, dosePendenteRevisao: true });
+    expect(lista.find((p: { id: number }) => p.id === manual.body.id)).toMatchObject({ nome: "Nome manual", dose: "80 mg", duracaoMinutos: 60 });
+    const tentar = { ...entrada, nome: "Produto novo", dose: "150 mg", duracaoMinutos: 5, confirmarDoseAtual: false };
+    expect((await request(app).put(`/procedimentos/${criado.body.id}`).set("Authorization", `Bearer ${token(1)}`).send(entrada)).status).toBe(409);
+    expect((await request(app).put(`/procedimentos/${criado.body.id}`).set("Authorization", `Bearer ${token(1)}`).send(tentar)).status).toBe(409);
+    const confirmado = await request(app).put(`/procedimentos/${criado.body.id}`).set("Authorization", `Bearer ${token(1)}`).send({ ...tentar, confirmarDoseAtual: true });
+    expect(confirmado.status).toBe(200);
+    expect(confirmado.body.dosePendenteRevisao).toBe(false);
+    const manualDuration = { ...tentar, duracaoMinutos: 7.5, fontesCampos: { nome: 104, dose: 104 } };
+    expect((await request(app).put(`/procedimentos/${criado.body.id}`).set("Authorization", `Bearer ${token(1)}`).send(manualDuration)).status).toBe(200);
+    await state.pool.query("UPDATE substances SET precise_duration_seconds=600,default_dose='150 mg / 2 mL' WHERE id=104");
+    const final = (await get("/procedimentos")).body.procedimentos.find((p: { id: number }) => p.id === criado.body.id);
+    expect(final.duracaoMinutos).toBe(7.5);
+    expect(final.dose).toBeNull();
+    expect(final.dosePendenteRevisao).toBe(true);
+    expect(final.camposOrigemIndisponivel).toContain("dose");
+    expect((await get("/procedimentos", 2)).body.procedimentos.some((p: { id: number }) => p.id === criado.body.id)).toBe(false);
+  });
+  it.skip("aguarda proteção completa antes de sincronizar componentes de produto composto", async () => {
+    const dose = "25.000 UI + 100.000 UI + 200 UI + 1.300 mcg";
+    const entrada = { ...consulta, nome: "ADEK (VITAMINAS A, D, E, K)", dose, duracaoMinutos: 2.5,
+      produtoIds: [106], profissionaisNecessarios: [enfermagem],
+      fontesCampos: { nome: 106, dose: 106, duracaoMinutos: 106 }, confirmarDoseAtual: true };
+    const criado = await post(entrada);
+    expect(criado.status).toBe(201);
+    await state.pool.query("UPDATE substance_blend_components SET dose_value=1500 WHERE substance_id=106 AND sort_order=4");
+    const encontrado = (await get("/procedimentos")).body.procedimentos.find((p: { id: number }) => p.id === criado.body.id);
+    expect(encontrado.produtoIds).toEqual([106]);
+    expect(encontrado.dose).toBe("25.000 UI + 100.000 UI + 200 UI + 1.500 mcg");
+    expect(encontrado.dosePendenteRevisao).toBe(true);
+    expect(encontrado.dose).not.toMatch(/ml|ampola/i);
+  });
   it("exige medicina e enfermagem para implante e preserva a duração 2,5 minutos", async () => {
     const body = { ...consulta, nome: "Implante", duracaoMinutos: 2.5, produtoIds: [100], profissionaisNecessarios: [medicos, enfermagem] };
     const fail = await post({ ...body, profissionaisNecessarios: [medicos] });
@@ -119,7 +193,7 @@ describe("profissionais necessários — rotas e banco isolados", () => {
   });
   it("preserva a identidade de homônimos e de produto composto sem alterar catálogo", async () => {
     const before = (await state.pool.query("SELECT * FROM substances ORDER BY id")).rows;
-    const r = await post({ ...consulta, nome: "Produto escolhido", dose: "100 mg", duracaoMinutos: 2.5, produtoIds: [102, 103] });
+    const r = await post({ ...consulta, nome: "Produto escolhido", dose: "100 mg", duracaoMinutos: 2.5, produtoIds: [102, 103], confirmarDoseAtual: true });
     expect(r.status).toBe(201);
     expect(r.body.produtoIds).toEqual([102, 103]);
     expect((await state.pool.query("SELECT * FROM substances ORDER BY id")).rows).toEqual(before);
@@ -144,6 +218,9 @@ describe("profissionais necessários — rotas e banco isolados", () => {
     });
     try {
       const page = await browser.newPage({ viewport: { width: 1134, height: 720 } });
+      page.setDefaultTimeout(10_000);
+      let nomeProduto = "Produto sintético - 100 MG / 2 ML";
+      let duracaoProduto = 2.5;
       await page.addInitScript(({ credential }) => {
         localStorage.setItem("padcom_collab_token", credential);
         localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 1, name: "Profissional sintético", role: "admin" }));
@@ -154,7 +231,7 @@ describe("profissionais necessários — rotas e banco isolados", () => {
         const json = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
         if (path === "/api/collaborator/me") return json({ professional: { id: 1, name: "Profissional sintético", role: "admin", isPlatformOwner: true } });
         if (path === "/api/substances") return json([
-          { id: 101, name: "Produto sintético - 100 MG / 2 ML", defaultDose: "100 MG / 2 ML", durationMinutes: 2.5 },
+          { id: 101, name: nomeProduto, defaultDose: "100 MG / 2 ML", durationMinutes: duracaoProduto },
           { id: 102, name: "Produto sintético - 200 MG / 2 ML", defaultDose: "200 MG / 2 ML", durationMinutes: 2.5 },
         ]);
         if (path.startsWith("/api/procedimentos")) {
@@ -162,7 +239,9 @@ describe("profissionais necessários — rotas e banco isolados", () => {
           const authorization = req.headers().authorization ?? "";
           const result = req.method() === "GET"
             ? await request(app).get(url).set("Authorization", authorization)
-            : await request(app).post(url).set("Authorization", authorization).send(req.postDataJSON());
+            : req.method() === "PUT"
+              ? await request(app).put(url).set("Authorization", authorization).send(req.postDataJSON())
+              : await request(app).post(url).set("Authorization", authorization).send(req.postDataJSON());
           return json(result.body, result.status);
         }
         return json([]);
@@ -179,6 +258,15 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       await page.getByLabel("Categoria profissional").selectOption("10");
       await page.getByLabel("Selecionar Médico A").click();
       await page.getByLabel("Selecionar Médico B").click();
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
+      await page.getByLabel("Local da clínica").nth(1).selectOption("101");
+      await page.getByLabel("Categoria profissional").nth(1).selectOption("20");
+      await page.getByLabel("Selecionar Enfermagem A").click();
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
+      await page.getByLabel("Local da clínica").nth(2).selectOption("101");
+      await page.getByLabel("Categoria profissional").nth(2).selectOption("30");
+      await page.getByLabel("Selecionar Biomédico A").click();
+      expect(await page.getByRole("button", { name: /^Consulta$/ }).count()).toBe(0);
       await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Confirme a dose prescrita antes de salvar.").waitFor();
       await page.getByLabel("Conferi que esta é a dose prescrita.").click();
@@ -186,6 +274,71 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       await page.getByText("Procedimento cadastrado.").waitFor();
       const stored = await state.pool.query("SELECT dose,duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético'");
       expect(stored.rows).toEqual([{ dose: "100 mg", duracao_segundos: 150 }]);
+      const groups = await state.pool.query(`SELECT area_id FROM procedimento_equipes
+        WHERE ativo AND procedimento_id=(SELECT id FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético')
+        ORDER BY area_id`);
+      expect(groups.rows.map((row: { area_id: number }) => row.area_id)).toEqual([10, 20, 30]);
     } finally { await browser.close(); }
-  }, 60_000);
+  }, 120_000);
+  it("mantém a atualização automática bloqueada enquanto falta revisão", async () => {
+    const lista = await get("/procedimentos");
+    expect(lista.body.vinculosCamposHabilitados).toBe(false);
+    const resposta = await post({ ...consulta, nome: "Produto vinculado", dose: "100 mg", duracaoMinutos: 2.5,
+      produtoIds: [104], profissionaisNecessarios: [enfermagem],
+      fontesCampos: { nome: 104, dose: 104, duracaoMinutos: 104 }, confirmarDoseAtual: true });
+    expect(resposta.status).toBe(503);
+    expect(resposta.body.error).toContain("revisão de segurança");
+  });
+  it("não altera nem apresenta como conferida uma origem vinculada já existente", async () => {
+    const criado = await post({ ...consulta, nome: "Origem protegida", dose: "100 mg", produtoIds: [105],
+      confirmarDoseAtual: true, profissionaisNecessarios: [enfermagem] });
+    expect(criado.status).toBe(201);
+    await state.pool.query("UPDATE procedimentos_clinicos SET fontes_campos=$1::jsonb WHERE id=$2",
+      [JSON.stringify({ nome: 105, dose: 105, duracaoMinutos: 105 }), criado.body.id]);
+    await state.pool.query("UPDATE substances SET name='Valor novo',default_dose='300 mg',precise_duration_seconds=180 WHERE id=105");
+    const linha = (await get("/procedimentos")).body.procedimentos.find((p: { id: number }) => p.id === criado.body.id);
+    expect(linha).toMatchObject({ nome: "Origem protegida", dose: "100 mg", duracaoMinutos: 60, dosePendenteRevisao: true });
+    const url = `/procedimentos/${criado.body.id}`;
+    const body = { ...consulta, nome: "Origem protegida", dose: "100 mg", produtoIds: [105], profissionaisNecessarios: [enfermagem] };
+    expect((await request(app).put(url).set("Authorization", `Bearer ${token(1)}`).send(body)).status).toBe(503);
+    expect((await request(app).put(url).set("Authorization", `Bearer ${token(1)}`).send({ ...body, fontesCampos: {} })).status).toBe(503);
+    const armazenado = await state.pool.query("SELECT nome,dose,fontes_campos FROM procedimentos_clinicos WHERE id=$1", [criado.body.id]);
+    expect(armazenado.rows[0]).toMatchObject({ nome: "Origem protegida", dose: "100 mg", fontes_campos: { dose: 105 } });
+  });
+  it("serializa duas substituições concorrentes reais de um produto composto", async () => {
+    const lock = await state.pool.connect();
+    try {
+      await lock.query("BEGIN");
+      await lock.query("SELECT id FROM substances WHERE id=106 FOR UPDATE");
+      const atualizar = (prefixo: string) => request(app).put("/substances/106/components")
+        .set("Authorization", `Bearer ${token(1)}`)
+        .send({ isBlend: true, components: [{ componentName: `${prefixo}1` }, { componentName: `${prefixo}2` }] })
+        .then((res) => res);
+      const primeira = atualizar("A");
+      const segunda = atualizar("B");
+      const prazo = Date.now() + 7000;
+      let esperando = 0;
+      do {
+        const resultado = await state.pool.query(`SELECT count(*)::int AS total FROM pg_stat_activity
+          WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE 'update%substances%'`);
+        esperando = resultado.rows[0].total;
+        if (esperando < 2) await new Promise((resolve) => setTimeout(resolve, 30));
+      } while (esperando < 2 && Date.now() < prazo);
+      expect(esperando).toBe(2);
+      await lock.query("COMMIT");
+      const resultados = await Promise.all([primeira, segunda]);
+      expect(resultados.map((r) => r.status)).toEqual([200, 200]);
+      const componentes = await state.pool.query("SELECT component_name FROM substance_blend_components WHERE substance_id=106 ORDER BY sort_order");
+      const nomes = componentes.rows.map((row: { component_name: string }) => row.component_name);
+      expect([["A1", "A2"], ["B1", "B2"]]).toContainEqual(nomes);
+    } finally {
+      await lock.query("ROLLBACK").catch(() => undefined);
+      lock.release();
+    }
+  }, 20000);
+  it("preserva listagem e gravação mesmo sem a nova coluna", async () => {
+    await state.pool.query("ALTER TABLE procedimentos_clinicos DROP COLUMN fontes_campos");
+    expect((await get("/procedimentos")).status).toBe(200);
+    expect((await post({ ...consulta, nome: "Consulta sem coluna nova" })).status).toBe(201);
+  });
 });

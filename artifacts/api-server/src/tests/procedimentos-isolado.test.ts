@@ -43,8 +43,9 @@ beforeAll(async () => {
     CREATE TABLE empresas (id integer primary key, nome text, nome_fantasia text, ativa boolean, status text);
     INSERT INTO empresas VALUES (1,'Clínica A',null,true,'ATIVO'), (2,'Clínica B',null,true,'ATIVO');
     CREATE TABLE professionals (id integer primary key, role text, category text, active boolean,
-      credential_version integer, empresa_id integer, is_platform_owner boolean, name text, area_id integer);
-    INSERT INTO professionals VALUES
+      credential_version integer, empresa_id integer, is_platform_owner boolean, name text, area_id integer,
+      professional_type text NOT NULL DEFAULT 'medico');
+    INSERT INTO professionals(id,role,category,active,credential_version,empresa_id,is_platform_owner,name,area_id) VALUES
       (1,'admin','medico',true,0,1,true,'Médico A',1), (2,'admin','medico',true,0,2,true,'Médico B',1),
       (3,'executor','medico',true,0,2,false,'Profissional B',1), (4,'admin','medico',false,0,1,true,'Inativo',1),
       (5,'executor','enfermagem',true,0,1,false,'Enfermagem A',2), (6,'executor','enfermagem',true,0,2,false,'Enfermagem B',2);
@@ -57,12 +58,22 @@ beforeAll(async () => {
     CREATE TABLE agenda_calendars (id integer primary key, name text, active boolean, location_id integer);
     CREATE TABLE agenda_resources (id integer primary key, name text, active boolean, location_id integer, professional_id integer);
     CREATE TABLE professional_empresas (id integer primary key, professional_id integer, empresa_id integer);
-    CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean);
-    INSERT INTO substances VALUES (10,'Produto sintético IM','im',false),
+    CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean,
+      default_dose text, duration_minutes integer, precise_duration_seconds integer);
+    INSERT INTO substances(id,name,procedure_type,doctor_participation) VALUES (10,'Produto sintético IM','im',false),
       (11,'Implante sintético','implant',true), (12,'Produto médico sintético','im',true),
-      (13,'ADEK sintético','im',false);
+      (13,'ADEK (VITAMINAS A, D, E, K)','im',false), (14,'Produto sintético IM','im',false);
+    UPDATE substances SET default_dose='100 mg', precise_duration_seconds=150 WHERE id=10;
+    UPDATE substances SET default_dose='200 mg / 2 mL', precise_duration_seconds=150 WHERE id=14;
+    UPDATE substances SET default_dose='mistura / 2 mL', precise_duration_seconds=150 WHERE id=13;
+    CREATE TABLE substance_blend_components (id serial primary key, substance_id integer, sort_order integer,
+      component_name text, dose_value real, dose_unit text);
+    INSERT INTO substance_blend_components(substance_id,sort_order,component_name,dose_value,dose_unit) VALUES
+      (13,1,'Vitamina A',25000,'UI'), (13,2,'Vitamina D3',100000,'UI'),
+      (13,3,'Vitamina E',200,'UI'), (13,4,'Vitamina K2',1300,'mcg');
   `);
   await state.pool.query(PROCEDIMENTOS_SCHEMA_SQL);
+  await state.pool.query("ALTER TABLE procedimentos_clinicos ADD COLUMN fontes_campos JSONB NOT NULL DEFAULT '{}'::jsonb");
   await state.pool.query(PROCEDIMENTOS_SCHEMA_SQL);
 }, 60000);
 
@@ -165,6 +176,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
     });
     try {
       const page = await browser.newPage();
+      page.setDefaultTimeout(10_000);
       await page.addInitScript(({ token }) => {
         localStorage.setItem("padcom_collab_token", token);
         localStorage.setItem("padcom_collab_prof", JSON.stringify({ id: 1, name: "Profissional sintético", role: "admin" }));
@@ -176,7 +188,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
         if (path === "/api/collaborator/me") return json({ professional: { id: 1, name: "Profissional sintético", role: "admin", isPlatformOwner: true } });
         if (path === "/api/substances") return json([
           { id: 10, name: "Produto sintético IM", defaultDose: "100 mg", durationMinutes: 2.5 },
-          { id: 11, name: "Produto sintético IM", defaultDose: "200 mg / 2 mL", durationMinutes: 2.5 },
+          { id: 14, name: "Produto sintético IM", defaultDose: "200 mg / 2 mL", durationMinutes: 2.5 },
           { id: 13, name: "ADEK (VITAMINAS A, D, E, K)", defaultDose: "mistura / 2 mL", durationMinutes: 2.5, components: [
             { id: 1, componentName: "Vitamina A", doseValue: 25000, doseUnit: "UI", sortOrder: 1 },
             { id: 2, componentName: "Vitamina D3", doseValue: 100000, doseUnit: "UI", sortOrder: 2 },
@@ -198,16 +210,26 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
         return json([]);
       });
       await page.goto("http://localhost:18148/procedimentos");
-      await page.getByTestId("button-new-procedimento").click();
+      await page.getByLabel("Buscar produtos disponíveis").fill("Produto sintético");
+      expect(await page.getByRole("status").filter({ hasText: "2 de 3 produtos" }).count()).toBe(1);
+      await page.getByTestId("catalogo-produto-14").getByText("Detalhes da apresentação").click();
+      expect(await page.getByTestId("catalogo-produto-14").innerText()).toContain("200 mg / 2 mL");
+      await page.setViewportSize({ width: 390, height: 844 });
+      const box = await page.getByTestId("catalogo-produto-10").boundingBox();
+      expect(box && box.x >= 0 && box.x + box.width <= 390).toBe(true);
+      await page.getByTestId("catalogo-produto-10").screenshot({ path: "/tmp/catalogo-produto-sintetico.png" });
+      await page.getByTestId("catalogo-produto-10").getByRole("button", { name: /Cadastrar procedimento/ }).click();
+      expect(await page.getByTestId("checkbox-substancia-10").getAttribute("data-state")).toBe("checked");
+      expect(await page.getByTestId("input-procedimento-nome").inputValue()).toBe("Produto sintético IM");
+      expect(await page.getByTestId("button-new-procedimento").isDisabled()).toBe(true);
       await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
       await page.getByLabel("Local da clínica").selectOption("8");
       await page.getByLabel("Categoria profissional").selectOption("2");
       await page.getByLabel("Selecionar Enfermagem A").click();
-      await page.getByTestId("checkbox-substancia-10").click();
       expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("100 mg");
-      await page.getByTestId("checkbox-substancia-11").click();
+      await page.getByTestId("checkbox-substancia-14").click();
       expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("");
-      await page.getByTestId("checkbox-substancia-11").click();
+      await page.getByTestId("checkbox-substancia-14").click();
       expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("100 mg");
       expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
       await page.getByLabel("Conferi que esta é a dose prescrita.").click();
@@ -219,6 +241,32 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
         JOIN procedimentos_clinicos p ON p.id=pp.procedimento_id
         WHERE p.empresa_id=1 AND p.nome='Produto sintético IM' AND pp.ativo`);
       expect(products.rows).toEqual([{ produto_id: 10 }]);
+      await page.getByTestId("button-new-procedimento").click();
+      await page.getByTestId("input-procedimento-nome").fill("Rascunho preservado");
+      const firstId = (await state.pool.query("SELECT id FROM procedimentos_clinicos WHERE nome='Produto sintético IM' AND empresa_id=1")).rows[0].id;
+      expect(await page.getByTestId(`button-edit-procedimento-${firstId}`).isDisabled()).toBe(true);
+      expect(await page.getByTestId("input-procedimento-nome").inputValue()).toBe("Rascunho preservado");
+      await page.getByTestId("button-close-procedimento-form").click();
+      await page.getByLabel("Buscar produtos disponíveis").fill("ADEK");
+      await page.getByTestId("catalogo-produto-13").getByText("Detalhes da apresentação").click();
+      expect(await page.getByTestId("catalogo-produto-13").innerText()).toContain("Vitamina K2: 1300 mcg");
+      await page.getByLabel("Buscar produtos disponíveis").fill("Produto sintético");
+      await page.getByTestId("catalogo-produto-14").getByRole("button", { name: /Cadastrar procedimento/ }).click();
+      expect(await page.getByTestId("checkbox-substancia-14").getAttribute("data-state")).toBe("checked");
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("");
+      await page.getByTestId("input-procedimento-nome").fill("Segunda apresentação sintética");
+      await page.getByTestId("input-procedimento-dose").fill("200 mg");
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
+      await page.getByLabel("Local da clínica").selectOption("8");
+      await page.getByLabel("Categoria profissional").selectOption("2");
+      await page.getByLabel("Selecionar Enfermagem A").click();
+      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
+      await page.getByTestId("button-save-procedimento").click();
+      await page.getByText("Procedimento cadastrado.").waitFor();
+      const secondProducts = await state.pool.query(`SELECT pp.produto_id FROM procedimento_produtos pp
+        JOIN procedimentos_clinicos p ON p.id=pp.procedimento_id
+        WHERE p.empresa_id=1 AND p.nome='Segunda apresentação sintética' AND pp.ativo`);
+      expect(secondProducts.rows).toEqual([{ produto_id: 14 }]);
       await page.getByTestId("button-new-procedimento").click();
       await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
       await page.getByLabel("Local da clínica").selectOption("8");
@@ -254,7 +302,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
     } finally {
       await browser.close();
     }
-  }, 60000);
+  }, 120000);
   it("altera vínculos sem apagar histórico e reativa o mesmo procedimento", async () => {
     const body = { nome: "Implante sintético", tipo: "medico", descricao: "Revisado", duracaoMinutos: 30, ativo: false, produtoIds: [10] };
     expect((await put(ownerB(), implantId, body)).body).toMatchObject({ ...body, tipo: null });

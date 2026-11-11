@@ -5,6 +5,15 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface ProcedimentoFontesCampos {
+  /** @minimum 1 */
+  nome?: number;
+  /** @minimum 1 */
+  dose?: number;
+  /** @minimum 1 */
+  duracaoMinutos?: number;
+}
+
 export type ProcedimentoEntradaProfissionaisNecessariosItem = {
   /** @minimum 1 */
   areaId: number;
@@ -26,6 +35,9 @@ export interface ProcedimentoEntrada {
   /** Classificação histórica, preservada sem atribuição automática. */
   tipo?: "consulta" | "enfermagem" | "medico" | null;
   dose: string | null;
+  fontesCampos?: ProcedimentoFontesCampos;
+  /** Confirma explicitamente a dose atual quando ela é vinculada. */
+  confirmarDoseAtual?: boolean;
   /** @maxItems 20 */
   profissionaisNecessarios: ProcedimentoEntradaProfissionaisNecessariosItem[];
   descricao: string | null;
@@ -36,6 +48,8 @@ export interface ProcedimentoEntrada {
 }
 
 export type Procedimento = ProcedimentoEntrada & {
+  dosePendenteRevisao?: boolean;
+  camposOrigemIndisponivel?: string[];
   id: number;
   empresaId: number;
 };
@@ -47,6 +61,8 @@ export interface ListaProcedimentos {
   duracaoSegundosHabilitada?: boolean;
   /** Confirma o contrato de profissionais necessários e dose separados. */
   profissionaisNecessariosHabilitado?: boolean;
+  /** Confirma suporte a campos vinculados ao catálogo. */
+  vinculosCamposHabilitados?: boolean;
   procedimentos: Procedimento[];
 }
 

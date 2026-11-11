@@ -50,7 +50,7 @@ router.get("/procedimentos", requireCollaborator, exigirContexto, exigirEstrutur
     res.status(403).json({ error: "A clínica da sessão não está disponível." });
     return;
   }
-  res.json({ empresaId, empresaNome: empresa.rows[0].nome, duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true, procedimentos: await listarProcedimentos(pool, empresaId) });
+  res.json({ empresaId, empresaNome: empresa.rows[0].nome, duracaoSegundosHabilitada: true, profissionaisNecessariosHabilitado: true, vinculosCamposHabilitados: false, procedimentos: await listarProcedimentos(pool, empresaId) });
 });
 
 router.get("/procedimentos/opcoes-profissionais", requireCollaborator, exigirContexto, async (req, res) => {

@@ -26,6 +26,9 @@
     },
     {
       "path": "./lib/password-policy"
+    },
+    {
+      "path": "./lib/procedimentos-shared"
     }
   ]
 }

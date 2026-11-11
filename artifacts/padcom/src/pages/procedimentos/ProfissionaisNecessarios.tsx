@@ -25,6 +25,12 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
         Escolha uma ou mais alternativas na mesma categoria. Todas as categorias adicionadas serão necessárias.
         As agendas são informativas; nenhum horário será reservado.
       </p>
+      <div className="concave-3d space-y-1 p-3 text-xs text-foreground">
+        <p>Aplicação de substância: enfermagem.</p>
+        <p>Implante: médico e enfermagem.</p>
+        <p>Consulta e procedimento estético: médico.</p>
+        <p>Combine as categorias necessárias para cada procedimento, inclusive três ou mais.</p>
+      </div>
       {query.isLoading && <p role="status">Carregando vínculos da clínica…</p>}
       {query.isError && <p role="alert" className="text-red-800">Não foi possível carregar os vínculos. Confira a sessão e tente novamente.</p>}
       {grupos.map((grupo, index) => {

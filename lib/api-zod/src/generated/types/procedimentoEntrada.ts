@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ProcedimentoEntradaProfissionaisNecessariosItem } from "./procedimentoEntradaProfissionaisNecessariosItem";
+import type { ProcedimentoFontesCampos } from "./procedimentoFontesCampos";
 
 export interface ProcedimentoEntrada {
   /**
@@ -16,6 +17,9 @@ export interface ProcedimentoEntrada {
   /** Classificação histórica, preservada sem atribuição automática. */
   tipo?: "consulta" | "enfermagem" | "medico" | null;
   dose: string | null;
+  fontesCampos?: ProcedimentoFontesCampos;
+  /** Confirma explicitamente a dose atual quando ela é vinculada. */
+  confirmarDoseAtual?: boolean;
   /** @maxItems 20 */
   profissionaisNecessarios: ProcedimentoEntradaProfissionaisNecessariosItem[];
   descricao: string | null;

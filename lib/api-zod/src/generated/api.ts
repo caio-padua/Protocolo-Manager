@@ -66,6 +66,10 @@ export const ListProcedimentosResponse = zod.object({
     .describe(
       "Confirma o contrato de profissionais necessários e dose separados.",
     ),
+  vinculosCamposHabilitados: zod
+    .boolean()
+    .optional()
+    .describe("Confirma suporte a campos vinculados ao catálogo."),
   procedimentos: zod.array(
     zod
       .object({
@@ -85,6 +89,19 @@ export const ListProcedimentosResponse = zod.object({
             .max(listProcedimentosResponseProcedimentosItemOneDoseOneMax),
           zod.null(),
         ]),
+        fontesCampos: zod
+          .object({
+            nome: zod.number().min(1).optional(),
+            dose: zod.number().min(1).optional(),
+            duracaoMinutos: zod.number().min(1).optional(),
+          })
+          .optional(),
+        confirmarDoseAtual: zod
+          .boolean()
+          .optional()
+          .describe(
+            "Confirma explicitamente a dose atual quando ela é vinculada.",
+          ),
         profissionaisNecessarios: zod
           .array(
             zod.object({
@@ -125,6 +142,8 @@ export const ListProcedimentosResponse = zod.object({
       })
       .and(
         zod.object({
+          dosePendenteRevisao: zod.boolean().optional(),
+          camposOrigemIndisponivel: zod.array(zod.string()).optional(),
           id: zod.number(),
           empresaId: zod.number(),
         }),
@@ -157,6 +176,17 @@ export const CreateProcedimentoBody = zod.object({
     zod.string().max(createProcedimentoBodyDoseOneMax),
     zod.null(),
   ]),
+  fontesCampos: zod
+    .object({
+      nome: zod.number().min(1).optional(),
+      dose: zod.number().min(1).optional(),
+      duracaoMinutos: zod.number().min(1).optional(),
+    })
+    .optional(),
+  confirmarDoseAtual: zod
+    .boolean()
+    .optional()
+    .describe("Confirma explicitamente a dose atual quando ela é vinculada."),
   profissionaisNecessarios: zod
     .array(
       zod.object({
@@ -217,6 +247,17 @@ export const UpdateProcedimentoBody = zod.object({
     zod.string().max(updateProcedimentoBodyDoseOneMax),
     zod.null(),
   ]),
+  fontesCampos: zod
+    .object({
+      nome: zod.number().min(1).optional(),
+      dose: zod.number().min(1).optional(),
+      duracaoMinutos: zod.number().min(1).optional(),
+    })
+    .optional(),
+  confirmarDoseAtual: zod
+    .boolean()
+    .optional()
+    .describe("Confirma explicitamente a dose atual quando ela é vinculada."),
   profissionaisNecessarios: zod
     .array(
       zod.object({
@@ -276,6 +317,17 @@ export const UpdateProcedimentoResponse = zod
       zod.string().max(updateProcedimentoResponseOneDoseOneMax),
       zod.null(),
     ]),
+    fontesCampos: zod
+      .object({
+        nome: zod.number().min(1).optional(),
+        dose: zod.number().min(1).optional(),
+        duracaoMinutos: zod.number().min(1).optional(),
+      })
+      .optional(),
+    confirmarDoseAtual: zod
+      .boolean()
+      .optional()
+      .describe("Confirma explicitamente a dose atual quando ela é vinculada."),
     profissionaisNecessarios: zod
       .array(
         zod.object({
@@ -308,6 +360,8 @@ export const UpdateProcedimentoResponse = zod
   })
   .and(
     zod.object({
+      dosePendenteRevisao: zod.boolean().optional(),
+      camposOrigemIndisponivel: zod.array(zod.string()).optional(),
       id: zod.number(),
       empresaId: zod.number(),
     }),

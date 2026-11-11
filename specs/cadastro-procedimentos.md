@@ -2,6 +2,33 @@
 
 ## Objetivo e limites
 
+### Atualização automática de informações herdadas da substância
+
+- Cada campo herdado deve registrar a apresentação exata e sua proveniência.
+- Alterações no cadastro da apresentação devem refletir nos campos que
+  continuarem vinculados a ela; um produto composto permanece uma apresentação.
+- Alterações manuais não podem ser sobrescritas silenciosamente. A interface
+  deve distinguir campo vinculado de campo personalizado e permitir voltar à
+  origem de forma explícita.
+- A dose sugerida alterada deve exigir nova conferência clínica antes de uso.
+  Ausência de dados ou unidade ambígua nunca deve gerar valor fabricado.
+- Produtos removidos, falhas de consulta, alterações simultâneas, uma alteração
+  durante a edição e apresentações com nomes iguais exigem tratamento explícito.
+- Protocolos, prescrições e documentos já emitidos preservam o conteúdo
+  clínico registrado; não reemitir ou alterar documentos automaticamente.
+- Testar o ciclo completo de alteração do catálogo e releitura do procedimento,
+  persistência, vários procedimentos, várias clínicas, dose composta, entrada
+  ausente, revisão manual e concorrência em ambiente isolado.
+- Os campos atualmente copiados são nome, duração e dose. Identificar sua
+  origem por apresentação e campo, sem inferir a origem de registros antigos.
+  A leitura obtém o valor atual da origem; uma dose alterada ou ausente fica
+  pendente de conferência, não autorizada para uso clínico. Os demais dados da
+  apresentação continuam no cadastro original e são consultados pelo vínculo.
+- No salvamento, verificar a origem e os valores dentro de transação; se a
+  substância mudou desde a conferência, rejeitar com mensagem para rever. A
+  retirada ou edição manual de um campo desliga apenas aquele vínculo. O estado
+  anterior e os protocolos já emitidos permanecem preservados.
+
 ### Retificação de 11/11/2026: categoria, áreas de atuação e cargo
 
 #### Regra obrigatória de Saúde
@@ -36,6 +63,14 @@ não existe. Testar com banco descartável, duas clínicas e sessões sintética
 Nenhum dado clínico, profissional real, agenda ou evento é alterado em testes.
 
 ### Retificação de 11/11/2026: profissionais necessários
+
+Regras informadas pelo médico: aplicação de substância em enfermagem; implante
+em medicina e enfermagem; consulta e procedimento estético em medicina. São
+regras de referência, não um botão de categoria chamado consulta. O formulário
+oferece categorias profissionais reais e permite combinar pelo menos três
+categorias distintas, com alternativas dentro de cada categoria.
+Não escolher profissionais, local ou agenda sem confirmação; implante mantém
+a validação existente no servidor.
 
 Consulta é um procedimento, não uma categoria profissional. Retirar os cartões
 fixos do formulário e não preencher silenciosamente a classificação antiga.
@@ -96,6 +131,12 @@ afirma que essas integrações já funcionam.
   segundos exatos; exibir pendência sem esconder a lista nem outros menus.
 - Produtos associados por identidade exata do catálogo existente, sem cópia,
   e sem obrigatoriedade para consultas.
+- Enquanto não houver procedimento cadastrado para um produto, o catálogo
+  existente permanece navegável na própria tela: mostrar produtos como
+  produtos, nunca como procedimentos já cadastrados ou agendáveis.
+  A escolha explícita inicia o formulário com o produto exato e suas sugestões;
+  nenhuma equipe, agenda, dose ambígua ou ato clínico é criada por inferência.
+  Não substituir um formulário preenchido em andamento ao escolher um produto.
 - Quando vários produtos são escolhidos, não sugerir uma única dose para todos.
   Ao retornar a somente um produto, recuperar a sugestão inequívoca desse produto,
   sem sobrescrever dose editada pelo profissional.

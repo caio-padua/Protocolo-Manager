@@ -148,14 +148,16 @@ router.put("/substances/:id/components", requireCatalogOwner, async (req, res): 
       : components.length > 0;
 
     await db.transaction(async (tx) => {
+      // Atualizar primeiro a apresentação bloqueia a linha durante toda a
+      // troca e impede que duas composições simultâneas sejam misturadas.
+      await tx.update(substancesTable)
+        .set({ isBlend })
+        .where(eq(substancesTable.id, id));
       await tx.delete(substanceBlendComponentsTable)
         .where(eq(substanceBlendComponentsTable.substanceId, id));
       if (components.length > 0) {
         await tx.insert(substanceBlendComponentsTable).values(components);
       }
-      await tx.update(substancesTable)
-        .set({ isBlend })
-        .where(eq(substancesTable.id, id));
     });
   } catch (error: any) {
     res.status(400).json({ error: error?.message ?? "Could not save blend components" });

@@ -281,6 +281,7 @@ export * from "./previewBody";
 export * from "./procedimento";
 export * from "./procedimentoEntrada";
 export * from "./procedimentoEntradaProfissionaisNecessariosItem";
+export * from "./procedimentoFontesCampos";
 export * from "./professional";
 export * from "./professionalArea";
 export * from "./professionalCategoryInput";

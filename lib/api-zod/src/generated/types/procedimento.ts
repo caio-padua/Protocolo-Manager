@@ -8,6 +8,8 @@
 import type { ProcedimentoEntrada } from "./procedimentoEntrada";
 
 export type Procedimento = ProcedimentoEntrada & {
+  dosePendenteRevisao?: boolean;
+  camposOrigemIndisponivel?: string[];
   id: number;
   empresaId: number;
 };

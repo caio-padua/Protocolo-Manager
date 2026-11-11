@@ -14,5 +14,7 @@ export interface ListaProcedimentos {
   duracaoSegundosHabilitada?: boolean;
   /** Confirma o contrato de profissionais necessários e dose separados. */
   profissionaisNecessariosHabilitado?: boolean;
+  /** Confirma suporte a campos vinculados ao catálogo. */
+  vinculosCamposHabilitados?: boolean;
   procedimentos: Procedimento[];
 }
