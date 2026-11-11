@@ -17,10 +17,11 @@ import { LocaisPorEmpresa, type EmpresaFiltro } from "./locais/LocaisPorEmpresa"
 import "./locais/locais.css";
 import { MODO_META, compararEmpresas, type LocalAtendimento } from "./locais/locais-modo";
 import {
-  Building2, Plus, Loader2, Search, Save, Pencil, Trash2,
+  Building2, Plus, Loader2, Search, Save, Pencil,
   Video, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
@@ -95,8 +96,6 @@ export default function CadastroClinicas() {
   // Sessao do registro aberto: respostas atrasadas (CEP/Google) de outro registro sao descartadas.
   const sessaoRef = useRef(0);
   const [loadingCep, setLoadingCep] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Clinica | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const { data: clinicas = [], isLoading, isError, refetch: refetchClinicas } = useQuery<Clinica[]>({
     queryKey: ["clinicas"],
@@ -227,16 +226,25 @@ export default function CadastroClinicas() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async ({ id, empresaId }: { id: number; empresaId: number | null }) => {
-      if (!empresaId) throw new Error("Este local não tem empresa proprietária confirmada; nada foi apagado.");
-      const res = await fetch(`${apiBase}/locations/${id}`, { method: "DELETE", headers: collabAuthHeaders({ "X-Empresa-Id": String(empresaId) }) });
-      if (res.status === 409) { const d = await res.json(); throw new Error(d.error || "Clínica possui sessões vinculadas."); }
-      if (!res.ok) throw new Error("Erro ao apagar");
-      return res.json();
+  // Interruptor ativar/desativar (reversível). Apagar o local não é oferecido nesta tela por enquanto.
+  const { toast: aviso } = useToast();
+  const ativoMutation = useMutation({
+    mutationFn: async ({ c, ativo }: { c: Clinica; ativo: boolean }) => {
+      if (!c.empresaId) throw new Error("Este local não tem empresa proprietária confirmada; nada foi alterado.");
+      const res = await fetch(`${apiBase}/locations/${c.id}`, {
+        method: "PUT",
+        headers: collabAuthHeaders({ "Content-Type": "application/json", "X-Empresa-Id": String(c.empresaId) }),
+        body: JSON.stringify({ active: ativo }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((d as { error?: string }).error ?? "Não foi possível alterar o local.");
+      return ativo;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["clinicas"] }); toast.success("Clínica apagada."); setDeleteTarget(null); setDeleteConfirmText(""); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: (ativo, { c }) => {
+      queryClient.invalidateQueries({ queryKey: ["clinicas"] });
+      aviso({ title: ativo ? `"${c.name}" está ativo.` : `"${c.name}" foi desativado.`, description: ativo ? undefined : "Nada foi apagado; você pode reativar." });
+    },
+    onError: (e: Error) => aviso({ title: e.message, variant: "destructive" }),
   });
 
   const escreverUrlLocal = (id: number | null) => {
@@ -342,7 +350,7 @@ export default function CadastroClinicas() {
       ) : (
         <LocaisPorEmpresa locais={clinicas} onEdit={openEdit}
           empresaFiltro={empresaFiltro} onEmpresaFiltro={setEmpresaFiltro}
-          onDelete={(c) => { setDeleteTarget(c); setDeleteConfirmText(""); }} />
+          onToggleAtivo={(c, ativo) => ativoMutation.mutate({ c, ativo })} />
       )}
 
       {/* ── Dialog criar / editar ──────────────────────────────────────────── */}
@@ -749,41 +757,6 @@ export default function CadastroClinicas() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog confirmar exclusão ──────────────────────────────────────── */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteConfirmText(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest text-destructive">
-              APAGAR CLÍNICA
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="concave-3d p-3 text-sm">
-              <p className="text-muted-foreground mb-2">Esta ação é irreversível. Para confirmar, digite o nome exato:</p>
-              <p className="font-black text-foreground">{deleteTarget?.name}</p>
-            </div>
-            <Input
-              className="field-engraved"
-              placeholder="Digite o nome exato da clínica"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-            />
-            <DialogFooter>
-              <Button type="button" className="btn-3d-soft" onClick={() => { setDeleteTarget(null); setDeleteConfirmText(""); }}>
-                CANCELAR
-              </Button>
-              <Button
-                type="button" variant="destructive" className="btn-3d"
-                disabled={deleteConfirmText !== deleteTarget?.name || deleteMutation.isPending}
-                onClick={() => deleteTarget && !deleteMutation.isPending && deleteMutation.mutate({ id: deleteTarget.id, empresaId: deleteTarget.empresaId })}
-              >
-                {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                APAGAR
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

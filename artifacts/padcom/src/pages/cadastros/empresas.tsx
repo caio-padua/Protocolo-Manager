@@ -15,11 +15,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Building2, Users, Briefcase, Plus, Loader2, Save, Pencil, Trash2,
+  Building2, Users, Briefcase, Plus, Loader2, Save, Pencil,
   Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
   FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
 import { LocaisDaEmpresa } from "./LocaisDaEmpresa";
 import { Switch } from "@/components/ui/switch";
@@ -269,10 +270,10 @@ function PermBadge({ ok, label }: { ok: boolean; label: string }) {
 }
 
 // ── Card da empresa ────────────────────────────────────────────────────────────
-function EmpresaCard({ empresa, onEdit, onDelete, onOpen, locaisAbertos, onToggleLocais }: {
+function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen, locaisAbertos, onToggleLocais }: {
   empresa: Empresa;
   onEdit: () => void;
-  onDelete: () => void;
+  onToggleAtiva: (ativa: boolean) => void;
   onOpen: () => void;
   locaisAbertos: boolean;
   onToggleLocais: () => void;
@@ -369,11 +370,12 @@ function EmpresaCard({ empresa, onEdit, onDelete, onOpen, locaisAbertos, onToggl
             className="bevel-3d px-2.5 py-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase hover:bg-primary/10 transition-colors">
             <Pencil className="w-3.5 h-3.5" /> Editar
           </button>
-          {empresa.tipo !== "genesis_seed" && (
-            <button type="button" onClick={onDelete}
-              className="bevel-3d px-2.5 py-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+          {empresa.tipo !== "genesis_seed" && empresa.status !== "ARQUIVADA" && (
+            <label className="bevel-3d px-2.5 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase cursor-pointer">
+              {empresa.ativa ? "Ativa" : "Inativa"}
+              <Switch checked={empresa.ativa} onCheckedChange={onToggleAtiva} data-testid={`empresa-ativa-${empresa.id}`}
+                aria-label={`${empresa.ativa ? "Desativar" : "Ativar"} empresa ${empresa.nome}`} />
+            </label>
           )}
         </div>
       </div>
@@ -941,8 +943,6 @@ export default function CadastroEmpresas() {
   const [activeFormTab, setActiveFormTab] = useState("ident");
   const [identidadeAlterada, setIdentidadeAlterada] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Empresa | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
   const [locaisAbertos, setLocaisAbertos] = useState<Set<number>>(() => new Set());
@@ -982,21 +982,29 @@ export default function CadastroEmpresas() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const r = await fetch(`${apiBase}/empresas/${id}`, { method: "DELETE", headers: collabAuthHeaders() });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Erro ao arquivar");
+  // Interruptor ativar/desativar (reversível). Excluir/arquivar empresa não é oferecido nesta tela por enquanto.
+  const { toast: aviso } = useToast();
+  const ativaMutation = useMutation({
+    mutationFn: async ({ id, ativa }: { id: number; ativa: boolean }) => {
+      const r = await fetch(`${apiBase}/empresas/${id}`, {
+        method: "PUT",
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ ativa }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Não foi possível alterar a empresa.");
       return d;
     },
-    onSuccess: () => {
+    onSuccess: (_d, { ativa }) => {
       queryClient.invalidateQueries({ queryKey: ["empresas"] });
-      toast.success("Empresa arquivada. Os dados foram preservados.");
-      setDeleteTarget(null);
-      setDeleteConfirm("");
+      aviso({ title: ativa ? "Empresa ativada." : "Empresa desativada. Nada foi apagado." });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => aviso({ title: e.message, variant: "destructive" }),
   });
+  const alternarAtiva = (e: Empresa, ativa: boolean) => {
+    if (!ativa && !window.confirm(`Desativar "${e.nome}"? Ela sai das listas ativas e das escolhas. Nada é apagado e você pode reativar.`)) return;
+    ativaMutation.mutate({ id: e.id, ativa });
+  };
 
   const openNew = () => {
     setEditingId(null);
@@ -1201,7 +1209,7 @@ export default function CadastroEmpresas() {
                             {items.map((e) => (
                               <EmpresaCard key={e.id} empresa={e}
                                 locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
-                                onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
+                                onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
                                 onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                             ))}
                           </div>
@@ -1213,7 +1221,7 @@ export default function CadastroEmpresas() {
                       {lista.map((e) => (
                         <EmpresaCard key={e.id} empresa={e}
                           locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
-                          onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
+                          onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
                           onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                       ))}
                     </div>
@@ -1228,7 +1236,7 @@ export default function CadastroEmpresas() {
                   {inativas.map((e) => (
                     <EmpresaCard key={e.id} empresa={e}
                     locaisAbertos={locaisAbertos.has(e.id)} onToggleLocais={() => toggleLocais(e.id)}
-                      onEdit={() => openEdit(e)} onDelete={() => { setDeleteTarget(e); setDeleteConfirm(""); }}
+                      onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
                       onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
                   ))}
                 </div>
@@ -2037,32 +2045,6 @@ export default function CadastroEmpresas() {
               </div>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog — confirmar exclusão */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteConfirm(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-[13px] font-black uppercase tracking-widest text-destructive">ARQUIVAR EMPRESA</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="concave-3d p-3 text-sm">
-              <p className="text-muted-foreground mb-2">A empresa sairá das listas ativas. O registro, as unidades e o histórico não serão apagados; os vínculos hierárquicos antigos serão desativados. Digite o nome para confirmar:</p>
-              <p className="font-black text-foreground">{deleteTarget?.nome}</p>
-            </div>
-            <Input className="field-engraved" placeholder="Digite o nome exato"
-              value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} />
-            <DialogFooter>
-              <Button type="button" className="btn-3d-soft" onClick={() => { setDeleteTarget(null); setDeleteConfirm(""); }}>CANCELAR</Button>
-              <Button type="button" variant="destructive" className="btn-3d"
-                disabled={deleteConfirm !== deleteTarget?.nome || deleteMutation.isPending}
-                onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
-                {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                ARQUIVAR
-              </Button>
-            </DialogFooter>
-          </div>
         </DialogContent>
       </Dialog>
     </div>

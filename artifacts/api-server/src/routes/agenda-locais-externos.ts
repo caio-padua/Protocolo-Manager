@@ -11,7 +11,8 @@ import { dadosDaLinha, normalizarDados, CAMPOS_LOCAL } from "../lib/locais-exter
  * Locais externos da clínica: consultórios sublocados em outro endereço, cadastrados DENTRO do cadastro da empresa
  * (aba "Locais Externos"), com os mesmos campos da empresa (CNPJ próprio fictício na homologação), sem ligação com
  * nenhuma outra tabela. A empresa vem da sessão; o proprietário da plataforma pode indicar outra por ?empresaId=.
- * Inativar não apaga (Regra de Ouro).
+ * Ativar/desativar é um interruptor reversível (PATCH). Excluir só o CEO (proprietário da plataforma), com o local
+ * já desativado e o nome digitado; mesmo assim a linha só é carimbada (excluido_em), nunca apagada (Regra de Ouro).
  * A agenda EXTERNA continua guardando o próprio endereço; este cadastro só alimenta a escolha.
  */
 const router: IRouter = Router();
@@ -37,7 +38,7 @@ function mapear(r: Record<string, unknown>) {
 
 const semTabela = (e: unknown) => (e as { code?: string; cause?: { code?: string } })?.code === "42P01"
   || (e as { cause?: { code?: string } })?.cause?.code === "42P01";
-const PENDENTE = "estrutura_pendente: aplique as migrações 20261116_locais_externos e 20261117_locais_externos_cadastro.";
+const PENDENTE = "estrutura_pendente: aplique as migrações 20261116_locais_externos, 20261117_locais_externos_cadastro e 20261118_locais_externos_exclusao.";
 
 router.use("/agenda/locais-externos", moduleGuard("agenda"));
 
@@ -63,8 +64,11 @@ router.get("/agenda/locais-externos", async (req, res): Promise<void> => {
   const empresaId = empresaAlvo(req, res);
   if (empresaId == null) return;
   try {
-    const r = await db.execute(sql`SELECT * FROM locais_externos WHERE empresa_id=${empresaId} AND active=true ORDER BY nome, id`);
-    res.json({ locais: r.rows.map(mapear), podeGerir: await podeGerirEmpresa(req, empresaId) });
+    // A agenda lê só os ativos; a aba do cadastro pede todos (?todos=1) para poder reativar. Excluídos nunca aparecem.
+    const todos = req.query.todos === "1";
+    const r = await db.execute(sql`SELECT * FROM locais_externos WHERE empresa_id=${empresaId} AND excluido_em IS NULL
+      AND (${todos}::boolean OR active=true) ORDER BY nome, id`);
+    res.json({ locais: r.rows.map(mapear), podeGerir: await podeGerirEmpresa(req, empresaId), podeExcluir: req.tenantContext.isPlatformOwner === true });
   } catch (e) {
     if (semTabela(e)) { res.status(503).json({ error: PENDENTE }); return; }
     throw e;
@@ -127,20 +131,40 @@ router.put("/agenda/locais-externos/:id", async (req, res): Promise<void> => {
   const sets = sql.join([sql`nome=${corpo.data.nome}`, sql`cep=${e.cep}`, sql`logradouro=${e.logradouro}`, sql`numero=${e.numero}`,
     sql`complemento=${e.complemento ?? null}`, sql`bairro=${e.bairro}`, sql`cidade=${e.cidade}`, sql`uf=${e.uf}`,
     sql`observacao=${corpo.data.observacao ?? null}`, sql`active=COALESCE(${corpo.data.active ?? null}::boolean, active)`, sql`updated_at=now()`, ...extras], sql`, `);
-  const r = await db.execute(sql`UPDATE locais_externos SET ${sets} WHERE id=${id} AND empresa_id=${empresaId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE locais_externos SET ${sets} WHERE id=${id} AND empresa_id=${empresaId} AND excluido_em IS NULL RETURNING *`);
   if (!r.rows.length) { res.status(404).json({ error: "Local externo não encontrado." }); return; }
   res.json(mapear(r.rows[0]));
 });
 
-// Inativa (nunca apaga). As agendas que já copiaram o endereço continuam com o endereço delas.
-router.delete("/agenda/locais-externos/:id", async (req, res): Promise<void> => {
+// Interruptor ativar/desativar: reversível, sem confirmação. Desativado some da escolha da agenda, mas continua na aba.
+router.patch("/agenda/locais-externos/:id/ativo", async (req, res): Promise<void> => {
   const empresaId = await exigirGestao(req, res);
   if (empresaId == null) return;
   const id = parseInt(String(req.params.id), 10);
   if (Number.isNaN(id)) { res.status(400).json({ error: "id inválido" }); return; }
-  const r = await db.execute(sql`UPDATE locais_externos SET active=false, updated_at=now()
-    WHERE id=${id} AND empresa_id=${empresaId} RETURNING id`);
+  if (typeof req.body?.ativo !== "boolean") { res.status(400).json({ error: "Informe ativo: true ou false." }); return; }
+  const r = await db.execute(sql`UPDATE locais_externos SET active=${req.body.ativo}::boolean, updated_at=now()
+    WHERE id=${id} AND empresa_id=${empresaId} AND excluido_em IS NULL RETURNING *`);
   if (!r.rows.length) { res.status(404).json({ error: "Local externo não encontrado." }); return; }
+  res.json(mapear(r.rows[0]));
+});
+
+// Excluir: só o CEO, local já desativado e nome digitado igual. A linha é carimbada, nunca apagada.
+router.delete("/agenda/locais-externos/:id", async (req, res): Promise<void> => {
+  const empresaId = await exigirGestao(req, res);
+  if (empresaId == null) return;
+  if (req.tenantContext.isPlatformOwner !== true) { res.status(403).json({ error: "Excluir um local externo exige a confirmação do CEO." }); return; }
+  const id = parseInt(String(req.params.id), 10);
+  if (Number.isNaN(id)) { res.status(400).json({ error: "id inválido" }); return; }
+  const atual = await db.execute(sql`SELECT nome, active FROM locais_externos WHERE id=${id} AND empresa_id=${empresaId} AND excluido_em IS NULL`);
+  const linha = atual.rows[0] as { nome: string; active: boolean } | undefined;
+  if (!linha) { res.status(404).json({ error: "Local externo não encontrado." }); return; }
+  if (linha.active) { res.status(409).json({ error: "Desative o local antes de excluir." }); return; }
+  if (typeof req.body?.confirmacao !== "string" || req.body.confirmacao !== linha.nome) {
+    res.status(400).json({ error: "Digite o nome exato do local para confirmar a exclusão." }); return;
+  }
+  await db.execute(sql`UPDATE locais_externos SET excluido_em=now(), excluido_por=${req.tenantContext.professionalId}::integer, updated_at=now()
+    WHERE id=${id} AND empresa_id=${empresaId}`);
   res.json({ ok: true });
 });
 

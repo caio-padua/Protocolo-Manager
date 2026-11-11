@@ -22,8 +22,9 @@ export const textoDoLocal = (l: LocalExterno) => {
   return `${e.logradouro}, ${e.numero}${e.complemento ? ` - ${e.complemento}` : ""} · ${e.bairro} · ${e.cidade}/${e.uf} · CEP ${e.cep}`;
 };
 
-async function chamar<T>(caminho: string, init?: RequestInit, empresaId?: number): Promise<T> {
-  const consulta = empresaId ? `?empresaId=${empresaId}` : "";
+async function chamar<T>(caminho: string, init?: RequestInit, empresaId?: number, extra = ""): Promise<T> {
+  const partes = [empresaId ? `empresaId=${empresaId}` : "", extra].filter(Boolean);
+  const consulta = partes.length ? `?${partes.join("&")}` : "";
   const r = await fetch(`${apiBase}/agenda/locais-externos${caminho}${consulta}`, {
     ...init,
     headers: collabAuthHeaders({ "Content-Type": "application/json" }),
@@ -33,12 +34,15 @@ async function chamar<T>(caminho: string, init?: RequestInit, empresaId?: number
   return corpo as T;
 }
 
-/** Sem empresaId = empresa da sessão (agenda). Com empresaId = aba do cadastro da empresa. */
-export function useLocaisExternos(empresaId?: number) {
+/**
+ * Sem empresaId = empresa da sessão (agenda: só os ativos). Com empresaId = aba do cadastro da empresa, que usa
+ * `todos` para listar também os desativados (para poder reativar). Excluídos nunca voltam na lista.
+ */
+export function useLocaisExternos(empresaId?: number, todos = false) {
   return useQuery({
-    queryKey: [...CHAVE, empresaId ?? "sessao"],
+    queryKey: [...CHAVE, empresaId ?? "sessao", todos ? "todos" : "ativos"],
     retry: false,
-    queryFn: () => chamar<{ locais: LocalExterno[]; podeGerir: boolean }>("", undefined, empresaId),
+    queryFn: () => chamar<{ locais: LocalExterno[]; podeGerir: boolean; podeExcluir?: boolean }>("", undefined, empresaId, todos ? "todos=1" : ""),
   });
 }
 
@@ -57,10 +61,22 @@ export function useSalvarLocalExterno(empresaId?: number) {
   });
 }
 
-export function useInativarLocalExterno(empresaId?: number) {
+/** Interruptor ativar/desativar (reversível). */
+export function useAtivarLocalExterno(empresaId?: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => chamar<{ ok: true }>(`/${id}`, { method: "DELETE" }, empresaId),
+    mutationFn: ({ id, ativo }: { id: number; ativo: boolean }) =>
+      chamar<LocalExterno>(`/${id}/ativo`, { method: "PATCH", body: JSON.stringify({ ativo }) }, empresaId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHAVE }),
+  });
+}
+
+/** Exclusão: só o CEO, com o local desativado e o nome digitado. O servidor carimba, nunca apaga a linha. */
+export function useExcluirLocalExterno(empresaId?: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, confirmacao }: { id: number; confirmacao: string }) =>
+      chamar<{ ok: true }>(`/${id}`, { method: "DELETE", body: JSON.stringify({ confirmacao }) }, empresaId),
     onSuccess: () => qc.invalidateQueries({ queryKey: CHAVE }),
   });
 }

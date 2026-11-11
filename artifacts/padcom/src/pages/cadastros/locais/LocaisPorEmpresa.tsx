@@ -11,7 +11,7 @@ import {
 interface Props {
   locais: LocalAtendimento[];
   onEdit: (l: LocalAtendimento) => void;
-  onDelete: (l: LocalAtendimento) => void;
+  onToggleAtivo: (l: LocalAtendimento, ativo: boolean) => void;
 }
 
 /** "todas" ou chave da empresa ("e12" / "sem"). */
@@ -49,7 +49,7 @@ function Cabecalho({ icone, rotulo, qtd, nivel }: { icone?: React.ReactNode; rot
 }
 
 // Presencial: Estado > Cidade > Região (zona). Nomes comparados sem acento ("Sao Paulo" = "São Paulo").
-function ArvoreGeografica({ locais, onEdit, onDelete }: Props) {
+function ArvoreGeografica({ locais, onEdit, onToggleAtivo }: Props) {
   const arvore = useMemo(() => {
     const ufs = new Map<string, Map<string, { nome: string; zonas: Map<string, LocalAtendimento[]> }>>();
     for (const l of locais) {
@@ -85,7 +85,7 @@ function ArvoreGeografica({ locais, onEdit, onDelete }: Props) {
                         <div key={zona}>
                           <Cabecalho nivel={3} rotulo={zona} qtd={itens.length} />
                           <div className={GRADE}>
-                            {itens.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} />)}
+                            {itens.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onToggleAtivo={(v) => onToggleAtivo(l, v)} />)}
                           </div>
                         </div>
                       ))}
@@ -101,7 +101,7 @@ function ArvoreGeografica({ locais, onEdit, onDelete }: Props) {
   );
 }
 
-function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: GrupoEmpresa; aberto: boolean; onToggle: () => void } & Pick<Props, "onEdit" | "onDelete">) {
+function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onToggleAtivo }: { grupo: GrupoEmpresa; aberto: boolean; onToggle: () => void } & Pick<Props, "onEdit" | "onToggleAtivo">) {
   const contagem = useMemo(() => {
     const m: Record<ModoLocal, number> = { sede: 0, externo: 0, online: 0, definir: 0 };
     for (const l of grupo.locais) m[modoDoLocal(l)] += 1;
@@ -152,14 +152,14 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
         <div className="px-4 pb-4 pt-1 space-y-6 border-t border-border/40">
           {presenciais.length > 0 && (
             <div className="pt-4">
-              <ArvoreGeografica locais={presenciais} onEdit={onEdit} onDelete={onDelete} />
+              <ArvoreGeografica locais={presenciais} onEdit={onEdit} onToggleAtivo={onToggleAtivo} />
             </div>
           )}
           {online.length > 0 && (
             <div className={presenciais.length ? "" : "pt-4"}>
               <Cabecalho nivel={1} rotulo="Online · endereço só como referência" qtd={online.length} icone={<MODO_META.online.Icon className="w-3.5 h-3.5 text-primary" />} />
               <div className={GRADE}>
-                {online.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} />)}
+                {online.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onToggleAtivo={(v) => onToggleAtivo(l, v)} />)}
               </div>
             </div>
           )}
@@ -167,7 +167,7 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
             <div className={presenciais.length || online.length ? "" : "pt-4"}>
               <Cabecalho nivel={1} rotulo="Indefinido · informe a modalidade" qtd={definir.length} icone={<MODO_META.definir.Icon className="w-3.5 h-3.5 text-primary" />} />
               <div className={GRADE}>
-                {definir.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onDelete={() => onDelete(l)} />)}
+                {definir.map((l) => <LocalCard key={l.id} c={l} onEdit={() => onEdit(l)} onToggleAtivo={(v) => onToggleAtivo(l, v)} />)}
               </div>
             </div>
           )}
@@ -179,7 +179,7 @@ function PainelEmpresa({ grupo, aberto, onToggle, onEdit, onDelete }: { grupo: G
 
 function chaveEmpresa(l: LocalAtendimento): string { return l.empresaId ? `e${l.empresaId}` : "sem"; }
 
-export function LocaisPorEmpresa({ locais, onEdit, onDelete, empresaFiltro, onEmpresaFiltro }: ListaProps) {
+export function LocaisPorEmpresa({ locais, onEdit, onToggleAtivo, empresaFiltro, onEmpresaFiltro }: ListaProps) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<ModoLocal | "todos">("todos");
   const [fechadas, setFechadas] = useState<Set<string>>(() => new Set());
@@ -288,7 +288,7 @@ export function LocaisPorEmpresa({ locais, onEdit, onDelete, empresaFiltro, onEm
       {grupos.length === 0 ? (
         <div className="concave-3d text-center py-12 text-muted-foreground text-sm">Nenhum local encontrado com este filtro.</div>
       ) : grupos.map((g) => (
-        <PainelEmpresa key={g.chave} grupo={g} aberto={!fechadas.has(g.chave)} onToggle={() => alternar(g.chave)} onEdit={onEdit} onDelete={onDelete} />
+        <PainelEmpresa key={g.chave} grupo={g} aberto={!fechadas.has(g.chave)} onToggle={() => alternar(g.chave)} onEdit={onEdit} onToggleAtivo={onToggleAtivo} />
       ))}
     </div>
   );

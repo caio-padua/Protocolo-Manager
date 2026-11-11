@@ -1,4 +1,5 @@
-import { MapPin, Phone, CalendarCheck, Users, Pencil, Trash2, Building2, Video, HelpCircle, MessageSquareText } from "lucide-react";
+import { MapPin, Phone, CalendarCheck, Users, Pencil, Building2, Video, HelpCircle, MessageSquareText } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { MODO_META, PAPEIS_AGENDA, modoDoLocal, type LocalAtendimento } from "./locais-modo";
 
 function displayPhone(raw: string | null): string {
@@ -31,7 +32,7 @@ export function ModoBadge({ local, compacto = false }: { local: Pick<LocalAtendi
 }
 
 // Card do local: 5 zonas fixas (Grade Imaginaria). Campo vazio mostra "—".
-export function LocalCard({ c, onEdit, onDelete }: { c: LocalAtendimento; onEdit: () => void; onDelete: () => void }) {
+export function LocalCard({ c, onEdit, onToggleAtivo }: { c: LocalAtendimento; onEdit: () => void; onToggleAtivo: (ativo: boolean) => void }) {
   const modo = modoDoLocal(c);
   const l1 = [c.logradouro, c.numero, c.complemento].filter(Boolean).join(", ");
   const l2 = [c.bairro, c.cidade ? `${c.cidade}${c.estado ? " - " + c.estado : ""}` : c.estado].filter(Boolean).join(" · ");
@@ -104,10 +105,11 @@ export function LocalCard({ c, onEdit, onDelete }: { c: LocalAtendimento; onEdit
             className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
             <Pencil className="w-3 h-3" /> Editar
           </button>
-          <button type="button" onClick={onDelete} aria-label={`Apagar ${c.name}`}
-            className="bevel-3d px-3 py-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          <label className="bevel-3d px-3 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer">
+            {c.active ? "Ativo" : "Inativo"}
+            <Switch checked={!!c.active} onCheckedChange={onToggleAtivo} data-testid={`local-ativo-${c.id}`}
+              aria-label={`${c.active ? "Desativar" : "Ativar"} ${c.name}`} />
+          </label>
         </div>
       </div>
     </div>

@@ -812,6 +812,15 @@ Lei promulgada em 11/11/2026 (pedido do CEO). Fonte: `components/empresa/LocaisE
 
 **How to apply:** qualquer sub-cadastro dentro de janela de cadastro copia esta estrutura (lista -> edicao com sub-abas, altura fixa).
 
+### 4.13 Padrao 35 — Ativar/desativar por interruptor; excluir so com confirmacao do CEO
+
+- Cartao de cadastro (empresa, local, local externo) NUNCA tem lixeira solta. Ao lado de "Editar" vai um interruptor
+  (`Switch` dentro de `label.bevel-3d`, texto "Ativo/Inativo"; empresa: "Ativa/Inativa"). Reversivel, sem apagar nada.
+- Item desativado fica na lista (opacidade reduzida, LED ambar, selo DESATIVADO) para poder ser reativado.
+- Excluir, quando existir, e botao separado, so para o CEO (`isPlatformOwner`), habilitado so com o item ja desativado,
+  abre dialogo que exige digitar o nome exato. O servidor valida de novo e apenas carimba (`excluido_em`), nunca apaga a linha.
+- Desativar EMPRESA pede `window.confirm` (impacto maior); local e local externo desativam direto.
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo
