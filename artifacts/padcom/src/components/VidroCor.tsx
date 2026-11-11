@@ -1,12 +1,17 @@
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 
 /**
- * Quadradinho de vidro translúcido que mostra a cor de uma agenda.
- * Cantos levemente arredondados, tampo quase plano com um leve abaulado, reflexo nítido (vidro
- * brilhante, não fosco). A luz fica TODA dentro do quadradinho: nada escapa para fora do limite.
+ * Cor da agenda como uma PEDRA LAPIDADA vista de cima (lapidação princesa) engastada em ouro:
+ * quatro facetas de tons diferentes em volta de uma mesa central translúcida. A luz vem do canto
+ * superior esquerdo, então a faceta de cima e a da esquerda são mais claras e as outras, mais
+ * escuras. Não há reflexo branco nem brilho aplicado: o efeito de vidro vem só da lapidação,
+ * e nada passa do limite da pedra.
  */
 export function VidroCor({ cor, tamanho = 32 }: { cor: string; tamanho?: number }) {
-  const raio = Math.max(5, Math.round(tamanho * 0.18));
+  const mix = (outra: string, pct: number) => `color-mix(in srgb, ${outra} ${pct}%, ${cor})`;
+  const faceta = (clip: string, fundo: string): CSSProperties => ({
+    position: "absolute", inset: 0, clipPath: clip, background: fundo,
+  });
   return (
     <span
       className="relative inline-block shrink-0 overflow-hidden"
@@ -14,28 +19,32 @@ export function VidroCor({ cor, tamanho = 32 }: { cor: string; tamanho?: number 
       style={{
         width: tamanho,
         height: tamanho,
-        borderRadius: raio,
-        background: `linear-gradient(180deg, color-mix(in srgb, ${cor} 68%, white) 0%, color-mix(in srgb, ${cor} 88%, transparent) 46%, color-mix(in srgb, ${cor} 92%, black) 100%)`,
-        border: `1px solid color-mix(in srgb, ${cor} 45%, white)`,
+        borderRadius: Math.max(4, Math.round(tamanho * 0.14)),
+        background: cor,
         boxShadow: [
-          `inset 0 0 0 1px rgba(255,255,255,0.45)`,
-          `inset 0 -5px 7px color-mix(in srgb, ${cor} 70%, black)`,
-          `inset 0 0 10px color-mix(in srgb, ${cor} 60%, white)`,
-          `0 1px 2px rgba(7,22,43,0.35)`,
+          `0 0 0 1px color-mix(in srgb, ${cor} 55%, #3a2a0c)`,
+          `0 0 0 2px rgba(184,146,77,0.6)`,
+          `0 2px 3px rgba(7,22,43,0.35)`,
         ].join(", "),
       }}
     >
-      {/* tampo levemente abaulado: faixa de reflexo nítida, quase plana */}
+      {/* facetas: topo e esquerda recebem luz; direita e base ficam na sombra */}
+      <span style={faceta("polygon(0 0, 100% 0, 75% 25%, 25% 25%)", mix("white", 38))} />
+      <span style={faceta("polygon(0 0, 25% 25%, 25% 75%, 0 100%)", mix("white", 18))} />
+      <span style={faceta("polygon(100% 0, 100% 100%, 75% 75%, 75% 25%)", mix("black", 22))} />
+      <span style={faceta("polygon(0 100%, 25% 75%, 75% 75%, 100% 100%)", mix("black", 42))} />
+      {/* mesa da pedra: translúcida, mais luminosa no canto da luz */}
       <span
-        className="absolute"
         style={{
-          left: 2, right: 2, top: 2, height: "42%",
-          borderRadius: `${Math.max(3, raio - 2)}px ${Math.max(3, raio - 2)}px ${Math.round(tamanho * 0.3)}px ${Math.round(tamanho * 0.3)}px / ${Math.max(3, raio - 2)}px ${Math.max(3, raio - 2)}px ${Math.round(tamanho * 0.14)}px ${Math.round(tamanho * 0.14)}px`,
-          background: "linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.14) 100%)",
+          position: "absolute", left: "25%", top: "25%", width: "50%", height: "50%",
+          background: `linear-gradient(135deg, ${mix("white", 30)} 0%, ${cor} 55%, ${mix("black", 12)} 100%)`,
         }}
       />
-      {/* fio de luz no fundo, dentro do vidro */}
-      <span className="absolute" style={{ left: 3, right: 3, bottom: 2, height: 1.5, borderRadius: 2, background: "rgba(255,255,255,0.5)" }} />
+      {/* arestas finas entre as facetas */}
+      <svg viewBox="0 0 32 32" width="100%" height="100%" style={{ position: "absolute", inset: 0 }} fill="none" strokeWidth="0.7">
+        <path d="M0 0 L8 8 M32 0 L24 8 M0 32 L8 24 M32 32 L24 24" stroke="rgba(0,0,0,0.28)" />
+        <rect x="8" y="8" width="16" height="16" stroke="rgba(0,0,0,0.3)" />
+      </svg>
     </span>
   );
 }

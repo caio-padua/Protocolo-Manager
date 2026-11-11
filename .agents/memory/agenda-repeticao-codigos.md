@@ -15,3 +15,4 @@ Vocabulário (decisão do CEO 11/11/2026): "recurso" NÃO é usado para o usuár
 **Why:** pedido do CEO — o Salvar do topo ficava longe ao rolar.
 - Cor da agenda = `VidroCor`/`SeletorCorVidro` (components/VidroCor.tsx), em TODO lugar que mostra ou escolhe cor de agenda (lista, Nova agenda, Identidade). Vidro brilhante, cantos pouco arredondados, tampo quase plano, luz só DENTRO do quadrado (sem halo/neon). Item selecionado da lista = côncavo creme (insert bevel), nunca escuro.
 **Why:** CEO rejeitou halo neon, vidro fosco, cantos muito redondos, seleção escura e `input type=color` cru no formulário de nova agenda.
+- Atualização: `VidroCor` virou PEDRA LAPIDADA (princesa, engastada em ouro, 4 facetas + mesa, luz de cima-esquerda, sem reflexo branco). CEO rejeitou faixa branca/brilho artificial. Item da lista em 3 linhas: "AGENDA {categoria}" (negrito; categoria nula = "categoria pendente", nunca deduzida do nome) / nome da agenda / individual-compartilhada · modalidade.

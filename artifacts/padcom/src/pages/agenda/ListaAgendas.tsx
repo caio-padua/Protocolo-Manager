@@ -58,10 +58,16 @@ export function ListaAgendas({ itens, selecionadaId, onSelecionar, onMover, ocup
               className="tecla-3d flex w-full items-center gap-2.5 py-2.5 pl-4 pr-10 text-left"
             >
               <VidroCor cor={r.color} />
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 break-words text-sm font-bold leading-tight">{r.name}</span>
+              <span className="min-w-0 flex-1 space-y-0.5">
+                <span className="block truncate text-[13px] font-extrabold uppercase leading-tight tracking-wide">
+                  Agenda{" "}
+                  {r.categoryName
+                    ? r.categoryName
+                    : <span className="text-[10px] normal-case tracking-normal text-amber-600">· categoria pendente</span>}
+                </span>
+                <span className="block break-words text-xs font-semibold leading-tight" title={r.name}>{r.name}</span>
                 <span className="tecla-sub block truncate text-[10px] font-semibold uppercase tracking-wide">
-                  {r.categoryName ?? "Categoria pendente"} · {r.modalityLabel} · {r.sharing === "individual" ? "individual" : "compartilhada"}
+                  {r.sharing === "individual" ? "Individual" : "Compartilhada"} · {r.modalityLabel}
                 </span>
               </span>
               {!r.active && <span className="text-[10px] font-semibold uppercase text-amber-500">inativo</span>}
