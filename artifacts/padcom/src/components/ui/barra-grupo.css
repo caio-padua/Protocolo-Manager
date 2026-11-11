@@ -1,0 +1,21 @@
+/* Barra de grupo (Padrão 40): segmentos contíguos de uma só faixa. Unlayered de propósito: vence .bevel-3d e os utilitários Tailwind. */
+.barra-grupo { cursor: pointer; }
+.barra-grupo .seg.bevel-3d { border-radius: 0; margin-left: -1px; }
+.barra-grupo .seg.bevel-3d:first-child { margin-left: 0; border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+.barra-grupo .seg.bevel-3d:last-child { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+.barra-grupo .seg-controle { border-left: 1px solid rgba(184, 146, 77, 0.55); }
+/* Recolhido (ou pressionado) = afundado, insert bevel: mesma pele do .concave-3d, sem trocar de cor. */
+.barra-grupo[aria-expanded="false"] .seg.bevel-3d,
+.barra-grupo:active .seg.bevel-3d {
+  background: linear-gradient(160deg, #ece6d7 0%, #f6f1e6 100%);
+  box-shadow:
+    inset 0 4px 7px rgba(7, 22, 43, 0.18),
+    inset 0 10px 16px rgba(7, 22, 43, 0.07),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.82);
+}
+.dark .barra-grupo[aria-expanded="false"] .seg.bevel-3d,
+.dark .barra-grupo:active .seg.bevel-3d {
+  background: linear-gradient(180deg, hsl(215 24% 12%) 0%, hsl(215 22% 17%) 100%);
+  box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.55), inset 0 -2px 0 rgba(255, 255, 255, 0.06);
+}
+.barra-grupo:focus-visible { outline: 2px solid #48b6cc; outline-offset: 3px; }

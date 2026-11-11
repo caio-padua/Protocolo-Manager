@@ -890,20 +890,21 @@ Valores espelhados no servidor (`validarClassificacao` em `routes/empresas.ts`):
 fica no mesmo grupo, depois dos ativos (se o grupo tem varias zonas, num bloco "Inativas de <grupo>" ao fim do grupo), com opacidade reduzida
 e interruptor "Inativa". Um interruptor no topo da lista, "Mostrar inativas (n)", esconde todas de uma vez (padrao: ligado, para nada "sumir").
 
-### 4.17 Padrao 40 — Placa de titulo de tamanho unico, sanfona vertical e cartao de empresa
+### 4.17 Padrao 40 — Tela de cadastro minimalista: texto escrito, linha vertical, sem simbolo e sem contador
 
-Pedido do CEO (11/11/2026): "todos os titulos tem que ter o mesmo tamanho, nao quero que acompanhe o tamanho da frase; nada escrito em etiqueta; uma sanfona vertical por cidade".
+Pedido do CEO em 11/11/2026 ("eu nao gosto de simbolozinhos; eu gosto do escrito"). Vale para Empresas, Locais e todas as subtelas.
 
-| Parte | Regra |
-|---|---|
-| Placa de titulo | Componente unico `components/ui/placa-titulo.tsx`. Largura FIXA `18rem` (`LARGURA_PLACA_TITULO`), altura `h-8`, icone + nome em MAIUSCULO alinhados a ESQUERDA; nome comprido corta com reticencias. Vale para cidade, zona, secao de cadastro (`PlacaSecao` ja usa), painel recolhivel. Titulo novo com mais de ~27 letras: encurtar o nome e mandar o resto para a `dica` |
-| Proibido na placa | Etiqueta, contagem escrita ("7 empresas"), subtitulo ou segunda linha. A quantidade vai a DIREITA da linha, so o numeral, numa janela Concava de largura minima fixa (`2.5rem`) |
-| Sanfona vertical | Grupo de lista (cidade) = placa a esquerda, linha fina, numeral, botao Saliente com seta (gira ao fechar). A placa tambem abre/fecha. Corpo no componente `sanfona-vertical.tsx` (anima a altura, fechado fica `invisible`, nada e desmontado). Estado lembrado no navegador; dois botoes no topo "fechar todas / abrir todas" (so icone) |
-| Zona sem nome | Nao mostrar placa para zona vazia ("—"); os cartoes ficam logo abaixo da cidade |
-| Cartao de empresa | Nome da empresa numa janela Concava (insert bevel), logotipo em janelinha de VIDRO (`.vidro-logo`, `empresas-cartao.css`: quadrada, cantos 1,3rem, sem backdrop-filter) a direita do nome. Cada dado (CNPJ, endereco, telefone, e-mail, responsavel) na sua PROPRIA janelinha Concava, so icone + valor, sem rotulo escrito |
-| Logotipo | So logotipo REAL. Simbolo de exemplo (`simbolo_exemplo=true`) nunca aparece como logotipo: o servidor devolve 404 e a tela mostra icone neutro de predio. Rota `GET /paxmed-2b/empresas-simbolos/:empresaId` (vale so em desenvolvimento, como todo `/paxmed-2b`) |
-| Empresa de acesso | Instituto Padua nao pode ser desativado: interruptor travado com cadeado no cartao e recusa 409 no servidor (desativa-lo derruba o login de quem so tem ele) |
-| Gênesis | Selo "Espelho" com cadeado; nunca "tipo de clinica" |
+1. **Zero simbolo.** Placas, cartoes, botoes e abas levam so texto. Unicos simbolos permitidos: `+` e `−` do controle de sanfona. Excecao: logotipo real da empresa (vidro `.vidro-logo`).
+2. **Zero contador.** Nada de "N ativas", numerozinho em chip, "n/total" nem selo numerico em aba. Isto SUBSTITUI os contadores n/total e os selos de aba do Padrao 37 e a contagem do Padrao 38. Tambem nao exibir `#id` nem LED de status em cartao.
+3. **Dado = `JanelaDado`.** Janela Concava com rotulo escrito (9px maiusculo) numa coluna fixa de 6,25rem + valor; todos os rotulos ficam na mesma linha vertical imaginaria. Mostrar so os dados que existem.
+4. **Titulo = `PlacaTitulo`.** Placa Saliente de largura unica (18rem), texto maiusculo, sem icone, sem clique. `PlacaSecao` = placa + linha fina + dica escrita opcional.
+5. **Grupo (cidade, empresa) = `BarraGrupo`.** Faixa unica e contigua: placa do titulo a esquerda + barra Saliente horizontal + controle `+`/`−` no extremo direito. Fechado ou pressionado = afundado (insert bevel). A barra toda e o botao (`aria-expanded`). Corpo abre/fecha com `SanfonaVertical`.
+6. **Sem subdivisao de cidade.** Uma cidade e UM grupo (grade unica); nao criar placas de zona/bairro ("Centro") nem placa "Inativas": inativas ficam esmaecidas depois das ativas.
+7. **Selecao = insert bevel.** Aba ou botao escolhido fica AFUNDADO (gradiente claro, sombra interna forte, borda dourada) e NUNCA troca para azul/navy (`.empresa-aba` em index.css). Escolha de classificacao continua afundada em ouro (`.pax-escolha`).
+8. **Interruptor = `ChaveOuro`.** Trilho dourado quando ligado (igual ao toggle "liberado" da Governanca); substitui o `Switch` azul nas telas de Empresas e Locais. Item protegido (Instituto Padua) fica desabilitado, com explicacao em `title`, sem cadeado.
+9. **Botoes so com texto**: "EDITAR", "VER EQUIPE", "ABRIR TODAS AS CIDADES".
+
+Componentes: `components/ui/placa-titulo.tsx`, `placa-secao.tsx`, `barra-grupo.tsx(+css)`, `janela-dado.tsx`, `chave-ouro.tsx(+css)`, `sanfona-vertical.tsx`, `trilho-abas.tsx`. Classes 3D sao UNLAYERED: sobrescrever raio/fundo exige CSS proprio tambem fora de layer.
 
 ## 5. Console de Orcamento (referencia viva)
 

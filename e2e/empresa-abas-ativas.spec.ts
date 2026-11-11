@@ -27,18 +27,19 @@ for (const width of [1365, 390]) {
     const dialog = page.getByRole("dialog", { name: "EDITAR EMPRESA" });
     const tabList = dialog.getByRole("tablist", { name: "Seções do cadastro empresarial" });
     const labels = [
-      "Dados", "Identidade dos documentos", "Fiscal e CNAE", "Endereço",
-      "Origem e Referências", "Documentos Fiscais", "Integrações", "Documentos e Contratos",
+      "Dados", "Classificação", "Endereço", "Identidade", "Fiscal e CNAE",
+      "Notas fiscais", "Origem", "Integrações", "Contratos",
     ];
     for (const label of labels) {
       const active = tabList.getByRole("tab", { name: label, exact: true });
       await active.click();
       await expect(active).toHaveAttribute("aria-selected", "true");
       await expect(tabList.locator('[role="tab"][aria-selected="true"]')).toHaveCount(1);
-      await expect(active).toHaveCSS("color", "rgb(255, 255, 255)");
-      await expect(active).toHaveCSS("background-image", /rgb\(34, 64, 106\)/);
+      await expect(active).toHaveCSS("background-image", /rgb\(230, 222, 201\)/);
+      await expect(active).not.toHaveCSS("background-image", /rgb\(34, 64, 106\)/);
+      expect(await active.evaluate((el) => getComputedStyle(el).boxShadow)).toContain("inset");
     }
-    await tabList.getByRole("tab", { name: "Identidade dos documentos" }).click();
+    await tabList.getByRole("tab", { name: "Identidade", exact: true }).click();
     const section = dialog.getByRole("region", { name: "Identidade nos documentos — Modelo 2B" });
     const buttons = section.getByRole("group", { name: "Etapas da identidade" });
     for (const label of ["Símbolo e nome", "Linhas do rodapé", "Prévia"]) {
@@ -46,8 +47,8 @@ for (const width of [1365, 390]) {
       await active.click();
       await expect(active).toHaveAttribute("aria-pressed", "true");
       await expect(buttons.locator('[aria-pressed="true"]')).toHaveCount(1);
-      await expect(active).toHaveCSS("color", "rgb(255, 255, 255)");
-      await expect(active).toHaveCSS("background-image", /rgb\(34, 64, 106\)/);
+      await expect(active).toHaveCSS("background-image", /rgb\(230, 222, 201\)/);
+      await expect(active).not.toHaveCSS("background-image", /rgb\(34, 64, 106\)/);
     }
     await buttons.getByRole("button", { name: "Símbolo e nome" }).click();
     await dialog.screenshot({ path: `generated-artifacts/empresa-abas-ativas-${width}.png` });

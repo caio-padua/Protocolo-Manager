@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
-import { Switch } from "@/components/ui/switch";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
 import { Textarea } from "@/components/ui/textarea";
 import { AgendaGoogleTab } from "./locais/AgendaGoogleTab";
 import type { EnderecoLido } from "./locais/endereco-google";
@@ -17,7 +17,7 @@ import { LocaisPorEmpresa, type EmpresaFiltro } from "./locais/LocaisPorEmpresa"
 import "./locais/locais.css";
 import { MODO_META, compararEmpresas, type LocalAtendimento } from "./locais/locais-modo";
 import {
-  Building2, Plus, Loader2, Search, Save, Pencil,
+  Loader2, Search, Save,
   Video, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -313,25 +313,18 @@ export default function CadastroClinicas() {
     navegar(`/cadastros/empresas?empresa=${empresaId}&aba=marca-documento`);
   };
 
-  const ativas = useMemo(() => clinicas.filter((c) => c.active), [clinicas]);
-  const inativas = useMemo(() => clinicas.filter((c) => !c.active), [clinicas]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Cabeçalho */}
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid="locais-cabecalho">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">LOCAIS DE ATENDIMENTO</h1>
-            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
-              {ativas.length} ativo{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativo{inativas.length !== 1 ? "s" : ""}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">LOCAIS DE ATENDIMENTO</h1>
+          <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Onde a empresa atende</p>
         </div>
         <Button onClick={openNew} className="btn-3d px-5 shrink-0 w-full sm:w-auto" data-testid="local-novo">
-          <Plus className="w-4 h-4 mr-2" /> NOVO LOCAL
+          NOVO LOCAL
         </Button>
       </div>
 
@@ -361,7 +354,6 @@ export default function CadastroClinicas() {
               {editingId ? "EDITAR LOCAL" : "NOVO LOCAL"}
             </DialogTitle>
             <div className="concave-3d px-3 py-2 flex items-center gap-2 min-w-0" data-testid="local-empresa-proprietaria">
-              <Building2 className="w-4 h-4 text-primary shrink-0" aria-hidden />
               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground shrink-0">Empresa proprietária</span>
               <span className="text-[12px] font-bold truncate" data-testid="local-empresa-proprietaria-nome">
                 {empresaDona ?? (editingId ? "Sem empresa vinculada" : "Nenhuma empresa escolhida")}
@@ -447,7 +439,7 @@ export default function CadastroClinicas() {
                 </div>
                 {modalidadeAtual !== "definir" && (
                   <div className="concave-3d p-3 flex items-start gap-3">
-                    <Switch id="mesmo-endereco-empresa" checked={mesmoEnderecoAtual}
+                    <ChaveOuro id="mesmo-endereco-empresa" checked={mesmoEnderecoAtual}
                       onCheckedChange={(v) => form.setValue("mesmoEnderecoEmpresa", v, { shouldDirty: true })} />
                     <div className="min-w-0">
                       <label htmlFor="mesmo-endereco-empresa" className="text-[11px] font-black uppercase tracking-widest cursor-pointer">
@@ -552,8 +544,7 @@ export default function CadastroClinicas() {
                 <p className="concave-3d p-4 text-sm flex items-center gap-2"><Video className="w-4 h-4 shrink-0" /> Atendimento online: o endereço abaixo é apenas uma referência (opcional).</p>
               )}
               {mesmoEnderecoAtual ? (
-                <p className="concave-3d p-4 text-sm flex items-start gap-2">
-                  <Building2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <p className="concave-3d p-4 text-sm">
                   <span>Endereço herdado da empresa{enderecoEmpresaEdicao ? `: ${enderecoEmpresaEdicao}` : "."} Para usar outro endereço, desligue "mesmo endereço da empresa" na aba Identificação.</span>
                 </p>
               ) : null}

@@ -65,7 +65,7 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
   test.describe(`organização ${viewport.width}px`, () => {
     test.use({ viewport });
 
-    test("lista: empresa explícita, filtros uniformes, resumo fixo e contraste", async ({ page }) => {
+    test("lista: empresa explícita, filtros uniformes, e contraste", async ({ page }) => {
       const escritas = await preparar(page);
       await page.goto("/cadastros/clinicas");
       const seletor = page.getByTestId("locais-empresa-filtro");
@@ -93,12 +93,13 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
       await expect(ativo).toHaveAttribute("aria-pressed", "true");
       expect(await ativo.evaluate((el) => getComputedStyle(el).color)).not.toBe("rgb(255, 255, 255)");
 
-      // Resumo recolhido: 4 posições fixas inclusive zero
-      await page.getByTestId(`locais-empresa-alternar-e${OUTRA}`).click();
-      const slots = page.getByTestId(`locais-resumo-e${OUTRA}`).locator("li");
-      await expect(slots).toHaveCount(4);
-      expect(await slots.evaluateAll((els) => els.map((e) => e.getAttribute("data-modo")))).toEqual(["sede", "externo", "online", "definir"]);
-      await expect(slots.nth(0)).toHaveAttribute("data-zero", "true");
+      // Recolher/abrir pelo controle + / − da barra, sem número algum na tela
+      const controle = page.getByTestId(`locais-empresa-alternar-e${OUTRA}`);
+      await expect(controle).toHaveAttribute("aria-expanded", "true");
+      await controle.click();
+      await expect(controle).toHaveAttribute("aria-expanded", "false");
+      await controle.click();
+      await expect(controle).toHaveAttribute("aria-expanded", "true");
 
       // Empresa escolhida: sem seleção cruzada
       await page.getByTestId("locais-filtro-online").click();
@@ -215,26 +216,14 @@ for (const viewport of [{ width: 1365, height: 900 }, { width: 390, height: 844 
       await expect.poll(() => escritas).toEqual([{ metodo: "DELETE", caminho: "/api/locations/13", empresa: String(OUTRA) }]);
     });
 
-    test("cabeçalho e resumo legíveis sem corte", async ({ page }) => {
+    test("cabeçalho legível sem corte", async ({ page }) => {
       await preparar(page);
       await page.goto("/cadastros/clinicas");
       const titulo = await page.getByRole("heading", { name: "LOCAIS DE ATENDIMENTO" }).boundingBox();
       const botao = await page.getByTestId("local-novo").boundingBox();
       const sobrepoe = !(botao!.y >= titulo!.y + titulo!.height || botao!.x >= titulo!.x + titulo!.width || botao!.y + botao!.height <= titulo!.y);
       expect(sobrepoe).toBe(false);
-      const slots = page.getByTestId(`locais-resumo-e${PADUA}`).locator("li");
-      await expect(slots).toHaveCount(4);
-      for (let i = 0; i < 4; i++) {
-        const corte = await slots.nth(i).evaluate((el) => [...el.querySelectorAll("span")].some((s) => s.scrollWidth > s.clientWidth + 1));
-        expect(corte).toBe(false);
-      }
-      await expect(slots.nth(1)).toContainText("Local externo");
-      await expect(slots.nth(3)).toContainText("Indefinido");
-      const larguras = await slots.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
-      expect(new Set(larguras).size).toBe(1);
       await page.screenshot({ path: `generated-artifacts/locais-topo-${viewport.width}.png` });
-      await page.getByTestId(`locais-resumo-e${PADUA}`).scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `generated-artifacts/locais-resumo-${viewport.width}.png` });
       await page.goto(`/cadastros/empresas?empresa=${PADUA}&aba=marca-documento`);
       const dlg = page.getByTestId("empresa-dialogo");
       await expect(dlg).toBeVisible();

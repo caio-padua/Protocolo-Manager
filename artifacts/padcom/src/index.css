@@ -698,19 +698,25 @@ body,
     0 16px 24px -10px rgba(0, 0, 0, 0.62),
     0 7px 12px -4px rgba(0, 0, 0, 0.5);
 }
-/* No cadastro empresarial, a seleção precisa vencer o fundo do bevel
-   tanto nas abas Radix quanto nos botões da identidade dos documentos. */
+/* No cadastro empresarial, a seleção precisa vencer o fundo do bevel tanto nas abas Radix quanto nos botões
+   da identidade dos documentos. Escolhida = AFUNDADA (insert bevel, mesma pele do .concave-3d), nunca troca de cor
+   (pedido do CEO em 11/11/2026: "têm que ficar em insert bevel, não mudar de cor pro azul"). */
 .empresa-aba[data-state="active"],
-.empresa-aba[aria-pressed="true"],
+.empresa-aba[aria-pressed="true"] {
+  background: linear-gradient(160deg, #e6dec9 0%, #f3ecdc 100%);
+  border-color: #b8924d;
+  color: hsl(var(--primary));
+  box-shadow:
+    inset 0 4px 7px rgba(7, 22, 43, 0.22),
+    inset 0 10px 16px rgba(7, 22, 43, 0.08),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.82);
+}
 .dark .empresa-aba[data-state="active"],
 .dark .empresa-aba[aria-pressed="true"] {
-  background: linear-gradient(180deg, #22406a 0%, #16294a 52%, #0a1f3a 100%);
+  background: linear-gradient(180deg, hsl(215 24% 12%) 0%, hsl(215 22% 17%) 100%);
   border-color: #b8924d;
-  color: #ffffff;
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.35),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.18),
-    0 3px 7px -2px rgba(7, 22, 43, 0.4);
+  color: #f4e2a8;
+  box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.55), inset 0 -2px 0 rgba(255, 255, 255, 0.06);
 }
 .empresa-aba:focus-visible {
   outline: 2px solid #48b6cc;

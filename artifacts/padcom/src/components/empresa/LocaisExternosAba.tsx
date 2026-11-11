@@ -1,10 +1,12 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Loader2, MapPin, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
+import { JanelaDado } from "@/components/ui/janela-dado";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { textoDoLocal, useAtivarLocalExterno, useExcluirLocalExterno, useLocaisExternos, useSalvarLocalExterno, type LocalExterno } from "@/lib/locais-externos-api";
@@ -28,7 +30,7 @@ function CampoEditavel({ campo, valor, onChange }: { campo: Campo; valor: string
   if (campo.tipo === "bool") {
     return (
       <div className="flex items-center gap-3 pb-2">
-        <Switch id={`le-${campo.key}`} checked={valor === true} onCheckedChange={onChange} />
+        <ChaveOuro id={`le-${campo.key}`} checked={valor === true} onCheckedChange={onChange} />
         <label className="lbl !mt-0" htmlFor={`le-${campo.key}`}>{campo.label}</label>
       </div>
     );
@@ -188,7 +190,7 @@ export function LocaisExternosAba({ empresaId }: { empresaId: number }) {
         <div role="tablist" aria-label="Seções do local externo" className="panel-3d-sub flex shrink-0 flex-wrap items-center gap-2 p-2">
           <button type="button" className="btn-3d-soft inline-flex items-center px-3 py-2 text-[9px] font-black uppercase tracking-wider sm:text-[10px]"
             onClick={() => setEdicao(null)} disabled={salvar.isPending} data-testid="local-externo-voltar">
-            <ArrowLeft className="mr-1 h-3.5 w-3.5" /> Lista
+            Voltar para a lista
           </button>
           {SECOES.map((s) => (
             <button key={s.id} type="button" role="tab" aria-selected={secao === s.id} aria-pressed={secao === s.id}
@@ -210,7 +212,7 @@ export function LocaisExternosAba({ empresaId }: { empresaId: number }) {
           </p>
           <Button type="button" className="btn-3d-soft" onClick={() => setEdicao(null)} disabled={salvar.isPending}>CANCELAR</Button>
           <Button type="button" className="btn-3d px-6" onClick={gravar} disabled={salvar.isPending} data-testid="local-externo-salvar">
-            {salvar.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             SALVAR LOCAL EXTERNO
           </Button>
         </div>
@@ -221,11 +223,9 @@ export function LocaisExternosAba({ empresaId }: { empresaId: number }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3" data-testid="locais-externos-lista">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <span className="bevel-3d inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-primary">
-          <MapPin className="h-4 w-4" /> Locais externos · {data?.locais.length ?? 0}
-        </span>
+        <PlacaTitulo titulo="Locais externos" />
         <Button type="button" className="btn-3d" disabled={!podeGerir} onClick={() => abrir()}>
-          <Plus className="mr-1 h-4 w-4" /> NOVO LOCAL EXTERNO
+          NOVO LOCAL EXTERNO
         </Button>
       </div>
       <p className="shrink-0 text-xs text-muted-foreground">
@@ -248,31 +248,32 @@ export function LocaisExternosAba({ empresaId }: { empresaId: number }) {
         {data?.locais.map((l) => (
           <div key={l.id} className={`bevel-3d flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 ${l.active ? "" : "opacity-70"}`} data-testid={`local-externo-${l.id}`}>
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-wide">
-                <span className={`paxter-led ${l.active ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} aria-hidden />
+              <p className="mb-1.5 flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-wide">
                 {l.nome}
                 {!l.active && <span className="rounded-[3px] bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-black tracking-widest text-amber-700">DESATIVADO</span>}
               </p>
-              <p className="font-mono text-[11px] font-semibold text-muted-foreground">{l.dados?.cnpj ? String(l.dados.cnpj) : "CNPJ não informado"}</p>
-              <p className="text-xs font-semibold">{textoDoLocal(l)}</p>
+              <div className="flex flex-col gap-1.5">
+                <JanelaDado rotulo="CNPJ" mono>{l.dados?.cnpj ? String(l.dados.cnpj) : "Não informado"}</JanelaDado>
+                <JanelaDado rotulo="Endereço" titulo={textoDoLocal(l)}>{textoDoLocal(l)}</JanelaDado>
+              </div>
             </div>
             {podeGerir && (
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider" htmlFor={`ativo-${l.id}`}>
                   {l.active ? "Ativo" : "Inativo"}
-                  <Switch id={`ativo-${l.id}`} checked={l.active} disabled={ativar.isPending}
+                  <ChaveOuro id={`ativo-${l.id}`} checked={l.active} disabled={ativar.isPending}
                     aria-label={`${l.active ? "Desativar" : "Ativar"} ${l.nome}`} data-testid={`local-externo-ativo-${l.id}`}
                     onCheckedChange={(v) => alternarAtivo(l, v)} />
                 </label>
                 <Button type="button" className="btn-3d-soft" aria-label={`Editar ${l.nome}`} onClick={() => abrir(l)}>
-                  <Pencil className="mr-1 h-4 w-4" /> Editar
+                  Editar
                 </Button>
                 {podeExcluir && (
                   <Button type="button" className="btn-3d-soft text-destructive" disabled={l.active}
                     title={l.active ? "Desative o local antes de excluir." : "Excluir (pede a confirmação do CEO)"}
                     aria-label={`Excluir ${l.nome}`} data-testid={`local-externo-excluir-${l.id}`}
                     onClick={() => { setAExcluir(l); setConfirmacao(""); }}>
-                    <Trash2 className="h-4 w-4" />
+                    Excluir
                   </Button>
                 )}
               </div>
@@ -297,7 +298,7 @@ export function LocaisExternosAba({ empresaId }: { empresaId: number }) {
               <Button type="button" className="btn-3d-soft" onClick={fecharExclusao}>CANCELAR</Button>
               <Button type="button" variant="destructive" className="btn-3d" data-testid="local-externo-confirmar-exclusao"
                 disabled={confirmacao !== aExcluir?.nome || excluir.isPending} onClick={confirmarExclusao}>
-                {excluir.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                {excluir.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 EXCLUIR
               </Button>
             </DialogFooter>

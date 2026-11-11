@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, MapPin, Pencil } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { collabAuthHeaders, getCollabProfessional } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
@@ -52,14 +52,13 @@ export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
   return (
     <ul className="space-y-2">
       {locais.map((local) => (
-        <li key={local.locationId} className="concave-3d p-2 flex items-center gap-2 min-w-0">
-          <MapPin className="w-4 h-4 shrink-0 text-primary" />
+        <li key={local.locationId} className="concave-3d px-3 py-2 flex items-center gap-3 min-w-0">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold break-words">{local.name}</p>
+            <p className="text-xs font-bold uppercase break-words">{local.name}</p>
             <p className="text-[10px] text-muted-foreground">{local.active ? "Local ativo" : "Local inativo"}</p>
           </div>
-          <a href={`${appBase}/cadastros/clinicas?local=${local.locationId}`} className="bevel-3d shrink-0 px-2 py-1.5 flex items-center gap-1 text-[10px] font-bold uppercase" aria-label={`Editar local ${local.name}`}>
-            <Pencil className="w-3 h-3" /> Editar
+          <a href={`${appBase}/cadastros/clinicas?local=${local.locationId}`} className="bevel-3d shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest" aria-label={`Editar local ${local.name}`}>
+            Editar
           </a>
         </li>
       ))}

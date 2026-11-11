@@ -3,7 +3,7 @@ import { semAcento, compararEmpresas, ehInstitutoPadua } from "./locais/locais-m
 import "./locais/locais.css";
 import "./empresas-cartao.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm, useWatch, type Control } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -13,19 +13,13 @@ import { Paxmed2bEmpresa } from "@/components/receituario/Paxmed2bEmpresa";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Building2, Users, Briefcase, Plus, Loader2, Save, Pencil,
-  Phone, MapPin, Mail, ChevronDown, ChevronRight, ShieldCheck, Globe, Tag,
-  FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
-  Fingerprint, Landmark, Receipt, Link2, Plug, ScrollText, Navigation,
-  Scale, UserCheck, Calculator, FileSignature, MessageCircle, Smartphone, Send, History, Tags,
-  Lock, EyeOff, ChevronsDownUp, ChevronsUpDown, Hash,
-  type LucideIcon,
+  Building2, Loader2, Minus, Plus, FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
 } from "lucide-react";
 import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
-import { PlacaSecao, ContadorPreenchido } from "@/components/ui/placa-secao";
+import { PlacaSecao } from "@/components/ui/placa-secao";
 import { PlacaTitulo } from "@/components/ui/placa-titulo";
 import { SanfonaVertical } from "@/components/ui/sanfona-vertical";
 import { toast } from "sonner";
@@ -33,7 +27,9 @@ import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
 import { LocaisDaEmpresa } from "./LocaisDaEmpresa";
 import { ClassificacaoEmpresa, ResumoClassificacao } from "./ClassificacaoEmpresa";
-import { Switch } from "@/components/ui/switch";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
+import { BarraGrupo } from "@/components/ui/barra-grupo";
+import { JanelaDado } from "@/components/ui/janela-dado";
 import { LocaisExternosAba } from "@/components/empresa/LocaisExternosAba";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
@@ -283,97 +279,50 @@ function PermBadge({ ok, label }: { ok: boolean; label: string }) {
 
 // ── Abas do cadastro da empresa (Padrão 36): grupos = assunto, ordem de preenchimento ──────────
 const ABAS_EMPRESA: ItemTrilho[] = [
-  { value: "ident",           label: "Dados",             icon: FileText,    grupo: "cadastro" },
-  { value: "classificacao",   label: "Classificação",     icon: Tags,        grupo: "cadastro" },
-  { value: "end",             label: "Endereço",          icon: MapPin,      grupo: "cadastro" },
-  { value: "marca-documento", label: "Identidade",        icon: Fingerprint, grupo: "cadastro" },
-  { value: "fiscal",          label: "Fiscal e CNAE",     icon: Landmark,    grupo: "fiscal" },
-  { value: "nfe",             label: "Notas fiscais",     icon: Receipt,     grupo: "fiscal" },
-  { value: "referencias",     label: "Origem",            icon: Link2,       grupo: "fiscal" },
-  { value: "integ",           label: "Integrações",       icon: Plug,        grupo: "sistema" },
-  { value: "contratos",       label: "Contratos",         icon: ScrollText,  grupo: "sistema" },
-  { value: "locais-atendimento", label: "Locais",         icon: Building2,   grupo: "locais" },
-  { value: "locais-externos", label: "Externos",          icon: Navigation,  grupo: "locais" },
+  { value: "ident", label: "Dados", grupo: "cadastro" },
+  { value: "classificacao", label: "Classificação", grupo: "cadastro" },
+  { value: "end", label: "Endereço", grupo: "cadastro" },
+  { value: "marca-documento", label: "Identidade", grupo: "cadastro" },
+  { value: "fiscal", label: "Fiscal e CNAE", grupo: "fiscal" },
+  { value: "nfe", label: "Notas fiscais", grupo: "fiscal" },
+  { value: "referencias", label: "Origem", grupo: "fiscal" },
+  { value: "integ", label: "Integrações", grupo: "sistema" },
+  { value: "contratos", label: "Contratos", grupo: "sistema" },
+  { value: "locais-atendimento", label: "Locais", grupo: "locais" },
+  { value: "locais-externos", label: "Externos", grupo: "locais" },
 ];
 
-// ── Seções do cadastro (Padrão 37): título em placa Saliente + contador de preenchimento ──────
-type CampoForm = keyof FormValues;
-interface SecaoDef { icone: LucideIcon; titulo: string; dica?: string; campos?: CampoForm[] }
+// ── Seções do cadastro (Padrões 37 e 40): título em placa Saliente de largura fixa, sem símbolo e sem contador ──────
+interface SecaoDef { titulo: string; dica?: string }
 const SECOES: Record<string, SecaoDef> = {
-  identificacao: { icone: Building2, titulo: "Identificação", campos: ["nome", "nomeFantasia", "razaoSocial", "cnpj", "donoNome"] },
-  contatos: { icone: Phone, titulo: "Contatos", campos: ["telefone", "emailGeral", "emailAgenda", "emailEnfermagem", "emailFinanceiro"] },
-  classificacao: { icone: Tags, titulo: "Classificação", campos: ["tipoUnidade", "classificacaoAssistencial", "grauComplexidade"] },
-  historico: { icone: History, titulo: "Dados comerciais históricos", dica: "somente consulta" },
-  juridicos: { icone: Scale, titulo: "Dados jurídicos", campos: ["naturezaJuridica", "regimeTributario", "cnae", "cnaeDescricao", "inscricaoEstadual", "inscricaoMunicipal", "dataAbertura", "capitalSocial"] },
-  responsavel: { icone: UserCheck, titulo: "Responsável legal", campos: ["responsavelLegalNome", "responsavelLegalCpf"] },
-  contador: { icone: Calculator, titulo: "Contador", campos: ["contadorNome", "contadorCrc", "contadorEmail", "contadorTelefone"] },
-  endComercial: { icone: MapPin, titulo: "Endereço comercial", campos: ["cep", "endereco", "numero", "bairro", "cidade", "estado"] },
-  endFiscal: { icone: Landmark, titulo: "Endereço fiscal", dica: "para a NF-e; pode ser igual ao comercial", campos: ["cepFiscal", "enderecoFiscal", "bairroFiscal", "cidadeFiscal", "estadoFiscal", "codigoIbge"] },
-  nfe: { icone: Receipt, titulo: "Nota fiscal eletrônica", dica: "NFS-e / NF-e", campos: ["nfeSerie", "nfeCodigoServico", "nfeAliquotaIss", "nfeCodigoIss", "nfeDiscriminacaoPadrao"] },
-  certificado: { icone: ShieldCheck, titulo: "Certificado digital", dica: "A1 / A3", campos: ["certValidade"] },
-  zapsign: { icone: FileSignature, titulo: "ZapSign", dica: "assinatura digital" },
-  whatsapp: { icone: MessageCircle, titulo: "WhatsApp Business", dica: "API da Meta" },
-  twilio: { icone: Smartphone, titulo: "Twilio", dica: "SMS / WhatsApp sandbox" },
-  telegram: { icone: Send, titulo: "Telegram" },
-  zoho: { icone: Mail, titulo: "Zoho", dica: "e-mail da empresa" },
-  google: { icone: Globe, titulo: "Google" },
-};
-// Aba -> seções que contam para o selo da aba (só abas de cadastro; integrações são opcionais).
-const SECOES_DA_ABA: Record<string, string[]> = {
-  ident: ["identificacao", "contatos"],
-  classificacao: ["classificacao"],
-  end: ["endComercial", "endFiscal"],
-  fiscal: ["juridicos", "responsavel", "contador"],
-  nfe: ["nfe", "certificado"],
+  identificacao: { titulo: "Identificação" },
+  contatos: { titulo: "Contatos" },
+  classificacao: { titulo: "Classificação" },
+  historico: { titulo: "Dados comerciais históricos", dica: "somente consulta" },
+  juridicos: { titulo: "Dados jurídicos" },
+  responsavel: { titulo: "Responsável legal" },
+  contador: { titulo: "Contador" },
+  endComercial: { titulo: "Endereço comercial" },
+  endFiscal: { titulo: "Endereço fiscal", dica: "para a NF-e; pode ser igual ao comercial" },
+  nfe: { titulo: "Nota fiscal eletrônica", dica: "NFS-e / NF-e" },
+  certificado: { titulo: "Certificado digital", dica: "A1 / A3" },
+  zapsign: { titulo: "ZapSign", dica: "assinatura digital" },
+  whatsapp: { titulo: "WhatsApp Business", dica: "API da Meta" },
+  twilio: { titulo: "Twilio", dica: "SMS / WhatsApp sandbox" },
+  telegram: { titulo: "Telegram" },
+  zoho: { titulo: "Zoho", dica: "e-mail da empresa" },
+  google: { titulo: "Google" },
 };
 
-function preenchido(v: unknown): boolean {
-  return typeof v === "number" ? true : String(v ?? "").trim() !== "";
-}
-function contarSecao(valores: Partial<FormValues>, campos: CampoForm[]): number {
-  return campos.filter((c) => preenchido(valores[c])).length;
-}
-function camposDaAba(aba: string): CampoForm[] {
-  return (SECOES_DA_ABA[aba] ?? []).flatMap((id) => SECOES[id].campos ?? []);
-}
-
-/** Título de seção + contador; só este componente reage ao que se digita (useWatch). */
-function SecaoEmpresa({ control, id }: { control: Control<FormValues>; id: keyof typeof SECOES | string }) {
+/** Título de seção em placa de largura fixa (Padrão 40). */
+function SecaoEmpresa({ id }: { id: keyof typeof SECOES | string }) {
   const def = SECOES[id];
-  const valores = useWatch({ control }) as Partial<FormValues>;
-  const campos = def.campos;
-  return (
-    <PlacaSecao
-      icone={def.icone}
-      titulo={def.titulo}
-      dica={def.dica}
-      total={campos?.length}
-      preenchidos={campos ? contarSecao(valores, campos) : undefined}
-    />
-  );
+  return <PlacaSecao titulo={def.titulo} dica={def.dica} />;
 }
 
-/** Trilho com selo por aba (verde = completa, âmbar = quantos campos faltam). */
-function TrilhoEmpresa({ control }: { control: Control<FormValues> }) {
-  const valores = useWatch({ control }) as Partial<FormValues>;
-  const pendencias: Record<string, number> = {};
-  for (const aba of Object.keys(SECOES_DA_ABA)) {
-    const campos = camposDaAba(aba);
-    pendencias[aba] = campos.length - contarSecao(valores, campos);
-  }
-  return <TrilhoAbas itens={ABAS_EMPRESA} rotulo="Seções do cadastro empresarial" testidPrefixo="empresa-aba" pendencias={pendencias} />;
-}
-
-/** Resumo do cadastro inteiro, no cabeçalho do diálogo. */
-function ResumoCadastro({ control }: { control: Control<FormValues> }) {
-  const valores = useWatch({ control }) as Partial<FormValues>;
-  const campos = Object.keys(SECOES_DA_ABA).flatMap(camposDaAba);
-  return (
-    <span className="ml-auto flex shrink-0 items-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-      Cadastro preenchido
-      <ContadorPreenchido preenchidos={contarSecao(valores, campos)} total={campos.length} />
-    </span>
-  );
+/** Trilho de abas: só o nome escrito; a aba escolhida fica afundada (insert bevel). */
+function TrilhoEmpresa() {
+  return <TrilhoAbas itens={ABAS_EMPRESA} rotulo="Seções do cadastro empresarial" testidPrefixo="empresa-aba" />;
 }
 
 // ── Card da empresa ────────────────────────────────────────────────────────────
@@ -395,16 +344,6 @@ function LogoEmpresa({ empresaId, nome }: { empresaId: number; nome: string }) {
   );
 }
 
-/** Uma informação do cartão numa janelinha Côncava própria: ícone + valor, sem rótulo escrito. */
-function InfoCartao({ icone: Icone, children, mono }: { icone: LucideIcon; children: React.ReactNode; mono?: boolean }) {
-  return (
-    <div className="concave-3d flex min-h-8 items-center gap-2 px-2.5 py-1 text-[11px]">
-      <Icone className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden />
-      <span className={`min-w-0 truncate text-foreground/80 ${mono ? "font-mono" : ""}`}>{children}</span>
-    </div>
-  );
-}
-
 function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
   empresa: Empresa;
   onEdit: () => void;
@@ -422,17 +361,6 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
       }`} />
 
       <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
-        {/* Linha de status: o Gênesis é o ESPELHO do Pádua, nunca um tipo de clínica */}
-        <div className="flex items-center gap-2">
-          <span className={`paxter-led ${empresa.ativa ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} />
-          {empresa.tipo === "genesis_seed" && (
-            <span className="bevel-3d inline-flex h-5 items-center gap-1 px-2 text-[8px] font-black uppercase tracking-widest text-primary" title="Espelho do Instituto Pádua">
-              <Lock className="h-3 w-3" aria-hidden /> Espelho
-            </span>
-          )}
-          <span className="ml-auto text-[9px] font-mono text-muted-foreground/40">#{empresa.id}</span>
-        </div>
-
         {/* Nome em janela Côncava (insert bevel) + logotipo em vidro à direita */}
         <div className="flex items-stretch gap-3">
           <div className="concave-3d flex min-h-[4.75rem] min-w-0 flex-1 flex-col justify-center px-3 py-2">
@@ -444,36 +372,36 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
           <LogoEmpresa empresaId={empresa.id} nome={empresa.nome} />
         </div>
 
-        {/* Cada dado na sua própria janelinha */}
+        {/* Cada dado na sua janelinha: rótulo escrito + valor, alinhados numa linha vertical imaginária */}
         <div className="flex flex-1 flex-col gap-1.5">
-          {empresa.cnpj && <InfoCartao icone={ShieldCheck} mono>{empresa.cnpj}</InfoCartao>}
+          {empresa.tipo === "genesis_seed" && <JanelaDado rotulo="Papel">Espelho do Instituto Pádua</JanelaDado>}
+          {empresa.cnpj && <JanelaDado rotulo="CNPJ" mono>{empresa.cnpj}</JanelaDado>}
           {(empresa.cidade || empresa.estado) && (
-            <InfoCartao icone={MapPin}>{[empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(" · ")}</InfoCartao>
+            <JanelaDado rotulo="Endereço">{[empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(" · ")}</JanelaDado>
           )}
-          {empresa.telefone && <InfoCartao icone={Phone}>{empresa.telefone}</InfoCartao>}
-          {empresa.emailGeral && <InfoCartao icone={Mail}>{empresa.emailGeral}</InfoCartao>}
-          {empresa.donoNome && <InfoCartao icone={Users}>{empresa.donoNome}</InfoCartao>}
+          {empresa.telefone && <JanelaDado rotulo="Telefone">{empresa.telefone}</JanelaDado>}
+          {empresa.emailGeral && <JanelaDado rotulo="E-mail">{empresa.emailGeral}</JanelaDado>}
+          {empresa.donoNome && <JanelaDado rotulo="Responsável">{empresa.donoNome}</JanelaDado>}
           {empresa.tipoContrato && (
-            <InfoCartao icone={ScrollText}>{CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}</InfoCartao>
+            <JanelaDado rotulo="Contrato">{CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}</JanelaDado>
           )}
         </div>
 
         {/* Botões */}
         <div className="flex gap-1.5 pt-0.5">
           <button type="button" onClick={onOpen}
-            className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
-            <ChevronRight className="w-3 h-3" /> Ver Equipe
+            className="bevel-3d flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors">
+            Ver equipe
           </button>
           <button type="button" onClick={onEdit} aria-label={`Editar empresa ${empresa.nome}`} title="Editar empresa" data-testid={`empresa-editar-${empresa.id}`}
-            className="bevel-3d px-2.5 py-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase hover:bg-primary/10 transition-colors">
-            <Pencil className="w-3.5 h-3.5" /> Editar
+            className="bevel-3d px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors">
+            Editar
           </button>
           {empresa.tipo !== "genesis_seed" && empresa.status !== "ARQUIVADA" && (
-            <label className={`bevel-3d px-2.5 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase ${protegida ? "cursor-not-allowed" : "cursor-pointer"}`}
+            <label className={`bevel-3d px-3 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${protegida ? "cursor-not-allowed" : "cursor-pointer"}`}
               title={protegida ? "Empresa de acesso do sistema: não pode ser desativada" : undefined}>
-              {protegida && <Lock className="h-3 w-3" aria-hidden />}
               {empresa.ativa ? "Ativa" : "Inativa"}
-              <Switch checked={empresa.ativa} onCheckedChange={onToggleAtiva} disabled={protegida} data-testid={`empresa-ativa-${empresa.id}`}
+              <ChaveOuro checked={empresa.ativa} onCheckedChange={onToggleAtiva} disabled={protegida} data-testid={`empresa-ativa-${empresa.id}`}
                 aria-label={protegida ? `Empresa ${empresa.nome} protegida: não pode ser desativada` : `${empresa.ativa ? "Desativar" : "Ativar"} empresa ${empresa.nome}`} />
             </label>
           )}
@@ -592,7 +520,6 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
                   onClick={() => setExpandedCargo(expandedCargo === ca.id ? null : ca.id)}
                   className="w-full px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-primary/5 transition-colors">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Briefcase className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
                     <div className="min-w-0 text-left">
                       <p className="font-bold text-[12px] truncate">{ca.cargo}</p>
                       <p className="text-[9px] text-muted-foreground">
@@ -602,8 +529,8 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
                     </div>
                   </div>
                   {expandedCargo === ca.id
-                    ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                    : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+                    ? <Minus className="w-4 h-4 shrink-0 text-primary" strokeWidth={3} />
+                    : <Plus className="w-4 h-4 shrink-0 text-primary" strokeWidth={3} />}
                 </button>
 
                 {expandedCargo === ca.id && (
@@ -1215,6 +1142,8 @@ export default function CadastroEmpresas() {
     });
   }, [empresas, mostrarInativas]);
 
+  const todasAbertas = grupos.every((g) => !fechados.has(g.chave));
+
   // ── Navegação profunda: /cadastros/empresas?empresa=ID&aba=marca-documento ──
   const deepLinkTratado = useRef(false);
   useEffect(() => {
@@ -1230,52 +1159,42 @@ export default function CadastroEmpresas() {
     if (aba && ABAS_VALIDAS.includes(aba)) setActiveFormTab(aba);
   }, [empresas, isLoading, isError]);
 
-  const ativas   = empresas.filter((e) => e.ativa);
-  const inativas = empresas.filter((e) => !e.ativa);
 
   return (
     <div className="flex h-full gap-4">
       {/* Coluna principal */}
       <div className={`flex flex-col gap-4 flex-1 min-w-0 transition-all ${painelEmpresa ? "lg:max-w-[55%]" : ""}`}>
 
-        {/* Cabeçalho */}
+        {/* Cabeçalho: só título e ações, nenhum número */}
         <div className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="bevel-3d p-2.5 shrink-0"><Building2 className="w-5 h-5 text-primary" /></div>
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
-              <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">
-                Cadastros clínicos · {ativas.length} ativa{ativas.length !== 1 ? "s" : ""} · {inativas.length} inativa{inativas.length !== 1 ? "s" : ""}
-              </p>
-              <label className="bevel-3d mt-2 inline-flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest">
-                Mostrar inativas ({inativas.length})
-                <Switch checked={mostrarInativas} onCheckedChange={setMostrarInativas} data-testid="empresas-mostrar-inativas"
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">EMPRESAS CLÍNICAS INDEPENDENTES</h1>
+            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-0.5">Cadastros clínicos</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label className="bevel-3d inline-flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                Mostrar inativas
+                <ChaveOuro checked={mostrarInativas} onCheckedChange={setMostrarInativas} data-testid="empresas-mostrar-inativas"
                   aria-label="Mostrar empresas inativas na lista" />
               </label>
-              <span className="ml-2 inline-flex gap-1.5 align-middle">
-                <button type="button" onClick={() => setFechados(new Set(grupos.map((g) => g.chave)))} title="Fechar todas as cidades" aria-label="Fechar todas as cidades"
-                  data-testid="empresas-fechar-todos" className="bevel-3d inline-flex h-7 w-8 items-center justify-center">
-                  <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />
-                </button>
-                <button type="button" onClick={() => setFechados(new Set())} title="Abrir todas as cidades" aria-label="Abrir todas as cidades"
-                  data-testid="empresas-abrir-todos" className="bevel-3d inline-flex h-7 w-8 items-center justify-center">
-                  <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden />
-                </button>
-              </span>
+              <button type="button" data-testid="empresas-alternar-todos"
+                onClick={() => setFechados(todasAbertas ? new Set(grupos.map((g) => g.chave)) : new Set())}
+                className="bevel-3d px-3 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                {todasAbertas ? "Recolher todas as cidades" : "Abrir todas as cidades"}
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
             <Button onClick={() => setDriveImportOpen(true)} className="btn-3d-soft min-w-0 px-2 sm:px-4 text-[10px] sm:text-xs">
-              <FolderSearch className="w-4 h-4 mr-2" /> IMPORTAR DO DRIVE
+              IMPORTAR DO DRIVE
             </Button>
             <Button onClick={openNew} className="btn-3d min-w-0 px-2 sm:px-5 text-[10px] sm:text-xs">
-              <Plus className="w-4 h-4 mr-2" /> NOVA EMPRESA
+              NOVA EMPRESA
             </Button>
           </div>
         </div>
 
         <details className="panel-3d-sub p-4">
-          <summary className="cursor-pointer list-none"><PlacaTitulo icone={Hash} titulo="Códigos das empresas" /></summary>
+          <summary className="cursor-pointer list-none"><PlacaTitulo titulo="Códigos das empresas" /></summary>
           <div className="mt-4"><SemanticCodeManager /></div>
         </details>
 
@@ -1293,76 +1212,21 @@ export default function CadastroEmpresas() {
           </div>
         ) : (
           <div className="space-y-8">
-            {grupos.map(({ chave: grupoChave, rotulo: cidadeKey, lista }) => {
-              const zonaMap = new Map<string, Empresa[]>();
-              for (const e of lista) {
-                const z = e.zona || "—";
-                if (!zonaMap.has(z)) zonaMap.set(z, []);
-                zonaMap.get(z)!.push(e);
-              }
-              const temMultiplaZonas = zonaMap.size > 1;
-              return (
-                <div key={grupoChave} data-testid={`empresas-grupo-${grupoChave}`}>
-                  <div className="flex items-center gap-3">
-                    <PlacaTitulo icone={MapPin} titulo={cidadeKey} testId="empresas-grupo-rotulo"
-                      onClick={() => alternarGrupo(grupoChave)} expandido={!fechados.has(grupoChave)} />
-                    <div className="h-px bg-primary/15 flex-1" />
-                    <span className="concave-3d inline-flex h-8 min-w-[2.5rem] items-center justify-center px-2 text-[12px] font-black tabular-nums" data-testid="empresas-grupo-contagem">
-                      {lista.length}
-                    </span>
-                    <button type="button" onClick={() => alternarGrupo(grupoChave)} aria-expanded={!fechados.has(grupoChave)}
-                      aria-label={fechados.has(grupoChave) ? `Abrir ${cidadeKey}` : `Fechar ${cidadeKey}`}
-                      data-testid={`empresas-grupo-toggle-${grupoChave}`}
-                      className="bevel-3d inline-flex h-8 w-9 shrink-0 items-center justify-center">
-                      <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${fechados.has(grupoChave) ? "-rotate-90" : ""}`} aria-hidden />
-                    </button>
+            {grupos.map(({ chave: grupoChave, rotulo: cidadeKey, lista }) => (
+              <div key={grupoChave} data-testid={`empresas-grupo-${grupoChave}`}>
+                <BarraGrupo titulo={cidadeKey} aberto={!fechados.has(grupoChave)} onAlternar={() => alternarGrupo(grupoChave)}
+                  testId="empresas-grupo-rotulo" testIdControle={`empresas-grupo-toggle-${grupoChave}`} />
+                <SanfonaVertical aberta={!fechados.has(grupoChave)} testId={`empresas-grupo-corpo-${grupoChave}`}>
+                  <div className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {lista.map((e) => (
+                      <EmpresaCard key={e.id} empresa={e}
+                        onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
+                        onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
+                    ))}
                   </div>
-                  <SanfonaVertical aberta={!fechados.has(grupoChave)} testId={`empresas-grupo-corpo-${grupoChave}`}>
-                  <div className="pt-4">
-                  {temMultiplaZonas ? (
-                    <div className="space-y-5 pl-4 border-l-2 border-primary/10">
-                      {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
-                        .map(([zona, todos]) => [zona, todos.filter((e) => e.ativa)] as const)
-                        .filter(([, items]) => items.length > 0)
-                        .map(([zona, items]) => (
-                        <div key={zona}>
-                          {zona !== "—" && <div className="mb-2.5"><PlacaTitulo icone={Tag} titulo={zona} /></div>}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {items.map((e) => (
-                              <EmpresaCard key={e.id} empresa={e}
-                                onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
-                                onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      {lista.some((e) => !e.ativa) && (
-                        <div data-testid="empresas-grupo-inativas">
-                          <div className="mb-2.5"><PlacaTitulo icone={EyeOff} titulo="Inativas" /></div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {lista.filter((e) => !e.ativa).map((e) => (
-                              <EmpresaCard key={e.id} empresa={e}
-                                onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
-                                onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {lista.map((e) => (
-                        <EmpresaCard key={e.id} empresa={e}
-                          onEdit={() => openEdit(e)} onToggleAtiva={(v) => alternarAtiva(e, v)}
-                          onOpen={() => setPainelEmpresa(painelEmpresa?.id === e.id ? null : e)} />
-                      ))}
-                    </div>
-                  )}
-                  </div>
-                  </SanfonaVertical>
-                </div>
-              );
-            })}
+                </SanfonaVertical>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1386,11 +1250,10 @@ export default function CadastroEmpresas() {
             </DialogTitle>
             {selectedEmpresa && (
               <p className="min-w-0 truncate text-[13px] font-black uppercase tracking-tight" data-testid="empresa-dialogo-identificacao">
-                {selectedEmpresa.nome} <span className="font-mono text-[11px] font-bold text-muted-foreground">#{selectedEmpresa.id}</span>
+                {selectedEmpresa.nome}
                 {selectedEmpresa.cnpj && <span className="ml-3 hidden font-mono text-[11px] font-semibold text-muted-foreground md:inline">{selectedEmpresa.cnpj}</span>}
               </p>
             )}
-            <ResumoCadastro control={form.control} />
           </DialogHeader>
 
           <Form {...form}>
@@ -1407,7 +1270,7 @@ export default function CadastroEmpresas() {
 
                 {/* Trilho de abas: uma linha, altura fixa (Padrão 36) */}
                 <div className="mx-4 sm:mx-6 mt-3 shrink-0">
-                  <TrilhoEmpresa control={form.control} />
+                  <TrilhoEmpresa />
                 </div>
 
                 <TabsContent value="marca-documento" className="flex-1 overflow-y-auto px-6 py-4 mt-0">
@@ -1435,7 +1298,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA: DADOS ────────────────────────────────────────────────── */}
                 <TabsContent value="ident" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SecaoEmpresa control={form.control} id="identificacao" />
+                    <SecaoEmpresa id="identificacao" />
                     <FormField control={form.control} name="nome" render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel className="lbl">Nome no Sistema *</FormLabel>
@@ -1506,7 +1369,7 @@ export default function CadastroEmpresas() {
                         </p>
                       </FormItem>
                     )} />
-                    <SecaoEmpresa control={form.control} id="contatos" />
+                    <SecaoEmpresa id="contatos" />
                     <FormField control={form.control} name="telefone" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Telefone / WhatsApp</FormLabel>
@@ -1537,7 +1400,7 @@ export default function CadastroEmpresas() {
                         <FormControl><Input {...field} className="field-engraved" /></FormControl>
                       </FormItem>
                     )} />
-                    <SecaoEmpresa control={form.control} id="historico" />
+                    <SecaoEmpresa id="historico" />
                     <div className="concave-3d space-y-2 p-3 text-[11px]">
                       <p className="text-muted-foreground">
                         Informações antigas preservadas apenas para consulta. Esta tela não cria cobranças
@@ -1561,7 +1424,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 2: JURÍDICO & FISCAL ───────────────────────────────────── */}
                 <TabsContent value="fiscal" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <SecaoEmpresa control={form.control} id="juridicos" />
+                  <SecaoEmpresa id="juridicos" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="naturezaJuridica" render={({ field }) => (
                       <FormItem>
@@ -1647,7 +1510,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
-                  <SecaoEmpresa control={form.control} id="responsavel" />
+                  <SecaoEmpresa id="responsavel" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="responsavelLegalNome" render={({ field }) => (
                       <FormItem>
@@ -1662,7 +1525,7 @@ export default function CadastroEmpresas() {
                       </FormItem>
                     )} />
                   </div>
-                  <SecaoEmpresa control={form.control} id="contador" />
+                  <SecaoEmpresa id="contador" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="contadorNome" render={({ field }) => (
                       <FormItem>
@@ -1693,7 +1556,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 3: ENDEREÇOS ───────────────────────────────────────────── */}
                 <TabsContent value="end" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <SecaoEmpresa control={form.control} id="endComercial" />
+                  <SecaoEmpresa id="endComercial" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cep" render={({ field }) => (
                       <FormItem>
@@ -1746,7 +1609,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="endFiscal" />
+                  <SecaoEmpresa id="endFiscal" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <FormField control={form.control} name="cepFiscal" render={({ field }) => (
                       <FormItem>
@@ -1797,10 +1660,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA: REFERÊNCIAS DA PLANILHA ─────────────────────────────── */}
                 <TabsContent value="referencias" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
                   <div className="panel-3d-sub p-4 space-y-3">
-                    <div className="bevel-3d px-3 py-1.5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      Referências da planilha
-                    </div>
+                    <PlacaTitulo titulo="Referências da planilha" />
                     <p className="text-[11px] text-muted-foreground">
                       Estes valores são apenas referências da planilha de teste. Não criam vínculo jurídico,
                       hierarquia, permissão, cobrança ou código semântico oficial.
@@ -1850,7 +1710,7 @@ export default function CadastroEmpresas() {
 
                 {/* ── ABA 4: NF-e & CERTIFICADO ─────────────────────────────────── */}
                 <TabsContent value="nfe" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
-                  <SecaoEmpresa control={form.control} id="nfe" />
+                  <SecaoEmpresa id="nfe" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
                     Estes dados são puxados automaticamente pelo emissor de NF-e e pelo ZapSign na geração de contratos. Mantenha corretos.
                   </div>
@@ -1916,7 +1776,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="certificado" />
+                  <SecaoEmpresa id="certificado" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground mb-2">
                     O arquivo .pfx do certificado A1 é enviado via botão "Upload" e salvo na pasta CERTIFICADOS do Google Drive da empresa. Nunca fica no servidor.
                   </div>
@@ -1965,7 +1825,7 @@ export default function CadastroEmpresas() {
                 {/* ── ABA 5: INTEGRAÇÕES ─────────────────────────────────────────── */}
                 <TabsContent value="integ" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 mt-0">
 
-                  <SecaoEmpresa control={form.control} id="zapsign" />
+                  <SecaoEmpresa id="zapsign" />
                   <div className="concave-3d p-3 text-[10px] text-muted-foreground">
                     Cada empresa precisa de sua própria conta ZapSign. O sistema usa o token desta empresa para assinar contratos e documentos independentemente.
                   </div>
@@ -1984,7 +1844,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="whatsapp" />
+                  <SecaoEmpresa id="whatsapp" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="waNumero" render={({ field }) => (
                       <FormItem>
@@ -2012,7 +1872,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="twilio" />
+                  <SecaoEmpresa id="twilio" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="twilioAccountSid" render={({ field }) => (
                       <FormItem>
@@ -2034,7 +1894,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="telegram" />
+                  <SecaoEmpresa id="telegram" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="telegramBotUsername" render={({ field }) => (
                       <FormItem>
@@ -2056,7 +1916,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="zoho" />
+                  <SecaoEmpresa id="zoho" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="zohoEmail" render={({ field }) => (
                       <FormItem>
@@ -2082,7 +1942,7 @@ export default function CadastroEmpresas() {
                     )} />
                   </div>
 
-                  <SecaoEmpresa control={form.control} id="google" />
+                  <SecaoEmpresa id="google" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="googleCalendarId" render={({ field }) => (
                       <FormItem>
@@ -2138,7 +1998,7 @@ export default function CadastroEmpresas() {
                   <>
                     <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>CANCELAR</Button>
                     <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
-                      {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                      {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                       SALVAR EMPRESA
                     </Button>
                   </>

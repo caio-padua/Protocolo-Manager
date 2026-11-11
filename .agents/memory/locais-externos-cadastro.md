@@ -16,3 +16,8 @@ Locais externos NÃO são menu: são a aba "Locais Externos" do cadastro da empr
 **Risco real:** desativar a ÚNICA empresa ativa do profissional logado (Instituto Pádua, id 5) derruba o acesso (403 "Não há uma clínica ativa vinculada") e a tela não deixa reativar; já ocorreu duas vezes (reativado por SQL). Sugerir proteção no cartão do Pádua.
 
 **Lista de empresas (11/11/2026):** títulos = `PlacaTitulo` de largura fixa (18rem), sem etiqueta escrita; cidade vira sanfona vertical (estado no localStorage); cartão = nome em janela côncava + logotipo em vidro + cada dado em janelinha. Logotipo só se `simbolo_exemplo=false` (a maioria das empresas tem símbolo de exemplo → ícone neutro; só o Pádua tem real). Instituto Pádua protegido contra desativação (front + 409 no servidor), escolha A do CEO. Padrão 40 na skill.
+
+## Preferencia visual do CEO nas telas de cadastro (11/11/2026)
+Nao gosta de simbolos (icones) nem de contadores; quer rotulo escrito alinhado numa linha vertical, toggle dourado, selecao em insert bevel (nunca azul), cidade como UM grupo sem subdivisao, barra contigua com + / −.
+**Why:** pedido literal do CEO ("eu gosto do escrito", "nao e pra subdividir centro").
+**How to apply:** Padrao 40 da skill-layout-paxter; usar JanelaDado/BarraGrupo/ChaveOuro/PlacaTitulo em qualquer tela nova de cadastro. Specs e2e antigos de Locais/Empresas (apagar local, "Mostrar locais de") ja estavam desatualizados antes.

@@ -1,5 +1,5 @@
-import { MapPin, Phone, CalendarCheck, Users, Pencil, Building2, Video, HelpCircle, MessageSquareText } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
+import { JanelaDado } from "@/components/ui/janela-dado";
 import { MODO_META, PAPEIS_AGENDA, modoDoLocal, type LocalAtendimento } from "./locais-modo";
 
 function displayPhone(raw: string | null): string {
@@ -15,99 +15,58 @@ function calLabel(id: string | null): string {
   return id.length > 26 ? id.slice(0, 24) + "…" : id;
 }
 
-export function ModoBadge({ local, compacto = false }: { local: Pick<LocalAtendimento, "modalidade" | "mesmoEnderecoEmpresa">; compacto?: boolean }) {
+export function ModoBadge({ local }: { local: Pick<LocalAtendimento, "modalidade" | "mesmoEnderecoEmpresa"> }) {
   const modo = modoDoLocal(local);
   const m = MODO_META[modo];
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-[3px] border px-2 py-1 text-[9px] font-black uppercase tracking-widest shrink-0"
+      className="inline-flex h-6 items-center rounded-[3px] border px-2 text-[9px] font-black uppercase tracking-widest shrink-0"
       style={{ backgroundColor: m.fundo, color: m.texto, borderColor: m.borda }}
       title={m.explicacao}
     >
-      <m.Icon className="w-3 h-3" aria-hidden />
-      {compacto ? null : m.rotulo}
-      {compacto ? <span className="sr-only">{m.rotulo}</span> : null}
+      {m.rotulo}
     </span>
   );
 }
 
-// Card do local: 5 zonas fixas (Grade Imaginaria). Campo vazio mostra "—".
+// Card do local (Padrão 40): nome em janela Côncava, cada dado na sua janela com rótulo escrito (mesma linha vertical),
+// só aparece o que existe. Sem símbolos, sem número de identificação.
 export function LocalCard({ c, onEdit, onToggleAtivo }: { c: LocalAtendimento; onEdit: () => void; onToggleAtivo: (ativo: boolean) => void }) {
   const modo = modoDoLocal(c);
   const l1 = [c.logradouro, c.numero, c.complemento].filter(Boolean).join(", ");
   const l2 = [c.bairro, c.cidade ? `${c.cidade}${c.estado ? " - " + c.estado : ""}` : c.estado].filter(Boolean).join(" · ");
+  const endereco = [l1, l2].filter(Boolean).join(" · ") || (modo === "definir" ? "A definir" : c.address || "");
+  const agenda = `${c.agendaPapel ? `${PAPEIS_AGENDA.find((p) => p.valor === c.agendaPapel)?.rotulo ?? c.agendaPapel} · ` : ""}${c.googleCalendarId ? calLabel(c.googleCalendarId) : ""}`.replace(/ · $/, "");
+  const observacao = [c.nomeEspaco, c.observacaoLocal].filter(Boolean).join(" — ");
   const equipe = c.professionals?.length ?? 0;
 
   return (
     <div data-testid={`local-card-${c.id}`} className={`panel-3d relative overflow-hidden flex flex-col ${c.active ? "" : "opacity-60"}`}>
       <div className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px]" style={{ backgroundColor: c.color || "#16284a" }} />
       <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
-        {/* Zona 1 — barra superior fixa */}
-        <div className="flex items-center gap-2 h-6">
-          <span className={`paxter-led ${c.active ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} aria-label={c.active ? "Ativo" : "Inativo"} />
+        <div className="concave-3d flex min-h-[3.5rem] min-w-0 items-center justify-between gap-2 px-3 py-2">
+          <h3 className="min-w-0 font-black text-[14px] uppercase tracking-tight leading-tight line-clamp-2" title={c.name}>{c.name}</h3>
           <ModoBadge local={c} />
-          <span className="ml-auto text-[9px] text-muted-foreground/60 font-mono shrink-0">#{c.id}</span>
         </div>
 
-        {/* Zona 2 — título (duas linhas reservadas) */}
-        <h3 className="font-black text-[14px] uppercase tracking-tight leading-tight line-clamp-2 min-h-[2.4em]" title={c.name}>
-          {c.name}
-        </h3>
-
-        {/* Zona 5 — conteúdo em sulco côncavo, linhas fixas */}
-        <div className="concave-3d p-2.5 space-y-1.5 flex-1 text-[11px]">
-          <div className="flex items-start gap-2 min-h-[2.6em]">
-            {modo === "online" ? <Video className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" /> :
-              modo === "sede" ? <Building2 className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" /> :
-              modo === "definir" && !l1 ? <HelpCircle className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" /> :
-              <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/60" />}
-            <div className="min-w-0">
-              {modo === "online" && <p className="text-foreground/80">Atendimento online{l1 ? " · endereço de referência" : ""}</p>}
-              {l1 ? (
-                <>
-                  <p className="text-foreground/80 truncate">{l1}</p>
-                  <p className="text-muted-foreground truncate">{l2 || "—"}</p>
-                </>
-              ) : modo !== "online" ? (
-                <p className="text-muted-foreground">{modo === "definir" ? "Defina a modalidade e o endereço" : (c.address || "—")}</p>
-              ) : null}
-              {modo === "sede" && <p className="text-[9px] font-black uppercase tracking-widest text-primary/70">= endereço da empresa</p>}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Phone className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className={c.phone ? "text-foreground/80" : "text-muted-foreground"}>{displayPhone(c.phone)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CalendarCheck className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className="text-muted-foreground font-mono truncate" title={c.googleCalendarId ?? undefined}>
-              {c.agendaPapel ? `${PAPEIS_AGENDA.find((p) => p.valor === c.agendaPapel)?.rotulo ?? c.agendaPapel} · ` : ""}{calLabel(c.googleCalendarId)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 min-w-0">
-            <MessageSquareText className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className={`truncate ${c.observacaoLocal || c.nomeEspaco ? "text-foreground/80" : "text-muted-foreground"}`}
-              title={[c.nomeEspaco, c.observacaoLocal].filter(Boolean).join(" — ") || undefined}>
-              {[c.nomeEspaco, c.observacaoLocal].filter(Boolean).join(" — ") || "—"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-            <span className={equipe ? "text-foreground/80" : "text-muted-foreground"}>
-              {equipe ? `${equipe} profissional${equipe > 1 ? "is" : ""}` : "—"}
-            </span>
-          </div>
+        <div className="flex flex-1 flex-col gap-1.5">
+          {modo === "online" && <JanelaDado rotulo="Atendimento">Online{endereco ? " · endereço de referência" : ""}</JanelaDado>}
+          {endereco && <JanelaDado rotulo="Endereço" titulo={endereco}>{endereco}</JanelaDado>}
+          {modo === "sede" && <JanelaDado rotulo="Local">Mesmo endereço da empresa</JanelaDado>}
+          {c.phone && <JanelaDado rotulo="Telefone">{displayPhone(c.phone)}</JanelaDado>}
+          {agenda && <JanelaDado rotulo="Agenda" mono titulo={c.googleCalendarId ?? undefined}>{agenda}</JanelaDado>}
+          {observacao && <JanelaDado rotulo="Observação" titulo={observacao}>{observacao}</JanelaDado>}
+          {equipe > 0 && <JanelaDado rotulo="Equipe">{`${equipe} profissional${equipe > 1 ? "is" : ""}`}</JanelaDado>}
         </div>
 
-        {/* Ações */}
         <div className="flex gap-2 pt-0.5">
           <button type="button" onClick={onEdit} data-testid={`local-editar-${c.id}`}
-            className="bevel-3d flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-colors">
-            <Pencil className="w-3 h-3" /> Editar
+            className="bevel-3d flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors">
+            Editar
           </button>
           <label className="bevel-3d px-3 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer">
             {c.active ? "Ativo" : "Inativo"}
-            <Switch checked={!!c.active} onCheckedChange={onToggleAtivo} data-testid={`local-ativo-${c.id}`}
+            <ChaveOuro checked={!!c.active} onCheckedChange={onToggleAtivo} data-testid={`local-ativo-${c.id}`}
               aria-label={`${c.active ? "Desativar" : "Ativar"} ${c.name}`} />
           </label>
         </div>
