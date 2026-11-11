@@ -5,6 +5,46 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface FornecedorEntrada {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  nome: string;
+  /** @maxLength 500 */
+  razaoSocial: string | null;
+  /** @maxLength 500 */
+  cnpj: string | null;
+  /** @maxLength 500 */
+  endereco: string | null;
+  /** @maxLength 500 */
+  telefone: string | null;
+  /** @maxLength 500 */
+  email: string | null;
+  /** @maxLength 500 */
+  site: string | null;
+  /** @maxLength 500 */
+  instagram: string | null;
+  fabricante: boolean | null;
+  fornecedor: boolean | null;
+  /** @maxLength 500 */
+  fonte: string | null;
+  ativo: boolean;
+}
+
+export type FornecedorAtualizacao = FornecedorEntrada & {
+  /** @minimum 1 */
+  versao: number;
+};
+
+export type Fornecedor = FornecedorEntrada & {
+  id: number;
+  empresaId: number;
+  versao: number;
+  criadoEm: string;
+  atualizadoEm: string;
+};
+
 export interface ProcedimentoFontesCampos {
   /** @minimum 1 */
   nome?: number;

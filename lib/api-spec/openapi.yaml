@@ -41,6 +41,67 @@ tags:
     description: Motor de Agenda — recursos, janelas, exceções e liberação anti-ilha
 
 paths:
+  /fornecedores:
+    get:
+      operationId: listFornecedores
+      tags: [fornecedores]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Fornecedores da clínica autenticada.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Fornecedor" } }
+        "401": { description: Sessão inválida. }
+        "403": { description: Acesso não autorizado. }
+        "503": { description: Estrutura não instalada. }
+    post:
+      operationId: createFornecedor
+      tags: [fornecedores]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FornecedorEntrada" }
+      responses:
+        "201":
+          description: Fornecedor cadastrado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Fornecedor" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Acesso não autorizado. }
+        "409": { description: Cadastro duplicado. }
+        "503": { description: Estrutura não instalada. }
+  /fornecedores/{id}:
+    put:
+      operationId: updateFornecedor
+      tags: [fornecedores]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FornecedorAtualizacao" }
+      responses:
+        "200":
+          description: Fornecedor atualizado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Fornecedor" }
+        "400": { description: Dados inválidos. }
+        "401": { description: Sessão inválida. }
+        "403": { description: Acesso não autorizado. }
+        "404": { description: Fornecedor não encontrado nesta clínica. }
+        "409": { description: Cadastro duplicado ou versão desatualizada. }
+        "503": { description: Estrutura não instalada. }
   /procedimentos/opcoes-profissionais:
     get:
       operationId: listProcedimentoOpcoesProfissionais
@@ -3769,6 +3830,40 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    FornecedorEntrada:
+      type: object
+      required: [nome, razaoSocial, cnpj, endereco, telefone, email, site, instagram, fabricante, fornecedor, fonte, ativo]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 200 }
+        razaoSocial: { type: string, nullable: true, maxLength: 500 }
+        cnpj: { type: string, nullable: true, maxLength: 500 }
+        endereco: { type: string, nullable: true, maxLength: 500 }
+        telefone: { type: string, nullable: true, maxLength: 500 }
+        email: { type: string, nullable: true, maxLength: 500 }
+        site: { type: string, nullable: true, maxLength: 500 }
+        instagram: { type: string, nullable: true, maxLength: 500 }
+        fabricante: { type: boolean, nullable: true }
+        fornecedor: { type: boolean, nullable: true }
+        fonte: { type: string, nullable: true, maxLength: 500 }
+        ativo: { type: boolean }
+    FornecedorAtualizacao:
+      allOf:
+        - $ref: "#/components/schemas/FornecedorEntrada"
+        - type: object
+          required: [versao]
+          properties:
+            versao: { type: integer, minimum: 1 }
+    Fornecedor:
+      allOf:
+        - $ref: "#/components/schemas/FornecedorEntrada"
+        - type: object
+          required: [id, empresaId, versao, criadoEm, atualizadoEm]
+          properties:
+            id: { type: integer }
+            empresaId: { type: integer }
+            versao: { type: integer }
+            criadoEm: { type: string, format: date-time }
+            atualizadoEm: { type: string, format: date-time }
     ListaProcedimentos:
       type: object
       required: [empresaId, empresaNome, procedimentos]

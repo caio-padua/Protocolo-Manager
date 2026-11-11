@@ -123,6 +123,9 @@ import type {
   FinancialGoal,
   FinancialGoalInput,
   FinancialGoalsSummary,
+  Fornecedor,
+  FornecedorAtualizacao,
+  FornecedorEntrada,
   GenerateProtocolICS200,
   GetAgendaSlotsParams,
   GetConciergeOfferParams,
@@ -226,6 +229,235 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getListFornecedoresUrl = () => {
+  return `/api/fornecedores`;
+};
+
+export const listFornecedores = async (
+  options?: RequestInit,
+): Promise<Fornecedor[]> => {
+  return customFetch<Fornecedor[]>(getListFornecedoresUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFornecedoresQueryKey = () => {
+  return [`/api/fornecedores`] as const;
+};
+
+export const getListFornecedoresQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFornecedores>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFornecedores>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFornecedoresQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFornecedores>>
+  > = ({ signal }) => listFornecedores({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFornecedores>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFornecedoresQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFornecedores>>
+>;
+export type ListFornecedoresQueryError = ErrorType<void>;
+
+export function useListFornecedores<
+  TData = Awaited<ReturnType<typeof listFornecedores>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFornecedores>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFornecedoresQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateFornecedorUrl = () => {
+  return `/api/fornecedores`;
+};
+
+export const createFornecedor = async (
+  fornecedorEntrada: FornecedorEntrada,
+  options?: RequestInit,
+): Promise<Fornecedor> => {
+  return customFetch<Fornecedor>(getCreateFornecedorUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(fornecedorEntrada),
+  });
+};
+
+export const getCreateFornecedorMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFornecedor>>,
+    TError,
+    { data: BodyType<FornecedorEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFornecedor>>,
+  TError,
+  { data: BodyType<FornecedorEntrada> },
+  TContext
+> => {
+  const mutationKey = ["createFornecedor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFornecedor>>,
+    { data: BodyType<FornecedorEntrada> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFornecedor(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFornecedorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFornecedor>>
+>;
+export type CreateFornecedorMutationBody = BodyType<FornecedorEntrada>;
+export type CreateFornecedorMutationError = ErrorType<void>;
+
+export const useCreateFornecedor = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFornecedor>>,
+    TError,
+    { data: BodyType<FornecedorEntrada> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFornecedor>>,
+  TError,
+  { data: BodyType<FornecedorEntrada> },
+  TContext
+> => {
+  return useMutation(getCreateFornecedorMutationOptions(options));
+};
+
+export const getUpdateFornecedorUrl = (id: number) => {
+  return `/api/fornecedores/${id}`;
+};
+
+export const updateFornecedor = async (
+  id: number,
+  fornecedorAtualizacao: FornecedorAtualizacao,
+  options?: RequestInit,
+): Promise<Fornecedor> => {
+  return customFetch<Fornecedor>(getUpdateFornecedorUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(fornecedorAtualizacao),
+  });
+};
+
+export const getUpdateFornecedorMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFornecedor>>,
+    TError,
+    { id: number; data: BodyType<FornecedorAtualizacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFornecedor>>,
+  TError,
+  { id: number; data: BodyType<FornecedorAtualizacao> },
+  TContext
+> => {
+  const mutationKey = ["updateFornecedor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFornecedor>>,
+    { id: number; data: BodyType<FornecedorAtualizacao> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateFornecedor(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFornecedorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFornecedor>>
+>;
+export type UpdateFornecedorMutationBody = BodyType<FornecedorAtualizacao>;
+export type UpdateFornecedorMutationError = ErrorType<void>;
+
+export const useUpdateFornecedor = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFornecedor>>,
+    TError,
+    { id: number; data: BodyType<FornecedorAtualizacao> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFornecedor>>,
+  TError,
+  { id: number; data: BodyType<FornecedorAtualizacao> },
+  TContext
+> => {
+  return useMutation(getUpdateFornecedorMutationOptions(options));
+};
 
 export const getListProcedimentoOpcoesProfissionaisUrl = () => {
   return `/api/procedimentos/opcoes-profissionais`;

@@ -7,6 +7,196 @@
  */
 import * as zod from "zod";
 
+export const listFornecedoresResponseOneNomeMax = 200;
+
+export const listFornecedoresResponseOneRazaoSocialMax = 500;
+
+export const listFornecedoresResponseOneCnpjMax = 500;
+
+export const listFornecedoresResponseOneEnderecoMax = 500;
+
+export const listFornecedoresResponseOneTelefoneMax = 500;
+
+export const listFornecedoresResponseOneEmailMax = 500;
+
+export const listFornecedoresResponseOneSiteMax = 500;
+
+export const listFornecedoresResponseOneInstagramMax = 500;
+
+export const listFornecedoresResponseOneFonteMax = 500;
+
+export const ListFornecedoresResponseItem = zod
+  .object({
+    nome: zod.string().min(1).max(listFornecedoresResponseOneNomeMax),
+    razaoSocial: zod
+      .string()
+      .max(listFornecedoresResponseOneRazaoSocialMax)
+      .nullable(),
+    cnpj: zod.string().max(listFornecedoresResponseOneCnpjMax).nullable(),
+    endereco: zod
+      .string()
+      .max(listFornecedoresResponseOneEnderecoMax)
+      .nullable(),
+    telefone: zod
+      .string()
+      .max(listFornecedoresResponseOneTelefoneMax)
+      .nullable(),
+    email: zod.string().max(listFornecedoresResponseOneEmailMax).nullable(),
+    site: zod.string().max(listFornecedoresResponseOneSiteMax).nullable(),
+    instagram: zod
+      .string()
+      .max(listFornecedoresResponseOneInstagramMax)
+      .nullable(),
+    fabricante: zod.boolean().nullable(),
+    fornecedor: zod.boolean().nullable(),
+    fonte: zod.string().max(listFornecedoresResponseOneFonteMax).nullable(),
+    ativo: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      id: zod.number(),
+      empresaId: zod.number(),
+      versao: zod.number(),
+      criadoEm: zod.coerce.date(),
+      atualizadoEm: zod.coerce.date(),
+    }),
+  );
+export const ListFornecedoresResponse = zod.array(ListFornecedoresResponseItem);
+
+export const createFornecedorBodyNomeMax = 200;
+
+export const createFornecedorBodyRazaoSocialMax = 500;
+
+export const createFornecedorBodyCnpjMax = 500;
+
+export const createFornecedorBodyEnderecoMax = 500;
+
+export const createFornecedorBodyTelefoneMax = 500;
+
+export const createFornecedorBodyEmailMax = 500;
+
+export const createFornecedorBodySiteMax = 500;
+
+export const createFornecedorBodyInstagramMax = 500;
+
+export const createFornecedorBodyFonteMax = 500;
+
+export const CreateFornecedorBody = zod.object({
+  nome: zod.string().min(1).max(createFornecedorBodyNomeMax),
+  razaoSocial: zod.string().max(createFornecedorBodyRazaoSocialMax).nullable(),
+  cnpj: zod.string().max(createFornecedorBodyCnpjMax).nullable(),
+  endereco: zod.string().max(createFornecedorBodyEnderecoMax).nullable(),
+  telefone: zod.string().max(createFornecedorBodyTelefoneMax).nullable(),
+  email: zod.string().max(createFornecedorBodyEmailMax).nullable(),
+  site: zod.string().max(createFornecedorBodySiteMax).nullable(),
+  instagram: zod.string().max(createFornecedorBodyInstagramMax).nullable(),
+  fabricante: zod.boolean().nullable(),
+  fornecedor: zod.boolean().nullable(),
+  fonte: zod.string().max(createFornecedorBodyFonteMax).nullable(),
+  ativo: zod.boolean(),
+});
+
+export const UpdateFornecedorParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const updateFornecedorBodyOneNomeMax = 200;
+
+export const updateFornecedorBodyOneRazaoSocialMax = 500;
+
+export const updateFornecedorBodyOneCnpjMax = 500;
+
+export const updateFornecedorBodyOneEnderecoMax = 500;
+
+export const updateFornecedorBodyOneTelefoneMax = 500;
+
+export const updateFornecedorBodyOneEmailMax = 500;
+
+export const updateFornecedorBodyOneSiteMax = 500;
+
+export const updateFornecedorBodyOneInstagramMax = 500;
+
+export const updateFornecedorBodyOneFonteMax = 500;
+
+export const UpdateFornecedorBody = zod
+  .object({
+    nome: zod.string().min(1).max(updateFornecedorBodyOneNomeMax),
+    razaoSocial: zod
+      .string()
+      .max(updateFornecedorBodyOneRazaoSocialMax)
+      .nullable(),
+    cnpj: zod.string().max(updateFornecedorBodyOneCnpjMax).nullable(),
+    endereco: zod.string().max(updateFornecedorBodyOneEnderecoMax).nullable(),
+    telefone: zod.string().max(updateFornecedorBodyOneTelefoneMax).nullable(),
+    email: zod.string().max(updateFornecedorBodyOneEmailMax).nullable(),
+    site: zod.string().max(updateFornecedorBodyOneSiteMax).nullable(),
+    instagram: zod.string().max(updateFornecedorBodyOneInstagramMax).nullable(),
+    fabricante: zod.boolean().nullable(),
+    fornecedor: zod.boolean().nullable(),
+    fonte: zod.string().max(updateFornecedorBodyOneFonteMax).nullable(),
+    ativo: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      versao: zod.number().min(1),
+    }),
+  );
+
+export const updateFornecedorResponseOneNomeMax = 200;
+
+export const updateFornecedorResponseOneRazaoSocialMax = 500;
+
+export const updateFornecedorResponseOneCnpjMax = 500;
+
+export const updateFornecedorResponseOneEnderecoMax = 500;
+
+export const updateFornecedorResponseOneTelefoneMax = 500;
+
+export const updateFornecedorResponseOneEmailMax = 500;
+
+export const updateFornecedorResponseOneSiteMax = 500;
+
+export const updateFornecedorResponseOneInstagramMax = 500;
+
+export const updateFornecedorResponseOneFonteMax = 500;
+
+export const UpdateFornecedorResponse = zod
+  .object({
+    nome: zod.string().min(1).max(updateFornecedorResponseOneNomeMax),
+    razaoSocial: zod
+      .string()
+      .max(updateFornecedorResponseOneRazaoSocialMax)
+      .nullable(),
+    cnpj: zod.string().max(updateFornecedorResponseOneCnpjMax).nullable(),
+    endereco: zod
+      .string()
+      .max(updateFornecedorResponseOneEnderecoMax)
+      .nullable(),
+    telefone: zod
+      .string()
+      .max(updateFornecedorResponseOneTelefoneMax)
+      .nullable(),
+    email: zod.string().max(updateFornecedorResponseOneEmailMax).nullable(),
+    site: zod.string().max(updateFornecedorResponseOneSiteMax).nullable(),
+    instagram: zod
+      .string()
+      .max(updateFornecedorResponseOneInstagramMax)
+      .nullable(),
+    fabricante: zod.boolean().nullable(),
+    fornecedor: zod.boolean().nullable(),
+    fonte: zod.string().max(updateFornecedorResponseOneFonteMax).nullable(),
+    ativo: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      id: zod.number(),
+      empresaId: zod.number(),
+      versao: zod.number(),
+      criadoEm: zod.coerce.date(),
+      atualizadoEm: zod.coerce.date(),
+    }),
+  );
+
 export const ListProcedimentoOpcoesProfissionaisResponse = zod.object({
   locais: zod.array(
     zod.object({

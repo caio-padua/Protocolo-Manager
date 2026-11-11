@@ -15,6 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
+import { VariantesSubstanciaConsulta } from "./VariantesSubstanciaConsulta";
 
 const NULLABLE_TEXT = "";
 
@@ -846,6 +847,7 @@ export function SubstanceEditForm({
             </SectionCard>
           </div>
 
+      <VariantesSubstanciaConsulta key={substance.id} substanceId={substance.id} />
       {saveError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
       <div className="mt-5 flex flex-row justify-end gap-2 border-t pt-4">
         <Button variant="outline" onClick={onClose} disabled={update.isPending || isSaving}>

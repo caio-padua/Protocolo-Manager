@@ -182,6 +182,7 @@ const navigation: NavEntry[] = [
       { name: "Portfólio Clínico", href: "/portfolio-clinico", icon: FlaskConical },
       { name: "Protocolos", href: "/protocols", icon: FlaskConical },
       { name: "Procedimentos", href: "/procedimentos", icon: ClipboardList },
+      { name: "Fornecedores e Fabricantes", href: "/fornecedores", icon: Building2 },
       { name: "RASP", href: "/ras", icon: FileText },
       { name: "Catálogos", href: "/catalogos", icon: Library },
       { name: "Estoque", href: "/stock", icon: Box },
