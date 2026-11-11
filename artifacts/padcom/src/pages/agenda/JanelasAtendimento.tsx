@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Plus, Trash2, Clock, Copy, CalendarCheck2, Repeat } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Registro } from "@/components/MarcadorVinculo";
 import {
   INTERVALOS, MENSAIS, NOME_DIA, dataInicialValida, exigeDataInicial,
   proximaDataDoDia, proximasDatas, rotuloRepeticao,
@@ -97,7 +98,8 @@ export function JanelasAtendimento({ rascunho, onChange, desabilitado }: {
                 const dataRuim = precisaData && !dataInicialValida(f.anchorDate, dia);
                 const datas = f.repeatWeeks !== 1 && !dataRuim ? proximasDatas(f, dia) : [];
                 return (
-                  <div key={idx} className="concave-3d p-2.5 space-y-2">
+                  <div key={idx} className="concave-3d relative p-2.5 pt-3 space-y-2">
+                    <Registro codigo="J1" nota={`${NOME_DIA[dia]}, faixa ${idx + 1}`} />
                     <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
                       <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Início

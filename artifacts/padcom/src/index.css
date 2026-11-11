@@ -716,6 +716,82 @@ body,
   outline: 2px solid #48b6cc;
   outline-offset: 2px;
 }
+
+/* TECLA 3D — item de lista clicavel. Solto = Saliente (botao que salta da folha);
+   selecionado (aria-pressed) = APERTADO: afunda, fica navy com borda dourada, como
+   a aba do cadastro empresarial. Unlayered de proposito (vence utilitarios do Tailwind). */
+.tecla-3d {
+  position: relative;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(184, 146, 77, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%);
+  color: hsl(var(--foreground));
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -4px 8px rgba(0, 53, 58, 0.12),
+    0 9px 15px -7px rgba(7, 22, 43, 0.4),
+    0 3px 6px -2px rgba(7, 22, 43, 0.22);
+  transition: transform 0.08s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.tecla-3d:hover {
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -4px 8px rgba(0, 53, 58, 0.12),
+    0 11px 18px -7px rgba(7, 22, 43, 0.4),
+    0 0 14px -3px hsl(39 60% 55% / 0.55);
+}
+.tecla-3d:active { transform: translateY(2px); }
+.tecla-3d[aria-pressed="true"],
+.dark .tecla-3d[aria-pressed="true"] {
+  background: linear-gradient(180deg, #0a1f3a 0%, #16294a 55%, #22406a 100%);
+  border-color: #b8924d;
+  color: #ffffff;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 4px 8px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    0 1px 3px -1px rgba(7, 22, 43, 0.5);
+}
+.dark .tecla-3d {
+  border-color: hsl(215 16% 27%);
+  background: linear-gradient(180deg, hsl(215 20% 21%) 0%, hsl(215 22% 15%) 100%);
+}
+.tecla-3d .tecla-sub { color: hsl(var(--muted-foreground)); }
+.tecla-3d[aria-pressed="true"] .tecla-sub { color: #d9c48f; }
+.tecla-3d:focus-visible { outline: 2px solid #48b6cc; outline-offset: 2px; }
+.tecla-ctl { color: hsl(var(--muted-foreground)); }
+.tecla-ctl:hover:not(:disabled) { color: hsl(var(--primary)); }
+.tecla-ctl:disabled { opacity: 0.25; cursor: default; }
+[data-tecla-sel="true"] .tecla-ctl { color: #d9c48f; }
+[data-tecla-sel="true"] .tecla-ctl:hover:not(:disabled) { color: #ffffff; }
+
+/* REGISTRO — marca discreta (letra + numero) no canto superior esquerdo de botoes e
+   seletores; o mesmo codigo aponta o mesmo conceito real em todas as telas (ver
+   MarcadorVinculo.tsx). Fica sobre a borda, como um simbolo de marca registrada. */
+.registro-canto {
+  position: absolute;
+  top: -7px;
+  left: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 109, 47, 0.55);
+  background: #fbf8ef;
+  color: #7a6128;
+  font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  opacity: 0.82;
+  box-shadow: 0 1px 2px rgba(7, 22, 43, 0.18);
+  pointer-events: auto;
+  cursor: help;
+}
+.registro-canto[data-pendente="true"] { color: #b45309; border-color: rgba(180, 83, 9, 0.6); }
+.dark .registro-canto { background: hsl(215 22% 15%); color: #d9c48f; border-color: rgba(217, 196, 143, 0.5); }
 /* FAIXA DE MARCA do rodape — faixa LONGITUDINAL CONTINUA (full-bleed, SEM cantos
    curvos), na MESMA COR do painel de questao (.leva-card), com relevo "up breve"
    (realce no topo + sombra ascendente). Decisao do CEO 24/06/2026. UNLAYERED de

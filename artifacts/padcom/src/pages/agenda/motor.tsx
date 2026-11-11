@@ -24,8 +24,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { updateAgendaResource } from "@workspace/api-client-react";
 import { COLLAB_EVENT } from "@/lib/collab-auth";
-import { MarcadorVinculo } from "@/components/MarcadorVinculo";
+import { ComRegistro, LegendaRegistros } from "@/components/MarcadorVinculo";
+import { ListaAgendas } from "./ListaAgendas";
 import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
 import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
@@ -83,6 +85,15 @@ function BlockTitle({ icon: Icon, children }: { icon: LucideIcon; children: Reac
       <Icon className="h-4 w-4" />
       {children}
     </span>
+  );
+}
+
+function Campo({ titulo, children, className = "" }: { titulo: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`space-y-1.5 ${className}`}>
+      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{titulo}</Label>
+      {children}
+    </div>
   );
 }
 
@@ -452,6 +463,50 @@ export default function AgendaMotor() {
     },
   });
 
+  // ---- Ordem das agendas (clique, setas e arraste) ----
+  const [ordemLocal, setOrdemLocal] = useState<number[] | null>(null);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+  const listaAgendas = useMemo(() => {
+    const base = resources ?? [];
+    if (!ordemLocal) return base;
+    const porId = new Map(base.map((r) => [r.id, r]));
+    const ordenadas = ordemLocal.filter((id) => porId.has(id)).map((id) => porId.get(id)!);
+    return [...ordenadas, ...base.filter((r) => !ordemLocal.includes(r.id))];
+  }, [resources, ordemLocal]);
+
+  async function moverAgenda(id: number, paraIndice: number) {
+    const atual = listaAgendas;
+    const de = atual.findIndex((r) => r.id === id);
+    if (de < 0 || paraIndice < 0 || paraIndice >= atual.length || de === paraIndice || salvandoOrdem) return;
+    const novaOrdem = [...atual];
+    const [movida] = novaOrdem.splice(de, 1);
+    novaOrdem.splice(paraIndice, 0, movida);
+    // Reaproveita os valores de ordem já existentes (em ordem crescente e sem repetição),
+    // para que só mudem as agendas cuja posição mudou e nada colida com agendas ocultas.
+    const valores = atual.map((r) => r.sortOrder).sort((x, y) => x - y);
+    for (let i = 1; i < valores.length; i++) if (valores[i] <= valores[i - 1]) valores[i] = valores[i - 1] + 1;
+    const mudancas = novaOrdem
+      .map((r, i) => ({ r, sortOrder: valores[i] }))
+      .filter(({ r, sortOrder }) => r.sortOrder !== sortOrder);
+    const semPermissao = mudancas.find(({ r }) => !canManageResource(r));
+    if (semPermissao) {
+      toast({ title: "Ordem não alterada", description: `Você não administra a agenda “${semPermissao.r.name}”, que mudaria de posição.`, variant: "destructive" });
+      return;
+    }
+    setOrdemLocal(novaOrdem.map((r) => r.id));
+    setSalvandoOrdem(true);
+    try {
+      for (const { r, sortOrder } of mudancas) await updateAgendaResource(r.id, { sortOrder });
+      toast({ title: "Ordem das agendas salva" });
+    } catch (err) {
+      toast({ title: "Ordem não salva", description: describeError(err, "Tente novamente."), variant: "destructive" });
+    } finally {
+      await refetchResources();
+      setOrdemLocal(null);
+      setSalvandoOrdem(false);
+    }
+  }
+
   // ---- Handlers ----
   const EMPTY_NEW = { name: "", categoryId: "", professionalId: "", modality: "local", color: "#16284a", endereco: ENDERECO_VAZIO };
   const [newRes, setNewRes] = useState(EMPTY_NEW);
@@ -563,9 +618,9 @@ export default function AgendaMotor() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <header className="flex flex-col gap-1">
+      <header className="panel-3d-hero flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center gap-3">
-          <span className="bevel-3d inline-flex h-10 w-10 items-center justify-center text-primary">
+          <span className="bevel-3d inline-flex h-11 w-11 items-center justify-center text-primary">
             <CalendarCog className="h-5 w-5" />
           </span>
           <div>
@@ -575,104 +630,96 @@ export default function AgendaMotor() {
             </p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="concave-3d inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+            <Layers className="h-3.5 w-3.5 text-primary" />
+            {listaAgendas.length} {listaAgendas.length === 1 ? "agenda ativa" : "agendas ativas"}
+          </span>
+          <LegendaRegistros />
+        </div>
       </header>
 
       {/* AGENDAS + IDENTIDADE + JANELAS */}
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         {/* Coluna agendas */}
-        <div className="panel-3d p-4 space-y-4">
+        <div className="panel-3d space-y-4 p-4 lg:self-start">
           <BlockTitle icon={Layers}>Agendas de atendimento</BlockTitle>
-          <div className="space-y-2">
-            {(resources ?? []).map((r) => {
-              const isSel = r.id === selectedId;
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setSelectedId(r.id)}
-                  className={`concave-3d flex w-full items-center gap-3 px-3 py-2.5 text-left transition ${
-                    isSel ? "ring-2 ring-primary" : "opacity-90 hover:opacity-100"
-                  }`}
-                >
-                  <span
-                    className="h-7 w-2 shrink-0"
-                    style={{ backgroundColor: r.color, borderRadius: "2px" }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-foreground">{r.name}</span>
-                    <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">
-                      {r.categoryName ?? "Categoria pendente"} · {MODALITY_LABEL[r.modality] ?? r.modality} ·{" "}
-                      {r.sharing === "individual" ? "individual" : "compartilhada"}
-                      <MarcadorVinculo codigo="A1" />
-                    </span>
-                  </span>
-                  {!r.active && (
-                    <span className="text-[10px] font-semibold uppercase text-amber-600">inativo</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Clique para abrir a agenda no painel ao lado. Arraste, ou use as setas, para mudar a ordem; a ordem fica gravada.
+          </p>
+          <ListaAgendas
+            itens={listaAgendas.map((r) => ({
+              id: r.id, name: r.name, color: r.color, categoryName: r.categoryName,
+              modalityLabel: MODALITY_LABEL[r.modality] ?? r.modality, sharing: r.sharing ?? "", active: r.active,
+            }))}
+            selecionadaId={selectedId}
+            onSelecionar={setSelectedId}
+            onMover={moverAgenda}
+            ocupado={salvandoOrdem}
+          />
 
-          <div className="panel-3d-sub p-3 space-y-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Nova agenda de atendimento
+          <div className="panel-3d-sub space-y-3 p-3">
+            <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+              <Plus className="h-3.5 w-3.5" /> Nova agenda de atendimento
             </span>
-            <Input
-              className="field-engraved"
-              placeholder="Nome"
-              value={newRes.name}
-              onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))}
-            />
-            <Label className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-              Categoria profissional<MarcadorVinculo codigo="C1" />
-            </Label>
-            <Select value={newRes.categoryId} onValueChange={(v) => v && setNewRes((s) => ({ ...s, categoryId: v, professionalId: "" }))}>
-              <SelectTrigger className="field-engraved" aria-label="Categoria profissional">
-                <SelectValue placeholder="Categoria profissional" />
-              </SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Label className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-              Profissional (Corpo Clínico)<MarcadorVinculo codigo="P1" />
-            </Label>
-            <Select
-              value={newRes.professionalId}
-              onValueChange={(v) => v && setNewRes((s) => ({ ...s, professionalId: v === "nenhum" ? "" : v }))}
-              disabled={!newRes.categoryId}
-            >
-              <SelectTrigger className="field-engraved" aria-label="Profissional do Corpo Clínico">
-                <SelectValue placeholder={newRes.categoryId ? "Profissional (opcional)" : "Escolha a categoria primeiro"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nenhum">Sem profissional definido (agenda compartilhada)</SelectItem>
-                {professionalsOfCategory.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Campo titulo="Nome">
+              <ComRegistro codigo="A1">
+                <Input className="field-engraved" placeholder="Nome" value={newRes.name}
+                  onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))} />
+              </ComRegistro>
+            </Campo>
+            <Campo titulo="Categoria profissional">
+              <ComRegistro codigo="C1">
+                <Select value={newRes.categoryId} onValueChange={(v) => v && setNewRes((s) => ({ ...s, categoryId: v, professionalId: "" }))}>
+                  <SelectTrigger className="field-engraved" aria-label="Categoria profissional">
+                    <SelectValue placeholder="Categoria profissional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categorias.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ComRegistro>
+            </Campo>
+            <Campo titulo="Profissional (Corpo Clínico)">
+              <ComRegistro codigo="P1">
+                <Select
+                  value={newRes.professionalId}
+                  onValueChange={(v) => v && setNewRes((s) => ({ ...s, professionalId: v === "nenhum" ? "" : v }))}
+                  disabled={!newRes.categoryId}
+                >
+                  <SelectTrigger className="field-engraved" aria-label="Profissional do Corpo Clínico">
+                    <SelectValue placeholder={newRes.categoryId ? "Profissional (opcional)" : "Escolha a categoria primeiro"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhum">Sem profissional definido (agenda compartilhada)</SelectItem>
+                    {professionalsOfCategory.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ComRegistro>
+            </Campo>
             {newRes.categoryId && professionalsOfCategory.length === 0 && (
               <p className="text-[10px] leading-snug text-amber-600" role="status">
                 Nenhum profissional ativo do Corpo Clínico tem esta categoria. A agenda pode ser criada sem profissional.
               </p>
             )}
-            <Label className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-              Onde atende<MarcadorVinculo codigo="L1" />
-            </Label>
-            <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
-              <SelectTrigger className="field-engraved" aria-label="Modalidade">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="local">Sede</SelectItem>
-                <SelectItem value="externo">Externo (outro endereço)</SelectItem>
-                <SelectItem value="online">Remoto</SelectItem>
-              </SelectContent>
-            </Select>
+            <Campo titulo="Onde atende">
+              <ComRegistro codigo="L1">
+                <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
+                  <SelectTrigger className="field-engraved" aria-label="Modalidade">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">Sede</SelectItem>
+                    <SelectItem value="externo">Externo (outro endereço)</SelectItem>
+                    <SelectItem value="online">Remoto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </ComRegistro>
+            </Campo>
             {newRes.modality === "externo" && (
               <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
             )}
@@ -684,145 +731,149 @@ export default function AgendaMotor() {
                 className="h-9 w-12 cursor-pointer border-0 bg-transparent p-0"
                 aria-label="Cor da agenda"
               />
-              <Button className="btn-3d flex-1" onClick={addResource} disabled={!anyCanManage || createResource.isPending}>
-                <Plus className="mr-1 h-4 w-4" /> Adicionar
-              </Button>
+              <ComRegistro codigo="A1" className="flex-1">
+                <Button className="btn-3d w-full" onClick={addResource} disabled={!anyCanManage || createResource.isPending}>
+                  <Plus className="mr-1 h-4 w-4" /> Adicionar
+                </Button>
+              </ComRegistro>
             </div>
           </div>
         </div>
 
         {/* Coluna identidade + janelas */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Identidade */}
-          <div className="panel-3d p-4 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="panel-3d space-y-4 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <BlockTitle icon={SlidersHorizontal}>Identidade da Agenda</BlockTitle>
-              <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || !canManageSelected || updateResource.isPending}>
-                <Save className="mr-1 h-4 w-4" /> Salvar
-              </Button>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {resDraft && (
+                  <ComRegistro codigo="A1" nota="ativa ou inativa">
+                    <label
+                      htmlFor="agenda-ativa"
+                      className="concave-3d flex cursor-pointer items-center gap-2.5 px-3 py-1.5"
+                      data-testid="toggle-agenda-ativa"
+                    >
+                      <Switch
+                        id="agenda-ativa"
+                        checked={resDraft.active}
+                        onCheckedChange={(v) => setResDraft((d) => (d ? { ...d, active: v } : d))}
+                      />
+                      <span className="text-xs font-bold uppercase tracking-wide">
+                        {resDraft.active ? "Agenda ativa" : "Agenda inativa"}
+                      </span>
+                    </label>
+                  </ComRegistro>
+                )}
+                <ComRegistro codigo="A1" nota="salvar identidade">
+                  <Button className="btn-3d" onClick={saveResource} disabled={!resDraft || !canManageSelected || updateResource.isPending}>
+                    <Save className="mr-1 h-4 w-4" /> Salvar
+                  </Button>
+                </ComRegistro>
+              </div>
             </div>
             {resDraft ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Nome</Label>
-                  <Input
-                    className="field-engraved"
-                    value={resDraft.name}
-                    onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-4 text-[11px] text-muted-foreground">
-                  <span>
-                    Agenda <MarcadorVinculo codigo="A1" nota={`id ${selected?.id}`} /> ·{" "}
-                    {selected?.sharing === "individual" ? "individual (um profissional)" : "compartilhada (sem profissional definido)"}
-                    <MarcadorVinculo codigo="P1" pendente={selected?.sharing !== "individual"} nota="agenda compartilhada não tem profissional gravado" />
-                  </span>
-                  <br />
-                  <span>
-                    {selected?.locationId
-                      ? <>Sede vinculada (legado): {localDoSelecionado ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})` : "não identificada nos locais que você administra"}</>
-                      : <>Agenda própria da clínica (sem outro registro de local vinculado)</>}
-                    <MarcadorVinculo codigo="L1" pendente={!!selected?.locationId && !localDoSelecionado} />
-                    {selected?.modality === "externo" && (
-                      selected.externalAddressText ? (
-                        <span className="mt-1 block">
-                          Endereço: {selected.externalAddressText}{" "}
-                          {selected.mapsUrl && <a className="underline" href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps</a>}
-                          {selected.wazeUrl && <> · <a className="underline" href={selected.wazeUrl} target="_blank" rel="noreferrer">Waze</a></>}
-                        </span>
-                      ) : (
-                        <span className="mt-1 block font-semibold text-amber-600">Agenda externa sem endereço completo: pendente.</span>
-                      )
-                    )}
-                  </span>
-                  <br />
-                  <span>
-                    Clínica da sessão<MarcadorVinculo codigo="C2" pendente nota="o Motor não exibe a clínica; ligação a verificar" />
-                  </span>
-                  {selected?.categoryStatus === "pendente" && (
-                    <span className="mt-1 block font-semibold text-amber-600">
-                      Categoria pendente de conferência: nada foi deduzido do nome nem do tipo antigo desta agenda.
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    Categoria profissional<MarcadorVinculo codigo="C1" pendente={selected?.categoryStatus === "pendente"} />
-                  </Label>
-                  <Select
-                    value={resDraft.categoryId != null ? String(resDraft.categoryId) : ""}
-                    onValueChange={(v) => v && setResDraft((d) => (d ? { ...d, categoryId: Number(v) } : d))}
-                  >
-                    <SelectTrigger className="field-engraved" aria-label="Categoria profissional da agenda">
-                      <SelectValue placeholder="Categoria pendente de conferência" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categorias
-                        .filter((c) => !selected || classeDaCategoria(c) === selected.kind)
-                        .map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Modalidade</Label>
-                  <Select
-                    value={resDraft.modality}
-                    onValueChange={(v) => setResDraft((d) => (d ? { ...d, modality: v } : d))}
-                  >
-                    <SelectTrigger className="field-engraved">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="local">Sede</SelectItem>
-                      <SelectItem value="externo">Externo (outro endereço)</SelectItem>
-                      <SelectItem value="online">Remoto</SelectItem>
-                      {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (
-                        <SelectItem value="domiciliar">Domiciliar (legado)</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Campo titulo="Nome" className="sm:col-span-2">
+                    <ComRegistro codigo="A1" nota={`id ${selected?.id}`}>
+                      <Input className="field-engraved" value={resDraft.name}
+                        onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))} />
+                    </ComRegistro>
+                  </Campo>
+                  <Campo titulo="Duração do atendimento (min)">
+                    <ComRegistro codigo="S1">
+                      <Input type="number" min={5} step={5} className="field-engraved" value={resDraft.slotMinutes}
+                        onChange={(e) => setResDraft((d) => (d ? { ...d, slotMinutes: Number(e.target.value) || 0 } : d))} />
+                    </ComRegistro>
+                  </Campo>
+                  <Campo titulo="Cor">
+                    <input type="color" value={resDraft.color}
+                      onChange={(e) => setResDraft((d) => (d ? { ...d, color: e.target.value } : d))}
+                      className="concave-3d h-10 w-full cursor-pointer p-1" aria-label="Cor" />
+                  </Campo>
+                  <Campo titulo="Categoria profissional" className="sm:col-span-2">
+                    <ComRegistro codigo="C1" pendente={selected?.categoryStatus === "pendente"}>
+                      <Select
+                        value={resDraft.categoryId != null ? String(resDraft.categoryId) : ""}
+                        onValueChange={(v) => v && setResDraft((d) => (d ? { ...d, categoryId: Number(v) } : d))}
+                      >
+                        <SelectTrigger className="field-engraved" aria-label="Categoria profissional da agenda">
+                          <SelectValue placeholder="Categoria pendente de conferência" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categorias
+                            .filter((c) => !selected || classeDaCategoria(c) === selected.kind)
+                            .map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </ComRegistro>
+                  </Campo>
+                  <Campo titulo="Modalidade" className="sm:col-span-2">
+                    <ComRegistro codigo="L1">
+                      <Select value={resDraft.modality} onValueChange={(v) => setResDraft((d) => (d ? { ...d, modality: v } : d))}>
+                        <SelectTrigger className="field-engraved">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="local">Sede</SelectItem>
+                          <SelectItem value="externo">Externo (outro endereço)</SelectItem>
+                          <SelectItem value="online">Remoto</SelectItem>
+                          {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (
+                            <SelectItem value="domiciliar">Domiciliar (legado)</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </ComRegistro>
+                  </Campo>
                 </div>
                 {resDraft.modality === "externo" && (
-                  <div className="sm:col-span-2 lg:col-span-4">
-                    <EnderecoExternoCampos
-                      value={resDraft.endereco}
-                      onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))}
-                    />
-                  </div>
+                  <EnderecoExternoCampos value={resDraft.endereco}
+                    onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
                 )}
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    Slot (minutos)
-                  </Label>
-                  <Input
-                    type="number"
-                    min={5}
-                    step={5}
-                    className="field-engraved"
-                    value={resDraft.slotMinutes}
-                    onChange={(e) =>
-                      setResDraft((d) => (d ? { ...d, slotMinutes: Number(e.target.value) || 0 } : d))
-                    }
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Cor</Label>
-                  <input
-                    type="color"
-                    value={resDraft.color}
-                    onChange={(e) => setResDraft((d) => (d ? { ...d, color: e.target.value } : d))}
-                    className="h-9 w-full cursor-pointer border-0 bg-transparent p-0"
-                    aria-label="Cor"
-                  />
-                </div>
-                <div className="concave-3d flex items-center gap-3 px-3 py-2 sm:col-span-2 lg:col-span-1">
-                  <Switch
-                    checked={resDraft.active}
-                    onCheckedChange={(v) => setResDraft((d) => (d ? { ...d, active: v } : d))}
-                  />
-                  <Label className="text-sm">Agenda ativa</Label>
+                {selected?.categoryStatus === "pendente" && (
+                  <p className="paxter-alert paxter-alert-amber px-3 py-2 text-xs font-semibold">
+                    Categoria pendente de conferência: nada foi deduzido do nome nem do tipo antigo desta agenda.
+                  </p>
+                )}
+                <div className="grid gap-3 md:grid-cols-3">
+                  <ComRegistro codigo="P1" pendente={selected?.sharing !== "individual"} nota="agenda compartilhada não tem profissional gravado">
+                    <div className="concave-3d h-full space-y-1 px-3 py-2.5">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Profissional</span>
+                      <span className="block text-sm font-semibold">
+                        {selected?.sharing === "individual" ? "Individual (um profissional)" : "Compartilhada (sem profissional definido)"}
+                      </span>
+                    </div>
+                  </ComRegistro>
+                  <ComRegistro codigo="L1" pendente={!!selected?.locationId && !localDoSelecionado}>
+                    <div className="concave-3d h-full space-y-1 px-3 py-2.5">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Local de atendimento</span>
+                      <span className="block text-sm font-semibold">
+                        {selected?.locationId
+                          ? (localDoSelecionado ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})` : "Sede vinculada (legado) não identificada nos locais que você administra")
+                          : "Agenda própria da clínica"}
+                      </span>
+                      {selected?.modality === "externo" && (
+                        selected.externalAddressText ? (
+                          <span className="block text-[11px] text-muted-foreground">
+                            {selected.externalAddressText}{" "}
+                            {selected.mapsUrl && <a className="underline" href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps</a>}
+                            {selected.wazeUrl && <> · <a className="underline" href={selected.wazeUrl} target="_blank" rel="noreferrer">Waze</a></>}
+                          </span>
+                        ) : (
+                          <span className="block text-[11px] font-semibold text-amber-600">Agenda externa sem endereço completo: pendente.</span>
+                        )
+                      )}
+                    </div>
+                  </ComRegistro>
+                  <ComRegistro codigo="C2" pendente nota="esta tela não exibe a clínica; ligação a verificar">
+                    <div className="concave-3d h-full space-y-1 px-3 py-2.5">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Clínica da sessão</span>
+                      <span className="block text-sm font-semibold text-amber-600">Ligação a verificar</span>
+                    </div>
+                  </ComRegistro>
                 </div>
               </div>
             ) : (
@@ -831,16 +882,18 @@ export default function AgendaMotor() {
           </div>
 
           {/* Janelas */}
-          <div className="panel-3d p-4 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="panel-3d space-y-4 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <BlockTitle icon={Clock}>Janelas de Atendimento</BlockTitle>
-              <Button
-                className="btn-3d"
-                onClick={saveWindows}
-                disabled={!selectedId || draftResource.current !== selectedId || !windowsSnapshot || !canManageSelected || replaceWindows.isPending}
-              >
-                <Save className="mr-1 h-4 w-4" /> Salvar Janelas
-              </Button>
+              <ComRegistro codigo="J1" nota="salvar janelas">
+                <Button
+                  className="btn-3d"
+                  onClick={saveWindows}
+                  disabled={!selectedId || draftResource.current !== selectedId || !windowsSnapshot || !canManageSelected || replaceWindows.isPending}
+                >
+                  <Save className="mr-1 h-4 w-4" /> Salvar Janelas
+                </Button>
+              </ComRegistro>
             </div>
             <p className="text-xs text-muted-foreground">
               Horários em que esta agenda atende, por dia da semana. Várias faixas por dia (manhã/tarde) e repetição semanal, por várias semanas ou por posição no mês.
@@ -937,12 +990,15 @@ export default function AgendaMotor() {
           <BlockTitle icon={CalendarOff}>Exceções / Feriados</BlockTitle>
           <div className="panel-3d-sub p-3 space-y-2.5">
             <div className="grid grid-cols-2 gap-2">
+              <ComRegistro codigo="X1">
               <Input
                 type="date"
                 className="field-engraved"
                 value={newExc.date}
                 onChange={(e) => setNewExc((s) => ({ ...s, date: e.target.value }))}
               />
+              </ComRegistro>
+              <ComRegistro codigo="X1" nota="tipo">
               <Select value={newExc.kind} onValueChange={(v) => setNewExc((s) => ({ ...s, kind: v }))}>
                 <SelectTrigger className="field-engraved">
                   <SelectValue />
@@ -952,6 +1008,7 @@ export default function AgendaMotor() {
                   <SelectItem value="bloqueio">Bloqueio</SelectItem>
                 </SelectContent>
               </Select>
+              </ComRegistro>
             </div>
             <Input
               className="field-engraved"
@@ -959,6 +1016,7 @@ export default function AgendaMotor() {
               value={newExc.description}
               onChange={(e) => setNewExc((s) => ({ ...s, description: e.target.value }))}
             />
+            <ComRegistro codigo="A1" nota="agenda atingida pela exceção">
             <Select
               value={newExc.resourceId || "all"}
               onValueChange={(v) => setNewExc((s) => ({ ...s, resourceId: v === "all" ? "" : v }))}
@@ -975,9 +1033,12 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
+            <ComRegistro codigo="X1" nota="adicionar exceção">
             <Button className="btn-3d w-full" onClick={addException} disabled={!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) || createException.isPending}>
               <Plus className="mr-1 h-4 w-4" /> Adicionar exceção
             </Button>
+            </ComRegistro>
           </div>
           {!(newExc.resourceId ? canManageResource(resources?.find((r) => String(r.id) === newExc.resourceId)) : !globalLocked) && (
             <p role="note" className="text-[11px] text-muted-foreground">
@@ -1006,10 +1067,10 @@ export default function AgendaMotor() {
                   <button
                     type="button"
                     onClick={() => deleteException.mutate({ id: ex.id })}
-                    className="text-destructive hover:opacity-70"
+                    className="btn-3d-soft inline-flex h-8 items-center gap-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wide text-destructive"
                     aria-label="Remover exceção"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" /> Remover
                   </button>
                 </div>
               );
@@ -1024,6 +1085,7 @@ export default function AgendaMotor() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Agenda</Label>
+            <ComRegistro codigo="A1" nota="agenda da prova viva">
             <Select
               value={slotResource ? String(slotResource) : ""}
               onValueChange={(v) => setSlotResource(Number(v))}
@@ -1039,6 +1101,7 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
           </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Data</Label>
@@ -1129,6 +1192,7 @@ export default function AgendaMotor() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="panel-3d-sub p-3 space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Cliente</Label>
+            <ComRegistro codigo="K1">
             <Select
               value={bookClient ? String(bookClient) : ""}
               onValueChange={(v) => setBookClient(Number(v))}
@@ -1145,6 +1209,7 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
             {(clientsError || identity === "anonimo") && <p role="alert" className="text-xs text-red-700 dark:text-red-300">
               Não foi possível carregar os clientes para este acesso. Confira a sessão e tente novamente.
             </p>}
@@ -1152,6 +1217,7 @@ export default function AgendaMotor() {
 
           <div className="panel-3d-sub p-3 space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Protocolo</Label>
+            <ComRegistro codigo="T1">
             <Select
               value={bookProtocol ? String(bookProtocol) : ""}
               onValueChange={(v) => setBookProtocol(Number(v))}
@@ -1168,6 +1234,7 @@ export default function AgendaMotor() {
                 ))}
               </SelectContent>
             </Select>
+            </ComRegistro>
           </div>
         </div>
 
@@ -1224,6 +1291,7 @@ export default function AgendaMotor() {
           </div>
         </div>
 
+        <ComRegistro codigo="A1" nota="marcação na agenda escolhida" className="inline-block w-full sm:w-auto">
         <Button
           className="btn-3d w-full sm:w-auto"
           onClick={confirmBooking}
@@ -1232,6 +1300,7 @@ export default function AgendaMotor() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {bookSession.isPending ? "Marcando…" : "Confirmar marcação"}
         </Button>
+        </ComRegistro>
         {bookReadOff && (
           <p role="alert" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-booking-blocked">
             Leitura do Google desligada neste local: marcações bloqueadas até os dados serem atualizados.
