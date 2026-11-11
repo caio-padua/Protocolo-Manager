@@ -225,6 +225,32 @@ router.get("/paxmed-2b/empresas/:empresaId/simbolo", requireCollaborator, async 
   } catch (error) { fail(req, res, error); }
 });
 
+// Logotipo para o CARTÃO da lista de empresas. Só devolve símbolo REAL: o símbolo de exemplo é um substituto
+// de teste e nunca deve parecer o logotipo da empresa (sem símbolo real = 404, a tela mostra um ícone neutro).
+router.get("/paxmed-2b/empresas-simbolos/:empresaId", requireCollaborator, async (req, res): Promise<void> => {
+  try {
+    const raw = req.params.empresaId;
+    if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) throw new IdentityError(400, "Empresa inválida.");
+    const professionalId = req.collaborator?.professionalId;
+    if (!professionalId || !req.tenantContext?.authenticated || req.tenantContext.professionalId !== professionalId) {
+      throw new IdentityError(401, "Faça login novamente.");
+    }
+    const result = await db.execute(sql`
+      SELECT i.simbolo_path
+      FROM paxmed_2b_empresa_identidade i
+      JOIN empresas e ON e.id = i.empresa_id
+      WHERE i.empresa_id = ${Number(raw)}
+        AND i.simbolo_exemplo = false
+        AND e.tipo IN ('clinic', 'genesis_seed')
+        AND e.status <> 'ARQUIVADA'
+        AND e.is_platform_owner = false
+    `);
+    const objectId = (result.rows[0] as { simbolo_path?: string } | undefined)?.simbolo_path;
+    if (!objectId) throw new IdentityError(404, "Símbolo não configurado.");
+    res.type("png").send(recortarSimbolo(aplicarOuroAoSimbolo(await logoBytes(objectId, true))));
+  } catch (error) { fail(req, res, error); }
+});
+
 router.get("/paxmed-2b/empresas/:empresaId/pre-visualizacao", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const { empresaId } = authorizeCompany(req);

@@ -576,12 +576,19 @@ router.put("/empresas/:id", async (req, res): Promise<void> => {
         status: empresasTable.status,
         isPlatformOwner: empresasTable.isPlatformOwner,
         cnpj: empresasTable.cnpj,
+        nome: empresasTable.nome,
       }).from(empresasTable)
         .where(eq(empresasTable.id, id))
         .for("update")
         .limit(1);
       if (!currentCompany || currentCompany.tipo !== "clinic" || currentCompany.status === "ARQUIVADA" || currentCompany.isPlatformOwner) {
         return { status: 404 as const, error: "Empresa clínica não encontrada." };
+      }
+
+      // Decisão do CEO (11/11/2026): o Instituto Pádua é a empresa de acesso do sistema. Desativá-lo derruba o
+      // login de quem só tem ele (403 "sem clínica ativa") e a tela não permite reativar.
+      if (req.body.ativa === false && removeDiacritics(currentCompany.nome ?? "").toLowerCase().includes("instituto padua")) {
+        return { status: 409 as const, error: "O Instituto Pádua não pode ser desativado: é a empresa de acesso do sistema." };
       }
 
       if (req.body.cnpj !== undefined) {

@@ -5,6 +5,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PlacaSecao } from "@/components/ui/placa-secao";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
 
 /**
  * Aba "Classificação" do cadastro da empresa (Padrão 38 da skill-layout-paxter).
@@ -59,7 +60,7 @@ export const EIXOS_CLASSIFICACAO: EixoClassificacao[] = [
     ],
   },
   {
-    campo: "cnae", titulo: "Atividade fiscal (CNAE principal)", dica: "define impostos e alvarás", icone: ClipboardList, obrigatorio: true,
+    campo: "cnae", titulo: "Atividade fiscal (CNAE)", dica: "CNAE principal: define impostos e alvarás", icone: ClipboardList, obrigatorio: true,
     opcoes: [
       { valor: "86.30-5/03", rotulo: "Consultas médicas", icone: Stethoscope, descricao: "Atividade médica ambulatorial restrita a consultas", explicacao: "Foco em consultas, sem procedimentos invasivos." },
       { valor: "86.30-5/01", rotulo: "Procedimentos cirúrgicos", icone: Scissors, descricao: "Atividade médica ambulatorial com recursos para realização de procedimentos cirúrgicos", explicacao: "Clínica que faz pequenos procedimentos cirúrgicos." },
@@ -94,10 +95,7 @@ type ControlQualquer = Control<any>;
 function FaixaPapel({ espelho }: { espelho: boolean }) {
   return (
     <div className="concave-3d flex items-center gap-3 p-2.5" data-testid="classificacao-papel" data-espelho={espelho ? "sim" : "nao"}>
-      <span className="bevel-3d inline-flex h-7 shrink-0 items-center gap-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-        {espelho ? <Lock className="h-3.5 w-3.5" aria-hidden /> : <Building2 className="h-3.5 w-3.5" aria-hidden />}
-        Papel no sistema
-      </span>
+      <PlacaTitulo icone={espelho ? Lock : Building2} titulo="Papel no sistema" />
       {espelho ? (
         <p className="text-[12px] leading-snug">
           <strong className="uppercase">Espelho do Instituto Pádua (Gênesis).</strong>{" "}
@@ -218,9 +216,6 @@ export function ResumoClassificacao({ control, espelho, onAbrir }: { control: Co
     <div className="md:col-span-2" data-testid="dados-resumo-classificacao">
       <span className="lbl">Classificação</span>
       <div className="mt-1 flex items-stretch gap-2">
-        <span className="bevel-3d inline-flex shrink-0 items-center gap-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-          <Tags className="h-3.5 w-3.5" aria-hidden /> {espelho ? "Espelho" : "Escolhida"}
-        </span>
         <p className="concave-3d flex min-h-10 min-w-0 flex-1 items-center px-3 py-1.5 text-[12px] font-semibold leading-snug">
           {espelho ? "Espelho do Instituto Pádua (Gênesis): sem classificação própria."
             : partes.length ? partes.join(" · ") : <span className="text-amber-700 dark:text-amber-400">Nada escolhido ainda.</span>}

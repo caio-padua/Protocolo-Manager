@@ -890,6 +890,21 @@ Valores espelhados no servidor (`validarClassificacao` em `routes/empresas.ts`):
 fica no mesmo grupo, depois dos ativos (se o grupo tem varias zonas, num bloco "Inativas de <grupo>" ao fim do grupo), com opacidade reduzida
 e interruptor "Inativa". Um interruptor no topo da lista, "Mostrar inativas (n)", esconde todas de uma vez (padrao: ligado, para nada "sumir").
 
+### 4.17 Padrao 40 — Placa de titulo de tamanho unico, sanfona vertical e cartao de empresa
+
+Pedido do CEO (11/11/2026): "todos os titulos tem que ter o mesmo tamanho, nao quero que acompanhe o tamanho da frase; nada escrito em etiqueta; uma sanfona vertical por cidade".
+
+| Parte | Regra |
+|---|---|
+| Placa de titulo | Componente unico `components/ui/placa-titulo.tsx`. Largura FIXA `18rem` (`LARGURA_PLACA_TITULO`), altura `h-8`, icone + nome em MAIUSCULO alinhados a ESQUERDA; nome comprido corta com reticencias. Vale para cidade, zona, secao de cadastro (`PlacaSecao` ja usa), painel recolhivel. Titulo novo com mais de ~27 letras: encurtar o nome e mandar o resto para a `dica` |
+| Proibido na placa | Etiqueta, contagem escrita ("7 empresas"), subtitulo ou segunda linha. A quantidade vai a DIREITA da linha, so o numeral, numa janela Concava de largura minima fixa (`2.5rem`) |
+| Sanfona vertical | Grupo de lista (cidade) = placa a esquerda, linha fina, numeral, botao Saliente com seta (gira ao fechar). A placa tambem abre/fecha. Corpo no componente `sanfona-vertical.tsx` (anima a altura, fechado fica `invisible`, nada e desmontado). Estado lembrado no navegador; dois botoes no topo "fechar todas / abrir todas" (so icone) |
+| Zona sem nome | Nao mostrar placa para zona vazia ("—"); os cartoes ficam logo abaixo da cidade |
+| Cartao de empresa | Nome da empresa numa janela Concava (insert bevel), logotipo em janelinha de VIDRO (`.vidro-logo`, `empresas-cartao.css`: quadrada, cantos 1,3rem, sem backdrop-filter) a direita do nome. Cada dado (CNPJ, endereco, telefone, e-mail, responsavel) na sua PROPRIA janelinha Concava, so icone + valor, sem rotulo escrito |
+| Logotipo | So logotipo REAL. Simbolo de exemplo (`simbolo_exemplo=true`) nunca aparece como logotipo: o servidor devolve 404 e a tela mostra icone neutro de predio. Rota `GET /paxmed-2b/empresas-simbolos/:empresaId` (vale so em desenvolvimento, como todo `/paxmed-2b`) |
+| Empresa de acesso | Instituto Padua nao pode ser desativado: interruptor travado com cadeado no cartao e recusa 409 no servidor (desativa-lo derruba o login de quem so tem ele) |
+| Gênesis | Selo "Espelho" com cadeado; nunca "tipo de clinica" |
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

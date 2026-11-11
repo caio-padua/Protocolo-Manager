@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { semAcento, compararEmpresas, ehInstitutoPadua } from "./locais/locais-modo";
 import "./locais/locais.css";
+import "./empresas-cartao.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,10 +21,13 @@ import {
   FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
   Fingerprint, Landmark, Receipt, Link2, Plug, ScrollText, Navigation,
   Scale, UserCheck, Calculator, FileSignature, MessageCircle, Smartphone, Send, History, Tags,
+  Lock, EyeOff, ChevronsDownUp, ChevronsUpDown, Hash,
   type LucideIcon,
 } from "lucide-react";
 import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
 import { PlacaSecao, ContadorPreenchido } from "@/components/ui/placa-secao";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
+import { SanfonaVertical } from "@/components/ui/sanfona-vertical";
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
 import SemanticCodeManager from "./SemanticCodeManager";
@@ -373,14 +377,44 @@ function ResumoCadastro({ control }: { control: Control<FormValues> }) {
 }
 
 // ── Card da empresa ────────────────────────────────────────────────────────────
+/** Logotipo REAL da empresa numa janelinha de vidro. Sem símbolo real (o de exemplo não vale), mostra um ícone neutro. */
+function LogoEmpresa({ empresaId, nome }: { empresaId: number; nome: string }) {
+  const { data: url } = useQuery<string | null>({
+    queryKey: ["empresa-simbolo", empresaId],
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const r = await fetch(`${apiBase}/paxmed-2b/empresas-simbolos/${empresaId}`, { headers: collabAuthHeaders() });
+      return r.ok ? URL.createObjectURL(await r.blob()) : null;
+    },
+  });
+  return (
+    <div className="vidro-logo" data-testid={`empresa-logo-${empresaId}`} data-com-logo={url ? "sim" : "nao"}>
+      {url ? <img src={url} alt={`Logotipo de ${nome}`} /> : <Building2 className="relative h-7 w-7 text-primary/40" aria-hidden />}
+    </div>
+  );
+}
+
+/** Uma informação do cartão numa janelinha Côncava própria: ícone + valor, sem rótulo escrito. */
+function InfoCartao({ icone: Icone, children, mono }: { icone: LucideIcon; children: React.ReactNode; mono?: boolean }) {
+  return (
+    <div className="concave-3d flex min-h-8 items-center gap-2 px-2.5 py-1 text-[11px]">
+      <Icone className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden />
+      <span className={`min-w-0 truncate text-foreground/80 ${mono ? "font-mono" : ""}`}>{children}</span>
+    </div>
+  );
+}
+
 function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
   empresa: Empresa;
   onEdit: () => void;
   onToggleAtiva: (ativa: boolean) => void;
   onOpen: () => void;
 }) {
+  // O Instituto Pádua é a empresa de acesso do sistema: desativá-lo derrubaria o login (regra também no servidor).
+  const protegida = ehInstitutoPadua(empresa.nome) && empresa.ativa;
   return (
-    <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${ehInstitutoPadua(empresa.nome) ? "panel-3d-active" : ""} ${empresa.ativa ? "" : "opacity-60"}`} data-testid={`empresa-card-${empresa.id}`}>
+    <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${protegida ? "panel-3d-active" : ""} ${empresa.ativa ? "" : "opacity-60"}`} data-testid={`empresa-card-${empresa.id}`}>
       {/* Faixa lateral: genesis=dourado, ativa=teal, inativa=amber */}
       <div className={`absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[6px] ${
         empresa.tipo === "genesis_seed" ? "bg-amber-400" :
@@ -388,66 +422,39 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
       }`} />
 
       <div className="pl-4 pr-3 pt-3 pb-3 flex flex-col gap-2.5 flex-1">
-        {/* Linha de status */}
+        {/* Linha de status: o Gênesis é o ESPELHO do Pádua, nunca um tipo de clínica */}
         <div className="flex items-center gap-2">
           <span className={`paxter-led ${empresa.ativa ? "paxter-led-breathe paxter-led-green" : "paxter-led-amber"}`} />
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            {TIPO_LABELS[empresa.tipo] ?? empresa.tipo}
-          </span>
-          {empresa.tipoUnidade && (
-            <span className="text-[8px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-[3px] font-bold uppercase">
-              {TIPO_UNIDADE_LABELS[empresa.tipoUnidade] ?? empresa.tipoUnidade}
+          {empresa.tipo === "genesis_seed" && (
+            <span className="bevel-3d inline-flex h-5 items-center gap-1 px-2 text-[8px] font-black uppercase tracking-widest text-primary" title="Espelho do Instituto Pádua">
+              <Lock className="h-3 w-3" aria-hidden /> Espelho
             </span>
           )}
           <span className="ml-auto text-[9px] font-mono text-muted-foreground/40">#{empresa.id}</span>
         </div>
 
-        {/* Nome */}
-        <div>
-          <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">{empresa.nome}</h3>
-          {empresa.nomeFantasia && (
-            <p className="text-[10px] text-muted-foreground mt-1">{empresa.nomeFantasia}</p>
-          )}
+        {/* Nome em janela Côncava (insert bevel) + logotipo em vidro à direita */}
+        <div className="flex items-stretch gap-3">
+          <div className="concave-3d flex min-h-[4.75rem] min-w-0 flex-1 flex-col justify-center px-3 py-2">
+            <h3 className="font-black text-[15px] uppercase tracking-tight leading-tight">{empresa.nome}</h3>
+            {empresa.nomeFantasia && (
+              <p className="mt-1 truncate text-[10px] text-muted-foreground">{empresa.nomeFantasia}</p>
+            )}
+          </div>
+          <LogoEmpresa empresaId={empresa.id} nome={empresa.nome} />
         </div>
 
-        {/* Bloco de dados */}
-        <div className="concave-3d p-2.5 space-y-1.5 flex-1">
-          {empresa.cnpj && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <ShieldCheck className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="font-mono text-foreground/70">{empresa.cnpj}</span>
-            </div>
-          )}
+        {/* Cada dado na sua própria janelinha */}
+        <div className="flex flex-1 flex-col gap-1.5">
+          {empresa.cnpj && <InfoCartao icone={ShieldCheck} mono>{empresa.cnpj}</InfoCartao>}
           {(empresa.cidade || empresa.estado) && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-foreground/70">
-                {[empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(" · ")}
-              </span>
-            </div>
+            <InfoCartao icone={MapPin}>{[empresa.bairro, empresa.cidade, empresa.estado].filter(Boolean).join(" · ")}</InfoCartao>
           )}
-          {empresa.telefone && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Phone className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-foreground/70">{empresa.telefone}</span>
-            </div>
-          )}
-          {empresa.emailGeral && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Mail className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-muted-foreground truncate">{empresa.emailGeral}</span>
-            </div>
-          )}
-          {empresa.donoNome && (
-            <div className="flex items-center gap-2 text-[11px]">
-              <Users className="w-3 h-3 shrink-0 text-muted-foreground/60" />
-              <span className="text-primary font-semibold">{empresa.donoNome}</span>
-            </div>
-          )}
+          {empresa.telefone && <InfoCartao icone={Phone}>{empresa.telefone}</InfoCartao>}
+          {empresa.emailGeral && <InfoCartao icone={Mail}>{empresa.emailGeral}</InfoCartao>}
+          {empresa.donoNome && <InfoCartao icone={Users}>{empresa.donoNome}</InfoCartao>}
           {empresa.tipoContrato && (
-            <div className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Modelo comercial histórico: {CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}
-            </div>
+            <InfoCartao icone={ScrollText}>{CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}</InfoCartao>
           )}
         </div>
 
@@ -462,10 +469,12 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
             <Pencil className="w-3.5 h-3.5" /> Editar
           </button>
           {empresa.tipo !== "genesis_seed" && empresa.status !== "ARQUIVADA" && (
-            <label className="bevel-3d px-2.5 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase cursor-pointer">
+            <label className={`bevel-3d px-2.5 py-1.5 flex items-center gap-2 text-[10px] font-black uppercase ${protegida ? "cursor-not-allowed" : "cursor-pointer"}`}
+              title={protegida ? "Empresa de acesso do sistema: não pode ser desativada" : undefined}>
+              {protegida && <Lock className="h-3 w-3" aria-hidden />}
               {empresa.ativa ? "Ativa" : "Inativa"}
-              <Switch checked={empresa.ativa} onCheckedChange={onToggleAtiva} data-testid={`empresa-ativa-${empresa.id}`}
-                aria-label={`${empresa.ativa ? "Desativar" : "Ativar"} empresa ${empresa.nome}`} />
+              <Switch checked={empresa.ativa} onCheckedChange={onToggleAtiva} disabled={protegida} data-testid={`empresa-ativa-${empresa.id}`}
+                aria-label={protegida ? `Empresa ${empresa.nome} protegida: não pode ser desativada` : `${empresa.ativa ? "Desativar" : "Ativar"} empresa ${empresa.nome}`} />
             </label>
           )}
         </div>
@@ -1037,6 +1046,16 @@ export default function CadastroEmpresas() {
   const [painelEmpresa, setPainelEmpresa] = useState<Empresa | null>(null);
   // Por enquanto as inativas continuam visíveis (no fim do próprio grupo); o interruptor do topo as esconde.
   const [mostrarInativas, setMostrarInativas] = useState(true);
+  // Sanfona por cidade: grupos fechados (lembrados neste navegador) para olhar as cidades de baixo sem rolar.
+  const [fechados, setFechados] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("padcom.empresas.gruposFechados") || "[]") as string[]); } catch { return new Set(); }
+  });
+  const alternarGrupo = (chave: string) => setFechados((atual) => {
+    const novo = new Set(atual);
+    if (!novo.delete(chave)) novo.add(chave);
+    return novo;
+  });
+  useEffect(() => { localStorage.setItem("padcom.empresas.gruposFechados", JSON.stringify([...fechados])); }, [fechados]);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
 
   const { data: empresas = [], isLoading, isError, refetch } = useQuery<Empresa[]>({
@@ -1233,6 +1252,16 @@ export default function CadastroEmpresas() {
                 <Switch checked={mostrarInativas} onCheckedChange={setMostrarInativas} data-testid="empresas-mostrar-inativas"
                   aria-label="Mostrar empresas inativas na lista" />
               </label>
+              <span className="ml-2 inline-flex gap-1.5 align-middle">
+                <button type="button" onClick={() => setFechados(new Set(grupos.map((g) => g.chave)))} title="Fechar todas as cidades" aria-label="Fechar todas as cidades"
+                  data-testid="empresas-fechar-todos" className="bevel-3d inline-flex h-7 w-8 items-center justify-center">
+                  <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />
+                </button>
+                <button type="button" onClick={() => setFechados(new Set())} title="Abrir todas as cidades" aria-label="Abrir todas as cidades"
+                  data-testid="empresas-abrir-todos" className="bevel-3d inline-flex h-7 w-8 items-center justify-center">
+                  <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 lg:flex lg:shrink-0">
@@ -1246,7 +1275,7 @@ export default function CadastroEmpresas() {
         </div>
 
         <details className="panel-3d-sub p-4">
-          <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide">Códigos das empresas e locais</summary>
+          <summary className="cursor-pointer list-none"><PlacaTitulo icone={Hash} titulo="Códigos das empresas" /></summary>
           <div className="mt-4"><SemanticCodeManager /></div>
         </details>
 
@@ -1274,17 +1303,22 @@ export default function CadastroEmpresas() {
               const temMultiplaZonas = zonaMap.size > 1;
               return (
                 <div key={grupoChave} data-testid={`empresas-grupo-${grupoChave}`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bevel-3d px-3 py-1.5 flex items-center gap-2 shrink-0">
-                      <MapPin className="w-3.5 h-3.5 text-primary" />
-                      <span className="font-black text-[11px] uppercase tracking-widest" data-testid="empresas-grupo-rotulo">{cidadeKey}</span>
-                      <span className="text-[9px] text-muted-foreground/60 font-bold">
-                        {lista.length} empresa{lista.length !== 1 ? "s" : ""}
-                        {lista.some((e) => !e.ativa) && ` · ${lista.filter((e) => !e.ativa).length} inativa${lista.filter((e) => !e.ativa).length !== 1 ? "s" : ""}`}
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <PlacaTitulo icone={MapPin} titulo={cidadeKey} testId="empresas-grupo-rotulo"
+                      onClick={() => alternarGrupo(grupoChave)} expandido={!fechados.has(grupoChave)} />
                     <div className="h-px bg-primary/15 flex-1" />
+                    <span className="concave-3d inline-flex h-8 min-w-[2.5rem] items-center justify-center px-2 text-[12px] font-black tabular-nums" data-testid="empresas-grupo-contagem">
+                      {lista.length}
+                    </span>
+                    <button type="button" onClick={() => alternarGrupo(grupoChave)} aria-expanded={!fechados.has(grupoChave)}
+                      aria-label={fechados.has(grupoChave) ? `Abrir ${cidadeKey}` : `Fechar ${cidadeKey}`}
+                      data-testid={`empresas-grupo-toggle-${grupoChave}`}
+                      className="bevel-3d inline-flex h-8 w-9 shrink-0 items-center justify-center">
+                      <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${fechados.has(grupoChave) ? "-rotate-90" : ""}`} aria-hidden />
+                    </button>
                   </div>
+                  <SanfonaVertical aberta={!fechados.has(grupoChave)} testId={`empresas-grupo-corpo-${grupoChave}`}>
+                  <div className="pt-4">
                   {temMultiplaZonas ? (
                     <div className="space-y-5 pl-4 border-l-2 border-primary/10">
                       {[...zonaMap.entries()].sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
@@ -1292,9 +1326,7 @@ export default function CadastroEmpresas() {
                         .filter(([, items]) => items.length > 0)
                         .map(([zona, items]) => (
                         <div key={zona}>
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
-                            <Tag className="w-3 h-3" /> {zona}
-                          </p>
+                          {zona !== "—" && <div className="mb-2.5"><PlacaTitulo icone={Tag} titulo={zona} /></div>}
                           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                             {items.map((e) => (
                               <EmpresaCard key={e.id} empresa={e}
@@ -1306,9 +1338,7 @@ export default function CadastroEmpresas() {
                       ))}
                       {lista.some((e) => !e.ativa) && (
                         <div data-testid="empresas-grupo-inativas">
-                          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50 mb-2.5 flex items-center gap-2">
-                            <Tag className="w-3 h-3" /> Inativas de {cidadeKey}
-                          </p>
+                          <div className="mb-2.5"><PlacaTitulo icone={EyeOff} titulo="Inativas" /></div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                             {lista.filter((e) => !e.ativa).map((e) => (
                               <EmpresaCard key={e.id} empresa={e}
@@ -1328,6 +1358,8 @@ export default function CadastroEmpresas() {
                       ))}
                     </div>
                   )}
+                  </div>
+                  </SanfonaVertical>
                 </div>
               );
             })}

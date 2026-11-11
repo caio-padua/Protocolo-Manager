@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Check } from "lucide-react";
+import { PlacaTitulo } from "./placa-titulo";
 
 /**
  * Título de seção dos cadastros (Padrão 37 da skill-layout-paxter).
@@ -37,10 +38,7 @@ export function PlacaSecao({ icone: Icone, titulo, dica, preenchidos, total, cla
 }) {
   return (
     <div className={`col-span-full flex items-center gap-3 pb-2 pt-1 ${className}`} data-testid="placa-secao">
-      <span className="bevel-3d inline-flex h-7 shrink-0 items-center gap-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-        <Icone className="h-3.5 w-3.5" aria-hidden />
-        {titulo}
-      </span>
+      <PlacaTitulo icone={Icone} titulo={titulo} />
       <span className="h-px min-w-4 flex-1 bg-border/60" aria-hidden />
       {dica && <span className="hidden text-[10px] text-muted-foreground sm:inline">{dica}</span>}
       {total !== undefined && preenchidos !== undefined && <ContadorPreenchido preenchidos={preenchidos} total={total} />}
