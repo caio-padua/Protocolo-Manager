@@ -414,3 +414,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Vinculo empresarial do profissional (originario + ate 4 adicionais) e carga inicial dos acessos existentes.
 \ir migrations/20261109_profissional_empresas.sql
+
+-- Cadastro de locais externos (consultorios sublocados do mesmo CNPJ), usado pela agenda EXTERNA.
+\ir migrations/20261116_locais_externos.sql

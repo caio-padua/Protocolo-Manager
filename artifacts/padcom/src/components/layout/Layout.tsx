@@ -227,6 +227,7 @@ const navigation: NavEntry[] = [
       { name: "Cadastro legado de empresas — desativado", href: "/cadastros/empresas-licenciadas", icon: Building2 },
       { name: "Empresa & Clínicas", href: "/configuracoes/empresa", icon: Building2 },
       { name: "Locais de Atendimento", href: "/cadastros/clinicas", icon: Building2 },
+      { name: "Locais externos da Clínica Pádua", href: "/cadastros/locais-externos", icon: MapPin },
       { name: "Corpo Clínico", href: "/professionals", icon: Stethoscope },
       { name: "Equipe (Cadastro Interno)", href: "/cadastros/equipe", icon: Users },
       { name: "Agendas Google", href: "/cadastros/agendas-google", icon: CalendarDays },

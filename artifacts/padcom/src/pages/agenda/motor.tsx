@@ -29,6 +29,7 @@ import { COLLAB_EVENT } from "@/lib/collab-auth";
 import { ComRegistro, LegendaRegistros } from "@/components/MarcadorVinculo";
 import { ListaAgendas } from "./ListaAgendas";
 import { SeletorCorVidro } from "@/components/VidroCor";
+import { SeletorLocalExterno } from "./SeletorLocalExterno";
 import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
 import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
@@ -722,7 +723,10 @@ export default function AgendaMotor() {
               </ComRegistro>
             </Campo>
             {newRes.modality === "externo" && (
-              <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
+              <>
+                <SeletorLocalExterno onEscolher={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
+                <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
+              </>
             )}
             <div className="flex items-center gap-2">
               <div className="w-[8.5rem] shrink-0">
@@ -827,8 +831,11 @@ export default function AgendaMotor() {
                   </Campo>
                 </div>
                 {resDraft.modality === "externo" && (
-                  <EnderecoExternoCampos value={resDraft.endereco}
-                    onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
+                  <div className="space-y-3">
+                    <SeletorLocalExterno onEscolher={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
+                    <EnderecoExternoCampos value={resDraft.endereco}
+                      onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
+                  </div>
                 )}
                 {selected?.categoryStatus === "pendente" && (
                   <p className="paxter-alert paxter-alert-amber px-3 py-2 text-xs font-semibold">
