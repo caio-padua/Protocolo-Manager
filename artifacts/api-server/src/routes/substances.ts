@@ -69,6 +69,26 @@ function serializeComponent(component: typeof substanceBlendComponentsTable.$inf
   };
 }
 
+type ComponentForComparison = Pick<typeof substanceBlendComponentsTable.$inferInsert,
+  "componentSubstanceId" | "sortOrder" | "componentName" | "doseValue" | "doseUnit" | "quantity" | "quantityUnit" | "notes">;
+
+function sameReal(a: number | null | undefined, b: number | null | undefined) {
+  if (a == null || b == null) return a == null && b == null;
+  const left = Math.fround(a), right = Math.fround(b);
+  return Number.isFinite(left) && Number.isFinite(right) && left === right;
+}
+
+function sameComponents(current: ComponentForComparison[], proposed: ComponentForComparison[]) {
+  return current.length === proposed.length && current.every((a, index) => {
+    const b = proposed[index];
+    return a.sortOrder === b.sortOrder && a.componentName === b.componentName &&
+      (a.componentSubstanceId ?? null) === (b.componentSubstanceId ?? null) &&
+      sameReal(a.doseValue, b.doseValue) && (a.doseUnit ?? null) === (b.doseUnit ?? null) &&
+      sameReal(a.quantity, b.quantity) && (a.quantityUnit ?? null) === (b.quantityUnit ?? null) &&
+      (a.notes ?? null) === (b.notes ?? null);
+  });
+}
+
 router.get("/substances", async (_req, res): Promise<void> => {
   const substances = await db.select().from(substancesTable);
   const components = await db.select().from(substanceBlendComponentsTable);
@@ -148,11 +168,18 @@ router.put("/substances/:id/components", requireCatalogOwner, async (req, res): 
       : components.length > 0;
 
     await db.transaction(async (tx) => {
-      // Atualizar primeiro a apresentação bloqueia a linha durante toda a
-      // troca e impede que duas composições simultâneas sejam misturadas.
-      await tx.update(substancesTable)
-        .set({ isBlend })
-        .where(eq(substancesTable.id, id));
+      // A trava antecede a leitura e a escrita; alterações concorrentes são
+      // comparadas com o estado efetivamente confirmado pela outra transação.
+      const [locked] = await tx.select({ id: substancesTable.id, isBlend: substancesTable.isBlend })
+        .from(substancesTable).where(eq(substancesTable.id, id)).for("update");
+      if (!locked) throw new Error("Substância não encontrada.");
+      const previous = await tx.select().from(substanceBlendComponentsTable)
+        .where(eq(substanceBlendComponentsTable.substanceId, id));
+      previous.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+      if (locked.isBlend !== isBlend) {
+        await tx.update(substancesTable).set({ isBlend }).where(eq(substancesTable.id, id));
+      }
+      if (sameComponents(previous, components)) return;
       await tx.delete(substanceBlendComponentsTable)
         .where(eq(substanceBlendComponentsTable.substanceId, id));
       if (components.length > 0) {

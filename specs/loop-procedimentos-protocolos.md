@@ -139,6 +139,22 @@ Por segurança, substituir componentes por uma lista idêntica ainda altera o
 contador: isso pode exigir revisão desnecessária, mas não confirma dose alterada
 sem conferência. A comparação semântica de listas fica pendente antes da ativação.
 
+### Composição idêntica enviada novamente
+
+A rota de edição compara, dentro da transação e após bloquear a apresentação,
+todos os campos preservados e a ordem dos componentes. Se forem idênticos, não
+apaga nem recria componentes; mantém seus identificadores e a revisão da dose.
+Alteração do indicador de composto continua registrada, mesmo com lista igual.
+Qualquer diferença, inclusive ordem, nome, unidade, observação ou vínculo,
+conserva a substituição transacional existente. O bloqueio de revisão automática
+permanece ativo: esta correção não libera a sincronização sozinha.
+
+Provas em banco isolado: repetição sem alteração preserva identificadores e
+revisão; alteração de um componente, da ordem e do indicador de composto é
+registrada; sessões concorrentes não misturam componentes; falhas revertem
+integralmente; autorização existente é preservada. Não alterar o banco de
+desenvolvimento nem reiniciar o serviço com rotinas de escrita.
+
 ## Complemento de conferência do cadastro
 
 O catálogo de substâncias apresentado na tela não representa procedimentos já

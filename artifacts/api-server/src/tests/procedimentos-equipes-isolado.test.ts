@@ -360,7 +360,7 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       let esperando = 0;
       do {
         const resultado = await state.pool.query(`SELECT count(*)::int AS total FROM pg_stat_activity
-          WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE 'update%substances%'`);
+          WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE '%from "substances"%' AND query ILIKE '%for update%'`);
         esperando = resultado.rows[0].total;
         if (esperando < 2) await new Promise((resolve) => setTimeout(resolve, 30));
       } while (esperando < 2 && Date.now() < prazo);
@@ -396,6 +396,57 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       { component_name: "Vitamina A", dose_value: 10, dose_unit: "UI" },
       { component_name: "Vitamina D", dose_value: 100, dose_unit: "UI" },
     ]);
+  });
+  it("preserva revisão e identificadores ao salvar composição idêntica", async () => {
+    const atual = await state.pool.query(`SELECT id,component_name,dose_value,dose_unit FROM substance_blend_components
+      WHERE substance_id=103 ORDER BY sort_order,id`);
+    const antes = (await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose;
+    const componentes = atual.rows.map((c: any) => ({ componentName: c.component_name, doseValue: c.dose_value, doseUnit: c.dose_unit }));
+    const resposta = await request(app).put("/substances/103/components")
+      .set("Authorization", `Bearer ${token(1)}`).send({ isBlend: true, components: componentes });
+    expect(resposta.status).toBe(200);
+    const depois = await state.pool.query(`SELECT id,component_name,dose_value,dose_unit FROM substance_blend_components
+      WHERE substance_id=103 ORDER BY sort_order,id`);
+    expect(depois.rows).toEqual(atual.rows);
+    expect((await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose).toBe(antes);
+  });
+  it("mantém componentes completos e arredondamento real idêntico", async () => {
+    await state.pool.query("INSERT INTO substances(id,name,procedure_type,doctor_participation) VALUES (107,'Produto sintético decimal','im',false)");
+    const componente = { componentSubstanceId: 101, componentName: "Componente completo",
+      doseValue: 0.1, doseUnit: "mg", quantity: 0.3, quantityUnit: "unidade", notes: "Observação preservada" };
+    const editar = (body: object) => request(app).put("/substances/107/components")
+      .set("Authorization", `Bearer ${token(1)}`).send({ isBlend: true, components: [body] });
+    expect((await editar(componente)).status).toBe(200);
+    const antes = await state.pool.query("SELECT * FROM substance_blend_components WHERE substance_id=107");
+    const versao = (await state.pool.query("SELECT revisao_dose FROM substances WHERE id=107")).rows[0].revisao_dose;
+    expect((await editar({ ...componente, quantity: 0.3000000001 })).status).toBe(200);
+    const depois = await state.pool.query("SELECT * FROM substance_blend_components WHERE substance_id=107");
+    expect(depois.rows).toEqual(antes.rows);
+    expect((await state.pool.query("SELECT revisao_dose FROM substances WHERE id=107")).rows[0].revisao_dose).toBe(versao);
+    expect((await editar({ ...componente, notes: "Observação alterada" })).status).toBe(200);
+    expect(BigInt((await state.pool.query("SELECT revisao_dose FROM substances WHERE id=107")).rows[0].revisao_dose)).toBeGreaterThan(BigInt(versao));
+  });
+  it("registra mudanças na ordem, em anotações e no indicador de composto", async () => {
+    const componentes = [
+      { componentName: "Vitamina A", doseValue: 10, doseUnit: "UI", notes: "Conferir" },
+      { componentName: "Vitamina D", doseValue: 100, doseUnit: "UI" },
+    ];
+    const editar = (isBlend: boolean, items: typeof componentes) => request(app).put("/substances/103/components")
+      .set("Authorization", `Bearer ${token(1)}`).send({ isBlend, components: items });
+    const revisao = async () => BigInt((await state.pool.query("SELECT revisao_dose FROM substances WHERE id=103")).rows[0].revisao_dose);
+    const inicio = await revisao();
+    expect((await editar(true, componentes)).status).toBe(200);
+    const anotacao = await revisao();
+    expect(anotacao).toBeGreaterThan(inicio);
+    expect((await editar(true, [...componentes].reverse())).status).toBe(200);
+    const ordem = await revisao();
+    expect(ordem).toBeGreaterThan(anotacao);
+    expect((await editar(false, [...componentes].reverse())).status).toBe(200);
+    expect(await revisao()).toBeGreaterThan(ordem);
+    expect((await editar(true, [
+      { componentName: "Vitamina A", doseValue: 10, doseUnit: "UI" },
+      { componentName: "Vitamina D", doseValue: 100, doseUnit: "UI" },
+    ])).status).toBe(200);
   });
   it("desfaz integralmente a operação que perder disputa entre rota e escritor direto", async () => {
     const componente = (await state.pool.query("SELECT id FROM substance_blend_components WHERE substance_id=103 ORDER BY sort_order LIMIT 1")).rows[0].id;
