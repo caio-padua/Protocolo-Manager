@@ -1,51 +1,34 @@
-import { useId, type CSSProperties } from "react";
+import { useId } from "react";
 
 /**
- * Cor da agenda como uma PEDRA LAPIDADA vista de cima (lapidação princesa) engastada em ouro:
- * quatro facetas de tons diferentes em volta de uma mesa central translúcida. A luz vem do canto
- * superior esquerdo, então a faceta de cima e a da esquerda são mais claras e as outras, mais
- * escuras. Não há reflexo branco nem brilho aplicado: o efeito de vidro vem só da lapidação,
- * e nada passa do limite da pedra.
+ * Cor da agenda como um vidro translúcido, sempre na COR JÁ CADASTRADA da agenda (nada de paleta
+ * nova). Tampo plano com bordas e quinas levemente arredondadas, relevo fino (chanfro no topo e
+ * assentamento na base) e luz que só existe DENTRO do vidro: ao passar o mouse, uma fenda de luz
+ * (mistura "overlay", ou seja, pega a cor do vidro e não vira faixa branca) varre o quadradinho.
+ * Em repouso não há nenhum brilho aplicado. Estilos em index.css (.vidro-cor).
  */
 export function VidroCor({ cor, tamanho = 32 }: { cor: string; tamanho?: number }) {
-  const mix = (outra: string, pct: number) => `color-mix(in srgb, ${outra} ${pct}%, ${cor})`;
-  const faceta = (clip: string, fundo: string): CSSProperties => ({
-    position: "absolute", inset: 0, clipPath: clip, background: fundo,
-  });
   return (
     <span
-      className="relative inline-block shrink-0 overflow-hidden"
+      className="vidro-cor"
       aria-hidden="true"
       style={{
         width: tamanho,
         height: tamanho,
-        borderRadius: Math.max(4, Math.round(tamanho * 0.14)),
-        background: cor,
+        borderRadius: Math.max(5, Math.round(tamanho * 0.2)),
+        background: [
+          "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%, rgba(0,0,0,0.16) 100%)",
+          `color-mix(in srgb, ${cor} 90%, transparent)`,
+        ].join(", "),
+        borderColor: `color-mix(in srgb, ${cor} 55%, #b8924d)`,
         boxShadow: [
-          `0 0 0 1px color-mix(in srgb, ${cor} 55%, #3a2a0c)`,
-          `0 0 0 2px rgba(184,146,77,0.6)`,
-          `0 2px 3px rgba(7,22,43,0.35)`,
+          "inset 0 1px 1px rgba(255,255,255,0.35)",
+          "inset 0 -1px 2px rgba(0,0,0,0.38)",
+          `inset 0 0 8px color-mix(in srgb, ${cor} 55%, transparent)`,
+          "0 3px 6px -2px rgba(7,22,43,0.45)",
         ].join(", "),
       }}
-    >
-      {/* facetas: topo e esquerda recebem luz; direita e base ficam na sombra */}
-      <span style={faceta("polygon(0 0, 100% 0, 75% 25%, 25% 25%)", mix("white", 38))} />
-      <span style={faceta("polygon(0 0, 25% 25%, 25% 75%, 0 100%)", mix("white", 18))} />
-      <span style={faceta("polygon(100% 0, 100% 100%, 75% 75%, 75% 25%)", mix("black", 22))} />
-      <span style={faceta("polygon(0 100%, 25% 75%, 75% 75%, 100% 100%)", mix("black", 42))} />
-      {/* mesa da pedra: translúcida, mais luminosa no canto da luz */}
-      <span
-        style={{
-          position: "absolute", left: "25%", top: "25%", width: "50%", height: "50%",
-          background: `linear-gradient(135deg, ${mix("white", 30)} 0%, ${cor} 55%, ${mix("black", 12)} 100%)`,
-        }}
-      />
-      {/* arestas finas entre as facetas */}
-      <svg viewBox="0 0 32 32" width="100%" height="100%" style={{ position: "absolute", inset: 0 }} fill="none" strokeWidth="0.7">
-        <path d="M0 0 L8 8 M32 0 L24 8 M0 32 L8 24 M32 32 L24 24" stroke="rgba(0,0,0,0.28)" />
-        <rect x="8" y="8" width="16" height="16" stroke="rgba(0,0,0,0.3)" />
-      </svg>
-    </span>
+    />
   );
 }
 
