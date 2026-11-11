@@ -1,3 +1,4 @@
+import { textoExternoDaAgenda } from "../lib/agenda-endereco-externo.js";
 import { Router, type IRouter, type Request } from "express";
 import { and, eq } from "drizzle-orm";
 import {
@@ -54,7 +55,7 @@ async function explicitDestination(req: Request, session: typeof sessionsTable.$
     eq(locationProfessionalsTable.professionalId, req.collaborator!.professionalId),
   ));
   if (!membership) return null;
-  return { resource, location, calendarId: resource.googleCalendarId };
+  return { resource, location, calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
 }
 
 router.get("/google-calendar/status", requireCollaborator, async (_req, res): Promise<void> => {
@@ -153,9 +154,8 @@ router.post("/google-calendar/sync-session/:sessionId", requireCollaborator, asy
   const isDomiciliar = location.address?.toLowerCase().includes("itinerante") ||
     session.unit?.toLowerCase().includes("domiciliar") ||
     session.unit?.toLowerCase().includes("nurse care");
-  const resolvedAddress = isDomiciliar && client.address
-    ? client.address
-    : location.address ?? undefined;
+  const resolvedAddress = destination.externalAddress
+    ?? (isDomiciliar && client.address ? client.address : location.address ?? undefined);
 
   const targetCalendarId = destination.calendarId;
 
@@ -309,9 +309,8 @@ router.post("/google-calendar/sync-week", requireCollaborator, async (req, res):
     const isDomiciliar2 = location.address?.toLowerCase().includes("itinerante") ||
       session.unit?.toLowerCase().includes("domiciliar") ||
       session.unit?.toLowerCase().includes("nurse care");
-    const resolvedAddr = isDomiciliar2 && client.address
-      ? client.address
-      : location.address ?? undefined;
+    const resolvedAddr = destination.externalAddress
+      ?? (isDomiciliar2 && client.address ? client.address : location.address ?? undefined);
 
     const targetCal = destination.calendarId;
 

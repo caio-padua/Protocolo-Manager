@@ -5,6 +5,10 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { AgendaExternalAddress } from "./agendaExternalAddress";
+import type { AgendaResourceCategoryStatus } from "./agendaResourceCategoryStatus";
+import type { AgendaResourceExternalAddressStatus } from "./agendaResourceExternalAddressStatus";
+import type { AgendaResourceSharing } from "./agendaResourceSharing";
 
 export interface AgendaResource {
   id: number;
@@ -15,6 +19,17 @@ export interface AgendaResource {
   slotMinutes: number;
   professionalId?: number | null;
   locationId?: number | null;
+  empresaId?: number | null;
+  canManage?: boolean;
+  externalAddress?: AgendaExternalAddress | null;
+  externalAddressText?: string | null;
+  externalAddressStatus?: AgendaResourceExternalAddressStatus;
+  mapsUrl?: string | null;
+  wazeUrl?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  categoryStatus?: AgendaResourceCategoryStatus;
+  sharing?: AgendaResourceSharing;
   active: boolean;
   sortOrder: number;
 }

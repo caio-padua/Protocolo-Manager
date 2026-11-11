@@ -4611,6 +4611,26 @@ components:
       required: [ok]
       properties:
         ok: { type: boolean }
+    AgendaExternalAddress:
+      type: object
+      required: [cep, logradouro, bairro, cidade, uf, numero]
+      properties:
+        cep:
+          type: string
+        logradouro:
+          type: string
+        bairro:
+          type: string
+        cidade:
+          type: string
+        uf:
+          type: string
+        numero:
+          type: string
+        complemento:
+          type: string
+          nullable: true
+
     AgendaResource:
       type: object
       required: [id, name, kind, modality, color, slotMinutes, active, sortOrder]
@@ -4633,6 +4653,40 @@ components:
         locationId:
           type: integer
           nullable: true
+        empresaId:
+          type: integer
+          nullable: true
+        canManage:
+          type: boolean
+        externalAddress:
+          allOf:
+            - $ref: "#/components/schemas/AgendaExternalAddress"
+          nullable: true
+        externalAddressText:
+          type: string
+          nullable: true
+        externalAddressStatus:
+          type: string
+          nullable: true
+          enum: [confirmado, pendente]
+        mapsUrl:
+          type: string
+          nullable: true
+        wazeUrl:
+          type: string
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        categoryStatus:
+          type: string
+          enum: [confirmada, pendente]
+        sharing:
+          type: string
+          enum: [individual, compartilhada]
         active:
           type: boolean
         sortOrder:
@@ -4640,12 +4694,12 @@ components:
 
     CreateAgendaResourceBody:
       type: object
-      required: [name, kind, modality]
+      required: [name, categoryId, modality]
       properties:
         name:
           type: string
-        kind:
-          type: string
+        categoryId:
+          type: integer
         modality:
           type: string
         color:
@@ -4658,6 +4712,8 @@ components:
         locationId:
           type: integer
           nullable: true
+        externalAddress:
+          $ref: "#/components/schemas/AgendaExternalAddress"
         sortOrder:
           type: integer
 
@@ -4666,8 +4722,8 @@ components:
       properties:
         name:
           type: string
-        kind:
-          type: string
+        categoryId:
+          type: integer
         modality:
           type: string
         color:
@@ -4680,6 +4736,8 @@ components:
         locationId:
           type: integer
           nullable: true
+        externalAddress:
+          $ref: "#/components/schemas/AgendaExternalAddress"
         active:
           type: boolean
         sortOrder:
@@ -4932,6 +4990,9 @@ components:
           type: integer
         name:
           type: string
+        categoryId:
+          type: integer
+          nullable: true
     AgendaIntegrationState:
       type: object
       required: [agendas, professionals, resources, globalSettingsOwnerOnly, canManageGlobalSettings, companyId]

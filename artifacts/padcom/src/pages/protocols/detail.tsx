@@ -10,6 +10,7 @@ import { ArrowLeft, Clock, Download, Home, Building2, User, Zap, Printer, Loader
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import { ProcedimentosDoProtocolo } from "./ProcedimentosDoProtocolo";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 import { dosePrescritaExibivel, nomeSubstanciaProtocolo } from "@/lib/protocol-substance-selection";
@@ -664,6 +665,8 @@ export default function ProtocolDetail() {
           </CardContent>
         </Card>
       )}
+
+      <ProcedimentosDoProtocolo protocolId={protocol.id} />
 
       {/* R8 — Catálogo de substâncias do protocolo (kanban + progresso) */}
       <Card className="panel-3d">

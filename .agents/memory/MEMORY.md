@@ -160,3 +160,4 @@
 - [Chat do CEO no Telegram — cofre x Secret](telegram-ceo-chatid-cofre-vs-secret.md) — Secret PADAXOR_TELEGRAM_CHAT_ID está errado; só a API hidrata o cofre; worker e scripts não.
 - [IHE já desenhou PIN, rubrica e app da enfermagem](ihe-app-enfermagem-pin-rubrica.md) — formatos de rubrica já decididos em 12/06/2026 no IHE; ler IHE antes de construir; como ler via PAT; K8 sem Hermes.
 - [Rubrica do cliente em imagem](rubrica-cliente-imagem.md) — tabela com histórico + arquivo privado; RAS troca iniciais por imagem só em plena/cadastro; pngjs aceita PNG cortado e entrelaçado sem teto.
+- [Agenda por categoria, local polimórfico, equipe](agenda-categoria-local-equipe.md) — categoria pendente≠inferida; locations mistura espaço físico e agenda Google (não fundir); tabelas de equipe por migração explícita.

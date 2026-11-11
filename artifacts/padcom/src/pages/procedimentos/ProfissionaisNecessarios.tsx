@@ -1,3 +1,4 @@
+import { MarcadorVinculo } from "@/components/MarcadorVinculo";
 import * as ApiClient from "@workspace/api-client-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
       <h3 className="text-xs font-black uppercase tracking-widest text-primary">Profissionais necessários</h3>
       <p className="text-sm text-muted-foreground">
         Escolha uma ou mais alternativas em cada necessidade. Cada necessidade exige uma pessoa diferente.
-        As agendas são informativas; nenhum horário será reservado.
+        Esta é a equipe padrão do procedimento. Nenhum horário é reservado aqui: a reserva acontece no protocolo, ocorrência por ocorrência, e o prescritor pode alterar a equipe (até três).
       </p>
       <div className="concave-3d space-y-1 p-3 text-xs text-foreground">
         <p>Aplicação de substância: enfermagem.</p>
@@ -39,14 +40,14 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
           <fieldset key={index} className="concave-3d space-y-3 p-3">
             <legend className="text-xs font-bold text-primary">Necessidade {index + 1}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-bold">Local da clínica
+              <label className="text-xs font-bold">Local da clínica<MarcadorVinculo codigo="L1" />
                 <select className="field-engraved mt-1 min-h-11 w-full px-2" value={grupo.localId || ""}
                   onChange={(e) => alterar(index, { ...grupo, localId: Number(e.target.value), professionalIds: [] })}>
                   <option value="">Selecione o local</option>
                   {(query.data?.locais ?? []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold">Categoria profissional
+              <label className="text-xs font-bold">Categoria profissional<MarcadorVinculo codigo="C1" />
                 <select className="field-engraved mt-1 min-h-11 w-full px-2" value={grupo.areaId || ""}
                   onChange={(e) => alterar(index, { ...grupo, areaId: Number(e.target.value), professionalIds: [] })}>
                   <option value="">Selecione a categoria</option>
@@ -62,7 +63,7 @@ export function ProfissionaisNecessarios({ grupos, onChange, enabled, identidade
                   ...grupo, professionalIds: checked === true
                     ? [...grupo.professionalIds, p.id] : grupo.professionalIds.filter((id) => id !== p.id),
                 })} aria-label={`Selecionar ${p.nome}`} />
-                <span><strong>{p.nome}</strong><br />
+                <span><strong>{p.nome}</strong><MarcadorVinculo codigo="P1" /><br />
                   <span className="text-xs text-muted-foreground">{p.agendas.length
                     ? p.agendas.map((a) => `${a.origem}: ${a.nome}`).join(" · ")
                     : "Sem agenda vinculada a este profissional e local"}</span>

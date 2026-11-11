@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import { mayManageAgenda } from "../lib/agenda-governance";
+import { condicaoCorpoClinico } from "../lib/corpo-clinico.js";
 import { canonicalWindows, validWindowRecurrence } from "../lib/agenda-window-recurrence";
 import { syncGoogleAgenda } from "../lib/agenda-google-sync";
 import {
@@ -30,11 +31,12 @@ router.get("/agenda/integration", async (req,res): Promise<void> => {
     WHERE l.empresa_id=${req.tenantContext.empresaId} AND l.active='true' AND l.google_calendar_id IS NOT NULL ORDER BY l.id`);
   const agendas = [];
   for (const row of result.rows) agendas.push({...row,canManage:await mayManageAgenda(req,Number(row.id))});
-  const professionals = await db.execute(sql`SELECT DISTINCT p.id,p.name FROM professionals p
-    JOIN location_professionals lp ON lp.professional_id=p.id JOIN locations l ON l.id=lp.location_id
-    WHERE l.empresa_id=${req.tenantContext.empresaId} AND p.active ORDER BY p.name`);
+  // Corpo Clínico da clínica (mesma regra do cadastro): não depende de a pessoa já ter agenda ou vínculo de local.
+  const professionals = await db.execute(sql`SELECT DISTINCT p.id,p.name,p.area_id AS "categoryId" FROM professionals p
+    WHERE p.active AND ${condicaoCorpoClinico(req.tenantContext.empresaId!)} ORDER BY p.name`);
   const resources = await db.execute(sql`SELECT r.id,r.name,r.location_id AS "locationId" FROM agenda_resources r
-    JOIN locations l ON l.id=r.location_id WHERE l.empresa_id=${req.tenantContext.empresaId} AND r.active ORDER BY r.sort_order`);
+    LEFT JOIN locations l ON l.id=r.location_id
+    WHERE COALESCE(r.empresa_id,l.empresa_id)=${req.tenantContext.empresaId} AND r.active ORDER BY r.sort_order`);
   res.json(GetAgendaIntegrationResponse.parse(JSON.parse(JSON.stringify({
     agendas,professionals:professionals.rows,resources:resources.rows,globalSettingsOwnerOnly:true,
     canManageGlobalSettings:Boolean(req.tenantContext.authenticated && req.tenantContext.isPlatformOwner),

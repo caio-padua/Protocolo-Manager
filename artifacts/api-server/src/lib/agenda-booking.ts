@@ -145,8 +145,9 @@ export interface BookParams {
 }
 
 export async function lockAgendaResource(executor: AgendaExecutor, resourceId: number) {
-  const result = await executor.execute(sql`SELECT l.empresa_id FROM agenda_resources r
-    JOIN locations l ON l.id=r.location_id WHERE r.id=${resourceId} AND r.active AND l.active='true'`);
+  const result = await executor.execute(sql`SELECT COALESCE(r.empresa_id,l.empresa_id) AS empresa_id FROM agenda_resources r
+    LEFT JOIN locations l ON l.id=r.location_id
+    WHERE r.id=${resourceId} AND r.active AND (r.location_id IS NULL OR l.active='true')`);
   const empresaId = Number(result.rows[0]?.empresa_id);
   if (!empresaId) return null;
   await executor.execute(sql`SELECT pg_advisory_xact_lock(19872026,${empresaId})`);
@@ -157,6 +158,8 @@ export async function lockAgendaResource(executor: AgendaExecutor, resourceId: n
  * Marca uma sessao num slot. Valida pelo motor que o horario esta ABERTO (reconsulta
  * a ocupacao real para evitar corrida). Opcionalmente sincroniza com o Google Calendar.
  */
+const RESERVABLE_KINDS = new Set(["medico", "enfermagem"]);
+
 export async function bookSession(params: BookParams): Promise<BookResult> {
   if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
   return db.transaction(async (tx) => {
@@ -172,6 +175,9 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
 
   const computed = await computeResourceSlots(resourceId, date, null, db);
   if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
+  if (!RESERVABLE_KINDS.has(computed.resource.kind)) {
+    return { ok: false, status: 422, error: "Esta agenda é de uma categoria profissional sem reserva de procedimento habilitada. Nada foi agendado." };
+  }
 
   const slot = computed.result.slots.find((s) => s.time === time);
   if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };
@@ -311,6 +317,9 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
 
   const computed = await computeResourceSlots(resourceId, date, null, db, sessionId);
   if (!computed) return { ok: false, status: 404, error: "Recurso não encontrado" };
+  if (!RESERVABLE_KINDS.has(computed.resource.kind)) {
+    return { ok: false, status: 422, error: "Esta agenda é de uma categoria profissional sem reserva de procedimento habilitada. Nada foi remarcado." };
+  }
 
   const slot = computed.result.slots.find((s) => s.time === time);
   if (!slot) return { ok: false, status: 409, error: "Horário fora do expediente deste recurso" };

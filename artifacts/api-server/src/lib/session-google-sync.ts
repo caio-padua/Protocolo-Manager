@@ -1,3 +1,4 @@
+import { textoExternoDaAgenda } from "./agenda-endereco-externo.js";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import {
@@ -252,7 +253,7 @@ export interface ProtocolGoogleSyncParams {
 export const MAX_VISITS_PER_GOOGLE_SYNC = 40;
 
 type Destination =
-  | { ok: true; resourceKind: string; location: typeof locationsTable.$inferSelect; calendarId: string }
+  | { ok: true; resourceKind: string; location: typeof locationsTable.$inferSelect; calendarId: string; externalAddress: string | null }
   | { ok: false; code: string; error: string };
 
 /** `professionalId` nulo = o chamador já autorizou a sessão (ex.: atualização depois de remarcar); não confere vínculo. */
@@ -283,7 +284,8 @@ async function resolveResourceDestination(resourceId: number | null, empresaId: 
       return { ok: false, code: "sem_vinculo_local", error: "O profissional logado não está vinculado ao local da agenda." };
     }
   }
-  return { ok: true, resourceKind: resource.kind, location, calendarId: resource.googleCalendarId };
+  // Agenda EXTERNA: o endereço digitado na própria agenda (via CEP) é o do atendimento; senão vale o do local ligado.
+  return { ok: true, resourceKind: resource.kind, location, calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
 }
 
 /**
@@ -386,7 +388,7 @@ async function buildVisitEvent(
       // sessão não acompanha cancelamento nem remarcação e geraria "3/2" na descrição.
       weekNumber: position, totalAppointments: totalVisits,
       unit: session.unit ?? location.name,
-      locationAddress: itinerant && client.address ? client.address : location.address ?? undefined,
+      locationAddress: destination.externalAddress ?? (itinerant && client.address ? client.address : location.address ?? undefined),
       locationPhone: location.phone ?? undefined, calendarId: destination.calendarId,
       procedureType: primaryType, procedureLabel: procedureTypeLabel(primaryType),
       activeProcedureTypes: Array.from(dispTypes), substances,

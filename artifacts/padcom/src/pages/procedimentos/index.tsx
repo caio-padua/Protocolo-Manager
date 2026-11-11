@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MarcadorVinculo } from "@/components/MarcadorVinculo";
 import { Textarea } from "@/components/ui/textarea";
 
 type TipoProcedimento = "consulta" | "enfermagem" | "medico";
@@ -592,7 +593,7 @@ export default function Procedimentos() {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <label htmlFor="procedimento-nome" className="text-xs font-bold text-foreground">
-                    Nome <span className="text-red-700" aria-hidden="true">*</span>
+                    Nome <span className="text-red-700" aria-hidden="true">*</span><MarcadorVinculo codigo="D1" />
                   </label>
                   <Input
                     id="procedimento-nome"

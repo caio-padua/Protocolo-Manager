@@ -5,15 +5,17 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { AgendaExternalAddress } from "./agendaExternalAddress";
 
 export interface UpdateAgendaResourceBody {
   name?: string;
-  kind?: string;
+  categoryId?: number;
   modality?: string;
   color?: string;
   slotMinutes?: number;
   professionalId?: number | null;
   locationId?: number | null;
+  externalAddress?: AgendaExternalAddress;
   active?: boolean;
   sortOrder?: number;
 }

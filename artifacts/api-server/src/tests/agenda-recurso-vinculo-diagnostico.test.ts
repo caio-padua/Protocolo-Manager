@@ -24,6 +24,7 @@ vi.mock("../lib/agenda-booking.js", () => ({
   computeResourceSlots: vi.fn(), bookSession: vi.fn(), cancelBooking: vi.fn(), clearSimulations: vi.fn(),
 }));
 import router from "../routes/agenda";
+import { AGENDA_CATEGORIA_AUDITORIA_DDL } from "../lib/agenda-recurso-categoria";
 
 let isolated: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const app = express().use(express.json(), (req, _res, next) => {
@@ -36,22 +37,26 @@ const app = express().use(express.json(), (req, _res, next) => {
   next();
 }, router);
 
-const tela = { name: "Agenda sintética", kind: "enfermagem", modality: "local", color: "#16284a", sortOrder: 0 };
+const tela = { name: "Agenda sintética", kind: "enfermagem", modality: "local", color: "#16284a", sortOrder: 0, categoryId: 2 };
 
 beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   await isolated.pool.query(`
-    CREATE TABLE locations (id INTEGER PRIMARY KEY, empresa_id INTEGER, active TEXT);
+    CREATE TABLE locations (id INTEGER PRIMARY KEY, empresa_id INTEGER, active TEXT, name TEXT DEFAULT 'Sala', google_calendar_id TEXT, agenda_papel TEXT DEFAULT 'local');
     INSERT INTO locations VALUES (8,5,'true'), (18,5,'true'), (9,6,'true');
-    CREATE TABLE professionals (id INTEGER PRIMARY KEY, active BOOLEAN NOT NULL);
-    INSERT INTO professionals VALUES (42,true);
+    CREATE TABLE professional_areas (id integer PRIMARY KEY, name text, slug text, professional_type text, active boolean, sort_order integer DEFAULT 0);
+    INSERT INTO professional_areas VALUES (1,'Medicina','medicina','medico',true,1),(2,'Enfermagem','enfermagem','nao_medico',true,2);
+    CREATE TABLE professionals (id INTEGER PRIMARY KEY, active BOOLEAN NOT NULL, area_id INTEGER, empresa_id INTEGER);
+    CREATE TABLE professional_empresas (professional_id integer, empresa_id integer);
+    INSERT INTO professionals VALUES (42,true,2,5);
     CREATE TABLE location_professionals (location_id INTEGER, professional_id INTEGER);
     INSERT INTO location_professionals VALUES (18,42);
     CREATE TABLE agenda_resources (
       id SERIAL PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
       modality TEXT NOT NULL, color TEXT NOT NULL, slot_minutes INTEGER NOT NULL DEFAULT 30,
-      professional_id INTEGER, location_id INTEGER, google_calendar_id TEXT,
+      professional_id INTEGER, location_id INTEGER, google_calendar_id TEXT, category_id INTEGER, empresa_id INTEGER,
+      external_cep TEXT, external_logradouro TEXT, external_bairro TEXT, external_cidade TEXT, external_uf TEXT, external_numero TEXT, external_complemento TEXT,
       active BOOLEAN NOT NULL DEFAULT true, sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -61,6 +66,7 @@ beforeAll(async () => {
       anchor_date TEXT, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  await isolated.pool.query(AGENDA_CATEGORIA_AUDITORIA_DDL);
 }, 60_000);
 
 beforeEach(async () => {
@@ -75,11 +81,14 @@ afterAll(async () => {
 }, 60_000);
 
 describe("Diagnóstico da criação de agenda no banco descartável", () => {
-  it("dados enviados pela tela sem local são recusados pela proteção, sem inserir agenda", async () => {
+  it("sem local, a agenda nova nasce na clínica da sessão (não exige escolher outra agenda) e fica isolada da outra clínica", async () => {
     const result = await request(app).post("/agenda/resources").send(tela);
-    expect(result.status).toBe(403);
-    expect(result.body.error).toContain("administrador autorizado");
-    expect((await isolated.pool.query("SELECT count(*)::int AS total FROM agenda_resources")).rows[0].total).toBe(1);
+    expect(result.status).toBe(201);
+    expect(result.body).toMatchObject({ locationId: null, empresaId: 5, categoryId: 2 });
+    const listaA = await request(app).get("/agenda/resources").set("x-clinica-teste", "5");
+    const listaB = await request(app).get("/agenda/resources").set("x-clinica-teste", "6");
+    expect(listaA.body.map((row: any) => row.id)).toContain(result.body.id);
+    expect(listaB.body.map((row: any) => row.id)).not.toContain(result.body.id);
   });
   it("local autorizado sem profissional cria agenda visível, mas sem vínculo profissional", async () => {
     const result = await request(app).post("/agenda/resources").send({ ...tela, locationId: 8 });

@@ -4,16 +4,19 @@ import { projectImportedCommitment, type ImportedCommitment } from "./agenda-goo
 
 export type AgendaExecutor = Pick<typeof db, "execute" | "select" | "insert" | "update">;
 export async function loadAgendaOccupancy(
-  resource: { id: number; professionalId: number | null; locationId: number | null },
+  resource: { id: number; professionalId: number | null; locationId: number | null; empresaId?: number | null },
   date: string, executor: AgendaExecutor = db, ignoreSessionId?: number,
 ) {
   const start = new Date(`${date}T00:00:00-03:00`);
   const end = new Date(start.getTime() + 86400_000);
+  // Clínica da agenda: a do local ligado (legado) ou a gravada na própria agenda (agenda nova, sem local).
+  const empresaAlvo = resource.locationId != null
+    ? sql`(SELECT empresa_id FROM locations WHERE id=${resource.locationId})`
+    : sql`${resource.empresaId ?? null}::int`;
   const sources = await executor.execute(sql`
     SELECT DISTINCT l.id,l.google_calendar_id FROM locations l
-    JOIN locations target ON target.id=${resource.locationId}
-    WHERE l.empresa_id=target.empresa_id AND l.active='true' AND (
-      l.id=${resource.locationId}
+    WHERE l.empresa_id=${empresaAlvo} AND l.active='true' AND (
+      l.id=${resource.locationId ?? null}::int
       OR EXISTS(SELECT 1 FROM agenda_personal_owners p WHERE p.location_id=l.id
         AND p.empresa_id=l.empresa_id AND p.professional_id=${resource.professionalId})
       OR (${resource.professionalId}::int IS NOT NULL AND EXISTS(SELECT 1 FROM agenda_resources r
@@ -25,7 +28,8 @@ export async function loadAgendaOccupancy(
   const sourceIds = `{${ids.join(",")}}`;
   const blockedRanges: {start: number; end: number}[] = [];
   const occupiedRanges: {start: number; end: number}[] = [];
-  let fresh = true;
+  // Sem clínica identificável não há como provar a ocupação: nada fica livre (falha fechada).
+  let fresh = resource.locationId != null || resource.empresaId != null;
   if (ids.length) {
     const freshness = await executor.execute(sql`SELECT count(*)::int AS expected,
       count(*) FILTER(WHERE last_success > now()-interval '5 minutes' AND error IS NULL)::int AS fresh
@@ -50,8 +54,8 @@ export async function loadAgendaOccupancy(
   const sessions = await executor.execute(sql`
     SELECT s.resource_id,s.scheduled_time,coalesce(s.duration_minutes,r.slot_minutes,30) AS duration FROM sessions s
     JOIN agenda_resources r ON r.id=s.resource_id
-    JOIN locations l ON l.id=r.location_id JOIN locations target ON target.id=${resource.locationId}
-    WHERE l.empresa_id=target.empresa_id AND s.scheduled_date=${date}
+    LEFT JOIN locations l ON l.id=r.location_id
+    WHERE COALESCE(r.empresa_id,l.empresa_id)=${empresaAlvo} AND s.scheduled_date=${date}
       AND s.status IN ('scheduled','confirmed','completed') AND NOT s.agenda_archived
       AND (${ignoreSessionId ?? null}::int IS NULL OR s.id<>${ignoreSessionId ?? null})
       AND (r.id=${resource.id} OR (${resource.professionalId}::int IS NOT NULL AND r.professional_id=${resource.professionalId}))`);

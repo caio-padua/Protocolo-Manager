@@ -6305,6 +6305,27 @@ export const ListAgendaResourcesResponseItem = zod.object({
   slotMinutes: zod.number(),
   professionalId: zod.number().nullish(),
   locationId: zod.number().nullish(),
+  empresaId: zod.number().nullish(),
+  canManage: zod.boolean().optional(),
+  externalAddress: zod
+    .object({
+      cep: zod.string(),
+      logradouro: zod.string(),
+      bairro: zod.string(),
+      cidade: zod.string(),
+      uf: zod.string(),
+      numero: zod.string(),
+      complemento: zod.string().nullish(),
+    })
+    .nullish(),
+  externalAddressText: zod.string().nullish(),
+  externalAddressStatus: zod.enum(["confirmado", "pendente"]).nullish(),
+  mapsUrl: zod.string().nullish(),
+  wazeUrl: zod.string().nullish(),
+  categoryId: zod.number().nullish(),
+  categoryName: zod.string().nullish(),
+  categoryStatus: zod.enum(["confirmada", "pendente"]).optional(),
+  sharing: zod.enum(["individual", "compartilhada"]).optional(),
   active: zod.boolean(),
   sortOrder: zod.number(),
 });
@@ -6317,12 +6338,23 @@ export const ListAgendaResourcesResponse = zod.array(
  */
 export const CreateAgendaResourceBody = zod.object({
   name: zod.string(),
-  kind: zod.string(),
+  categoryId: zod.number(),
   modality: zod.string(),
   color: zod.string().optional(),
   slotMinutes: zod.number().optional(),
   professionalId: zod.number().nullish(),
   locationId: zod.number().nullish(),
+  externalAddress: zod
+    .object({
+      cep: zod.string(),
+      logradouro: zod.string(),
+      bairro: zod.string(),
+      cidade: zod.string(),
+      uf: zod.string(),
+      numero: zod.string(),
+      complemento: zod.string().nullish(),
+    })
+    .optional(),
   sortOrder: zod.number().optional(),
 });
 
@@ -6335,12 +6367,23 @@ export const UpdateAgendaResourceParams = zod.object({
 
 export const UpdateAgendaResourceBody = zod.object({
   name: zod.string().optional(),
-  kind: zod.string().optional(),
+  categoryId: zod.number().optional(),
   modality: zod.string().optional(),
   color: zod.string().optional(),
   slotMinutes: zod.number().optional(),
   professionalId: zod.number().nullish(),
   locationId: zod.number().nullish(),
+  externalAddress: zod
+    .object({
+      cep: zod.string(),
+      logradouro: zod.string(),
+      bairro: zod.string(),
+      cidade: zod.string(),
+      uf: zod.string(),
+      numero: zod.string(),
+      complemento: zod.string().nullish(),
+    })
+    .optional(),
   active: zod.boolean().optional(),
   sortOrder: zod.number().optional(),
 });
@@ -6354,6 +6397,27 @@ export const UpdateAgendaResourceResponse = zod.object({
   slotMinutes: zod.number(),
   professionalId: zod.number().nullish(),
   locationId: zod.number().nullish(),
+  empresaId: zod.number().nullish(),
+  canManage: zod.boolean().optional(),
+  externalAddress: zod
+    .object({
+      cep: zod.string(),
+      logradouro: zod.string(),
+      bairro: zod.string(),
+      cidade: zod.string(),
+      uf: zod.string(),
+      numero: zod.string(),
+      complemento: zod.string().nullish(),
+    })
+    .nullish(),
+  externalAddressText: zod.string().nullish(),
+  externalAddressStatus: zod.enum(["confirmado", "pendente"]).nullish(),
+  mapsUrl: zod.string().nullish(),
+  wazeUrl: zod.string().nullish(),
+  categoryId: zod.number().nullish(),
+  categoryName: zod.string().nullish(),
+  categoryStatus: zod.enum(["confirmada", "pendente"]).optional(),
+  sharing: zod.enum(["individual", "compartilhada"]).optional(),
   active: zod.boolean(),
   sortOrder: zod.number(),
 });
@@ -6497,6 +6561,7 @@ export const GetAgendaIntegrationResponse = zod.object({
     zod.object({
       id: zod.number(),
       name: zod.string(),
+      categoryId: zod.number().nullish(),
     }),
   ),
   resources: zod.array(

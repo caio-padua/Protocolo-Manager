@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { condicaoCorpoClinico } from "./corpo-clinico.js";
 import { clinicManagementPermission, currentResponsibleDoctor } from "./clinical-access";
 
 export async function mayManageAgenda(req: Request, locationId: number) {
@@ -12,6 +13,15 @@ export async function mayManageAgenda(req: Request, locationId: number) {
   if (permission.allowed) return true;
   const responsible = await currentResponsibleDoctor(locationId, ctx.empresaId);
   return responsible?.id === ctx.professionalId;
+}
+
+/** Agenda sem registro de local: a autorização vale para quem administra algum local ativo da clínica (ou o proprietário). */
+export async function mayManageAgendaEmpresa(req: Request) {
+  const ctx = req.tenantContext;
+  if (!ctx?.authenticated || !ctx.professionalId || !ctx.empresaId) return false;
+  const locais = await db.execute(sql`SELECT id FROM locations WHERE empresa_id=${ctx.empresaId} AND active='true' ORDER BY id`);
+  for (const l of locais.rows) if (await mayManageAgenda(req, Number(l.id))) return true;
+  return false;
 }
 
 export async function agendaWriteGuard(req: Request, res: Response, next: NextFunction) {
@@ -43,18 +53,26 @@ export async function agendaWriteGuard(req: Request, res: Response, next: NextFu
       res.status(403).json({error:"Exceção global exige o proprietário."}); return;
     }
   }
+  // Agenda nova não tem registro de local: a autorização vem da clínica da sessão (empresa_id gravado na agenda).
+  let semLocal = false;
+  const criandoRecurso = req.method === "POST" && req.path === "/agenda/resources";
   if (resourceId) {
-    const result = await db.execute(sql`SELECT location_id FROM agenda_resources WHERE id=${resourceId}`);
-    locationId = Number(result.rows[0]?.location_id);
+    const result = await db.execute(sql`SELECT location_id, empresa_id FROM agenda_resources WHERE id=${resourceId}`);
+    if (result.rows[0]?.location_id != null) locationId = Number(result.rows[0].location_id);
+    else if (result.rows[0] && Number(result.rows[0].empresa_id) === req.tenantContext.empresaId) semLocal = true;
+    else locationId = NaN;
+  } else if (criandoRecurso && (locationId === undefined || locationId === null)) {
+    semLocal = true;
   }
-  if (!Number.isInteger(locationId) || !(await mayManageAgenda(req, locationId))) {
+  const autorizado = semLocal ? await mayManageAgendaEmpresa(req)
+    : Number.isInteger(locationId) && (await mayManageAgenda(req, locationId));
+  if (!autorizado) {
     res.status(403).json({error:"Alteração exige administrador autorizado ou responsável técnico desta clínica."}); return;
   }
   if (req.body?.professionalId != null) {
+    // Mesmo Corpo Clínico que o cadastro mostra; não exige agenda nem vínculo de local anterior.
     const membership = await db.execute(sql`SELECT 1 FROM professionals p
-      JOIN location_professionals lp ON lp.professional_id=p.id JOIN locations l ON l.id=lp.location_id
-      WHERE p.id=${Number(req.body.professionalId)} AND p.active
-        AND l.empresa_id=${req.tenantContext.empresaId} LIMIT 1`);
+      WHERE p.id=${Number(req.body.professionalId)} AND p.active AND ${condicaoCorpoClinico(req.tenantContext.empresaId!)} LIMIT 1`);
     if (!membership.rows.length) {res.status(403).json({error:"Profissional não pertence à empresa."});return;}
   }
   // Trocar o destino também exige autorização sobre o novo local.

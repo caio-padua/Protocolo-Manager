@@ -49,8 +49,8 @@ beforeAll(async () => {
   isolated = await startIsolatedPostgres();
   state.database = drizzle(isolated.pool);
   await isolated.pool.query("CREATE TABLE locations (id INTEGER PRIMARY KEY, empresa_id INTEGER, active TEXT)");
-  await isolated.pool.query("CREATE TABLE agenda_resources (id INTEGER PRIMARY KEY, location_id INTEGER)");
-  await isolated.pool.query("INSERT INTO locations VALUES (8,5,'true'),(9,6,'true'); INSERT INTO agenda_resources VALUES (11,8),(12,9)");
+  await isolated.pool.query("CREATE TABLE agenda_resources (id INTEGER PRIMARY KEY, location_id INTEGER, empresa_id INTEGER)");
+  await isolated.pool.query("INSERT INTO locations VALUES (8,5,'true'),(9,6,'true'); INSERT INTO agenda_resources VALUES (11,8,5),(12,9,6)");
   await isolated.pool.query(`CREATE TABLE agenda_windows (
     id SERIAL PRIMARY KEY, resource_id INTEGER NOT NULL, weekday INTEGER NOT NULL,
     start_time TEXT NOT NULL, end_time TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT now()

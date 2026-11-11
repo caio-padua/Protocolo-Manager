@@ -903,6 +903,41 @@ export interface SimpleOk {
   ok: boolean;
 }
 
+export interface AgendaExternalAddress {
+  cep: string;
+  logradouro: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  numero: string;
+  complemento?: string | null;
+}
+
+export type AgendaResourceExternalAddressStatus =
+  | (typeof AgendaResourceExternalAddressStatus)[keyof typeof AgendaResourceExternalAddressStatus]
+  | null;
+
+export const AgendaResourceExternalAddressStatus = {
+  confirmado: "confirmado",
+  pendente: "pendente",
+} as const;
+
+export type AgendaResourceCategoryStatus =
+  (typeof AgendaResourceCategoryStatus)[keyof typeof AgendaResourceCategoryStatus];
+
+export const AgendaResourceCategoryStatus = {
+  confirmada: "confirmada",
+  pendente: "pendente",
+} as const;
+
+export type AgendaResourceSharing =
+  (typeof AgendaResourceSharing)[keyof typeof AgendaResourceSharing];
+
+export const AgendaResourceSharing = {
+  individual: "individual",
+  compartilhada: "compartilhada",
+} as const;
+
 export interface AgendaResource {
   id: number;
   name: string;
@@ -912,29 +947,42 @@ export interface AgendaResource {
   slotMinutes: number;
   professionalId?: number | null;
   locationId?: number | null;
+  empresaId?: number | null;
+  canManage?: boolean;
+  externalAddress?: AgendaExternalAddress | null;
+  externalAddressText?: string | null;
+  externalAddressStatus?: AgendaResourceExternalAddressStatus;
+  mapsUrl?: string | null;
+  wazeUrl?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  categoryStatus?: AgendaResourceCategoryStatus;
+  sharing?: AgendaResourceSharing;
   active: boolean;
   sortOrder: number;
 }
 
 export interface CreateAgendaResourceBody {
   name: string;
-  kind: string;
+  categoryId: number;
   modality: string;
   color?: string;
   slotMinutes?: number;
   professionalId?: number | null;
   locationId?: number | null;
+  externalAddress?: AgendaExternalAddress;
   sortOrder?: number;
 }
 
 export interface UpdateAgendaResourceBody {
   name?: string;
-  kind?: string;
+  categoryId?: number;
   modality?: string;
   color?: string;
   slotMinutes?: number;
   professionalId?: number | null;
   locationId?: number | null;
+  externalAddress?: AgendaExternalAddress;
   active?: boolean;
   sortOrder?: number;
 }
@@ -1122,6 +1170,7 @@ export interface AgendaIntegrationResource {
 export interface AgendaIntegrationProfessional {
   id: number;
   name: string;
+  categoryId?: number | null;
 }
 
 export interface AgendaIntegrationState {

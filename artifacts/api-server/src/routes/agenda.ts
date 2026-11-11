@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { agendaWriteGuard } from "../lib/agenda-governance";
+import { agendaWriteGuard, mayManageAgenda, mayManageAgendaEmpresa } from "../lib/agenda-governance";
+import { colunasDoEndereco, enderecoDoRecurso, enderecoExternoSchema, normalizarEnderecoExterno } from "../lib/agenda-endereco-externo.js";
 import { canonicalWindows, validWindowRecurrence } from "../lib/agenda-window-recurrence";
 import { requireCollaborator } from "./collaborator";
 import { eq, and, or, isNull, sql, inArray } from "drizzle-orm";
@@ -13,6 +14,10 @@ import {
   agendaSettingsTable,
   locationsTable,
 } from "@workspace/db";
+import { brtISODate } from "../lib/brt.js";
+import {
+  carregarCategorias, decorarRecurso, validarModalidadeComLocal, validarRecursoDeCategoria,
+} from "../lib/agenda-recurso-categoria.js";
 import {
   computeResourceSlots,
   bookSession,
@@ -26,30 +31,34 @@ router.use(agendaWriteGuard);
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const RESOURCE_KIND = ["enfermagem", "medico"] as const;
-const MODALITY = ["domiciliar", "local", "online"] as const;
+// Valores gravados: local = SEDE, externo = EXTERNO (outro endereço físico), online = REMOTO. "domiciliar" é legado.
+const MODALITY = ["domiciliar", "local", "externo", "online"] as const;
 const EXCEPTION_KIND = ["feriado", "bloqueio"] as const;
 
+// O tipo legado (kind) nunca vem do navegador: é derivado da categoria no servidor.
 const createResourceSchema = z.object({
   name: z.string().trim().min(1, "name é obrigatório").max(200),
-  kind: z.enum(RESOURCE_KIND),
+  categoryId: z.number().int().positive("Escolha a categoria profissional."),
   modality: z.enum(MODALITY),
   color: z.string().trim().max(20).optional(),
   slotMinutes: z.number().int().min(5).max(480).optional(),
   professionalId: z.number().int().nullable().optional(),
-  locationId: z.number().int().nullable().optional(),
+  // Opcional: a agenda nova é o próprio registro; não exige escolher outra agenda como "local" (vínculo legado).
+  locationId: z.number().int().positive().nullable().optional(),
+  externalAddress: enderecoExternoSchema.partial({ complemento: true }).optional(),
   sortOrder: z.number().int().min(0).optional(),
 });
 
 const updateResourceSchema = z
   .object({
     name: z.string().trim().min(1).max(200),
-    kind: z.enum(RESOURCE_KIND),
+    categoryId: z.number().int().positive(),
     modality: z.enum(MODALITY),
     color: z.string().trim().max(20),
     slotMinutes: z.number().int().min(5).max(480),
     professionalId: z.number().int().nullable(),
     locationId: z.number().int().nullable(),
+    externalAddress: enderecoExternoSchema.partial({ complemento: true }),
     active: z.boolean(),
     sortOrder: z.number().int().min(0),
   })
@@ -141,31 +150,71 @@ async function ensureSettings() {
 // ---- Recursos ----
 router.get("/agenda/resources", async (req, res): Promise<void> => {
   await ensureSeed();
+  const empresaId = req.tenantContext.empresaId ?? -1;
   const rows = await db.select().from(agendaResourcesTable).where(and(
     eq(agendaResourcesTable.active, true),
-    inArray(agendaResourcesTable.locationId,db.select({id:locationsTable.id}).from(locationsTable)
-      .where(eq(locationsTable.empresaId,req.tenantContext.empresaId ?? -1))),
+    or(
+      eq(agendaResourcesTable.empresaId, empresaId),
+      inArray(agendaResourcesTable.locationId, db.select({ id: locationsTable.id }).from(locationsTable)
+        .where(eq(locationsTable.empresaId, empresaId))),
+    ),
   )).orderBy(agendaResourcesTable.sortOrder);
-  res.json(rows);
+  const categorias = await carregarCategorias(db);
+  // Autorização somente para apresentação; o servidor recusa de qualquer forma na gravação.
+  const porLocal = new Map<number | null, boolean>();
+  const podeGerir = async (locationId: number | null) => {
+    if (!porLocal.has(locationId)) {
+      porLocal.set(locationId, locationId == null ? await mayManageAgendaEmpresa(req) : await mayManageAgenda(req, locationId));
+    }
+    return porLocal.get(locationId)!;
+  };
+  const out = [];
+  for (const row of rows) out.push({ ...decorarRecurso(row, categorias), canManage: await podeGerir(row.locationId) });
+  res.json(out);
 });
 
 router.post("/agenda/resources", async (req, res): Promise<void> => {
   const data = parseOr400(createResourceSchema, req.body, res);
   if (!data) return;
-  const [created] = await db
-    .insert(agendaResourcesTable)
-    .values({
+  const empresaId = req.tenantContext.empresaId;
+  if (!empresaId) { res.status(403).json({ error: "Clínica da sessão não identificada." }); return; }
+  let colunasEndereco: ReturnType<typeof colunasDoEndereco> | null = null;
+  if (data.modality === "externo") {
+    const endereco = normalizarEnderecoExterno(data.externalAddress);
+    if (!endereco.ok) { res.status(400).json({ error: `Agenda EXTERNA exige endereço: ${endereco.error}` }); return; }
+    colunasEndereco = colunasDoEndereco(endereco.endereco);
+  } else if (data.externalAddress) {
+    res.status(400).json({ error: "Endereço externo só vale para a modalidade EXTERNO." }); return;
+  }
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${empresaId})`);
+    const decision = await validarRecursoDeCategoria(tx, {
+      categoryId: data.categoryId, locationId: data.locationId ?? null, professionalId: data.professionalId, empresaId,
+      modality: data.modality,
+    });
+    if (!decision.ok) return decision;
+    const [created] = await tx.insert(agendaResourcesTable).values({
       name: data.name,
-      kind: data.kind,
+      kind: decision.kind,
+      categoryId: decision.categoryId,
       modality: data.modality,
       color: data.color ?? "#3D7A7A",
       slotMinutes: data.slotMinutes ?? 30,
       professionalId: data.professionalId ?? null,
       locationId: data.locationId ?? null,
+      empresaId,
+      googleCalendarId: decision.googleCalendarId,
       sortOrder: data.sortOrder ?? 0,
-    })
-    .returning();
-  res.status(201).json(created);
+      ...(colunasEndereco ?? {}),
+    }).returning();
+    await tx.execute(sql`INSERT INTO agenda_resource_category_audit
+      (resource_id, previous_category_id, category_id, origin, actor_professional_id)
+      VALUES (${created.id}, NULL, ${decision.categoryId}, 'criacao', ${req.tenantContext.professionalId ?? null})`);
+    return { ok: true as const, created };
+  });
+  if (!result.ok) { res.status(result.status).json({ error: result.error }); return; }
+  const categorias = await carregarCategorias(db);
+  res.status(201).json(decorarRecurso(result.created, categorias));
 });
 
 router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
@@ -178,22 +227,91 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
   if (!data) return;
   const updates: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
-    if (v !== undefined) updates[k] = v;
+    if (v !== undefined && k !== "externalAddress") updates[k] = v;
+  }
+  if (data.externalAddress !== undefined) {
+    const endereco = normalizarEnderecoExterno(data.externalAddress);
+    if (!endereco.ok) { res.status(400).json({ error: `Endereço externo inválido: ${endereco.error}` }); return; }
+    Object.assign(updates, colunasDoEndereco(endereco.endereco));
   }
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "Nenhum campo para atualizar" });
     return;
   }
-  const [updated] = await db.transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${req.tenantContext.empresaId!})`);
-    return tx.update(agendaResourcesTable).set(updates).where(eq(agendaResourcesTable.id, id)).returning();
+  const empresaId = req.tenantContext.empresaId;
+  if (!empresaId) { res.status(403).json({ error: "Clínica da sessão não identificada." }); return; }
+  const outcome = await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${empresaId})`);
+    const [current] = await tx.select().from(agendaResourcesTable)
+      .where(eq(agendaResourcesTable.id, id)).for("update");
+    if (!current) return { status: 404 as const, error: "Recurso não encontrado" };
+    const modalityFinal = data.modality ?? current.modality;
+    if (data.externalAddress !== undefined && modalityFinal !== "externo") {
+      return { status: 400 as const, error: "Endereço externo só vale para a modalidade EXTERNO." };
+    }
+    if (modalityFinal === "externo" && data.modality !== undefined && data.modality !== current.modality) {
+      const jaTem = data.externalAddress !== undefined || enderecoDoRecurso(current) !== null;
+      if (!jaTem) return { status: 400 as const, error: "Agenda EXTERNA exige endereço: informe CEP, número e complemento." };
+    }
+    // Agenda legada sem clínica gravada: o vínculo existente prova a clínica; nunca se infere de outra fonte.
+    const empresaDona = current.empresaId ?? null;
+    if (current.locationId == null && empresaDona != null && empresaDona !== empresaId) {
+      return { status: 404 as const, error: "Recurso não encontrado" };
+    }
+    if (data.locationId === null && current.locationId != null) {
+      return { status: 409 as const, error: "Não é possível desligar uma agenda existente do seu local. Crie uma nova agenda e inative esta, para preservar o histórico." };
+    }
+    const touchesLink = data.categoryId !== undefined || data.professionalId !== undefined || (data.locationId !== undefined && data.locationId !== null);
+    const modalityChanged = data.modality !== undefined && data.modality !== current.modality;
+    if (touchesLink) {
+      const categoryId = data.categoryId ?? current.categoryId;
+      const locationId = data.locationId != null ? data.locationId : current.locationId;
+      const professionalId = data.professionalId !== undefined ? data.professionalId : current.professionalId;
+      if (categoryId == null) {
+        return { status: 409 as const, error: "Defina a categoria profissional antes de alterar profissional ou local." };
+      }
+      const decision = await validarRecursoDeCategoria(tx, {
+        categoryId, locationId, professionalId, empresaId, modality: data.modality !== undefined ? data.modality : undefined,
+      });
+      if (!decision.ok) return decision;
+      // A mudança de classe (médico, enfermagem, outra categoria) altera como os consumidores
+      // antigos tratam a agenda; o histórico fica preservado criando uma nova agenda.
+      if (decision.kind !== current.kind) {
+        return { status: 409 as const, error: "Trocar a categoria muda o tipo da agenda. Crie uma nova agenda e inative esta, para preservar o histórico." };
+      }
+      updates.kind = decision.kind;
+      updates.categoryId = decision.categoryId;
+      if (data.locationId != null) updates.googleCalendarId = decision.googleCalendarId;
+      if (data.locationId != null && data.locationId !== current.locationId) {
+        const future = await tx.execute(sql`SELECT 1 FROM sessions WHERE resource_id=${id}
+          AND status IN ('scheduled','confirmed') AND scheduled_date >= ${brtISODate()} LIMIT 1`);
+        if (future.rows.length) {
+          return { status: 409 as const, error: "Há sessões futuras nesta agenda. Conclua ou remarque antes de trocar o local." };
+        }
+        updates.empresaId = empresaId;
+      }
+    }
+    // Mudança só de modalidade: confere o papel do local atual (sem exigir categoria; legado segue como está).
+    if (modalityChanged && !touchesLink && current.locationId != null) {
+      const compat = await validarModalidadeComLocal(tx, current.locationId, data.modality!);
+      if (!compat.ok) return compat;
+    }
+    const [updated] = await tx.update(agendaResourcesTable).set(updates).where(eq(agendaResourcesTable.id, id)).returning();
+    if (touchesLink && updated.categoryId != null && updated.categoryId !== current.categoryId) {
+      await tx.execute(sql`INSERT INTO agenda_resource_category_audit
+        (resource_id, previous_category_id, category_id, origin, evidence, actor_professional_id)
+        VALUES (${id}, ${current.categoryId}, ${updated.categoryId},
+          ${current.categoryId == null ? "confirmacao_manual" : "alteracao"},
+          ${current.categoryId == null ? "Recurso legado sem categoria; classe compatível com o tipo antigo confirmada por colaborador autorizado." : null},
+          ${req.tenantContext.professionalId ?? null})`);
+    }
+    return { status: 200 as const, updated, categorias: await carregarCategorias(tx) };
   });
-  if (!updated) {
-    res.status(404).json({ error: "Recurso não encontrado" });
-    return;
-  }
-  res.json(updated);
+  if (outcome.status !== 200) { res.status(outcome.status).json({ error: outcome.error }); return; }
+  res.json(decorarRecurso(outcome.updated, outcome.categorias));
 });
+
+;
 
 // ---- Janelas ----
 router.get("/agenda/resources/:id/windows", requireCollaborator, async (req, res): Promise<void> => {
@@ -206,8 +324,9 @@ router.get("/agenda/resources/:id/windows", requireCollaborator, async (req, res
     res.status(401).json({ error: "Entre com seu acesso profissional." }); return;
   }
   const owner = await db.select({ id: agendaResourcesTable.id }).from(agendaResourcesTable)
-    .innerJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
-    .where(and(eq(agendaResourcesTable.id, id), eq(locationsTable.empresaId, req.tenantContext.empresaId)));
+    .leftJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
+    .where(and(eq(agendaResourcesTable.id, id),
+      sql`COALESCE(${agendaResourcesTable.empresaId}, ${locationsTable.empresaId}) = ${req.tenantContext.empresaId}`));
   if (!owner.length) { res.status(404).json({ error: "Recurso não encontrado." }); return; }
   const rows = await db.select().from(agendaWindowsTable).where(and(
     eq(agendaWindowsTable.resourceId, id), eq(agendaWindowsTable.active, true),
@@ -345,8 +464,9 @@ router.get("/agenda/slots", async (req, res): Promise<void> => {
     return;
   }
   const owner = await db.select({ id: agendaResourcesTable.id }).from(agendaResourcesTable)
-    .innerJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
-    .where(and(eq(agendaResourcesTable.id, resourceId), eq(locationsTable.empresaId, req.tenantContext.empresaId ?? -1)));
+    .leftJoin(locationsTable, eq(agendaResourcesTable.locationId, locationsTable.id))
+    .where(and(eq(agendaResourcesTable.id, resourceId),
+      sql`COALESCE(${agendaResourcesTable.empresaId}, ${locationsTable.empresaId}) = ${req.tenantContext.empresaId ?? -1}`));
   if (!owner.length) { res.status(404).json({ error: "Recurso não encontrado." }); return; }
 
   // Ocupacao: por padrao vem das sessoes REAIS marcadas neste recurso+data (F2.3).

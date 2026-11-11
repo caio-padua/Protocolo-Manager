@@ -9,4 +9,5 @@
 export interface AgendaIntegrationProfessional {
   id: number;
   name: string;
+  categoryId?: number | null;
 }

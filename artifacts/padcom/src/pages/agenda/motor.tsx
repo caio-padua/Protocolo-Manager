@@ -16,6 +16,7 @@ import {
   useListClients,
   useGetClient,
   useListProtocols,
+  useListProfessionalAreas,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +25,12 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { COLLAB_EVENT } from "@/lib/collab-auth";
+import { MarcadorVinculo } from "@/components/MarcadorVinculo";
+import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
+import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
 import { AgendaChangeRequests } from "./AgendaChangeRequests";
-import { useAgendaIntegration, useCollabIdentity } from "./agenda-integration-api";
+import { useAgendaIntegration, useCollabIdentity, describeError } from "./agenda-integration-api";
 import {
   CalendarCog,
   Save,
@@ -50,12 +54,28 @@ const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const KIND_LABEL: Record<string, string> = {
   enfermagem: "Enfermagem",
   medico: "Médico",
+  categoria: "Categoria profissional",
 };
+
+// Apenas apresentação: o servidor deriva e valida o tipo legado a partir da categoria.
+type CategoriaOpcao = { id: number; name: string; slug: string; professionalType: string };
+function classeDaCategoria(c: Pick<CategoriaOpcao, "slug" | "professionalType">): string {
+  if (c.professionalType === "medico") return "medico";
+  return c.slug === "enfermagem" ? "enfermagem" : "categoria";
+}
+// Papel gravado no registro do local (campo agenda_papel). Nada é deduzido do nome.
+const PAPEL_LABEL: Record<string, string> = {
+  local: "Sede", remoto: "Remoto", externo: "Externo", pessoal: "Pessoal", geral: "Geral",
+};
+const PAPEIS_QUE_ATENDEM = ["local", "remoto", "externo"];
 const MODALITY_LABEL: Record<string, string> = {
-  domiciliar: "Domiciliar",
-  local: "Local (clínica)",
-  online: "Online",
+  domiciliar: "Domiciliar (legado)",
+  local: "Sede",
+  externo: "Externo",
+  online: "Remoto",
 };
+const enderecoDoRecurso = (r: { externalAddress?: { cep: string; logradouro: string; bairro: string; cidade: string; uf: string; numero: string; complemento?: string | null } | null } | null | undefined): EnderecoExternoForm =>
+  r?.externalAddress ? { ...r.externalAddress, complemento: r.externalAddress.complemento ?? "" } : ENDERECO_VAZIO;
 
 function BlockTitle({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
   return (
@@ -128,31 +148,47 @@ export default function AgendaMotor() {
     for (const a of integration.data?.agendas ?? []) map.set(a.id, { canManage: a.canManage, enabled: a.enabled });
     return map;
   }, [integration.data]);
-  const canManageResource = (r: { locationId?: number | null } | null | undefined) =>
-    !!r?.locationId && !!agendaByLocation.get(r.locationId)?.canManage;
+  // Agenda nova não tem registro de local: a autorização vem calculada pelo servidor (canManage da própria agenda).
+  const canManageResource = (r: { locationId?: number | null; canManage?: boolean } | null | undefined) =>
+    r?.locationId ? !!agendaByLocation.get(r.locationId)?.canManage : r?.canManage === true;
   const canManageSelected = canManageResource(selected);
-  const anyCanManage = Array.from(agendaByLocation.values()).some((a) => a.canManage);
+  const anyCanManage = Array.from(agendaByLocation.values()).some((a) => a.canManage)
+    || (resources ?? []).some((r) => r.canManage === true) || integration.data?.canManageGlobalSettings === true;
   const globalLocked = !integration.data?.canManageGlobalSettings;
+  const { data: categoriasData } = useListProfessionalAreas();
+  const categorias: CategoriaOpcao[] = useMemo(
+    () => (categoriasData ?? []).map((c) => ({ id: c.id, name: c.name, slug: c.slug ?? "", professionalType: c.professionalType })),
+    [categoriasData],
+  );
+  // Registros que podem ser o local de uma agenda: papel local, remoto ou externo (o servidor valida de novo).
+  const manageableAgendas = (integration.data?.agendas ?? []).filter(
+    (a) => a.canManage && PAPEIS_QUE_ATENDEM.includes(a.role ?? ""),
+  );
+  const localDoSelecionado = selected?.locationId
+    ? (integration.data?.agendas ?? []).find((a) => a.id === selected.locationId) ?? null
+    : null;
 
   // ---- Identidade do recurso (draft) ----
   const [resDraft, setResDraft] = useState<{
     name: string;
-    kind: string;
+    categoryId: number | null;
     modality: string;
     color: string;
     slotMinutes: number;
     active: boolean;
+    endereco: EnderecoExternoForm;
   } | null>(null);
 
   useEffect(() => {
     if (selected) {
       setResDraft({
         name: selected.name,
-        kind: selected.kind,
+        categoryId: selected.categoryId ?? null,
         modality: selected.modality,
         color: selected.color,
         slotMinutes: selected.slotMinutes,
         active: selected.active,
+        endereco: enderecoDoRecurso(selected),
       });
     } else {
       setResDraft(null);
@@ -365,7 +401,7 @@ export default function AgendaMotor() {
         toast({ title: "Recurso criado" });
         refetchResources();
       },
-      onError: () => toast({ title: "Erro ao criar recurso", variant: "destructive" }),
+      onError: (err: unknown) => toast({ title: "Agenda não criada", description: describeError(err, "Confira categoria, profissional e, se for externa, o endereço."), variant: "destructive" }),
     },
   });
   const updateResource = useUpdateAgendaResource({
@@ -374,7 +410,7 @@ export default function AgendaMotor() {
         toast({ title: "Recurso salvo" });
         refetchResources();
       },
-      onError: () => toast({ title: "Erro ao salvar recurso", variant: "destructive" }),
+      onError: (err: unknown) => toast({ title: "Recurso não salvo", description: describeError(err, "Confira os dados e tente novamente."), variant: "destructive" }),
     },
   });
   const replaceWindows = useReplaceAgendaWindows({
@@ -417,28 +453,68 @@ export default function AgendaMotor() {
   });
 
   // ---- Handlers ----
-  const [newRes, setNewRes] = useState({ name: "", kind: "enfermagem", modality: "local", color: "#16284a" });
+  const EMPTY_NEW = { name: "", categoryId: "", professionalId: "", modality: "local", color: "#16284a", endereco: ENDERECO_VAZIO };
+  const [newRes, setNewRes] = useState(EMPTY_NEW);
+  // Corpo Clínico ativo da clínica, comparado pelo id da categoria gravada (nunca pelo rótulo da profissão).
+  const professionalsOfCategory = useMemo(
+    () => profissionaisParaNovaAgenda(
+      (integration.data?.professionals ?? []).map((p) => ({ id: p.id, name: p.name, active: true, areaId: p.categoryId ?? null })),
+      newRes.categoryId === "" ? null : Number(newRes.categoryId),
+    ),
+    [integration.data, newRes.categoryId],
+  );
 
   function addResource() {
     if (!newRes.name.trim()) {
       toast({ title: "Informe o nome do recurso", variant: "destructive" });
       return;
     }
-    createResource.mutate({
-      data: {
-        name: newRes.name.trim(),
-        kind: newRes.kind,
-        modality: newRes.modality,
-        color: newRes.color,
-        sortOrder: resources?.length ?? 0,
+    if (!newRes.categoryId) {
+      toast({ title: "Faltam dados", description: "Escolha a categoria profissional.", variant: "destructive" });
+      return;
+    }
+    if (newRes.modality === "externo" && !enderecoCompleto(newRes.endereco)) {
+      toast({ title: "Endereço incompleto", description: "Agenda externa exige CEP e número (rua, bairro, cidade e UF vêm do CEP).", variant: "destructive" });
+      return;
+    }
+    createResource.mutate(
+      {
+        data: {
+          name: newRes.name.trim(),
+          categoryId: Number(newRes.categoryId),
+          professionalId: newRes.professionalId ? Number(newRes.professionalId) : null,
+          modality: newRes.modality,
+          ...(newRes.modality === "externo"
+            ? { externalAddress: { ...newRes.endereco, complemento: newRes.endereco.complemento.trim() || null } }
+            : {}),
+          color: newRes.color,
+          sortOrder: resources?.length ?? 0,
+        },
       },
-    });
-    setNewRes({ name: "", kind: "enfermagem", modality: "local", color: "#16284a" });
+      // O formulário só é limpo depois da gravação confirmada pelo servidor.
+      { onSuccess: () => setNewRes(EMPTY_NEW) },
+    );
   }
 
   function saveResource() {
-    if (!selectedId || !resDraft) return;
-    updateResource.mutate({ id: selectedId, data: resDraft });
+    if (!selectedId || !resDraft || !selected) return;
+    const { categoryId, endereco, ...rest } = resDraft;
+    const virouExterno = rest.modality === "externo" && selected.modality !== "externo";
+    const enderecoMudou = JSON.stringify(endereco) !== JSON.stringify(enderecoDoRecurso(selected));
+    if (rest.modality === "externo" && (virouExterno || enderecoMudou) && !enderecoCompleto(endereco)) {
+      toast({ title: "Endereço incompleto", description: "Agenda externa exige CEP e número.", variant: "destructive" });
+      return;
+    }
+    updateResource.mutate({
+      id: selectedId,
+      data: {
+        ...rest,
+        ...(categoryId != null && categoryId !== selected.categoryId ? { categoryId } : {}),
+        ...(rest.modality === "externo" && (virouExterno || enderecoMudou)
+          ? { externalAddress: { ...endereco, complemento: endereco.complemento.trim() || null } }
+          : {}),
+      },
+    });
   }
 
   function addWindow(weekday: number) {
@@ -548,7 +624,9 @@ export default function AgendaMotor() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-foreground">{r.name}</span>
                     <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">
-                      {KIND_LABEL[r.kind] ?? r.kind} · {MODALITY_LABEL[r.modality] ?? r.modality}
+                      {r.categoryName ?? "Categoria pendente"} · {MODALITY_LABEL[r.modality] ?? r.modality} ·{" "}
+                      {r.sharing === "individual" ? "individual" : "compartilhada"}
+                      <MarcadorVinculo codigo="A1" />
                     </span>
                   </span>
                   {!r.active && (
@@ -569,27 +647,58 @@ export default function AgendaMotor() {
               value={newRes.name}
               onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={newRes.kind} onValueChange={(v) => setNewRes((s) => ({ ...s, kind: v }))}>
-                <SelectTrigger className="field-engraved">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                  <SelectItem value="medico">Médico</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
-                <SelectTrigger className="field-engraved">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="local">Local</SelectItem>
-                  <SelectItem value="domiciliar">Domiciliar</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Label className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+              Categoria profissional<MarcadorVinculo codigo="C1" />
+            </Label>
+            <Select value={newRes.categoryId} onValueChange={(v) => v && setNewRes((s) => ({ ...s, categoryId: v, professionalId: "" }))}>
+              <SelectTrigger className="field-engraved" aria-label="Categoria profissional">
+                <SelectValue placeholder="Categoria profissional" />
+              </SelectTrigger>
+              <SelectContent>
+                {categorias.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Label className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+              Profissional (Corpo Clínico)<MarcadorVinculo codigo="P1" />
+            </Label>
+            <Select
+              value={newRes.professionalId}
+              onValueChange={(v) => v && setNewRes((s) => ({ ...s, professionalId: v === "nenhum" ? "" : v }))}
+              disabled={!newRes.categoryId}
+            >
+              <SelectTrigger className="field-engraved" aria-label="Profissional do Corpo Clínico">
+                <SelectValue placeholder={newRes.categoryId ? "Profissional (opcional)" : "Escolha a categoria primeiro"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhum">Sem profissional definido (agenda compartilhada)</SelectItem>
+                {professionalsOfCategory.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {newRes.categoryId && professionalsOfCategory.length === 0 && (
+              <p className="text-[10px] leading-snug text-amber-600" role="status">
+                Nenhum profissional ativo do Corpo Clínico tem esta categoria. A agenda pode ser criada sem profissional.
+              </p>
+            )}
+            <Label className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+              Onde atende<MarcadorVinculo codigo="L1" />
+            </Label>
+            <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
+              <SelectTrigger className="field-engraved" aria-label="Modalidade">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="local">Sede</SelectItem>
+                <SelectItem value="externo">Externo (outro endereço)</SelectItem>
+                <SelectItem value="online">Remoto</SelectItem>
+              </SelectContent>
+            </Select>
+            {newRes.modality === "externo" && (
+              <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
+            )}
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -625,18 +734,57 @@ export default function AgendaMotor() {
                     onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))}
                   />
                 </div>
+                <div className="space-y-1.5 sm:col-span-2 lg:col-span-4 text-[11px] text-muted-foreground">
+                  <span>
+                    Agenda <MarcadorVinculo codigo="A1" nota={`id ${selected?.id}`} /> ·{" "}
+                    {selected?.sharing === "individual" ? "individual (um profissional)" : "compartilhada (sem profissional definido)"}
+                    <MarcadorVinculo codigo="P1" pendente={selected?.sharing !== "individual"} nota="agenda compartilhada não tem profissional gravado" />
+                  </span>
+                  <br />
+                  <span>
+                    {selected?.locationId
+                      ? <>Sede vinculada (legado): {localDoSelecionado ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})` : "não identificada nos locais que você administra"}</>
+                      : <>Agenda própria da clínica (sem outro registro de local vinculado)</>}
+                    <MarcadorVinculo codigo="L1" pendente={!!selected?.locationId && !localDoSelecionado} />
+                    {selected?.modality === "externo" && (
+                      selected.externalAddressText ? (
+                        <span className="mt-1 block">
+                          Endereço: {selected.externalAddressText}{" "}
+                          {selected.mapsUrl && <a className="underline" href={selected.mapsUrl} target="_blank" rel="noreferrer">Google Maps</a>}
+                          {selected.wazeUrl && <> · <a className="underline" href={selected.wazeUrl} target="_blank" rel="noreferrer">Waze</a></>}
+                        </span>
+                      ) : (
+                        <span className="mt-1 block font-semibold text-amber-600">Agenda externa sem endereço completo: pendente.</span>
+                      )
+                    )}
+                  </span>
+                  <br />
+                  <span>
+                    Clínica da sessão<MarcadorVinculo codigo="C2" pendente nota="o Motor não exibe a clínica; ligação a verificar" />
+                  </span>
+                  {selected?.categoryStatus === "pendente" && (
+                    <span className="mt-1 block font-semibold text-amber-600">
+                      Categoria pendente de conferência: nada foi deduzido do nome nem do tipo antigo desta agenda.
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Tipo</Label>
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Categoria profissional<MarcadorVinculo codigo="C1" pendente={selected?.categoryStatus === "pendente"} />
+                  </Label>
                   <Select
-                    value={resDraft.kind}
-                    onValueChange={(v) => setResDraft((d) => (d ? { ...d, kind: v } : d))}
+                    value={resDraft.categoryId != null ? String(resDraft.categoryId) : ""}
+                    onValueChange={(v) => v && setResDraft((d) => (d ? { ...d, categoryId: Number(v) } : d))}
                   >
-                    <SelectTrigger className="field-engraved">
-                      <SelectValue />
+                    <SelectTrigger className="field-engraved" aria-label="Categoria profissional do recurso">
+                      <SelectValue placeholder="Categoria pendente de conferência" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="enfermagem">Enfermagem</SelectItem>
-                      <SelectItem value="medico">Médico</SelectItem>
+                      {categorias
+                        .filter((c) => !selected || classeDaCategoria(c) === selected.kind)
+                        .map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -650,12 +798,23 @@ export default function AgendaMotor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="domiciliar">Domiciliar</SelectItem>
-                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="local">Sede</SelectItem>
+                      <SelectItem value="externo">Externo (outro endereço)</SelectItem>
+                      <SelectItem value="online">Remoto</SelectItem>
+                      {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (
+                        <SelectItem value="domiciliar">Domiciliar (legado)</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
+                {resDraft.modality === "externo" && (
+                  <div className="sm:col-span-2 lg:col-span-4">
+                    <EnderecoExternoCampos
+                      value={resDraft.endereco}
+                      onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))}
+                    />
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
                     Slot (minutos)
@@ -711,7 +870,7 @@ export default function AgendaMotor() {
             </p>
             {selected && !canManageSelected && (
               <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-locked">
-                Você não administra o local deste recurso: identidade e janelas não podem ser gravadas aqui.
+                Você não administra a sede ou a clínica deste recurso: identidade e janelas não podem ser gravadas aqui.
                 Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.
               </p>
             )}

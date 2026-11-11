@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { AGENDA_CATEGORIA_AUDITORIA_DDL } from "./agenda-recurso-categoria";
 
 export async function ensureAgendaIntegrationSchema() {
   await db.execute(sql`
@@ -38,6 +39,17 @@ export async function ensureAgendaIntegrationSchema() {
     )
   `);
   await db.execute(sql`ALTER TABLE agenda_google_sync ADD COLUMN IF NOT EXISTS source_calendar_id text`);
+  // Categoria profissional do recurso: coluna aditiva, sem preenchimento dos registros legados.
+  await db.execute(sql`ALTER TABLE agenda_resources ADD COLUMN IF NOT EXISTS category_id integer`);
+  // Clínica dona da agenda: agendas novas não ligam a nenhum registro de local. Preenchimento das legadas é DERIVADO
+  // do vínculo real (location_id -> locations.empresa_id), só onde está vazio.
+  await db.execute(sql`ALTER TABLE agenda_resources ADD COLUMN IF NOT EXISTS empresa_id integer`);
+  await db.execute(sql`UPDATE agenda_resources r SET empresa_id=l.empresa_id FROM locations l
+    WHERE l.id=r.location_id AND r.empresa_id IS NULL AND l.empresa_id IS NOT NULL`);
+  for (const coluna of ["external_cep", "external_logradouro", "external_bairro", "external_cidade", "external_uf", "external_numero", "external_complemento"]) {
+    await db.execute(sql.raw(`ALTER TABLE agenda_resources ADD COLUMN IF NOT EXISTS ${coluna} text`));
+  }
+  await db.execute(sql.raw(AGENDA_CATEGORIA_AUDITORIA_DDL));
   // Vínculos operacionais conferidos na carga autorizada; não inferir pelo título.
   // Executado apenas na primeira ativação desta agenda, nunca refaz seleção do usuário.
   await db.execute(sql`
