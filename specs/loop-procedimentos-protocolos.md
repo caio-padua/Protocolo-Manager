@@ -135,9 +135,9 @@ conflito com instrução para recarregar, e não erro de preenchimento. Repetir
 automaticamente a gravação não é seguro, pois outra pessoa pode ter alterado a
 composição. A migração deve recusar gatilho existente com definição inesperada
 em vez de presumir que ele foi atualizado.
-Por segurança, substituir componentes por uma lista idêntica ainda altera o
-contador: isso pode exigir revisão desnecessária, mas não confirma dose alterada
-sem conferência. A comparação semântica de listas fica pendente antes da ativação.
+Originalmente, substituir componentes por uma lista idêntica alterava o
+contador e podia exigir revisão desnecessária. A comparação descrita abaixo foi
+implementada e testada; ainda não está ativa no servidor em uso.
 
 ### Composição idêntica enviada novamente
 
