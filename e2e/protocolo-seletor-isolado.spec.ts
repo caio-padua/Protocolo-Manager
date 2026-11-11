@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 async function preparar(page: import("@playwright/test").Page) {
   await page.route("**/api/**", route => route.abort());
   await page.goto(`https://${process.env.REPLIT_DEV_DOMAIN}/src/pages/protocols/new.tsx`);
-  await page.setContent(`<div id="root"></div><script type="module">
+  await page.setContent(`<meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script type="module">
     import RefreshRuntime from "/@react-refresh";
     RefreshRuntime.injectIntoGlobalHook(window);
     window.$RefreshReg$ = () => {};
