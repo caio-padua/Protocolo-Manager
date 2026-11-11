@@ -13,3 +13,5 @@ Vocabulário (decisão do CEO 11/11/2026): "recurso" NÃO é usado para o usuár
 - Marca de registro no canto (`Registro`/`ComRegistro` em MarcadorVinculo.tsx, classe `.registro-canto`): mesmo código = mesmo conceito em todas as telas; novos códigos J1, X1, K1, T1, S1.
 - Janelas: botão Salvar em cada dia grava a SEMANA inteira (o endpoint substitui todas as janelas); rótulo visível "Salvar" para não colidir com o "Salvar Janelas" dos testes.
 **Why:** pedido do CEO — o Salvar do topo ficava longe ao rolar.
+- Cor da agenda = `VidroCor`/`SeletorCorVidro` (components/VidroCor.tsx), em TODO lugar que mostra ou escolhe cor de agenda (lista, Nova agenda, Identidade). Vidro brilhante, cantos pouco arredondados, tampo quase plano, luz só DENTRO do quadrado (sem halo/neon). Item selecionado da lista = côncavo creme (insert bevel), nunca escuro.
+**Why:** CEO rejeitou halo neon, vidro fosco, cantos muito redondos, seleção escura e `input type=color` cru no formulário de nova agenda.

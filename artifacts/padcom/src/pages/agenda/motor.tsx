@@ -28,6 +28,7 @@ import { updateAgendaResource } from "@workspace/api-client-react";
 import { COLLAB_EVENT } from "@/lib/collab-auth";
 import { ComRegistro, LegendaRegistros } from "@/components/MarcadorVinculo";
 import { ListaAgendas } from "./ListaAgendas";
+import { SeletorCorVidro } from "@/components/VidroCor";
 import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
 import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
@@ -724,13 +725,10 @@ export default function AgendaMotor() {
               <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
             )}
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={newRes.color}
-                onChange={(e) => setNewRes((s) => ({ ...s, color: e.target.value }))}
-                className="h-9 w-12 cursor-pointer border-0 bg-transparent p-0"
-                aria-label="Cor da agenda"
-              />
+              <div className="w-[8.5rem] shrink-0">
+                <SeletorCorVidro rotulo="Cor da agenda" valor={newRes.color}
+                  onChange={(cor) => setNewRes((s) => ({ ...s, color: cor }))} />
+              </div>
               <ComRegistro codigo="A1" className="flex-1">
                 <Button className="btn-3d w-full" onClick={addResource} disabled={!anyCanManage || createResource.isPending}>
                   <Plus className="mr-1 h-4 w-4" /> Adicionar
@@ -788,9 +786,8 @@ export default function AgendaMotor() {
                     </ComRegistro>
                   </Campo>
                   <Campo titulo="Cor">
-                    <input type="color" value={resDraft.color}
-                      onChange={(e) => setResDraft((d) => (d ? { ...d, color: e.target.value } : d))}
-                      className="concave-3d h-10 w-full cursor-pointer p-1" aria-label="Cor" />
+                    <SeletorCorVidro rotulo="Cor" valor={resDraft.color}
+                      onChange={(cor) => setResDraft((d) => (d ? { ...d, color: cor } : d))} />
                   </Campo>
                   <Campo titulo="Categoria profissional" className="sm:col-span-2">
                     <ComRegistro codigo="C1" pendente={selected?.categoryStatus === "pendente"}>
