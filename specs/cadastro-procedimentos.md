@@ -83,6 +83,8 @@ afirma que essas integrações já funcionam.
   procedimento ativo/agendável, em segundos inteiros, com edição em minutos.
 - Ao vincular o primeiro produto, sugerir nome seguro e duração do cadastro
   apenas em campos ainda não editados. Nunca sobrescrever edição manual.
+- Exigir confirmação da dose prescrita após selecionar produtos ou alterar
+  a dose, inclusive quando a dose foi sugerida; sem dose, confirmar a ausência.
 - Retirar dose, concentração e volume eventualmente presentes no nome sugerido;
   manter a identidade exata do produto e permitir procedimento sem produto.
 - Guardar segundos em coluna aditiva; preservar a coluna antiga e os registros.
@@ -94,6 +96,16 @@ afirma que essas integrações já funcionam.
   segundos exatos; exibir pendência sem esconder a lista nem outros menus.
 - Produtos associados por identidade exata do catálogo existente, sem cópia,
   e sem obrigatoriedade para consultas.
+- Quando vários produtos são escolhidos, não sugerir uma única dose para todos.
+  Ao retornar a somente um produto, recuperar a sugestão inequívoca desse produto,
+  sem sobrescrever dose editada pelo profissional.
+- Abrir os detalhes para distinguir apresentações homônimas; o vínculo salvo
+  corresponde ao identificador escolhido e conserva os componentes do produto.
+- Em produto composto, apresentar as quantidades na ordem dos componentes
+  identificáveis no nome, separadas por sinal de adição e com as unidades
+  originais de cada um. Não converter unidades nem presumir a dose administrada.
+  Se algum valor, unidade ou ordem for ambíguo, não sugerir uma composição
+  parcial. A dose sugerida deve ser conferida pelo profissional antes de salvar.
 - Leituras exigem sessão e empresa autenticadas; escritas são restritas ao
   proprietário da plataforma, conforme a proteção do catálogo compartilhado.
 - Toda edição filtra a empresa no servidor. Inativar preserva o registro e os

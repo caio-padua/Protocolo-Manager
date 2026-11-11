@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { usePermissoes } from "@/lib/permissoes";
 import { collabAuthHeaders } from "@/lib/collab-auth";
-import { doseSeguraProduto, duracaoValidaMinutos, nomeSugeridoProduto } from "./sugestao-produto";
+import { doseSugeridaProduto, duracaoValidaMinutos, nomeSugeridoProduto } from "./sugestao-produto";
 import { ProfissionaisNecessarios, type GrupoProfissional } from "./ProfissionaisNecessarios";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -118,6 +118,7 @@ function erroDeValidacao(formulario: Formulario): string | null {
   if (formulario.ativo && !formulario.profissionaisNecessarios.length) return "Adicione os profissionais necessários.";
   if (formulario.profissionaisNecessarios.some((g) => !g.areaId || !g.localId || !g.professionalIds.length)) return "Escolha local, área e ao menos um profissional para cada necessidade.";
   if (formulario.produtoIds.length && !formulario.dose && !formulario.doseRevisada) return "Confira a dose e confirme se o procedimento não possui dose definida.";
+  if (formulario.produtoIds.length && formulario.dose && !formulario.doseRevisada) return "Confirme a dose prescrita antes de salvar.";
   if (/(?:ml\b|%|\/)/i.test(formulario.dose)) return "Informe a dose sem volume ou concentração.";
   const duracao = Number(formulario.duracaoMinutos.replace(",", "."));
   if (!formulario.duracaoMinutos.trim() && formulario.ativo) {
@@ -141,7 +142,9 @@ export default function Procedimentos() {
       staleTime: 0,
     },
   });
-  const substanciasQuery = ApiClient.useListSubstances();
+  const substanciasQuery = ApiClient.useListSubstances({
+    request: { headers: collabAuthHeaders() },
+  });
   // Ler a credencial no momento da gravação, inclusive após renovação da sessão.
   const criarProcedimento = useMutation({
     mutationFn: ({ data }: { data: ProcedimentoEntrada }) =>
@@ -161,6 +164,8 @@ export default function Procedimentos() {
   const [formularioAberto, setFormularioAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [formulario, setFormulario] = useState<Formulario>(FORMULARIO_VAZIO);
+  const produtoComposto = formulario.produtoIds.some((id) =>
+    (substancias.find((produto) => produto.id === id)?.components?.length ?? 0) > 1);
   const [erroFormulario, setErroFormulario] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [termoSubstancia, setTermoSubstancia] = useState("");
@@ -215,7 +220,7 @@ export default function Procedimentos() {
     if (campo === "nome") camposEditados.current.nome = true;
     if (campo === "duracaoMinutos") camposEditados.current.duracaoMinutos = true;
     if (campo === "dose") camposEditados.current.dose = true;
-    setFormulario((atual) => ({ ...atual, [campo]: valor }));
+    setFormulario((atual) => ({ ...atual, [campo]: valor, ...(campo === "dose" ? { doseRevisada: false } : {}) }));
     setErroFormulario(null);
   };
 
@@ -224,10 +229,16 @@ export default function Procedimentos() {
       ? [...new Set([...formulario.produtoIds, substance.id])]
       : formulario.produtoIds.filter((id) => id !== substance.id);
     if (ids[0] === formulario.produtoIds[0]) {
+      const doseAutomatica = ids.length === 1
+        ? doseSugeridaProduto(substancias.find((item) => item.id === ids[0])) ?? ""
+        : "";
+      const atualizarDose = !camposEditados.current.dose
+        && (!formulario.dose || formulario.dose === sugestoesAutomaticas.current.dose);
       setFormulario((atual) => ({
         ...atual, produtoIds: ids, doseRevisada: false,
-        dose: !camposEditados.current.dose && ids.length !== 1 ? "" : atual.dose,
+        dose: atualizarDose ? doseAutomatica : atual.dose,
       }));
+      if (atualizarDose) sugestoesAutomaticas.current.dose = doseAutomatica || null;
       setErroFormulario(null);
       return;
     }
@@ -236,7 +247,7 @@ export default function Procedimentos() {
     const duracao = primeiro?.durationMinutes;
     const duracaoSugerida = typeof duracao === "number" && duracaoValidaMinutos(duracao)
       ? String(duracao).replace(".", ",") : "";
-    const doseSugerida = ids.length === 1 ? doseSeguraProduto(primeiro?.defaultDose) ?? "" : "";
+    const doseSugerida = ids.length === 1 ? doseSugeridaProduto(primeiro) ?? "" : "";
     const substituirNome = !camposEditados.current.nome
       && (!formulario.nome || formulario.nome === sugestoesAutomaticas.current.nome);
     const substituirDuracao = !camposEditados.current.duracaoMinutos
@@ -499,10 +510,12 @@ export default function Procedimentos() {
                     placeholder="Informe apenas a dose" data-testid="input-procedimento-dose" />
                   <span className="block text-xs text-muted-foreground">Não informe volume ou concentração. Revise antes de salvar.</span>
                 </label>
-                {formulario.produtoIds.length > 0 && !formulario.dose && (
+                {formulario.produtoIds.length > 0 && (
                   <label className="flex items-center gap-2 text-xs">
                     <Checkbox checked={formulario.doseRevisada} onCheckedChange={(checked) => alterarCampo("doseRevisada", checked === true)} />
-                    Confirmei que a dose está ausente ou será definida depois.
+                    {formulario.dose
+                      ? produtoComposto ? "Conferi a dose prescrita e a ordem de cada componente." : "Conferi que esta é a dose prescrita."
+                      : "Confirmei que a dose está ausente ou será definida depois."}
                   </label>
                 )}
               </div>
@@ -613,6 +626,9 @@ export default function Procedimentos() {
                             <summary className="cursor-pointer text-primary underline">Detalhes da apresentação</summary>
                             <p>Identificador {substance.id} · Cadastro: {substance.name}</p>
                             <p>Dose ou apresentação cadastrada: {substance.defaultDose || "—"}</p>
+                            {(substance.components?.length ?? 0) > 1 && substance.components?.map((componente) => (
+                              <p key={componente.id}>{componente.componentName}: {componente.doseValue ?? "—"} {componente.doseUnit ?? ""}</p>
+                            ))}
                           </details>
                         </div>
                       );

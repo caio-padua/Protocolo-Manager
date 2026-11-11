@@ -59,7 +59,8 @@ beforeAll(async () => {
     CREATE TABLE professional_empresas (id integer primary key, professional_id integer, empresa_id integer);
     CREATE TABLE substances (id integer primary key, name text, procedure_type text, doctor_participation boolean);
     INSERT INTO substances VALUES (10,'Produto sintético IM','im',false),
-      (11,'Implante sintético','implant',true), (12,'Produto médico sintético','im',true);
+      (11,'Implante sintético','implant',true), (12,'Produto médico sintético','im',true),
+      (13,'ADEK sintético','im',false);
   `);
   await state.pool.query(PROCEDIMENTOS_SCHEMA_SQL);
   await state.pool.query(PROCEDIMENTOS_SCHEMA_SQL);
@@ -173,7 +174,16 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
         const path = new URL(req.url()).pathname;
         const json = (data: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
         if (path === "/api/collaborator/me") return json({ professional: { id: 1, name: "Profissional sintético", role: "admin", isPlatformOwner: true } });
-        if (path === "/api/substances") return json([{ id: 10, name: "Produto sintético IM", defaultDose: "100 mg / 2 mL", durationMinutes: 2.5 }]);
+        if (path === "/api/substances") return json([
+          { id: 10, name: "Produto sintético IM", defaultDose: "100 mg", durationMinutes: 2.5 },
+          { id: 11, name: "Produto sintético IM", defaultDose: "200 mg / 2 mL", durationMinutes: 2.5 },
+          { id: 13, name: "ADEK (VITAMINAS A, D, E, K)", defaultDose: "mistura / 2 mL", durationMinutes: 2.5, components: [
+            { id: 1, componentName: "Vitamina A", doseValue: 25000, doseUnit: "UI", sortOrder: 1 },
+            { id: 2, componentName: "Vitamina D3", doseValue: 100000, doseUnit: "UI", sortOrder: 2 },
+            { id: 3, componentName: "Vitamina E", doseValue: 200, doseUnit: "UI", sortOrder: 3 },
+            { id: 4, componentName: "Vitamina K2", doseValue: 1300, doseUnit: "mcg", sortOrder: 4 },
+          ] },
+        ]);
         if (path === "/api/procedimentos/opcoes-profissionais") {
           const result = await request(app).get("/procedimentos/opcoes-profissionais").set("Authorization", req.headers().authorization ?? "");
           return json(result.body, result.status);
@@ -194,12 +204,38 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       await page.getByLabel("Categoria profissional").selectOption("2");
       await page.getByLabel("Selecionar Enfermagem A").click();
       await page.getByTestId("checkbox-substancia-10").click();
-      await page.getByTestId("input-procedimento-dose").fill("100 mg");
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("100 mg");
+      await page.getByTestId("checkbox-substancia-11").click();
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("");
+      await page.getByTestId("checkbox-substancia-11").click();
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("100 mg");
       expect(await page.getByTestId("input-procedimento-duracao").inputValue()).toBe("2,5");
+      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
       await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Procedimento cadastrado.").waitFor();
       const stored = await state.pool.query("SELECT duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético IM'");
       expect(stored.rows).toEqual([{ duracao_segundos: 150 }]);
+      const products = await state.pool.query(`SELECT pp.produto_id FROM procedimento_produtos pp
+        JOIN procedimentos_clinicos p ON p.id=pp.procedimento_id
+        WHERE p.empresa_id=1 AND p.nome='Produto sintético IM' AND pp.ativo`);
+      expect(products.rows).toEqual([{ produto_id: 10 }]);
+      await page.getByTestId("button-new-procedimento").click();
+      await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
+      await page.getByLabel("Local da clínica").selectOption("8");
+      await page.getByLabel("Categoria profissional").selectOption("2");
+      await page.getByLabel("Selecionar Enfermagem A").click();
+      await page.getByTestId("checkbox-substancia-13").click();
+      expect(await page.getByTestId("input-procedimento-dose").inputValue()).toBe("25.000 UI + 100.000 UI + 200 UI + 1.300 mcg");
+      await page.getByTestId("input-procedimento-dose").locator("..").screenshot({ path: "/tmp/procedimento-dose-composta-sintetica.png" });
+      await page.getByTestId("button-save-procedimento").click();
+      await page.getByText("Confirme a dose prescrita antes de salvar.").waitFor();
+      await page.getByLabel("Conferi a dose prescrita e a ordem de cada componente.").click();
+      await page.getByTestId("button-save-procedimento").click();
+      await page.getByText("Procedimento cadastrado.").waitFor();
+      const blend = await state.pool.query(`SELECT p.dose, array_agg(pp.produto_id) AS produtos
+        FROM procedimentos_clinicos p JOIN procedimento_produtos pp ON pp.procedimento_id=p.id AND pp.ativo
+        WHERE p.empresa_id=1 AND p.nome='ADEK (VITAMINAS A, D, E, K)' GROUP BY p.id`);
+      expect(blend.rows).toEqual([{ dose: "25.000 UI + 100.000 UI + 200 UI + 1.300 mcg", produtos: [13] }]);
       await page.getByTestId("button-new-procedimento").click();
       await page.getByRole("button", { name: "Adicionar categoria necessária" }).click();
       await page.getByLabel("Local da clínica").selectOption("8");
@@ -207,6 +243,7 @@ describe("Cadastro de procedimentos — banco e autenticação isolados", () => 
       await page.getByLabel("Selecionar Enfermagem A").click();
       await page.getByTestId("checkbox-substancia-10").click();
       await page.getByTestId("input-procedimento-dose").fill("100 mg");
+      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
       await page.evaluate(() => localStorage.setItem("padcom_collab_token", "sessao-invalida"));
       await page.getByTestId("button-save-procedimento").click();
       await page.getByTestId("error-procedimento-form").waitFor();

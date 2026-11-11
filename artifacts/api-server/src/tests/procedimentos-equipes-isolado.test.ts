@@ -180,6 +180,9 @@ describe("profissionais necessários — rotas e banco isolados", () => {
       await page.getByLabel("Selecionar Médico A").click();
       await page.getByLabel("Selecionar Médico B").click();
       await page.getByTestId("button-save-procedimento").click();
+      await page.getByText("Confirme a dose prescrita antes de salvar.").waitFor();
+      await page.getByLabel("Conferi que esta é a dose prescrita.").click();
+      await page.getByTestId("button-save-procedimento").click();
       await page.getByText("Procedimento cadastrado.").waitFor();
       const stored = await state.pool.query("SELECT dose,duracao_segundos FROM procedimentos_clinicos WHERE empresa_id=1 AND nome='Produto sintético'");
       expect(stored.rows).toEqual([{ dose: "100 mg", duracao_segundos: 150 }]);

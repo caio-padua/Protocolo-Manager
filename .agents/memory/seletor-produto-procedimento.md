@@ -11,6 +11,12 @@ Não escolher uma apresentação silenciosamente nem confundir concentração e 
 No RASP, o nome é o do procedimento e a dose prescrita aparece quando houver.
 Preservar os dados completos do produto.
 
+Para produto composto, o médico pediu as quantidades separadas por “+”, na
+mesma ordem das substâncias no nome. Manter a unidade real de cada componente;
+não converter nem apresentar concentrações ou volumes como dose prescrita.
+Se faltarem valores ou a ordem não puder ser identificada com segurança, pedir
+revisão em vez de preencher parcialmente. A sugestão exige confirmação clínica.
+
 **Why:** o médico pediu identificação clara das apresentações e separação entre
 o nome, a apresentação comercial e a dose efetivamente prescrita.
 
