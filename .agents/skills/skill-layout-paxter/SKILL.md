@@ -799,6 +799,19 @@ Lei promulgada em 11/11/2026 (pedido do CEO). Fontes: `components/CampoLigado.ts
 
 **How to apply:** qualquer tela que mostre dado ligado a outra tela/planilha usa `CampoLigado` com um codigo registrado.
 
+### 4.12 Padrao 34 — Sub-cadastro em abas dentro da janela fixa (aba "Locais Externos" da empresa)
+
+Lei promulgada em 11/11/2026 (pedido do CEO). Fonte: `components/empresa/LocaisExternosAba.tsx`, dentro de `pages/cadastros/empresas.tsx` (janela `pax-dialogo-fixo`).
+- Cadastro filho NUNCA vira menu separado: vive como aba do cadastro pai. A aba tem DUAS visoes: lista (cartoes `bevel-3d`, botao "NOVO ...") e edicao.
+- Edicao: faixa `panel-3d-sub` no topo com botao `btn-3d-soft` "Lista" (volta) + sub-abas `bevel-3d empresa-aba` (ativa navy/ouro, mesma pele do medico); miolo com rolagem propria (`overflow-y-auto`); rodape com nome do registro a esquerda e CANCELAR / SALVAR a direita.
+- A janela NAO muda de altura ao trocar de aba ou de visao: o miolo rola por dentro (medido: 736 px em todas as abas).
+- Enter dentro de campo e bloqueado (a aba mora dentro do formulario do pai). O rodape do pai troca para so "FECHAR" nessa aba.
+- Mensagens usam o `useToast` do app (o Toaster do sonner NAO esta montado: `toast` do sonner nao aparece).
+
+**Why:** o CEO quer cadastro filho dentro do pai, com cara do cadastro do medico e sem a janela pular de tamanho.
+
+**How to apply:** qualquer sub-cadastro dentro de janela de cadastro copia esta estrutura (lista -> edicao com sub-abas, altura fixa).
+
 ## 5. Console de Orcamento (referencia viva)
 
 - `pages/orcamentos/novo.tsx` — Montagem (apresentacao). Banner de desconto: titulo

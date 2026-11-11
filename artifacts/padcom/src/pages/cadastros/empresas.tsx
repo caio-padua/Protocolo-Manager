@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import SemanticCodeManager from "./SemanticCodeManager";
 import { LocaisDaEmpresa } from "./LocaisDaEmpresa";
 import { Switch } from "@/components/ui/switch";
+import { LocaisExternosAba } from "@/components/empresa/LocaisExternosAba";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -203,7 +204,7 @@ const EMPTY: FormValues = {
   googleCalendarId: "", googleDriveFolderId: "",
 };
 
-const ABAS_VALIDAS = ["ident", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos"];
+const ABAS_VALIDAS = ["ident", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos", "locais-externos"];
 
 // ── Labels de referência ───────────────────────────────────────────────────────
 const TIPO_LABELS: Record<string, string> = {
@@ -1286,6 +1287,7 @@ export default function CadastroEmpresas() {
                       { value: "nfe",        label: "Documentos Fiscais" },
                       { value: "integ",      label: "Integrações" },
                       { value: "contratos",  label: "Documentos e Contratos" },
+                      { value: "locais-externos", label: "Locais Externos" },
                     ].map(({ value, label }) => (
                       <TabsTrigger key={value} value={value}
                         data-testid={`empresa-aba-${value}`}
@@ -2007,15 +2009,31 @@ export default function CadastroEmpresas() {
                   <ContratosList empresaId={selectedEmpresa?.id ?? 0} />
                 </TabsContent>
 
+                {/* ── ABA: LOCAIS EXTERNOS (cadastro interno, mesmos campos da empresa) ── */}
+                <TabsContent value="locais-externos" className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 mt-0">
+                  {!editingId ? (
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para cadastrar locais externos.</p>
+                  ) : (
+                    <LocaisExternosAba key={editingId} empresaId={editingId} />
+                  )}
+                </TabsContent>
+
               </Tabs>
 
               {/* Rodapé fixo com botões */}
               <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0" data-testid="empresa-dialogo-rodape">
-                <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>CANCELAR</Button>
-                <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  SALVAR EMPRESA
-                </Button>
+                {activeFormTab === "locais-externos" ? (
+                  // Os locais externos têm botão próprio de salvar; aqui só fecha a janela.
+                  <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>FECHAR</Button>
+                ) : (
+                  <>
+                    <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>CANCELAR</Button>
+                    <Button type="submit" className="btn-3d px-6" disabled={saveMutation.isPending}>
+                      {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                      SALVAR EMPRESA
+                    </Button>
+                  </>
+                )}
               </div>
             </form>
           </Form>

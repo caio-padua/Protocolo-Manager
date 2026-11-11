@@ -417,3 +417,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Cadastro de locais externos (consultorios sublocados do mesmo CNPJ), usado pela agenda EXTERNA.
 \ir migrations/20261116_locais_externos.sql
+
+-- Locais externos com os mesmos campos do cadastro da empresa (interno, sem ligacao com outras tabelas).
+\ir migrations/20261117_locais_externos_cadastro.sql
