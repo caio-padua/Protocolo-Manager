@@ -13,9 +13,9 @@ export default function RAS() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-3xl font-black tracking-tight uppercase">RAS</h1>
+        <h1 className="text-3xl font-black tracking-tight uppercase">RASP</h1>
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-          Registro de Administração de Substâncias por sessão.
+          Registro de Atendimentos, Substâncias e Procedimentos por sessão.
         </p>
       </div>
 
@@ -29,9 +29,9 @@ export default function RAS() {
             <div className="concave-3d p-6 mb-4">
               <FileText className="h-10 w-10 text-muted-foreground opacity-30" />
             </div>
-            <p className="text-base font-black uppercase tracking-tight text-primary">Nenhum RAS gerado</p>
+            <p className="text-base font-black uppercase tracking-tight text-primary">Nenhum RASP gerado</p>
             <p className="text-[11px] font-medium text-muted-foreground mt-1 uppercase tracking-wider">
-              Os RAS são gerados manualmente em cada sessão confirmada.
+              Os RASP são gerados manualmente em cada sessão confirmada.
             </p>
           </CardContent>
         </Card>

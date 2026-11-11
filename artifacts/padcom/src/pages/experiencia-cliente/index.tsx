@@ -149,7 +149,7 @@ export default function ExperienciaCliente() {
             { icon: "🏠", tab: "INÍCIO", desc: "Boas-vindas, próximos atendimentos, progresso dos protocolos ativos" },
             { icon: "💉", tab: "PROTOCOLOS", desc: "Lista de protocolos com substâncias, status de cada sessão e benefícios" },
             { icon: "📅", tab: "AGENDA", desc: "Agenda de aplicações com possibilidade de reagendamento" },
-            { icon: "📄", tab: "DOCUMENTOS", desc: "RAS, laudos e documentos clínicos gerados" },
+            { icon: "📄", tab: "DOCUMENTOS", desc: "RASP, laudos e documentos clínicos gerados" },
             { icon: "📤", tab: "ENVIAR", desc: "Upload de exames, comprovantes e outros arquivos para o Drive" },
           ].map((item) => (
             <div key={item.tab} className="concave-3d rounded-lg px-4 py-3 flex items-start gap-3">

@@ -245,9 +245,9 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   const { cert } = loadCertificate();
 
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(`RAS ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
+  pdfDoc.setTitle(`RASP ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
   pdfDoc.setAuthor("Instituto Pádua — Paxter");
-  pdfDoc.setSubject("Registro de Administração de Substâncias");
+  pdfDoc.setSubject("Registro de Atendimentos, Substâncias e Procedimentos");
   pdfDoc.setCreator("Sistema Paxter");
 
   const fonts: Fonts = {
@@ -289,7 +289,11 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
   // ============================================================
   {
 
-    page.drawText("REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS", {
+    page.drawText("REGISTRO DE ATENDIMENTOS,", {
+      x: MARGIN, y, size: 14, font: fonts.bold, color: DARK_BLUE,
+    });
+    y -= 16;
+    page.drawText("SUBSTÂNCIAS E PROCEDIMENTOS", {
       x: MARGIN, y, size: 14, font: fonts.bold, color: DARK_BLUE,
     });
     y -= 16;
@@ -297,7 +301,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       x: MARGIN, y, size: 9, font: fonts.regular, color: GRAY,
     });
 
-    const rasNumber = `RAS N.° ${String(ras.id).padStart(6, "0")}`;
+    const rasNumber = `RASP N.° ${String(ras.id).padStart(6, "0")}`;
     const rasNumWidth = fonts.bold.widthOfTextAtSize(rasNumber, 10);
     page.drawText(rasNumber, {
       x: PAGE_W - MARGIN - rasNumWidth, y: PAGE_H - MARGIN, size: 10, font: fonts.bold, color: DARK_BLUE,
@@ -622,7 +626,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       },
       {
         title: "8. LEI GERAL DE PROTEÇÃO DE DADOS (LGPD)",
-        text: "Em conformidade com a Lei nº 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensíveis de saúde para fins exclusivos de: execução do protocolo terapêutico; emissão de documentos clínicos (RAS, receituários); acompanhamento da evolução clínica; comunicação sobre agendamentos e resultados. Tenho ciência do meu direito de solicitar a exclusão, correção ou portabilidade dos meus dados a qualquer momento.",
+        text: "Em conformidade com a Lei nº 13.709/2018 (LGPD), autorizo a coleta, armazenamento e processamento dos meus dados pessoais e dados sensíveis de saúde para fins exclusivos de: execução do protocolo terapêutico; emissão de documentos clínicos (RASP, receituários); acompanhamento da evolução clínica; comunicação sobre agendamentos e resultados. Tenho ciência do meu direito de solicitar a exclusão, correção ou portabilidade dos meus dados a qualquer momento.",
       },
       {
         title: "9. ARMAZENAMENTO DIGITAL",
@@ -683,7 +687,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   const pdfBytes = await embedPadesSignature(pdfDoc, {
     name: signerName,
-    reason: "Assinatura digital do RAS (ICP-Brasil)",
+    reason: "Assinatura digital do RASP (ICP-Brasil)",
     location: ras.unit || "Instituto Pádua",
     contactInfo: ras.clientCpf || "",
   });
@@ -780,7 +784,7 @@ function parseISODateLocal(s: string, campo: string): Date {
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d;
-  throw new Error(`RAS FAP: data invalida em ${campo}: "${s}"`);
+  throw new Error(`RASP FAP: data invalida em ${campo}: "${s}"`);
 }
 
 // Garante inteiro finito dentro de [min,max] (defende a grade contra dados ruins

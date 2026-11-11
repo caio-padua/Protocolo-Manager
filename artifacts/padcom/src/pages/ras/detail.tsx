@@ -54,7 +54,7 @@ export default function RASDetail() {
         throw new Error(err?.error || "Erro ao enviar ao Drive");
       }
       const data = await resp.json();
-      toast({ title: "RAS enviado ao Google Drive!", description: data.message });
+      toast({ title: "RASP enviado ao Google Drive!", description: data.message });
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
@@ -78,7 +78,7 @@ export default function RASDetail() {
       a.href = url;
       const cd = resp.headers.get("Content-Disposition");
       const filenameMatch = cd?.match(/filename="(.+)"/);
-      a.download = filenameMatch?.[1] ?? `RAS_${id}.pdf`;
+      a.download = filenameMatch?.[1] ?? `RASP_${id}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "PDF assinado baixado!", description: "Documento com assinatura digital ICP-Brasil." });
@@ -98,7 +98,7 @@ export default function RASDetail() {
     );
   }
 
-  if (!ras) return <div className="p-8 text-muted-foreground">RAS não encontrado.</div>;
+  if (!ras) return <div className="p-8 text-muted-foreground">RASP não encontrado.</div>;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -108,7 +108,7 @@ export default function RASDetail() {
           <ArrowLeft className="h-4 w-4 mr-1" />
           Voltar
         </Button>
-        <h1 className="text-2xl font-black uppercase tracking-tight flex-1">RAS — {ras.clientName}</h1>
+        <h1 className="text-2xl font-black uppercase tracking-tight flex-1">RASP — {ras.clientName}</h1>
         <Button
           className="btn-3d gap-2"
           onClick={downloadPdf}
@@ -140,7 +140,7 @@ export default function RASDetail() {
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest">
-                REGISTRO DE ADMINISTRAÇÃO DE SUBSTÂNCIAS
+                REGISTRO DE ATENDIMENTOS,<br />SUBSTÂNCIAS E PROCEDIMENTOS
               </h2>
               <p className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-0.5">
                 Protocolo de Injetáveis — Medicina Estética
@@ -148,7 +148,7 @@ export default function RASDetail() {
             </div>
             <div className="text-right text-sm text-gray-600 dark:text-gray-400">
               <p className="text-[10px] font-black uppercase tracking-widest">
-                RAS N.° <strong className="text-gray-900 dark:text-gray-100 text-base">{String(ras.id).padStart(6, "0")}</strong>
+                RASP N.° <strong className="text-gray-900 dark:text-gray-100 text-base">{String(ras.id).padStart(6, "0")}</strong>
               </p>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
                 Sessão ID: <strong className="text-gray-900 dark:text-gray-100">{ras.sessionId}</strong>

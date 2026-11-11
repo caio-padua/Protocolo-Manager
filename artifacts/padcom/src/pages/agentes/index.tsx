@@ -128,7 +128,7 @@ const CAP_LABELS: Record<string, string> = {
   pode_escalar:           "Escalar",
   pode_ver_exames:        "Ver Exames",
   pode_editar_protocolo:  "Editar Protocolo",
-  pode_ver_ras:           "Ver RAS",
+  pode_ver_ras:           "Ver RASP",
   pode_enviar_lembrete:   "Lembrete",
   pode_criar_cobranca:    "Criar Cobrança",
   pode_acesso_total:      "Acesso Total",
@@ -1510,7 +1510,7 @@ function AbaProvedores({ agentes }: { agentes: Agente[] }) {
               cor: "#45B8CC",
               itens: [
                 "Cadastre os primeiros 5 clientes reais no PAXTER",
-                "Lance um protocolo completo com RAS FAP",
+                "Lance um protocolo completo com RASP FAP",
                 "Configure os Agentes Virtuais para sua equipe",
                 "Use o sistema por 2–4 semanas para dominar o fluxo",
                 "Documente o antes × depois em números",
@@ -2376,7 +2376,7 @@ const PLANOS = [
     descricao: "Para clínicas de 1 médico",
     recursos: [
       "Até 50 clientes ativos",
-      "Agenda + Protocolos + RAS",
+      "Agenda + Protocolos + RASP",
       "3 Agentes Virtuais",
       "Chat IA (Claude Haiku — rápido)",
       "WhatsApp via Twilio",
@@ -2398,7 +2398,7 @@ const PLANOS = [
       "Todos os módulos clínicos",
       "20 Agentes Virtuais completos",
       "Chat IA (todos os 4 provedores)",
-      "RAS FAP + Assinatura Digital ICP-Brasil",
+      "RASP FAP + Assinatura Digital ICP-Brasil",
       "Financeiro + Asaas integrado",
       "Análise de exames por IA",
       "Prioridade no suporte",
@@ -2445,7 +2445,7 @@ Quero te apresentar o *PAXTER* — o sistema de gestão clínica mais completo p
 ✅ ${plano.recursos.slice(0, 4).join("\n✅ ")}
 
 Para ${clinica}, isso significa:
-• Protocolos e RAS digitais com assinatura ICP-Brasil
+• Protocolos e RASP digitais com assinatura ICP-Brasil
 • Agenda integrada ao Google Calendar
 • Agentes de IA que respondem seus clientes automaticamente
 • Tudo rodando do celular, sem instalação
@@ -2593,7 +2593,7 @@ _PAXTER — Clinical Intelligence System_`;
             </thead>
             <tbody className="divide-y divide-border/30">
               {[
-                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RAS)", ferr:"PAXTER internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
+                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RASP)", ferr:"PAXTER internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
                 { e:"2", acao:"Gravar vídeo de 3min mostrando o sistema em uso real", ferr:"Celular + Loom", prazo:"Dia 14", meta:"Prova social visual" },
                 { e:"3", acao:"Listar 10 médicos conhecidos do seu network (WhatsApp)", ferr:"Contatos pessoais", prazo:"Dia 15", meta:"Pipeline de 10 leads" },
                 { e:"4", acao:"Enviar pitch personalizado para os 10 (usar gerador acima)", ferr:"WhatsApp + pitch desta aba", prazo:"Dias 15-17", meta:"3+ respostas positivas" },

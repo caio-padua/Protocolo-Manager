@@ -225,11 +225,11 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
   // 6) PÓS-SESSÃO (confirmação + RAS)
   mensagens.push({
     tipo: "pos_sessao",
-    descricao: "Confirmação pós-sessão (RAS assinado)",
+    descricao: "Confirmação pós-sessão (RASP assinado)",
     texto:
       `PAXTER | Sessão concluída\n\n` +
       `${pnome}, sua sessão foi concluída com sucesso. As substâncias foram administradas conforme o protocolo.\n\n` +
-      `O RAS (Registro de Administração de Substâncias) assinado digitalmente já está disponível no seu prontuário. ` +
+      `O RASP assinado digitalmente já está disponível no seu prontuário. ` +
       `Você receberá o arquivo por e-mail e no seu Drive.\n\n` +
       `Se sentir qualquer sintoma, avise a equipe imediatamente.`,
   });

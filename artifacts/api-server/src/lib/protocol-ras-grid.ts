@@ -14,12 +14,12 @@ export async function loadProtocolRasGrid(
 ): Promise<PersistedRasRow[] | undefined> {
   if (protocol.schedulingMode !== "exact") return undefined;
   if (!substanceIds.length || new Set(substanceIds).size !== substanceIds.length) {
-    throw new Error("RAS: identificação ambígua das substâncias");
+    throw new Error("RASP: identificação ambígua das substâncias");
   }
   const sessions = await db.select().from(sessionsTable)
     .where(eq(sessionsTable.protocolId, protocol.id))
     .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.id));
-  if (!sessions.length) throw new Error("RAS: valide o protocolo antes de emitir a grade");
+  if (!sessions.length) throw new Error("RASP: valide o protocolo antes de emitir a grade");
   const rows: PersistedRasRow[] = [];
   for (const session of sessions) {
     if (session.status === "cancelled") continue;
@@ -27,7 +27,7 @@ export async function loadProtocolRasGrid(
       .where(eq(substanceApplicationsTable.sessionId, session.id)))
       .filter(app => app.availability === "disp");
     if (!apps.length || apps.some(app => !substanceIds.includes(app.substanceId))) {
-      throw new Error("RAS: aplicações inconsistentes com o protocolo");
+      throw new Error("RASP: aplicações inconsistentes com o protocolo");
     }
     rows.push({
       number: session.weekNumber,
@@ -39,12 +39,12 @@ export async function loadProtocolRasGrid(
         const total = occurrences[0].totalSessions;
         if (occurrences.some(app => app.totalSessions !== total ||
             app.sessionNumber < 1 || app.sessionNumber > total)) {
-          throw new Error("RAS: contagem de aplicações inconsistente");
+          throw new Error("RASP: contagem de aplicações inconsistente");
         }
         return `${occurrences.map(app => app.sessionNumber).join("·")}/${total}`;
       }),
     });
   }
-  if (!rows.length) throw new Error("RAS: não há sessões ativas para impressão");
+  if (!rows.length) throw new Error("RASP: não há sessões ativas para impressão");
   return rows;
 }

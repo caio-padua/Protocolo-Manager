@@ -46,7 +46,7 @@ import {
 
 const TIPOS_DOC = [
   { value: "TERMO", label: "Termo de Consentimento" },
-  { value: "RAS", label: "RAS (Jurídico/Clínico)" },
+  { value: "RAS", label: "RASP (Jurídico/Clínico)" },
   { value: "ORCAMENTO", label: "Orçamento" },
   { value: "CONTRATO", label: "Contrato" },
   { value: "OUTRO", label: "Outro" },
@@ -624,7 +624,7 @@ export default function Cartorio() {
               )}
               {contexto.ultimoRasEvolutivo && (
                 <div className="text-[12px] text-muted-foreground">
-                  RAS evolutivo: sessão {contexto.ultimoRasEvolutivo.sessionNumber}/{contexto.ultimoRasEvolutivo.totalSessions} ({Math.round(contexto.ultimoRasEvolutivo.progressPercent)}%)
+                  RASP evolutivo: sessão {contexto.ultimoRasEvolutivo.sessionNumber}/{contexto.ultimoRasEvolutivo.totalSessions} ({Math.round(contexto.ultimoRasEvolutivo.progressPercent)}%)
                 </div>
               )}
             </div>

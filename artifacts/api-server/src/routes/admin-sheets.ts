@@ -99,7 +99,7 @@ const GRUPOS: Grupo[] = [
     telas: [
       { num: 34, nome: "Portfólio Clínico", funcao: "Visão do portfólio de produtos clínicos", menu: "✅", necessidade: "★★★★☆", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/portfolio-clinico` },
       { num: 35, nome: "Protocolos", funcao: "Criação e gestão de protocolos injetáveis", menu: "✅", necessidade: "★★★★★", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/protocols` },
-      { num: 36, nome: "RAS", funcao: "Registro de Administração de Substâncias", menu: "✅", necessidade: "★★★★★", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/ras` },
+      { num: 36, nome: "RASP", funcao: "Registro de Atendimentos, Substâncias e Procedimentos", menu: "✅", necessidade: "★★★★★", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/ras` },
       { num: 37, nome: "Catálogos", funcao: "Catálogos IHE (fórmulas, injetáveis, implantes)", menu: "✅", necessidade: "★★★★☆", fusao: "★★★☆☆", candidata: "Fórmulas & Substâncias", link: `${BASE}/catalogos` },
       { num: 38, nome: "Estoque", funcao: "Controle de estoque de substâncias", menu: "✅", necessidade: "★★★★☆", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/stock` },
     ],

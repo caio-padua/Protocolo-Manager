@@ -47,15 +47,15 @@ export async function notifySlackRasFapFailure(
 
   const label =
     context === "drive"
-      ? "RAS FAP não pôde ser gerado/salvo"
-      : "RAS FAP não pôde ser anexado ao e-mail";
+      ? "RASP FAP não pôde ser gerado/salvo"
+      : "RASP FAP não pôde ser anexado ao e-mail";
 
   const detail =
     context === "email"
-      ? " O e-mail foi enviado sem o anexo RAS FAP."
+      ? " O e-mail foi enviado sem o anexo RASP FAP."
       : "";
 
-  logFn(`RAS FAP alert (${context}): ${errorMessage}`, errorMessage);
+  logFn(`RASP FAP alert (${context}): ${errorMessage}`, errorMessage);
 
   if (!slackChannel) return;
 

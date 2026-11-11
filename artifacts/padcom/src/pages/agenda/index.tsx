@@ -218,7 +218,7 @@ function SessionCard({
                   {session.status === "completed" && (
                     <DropdownMenuItem onClick={() => onSendPostEmail(session)} disabled={emailSending === session.id} className="gap-2 font-bold uppercase tracking-widest text-[10px]">
                       {emailSending === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4 text-green-500" />}
-                      E-mail Pós-Aplicação (RAS)
+                      E-mail Pós-Aplicação (RASP)
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -709,7 +709,7 @@ export default function Agenda() {
     try {
       const res = await fetch(`/api/email/send-post-session/${session.id}`, { method: "POST" });
       const data = await res.json();
-      if (res.ok) toast({ title: "E-mail enviado!", description: `RAS pós-aplicação enviado para ${session.clientName}.` });
+      if (res.ok) toast({ title: "E-mail enviado!", description: `RASP pós-aplicação enviado para ${session.clientName}.` });
       else toast({ title: "Erro ao enviar e-mail", description: data.error, variant: "destructive" });
     } catch { toast({ title: "Erro de conexão", variant: "destructive" }); }
     finally { setEmailSending(null); }

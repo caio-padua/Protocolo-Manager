@@ -173,7 +173,7 @@ async function authorizeRasDocument(
   if (ras.unit !== identity.unit || ras.professionalName !== identity.professionalName) {
     res.status(409).json({
       code: "ras_identity_mismatch",
-      error: "Os dados de clínica ou profissional do RAS não correspondem ao protocolo autorizado.",
+      error: "Os dados de clínica ou profissional do RASP não correspondem ao protocolo autorizado.",
     });
     return null;
   }
@@ -388,7 +388,7 @@ router.get("/ras/:id", requireCollaborator, requireRasTenant, async (req, res): 
 
   const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, params.data.id));
   if (!ras) {
-    res.status(404).json({ error: "RAS not found" });
+    res.status(404).json({ error: "RASP não encontrado" });
     return;
   }
   if (!(await authorizeRasRecord(req, ras, res))) return;
@@ -399,13 +399,13 @@ router.get("/ras/:id", requireCollaborator, requireRasTenant, async (req, res): 
 router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const id = Number.parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid RAS id" });
+    res.status(400).json({ error: "Identificador do RASP inválido" });
     return;
   }
 
   const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
   if (!ras) {
-    res.status(404).json({ error: "RAS not found" });
+    res.status(404).json({ error: "RASP não encontrado" });
     return;
   }
   if (!(await authorizeRasRecord(req, ras, res))) return;
@@ -495,13 +495,13 @@ router.get("/ras/:id/pdf", requireCollaborator, requireRasTenant, async (req, re
 router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, async (req, res): Promise<void> => {
   const id = Number.parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid RAS id" });
+    res.status(400).json({ error: "Identificador do RASP inválido" });
     return;
   }
 
   const [ras] = await db.select().from(rasTable).where(eq(rasTable.id, id));
   if (!ras) {
-    res.status(404).json({ error: "RAS not found" });
+    res.status(404).json({ error: "RASP não encontrado" });
     return;
   }
   if (!(await authorizeRasRecord(req, ras, res))) return;
@@ -578,7 +578,7 @@ router.post("/ras/:id/upload-drive", requireCollaborator, requireRasTenant, asyn
       fileId: result.fileId,
       webViewLink: result.webViewLink,
       fileName: driveFileName,
-      message: `RAS enviado para Google Drive na pasta PROTOCOLOS de ${client.name}`,
+      message: `RASP enviado para Google Drive na pasta PROTOCOLOS de ${client.name}`,
     });
   } catch (err: any) {
     if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
@@ -718,7 +718,7 @@ router.get("/ras/physical/:protocolId", requireCollaborator, requireRasTenant, a
   } catch (err: any) {
     if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("Physical RAS PDF generation error:", err);
-    res.status(500).json({ error: "Erro ao gerar RAS FAP", details: err.message });
+    res.status(500).json({ error: "Erro ao gerar RASP FAP", details: err.message });
   }
 });
 
@@ -877,7 +877,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
         tipo: "ras_fap_reenviado",
         clienteNome: client.name,
         destinatario: client.email,
-        assunto: `PAXTER | ${protocol.title} — RAS FAP`,
+        assunto: `PAXTER | ${protocol.title} — RASP FAP`,
         status: emailResult.success ? "enviado" : "falhou",
         erro: emailResult.success ? null : (emailResult.error ?? null),
         protocolId: protocol.id,
@@ -893,11 +893,11 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
       return;
     }
 
-    res.json({ success: true, message: `RAS FAP reenviado com sucesso para ${client.email}` });
+    res.json({ success: true, message: `RASP FAP reenviado com sucesso para ${client.email}` });
   } catch (err: any) {
     if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ error: err.message }); return; }
     console.error("Reenviar RAS FAP error:", err);
-    res.status(500).json({ error: "Erro ao gerar ou enviar o RAS FAP", details: err.message });
+    res.status(500).json({ error: "Erro ao gerar ou enviar o RASP FAP", details: err.message });
   }
 });
 
@@ -992,7 +992,7 @@ function buildSubsDemoSubstances(n: number): DemoSub[] {
 function demoBlocks(subs: DemoSub[], clientName: string, valor: string): string[] {
   const primeiroNome = clientName.split(" ")[0];
   const blocks: string[] = [];
-  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Segue em anexo o seu RAS FAP — Registro de Administracao de Substancias para Fisico Acompanhamento de Protocolo, documento de controle das aplicacoes do seu tratamento.</p>`);
+  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Segue em anexo o seu RASP FAP, documento de controle das aplicacoes do seu tratamento.</p>`);
   blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
     <tr style="background:#0a1e3d;">
       <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Substancia</td>
@@ -1058,7 +1058,7 @@ router.get("/ras-fap-demo", async (req, res) => {
     }, modo);
 
     const pdfBuffer = Buffer.from(pdfBytes);
-    const driveFileNameFapDemo = `${yy}.${mm}.${dd} RAS FAP ${clientName.toUpperCase()} (DEMO).pdf`;
+    const driveFileNameFapDemo = `${yy}.${mm}.${dd} RASP FAP ${clientName.toUpperCase()} (DEMO).pdf`;
 
     const send = req.query.send === "1";
     const to = (typeof req.query.to === "string" ? req.query.to : "").trim().toLowerCase();
@@ -1086,11 +1086,11 @@ router.get("/ras-fap-demo", async (req, res) => {
         try {
           const doc: PaxterDoc = {
             eyebrow: `Prezado(a)`,
-            titulo: "RAS FAP — Demonstração",
+            titulo: "RASP FAP — Demonstração",
             paragrafos: [],
             blocosHtml: demoBlocks(demoSubs, clientName, valor),
             anexos: [{ filename: driveFileNameFapDemo, content: pdfBuffer, contentType: "application/pdf" }],
-            assunto: "PAXTER | RAS FAP — Demonstração",
+            assunto: "PAXTER | RASP FAP — Demonstração",
           };
           const envio = await enviarMensagemPaxter(
             doc,
@@ -1121,12 +1121,12 @@ router.get("/ras-fap-demo", async (req, res) => {
     }
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="RAS_FAP_DEMO.pdf"`);
+    res.setHeader("Content-Disposition", `inline; filename="RASP_FAP_DEMO.pdf"`);
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(pdfBuffer);
   } catch (err: any) {
     req.log.error(`RAS FAP demo error: ${err.message}`);
-    res.status(500).json({ error: "Erro ao gerar RAS FAP demo", details: err.message });
+    res.status(500).json({ error: "Erro ao gerar RASP FAP demo", details: err.message });
   }
 });
 
@@ -1252,7 +1252,7 @@ router.get("/ras-fichas-demo", async (req, res) => {
             paragrafos: [],
             blocosHtml: fichasBlocks(emailItems, clientName),
             anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-            assunto: `PAXTER | ${protocoloTitulo} — RAS`,
+            assunto: `PAXTER | ${protocoloTitulo} — RASP`,
           };
           const envio = await enviarMensagemPaxter(
             doc,
@@ -1283,12 +1283,12 @@ router.get("/ras-fichas-demo", async (req, res) => {
     }
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="RAS_FICHAS_DEMO.pdf"`);
+    res.setHeader("Content-Disposition", `inline; filename="RASP_FICHAS_DEMO.pdf"`);
     res.setHeader("Content-Length", pdfBytes.length);
     res.send(pdfBuffer);
   } catch (err: any) {
     req.log.error(`RAS fichas demo error: ${err.message}`);
-    res.status(500).json({ error: "Erro ao gerar RAS fichas demo", details: err.message });
+    res.status(500).json({ error: "Erro ao gerar RASP fichas demo", details: err.message });
   }
 });
 
@@ -1311,7 +1311,7 @@ function buildEntregaBlocks(
 ): string[] {
   const primeiroNome = clientName.split(" ")[0];
   const blocks: string[] = [];
-  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Seu protocolo "${protocoloTitulo}" foi emitido em ${dataHojeBR}. Segue em anexo o RAS FAP — documento de controle fisico das aplicacoes.</p>`);
+  blocks.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">Ola, ${primeiroNome}. Seu protocolo "${protocoloTitulo}" foi emitido em ${dataHojeBR}. Segue em anexo o RASP FAP — documento de controle fisico das aplicacoes.</p>`);
   blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;">
     <tr style="background:#0a1e3d;">
       <td style="padding:10px 14px;color:#e8c766;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Substancia</td>
@@ -1398,7 +1398,7 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
   const yy = String(agora.getUTCFullYear()).slice(2);
   const anoFull = agora.getUTCFullYear();
   const dataHojeBR = `${dd}/${mm}/${anoFull}`;
-  const driveFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+  const driveFileName = `${yy}.${mm}.${dd} RASP FAP ${client.name.toUpperCase()}.pdf`;
 
   const protocoloTitulo = titulo ?? "Protocolo de Longevidade Personalizado";
 
@@ -1434,7 +1434,7 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
 
     pdfBuffer = Buffer.from(pdfBytes);
   } catch (pdfErr: any) {
-    res.status(500).json({ error: "Erro ao gerar RAS FAP PDF", details: pdfErr.message });
+    res.status(500).json({ error: "Erro ao gerar RASP FAP PDF", details: pdfErr.message });
     return;
   }
 
@@ -1458,7 +1458,7 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
         paragrafos: [],
         blocosHtml: blocos,
         anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-        assunto: `PAXTER | ${protocoloTitulo} — RAS FAP`,
+        assunto: `PAXTER | ${protocoloTitulo} — RASP FAP`,
       };
       const envio = await enviarMensagemPaxter(
         doc,

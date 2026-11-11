@@ -354,7 +354,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       setScheduleOpen(true);
     } catch (err: any) {
       if (!mountedRef.current) return;
-      toast({ title: "Erro ao criar protocolo", description: err?.message ?? "Falha ao lançar com RAS FAP", variant: "destructive" });
+      toast({ title: "Erro ao criar protocolo", description: err?.message ?? "Falha ao lançar com RASP FAP", variant: "destructive" });
     }
     if (createdId === null) {
       comboRef.current = false;
@@ -378,7 +378,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
-        throw new Error(error?.details || "Erro ao gerar RAS FAP");
+        throw new Error(error?.details || "Erro ao gerar RASP FAP");
       }
       const blob = await response.blob();
       if (!mountedRef.current) return;
@@ -386,13 +386,13 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       const anchor = document.createElement("a");
       anchor.href = url;
       const disposition = response.headers.get("Content-Disposition");
-      anchor.download = disposition?.match(/filename="(.+)"/)?.[1] ?? `RAS_FAP_${protocolId}.pdf`;
+      anchor.download = disposition?.match(/filename="(.+)"/)?.[1] ?? `RASP_FAP_${protocolId}.pdf`;
       anchor.click();
       URL.revokeObjectURL(url);
-      toast({ title: "Protocolo agendado e RAS FAP gerado", description: "A reserva foi feita antes da emissão do documento." });
+      toast({ title: "Protocolo agendado e RASP FAP gerado", description: "A reserva foi feita antes da emissão do documento." });
     } catch (error) {
       toast({
-        title: "Protocolo agendado; o RAS FAP falhou",
+        title: "Protocolo agendado; o RASP FAP falhou",
         description: error instanceof Error ? error.message : "Gere o documento pela tela do protocolo.",
         variant: "destructive",
       });
@@ -577,7 +577,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           disabled={!canAdvance || comboLoading || createMutation.isPending}
         >
           {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
-          {comboLoading ? "Agendando antes do RAS FAP..." : "Lançar + Gerar RAS FAP"}
+          {comboLoading ? "Agendando antes do RASP FAP..." : "Lançar + Gerar RASP FAP"}
         </Button>
       </div>
       <ProtocolSchedulingDialog

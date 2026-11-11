@@ -1138,3 +1138,17 @@ mtime_ms = 1794271089836
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/75cdafd6-8cea-4876-91ea-6041dfad5ac7/f1bc98e6-f42e-4084-93a8-9ceca06c7dbf"
 storage_version_token = "1794271521436814"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "RdhzJFebI44k3-fP8sxae"
+uri = "file://generated-artifacts/rasp-exemplo-sintetico.pdf"
+type = "pdf"
+title = "Exemplo do RASP FAP"
+description = "Documento sintético para conferir o nome e a tipografia; não é um documento clínico."
+logical_id = "ff920dff-6c3f-4c68-90da-444d11b97357"
+content_hash = "sha256:ee008c63d99cc9844e4777a9be4d5245d0369b692b58a9369c4b3032aef265aa"
+size = 7408
+mtime_ms = 1794356426820
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ff920dff-6c3f-4c68-90da-444d11b97357/940eda9b-38c3-4208-9b85-069644acdcc4"
+storage_version_token = "1794356427563279"
+content_type = "application/pdf"

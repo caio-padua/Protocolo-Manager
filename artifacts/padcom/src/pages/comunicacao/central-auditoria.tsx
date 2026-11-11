@@ -408,7 +408,7 @@ function BlocoEmail() {
               <tbody>
                 {[
                   { tipo: "Pré-sessão", gatilho: "Agendamento confirmado", conteudo: "Código de validação + lista de substâncias" },
-                  { tipo: "Pós-sessão", gatilho: "Sessão concluída", conteudo: "Substâncias aplicadas + PDF do RAS assinado" },
+                  { tipo: "Pós-sessão", gatilho: "Sessão concluída", conteudo: "Substâncias aplicadas + PDF do RASP assinado" },
                   { tipo: "Protocolo Completo", gatilho: "Lançamento do protocolo", conteudo: "PDF de 8-10 páginas com protocolo completo" },
                   { tipo: "Lembretes semanais", gatilho: "Batch semanal", conteudo: "Resumo da semana por cliente" },
                 ].map(row => (
@@ -492,7 +492,7 @@ function BlocoTelegram() {
 
           <BlockTitle icon={Info}>Mensagens enviadas via Telegram</BlockTitle>
           <div className="concave-3d px-4 py-3 text-[12px] text-muted-foreground leading-relaxed">
-            O Telegram é usado para envio de RAS, documentos assinados e notificações de protocolo
+            O Telegram é usado para envio de RASP, documentos assinados e notificações de protocolo
             quando o cliente tem <strong>Telegram Chat ID</strong> cadastrado no perfil.
             Mensagens de lembrete por período (cockpit de mensageria) também usam este canal.
           </div>

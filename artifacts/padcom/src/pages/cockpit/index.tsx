@@ -600,7 +600,7 @@ export default function Cockpit() {
               Cadernos da Entrega
             </h2>
             <span className="ml-auto text-xs text-slate-400">
-              Consentimentos enviados via RAS FAP neste paciente
+              Consentimentos enviados via RASP FAP neste paciente
             </span>
           </div>
 

@@ -572,7 +572,7 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
       1, "pf1", expect.stringContaining("PROTOCOLO ANA SILVA"), "application/pdf", Buffer.from(FAKE_PDF_BYTES), true,
     );
     expect(driveLib.uploadFileToDrive).toHaveBeenNthCalledWith(
-      2, "pf1", expect.stringContaining("RAS FAP"), "application/pdf", Buffer.from(FAKE_PDF_BYTES), true,
+      2, "pf1", expect.stringContaining("RASP FAP"), "application/pdf", Buffer.from(FAKE_PDF_BYTES), true,
     );
     expect(driveLib.uploadToFolderById).not.toHaveBeenCalled();
   });

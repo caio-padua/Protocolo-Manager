@@ -65,7 +65,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { id: "avatares", label: "Avatares de Voz e Vídeo", path: "/comunicacao/avatares", icon: "PersonStanding", grupo: "comunicacao", moduloRequerido: "comunicacao" },
 
   // ─── RAS / FAP ────────────────────────────────────────────────────────────
-  { id: "ras", label: "RAS", path: "/ras", icon: "FileBarChart", grupo: "ras", moduloRequerido: "ras" },
+  { id: "ras", label: "RASP", path: "/ras", icon: "FileBarChart", grupo: "ras", moduloRequerido: "ras" },
   { id: "fap", label: "FAP", path: "/fap", icon: "ClipboardPlus", grupo: "ras", moduloRequerido: "ras" },
 
   // ─── Arsenal Clínico ──────────────────────────────────────────────────────

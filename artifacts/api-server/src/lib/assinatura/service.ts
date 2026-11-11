@@ -629,7 +629,8 @@ async function arquivarNoDrive(solicitacaoId: number, pdf: Buffer): Promise<void
   const yy = String(data.getFullYear()).slice(2);
   const mm = String(data.getMonth() + 1).padStart(2, "0");
   const dd = String(data.getDate()).padStart(2, "0");
-  const nomeArq = `${yy}.${mm}.${dd} ${sol.tipoDoc} ASSINADO ${(pac[0]?.name || "").toUpperCase()}.pdf`;
+  const nomeTipoDoc = sol.tipoDoc === "RAS" ? "RASP" : sol.tipoDoc;
+  const nomeArq = `${yy}.${mm}.${dd} ${nomeTipoDoc} ASSINADO ${(pac[0]?.name || "").toUpperCase()}.pdf`;
   const up = await uploadFileToDrive(folderId, nomeArq, "application/pdf", pdf, true);
   await db
     .update(assinaturaSolicitacoesTable)
@@ -692,7 +693,7 @@ export async function obterPdfAssinado(
   const sol = rows[0];
   if (!sol || !sol.pdfStorageKey) return null;
   const buffer = await readPdfAssinado(sol.pdfStorageKey);
-  const filename = `assinatura-${sol.id}-${sol.tipoDoc}.pdf`;
+  const filename = `assinatura-${sol.id}-${sol.tipoDoc === "RAS" ? "RASP" : sol.tipoDoc}.pdf`;
   return { buffer, filename };
 }
 

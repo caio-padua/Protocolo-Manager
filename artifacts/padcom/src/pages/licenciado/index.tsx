@@ -114,7 +114,7 @@ const MODULOS: ModuloDesejo[] = [
   },
   {
     key: "ras",
-    nome: "RAS & FAP",
+    nome: "RASP & FAP",
     icon: FileBarChart,
     oQueFaz: "Registro de Assistencia Sistemico e Formulario de Auditoria de Procedimentos: a defesa documental da pratica clinica, gerada automaticamente.",
     beneficio: "Blindagem documental sem esforco manual.",

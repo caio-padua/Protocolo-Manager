@@ -879,7 +879,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
 
     // 3. Gerar RAS FAP + upload Drive
     let rasFapBuffer: Buffer | undefined;
-    const rasFapFileName = `${yy}.${mm}.${dd} RAS FAP ${client.name.toUpperCase()}.pdf`;
+    const rasFapFileName = `${yy}.${mm}.${dd} RASP FAP ${client.name.toUpperCase()}.pdf`;
     try {
       const physicalSessions = docSessions.map(sess => ({
         number: sess.number,

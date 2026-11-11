@@ -26,20 +26,22 @@ describe("anexos anunciados no e-mail do protocolo", () => {
     await sendProtocolEmail(data);
     const doc = send.mock.calls[0][0];
     expect(doc.anexos).toHaveLength(1);
-    expect(doc.blocosHtml.join(" ")).not.toContain("RAS FAP");
+    expect(doc.blocosHtml.join(" ")).not.toContain("RASP FAP");
   });
 
   it("anuncia RAS FAP quando ele é o segundo anexo", async () => {
     await sendProtocolEmail({ ...data, rasFapBuffer: Buffer.from("ras"), rasFapFileName: "ras.pdf" });
     const doc = send.mock.calls[0][0];
     expect(doc.anexos).toHaveLength(2);
-    expect(doc.blocosHtml.join(" ")).toContain("RAS FAP");
+    expect(doc.blocosHtml.join(" ")).toContain("RASP FAP");
+    expect(doc.blocosHtml.join(" ")).not.toContain("RAS FAP");
   });
 
   it("anuncia RAS FAP quando ele é o PDF principal do reenvio", async () => {
     await sendProtocolEmail({ ...data, pdfIsRasFap: true });
     const doc = send.mock.calls[0][0];
     expect(doc.anexos).toHaveLength(1);
-    expect(doc.blocosHtml.join(" ")).toContain("RAS FAP");
+    expect(doc.blocosHtml.join(" ")).toContain("RASP FAP");
+    expect(doc.blocosHtml.join(" ")).not.toContain("RAS FAP");
   });
 });

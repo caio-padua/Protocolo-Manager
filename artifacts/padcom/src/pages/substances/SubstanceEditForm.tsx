@@ -559,7 +559,7 @@ export function SubstanceEditForm({
             {form.name || substance.name || "Editar substância"}
           </h3>
           <p className="text-xs text-muted-foreground leading-snug">
-            Tudo que você ajustar aqui entra no informativo do cliente e no RAS.
+            Tudo que você ajustar aqui entra no informativo do cliente e no RASP.
           </p>
         </div>
       </div>

@@ -190,7 +190,7 @@ export default function ProtocolDetail() {
                     });
                     if (!resp.ok) {
                       const err = await resp.json().catch(() => null);
-                      throw new Error(err?.details || "Erro ao gerar RAS FAP");
+                      throw new Error(err?.details || "Erro ao gerar RASP FAP");
                     }
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
@@ -198,10 +198,10 @@ export default function ProtocolDetail() {
                     a.href = url;
                     const cd = resp.headers.get("Content-Disposition");
                     const m = cd?.match(/filename="(.+)"/);
-                    a.download = m?.[1] ?? `RAS_FAP_${id}.pdf`;
+                    a.download = m?.[1] ?? `RASP_FAP_${id}.pdf`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    toast({ title: "RAS FAP baixado!", description: "Documento para impressao e controle manual." });
+                    toast({ title: "RASP FAP baixado!", description: "Documento para impressao e controle manual." });
                   } catch (err: any) {
                     toast({ title: "Erro", description: err.message, variant: "destructive" });
                   } finally {
@@ -210,7 +210,7 @@ export default function ProtocolDetail() {
                 }}
               >
                 {physicalRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
-                {physicalRasLoading ? "Gerando..." : "RAS FAP (Imprimir)"}
+                {physicalRasLoading ? "Gerando..." : "RASP FAP (Imprimir)"}
               </Button>
               <div className="flex flex-col items-start gap-0.5">
                 <Button
@@ -225,9 +225,9 @@ export default function ProtocolDetail() {
                       });
                       const body = await resp.json().catch(() => null);
                       if (!resp.ok) {
-                        throw new Error(body?.error || "Erro ao reenviar RAS FAP");
+                        throw new Error(body?.error || "Erro ao reenviar RASP FAP");
                       }
-                      toast({ title: "RAS FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
+                      toast({ title: "RASP FAP reenviado!", description: body?.message ?? "E-mail enviado ao paciente com sucesso." });
                       fetchRasFapLogs();
                     } catch (err: any) {
                       toast({ title: "Erro ao reenviar", description: err.message, variant: "destructive" });
@@ -237,7 +237,7 @@ export default function ProtocolDetail() {
                   }}
                 >
                   {reenviarRasLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}
-                  {reenviarRasLoading ? "Enviando..." : "Reenviar RAS FAP"}
+                  {reenviarRasLoading ? "Enviando..." : "Reenviar RASP FAP"}
                 </Button>
                 {rasFapEmailLogs.length > 0 && (() => {
                   const last = rasFapEmailLogs[0];
@@ -326,13 +326,13 @@ export default function ProtocolDetail() {
                             title: body?.driveUploaded
                               ? "Protocolo salvo no Drive; e-mail não confirmado"
                               : "Entrega incompleta; Drive e e-mail não confirmados",
-                            description: `${body?.emailError || "Não foi possível confirmar o envio. Verifique o histórico antes de reenviar."}${body?.rasFapGenerated === false ? " O RAS FAP também não foi gerado." : ""}`,
+                            description: `${body?.emailError || "Não foi possível confirmar o envio. Verifique o histórico antes de reenviar."}${body?.rasFapGenerated === false ? " O RASP FAP também não foi gerado." : ""}`,
                             variant: "warning",
                             duration: 8000,
                           } as any);
                         } else if (body?.rasFapGenerated === false) {
                           toast({
-                            title: "E-mail aceito; RAS FAP não gerado",
+                            title: "E-mail aceito; RASP FAP não gerado",
                             description: body?.driveUploaded
                               ? "Somente o protocolo foi anexado ao e-mail."
                               : "Somente o protocolo foi anexado; o arquivo no Drive também não foi confirmado.",

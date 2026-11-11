@@ -28,7 +28,7 @@ async function rowsOf<T>(query: ReturnType<typeof sql>): Promise<T[]> {
 
 function brtParts(appliedAt: string): { data: string; hora: string } {
   const instante = new Date(appliedAt);
-  if (!Number.isFinite(instante.getTime())) throw new Error("RAS: data de aplicação inválida no registro");
+  if (!Number.isFinite(instante.getTime())) throw new Error("RASP: data de aplicação inválida no registro");
   const p = parseBrtParts(instante);
   return { data: `${p.day}/${p.month}/${p.year}`, hora: `${p.hour}:${p.minute}` };
 }
@@ -39,9 +39,9 @@ export async function loadProtocolRasRegistros(
 ): Promise<Map<number, RegistroRasFap> | undefined> {
   if (protocol.schedulingMode !== "exact") return undefined;
   const empresaId = protocol.empresaId;
-  if (!Number.isInteger(empresaId)) throw new Error("RAS: protocolo sem empresa; os registros não podem ser isolados");
+  if (!Number.isInteger(empresaId)) throw new Error("RASP: protocolo sem empresa; os registros não podem ser isolados");
   if (!substanceIds.length || new Set(substanceIds).size !== substanceIds.length) {
-    throw new Error("RAS: identificação ambígua das substâncias");
+    throw new Error("RASP: identificação ambígua das substâncias");
   }
   const registros = new Map<number, RegistroRasFap>();
   const sessions = await rowsOf<SessionRow>(sql`
@@ -52,16 +52,16 @@ export async function loadProtocolRasRegistros(
 
   // Sessões antigas podem ter empresa nula (legado); sessão de OUTRA empresa dentro do protocolo é anomalia.
   if (sessions.some((s) => s.empresa_id != null && s.empresa_id !== empresaId)) {
-    throw new Error("RAS: o protocolo contém visita de outra empresa; os registros não podem ser emitidos");
+    throw new Error("RASP: o protocolo contém visita de outra empresa; os registros não podem ser emitidos");
   }
   // Data, hora, enfermeira e checks vêm da visita: ela TEM de ser do cliente do protocolo (o nome impresso é dele).
   if (sessions.some((s) => s.client_id !== protocol.clientId)) {
-    throw new Error("RAS: o protocolo contém visita de outro cliente; os registros não podem ser emitidos");
+    throw new Error("RASP: o protocolo contém visita de outro cliente; os registros não podem ser emitidos");
   }
   // Número 0 é preenchimento da folha (linha de escrita) e nunca recebe registro: visita real começa em 1.
   const numeros = sessions.map((s) => s.week_number);
   if (numeros.some((n) => !Number.isInteger(n) || (n as number) < 1) || new Set(numeros).size !== numeros.length) {
-    throw new Error("RAS: numeração das visitas ambígua; os registros não podem ser ligados à grade");
+    throw new Error("RASP: numeração das visitas ambígua; os registros não podem ser ligados à grade");
   }
 
   const sessionIds = sessions.map((s) => s.id);
@@ -79,7 +79,7 @@ export async function loadProtocolRasRegistros(
 
   const [cliente] = await rowsOf<{ name: string }>(sql`
     SELECT name FROM clients WHERE id = ${protocol.clientId} AND empresa_id = ${empresaId}`);
-  if (!cliente) throw new Error("RAS: cliente do protocolo não encontrado nesta empresa");
+  if (!cliente) throw new Error("RASP: cliente do protocolo não encontrado nesta empresa");
 
   const aplicadasPorSessao = new Map<number, ApplicationRow[]>();
   for (const app of apps) {

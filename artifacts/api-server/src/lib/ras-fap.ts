@@ -1,7 +1,7 @@
 /**
- * RAS FAP — gerador (Paxter).
+ * RASP FAP — gerador (Paxter).
  *
- * RAS = Registro de Administracao de Substancias (titulo impresso do documento).
+ * RASP = Registro de Atendimentos, Substancias e Procedimentos.
  * FAP = Formulario de Auditoria de Procedimentos (papel fisico, preenchido a
  *       caneta na sala no momento da aplicacao).
  * PDF = arquivo de documento. A4 landscape = folha A4 deitada.
@@ -178,7 +178,7 @@ export function planejarPaginasRasFap(subs: SubstanciaFap[], gradePersistida?: L
   // Explicit exact-date protocols supply their recorded agenda; legacy motor is unchanged.
   const gradeGlobal = gradePersistida ?? montarGrade(subs, 0);
   if (gradeGlobal.some(row => row.contadores.length !== subs.length)) {
-    throw new Error("RAS: grade incompatível com as colunas de substâncias");
+    throw new Error("RASP: grade incompatível com as colunas de substâncias");
   }
   const plano: PaginaRasFap[] = [];
   for (const g of grupos) {
@@ -473,9 +473,10 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   // Esquerda: wordmark "RAS FAP" + 2 descritivos, centralizados em yc.
   const wmSize = 23;
   const wmFont = pal.wordmark === "serif" ? "Times-Bold" : "Helvetica-Bold";
-  doc.font(wmFont).fontSize(wmSize).fillColor(pal.brand).text("RAS FAP", ML, yc - (wmSize * 0.72) / 2, { lineBreak: false, characterSpacing: pal.wordmark === "serif" ? 0 : 1 });
-  const dx = ML + doc.widthOfString("RAS FAP") + 18;
-  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Administração de Substâncias.", dx, yc - 8, { lineBreak: false, characterSpacing: 0.3 });
+  const wmTracking = pal.wordmark === "serif" ? 0 : 1;
+  doc.font(wmFont).fontSize(wmSize).fillColor(pal.brand).text("RASP FAP", ML, yc - (wmSize * 0.72) / 2, { lineBreak: false, characterSpacing: wmTracking });
+  const dx = ML + doc.widthOfString("RASP FAP", { characterSpacing: wmTracking }) + 18;
+  doc.font("Helvetica").fontSize(8.5).fillColor(pal.ink).text("Registro de Atendimentos, Substâncias e Procedimentos.", dx, yc - 8, { lineBreak: false, characterSpacing: 0.3 });
   doc.font("Helvetica-Oblique").fontSize(6.8).fillColor(pal.labelInk).text("Formulário de Auditoria de Procedimentos.", dx + 16, yc + 2.5, { lineBreak: false, characterSpacing: 0.3 });
 
   // Direita: PAXTER e PADCON lado a lado, cada um com tagline em ingles
@@ -848,7 +849,7 @@ function desenharFaixaLateral(
 
   // Trunca se nome for longo demais.
   const avail = h - 14;
-  let label = `RAS FAP   —   ${(nome || "").toUpperCase()}`;
+  let label = `RASP FAP   —   ${(nome || "").toUpperCase()}`;
   if (doc.widthOfString(label, { characterSpacing: cspc }) > avail) {
     while (label.length > 12 && doc.widthOfString(label + "\u2026", { characterSpacing: cspc }) > avail) {
       label = label.slice(0, -1);

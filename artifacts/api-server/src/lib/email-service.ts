@@ -237,14 +237,14 @@ function preSessionBlocks(data: PreSessionEmailData): string[] {
     ${data.substances.map(s => buildSubstanceDetailBlock(s)).join("")}
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.20); border-radius: 8px; padding: 16px; margin-top: 8px;">
       <h3 style="color: #c9a24f; font-size: 14px; margin: 0 0 8px;">Termos de Consentimento</h3>
-      <p style="color: #c2cee0; font-size: 12px; margin: 0; line-height: 1.6;">Ao prosseguir com o tratamento, o(a) paciente declara estar ciente dos procedimentos a serem realizados, incluindo aplicacoes endovenosas, intramusculares e/ou implantes subcutaneos. O paciente foi informado sobre os beneficios esperados, possiveis efeitos colaterais e contraindicacoes de cada substancia. O consentimento formal sera registrado presencialmente antes da primeira aplicacao, conforme exigencias da ANVISA e do Conselho Federal de Medicina (CFM). O RAS (Registro de Administracao de Substancias) sera emitido e assinado digitalmente com certificado ICP-Brasil A1 apos cada sessao.</p>
+      <p style="color: #c2cee0; font-size: 12px; margin: 0; line-height: 1.6;">Ao prosseguir com o tratamento, o(a) paciente declara estar ciente dos procedimentos a serem realizados, incluindo aplicacoes endovenosas, intramusculares e/ou implantes subcutaneos. O paciente foi informado sobre os beneficios esperados, possiveis efeitos colaterais e contraindicacoes de cada substancia. O consentimento formal sera registrado presencialmente antes da primeira aplicacao, conforme exigencias da ANVISA e do Conselho Federal de Medicina (CFM). O RASP sera emitido e assinado digitalmente com certificado ICP-Brasil A1 apos cada sessao.</p>
     </div>`);
   }
 
   // Aviso RAS
   blocks.push(`
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px; margin-top: 16px;">
-      <p style="margin: 0; color: #c2cee0; font-size: 13px;"><strong style="color: #c9a24f;">Importante:</strong> Este e-mail contem as substancias previstas para sua sessao. Apos a aplicacao, voce recebera o RAS (Registro de Administracao de Substancias) completo assinado digitalmente.</p>
+      <p style="margin: 0; color: #c2cee0; font-size: 13px;"><strong style="color: #c9a24f;">Importante:</strong> Este e-mail contem as substancias previstas para sua sessao. Apos a aplicacao, voce recebera o RASP completo assinado digitalmente.</p>
     </div>`);
 
   // Local
@@ -275,7 +275,7 @@ function postSessionBlocks(data: PostSessionEmailData): string[] {
   if (data.rasPdfBuffer) {
     blocks.push(`
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 16px; text-align: center;">
-      <p style="margin: 0; color: #c2cee0; font-size: 14px;"><strong style="color: #c9a24f;">RAS assinado digitalmente em anexo</strong><br><span style="color: #7e90ab; font-size: 13px;">Documento com assinatura digital ICP-Brasil A1</span></p>
+      <p style="margin: 0; color: #c2cee0; font-size: 14px;"><strong style="color: #c9a24f;">RASP assinado digitalmente em anexo</strong><br><span style="color: #7e90ab; font-size: 13px;">Documento com assinatura digital ICP-Brasil A1</span></p>
     </div>`);
   }
 
@@ -393,7 +393,7 @@ export async function sendPostSessionEmail(data: PostSessionEmailData): Promise<
   const attachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
   if (data.rasPdfBuffer && data.rasId) {
     attachments.push({
-      filename: `RAS_${data.rasId}_${data.clientName.replace(/\s+/g, "_")}.pdf`,
+      filename: `RASP_${data.rasId}_${data.clientName.replace(/\s+/g, "_")}.pdf`,
       content: data.rasPdfBuffer,
       contentType: "application/pdf",
     });
@@ -459,7 +459,7 @@ function protocolBlocks(data: ProtocolEmailData): string[] {
 
   return [`
     <p style="color: #c2cee0; font-size: 15px; margin: 0 0 16px; line-height: 1.7;">Este e-mail tem o objetivo de informar que o seu protocolo medico personalizado <strong style="color: #c9a24f;">${data.protocolTitle}</strong> foi elaborado pelo Dr(a). <strong style="color: #f3ead6;">${data.professionalName}</strong>, com inicio previsto para <strong style="color: #c9a24f;">${formatDateBR(data.startDate)}</strong>.</p>
-    ${hasRasFap ? `<p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">Segue em anexo o documento <strong style="color: #c9a24f;">RAS FAP</strong> (Registro de Administracao de Substancias) contendo o detalhamento completo das substancias, cronograma de sessoes e espacos para controle presencial de cada aplicacao.</p>` : `<p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">O documento do protocolo segue em anexo.</p>`}
+    ${hasRasFap ? `<p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">Segue em anexo o documento <strong style="color: #c9a24f;">RASP FAP</strong>, contendo o detalhamento das substancias, cronograma de sessoes e espacos para controle presencial de cada aplicacao.</p>` : `<p style="color: #c2cee0; font-size: 15px; margin: 0 0 20px; line-height: 1.7;">O documento do protocolo segue em anexo.</p>`}
     <div style="background: #0f1d3a; border: 1px solid rgba(201,162,79,.25); border-radius: 8px; padding: 20px; margin-bottom: 16px;">
       <h3 style="margin: 0 0 12px; color: #c9a24f; font-size: 15px;">Substancias do seu protocolo:</h3>
       ${substList}
@@ -476,7 +476,7 @@ export async function sendProtocolEmail(data: ProtocolEmailData): Promise<{ succ
   // Anexa o RAS FAP PREMIUM quando disponível (gerado automaticamente ao fechar o protocolo).
   if (data.rasFapBuffer && data.rasFapBuffer.length > 0) {
     anexos.push({
-      filename: data.rasFapFileName ?? "RAS_FAP.pdf",
+      filename: data.rasFapFileName ?? "RASP_FAP.pdf",
       content: data.rasFapBuffer,
       contentType: "application/pdf",
     });

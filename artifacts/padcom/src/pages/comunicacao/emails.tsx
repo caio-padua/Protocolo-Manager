@@ -171,7 +171,7 @@ export default function ComunicacaoEmails() {
               <span className="ml-auto rounded bg-emerald-100 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Gmail OAuth</span>
             </div>
           ) : (
-            <ExplainRow>Envio via integração Google (Gmail), com assunto padronizado e anexos (ex.: RAS assinado).</ExplainRow>
+            <ExplainRow>Envio via integração Google (Gmail), com assunto padronizado e anexos (ex.: RASP assinado).</ExplainRow>
           )}
           <ExplainRow>Cobre e-mails de pré-sessão (código + agenda), primeira sessão (benefícios) e pós-sessão.</ExplainRow>
         </ToolCard>

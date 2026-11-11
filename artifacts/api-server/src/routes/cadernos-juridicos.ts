@@ -298,7 +298,7 @@ const HTML_TCLE = `<h2>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO — TCLE</h2>
 <li>Decidir sobre a continuidade ou interrupção do tratamento</li>
 </ul>
 <h3>10. PROTEÇÃO DE DADOS (LGPD — Lei nº 13.709/2018)</h3>
-<p>Os dados pessoais e de saúde serão tratados exclusivamente para: execução do protocolo, emissão de documentos clínicos (RAS, receituários, atestados), acompanhamento evolutivo e cumprimento de obrigações legais e regulatórias. O(a) cliente tem direito a acessar, corrigir, excluir ou portar seus dados.</p>
+<p>Os dados pessoais e de saúde serão tratados exclusivamente para: execução do protocolo, emissão de documentos clínicos (RASP, receituários, atestados), acompanhamento evolutivo e cumprimento de obrigações legais e regulatórias. O(a) cliente tem direito a acessar, corrigir, excluir ou portar seus dados.</p>
 <h3>11. ARMAZENAMENTO DIGITAL</h3>
 <p>Autorizo o armazenamento digital no sistema PAXTER (Motor Clínico — Protocolos Injetáveis) e em nuvem segura (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.</p>
 <h3>12. CONTATO DE EMERGÊNCIA</h3>
@@ -317,7 +317,7 @@ const HTML_TCLE = `<h2>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO — TCLE</h2>
 <br/>
 <p>_________________________________ <br/><strong>{{medico.nome}}</strong><br/>CRM: {{medico.crm}}/{{medico.uf}}<br/><em>Médico(a) Responsável</em></p>`;
 
-const HTML_RAS_JUR = `<h2>REGISTRO DE ASSISTÊNCIA SISTÊMICA — VERSÃO JURÍDICA — RAS-JUR</h2>
+const HTML_RAS_JUR = `<h2>REGISTRO DE ASSISTÊNCIA SISTÊMICA — VERSÃO JURÍDICA — RASP-JUR</h2>
 <p><strong>SISTEMA PAXTER — MOTOR CLÍNICO | PROTOCOLOS INJETÁVEIS</strong><br/>
 <em>Este documento possui valor jurídico e é assinado digitalmente com certificado ICP-Brasil A1.</em></p>
 <hr/>
@@ -339,7 +339,7 @@ const HTML_RAS_JUR = `<h2>REGISTRO DE ASSISTÊNCIA SISTÊMICA — VERSÃO JURÍD
 <strong>Substâncias Autorizadas:</strong> {{protocolo.substancias}}<br/>
 <strong>Vias de Administração:</strong> {{protocolo.vias}}</p>
 <h3>4. REGISTRO DO ATENDIMENTO</h3>
-<p>Este Registro de Assistência Sistêmica (RAS) documenta formalmente a realização do protocolo acima descrito, em conformidade com: Resolução CFM nº 1.638/2002 (prontuário médico), RDC ANVISA nº 67/2007, Lei nº 9.434/1997 e demais normas aplicáveis ao exercício da medicina e da enfermagem no Brasil.</p>
+<p>Este documento RASP registra formalmente a realização do protocolo acima descrito, em conformidade com: Resolução CFM nº 1.638/2002 (prontuário médico), RDC ANVISA nº 67/2007, Lei nº 9.434/1997 e demais normas aplicáveis ao exercício da medicina e da enfermagem no Brasil.</p>
 <h3>5. DECLARAÇÃO DE CONFORMIDADE</h3>
 <p>O médico responsável declara que:</p>
 <ul>

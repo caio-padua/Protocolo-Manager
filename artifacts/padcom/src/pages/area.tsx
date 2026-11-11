@@ -1603,14 +1603,14 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
       <PedidosMedicosCliente token={client.token} />
       {/* RAS */}
       {d && d.ras.length > 0 && (
-        <CategorySection label="REGISTROS DE APLICAÇÃO (RAS)" count={d.ras.length} defaultOpen>
+        <CategorySection label="REGISTROS DE APLICAÇÃO (RASP)" count={d.ras.length} defaultOpen>
           {d.ras.map((r) => (
             <div key={r.id}
               className="flex items-center gap-3 panel-3d-sub rounded-lg p-3"
             >
               <FileText className="w-5 h-5 text-accent flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-primary font-semibold text-sm">RAS — {brDate(r.serviceDate)}</p>
+                <p className="text-primary font-semibold text-sm">RASP — {brDate(r.serviceDate)}</p>
                 <p className="text-muted-foreground text-xs truncate">{r.professionalName} · {r.unit}</p>
                 <p className="text-muted-foreground text-xs">Peça a segunda via à clínica.</p>
               </div>

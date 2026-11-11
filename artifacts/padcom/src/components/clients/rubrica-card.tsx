@@ -118,8 +118,8 @@ export function ClientRubricaCard({ clientId }: RubricaCardProps) {
               : loadError
                 ? "Não foi possível carregar a rubrica agora. Tente abrir o cadastro de novo."
                 : preview
-                  ? "Esta imagem aparece no RAS FAP quando o cliente confirma a aplicação."
-                  : "Sem rubrica enviada, o RAS FAP mostra as iniciais do nome do cliente."}
+                  ? "Esta imagem aparece no RASP FAP quando o cliente confirma a aplicação."
+                  : "Sem rubrica enviada, o RASP FAP mostra as iniciais do nome do cliente."}
             {" "}Tinta escura em fundo claro, PNG ou JPEG, até 2 MB.
           </p>
           <input

@@ -7,7 +7,7 @@ const menuItems = [
   { label: "Protocolos", icon: "⚗" },
   { label: "Orçamentos", icon: "▣" },
   { label: "Agenda", icon: "▤" },
-  { label: "RAS", icon: "▥" },
+  { label: "RASP", icon: "▥" },
   { label: "Estoque", icon: "⬡" },
   { label: "Financeiro", icon: "◈" },
   { label: "Profissionais", icon: "♧" },
