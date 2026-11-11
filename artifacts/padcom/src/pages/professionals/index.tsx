@@ -956,7 +956,7 @@ export default function Professionals() {
     }
     if (!editingId && !form.empresaOriginariaId) {
       toast({
-        title: "Vínculo originário é obrigatório",
+        title: "Clínica vinculada é obrigatória",
         description: "Escolha a empresa de origem do profissional na aba DADOS.",
         variant: "destructive",
       });
@@ -1294,11 +1294,11 @@ export default function Professionals() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unidade principal</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Local informado anteriormente</Label>
                     <Input
                       value={form.unit}
                       onChange={(e) => set("unit", e.target.value)}
-                      placeholder="Clínica Tatuapé"
+                      placeholder="Informação complementar, se houver"
                       className="field-engraved"
                     />
                   </div>
@@ -1601,7 +1601,7 @@ export default function Professionals() {
                         <div className="flex items-center gap-1.5">
                           <div
                             className="concave-3d flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1"
-                            title="Vínculo originário"
+                            title="Clínica vinculada"
                           >
                             <Landmark className="h-3 w-3 shrink-0 text-primary" />
                             <span className="truncate text-[10px] font-black uppercase tracking-wide text-foreground">

@@ -3,7 +3,7 @@
  *
  * Prova de interface com respostas simuladas (dados 100% sintéticos, nenhuma chamada real ao banco):
  *  1. Card da lista mostra empresa originária e "+N" adicionais.
- *  2. Aba DADOS tem o seletor "Vínculo originário" com a empresa gravada.
+ *  2. Aba DADOS tem o seletor "Clínica vinculada" com a empresa gravada.
  *  3. Aba VÍNCULOS: 5 posições fixas; só aparecem as agendas das empresas do profissional.
  *  4. Escolher a Secundária envia a lista nova e abre as agendas da empresa escolhida.
  *  5. Remover empresa que ainda tem agenda liberada mostra o recusa do servidor (409) sem apagar nada.
@@ -13,7 +13,7 @@ import { expect, test, type Route } from "@playwright/test";
 type Vinculo = { ordem: number; empresaId: number; nome: string; papel: "originario" | "adicional" };
 
 const EMPRESAS = [
-  { id: 5, nome: "Empresa Sintética Alfa", ativa: true },
+  { id: 5, nome: "Empresa Sintética Alfa", ativa: true, razaoSocial: "ALFA LIMITADA", cnpj: "00.000.000/0001-00" },
   { id: 2, nome: "Empresa Sintética Beta", ativa: true },
   { id: 3, nome: "Empresa Sintética Gama", ativa: true },
   { id: 9, nome: "Empresa Sintética Inativa", ativa: false },
@@ -126,7 +126,8 @@ test("corpo clínico: originário + até 5 empresas e agenda só das empresas do
   // 2) Dados: seletor de vínculo originário com a empresa gravada
   await page.getByRole("button", { name: "Editar Enf. Sintética Teste" }).click();
   const dialogo = page.getByRole("dialog");
-  await expect(dialogo.getByRole("combobox", { name: "Vínculo originário" })).toContainText("Empresa Sintética Alfa");
+  await expect(dialogo.getByRole("combobox", { name: "Clínica vinculada" })).toContainText("Empresa Sintética Alfa (ALFA LIMITADA · 00.000.000/0001-00)");
+  await page.screenshot({ path: "generated-artifacts/clinica-vinculada-profissional.png" });
   await page.screenshot({ path: "generated-artifacts/corpo-clinico-dados.png" });
 
   // 3) Vínculos: 5 posições fixas; só agendas da empresa Alfa

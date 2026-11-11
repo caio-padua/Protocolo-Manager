@@ -5550,6 +5550,7 @@ components:
         nome: { type: string }
         nick: { type: string, nullable: true }
         razaoSocial: { type: string, nullable: true }
+        cnpj: { type: string, nullable: true }
     Client:
       type: object
       properties:

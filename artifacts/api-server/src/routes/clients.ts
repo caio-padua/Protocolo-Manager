@@ -205,7 +205,7 @@ router.get("/clients/clinicas-origem", requireCollaborator, async (req, res): Pr
   }
   const clinicas = await db.select({
     id: empresasTable.id, nome: empresasTable.nome, nick: empresasTable.nick,
-    razaoSocial: empresasTable.razaoSocial,
+    razaoSocial: empresasTable.razaoSocial, cnpj: empresasTable.cnpj,
   }).from(empresasTable).where(and(
     eq(empresasTable.tipo, "clinic"), eq(empresasTable.ativa, true),
     eq(empresasTable.status, "ATIVO"),

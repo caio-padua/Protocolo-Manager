@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { collabAuthHeaders, getCollabProfessional } from "@/lib/collab-auth";
+import { descricaoClinicaVinculada } from "@/lib/clinica-vinculada";
 
-type Clinic = { id: number; nome: string; nick: string | null; razaoSocial: string | null };
+type Clinic = { id: number; nome: string; nick: string | null; razaoSocial: string | null; cnpj?: string | null };
 type Result = { empresaAtualId: number; clinicas: Clinic[] };
 
 export function ClinicaOrigemField({ value, onChange, defaultToCurrent = false }: {
@@ -33,7 +34,7 @@ export function ClinicaOrigemField({ value, onChange, defaultToCurrent = false }
   return (
     <div className="md:col-span-2 space-y-1.5">
       <label htmlFor="clinica-origem" className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground flex items-center gap-1.5">
-        <Building2 className="h-3 w-3 text-primary" /> Clínica de Origem
+        <Building2 className="h-3 w-3 text-primary" /> Clínica vinculada
       </label>
       <div className="concave-3d p-1">
         <Select value={value || ""} onValueChange={(next) => { if (next) onChange(next); }} disabled={isLoading || isError}>
@@ -44,14 +45,14 @@ export function ClinicaOrigemField({ value, onChange, defaultToCurrent = false }
             {currentMissing && <SelectItem value={value} disabled>Clínica anteriormente selecionada indisponível</SelectItem>}
             {data?.clinicas.map(c => (
               <SelectItem key={c.id} value={String(c.id)} className="whitespace-normal break-words [overflow-wrap:anywhere] [&>span:last-child]:min-w-0">
-                {c.nome || c.nick || "Nome não informado"} ({c.razaoSocial || "Razão social não informada"})
+                {descricaoClinicaVinculada(c)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       {isError && <p role="alert" className="text-destructive text-xs">Não foi possível carregar as clínicas. <button type="button" className="underline" onClick={() => refetch()}>Tentar novamente</button></p>}
-      <p className="text-xs text-muted-foreground">A clínica de origem não altera a empresa responsável nem o local da agenda.</p>
+      <p className="text-xs text-muted-foreground">A clínica vinculada não altera a empresa responsável nem o local da agenda.</p>
     </div>
   );
 }

@@ -14,13 +14,14 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { descricaoClinicaVinculada } from "@/lib/clinica-vinculada";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export const LIMITE_EMPRESAS = 5;
 const REMOVER = "__remover__";
 
-export type EmpresaOpcao = { id: number; nome: string };
+export type EmpresaOpcao = { id: number; nome: string; razaoSocial?: string | null; cnpj?: string | null };
 
 export type VinculoEmpresaLinha = {
   ordem: number;
@@ -78,11 +79,11 @@ export function useEmpresasOpcoes() {
         if (!resposta.ok) {
           throw new Error(lerErroDoServidor(await resposta.json().catch(() => null), "Não foi possível carregar as empresas.").mensagem);
         }
-        return resposta.json() as Promise<Array<{ id: number; nome: string; ativa?: boolean }>>;
+        return resposta.json() as Promise<Array<{ id: number; nome: string; ativa?: boolean; razaoSocial?: string | null; cnpj?: string | null }>>;
       })
       .then((linhas) => {
         if (!vivo) return;
-        setEmpresas(linhas.filter((linha) => linha.ativa === true).map(({ id, nome }) => ({ id, nome })));
+        setEmpresas(linhas.filter((linha) => linha.ativa === true).map(({ id, nome, razaoSocial, cnpj }) => ({ id, nome, razaoSocial, cnpj })));
         setErro(null);
       })
       .catch((falha: unknown) => {
@@ -120,19 +121,19 @@ export function EmpresaOriginariaSelect({
   return (
     <div className="space-y-1.5">
       <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-        Vínculo originário *
+        Clínica vinculada *
       </Label>
       <Select
         value={value}
         onValueChange={(v) => { if (v) onChange(v); }}
         disabled={disabled || carregando || !!erro}
       >
-        <SelectTrigger className="field-engraved" aria-label="Vínculo originário">
-          <SelectValue placeholder={carregando ? "Carregando empresas…" : "Selecione a empresa de origem"} />
+        <SelectTrigger className="field-engraved" aria-label="Clínica vinculada">
+          <SelectValue placeholder={carregando ? "Carregando clínicas…" : "Selecione a clínica vinculada"} />
         </SelectTrigger>
         <SelectContent>
           {opcoes.map((empresa) => (
-            <SelectItem key={empresa.id} value={String(empresa.id)}>{empresa.nome}</SelectItem>
+            <SelectItem key={empresa.id} value={String(empresa.id)} className="whitespace-normal break-words">{descricaoClinicaVinculada(empresa)}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -140,7 +141,7 @@ export function EmpresaOriginariaSelect({
         <p className="text-[10px] font-bold text-destructive">{erro}</p>
       ) : (
         <p className="text-[10px] font-semibold text-muted-foreground">
-          Empresa de origem do profissional. As demais empresas são escolhidas na aba VÍNCULOS.
+          Clínica de origem do profissional. As demais clínicas são escolhidas na aba VÍNCULOS.
         </p>
       )}
     </div>
@@ -270,7 +271,7 @@ export function EmpresasPrestacaoPanel({
                   </SelectTrigger>
                   <SelectContent>
                     {opcoes.map((empresa) => (
-                      <SelectItem key={empresa.id} value={String(empresa.id)}>{empresa.nome}</SelectItem>
+                      <SelectItem key={empresa.id} value={String(empresa.id)} className="whitespace-normal break-words">{descricaoClinicaVinculada(empresa)}</SelectItem>
                     ))}
                     {atual ? <SelectItem value={REMOVER}>— Remover este vínculo —</SelectItem> : null}
                   </SelectContent>

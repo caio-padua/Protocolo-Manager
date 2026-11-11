@@ -1152,3 +1152,45 @@ mtime_ms = 1794356426820
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ff920dff-6c3f-4c68-90da-444d11b97357/940eda9b-38c3-4208-9b85-069644acdcc4"
 storage_version_token = "1794356427563279"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "azOMQar9lQHm8zpSAj8-e"
+uri = "file://generated-artifacts/clinica-vinculada-computador.png"
+type = "image"
+title = "Teste visual do cadastro do cliente"
+description = "Dados e respostas simulados; não comprova gravação no banco real."
+logical_id = "217237ae-b693-4f98-8775-6a459d01992b"
+content_hash = "sha256:f286fce6ff7c980fb4612c3a86e0407bcb13482bf20702e929fdfc1c251e1f0f"
+size = 385100
+mtime_ms = 1794403808669
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/217237ae-b693-4f98-8775-6a459d01992b/2ed8e0ca-14a5-4f4c-a6e4-8b2ca3dba777"
+storage_version_token = "1794403903110862"
+content_type = "image/png"
+
+[[outputs]]
+id = "yMVn_p0pP13Hllhn3i_p2"
+uri = "file://generated-artifacts/clinica-vinculada-celular.png"
+type = "image"
+title = "Teste visual do cadastro no celular"
+description = "Dados e respostas simulados; não comprova gravação no banco real."
+logical_id = "c8adc0dc-0180-456c-81cd-fedca8ea552c"
+content_hash = "sha256:c0eee688e8a91a9f101434baf53cfc3e9f7ba5f994933e5da7db9ffbc1f6de37"
+size = 147276
+mtime_ms = 1794403830917
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c8adc0dc-0180-456c-81cd-fedca8ea552c/3a12b6b8-a9c3-42d8-a38f-678e4c00cfd4"
+storage_version_token = "1794403904031530"
+content_type = "image/png"
+
+[[outputs]]
+id = "_ZWURWtPCuJM2c5otnGBT"
+uri = "file://generated-artifacts/clinica-vinculada-profissional.png"
+type = "image"
+title = "Teste visual do cadastro profissional"
+description = "Dados e respostas simulados; não comprova gravação no banco real."
+logical_id = "fe56fd13-3cfe-4704-83f6-91e14d1dce8a"
+content_hash = "sha256:3e0e1fd3a5ba40761df7334a586460728a72a079483ce3058b86f014559f8960"
+size = 354499
+mtime_ms = 1794403887405
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/fe56fd13-3cfe-4704-83f6-91e14d1dce8a/a5191c41-9d82-4b43-8af5-aa58e4ac6113"
+storage_version_token = "1794403904794668"
+content_type = "image/png"

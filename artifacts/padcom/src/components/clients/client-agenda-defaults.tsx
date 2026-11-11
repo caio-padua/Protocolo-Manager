@@ -90,7 +90,7 @@ export function ClientAgendaDefaults(props: {
       </div>
       {query.isError && <p role="alert" className="text-xs text-destructive">Não foi possível carregar as agendas desta clínica ou o acesso não está autorizado. <button type="button" className="underline" onClick={() => query.refetch()}>Tentar novamente</button></p>}
       {query.isError && (props.location || props.nursing || props.doctor) && <p className="text-xs text-muted-foreground">As escolhas anteriores foram preservadas. Para trocar de clínica, limpe os vínculos incompatíveis e as agendas preferenciais anteriores antes de salvar.</p>}
-      {!props.clinicaId && <p className="text-xs text-muted-foreground">Selecione a clínica de origem para consultar locais e agendas.</p>}
+      {!props.clinicaId && <p className="text-xs text-muted-foreground">Selecione a clínica vinculada para consultar locais e agendas.</p>}
       <p className="text-xs text-muted-foreground">São preferências de cadastro; não reservam horários.</p>
     </div>
   );

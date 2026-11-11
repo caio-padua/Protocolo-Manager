@@ -11,4 +11,5 @@ export interface ClientOriginClinic {
   nome: string;
   nick?: string | null;
   razaoSocial?: string | null;
+  cnpj?: string | null;
 }

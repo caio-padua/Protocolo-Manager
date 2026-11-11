@@ -1467,6 +1467,7 @@ export interface ClientOriginClinic {
   nome: string;
   nick?: string | null;
   razaoSocial?: string | null;
+  cnpj?: string | null;
 }
 
 export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];

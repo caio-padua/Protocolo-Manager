@@ -50,3 +50,9 @@ Regra: O cadastro do cliente deve oferecer uma agenda médica padrão e uma agen
 **Why:** O responsável pediu que os seletores aproveitem a classificação já existente das agendas e não misturem locais ou agendas de outras clínicas.
 
 **How to apply:** Filtrar locais e agendas pela clínica correspondente e pelo tipo cadastrado; preservar escolhas anteriores e não tratar preferência como reserva de horário.
+
+Regra: O responsável pediu o mesmo nome “Clínica vinculada” nos cadastros de profissionais e clientes e a identificação da clínica por nome, razão social e CNPJ.
+
+**Why:** Rótulos diferentes e informações jurídicas ausentes dificultam reconhecer o vínculo correto.
+
+**How to apply:** Usar o cadastro empresarial como fonte para a identificação; preservar a distinção entre empresa responsável pelo cliente, clínica de origem do profissional e local de atendimento. Nome igual não autoriza transferir dados nem igualar permissões.

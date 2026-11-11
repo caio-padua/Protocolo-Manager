@@ -1,9 +1,9 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 
-async function setup(context: BrowserContext, failClinics = false) {
+async function setup(context: BrowserContext, failClinics = false, existingLocation: number | null = null) {
   const client = {
     id: 42, name: "Cliente Sintético", cpf: "12345678901", email: "cliente@example.invalid",
-    phone: "11999999999", status: "active", locationId: 30, clinicaOrigemEmpresaId: 5,
+    phone: "11999999999", status: "active", locationId: existingLocation, clinicaOrigemEmpresaId: 5,
     preferredAgendaResourceIds: [], birthDate: null, address: null, notes: null,
     visitPreferencesRevision: 1,
     visitPreferences: { medical: { weekdays: [], times: [] }, nursing: { weekdays: [], times: [] } },
@@ -22,6 +22,9 @@ async function setup(context: BrowserContext, failClinics = false) {
     if (path === "/api/clients/42" && method === "GET") return json(state.client);
     if (path === "/api/clients/42" && (method === "PUT" || method === "PATCH")) {
       state.payload = route.request().postDataJSON();
+      if (state.payload?.clinicaOrigemEmpresaId === 6 && state.client.locationId === 30) {
+        return json({ error: "O local deve pertencer à clínica selecionada." }, 400);
+      }
       state.client = { ...state.client, ...state.payload };
       return json(state.client);
     }
@@ -29,8 +32,8 @@ async function setup(context: BrowserContext, failClinics = false) {
       if (failClinics) return json({ error: "Indisponível" }, 503);
       await new Promise(resolve => setTimeout(resolve, 150));
       return json({ empresaAtualId: 5, clinicas: [
-        { id: 5, nome: "Clínica Sintética A", nick: "A", razaoSocial: "CLÍNICA A LIMITADA" },
-        { id: 6, nome: "Clínica Sintética B", nick: "B", razaoSocial: "CLÍNICA B LIMITADA" },
+        { id: 5, nome: "Clínica Sintética A", nick: "A", razaoSocial: "CLÍNICA A LIMITADA", cnpj: "00.000.000/0001-00" },
+        { id: 6, nome: "Clínica Sintética B", nick: "B", razaoSocial: "CLÍNICA B LIMITADA", cnpj: null },
       ] });
     }
     if (path === "/api/locations") return json([{ id: 30, name: "Local sintético", active: true }]);
@@ -55,24 +58,36 @@ for (const [description, viewport] of [
     await page.setViewportSize(viewport);
     const state = await setup(context);
     await page.goto("/clients/42/edit");
-    const field = page.getByLabel("Clínica de Origem");
-    await expect(field).toContainText("Clínica Sintética A (CLÍNICA A LIMITADA)", { timeout: 20_000 });
+    const field = page.getByLabel("Clínica vinculada");
+    await expect(field).toContainText("Clínica Sintética A (CLÍNICA A LIMITADA · 00.000.000/0001-00)", { timeout: 20_000 });
     await field.click();
     const list = page.getByRole("listbox");
     const bounds = await list.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
-    await page.getByRole("option", { name: "Clínica Sintética B (CLÍNICA B LIMITADA)" }).click();
+    await page.screenshot({ path: `generated-artifacts/clinica-vinculada-${description}.png` });
+    await page.getByRole("option", { name: "Clínica Sintética B (CLÍNICA B LIMITADA · CNPJ não informado)" }).click();
     await page.getByRole("button", { name: /salvar/i }).click();
     await expect.poll(() => state.payload).not.toBeNull();
     expect(state.payload?.clinicaOrigemEmpresaId).toBe(6);
     expect(state.payload?.clinicaOrigemEsperada).toBe(5);
     expect(state.payload).not.toHaveProperty("locationId");
     await page.goto("/clients/42/edit");
-    await expect(page.getByLabel("Clínica de Origem")).toContainText("Clínica Sintética B (CLÍNICA B LIMITADA)");
+    await expect(page.getByLabel("Clínica vinculada")).toContainText("Clínica Sintética B (CLÍNICA B LIMITADA · CNPJ não informado)");
   });
 }
+
+test("troca de clínica recusada mantém o local e vínculo existentes", async ({ context, page }) => {
+  const state = await setup(context, false, 30);
+  await page.goto("/clients/42/edit");
+  await page.getByLabel("Clínica vinculada").click();
+  await page.getByRole("option", { name: "Clínica Sintética B (CLÍNICA B LIMITADA · CNPJ não informado)" }).click();
+  await page.getByRole("button", { name: /salvar/i }).click();
+  await expect(page.getByRole("alert")).toContainText("Não foi possível salvar o cadastro");
+  expect(state.client.clinicaOrigemEmpresaId).toBe(5);
+  expect(state.client.locationId).toBe(30);
+});
 
 test("falha ao listar clínicas preserva o vínculo ao salvar outro campo", async ({ context, page }) => {
   const state = await setup(context, true);
@@ -88,5 +103,5 @@ test("falha ao listar clínicas preserva o vínculo ao salvar outro campo", asyn
 test("novo cadastro inicia com a empresa da sessão", async ({ context, page }) => {
   await setup(context);
   await page.goto("/clients/new");
-  await expect(page.getByLabel("Clínica de Origem")).toContainText("Clínica Sintética A (CLÍNICA A LIMITADA)", { timeout: 20_000 });
+  await expect(page.getByLabel("Clínica vinculada")).toContainText("Clínica Sintética A (CLÍNICA A LIMITADA · 00.000.000/0001-00)", { timeout: 20_000 });
 });

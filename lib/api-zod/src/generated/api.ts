@@ -1807,6 +1807,7 @@ export const ListClientOriginClinicsResponse = zod.object({
       nome: zod.string(),
       nick: zod.string().nullish(),
       razaoSocial: zod.string().nullish(),
+      cnpj: zod.string().nullish(),
     }),
   ),
 });
