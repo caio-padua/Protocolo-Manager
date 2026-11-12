@@ -301,6 +301,8 @@ describe("Remarcar visita de protocolo: duração reservada, trecho inteiro, mes
   it("visita que ainda não está no Google não chama o Google ao remarcar", async () => {
     const protocolId = await scheduled(24, [{ substanceId: IM, total: 2 }]);
     const [first] = await sessionRows(protocolId);
+    // A prévia do agendamento (montagem do cenário acima) confere a conta Google de propósito. Só o que a REMARCAÇÃO faz conta aqui.
+    for (const fn of [google.create, google.update, google.remove, google.exists, google.verify]) fn.mockClear();
     const response = await put(`/api/sessions/${first.id}`, { scheduledDate: WED1, scheduledTime: "09:00" });
     expect(response.status).toBe(200);
     expect(response.body).not.toHaveProperty("googleSyncWarning");

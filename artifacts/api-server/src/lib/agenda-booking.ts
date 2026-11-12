@@ -12,6 +12,7 @@ import {
   substanceApplicationsTable,
 } from "@workspace/db";
 import { loadAgendaOccupancy, type AgendaExecutor } from "./agenda-occupancy";
+import { acharConflitoDeHorario, travarParticipantes } from "./agenda-conflitos";
 import { windowOccursOnDate } from "./agenda-window-recurrence";
 import { computeAgendaSlots, type EngineResult } from "./agenda-motor.js";
 import { deleteCalendarEvent, verifyClinicAccount } from "./google-calendar.js";
@@ -168,6 +169,17 @@ export async function lockAgendaResource(executor: AgendaExecutor, resourceId: n
 }
 
 /**
+ * Trava de profissional e de cliente, SEMPRE depois da trava da clínica (ordem única: clínica -> profissional ->
+ * cliente). Protege o profissional que atende em mais de uma clínica e o cliente em duas agendas, que a trava por
+ * clínica sozinha não serializa. O profissional é o vinculado à agenda de destino.
+ */
+export async function lockAgendaParticipants(executor: AgendaExecutor, resourceId: number, clientId: number) {
+  const r = await executor.execute(sql`SELECT professional_id FROM agenda_resources WHERE id=${resourceId}`);
+  const professionalId = r.rows[0]?.professional_id == null ? null : Number(r.rows[0].professional_id);
+  await travarParticipantes(executor, { professionalIds: [professionalId], clientId });
+}
+
+/**
  * Marca uma sessao num slot. Valida pelo motor que o horario esta ABERTO (reconsulta
  * a ocupacao real para evitar corrida). Opcionalmente sincroniza com o Google Calendar.
  */
@@ -191,6 +203,7 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
   return db.transaction(async (tx) => {
     const empresaId = await lockAgendaResource(tx, params.resourceId);
     if (!empresaId || (params.empresaId && params.empresaId !== empresaId)) return {ok:false,status:404,error:"Agenda não encontrada"};
+    await lockAgendaParticipants(tx, params.resourceId, params.clientId);
     return bookSessionLocked({...params, empresaId}, tx);
   }).then(async (r) => {
     // O Google só é chamado DEPOIS de a marcação estar gravada (fora da transação), com o mesmo evento completo do
@@ -245,33 +258,16 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
         return { ok: false, status: 409, error: `A consulta de ${durationMinutes} minutos precisa de horários seguidos e o das ${t} não está livre nesse dia` };
       }
     }
-    const end = start + durationMinutes;
-    const sameDay = await db
-      .select({ resourceId: sessionsTable.resourceId, professionalId: sessionsTable.professionalId, clientId: sessionsTable.clientId,
-        time: sessionsTable.scheduledTime, duration: sessionsTable.durationMinutes })
-      .from(sessionsTable)
-      .where(and(
-        // Sem filtro de empresa de propósito: o profissional pode atender em mais de uma clínica e a sobreposição dele
-        // fica bloqueada em qualquer uma. A resposta é genérica ("Horário já ocupado"): não revela dado de outra clínica.
-        eq(sessionsTable.scheduledDate, date),
-        inArray(sessionsTable.status, ACTIVE_STATUSES), eq(sessionsTable.agendaArchived, false),
-        or(
-          eq(sessionsTable.resourceId, resourceId), eq(sessionsTable.clientId, clientId),
-          computed.resource.professionalId != null ? eq(sessionsTable.professionalId, computed.resource.professionalId) : undefined,
-        ),
-      ));
-    const overlapping = sameDay.filter((o) => {
-      const from = toMinutes(o.time);
-      return start < from + (o.duration ?? slotMinutes) && end > from;
-    });
-    if (overlapping.some((o) => o.resourceId === resourceId ||
-        (computed.resource.professionalId != null && o.professionalId === computed.resource.professionalId))) {
-      return { ok: false, status: 409, error: "Horário já ocupado" };
-    }
-    if (overlapping.some((o) => o.clientId === clientId)) {
-      return { ok: false, status: 409, error: "O cliente já tem outra marcação que se sobrepõe a este horário" };
-    }
   }
+
+  // Sobreposição do INTERVALO COMPLETO com agenda, profissional (em qualquer clínica) e cliente, relida sob as travas
+  // de clínica, profissional e cliente. Vale para os dois fluxos: a marcação de protocolo ocupa um período; a consulta
+  // avulsa, a duração escolhida. Nunca libera conflito em silêncio e a resposta não revela dados de terceiros.
+  const conflict = await acharConflitoDeHorario(db, {
+    date, time, durationMinutes, slotMinutes: computed.resource.slotMinutes, resourceId,
+    professionalId: computed.resource.professionalId, clientId,
+  });
+  if (conflict) return { ok: false, status: 409, error: conflict.error };
 
   // Guarda de corrida: reconsulta direta de ocupacao no exato recurso+data+hora,
   // imediatamente antes do insert, para estreitar a janela entre o motor e a gravacao.
@@ -340,6 +336,8 @@ export async function rescheduleSession(params: RescheduleParams): Promise<BookR
   return db.transaction(async (tx) => {
     const empresaId = await lockAgendaResource(tx, params.resourceId);
     if (!empresaId) return {ok:false,status:404,error:"Agenda não encontrada"};
+    // Mesma ordem de trava da marcação (clínica -> profissional -> cliente), antes de ler ou mover a sessão.
+    await lockAgendaParticipants(tx, params.resourceId, params.clientId);
     return rescheduleSessionLocked(params, tx, empresaId);
   }).then(async ({ googleMove, ...r }): Promise<BookResult> => {
     if (!r.ok || !r.session || !googleMove) return r;
@@ -421,6 +419,14 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
       ),
     );
   if (clashRows.some((r) => r.id !== sessionId)) return { ok: false, status: 409, error: "Horário já ocupado" };
+
+  // Intervalo COMPLETO do novo horário contra agenda, profissional (em qualquer clínica) e cliente, ignorando a
+  // própria sessão e as irmãs da mesma equipe conjunta. Relido sob as travas; resposta genérica.
+  const conflict = await acharConflitoDeHorario(db, {
+    date, time, durationMinutes: newDuration, slotMinutes, resourceId,
+    professionalId: computed.resource.professionalId, clientId, ignoreSessionIds: [sessionId],
+  });
+  if (conflict) return { ok: false, status: 409, error: conflict.error };
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client) return { ok: false, status: 404, error: "Cliente não encontrado" };

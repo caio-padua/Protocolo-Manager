@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { computeResourceSlots } from "./agenda-booking.js";
+import { acharConflitoDeHorario, travarParticipantes } from "./agenda-conflitos.js";
 import type { AgendaExecutor } from "./agenda-occupancy";
 import { brtISODate } from "./brt.js";
 import { carregarCategorias } from "./agenda-recurso-categoria.js";
@@ -288,6 +289,21 @@ export async function reservarOcorrenciaTx(tx: Executor, params: ReservaParams) 
     const atribuicao = escolherAtribuicao(necessidades, inicios, params.time);
     if (!atribuicao) {
       throw new EquipeErro(409, "Este horário não está livre para a equipe completa. Nada foi reservado.", "horario_indisponivel");
+    }
+
+    // Trava de profissional e de cliente (ordem: clínica -> profissionais -> cliente) e releitura dos conflitos de
+    // intervalo completo, inclusive profissional que atende em outra clínica e cliente em outra agenda. Participantes
+    // da MESMA equipe conjunta não conflitam entre si: ainda não foram gravados e todos entram nesta transação.
+    await travarParticipantes(tx, { professionalIds: atribuicao.map((a) => a.professionalId), clientId: Number(item.client_id) });
+    for (const a of atribuicao) {
+      const conflito = await acharConflitoDeHorario(tx, {
+        date: params.date, time: params.time, durationMinutes: Math.ceil(duracaoMinutos),
+        slotMinutes: recursos.get(a.resourceId)!.slotMinutes, resourceId: a.resourceId,
+        professionalId: a.professionalId, clientId: Number(item.client_id),
+      });
+      if (conflito) {
+        throw new EquipeErro(409, "Este horário não está livre para a equipe completa. Nada foi reservado.", "horario_indisponivel");
+      }
     }
 
     const [ocorrencia] = (await tx.execute(sql`INSERT INTO protocolo_ocorrencias
