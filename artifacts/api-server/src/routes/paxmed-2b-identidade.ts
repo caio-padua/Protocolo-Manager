@@ -225,8 +225,8 @@ router.get("/paxmed-2b/empresas/:empresaId/simbolo", requireCollaborator, async 
   } catch (error) { fail(req, res, error); }
 });
 
-// Logotipo para o CARTÃO da lista de empresas. Só devolve símbolo REAL: o símbolo de exemplo é um substituto
-// de teste e nunca deve parecer o logotipo da empresa (sem símbolo real = 404, a tela mostra um ícone neutro).
+// Logotipo para o CARTÃO da lista de empresas. Decisão do CEO (11/11/2026): os símbolos de exemplo são fictícios e
+// podem aparecer no cartão. A rota inteira é bloqueada em produção (404). Sem símbolo cadastrado = 404, a tela mostra iniciais.
 router.get("/paxmed-2b/empresas-simbolos/:empresaId", requireCollaborator, async (req, res): Promise<void> => {
   try {
     const raw = req.params.empresaId;
@@ -240,7 +240,6 @@ router.get("/paxmed-2b/empresas-simbolos/:empresaId", requireCollaborator, async
       FROM paxmed_2b_empresa_identidade i
       JOIN empresas e ON e.id = i.empresa_id
       WHERE i.empresa_id = ${Number(raw)}
-        AND i.simbolo_exemplo = false
         AND e.tipo IN ('clinic', 'genesis_seed')
         AND e.status <> 'ARQUIVADA'
         AND e.is_platform_owner = false

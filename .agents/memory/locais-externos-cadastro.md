@@ -21,3 +21,4 @@ Locais externos NÃO são menu: são a aba "Locais Externos" do cadastro da empr
 Nao gosta de simbolos (icones) nem de contadores; quer rotulo escrito alinhado numa linha vertical, toggle dourado, selecao em insert bevel (nunca azul), cidade como UM grupo sem subdivisao, barra contigua com + / −.
 **Why:** pedido literal do CEO ("eu gosto do escrito", "nao e pra subdividir centro").
 **How to apply:** Padrao 40 da skill-layout-paxter; usar JanelaDado/BarraGrupo/ChaveOuro/PlacaTitulo em qualquer tela nova de cadastro. Specs e2e antigos de Locais/Empresas (apagar local, "Mostrar locais de") ja estavam desatualizados antes.
+- Decisão do CEO 11/11/2026: símbolos de exemplo (fictícios) PODEM aparecer no vidro do cartão de empresa; rota de cartão segue dev-only.
