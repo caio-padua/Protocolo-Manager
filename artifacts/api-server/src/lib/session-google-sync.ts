@@ -534,6 +534,110 @@ export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext 
   }
 }
 
+/** Marca das marcações de teste (a mesma gravada em sessions.notes pela marcação simulada). */
+export const SIM_TAG = "[SIMULACAO]";
+
+/**
+ * Visita MARCADA na agenda (Agenda Configuração, área do cliente): o mesmo evento completo do protocolo, mesmo sem
+ * aplicações gravadas ainda. Nada é presumido: procedimento só aparece quando há aplicação disponível com via
+ * cadastrada; as substâncias do protocolo entram como constantes; endereço vem da FORMA da agenda (Sede = local,
+ * Local externo = endereço da agenda, Home Care = endereço do paciente, Online = sem endereço físico).
+ * Mesma reserva durável do envio por protocolo: repetir nunca duplica o evento. Nunca lança.
+ */
+async function syncBookedVisit(session: SessionRow, ctx: VisitContext): Promise<VisitSyncResult> {
+  const base = { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime };
+  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId, { agendaSemLocal: true });
+  if (!destination.ok) return { ...base, status: "falhou", code: destination.code, error: destination.error };
+  if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
+    return { ...base, status: "falhou", code: "outra_agenda_google",
+      error: "A visita pertence a outra agenda Google; a transferência exige conferência e não foi feita." };
+  }
+  if (!session.durationMinutes || session.durationMinutes <= 0) {
+    return { ...base, status: "falhou", code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
+  }
+  const online = destination.modality === "online";
+  const homeCare = destination.modality === "home_care";
+  const enderecoHomeCare = ctx.client.address?.trim() || null;
+  if (homeCare && !enderecoHomeCare) {
+    return { ...base, status: "falhou", code: "home_care_sem_endereco",
+      error: "Home Care exige o endereço do paciente no cadastro; o evento não foi enviado." };
+  }
+  const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
+  let protocolItems: ItemDoProtocolo[];
+  try {
+    protocolItems = await carregarItensDoProtocolo(session.protocolId, ctx.empresaId);
+  } catch {
+    return { ...base, status: "falhou", code: "itens_protocolo_indisponiveis",
+      error: "Não foi possível ler as substâncias do protocolo; nenhum evento foi enviado." };
+  }
+  const substances: CalendarSubstance[] = [];
+  const dispTypes = new Set<string>();
+  for (const app of applications) {
+    const [substance] = await db.select().from(substancesTable).where(eq(substancesTable.id, app.substanceId));
+    substances.push({
+      name: substance?.name ?? `Substância não cadastrada (${app.substanceId})`, dose: app.dose,
+      sessionNumber: app.sessionNumber, totalSessions: app.totalSessions, status: estadoAplicacao(app),
+    });
+    if (app.availability === "disp" && substance?.procedureType) dispTypes.add(substance.procedureType);
+  }
+  const extra = await montarConstantesDoEvento(applications, protocolItems);
+  substances.push(...extra.constants);
+  const primaryType = dispTypes.values().next().value as string | undefined;
+  const data: CalendarEventData = {
+    sessionId: session.id, clientName: ctx.client.name, clientCpf: ctx.client.cpf ?? undefined,
+    scheduledDate: session.scheduledDate, scheduledTime: session.scheduledTime, durationMinutes: session.durationMinutes,
+    weekNumber: ctx.position, totalAppointments: ctx.total,
+    unit: session.unit ?? destination.location.name,
+    locationAddress: online ? undefined : homeCare ? enderecoHomeCare! :
+      destination.externalAddress ?? destination.location.address ?? undefined,
+    locationPhone: online ? undefined : destination.location.phone ?? undefined, calendarId: destination.calendarId,
+    procedureType: primaryType, procedureLabel: primaryType ? procedureTypeLabel(primaryType) : session.unit ?? destination.location.name,
+    activeProcedureTypes: Array.from(dispTypes), substances, ...extra.counts,
+    clientEmail: ctx.client.email || undefined, sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
+    summaryPrefix: session.notes === SIM_TAG ? SIM_TAG : undefined,
+  };
+  try {
+    const eventId = session.googleSyncPendingOperation
+      ? await reconcilePendingEvent(session, data, applications, protocolItems, { forcarGoogle: ctx.forcarGoogle })
+      : await syncReservedEvent(session, data, applications, {
+        releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
+        expectedProtocolItems: protocolItems, forcarGoogle: ctx.forcarGoogle,
+      });
+    return { ...base, status: "sincronizado", eventId };
+  } catch (error) {
+    return falhaDoEnvio(base, error);
+  }
+}
+
+/**
+ * Depois de MARCAR uma visita na agenda: cria o evento completo no Google (ou atualiza o mesmo evento). Chamada FORA
+ * da transação de marcação. Devolve o aviso para a tela; nunca lança e nunca desfaz a marcação.
+ */
+export async function syncBookedSession(sessionId: number, empresaId: number): Promise<{ eventId: string | null; calendarId: string | null; warning?: string }> {
+  const aviso = (motivo: string) => ({ eventId: null, calendarId: null, warning: `Marcação salva, mas o Google Agenda não recebeu o evento: ${motivo}` });
+  try {
+    const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+    if (!session || session.empresaId !== empresaId) return aviso("visita não encontrada.");
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
+    if (!client || client.empresaId !== empresaId) return aviso("cliente não encontrado.");
+    if (!(await accountConfirmed())) return aviso("a conta Google da clínica não foi confirmada.");
+    const visits = await activeVisits(session.protocolId, empresaId);
+    const index = visits.findIndex(v => v.id === session.id);
+    const result = await syncBookedVisit(session, {
+      empresaId, professionalId: null, client, position: index >= 0 ? index + 1 : visits.length + 1,
+      total: Math.max(visits.length, index + 1),
+    });
+    if (result.status === "sincronizado") {
+      const [saved] = await db.select({ eventId: sessionsTable.googleEventId, calendarId: sessionsTable.googleCalendarId })
+        .from(sessionsTable).where(eq(sessionsTable.id, sessionId));
+      return { eventId: saved?.eventId ?? result.eventId ?? null, calendarId: saved?.calendarId ?? null };
+    }
+    return aviso(result.error ?? "o Google não confirmou o envio.");
+  } catch {
+    return aviso("falha inesperada; use \"Enviar ao Google Agenda\" no protocolo para tentar de novo.");
+  }
+}
+
 /** Visitas ativas do protocolo, em ordem cronológica (mesma lista para enviar, numerar e atualizar). */
 async function activeVisits(protocolId: number, empresaId: number): Promise<SessionRow[]> {
   const all = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId))
@@ -570,11 +674,15 @@ export async function refreshSessionEventInPlace(
     return { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime, status: "falhou",
       code: "google_indisponivel", error: "a conta Google da clínica não foi confirmada; nenhum evento foi alterado" };
   }
-  return syncVisit(session, {
+  const [hasApplication] = await db.select({ id: substanceApplicationsTable.id }).from(substanceApplicationsTable)
+    .where(eq(substanceApplicationsTable.sessionId, session.id)).limit(1);
+  const ctx = {
     empresaId, professionalId: null, client, position: index + 1, total: visits.length,
     releaseOnUpdateFailure: options.releaseUpdateFailure, updateDeadlineMs: options.updateDeadlineMs,
     forcarGoogle: options.forcarGoogle,
-  });
+  };
+  // Visita marcada na agenda e ainda sem aplicações: mesmo evento completo, sem presumir via nem procedimento.
+  return hasApplication ? syncVisit(session, ctx) : syncBookedVisit(session, ctx);
 }
 
 async function accountConfirmed(): Promise<boolean> {
