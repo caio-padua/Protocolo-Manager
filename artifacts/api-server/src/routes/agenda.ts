@@ -19,6 +19,8 @@ import { brtISODate } from "../lib/brt.js";
 import {
   carregarCategorias, decorarRecurso, validarModalidadeComLocal, validarRecursoDeCategoria,
 } from "../lib/agenda-recurso-categoria.js";
+import { CHAVE_ANTECEDENCIA_INTERNA, ANTECEDENCIA_INTERNA_MAX_MIN, lerAntecedenciaInterna } from "../lib/agenda-encaixe.js";
+import { setJsonSetting } from "../lib/secure-settings";
 import {
   computeResourceSlots,
   bookSession,
@@ -87,6 +89,8 @@ const updateSettingsSchema = z
     blockMinutes: z.number().int().min(15).max(1440),
     triggerPercent: z.number().int().min(0).max(100),
     minLeadHours: z.number().int().min(0).max(8760),
+    // Antecedência do ENCAIXE INTERNO (equipe autorizada), em minutos. Não altera a regra de horas do paciente.
+    internalLeadMinutes: z.number().int().min(0).max(ANTECEDENCIA_INTERNA_MAX_MIN),
   })
   .partial();
 
@@ -454,15 +458,16 @@ router.delete("/agenda/exceptions/:id", async (req, res): Promise<void> => {
 // ---- Settings (singleton) ----
 router.get("/agenda/settings", async (_req, res): Promise<void> => {
   const row = await ensureSettings();
-  res.json(row);
+  res.json({ ...row, internalLeadMinutes: (await lerAntecedenciaInterna()).minutos });
 });
 
 router.put("/agenda/settings", async (req, res): Promise<void> => {
   const data = parseOr400(updateSettingsSchema, req.body, res);
   if (!data) return;
+  const { internalLeadMinutes, ...colunas } = data;
   const current = await ensureSettings();
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  for (const [k, v] of Object.entries(data)) {
+  for (const [k, v] of Object.entries(colunas)) {
     if (v !== undefined) updates[k] = v;
   }
   const [updated] = await db
@@ -470,7 +475,9 @@ router.put("/agenda/settings", async (req, res): Promise<void> => {
     .set(updates)
     .where(eq(agendaSettingsTable.id, current.id))
     .returning();
-  res.json(updated);
+  // A antecedência interna mora no cofre de configurações (sem coluna nova na tabela real); só grava se vier no corpo.
+  if (internalLeadMinutes !== undefined) await setJsonSetting(CHAVE_ANTECEDENCIA_INTERNA, internalLeadMinutes);
+  res.json({ ...updated, internalLeadMinutes: (await lerAntecedenciaInterna()).minutos });
 });
 
 // ---- Motor (anti-ilha) ----

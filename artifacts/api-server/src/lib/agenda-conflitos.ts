@@ -37,6 +37,67 @@ export type ConflitoDeHorario =
 export const MENSAGEM_AGENDA_OCUPADA = "Horário já ocupado";
 export const MENSAGEM_CLIENTE_OCUPADO = "O cliente já tem outra marcação que se sobrepõe a este horário";
 
+export type SessaoCandidata = {
+  id: number; clientId: number; resourceId: number | null; scheduledTime: string;
+  duration: number; agendaProfessional: number | null;
+};
+
+/**
+ * Sessões ativas do dia que podem colidir: da mesma agenda, do mesmo cliente ou de agenda do mesmo profissional
+ * (qualquer clínica). Uma só leitura serve à marcação (um horário) e ao seletor (todos os horários do dia).
+ */
+export async function listarSessoesCandidatas(
+  executor: AgendaExecutor,
+  p: { date: string; slotMinutes: number; resourceId: number; professionalId: number | null; clientId: number | null; ignoreSessionIds?: number[] },
+): Promise<SessaoCandidata[]> {
+  const ignoreList = `{${(p.ignoreSessionIds ?? []).join(",")}}`;
+  // Fragmentos condicionais: parâmetro nulo tipado (${null}::int) não é enviado ao Postgres.
+  const porCliente = p.clientId != null ? sql`OR s.client_id=${p.clientId}` : sql``;
+  const porProfissional = p.professionalId != null ? sql`OR r.professional_id=${p.professionalId}` : sql``;
+  const found = await executor.execute(sql`
+    SELECT s.id, s.client_id, s.resource_id, s.scheduled_time,
+      COALESCE(s.duration_minutes, r.slot_minutes, ${p.slotMinutes}) AS duration, r.professional_id AS agenda_professional
+    FROM sessions s
+    LEFT JOIN agenda_resources r ON r.id=s.resource_id
+    WHERE s.scheduled_date=${p.date} AND s.status=ANY(${`{${STATUS_QUE_OCUPAM.join(",")}}`}::text[]) AND NOT s.agenda_archived
+      AND NOT (s.id=ANY(${ignoreList}::int[]))
+      AND (s.resource_id=${p.resourceId} ${porCliente} ${porProfissional})`);
+  return found.rows.map((row) => ({
+    id: Number(row.id), clientId: Number(row.client_id),
+    resourceId: row.resource_id == null ? null : Number(row.resource_id),
+    scheduledTime: String(row.scheduled_time), duration: Number(row.duration),
+    agendaProfessional: row.agenda_professional == null ? null : Number(row.agenda_professional),
+  }));
+}
+
+/**
+ * Regra ÚNICA de sobreposição do intervalo [início, fim) (em minutos do dia) contra as sessões candidatas.
+ * Pura: a marcação e o seletor chamam a mesma função, então decidem igual.
+ */
+export function classificarSobreposicao(
+  rows: SessaoCandidata[],
+  p: { start: number; end: number; resourceId: number; professionalId: number | null; clientId: number | null },
+  irmas: Set<number> = new Set(),
+): ConflitoDeHorario | null {
+  const overlapping = rows.filter((row) => {
+    const from = toMinutes(row.scheduledTime);
+    return p.start < from + row.duration && p.end > from;
+  });
+  if (!overlapping.length) return null;
+  if (overlapping.some((row) => row.resourceId === p.resourceId)) {
+    return { tipo: "agenda", error: MENSAGEM_AGENDA_OCUPADA };
+  }
+  if (p.professionalId != null && overlapping.some((row) => row.agendaProfessional != null && row.agendaProfessional === p.professionalId)) {
+    return { tipo: "profissional", error: MENSAGEM_AGENDA_OCUPADA };
+  }
+  if (p.clientId == null) return null;
+  const doCliente = overlapping.filter((row) => row.clientId === p.clientId);
+  if (doCliente.some((row) => !irmas.has(row.id))) {
+    return { tipo: "cliente", error: MENSAGEM_CLIENTE_OCUPADO };
+  }
+  return null;
+}
+
 /**
  * Procura sobreposição do INTERVALO COMPLETO [início, início + duração) com sessões ativas do mesmo dia.
  *
@@ -59,36 +120,12 @@ export async function acharConflitoDeHorario(
   },
 ): Promise<ConflitoDeHorario | null> {
   const start = toMinutes(p.time);
-  const end = start + p.durationMinutes;
   const ignore = p.ignoreSessionIds ?? [];
-  const ignoreList = `{${ignore.join(",")}}`;
-  const found = await executor.execute(sql`
-    SELECT s.id, s.client_id, s.resource_id, s.scheduled_time,
-      COALESCE(s.duration_minutes, r.slot_minutes, ${p.slotMinutes}) AS duration, r.professional_id AS agenda_professional
-    FROM sessions s
-    LEFT JOIN agenda_resources r ON r.id=s.resource_id
-    WHERE s.scheduled_date=${p.date} AND s.status=ANY(${`{${STATUS_QUE_OCUPAM.join(",")}}`}::text[]) AND NOT s.agenda_archived
-      AND NOT (s.id=ANY(${ignoreList}::int[]))
-      AND (s.resource_id=${p.resourceId} OR s.client_id=${p.clientId}
-        OR (${p.professionalId}::int IS NOT NULL AND r.professional_id=${p.professionalId}::int))`);
-  const overlapping = found.rows.filter((row) => {
-    const from = toMinutes(String(row.scheduled_time));
-    return start < from + Number(row.duration) && end > from;
-  });
-  if (!overlapping.length) return null;
-  if (overlapping.some((row) => Number(row.resource_id) === p.resourceId)) {
-    return { tipo: "agenda", error: MENSAGEM_AGENDA_OCUPADA };
-  }
-  if (p.professionalId != null && overlapping.some((row) => row.agenda_professional != null && Number(row.agenda_professional) === p.professionalId)) {
-    return { tipo: "profissional", error: MENSAGEM_AGENDA_OCUPADA };
-  }
-  const doCliente = overlapping.filter((row) => Number(row.client_id) === p.clientId);
-  if (!doCliente.length) return null;
-  const irmas = await irmasDeEquipeConjunta(executor, ignore);
-  if (doCliente.some((row) => !irmas.has(Number(row.id)))) {
-    return { tipo: "cliente", error: MENSAGEM_CLIENTE_OCUPADO };
-  }
-  return null;
+  const rows = await listarSessoesCandidatas(executor, p);
+  const irmas = ignore.length ? await irmasDeEquipeConjunta(executor, ignore) : new Set<number>();
+  return classificarSobreposicao(rows, {
+    start, end: start + p.durationMinutes, resourceId: p.resourceId, professionalId: p.professionalId, clientId: p.clientId,
+  }, irmas);
 }
 
 /** Sessões que pertencem à mesma ocorrência de equipe conjunta de alguma das sessões informadas. */

@@ -19,6 +19,10 @@ import type {
 import type {
   AgendaChangeDecisionInput,
   AgendaChangeRequestList,
+  AgendaEncaixeBody,
+  AgendaEncaixeDisponibilidade,
+  AgendaEncaixePolitica,
+  AgendaEncaixeResposta,
   AgendaException,
   AgendaIntegrationState,
   AgendaPersonalOwnerInput,
@@ -128,6 +132,7 @@ import type {
   FornecedorAtualizacao,
   FornecedorEntrada,
   GenerateProtocolICS200,
+  GetAgendaEncaixeDisponibilidadeParams,
   GetAgendaSlotsParams,
   GetConciergeOfferParams,
   GetExamRequestHistoryParams,
@@ -14432,6 +14437,281 @@ export const useBookAgendaSession = <
   TContext
 > => {
   return useMutation(getBookAgendaSessionMutationOptions(options));
+};
+
+/**
+ * O servidor decide pela identidade da sessão e pela matriz de Governança. Sem sessão responde 401; sessão sem permissão responde 200 com autorizado=false e o motivo. Nenhum parâmetro do navegador escolhe o canal.
+ * @summary Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+ */
+export const getGetAgendaEncaixePoliticaUrl = () => {
+  return `/api/agenda/encaixe/politica`;
+};
+
+export const getAgendaEncaixePolitica = async (
+  options?: RequestInit,
+): Promise<AgendaEncaixePolitica> => {
+  return customFetch<AgendaEncaixePolitica>(getGetAgendaEncaixePoliticaUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgendaEncaixePoliticaQueryKey = () => {
+  return [`/api/agenda/encaixe/politica`] as const;
+};
+
+export const getGetAgendaEncaixePoliticaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAgendaEncaixePoliticaQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>
+  > = ({ signal }) => getAgendaEncaixePolitica({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaEncaixePoliticaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaEncaixePolitica>>
+>;
+export type GetAgendaEncaixePoliticaQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+ */
+
+export function useGetAgendaEncaixePolitica<
+  TData = Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixePolitica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaEncaixePoliticaQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Mesma decisão da confirmação. Confere agenda, profissional em TODAS as agendas, cliente (se informado), compromissos do Google e o frescor da integração. 403 se o acesso não for autorizado ao encaixe.
+ * @summary Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+ */
+export const getGetAgendaEncaixeDisponibilidadeUrl = (
+  params: GetAgendaEncaixeDisponibilidadeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/encaixe/disponibilidade?${stringifiedParams}`
+    : `/api/agenda/encaixe/disponibilidade`;
+};
+
+export const getAgendaEncaixeDisponibilidade = async (
+  params: GetAgendaEncaixeDisponibilidadeParams,
+  options?: RequestInit,
+): Promise<AgendaEncaixeDisponibilidade> => {
+  return customFetch<AgendaEncaixeDisponibilidade>(
+    getGetAgendaEncaixeDisponibilidadeUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAgendaEncaixeDisponibilidadeQueryKey = (
+  params?: GetAgendaEncaixeDisponibilidadeParams,
+) => {
+  return [
+    `/api/agenda/encaixe/disponibilidade`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetAgendaEncaixeDisponibilidadeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaEncaixeDisponibilidadeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetAgendaEncaixeDisponibilidadeQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>
+  > = ({ signal }) =>
+    getAgendaEncaixeDisponibilidade(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaEncaixeDisponibilidadeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>
+>;
+export type GetAgendaEncaixeDisponibilidadeQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+ */
+
+export function useGetAgendaEncaixeDisponibilidade<
+  TData = Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaEncaixeDisponibilidadeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaEncaixeDisponibilidade>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaEncaixeDisponibilidadeQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Canal interno decidido no servidor. Corpo estrito: não aceita canal, empresa nem antecedência. 201 grava; 200 com duplicada=true devolve a marcação idêntica recém-criada; 409 traz codigo e alternativas. O Google é chamado depois da gravação e sua falha nunca desfaz a marcação.
+ * @summary Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+ */
+export const getBookAgendaEncaixeUrl = () => {
+  return `/api/agenda/encaixe`;
+};
+
+export const bookAgendaEncaixe = async (
+  agendaEncaixeBody: AgendaEncaixeBody,
+  options?: RequestInit,
+): Promise<AgendaEncaixeResposta> => {
+  return customFetch<AgendaEncaixeResposta>(getBookAgendaEncaixeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agendaEncaixeBody),
+  });
+};
+
+export const getBookAgendaEncaixeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+    TError,
+    { data: BodyType<AgendaEncaixeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+  TError,
+  { data: BodyType<AgendaEncaixeBody> },
+  TContext
+> => {
+  const mutationKey = ["bookAgendaEncaixe"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+    { data: BodyType<AgendaEncaixeBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bookAgendaEncaixe(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BookAgendaEncaixeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bookAgendaEncaixe>>
+>;
+export type BookAgendaEncaixeMutationBody = BodyType<AgendaEncaixeBody>;
+export type BookAgendaEncaixeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+ */
+export const useBookAgendaEncaixe = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+    TError,
+    { data: BodyType<AgendaEncaixeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bookAgendaEncaixe>>,
+  TError,
+  { data: BodyType<AgendaEncaixeBody> },
+  TContext
+> => {
+  return useMutation(getBookAgendaEncaixeMutationOptions(options));
 };
 
 /**

@@ -10,5 +10,12 @@ export interface AgendaSettings {
   id: number;
   blockMinutes: number;
   triggerPercent: number;
+  /** Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno. */
   minLeadHours: number;
+  /**
+   * Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.
+   * @minimum 0
+   * @maximum 1440
+   */
+  internalLeadMinutes: number;
 }

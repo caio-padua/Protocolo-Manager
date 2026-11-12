@@ -3389,6 +3389,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookAgendaSessionResponse"
 
+  /agenda/encaixe/politica:
+    get:
+      operationId: getAgendaEncaixePolitica
+      tags: [agenda]
+      summary: Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+      description: >-
+        O servidor decide pela identidade da sessão e pela matriz de Governança. Sem sessão responde 401; sessão sem
+        permissão responde 200 com autorizado=false e o motivo. Nenhum parâmetro do navegador escolhe o canal.
+      responses:
+        "200":
+          description: Política do encaixe interno para este acesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixePolitica"
+  /agenda/encaixe/disponibilidade:
+    get:
+      operationId: getAgendaEncaixeDisponibilidade
+      tags: [agenda]
+      summary: Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+      description: >-
+        Mesma decisão da confirmação. Confere agenda, profissional em TODAS as agendas, cliente (se informado),
+        compromissos do Google e o frescor da integração. 403 se o acesso não for autorizado ao encaixe.
+      parameters:
+        - { name: resourceId, in: query, required: true, schema: { type: integer } }
+        - { name: date, in: query, required: true, schema: { type: string }, description: YYYY-MM-DD }
+        - { name: durationMinutes, in: query, required: true, schema: { type: integer, minimum: 5, maximum: 480 } }
+        - { name: clientId, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Disponibilidade do dia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixeDisponibilidade"
+  /agenda/encaixe:
+    post:
+      operationId: bookAgendaEncaixe
+      tags: [agenda]
+      summary: Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+      description: >-
+        Canal interno decidido no servidor. Corpo estrito: não aceita canal, empresa nem antecedência. 201 grava;
+        200 com duplicada=true devolve a marcação idêntica recém-criada; 409 traz codigo e alternativas. O Google é
+        chamado depois da gravação e sua falha nunca desfaz a marcação.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaEncaixeBody"
+      responses:
+        "200":
+          description: Repetição idêntica; devolve a marcação existente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixeResposta"
+        "201":
+          description: Encaixe marcado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaEncaixeResposta"
   /agenda/book-avulsa:
     post:
       operationId: bookAvulsaSession
@@ -4866,7 +4929,7 @@ components:
 
     AgendaSettings:
       type: object
-      required: [id, blockMinutes, triggerPercent, minLeadHours]
+      required: [id, blockMinutes, triggerPercent, minLeadHours, internalLeadMinutes]
       properties:
         id:
           type: integer
@@ -4876,6 +4939,12 @@ components:
           type: integer
         minLeadHours:
           type: integer
+          description: Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno.
+        internalLeadMinutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
+          description: Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.
 
     UpdateAgendaSettingsBody:
       type: object
@@ -4886,6 +4955,10 @@ components:
           type: integer
         minLeadHours:
           type: integer
+        internalLeadMinutes:
+          type: integer
+          minimum: 0
+          maximum: 1440
 
     AgendaSubBlock:
       type: object
@@ -5202,6 +5275,105 @@ components:
           type: boolean
         simulate:
           type: boolean
+
+    AgendaEncaixePolitica:
+      type: object
+      required: [canal, autorizado, antecedenciaMinutos, antecedenciaConfigurada, antecedenciaSugeridaMinutos]
+      properties:
+        canal: { type: string }
+        autorizado: { type: boolean }
+        motivo: { type: string, nullable: true }
+        codigo: { type: string, nullable: true }
+        antecedenciaMinutos: { type: integer }
+        antecedenciaConfigurada: { type: boolean }
+        antecedenciaSugeridaMinutos: { type: integer }
+
+    AgendaEncaixeSlot:
+      type: object
+      required: [time, state]
+      properties:
+        time: { type: string }
+        state: { type: string, enum: [aberto, bloqueado, ocupado] }
+        reason:
+          type: string
+          nullable: true
+          enum: [ocupado, passado, antecedencia, compromisso, integracao, profissional, cliente, intervalo]
+        message: { type: string, nullable: true }
+
+    AgendaEncaixeAlternativas:
+      type: object
+      required: [mesmoDia]
+      properties:
+        mesmoDia:
+          type: array
+          items: { type: string }
+        proximoDia:
+          type: object
+          nullable: true
+          required: [date, time]
+          properties:
+            date: { type: string }
+            time: { type: string }
+
+    AgendaEncaixeDisponibilidade:
+      type: object
+      required: [canal, resourceId, date, agora, antecedenciaMinutos, integracao, clienteVerificado, durationMinutes, slotMinutes, slots, alternativas]
+      properties:
+        canal: { type: string }
+        resourceId: { type: integer }
+        date: { type: string }
+        agora: { type: string }
+        antecedenciaMinutos: { type: integer }
+        motivoDia: { type: string, nullable: true }
+        integracao:
+          type: object
+          required: [atualizada]
+          properties:
+            atualizada: { type: boolean }
+            mensagem: { type: string, nullable: true }
+        clienteVerificado: { type: boolean }
+        durationMinutes: { type: integer }
+        slotMinutes: { type: integer }
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgendaEncaixeSlot"
+        alternativas:
+          $ref: "#/components/schemas/AgendaEncaixeAlternativas"
+
+    AgendaEncaixeBody:
+      type: object
+      additionalProperties: false
+      required: [resourceId, clientId, date, time, durationMinutes]
+      properties:
+        resourceId: { type: integer }
+        clientId: { type: integer }
+        date: { type: string, description: YYYY-MM-DD }
+        time: { type: string, description: HH:mm }
+        durationMinutes: { type: integer, minimum: 5, maximum: 480 }
+        syncGoogle: { type: boolean }
+
+    AgendaEncaixeResposta:
+      type: object
+      required: [canal, duplicada, session]
+      properties:
+        canal: { type: string }
+        duplicada: { type: boolean }
+        session:
+          $ref: "#/components/schemas/AgendaBookedSession"
+        googleEventId: { type: string, nullable: true }
+        googleSyncWarning: { type: string }
+
+    AgendaEncaixeRecusa:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        codigo: { type: string, nullable: true }
+        alternativas:
+          allOf:
+            - $ref: "#/components/schemas/AgendaEncaixeAlternativas"
+          nullable: true
 
     BookAvulsaBody:
       type: object

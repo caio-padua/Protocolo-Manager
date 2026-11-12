@@ -79,6 +79,7 @@ export const GRUPOS: GrupoFerramentas[] = [
       { id: "anamnese", nome: "Anamnese" },
       { id: "agenda", nome: "Agenda" },
       { id: "agenda_gerenciamento", nome: "Agenda Gerenciamento (Pit Stop: confirmar e enviar ao Google)" },
+      { id: "agenda_encaixe_interno", nome: "Agenda · Encaixe rápido interno (antecedência curta, sem liberação em cadeia)" },
     ],
   },
   {
@@ -120,6 +121,8 @@ const DEFAULT_ON: Record<string, PapelId[]> = {
   agenda: ["medico", "enfermagem"],
   // Recepção NÃO vem ligada: o CEO a autoriza na matriz (Governança). Vale sempre só na empresa da sessão.
   agenda_gerenciamento: ["medico", "enfermagem"],
+  // Encaixe interno marcado pela própria equipe, com antecedência em minutos. Nunca vale para paciente.
+  agenda_encaixe_interno: ["medico", "enfermagem", "recepcao"],
   financeiro: ["administrativo", "financeiro"],
   estoque: ["enfermagem", "administrativo"],
   corpo_clinico: ["administrativo"],

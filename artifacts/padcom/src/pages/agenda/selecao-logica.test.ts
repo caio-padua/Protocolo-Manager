@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  estadoSincronizacao, lerAlternativas, proximoLivre, somarDiasIso, textoCanal,
   agendaReservavel, agruparBloqueios, duracaoValida, ehArraste, explicarDia, explicarPeriodo, rotuloSituacao, intervaloDoArraste, inicioDoClique, jaMarcada, lerDuracao,
   lerFalha, lerRespostaDeSucesso, minutoDoPonteiro, periodoDoInicio, primeiroPeriodoIndisponivel, rotuloLocal, rotuloModalidade,
   rotuloProfissional, textoDuracao, textoIntervalo,
@@ -172,5 +173,46 @@ describe("cadastro da agenda em campos separados", () => {
     expect(rotuloLocal(base)).toBe("A definir");
     expect(rotuloLocal({ ...base, modality: "online", locationName: "Sede Centro" })).toContain("online");
     expect(rotuloLocal({ ...base, modality: "externo", externalAddressText: "Rua X, 10" })).toBe("Rua X, 10");
+  });
+});
+
+describe("encaixe rápido interno: leitura da resposta do servidor", () => {
+  it("recusa 409 traz código e alternativas; formato estranho vira sem alternativas", () => {
+    const r = lerFalha({ status: 409, data: { error: "Horário já ocupado nesta agenda.", codigo: "ocupado",
+      alternativas: { mesmoDia: ["14:20", "x", 5, "14:40"], proximoDia: { date: "2030-03-15", time: "09:00" } } } });
+    expect(r).toMatchObject({ tipo: "recusada", status: 409, codigo: "ocupado" });
+    expect((r as { alternativas: unknown }).alternativas).toEqual({ mesmoDia: ["14:20", "14:40"], proximoDia: { date: "2030-03-15", time: "09:00" } });
+    expect(lerAlternativas("lixo")).toBeNull();
+    expect(lerAlternativas({ mesmoDia: "14:00" })).toBeNull();
+    expect(lerAlternativas({ mesmoDia: [], proximoDia: { date: 1 } })).toEqual({ mesmoDia: [], proximoDia: null });
+  });
+
+  it("5xx ou sem resposta continua sendo resultado incerto (nunca repete às cegas)", () => {
+    expect(lerFalha({ status: 502 }).tipo).toBe("incerto");
+    expect(lerFalha(null).tipo).toBe("incerto");
+  });
+
+  it("próximo livre ignora bloqueados e ocupados", () => {
+    expect(proximoLivre([{ time: "14:00", state: "ocupado" }, { time: "14:20", state: "bloqueado" }, { time: "14:40", state: "aberto" }])).toBe("14:40");
+    expect(proximoLivre([{ time: "14:00", state: "bloqueado" }])).toBeNull();
+  });
+
+  it("estado da sincronização não promete disponibilidade quando a leitura está atrasada", () => {
+    expect(estadoSincronizacao({ atualizada: true }).tipo).toBe("em-dia");
+    expect(estadoSincronizacao({ atualizada: false, mensagem: "atrasada" })).toEqual({ tipo: "pendente", texto: "atrasada" });
+    expect(estadoSincronizacao({ atualizada: false }).texto).toMatch(/não pode ser garantida/);
+    expect(estadoSincronizacao(undefined).tipo).toBe("nao-consultada");
+  });
+
+  it("dia seguinte não depende do fuso e atravessa mês e ano", () => {
+    expect(somarDiasIso("2030-03-01", 1)).toBe("2030-03-02");
+    expect(somarDiasIso("2030-02-28", 1)).toBe("2030-03-01");
+    expect(somarDiasIso("2030-12-31", 1)).toBe("2031-01-01");
+  });
+
+  it("o texto do canal diz qual regra vale", () => {
+    expect(textoCanal(true, 5, 24)).toMatch(/5 minutos.*sem a liberação em cadeia/);
+    expect(textoCanal(true, 1, 24)).toMatch(/1 minuto,/);
+    expect(textoCanal(false, null, 24)).toMatch(/24 horas e liberação em cadeia/);
   });
 });

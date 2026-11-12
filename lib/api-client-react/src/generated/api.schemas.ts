@@ -1051,13 +1051,25 @@ export interface AgendaSettings {
   id: number;
   blockMinutes: number;
   triggerPercent: number;
+  /** Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno. */
   minLeadHours: number;
+  /**
+   * Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.
+   * @minimum 0
+   * @maximum 1440
+   */
+  internalLeadMinutes: number;
 }
 
 export interface UpdateAgendaSettingsBody {
   blockMinutes?: number;
   triggerPercent?: number;
   minLeadHours?: number;
+  /**
+   * @minimum 0
+   * @maximum 1440
+   */
+  internalLeadMinutes?: number;
 }
 
 export interface AgendaSubBlock {
@@ -1257,22 +1269,90 @@ export interface BookAgendaSessionBody {
   simulate?: boolean;
 }
 
-export interface BookAvulsaBody {
+export interface AgendaEncaixePolitica {
+  canal: string;
+  autorizado: boolean;
+  motivo?: string | null;
+  codigo?: string | null;
+  antecedenciaMinutos: number;
+  antecedenciaConfigurada: boolean;
+  antecedenciaSugeridaMinutos: number;
+}
+
+export type AgendaEncaixeSlotState =
+  (typeof AgendaEncaixeSlotState)[keyof typeof AgendaEncaixeSlotState];
+
+export const AgendaEncaixeSlotState = {
+  aberto: "aberto",
+  bloqueado: "bloqueado",
+  ocupado: "ocupado",
+} as const;
+
+export type AgendaEncaixeSlotReason =
+  | (typeof AgendaEncaixeSlotReason)[keyof typeof AgendaEncaixeSlotReason]
+  | null;
+
+export const AgendaEncaixeSlotReason = {
+  ocupado: "ocupado",
+  passado: "passado",
+  antecedencia: "antecedencia",
+  compromisso: "compromisso",
+  integracao: "integracao",
+  profissional: "profissional",
+  cliente: "cliente",
+  intervalo: "intervalo",
+} as const;
+
+export interface AgendaEncaixeSlot {
+  time: string;
+  state: AgendaEncaixeSlotState;
+  reason?: AgendaEncaixeSlotReason;
+  message?: string | null;
+}
+
+export type AgendaEncaixeAlternativasProximoDia = {
+  date: string;
+  time: string;
+} | null;
+
+export interface AgendaEncaixeAlternativas {
+  mesmoDia: string[];
+  proximoDia?: AgendaEncaixeAlternativasProximoDia;
+}
+
+export type AgendaEncaixeDisponibilidadeIntegracao = {
+  atualizada: boolean;
+  mensagem?: string | null;
+};
+
+export interface AgendaEncaixeDisponibilidade {
+  canal: string;
+  resourceId: number;
+  date: string;
+  agora: string;
+  antecedenciaMinutos: number;
+  motivoDia?: string | null;
+  integracao: AgendaEncaixeDisponibilidadeIntegracao;
+  clienteVerificado: boolean;
+  durationMinutes: number;
+  slotMinutes: number;
+  slots: AgendaEncaixeSlot[];
+  alternativas: AgendaEncaixeAlternativas;
+}
+
+export interface AgendaEncaixeBody {
   resourceId: number;
   clientId: number;
   /** YYYY-MM-DD */
   date: string;
-  /** HH:mm, início de um período da agenda */
+  /** HH:mm */
   time: string;
   /**
    * @minimum 5
    * @maximum 480
    */
-  durationMinutes?: number;
-  serviceType?: string;
-  unit?: string;
+  durationMinutes: number;
   syncGoogle?: boolean;
-  simulate?: boolean;
 }
 
 export interface AgendaBookedSession {
@@ -1289,6 +1369,38 @@ export interface AgendaBookedSession {
   serviceType?: string;
   weekNumber?: number;
   googleEventId?: string | null;
+}
+
+export interface AgendaEncaixeResposta {
+  canal: string;
+  duplicada: boolean;
+  session: AgendaBookedSession;
+  googleEventId?: string | null;
+  googleSyncWarning?: string;
+}
+
+export interface AgendaEncaixeRecusa {
+  error: string;
+  codigo?: string | null;
+  alternativas?: AgendaEncaixeAlternativas | null;
+}
+
+export interface BookAvulsaBody {
+  resourceId: number;
+  clientId: number;
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:mm, início de um período da agenda */
+  time: string;
+  /**
+   * @minimum 5
+   * @maximum 480
+   */
+  durationMinutes?: number;
+  serviceType?: string;
+  unit?: string;
+  syncGoogle?: boolean;
+  simulate?: boolean;
 }
 
 export interface BookAgendaSessionResponse {
@@ -3823,6 +3935,20 @@ export type GetAgendaSlotsParams = {
    * CSV de horarios HH:mm ja ocupados (apenas para a Prova Viva demonstrar a cadeia; a ocupacao real chega na marcacao, F2.3)
    */
   occupied?: string;
+};
+
+export type GetAgendaEncaixeDisponibilidadeParams = {
+  resourceId: number;
+  /**
+   * YYYY-MM-DD
+   */
+  date: string;
+  /**
+   * @minimum 5
+   * @maximum 480
+   */
+  durationMinutes: number;
+  clientId?: number;
 };
 
 export type GetReconciliationParams = {

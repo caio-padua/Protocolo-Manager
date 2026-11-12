@@ -6750,27 +6750,63 @@ export const DeleteAgendaExceptionParams = zod.object({
 /**
  * @summary Get the singleton agenda settings (creates defaults if missing)
  */
+export const getAgendaSettingsResponseInternalLeadMinutesMin = 0;
+export const getAgendaSettingsResponseInternalLeadMinutesMax = 1440;
+
 export const GetAgendaSettingsResponse = zod.object({
   id: zod.number(),
   blockMinutes: zod.number(),
   triggerPercent: zod.number(),
-  minLeadHours: zod.number(),
+  minLeadHours: zod
+    .number()
+    .describe(
+      "Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno.",
+    ),
+  internalLeadMinutes: zod
+    .number()
+    .min(getAgendaSettingsResponseInternalLeadMinutesMin)
+    .max(getAgendaSettingsResponseInternalLeadMinutesMax)
+    .describe(
+      "Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.",
+    ),
 });
 
 /**
  * @summary Update the agenda settings
  */
+export const updateAgendaSettingsBodyInternalLeadMinutesMin = 0;
+export const updateAgendaSettingsBodyInternalLeadMinutesMax = 1440;
+
 export const UpdateAgendaSettingsBody = zod.object({
   blockMinutes: zod.number().optional(),
   triggerPercent: zod.number().optional(),
   minLeadHours: zod.number().optional(),
+  internalLeadMinutes: zod
+    .number()
+    .min(updateAgendaSettingsBodyInternalLeadMinutesMin)
+    .max(updateAgendaSettingsBodyInternalLeadMinutesMax)
+    .optional(),
 });
+
+export const updateAgendaSettingsResponseInternalLeadMinutesMin = 0;
+export const updateAgendaSettingsResponseInternalLeadMinutesMax = 1440;
 
 export const UpdateAgendaSettingsResponse = zod.object({
   id: zod.number(),
   blockMinutes: zod.number(),
   triggerPercent: zod.number(),
-  minLeadHours: zod.number(),
+  minLeadHours: zod
+    .number()
+    .describe(
+      "Antecedência em HORAS da marcação padrão (paciente, protocolo, Pit Stop, concierge). Não vale para o encaixe interno.",
+    ),
+  internalLeadMinutes: zod
+    .number()
+    .min(updateAgendaSettingsResponseInternalLeadMinutesMin)
+    .max(updateAgendaSettingsResponseInternalLeadMinutesMax)
+    .describe(
+      "Antecedência em MINUTOS do encaixe rápido interno (equipe autorizada). Padrão sugerido 5.",
+    ),
 });
 
 export const GetAgendaIntegrationResponse = zod.object({
@@ -7099,6 +7135,124 @@ export const BookAgendaSessionBody = zod.object({
   unit: zod.string().optional(),
   syncGoogle: zod.boolean().optional(),
   simulate: zod.boolean().optional(),
+});
+
+/**
+ * O servidor decide pela identidade da sessão e pela matriz de Governança. Sem sessão responde 401; sessão sem permissão responde 200 com autorizado=false e o motivo. Nenhum parâmetro do navegador escolhe o canal.
+ * @summary Diz se o acesso atual pode usar o encaixe rápido interno e qual a antecedência em minutos
+ */
+export const GetAgendaEncaixePoliticaResponse = zod.object({
+  canal: zod.string(),
+  autorizado: zod.boolean(),
+  motivo: zod.string().nullish(),
+  codigo: zod.string().nullish(),
+  antecedenciaMinutos: zod.number(),
+  antecedenciaConfigurada: zod.boolean(),
+  antecedenciaSugeridaMinutos: zod.number(),
+});
+
+/**
+ * Mesma decisão da confirmação. Confere agenda, profissional em TODAS as agendas, cliente (se informado), compromissos do Google e o frescor da integração. 403 se o acesso não for autorizado ao encaixe.
+ * @summary Horários de início possíveis para um encaixe interno, com o trecho inteiro conferido
+ */
+export const getAgendaEncaixeDisponibilidadeQueryDurationMinutesMin = 5;
+export const getAgendaEncaixeDisponibilidadeQueryDurationMinutesMax = 480;
+
+export const GetAgendaEncaixeDisponibilidadeQueryParams = zod.object({
+  resourceId: zod.coerce.number(),
+  date: zod.coerce.string().describe("YYYY-MM-DD"),
+  durationMinutes: zod.coerce
+    .number()
+    .min(getAgendaEncaixeDisponibilidadeQueryDurationMinutesMin)
+    .max(getAgendaEncaixeDisponibilidadeQueryDurationMinutesMax),
+  clientId: zod.coerce.number().optional(),
+});
+
+export const GetAgendaEncaixeDisponibilidadeResponse = zod.object({
+  canal: zod.string(),
+  resourceId: zod.number(),
+  date: zod.string(),
+  agora: zod.string(),
+  antecedenciaMinutos: zod.number(),
+  motivoDia: zod.string().nullish(),
+  integracao: zod.object({
+    atualizada: zod.boolean(),
+    mensagem: zod.string().nullish(),
+  }),
+  clienteVerificado: zod.boolean(),
+  durationMinutes: zod.number(),
+  slotMinutes: zod.number(),
+  slots: zod.array(
+    zod.object({
+      time: zod.string(),
+      state: zod.enum(["aberto", "bloqueado", "ocupado"]),
+      reason: zod
+        .enum([
+          "ocupado",
+          "passado",
+          "antecedencia",
+          "compromisso",
+          "integracao",
+          "profissional",
+          "cliente",
+          "intervalo",
+        ])
+        .nullish(),
+      message: zod.string().nullish(),
+    }),
+  ),
+  alternativas: zod.object({
+    mesmoDia: zod.array(zod.string()),
+    proximoDia: zod
+      .object({
+        date: zod.string(),
+        time: zod.string(),
+      })
+      .nullish(),
+  }),
+});
+
+/**
+ * Canal interno decidido no servidor. Corpo estrito: não aceita canal, empresa nem antecedência. 201 grava; 200 com duplicada=true devolve a marcação idêntica recém-criada; 409 traz codigo e alternativas. O Google é chamado depois da gravação e sua falha nunca desfaz a marcação.
+ * @summary Confirma um encaixe rápido interno (consulta avulsa) com antecedência curta
+ */
+export const bookAgendaEncaixeBodyDurationMinutesMin = 5;
+export const bookAgendaEncaixeBodyDurationMinutesMax = 480;
+
+export const BookAgendaEncaixeBody = zod.object({
+  resourceId: zod.number(),
+  clientId: zod.number(),
+  date: zod.string().describe("YYYY-MM-DD"),
+  time: zod.string().describe("HH:mm"),
+  durationMinutes: zod
+    .number()
+    .min(bookAgendaEncaixeBodyDurationMinutesMin)
+    .max(bookAgendaEncaixeBodyDurationMinutesMax),
+  syncGoogle: zod.boolean().optional(),
+});
+
+export const BookAgendaEncaixeResponse = zod.object({
+  canal: zod.string(),
+  duplicada: zod.boolean(),
+  session: zod.object({
+    id: zod.number(),
+    protocolId: zod
+      .number()
+      .nullable()
+      .describe("Nulo na consulta avulsa (sem protocolo)."),
+    durationMinutes: zod.number().nullish(),
+    clientId: zod.number(),
+    resourceId: zod.number().nullish(),
+    scheduledDate: zod.string(),
+    scheduledTime: zod.string(),
+    status: zod.string(),
+    unit: zod.string().nullish(),
+    serviceType: zod.string().optional(),
+    weekNumber: zod.number().optional(),
+    googleEventId: zod.string().nullish(),
+  }),
+  googleEventId: zod.string().nullish(),
+  googleSyncWarning: zod.string().optional(),
 });
 
 /**

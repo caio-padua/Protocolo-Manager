@@ -211,7 +211,7 @@ export function agruparBloqueios(slots: SlotMotor[], blocos: SubBlocoMotor[], re
 export type ResultadoMarcacao =
   | { tipo: "ok" }
   | { tipo: "google-aviso"; aviso: string }
-  | { tipo: "recusada"; status: number; mensagem: string }
+  | { tipo: "recusada"; status: number; mensagem: string; codigo?: string | null; alternativas?: AlternativasEncaixe | null }
   | { tipo: "incerto"; mensagem: string };
 
 export const AVISO_GOOGLE_SEM_CONFIRMACAO =
@@ -232,11 +232,14 @@ export function lerRespostaDeSucesso(
  * Sem status, 5xx ou resposta ilegível = a gravação PODE ter acontecido: resultado incerto, nunca repetir às cegas.
  */
 export function lerFalha(erro: unknown): ResultadoMarcacao {
-  const e = erro as { status?: number; data?: { error?: unknown } | null } | null;
+  const e = erro as { status?: number; data?: { error?: unknown; codigo?: unknown; alternativas?: unknown } | null } | null;
   const status = typeof e?.status === "number" ? e.status : null;
   const mensagem = typeof e?.data?.error === "string" ? e.data.error : null;
   if (status !== null && status >= 400 && status < 500) {
-    return { tipo: "recusada", status, mensagem: mensagem ?? mensagemPadraoDaRecusa(status) };
+    const base = { tipo: "recusada" as const, status, mensagem: mensagem ?? mensagemPadraoDaRecusa(status) };
+    const codigo = typeof e?.data?.codigo === "string" ? e.data.codigo : null;
+    const alternativas = lerAlternativas(e?.data?.alternativas);
+    return { ...base, ...(codigo ? { codigo } : {}), ...(alternativas ? { alternativas } : {}) };
   }
   return {
     tipo: "incerto",
@@ -287,3 +290,56 @@ export function rotuloLocal(r: AgendaOpcao): string {
 }
 
 export const rotuloProfissional = (r: AgendaOpcao) => r.professionalName ?? "Agenda compartilhada (sem profissional titular)";
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Encaixe rápido interno (Quick Book). O servidor decide o canal; a tela só pergunta a política e mostra o que veio.
+// ---------------------------------------------------------------------------------------------------------------------
+
+export type AlternativasEncaixe = { mesmoDia: string[]; proximoDia: { date: string; time: string } | null };
+
+/** Lê com cuidado as alternativas devolvidas na recusa 409; qualquer formato estranho vira "sem alternativas". */
+export function lerAlternativas(bruto: unknown): AlternativasEncaixe | null {
+  const a = bruto as { mesmoDia?: unknown; proximoDia?: { date?: unknown; time?: unknown } | null } | null;
+  if (!a || !Array.isArray(a.mesmoDia)) return null;
+  const mesmoDia = a.mesmoDia.filter((t): t is string => typeof t === "string" && /^\d{2}:\d{2}$/.test(t));
+  const p = a.proximoDia;
+  const proximoDia = p && typeof p.date === "string" && typeof p.time === "string" ? { date: p.date, time: p.time } : null;
+  return { mesmoDia, proximoDia };
+}
+
+export type SlotEncaixe = { time: string; state: string; reason?: string | null; message?: string | null };
+
+/** Primeiro horário livre da lista (já filtrada pelo servidor para passado e antecedência). */
+export function proximoLivre(slots: SlotEncaixe[]): string | null {
+  return slots.find((s) => s.state === "aberto")?.time ?? null;
+}
+
+export type EstadoSincronizacao = { tipo: "em-dia" | "pendente" | "nao-consultada"; texto: string };
+
+/** Estado da leitura do Google Agenda para o painel de sincronização. Nunca promete o que o servidor não garantiu. */
+export function estadoSincronizacao(
+  integracao: { atualizada: boolean; mensagem?: string | null } | null | undefined,
+): EstadoSincronizacao {
+  if (!integracao) return { tipo: "nao-consultada", texto: "Google Agenda: a disponibilidade ainda não foi consultada." };
+  if (integracao.atualizada) {
+    return { tipo: "em-dia", texto: "Google Agenda: leitura em dia (atualizada nos últimos 5 minutos). Compromissos feitos direto no Google depois dessa leitura só aparecem na próxima atualização; o sistema confere de novo ao confirmar." };
+  }
+  return { tipo: "pendente", texto: integracao.mensagem ?? "Google Agenda: leitura atrasada; a disponibilidade não pode ser garantida agora." };
+}
+
+/** Dia seguinte (YYYY-MM-DD) sem depender do fuso do navegador. */
+export function somarDiasIso(data: string, dias: number): string {
+  const v = new Date(`${data}T12:00:00Z`);
+  v.setUTCDate(v.getUTCDate() + dias);
+  return v.toISOString().slice(0, 10);
+}
+
+/** Texto do canal, para a pessoa saber qual regra de antecedência está valendo. */
+export function textoCanal(interno: boolean, antecedenciaMinutos: number | null, minLeadHours: number | null): string {
+  if (interno) {
+    const m = antecedenciaMinutos ?? 5;
+    return `Encaixe rápido interno: antecedência mínima de ${m} minuto${m === 1 ? "" : "s"}, sem a liberação em cadeia. O trecho inteiro é conferido (agenda, profissional em todas as agendas, cliente e Google).`;
+  }
+  return `Agendamento padrão: antecedência mínima de ${minLeadHours ?? 24} horas e liberação em cadeia. Seu acesso não tem o encaixe rápido interno.`;
+}

@@ -60,6 +60,12 @@ export function computeAgendaSlots(params: {
   isException: boolean;
   blockedRanges?: { start: number; end: number }[];
   occupiedRanges?: { start: number; end: number }[];
+  /**
+   * Canal INTERNO de encaixe (decidido pelo servidor, nunca pelo navegador): antecedência em MINUTOS no lugar da
+   * regra em horas, e liberação em cadeia dispensada. Passado, expediente, ocupação e compromissos continuam valendo.
+   * Sem este campo o comportamento é exatamente o de sempre (paciente, protocolo e demais fluxos).
+   */
+  encaixeInterno?: { leadMinutes: number };
 }): EngineResult {
   const { windows, slotMinutes, settings, occupiedTimes, now, date, isException } = params;
 
@@ -82,7 +88,9 @@ export function computeAgendaSlots(params: {
     }
   }
 
-  const leadMs = Math.max(0, settings.minLeadHours) * 60 * 60 * 1000;
+  const leadMs = params.encaixeInterno
+    ? Math.max(0, params.encaixeInterno.leadMinutes) * 60 * 1000
+    : Math.max(0, settings.minLeadHours) * 60 * 60 * 1000;
   const threshold = now.getTime() + leadMs;
 
   const subBlocks: EngineSubBlock[] = [];
@@ -114,7 +122,7 @@ export function computeAgendaSlots(params: {
 
   let chainOpen = true;
   for (const block of subBlocks) {
-    block.released = chainOpen && block.total > 0;
+    block.released = (chainOpen || Boolean(params.encaixeInterno)) && block.total > 0;
     if (block.total > 0) chainOpen = chainOpen && block.occupancy >= settings.triggerPercent;
   }
 

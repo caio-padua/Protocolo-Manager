@@ -249,6 +249,7 @@ export default function AgendaMotor() {
     blockMinutes: number;
     triggerPercent: number;
     minLeadHours: number;
+    internalLeadMinutes: number;
   } | null>(null);
 
   useEffect(() => {
@@ -257,6 +258,7 @@ export default function AgendaMotor() {
         blockMinutes: settings.blockMinutes,
         triggerPercent: settings.triggerPercent,
         minLeadHours: settings.minLeadHours,
+        internalLeadMinutes: settings.internalLeadMinutes ?? 5,
       });
     }
   }, [settings]);
@@ -1036,6 +1038,29 @@ export default function AgendaMotor() {
                     }
                   />
                 </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5 sm:col-span-1">
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground" htmlFor="antecedencia-encaixe">
+                    Antecedência do encaixe interno (min)
+                  </Label>
+                  <Input
+                    id="antecedencia-encaixe"
+                    data-testid="antecedencia-encaixe"
+                    type="number"
+                    min={0}
+                    max={1440}
+                    className="field-engraved"
+                    value={setDraft.internalLeadMinutes}
+                    onChange={(e) =>
+                      setSetDraft((d) => (d ? { ...d, internalLeadMinutes: Math.min(1440, Math.max(0, Math.trunc(Number(e.target.value) || 0))) } : d))
+                    }
+                  />
+                </div>
+                <p className="concave-3d px-3 py-2.5 text-xs leading-relaxed text-muted-foreground sm:col-span-2">
+                  Vale só para o <b>encaixe rápido interno</b> da equipe autorizada (sem liberação em cadeia). Paciente, protocolo,
+                  Pit Stop e concierge continuam com a antecedência em horas acima. Sugerido: 5 minutos.
+                </p>
               </div>
               <div className="concave-3d px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
                 O dia é fatiado em sub-blocos de <b>{setDraft.blockMinutes} minutos</b>. O primeiro abre

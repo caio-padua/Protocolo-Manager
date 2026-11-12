@@ -1,24 +1,30 @@
 /**
  * Consulta avulsa (sem protocolo) marcada pela Agenda Diária.
- * Usa a rota /agenda/book-avulsa: o servidor decide empresa, conflito e Google; esta tela só junta os campos,
+ * Dois canais, escolhidos SÓ pelo servidor (GET /agenda/encaixe/politica, pela identidade da sessão e pela Governança):
+ *  - encaixe rápido interno (equipe autorizada): /agenda/encaixe, antecedência curta em minutos, sem cadeia, trecho inteiro conferido;
+ *  - agendamento padrão: /agenda/book-avulsa, 24 horas e cadeia (como o paciente).
+ * A tela nunca envia canal nem antecedência. O servidor decide empresa, conflito e Google; esta tela só junta os campos,
  * mostra cada cadastro em campo próprio (cliente, agenda, profissional, modalidade, local, duração) e conta a verdade
  * sobre o resultado (salvo, salvo sem o Google, recusado ou incerto). Nunca pede nem cria protocolo e nunca envia convite.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  bookAvulsaSession, listSessions, useGetAgendaSettings, useGetAgendaSlots, useListAgendaResources, useListClients,
+  bookAgendaEncaixe, bookAvulsaSession, listSessions, useGetAgendaEncaixeDisponibilidade, useGetAgendaEncaixePolitica,
+  useGetAgendaSettings, useGetAgendaSlots, useListAgendaResources, useListClients,
 } from "@workspace/api-client-react";
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useToast } from "@/hooks/use-toast";
+import { hojeBrt } from "@/lib/pit-stop-formato";
 import { minutosDoHorario, rotuloHora } from "./timeline-logica";
 import {
-  agendaReservavel, agruparBloqueios, DURACAO_MAX, DURACAO_MIN, duracaoValida, explicarDia, explicarPeriodo, jaMarcada, lerDuracao, lerFalha,
-  lerRespostaDeSucesso, periodoDoInicio, primeiroPeriodoIndisponivel, rotuloLocal, rotuloModalidade, rotuloProfissional,
-  rotuloSituacao, textoDuracao, textoIntervalo, type AgendaOpcao, type RegrasAgenda, type ResultadoMarcacao,
+  agendaReservavel, agruparBloqueios, DURACAO_MAX, DURACAO_MIN, duracaoValida, estadoSincronizacao, explicarDia, explicarPeriodo, jaMarcada,
+  lerDuracao, lerFalha, lerRespostaDeSucesso, periodoDoInicio, primeiroPeriodoIndisponivel, proximoLivre, rotuloLocal, rotuloModalidade,
+  rotuloProfissional, rotuloSituacao, somarDiasIso, textoCanal, textoDuracao, textoIntervalo,
+  type AgendaOpcao, type RegrasAgenda, type ResultadoMarcacao,
 } from "./selecao-logica";
 
 /** O que a grade (ou o botão) já sabe: dia e, se houver, início e fim em minutos. */
@@ -94,20 +100,36 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
   const agenda = agendas.find((a) => a.id === agendaId) ?? null;
 
   const dataOk = /^\d{4}-\d{2}-\d{2}$/.test(data);
-  const { data: slotsResp, isFetching: carregandoSlots } = useGetAgendaSlots(
-    { resourceId: agendaId ?? 0, date: data },
-    { query: { enabled: aberto && agendaId !== null && dataOk, staleTime: 0, gcTime: 0 } as never },
-  );
-  const slots = useMemo(() => (slotsResp?.slots ?? []) as { time: string; state: string; reason?: string | null; subBlockIndex?: number }[], [slotsResp]);
+  const duracao = lerDuracao(duracaoTxt);
 
-  // Regras da agenda (antecedência mínima e percentual da cadeia): só leitura, para explicar cada bloqueio.
+  // Canal: perguntado ao servidor. Falha ou 401 = agendamento padrão (nunca presume o canal interno).
+  const { data: politica } = useGetAgendaEncaixePolitica({ query: { enabled: aberto, staleTime: 30_000, retry: false } as never });
+  const interno = politica?.autorizado === true;
+
+  const { data: slotsPadrao, isFetching: carregandoPadrao } = useGetAgendaSlots(
+    { resourceId: agendaId ?? 0, date: data },
+    { query: { enabled: aberto && !interno && agendaId !== null && dataOk, staleTime: 0, gcTime: 0 } as never },
+  );
+  const { data: dispo, isFetching: carregandoDispo, isError: erroDispo } = useGetAgendaEncaixeDisponibilidade(
+    { resourceId: agendaId ?? 0, date: data, durationMinutes: duracao ?? 0, ...(clienteId !== null ? { clientId: clienteId } : {}) },
+    { query: { enabled: aberto && interno && agendaId !== null && dataOk && duracao !== null, staleTime: 0, gcTime: 0, retry: false } as never },
+  );
+  const slotsResp = interno ? undefined : slotsPadrao;
+  const carregandoSlots = interno ? carregandoDispo : carregandoPadrao;
+  const slots = useMemo(
+    () => ((interno ? dispo?.slots : slotsPadrao?.slots) ?? []) as { time: string; state: string; reason?: string | null; message?: string | null; subBlockIndex?: number }[],
+    [interno, dispo, slotsPadrao]);
+
+  // Regras da agenda (antecedência mínima e percentual da cadeia): só leitura, para explicar cada bloqueio padrão.
   const { data: ajustes } = useGetAgendaSettings({ query: { enabled: aberto } as never });
   const regras: RegrasAgenda = ajustes ? { minLeadHours: ajustes.minLeadHours, triggerPercent: ajustes.triggerPercent } : null;
   const gruposBloqueio = useMemo(
-    () => agruparBloqueios(slots, slotsResp?.subBlocks ?? [], regras),
-    [slots, slotsResp, regras?.minLeadHours, regras?.triggerPercent], // eslint-disable-line react-hooks/exhaustive-deps
+    () => (interno ? [] : agruparBloqueios(slots, slotsResp?.subBlocks ?? [], regras)),
+    [interno, slots, slotsResp, regras?.minLeadHours, regras?.triggerPercent], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const textoDia = explicarDia(slotsResp?.reason);
+  const textoDia = explicarDia(interno ? dispo?.motivoDia : slotsResp?.reason);
+  const respostaCarregada = interno ? dispo !== undefined : slotsResp !== undefined;
+  const sincronizacao = interno ? estadoSincronizacao(dispo?.integracao) : null;
 
   // Início pedido pela grade vira o período da agenda que o contém; sem pedido, o primeiro período aberto.
   useEffect(() => {
@@ -129,9 +151,9 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
     if (agenda && !duracaoTocada) setDuracaoTxt(String(agenda.slotMinutes));
   }, [agenda, duracaoTocada]);
 
-  const duracao = lerDuracao(duracaoTxt);
   const inicioMin = minutosDoHorario(horario);
-  const trechoProblema = agenda && duracao !== null && horario && slots.length > 0
+  const slotEscolhido = slots.find((s) => s.time === horario) ?? null;
+  const trechoProblema = !interno && agenda && duracao !== null && horario && slots.length > 0
     ? primeiroPeriodoIndisponivel(horario, duracao, agenda.slotMinutes, slots)
     : null;
 
@@ -158,23 +180,31 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
     const controle = new AbortController();
     const relogio = window.setTimeout(() => controle.abort(), ESPERA_MAXIMA_MS);
     try {
-      const resp = await bookAvulsaSession(
-        { resourceId: agendaId, clientId: clienteId, date: data, time: horario, durationMinutes: duracao, syncGoogle: true },
-        { signal: controle.signal },
-      );
-      const r = lerRespostaDeSucesso(resp, true);
+      const corpo = { resourceId: agendaId, clientId: clienteId, date: data, time: horario, durationMinutes: duracao, syncGoogle: true };
+      const resp = interno
+        ? await bookAgendaEncaixe(corpo, { signal: controle.signal })
+        : await bookAvulsaSession(corpo, { signal: controle.signal });
+      const duplicada = interno && (resp as { duplicada?: boolean }).duplicada === true;
+      const r = lerRespostaDeSucesso(resp, !duplicada);
       onMarcada();
       void qc.invalidateQueries({
-        predicate: (q) => /^\/api\/(sessions|agenda\/slots)/.test(String(q.queryKey[0])),
+        predicate: (q) => /^\/api\/(sessions|agenda\/slots|agenda\/encaixe)/.test(String(q.queryKey[0])),
       });
-      if (r.tipo === "ok") {
-        toast({ title: "Consulta avulsa marcada", description: "Salva no sistema e criada no Google Agenda da agenda, sem enviar convite." });
+      if (r.tipo === "ok" || duplicada) {
+        toast({
+          title: duplicada ? "Esta consulta já estava marcada" : (interno ? "Encaixe marcado" : "Consulta avulsa marcada"),
+          description: duplicada
+            ? "O pedido repetido não criou outra consulta; a marcação existente foi mantida."
+            : "Salva no sistema e criada no Google Agenda da agenda, sem enviar convite.",
+        });
         onFechar();
       } else {
         setResultado(r);
       }
     } catch (erro) {
       setResultado(lerFalha(erro));
+      // Recusa do servidor: a disponibilidade mudou; relê para a lista refletir o que o servidor viu.
+      void qc.invalidateQueries({ predicate: (q) => /^\/api\/agenda\/(encaixe|slots)/.test(String(q.queryKey[0])) });
     } finally {
       window.clearTimeout(relogio);
       enviandoRef.current = false;
@@ -215,6 +245,15 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Canal em uso: dito pelo servidor, nunca escolhido aqui */}
+          {politica && (
+            <p role="status" data-testid={interno ? "avulsa-canal-interno" : "avulsa-canal-padrao"}
+              className={`flex items-start gap-2 rounded-[6px] border p-2.5 text-xs font-semibold ${interno ? "border-amber-400 bg-amber-50 text-amber-950" : "border-border text-muted-foreground"}`}>
+              {interno && <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />}
+              <span>{textoCanal(interno, dispo?.antecedenciaMinutos ?? politica.antecedenciaMinutos, ajustes?.minLeadHours ?? null)}</span>
+            </p>
+          )}
+
           {/* Cliente */}
           <div className="space-y-1.5">
             <label className={rotuloCampo}>Cliente</label>
@@ -264,13 +303,14 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
               <label className={rotuloCampo} htmlFor="avulsa-horario">Horário de início</label>
               <select id="avulsa-horario" data-testid="avulsa-horario" className={campo} value={horario}
                 disabled={travado || agendaId === null || slots.length === 0}
+                aria-describedby="avulsa-situacao-horario"
                 onChange={(e) => { setHorario(e.target.value); setInicioPedido(minutosDoHorario(e.target.value)); setAviso(null); }}>
                 {!slots.some((s) => s.time === horario) && (
                   <option value={horario}>{horario || (agendaId === null ? "Escolha a agenda" : carregandoSlots ? "Carregando…" : "Sem períodos")}</option>
                 )}
                 {slots.map((s) => (
                   <option key={s.time} value={s.time} disabled={s.state === "ocupado"}>
-                    {s.time}{rotuloSituacao(s.state, s.reason)}
+                    {s.time}{interno && s.state !== "aberto" ? (s.state === "ocupado" ? " — ocupado" : ` — indisponível (${s.reason ?? "bloqueado"})`) : rotuloSituacao(s.state, s.reason)}
                   </option>
                 ))}
               </select>
@@ -281,6 +321,20 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
                 aria-invalid={duracao === null && duracaoTxt !== ""} placeholder={`${DURACAO_MIN} a ${DURACAO_MAX}`}
                 onChange={(e) => { setDuracaoTxt(e.target.value.replace(/[^\d]/g, "").slice(0, 3)); setDuracaoTocada(true); }} />
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Opções rápidas de data e horário">
+            <button type="button" data-testid="avulsa-hoje" disabled={travado}
+              onClick={() => { setData(hojeBrt()); setHorario(""); setInicioPedido(null); setAviso(null); }}
+              className="btn-3d-soft rounded-[4px] px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground">Hoje</button>
+            <button type="button" data-testid="avulsa-amanha" disabled={travado}
+              onClick={() => { setData(somarDiasIso(hojeBrt(), 1)); setHorario(""); setInicioPedido(null); setAviso(null); }}
+              className="btn-3d-soft rounded-[4px] px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground">Amanhã</button>
+            {interno && (
+              <button type="button" data-testid="avulsa-proximo-livre" disabled={travado || proximoLivre(slots) === null}
+                onClick={() => { const t = proximoLivre(slots); if (t) { setHorario(t); setInicioPedido(minutosDoHorario(t)); setAviso(null); } }}
+                className="bevel-3d rounded-[4px] px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-primary">Próximo livre</button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Durações rápidas">
@@ -294,21 +348,57 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
           </div>
 
           {duracao !== null && inicioMin !== null && (
-            <p className="text-sm font-semibold" data-testid="avulsa-resumo">
-              {textoIntervalo(inicioMin, duracao)} · {textoDuracao(duracao)}
+            <div className="concave-3d space-y-1 p-3 text-sm" data-testid="avulsa-resumo-bloco" aria-live="polite">
+              <p className="font-semibold" data-testid="avulsa-resumo">
+                {textoIntervalo(inicioMin, duracao)} · {textoDuracao(duracao)}
+              </p>
+              <p className="text-xs text-muted-foreground" data-testid="avulsa-resumo-detalhe">
+                {data.split("-").reverse().join("/")} · {agenda ? `Agenda ${agenda.name}` : "agenda não escolhida"}
+                {agenda ? ` · Profissional ${rotuloProfissional(agenda)} · ${rotuloModalidade(agenda.modality)} · Local ${rotuloLocal(agenda)}` : ""}
+                {clienteId !== null ? ` · ${clientes.find((c) => c.id === clienteId)?.name ?? "cliente escolhido"}` : " · cliente não escolhido"}
+              </p>
+            </div>
+          )}
+          <p id="avulsa-situacao-horario" className="text-xs font-semibold" data-testid="avulsa-situacao-horario">
+            {interno && slotEscolhido
+              ? (slotEscolhido.state === "aberto" ? "Horário livre para o trecho inteiro." : (slotEscolhido.message ?? "Horário indisponível."))
+              : ""}
+          </p>
+          {interno && clienteId === null && dispo && (
+            <p className="text-xs text-muted-foreground" data-testid="avulsa-cliente-nao-verificado">
+              Escolha o cliente para o sistema conferir também se ele já tem outra marcação nesse horário.
+            </p>
+          )}
+          {sincronizacao && (
+            <p role="status" data-testid={`avulsa-sync-${sincronizacao.tipo}`}
+              className={`flex items-start gap-2 text-xs font-semibold ${sincronizacao.tipo === "em-dia" ? "text-green-800" : "text-amber-800"}`}>
+              {sincronizacao.tipo === "em-dia" ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />}
+              {sincronizacao.texto}
+            </p>
+          )}
+          {interno && erroDispo && (
+            <p role="alert" className="text-xs font-semibold text-red-800" data-testid="avulsa-dispo-erro">
+              Não foi possível consultar a disponibilidade agora. Nada foi prometido; tente de novo.
             </p>
           )}
           {aviso && <p className="text-xs text-muted-foreground" data-testid="avulsa-ajuste">{aviso}</p>}
-          {slotsResp && agendaId !== null && textoDia && (
+          {respostaCarregada && agendaId !== null && textoDia && (
             <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid={slots.length === 0 ? "avulsa-agenda-fechada" : "avulsa-dia-motivo"}>
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               {textoDia}{slots.length === 0 ? " Escolha outra data ou outra agenda." : ""}
             </p>
           )}
-          {slotsResp && agendaId !== null && slots.length === 0 && !textoDia && (
+          {respostaCarregada && agendaId !== null && slots.length === 0 && !textoDia && (
             <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid="avulsa-agenda-fechada">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               Esta agenda não tem períodos neste dia. Escolha outra data ou outra agenda.
+            </p>
+          )}
+          {interno && respostaCarregada && slots.length > 0 && !slots.some((s) => s.state === "aberto") && (
+            <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid="avulsa-nenhum-livre">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              Nenhum horário livre para {duracao !== null ? textoDuracao(duracao) : "esta duração"} neste dia. Escolha cada horário na lista para ver o motivo
+              {dispo?.alternativas.proximoDia ? `; o próximo dia com horário é ${dispo.alternativas.proximoDia.date.split("-").reverse().join("/")} às ${dispo.alternativas.proximoDia.time}.` : "."}
             </p>
           )}
           {gruposBloqueio.length > 0 && !slots.some((s) => s.state === "aberto") && (
@@ -339,6 +429,7 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
 
           <p className="text-xs text-muted-foreground">
             Ao confirmar, a consulta é gravada no sistema e criada no Google Agenda desta agenda. Nenhum convite é enviado a ninguém.
+            {interno ? " A disponibilidade mostrada é conferida de novo no servidor no momento de confirmar." : ""}
           </p>
 
           {/* Resultado */}
@@ -348,6 +439,23 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
               <div>
                 <p>{resultado.mensagem}</p>
                 {resultado.status === 409 && <p className="mt-1 text-xs font-medium">Escolha outro horário ou outra agenda. Nada foi gravado.</p>}
+                {resultado.alternativas && (resultado.alternativas.mesmoDia.length > 0 || resultado.alternativas.proximoDia) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="avulsa-alternativas" role="group" aria-label="Horários alternativos">
+                    <span className="text-xs font-medium">Alternativas (o sistema confere de novo ao confirmar):</span>
+                    {resultado.alternativas.mesmoDia.map((t) => (
+                      <button key={t} type="button" data-testid={`avulsa-alt-${t}`}
+                        onClick={() => { setHorario(t); setInicioPedido(minutosDoHorario(t)); setResultado(null); }}
+                        className="btn-3d-soft rounded-[4px] px-3 py-1 text-[11px] font-black tabular-nums text-foreground">{t}</button>
+                    ))}
+                    {resultado.alternativas.proximoDia && (
+                      <button type="button" data-testid="avulsa-alt-proximo-dia"
+                        onClick={() => { const a = resultado.alternativas!.proximoDia!; setData(a.date); setHorario(a.time); setInicioPedido(minutosDoHorario(a.time)); setResultado(null); }}
+                        className="btn-3d-soft rounded-[4px] px-3 py-1 text-[11px] font-black text-foreground">
+                        {resultado.alternativas.proximoDia.date.split("-").reverse().join("/")} às {resultado.alternativas.proximoDia.time}
+                      </button>
+                    )}
+                  </div>
+                )}
                 {resultado.status === 404 && <p className="mt-1 text-xs font-medium">Confira se cliente e agenda são da empresa do seu acesso. Nada foi gravado.</p>}
               </div>
             </div>

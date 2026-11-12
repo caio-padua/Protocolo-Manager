@@ -48,8 +48,8 @@ export async function computeResourceSlots(
   executor: AgendaExecutor = db,
   ignoreSessionId?: number,
   /** `semAntecedencia`: só o encaixe presencial no término da consulta (Pit Stop) dispensa a antecedência mínima. */
-  opts: { semAntecedencia?: boolean } = {},
-): Promise<{ resource: typeof agendaResourcesTable.$inferSelect; result: EngineResult } | null> {
+  opts: { semAntecedencia?: boolean; encaixeInterno?: { leadMinutes: number } } = {},
+): Promise<{ resource: typeof agendaResourcesTable.$inferSelect; result: EngineResult; integracaoAtualizada: boolean } | null> {
   if (!validDate(date)) return null;
   const db = executor;
   const [resource] = await db.select().from(agendaResourcesTable).where(eq(agendaResourcesTable.id, resourceId));
@@ -109,6 +109,7 @@ export async function computeResourceSlots(
     isException: exceptions.length > 0,
     blockedRanges: occupancy.blockedRanges,
     occupiedRanges: occupiedOverride ? [] : occupancy.occupiedRanges,
+    encaixeInterno: opts.encaixeInterno,
   });
   if (!occupancy.fresh) {
     result.reason = "sincronizacao-pendente";
@@ -118,7 +119,7 @@ export async function computeResourceSlots(
     }
   }
 
-  return { resource, result };
+  return { resource, result, integracaoAtualizada: occupancy.fresh };
 }
 
 export interface BookResult {
@@ -183,12 +184,42 @@ export async function lockAgendaParticipants(executor: AgendaExecutor, resourceI
  * Marca uma sessao num slot. Valida pelo motor que o horario esta ABERTO (reconsulta
  * a ocupacao real para evitar corrida). Opcionalmente sincroniza com o Google Calendar.
  */
-const RESERVABLE_KINDS = new Set(["medico", "enfermagem"]);
+export const RESERVABLE_KINDS = new Set(["medico", "enfermagem"]);
 const MIN_AVULSA_MINUTES = 5;
 const MAX_AVULSA_MINUTES = 480;
 const ACTIVE_STATUSES = ["scheduled", "confirmed", "completed"];
 const toMinutes = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
 const hhmmOf = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/**
+ * Grava a sessão de uma consulta avulsa (sem protocolo, número 1 fixo). Fonte única dos campos: a marcação padrão
+ * (/agenda/book-avulsa) e o encaixe interno (/agenda/encaixe) gravam exatamente a mesma coisa. Só INSERE; as
+ * travas e as conferências de disponibilidade são de quem chama, dentro da mesma transação.
+ */
+export async function gravarSessaoAvulsa(
+  executor: AgendaExecutor,
+  p: {
+    resource: typeof agendaResourcesTable.$inferSelect; clientId: number; date: string; time: string;
+    durationMinutes: number; empresaId: number; serviceType?: string; unit?: string; notes?: string | null;
+  },
+): Promise<Session> {
+  const [session] = await executor.insert(sessionsTable).values({
+    protocolId: null,
+    clientId: p.clientId,
+    resourceId: p.resource.id,
+    scheduledDate: p.date,
+    scheduledTime: p.time,
+    status: "scheduled",
+    unit: p.unit ?? p.resource.name,
+    serviceType: p.serviceType ?? (p.resource.modality === "domiciliar" ? "home" : "clinic"),
+    weekNumber: 1,
+    notes: p.notes ?? null,
+    empresaId: p.empresaId,
+    professionalId: p.resource.professionalId,
+    durationMinutes: p.durationMinutes,
+  }).returning();
+  return session;
+}
 
 export async function bookSession(params: BookParams): Promise<BookResult> {
   if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
@@ -294,6 +325,14 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
 
   const notes = simulate ? SIM_TAG : null;
   const resourceName = computed.resource.name;
+
+  if (avulsa) {
+    const session = await gravarSessaoAvulsa(db, {
+      resource: computed.resource, clientId, date, time, durationMinutes, empresaId: params.empresaId!,
+      serviceType, unit, notes,
+    });
+    return { ok: true, status: 201, session, googleEventId: null };
+  }
 
   const [session] = await db
     .insert(sessionsTable)
