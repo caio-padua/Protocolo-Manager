@@ -6478,6 +6478,18 @@ export const ListAgendaResourcesResponseItem = zod.object({
   locationId: zod.number().nullish(),
   empresaId: zod.number().nullish(),
   canManage: zod.boolean().optional(),
+  professionalName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Nome do profissional titular da agenda (nulo em agenda compartilhada).",
+    ),
+  locationName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Nome do local cadastrado da agenda. Agenda e local são cadastros distintos.",
+    ),
   externalAddress: zod
     .object({
       cep: zod.string(),
@@ -6570,6 +6582,18 @@ export const UpdateAgendaResourceResponse = zod.object({
   locationId: zod.number().nullish(),
   empresaId: zod.number().nullish(),
   canManage: zod.boolean().optional(),
+  professionalName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Nome do profissional titular da agenda (nulo em agenda compartilhada).",
+    ),
+  locationName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Nome do local cadastrado da agenda. Agenda e local são cadastros distintos.",
+    ),
   externalAddress: zod
     .object({
       cep: zod.string(),
@@ -7078,6 +7102,29 @@ export const BookAgendaSessionBody = zod.object({
 });
 
 /**
+ * Caminho explícito de consulta avulsa. O corpo NÃO tem protocolId (se vier, é recusado) e a sessão nasce com protocolId nulo. Agenda e cliente precisam ser da empresa do acesso (404 caso contrário). Horário ocupado do profissional ou do cliente responde 409 com mensagem genérica. Com syncGoogle=true o evento é criado no Google da agenda FORA da transação, sem enviar convite; falha ou resultado incerto volta em googleSyncWarning e a marcação permanece salva.
+ * @summary Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+ */
+export const bookAvulsaSessionBodyDurationMinutesMin = 5;
+export const bookAvulsaSessionBodyDurationMinutesMax = 480;
+
+export const BookAvulsaSessionBody = zod.object({
+  resourceId: zod.number(),
+  clientId: zod.number(),
+  date: zod.string().describe("YYYY-MM-DD"),
+  time: zod.string().describe("HH:mm, início de um período da agenda"),
+  durationMinutes: zod
+    .number()
+    .min(bookAvulsaSessionBodyDurationMinutesMin)
+    .max(bookAvulsaSessionBodyDurationMinutesMax)
+    .optional(),
+  serviceType: zod.string().optional(),
+  unit: zod.string().optional(),
+  syncGoogle: zod.boolean().optional(),
+  simulate: zod.boolean().optional(),
+});
+
+/**
  * @summary Cancel a booked session (removes its Google event if any)
  */
 export const CancelAgendaBookingParams = zod.object({
@@ -7087,7 +7134,11 @@ export const CancelAgendaBookingParams = zod.object({
 export const CancelAgendaBookingResponse = zod.object({
   session: zod.object({
     id: zod.number(),
-    protocolId: zod.number(),
+    protocolId: zod
+      .number()
+      .nullable()
+      .describe("Nulo na consulta avulsa (sem protocolo)."),
+    durationMinutes: zod.number().nullish(),
     clientId: zod.number(),
     resourceId: zod.number().nullish(),
     scheduledDate: zod.string(),

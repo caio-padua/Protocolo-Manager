@@ -329,3 +329,23 @@ describe("Rota explícita POST /agenda/book-avulsa", () => {
     expect(await totalSessoes()).toBe(1);
   });
 });
+
+describe("GET /agenda/resources: nomes separados para a tela da consulta avulsa", () => {
+  it("devolve profissional e local em campos próprios, sem inferir; outra clínica não enxerga as agendas", async () => {
+    await query(`CREATE TABLE IF NOT EXISTS professional_areas (id integer PRIMARY KEY, name text, slug text, professional_type text, active boolean, sort_order integer DEFAULT 0)`);
+    await query(`INSERT INTO professionals(id,name,role,active,empresa_id) VALUES (${PROF},'Dra. Sintética','doctor',true,5) ON CONFLICT DO NOTHING`);
+    const r = await request(app).get("/api/agenda/resources").set("x-test-empresa", "5");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const medico = r.body.find((a: any) => a.id === MEDICO);
+    expect(medico.professionalName).toBe("Dra. Sintética");
+    expect(medico.locationName).toBe("Local sintético A");
+    const enf = r.body.find((a: any) => a.id === ENFERMAGEM);
+    expect(enf.professionalName).toBeNull(); // sem titular: nada é inventado
+    expect(enf.locationName).toBe("Local sintético A");
+    const online = r.body.find((a: any) => a.id === ONLINE);
+    expect(online.locationName).toBeNull(); // online não tem local físico
+    const outra = await request(app).get("/api/agenda/resources").set("x-test-empresa", "6");
+    expect(outra.status).toBe(200);
+    expect(outra.body.some((a: any) => [MEDICO, ENFERMAGEM, ONLINE].includes(a.id))).toBe(false);
+  });
+});

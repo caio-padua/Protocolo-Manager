@@ -52,6 +52,7 @@ import type {
   BatchResult,
   BookAgendaSessionBody,
   BookAgendaSessionResponse,
+  BookAvulsaBody,
   Budget,
   BudgetCalcInput,
   BudgetCalcResult,
@@ -14431,6 +14432,93 @@ export const useBookAgendaSession = <
   TContext
 > => {
   return useMutation(getBookAgendaSessionMutationOptions(options));
+};
+
+/**
+ * Caminho explícito de consulta avulsa. O corpo NÃO tem protocolId (se vier, é recusado) e a sessão nasce com protocolId nulo. Agenda e cliente precisam ser da empresa do acesso (404 caso contrário). Horário ocupado do profissional ou do cliente responde 409 com mensagem genérica. Com syncGoogle=true o evento é criado no Google da agenda FORA da transação, sem enviar convite; falha ou resultado incerto volta em googleSyncWarning e a marcação permanece salva.
+ * @summary Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+ */
+export const getBookAvulsaSessionUrl = () => {
+  return `/api/agenda/book-avulsa`;
+};
+
+export const bookAvulsaSession = async (
+  bookAvulsaBody: BookAvulsaBody,
+  options?: RequestInit,
+): Promise<BookAgendaSessionResponse> => {
+  return customFetch<BookAgendaSessionResponse>(getBookAvulsaSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bookAvulsaBody),
+  });
+};
+
+export const getBookAvulsaSessionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAvulsaSession>>,
+    TError,
+    { data: BodyType<BookAvulsaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bookAvulsaSession>>,
+  TError,
+  { data: BodyType<BookAvulsaBody> },
+  TContext
+> => {
+  const mutationKey = ["bookAvulsaSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bookAvulsaSession>>,
+    { data: BodyType<BookAvulsaBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bookAvulsaSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BookAvulsaSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bookAvulsaSession>>
+>;
+export type BookAvulsaSessionMutationBody = BodyType<BookAvulsaBody>;
+export type BookAvulsaSessionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+ */
+export const useBookAvulsaSession = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bookAvulsaSession>>,
+    TError,
+    { data: BodyType<BookAvulsaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bookAvulsaSession>>,
+  TError,
+  { data: BodyType<BookAvulsaBody> },
+  TContext
+> => {
+  return useMutation(getBookAvulsaSessionMutationOptions(options));
 };
 
 /**

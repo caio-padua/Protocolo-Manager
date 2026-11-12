@@ -174,3 +174,4 @@
 - [Marcação → evento Google completo](marcacao-agenda-evento-google-completo.md) — marcar/remarcar usa syncBookedSession (fora da transação); nunca montar evento em agenda-booking; Home Care sem endereço não envia.
 - [Consulta avulsa (sem protocolo)](consulta-avulsa-sem-protocolo.md) — protocol_id NULL só por caminho explícito; consumidores recusam/toleram NULL; nova rota de marcação precisa entrar no agendaWriteGuard.
 - [Travas de agenda por profissional e cliente](agenda-travas-profissional-cliente.md) — trava 19872026 é por clínica; ordem clínica→profissional(asc)→cliente; conflito por intervalo; irmãs de equipe conjunta não conflitam.
+- [Agenda — tela da consulta avulsa](agenda-consulta-avulsa-tela.md) — período do motor, resultado incerto nunca repete, campos separados; armadilhas do e2e (viewport, CDP) e do codegen (barrel api-zod).

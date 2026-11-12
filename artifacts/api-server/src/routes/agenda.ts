@@ -13,6 +13,7 @@ import {
   agendaExceptionsTable,
   agendaSettingsTable,
   locationsTable,
+  professionalsTable,
 } from "@workspace/db";
 import { brtISODate } from "../lib/brt.js";
 import {
@@ -169,8 +170,26 @@ router.get("/agenda/resources", async (req, res): Promise<void> => {
     }
     return porLocal.get(locationId)!;
   };
+  // Nomes SEPARADOS para a tela (agenda, profissional e local são coisas distintas; nada é fundido nem inferido).
+  const idsProf = [...new Set(rows.map((r) => r.professionalId).filter((v): v is number => v != null))];
+  const idsLocal = [...new Set(rows.map((r) => r.locationId).filter((v): v is number => v != null))];
+  const nomesProf = new Map<number, string>();
+  if (idsProf.length > 0) {
+    for (const p of await db.select({ id: professionalsTable.id, name: professionalsTable.name }).from(professionalsTable).where(inArray(professionalsTable.id, idsProf))) nomesProf.set(p.id, p.name);
+  }
+  const nomesLocal = new Map<number, string>();
+  if (idsLocal.length > 0) {
+    for (const l of await db.select({ id: locationsTable.id, name: locationsTable.name }).from(locationsTable).where(inArray(locationsTable.id, idsLocal))) nomesLocal.set(l.id, l.name);
+  }
   const out = [];
-  for (const row of rows) out.push({ ...decorarRecurso(row, categorias), canManage: await podeGerir(row.locationId) });
+  for (const row of rows) {
+    out.push({
+      ...decorarRecurso(row, categorias),
+      canManage: await podeGerir(row.locationId),
+      professionalName: row.professionalId != null ? nomesProf.get(row.professionalId) ?? null : null,
+      locationName: row.locationId != null ? nomesLocal.get(row.locationId) ?? null : null,
+    });
+  }
   res.json(out);
 });
 

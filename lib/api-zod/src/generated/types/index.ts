@@ -60,6 +60,7 @@ export * from "./anamneseSintoma";
 export * from "./batchResult";
 export * from "./bookAgendaSessionBody";
 export * from "./bookAgendaSessionResponse";
+export * from "./bookAvulsaBody";
 export * from "./budget";
 export * from "./budgetCalcInput";
 export * from "./budgetCalcResult";

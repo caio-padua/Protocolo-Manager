@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BellRing, CalendarClock, Check, Clock, Lock, Repeat, Volume2, VolumeX, X } from "lucide-react";
@@ -14,6 +14,9 @@ import {
   faixaDeHoras, faixaDoGoogle, fimDesenhado, minutosDoHorario, proximidade, rotuloAtendimento, rotuloHora, textoFaltam,
   type Posicionado, type Proximidade, type EstadoAplicacao,
 } from "./timeline-logica";
+import {
+  TOQUE_SEGURAR_MS, TOQUE_TOLERANCIA_PX, ehArraste, inicioDoClique, intervaloDoArraste, minutoDoPonteiro, textoIntervalo,
+} from "./selecao-logica";
 import "./agenda-timeline.css";
 
 /**
@@ -46,7 +49,15 @@ const dataLonga = (iso: string) => {
 
 const usaMovimentoReduzido = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onReagendar, onAbrirDia }: {
+/** Horário vazio escolhido na grade: clique (fim nulo), arraste ou toque e segure. */
+export type SelecaoDaGrade = { data: string; ini: number; fim: number | null };
+
+type Gesto = {
+  iso: string; tipo: "mouse" | "toque"; x0: number; y0: number; minInicial: number; ativo: boolean; arrastando: boolean;
+  coluna: HTMLElement; pointerId: number; timer: number | null;
+};
+
+export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onReagendar, onAbrirDia, onSelecionar }: {
   modo: "dia" | "semana";
   dias: Date[];
   sessoes: SessaoLinha[];
@@ -56,6 +67,8 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
   renderCartao: (sessao: SessaoLinha) => ReactNode;
   onReagendar: (sessao: SessaoLinha) => void;
   onAbrirDia: (dia: Date) => void;
+  /** Quando existir, horário vazio aceita clique, arraste (mouse) e toque e segure (celular) para marcar consulta avulsa. */
+  onSelecionar?: (selecao: SelecaoDaGrade) => void;
 }) {
   const diasIso = useMemo(() => dias.map((d) => format(d, "yyyy-MM-dd")), [dias]);
   const de = diasIso[0]!;
@@ -168,6 +181,92 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
   const sessaoAtual = aberta ? sessoes.find((s) => s.id === aberta.id) ?? aberta : null;
   const abrirSessao = (s: SessaoLinha) => { setCartaoCompleto(false); setAberta(s); };
 
+  // ── Seleção de horário vazio: clique, arraste e toque e segure ────────────
+  const [selecao, setSelecao] = useState<{ iso: string; ini: number; fim: number } | null>(null);
+  const gesto = useRef<Gesto | null>(null);
+  const faixa = { horaIni, horaFim };
+
+  const encerrarGesto = useCallback(() => {
+    if (gesto.current?.timer) window.clearTimeout(gesto.current.timer);
+    gesto.current = null;
+    setSelecao(null);
+  }, []);
+
+  // O navegador só deixa impedir a rolagem do toque com ouvinte NÃO passivo; só age depois do "segure" ter valido.
+  useEffect(() => {
+    const el = rolagem.current;
+    if (!el || !onSelecionar) return;
+    const impedir = (ev: TouchEvent) => { if (gesto.current?.tipo === "toque" && gesto.current.ativo && ev.cancelable) ev.preventDefault(); };
+    el.addEventListener("touchmove", impedir, { passive: false });
+    return () => el.removeEventListener("touchmove", impedir);
+  }, [onSelecionar]);
+  useEffect(() => {
+    if (!onSelecionar) return;
+    const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape" && gesto.current) encerrarGesto(); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onSelecionar, encerrarGesto]);
+  useEffect(() => () => { if (gesto.current?.timer) window.clearTimeout(gesto.current.timer); }, []);
+
+  const minutoNoPonteiro = (g: Gesto, clientY: number) => minutoDoPonteiro(clientY - g.coluna.getBoundingClientRect().top, horaPx, faixa);
+
+  const aoPressionar = (e: ReactPointerEvent<HTMLDivElement>, iso: string) => {
+    if (!onSelecionar || gesto.current) return;
+    if (e.target !== e.currentTarget) return; // só em horário vazio: compromissos têm o próprio clique
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const coluna = e.currentTarget;
+    const g: Gesto = {
+      iso, tipo: e.pointerType === "touch" ? "toque" : "mouse", x0: e.clientX, y0: e.clientY, minInicial: 0,
+      ativo: false, arrastando: false, coluna, pointerId: e.pointerId, timer: null,
+    };
+    g.minInicial = minutoNoPonteiro(g, e.clientY);
+    gesto.current = g;
+    if (g.tipo === "mouse") {
+      g.ativo = true;
+      try { coluna.setPointerCapture(e.pointerId); } catch { /* captura é conforto, não requisito */ }
+    } else {
+      g.timer = window.setTimeout(() => {
+        if (gesto.current !== g) return;
+        g.ativo = true; // segurou: a rolagem fica travada; só vira "arraste" se o dedo andar depois
+        navigator.vibrate?.(12);
+        const { ini, fim } = intervaloDoArraste(g.minInicial, g.minInicial, faixa);
+        setSelecao({ iso, ini, fim });
+      }, TOQUE_SEGURAR_MS);
+    }
+  };
+
+  const aoMover = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gesto.current;
+    if (!g || e.pointerId !== g.pointerId) return;
+    const dx = e.clientX - g.x0;
+    const dy = e.clientY - g.y0;
+    if (g.tipo === "toque" && !g.ativo) {
+      // Dedo andou antes do "segure" valer: é rolagem, não seleção.
+      if (Math.hypot(dx, dy) > TOQUE_TOLERANCIA_PX) encerrarGesto();
+      return;
+    }
+    if (!g.ativo) return;
+    if (!g.arrastando && ehArraste(dx, dy)) g.arrastando = true;
+    if (!g.arrastando) return;
+    const { ini, fim } = intervaloDoArraste(g.minInicial, minutoNoPonteiro(g, e.clientY), faixa);
+    setSelecao({ iso: g.iso, ini, fim });
+  };
+
+  const aoSoltar = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gesto.current;
+    if (!g || e.pointerId !== g.pointerId) return;
+    if (!g.ativo) { encerrarGesto(); return; } // toque curto: clique comum, sem seleção
+    let escolha: SelecaoDaGrade;
+    if (g.arrastando) {
+      const { ini, fim } = intervaloDoArraste(g.minInicial, minutoNoPonteiro(g, e.clientY), faixa);
+      escolha = { data: g.iso, ini, fim };
+    } else {
+      escolha = { data: g.iso, ini: inicioDoClique(g.minInicial), fim: null };
+    }
+    encerrarGesto();
+    onSelecionar?.(escolha);
+  };
+
   const colunasGrid = `3.25rem repeat(${dias.length}, minmax(${modo === "dia" ? "0" : "7.5rem"}, 1fr))`;
   const semNada = todos.length === 0 && diaInteiro.length === 0;
 
@@ -255,7 +354,16 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
           {diasIso.map((iso) => {
             const ehHoje = iso === agora.data;
             return (
-              <div key={iso} data-testid={`tl-coluna-${iso}`} className={`tl-corpo-coluna ${ehHoje ? "tl-corpo-coluna--hoje" : ""}`} style={{ height: alturaTotal }}>
+              <div key={iso} data-testid={`tl-coluna-${iso}`} data-selecionavel={onSelecionar ? "sim" : undefined}
+                className={`tl-corpo-coluna ${ehHoje ? "tl-corpo-coluna--hoje" : ""} ${onSelecionar ? "tl-corpo-coluna--selecionavel" : ""}`} style={{ height: alturaTotal }}
+                onPointerDown={(e) => aoPressionar(e, iso)} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={encerrarGesto}
+                onContextMenu={(e) => { if (gesto.current?.tipo === "toque") e.preventDefault(); }}>
+                {selecao?.iso === iso && (
+                  <div className="tl-selecao" data-testid="tl-selecao" aria-hidden
+                    style={{ top: topo(selecao.ini), height: Math.max(((selecao.fim - selecao.ini) / 60) * horaPx, 6) }}>
+                    <span>{textoIntervalo(selecao.ini, selecao.fim - selecao.ini)}</span>
+                  </div>
+                )}
                 {ehHoje && agora.minutos >= horaIni * 60 && agora.minutos <= horaFim * 60 && (
                   <div className="tl-agora" style={{ top: topo(agora.minutos) }} data-testid="tl-agora" aria-hidden />
                 )}

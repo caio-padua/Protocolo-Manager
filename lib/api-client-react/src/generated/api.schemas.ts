@@ -949,6 +949,10 @@ export interface AgendaResource {
   locationId?: number | null;
   empresaId?: number | null;
   canManage?: boolean;
+  /** Nome do profissional titular da agenda (nulo em agenda compartilhada). */
+  professionalName?: string | null;
+  /** Nome do local cadastrado da agenda. Agenda e local são cadastros distintos. */
+  locationName?: string | null;
   externalAddress?: AgendaExternalAddress | null;
   externalAddressText?: string | null;
   externalAddressStatus?: AgendaResourceExternalAddressStatus;
@@ -1253,9 +1257,29 @@ export interface BookAgendaSessionBody {
   simulate?: boolean;
 }
 
+export interface BookAvulsaBody {
+  resourceId: number;
+  clientId: number;
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:mm, início de um período da agenda */
+  time: string;
+  /**
+   * @minimum 5
+   * @maximum 480
+   */
+  durationMinutes?: number;
+  serviceType?: string;
+  unit?: string;
+  syncGoogle?: boolean;
+  simulate?: boolean;
+}
+
 export interface AgendaBookedSession {
   id: number;
-  protocolId: number;
+  /** Nulo na consulta avulsa (sem protocolo). */
+  protocolId: number | null;
+  durationMinutes?: number | null;
   clientId: number;
   resourceId?: number | null;
   scheduledDate: string;

@@ -3389,6 +3389,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookAgendaSessionResponse"
 
+  /agenda/book-avulsa:
+    post:
+      operationId: bookAvulsaSession
+      tags: [agenda]
+      summary: Marca uma consulta avulsa (sem protocolo) na agenda escolhida; a empresa vem do acesso
+      description: >-
+        Caminho explícito de consulta avulsa. O corpo NÃO tem protocolId (se vier, é recusado) e a sessão nasce com
+        protocolId nulo. Agenda e cliente precisam ser da empresa do acesso (404 caso contrário). Horário ocupado do
+        profissional ou do cliente responde 409 com mensagem genérica. Com syncGoogle=true o evento é criado no Google
+        da agenda FORA da transação, sem enviar convite; falha ou resultado incerto volta em googleSyncWarning e a
+        marcação permanece salva.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookAvulsaBody"
+      responses:
+        "201":
+          description: Consulta avulsa marcada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookAgendaSessionResponse"
+
   /agenda/book/{id}:
     delete:
       operationId: cancelAgendaBooking
@@ -4658,6 +4683,14 @@ components:
           nullable: true
         canManage:
           type: boolean
+        professionalName:
+          type: string
+          nullable: true
+          description: Nome do profissional titular da agenda (nulo em agenda compartilhada).
+        locationName:
+          type: string
+          nullable: true
+          description: Nome do local cadastrado da agenda. Agenda e local são cadastros distintos.
         externalAddress:
           allOf:
             - $ref: "#/components/schemas/AgendaExternalAddress"
@@ -5170,6 +5203,34 @@ components:
         simulate:
           type: boolean
 
+    BookAvulsaBody:
+      type: object
+      additionalProperties: false
+      required: [resourceId, clientId, date, time]
+      properties:
+        resourceId:
+          type: integer
+        clientId:
+          type: integer
+        date:
+          type: string
+          description: YYYY-MM-DD
+        time:
+          type: string
+          description: HH:mm, início de um período da agenda
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 480
+        serviceType:
+          type: string
+        unit:
+          type: string
+        syncGoogle:
+          type: boolean
+        simulate:
+          type: boolean
+
     AgendaBookedSession:
       type: object
       required: [id, protocolId, clientId, scheduledDate, scheduledTime, status]
@@ -5178,6 +5239,11 @@ components:
           type: integer
         protocolId:
           type: integer
+          nullable: true
+          description: Nulo na consulta avulsa (sem protocolo).
+        durationMinutes:
+          type: integer
+          nullable: true
         clientId:
           type: integer
         resourceId:

@@ -19,7 +19,7 @@ import {
   ChevronLeft, ChevronRight, Clock, Home, Building2, User, MapPin, Stethoscope,
   CheckCircle2, Search, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
   KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
-  LayoutGrid, List, Columns3, RefreshCw,
+  LayoutGrid, List, Columns3, RefreshCw, Plus,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -37,8 +37,9 @@ import { FiltroAgendas } from "./FiltroAgendas";
 import { chaveDaSessao } from "./filtro-agendas";
 import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
 import { useGoogleRefreshCycle } from "./agenda-integration-api";
-import { rotuloAtendimento, lerParametrosAgenda, type VisaoAgenda } from "./timeline-logica";
-import { GradeTimeline, type SessaoLinha } from "./GradeTimeline";
+import { rotuloAtendimento, lerParametrosAgenda, agoraEmBrasilia, type VisaoAgenda } from "./timeline-logica";
+import { GradeTimeline, type SessaoLinha, type SelecaoDaGrade } from "./GradeTimeline";
+import { ConsultaAvulsaDialog, type PreencherConsulta } from "./ConsultaAvulsaDialog";
 
 type ViewMode = "dia" | "semana" | "mes";
 
@@ -561,6 +562,17 @@ export default function Agenda() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleSession, setRescheduleSession] = useState<any>(null);
 
+  // ── CONSULTA AVULSA (sem protocolo) ───────────────────────────────────────
+  const [avulsa, setAvulsa] = useState<PreencherConsulta | null>(null);
+  function novoAgendamento() {
+    // Botão: dia aberto na Agenda Diária, ou hoje (Brasília) nas outras visões. Horário e duração ficam editáveis.
+    const data = viewMode === "dia" ? format(currentDate, "yyyy-MM-dd") : agoraEmBrasilia(new Date()).data;
+    setAvulsa({ data, ini: null, fim: null });
+  }
+  function aoSelecionarNaGrade(sel: SelecaoDaGrade) {
+    setAvulsa({ data: sel.data, ini: sel.ini, fim: sel.fim });
+  }
+
   // ── RANGE DE DATAS POR MODO ───────────────────────────────────────────────
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -817,6 +829,9 @@ export default function Agenda() {
             </Button>
           </div>
 
+          <Button size="sm" onClick={novoAgendamento} data-testid="novo-agendamento" className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-black">
+            <Plus className="h-3.5 w-3.5" aria-hidden /> Novo agendamento
+          </Button>
           <Button variant="outline" size="sm" onClick={goToday} className="btn-3d-soft h-9 px-3 uppercase tracking-widest text-[11px] font-bold">Hoje</Button>
           <Button variant="outline" size="sm" onClick={downloadWeekICS} className="btn-3d-soft gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length}>
             <Download className="h-3.5 w-3.5" /> ICS
@@ -831,6 +846,12 @@ export default function Agenda() {
       {/* ── CORPO ── */}
       <FiltroAgendas de={dateFrom} ate={dateTo} sessoes={(sessoesDoPeriodo ?? []) as unknown as Parameters<typeof FiltroAgendas>[0]["sessoes"]}
         ocultas={ocultas} onChange={setOcultas} />
+      <ConsultaAvulsaDialog aberto={avulsa !== null} preencher={avulsa} onFechar={() => setAvulsa(null)} onMarcada={() => { refetch(); }} />
+      {usaLinhaDoTempo && (
+        <p className="text-[11px] font-semibold text-muted-foreground" data-testid="dica-selecao">
+          Para marcar uma consulta avulsa: clique ou arraste num horário vazio. No celular, toque e segure. Também vale o botão Novo agendamento.
+        </p>
+      )}
       {!usaLinhaDoTempo && <GoogleCommitments de={dateFrom} ate={dateTo} ocultas={ocultas} />}
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-[6px]" />)}</div>
@@ -845,6 +866,7 @@ export default function Agenda() {
               ocultas={ocultas}
               onAbrirDia={(d) => { setCurrentDate(d); setViewMode("dia"); setSelectedDay(null); }}
               onReagendar={sharedCardProps.onReschedule}
+              onSelecionar={aoSelecionarNaGrade}
               renderCartao={(s) => (
                 <SessionCard
                   session={s}

@@ -21,6 +21,10 @@ export interface AgendaResource {
   locationId?: number | null;
   empresaId?: number | null;
   canManage?: boolean;
+  /** Nome do profissional titular da agenda (nulo em agenda compartilhada). */
+  professionalName?: string | null;
+  /** Nome do local cadastrado da agenda. Agenda e local são cadastros distintos. */
+  locationName?: string | null;
   externalAddress?: AgendaExternalAddress | null;
   externalAddressText?: string | null;
   externalAddressStatus?: AgendaResourceExternalAddressStatus;
