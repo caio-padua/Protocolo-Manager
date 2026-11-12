@@ -127,3 +127,5 @@ GET /clients → 5271, /sessions → 245, /payments → 12, /protocols → 24.
 **Why:** Fase A = fundação (schema + middleware + UI). Fase B = ativar filtragem em rotas.
 
 **How to apply:** Ao adicionar qualquer nova tabela clínica, ADD COLUMN empresa_id + backfill + índice. Nunca DROP. Ao escrever rotas clínicas, usar `resolveEmpresaId(req)` no WHERE.
+
+Confirmado pelo CEO (11/11/2026): as empresas cadastradas (exceto a Pádua) são fictícias e ficam ativas de propósito, para dar visão arquitetural antes de começar a movimentar o multitenant. Não investigar nem desativar por "estar ativa".
