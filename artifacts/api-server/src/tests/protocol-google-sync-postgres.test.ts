@@ -72,7 +72,7 @@ vi.mock("../lib/session-ics", () => ({ buildEventsForSessions: vi.fn(async () =>
 vi.mock("../lib/ics", () => ({ buildVCalendar: vi.fn() }));
 import {
   agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
-  locationsTable, professionalsTable, professionalEmpresasTable, sessionsTable, substanceApplicationsTable,
+  locationsTable, professionalsTable, professionalEmpresasTable, empresasTable, sessionsTable, substanceApplicationsTable,
   clientsTable, protocolsTable, protocolItemsTable, substancesTable,
   clientPreferredAgendasTable, clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable,
   locationProfessionalsTable,
@@ -115,6 +115,8 @@ async function scheduled(clientId: number, items: { substanceId: number; total: 
   expect(preview.status, JSON.stringify(preview.body)).toBe(200);
   const confirm = await post(`/api/protocols/${id}/scheduling/confirm`, { fingerprint: preview.body.preview.fingerprint });
   expect(confirm.status, JSON.stringify(confirm.body)).toBe(201);
+  // A prévia consulta a conta Google para avisar; o que cada teste mede é só o envio que vem depois.
+  google.verify.mockClear();
   return id;
 }
 const sync = (protocolId: number, body: object = {}) => post(`/api/protocols/${protocolId}/scheduling/google-sync`, body);
@@ -138,7 +140,7 @@ beforeAll(async () => {
   for (const table of [agendaResourcesTable, agendaWindowsTable, agendaSettingsTable, agendaExceptionsTable,
     locationsTable, professionalsTable, sessionsTable, substanceApplicationsTable, clientsTable,
     protocolsTable, protocolItemsTable, substancesTable, clientPreferredAgendasTable,
-    clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable, locationProfessionalsTable, professionalEmpresasTable]) {
+    clientVisitPreferenceRevisionsTable, protocolEmissoesTable, paymentsTable, locationProfessionalsTable, professionalEmpresasTable, empresasTable]) {
     await query(createTableFromSchema(table));
   }
   await query(`
@@ -147,6 +149,7 @@ beforeAll(async () => {
     CREATE TABLE agenda_google_sync(enabled BOOLEAN, location_id INTEGER, last_success TIMESTAMPTZ, error TEXT);
     CREATE TABLE agenda_compromissos(id INTEGER, titulo TEXT, inicio TIMESTAMPTZ, fim TIMESTAMPTZ, dia_inteiro BOOLEAN,
       recorrencia TEXT, origem TEXT, location_id INTEGER, status TEXT, chave TEXT, google_calendar_id TEXT);
+    INSERT INTO empresas(id,nome) VALUES (5,'Clinica Sintetica');
     INSERT INTO locations(id,name,empresa_id,active,address,phone) VALUES
       (8,'Local sintético A',5,'true','Rua Sintética, 100, Centro, Cidade Teste - TS, CEP 00000-000','+5500000000000');
     INSERT INTO location_professionals(location_id,professional_id) VALUES (8,98);
@@ -155,13 +158,13 @@ beforeAll(async () => {
     INSERT INTO agenda_settings(id,block_minutes,trigger_percent,min_lead_hours) VALUES(1,120,60,24);
     INSERT INTO agenda_windows(resource_id,weekday,start_time,end_time,repeat_weeks,anchor_date,active) VALUES
       (1,1,'09:00','11:00',1,NULL,true),(1,3,'09:00','11:00',1,NULL,true);
-    INSERT INTO clients(id,name,cpf,email,empresa_id,agenda_enfermagem_padrao_id) VALUES
-      (21,'Cliente sintético 21','000.000.000-21','cliente21@example.invalid',5,1),
-      (22,'Cliente sintético 22','000.000.000-22','cliente22@example.invalid',5,1),
-      (23,'Cliente sintético 23','000.000.000-23','cliente23@example.invalid',5,1),
-      (24,'Cliente sintético 24','000.000.000-24','cliente24@example.invalid',5,1),
-      (25,'Cliente sintético 25','000.000.000-25','cliente25@example.invalid',5,1),
-      (26,'Cliente sintético 26','000.000.000-26','cliente26@example.invalid',5,1);
+    INSERT INTO clients(id,name,cpf,email,empresa_id,clinica_origem_empresa_id,agenda_enfermagem_padrao_id) VALUES
+      (21,'Cliente sintético 21','000.000.000-21','cliente21@example.invalid',5,5,1),
+      (22,'Cliente sintético 22','000.000.000-22','cliente22@example.invalid',5,5,1),
+      (23,'Cliente sintético 23','000.000.000-23','cliente23@example.invalid',5,5,1),
+      (24,'Cliente sintético 24','000.000.000-24','cliente24@example.invalid',5,5,1),
+      (25,'Cliente sintético 25','000.000.000-25','cliente25@example.invalid',5,5,1),
+      (26,'Cliente sintético 26','000.000.000-26','cliente26@example.invalid',5,5,1);
     INSERT INTO substances(id,name,category,color,procedure_type,doctor_participation,duration_minutes,precise_duration_seconds) VALUES
       (${IM},'IM sintética','x','#000','im',false,3,150),
       (${IV},'IV sintética','x','#000','iv',false,30,1800);

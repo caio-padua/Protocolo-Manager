@@ -78,6 +78,7 @@ export const GRUPOS: GrupoFerramentas[] = [
       { id: "ras", nome: "RAS / Aplicação" },
       { id: "anamnese", nome: "Anamnese" },
       { id: "agenda", nome: "Agenda" },
+      { id: "agenda_gerenciamento", nome: "Agenda Gerenciamento (Pit Stop: confirmar e enviar ao Google)" },
     ],
   },
   {
@@ -86,6 +87,7 @@ export const GRUPOS: GrupoFerramentas[] = [
       { id: "financeiro", nome: "Financeiro" },
       { id: "estoque", nome: "Estoque" },
       { id: "corpo_clinico", nome: "Corpo Clínico" },
+      { id: "documentos_profissionais", nome: "Documentos dos profissionais (enviar e ver)" },
       { id: "gerenciar_liberacoes_clinicas", nome: "Gerenciar liberações clínicas" },
       { id: "governanca", nome: "Governança", soCeo: true, href: "/cadastros/governanca" },
     ],
@@ -116,6 +118,8 @@ const DEFAULT_ON: Record<string, PapelId[]> = {
   ras: ["medico", "enfermagem"],
   anamnese: ["medico", "enfermagem"],
   agenda: ["medico", "enfermagem"],
+  // Recepção NÃO vem ligada: o CEO a autoriza na matriz (Governança). Vale sempre só na empresa da sessão.
+  agenda_gerenciamento: ["medico", "enfermagem"],
   financeiro: ["administrativo", "financeiro"],
   estoque: ["enfermagem", "administrativo"],
   corpo_clinico: ["administrativo"],

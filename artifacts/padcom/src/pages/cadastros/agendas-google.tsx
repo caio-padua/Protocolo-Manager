@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CalendarDays, Plus, Loader2, Save, Pencil, Trash2, Link2, Link2Off, Unlock, Download, MapPin, CloudOff } from "lucide-react";
 import { toast } from "sonner";
+import { ReconciliacaoGoogle } from "@/components/agenda/ReconciliacaoGoogle";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -230,6 +231,8 @@ export default function CadastroAgendasGoogle() {
           </Button>
         </div>
       </div>
+
+      {connected && <ReconciliacaoGoogle />}
 
       {!connected && !isLoading && (
         <Card className="panel-3d border-none">

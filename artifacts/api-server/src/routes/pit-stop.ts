@@ -3,7 +3,6 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { db, protocolsTable } from "@workspace/db";
 import { moduleGuard } from "../middleware/moduleGuard";
-import { resolveEmpresaId } from "../middleware/tenantContext";
 import { requireCollaborator } from "./collaborator";
 import { authorizeProtocol } from "./protocols";
 import { EquipeErro } from "../lib/equipe-reserva.js";
@@ -12,6 +11,7 @@ import {
   estruturaPitStopDisponivel, liberarRevisao, listarPlanos, revalidarPlano,
 } from "../lib/pit-stop.js";
 import { sincronizarPlano } from "../lib/pit-stop-google.js";
+import { autorizarPitStop } from "../lib/pit-stop-acesso.js";
 
 /**
  * PIT STOP: fila compartilhada de planos de agendamento (recepção, enfermagem e médico veem o MESMO plano).
@@ -27,8 +27,10 @@ const Participante = z.strictObject({
   alternativeCategoryIds: z.array(z.number().int().positive()).max(5).optional(),
   locationId: z.number().int().positive().nullish(),
   professionalIds: z.array(z.number().int().positive()).max(20).optional(),
-  modalidade: z.enum(["local", "online", "externo"]).optional(),
+  modalidade: z.enum(["local", "online", "externo", "home_care"]).optional(),
   agendaId: z.number().int().positive().nullish(),
+  // O requisito de nível vem do cadastro do procedimento; o servidor reaplica e o navegador não consegue removê-lo.
+  exigeNivel: z.enum(["enfermeiro"]).nullish(),
 });
 const Procedimento = z.strictObject({
   procedimentoId: z.number().int().positive(),
@@ -43,7 +45,10 @@ const CriarBody = z.strictObject({ procedimentos: z.array(Procedimento).max(30).
 const VersaoBody = z.strictObject({ versao: z.number().int().positive() });
 const OcorrenciasBody = z.strictObject({
   versao: z.number().int().positive(),
-  ajustes: z.array(z.strictObject({ id: z.number().int().positive(), data: z.string().nullable(), hora: z.string().nullable() })).min(1).max(400),
+  ajustes: z.array(z.strictObject({
+    id: z.number().int().positive(), data: z.string().nullable(), hora: z.string().nullable(),
+    enderecoVisita: z.string().max(300).nullish(), usarEnderecoPaciente: z.boolean().optional(),
+  })).min(1).max(400),
 });
 const EquipeBody = z.strictObject({ versao: z.number().int().positive(), equipe: z.array(Participante).min(1).max(3) });
 const Ids = z.object({
@@ -62,20 +67,19 @@ async function estrutura(res: Response): Promise<boolean> {
 }
 const pedidoInvalido = (res: Response, msg = "Pedido inválido") => { res.status(400).json({ code: "pedido_invalido", error: msg }); };
 
-/** Plano -> protocolo -> mesma autorização clínica do protocolo (clínica da sessão + vínculo com o local do cliente). */
+/**
+ * Plano -> empresa da sessão -> autorização do Pit Stop (permissão da matriz + corpo clínico da MESMA empresa).
+ * Não exige ser o profissional executor nem vínculo legado com o local do cliente. Plano de outra empresa = 404.
+ */
 async function autorizarPlano(req: Request, res: Response) {
   const ids = Ids.safeParse(req.params);
   if (!ids.success || !ids.data.planoId) { pedidoInvalido(res, "Identificador inválido."); return null; }
   if (!(await estrutura(res))) return null;
-  const empresaSessao = resolveEmpresaId(req);
-  const plano = empresaSessao == null ? null : await carregarPlano(empresaSessao, ids.data.planoId);
+  const acesso = await autorizarPitStop(req);
+  if (!acesso.ok) { res.status(acesso.status).json({ code: acesso.code, error: acesso.error }); return null; }
+  const plano = await carregarPlano(acesso.empresaId, ids.data.planoId);
   if (!plano) { res.status(404).json({ code: "plano_nao_encontrado", error: "Registro não encontrado" }); return null; }
-  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, Number(plano.protocol_id)));
-  if (!protocol) { res.status(404).json({ code: "protocolo_nao_encontrado", error: "Registro não encontrado" }); return null; }
-  const member = await authorizeProtocol(req, protocol, res);
-  if (!member) return null;
-  if (member.clinic.empresaId !== Number(plano.empresa_id)) { res.status(404).json({ code: "plano_nao_encontrado", error: "Registro não encontrado" }); return null; }
-  return { plano, empresaId: member.clinic.empresaId, planoId: Number(plano.id), itemId: ids.data.itemId, me: req.collaborator!.professionalId };
+  return { plano, empresaId: acesso.empresaId, planoId: Number(plano.id), itemId: ids.data.itemId, me: acesso.me };
 }
 
 async function responderPlano(res: Response, empresaId: number, planoId: number, status = 200, extra: Record<string, unknown> = {}) {
@@ -84,12 +88,13 @@ async function responderPlano(res: Response, empresaId: number, planoId: number,
 
 router.get("/agendamento/pit-stop", ...guardAgenda, async (req, res): Promise<void> => {
   if (!(await estrutura(res))) return;
-  const empresaId = resolveEmpresaId(req);
-  if (empresaId == null) { res.status(403).json({ code: "sem_clinica", error: "Sessão sem clínica." }); return; }
+  const acesso = await autorizarPitStop(req);
+  if (!acesso.ok) { res.status(acesso.status).json({ code: acesso.code, error: acesso.error }); return; }
+  const empresaId = acesso.empresaId;
   const estado = typeof req.query.estado === "string" && ["pendente", "em_revisao", "confirmado", "cancelado"].includes(req.query.estado)
     ? req.query.estado : undefined;
   const busca = typeof req.query.busca === "string" ? req.query.busca.slice(0, 80) : undefined;
-  res.json({ planos: await listarPlanos(empresaId, req.collaborator!.professionalId, { estado, busca }) });
+  res.json({ planos: await listarPlanos(empresaId, acesso.me, { estado, busca }) });
 });
 
 router.post("/protocols/:id/plano-agendamento", ...guardProtocolos, async (req, res): Promise<void> => {

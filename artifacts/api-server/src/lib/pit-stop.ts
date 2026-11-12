@@ -7,6 +7,9 @@ import {
   EquipeErro, MAX_DIAS_BUSCA, buscarHorariosDaEquipe, dataValida, participanteDaLinha, reservarOcorrenciaTx,
   resolverNecessidades, type Participante,
 } from "./equipe-reserva.js";
+import { getVisitPreferences } from "./client-visit-preferences.js";
+import { criarBuscador, minutosDe, type Ocupado, type OcupadoPaciente, type Vaga } from "./pit-stop-busca.js";
+import { TOLERANCIA_DIAS, avaliarOcorrencia, dataNominal, intervaloMinimo, rankPreferencia, janelaDaSessao, maiorData, ordenarVagas, somarDias } from "./pit-stop-regras.js";
 import {
   estruturaDisponivel, incluirProcedimentoTx, validarEquipeDoProcedimento, type EntradaItem,
 } from "./protocolo-procedimentos-store.js";
@@ -36,8 +39,12 @@ export async function protocoloTemPlanoVivo(protocolId: number): Promise<boolean
   return v.rows.length > 0;
 }
 
-const somarDias = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-const minutos = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+/** Trilha por empresa: quem fez o quê no plano (assumir, ajustar, confirmar, enviar ao Google). Nunca guarda dado clínico. */
+export async function auditarPlano(ex: Tx, empresaId: number, planoId: number, atorId: number | null, acao: string, detalhe?: Record<string, unknown>) {
+  await ex.execute(sql`INSERT INTO agendamento_plano_auditoria (empresa_id, plano_id, ator_id, acao, detalhe)
+    VALUES (${empresaId}, ${planoId}, ${atorId}, ${acao}, ${detalhe ? JSON.stringify(detalhe) : null}::jsonb)`);
+}
+const minutos = minutosDe;
 
 // ───────────────────────── criação ─────────────────────────
 
@@ -96,8 +103,8 @@ async function itensSemReserva(tx: Tx, empresaId: number, protocolId: number) {
 
 // ───────────────────────── sugestões ─────────────────────────
 
-async function equipeDoItem(ex: Tx, itemId: number) {
-  const r = await ex.execute(sql`SELECT ordem, category_id, alternative_category_ids, location_id, professional_ids, modalidade, agenda_id
+export async function equipeDoItem(ex: Tx, itemId: number) {
+  const r = await ex.execute(sql`SELECT ordem, category_id, alternative_category_ids, location_id, professional_ids, modalidade, agenda_id, exige_nivel
     FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${itemId} ORDER BY ordem`);
   return r.rows.map((x) => ({ ordem: Number(x.ordem), participante: participanteDaLinha(x) }));
 }
@@ -145,6 +152,35 @@ export async function sugerirAgendas(planoId: number, somenteItemId?: number) {
         await gravarAgendaSugerida(itemId, ordem, doPadrao[0].id);
       }
     }
+    await sugerirProfissionalPreferido(empresaId, itemId);
+  }
+}
+
+/**
+ * Sugere o profissional PREFERIDO da agenda (cadastro da clínica) quando o participante ainda não tem profissional:
+ * só se houver exatamente um preferido compatível (ativo, do corpo clínico, categoria e nível exigidos) e a equipe
+ * continuar válida com ele. É sugestão editável (profissional_origem='preferencia'), nunca imposição.
+ */
+async function sugerirProfissionalPreferido(empresaId: number, itemId: number) {
+  const equipe = await equipeDoItem(db, itemId);
+  for (const alvo of equipe) {
+    const p = alvo.participante;
+    if (!p.agendaId || (p.professionalIds ?? []).length) continue;
+    const cats = [p.categoryId, ...(p.alternativeCategoryIds ?? [])];
+    const prefs = await db.execute(sql`SELECT pr.id FROM agenda_profissionais_preferidos f JOIN professionals pr ON pr.id=f.professional_id
+      WHERE f.agenda_id=${p.agendaId} AND f.empresa_id=${empresaId} AND pr.active AND pr.area_id = ANY(${`{${cats.join(",")}}`}::int[])
+        AND ${condicaoCorpoClinico(empresaId, "pr")}
+        AND (${p.exigeNivel ?? null}::text IS NULL OR pr.habilitacao_nivel=${p.exigeNivel ?? null})`);
+    if (prefs.rows.length !== 1) continue; // nenhum ou vários: a escolha fica com a pessoa
+    const id = Number(prefs.rows[0].id);
+    try {
+      await resolverNecessidades(db, empresaId, equipe.map((e) => e === alvo ? { ...e.participante, professionalIds: [id] } : e.participante));
+    } catch (e) {
+      if (e instanceof EquipeErro) continue;
+      throw e;
+    }
+    await db.execute(sql`UPDATE protocolo_procedimento_equipe SET professional_ids=${`{${id}}`}::int[], profissional_origem='preferencia'
+      WHERE protocolo_procedimento_id=${itemId} AND ordem=${alvo.ordem} AND cardinality(professional_ids)=0`);
   }
 }
 
@@ -155,27 +191,50 @@ async function gravarAgendaSugerida(itemId: number, ordem: number, agendaId: num
 
 // ───────────────────────── datas propostas ─────────────────────────
 
-type Ocupado = { resourceId: number; professionalId: number | null; date: string; ini: number; fim: number };
+/** Preferência de dias e horários do paciente para o tipo de profissional do procedimento (médico OU enfermagem). */
+export type TipoPreferencia = "medical" | "nursing";
+export async function tipoPreferenciaDoItem(ex: Tx, equipe: Participante[]): Promise<TipoPreferencia> {
+  const ids = [...new Set(equipe.flatMap((p) => [p.categoryId, ...(p.alternativeCategoryIds ?? [])]))];
+  if (!ids.length) return "nursing";
+  const r = await ex.execute(sql`SELECT 1 FROM professional_areas WHERE id = ANY(${`{${ids.join(",")}}`}::int[]) AND slug='medicina' LIMIT 1`);
+  return r.rows.length ? "medical" : "nursing";
+}
+export async function preferenciasDoCliente(empresaId: number, clientId: number) {
+  return (await getVisitPreferences(db as any, empresaId, clientId)).preferences;
+}
+/** Base fixa das datas nominais: início do procedimento (nunca anterior à criação do plano); não muda quando a equipe é refeita. */
+export const baseNominal = (dataInicio: unknown, criadoEm: unknown) => {
+  const criado = brtISODate(new Date(String(criadoEm)));
+  return dataInicio ? maiorData(String(dataInicio), criado) : criado;
+};
 
-/** Propõe datas pela frequência do procedimento, sem sobrepor outras propostas do mesmo plano. Nada é reservado. */
+/**
+ * Propõe datas pela frequência do procedimento, sem sobrepor outras propostas do mesmo plano. Nada é reservado.
+ * Cada sessão procura vaga na janela nominal ±4 dias (nunca antes do intervalo mínimo da anterior); dentro da janela
+ * vence a vaga mais próxima da preferência do paciente e, depois, da data nominal. Sem vaga na janela, a primeira
+ * livre depois dela aparece fora da janela (visível na tela), nunca escondida.
+ */
 export async function proporDatas(planoId: number, somenteItemId?: number) {
-  const pl = (await db.execute(sql`SELECT empresa_id FROM agendamento_planos WHERE id=${planoId}`)).rows[0];
+  const pl = (await db.execute(sql`SELECT empresa_id, client_id, created_at FROM agendamento_planos WHERE id=${planoId}`)).rows[0];
   if (!pl) return;
   const empresaId = Number(pl.empresa_id);
+  const prefs = await preferenciasDoCliente(empresaId, Number(pl.client_id));
   const itens = await db.execute(sql`SELECT pp.id, pp.total_sessoes, pp.intervalo_dias, pp.data_inicio, pp.duracao_segundos
     FROM protocolo_procedimentos pp WHERE pp.id IN (SELECT DISTINCT protocolo_procedimento_id FROM agendamento_plano_ocorrencias WHERE plano_id=${planoId})
     ORDER BY pp.ordem, pp.id`);
-  // Ocorrências manuais já fixadas pelo revisor também ocupam a agenda do plano.
+  // Ocorrências manuais já fixadas pelo revisor também ocupam a agenda do plano (e o próprio paciente).
   const ocupados: Ocupado[] = [];
+  const paciente: OcupadoPaciente[] = [];
   const manuais = await db.execute(sql`SELECT o.protocolo_procedimento_id AS item, o.data, o.hora, pp.duracao_segundos
     FROM agendamento_plano_ocorrencias o JOIN protocolo_procedimentos pp ON pp.id=o.protocolo_procedimento_id
     WHERE o.plano_id=${planoId} AND o.origem='manual' AND o.data IS NOT NULL`);
   for (const m of manuais.rows) {
     const equipe = await equipeDoItem(db, Number(m.item));
+    const ini = minutos(String(m.hora)), fim = ini + Math.ceil(Number(m.duracao_segundos) / 60);
+    paciente.push({ date: String(m.data), ini, fim });
     for (const e of equipe) {
       if (e.participante.agendaId != null) {
-        ocupados.push({ resourceId: e.participante.agendaId, professionalId: null, date: String(m.data),
-          ini: minutos(String(m.hora)), fim: minutos(String(m.hora)) + Math.ceil(Number(m.duracao_segundos) / 60) });
+        ocupados.push({ resourceId: e.participante.agendaId, professionalId: null, date: String(m.data), ini, fim });
       }
     }
   }
@@ -183,49 +242,36 @@ export async function proporDatas(planoId: number, somenteItemId?: number) {
   for (const it of itens.rows) {
     const itemId = Number(it.id);
     if (somenteItemId && somenteItemId !== itemId) continue;
-    const total = Number(it.total_sessoes);
     const intervalo = Number(it.intervalo_dias);
     const duracaoSeg = Number(it.duracao_segundos);
-    const duracaoMin = Math.ceil(duracaoSeg / 60);
     const equipe = (await equipeDoItem(db, itemId)).map((e) => e.participante);
-    const inicio = it.data_inicio && String(it.data_inicio) >= hoje ? String(it.data_inicio) : hoje;
-    const cache = new Map<string, Awaited<ReturnType<typeof buscarHorariosDaEquipe>>>();
-    const dia = async (data: string) => {
-      const base = somarDias(inicio, Math.floor((Date.parse(`${data}T12:00:00Z`) - Date.parse(`${inicio}T12:00:00Z`)) / 86_400_000 / MAX_DIAS_BUSCA) * MAX_DIAS_BUSCA);
-      if (!cache.has(base)) {
-        cache.set(base, await buscarHorariosDaEquipe({
-          empresaId, participantes: equipe, duracaoSegundos: duracaoSeg, from: base, to: somarDias(base, MAX_DIAS_BUSCA - 1),
-        }));
-      }
-      return cache.get(base)!.find((d) => d.date === data)?.horarios ?? [];
-    };
-    const ocorrencias = await db.execute(sql`SELECT id, numero, origem FROM agendamento_plano_ocorrencias
+    const base = baseNominal(it.data_inicio, pl.created_at);
+    const pref = prefs[await tipoPreferenciaDoItem(db, equipe)];
+    const busca = criarBuscador({ empresaId, equipe, duracaoSegundos: duracaoSeg, origem: maiorData(base, hoje) });
+    const ocorrencias = await db.execute(sql`SELECT id, numero, origem, data, hora FROM agendamento_plano_ocorrencias
       WHERE plano_id=${planoId} AND protocolo_procedimento_id=${itemId} ORDER BY numero`);
     let anterior: { date: string; time: string } | null = null;
     let motivoItem: string | null = null;
     for (const oc of ocorrencias.rows) {
       const numero = Number(oc.numero);
       if (oc.origem === "manual") {
-        const fix = (await db.execute(sql`SELECT data, hora FROM agendamento_plano_ocorrencias WHERE id=${oc.id}`)).rows[0];
-        if (fix?.data) anterior = { date: String(fix.data), time: String(fix.hora) };
+        if (oc.data) anterior = { date: String(oc.data), time: String(oc.hora) };
         continue;
       }
-      let achado: { date: string; time: string; parts: any[] } | null = null;
+      let achado: Vaga | null = null;
       let motivo: string | null = motivoItem;
       if (!motivoItem) {
         try {
-          const alvo = somarDias(inicio, (numero - 1) * intervalo);
-          let data = anterior && anterior.date > alvo ? anterior.date : alvo;
-          const limite = somarDias(inicio, BUSCA_MAX_JANELAS * MAX_DIAS_BUSCA);
-          for (; data <= limite && !achado; data = somarDias(data, 1)) {
-            if (data < hoje) continue;
-            for (const h of await dia(data)) {
-              if (anterior && data === anterior.date && h.time <= anterior.time) continue;
-              const ini = minutos(h.time);
-              const choca = ocupados.some((o) => o.date === data && ini < o.fim && o.ini < ini + duracaoMin &&
-                h.participantes.some((x: any) => x.resourceId === o.resourceId ||
-                  (o.professionalId != null && x.professionalId === o.professionalId)));
-              if (!choca) { achado = { date: data, time: h.time, parts: h.participantes }; break; }
+          const nominal = dataNominal(base, numero, intervalo);
+          const minimoApos = anterior ? somarDias(anterior.date, intervaloMinimo(intervalo)) : null;
+          const j = janelaDaSessao(nominal, hoje, minimoApos);
+          const naJanela = j.de <= j.ate ? await busca.vagas(j.de, j.ate, ocupados, paciente, anterior) : [];
+          achado = ordenarVagas(naJanela, nominal, pref)[0] ?? null;
+          if (!achado) {
+            const depois = maiorData(somarDias(j.ate, 1), hoje, minimoApos);
+            const limite = somarDias(maiorData(base, hoje), BUSCA_MAX_JANELAS * MAX_DIAS_BUSCA);
+            for (let d = depois; d <= limite && !achado; d = somarDias(d, 1)) {
+              achado = (await busca.vagas(d, d, ocupados, paciente, anterior))[0] ?? null;
             }
           }
           if (!achado) motivo = "sem_horario_disponivel";
@@ -236,10 +282,7 @@ export async function proporDatas(planoId: number, somenteItemId?: number) {
         }
       }
       if (achado) {
-        const ini = minutos(achado.time);
-        for (const x of achado.parts) {
-          ocupados.push({ resourceId: x.resourceId, professionalId: x.professionalId ?? null, date: achado.date, ini, fim: ini + duracaoMin });
-        }
+        busca.ocupar(achado, ocupados, paciente);
         anterior = { date: achado.date, time: achado.time };
       }
       await db.execute(sql`UPDATE agendamento_plano_ocorrencias SET data=${achado?.date ?? null}, hora=${achado?.time ?? null},
@@ -250,7 +293,8 @@ export async function proporDatas(planoId: number, somenteItemId?: number) {
 
 // ───────────────────────── leitura ─────────────────────────
 
-export async function listarPlanos(empresaId: number, professionalId: number, filtro: { estado?: string; busca?: string } = {}) {
+// A fila é da EMPRESA: quem chegou aqui já passou pela autorização do Pit Stop (permissão + corpo clínico da mesma empresa).
+export async function listarPlanos(empresaId: number, _professionalId: number, filtro: { estado?: string; busca?: string } = {}) {
   const busca = filtro.busca?.trim() ? `%${filtro.busca.trim()}%` : null;
   const r = await db.execute(sql`SELECT pl.id, pl.estado, pl.sync_estado, pl.protocol_id, pl.versao, pl.created_at, pl.confirmado_em,
       pl.revisao_expira_em, (pl.revisao_expira_em IS NOT NULL AND pl.revisao_expira_em < now()) AS revisao_expirada,
@@ -263,7 +307,6 @@ export async function listarPlanos(empresaId: number, professionalId: number, fi
     LEFT JOIN professionals pr ON pr.id=pl.prescritor_id
     LEFT JOIN professionals rv ON rv.id=pl.revisor_id
     WHERE pl.empresa_id=${empresaId}
-      AND EXISTS (SELECT 1 FROM location_professionals lp WHERE lp.location_id=c.location_id AND lp.professional_id=${professionalId})
       AND (${filtro.estado ?? null}::text IS NULL OR pl.estado=${filtro.estado ?? null})
       AND (${busca}::text IS NULL OR c.name ILIKE ${busca})
     ORDER BY CASE pl.estado WHEN 'pendente' THEN 0 WHEN 'em_revisao' THEN 1 WHEN 'confirmado' THEN 2 ELSE 3 END, pl.id DESC LIMIT 200`);
@@ -284,7 +327,7 @@ export async function carregarPlano(empresaId: number, planoId: number) {
 /** Plano completo para a tela: itens, equipe com agenda/opções, problema atual de cada item e ocorrências propostas. */
 export async function detalharPlano(empresaId: number, planoId: number) {
   const plano = (await db.execute(sql`SELECT pl.*, (pl.revisao_expira_em IS NOT NULL AND pl.revisao_expira_em < now()) AS revisao_expirada,
-      c.name AS cliente, c.location_id AS cliente_local, pr.name AS prescritor, rv.name AS revisor, cf.name AS confirmador, p.title AS protocolo
+      c.name AS cliente, c.location_id AS cliente_local, c.address AS cliente_endereco, pr.name AS prescritor, rv.name AS revisor, cf.name AS confirmador, p.title AS protocolo
     FROM agendamento_planos pl JOIN clients c ON c.id=pl.client_id JOIN protocols p ON p.id=pl.protocol_id
     LEFT JOIN professionals pr ON pr.id=pl.prescritor_id LEFT JOIN professionals rv ON rv.id=pl.revisor_id
     LEFT JOIN professionals cf ON cf.id=pl.confirmado_por
@@ -297,11 +340,13 @@ export async function detalharPlano(empresaId: number, planoId: number) {
     WHERE pp.id IN (SELECT DISTINCT protocolo_procedimento_id FROM agendamento_plano_ocorrencias WHERE plano_id=${planoId})
     ORDER BY pp.ordem, pp.id`);
   const categoriasUsadas = new Set<number>();
+  const prefsCliente = await preferenciasDoCliente(empresaId, Number(plano.client_id));
   const itens = [];
   for (const it of itensRows.rows) {
     const itemId = Number(it.id);
     const equipeRows = await db.execute(sql`SELECT e.ordem, e.category_id, a.name AS category_name, e.alternative_category_ids,
-        e.location_id, e.professional_ids, e.modalidade, e.agenda_id, e.agenda_origem, r.name AS agenda_nome
+        e.location_id, e.professional_ids, e.modalidade, e.agenda_id, e.agenda_origem, r.name AS agenda_nome,
+        e.exige_nivel, e.profissional_origem
       FROM protocolo_procedimento_equipe e JOIN professional_areas a ON a.id=e.category_id
       LEFT JOIN agenda_resources r ON r.id=e.agenda_id WHERE e.protocolo_procedimento_id=${itemId} ORDER BY e.ordem`);
     const equipe = [];
@@ -317,7 +362,7 @@ export async function detalharPlano(empresaId: number, planoId: number) {
         ordem: Number(e.ordem), categoryId: part.categoryId, categoryName: String(e.category_name),
         alternativeCategoryIds: part.alternativeCategoryIds ?? [], professionalIds: part.professionalIds ?? [],
         modalidade: part.modalidade ?? "local", agendaId: part.agendaId ?? null, agendaOrigem: e.agenda_origem ?? null,
-        agendaNome: e.agenda_nome ?? null,
+        agendaNome: e.agenda_nome ?? null, exigeNivel: part.exigeNivel ?? null, profissionalOrigem: e.profissional_origem ?? null,
         opcoesAgenda: opcoes.rows.map((o) => ({ id: Number(o.id), nome: String(o.name), modalidade: String(o.modality),
           professionalId: o.professional_id == null ? null : Number(o.professional_id) })),
       });
@@ -326,34 +371,51 @@ export async function detalharPlano(empresaId: number, planoId: number) {
     try {
       await resolverNecessidades(db, empresaId, equipe.map((e) => ({
         categoryId: e.categoryId, alternativeCategoryIds: e.alternativeCategoryIds, professionalIds: e.professionalIds,
-        modalidade: e.modalidade as Participante["modalidade"], agendaId: e.agendaId, locationId: null,
+        modalidade: e.modalidade as Participante["modalidade"], agendaId: e.agendaId, locationId: null, exigeNivel: e.exigeNivel as Participante["exigeNivel"],
       })));
     } catch (err) {
       if (!(err instanceof EquipeErro)) throw err;
       problema = { code: err.code, message: err.message, opcoes: err.detalhes?.opcoes };
     }
-    const ocs = await db.execute(sql`SELECT o.id, o.numero, o.data, o.hora, o.origem, o.motivo, o.ocorrencia_id,
+    const ocs = await db.execute(sql`SELECT o.id, o.numero, o.data, o.hora, o.origem, o.motivo, o.ocorrencia_id, o.endereco_visita, o.endereco_visita_origem,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('sessionId', s.id, 'agenda', r.name, 'googleEventId', s.google_event_id,
             'pendente', s.google_sync_pending_operation IS NOT NULL) ORDER BY x.ordem)
           FROM protocolo_ocorrencia_participantes x JOIN sessions s ON s.id=x.session_id
           LEFT JOIN agenda_resources r ON r.id=x.resource_id WHERE x.ocorrencia_id=o.ocorrencia_id), '[]'::jsonb) AS visitas
       FROM agendamento_plano_ocorrencias o WHERE o.plano_id=${planoId} AND o.protocolo_procedimento_id=${itemId} ORDER BY o.numero`);
+    const base = baseNominal(it.data_inicio, plano.created_at);
+    const tipoPref = await tipoPreferenciaDoItem(db, equipe.map((e) => ({ categoryId: e.categoryId, alternativeCategoryIds: e.alternativeCategoryIds } as Participante)));
     itens.push({
       id: itemId, procedimentoId: Number(it.procedimento_id), nome: String(it.nome), totalSessoes: Number(it.total_sessoes),
       intervaloDias: Number(it.intervalo_dias), dataInicio: it.data_inicio ?? null, duracaoSegundos: Number(it.duracao_segundos),
       produtoId: it.produto_id == null ? null : Number(it.produto_id), dose: it.dose ?? null, equipeOrigem: String(it.equipe_origem),
-      origemRequisito: it.origem_requisito ?? null, equipe, problema,
-      ocorrencias: ocs.rows.map((o) => ({
-        id: Number(o.id), numero: Number(o.numero), data: o.data ?? null, hora: o.hora ?? null, origem: String(o.origem),
-        motivo: o.motivo ?? null, reservada: o.ocorrencia_id != null, visitas: o.visitas,
-      })),
+      origemRequisito: it.origem_requisito ?? null, equipe, problema, homeCare: equipe.some((q) => q.modalidade === "home_care"),
+      dataBase: base, toleranciaDias: TOLERANCIA_DIAS, intervaloMinimo: intervaloMinimo(Number(it.intervalo_dias)),
+      tipoPreferencia: tipoPref, preferencia: prefsCliente[tipoPref],
+      ocorrencias: ocs.rows.map((o, idx) => {
+        const data = o.data == null ? null : String(o.data);
+        const anteriorData = idx > 0 && ocs.rows[idx - 1].data != null ? String(ocs.rows[idx - 1].data) : null;
+        const av = avaliarOcorrencia({ nominal: dataNominal(base, Number(o.numero), Number(it.intervalo_dias)), data, anteriorData, frequenciaDias: Number(it.intervalo_dias) });
+        return {
+          id: Number(o.id), numero: Number(o.numero), data: o.data ?? null, hora: o.hora ?? null, origem: String(o.origem),
+          motivo: o.motivo ?? null, reservada: o.ocorrencia_id != null, visitas: o.visitas,
+          enderecoVisita: o.endereco_visita ?? null, enderecoVisitaOrigem: o.endereco_visita_origem ?? null,
+          encaixe: o.motivo === "encaixe_termino_consulta",
+          avaliacao: av,
+          rankPreferencia: data && o.hora ? rankPreferencia(prefsCliente[tipoPref], data, String(o.hora)) ?? null : null,
+        };
+      }),
     });
   }
   const cats = [...categoriasUsadas];
-  const profs = cats.length ? await db.execute(sql`SELECT p.id, p.name, p.area_id FROM professionals p
+  const profs = cats.length ? await db.execute(sql`SELECT p.id, p.name, p.area_id, p.habilitacao_nivel, p.situacao_registro FROM professionals p
     WHERE p.active AND p.area_id = ANY(${`{${cats.join(",")}}`}::int[]) AND ${condicaoCorpoClinico(empresaId)} ORDER BY p.name`) : { rows: [] as any[] };
   const areas = await db.execute(sql`SELECT id, name FROM professional_areas WHERE active ORDER BY sort_order, name`);
+  const prefRows = await db.execute(sql`SELECT agenda_id, professional_id FROM agenda_profissionais_preferidos WHERE empresa_id=${empresaId}`);
+  const preferidosPorAgenda: Record<string, number[]> = {};
+  for (const r of prefRows.rows) (preferidosPorAgenda[String(r.agenda_id)] ??= []).push(Number(r.professional_id));
   return {
+    preferidosPorAgenda,
     id: Number(plano.id), estado: String(plano.estado), syncEstado: String(plano.sync_estado), syncDetalhe: plano.sync_detalhe ?? null,
     syncEm: plano.sync_em ?? null, versao: Number(plano.versao), protocolId: Number(plano.protocol_id), protocolo: plano.protocolo,
     clienteId: Number(plano.client_id), cliente: String(plano.cliente), prescritor: plano.prescritor ?? null,
@@ -361,7 +423,9 @@ export async function detalharPlano(empresaId: number, planoId: number) {
     revisor: plano.revisor ?? null, revisorId: plano.revisor_id == null ? null : Number(plano.revisor_id),
     revisaoExpiraEm: plano.revisao_expira_em ?? null, revisaoExpirada: plano.revisao_expirada === true,
     confirmador: plano.confirmador ?? null, confirmadoEm: plano.confirmado_em ?? null, itens,
-    profissionaisPorCategoria: profs.rows.map((p) => ({ id: Number(p.id), name: String(p.name), categoryId: Number(p.area_id) })),
+    profissionaisPorCategoria: profs.rows.map((p) => ({ id: Number(p.id), name: String(p.name), categoryId: Number(p.area_id),
+      habilitacaoNivel: p.habilitacao_nivel ?? null, situacaoRegistro: String(p.situacao_registro ?? "nao_verificada") })),
+    enderecoPaciente: typeof plano.cliente_endereco === "string" && plano.cliente_endereco.trim() ? plano.cliente_endereco.trim() : null,
     categorias: areas.rows.map((a) => ({ id: Number(a.id), name: String(a.name) })),
   };
 }
@@ -386,6 +450,7 @@ export async function abrirRevisao(empresaId: number, planoId: number, me: numbe
       AND (estado='pendente' OR (estado='em_revisao' AND (revisor_id=${me} OR revisao_expira_em < now())))
     RETURNING id`);
   if (!r.rows.length) throw erroDeEstado(await carregarPlano(empresaId, planoId), me);
+  await auditarPlano(db, empresaId, planoId, me, "abriu_revisao");
 }
 
 export async function liberarRevisao(empresaId: number, planoId: number, me: number) {
@@ -393,6 +458,7 @@ export async function liberarRevisao(empresaId: number, planoId: number, me: num
       versao=versao+1, updated_at=now()
     WHERE id=${planoId} AND empresa_id=${empresaId} AND estado='em_revisao' AND revisor_id=${me} RETURNING id`);
   if (!r.rows.length) throw erroDeEstado(await carregarPlano(empresaId, planoId), me);
+  await auditarPlano(db, empresaId, planoId, me, "liberou_revisao");
 }
 
 export async function cancelarPlano(empresaId: number, planoId: number, me: number) {
@@ -401,10 +467,11 @@ export async function cancelarPlano(empresaId: number, planoId: number, me: numb
     WHERE id=${planoId} AND empresa_id=${empresaId}
       AND (estado='pendente' OR (estado='em_revisao' AND (revisor_id=${me} OR revisao_expira_em < now()))) RETURNING id`);
   if (!r.rows.length) throw erroDeEstado(await carregarPlano(empresaId, planoId), me);
+  await auditarPlano(db, empresaId, planoId, me, "cancelou_plano");
 }
 
 /** Confere (travando a linha) que `me` é o revisor ativo e que a versão vista é a atual; devolve a versão nova. */
-async function exigirRevisorTx(tx: Tx, empresaId: number, planoId: number, me: number, versao: number) {
+export async function exigirRevisorTx(tx: Tx, empresaId: number, planoId: number, me: number, versao: number) {
   const plano = (await tx.execute(sql`SELECT * FROM agendamento_planos WHERE id=${planoId} AND empresa_id=${empresaId} FOR UPDATE`)).rows[0] ?? null;
   if (!plano || plano.estado !== "em_revisao" || Number(plano.revisor_id) !== me) throw erroDeEstado(plano, me);
   if (Number(plano.versao) !== versao) {
@@ -412,23 +479,54 @@ async function exigirRevisorTx(tx: Tx, empresaId: number, planoId: number, me: n
   }
   return plano;
 }
-const renovar = (tx: Tx, planoId: number) => tx.execute(sql`UPDATE agendamento_planos SET versao=versao+1, updated_at=now(),
+export const renovar = (tx: Tx, planoId: number) => tx.execute(sql`UPDATE agendamento_planos SET versao=versao+1, updated_at=now(),
   revisao_expira_em=now() + make_interval(mins => ${REVISAO_MINUTOS}) WHERE id=${planoId}`);
 
-export async function ajustarOcorrencias(empresaId: number, planoId: number, me: number, versao: number,
-  ajustes: { id: number; data: string | null; hora: string | null }[]) {
+export type AjusteOcorrencia = {
+  id: number; data: string | null; hora: string | null;
+  /** Home Care: endereço desta visita. `usarEnderecoPaciente` copia o do cadastro do cliente (origem "paciente"). */
+  enderecoVisita?: string | null; usarEnderecoPaciente?: boolean;
+};
+
+export async function ajustarOcorrencias(empresaId: number, planoId: number, me: number, versao: number, ajustes: AjusteOcorrencia[]) {
   await db.transaction(async (tx) => {
-    await exigirRevisorTx(tx, empresaId, planoId, me, versao);
+    const plano = await exigirRevisorTx(tx, empresaId, planoId, me, versao);
     for (const a of ajustes) {
       if (a.data !== null && (!dataValida(a.data) || a.hora === null || !HHMM.test(a.hora))) {
         throw new EquipeErro(400, "Data ou horário inválido.", "data_invalida");
       }
       if (a.data !== null && a.data < brtISODate()) throw new EquipeErro(422, "Não é possível agendar em data passada.", "data_passada");
+      let endereco: string | null | undefined;
+      let origemEndereco: "paciente" | "informado" | null | undefined;
+      if (a.usarEnderecoPaciente && a.enderecoVisita != null) {
+        throw new EquipeErro(400, "Escolha o endereço do paciente OU informe outro endereço, não os dois.", "endereco_ambiguo");
+      }
+      if (a.usarEnderecoPaciente || a.enderecoVisita !== undefined) {
+        const homeCare = await tx.execute(sql`SELECT 1 FROM agendamento_plano_ocorrencias o
+          JOIN protocolo_procedimento_equipe e ON e.protocolo_procedimento_id=o.protocolo_procedimento_id AND e.modalidade='home_care'
+          WHERE o.id=${a.id} AND o.plano_id=${planoId} LIMIT 1`);
+        if (!homeCare.rows.length) {
+          throw new EquipeErro(400, "O endereço da visita só vale para procedimentos em Home Care.", "endereco_so_home_care");
+        }
+        if (a.usarEnderecoPaciente) {
+          const cli = (await tx.execute(sql`SELECT address FROM clients WHERE id=${Number(plano.client_id)} AND empresa_id=${empresaId}`)).rows[0];
+          const end = typeof cli?.address === "string" ? cli.address.trim() : "";
+          if (!end) throw new EquipeErro(422, "O cadastro do paciente não tem endereço. Informe o endereço da visita.", "paciente_sem_endereco");
+          endereco = end; origemEndereco = "paciente";
+        } else if (a.enderecoVisita == null || a.enderecoVisita.trim() === "") {
+          endereco = null; origemEndereco = null;
+        } else {
+          endereco = a.enderecoVisita.trim().slice(0, 300); origemEndereco = "informado";
+        }
+      }
       const r = await tx.execute(sql`UPDATE agendamento_plano_ocorrencias SET data=${a.data}, hora=${a.data === null ? null : a.hora},
-          origem='manual', motivo=${a.data === null ? "sem_data_escolhida" : null}
+          origem='manual', motivo=${a.data === null ? "sem_data_escolhida" : null},
+          endereco_visita=${endereco === undefined ? sql`endereco_visita` : endereco},
+          endereco_visita_origem=${origemEndereco === undefined ? sql`endereco_visita_origem` : origemEndereco}
         WHERE id=${a.id} AND plano_id=${planoId} AND ocorrencia_id IS NULL RETURNING id`);
       if (!r.rows.length) throw new EquipeErro(404, "Ocorrência não encontrada neste plano.", "ocorrencia_nao_encontrada");
     }
+    await auditarPlano(tx, empresaId, planoId, me, "ajustou_ocorrencias", { quantidade: ajustes.length });
     await renovar(tx, planoId);
   });
 }
@@ -441,7 +539,7 @@ export async function ajustarEquipe(empresaId: number, planoId: number, me: numb
         AND EXISTS (SELECT 1 FROM agendamento_plano_ocorrencias o WHERE o.plano_id=${planoId} AND o.protocolo_procedimento_id=pp.id)`)).rows[0];
     if (!item) throw new EquipeErro(404, "Procedimento não encontrado neste plano.", "item_nao_encontrado");
     await validarEquipeDoProcedimento(tx, empresaId, Number(item.procedimento_id), equipe);
-    const antes = new Map((await tx.execute(sql`SELECT ordem, agenda_id, agenda_origem FROM protocolo_procedimento_equipe
+    const antes = new Map((await tx.execute(sql`SELECT ordem, agenda_id, agenda_origem, professional_ids, profissional_origem FROM protocolo_procedimento_equipe
       WHERE protocolo_procedimento_id=${itemId}`)).rows.map((x) => [Number(x.ordem), x]));
     await tx.execute(sql`DELETE FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${itemId}`);
     for (let i = 0; i < equipe.length; i++) {
@@ -449,15 +547,21 @@ export async function ajustarEquipe(empresaId: number, planoId: number, me: numb
       const ant = antes.get(i + 1);
       // Mesma agenda que já estava (sugerida) continua "sugerida"; trocar ou escolher marca como escolha do revisor.
       const origem = e.agendaId == null ? null : (ant && Number(ant.agenda_id) === e.agendaId && ant.agenda_origem ? ant.agenda_origem : "escolhida");
+      // Profissional vindo da preferência da agenda continua marcado assim só se a pessoa não foi trocada.
+      const mesmosProfs = ant && JSON.stringify((ant.professional_ids as number[] | null ?? []).map(Number)) === JSON.stringify((e.professionalIds ?? []).map(Number));
+      const profOrigem = !(e.professionalIds ?? []).length ? null : (mesmosProfs && ant?.profissional_origem ? ant.profissional_origem : "escolhido");
       await tx.execute(sql`INSERT INTO protocolo_procedimento_equipe
-        (protocolo_procedimento_id, ordem, category_id, alternative_category_ids, location_id, professional_ids, modalidade, agenda_id, agenda_origem)
+        (protocolo_procedimento_id, ordem, category_id, alternative_category_ids, location_id, professional_ids, modalidade, agenda_id,
+         agenda_origem, exige_nivel, profissional_origem)
         VALUES (${itemId}, ${i + 1}, ${e.categoryId}, ${`{${(e.alternativeCategoryIds ?? []).join(",")}}`}::int[], ${e.locationId ?? null},
-          ${`{${(e.professionalIds ?? []).join(",")}}`}::int[], ${e.modalidade ?? "local"}, ${e.agendaId ?? null}, ${origem})`);
+          ${`{${(e.professionalIds ?? []).join(",")}}`}::int[], ${e.modalidade ?? "local"}, ${e.agendaId ?? null}, ${origem},
+          ${e.exigeNivel ?? null}, ${profOrigem})`);
     }
     await tx.execute(sql`UPDATE protocolo_procedimentos SET equipe_origem='prescritor' WHERE id=${itemId}`);
     // As propostas automáticas deste item eram da equipe antiga: voltam a ser calculadas.
     await tx.execute(sql`UPDATE agendamento_plano_ocorrencias SET data=NULL, hora=NULL, motivo=NULL
       WHERE plano_id=${planoId} AND protocolo_procedimento_id=${itemId} AND origem='automatica'`);
+    await auditarPlano(tx, empresaId, planoId, me, "ajustou_equipe", { itemId });
     await renovar(tx, planoId);
   });
   await sugerirAgendas(planoId, itemId);
@@ -476,14 +580,22 @@ export type ResultadoOcorrencia = {
 async function tentarReservarTodas(tx: Tx, empresaId: number, planoId: number, me: number): Promise<{
   resultados: ResultadoOcorrencia[]; reservadas: { ocId: number; ocorrenciaId: number }[];
 }> {
-  const ocs = await tx.execute(sql`SELECT o.id, o.protocolo_procedimento_id AS item, o.numero, o.data, o.hora FROM agendamento_plano_ocorrencias o
+  const ocs = await tx.execute(sql`SELECT o.id, o.protocolo_procedimento_id AS item, o.numero, o.data, o.hora, o.endereco_visita FROM agendamento_plano_ocorrencias o
     JOIN protocolo_procedimentos pp ON pp.id=o.protocolo_procedimento_id WHERE o.plano_id=${planoId} ORDER BY pp.ordem, pp.id, o.numero`);
   const resultados: ResultadoOcorrencia[] = [];
   const reservadas: { ocId: number; ocorrenciaId: number }[] = [];
+  const homeCare = new Set((await tx.execute(sql`SELECT DISTINCT e.protocolo_procedimento_id AS item FROM protocolo_procedimento_equipe e
+    WHERE e.modalidade='home_care' AND e.protocolo_procedimento_id IN
+      (SELECT protocolo_procedimento_id FROM agendamento_plano_ocorrencias WHERE plano_id=${planoId})`)).rows.map((r) => Number(r.item)));
   for (const o of ocs.rows) {
     const base = { itemId: Number(o.item), numero: Number(o.numero), data: o.data == null ? null : String(o.data), hora: o.hora == null ? null : String(o.hora) };
     if (!o.data || !o.hora) {
       resultados.push({ ...base, ok: false, code: "sem_data", message: "Falta escolher data e horário desta ocorrência." });
+      continue;
+    }
+    if (homeCare.has(Number(o.item)) && !String(o.endereco_visita ?? "").trim()) {
+      resultados.push({ ...base, ok: false, code: "home_care_sem_endereco",
+        message: "Home Care exige o endereço da visita: use o endereço do paciente ou informe outro." });
       continue;
     }
     try {
@@ -545,6 +657,7 @@ export async function confirmarPlano(empresaId: number, planoId: number, me: num
       }
       await tx.execute(sql`UPDATE agendamento_planos SET estado='confirmado', confirmado_por=${me}, confirmado_em=now(),
         revisor_id=NULL, revisao_expira_em=NULL, sync_estado='nao_iniciada', versao=versao+1, updated_at=now() WHERE id=${planoId}`);
+      await auditarPlano(tx, empresaId, planoId, me, "confirmou_plano", { ocorrencias: reservadas.length });
       return { repetido: false };
     });
   } catch (e) {

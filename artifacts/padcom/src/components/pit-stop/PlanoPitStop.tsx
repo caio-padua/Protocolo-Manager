@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabProfessional } from "@/lib/collab-auth";
 import {
-  PitStopErro, ROTULO_ESTADO, ROTULO_SYNC, motivoLegivel, useAcoesPlano, usePlano,
-  type ItemPlano, type Participante, type Plano, type ResultadoOcorrencia,
+  PitStopErro, ROTULO_ESTADO, ROTULO_NIVEL, ROTULO_SYNC, motivoLegivel, useAcoesPlano, usePlano,
+  type AjusteOcorrencia, type ItemPlano, type Participante, type Plano, type ResultadoOcorrencia,
 } from "@/lib/pit-stop-api";
 
 /**
@@ -14,7 +14,7 @@ import {
  * a reserva só nasce no botão "Confirmar e reservar".
  */
 const MODALIDADES: { value: Participante["modalidade"]; label: string }[] = [
-  { value: "local", label: "Sede" }, { value: "online", label: "Online" }, { value: "externo", label: "Outro local" },
+  { value: "local", label: "Sede" }, { value: "online", label: "Online" }, { value: "externo", label: "Outro local" }, { value: "home_care", label: "Home Care" },
 ];
 
 type EquipeRascunho = { categoryId: number; modalidade: Participante["modalidade"]; agendaId: number | null; professionalId: number | null };
@@ -68,8 +68,10 @@ function EditorEquipe({ item, plano, travado, onSalvar, salvando }: {
               <select className="field-engraved mt-1 min-h-10 w-full px-2" disabled={travado} value={e.professionalId ?? ""}
                 onChange={(ev) => alterar(i, { professionalId: ev.target.value ? Number(ev.target.value) : null })}>
                 <option value="">Quem a agenda definir</option>
-                {pessoas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {pessoas.map((p) => <option key={p.id} value={p.id}>{p.name}{p.habilitacaoNivel ? ` — ${ROTULO_NIVEL[p.habilitacaoNivel] ?? p.habilitacaoNivel}` : ""}</option>)}
               </select>
+              {salvo?.exigeNivel && <span className="block text-[10px] font-normal text-amber-900">Este procedimento exige {ROTULO_NIVEL[salvo.exigeNivel] ?? salvo.exigeNivel}; o servidor recusa outro nível.</span>}
+              {salvo?.profissionalOrigem === "preferencia" && e.professionalId === (salvo.professionalIds[0] ?? null) && <span className="block text-[10px] font-normal text-muted-foreground">Sugerido pela preferência da agenda; você pode trocar.</span>}
             </label>
             {!travado && rascunho.length > 1 && (
               <button type="button" className="text-left text-[11px] font-bold text-red-800 underline sm:col-span-4"
@@ -95,45 +97,75 @@ function EditorEquipe({ item, plano, travado, onSalvar, salvando }: {
   );
 }
 
-function BlocoOcorrencias({ item, travado, resultados, onSalvar, salvando }: {
-  item: ItemPlano; travado: boolean; resultados: ResultadoOcorrencia[]; salvando: boolean;
-  onSalvar: (ajustes: { id: number; data: string | null; hora: string | null }[]) => void;
+function BlocoOcorrencias({ item, enderecoPaciente, travado, resultados, onSalvar, salvando }: {
+  item: ItemPlano; enderecoPaciente: string | null; travado: boolean; resultados: ResultadoOcorrencia[]; salvando: boolean;
+  onSalvar: (ajustes: AjusteOcorrencia[]) => void;
 }) {
-  const original = useMemo(() => Object.fromEntries(item.ocorrencias.map((o) => [o.id, { data: o.data ?? "", hora: o.hora ?? "" }])), [item.ocorrencias]);
+  const original = useMemo(() => Object.fromEntries(item.ocorrencias.map((o) => [o.id, { data: o.data ?? "", hora: o.hora ?? "", endereco: o.enderecoVisita ?? "", doPaciente: false }])), [item.ocorrencias]);
   const [valores, setValores] = useState(original);
   useEffect(() => setValores(original), [original]);
-  const alteradas = item.ocorrencias.filter((o) => valores[o.id]?.data !== original[o.id]?.data || valores[o.id]?.hora !== original[o.id]?.hora);
+  const mudou = (o: ItemPlano["ocorrencias"][number]) => {
+    const v = valores[o.id], x = original[o.id];
+    return v?.data !== x?.data || v?.hora !== x?.hora || (item.homeCare && (v?.endereco !== x?.endereco || v?.doPaciente));
+  };
+  const alteradas = item.ocorrencias.filter(mudou);
+  const montar = (o: ItemPlano["ocorrencias"][number]): AjusteOcorrencia => {
+    const v = valores[o.id]!;
+    const base: AjusteOcorrencia = { id: o.id, data: v.data || null, hora: v.hora || null };
+    if (!item.homeCare) return base;
+    if (v.doPaciente) return { ...base, usarEnderecoPaciente: true };
+    if (v.endereco.trim() && v.endereco !== original[o.id]?.endereco) return { ...base, enderecoVisita: v.endereco.trim() };
+    return base;
+  };
   return (
     <div className="space-y-2">
       {item.ocorrencias.map((o) => {
         const res = resultados.find((r) => r.itemId === item.id && r.numero === o.numero);
+        const v = valores[o.id];
         return (
           <div key={o.id} className="concave-3d flex flex-wrap items-end gap-3 p-3" data-testid={`ocorrencia-${o.id}`}>
             <span className="text-xs font-black">{o.numero}/{item.totalSessoes}</span>
             <label className="text-[11px] font-bold">Data
-              <input type="date" className="field-engraved mt-1 block min-h-10 px-2" disabled={travado || o.reservada} value={valores[o.id]?.data ?? ""}
-                onChange={(e) => setValores((v) => ({ ...v, [o.id]: { ...v[o.id]!, data: e.target.value } }))} />
+              <input type="date" className="field-engraved mt-1 block min-h-10 px-2" disabled={travado || o.reservada} value={v?.data ?? ""}
+                onChange={(e) => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, data: e.target.value } }))} />
             </label>
             <label className="text-[11px] font-bold">Hora
-              <input type="time" step={900} className="field-engraved mt-1 block min-h-10 px-2" disabled={travado || o.reservada} value={valores[o.id]?.hora ?? ""}
-                onChange={(e) => setValores((v) => ({ ...v, [o.id]: { ...v[o.id]!, hora: e.target.value } }))} />
+              <input type="time" step={900} className="field-engraved mt-1 block min-h-10 px-2" disabled={travado || o.reservada} value={v?.hora ?? ""}
+                onChange={(e) => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, hora: e.target.value } }))} />
             </label>
             {o.reservada && <Selo tom="ok">Reservada</Selo>}
             {!o.reservada && !o.data && <Selo tom="aviso">{motivoLegivel(o.motivo, "Sem data")}</Selo>}
             {res && !res.ok && <span role="alert" className="text-xs font-bold text-red-800">{motivoLegivel(res.code, res.message)}</span>}
             {res?.ok && <span className="text-xs font-bold text-green-800">Horário livre para a equipe inteira.</span>}
+            {item.homeCare && (
+              <div className="w-full space-y-1" data-testid={`endereco-visita-${o.id}`}>
+                <label className="block text-[11px] font-bold">Endereço da visita (Home Care)
+                  <input type="text" maxLength={300} className="field-engraved mt-1 block min-h-10 w-full px-2" placeholder="Rua, número, complemento, bairro, cidade"
+                    disabled={travado || o.reservada} value={v?.doPaciente ? enderecoPaciente ?? "" : v?.endereco ?? ""}
+                    onChange={(e) => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, endereco: e.target.value, doPaciente: false } }))} />
+                </label>
+                {!travado && !o.reservada && (
+                  <button type="button" className="text-[11px] font-bold underline disabled:opacity-50" disabled={!enderecoPaciente}
+                    onClick={() => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, doPaciente: true } }))}>
+                    {enderecoPaciente ? "Usar o endereço cadastrado do paciente" : "Paciente sem endereço cadastrado: informe o endereço da visita"}
+                  </button>
+                )}
+                {o.enderecoVisita
+                  ? <p className="text-[10px] text-muted-foreground">Gravado: {o.enderecoVisita} ({o.enderecoVisitaOrigem === "paciente" ? "copiado do cadastro do paciente" : "informado pela recepção"}).</p>
+                  : <Selo tom="aviso">Endereço pendente: sem ele a visita Home Care não é reservada</Selo>}
+              </div>
+            )}
             {o.visitas.length > 0 && (
               <span className="text-[11px] text-muted-foreground">
-                {o.visitas.map((v) => `${v.agenda ?? "agenda"}: ${v.pendente ? "pendência no Google" : v.googleEventId ? "no Google" : "ainda não enviada"}`).join(" · ")}
+                {o.visitas.map((x) => `${x.agenda ?? "agenda"}: ${x.pendente ? "pendência no Google" : x.googleEventId ? "no Google" : "ainda não enviada"}`).join(" · ")}
               </span>
             )}
           </div>
         );
       })}
       {!travado && alteradas.length > 0 && (
-        <Button type="button" size="sm" disabled={salvando}
-          onClick={() => onSalvar(alteradas.map((o) => ({ id: o.id, data: valores[o.id]!.data || null, hora: valores[o.id]!.hora || null })))}>
-          Salvar datas
+        <Button type="button" size="sm" disabled={salvando} onClick={() => onSalvar(alteradas.map(montar))}>
+          Salvar datas{item.homeCare ? " e endereços" : ""}
         </Button>
       )}
     </div>
@@ -160,7 +192,7 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
   const ocupado = plano.estado === "em_revisao" && plano.revisorId !== eu && !plano.revisaoExpirada;
   const minhaRevisao = plano.estado === "em_revisao" && plano.revisorId === eu;
   const editavel = minhaRevisao;
-  const semProblema = plano.itens.every((i) => !i.problema && i.ocorrencias.every((o) => o.data && o.hora));
+  const semProblema = plano.itens.every((i) => !i.problema && i.ocorrencias.every((o) => o.data && o.hora && (!i.homeCare || o.enderecoVisita)));
   const sync = plano.syncEstado;
   const detalheSync = plano.syncDetalhe?.visitas?.filter((v) => v.status !== "sincronizado" && v.status !== "ja_sincronizado") ?? [];
 
@@ -187,6 +219,7 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
             <h3 className="text-xs font-black uppercase tracking-widest text-primary">{item.nome}</h3>
             <span className="text-[11px] text-muted-foreground">{item.totalSessoes} sessão(ões)
               {item.totalSessoes > 1 ? ` · a cada ${item.intervaloDias} dia(s)` : ""} · {Math.round(item.duracaoSegundos / 60)} min</span>
+            {item.homeCare && <Selo tom="neutro">Home Care: no endereço do paciente</Selo>}
             {item.origemRequisito && <Selo tom="neutro">Equipe herdada: {item.origemRequisito === "substancia_participacao_medica" ? "substância (participação médica)" : item.origemRequisito.replace(/_/g, " ")}</Selo>}
           </div>
           {item.problema && (
@@ -199,7 +232,7 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
               versao: plano.versao, itemId: item.id,
               equipe: equipe.map((e) => ({ categoryId: e.categoryId, modalidade: e.modalidade, agendaId: e.agendaId, professionalIds: e.professionalId ? [e.professionalId] : [] })),
             }, "Não foi possível salvar a equipe", "Equipe salva")} />
-          <BlocoOcorrencias item={item} travado={!editavel} resultados={resultados} salvando={acoes.ocorrencias.isPending}
+          <BlocoOcorrencias item={item} enderecoPaciente={plano.enderecoPaciente} travado={!editavel} resultados={resultados} salvando={acoes.ocorrencias.isPending}
             onSalvar={(ajustes) => rodar(acoes.ocorrencias, { versao: plano.versao, ajustes }, "Não foi possível salvar as datas", "Datas salvas")} />
         </section>
       ))}

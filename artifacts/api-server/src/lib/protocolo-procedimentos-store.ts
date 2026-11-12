@@ -16,6 +16,8 @@ export async function estruturaDisponivel(): Promise<boolean> {
                 AND column_name='alternative_category_ids')
     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='protocolo_procedimento_equipe'
                 AND column_name='agenda_origem')
+    AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='protocolo_procedimento_equipe'
+                AND column_name='exige_nivel')
     AND to_regclass('procedimento_equipes_alternativas') IS NOT NULL AS ok`);
   return r.rows[0]?.ok === true;
 }
@@ -52,13 +54,15 @@ export async function incluirProcedimentoTx(tx: AgendaExecutor, params: {
           COALESCE((SELECT array_agg(ea.area_id ORDER BY ea.area_id)
             FROM procedimento_equipes_alternativas ea WHERE ea.equipe_id=e.id AND ea.area_id<>e.area_id), '{}') AS alternativas,
           COALESCE((SELECT array_agg(ep.professional_id ORDER BY ep.professional_id)
-            FROM procedimento_equipes_profissionais ep WHERE ep.equipe_id=e.id), '{}') AS professional_ids
+            FROM procedimento_equipes_profissionais ep WHERE ep.equipe_id=e.id), '{}') AS professional_ids,
+          e.exige_nivel
         FROM procedimento_equipes e WHERE e.procedimento_id=${proc.id} AND e.ativo ORDER BY e.id`);
       // A equipe padrão parte da Sede (modalidade local) e sem agenda escolhida: a sugestão e a escolha vêm depois.
       equipe = padrao.rows.map((r) => ({
         categoryId: Number(r.area_id), alternativeCategoryIds: (r.alternativas as number[]).map(Number),
         locationId: Number(r.location_id), professionalIds: (r.professional_ids as number[]).map(Number),
         modalidade: "local" as const, agendaId: null,
+        exigeNivel: r.exige_nivel === "enfermeiro" ? ("enfermeiro" as const) : null,
       }));
       if (!equipe.length) {
         throw new EquipeErro(422, "O procedimento não tem equipe padrão. Informe a equipe do protocolo.", "procedimento_sem_equipe");
@@ -86,10 +90,11 @@ export async function incluirProcedimentoTx(tx: AgendaExecutor, params: {
       const p = equipe[i];
       await tx.execute(sql`INSERT INTO protocolo_procedimento_equipe
         (protocolo_procedimento_id, ordem, category_id, alternative_category_ids, location_id, professional_ids,
-         modalidade, agenda_id, agenda_origem)
+         modalidade, agenda_id, agenda_origem, exige_nivel)
         VALUES (${item.id}, ${i + 1}, ${p.categoryId}, ${`{${(p.alternativeCategoryIds ?? []).join(",")}}`}::int[],
           ${p.locationId ?? null}, ${`{${(p.professionalIds ?? []).join(",")}}`}::int[],
-          ${p.modalidade ?? "local"}, ${p.agendaId ?? null}, ${p.agendaId ? "escolhida" : null})`);
+          ${p.modalidade ?? "local"}, ${p.agendaId ?? null}, ${p.agendaId ? "escolhida" : null},
+          ${p.exigeNivel ?? null})`);
     }
     return Number(item.id);
   }
@@ -97,6 +102,11 @@ export async function incluirProcedimentoTx(tx: AgendaExecutor, params: {
 
 /** Valida a equipe (categorias, agenda, profissionais) e a regra de implante: medicina E enfermagem, mesmo com equipe alterada. */
 export async function validarEquipeDoProcedimento(tx: AgendaExecutor, empresaId: number, procedimentoId: number, equipe: Participante[]) {
+  // O requisito de nível vem do cadastro do procedimento (por categoria): o servidor o reaplica e ninguém o remove pela tela.
+  const exigencias = await tx.execute(sql`SELECT DISTINCT area_id FROM procedimento_equipes
+    WHERE procedimento_id=${procedimentoId} AND ativo AND exige_nivel='enfermeiro'`);
+  const areasExigentes = new Set(exigencias.rows.map((r) => Number(r.area_id)));
+  for (const p of equipe) if (areasExigentes.has(p.categoryId)) p.exigeNivel = "enfermeiro";
   const categorias = await validarParticipantes(tx, empresaId, equipe);
   const implante = await tx.execute(sql`SELECT 1 FROM procedimento_produtos pp JOIN substances s ON s.id=pp.produto_id
     WHERE pp.procedimento_id=${procedimentoId} AND pp.ativo AND s.procedure_type='implant' LIMIT 1`);
@@ -120,7 +130,8 @@ export async function listarItens(empresaId: number, protocolId: number) {
           'alternativeCategoryIds',to_jsonb(e.alternative_category_ids),
           'alternativeCategoryNames',(SELECT COALESCE(jsonb_agg(x.name ORDER BY x.name),'[]'::jsonb) FROM professional_areas x WHERE x.id=ANY(e.alternative_category_ids)),
           'locationId',e.location_id,'professionalIds',to_jsonb(e.professional_ids),
-          'modalidade',e.modalidade,'agendaId',e.agenda_id,'agendaOrigem',e.agenda_origem) ORDER BY e.ordem)
+          'modalidade',e.modalidade,'agendaId',e.agenda_id,'agendaOrigem',e.agenda_origem,
+          'exigeNivel',e.exige_nivel,'profissionalOrigem',e.profissional_origem) ORDER BY e.ordem)
         FROM protocolo_procedimento_equipe e JOIN professional_areas a ON a.id=e.category_id
         WHERE e.protocolo_procedimento_id=pp.id), '[]'::jsonb) AS equipe,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',o.id,'numero',o.numero,'date',o.scheduled_date,'time',o.scheduled_time,
@@ -137,7 +148,7 @@ export async function carregarItem(empresaId: number, protocolId: number, itemId
   const r = await db.execute(sql`SELECT pp.id, pp.duracao_segundos FROM protocolo_procedimentos pp
     WHERE pp.id=${itemId} AND pp.empresa_id=${empresaId} AND pp.protocol_id=${protocolId} AND pp.status='ativo'`);
   if (!r.rows[0]) throw new EquipeErro(404, "Procedimento do protocolo não encontrado.", "item_nao_encontrado");
-  const equipe = await db.execute(sql`SELECT category_id, alternative_category_ids, location_id, professional_ids, modalidade, agenda_id
+  const equipe = await db.execute(sql`SELECT category_id, alternative_category_ids, location_id, professional_ids, modalidade, agenda_id, exige_nivel
     FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${itemId} ORDER BY ordem`);
   return {
     duracaoSegundos: Number(r.rows[0].duracao_segundos),

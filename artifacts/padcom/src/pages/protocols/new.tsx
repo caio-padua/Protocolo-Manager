@@ -20,6 +20,9 @@ import { getCollabToken, collabAuthHeaders } from "@/lib/collab-auth";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
 import { ProtocolSubstancePicker } from "@/components/ProtocolSubstancePicker";
+import { PlanoPitStopDialog } from "@/components/pit-stop/PlanoPitStopDialog";
+import { SeletorProcedimentos, type ProcedimentoEscolhido } from "@/components/pit-stop/SeletorProcedimentos";
+import { criarPlanoDoProtocolo } from "@/lib/pit-stop-api";
 import { CampoLigado, PlacaComOrigem } from "@/components/CampoLigado";
 import {
   PROTOCOL_FREQUENCY_OPTIONS,
@@ -141,6 +144,12 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
   const [slots, setSlots] = useState<SubstanceSlot[]>([emptySlot()]);
   const [title, setTitle] = useState("");
   const [comboLoading, setComboLoading] = useState(false);
+  // Caminho B (Pit Stop): procedimentos do catálogo com equipe e agendas; a reserva só nasce na confirmação do plano.
+  const [procs, setProcs] = useState<ProcedimentoEscolhido[]>([]);
+  const [planoAberto, setPlanoAberto] = useState<number | null>(null);
+  const [protocoloDoPlano, setProtocoloDoPlano] = useState<number | null>(null);
+  const procsValidos = procs.filter((p) => p.procedimentoId > 0);
+  const procsIncompletos = procs.length !== procsValidos.length;
   const [activeVia, setActiveVia] = useState<string>("all");
   const [nurseId, setNurseId] = useState("");
   const [scheduleProtocolId, setScheduleProtocolId] = useState<number | null>(null);
@@ -321,8 +330,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
 
   const canAdvance = clientId && identityConfirmed && (!embedded || clientIdentity?.id === clientId) &&
     agendaOptions && !agendaOptionsLoading && !agendaOptionsError && doctorAllowed &&
-    professionalId && selectedSlots.length > 0 && filledSlots.length === selectedSlots.length &&
-    filledSlots.every(slot => dosePrescritaValida(slot.dose));
+    professionalId && (selectedSlots.length > 0 || procsValidos.length > 0) && filledSlots.length === selectedSlots.length &&
+    !procsIncompletos && filledSlots.every(slot => dosePrescritaValida(slot.dose));
 
   const buildPayload = () => {
     const autoTitle = title || `Protocolo ${selectedClient?.name?.split(" ")[0]} — ${filledSlots.map(s => s.substanceName).join(", ")}`;
@@ -334,7 +343,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
       clientId: clientId ?? 0,
       title: autoTitle,
       status: "suggested" as const,
-      startDate: filledSlots.map(s => s.startDate).sort()[0] ?? format(new Date(), "yyyy-MM-dd"),
+      startDate: filledSlots.map(s => s.startDate).sort()[0] ?? procsValidos.find((p) => p.dataInicio)?.dataInicio ?? format(new Date(), "yyyy-MM-dd"),
       scheduledTime,
       schedulingMode,
       serviceType: "clinic" as const,
@@ -360,9 +369,51 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
 
   const handleLancar = () => {
     if (operationRef.current || !canAdvance) return;
+    if (procsValidos.length > 0) { void handleLancarPitStop(); return; }
     operationRef.current = true;
     onBusyChange?.(true);
     createMutation.mutate({ data: buildPayload() });
+  };
+
+  /** Caminho B: lança o protocolo e cria o plano compartilhado (sem reservar nada). Se o plano falhar, o protocolo já existe e o aviso diz isso. */
+  const handleLancarPitStop = async () => {
+    if (operationRef.current || !canAdvance) return;
+    operationRef.current = true;
+    onBusyChange?.(true);
+    comboRef.current = true; // impede a navegação automática do onSuccess padrão
+    setComboLoading(true);
+    let created: { id: number } | null = null;
+    try {
+      created = await createMutation.mutateAsync({ data: buildPayload() });
+    } catch {
+      if (mountedRef.current) toast({ title: "Erro ao criar protocolo", variant: "destructive" });
+      releaseCombo();
+      return;
+    }
+    try {
+      const r = await criarPlanoDoProtocolo(created.id, procsValidos.map(({ chave: _c, ...p }) => p), true);
+      if (!mountedRef.current) return;
+      setProtocoloDoPlano(created.id);
+      setPlanoAberto(r.planoId ?? r.plano.id);
+    } catch (e) {
+      releaseCombo();
+      if (!mountedRef.current) return;
+      toast({
+        title: "Protocolo criado, mas o plano do Pit Stop não foi criado",
+        description: `${e instanceof Error ? e.message : "Erro inesperado."} Nenhum horário foi reservado.`,
+        variant: "destructive",
+      });
+      irAoProtocolo(created.id);
+    }
+  };
+
+  const fecharPlanoPitStop = (open: boolean) => {
+    if (open) return;
+    const id = protocoloDoPlano;
+    setPlanoAberto(null);
+    setProtocoloDoPlano(null);
+    releaseCombo();
+    if (id) irAoProtocolo(id);
   };
 
   const handleLancarComRasFap = async () => {
@@ -602,7 +653,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
           variant="secondary"
           className="btn-3d px-8"
           onClick={handleLancarComRasFap}
-          disabled={!canAdvance || comboLoading || createMutation.isPending}
+          disabled={!canAdvance || comboLoading || createMutation.isPending || procsValidos.length > 0}
+          title={procsValidos.length > 0 ? "Com procedimentos do Pit Stop, o agendamento é feito pelo plano, não por este atalho." : undefined}
         >
           {comboLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
           {comboLoading ? "Agendando antes do RASP FAP..." : "Lançar + Gerar RASP FAP"}
@@ -620,6 +672,7 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
         open={googleSyncOpen}
         onOpenChange={handleGoogleSyncDialogChange}
       />
+      <PlanoPitStopDialog planoId={planoAberto} open={planoAberto !== null} onOpenChange={fecharPlanoPitStop} />
       </div>
     );
   }
@@ -1037,6 +1090,8 @@ export default function NovoProtocolo({ clientId: clientIdProp, clientIdentity, 
             </div>
             );
           })}
+
+          <SeletorProcedimentos valor={procs} onChange={setProcs} />
 
           {slots.length < 10 && (
             <button

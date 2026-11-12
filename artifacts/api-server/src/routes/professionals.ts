@@ -107,7 +107,7 @@ function formatProfessional(
   };
 }
 
-async function professionalIdsForCompany(empresaId: number): Promise<number[]> {
+export async function professionalIdsForCompany(empresaId: number): Promise<number[]> {
   const [direct, linked, additional] = await Promise.all([
     db
       .select({ id: professionalsTable.id })

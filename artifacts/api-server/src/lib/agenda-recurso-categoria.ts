@@ -87,17 +87,19 @@ type Entrada = { categoryId: number; locationId?: number | null; professionalId?
  * mesmo endereço. Para atender, só servem os espaços sem papel ou com papel local/online/externo:
  * "pessoal" é a agenda privada de um profissional e "geral" só agrega leitura.
  */
-const PAPEIS_QUE_ATENDEM = new Set(["local", "online", "externo"]);
+const PAPEIS_QUE_ATENDEM = new Set(["local", "online", "externo", "home_care"]);
 const PAPEIS_POR_MODALIDADE: Record<string, (papel: string | null) => boolean> = {
   // Sede = a sede da clínica (valor gravado "local"); Online = atendimento online (valor "online").
   online: (p) => p === "online",
   local: (p) => p === null || p === "local",
   // Externo = espaço físico diferente da sede (ex.: assistente contratado que atende em outro endereço).
   externo: (p) => p === "externo",
+  // Home Care = atendimento no endereço do paciente; o registro de local, se existir, tem de ser do papel home_care.
+  home_care: (p) => p === "home_care",
   // Valor legado, não oferecido mais em telas novas.
   domiciliar: () => true,
 };
-const ROTULO_MODALIDADE: Record<string, string> = { local: "Sede", externo: "Outro local", online: "Online", domiciliar: "Domiciliar" };
+const ROTULO_MODALIDADE: Record<string, string> = { local: "Sede", externo: "Outro local", online: "Online", home_care: "Home Care", domiciliar: "Domiciliar (legado)" };
 
 /** Compatibilidade entre modalidade e papel do registro de local, usada na criação e quando a modalidade muda. */
 export async function validarModalidadeComLocal(

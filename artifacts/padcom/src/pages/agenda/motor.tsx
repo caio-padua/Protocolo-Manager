@@ -69,9 +69,9 @@ function classeDaCategoria(c: Pick<CategoriaOpcao, "slug" | "professionalType">)
 }
 // Papel gravado no registro do local (campo agenda_papel). Nada é deduzido do nome.
 const PAPEL_LABEL: Record<string, string> = {
-  local: "Sede", online: "Online", externo: "Outro local", pessoal: "Pessoal", geral: "Geral",
+  local: "Sede", online: "Online", externo: "Outro local", home_care: "Home Care", pessoal: "Pessoal", geral: "Geral",
 };
-const PAPEIS_QUE_ATENDEM = ["local", "online", "externo"];
+const PAPEIS_QUE_ATENDEM = ["local", "online", "externo", "home_care"];
 const enderecoDoRecurso = (r: { externalAddress?: { cep: string; logradouro: string; bairro: string; cidade: string; uf: string; numero: string; complemento?: string | null } | null } | null | undefined): EnderecoExternoForm =>
   r?.externalAddress ? { ...r.externalAddress, complemento: r.externalAddress.complemento ?? "" } : ENDERECO_VAZIO;
 
@@ -714,6 +714,7 @@ export default function AgendaMotor() {
                     <SelectItem value="local">Sede</SelectItem>
                     <SelectItem value="externo">Outro local (outro endereço)</SelectItem>
                     <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="home_care">Home Care (no endereço do paciente)</SelectItem>
                   </SelectContent>
                 </Select>
               </ComRegistro>
@@ -818,6 +819,7 @@ export default function AgendaMotor() {
                           <SelectItem value="local">Sede</SelectItem>
                           <SelectItem value="externo">Outro local (outro endereço)</SelectItem>
                           <SelectItem value="online">Online</SelectItem>
+                          <SelectItem value="home_care">Home Care (no endereço do paciente)</SelectItem>
                           {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (
                             <SelectItem value="domiciliar">Domiciliar (legado)</SelectItem>
                           )}
@@ -855,6 +857,9 @@ export default function AgendaMotor() {
                           ? (localDoSelecionado ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})` : "Sede vinculada (legado) não identificada nos locais que você administra")
                           : "Agenda própria da clínica"}
                       </span>
+                      {selected?.modality === "home_care" && (
+                        <span className="block text-[11px] text-muted-foreground">Home Care: o endereço é o da visita, informado no agendamento (Pit Stop). Esta agenda não tem local fixo.</span>
+                      )}
                       {selected?.modality === "externo" && (
                         selected.externalAddressText ? (
                           <span className="block text-[11px] text-muted-foreground">

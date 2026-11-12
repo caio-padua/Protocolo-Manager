@@ -7,7 +7,8 @@ import { startIsolatedPostgres } from "./helpers/postgres-isolado";
 
 const state = vi.hoisted(() => ({ database: null as any }));
 // Google simulado: nenhum evento real é criado. "fail" simula erro do Google; "accountOk" simula a conta da clínica.
-const gcal = vi.hoisted(() => ({ fail: false, accountOk: true, created: [] as any[], updated: 0 }));
+const gcal = vi.hoisted(() => ({ fail: false, accountOk: true, created: [] as any[], updated: 0, calendars: [] as any[] }));
+const armazem = vi.hoisted(() => new Map<string, Buffer>());
 vi.mock("@workspace/db", async () => {
   const schema = await import("@workspace/db/schema");
   const db = new Proxy({}, {
@@ -24,8 +25,33 @@ vi.mock("../lib/google-calendar", async (importOriginal) => ({
   updateCalendarEvent: async () => { if (gcal.fail) throw new Error("falha sintetica do Google"); gcal.updated++; },
   deleteCalendarEvent: async () => undefined,
   calendarEventExists: async (id: string) => gcal.created.some((d) => d.eventId === id),
+  listCalendars: async () => gcal.calendars.map((c) => ({ id: c.id, summary: c.nome, backgroundColor: c.cor ?? "#112233", accessRole: c.accessRole ?? "owner" })),
   verifyClinicAccount: async () => gcal.accountOk ? { ok: true, account: "clinica@sintetico.test" } : { ok: false, account: null },
 }));
+// Matriz de Governança simulada (a leitura real vai ao banco de configurações): `matriz.valor` = null usa o padrão do sistema.
+const gov = vi.hoisted(() => ({ matriz: null as any }));
+vi.mock("../lib/secure-settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/secure-settings")>()),
+  getJsonSetting: async () => gov.matriz,
+}));
+vi.mock("../lib/objectStorage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/objectStorage")>()),
+  ObjectStorageService: class {
+    async savePrivateObject(p: string, b: Buffer) { armazem.set(p, b); return p; }
+    async readPrivateObject(p: string) { const b = armazem.get(p); if (!b) throw new Error("objeto inexistente"); return b; }
+    async deletePrivateObject(p: string) { armazem.delete(p); }
+  },
+}));
+// Quem administra agendas da clínica: simulado por cabeçalho (a regra real é coberta em agenda-governance.test.ts).
+vi.mock("../lib/agenda-governance", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/agenda-governance")>()),
+  mayManageAgendaEmpresa: async (req: any) => req.headers["x-test-admin"] === "1",
+}));
+vi.mock("../routes/professionals", async () => {
+  const { sql } = await import("drizzle-orm");
+  return { professionalIdsForCompany: async (empresaId: number) =>
+    (await state.database.execute(sql`SELECT id FROM professionals WHERE empresa_id=${empresaId}`)).rows.map((r: any) => Number(r.id)) };
+});
 vi.mock("../middleware/tenantContext", () => ({ resolveEmpresaId: (req: any) => req.tenantContext.empresaId }));
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_req: any, _res: any, next: any) => next() }));
 vi.mock("../routes/collaborator", () => ({
@@ -44,6 +70,9 @@ vi.mock("../routes/protocols", () => ({
 }));
 import router from "../routes/protocolo-procedimentos";
 import pitRouter from "../routes/pit-stop";
+import reconciliacaoRouter from "../routes/agenda-google-reconciliacao";
+import documentosRouter from "../routes/profissional-documentos";
+import preferidosRouter from "../routes/agenda-profissionais-preferidos";
 import { protocoloTemPlanoVivo } from "../lib/pit-stop";
 import { PROCEDIMENTOS_SCHEMA_SQL } from "../lib/procedimentos-schema";
 import { AGENDA_CATEGORIA_AUDITORIA_DDL } from "../lib/agenda-recurso-categoria";
@@ -55,12 +84,15 @@ let isolated: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const app = express();
 app.use(express.json(), (req: any, _res: any, next: any) => {
   const role = req.headers["x-test-role"];
-  req.tenantContext = { authenticated: !!role, empresaId: 5, professionalId: 101 } as any;
+  req.tenantContext = { authenticated: !!role, empresaId: Number(req.headers["x-test-empresa"] ?? 5), professionalId: Number(req.headers["x-test-prof"] ?? 101) } as any;
   next();
-}, router, pitRouter, (err: any, _req: any, res: any, _next: any) => { res.status(500).json({ error: String(err?.message ?? err), cause: String(err?.cause?.message ?? "") }); });
+}, router, pitRouter, reconciliacaoRouter, documentosRouter, preferidosRouter, (err: any, _req: any, res: any, _next: any) => { res.status(500).json({ error: String(err?.message ?? err), cause: String(err?.cause?.message ?? "") }); });
 const q = (text: string, params?: any[]) => isolated.pool.query(text, params);
-const api = (method: "get" | "post" | "put", url: string, body?: any, prof = 101) =>
-  (request(app) as any)[method](url).set("x-test-role", "admin").set("x-test-prof", String(prof)).send(body);
+const api = (method: "get" | "post" | "put" | "patch", url: string, body?: any, prof = 101, extra: Record<string, string> = {}) => {
+  let r = (request(app) as any)[method](url).set("x-test-role", "admin").set("x-test-prof", String(prof));
+  for (const [k, v] of Object.entries(extra)) r = r.set(k, v);
+  return r.send(body);
+};
 const day = (n: number) => { const d = new Date(`${brtISODate()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const DATE = day(10);
 const DATE2 = day(11); // dia limpo, para testes que não dependem da ocupação dos anteriores
@@ -113,6 +145,9 @@ beforeAll(async () => {
       min_lead_hours integer NOT NULL DEFAULT 24, updated_at timestamptz NOT NULL DEFAULT now());
     CREATE TABLE agenda_personal_owners (location_id integer, empresa_id integer, professional_id integer);
     CREATE TABLE agenda_google_sync (location_id integer, enabled boolean, last_success timestamptz, error text);
+    CREATE TABLE client_visit_preference_revisions (id serial PRIMARY KEY, client_id int NOT NULL, empresa_id int NOT NULL,
+      preferences jsonb NOT NULL, created_by int NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+      executor_kind text NOT NULL DEFAULT 'professional', executor_label text, authorizer_professional_id int);
     CREATE TABLE agenda_compromissos (id serial PRIMARY KEY, titulo text, inicio timestamptz, fim timestamptz, dia_inteiro boolean, recorrencia text,
       origem text, status text, location_id integer, chave text, google_calendar_id text);
     INSERT INTO empresas VALUES (5),(6);
@@ -144,6 +179,13 @@ beforeAll(async () => {
   // Pit Stop: modalidade e agenda escolhida na equipe do protocolo (também idempotente).
   await q(await readFile(new URL("../../../../scripts/migrations/20261121_pit_stop_agendamento.sql", import.meta.url), "utf8"));
   await q(await readFile(new URL("../../../../scripts/migrations/20261121_pit_stop_agendamento.sql", import.meta.url), "utf8"));
+  // Home Care, auditoria do Pit Stop, habilitação e documentos (também idempotente).
+  await q(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'medico';
+    ALTER TABLE professionals ADD COLUMN IF NOT EXISTS is_platform_owner boolean NOT NULL DEFAULT false;
+    ALTER TABLE professionals ADD COLUMN IF NOT EXISTS registration_council text; ALTER TABLE professionals ADD COLUMN IF NOT EXISTS registration_number text;
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS address text; ALTER TABLE clients ADD COLUMN IF NOT EXISTS name text;`);
+  await q(await readFile(new URL("../../../../scripts/migrations/20261122_home_care_documentos_reconciliacao.sql", import.meta.url), "utf8"));
+  await q(await readFile(new URL("../../../../scripts/migrations/20261122_home_care_documentos_reconciliacao.sql", import.meta.url), "utf8"));
   await q(`
     INSERT INTO substances VALUES (900,'implant'),(901,'iv');
     INSERT INTO procedimentos_clinicos(id,empresa_id,nome,duracao_segundos,ativo) VALUES
@@ -441,13 +483,349 @@ describe("Pit Stop: plano de agendamento compartilhado, no banco isolado", () =>
     expect((await criar(proto, [consultaMedica(D(13))])).status).toBe(201);
   });
 
-  it("a fila do Pit Stop mostra o plano para quem tem vínculo com o local do cliente e esconde de quem não tem", async () => {
-    const proto = await novoProtocolo();
-    const r = await criar(proto, [consultaMedica(D(14))]);
-    const fila = await api("get", "/agendamento/pit-stop?estado=pendente", undefined, 102);
-    expect(fila.body.planos.some((p: any) => p.id === r.body.planoId)).toBe(true);
-    await q("INSERT INTO professionals VALUES (103,'Sem vinculo Sintetico',2,true,5)");
-    const vazia = await api("get", "/agendamento/pit-stop", undefined, 103);
-    expect(vazia.body.planos.some((p: any) => p.id === r.body.planoId)).toBe(false);
+  describe("Recepção da empresa: permissão + empresa, sem depender de vínculo legado com local", () => {
+    const RECEPCAO_LIGADA = { agenda_gerenciamento: { recepcao: true } };
+    beforeAll(async () => {
+      await q(`INSERT INTO professionals(id,name,area_id,active,empresa_id,category) VALUES
+        (103,'Recepcao Sintetica A',1,true,5,'recepcao'),(104,'Recepcao Outra Clinica',1,true,6,'recepcao'),
+        (105,'Enfermagem Sem Vinculo',2,true,5,'enfermagem')`);
+    });
+
+    it("recepção sem a permissão na matriz é recusada; ligada, vê a fila, assume, confirma e envia ao Google, e tudo fica auditado", async () => {
+      gcal.created.length = 0;
+      const proto = await novoProtocolo();
+      const r = await criar(proto, [consultaMedica(D(15))]); // lançado pelo médico (101), plano pendente
+      gov.matriz = null; // padrão do sistema: recepção desligada
+      const negada = await api("get", "/agendamento/pit-stop", undefined, 103);
+      expect(negada.status).toBe(403);
+      expect(negada.body.code).toBe("sem_permissao_pit_stop");
+      expect((await abrir(r.body.planoId, 103)).status).toBe(403);
+      gov.matriz = RECEPCAO_LIGADA;
+      try {
+        // 103 NÃO está em location_professionals e não é a executora da consulta.
+        expect((await q("SELECT count(*)::int n FROM location_professionals WHERE professional_id=103")).rows[0].n).toBe(0);
+        const fila = await api("get", "/agendamento/pit-stop?estado=pendente", undefined, 103);
+        expect(fila.status).toBe(200);
+        expect(fila.body.planos.some((p: any) => p.id === r.body.planoId)).toBe(true);
+        const aberto = await abrir(r.body.planoId, 103);
+        expect(aberto.status).toBe(200);
+        const c = await confirmar(r.body.planoId, aberto.body.plano.versao, 103);
+        expect(c.status).toBe(200);
+        expect(c.body.sincronizacao.estado).toBe("sincronizado");
+        expect(gcal.created).toHaveLength(1);
+        const trilha = (await q("SELECT ator_id, acao FROM agendamento_plano_auditoria WHERE plano_id=$1 ORDER BY id", [r.body.planoId])).rows;
+        expect(trilha.map((x) => x.acao)).toEqual(["abriu_revisao", "confirmou_plano", "enviou_ao_google"]);
+        expect(trilha.every((x) => x.ator_id === 103)).toBe(true);
+      } finally { gov.matriz = null; }
+    });
+
+    it("nunca amplia entre empresas: recepção de outra clínica é recusada mesmo com a permissão ligada", async () => {
+      const proto = await novoProtocolo();
+      const r = await criar(proto, [consultaMedica(D(16))]);
+      gov.matriz = RECEPCAO_LIGADA;
+      try {
+        const fila = await api("get", "/agendamento/pit-stop", undefined, 104);
+        expect(fila.status).toBe(403);
+        expect(fila.body.code).toBe("fora_da_empresa");
+        expect((await ver(r.body.planoId, 104)).status).toBe(403);
+        expect((await abrir(r.body.planoId, 104)).status).toBe(403);
+        expect((await q("SELECT estado FROM agendamento_planos WHERE id=$1", [r.body.planoId])).rows[0].estado).toBe("pendente");
+      } finally { gov.matriz = null; }
+    });
+
+    it("enfermagem (ligada por padrão) também gerencia sem vínculo com o local", async () => {
+      const proto = await novoProtocolo();
+      const r = await criar(proto, [consultaMedica(D(17))]);
+      expect((await abrir(r.body.planoId, 105)).status).toBe(200);
+    });
+  });
+
+  describe("Home Care: quarta forma, endereço da visita e nível exigido", () => {
+    beforeAll(async () => {
+      await q(`INSERT INTO agenda_resources(id,name,kind,modality,professional_id,location_id,category_id,google_calendar_id,empresa_id)
+          VALUES (40,'AGENDA ENFERMAGEM - HOME CARE','enfermagem','home_care',NULL,NULL,2,'cal-homecare',5);
+        INSERT INTO agenda_windows(resource_id,weekday,start_time,end_time) SELECT 40, d, '08:00', '12:00' FROM generate_series(0,6) d;
+        INSERT INTO professional_empresas SELECT 202, 5 WHERE false;`);
+    });
+    const homeCare = (inicio: string) => aplicacao(inicio, { equipe: [{ categoryId: 2, modalidade: "home_care" }] });
+
+    it("Home Care usa a agenda Home Care (sem local fixo), exige endereço e envia ao Google com o endereço da visita, nunca o da sede", async () => {
+      gcal.created.length = 0;
+      const proto = await novoProtocolo();
+      // Sem preferência cadastrada: nenhum profissional é inventado (a pessoa escolhe depois).
+      const semPref = await criar(await novoProtocolo(), [homeCare(D(18))], true);
+      expect(semPref.body.plano.itens[0].equipe[0]).toMatchObject({ agendaId: 40, professionalIds: [], profissionalOrigem: null });
+      await q("INSERT INTO agenda_profissionais_preferidos(empresa_id,agenda_id,professional_id) VALUES (5,40,202)");
+      const r = await criar(proto, [homeCare(D(18))], true);
+      expect(r.status).toBe(201);
+      const item = r.body.plano.itens[0];
+      expect(item.homeCare).toBe(true);
+      // Preferência única e compatível vira sugestão editável, marcada como tal.
+      expect(item.equipe[0]).toMatchObject({ modalidade: "home_care", agendaId: 40, professionalIds: [202], profissionalOrigem: "preferencia" });
+      // Sem endereço, a confirmação é recusada e nada é reservado.
+      const sem = await confirmar(r.body.planoId, r.body.plano.versao);
+      expect(sem.status).toBe(409);
+      expect(JSON.stringify(sem.body)).toContain("home_care_sem_endereco");
+      expect(await nSessoes(proto)).toBe(0);
+      // Paciente sem endereço cadastrado: pedir o do paciente falha de forma explícita.
+      const oc = item.ocorrencias[0];
+      const semCadastro = await api("put", `/agendamento/planos/${r.body.planoId}/ocorrencias`,
+        { versao: r.body.plano.versao, ajustes: [{ id: oc.id, data: oc.data, hora: oc.hora, usarEnderecoPaciente: true }] });
+      expect(semCadastro.status).toBe(422);
+      expect(semCadastro.body.code).toBe("paciente_sem_endereco");
+      // Endereço informado.
+      const ok = await api("put", `/agendamento/planos/${r.body.planoId}/ocorrencias`,
+        { versao: r.body.plano.versao, ajustes: [{ id: oc.id, data: oc.data, hora: oc.hora, enderecoVisita: "Rua Sintetica 100, Casa B" }] });
+      expect(ok.status).toBe(200);
+      expect(ok.body.plano.itens[0].ocorrencias[0]).toMatchObject({ enderecoVisita: "Rua Sintetica 100, Casa B", enderecoVisitaOrigem: "informado" });
+      const c = await confirmar(r.body.planoId, ok.body.plano.versao);
+      expect(c.status).toBe(200);
+      expect(c.body.sincronizacao.estado).toBe("sincronizado");
+      expect(await sessoes(proto)).toMatchObject([{ resource_id: 40, professional_id: 202 }]);
+      expect(gcal.created[0]).toMatchObject({ calendarId: "cal-homecare", locationAddress: "Rua Sintetica 100, Casa B" });
+      expect((await q("SELECT service_type FROM sessions WHERE protocol_id=$1", [proto])).rows[0].service_type).toBe("home");
+    });
+
+    it("endereço do paciente copiado do cadastro fica marcado como origem paciente; endereço em item que não é Home Care é recusado", async () => {
+      const proto = await novoProtocolo();
+      await q("UPDATE clients SET address='Av. Sintetica 7, apto 12' WHERE id=$1", [proto - 1000]);
+      const r = await criar(proto, [homeCare(D(19))], true);
+      const oc = r.body.plano.itens[0].ocorrencias[0];
+      expect(r.body.plano.enderecoPaciente).toBe("Av. Sintetica 7, apto 12");
+      const ok = await api("put", `/agendamento/planos/${r.body.planoId}/ocorrencias`,
+        { versao: r.body.plano.versao, ajustes: [{ id: oc.id, data: oc.data, hora: oc.hora, usarEnderecoPaciente: true }] });
+      expect(ok.body.plano.itens[0].ocorrencias[0]).toMatchObject({ enderecoVisita: "Av. Sintetica 7, apto 12", enderecoVisitaOrigem: "paciente" });
+      const proto2 = await novoProtocolo();
+      const r2 = await criar(proto2, [consultaMedica(D(19))], true);
+      const oc2 = r2.body.plano.itens[0].ocorrencias[0];
+      const negado = await api("put", `/agendamento/planos/${r2.body.planoId}/ocorrencias`,
+        { versao: r2.body.plano.versao, ajustes: [{ id: oc2.id, data: oc2.data, hora: oc2.hora, enderecoVisita: "Rua X" }] });
+      expect(negado.status).toBe(400);
+      expect(negado.body.code).toBe("endereco_so_home_care");
+    });
+
+    it("procedimento que exige enfermeiro não aceita técnica; o servidor reaplica o requisito mesmo se a tela o omitir", async () => {
+      await q(`INSERT INTO procedimentos_clinicos(id,empresa_id,nome,duracao_segundos,ativo) VALUES (10,5,'Procedimento so enfermeiro',1800,true);
+        INSERT INTO procedimento_equipes(procedimento_id,area_id,location_id,exige_nivel) VALUES (10,2,50,'enfermeiro');
+        UPDATE professionals SET habilitacao_nivel='tecnico_enfermagem' WHERE id=202;
+        UPDATE professionals SET habilitacao_nivel='enfermeiro' WHERE id=207;`);
+      const proto = await novoProtocolo();
+      const tecnica = await criar(proto, [{ procedimentoId: 10, dataInicio: D(20), equipe: [{ categoryId: 2, professionalIds: [202] }] }]);
+      expect(tecnica.status).toBe(409);
+      expect(JSON.stringify(tecnica.body)).toContain("nivel_exigido_nao_atendido");
+      const semNivel = await criar(await novoProtocolo(), [{ procedimentoId: 10, dataInicio: D(20), equipe: [{ categoryId: 2, professionalIds: [202], exigeNivel: null }] }]);
+      expect(semNivel.status).toBe(409);
+      const enfermeira = await criar(await novoProtocolo(), [{ procedimentoId: 10, dataInicio: D(20), equipe: [{ categoryId: 2, professionalIds: [207] }] }]);
+      expect(enfermeira.status).toBe(201);
+      expect(enfermeira.body.plano.itens[0].equipe[0].exigeNivel).toBe("enfermeiro");
+    });
+  });
+});
+
+
+// ───────────────────────── Conferência Google x sistema ─────────────────────────
+describe("Conferência Google: renomeia por id real do calendário, cria o que falta e nunca cruza empresas", () => {
+  const ADMIN = { "x-test-admin": "1" };
+  const prev = (empresa = 5, extra: Record<string, string> = ADMIN) => api("get", "/agenda/google/reconciliacao", undefined, 101, { "x-test-empresa": String(empresa), ...extra });
+  const aplicar = (body: any, empresa = 5, extra: Record<string, string> = ADMIN) => api("post", "/agenda/google/reconciliacao/aplicar", body, 101, { "x-test-empresa": String(empresa), ...extra });
+  const nomeDe = async (id: number) => (await q("SELECT name FROM agenda_resources WHERE id=$1", [id])).rows[0].name as string;
+
+  beforeAll(async () => {
+    await q(`SELECT setval('agenda_resources_id_seq', 500);
+      INSERT INTO locations(id,empresa_id,active,google_calendar_id,name,agenda_papel) VALUES (51,5,'true','g-enf-local','AGENDA ENFERMAGEM - LOCAL','local');
+      INSERT INTO agenda_resources(id,name,kind,modality,professional_id,location_id,category_id,google_calendar_id,empresa_id) VALUES
+        (51,'AGENDA ENFERMAGEM - LOCAL','enfermagem','local',NULL,51,2,'g-enf-local',5),
+        (52,'AGENDA MEDICO - CAIO PADUA - LOCAL','medico','local',201,NULL,1,'g-caio-local',5),
+        (53,'AGENDA MEDICO - CAIO PADUA - ONLINE','medico','online',201,NULL,1,'g-caio-online',5),
+        (54,'NOME INTERNO DA OUTRA CLINICA','medico','local',204,NULL,1,'g-outra',6);`);
+    gcal.calendars = [
+      { id: "g-enf-local", nome: "AGENDA ENFERMAGEM - SEDE" }, { id: "g-caio-local", nome: "AGENDA MEDICO - CAIO PADUA - SEDE" },
+      { id: "g-caio-online", nome: "AGENDA MEDICO - CAIO PADUA - ON LINE" }, { id: "g-caio-hc", nome: "AGENDA MEDICO - CAIO PADUA - HOME CARE" },
+      { id: "g-enf-hc", nome: "AGENDA ENFERMAGEM - HOME CARE" }, { id: "g-outra", nome: "AGENDA PRIVADA DA OUTRA CLINICA" },
+      { id: "g-pessoal", nome: "AGENDA PESSOAL - CAIO HENRIQUE PADUA" }, { id: "g-niver", nome: "Aniversários" }, { id: "g-geral", nome: "AGENDA GERAL" },
+      { id: "g-desconhecida", nome: "Agenda do churrasco" },
+    ];
+  });
+
+  it("sem permissão administrativa é recusado; pré-visualizar não altera nada", async () => {
+    expect((await prev(5, {})).status).toBe(403);
+    const r = await prev();
+    expect(r.status).toBe(200);
+    const por = (id: string) => r.body.itens.find((i: any) => i.googleCalendarId === id);
+    expect(por("g-enf-local")).toMatchObject({ acao: "renomear", agendaId: 51, localId: 51, nomeDepois: "AGENDA ENFERMAGEM - SEDE" });
+    expect(por("g-caio-online")).toMatchObject({ acao: "renomear", nomeDepois: "AGENDA MEDICO - CAIO PADUA - ON LINE" });
+    expect(por("g-caio-hc")).toMatchObject({ acao: "criar", forma: "home_care", professionalId: 201 });
+    expect(por("g-enf-hc")).toMatchObject({ acao: "criar", forma: "home_care", professionalId: null });
+    expect(por("g-outra")).toMatchObject({ acao: "relatar", motivo: "de_outra_empresa" });
+    expect(JSON.stringify(por("g-outra"))).not.toContain("INTERNO"); // não revela dado da outra empresa
+    expect(por("g-pessoal").motivo).toBe("agenda_pessoal_ou_geral");
+    expect(por("g-niver").motivo).toBe("agenda_pessoal_ou_geral");
+    expect(por("g-geral").motivo).toBe("agenda_pessoal_ou_geral");
+    expect(por("g-desconhecida").motivo).toBe("fora_do_padrao");
+    expect(await nomeDe(51)).toBe("AGENDA ENFERMAGEM - LOCAL");
+  });
+
+  it("sem confirmação explícita ou sem conta Google confirmada, nada é aplicado e a falta é mostrada", async () => {
+    expect((await aplicar({})).status).toBe(400);
+    gcal.accountOk = false;
+    try {
+      const r = await aplicar({ confirmar: true });
+      expect(r.status).toBe(409);
+      expect(r.body.code).toBe("google_conta_nao_confirmada");
+      expect(r.body.faltando.length).toBeGreaterThan(0);
+      expect(await nomeDe(51)).toBe("AGENDA ENFERMAGEM - LOCAL");
+    } finally { gcal.accountOk = true; }
+  });
+
+  it("aplicar renomeia pelo id (agenda e local), cria as agendas novas sem local, preserva sessões e a outra empresa, e repetir não duplica", async () => {
+    const sessoesAntes = (await q("SELECT count(*)::int n FROM sessions")).rows[0].n;
+    const r = await aplicar({ confirmar: true });
+    expect(r.status).toBe(200);
+    expect(r.body.falhas).toEqual([]);
+    expect(await nomeDe(51)).toBe("AGENDA ENFERMAGEM - SEDE");
+    expect(await nomeDe(52)).toBe("AGENDA MEDICO - CAIO PADUA - SEDE");
+    expect(await nomeDe(53)).toBe("AGENDA MEDICO - CAIO PADUA - ON LINE");
+    expect((await q("SELECT name FROM locations WHERE id=51")).rows[0].name).toBe("AGENDA ENFERMAGEM - SEDE");
+    expect(await nomeDe(54)).toBe("NOME INTERNO DA OUTRA CLINICA");
+    const novas = (await q("SELECT id,name,modality,professional_id,location_id,empresa_id,category_id FROM agenda_resources WHERE google_calendar_id IN ('g-caio-hc','g-enf-hc') ORDER BY google_calendar_id")).rows;
+    expect(novas).toMatchObject([
+      { name: "AGENDA MEDICO - CAIO PADUA - HOME CARE", modality: "home_care", professional_id: 201, location_id: null, empresa_id: 5, category_id: 1 },
+      { name: "AGENDA ENFERMAGEM - HOME CARE", modality: "home_care", professional_id: null, location_id: null, empresa_id: 5, category_id: 2 },
+    ]);
+    expect((await q("SELECT count(*)::int n FROM sessions")).rows[0].n).toBe(sessoesAntes);
+    expect((await q("SELECT count(*)::int n FROM agenda_google_reconciliacoes WHERE empresa_id=5")).rows[0].n).toBeGreaterThanOrEqual(5);
+    // Repetir: nada a fazer, nenhuma agenda duplicada.
+    const total = (await q("SELECT count(*)::int n FROM agenda_resources")).rows[0].n;
+    const de_novo = await aplicar({ confirmar: true });
+    expect(de_novo.body.aplicados).toEqual([]);
+    expect((await q("SELECT count(*)::int n FROM agenda_resources")).rows[0].n).toBe(total);
+    expect(de_novo.body.depois.resumo.renomear ?? 0).toBe(0);
+    expect(de_novo.body.depois.resumo.criar ?? 0).toBe(0);
+  });
+
+  it("empresa 6 nunca renomeia nem enxerga as agendas da empresa 5", async () => {
+    const r = await prev(6);
+    expect(r.status).toBe(200);
+    const doCinco = r.body.itens.filter((i: any) => ["g-enf-local", "g-caio-local", "g-caio-online"].includes(i.googleCalendarId));
+    expect(doCinco.every((i: any) => i.acao === "relatar" && i.motivo === "de_outra_empresa")).toBe(true);
+    const nomeAntes = await nomeDe(51);
+    await aplicar({ confirmar: true }, 6);
+    expect(await nomeDe(51)).toBe(nomeAntes);
+    expect((await q("SELECT count(*)::int n FROM agenda_resources WHERE empresa_id=6 AND google_calendar_id IN ('g-enf-local','g-caio-local')")).rows[0].n).toBe(0);
+  });
+
+  it("preferência de profissional da agenda: só do corpo clínico da empresa e da mesma categoria", async () => {
+    const hc = (await q("SELECT id FROM agenda_resources WHERE google_calendar_id='g-enf-hc'")).rows[0].id;
+    const put = (ids: number[], empresa = 5, extra = ADMIN) => api("put", `/agenda/resources/${hc}/profissionais-preferidos`, { professionalIds: ids }, 101, { "x-test-empresa": String(empresa), ...extra });
+    expect((await put([207], 5, {} as any)).status).toBe(403);
+    expect((await put([201])).status).toBe(409); // médico em agenda de enfermagem
+    expect((await put([204])).status).toBe(409); // outra empresa
+    expect((await put([207])).status).toBe(200);
+    expect((await put([207], 6)).status).toBe(404); // agenda de outra empresa
+    const lista = await api("get", `/agenda/resources/${hc}/profissionais-preferidos`);
+    expect(lista.body.profissionais.map((p: any) => p.id)).toEqual([207]);
+  });
+});
+
+// ───────────────────────── Documentos dos profissionais ─────────────────────────
+describe("Documentos do profissional: upload, visualização protegida, empresa, permissão e auditoria", () => {
+  const png = (extra = "a") => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(`documento-sintetico-${extra}`)]);
+  const DONO = 106, TITULAR = 107, RECEP = 103, OUTRA = 104;
+  const enviar = (alvo: number, ator: number, buf: Buffer, campos: Record<string, string> = { tipo: "carteira_conselho" }, nome = "carteira.png", empresa = 5) => {
+    let r = (request(app) as any).post(`/professionals/${alvo}/documentos`).set("x-test-role", "admin").set("x-test-prof", String(ator)).set("x-test-empresa", String(empresa));
+    for (const [k, v] of Object.entries(campos)) r = r.field(k, v);
+    return r.attach("file", buf, nome);
+  };
+  const anexos = (alvo: number, ator: number, empresa = 5) => api("get", `/professionals/${alvo}/documentos`, undefined, ator, { "x-test-empresa": String(empresa) });
+  let docId = 0;
+
+  beforeAll(async () => {
+    await q(`INSERT INTO professionals(id,name,area_id,active,empresa_id,category,is_platform_owner) VALUES
+      (106,'Dono Sintetico',1,true,5,'medico',true),(107,'Tecnica Sintetica',2,true,5,'enfermagem',false)`);
+  });
+
+  it("proprietário envia; arquivo vai ao armazenamento privado fora de uploads/ e o registro guarda metadados e impressão digital", async () => {
+    const r = await enviar(TITULAR, DONO, png("1"), { tipo: "carteira_conselho", titulo: "Carteira COREN" });
+    expect(r.status).toBe(201);
+    docId = r.body.documento.id;
+    expect(r.body.documento).toMatchObject({ tipo: "carteira_conselho", mime: "image/png", situacao: "pendente_confirmacao", enviadoPor: DONO });
+    const linha = (await q("SELECT storage_path, sha256 FROM profissional_documentos WHERE id=$1", [docId])).rows[0];
+    expect(linha.storage_path.startsWith("uploads/")).toBe(false);
+    expect(linha.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(armazem.has(linha.storage_path)).toBe(true);
+    expect((await q("SELECT acao FROM profissional_documento_auditoria WHERE documento_id=$1", [docId])).rows.map((x) => x.acao)).toEqual(["enviou"]);
+  });
+
+  it("recusa conteúdo que não é PDF/imagem (mesmo com nome .png), arquivo repetido e tipo inválido", async () => {
+    expect((await enviar(TITULAR, DONO, Buffer.from("MZ executavel disfarcado"), { tipo: "outro" }, "foto.png")).status).toBe(415);
+    const dup = await enviar(TITULAR, DONO, png("1"));
+    expect(dup.status).toBe(409);
+    expect(dup.body.code).toBe("documento_duplicado");
+    expect((await enviar(TITULAR, DONO, png("2"), { tipo: "inventado" })).status).toBe(400);
+    expect((await q("SELECT count(*)::int n FROM profissional_documentos WHERE professional_id=$1", [TITULAR])).rows[0].n).toBe(1);
+  });
+
+  it("visualização devolve os mesmos bytes, sem cache, e registra quem viu", async () => {
+    const r = await api("get", `/professionals/${TITULAR}/documentos/${docId}/arquivo`, undefined, DONO).buffer(true).parse((res: any, cb: any) => {
+      const chunks: Buffer[] = []; res.on("data", (c: Buffer) => chunks.push(c)); res.on("end", () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(r.status).toBe(200);
+    expect(r.headers["cache-control"]).toBe("no-store");
+    expect(r.headers["content-type"]).toContain("image/png");
+    expect(Buffer.compare(r.body, png("1"))).toBe(0);
+    expect((await q("SELECT ator_id FROM profissional_documento_auditoria WHERE documento_id=$1 AND acao='visualizou'", [docId])).rows).toEqual([{ ator_id: DONO }]);
+  });
+
+  it("permissão: recepção sem liberação é recusada; liberada na matriz, vê; o titular vê os próprios; outro colega não", async () => {
+    gov.matriz = null;
+    expect((await anexos(TITULAR, RECEP)).status).toBe(403);
+    expect((await enviar(TITULAR, RECEP, png("3"))).status).toBe(403);
+    expect((await anexos(TITULAR, 105)).status).toBe(403); // colega de enfermagem
+    expect((await anexos(TITULAR, TITULAR)).status).toBe(200);
+    gov.matriz = { documentos_profissionais: { recepcao: true } };
+    try {
+      const r = await anexos(TITULAR, RECEP);
+      expect(r.status).toBe(200);
+      expect(r.body.documentos).toHaveLength(1);
+    } finally { gov.matriz = null; }
+  });
+
+  it("empresa: profissional de outra empresa responde 404 e recepção de outra empresa não vê nada, mesmo liberada", async () => {
+    gov.matriz = { documentos_profissionais: { recepcao: true } };
+    try {
+      expect((await anexos(TITULAR, OUTRA, 6)).status).toBe(404);
+      expect((await api("get", `/professionals/${TITULAR}/documentos/${docId}/arquivo`, undefined, OUTRA, { "x-test-empresa": "6" })).status).toBe(404);
+      expect((await enviar(204, DONO, png("4"), { tipo: "outro" })).status).toBe(404); // alvo de outra empresa
+    } finally { gov.matriz = null; }
+  });
+
+  it("o titular não confirma o próprio documento; o proprietário confirma, marca titular divergente e arquiva sem apagar o arquivo", async () => {
+    const auto = await api("patch", `/professionals/${TITULAR}/documentos/${docId}`, { situacao: "confirmado" }, TITULAR);
+    expect(auto.status).toBe(403);
+    const conf = await api("patch", `/professionals/${TITULAR}/documentos/${docId}`, { situacao: "confirmado" }, DONO);
+    expect(conf.body.documento.situacao).toBe("confirmado");
+    const comp = await enviar(TITULAR, DONO, png("5"), { tipo: "comprovante_endereco", titularDeclarado: "Outra Pessoa", titularDivergente: "true", observacao: "Conta em nome de terceiro" }, "conta.png");
+    expect(comp.body.documento).toMatchObject({ situacao: "titular_divergente", titularDeclarado: "Outra Pessoa" });
+    const arq = await api("patch", `/professionals/${TITULAR}/documentos/${comp.body.documento.id}`, { situacao: "arquivado" }, DONO);
+    expect(arq.body.documento.arquivadoEm).toBeTruthy();
+    expect((await anexos(TITULAR, DONO)).body.documentos.map((d: any) => d.id)).toEqual([docId]);
+    expect((await api("get", `/professionals/${TITULAR}/documentos?arquivados=1`, undefined, DONO)).body.documentos).toHaveLength(2);
+    const caminho = (await q("SELECT storage_path FROM profissional_documentos WHERE id=$1", [comp.body.documento.id])).rows[0].storage_path;
+    expect(armazem.has(caminho)).toBe(true); // arquivar não apaga o original
+  });
+
+  it("dados lidos do documento ficam como sugestão; só aceitar grava no cadastro, guarda o valor anterior e o titular não aceita", async () => {
+    const sug = await api("post", `/professionals/${TITULAR}/documentos/${docId}/dados`, { dados: [
+      { campo: "registro_conselho", valor: "COREN-SP" }, { campo: "registro_numero", valor: "001.752.003" }, { campo: "habilitacao", valor: "tecnico_enfermagem" }] }, DONO);
+    expect(sug.status).toBe(201);
+    const antes = (await q("SELECT registration_council, registration_number, habilitacao_nivel FROM professionals WHERE id=$1", [TITULAR])).rows[0];
+    expect(antes).toMatchObject({ registration_council: null, registration_number: null, habilitacao_nivel: null }); // sugerir não grava
+    expect((await api("patch", `/professionals/${TITULAR}/documentos/${docId}/dados/registro_numero`, { acao: "aceitar" }, TITULAR)).status).toBe(403);
+    expect((await api("patch", `/professionals/${TITULAR}/documentos/${docId}/dados/registro_numero`, { acao: "aceitar" }, DONO)).status).toBe(200);
+    expect((await api("patch", `/professionals/${TITULAR}/documentos/${docId}/dados/habilitacao`, { acao: "recusar" }, DONO)).status).toBe(200);
+    const depois = (await q("SELECT registration_number, habilitacao_nivel FROM professionals WHERE id=$1", [TITULAR])).rows[0];
+    expect(depois).toMatchObject({ registration_number: "001.752.003", habilitacao_nivel: null }); // recusado não grava
+    expect((await api("patch", `/professionals/${TITULAR}/documentos/${docId}/dados/registro_numero`, { acao: "aceitar" }, DONO)).status).toBe(409);
+    expect((await api("post", `/professionals/${TITULAR}/documentos/${docId}/dados`, { dados: [{ campo: "cpf", valor: "123" }] }, DONO)).status).toBe(400);
   });
 });

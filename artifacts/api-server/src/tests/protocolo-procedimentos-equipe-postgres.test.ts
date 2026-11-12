@@ -128,6 +128,10 @@ beforeAll(async () => {
   // Pit Stop: modalidade e agenda escolhida na equipe do protocolo (também idempotente).
   await q(await readFile(new URL("../../../../scripts/migrations/20261121_pit_stop_agendamento.sql", import.meta.url), "utf8"));
   await q(await readFile(new URL("../../../../scripts/migrations/20261121_pit_stop_agendamento.sql", import.meta.url), "utf8"));
+  // Home Care, habilitação e nível exigido (também idempotente).
+  await q("ALTER TABLE clients ADD COLUMN IF NOT EXISTS address text; ALTER TABLE clients ADD COLUMN IF NOT EXISTS name text;");
+  await q(await readFile(new URL("../../../../scripts/migrations/20261122_home_care_documentos_reconciliacao.sql", import.meta.url), "utf8"));
+  await q(await readFile(new URL("../../../../scripts/migrations/20261122_home_care_documentos_reconciliacao.sql", import.meta.url), "utf8"));
   await q(`
     INSERT INTO substances VALUES (900,'implant'),(901,'iv');
     INSERT INTO procedimentos_clinicos(id,empresa_id,nome,duracao_segundos,ativo) VALUES

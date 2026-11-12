@@ -17,14 +17,18 @@ import { existeCombinacaoDistinta } from "../../../../lib/procedimentos-shared/s
  * (duas pessoas) = dois participantes. `professionalIds` é a lista configurável de quem está habilitado.
  * O sistema não decide habilitação profissional por categoria: quem configura é a clínica.
  */
-export type Modalidade = "local" | "online" | "externo";
-export const MODALIDADES: readonly Modalidade[] = ["local", "online", "externo"];
+export type Modalidade = "local" | "online" | "externo" | "home_care";
+export const MODALIDADES: readonly Modalidade[] = ["local", "online", "externo", "home_care"];
+/** Home Care atende no endereço do paciente (ou outro endereço domiciliar da visita): não tem local fixo nem exige vínculo com local. */
+export const modalidadeSemLocalFixo = (m: string | null | undefined) => m === "home_care";
 export type Participante = {
   categoryId: number; alternativeCategoryIds?: number[]; locationId?: number | null; professionalIds?: number[];
   /** Forma do atendimento: local = Sede da empresa (padrão), online ou externo. Nunca se mistura entre formas. */
   modalidade?: Modalidade;
   /** Agenda escolhida (sugerida ou pelo prescritor). Sem ela, várias agendas igualmente elegíveis = escolha pendente. */
   agendaId?: number | null;
+  /** Requisito de nível: "enfermeiro" só aceita quem tem esse nível GRAVADO (técnica de enfermagem não satisfaz). */
+  exigeNivel?: "enfermeiro" | null;
 };
 export const categoriasDoParticipante = (p: Participante): number[] =>
   [...new Set([p.categoryId, ...(p.alternativeCategoryIds ?? [])])];
@@ -80,7 +84,7 @@ export async function validarParticipantes(executor: Executor, empresaId: number
       nomes.push(categoria.name);
     }
     if (p.modalidade !== undefined && !MODALIDADES.includes(p.modalidade)) {
-      throw new EquipeErro(400, "Modalidade inválida: use local (Sede), online ou externo.", "modalidade_invalida");
+      throw new EquipeErro(400, "Modalidade inválida: use local (Sede), online, externo (Outro local) ou home_care.", "modalidade_invalida");
     }
     if (p.agendaId != null) {
       const ag = await executor.execute(sql`SELECT r.category_id, r.modality FROM agenda_resources r
@@ -99,8 +103,12 @@ export async function validarParticipantes(executor: Executor, empresaId: number
     if (ids.length) {
       const okRows = await executor.execute(sql`SELECT p.id FROM professionals p
         WHERE p.id = ANY(${`{${ids.join(",")}}`}::int[]) AND p.active AND p.area_id = ANY(${`{${cats.join(",")}}`}::int[])
-          AND ${condicaoCorpoClinico(empresaId)}`);
+          AND ${condicaoCorpoClinico(empresaId)}
+          AND (${p.exigeNivel ?? null}::text IS NULL OR p.habilitacao_nivel = ${p.exigeNivel ?? null})`);
       if (okRows.rows.length !== ids.length) {
+        if (p.exigeNivel === "enfermeiro") {
+          throw new EquipeErro(409, "Este requisito exige enfermeiro(a) com habilitação registrada. Técnica ou técnico de enfermagem, ou cadastro sem nível informado, não satisfaz.", "nivel_exigido_nao_atendido");
+        }
         throw new EquipeErro(409, `Algum profissional não está ativo, não é de uma das categorias (${nomes.join(" ou ")}) ou não pertence a esta clínica.`, "profissional_incompativel");
       }
       grupos.push(ids);
@@ -156,7 +164,10 @@ export async function resolverNecessidades(executor: Executor, empresaId: number
         candidatos.push({ ...base, professionalId: null });
       } else {
         for (const id of ids) {
-          if (base.locationId != null && vinculos.rows.some((v) => Number(v.professional_id) === id && Number(v.location_id) === base.locationId)) {
+          // Home Care e agenda sem local não dependem de vínculo legado com local: a elegibilidade do profissional
+          // (ativo, da clínica e da categoria) já foi conferida em validarParticipantes.
+          const semVinculoLegado = modalidadeSemLocalFixo(info.modality) || base.locationId == null;
+          if (semVinculoLegado || vinculos.rows.some((v) => Number(v.professional_id) === id && Number(v.location_id) === base.locationId)) {
             candidatos.push({ ...base, professionalId: id });
           }
         }
@@ -266,7 +277,7 @@ export async function reservarOcorrenciaTx(tx: Executor, params: ReservaParams) 
     if (conflitoCliente.rows.length) throw new EquipeErro(409, "O cliente já tem uma visita neste horário.", "cliente_ocupado");
 
     const equipe = await tx.execute(sql`SELECT ordem, category_id, alternative_category_ids, location_id, professional_ids,
-        modalidade, agenda_id FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${item.id} ORDER BY ordem`);
+        modalidade, agenda_id, exige_nivel FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${item.id} ORDER BY ordem`);
     const participantes = equipe.rows.map(participanteDaLinha);
     const { necessidades, recursos } = await resolverNecessidades(tx, params.empresaId, participantes);
     const duracaoMinutos = Number(item.duracao_segundos) / 60;
@@ -288,7 +299,7 @@ export async function reservarOcorrenciaTx(tx: Executor, params: ReservaParams) 
         (protocol_id, client_id, professional_id, scheduled_date, scheduled_time, status, unit, service_type,
          week_number, empresa_id, resource_id, duration_minutes)
         VALUES (${item.protocol_id}, ${item.client_id}, ${a.professionalId}, ${params.date}, ${params.time}, 'scheduled',
-          ${recurso.locationName}, ${recurso.modality === "domiciliar" ? "home" : "clinic"},
+          ${recurso.locationName}, ${recurso.modality === "domiciliar" || recurso.modality === "home_care" ? "home" : "clinic"},
           ${params.numero}, ${params.empresaId}, ${a.resourceId}, ${duracaoGravada}) RETURNING id`)).rows;
       await tx.execute(sql`INSERT INTO protocolo_ocorrencia_participantes
         (ocorrencia_id, ordem, category_id, professional_id, resource_id, session_id)
@@ -307,5 +318,6 @@ export function participanteDaLinha(e: Record<string, unknown>): Participante {
     professionalIds: ((e.professional_ids as number[] | null) ?? []).map(Number),
     modalidade: (e.modalidade as Modalidade | undefined) ?? "local",
     agendaId: e.agenda_id == null ? null : Number(e.agenda_id),
+    exigeNivel: e.exige_nivel === "enfermeiro" ? "enfermeiro" : null,
   };
 }

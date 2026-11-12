@@ -6,17 +6,23 @@ const apiBase = import.meta.env.VITE_API_URL || `${import.meta.env.BASE_URL}api`
 export type OpcaoAgenda = { id: number; nome: string; modalidade: string; professionalId: number | null };
 export type Participante = {
   ordem: number; categoryId: number; categoryName: string; alternativeCategoryIds: number[]; professionalIds: number[];
-  modalidade: "local" | "online" | "externo"; agendaId: number | null; agendaOrigem: "sugerida" | "escolhida" | null;
+  modalidade: "local" | "online" | "externo" | "home_care"; agendaId: number | null; agendaOrigem: "sugerida" | "escolhida" | null;
   agendaNome: string | null; opcoesAgenda: OpcaoAgenda[];
+  /** Nível mínimo exigido pelo procedimento ("enfermeiro"); o servidor reaplica, a tela só informa. */
+  exigeNivel: string | null;
+  /** "preferencia" = profissional sugerido pela preferência da agenda (editável); null = escolhido por pessoa ou nenhum. */
+  profissionalOrigem: string | null;
 };
 export type Visita = { sessionId: number; agenda: string | null; googleEventId: string | null; pendente: boolean };
 export type Ocorrencia = {
   id: number; numero: number; data: string | null; hora: string | null; origem: "automatica" | "manual";
   motivo: string | null; reservada: boolean; visitas: Visita[];
+  enderecoVisita: string | null; enderecoVisitaOrigem: "paciente" | "informado" | null;
 };
 export type ItemPlano = {
   id: number; procedimentoId: number; nome: string; totalSessoes: number; intervaloDias: number; dataInicio: string | null;
   duracaoSegundos: number; dose: string | null; equipeOrigem: string; origemRequisito: string | null;
+  homeCare: boolean;
   equipe: Participante[]; problema: { code: string; message: string; opcoes?: unknown } | null; ocorrencias: Ocorrencia[];
 };
 export type EstadoPlano = "pendente" | "em_revisao" | "confirmado" | "cancelado";
@@ -26,8 +32,10 @@ export type Plano = {
   syncEm: string | null; versao: number; protocolId: number; protocolo: string; clienteId: number; cliente: string;
   prescritor: string | null; prescritorId: number | null; revisor: string | null; revisorId: number | null;
   revisaoExpiraEm: string | null; revisaoExpirada: boolean; confirmador: string | null; confirmadoEm: string | null;
-  itens: ItemPlano[]; profissionaisPorCategoria: { id: number; name: string; categoryId: number }[];
+  itens: ItemPlano[];
+  profissionaisPorCategoria: { id: number; name: string; categoryId: number; habilitacaoNivel: string | null; situacaoRegistro: string }[];
   categorias: { id: number; name: string }[];
+  enderecoPaciente: string | null; preferidosPorAgenda: Record<string, number[]>;
 };
 export type LinhaFila = {
   id: number; estado: EstadoPlano; syncEstado: SyncEstado; protocolId: number; versao: number; criadoEm: string; confirmadoEm: string | null;
@@ -86,7 +94,7 @@ export function useAcoesPlano(id: number) {
     cancelar: m(() => post<RespostaPlano>(`/agendamento/planos/${id}/cancelar`)),
     confirmar: m((versao: number) => post<RespostaPlano>(`/agendamento/planos/${id}/confirmar`, { versao })),
     sincronizar: m(() => post<RespostaPlano>(`/agendamento/planos/${id}/sincronizar`)),
-    ocorrencias: m((v: { versao: number; ajustes: { id: number; data: string | null; hora: string | null }[] }) =>
+    ocorrencias: m((v: { versao: number; ajustes: AjusteOcorrencia[] }) =>
       put<RespostaPlano>(`/agendamento/planos/${id}/ocorrencias`, v)),
     equipe: m((v: { versao: number; itemId: number; equipe: { categoryId: number; alternativeCategoryIds?: number[]; professionalIds?: number[]; modalidade?: string; agendaId?: number | null }[] }) =>
       put<RespostaPlano>(`/agendamento/planos/${id}/itens/${v.itemId}/equipe`, { versao: v.versao, equipe: v.equipe })),
@@ -95,6 +103,9 @@ export function useAcoesPlano(id: number) {
     }),
   };
 }
+
+export type AjusteOcorrencia = { id: number; data: string | null; hora: string | null; enderecoVisita?: string; usarEnderecoPaciente?: boolean };
+export const ROTULO_NIVEL: Record<string, string> = { enfermeiro: "Enfermeiro(a)", tecnico_enfermagem: "Técnico(a) de enfermagem", auxiliar_enfermagem: "Auxiliar de enfermagem" };
 
 export type EntradaProcedimento = {
   procedimentoId: number; totalSessoes?: number; intervaloDias?: number; dataInicio?: string | null;

@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db, clientsTable, sessionsTable } from "@workspace/db";
 import { verifyClinicAccount } from "./google-calendar";
 import { EquipeErro } from "./equipe-reserva.js";
+import { auditarPlano } from "./pit-stop.js";
 import { syncProcedureVisit, type VisitSyncResult } from "./session-google-sync";
 
 /**
@@ -24,7 +25,7 @@ export async function sincronizarPlano(empresaId: number, planoId: number, me: n
   if (!client) throw new EquipeErro(404, "Cliente não encontrado.", "cliente_nao_encontrado");
 
   const linhas = (await db.execute(sql`SELECT s.id AS session_id, o.numero, pp.nome_snapshot AS procedimento, pp.total_sessoes,
-      r.name AS agenda, o.ocorrencia_id, o.data, o.hora, pp.id AS item
+      r.name AS agenda, o.ocorrencia_id, o.data, o.hora, pp.id AS item, o.endereco_visita
     FROM agendamento_plano_ocorrencias o
     JOIN protocolo_procedimentos pp ON pp.id=o.protocolo_procedimento_id
     JOIN protocolo_ocorrencia_participantes x ON x.ocorrencia_id=o.ocorrencia_id
@@ -34,6 +35,9 @@ export async function sincronizarPlano(empresaId: number, planoId: number, me: n
   const registrar = async (estado: SincronizacaoPlano["estado"], visitas: SincronizacaoPlano["visitas"], motivo?: string) => {
     await db.execute(sql`UPDATE agendamento_planos SET sync_estado=${estado}, sync_em=now(),
       sync_detalhe=${JSON.stringify({ visitas, motivo: motivo ?? null })}::jsonb, updated_at=now() WHERE id=${planoId}`);
+    await auditarPlano(db, empresaId, planoId, me, "enviou_ao_google", {
+      estado, motivo: motivo ?? null, visitas: visitas.length, falhas: visitas.filter((v) => v.status === "falhou" || v.status === "incerto").length,
+    });
     return { estado, visitas, ...(motivo ? { motivo } : {}) };
   };
 
@@ -66,7 +70,8 @@ export async function sincronizarPlano(empresaId: number, planoId: number, me: n
       WHERE x.ocorrencia_id=${l.ocorrencia_id} ORDER BY x.ordem`)).rows
       .map((e) => `${e.area ?? "Equipe"}: ${e.agenda ?? "agenda"}${e.profissional ? ` (${e.profissional})` : ""}`).join("; ");
     const r = await syncProcedureVisit(s, {
-      empresaId, professionalId: me, client, position: Number(l.numero), total: Number(l.total_sessoes),
+      // A autorização (permissão da matriz + corpo clínico da empresa) foi dada pela rota; não depende de vínculo legado com local.
+      empresaId, professionalId: null, enderecoHomeCare: l.endereco_visita == null ? null : String(l.endereco_visita), client, position: Number(l.numero), total: Number(l.total_sessoes),
       procedureName: String(l.procedimento), teamLine: equipe,
     });
     visitas.push({ ...r, ...comum });

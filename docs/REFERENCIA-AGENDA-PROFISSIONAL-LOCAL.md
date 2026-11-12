@@ -63,16 +63,26 @@ Rótulos: FATO CONFIRMADO (verificado no código ou no teste), REGRA APROVADA (d
 1. A substância só tem "participação médica" (`doctor_participation`); não existe campo próprio de "profissionais necessários" por substância.
 2. Padrão de agenda por cliente x por clínica: hoje só existe o padrão por clínica.
 3. Horário preferido do cliente não é modelado.
-4. Quem confirma precisa ser vinculado ao local da agenda para o envio ao Google (`location_professionals`); recepção sem vínculo recebe erro explícito de envio.
-5. A tela de lançamento `pages/protocols/new.tsx` ainda segue só o Caminho A; o Caminho B está no lançador do Cockpit.
+4. (RESOLVIDA em 22/11/2026) Quem confirma não depende mais de `location_professionals`: a recepção autorizada na empresa (ferramenta `agenda_gerenciamento` da Governança, padrão DESLIGADO para recepção até o CEO ligar) gerencia, confirma e reenvia ao Google, com auditoria e sem acesso entre empresas.
+5. (RESOLVIDA) `pages/protocols/new.tsx` agora também tem o Caminho B (seletor de procedimentos, plano e janela do Pit Stop).
+
+## 6A. Home Care, Documentos e conferência com o Google (22/11/2026)
+
+1. Home Care é a QUARTA forma (`home_care`), junto de Sede, Outro local e Online; ocorre no endereço do paciente ou no endereço informado para a visita; agenda Home Care não tem local fixo; nunca agenda na sede.
+2. Visita Home Care sem endereço fica pendente e não reserva. O endereço vem do cadastro do paciente (origem `paciente`) ou é digitado (origem `informado`).
+3. Nível exigido por procedimento (`exigeNivel` = enfermeiro): técnico(a) não é aceito(a); o nível mora em `professionals.habilitacao_nivel`; situação do registro em `situacao_registro` (padrão `nao_verificada`). Colunas criadas por migração SQL fora do Drizzle.
+4. Profissional preferido por agenda (`agenda_profissionais_preferidos`): só é sugerido quando existe exatamente um compatível e ativo; nunca imposto.
+5. Aba Documentos de todo profissional: armazenamento privado, por empresa e permissão (ferramenta `documentos_profissionais`, padrão DESLIGADO; dono e titular sempre), auditoria, nada é apagado (arquivar), titular não confirma o próprio documento, dados lidos viram SUGESTÃO que só entra no cadastro com aceite explícito.
+6. Conferência das agendas Google por id do calendário (`GET /agenda/google/reconciliacao`, `POST .../aplicar` com `confirmar:true`): renomeia ou cria agenda interna; nunca apaga calendário, evento nem histórico; só diz que conferiu se a conta Google respondeu.
+7. Migração: `scripts/migrations/20261122_home_care_documentos_reconciliacao.sql` (somente desenvolvimento).
 
 ## 7. Proibições
 
 1. Exigir local físico para TODA agenda: NÃO aprovado.
 2. Misturar `locations` legados com endereços, fundir ou apagar registros (Regra de Ouro).
 3. Usar ordem de exibição como desempate; indicar "sincronizado" com falha externa; criar eventos ou mensagens reais em teste.
-4. Publicar em produção sem ordem escrita; as migrações 20261116 a 20261121 só existem no desenvolvimento.
+4. Publicar em produção sem ordem escrita; as migrações 20261116 a 20261122 só existem no desenvolvimento.
 
 ## 8. Provas
 
-Testes (banco isolado, dados sintéticos): `artifacts/api-server/src/tests/pit-stop-postgres.test.ts` e `protocolo-procedimentos-equipe-postgres.test.ts`.
+Testes (banco isolado, dados sintéticos): `artifacts/api-server/src/tests/pit-stop-postgres.test.ts` `protocolo-procedimentos-equipe-postgres.test.ts` e `protocol-google-sync-postgres.test.ts`; telas em `e2e/home-care-documentos-reconciliacao.spec.ts`.

@@ -253,15 +253,21 @@ export interface ProtocolGoogleSyncParams {
 export const MAX_VISITS_PER_GOOGLE_SYNC = 40;
 
 type Destination =
-  | { ok: true; resourceKind: string; modality: string; location: typeof locationsTable.$inferSelect; calendarId: string; externalAddress: string | null }
+  | { ok: true; resourceKind: string; modality: string; location: Pick<typeof locationsTable.$inferSelect, "name" | "address" | "phone">; calendarId: string; externalAddress: string | null }
   | { ok: false; code: string; error: string };
 
 /** `professionalId` nulo = o chamador já autorizou a sessão (ex.: atualização depois de remarcar); não confere vínculo. */
-async function resolveDestination(session: SessionRow, empresaId: number, professionalId: number | null): Promise<Destination> {
-  return resolveResourceDestination(session.resourceId, empresaId, professionalId);
+async function resolveDestination(session: SessionRow, empresaId: number, professionalId: number | null, opts?: DestinoOpts): Promise<Destination> {
+  return resolveResourceDestination(session.resourceId, empresaId, professionalId, opts);
 }
 
-async function resolveResourceDestination(resourceId: number | null, empresaId: number, professionalId: number | null): Promise<Destination> {
+/**
+ * `agendaSemLocal`: Pit Stop. A agenda nova vale pela clínica gravada nela (não exige registro de local legado) e a
+ * autorização foi dada pela rota (permissão da matriz + corpo clínico da mesma empresa), não por vínculo com local.
+ */
+type DestinoOpts = { agendaSemLocal?: boolean };
+
+async function resolveResourceDestination(resourceId: number | null, empresaId: number, professionalId: number | null, opts: DestinoOpts = {}): Promise<Destination> {
   if (!resourceId) {
     return { ok: false, code: "visita_sem_agenda", error: "Visita no formato antigo, sem agenda de enfermagem; não foi enviada." };
   }
@@ -270,7 +276,14 @@ async function resolveResourceDestination(resourceId: number | null, empresaId: 
   if (!resource.googleCalendarId) {
     return { ok: false, code: "agenda_sem_google", error: "A agenda desta visita não tem calendário Google configurado." };
   }
-  if (!resource.locationId) return { ok: false, code: "agenda_sem_local", error: "A agenda desta visita não está ligada a um local." };
+  if (!resource.locationId) {
+    if (!opts.agendaSemLocal) return { ok: false, code: "agenda_sem_local", error: "A agenda desta visita não está ligada a um local." };
+    if (resource.empresaId == null || resource.empresaId !== empresaId) {
+      return { ok: false, code: "agenda_de_outra_clinica", error: "A agenda desta visita não pertence a esta clínica." };
+    }
+    return { ok: true, resourceKind: resource.kind, modality: resource.modality, location: { name: resource.name, address: null, phone: null },
+      calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
+  }
   const [location] = await db.select().from(locationsTable).where(eq(locationsTable.id, resource.locationId));
   if (!location || location.active !== "true" || location.empresaId !== empresaId) {
     return { ok: false, code: "local_invalido", error: "O local da agenda está inativo ou pertence a outra clínica." };
@@ -448,9 +461,13 @@ async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitS
  * (syncReservedEvent / reconcilePendingEvent): repetir nunca duplica o evento. Nunca lança.
  * Agenda online não leva endereço físico no evento.
  */
-export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext & { procedureName: string; teamLine: string }): Promise<VisitSyncResult> {
+export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext & {
+  procedureName: string; teamLine: string;
+  /** Home Care: endereço da visita (do paciente ou informado). Obrigatório para essa forma; sem ele a visita não é enviada. */
+  enderecoHomeCare?: string | null;
+}): Promise<VisitSyncResult> {
   const base = { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime };
-  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId);
+  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId, { agendaSemLocal: true });
   if (!destination.ok) return { ...base, status: "falhou", code: destination.code, error: destination.error };
   if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
     return { ...base, status: "falhou", code: "outra_agenda_google",
@@ -460,12 +477,18 @@ export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext 
     return { ...base, status: "falhou", code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
   }
   const online = destination.modality === "online";
+  const homeCare = destination.modality === "home_care";
+  if (homeCare && !ctx.enderecoHomeCare?.trim()) {
+    return { ...base, status: "falhou", code: "home_care_sem_endereco",
+      error: "Home Care exige o endereço da visita (do paciente ou informado); a visita não foi enviada." };
+  }
   const data: CalendarEventData = {
     sessionId: session.id, clientName: ctx.client.name, clientCpf: ctx.client.cpf ?? undefined,
     scheduledDate: session.scheduledDate, scheduledTime: session.scheduledTime, durationMinutes: session.durationMinutes,
     weekNumber: ctx.position, totalAppointments: ctx.total,
     unit: session.unit ?? destination.location.name,
-    locationAddress: online ? undefined : destination.externalAddress ?? destination.location.address ?? undefined,
+    locationAddress: online ? undefined : homeCare ? ctx.enderecoHomeCare!.trim()
+      : destination.externalAddress ?? destination.location.address ?? undefined,
     locationPhone: destination.location.phone ?? undefined, calendarId: destination.calendarId,
     procedureLabel: ctx.procedureName, activeProcedureTypes: [], substances: [],
     procedureName: ctx.procedureName, teamLine: ctx.teamLine,

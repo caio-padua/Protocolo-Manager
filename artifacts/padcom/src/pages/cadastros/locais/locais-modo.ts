@@ -22,11 +22,12 @@ export interface LocalAtendimento {
   professionals?: Array<{ id: number; name: string; role: string }>;
 }
 
-export type PapelAgenda = "local" | "online" | "externo" | "pessoal" | "geral";
+export type PapelAgenda = "local" | "online" | "externo" | "home_care" | "pessoal" | "geral";
 export const PAPEIS_AGENDA: Array<{ valor: PapelAgenda; rotulo: string; explicacao: string }> = [
   { valor: "local", rotulo: "Sede", explicacao: "Atende na clínica" },
   { valor: "online", rotulo: "Online", explicacao: "Atende online" },
   { valor: "externo", rotulo: "Outro local", explicacao: "Atende em espaço fora da clínica" },
+  { valor: "home_care", rotulo: "Home Care", explicacao: "Atende no endereço do paciente" },
   { valor: "pessoal", rotulo: "Pessoal", explicacao: "Compromissos particulares" },
   { valor: "geral", rotulo: "Geral", explicacao: "Agendamentos diversos" },
 ];

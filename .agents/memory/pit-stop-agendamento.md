@@ -6,6 +6,15 @@ Referência permanente: `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` (glossár
 **Why:** o CEO exigiu que empresa/local/profissional/agenda nunca sejam inferidos uns dos outros e que ordem de exibição jamais desempate agendas.
 **How to apply:** ambiguidade de agenda = "escolha pendente"; plano e Caminho A são exclusivos por protocolo; "sincronizado" só com TODAS as visitas confirmadas no Google.
 - Testes antigos que fixavam o desempate por sort_order foram reescritos de propósito; não restaurar.
-- Suíte `protocol-google-sync-postgres` já falhava (21 testes, empresas.nome ausente no banco montado à mão) ANTES do Pit Stop; confirmado em baseline.
+- Suíte `protocol-google-sync-postgres` falhava por banco montado à mão sem `empresas` nem `clinica_origem_empresa_id`; corrigido no fixture (23/23).
 - `LancadorInline` usava `getCollabToken` sem importar (quebrava o lançador); corrigido.
 - Teste de banco isolado do Pit Stop precisa de tabela `substance_applications` e colunas completas de `location_professionals` (consultas drizzle selecionam tudo).
+- Home Care = 4ª forma (`home_care`), sem local fixo, endereço por visita; nível exigido (técnica ≠ enfermeira) e situação do registro vivem em colunas fora do Drizzle (migração SQL). **Why:** CEO 22/11/2026. **How to apply:** nunca presumir habilitação/ativa de profissional cadastrado por documento; dado lido de documento é sugestão até aceite humano.
+- Documentos de profissional e conferência Google por id do calendário: ver seção 6A da referência permanente; recepção e Documentos nascem DESLIGADOS na Governança.
+
+## Regras de distribuição e Home Care (atualizado)
+- Distribuição automática usa janela nominal ±4 dias e intervalo mínimo (freq−4; freq 1–4 = a própria freq); preferência do paciente ORDENA, nunca exclui; módulos puros `pit-stop-regras.ts` e `pit-stop-busca.ts`.
+- Recepção/Documentos: padrão DESLIGADO até liberar na Governança (decisão A confirmada pelo CEO).
+- Fábia (profissional 26, Home Nurse) é a preferida da agenda "AGENDA ENFERMAGEM - HOME CARE" (agenda sem local, modalidade home_care, sem janelas de horário — CEO define em Agenda Configuração). Não criar calendário Google manualmente.
+- Fixture do teste pit-stop precisa da tabela client_visit_preference_revisions (proporDatas e detalharPlano leem preferências).
+**Why:** Home Care exige agenda de categoria enfermagem modalidade home_care ativa; sem ela dá "sem_agenda_da_categoria".

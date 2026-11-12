@@ -22,7 +22,7 @@ const Participante = z.strictObject({
   alternativeCategoryIds: z.array(z.number().int().positive()).max(5).optional(),
   locationId: z.number().int().positive().nullish(),
   professionalIds: z.array(z.number().int().positive()).max(20).optional(),
-  modalidade: z.enum(["local", "online", "externo"]).optional(),
+  modalidade: z.enum(["local", "online", "externo", "home_care"]).optional(),
   agendaId: z.number().int().positive().nullish(),
 });
 const IncluirBody = z.strictObject({

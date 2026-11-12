@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DocumentosProfissional } from "@/components/profissionais/DocumentosProfissional";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -1332,26 +1333,18 @@ export default function Professionals() {
                       — Dados de Enfermagem
                     </p>
                     <div className="space-y-4 p-4 bevel-3d" style={{ borderLeft: "3px solid hsl(187 72% 44%)" }}>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Regime de atuação</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {([
-                            { value: "fisica", label: "Física (fixa na clínica)" },
-                            { value: "home", label: "Home / Itinerante" },
-                          ] as const).map((opt) => {
-                            const active = form.nurseType === opt.value;
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => set("nurseType", opt.value)}
-                                className={`${active ? "bevel-3d text-primary" : "concave-3d text-muted-foreground"} px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all text-left`}
-                              >
-                                {opt.label}
-                              </button>
-                            );
-                          })}
-                        </div>
+                      <div className="concave-3d flex items-center gap-3 px-4 py-3" data-testid="toggle-home-nurse">
+                        <Switch
+                          id="toggle-home-nurse"
+                          checked={form.nurseType === "home"}
+                          onCheckedChange={(v) => set("nurseType", v ? "home" : "fisica")}
+                          aria-label="Home Nurse"
+                        />
+                        <Label htmlFor="toggle-home-nurse" className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {form.nurseType === "home"
+                            ? "Home Nurse — atende no endereço do paciente (Home Care)"
+                            : "Home Nurse desligado — enfermagem fixa na clínica"}
+                        </Label>
                       </div>
 
                       {form.nurseType === "home" && (
@@ -1461,6 +1454,7 @@ export default function Professionals() {
                       currentUrl={editingSignatureUrl}
                       onUploaded={() => refetch()}
                     />
+                    <DocumentosProfissional professionalId={editingId} />
                   </>
                 ) : (
                   <div className="concave-3d px-4 py-6 text-center">
