@@ -3,12 +3,11 @@ import { sql } from "drizzle-orm";
 import { projectImportedCommitment, type ImportedCommitment } from "./agenda-google-projection";
 
 export type AgendaExecutor = Pick<typeof db, "execute" | "select" | "insert" | "update">;
-export async function loadAgendaOccupancy(
+/** Locais cujo Google entra na ocupação desta agenda (o próprio, os pessoais do profissional e os das outras agendas dele). */
+export async function fontesGoogleDaAgenda(
   resource: { id: number; professionalId: number | null; locationId: number | null; empresaId?: number | null },
-  date: string, executor: AgendaExecutor = db, ignoreSessionId?: number,
+  executor: AgendaExecutor = db,
 ) {
-  const start = new Date(`${date}T00:00:00-03:00`);
-  const end = new Date(start.getTime() + 86400_000);
   // Clínica da agenda: a do local ligado (legado) ou a gravada na própria agenda (agenda nova, sem local).
   const empresaAlvo = resource.locationId != null
     ? sql`(SELECT empresa_id FROM locations WHERE id=${resource.locationId})`
@@ -22,6 +21,19 @@ export async function loadAgendaOccupancy(
       OR (${resource.professionalId}::int IS NOT NULL AND EXISTS(SELECT 1 FROM agenda_resources r
         WHERE r.location_id=l.id AND r.active AND r.professional_id=${resource.professionalId}))
     )`);
+  return sources.rows.map((r) => ({ id: Number(r.id), googleCalendarId: (r.google_calendar_id as string | null) ?? null }));
+}
+
+export async function loadAgendaOccupancy(
+  resource: { id: number; professionalId: number | null; locationId: number | null; empresaId?: number | null },
+  date: string, executor: AgendaExecutor = db, ignoreSessionId?: number,
+) {
+  const start = new Date(`${date}T00:00:00-03:00`);
+  const end = new Date(start.getTime() + 86400_000);
+  const empresaAlvo = resource.locationId != null
+    ? sql`(SELECT empresa_id FROM locations WHERE id=${resource.locationId})`
+    : sql`${resource.empresaId ?? null}::int`;
+  const sources = { rows: (await fontesGoogleDaAgenda(resource, executor)).map((f) => ({ id: f.id, google_calendar_id: f.googleCalendarId })) };
   const ids = sources.rows.map((r) => Number(r.id));
   // Drizzle expande um array JavaScript em lista SQL. Para ANY precisamos
   // de um único parâmetro PostgreSQL, não de uma lista de parâmetros.

@@ -27,6 +27,95 @@ export async function readGooglePages(
   return { events, nextCursor };
 }
 
+export type ResultadoLeitura = "atualizado" | "ocupado" | "desativado";
+type LocalGoogle = { id: number | string; empresa_id: number | string; google_calendar_id: unknown };
+type ClienteAgenda = Awaited<ReturnType<typeof getUncachableGoogleCalendarClient>>;
+
+/**
+ * Leitura (SOMENTE LEITURA) do Google de UM local, incremental pelo marcador de sincronização. Usada pelo ciclo de 60 s
+ * e pela conferência ao vivo do encaixe. "ocupado" = outra leitura do mesmo local está em andamento (nada foi lido aqui).
+ * Erros sobem para quem chamou, que decide como registrar.
+ */
+export async function lerLocalGoogle(calendar: Pick<ClienteAgenda, "events">, location: LocalGoogle): Promise<ResultadoLeitura> {
+  const id = Number(location.id);
+  let resultado: ResultadoLeitura = "ocupado";
+  await db.transaction(async (tx) => {
+    const lock = await tx.execute(sql`SELECT pg_try_advisory_xact_lock(19872027,${id}) AS acquired`);
+    if (!lock.rows[0]?.acquired) return;
+    resultado = "atualizado";
+    const state = await tx.execute(sql`SELECT cursor,source_calendar_id FROM agenda_google_sync WHERE location_id=${id} AND enabled`);
+    if (!state.rows.length) { resultado = "desativado"; return; }
+    const load = (cursor: string | null) => readGooglePages(async (query) => {
+      const response = await calendar.events.list({
+        calendarId: String(location.google_calendar_id), ...query,
+          singleEvents: false, showDeleted: true, maxResults: 2500,
+      }, { timeout: 30_000 });
+      return response.data as Awaited<ReturnType<Parameters<typeof readGooglePages>[0]>>;
+    }, cursor);
+    const cursor = state.rows[0].source_calendar_id === location.google_calendar_id
+      ? state.rows[0].cursor as string | null : null;
+    let full = !cursor;
+    let batch;
+    try { batch = await load(cursor); }
+    catch (error: any) {
+      if (error?.code !== 410 && error?.response?.status !== 410) throw error;
+      full = true;
+      batch = await load(null);
+    }
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${Number(location.empresa_id)})`);
+    // Conferir novamente vínculo e ativação após a leitura externa.
+    const current = await tx.execute(sql`SELECT 1 FROM locations l JOIN agenda_google_sync s ON s.location_id=l.id
+      WHERE l.id=${id} AND l.google_calendar_id=${String(location.google_calendar_id)} AND s.enabled`);
+    if (!current.rows.length) throw new Error("Vínculo mudou durante a atualização");
+    if (!full && batch.events.length === 0) {
+      await tx.execute(sql`UPDATE agenda_google_sync SET cursor=${batch.nextCursor},last_success=now(),
+        last_attempt=now(),error=NULL WHERE location_id=${id}`);
+      return;
+    }
+    if (full) await tx.execute(sql`UPDATE agenda_google_source
+      SET body=jsonb_set(body,'{status}','"cancelled"'::jsonb) WHERE location_id=${id}`);
+    for (const raw of batch.events) {
+      if (!raw.id) throw new Error("Evento sem identidade na origem");
+      const event = scopedGoogleSource(raw);
+      await tx.execute(sql`INSERT INTO agenda_google_source(location_id,event_id,body)
+        VALUES(${id},${event.id},${JSON.stringify(event)}::jsonb)
+        ON CONFLICT(location_id,event_id) DO UPDATE SET body=EXCLUDED.body`);
+    }
+    const source = await tx.execute(sql`SELECT body FROM agenda_google_source WHERE location_id=${id}`);
+    const bodies = source.rows.map((r) => r.body as SourceEvent);
+    for (const raw of bodies) {
+      const scoped = scopedGoogleSource(raw);
+      if (scoped !== raw && Object.keys(raw).some((key) =>
+        !["id","status","recurringEventId","originalStartTime"].includes(key))) await tx.execute(sql`UPDATE agenda_google_source SET body=${JSON.stringify(scoped)}::jsonb
+        WHERE location_id=${id} AND event_id=${raw.id!}`);
+    }
+    const events = normalizeGoogleSource(bodies.map(scopedGoogleSource));
+    await tx.execute(sql`UPDATE agenda_compromissos SET status='cancelado' WHERE location_id=${id}
+      AND origem IN ('google','google_recorrente')`);
+    for (const event of events) {
+      await tx.execute(sql`INSERT INTO agenda_compromissos
+        (location_id,google_calendar_id,chave,ical_uid,titulo,descricao,local_texto,inicio,fim,dia_inteiro,recorrencia,status,origem)
+        VALUES(${id},${String(location.google_calendar_id)},${`google:${event.eventId}`},${event.icalUid},
+          ${event.titulo},${event.descricao},${event.localTexto},${event.inicio}::timestamptz,${event.fim}::timestamptz,
+          ${event.diaInteiro},${event.recorrencia},'ativo',${event.origem})
+        ON CONFLICT(location_id,chave) DO UPDATE SET
+          titulo=EXCLUDED.titulo,descricao=EXCLUDED.descricao,local_texto=EXCLUDED.local_texto,
+          inicio=EXCLUDED.inicio,fim=EXCLUDED.fim,dia_inteiro=EXCLUDED.dia_inteiro,
+          recorrencia=EXCLUDED.recorrencia,status='ativo',origem=EXCLUDED.origem`);
+    }
+    await tx.execute(sql`UPDATE agenda_google_sync SET cursor=${batch.nextCursor},source_calendar_id=${String(location.google_calendar_id)},last_success=now(),
+      last_attempt=now(),error=NULL WHERE location_id=${id}`);
+    logger.info({ locationId: id, events: events.length, full }, "Agenda: atualização somente leitura concluída");
+  });
+  return resultado;
+}
+
+async function registrarFalhaLeitura(id: number) {
+  // Nunca guardar payload, título ou resposta do provedor no erro público.
+  await db.execute(sql`UPDATE agenda_google_sync SET last_attempt=now(),error='Falha ao atualizar o Google; os dados anteriores foram preservados.' WHERE location_id=${id}`);
+  logger.warn({ locationId: id }, "Agenda: atualização falhou, estado anterior preservado");
+}
+
 async function runSync() {
   const locations = await db.execute(sql`
     SELECT l.id,l.empresa_id,l.google_calendar_id FROM locations l
@@ -45,77 +134,9 @@ async function runSync() {
   for (const location of locations.rows) {
     const id = Number(location.id);
     try {
-      await db.transaction(async (tx) => {
-        const lock = await tx.execute(sql`SELECT pg_try_advisory_xact_lock(19872027,${id}) AS acquired`);
-        if (!lock.rows[0]?.acquired) return;
-        const state = await tx.execute(sql`SELECT cursor,source_calendar_id FROM agenda_google_sync WHERE location_id=${id} AND enabled`);
-        if (!state.rows.length) return;
-        const load = (cursor: string | null) => readGooglePages(async (query) => {
-          const response = await calendar.events.list({
-            calendarId: String(location.google_calendar_id), ...query,
-              singleEvents: false, showDeleted: true, maxResults: 2500,
-          }, { timeout: 30_000 });
-          return response.data as Awaited<ReturnType<Parameters<typeof readGooglePages>[0]>>;
-        }, cursor);
-        const cursor = state.rows[0].source_calendar_id === location.google_calendar_id
-          ? state.rows[0].cursor as string | null : null;
-        let full = !cursor;
-        let batch;
-        try { batch = await load(cursor); }
-        catch (error: any) {
-          if (error?.code !== 410 && error?.response?.status !== 410) throw error;
-          full = true;
-          batch = await load(null);
-        }
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${Number(location.empresa_id)})`);
-        // Conferir novamente vínculo e ativação após a leitura externa.
-        const current = await tx.execute(sql`SELECT 1 FROM locations l JOIN agenda_google_sync s ON s.location_id=l.id
-          WHERE l.id=${id} AND l.google_calendar_id=${String(location.google_calendar_id)} AND s.enabled`);
-        if (!current.rows.length) throw new Error("Vínculo mudou durante a atualização");
-        if (!full && batch.events.length === 0) {
-          await tx.execute(sql`UPDATE agenda_google_sync SET cursor=${batch.nextCursor},last_success=now(),
-            last_attempt=now(),error=NULL WHERE location_id=${id}`);
-          return;
-        }
-        if (full) await tx.execute(sql`UPDATE agenda_google_source
-          SET body=jsonb_set(body,'{status}','"cancelled"'::jsonb) WHERE location_id=${id}`);
-        for (const raw of batch.events) {
-          if (!raw.id) throw new Error("Evento sem identidade na origem");
-          const event = scopedGoogleSource(raw);
-          await tx.execute(sql`INSERT INTO agenda_google_source(location_id,event_id,body)
-            VALUES(${id},${event.id},${JSON.stringify(event)}::jsonb)
-            ON CONFLICT(location_id,event_id) DO UPDATE SET body=EXCLUDED.body`);
-        }
-        const source = await tx.execute(sql`SELECT body FROM agenda_google_source WHERE location_id=${id}`);
-        const bodies = source.rows.map((r) => r.body as SourceEvent);
-        for (const raw of bodies) {
-          const scoped = scopedGoogleSource(raw);
-          if (scoped !== raw && Object.keys(raw).some((key) =>
-            !["id","status","recurringEventId","originalStartTime"].includes(key))) await tx.execute(sql`UPDATE agenda_google_source SET body=${JSON.stringify(scoped)}::jsonb
-            WHERE location_id=${id} AND event_id=${raw.id!}`);
-        }
-        const events = normalizeGoogleSource(bodies.map(scopedGoogleSource));
-        await tx.execute(sql`UPDATE agenda_compromissos SET status='cancelado' WHERE location_id=${id}
-          AND origem IN ('google','google_recorrente')`);
-        for (const event of events) {
-          await tx.execute(sql`INSERT INTO agenda_compromissos
-            (location_id,google_calendar_id,chave,ical_uid,titulo,descricao,local_texto,inicio,fim,dia_inteiro,recorrencia,status,origem)
-            VALUES(${id},${String(location.google_calendar_id)},${`google:${event.eventId}`},${event.icalUid},
-              ${event.titulo},${event.descricao},${event.localTexto},${event.inicio}::timestamptz,${event.fim}::timestamptz,
-              ${event.diaInteiro},${event.recorrencia},'ativo',${event.origem})
-            ON CONFLICT(location_id,chave) DO UPDATE SET
-              titulo=EXCLUDED.titulo,descricao=EXCLUDED.descricao,local_texto=EXCLUDED.local_texto,
-              inicio=EXCLUDED.inicio,fim=EXCLUDED.fim,dia_inteiro=EXCLUDED.dia_inteiro,
-              recorrencia=EXCLUDED.recorrencia,status='ativo',origem=EXCLUDED.origem`);
-        }
-        await tx.execute(sql`UPDATE agenda_google_sync SET cursor=${batch.nextCursor},source_calendar_id=${String(location.google_calendar_id)},last_success=now(),
-          last_attempt=now(),error=NULL WHERE location_id=${id}`);
-        logger.info({ locationId: id, events: events.length, full }, "Agenda: atualização somente leitura concluída");
-      });
+      await lerLocalGoogle(calendar, location as LocalGoogle);
     } catch {
-      // Nunca guardar payload, título ou resposta do provedor no erro público.
-      await db.execute(sql`UPDATE agenda_google_sync SET last_attempt=now(),error='Falha ao atualizar o Google; os dados anteriores foram preservados.' WHERE location_id=${id}`);
-      logger.warn({ locationId: id }, "Agenda: atualização falhou, estado anterior preservado");
+      await registrarFalhaLeitura(id);
     }
   }
 }
@@ -137,4 +158,65 @@ export function startGoogleAgendaSync() {
   run();
   const timer = setInterval(run, 60_000);
   timer.unref();
+}
+
+export type ResultadoAoVivo =
+  | { ok: true; atualizados: number }
+  | { ok: false; motivo: "conta" | "falha" | "prazo" | "ocupado" };
+
+const PRAZO_AO_VIVO_MS = 8_000;
+const ESPERA_TRAVA_MS = 400;
+const TENTATIVAS_TRAVA = 6;
+
+/**
+ * Conferência ao vivo (SOMENTE LEITURA) dos locais informados, no momento de confirmar um encaixe: lê agora o Google de
+ * cada local, em vez de confiar na cópia de até 5 minutos. Na dúvida (conta não confirmada, falha, prazo estourado ou
+ * leitura concorrente que não terminou) devolve falha e quem chamou recusa: nunca promete disponibilidade.
+ * Locais sem Google ligado não têm o que ler e não contam como falha. Nunca escreve no Google.
+ */
+export async function atualizarLocaisAoVivo(locationIds: number[], opcoes: { prazoMs?: number; esperaMs?: number } = {}): Promise<ResultadoAoVivo> {
+  if (!locationIds.length) return { ok: true, atualizados: 0 };
+  const prazoMs = opcoes.prazoMs ?? PRAZO_AO_VIVO_MS;
+  const esperaMs = opcoes.esperaMs ?? ESPERA_TRAVA_MS;
+  const trabalho = async (): Promise<ResultadoAoVivo> => {
+    const locais = await db.execute(sql`
+      SELECT l.id,l.empresa_id,l.google_calendar_id FROM locations l
+      JOIN agenda_google_sync s ON s.location_id=l.id
+      WHERE s.enabled AND l.active='true' AND l.google_calendar_id IS NOT NULL AND l.id=ANY(${`{${locationIds.join(",")}}`}::int[])
+      ORDER BY l.id`);
+    if (!locais.rows.length) return { ok: true, atualizados: 0 };
+    try {
+      const conta = await verifyClinicAccount();
+      if (!conta.ok) throw new Error("Conta Google não confirmada");
+    } catch {
+      return { ok: false, motivo: "conta" };
+    }
+    const calendar = await getUncachableGoogleCalendarClient();
+    let atualizados = 0;
+    for (const local of locais.rows) {
+      const id = Number(local.id);
+      let resultado: ResultadoLeitura = "ocupado";
+      for (let tentativa = 0; tentativa < TENTATIVAS_TRAVA && resultado === "ocupado"; tentativa++) {
+        if (tentativa > 0) await new Promise((r) => setTimeout(r, esperaMs));
+        try {
+          resultado = await lerLocalGoogle(calendar, local as LocalGoogle);
+        } catch {
+          await registrarFalhaLeitura(id);
+          return { ok: false, motivo: "falha" };
+        }
+      }
+      if (resultado === "ocupado") return { ok: false, motivo: "ocupado" };
+      if (resultado === "atualizado") atualizados++;
+    }
+    return { ok: true, atualizados };
+  };
+  let relogio: NodeJS.Timeout | undefined;
+  const prazo = new Promise<ResultadoAoVivo>((resolve) => {
+    relogio = setTimeout(() => resolve({ ok: false, motivo: "prazo" }), prazoMs);
+  });
+  try {
+    return await Promise.race([trabalho().catch((): ResultadoAoVivo => ({ ok: false, motivo: "falha" })), prazo]);
+  } finally {
+    if (relogio) clearTimeout(relogio);
+  }
 }

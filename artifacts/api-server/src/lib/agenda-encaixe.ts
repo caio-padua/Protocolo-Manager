@@ -1,6 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db, clientsTable, sessionsTable, type Session, type agendaResourcesTable } from "@workspace/db";
-import type { AgendaExecutor } from "./agenda-occupancy";
+import { fontesGoogleDaAgenda, type AgendaExecutor } from "./agenda-occupancy";
+import { atualizarLocaisAoVivo } from "./agenda-google-sync";
+import { logger } from "./logger";
 import {
   computeResourceSlots, gravarSessaoAvulsa, lockAgendaParticipants, lockAgendaResource, RESERVABLE_KINDS,
 } from "./agenda-booking";
@@ -197,6 +199,34 @@ type DecisaoLocked =
   | { ok: true; session: Session; duplicada: boolean }
   | { ok: false; status: number; error: string; codigo?: CodigoMotivo | "fora-expediente" };
 
+
+const DETALHE_AO_VIVO = {
+  conta: "A conta Google da clínica não foi confirmada.",
+  falha: "A leitura do Google Agenda falhou agora.",
+  prazo: "O Google Agenda não respondeu a tempo.",
+  ocupado: "Outra atualização do Google Agenda ainda estava em andamento.",
+} as const;
+
+/**
+ * Lê agora o Google dos locais que entram na ocupação desta agenda (agenda, pessoais do profissional e outras agendas
+ * dele). Agenda inexistente ou de outra clínica não dispara leitura: a transação responde 404 como sempre.
+ */
+async function conferirGoogleAoVivo(resourceId: number, empresaId: number): Promise<{ ok: true } | { ok: false; detalhe: string }> {
+  const r = await db.execute(sql`SELECT r.id, r.professional_id, r.location_id, COALESCE(r.empresa_id, l.empresa_id) AS empresa_id
+    FROM agenda_resources r LEFT JOIN locations l ON l.id=r.location_id WHERE r.id=${resourceId}`);
+  const linha = r.rows[0];
+  if (!linha || Number(linha.empresa_id) !== empresaId) return { ok: true };
+  const fontes = await fontesGoogleDaAgenda({
+    id: Number(linha.id), professionalId: linha.professional_id == null ? null : Number(linha.professional_id),
+    locationId: linha.location_id == null ? null : Number(linha.location_id), empresaId,
+  }, db);
+  const inicio = Date.now();
+  const vivo = await atualizarLocaisAoVivo(fontes.filter((f) => f.googleCalendarId).map((f) => f.id));
+  logger.info({ resourceId, locais: fontes.length, ms: Date.now() - inicio, resultado: vivo.ok ? "ok" : vivo.motivo },
+    "encaixe interno: conferência do Google ao vivo");
+  return vivo.ok ? { ok: true } : { ok: false, detalhe: DETALHE_AO_VIVO[vivo.motivo] };
+}
+
 /**
  * Confirma o encaixe sob as travas de clínica, profissional e cliente, relendo TUDO (expediente, ocupação, compromissos,
  * frescor do Google e sessões) com a mesma decisão do seletor. Requisição idêntica repetida (duplo clique, nova
@@ -209,6 +239,14 @@ export async function encaixarConsultaAvulsa(p: EncaixeParams): Promise<EncaixeR
     return { ok: false, status: 400, error: `Duração inválida: informe minutos inteiros de ${DURACAO_MIN} a ${DURACAO_MAX}.` };
   }
   const { minutos: lead } = await lerAntecedenciaInterna();
+
+  // Conferência ao vivo do Google ANTES das travas (a leitura usa rede e não pode segurar travas da clínica). Na dúvida
+  // a marcação é recusada: nunca promete disponibilidade com a cópia local possivelmente velha.
+  const aoVivo = await conferirGoogleAoVivo(p.resourceId, p.empresaId);
+  if (!aoVivo.ok) {
+    return { ok: false, status: 409, codigo: "integracao",
+      error: `${mensagemDoMotivo("integracao", lead)} ${aoVivo.detalhe} Nada foi agendado.` };
+  }
 
   const decisao = await db.transaction(async (tx): Promise<DecisaoLocked> => {
     const empresaId = await lockAgendaResource(tx, p.resourceId);

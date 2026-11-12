@@ -18,12 +18,13 @@ vi.mock("@workspace/db", async () => {
   });
   return { ...schema, db };
 });
-const google = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), exists: vi.fn(), verify: vi.fn(), remove: vi.fn() }));
+const google = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), exists: vi.fn(), verify: vi.fn(), remove: vi.fn(), list: vi.fn() }));
 vi.mock("../lib/google-calendar.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/google-calendar")>();
   return {
     ...actual, createCalendarEvent: google.create, updateCalendarEvent: google.update,
     calendarEventExists: google.exists, verifyClinicAccount: google.verify, deleteCalendarEvent: google.remove,
+    getUncachableGoogleCalendarClient: async () => ({ events: { list: google.list } }),
   };
 });
 vi.mock("../middleware/moduleGuard", () => ({ moduleGuard: () => (_r: any, _s: any, n: any) => n() }));
@@ -99,9 +100,13 @@ beforeAll(async () => {
       SELECT g,'Clínica sintética '||g,'clinic',true,'ATIVO' FROM generate_series(1,20) g;
     CREATE UNIQUE INDEX applications_unique ON substance_applications(session_id, substance_id, session_number);
     CREATE TABLE agenda_personal_owners(location_id INTEGER, empresa_id INTEGER, professional_id INTEGER);
-    CREATE TABLE agenda_google_sync(enabled BOOLEAN, location_id INTEGER, last_success TIMESTAMPTZ, error TEXT);
-    CREATE TABLE agenda_compromissos(id INTEGER, titulo TEXT, inicio TIMESTAMPTZ, fim TIMESTAMPTZ, dia_inteiro BOOLEAN,
-      recorrencia TEXT, origem TEXT, location_id INTEGER, status TEXT, chave TEXT, google_calendar_id TEXT);
+    CREATE TABLE agenda_google_sync(location_id INTEGER PRIMARY KEY, cursor TEXT, source_calendar_id TEXT, last_success TIMESTAMPTZ,
+      last_attempt TIMESTAMPTZ, error TEXT, enabled BOOLEAN NOT NULL DEFAULT true);
+    CREATE TABLE agenda_google_source(location_id INTEGER NOT NULL, event_id TEXT NOT NULL, body JSONB NOT NULL, PRIMARY KEY(location_id,event_id));
+    CREATE TABLE agenda_compromissos(id SERIAL PRIMARY KEY, location_id INTEGER NOT NULL, google_calendar_id TEXT, chave TEXT NOT NULL,
+      ical_uid TEXT NOT NULL DEFAULT '', titulo TEXT, descricao TEXT, local_texto TEXT, inicio TIMESTAMPTZ, fim TIMESTAMPTZ,
+      dia_inteiro BOOLEAN NOT NULL DEFAULT false, recorrencia TEXT, status TEXT NOT NULL DEFAULT 'ativo', origem TEXT NOT NULL DEFAULT 'ics',
+      UNIQUE(location_id,chave));
     INSERT INTO locations(id,name,empresa_id,active,address,phone) VALUES
       (8,'Local sintético A',5,'true','Rua Sintética, 100, Centro, Cidade Teste - TS, CEP 00000-000','+5500000000000');
     INSERT INTO agenda_resources(id,name,kind,modality,slot_minutes,location_id,professional_id,active,empresa_id) VALUES
@@ -134,7 +139,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
-  await query(`TRUNCATE sessions, substance_applications, protocol_items, protocols, agenda_compromissos, agenda_google_sync, agenda_exceptions, app_settings`);
+  await query(`TRUNCATE sessions, substance_applications, protocol_items, protocols, agenda_compromissos, agenda_google_sync, agenda_google_source, agenda_exceptions, app_settings`);
   await query(`UPDATE locations SET google_calendar_id=NULL WHERE id=8`);
   await query(`UPDATE agenda_resources SET google_calendar_id=NULL`);
   process.env.TZ = "America/Sao_Paulo";
@@ -145,6 +150,8 @@ beforeEach(async () => {
   google.exists.mockResolvedValue(false);
   google.remove.mockResolvedValue(undefined);
   google.verify.mockResolvedValue({ ok: true, account: "conta-sintetica@example.invalid" });
+  // Google sintético: calendário vazio e marcador de sincronização; cada teste troca isto para simular o que quiser.
+  google.list.mockResolvedValue({ data: { items: [], nextSyncToken: "marcador-sintetico" } });
 });
 
 afterAll(async () => {
@@ -360,12 +367,20 @@ describe("Expediente, intervalo completo e conflitos", () => {
 });
 
 describe("Google: ocupado, indisponível, desatualizado e alterado depois", () => {
+  const CAL = "agenda-sintetica@example.invalid";
   const ligarGoogle = async (ultimoSucesso = "now()", erro: string | null = null) => {
-    await query(`UPDATE locations SET google_calendar_id='agenda-sintetica@example.invalid' WHERE id=8`);
+    await query(`UPDATE locations SET google_calendar_id='${CAL}' WHERE id=8`);
     await query(`INSERT INTO agenda_google_sync(enabled,location_id,last_success,error) VALUES (true,8,${ultimoSucesso},$1)`, [erro]);
   };
-  const compromisso = (ini: string, fim: string) => query(`INSERT INTO agenda_compromissos(id,titulo,inicio,fim,dia_inteiro,recorrencia,origem,location_id,status,chave,google_calendar_id)
-    VALUES (1,'Compromisso sintético',$1,$2,false,NULL,'google',8,'ativo','google:sintetico','agenda-sintetica@example.invalid')`, [ini, fim]);
+  const eventoGoogle = (ini: string, fim: string) => ({
+    id: "sintetico", status: "confirmed", summary: "Compromisso sintético", start: { dateTime: ini }, end: { dateTime: fim },
+  });
+  /** O compromisso existe na cópia local E no Google simulado (a conferência ao vivo relê o Google). */
+  const compromisso = async (ini: string, fim: string) => {
+    await query(`INSERT INTO agenda_compromissos(titulo,inicio,fim,dia_inteiro,recorrencia,origem,location_id,status,chave,google_calendar_id)
+      VALUES ('Compromisso sintético',$1,$2,false,NULL,'google',8,'ativo','google:sintetico','${CAL}')`, [ini, fim]);
+    google.list.mockResolvedValue({ data: { items: [eventoGoogle(ini, fim)], nextSyncToken: "marcador-sintetico" } });
+  };
 
   it("compromisso do Google ocupa o trecho e é explicado", async () => {
     await ligarGoogle();
@@ -378,7 +393,69 @@ describe("Google: ocupado, indisponível, desatualizado e alterado depois", () =
     expect((await encaixe({ time: "14:20" })).body.codigo).toBe("compromisso");
   });
 
-  it("integração desatualizada ou com erro: não promete disponibilidade e recusa", async () => {
+  it("cópia velha, mas Google responde: a conferência ao vivo atualiza e o encaixe é aceito (sem esperar o ciclo de 60 s)", async () => {
+    await ligarGoogle("now() - interval '10 minutes'");
+    const d = await disp();
+    expect(d.body.integracao.atualizada).toBe(false); // o seletor mostra a cópia, que está velha
+    expect([...slotsDe(d).values()].every((s) => s.state !== "aberto" && s.reason === "integracao")).toBe(true);
+    const r = await encaixe();
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    expect(google.list).toHaveBeenCalledTimes(1);
+    expect((await rows(`SELECT error, last_success > now() - interval '1 minute' AS recente FROM agenda_google_sync`))[0]).toEqual({ error: null, recente: true });
+    // Depois da leitura ao vivo o seletor também vê o Google em dia.
+    expect((await disp({ time: undefined })).body.integracao.atualizada).toBe(true);
+  });
+
+  it("a conferência ao vivo é incremental: a segunda leitura usa o marcador devolvido pelo Google", async () => {
+    await ligarGoogle();
+    expect((await encaixe({ time: "14:00" })).status).toBe(201);
+    expect((await encaixe({ time: "14:20", clientId: 22 })).status).toBe(201);
+    expect(google.list).toHaveBeenCalledTimes(2);
+    expect(google.list.mock.calls[0][0].syncToken).toBeUndefined();
+    expect(google.list.mock.calls[1][0].syncToken).toBe("marcador-sintetico");
+    expect(google.list.mock.calls.every((c) => c[0].calendarId === CAL)).toBe(true);
+  });
+
+  it("evento criado direto no Google que a cópia ainda não tem: visto na confirmação, recusado, nada gravado", async () => {
+    await ligarGoogle(); // cópia em dia (parece livre) e sem o evento
+    expect(slotsDe(await disp()).get("14:00")).toMatchObject({ state: "aberto" });
+    google.list.mockResolvedValue({ data: { items: [eventoGoogle("2030-03-08T14:00:00-03:00", "2030-03-08T14:20:00-03:00")], nextSyncToken: "t2" } });
+    const r = await encaixe({ time: "14:00" });
+    expect(r.status).toBe(409);
+    expect(r.body.codigo).toBe("compromisso");
+    expect(await totalSessoes()).toBe(0);
+    // Outro horário livre continua aceito.
+    expect((await encaixe({ time: "14:20" })).status).toBe(201);
+  });
+
+  it("Google fora do ar na confirmação, mesmo com a cópia em dia: recusa, avisa e registra o erro", async () => {
+    await ligarGoogle();
+    google.list.mockRejectedValue(new Error("falha sintética de rede"));
+    const r = await encaixe();
+    expect(r.status).toBe(409);
+    expect(r.body.codigo).toBe("integracao");
+    expect(r.body.error).toMatch(/não pode ser garantida/);
+    expect(r.body.error).toMatch(/leitura do Google Agenda falhou/);
+    expect(r.body.error).toMatch(/Nada foi agendado/);
+    expect(await totalSessoes()).toBe(0);
+    const [estado] = await rows(`SELECT error FROM agenda_google_sync`);
+    expect(estado.error).toMatch(/Falha ao atualizar o Google/);
+    expect(estado.error).not.toMatch(/sintética de rede/); // detalhe do provedor nunca vai para o estado público
+  });
+
+  it("conta Google não confirmada na confirmação: recusa com o motivo", async () => {
+    await ligarGoogle();
+    google.verify.mockResolvedValue({ ok: false });
+    const r = await encaixe();
+    expect(r.status).toBe(409);
+    expect(r.body.codigo).toBe("integracao");
+    expect(r.body.error).toMatch(/conta Google da clínica não foi confirmada/);
+    expect(google.list).not.toHaveBeenCalled();
+    expect(await totalSessoes()).toBe(0);
+  });
+
+  it("integração desatualizada ou com erro e o Google também falha: não promete disponibilidade e recusa", async () => {
+    google.list.mockRejectedValue(new Error("Google indisponível (sintético)"));
     await ligarGoogle("now() - interval '10 minutes'");
     const d = await disp();
     expect(d.body.integracao.atualizada).toBe(false);
@@ -392,17 +469,61 @@ describe("Google: ocupado, indisponível, desatualizado e alterado depois", () =
     expect(await totalSessoes()).toBe(0);
   });
 
-  it("integração em dia libera; alteração direta no Google DEPOIS da leitura é vista na confirmação", async () => {
+  it("o seletor NÃO chama o Google (usa a cópia); só a confirmação confere ao vivo", async () => {
+    await ligarGoogle();
+    await disp();
+    await disp({ durationMinutes: 40 });
+    expect(google.list).not.toHaveBeenCalled();
+    expect((await encaixe()).status).toBe(201);
+    expect(google.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("agenda sem Google ligado: nada a ler, a confirmação não chama o Google", async () => {
+    expect((await encaixe()).status).toBe(201);
+    expect(google.list).not.toHaveBeenCalled();
+    expect(google.verify).not.toHaveBeenCalled();
+  });
+
+  it("alteração direta no Google DEPOIS da leitura é vista na confirmação", async () => {
     await ligarGoogle();
     expect(slotsDe(await disp()).get("14:00")).toMatchObject({ state: "aberto" });
     await compromisso("2030-03-08T14:00:00-03:00", "2030-03-08T14:20:00-03:00");
     const r = await encaixe({ time: "14:00" });
     expect(r.status).toBe(409);
     expect(r.body.codigo).toBe("compromisso");
-    // A sincronização ficou velha entre a leitura e a confirmação.
+    // O Google some do ar entre a leitura e a confirmação: recusa por segurança, não usa mais a cópia.
+    google.list.mockRejectedValue(new Error("falha sintética"));
     await query(`TRUNCATE agenda_compromissos`);
-    await query(`UPDATE agenda_google_sync SET last_success=now() - interval '6 minutes'`);
     expect((await encaixe({ time: "14:00" })).body.codigo).toBe("integracao");
+  });
+
+  it("leitura do mesmo local em andamento: espera um pouco e, se não terminar, recusa (nunca usa cópia velha)", async () => {
+    await ligarGoogle("now() - interval '10 minutes'");
+    const segurando = await isolated.pool.connect();
+    try {
+      await segurando.query("BEGIN");
+      await segurando.query("SELECT pg_advisory_xact_lock(19872027, 8)");
+      const { atualizarLocaisAoVivo } = await import("../lib/agenda-google-sync");
+      expect(await atualizarLocaisAoVivo([8], { esperaMs: 10 })).toEqual({ ok: false, motivo: "ocupado" });
+      expect(google.list).not.toHaveBeenCalled();
+      await segurando.query("COMMIT"); // a outra leitura terminou
+      expect(await atualizarLocaisAoVivo([8], { esperaMs: 10 })).toEqual({ ok: true, atualizados: 1 });
+    } finally {
+      segurando.release();
+    }
+  });
+
+  it("Google que não responde estoura o prazo e não trava a confirmação", async () => {
+    await ligarGoogle();
+    let soltar: () => void = () => {};
+    google.list.mockImplementation(() => new Promise((_ok, falhar) => { soltar = () => falhar(new Error("resposta tardia sintética")); }));
+    const { atualizarLocaisAoVivo } = await import("../lib/agenda-google-sync");
+    const t0 = Date.now();
+    expect(await atualizarLocaisAoVivo([8], { prazoMs: 80 })).toEqual({ ok: false, motivo: "prazo" });
+    expect(Date.now() - t0).toBeLessThan(2000);
+    // A leitura abandonada termina sozinha (no real, no limite de 30 s da chamada) e libera a transação.
+    soltar();
+    await new Promise((r) => setTimeout(r, 300));
   });
 
   it("evento do Google criado pelo sistema depois da marcação (simulado) e falha do Google não desfaz a marcação", async () => {

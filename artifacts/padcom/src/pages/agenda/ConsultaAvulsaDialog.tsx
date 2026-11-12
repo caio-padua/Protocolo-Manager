@@ -429,7 +429,7 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
 
           <p className="text-xs text-muted-foreground">
             Ao confirmar, a consulta é gravada no sistema e criada no Google Agenda desta agenda. Nenhum convite é enviado a ninguém.
-            {interno ? " A disponibilidade mostrada é conferida de novo no servidor no momento de confirmar." : ""}
+            {interno ? " A disponibilidade mostrada é conferida de novo no servidor no momento de confirmar, e o Google Agenda é lido ao vivo nessa hora: confirmar pode levar alguns segundos." : ""}
           </p>
 
           {/* Resultado */}
