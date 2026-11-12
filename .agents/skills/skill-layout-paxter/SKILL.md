@@ -894,11 +894,11 @@ e interruptor "Inativa". Um interruptor no topo da lista, "Mostrar inativas (n)"
 
 Pedido do CEO em 11/11/2026 ("eu nao gosto de simbolozinhos; eu gosto do escrito"). Vale para Empresas, Locais e todas as subtelas.
 
-1. **Zero simbolo.** Placas, cartoes, botoes e abas levam so texto. Unicos simbolos permitidos: `+` e `−` do controle de sanfona. Excecao: logotipo real da empresa (vidro `.vidro-logo`).
+1. **Zero simbolo.** Placas, cartoes, botoes e abas levam so texto. Unicos simbolos permitidos: `+` e `−` do controle de sanfona. Excecao: logotipo real da empresa no vidro `.vidro-logo` (quina de 6px, igual a foto de perfil, nunca bolha). Sem logotipo real, o vidro mostra as iniciais escritas, nunca um icone.
 2. **Zero contador.** Nada de "N ativas", numerozinho em chip, "n/total" nem selo numerico em aba. Isto SUBSTITUI os contadores n/total e os selos de aba do Padrao 37 e a contagem do Padrao 38. Tambem nao exibir `#id` nem LED de status em cartao.
 3. **Dado = `JanelaDado`.** Janela Concava com rotulo escrito (9px maiusculo) numa coluna fixa de 6,25rem + valor; todos os rotulos ficam na mesma linha vertical imaginaria. Mostrar so os dados que existem.
 4. **Titulo = `PlacaTitulo`.** Placa Saliente de largura unica (18rem), texto maiusculo, sem icone, sem clique. `PlacaSecao` = placa + linha fina + dica escrita opcional.
-5. **Grupo (cidade, empresa) = `BarraGrupo`.** Faixa unica e contigua: placa do titulo a esquerda + barra Saliente horizontal + controle `+`/`−` no extremo direito. Fechado ou pressionado = afundado (insert bevel). A barra toda e o botao (`aria-expanded`). Corpo abre/fecha com `SanfonaVertical`.
+5. **Grupo (cidade, empresa, painel recolhivel) = `BarraGrupo`.** UMA peca Saliente so, sem divisoes internas: titulo a esquerda e `+`/`−` no extremo direito; a barra inteira e o botao (`aria-expanded`). Fechado ou pressionado = afundado (insert bevel). Painel recolhivel (ex.: Codigos das empresas) usa a MESMA barra, fica no fim da lista e leva uma frase escrita dizendo para que serve. Corpo abre/fecha com `SanfonaVertical`.
 6. **Sem subdivisao de cidade.** Uma cidade e UM grupo (grade unica); nao criar placas de zona/bairro ("Centro") nem placa "Inativas": inativas ficam esmaecidas depois das ativas.
 7. **Selecao = insert bevel.** Aba ou botao escolhido fica AFUNDADO (gradiente claro, sombra interna forte, borda dourada) e NUNCA troca para azul/navy (`.empresa-aba` em index.css). Escolha de classificacao continua afundada em ouro (`.pax-escolha`).
 8. **Interruptor = `ChaveOuro`.** Trilho dourado quando ligado (igual ao toggle "liberado" da Governanca); substitui o `Switch` azul nas telas de Empresas e Locais. Item protegido (Instituto Padua) fica desabilitado, com explicacao em `title`, sem cadeado.

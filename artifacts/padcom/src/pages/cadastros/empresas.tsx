@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Building2, Loader2, Minus, Plus, FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
+  Loader2, Minus, Plus, FileText, Upload, ExternalLink, X, FolderSearch, Check, AlertCircle,
 } from "lucide-react";
 import { TrilhoAbas, type ItemTrilho } from "@/components/ui/trilho-abas";
 import { PlacaSecao } from "@/components/ui/placa-secao";
@@ -327,6 +327,11 @@ function TrilhoEmpresa() {
 
 // ── Card da empresa ────────────────────────────────────────────────────────────
 /** Logotipo REAL da empresa numa janelinha de vidro. Sem símbolo real (o de exemplo não vale), mostra um ícone neutro. */
+/** Iniciais do nome (sem a palavra "Instituto"), usadas enquanto a empresa não tem logotipo real. */
+function iniciais(nome: string): string {
+  const palavras = nome.split(/\s+/).filter((p) => p && p.toLowerCase() !== "instituto");
+  return (palavras.length ? palavras : nome.split(/\s+/)).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
+}
 function LogoEmpresa({ empresaId, nome }: { empresaId: number; nome: string }) {
   const { data: url } = useQuery<string | null>({
     queryKey: ["empresa-simbolo", empresaId],
@@ -339,7 +344,7 @@ function LogoEmpresa({ empresaId, nome }: { empresaId: number; nome: string }) {
   });
   return (
     <div className="vidro-logo" data-testid={`empresa-logo-${empresaId}`} data-com-logo={url ? "sim" : "nao"}>
-      {url ? <img src={url} alt={`Logotipo de ${nome}`} /> : <Building2 className="relative h-7 w-7 text-primary/40" aria-hidden />}
+      {url ? <img src={url} alt={`Logotipo de ${nome}`} /> : <span className="iniciais" title="Logotipo ainda não cadastrado">{iniciais(nome)}</span>}
     </div>
   );
 }
@@ -1142,6 +1147,7 @@ export default function CadastroEmpresas() {
     });
   }, [empresas, mostrarInativas]);
 
+  const [codigosAberto, setCodigosAberto] = useState(false);
   const todasAbertas = grupos.every((g) => !fechados.has(g.chave));
 
   // ── Navegação profunda: /cadastros/empresas?empresa=ID&aba=marca-documento ──
@@ -1193,11 +1199,6 @@ export default function CadastroEmpresas() {
           </div>
         </div>
 
-        <details className="panel-3d-sub p-4">
-          <summary className="cursor-pointer list-none"><PlacaTitulo titulo="Códigos das empresas" /></summary>
-          <div className="mt-4"><SemanticCodeManager /></div>
-        </details>
-
         {/* Grade de cards — agrupamento geográfico data-bound */}
         {isLoading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -1229,6 +1230,15 @@ export default function CadastroEmpresas() {
             ))}
           </div>
         )}
+
+        {/* Códigos internos: fica no fim da lista, fechado, com explicação escrita */}
+        <div className="space-y-2 pt-2" data-testid="empresas-codigos">
+          <BarraGrupo titulo="Códigos das empresas" aberto={codigosAberto} onAlternar={() => setCodigosAberto((v) => !v)} testIdControle="empresas-codigos-toggle" />
+          <p className="text-[11px] text-muted-foreground">Códigos internos que identificam cada empresa e cada local nos registros do sistema. Clique na barra para abrir ou fechar.</p>
+          <SanfonaVertical aberta={codigosAberto}>
+            <div className="panel-3d-sub p-4"><SemanticCodeManager /></div>
+          </SanfonaVertical>
+        </div>
       </div>
 
       {/* Painel lateral de equipe */}
