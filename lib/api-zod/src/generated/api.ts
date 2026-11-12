@@ -6717,6 +6717,32 @@ export const ReplaceAgendaWindowsResponse = zod.array(
 );
 
 /**
+ * @summary Occupancy per agenda in a period (occupied slots / planned slots)
+ */
+export const getAgendaOcupacaoQueryDeRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getAgendaOcupacaoQueryAteRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
+export const GetAgendaOcupacaoQueryParams = zod.object({
+  de: zod.coerce.string().regex(getAgendaOcupacaoQueryDeRegExp),
+  ate: zod.coerce.string().regex(getAgendaOcupacaoQueryAteRegExp),
+});
+
+export const GetAgendaOcupacaoResponseItem = zod.object({
+  resourceId: zod.number(),
+  capacidade: zod.number().describe("Planned slots in the period"),
+  ocupadas: zod
+    .number()
+    .describe("Slots covered by system appointments inside the windows"),
+});
+export const GetAgendaOcupacaoResponse = zod.array(
+  GetAgendaOcupacaoResponseItem,
+);
+
+/**
  * @summary List agenda exceptions (holidays/blocks)
  */
 export const ListAgendaExceptionsResponseItem = zod.object({

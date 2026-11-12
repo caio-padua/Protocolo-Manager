@@ -57,6 +57,10 @@ async function base(page: Page) {
   await page.route("**/api/sessions*", (r) => r.fulfill(json(SESSOES)));
   await page.route("**/api/agenda/resources*", (r) => r.fulfill(json(RECURSOS)));
   await page.route("**/api/agenda/google-compromissos?*", (r) => r.fulfill(json(GOOGLE)));
+  await page.route("**/api/agenda/ocupacao*", (r) => r.fulfill(json([
+    { resourceId: 22, capacidade: 6, ocupadas: 4 }, { resourceId: 24, capacidade: 6, ocupadas: 6 }, { resourceId: 23, capacidade: 8, ocupadas: 0 },
+    { resourceId: 29, capacidade: 0, ocupadas: 0 },
+  ])));
 }
 
 test("grupos por categoria cobrem TODAS as agendas, inclusive as sem atendimento no período", async ({ page }) => {
@@ -90,7 +94,7 @@ test("só esta, clicar de novo restaura, valendo para sessão e Google; banner d
   await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
   await expect(linha.getByTestId("evento-gg:2")).toHaveCount(0);
   await expect(linha.getByTestId("evento-gg:3")).toHaveCount(0);
-  await expect(filtro.getByTestId("filtro-agendas-ocultas")).toContainText("5 agendas ocultas");
+  await expect(filtro.getByTestId("filtro-agendas-ocultas")).toContainText("5");
   await filtro.getByTestId("so-esta-r22").click();
   await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
   await expect(linha.getByTestId("evento-s2")).toBeVisible();
@@ -173,7 +177,17 @@ test("barra contínua: chips ligam e desligam, dois cliques = só esta, e o + ab
   await expect(filtro.getByTestId("agendas-faixa")).toBeVisible();
   await expect(filtro.getByTestId("filtro-agendas-gaveta")).toHaveCount(0);
   const faixa = (await filtro.getByTestId("agendas-faixa").boundingBox())!;
-  expect(faixa.height).toBeLessThan(50); // uma linha só
+  expect(faixa.height).toBeLessThan(100); // uma faixa só (barrinha de ocupação + botão de 2 linhas)
+  // botão de duas linhas (equipe + agenda) e barrinha "OCUPADO 4/6" em relevo acima dele
+  await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("Agenda médico");
+  await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("MEDICO - SEDE");
+  await expect(filtro.getByTestId("chip-agenda-r23")).toContainText("Agenda enfermagem");
+  await expect(filtro.getByTestId("ocupacao-r22")).toContainText("Ocupado", { ignoreCase: true });
+  await expect(filtro.getByTestId("ocupacao-r22")).toContainText("4/6");
+  await expect(filtro.getByTestId("ocupacao-r24")).toHaveAttribute("data-cheia", "sim");
+  await expect(filtro.getByTestId("ocupacao-r29")).toContainText("SEM VAGAS");
+  await expect(filtro.getByTestId("ocupacao-g30")).toContainText("SOMENTE LEITURA");
+  await page.screenshot({ path: "generated-artifacts/agenda-chips-ocupacao.png", clip: { x: 182, y: 0, width: 1258, height: 200 } });
   await filtro.getByTestId("chip-agenda-r23").click();
   await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
   await expect(filtro.getByTestId("chip-agenda-r23")).toHaveAttribute("aria-checked", "false");

@@ -1024,6 +1024,14 @@ export interface ReplaceAgendaWindowsBody {
   expectedWindows?: AgendaWindowInput[];
 }
 
+export interface AgendaOcupacao {
+  resourceId: number;
+  /** Planned slots in the period */
+  capacidade: number;
+  /** Slots covered by system appointments inside the windows */
+  ocupadas: number;
+}
+
 export interface AgendaException {
   id: number;
   resourceId?: number | null;
@@ -3911,6 +3919,17 @@ export type DeleteAnamnesePergunta200 = {
 export type ListBudgetsParams = {
   clientId?: number;
   status?: string;
+};
+
+export type GetAgendaOcupacaoParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  de: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  ate: string;
 };
 
 export type GetGoogleAgendaCommitmentsParams = {

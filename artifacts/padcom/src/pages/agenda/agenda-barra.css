@@ -48,29 +48,54 @@
 /* ── Barra de agendas: uma faixa contínua, rolável de lado, com + e − na ponta ───────────────────────────── */
 .ag-faixa { position: relative; display: flex; align-items: stretch; gap: 0.4rem; }
 .ag-trilho {
-  display: flex; min-width: 0; flex: 1; align-items: stretch; overflow-x: auto; scrollbar-width: none;
-  border-radius: 6px;
+  display: flex; min-width: 0; flex: 1; align-items: stretch; gap: 0.3rem; overflow-x: auto; scrollbar-width: none;
+  border-radius: 6px; padding: 0.3rem 0.4rem 0.4rem;
 }
 .ag-trilho::-webkit-scrollbar { display: none; }
-.ag-rotulo-grupo {
-  display: flex; flex: none; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-items: center; padding: 0 0.55rem 0 0.7rem; font-size: 0.55rem; font-weight: 900;
-  letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.55; border-left: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+/* Grupos da mesma equipe ficam juntos; uma linha fina separa as equipes. */
+.ag-grupo-faixa { display: flex; flex: none; gap: 0.3rem; padding-left: 0.3rem; border-left: 1px solid color-mix(in srgb, currentColor 16%, transparent); }
+.ag-grupo-faixa:first-child { padding-left: 0; border-left: 0; }
+.ag-cel { --ev: #64748b; display: flex; flex: none; flex-direction: column; gap: 0.25rem; width: 9.75rem; }
+@media (min-width: 1024px) { .ag-cel { width: 11rem; } }
+
+/* Barrinha em relevo: OCUPADO 4/6 */
+.ag-ocup {
+  display: flex; align-items: center; gap: 0.4rem; height: 1.2rem; padding: 0 0.45rem; border-radius: 4px;
+  font-size: 0.5rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -2px 4px rgba(0,53,58,0.13), 0 3px 6px -3px rgba(7,22,43,0.4);
 }
-.ag-rotulo-grupo:first-child { border-left: 0; }
+.ag-ocup-rotulo { opacity: 0.6; overflow: hidden; text-overflow: ellipsis; }
+.ag-ocup-trilho {
+  position: relative; flex: 1; height: 5px; min-width: 1rem; border-radius: 5px; overflow: hidden;
+  background: color-mix(in srgb, currentColor 14%, transparent); box-shadow: inset 0 1px 2px rgba(7,22,43,0.3);
+}
+.ag-ocup-nivel {
+  position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: var(--ev);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55); transition: width 0.35s ease;
+}
+.ag-ocup[data-cheia="sim"] .ag-ocup-nivel { background: #b45309; }
+.ag-ocup-n { font-family: var(--app-font-serif, "EB Garamond", serif); font-size: 0.78rem; font-weight: 800; letter-spacing: 0; line-height: 1; font-variant-numeric: tabular-nums; }
+.ag-ocup-n i { font-style: normal; opacity: 0.55; font-size: 0.66rem; }
+
+/* Botão retangular da agenda, em relevo (ligada) ou afundado (desligada): linha de cima = equipe, de baixo = agenda */
 .ag-chip {
-  --ev: #64748b; position: relative; display: flex; flex: none; max-width: 13rem; height: 2.1rem; align-items: center; gap: 0.4rem;
-  border: 0; border-left: 3px solid var(--ev); padding: 0 0.7rem 0 0.55rem; background: color-mix(in srgb, var(--ev) 15%, transparent); color: inherit;
-  font-size: 0.64rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer;
-  box-shadow: inset -1px 0 0 color-mix(in srgb, currentColor 10%, transparent); transition: background-color 0.15s ease, opacity 0.15s ease;
+  position: relative; display: flex; flex-direction: column; justify-content: center; gap: 0.12rem; width: 100%; height: 2.7rem;
+  padding: 0 0.6rem 0 0.7rem; text-align: left; color: inherit; cursor: pointer; border-left: 4px solid var(--ev);
+  transition: opacity 0.15s ease;
 }
-.ag-chip:hover { background: color-mix(in srgb, var(--ev) 26%, transparent); }
-.ag-chip:focus-visible { outline: 2px solid var(--ev); outline-offset: -2px; z-index: 1; }
-.ag-chip[aria-checked="false"] { background: transparent; border-left-style: dashed; opacity: 0.55; }
+.ag-chip:hover { filter: brightness(1.03); }
+.ag-chip:focus-visible { outline: 2px solid var(--ev); outline-offset: 2px; z-index: 1; }
+.ag-chip[aria-checked="false"] { opacity: 0.6; border-left-style: dashed; }
 .ag-chip[aria-checked="false"]:hover { opacity: 0.9; }
-.ag-chip-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-chip-n { font-variant-numeric: tabular-nums; opacity: 0.6; font-size: 0.58rem; }
-.ag-chip-cad { height: 0.6rem; width: 0.6rem; opacity: 0.6; flex: none; }
+.ag-chip-equipe { font-size: 0.5rem; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-chip-nome {
+  display: flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-chip-cad { height: 0.65rem; width: 0.65rem; opacity: 0.6; flex: none; }
 .ag-ponta { display: flex; flex: none; align-items: center; gap: 0.4rem; }
+.ag-ocultas { display: flex; flex: none; width: 4.4rem; align-items: center; justify-content: flex-end; gap: 0.3rem; font-size: 0.7rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.ag-ocultas-btn { display: flex; height: 1.75rem; width: 1.75rem; align-items: center; justify-content: center; border-radius: 4px; }
 .ag-resumo { font-size: 0.6rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.65; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ag-maxmin { display: flex; height: 2.1rem; width: 2.1rem; align-items: center; justify-content: center; border-radius: 4px; }
 .ag-gaveta {
@@ -88,4 +113,4 @@
 .ag-rapido-linha > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ag-rapido-titulo { font-size: 0.55rem; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.55; }
 .ag-rapido-pe { border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); padding: 0.3rem 0.75rem; font-size: 0.58rem; font-weight: 700; opacity: 0.55; }
-@media (prefers-reduced-motion: reduce) { .ag-chip, .ag-rapido { transition: none; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ag-chip, .ag-rapido, .ag-ocup-nivel { transition: none; animation: none; } }

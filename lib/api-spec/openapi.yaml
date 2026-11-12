@@ -3109,6 +3109,29 @@ paths:
                 items:
                   $ref: "#/components/schemas/AgendaWindow"
 
+  /agenda/ocupacao:
+    get:
+      operationId: getAgendaOcupacao
+      tags: [agenda]
+      summary: Occupancy per agenda in a period (occupied slots / planned slots)
+      parameters:
+        - name: de
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        - name: ate
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      responses:
+        "200":
+          description: One entry per active agenda of the clinic
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaOcupacao"
   /agenda/exceptions:
     get:
       operationId: listAgendaExceptions
@@ -4894,6 +4917,13 @@ components:
           items:
             $ref: "#/components/schemas/AgendaWindowInput"
 
+    AgendaOcupacao:
+      type: object
+      required: [resourceId, capacidade, ocupadas]
+      properties:
+        resourceId: { type: integer }
+        capacidade: { type: integer, description: "Planned slots in the period" }
+        ocupadas: { type: integer, description: "Slots covered by system appointments inside the windows" }
     AgendaException:
       type: object
       required: [id, date, kind]

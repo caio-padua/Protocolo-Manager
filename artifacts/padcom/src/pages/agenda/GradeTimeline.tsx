@@ -306,7 +306,7 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
       )}
 
       {/* A grade */}
-      <div ref={rolagem} className="relative max-h-[calc(100dvh-12.5rem)] min-h-[22rem] overflow-auto rounded-[6px]" data-testid="tl-rolagem">
+      <div ref={rolagem} className="relative max-h-[calc(100dvh-15rem)] min-h-[22rem] overflow-auto rounded-[6px]" data-testid="tl-rolagem">
         <div className="grid" style={{ gridTemplateColumns: colunasGrid, minWidth: modo === "dia" ? undefined : `${3.25 + dias.length * 7.5}rem`, ["--tl-hora" as string]: `${horaPx}px` }}>
           {/* Cabeçalho fixo: dia e compromissos de dia inteiro */}
           <div className="sticky top-0 z-20 border-b border-muted/30 bg-background" />

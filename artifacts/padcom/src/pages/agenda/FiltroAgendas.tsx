@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Eye, EyeOff, Lock, Minus, Plus } from "lucide-react";
-import { useListAgendaResources } from "@workspace/api-client-react";
+import { useGetAgendaOcupacao, useListAgendaResources } from "@workspace/api-client-react";
 import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
 import { rotuloDaForma } from "@/lib/agenda-forma";
 import { useGoogleCompromissos } from "./useGoogleCompromissos";
 import { corSegura } from "./timeline-logica";
 import {
-  alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, quantasOcultas, soEstaAgenda, todasAsChaves,
+  alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
   type AgendaDoFiltro,
 } from "./filtro-agendas";
 
@@ -24,6 +24,11 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
 }) {
   const recursos = useListAgendaResources(agendaResourcesFrescas);
   const google = useGoogleCompromissos(de, ate);
+  const ocupacao = useGetAgendaOcupacao({ de, ate });
+  const refazerOcupacao = ocupacao.refetch;
+  // Marcar, remarcar ou cancelar muda a lista de atendimentos do período: a barrinha acompanha.
+  useEffect(() => { void refazerOcupacao(); }, [sessoes.length, refazerOcupacao]);
+  const ocupacaoPorChave = useMemo(() => new Map((ocupacao.data ?? []).map((o) => [`r${o.resourceId}`, o])), [ocupacao.data]);
   const [recolhidos, setRecolhidos] = useState<ReadonlySet<string>>(new Set());
   const [painelAberto, setPainelAberto] = useState(false); // nasce como barra estreita (tela e celular); o + abre o painel por grupo
 
@@ -55,23 +60,28 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
         ) : (
           <div className="ag-trilho concave-3d" role="group" aria-label="Agendas exibidas" data-testid="agendas-faixa">
             {grupos.map((g) => (
-              <div key={g.categoria} className="flex flex-none items-stretch" role="presentation">
-                <span className="ag-rotulo-grupo">{g.categoria}</span>
+              <div key={g.categoria} className="ag-grupo-faixa" role="presentation">
                 {g.agendas.map((a) => {
                   const marcada = !ocultas.has(a.chave);
                   const soEsta = marcada && todas.filter((c) => c !== a.chave).every((c) => ocultas.has(c));
                   const detalhe = [a.forma ? rotuloDaForma(a.forma) : null, `${a.sessoes} atend.`, a.google > 0 ? `${a.google} Google` : a.somenteGoogle ? "Google" : null]
                     .filter(Boolean).join(" · ");
+                  const o = ocupacaoPorChave.get(a.chave);
                   return (
-                    <button key={a.chave} type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
-                      onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
-                      onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
-                      title={`${a.nome} · ${detalhe}\nClique para mostrar ou esconder. Dois cliques: só esta agenda.`}
-                      className="ag-chip" style={{ ["--ev" as string]: corSegura(a.cor) }}>
-                      <span className="ag-chip-nome">{a.nome}</span>
-                      {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
-                      <span className="ag-chip-n" aria-hidden>{a.sessoes + a.google}</span>
-                    </button>
+                    <div key={a.chave} className="ag-cel" style={{ ["--ev" as string]: corSegura(a.cor) }}>
+                      <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
+                      <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
+                        onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
+                        onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
+                        title={`${rotuloDaEquipe(g.categoria)} · ${a.nome} · ${detalhe}\nClique para mostrar ou esconder. Dois cliques: só esta agenda.`}
+                        className={`${marcada ? "bevel-3d" : "concave-3d"} ag-chip`}>
+                        <span className="ag-chip-equipe">{rotuloDaEquipe(g.categoria)}</span>
+                        <span className="ag-chip-nome">
+                          {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
+                          {a.nome}
+                        </span>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -80,12 +90,15 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
           </div>
         )}
         <div className="ag-ponta">
-          {nOcultas > 0 && (
-            <span role="status" className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-black uppercase tracking-widest text-amber-700" data-testid="filtro-agendas-ocultas">
-              <EyeOff className="h-3.5 w-3.5" aria-hidden />{nOcultas} <span className="max-sm:sr-only">{nOcultas === 1 ? "agenda oculta" : "agendas ocultas"}</span>
-              <button type="button" onClick={() => onChange(mostrarTodas())} className="btn-3d-soft min-h-7 px-2 text-[10px]">Mostrar todas</button>
+          {/* Espaço FIXO: aparecer ou sumir o aviso nunca desloca as agendas (o clique seguinte cai no mesmo lugar). */}
+          {nOcultas > 0 ? (
+            <span role="status" className="ag-ocultas text-amber-700" data-testid="filtro-agendas-ocultas">
+              <EyeOff className="h-3.5 w-3.5" aria-hidden />{nOcultas} <span className="sr-only">{nOcultas === 1 ? "agenda oculta" : "agendas ocultas"}</span>
+              <button type="button" onClick={() => onChange(mostrarTodas())} className="btn-3d-soft ag-ocultas-btn" aria-label="Mostrar todas as agendas" title="Mostrar todas as agendas">
+                <Eye className="h-3.5 w-3.5" aria-hidden />
+              </button>
             </span>
-          )}
+          ) : <span className="ag-ocultas" aria-hidden />}
           <span className="ag-resumo" data-testid="filtro-agendas-resumo">{todas.length - nOcultas} de {todas.length}</span>
           <button type="button" aria-expanded={painelAberto} onClick={() => setPainelAberto((v) => !v)} data-testid="filtro-agendas-recolher"
             aria-label={painelAberto ? "Minimizar agendas" : "Maximizar agendas"} title={painelAberto ? "Minimizar: voltar para a barra" : "Maximizar: ver agendas por grupo, com “Só esta”"}
@@ -160,6 +173,28 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
         </p>
       )}
     </section>
+  );
+}
+
+/** Barrinha em relevo acima do botão da agenda: "OCUPADO 4/6" (vagas ocupadas / vagas previstas no período exibido). */
+function OcupacaoDaAgenda({ o, carregando, falhou, somenteGoogle, chave }: {
+  o?: { capacidade: number; ocupadas: number }; carregando: boolean; falhou: boolean; somenteGoogle: boolean; chave: string;
+}) {
+  const sem = !o || o.capacidade === 0;
+  const pct = o && o.capacidade > 0 ? Math.round((o.ocupadas / o.capacidade) * 100) : 0;
+  const texto = somenteGoogle ? "SOMENTE LEITURA" : carregando ? "…" : falhou ? "INDISPONÍVEL" : sem ? "SEM VAGAS NO PERÍODO" : null;
+  return (
+    <div className="ag-ocup bevel-3d" data-testid={`ocupacao-${chave}`} data-cheia={pct >= 100 ? "sim" : "nao"}
+      role="img" aria-label={texto ?? `${o!.ocupadas} de ${o!.capacidade} vagas ocupadas no período`}
+      title={texto ?? `${o!.ocupadas} de ${o!.capacidade} vagas ocupadas no período exibido (${pct}%)`}>
+      {texto ? <span className="ag-ocup-rotulo">{texto}</span> : (
+        <>
+          <span className="ag-ocup-rotulo">Ocupado</span>
+          <span className="ag-ocup-trilho" aria-hidden><span className="ag-ocup-nivel" style={{ width: `${Math.min(100, pct)}%` }} /></span>
+          <span className="ag-ocup-n">{o!.ocupadas}<i>/{o!.capacidade}</i></span>
+        </>
+      )}
+    </div>
   );
 }
 

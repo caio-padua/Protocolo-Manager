@@ -25,6 +25,7 @@ import type {
   AgendaEncaixeResposta,
   AgendaException,
   AgendaIntegrationState,
+  AgendaOcupacao,
   AgendaPersonalOwnerInput,
   AgendaReadSettingsInput,
   AgendaResource,
@@ -133,6 +134,7 @@ import type {
   FornecedorEntrada,
   GenerateProtocolICS200,
   GetAgendaEncaixeDisponibilidadeParams,
+  GetAgendaOcupacaoParams,
   GetAgendaSlotsParams,
   GetConciergeOfferParams,
   GetExamRequestHistoryParams,
@@ -13077,6 +13079,103 @@ export const useReplaceAgendaWindows = <
 > => {
   return useMutation(getReplaceAgendaWindowsMutationOptions(options));
 };
+
+/**
+ * @summary Occupancy per agenda in a period (occupied slots / planned slots)
+ */
+export const getGetAgendaOcupacaoUrl = (params: GetAgendaOcupacaoParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agenda/ocupacao?${stringifiedParams}`
+    : `/api/agenda/ocupacao`;
+};
+
+export const getAgendaOcupacao = async (
+  params: GetAgendaOcupacaoParams,
+  options?: RequestInit,
+): Promise<AgendaOcupacao[]> => {
+  return customFetch<AgendaOcupacao[]>(getGetAgendaOcupacaoUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgendaOcupacaoQueryKey = (
+  params?: GetAgendaOcupacaoParams,
+) => {
+  return [`/api/agenda/ocupacao`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAgendaOcupacaoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgendaOcupacao>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaOcupacaoParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaOcupacao>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAgendaOcupacaoQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgendaOcupacao>>
+  > = ({ signal }) => getAgendaOcupacao(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgendaOcupacao>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgendaOcupacaoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgendaOcupacao>>
+>;
+export type GetAgendaOcupacaoQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Occupancy per agenda in a period (occupied slots / planned slots)
+ */
+
+export function useGetAgendaOcupacao<
+  TData = Awaited<ReturnType<typeof getAgendaOcupacao>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetAgendaOcupacaoParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgendaOcupacao>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgendaOcupacaoQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List agenda exceptions (holidays/blocks)

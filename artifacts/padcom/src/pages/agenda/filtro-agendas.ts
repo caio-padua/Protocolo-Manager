@@ -9,6 +9,19 @@ export const SEM_CATEGORIA = "Sem categoria";
 export const CATEGORIA_SO_GOOGLE = "Só no Google (somente leitura)";
 export const CHAVE_SESSAO_SEM_AGENDA = "r-sem";
 
+/** Linha de cima do botão da agenda: a equipe da agenda, no jeito que a clínica fala ("Agenda médico"). Só apresentação. */
+const EQUIPES: Record<string, string> = {
+  medicina: "Agenda médico", medico: "Agenda médico", medicos: "Agenda médico",
+  enfermagem: "Agenda enfermagem",
+  biomedicina: "Agenda biomédico", biomedico: "Agenda biomédico", biomedicos: "Agenda biomédico",
+};
+export function rotuloDaEquipe(categoria: string): string {
+  if (categoria === CATEGORIA_SO_GOOGLE) return "Só no Google";
+  if (categoria === SEM_CATEGORIA) return "Agenda";
+  const chave = categoria.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  return EQUIPES[chave] ?? `Agenda ${categoria.trim().toLowerCase()}`;
+}
+
 export const chaveDaAgenda = (id: number) => `r${id}`;
 export const chaveDaSessao = (s: { resourceId?: number | null }) => (s.resourceId ? chaveDaAgenda(s.resourceId) : CHAVE_SESSAO_SEM_AGENDA);
 export const chaveDoCompromisso = (e: { agendaId: number; agendaRecursoId?: number | null }) =>
