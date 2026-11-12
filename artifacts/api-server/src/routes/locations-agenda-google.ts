@@ -25,7 +25,7 @@ function papelSugerido(nome: string): Papel | null {
   if (n.endsWith("- LOCAL") || n.endsWith("- SEDE")) return "local";
   // Os calendarios do Google podem terminar em "- REMOTO", "- ONLINE" ou "- ON LINE"; o papel gravado e sempre "online".
   if (n.endsWith("- REMOTO") || n.endsWith("- ONLINE") || n.endsWith("- ON LINE")) return "online";
-  if (n.endsWith("- EXTERNO") || n.endsWith("- OUTRO LOCAL")) return "externo";
+  if (n.endsWith("- EXTERNO") || n.endsWith("- LOCAL EXTERNO") || n.endsWith("- OUTRO LOCAL")) return "externo";
   if (n.endsWith("- HOME CARE")) return "home_care";
   if (n.startsWith("AGENDA PESSOAL")) return "pessoal";
   if (n.startsWith("AGENDA GERAL")) return "geral";

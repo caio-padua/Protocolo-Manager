@@ -31,7 +31,7 @@ router.use(agendaWriteGuard);
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-// Valores gravados: local = SEDE, externo = OUTRO LOCAL (outro endereço físico), online = ONLINE, home_care = HOME CARE
+// Valores gravados: local = SEDE, externo = LOCAL EXTERNO (outro endereço físico), online = ONLINE, home_care = HOME CARE
 // (endereço do paciente, definido por visita). "domiciliar" é legado e não se mistura com home_care.
 const MODALITY = ["domiciliar", "local", "externo", "online", "home_care"] as const;
 const EXCEPTION_KIND = ["feriado", "bloqueio"] as const;

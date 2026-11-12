@@ -30,6 +30,9 @@ test("Agenda Configuração mostra 'Local externo' e não mostra 'Outro local'",
   await page.goto("/agenda/motor?agenda=25");
   await expect(page.getByText("Local externo", { exact: false }).first()).toBeVisible({ timeout: 30_000 });
   expect(await page.getByText("Outro local (outro endereço)").count()).toBe(0);
+  // O nome da agenda (Título agenda) e o item da lista também seguem o novo nome.
+  await expect.poll(async () => (await page.locator("input").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value))).includes("AGENDA MEDICO - CAIO PADUA - LOCAL EXTERNO"), { timeout: 15_000 }).toBe(true);
+  expect(await page.getByText("OUTRO LOCAL", { exact: false }).count()).toBe(0);
   await page.screenshot({ path: "generated-artifacts/rotulo-local-externo-agenda.png" });
 });
 

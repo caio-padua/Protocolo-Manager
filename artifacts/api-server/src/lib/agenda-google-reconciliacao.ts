@@ -13,14 +13,14 @@ import { carregarCategorias, validarRecursoDeCategoria } from "./agenda-recurso-
 export type CalendarioGoogle = { id: string; nome: string; cor?: string | null; somenteLeitura?: boolean };
 
 export type Forma = "local" | "online" | "externo" | "home_care";
-export const ROTULO_FORMA: Record<Forma, string> = { local: "SEDE", online: "ON LINE", externo: "OUTRO LOCAL", home_care: "HOME CARE" };
+export const ROTULO_FORMA: Record<Forma, string> = { local: "SEDE", online: "ON LINE", externo: "LOCAL EXTERNO", home_care: "HOME CARE" };
 
 export const normalizarNome = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
 
 /** "AGENDA <MEDICO|ENFERMAGEM> [- PESSOA] - <FORMA>" -> partes; null quando o nome não segue o padrão de agenda de atendimento. */
 export function interpretarNome(nome: string): { grupo: "medicina" | "enfermagem"; prefixo: string; forma: Forma } | null {
   const n = normalizarNome(nome);
-  const m = n.match(/^(AGENDA (MEDICO|ENFERMAGEM)(?: - .+?)?) - (SEDE|LOCAL|ON ?LINE|REMOTO|OUTRO LOCAL|EXTERNO|HOME CARE)$/);
+  const m = n.match(/^(AGENDA (MEDICO|ENFERMAGEM)(?: - .+?)?) - (SEDE|LOCAL|ON ?LINE|REMOTO|LOCAL EXTERNO|OUTRO LOCAL|EXTERNO|HOME CARE)$/);
   if (!m) return null;
   const forma: Forma = m[3] === "SEDE" || m[3] === "LOCAL" ? "local"
     : /ON ?LINE|REMOTO/.test(m[3]) ? "online" : m[3] === "HOME CARE" ? "home_care" : "externo";
@@ -97,7 +97,7 @@ export async function planejarReconciliacao(empresaId: number, calendarios: Cale
     }
     if (!info) {
       itens.push({ acao: "relatar", googleCalendarId: cal.id, nome, motivo: "fora_do_padrao",
-        detalhe: 'O nome não segue "AGENDA MEDICO|ENFERMAGEM [- PESSOA] - SEDE|ON LINE|OUTRO LOCAL|HOME CARE"; nada foi criado.' });
+        detalhe: 'O nome não segue "AGENDA MEDICO|ENFERMAGEM [- PESSOA] - SEDE|ON LINE|LOCAL EXTERNO|HOME CARE"; nada foi criado.' });
       continue;
     }
     const mesmoNome = agendas.find((a) => a.empresaId === empresaId && !a.googleCalendarId && normalizarNome(a.name) === n);
