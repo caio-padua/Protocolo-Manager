@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 import { RescheduleDrawer } from "@/components/RescheduleDrawer";
 import { GoogleCommitments } from "./GoogleCommitments";
+import { GradeMesGoogle } from "./GradeMesGoogle";
 import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
 import { useGoogleRefreshCycle } from "./agenda-integration-api";
 
@@ -868,93 +869,19 @@ export default function Agenda() {
 
           {/* ═══ MODO MÊS ═══ */}
           {viewMode === "mes" && (() => {
-            // Gera grade: começa na segunda-feira da semana do 1º dia do mês
-            const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-            const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-            const allDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
-
             const activeDay = selectedDay ?? (isSameMonth(today, currentDate) ? today : null);
             const activeDayStr = activeDay ? format(activeDay, "yyyy-MM-dd") : null;
             const activeDaySessions = activeDayStr ? (sessionsByDate[activeDayStr] ?? []) : [];
 
-            const DAY_NAMES = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
             return (
-              <div className="space-y-4">
-                {/* Grade do calendário */}
-                <div className="panel-3d rounded-[6px] overflow-hidden">
-                  {/* Cabeçalho de dias */}
-                  <div className="grid grid-cols-7 border-b border-muted/20">
-                    {DAY_NAMES.map(d => (
-                      <div key={d} className="py-2 text-center text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
-                        {d}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Células do mês */}
-                  <div className="grid grid-cols-7">
-                    {allDays.map((day, idx) => {
-                      const dayStr = format(day, "yyyy-MM-dd");
-                      const daySessions = sessionsByDate[dayStr] ?? [];
-                      const isCurrentMonth = isSameMonth(day, currentDate);
-                      const isDayToday = isSameDay(day, today);
-                      const isSelected = activeDay ? isSameDay(day, activeDay) : false;
-                      const hasSessions = daySessions.length > 0;
-
-                      // dots por status (máx 4 visíveis)
-                      const dots = daySessions.slice(0, 4);
-
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setSelectedDay(isSameDay(day, activeDay ?? new Date(0)) ? null : day)}
-                          className={[
-                            "relative flex flex-col items-center py-2 px-1 min-h-[68px] transition-all border-b border-r border-muted/10 last:border-r-0",
-                            !isCurrentMonth ? "opacity-30" : "",
-                            isSelected ? "concave-3d" : hasSessions ? "hover:bg-accent/5 cursor-pointer" : "cursor-default",
-                            isDayToday ? "ring-inset ring-1 ring-accent/60" : "",
-                          ].join(" ")}
-                        >
-                          {/* Número do dia */}
-                          <span className={[
-                            "text-[13px] font-black tabular-nums leading-none mb-1",
-                            isDayToday ? "text-accent" : isSelected ? "text-primary" : isCurrentMonth ? "text-foreground" : "text-muted-foreground",
-                          ].join(" ")}>
-                            {format(day, "d")}
-                          </span>
-
-                          {/* Dots de sessão */}
-                          {hasSessions && (
-                            <div className="flex flex-wrap justify-center gap-[3px] mt-0.5">
-                              {dots.map((s, i) => (
-                                <span
-                                  key={i}
-                                  className="h-1.5 w-1.5 rounded-full"
-                                  style={{ backgroundColor: STATUS_DOT_COLOR[s.status] ?? "#45B8CC" }}
-                                />
-                              ))}
-                              {daySessions.length > 4 && (
-                                <span className="text-[8px] font-black text-muted-foreground leading-none mt-px">
-                                  +{daySessions.length - 4}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Contagem total */}
-                          {hasSessions && (
-                            <span className="absolute bottom-1 right-1.5 text-[9px] font-black tabular-nums text-muted-foreground/50">
-                              {daySessions.length}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
+              <GradeMesGoogle
+                currentDate={currentDate}
+                today={today}
+                sessionsByDate={sessionsByDate}
+                selectedDay={selectedDay}
+                onSelectDay={setSelectedDay}
+                statusColor={STATUS_DOT_COLOR}
+              >
                 {/* Legenda de cores */}
                 <div className="flex items-center gap-4 flex-wrap px-1">
                   {Object.entries(STATUS_DOT_COLOR).map(([status, color]) => (
@@ -1015,7 +942,7 @@ export default function Agenda() {
                     Clique em um dia para ver os atendimentos
                   </p>
                 )}
-              </div>
+              </GradeMesGoogle>
             );
           })()}
 

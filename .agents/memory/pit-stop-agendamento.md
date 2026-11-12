@@ -18,3 +18,5 @@ Referência permanente: `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` (glossár
 - Fábia (profissional 26, Home Nurse) é a preferida da agenda "AGENDA ENFERMAGEM - HOME CARE" (agenda sem local, modalidade home_care, sem janelas de horário — CEO define em Agenda Configuração). Não criar calendário Google manualmente.
 - Fixture do teste pit-stop precisa da tabela client_visit_preference_revisions (proporDatas e detalharPlano leem preferências).
 **Why:** Home Care exige agenda de categoria enfermagem modalidade home_care ativa; sem ela dá "sem_agenda_da_categoria".
+- CEO mandou tratar a Fábia (Home Nurse) como técnica E enfermeira: habilitacao_nivel gravado = 'enfermeiro' (campo aceita um valor só); exigeNivel='enfermeiro' do Pit Stop compara esse campo.
+- Mês da Agenda (padcom) = GradeMesGoogle: lista "Minhas agendas" + eventos dentro do dia; Google somente leitura (cadeado); sessões do PAXTER não carregam agenda/cor na API (só unit/profissional) — filtro por agenda vale só para Google.
