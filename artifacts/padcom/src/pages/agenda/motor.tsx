@@ -69,15 +69,9 @@ function classeDaCategoria(c: Pick<CategoriaOpcao, "slug" | "professionalType">)
 }
 // Papel gravado no registro do local (campo agenda_papel). Nada é deduzido do nome.
 const PAPEL_LABEL: Record<string, string> = {
-  local: "Sede", remoto: "Remoto", externo: "Externo", pessoal: "Pessoal", geral: "Geral",
+  local: "Sede", online: "Online", externo: "Outro local", pessoal: "Pessoal", geral: "Geral",
 };
-const PAPEIS_QUE_ATENDEM = ["local", "remoto", "externo"];
-const MODALITY_LABEL: Record<string, string> = {
-  domiciliar: "Domiciliar (legado)",
-  local: "Sede",
-  externo: "Externo",
-  online: "Remoto",
-};
+const PAPEIS_QUE_ATENDEM = ["local", "online", "externo"];
 const enderecoDoRecurso = (r: { externalAddress?: { cep: string; logradouro: string; bairro: string; cidade: string; uf: string; numero: string; complemento?: string | null } | null } | null | undefined): EnderecoExternoForm =>
   r?.externalAddress ? { ...r.externalAddress, complemento: r.externalAddress.complemento ?? "" } : ENDERECO_VAZIO;
 
@@ -145,7 +139,9 @@ export default function AgendaMotor() {
 
   useEffect(() => {
     if (resources && resources.length > 0 && selectedId === null) {
-      setSelectedId(resources[0].id);
+      // Link vindo do cadastro da empresa: /agenda/motor?agenda=ID abre essa agenda (se existir).
+      const pedido = Number(new URLSearchParams(window.location.search).get("agenda"));
+      setSelectedId(resources.find((r) => r.id === pedido)?.id ?? resources[0].id);
     }
   }, [resources, selectedId]);
 
@@ -173,7 +169,7 @@ export default function AgendaMotor() {
     () => (categoriasData ?? []).map((c) => ({ id: c.id, name: c.name, slug: c.slug ?? "", professionalType: c.professionalType })),
     [categoriasData],
   );
-  // Registros que podem ser o local de uma agenda: papel local, remoto ou externo (o servidor valida de novo).
+  // Registros que podem ser o local de uma agenda: papel local, online ou externo (o servidor valida de novo).
   const manageableAgendas = (integration.data?.agendas ?? []).filter(
     (a) => a.canManage && PAPEIS_QUE_ATENDEM.includes(a.role ?? ""),
   );
@@ -652,7 +648,7 @@ export default function AgendaMotor() {
           <ListaAgendas
             itens={listaAgendas.map((r) => ({
               id: r.id, name: r.name, color: r.color, categoryName: r.categoryName,
-              modalityLabel: MODALITY_LABEL[r.modality] ?? r.modality, sharing: r.sharing ?? "", active: r.active,
+              forma: r.modality, active: r.active,
             }))}
             selecionadaId={selectedId}
             onSelecionar={setSelectedId}
@@ -664,9 +660,9 @@ export default function AgendaMotor() {
             <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
               <Plus className="h-3.5 w-3.5" /> Nova agenda de atendimento
             </span>
-            <Campo titulo="Nome">
+            <Campo titulo="Título da agenda">
               <ComRegistro codigo="A1">
-                <Input className="field-engraved" placeholder="Nome" value={newRes.name}
+                <Input className="field-engraved" placeholder="Título da agenda" value={newRes.name}
                   onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))} />
               </ComRegistro>
             </Campo>
@@ -708,16 +704,16 @@ export default function AgendaMotor() {
                 Nenhum profissional ativo do Corpo Clínico tem esta categoria. A agenda pode ser criada sem profissional.
               </p>
             )}
-            <Campo titulo="Onde atende">
+            <Campo titulo="Forma de atendimento">
               <ComRegistro codigo="L1">
                 <Select value={newRes.modality} onValueChange={(v) => setNewRes((s) => ({ ...s, modality: v }))}>
-                  <SelectTrigger className="field-engraved" aria-label="Modalidade">
+                  <SelectTrigger className="field-engraved" aria-label="Forma de atendimento">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="local">Sede</SelectItem>
-                    <SelectItem value="externo">Externo (outro endereço)</SelectItem>
-                    <SelectItem value="online">Remoto</SelectItem>
+                    <SelectItem value="externo">Outro local (outro endereço)</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
                   </SelectContent>
                 </Select>
               </ComRegistro>
@@ -777,7 +773,7 @@ export default function AgendaMotor() {
             {resDraft ? (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Campo titulo="Nome" className="sm:col-span-2">
+                  <Campo titulo="Título da agenda" className="sm:col-span-2">
                     <ComRegistro codigo="A1" nota={`id ${selected?.id}`}>
                       <Input className="field-engraved" value={resDraft.name}
                         onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))} />
@@ -812,7 +808,7 @@ export default function AgendaMotor() {
                       </Select>
                     </ComRegistro>
                   </Campo>
-                  <Campo titulo="Modalidade" className="sm:col-span-2">
+                  <Campo titulo="Forma de atendimento" className="sm:col-span-2">
                     <ComRegistro codigo="L1">
                       <Select value={resDraft.modality} onValueChange={(v) => setResDraft((d) => (d ? { ...d, modality: v } : d))}>
                         <SelectTrigger className="field-engraved">
@@ -820,8 +816,8 @@ export default function AgendaMotor() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="local">Sede</SelectItem>
-                          <SelectItem value="externo">Externo (outro endereço)</SelectItem>
-                          <SelectItem value="online">Remoto</SelectItem>
+                          <SelectItem value="externo">Outro local (outro endereço)</SelectItem>
+                          <SelectItem value="online">Online</SelectItem>
                           {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (
                             <SelectItem value="domiciliar">Domiciliar (legado)</SelectItem>
                           )}

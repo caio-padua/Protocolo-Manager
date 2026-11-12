@@ -16,14 +16,15 @@ router.use("/locations/:id/agenda-google", requireCollaborator, async (req,res,n
   next();
 });
 
-const PAPEIS = ["local", "remoto", "externo", "pessoal", "geral"] as const;
+const PAPEIS = ["local", "online", "externo", "pessoal", "geral"] as const;
 type Papel = (typeof PAPEIS)[number];
 const LIMITE_ICS_BYTES = 10 * 1024 * 1024;
 
 function papelSugerido(nome: string): Papel | null {
   const n = nome.toUpperCase().trim();
   if (n.endsWith("- LOCAL")) return "local";
-  if (n.endsWith("- REMOTO")) return "remoto";
+  // Os calendarios do Google ainda podem terminar em "- REMOTO"; o papel gravado e sempre "online".
+  if (n.endsWith("- REMOTO") || n.endsWith("- ONLINE")) return "online";
   if (n.endsWith("- EXTERNO")) return "externo";
   if (n.startsWith("AGENDA PESSOAL")) return "pessoal";
   if (n.startsWith("AGENDA GERAL")) return "geral";
@@ -94,7 +95,7 @@ router.post("/locations/:id/agenda-google/vincular", requireCollaborator, async 
   const papel = req.body?.papel === null || req.body?.papel === "" ? null : String(req.body?.papel ?? "");
   if (!googleCalendarId) { res.status(400).json({ error: "googleCalendarId é obrigatório." }); return; }
   if (papel !== null && !(PAPEIS as readonly string[]).includes(papel)) {
-    res.status(422).json({ error: "Papel deve ser local, remoto, externo, pessoal ou geral." });
+    res.status(422).json({ error: "Papel deve ser local, online, externo, pessoal ou geral." });
     return;
   }
   try {

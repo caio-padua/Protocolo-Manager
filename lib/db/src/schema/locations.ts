@@ -40,7 +40,7 @@ export const locationsTable = pgTable("locations", {
   modalidade: text("modalidade"),
   // Presencial no MESMO endereco da empresa (sede). Quando true, o endereco vem da empresa.
   mesmoEnderecoEmpresa: boolean("mesmo_endereco_empresa").notNull().default(false),
-  // Papel da agenda Google: local | remoto | externo | pessoal | geral (ALTER TABLE).
+  // Papel da agenda Google: local | online | externo | pessoal | geral (ALTER TABLE).
   agendaPapel: text("agenda_papel"),
   // Texto livre: "E online", "Sala 706 da East Clinic, sublocada por hora"...
   observacaoLocal: text("observacao_local"),

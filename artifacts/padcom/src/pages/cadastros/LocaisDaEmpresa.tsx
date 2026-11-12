@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useListAgendaResources } from "@workspace/api-client-react";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
+import { CartaoAgenda } from "@/components/CartaoAgenda";
 import { collabAuthHeaders, getCollabProfessional } from "@/lib/collab-auth";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
@@ -18,6 +21,7 @@ interface EmpresaVisivel {
 
 export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
   const professionalId = getCollabProfessional()?.id ?? null;
+  const agendasQ = useListAgendaResources();
   const consulta = useQuery({
     queryKey: ["empresas-locais-confirmados", professionalId],
     retry: false,
@@ -36,7 +40,7 @@ export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
     },
   });
 
-  if (consulta.isLoading) return <p role="status" className="text-xs flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Consultando locais...</p>;
+  if (consulta.isLoading || agendasQ.isLoading) return <p role="status" className="text-xs flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Consultando locais...</p>;
   if (consulta.isError || !consulta.data) return (
     <div role="alert" className="text-xs space-y-2">
       <p>Não foi possível consultar os locais desta empresa.</p>
@@ -47,21 +51,51 @@ export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
     return <p className="text-xs text-muted-foreground">Vínculos indisponíveis para esta empresa ou para sua sessão.</p>;
   }
   const locais = consulta.data.locais.filter((local) => local.empresaId === empresaId);
-  if (locais.length === 0) return <p className="text-xs text-muted-foreground">Nenhum local vinculado encontrado.</p>;
+  const idsLocais = new Set(locais.map((l) => l.locationId));
+  // Agendas de atendimento da empresa: o mesmo cartao da Agenda Configuracao. O local ligado a elas
+  // nao reaparece na lista de locais abaixo (um registro, uma apresentacao).
+  const agendas = (agendasQ.data ?? []).filter((r) => r.empresaId === empresaId || (r.locationId != null && idsLocais.has(r.locationId)));
+  const idsLigados = new Set(agendas.map((r) => r.locationId).filter((v): v is number => v != null));
+  const locaisSemAgenda = locais.filter((l) => !idsLigados.has(l.locationId));
+  if (locais.length === 0 && agendas.length === 0) return <p className="text-xs text-muted-foreground">Nenhum local vinculado encontrado.</p>;
 
   return (
-    <ul className="space-y-2">
-      {locais.map((local) => (
-        <li key={local.locationId} className="concave-3d px-3 py-2 flex items-center gap-3 min-w-0">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold uppercase break-words">{local.name}</p>
-            <p className="text-[10px] text-muted-foreground">{local.active ? "Local ativo" : "Local inativo"}</p>
-          </div>
-          <a href={`${appBase}/cadastros/clinicas?local=${local.locationId}`} className="bevel-3d shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest" aria-label={`Editar local ${local.name}`}>
-            Editar
-          </a>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-5">
+      {agendas.length > 0 && (
+        <div className="space-y-2" data-testid="empresa-agendas">
+          <PlacaTitulo titulo="Agendas de atendimento" />
+          <ul className="space-y-2">
+            {agendas.map((r) => (
+              <li key={r.id}>
+                <CartaoAgenda categoria={r.categoryName} forma={r.modality} titulo={r.name} cor={r.color} inativa={!r.active}
+                  acao={
+                    <a href={`${appBase}/agenda/motor?agenda=${r.id}`} className="bevel-3d shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest" aria-label={`Editar agenda ${r.name}`}>
+                      Editar
+                    </a>
+                  } />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {locaisSemAgenda.length > 0 && (
+        <div className="space-y-2">
+          {agendas.length > 0 && <PlacaTitulo titulo="Locais e outras agendas" />}
+          <ul className="space-y-2">
+            {locaisSemAgenda.map((local) => (
+              <li key={local.locationId} className="concave-3d px-3 py-2 flex items-center gap-3 min-w-0">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold uppercase break-words">{local.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{local.active ? "Local ativo" : "Local inativo"}</p>
+                </div>
+                <a href={`${appBase}/cadastros/clinicas?local=${local.locationId}`} className="bevel-3d shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest" aria-label={`Editar local ${local.name}`}>
+                  Editar
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }

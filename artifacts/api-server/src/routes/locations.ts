@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable, empresasTable } from "@workspace/db";
+import { db, agendaResourcesTable, locationsTable, locationProfessionalsTable, professionalsTable, sessionsTable, empresasTable } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import { requirePlatformOwner } from "../middleware/tenantContext";
 import { validarLocalParaProfissional } from "../lib/professional-empresas";
@@ -179,7 +179,7 @@ function modalidadeValida(v: unknown): "presencial" | "online" | null | undefine
   return v === "presencial" || v === "online" ? v : undefined;
 }
 
-const PAPEIS_AGENDA = ["local", "remoto", "externo", "pessoal", "geral"] as const;
+const PAPEIS_AGENDA = ["local", "online", "externo", "pessoal", "geral"] as const;
 function papelValido(v: unknown): (typeof PAPEIS_AGENDA)[number] | null | undefined {
   if (v === undefined) return undefined;
   if (v === null || v === "") return null;
@@ -277,7 +277,7 @@ router.post("/locations", requireCollaborator, async (req, res): Promise<void> =
   }
   const papelBody = papelValido(req.body.agendaPapel);
   if (req.body.agendaPapel !== undefined && papelBody === undefined) {
-    res.status(422).json({ error: "agendaPapel deve ser local, remoto, externo, pessoal ou geral." });
+    res.status(422).json({ error: "agendaPapel deve ser local, online, externo, pessoal ou geral." });
     return;
   }
   if (!req.tenantContext.empresaId) {
@@ -388,7 +388,7 @@ router.put("/locations/:id", requireCollaborator, async (req, res): Promise<void
   }
   const papelBody = papelValido(req.body.agendaPapel);
   if (req.body.agendaPapel !== undefined && papelBody === undefined) {
-    res.status(422).json({ error: "agendaPapel deve ser local, remoto, externo, pessoal ou geral." });
+    res.status(422).json({ error: "agendaPapel deve ser local, online, externo, pessoal ou geral." });
     return;
   }
   if (req.body.agendaPapel !== undefined) updates.agendaPapel = papelBody ?? null;
@@ -438,6 +438,10 @@ router.put("/locations/:id", requireCollaborator, async (req, res): Promise<void
   if (!updated) {
     res.status(404).json({ error: "Location not found" });
     return;
+  }
+  // Cor unica: as agendas ligadas a este local passam a ter a mesma cor.
+  if (typeof updates.color === "string") {
+    await db.update(agendaResourcesTable).set({ color: updates.color }).where(eq(agendaResourcesTable.locationId, id));
   }
   res.json(serializeLocation(updated, empresaDoLocal ?? await carregarEmpresa(updated.empresaId)));
 });

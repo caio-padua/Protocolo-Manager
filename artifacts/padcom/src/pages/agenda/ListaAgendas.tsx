@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Registro } from "@/components/MarcadorVinculo";
-import { VidroCor } from "@/components/VidroCor";
+import { CartaoAgendaConteudo } from "@/components/CartaoAgenda";
 
 export type ItemAgenda = {
   id: number;
   name: string;
   color: string;
   categoryName?: string | null;
-  modalityLabel: string;
-  sharing: string;
+  /** Valor gravado da forma: local, online ou externo. */
+  forma: string;
   active: boolean;
 };
 
@@ -57,20 +57,7 @@ export function ListaAgendas({ itens, selecionadaId, onSelecionar, onMover, ocup
               onClick={() => onSelecionar(r.id)}
               className="tecla-3d flex w-full items-center gap-2.5 py-2.5 pl-4 pr-10 text-left"
             >
-              <VidroCor cor={r.color} />
-              <span className="min-w-0 flex-1 space-y-0.5">
-                <span className="block truncate text-[13px] font-extrabold uppercase leading-tight tracking-wide">
-                  Agenda{" "}
-                  {r.categoryName
-                    ? r.categoryName
-                    : <span className="text-[10px] normal-case tracking-normal text-amber-600">· categoria pendente</span>}
-                </span>
-                <span className="block break-words text-xs font-semibold leading-tight" title={r.name}>{r.name}</span>
-                <span className="tecla-sub block truncate text-[10px] font-semibold uppercase tracking-wide">
-                  {r.sharing === "individual" ? "Individual" : "Compartilhada"} · {r.modalityLabel}
-                </span>
-              </span>
-              {!r.active && <span className="text-[10px] font-semibold uppercase text-amber-500">inativo</span>}
+              <CartaoAgendaConteudo categoria={r.categoryName} forma={r.forma} titulo={r.name} cor={r.color} inativa={!r.active} />
             </button>
             <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 flex-col">
               <button

@@ -954,6 +954,17 @@ oficial nem batizar a tela so de "Console".
 - Nao remover o relevo 3D dos paineis/sub-paineis — e a essencia.
 - Ao mexer em classe 3D, mexer so no render (cor/sombra/forma), nunca na logica de dados.
 
+### 4.18 Padrao 41 — Cartao de AGENDA (um desenho, duas telas)
+
+Agenda e local de atendimento sao coisas distintas. O cartao de agenda e o MESMO componente
+(`components/CartaoAgenda.tsx`) na Agenda Configuracao (tecla da lista) e no cadastro interno da empresa (aba Locais).
+
+1. Vidro de cor (`VidroCor`) a esquerda; a cor e UMA so (`agenda_resources.color`, espelhada no local ligado pelo servidor nos dois sentidos).
+2. Linha 1: "AGENDA PROFISSIONAL" + nome da categoria gravada. Sem categoria = "categoria pendente" (nunca deduzir do nome).
+3. Linha 2: "Forma de atendimento" = Sede, Online ou Outro local (valores gravados local, online, externo). A palavra "remoto" nao existe mais.
+4. Linha 3: "Titulo da agenda" = o nome livre da agenda.
+5. Rotulos pequenos escritos (sem simbolo); o titulo pode quebrar em duas linhas, nunca ser cortado com reticencias.
+
 RESUMO EM 1 LINHA: design Paxter = paineis 3D skeuomorficos, Saliente para a conclusao e
 Concavo para o dado, cores verde-petroleo/ciano, cantos quadrados, fluxos com setas — so
 apresentacao muda, o motor nunca.

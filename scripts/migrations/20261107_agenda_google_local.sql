@@ -5,7 +5,7 @@ ALTER TABLE locations ADD COLUMN IF NOT EXISTS nome_espaco TEXT;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'locations_agenda_papel_check') THEN
     ALTER TABLE locations ADD CONSTRAINT locations_agenda_papel_check
-      CHECK (agenda_papel IS NULL OR agenda_papel IN ('local','remoto','externo','pessoal','geral'));
+      CHECK (agenda_papel IS NULL OR agenda_papel IN ('local','online','externo','pessoal','geral'));
   END IF;
 END $$;
 

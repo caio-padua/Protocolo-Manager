@@ -65,7 +65,7 @@ beforeAll(async () => {
       (8,'Biomedicina','biomedicina','nao_medico',true,8),(20,'Fisioterapia','fisioterapia','nao_medico',true,20),
       (30,'Antiga','antiga','nao_medico',false,30);
     INSERT INTO locations VALUES (50,5,'true','cal-50','Sala 50','local'),(51,5,'true','cal-51','Sala 51','local'),(60,6,'true','cal-60','Sala outra clinica','local'),(52,5,'false','cal-52','Sala inativa','local'),
-      (53,5,'true','cal-53','AGENDA PESSOAL','pessoal'),(54,5,'true','cal-54','AGENDA GERAL','geral'),(55,5,'true','cal-55','AGENDA REMOTO','remoto'),(56,5,'true',NULL,'Sala fisica sem calendario',NULL);
+      (53,5,'true','cal-53','AGENDA PESSOAL','pessoal'),(54,5,'true','cal-54','AGENDA GERAL','geral'),(55,5,'true','cal-55','AGENDA ONLINE','online'),(56,5,'true',NULL,'Sala fisica sem calendario',NULL);
     INSERT INTO professionals VALUES (201,'Medico Sintetico',1,true,5),(202,'Enfermeira Sintetica',2,true,5),
       (203,'Biomedica Sintetica',8,true,5),(204,'Biomedica Outra Clinica',8,true,6),(205,'Biomedica Inativa',8,false,5),
       (206,'Fisio Sintetico',20,true,5);
@@ -198,7 +198,7 @@ describe("agenda x categoria profissional no banco isolado", () => {
   });
 });
 
-describe("Nova agenda: Sede / Externo / Remoto, sem exigir outra agenda e com Corpo Clínico", () => {
+describe("Nova agenda: Sede / Outro local / Online, sem exigir outra agenda e com Corpo Clínico", () => {
   const ENDERECO = { cep: "01001000", logradouro: "Praça da Sé", bairro: "Sé", cidade: "São Paulo", uf: "sp", numero: "100", complemento: "Sala 2" };
   const semLocal = { name: "Agenda sem local", modality: "local" };
 
@@ -253,7 +253,7 @@ describe("Nova agenda: Sede / Externo / Remoto, sem exigir outra agenda e com Co
     expect(novo.body.externalAddressText).not.toContain("Sala 2");
   });
 
-  it("Remoto e Sede sem local; o legado com local mantém as regras de papel; agenda de outra clínica não é alterada", async () => {
+  it("Online e Sede sem local; o legado com local mantém as regras de papel; agenda de outra clínica não é alterada", async () => {
     expect((await post({ ...semLocal, categoryId: CAT.fisio, modality: "online" })).status).toBe(201);
     await q("INSERT INTO agenda_resources(name,kind,modality,category_id,empresa_id) VALUES ('Agenda outra clinica','categoria','local',20,6)");
     const outra = (await q("SELECT id FROM agenda_resources WHERE name='Agenda outra clinica'")).rows[0].id;

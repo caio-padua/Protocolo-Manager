@@ -165,3 +165,4 @@
 - [Campo ligado + legenda de origem](campo-ligado-legenda-origem.md) — dado não digitado = título Saliente + resposta Côncava + chip C/M/E; horário padrão lido de agenda_windows.
 - [Agenda Configuração — códigos de repetição](agenda-repeticao-codigos.md) — repeat_weeks: 1, 2/3/4/6/8 semanas, 101–105 mensal; "recurso" vira "agenda de atendimento"; tela = Agenda Configuração.
 - [Locais externos da clínica](locais-externos-cadastro.md) — aba dentro do cadastro da empresa, tabela própria com campos da empresa (CNPJ fictício, sem integrações); agenda EXTERNA copia o endereço; sonner sem Toaster.
+- [Agenda x Local — forma Sede/Online/Outro local](agenda-forma-vocabulario.md) — "remoto" abolido; cor única espelhada agenda↔local; cartão único de agenda.

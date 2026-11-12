@@ -1,7 +1,7 @@
 // Modo visual de um local de atendimento (Padrao 27 da skill skill-layout-paxter).
 //   SEDE     = presencial no MESMO endereco da empresa
 //   EXTERNO  = presencial em OUTRO endereco (rotulo visual "Local externo")
-//   ONLINE   = atendimento remoto sem endereco fisico
+//   ONLINE   = atendimento online sem endereco fisico
 //   DEFINIR  = modalidade ainda nao informada (rotulo visual "Indefinido")
 // Valores internos (enum) e contratos permanecem inalterados; so os rotulos mudam.
 import { Building2, MapPinned, Video, HelpCircle, type LucideIcon } from "lucide-react";
@@ -22,11 +22,11 @@ export interface LocalAtendimento {
   professionals?: Array<{ id: number; name: string; role: string }>;
 }
 
-export type PapelAgenda = "local" | "remoto" | "externo" | "pessoal" | "geral";
+export type PapelAgenda = "local" | "online" | "externo" | "pessoal" | "geral";
 export const PAPEIS_AGENDA: Array<{ valor: PapelAgenda; rotulo: string; explicacao: string }> = [
-  { valor: "local", rotulo: "Local", explicacao: "Atende na clínica" },
-  { valor: "remoto", rotulo: "Remoto", explicacao: "Atende online" },
-  { valor: "externo", rotulo: "Externo", explicacao: "Atende em espaço fora da clínica" },
+  { valor: "local", rotulo: "Sede", explicacao: "Atende na clínica" },
+  { valor: "online", rotulo: "Online", explicacao: "Atende online" },
+  { valor: "externo", rotulo: "Outro local", explicacao: "Atende em espaço fora da clínica" },
   { valor: "pessoal", rotulo: "Pessoal", explicacao: "Compromissos particulares" },
   { valor: "geral", rotulo: "Geral", explicacao: "Agendamentos diversos" },
 ];
@@ -52,7 +52,7 @@ export const MODO_META: Record<ModoLocal, {
     fundo: "#f6ecd2", texto: "#7a5a12", borda: "#b8892b",
   },
   online: {
-    rotulo: "Online", explicacao: "Atendimento remoto; endereço, se houver, é só referência", Icon: Video,
+    rotulo: "Online", explicacao: "Atendimento online; endereço, se houver, é só referência", Icon: Video,
     fundo: "#e4f1f4", texto: "#0e5866", borda: "#3c9aac",
   },
   definir: {

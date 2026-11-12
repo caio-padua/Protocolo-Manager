@@ -31,7 +31,7 @@ router.use(agendaWriteGuard);
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-// Valores gravados: local = SEDE, externo = EXTERNO (outro endereço físico), online = REMOTO. "domiciliar" é legado.
+// Valores gravados: local = SEDE, externo = EXTERNO (outro endereço físico), online = ONLINE. "domiciliar" é legado.
 const MODALITY = ["domiciliar", "local", "externo", "online"] as const;
 const EXCEPTION_KIND = ["feriado", "bloqueio"] as const;
 
@@ -297,6 +297,10 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
       if (!compat.ok) return compat;
     }
     const [updated] = await tx.update(agendaResourcesTable).set(updates).where(eq(agendaResourcesTable.id, id)).returning();
+    // Cor unica: a agenda manda; o registro de local ligado a ela passa a ter a mesma cor.
+    if (typeof updates.color === "string" && updated.locationId != null) {
+      await tx.update(locationsTable).set({ color: updates.color }).where(eq(locationsTable.id, updated.locationId));
+    }
     if (touchesLink && updated.categoryId != null && updated.categoryId !== current.categoryId) {
       await tx.execute(sql`INSERT INTO agenda_resource_category_audit
         (resource_id, previous_category_id, category_id, origin, evidence, actor_professional_id)

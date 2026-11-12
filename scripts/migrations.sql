@@ -425,3 +425,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Classificacao da empresa: porte assistencial e grau de complexidade (opcionais, sem preenchimento automatico).
 \ir migrations/20261119_empresa_classificacao.sql
+
+-- Vocabulario unico da agenda: "remoto" vira "online" (papel gravado e sufixo do nome). Ver specs/agenda-forma-online.md.
+\ir migrations/20261120_agenda_online.sql

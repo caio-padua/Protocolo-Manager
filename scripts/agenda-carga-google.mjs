@@ -100,7 +100,7 @@ try {
           (name,kind,modality,color,slot_minutes,professional_id,location_id,google_calendar_id,active,sort_order)
           VALUES($1,$2,$3,$4,30,$5,$6,$7,true,$6)`,
           [calendar.calendar.name.trim(), calendar.calendar.name.includes("ENFERMAGEM") ? "enfermagem" : "medico",
-            location.agenda_papel === "remoto" ? "online" : "local", calendar.calendar.color,
+            location.agenda_papel === "online" ? "online" : "local", calendar.calendar.color,
             [35,36,38].includes(location.id) ? 6 : null, location.id, calendar.calendar.id]);
         newResources++;
       }
