@@ -31,3 +31,11 @@ Referência permanente: `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` (glossár
 - **Armadilha:** teste de toque do dnd-kit precisa de alvo centralizado (autoscroll); dnd-kit desabilitado põe aria-disabled e o clique do Playwright trava.
 - Risco aberto: Google pode reimportar evento criado pelo PAXTER e duplicar na linha do tempo (dev: 0 ecoados de 7; sem dado real).
 - Playwright com relógio fixo: `page.clock.setFixedTime` basta para testar "agora" sem travar os timers do React.
+
+## Cadastro x Agenda Configuração (12/11/2026)
+- Agenda sem local liga ao profissional por `agenda_profissionais_preferidos`; com local, por `location_professionals`. Spec em `specs/agenda-cadastro-ping-pong.md`.
+- **Armadilha:** `GET /agenda/integration` valida a resposta com Zod; agenda criada sem local (`locationId` nulo) derrubava o endpoint com 500 e a tela inteira dizia "não identificada / você não administra". Depois de criar agendas, chamar esse endpoint com curl.
+- **Armadilha:** edição por script com `s.index` num trecho não único duplica código; usar âncora única e conferir o diff.
+- Fixture de e2e da Agenda Configuração precisa de `/api/agenda/requests` → `{requests:[]}` e `/api/agenda/slots` → objeto com `subBlocks`; o coringa `[]` derruba a página.
+- Painel de ocorrência do Pit Stop nasce fechado; o e2e `home-care-documentos-reconciliacao` ainda espera aberto (desatualizado).
+

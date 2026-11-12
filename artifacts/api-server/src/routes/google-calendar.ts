@@ -20,6 +20,7 @@ import {
   type CalendarSubstance,
 } from "../lib/google-calendar";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
+import { GoogleConflito } from "../lib/google-conflito";
 import { CalendarSyncUncertain, montarConstantesDoEvento, procedureTypeLabel, syncReservedEvent } from "../lib/session-google-sync";
 import { carregarItensDoProtocolo } from "../lib/substancias-constantes";
 import { requireCollaborator } from "./collaborator";
@@ -197,8 +198,8 @@ router.post("/google-calendar/sync-session/:sessionId", requireCollaborator, asy
 
     res.json({ success: true, eventId });
   } catch (err: any) {
-    if (err instanceof CalendarSyncUncertain) {
-      res.status(409).json({ success: false, error: err.message });
+    if (err instanceof CalendarSyncUncertain || err instanceof GoogleConflito) {
+      res.status(409).json({ success: false, ...(err instanceof GoogleConflito ? { code: err.code } : {}), error: err.message });
       return;
     }
     res.status(500).json({ success: false, error: err.message });

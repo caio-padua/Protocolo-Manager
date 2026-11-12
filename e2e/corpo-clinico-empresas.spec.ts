@@ -72,6 +72,7 @@ test("corpo clínico: originário + até 5 empresas e agenda só das empresas do
     if (p === "/api/empresas") return json(route, EMPRESAS);
     if (p === "/api/locations") return json(route, LOCAIS);
     if (p === "/api/professionals/13/locations" && metodo === "GET") return json(route, ligacoes);
+    if (p === "/api/professionals/13/agendas" && metodo === "GET") return json(route, { agendas: [] });
     if (p === "/api/professionals/13/locations" && metodo === "POST") {
       const corpo = req.postDataJSON() as { locationId: number };
       const local = LOCAIS.find((l) => l.id === corpo.locationId)!;

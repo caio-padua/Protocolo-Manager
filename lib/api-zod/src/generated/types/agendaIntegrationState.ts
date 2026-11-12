@@ -16,4 +16,6 @@ export interface AgendaIntegrationState {
   globalSettingsOwnerOnly: boolean;
   canManageGlobalSettings: boolean;
   companyId: number;
+  /** @nullable */
+  companyName?: string | null;
 }

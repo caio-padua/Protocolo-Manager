@@ -121,7 +121,15 @@ async function runSync() {
 }
 
 export function syncGoogleAgenda() {
-  if (!running) running = runSync().finally(() => { running = undefined; });
+  // A leitura de agendas sem local roda depois da leitura por local, no mesmo ciclo e com a mesma trava de execução.
+  if (!running) {
+    running = runSync()
+      .then(async () => {
+        const { runSyncRecursos } = await import("./agenda-google-sync-recursos");
+        await runSyncRecursos();
+      })
+      .finally(() => { running = undefined; });
+  }
   return running;
 }
 export function startGoogleAgendaSync() {

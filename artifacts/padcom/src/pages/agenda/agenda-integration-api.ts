@@ -14,6 +14,7 @@ import {
   type AgendaChangeDecisionInputDecision,
 } from "@workspace/api-client-react";
 import { COLLAB_EVENT, collabAuthHeaders, getCollabProfessional } from "@/lib/collab-auth";
+import { propagarMudancaDeAgenda } from "@/lib/agenda-propagacao";
 
 /** Identidade usada nas chaves de cache: profissional + papel. Nunca o token. */
 export function useCollabIdentity(): string {
@@ -52,21 +53,9 @@ export function describeError(err: unknown, fallback: string): string {
   return data?.error ?? fallback;
 }
 
-/** Invalida tudo que depende de agenda: integração, solicitações, compromissos, recursos, janelas, slots, sessões. */
+/** Invalida tudo que depende de agenda (lista única em lib/agenda-propagacao.ts). */
 export function invalidateAgendaWorld(qc: QueryClient) {
-  return qc.invalidateQueries({
-    predicate: (q) => {
-      const k = q.queryKey[0];
-      if (typeof k !== "string") return false;
-      return (
-        k === "agenda-integracao" ||
-        k === "agenda-solicitacoes" ||
-        k === "google-compromissos" ||
-        k.startsWith("/api/agenda") ||
-        k.startsWith("/api/sessions")
-      );
-    },
-  });
+  return propagarMudancaDeAgenda(qc);
 }
 
 export function useAgendaIntegration(options: { refetchInterval?: number | false } = {}) {
@@ -74,7 +63,8 @@ export function useAgendaIntegration(options: { refetchInterval?: number | false
   return useQuery({
     queryKey: integrationKey(identity),
     queryFn: ({ signal }) => getAgendaIntegration({ signal, headers: collabAuthHeaders() }),
-    staleTime: 15_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     refetchInterval: options.refetchInterval,
   });
 }

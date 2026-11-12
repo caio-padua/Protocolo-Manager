@@ -4987,7 +4987,8 @@ components:
         name:
           type: string
         locationId:
-          type: integer
+          type: [integer, "null"]
+          description: Agenda sem local fisico (Home Care, Outro local) tem locationId nulo.
     AgendaIntegrationProfessional:
       type: object
       required: [id, name]
@@ -5021,6 +5022,8 @@ components:
           type: boolean
         companyId:
           type: integer
+        companyName:
+          type: [string, "null"]
     AgendaChangeRequest:
       type: object
       required: [id, resourceId, resource, reason, state, windows, createdAt, locationId, requestedBy, canDecide]

@@ -37,10 +37,13 @@ router.get("/agenda/integration", async (req,res): Promise<void> => {
   const resources = await db.execute(sql`SELECT r.id,r.name,r.location_id AS "locationId" FROM agenda_resources r
     LEFT JOIN locations l ON l.id=r.location_id
     WHERE COALESCE(r.empresa_id,l.empresa_id)=${req.tenantContext.empresaId} AND r.active ORDER BY r.sort_order`);
+  // Nome da clínica da sessão: a tela de configuração mostra a clínica real, não um texto fixo.
+  const empresa = await db.execute(sql`SELECT nome FROM empresas WHERE id=${req.tenantContext.empresaId} LIMIT 1`);
   res.json(GetAgendaIntegrationResponse.parse(JSON.parse(JSON.stringify({
     agendas,professionals:professionals.rows,resources:resources.rows,globalSettingsOwnerOnly:true,
     canManageGlobalSettings:Boolean(req.tenantContext.authenticated && req.tenantContext.isPlatformOwner),
     companyId:req.tenantContext.empresaId,
+    companyName:empresa.rows[0]?.nome ?? null,
   }))));
 });
 router.post("/agenda/integration/refresh", async (req,res): Promise<void> => {

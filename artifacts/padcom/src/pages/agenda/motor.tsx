@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { tituloProprio } from "@/lib/utils";
 import {
   useListAgendaResources,
@@ -37,6 +38,8 @@ import { JanelasAtendimento, type JanelasRascunho } from "./JanelasAtendimento";
 import { dataInicialValida, exigeDataInicial } from "@/lib/agenda-repeticao";
 import { AgendaChangeRequests } from "./AgendaChangeRequests";
 import { useAgendaIntegration, useCollabIdentity, describeError } from "./agenda-integration-api";
+import { agendaResourcesFrescas, propagarMudancaDeAgenda } from "@/lib/agenda-propagacao";
+import { ROTULO_ORIGEM, useProfissionaisVinculadosDaAgenda } from "@/lib/agenda-vinculos-api";
 import {
   CalendarCog,
   Save,
@@ -130,10 +133,14 @@ function slotColor(state: string, reason: string | null): string {
 
 export default function AgendaMotor() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  // Mudou aqui, mudou em tudo: toda gravação desta tela recarrega TODAS as consultas que dependem de agenda
+  // (lista de agendas, integração, cadastro do profissional, Pit Stop, clientes, locais da empresa).
+  const propagar = () => propagarMudancaDeAgenda(queryClient);
 
-  const { data: resources, refetch: refetchResources } = useListAgendaResources();
-  const { data: settings, refetch: refetchSettings } = useGetAgendaSettings();
-  const { data: exceptions, refetch: refetchExceptions } = useListAgendaExceptions();
+  const { data: resources } = useListAgendaResources(agendaResourcesFrescas);
+  const { data: settings } = useGetAgendaSettings();
+  const { data: exceptions } = useListAgendaExceptions();
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -176,6 +183,8 @@ export default function AgendaMotor() {
   const localDoSelecionado = selected?.locationId
     ? (integration.data?.agendas ?? []).find((a) => a.id === selected.locationId) ?? null
     : null;
+  // Ping-pong com o cadastro: quem o cadastro do profissional liga a esta agenda aparece aqui.
+  const vinculados = useProfissionaisVinculadosDaAgenda(selectedId);
 
   // ---- Identidade da agenda (draft) ----
   const [resDraft, setResDraft] = useState<{
@@ -205,7 +214,7 @@ export default function AgendaMotor() {
   }, [selected]);
 
   // ---- Janelas ----
-  const { data: windows, refetch: refetchWindows } = useListAgendaWindows(selectedId ?? 0, {
+  const { data: windows } = useListAgendaWindows(selectedId ?? 0, {
     query: { enabled: !!selectedId },
   });
   const [windowsDraft, setWindowsDraft] = useState<WindowsDraft>({});
@@ -408,7 +417,7 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Agenda criada" });
-        refetchResources();
+        void propagar();
       },
       onError: (err: unknown) => toast({ title: "Agenda não criada", description: describeError(err, "Confira categoria, profissional e, se for externa, o endereço."), variant: "destructive" }),
     },
@@ -417,7 +426,7 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Agenda salva" });
-        refetchResources();
+        void propagar();
       },
       onError: (err: unknown) => toast({ title: "Agenda não salva", description: describeError(err, "Confira os dados e tente novamente."), variant: "destructive" }),
     },
@@ -427,7 +436,7 @@ export default function AgendaMotor() {
       onSuccess: () => {
         toast({ title: "Janelas salvas" });
         setWindowsDirty(false);
-        refetchWindows();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao salvar janelas", variant: "destructive" }),
     },
@@ -437,7 +446,7 @@ export default function AgendaMotor() {
       onSuccess: () => {
         toast({ title: "Exceção adicionada" });
         setNewExc({ date: "", kind: "feriado", description: "", resourceId: "" });
-        refetchExceptions();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao adicionar exceção", variant: "destructive" }),
     },
@@ -446,7 +455,7 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Exceção removida" });
-        refetchExceptions();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao remover exceção", variant: "destructive" }),
     },
@@ -455,7 +464,7 @@ export default function AgendaMotor() {
     mutation: {
       onSuccess: () => {
         toast({ title: "Parâmetros do motor salvos" });
-        refetchSettings();
+        void propagar();
       },
       onError: () => toast({ title: "Erro ao salvar parâmetros", variant: "destructive" }),
     },
@@ -499,7 +508,7 @@ export default function AgendaMotor() {
     } catch (err) {
       toast({ title: "Ordem não salva", description: describeError(err, "Tente novamente."), variant: "destructive" });
     } finally {
-      await refetchResources();
+      await propagar();
       setOrdemLocal(null);
       setSalvandoOrdem(false);
     }
@@ -841,11 +850,33 @@ export default function AgendaMotor() {
                   </p>
                 )}
                 <div className="grid gap-3 md:grid-cols-3">
-                  <ComRegistro codigo="P1" pendente={selected?.sharing !== "individual"} nota="agenda compartilhada não tem profissional gravado">
-                    <div className="concave-3d h-full space-y-1 px-3 py-2.5">
+                  <ComRegistro codigo="P1" pendente={vinculados.isError || vinculados.isPending}
+                    nota={vinculados.isError ? "falha ao consultar o cadastro" : "profissionais ligados no cadastro do profissional"}>
+                    <div className="concave-3d h-full space-y-1.5 px-3 py-2.5" data-testid="card-profissionais-da-agenda">
                       <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Profissional</span>
-                      <span className="block text-sm font-semibold">
-                        {selected?.sharing === "individual" ? "Individual (um profissional)" : "Compartilhada (sem profissional definido)"}
+                      {vinculados.isPending ? (
+                        <span className="block text-sm text-muted-foreground">Consultando o cadastro…</span>
+                      ) : vinculados.isError ? (
+                        <span role="alert" className="block text-sm font-semibold text-amber-600">
+                          Não foi possível consultar o cadastro: {vinculados.error instanceof Error ? vinculados.error.message : "erro desconhecido"}
+                        </span>
+                      ) : vinculados.data.profissionais.length === 0 ? (
+                        <span className="block text-sm font-semibold">Nenhum profissional ligado no cadastro</span>
+                      ) : (
+                        <ul className="space-y-1">
+                          {vinculados.data.profissionais.map((p) => (
+                            <li key={p.id} className="text-sm font-semibold leading-tight" data-testid={`profissional-vinculado-${p.id}`}>
+                              {p.name}
+                              {!p.active && <span className="ml-1 text-[10px] font-bold uppercase text-amber-600">inativo</span>}
+                              <span className="block text-[10px] font-normal text-muted-foreground">
+                                {p.categoriaNome ?? "sem categoria"} · {p.origens.map((o) => ROTULO_ORIGEM[o]).join(" + ")}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <span className="block text-[10px] text-muted-foreground">
+                        {selected?.sharing === "individual" ? "Agenda individual (um titular)" : "Agenda compartilhada"}. Ligações são feitas no cadastro do profissional, aba Vínculos.
                       </span>
                     </div>
                   </ComRegistro>
@@ -854,7 +885,13 @@ export default function AgendaMotor() {
                       <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Agenda ligada</span>
                       <span className="block text-sm font-semibold">
                         {selected?.locationId
-                          ? (localDoSelecionado ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})` : "Sede vinculada (legado) não identificada nos locais que você administra")
+                          ? (localDoSelecionado
+                            ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})`
+                            : integration.isError
+                              ? "Não foi possível consultar os locais agora. Recarregue a tela."
+                              : integration.isPending
+                                ? "Consultando os locais…"
+                                : "Sede vinculada (legado) não identificada nos locais que você administra")
                           : "Agenda própria da clínica"}
                       </span>
                       {selected?.modality === "home_care" && (
@@ -873,10 +910,19 @@ export default function AgendaMotor() {
                       )}
                     </div>
                   </ComRegistro>
-                  <ComRegistro codigo="C2" pendente nota="esta tela não exibe a clínica; ligação a verificar">
-                    <div className="concave-3d h-full space-y-1 px-3 py-2.5">
+                  <ComRegistro codigo="C2" pendente={!integration.data?.companyName}
+                    nota={integration.data?.companyName ? "clínica da sessão, lida do cadastro de empresas" : "clínica não retornada pelo servidor"}>
+                    <div className="concave-3d h-full space-y-1 px-3 py-2.5" data-testid="card-clinica-da-sessao">
                       <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Clínica da sessão</span>
-                      <span className="block text-sm font-semibold text-amber-600">Ligação a verificar</span>
+                      {integration.data?.companyName ? (
+                        <span className="block text-sm font-semibold">{integration.data.companyName}</span>
+                      ) : integration.isError ? (
+                        <span className="block text-sm font-semibold text-amber-600">Não foi possível consultar a clínica agora.</span>
+                      ) : integration.isPending ? (
+                        <span className="block text-sm text-muted-foreground">Consultando a clínica…</span>
+                      ) : (
+                        <span className="block text-sm font-semibold text-amber-600">Clínica sem nome cadastrado</span>
+                      )}
                     </div>
                   </ComRegistro>
                 </div>
@@ -904,7 +950,12 @@ export default function AgendaMotor() {
               Horários em que esta agenda atende, por dia da semana. Várias faixas por dia (manhã/tarde) e repetição semanal, por várias semanas ou por posição no mês.
               {windowsDirty && <b className="paxter-alert paxter-alert-amber ml-2 px-2 py-0.5 text-[10px] uppercase">Alterações não salvas</b>}
             </p>
-            {selected && !canManageSelected && (
+            {selected && !canManageSelected && integration.isError && (
+              <p role="alert" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-auth-unknown">
+                Não foi possível confirmar sua autorização sobre esta agenda (a consulta dos locais falhou). Recarregue a tela; nada foi alterado.
+              </p>
+            )}
+            {selected && !canManageSelected && !integration.isError && !integration.isPending && (
               <p role="note" className="paxter-alert paxter-alert-amber px-3 py-2 text-xs" data-testid="text-windows-locked">
                 Você não administra a sede ou a clínica desta agenda: identidade e janelas não podem ser gravadas aqui.
                 Use "Mudança de expediente" abaixo para enviar uma solicitação com justificativa.

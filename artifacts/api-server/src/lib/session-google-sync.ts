@@ -8,9 +8,11 @@ import {
 import { estadoAplicacao } from "./estado-aplicacao-protocolo";
 import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "./substancias-constantes";
 import {
-  calendarEventExists, createCalendarEvent, deleteCalendarEvent, updateCalendarEvent, verifyClinicAccount,
+  calendarEventExists, createCalendarEvent, deleteCalendarEvent, intervaloDoSistema, updateCalendarEvent, verifyClinicAccount,
   type CalendarEventData, type CalendarSubstance,
 } from "./google-calendar";
+import { GoogleConflito } from "./google-conflito";
+import { registrarConflitoGoogle } from "./agenda-google-conflitos";
 
 /**
  * Envio das visitas de um protocolo ao Google Agenda (etapa 5 de 7).
@@ -55,6 +57,8 @@ export interface ReservedSyncOptions {
    * sessão e as aplicações: se o protocolo mudou no intervalo, nada é enviado.
    */
   expectedProtocolItems?: ItemDoProtocolo[];
+  /** Decisão humana já registrada ("enviar o do sistema"): grava por cima mesmo com alteração feita direto no Google. */
+  forcarGoogle?: boolean;
 }
 
 /** Prazo da atualização de evento existente disparada por ação clínica (menor que o limite de resposta da tela). */
@@ -123,9 +127,9 @@ export async function syncReservedEvent(
     if (session.googleEventId) {
       if (options.releaseOnUpdateFailure) {
         const deadline = options.updateDeadlineMs ?? EVENT_UPDATE_DEADLINE_MS;
-        await withDeadline(updateCalendarEvent(eventId, calendarId, data, { timeoutMs: deadline }), deadline);
+        await withDeadline(updateCalendarEvent(eventId, calendarId, data, { timeoutMs: deadline, forcar: options.forcarGoogle }), deadline);
       } else {
-        await updateCalendarEvent(eventId, calendarId, data);
+        await updateCalendarEvent(eventId, calendarId, data, { forcar: options.forcarGoogle });
       }
     } else {
       const created = await createCalendarEvent({ ...data, eventId });
@@ -141,7 +145,15 @@ export async function syncReservedEvent(
       .returning({ id: sessionsTable.id });
     if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
     return eventId;
-  } catch {
+  } catch (error) {
+    if (error instanceof GoogleConflito) {
+      // Nada foi gravado no Google (a leitura precede a escrita): devolve só a reserva própria, registra o conflito
+      // para decisão humana e NÃO sobrescreve a alteração remota.
+      try { await releaseOwnReservation(); } catch { /* banco indisponível: a reserva fica e exigirá conferência */ }
+      await registrarConflitoGoogle({ empresaId: session.empresaId, sessaoId: session.id, calendarId, eventId,
+        conflito: error, sistema: intervaloDoSistema(data) });
+      throw error;
+    }
     if (options.releaseOnUpdateFailure && session.googleEventId) {
       // Atualização de evento existente é idempotente: libera SÓ a reserva própria e devolve falha comum (não incerta).
       try {
@@ -177,6 +189,7 @@ export async function reconcilePendingEvent(
   data: CalendarEventData,
   expectedApplications: ApplicationRow[],
   expectedProtocolItems?: ItemDoProtocolo[],
+  options: { forcarGoogle?: boolean } = {},
 ): Promise<string> {
   const previousOperation = session.googleSyncPendingOperation;
   const eventId = session.googleSyncPendingEventId;
@@ -213,7 +226,7 @@ export async function reconcilePendingEvent(
   }
   try {
     if (await calendarEventExists(eventId, calendarId)) {
-      await updateCalendarEvent(eventId, calendarId, data);
+      await updateCalendarEvent(eventId, calendarId, data, { forcar: options.forcarGoogle });
     } else {
       const created = await createCalendarEvent({ ...data, eventId });
       if (created !== eventId) throw new Error("O Google não confirmou o identificador reservado.");
@@ -225,7 +238,14 @@ export async function reconcilePendingEvent(
       .returning({ id: sessionsTable.id });
     if (!saved) throw new Error("A reserva não foi encontrada para registrar o resultado.");
     return eventId;
-  } catch {
+  } catch (error) {
+    if (error instanceof GoogleConflito) {
+      // Nada foi gravado nesta tentativa: a reserva anterior (incerta) volta e o conflito aguarda decisão humana.
+      try { await restorePreviousReservation(); } catch { /* banco indisponível: a conferência manual continua possível */ }
+      await registrarConflitoGoogle({ empresaId: session.empresaId, sessaoId: session.id, calendarId, eventId,
+        conflito: error, sistema: intervaloDoSistema(data) });
+      throw error;
+    }
     throw new CalendarSyncUncertain("Não foi possível confirmar o resultado no Google. A conferência pode ser repetida com o mesmo identificador.");
   }
 }
@@ -419,6 +439,18 @@ interface VisitContext {
   /** Ver ReservedSyncOptions.releaseOnUpdateFailure. */
   releaseOnUpdateFailure?: boolean;
   updateDeadlineMs?: number;
+  /** Ver ReservedSyncOptions.forcarGoogle. */
+  forcarGoogle?: boolean;
+}
+
+/** Resultado padrão de uma visita cujo envio falhou: conflito com o Google não é falha comum nem resultado incerto. */
+function falhaDoEnvio(base: { sessionId: number; date: string; time: string }, error: unknown): VisitSyncResult {
+  if (error instanceof GoogleConflito) {
+    return { ...base, status: "falhou", code: "google_conflito", error: error.message };
+  }
+  const uncertain = error instanceof CalendarSyncUncertain;
+  return { ...base, status: uncertain ? "incerto" : "falhou", code: uncertain ? "resultado_incerto" : "erro_google",
+    error: uncertain ? (error as Error).message : "Não foi possível enviar ao Google; a reserva no sistema continua valendo." };
 }
 
 /** Uma visita: destino, evento completo e envio seguro (reserva -> Google -> grava). Nunca lança. */
@@ -443,16 +475,14 @@ async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitS
   if (!built.ok) return { ...base, status: "falhou", code: built.code, error: built.error };
   try {
     const eventId = session.googleSyncPendingOperation
-      ? await reconcilePendingEvent(session, built.data, applications, protocolItems)
+      ? await reconcilePendingEvent(session, built.data, applications, protocolItems, { forcarGoogle: ctx.forcarGoogle })
       : await syncReservedEvent(session, built.data, applications, {
         releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
-        expectedProtocolItems: protocolItems,
+        expectedProtocolItems: protocolItems, forcarGoogle: ctx.forcarGoogle,
       });
     return { ...base, status: "sincronizado", eventId };
   } catch (error) {
-    const uncertain = error instanceof CalendarSyncUncertain;
-    return { ...base, status: uncertain ? "incerto" : "falhou", code: uncertain ? "resultado_incerto" : "erro_google",
-      error: uncertain ? error.message : "Não foi possível enviar ao Google; a reserva no sistema continua valendo." };
+    return falhaDoEnvio(base, error);
   }
 }
 
@@ -496,13 +526,11 @@ export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext 
   };
   try {
     const eventId = session.googleSyncPendingOperation
-      ? await reconcilePendingEvent(session, data, [])
-      : await syncReservedEvent(session, data, []);
+      ? await reconcilePendingEvent(session, data, [], undefined, { forcarGoogle: ctx.forcarGoogle })
+      : await syncReservedEvent(session, data, [], { forcarGoogle: ctx.forcarGoogle });
     return { ...base, status: "sincronizado", eventId };
   } catch (error) {
-    const uncertain = error instanceof CalendarSyncUncertain;
-    return { ...base, status: uncertain ? "incerto" : "falhou", code: uncertain ? "resultado_incerto" : "erro_google",
-      error: uncertain ? error.message : "Não foi possível enviar ao Google; a reserva no sistema continua valendo." };
+    return falhaDoEnvio(base, error);
   }
 }
 
@@ -520,7 +548,7 @@ async function activeVisits(protocolId: number, empresaId: number): Promise<Sess
  * Quem chama já autorizou a sessão; aqui não há profissional logado para conferir vínculo.
  */
 export async function refreshSessionEventInPlace(
-  sessionId: number, empresaId: number, options: { releaseUpdateFailure?: boolean; updateDeadlineMs?: number } = {},
+  sessionId: number, empresaId: number, options: { releaseUpdateFailure?: boolean; updateDeadlineMs?: number; forcarGoogle?: boolean } = {},
 ): Promise<VisitSyncResult | null> {
   const [session] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, sessionId));
   if (!session || session.agendaArchived || session.status === "cancelled" || session.empresaId !== empresaId ||
@@ -545,6 +573,7 @@ export async function refreshSessionEventInPlace(
   return syncVisit(session, {
     empresaId, professionalId: null, client, position: index + 1, total: visits.length,
     releaseOnUpdateFailure: options.releaseUpdateFailure, updateDeadlineMs: options.updateDeadlineMs,
+    forcarGoogle: options.forcarGoogle,
   });
 }
 
@@ -618,8 +647,11 @@ export async function refreshAfterApplication(
       ? "a conta Google da clínica não foi confirmada"
       : result.code === "sincronizacao_em_andamento"
         ? "há outra sincronização com o Google em andamento"
-        : "o Google não confirmou a atualização";
-    return `${what}, mas o evento no Google Agenda não foi atualizado (${reason}). ${retry}`;
+        : result.code === "google_conflito"
+          ? "o evento foi alterado direto no Google; o sistema não sobrescreveu e aguarda sua decisão na tela de conflitos"
+          : "o Google não confirmou a atualização";
+    return `${what}, mas o evento no Google Agenda não foi atualizado (${reason}). ${result.code === "google_conflito"
+      ? "Decida em Cadastros > Agendas Google > Conflitos com o Google." : retry}`;
   } catch {
     return `${what}, mas o evento no Google Agenda não foi atualizado. ${retry}`;
   } finally {

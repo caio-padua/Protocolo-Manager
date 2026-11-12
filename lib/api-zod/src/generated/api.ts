@@ -6775,12 +6775,18 @@ export const GetAgendaIntegrationResponse = zod.object({
     zod.object({
       id: zod.number(),
       name: zod.string(),
-      locationId: zod.number(),
+      locationId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Agenda sem local fisico (Home Care, Outro local) tem locationId nulo.",
+        ),
     }),
   ),
   globalSettingsOwnerOnly: zod.boolean(),
   canManageGlobalSettings: zod.boolean(),
   companyId: zod.number(),
+  companyName: zod.string().nullish(),
 });
 
 export const UpdateAgendaReadSettingsBody = zod.object({

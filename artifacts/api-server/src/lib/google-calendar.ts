@@ -1,5 +1,8 @@
 import { google } from 'googleapis';
 import type { EstadoAplicacao } from "./estado-aplicacao-protocolo";
+import {
+  CHAVE_MARCA_GOOGLE, GoogleConflito, conferirEventoRemoto, impressaoDoEvento, type EventoRemoto, type IntervaloEvento,
+} from "./google-conflito";
 
 let connectionSettings: any;
 
@@ -380,8 +383,15 @@ function buildEventRequestBody(data: CalendarEventData) {
   const endDate = new Date(startDate.getTime() + durationTotal * 60 * 1000);
   const cpfFormatted = data.clientCpf || "";
   const prefix = data.summaryPrefix ? `${data.summaryPrefix} ` : "";
+  const summary = buildEventTitle(data.clientName, cpfFormatted, prefix);
   return {
-    summary: buildEventTitle(data.clientName, cpfFormatted, prefix),
+    summary,
+    // Marca privada (hash): permite provar, na próxima atualização, se alguém mudou o evento direto no Google.
+    extendedProperties: {
+      private: {
+        [CHAVE_MARCA_GOOGLE]: impressaoDoEvento({ inicio: startDate.toISOString(), fim: endDate.toISOString(), titulo: summary }),
+      },
+    },
     description: buildDescriptionBody(data),
     location: data.locationAddress || data.unit,
     start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
@@ -400,17 +410,28 @@ function buildEventRequestBody(data: CalendarEventData) {
 // Convite B (decisao CEO): atualiza o MESMO evento (events.update, corpo completo) em vez de
 // apagar+recriar. Mantem o evento no celular de quem ja salvou; NAO dispara "Evento cancelado".
 export async function updateCalendarEvent(
-  eventId: string, calendarId: string, data: CalendarEventData, options: { timeoutMs?: number } = {},
+  eventId: string, calendarId: string, data: CalendarEventData,
+  options: { timeoutMs?: number; /** Decisão humana já tomada: grava por cima mesmo com alteração remota. */ forcar?: boolean } = {},
 ): Promise<void> {
   try {
-    // O prazo cobre a chamada INTEIRA (token + envio). Se a obtenção do token já consumiu o prazo, nada é enviado:
+    // O prazo cobre a chamada INTEIRA (token + leitura + envio). Se a obtenção do token já consumiu o prazo, nada é enviado:
     // quem chamou já liberou a reserva e uma atualização mais nova pode ter saído; enviar agora gravaria descrição velha.
     const startedAt = Date.now();
     const calendar = await getUncachableGoogleCalendarClient();
-    let remainingMs: number | undefined;
-    if (options.timeoutMs) {
-      remainingMs = options.timeoutMs - (Date.now() - startedAt);
-      if (remainingMs <= 0) throw new Error("Prazo esgotado antes do envio ao Google; nada foi enviado.");
+    const restante = () => {
+      if (!options.timeoutMs) return undefined;
+      const ms = options.timeoutMs - (Date.now() - startedAt);
+      if (ms <= 0) throw new Error("Prazo esgotado antes do envio ao Google; nada foi enviado.");
+      return ms;
+    };
+    let remainingMs = restante();
+    if (!options.forcar) {
+      // Nunca sobrescrever em silêncio uma alteração feita direto no Google: lê o estado atual e compara com a marca.
+      const lido = await calendar.events.get({ calendarId: calendarId || 'primary', eventId }, remainingMs ? { timeout: remainingMs } : undefined);
+      const conferencia = conferirEventoRemoto(lido.data as EventoRemoto);
+      if (conferencia.tipo === "apagado") throw new GoogleConflito("apagado", null);
+      if (conferencia.tipo === "alterado") throw new GoogleConflito("alterado", conferencia.remoto);
+      remainingMs = restante();
     }
     await calendar.events.update({
       calendarId: calendarId || 'primary',
@@ -419,9 +440,16 @@ export async function updateCalendarEvent(
       sendUpdates: 'none',
     }, remainingMs ? { timeout: remainingMs } : undefined);
   } catch (err: any) {
+    if (err instanceof GoogleConflito) throw err;
     console.error("Failed to update calendar event:", err.message);
     throw err;
   }
+}
+
+/** Início, fim e título que o sistema enviaria ao Google para estes dados (mesma regra do corpo do evento). */
+export function intervaloDoSistema(data: CalendarEventData): IntervaloEvento {
+  const body = buildEventRequestBody(data);
+  return { inicio: body.start.dateTime, fim: body.end.dateTime, titulo: body.summary };
 }
 
 export async function updateCalendarEventDescription(eventId: string, calendarId: string, data: CalendarEventData): Promise<void> {

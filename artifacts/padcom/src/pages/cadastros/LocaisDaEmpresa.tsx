@@ -4,6 +4,7 @@ import { useListAgendaResources } from "@workspace/api-client-react";
 import { PlacaTitulo } from "@/components/ui/placa-titulo";
 import { CartaoAgenda } from "@/components/CartaoAgenda";
 import { collabAuthHeaders, getCollabProfessional } from "@/lib/collab-auth";
+import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 const appBase = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -21,11 +22,12 @@ interface EmpresaVisivel {
 
 export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
   const professionalId = getCollabProfessional()?.id ?? null;
-  const agendasQ = useListAgendaResources();
+  const agendasQ = useListAgendaResources(agendaResourcesFrescas);
   const consulta = useQuery({
     queryKey: ["empresas-locais-confirmados", professionalId],
     retry: false,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const headers = collabAuthHeaders();
       const [empresas, locais] = await Promise.all([

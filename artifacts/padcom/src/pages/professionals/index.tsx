@@ -58,6 +58,11 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabToken } from "@/lib/collab-auth";
+import { TIPOS_ATENDIMENTO, alternarTipoDeAtendimento, tiposParaFormulario } from "@/lib/tipos-atendimento";
+import { useQueryClient } from "@tanstack/react-query";
+import { propagarMudancaDeAgenda } from "@/lib/agenda-propagacao";
+import { carregarAgendasDoProfissional, definirVinculoComAgenda, type AgendaDoProfissional } from "@/lib/agenda-vinculos-api";
+import { AgendasSemLocal, agendasSemLocalDaEmpresa, nomeDaAgendaDoLocal } from "./AgendasSemLocal";
 import { formatCpfInput } from "@/lib/cpf";
 import AccountAccessPanel from "./AccountAccessPanel";
 import ProfessionalHistoryPanel from "./ProfessionalHistoryPanel";
@@ -349,8 +354,10 @@ function resolveZone(loc: LocRow): string {
 }
 
 // ── Linha individual de local ─────────────────────────────────────────────────
-function LocRow({ loc, linked, busy, onToggle }: {
+function LocRow({ loc, linked, busy, onToggle, agendaName }: {
   loc: LocRow; linked: boolean; busy: boolean; onToggle: () => void;
+  /** Nome da agenda (Agenda Configuração) que usa este local; quando existe, é ele que aparece. */
+  agendaName?: string | null;
 }) {
   return (
     <div className={`flex items-center gap-3 px-3 py-2.5 transition-all rounded-none ${linked ? "bevel-3d" : "concave-3d"}`}>
@@ -361,7 +368,7 @@ function LocRow({ loc, linked, busy, onToggle }: {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-black uppercase tracking-wide leading-tight text-foreground truncate">
-          {loc.name}
+          {agendaName ?? loc.name}
         </p>
         {loc.address && loc.address !== loc.type && (
           <p className="text-[9px] font-semibold text-muted-foreground/70 flex items-center gap-1 mt-0.5 truncate">
@@ -376,12 +383,13 @@ function LocRow({ loc, linked, busy, onToggle }: {
 }
 
 // ── Painel de um estado ───────────────────────────────────────────────────────
-function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
+function StateBucket({ state, locs, linkedFn, busyFn, onToggle, agendaNameFn }: {
   state: string;
   locs: LocRow[];
   linkedFn: (id: number) => boolean;
   busyFn: (id: number) => boolean;
   onToggle: (id: number) => void;
+  agendaNameFn: (locationId: number) => string | null;
 }) {
   const meta = STATE_META[state] ?? { label: state === "—" ? "Sem endereço" : state, accent: "border-muted/40" };
   const linkedCount = locs.filter((l) => linkedFn(l.id)).length;
@@ -424,6 +432,7 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
                       linked={linkedFn(loc.id)}
                       busy={busyFn(loc.id)}
                       onToggle={() => onToggle(loc.id)}
+                      agendaName={agendaNameFn(loc.id)}
                     />
                   ))}
                 </div>
@@ -443,6 +452,7 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
             linked={linkedFn(loc.id)}
             busy={busyFn(loc.id)}
             onToggle={() => onToggle(loc.id)}
+            agendaName={agendaNameFn(loc.id)}
           />
         ))}
       </div>
@@ -475,12 +485,16 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle }: {
 }
 
 // Agendas liberadas por empresa: só aparecem as empresas em que o profissional está cadastrado.
-function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle }: {
+function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle, agendaNameFn, agendasSemLocal, agendaBusyId, onToggleAgenda }: {
   vinculo: VinculoEmpresaLinha;
   locs: LocRow[];
   linkedFn: (id: number) => boolean;
   busyFn: (id: number) => boolean;
   onToggle: (id: number) => void;
+  agendaNameFn: (locationId: number) => string | null;
+  agendasSemLocal: AgendaDoProfissional[];
+  agendaBusyId: number | null;
+  onToggleAgenda: (agenda: AgendaDoProfissional) => void;
 }) {
   // Estados com agenda liberada primeiro; depois ordem alfabética.
   const byState = new Map<string, LocRow[]>();
@@ -494,7 +508,10 @@ function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle }: {
     if (aActive !== bActive) return aActive ? -1 : 1;
     return sa.localeCompare(sb, "pt-BR");
   });
-  const liberadas = locs.filter((l) => linkedFn(l.id)).length;
+  // Agenda de outra categoria (ex.: médico) não é uma agenda possível deste profissional: não entra na conta.
+  const semLocalPossiveis = agendasSemLocal.filter((a) => a.vinculado || a.editavelNoCadastro);
+  const liberadas = locs.filter((l) => linkedFn(l.id)).length + semLocalPossiveis.filter((a) => a.vinculado).length;
+  const totalAgendas = locs.length + semLocalPossiveis.length;
 
   return (
     <section className="panel-3d-sub space-y-2 px-2 py-2.5" aria-label={`Agendas de ${vinculo.nome}`}>
@@ -505,10 +522,10 @@ function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle }: {
           {rotuloDaPosicao(vinculo.ordem)}
         </span>
         <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-widest text-muted-foreground tabular-nums">
-          {liberadas}/{locs.length} agenda{locs.length === 1 ? "" : "s"}
+          {liberadas}/{totalAgendas} agenda{totalAgendas === 1 ? "" : "s"}
         </span>
       </div>
-      {statesSorted.length === 0 ? (
+      {statesSorted.length === 0 && agendasSemLocal.length === 0 ? (
         <div className="concave-3d px-3 py-3 text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Nenhum local cadastrado nesta empresa.
@@ -523,9 +540,11 @@ function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle }: {
             linkedFn={linkedFn}
             busyFn={busyFn}
             onToggle={onToggle}
+            agendaNameFn={agendaNameFn}
           />
         ))
       )}
+      <AgendasSemLocal agendas={agendasSemLocal} busyId={agendaBusyId} onToggle={onToggleAgenda} />
     </section>
   );
 }
@@ -544,8 +563,23 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  // Agendas da clínica (inclui as SEM local físico). Falha aqui não derruba a lista de clínicas: aparece o erro.
+  const [agendas, setAgendas] = useState<AgendaDoProfissional[]>([]);
+  const [agendasErro, setAgendasErro] = useState<string | null>(null);
+  const [agendaBusy, setAgendaBusy] = useState<number | null>(null);
+
+  const fetchAgendas = useCallback(async () => {
+    try {
+      setAgendas(await carregarAgendasDoProfissional(professionalId));
+      setAgendasErro(null);
+    } catch (falha) {
+      setAgendasErro(falha instanceof Error ? falha.message : "Não foi possível consultar as agendas da clínica.");
+    }
+  }, [professionalId]);
 
   const fetchLinks = useCallback(async () => {
+    void fetchAgendas();
     try {
       const authHeaders = { Authorization: `Bearer ${getCollabToken() ?? ""}` };
       const [locRes, lnkRes, empRes] = await Promise.all([
@@ -569,9 +603,19 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
     } finally {
       setLoading(false);
     }
-  }, [professionalId]);
+  }, [professionalId, fetchAgendas]);
 
   useEffect(() => { fetchLinks(); }, [fetchLinks]);
+  // Voltou para esta aba: agendas criadas, renomeadas ou desligadas em Agenda Configuração aparecem sem recarregar.
+  useEffect(() => {
+    const aoVoltar = () => { if (document.visibilityState === "visible") void fetchLinks(); };
+    window.addEventListener("focus", aoVoltar);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      window.removeEventListener("focus", aoVoltar);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [fetchLinks]);
 
   const isLinked  = useCallback((id: number) => links.some((l) => l.locationId === id), [links]);
   const isBusy    = useCallback((id: number) => toggling === id, [toggling]);
@@ -601,6 +645,8 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
         }
         setLinks((prev) => prev.filter((l) => l.locationId !== locationId));
         toast({ title: "Vínculo removido" });
+        void fetchAgendas();
+        void propagarMudancaDeAgenda(queryClient);
       } else {
         const r = await fetch(`${BASE}/api/professionals/${professionalId}/locations`, {
           method: "POST", headers, body: JSON.stringify({ locationId, role: "executor" }),
@@ -613,11 +659,33 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
         const row = await r.json() as LinkRow;
         setLinks((prev) => [...prev, row]);
         toast({ title: "Vínculo adicionado" });
+        void fetchAgendas();
+        void propagarMudancaDeAgenda(queryClient);
       }
     } catch {
       toast({ title: "Falha ao alterar vínculo", description: "Sem resposta do servidor. Nada foi alterado.", variant: "destructive" });
     } finally {
       setToggling(null);
+    }
+  }
+
+  async function alternarAgenda(agenda: AgendaDoProfissional) {
+    setAgendaBusy(agenda.id);
+    try {
+      await definirVinculoComAgenda(professionalId, agenda.id, !agenda.vinculado);
+      toast({ title: agenda.vinculado ? "Vínculo com a agenda removido" : "Vínculo com a agenda adicionado" });
+      await fetchAgendas();
+      // Mudou no cadastro, muda na Agenda Configuração e em todas as telas que leem agenda.
+      void propagarMudancaDeAgenda(queryClient);
+    } catch (falha) {
+      toast({
+        title: "Falha ao alterar vínculo com a agenda",
+        description: falha instanceof Error ? falha.message : "Sem resposta do servidor. Nada foi alterado.",
+        variant: "destructive",
+      });
+      await fetchAgendas();
+    } finally {
+      setAgendaBusy(null);
     }
   }
 
@@ -665,8 +733,20 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
           linkedFn={isLinked}
           busyFn={isBusy}
           onToggle={toggle}
+          agendaNameFn={(locationId) => nomeDaAgendaDoLocal(agendas, locationId)}
+          agendasSemLocal={agendasSemLocalDaEmpresa(agendas, vinculo.empresaId)}
+          agendaBusyId={agendaBusy}
+          onToggleAgenda={(a) => { void alternarAgenda(a); }}
         />
       ))}
+      {agendasErro && (
+        <div role="alert" className="concave-3d flex items-center gap-3 px-3 py-2" data-testid="agendas-erro">
+          <p className="flex-1 text-[11px] font-bold text-destructive">
+            Agendas sem local físico indisponíveis: {agendasErro}
+          </p>
+          <Button type="button" className="btn-3d-soft min-h-9" onClick={() => { void fetchAgendas(); }}>TENTAR DE NOVO</Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -683,10 +763,8 @@ const CATEGORY_OPTIONS = [
   { value: "outro", label: "Outro" },
 ];
 
-const SERVICE_OPTIONS = [
-  { value: "presencial", label: "Presencial" },
-  { value: "online", label: "Online" },
-];
+// Os três interruptores são iguais para todo profissional; valores antigos do banco são traduzidos na leitura.
+const SERVICE_OPTIONS = TIPOS_ATENDIMENTO;
 
 const EMPTY_FORM = {
   name: "",
@@ -855,7 +933,7 @@ export default function Professionals() {
       secondaryEmail: pro.secondaryEmail ?? "",
       unit: pro.unit ?? "",
       complemento: (pro as any).complemento ?? "",
-      serviceTypes: pro.serviceTypes?.length ? pro.serviceTypes : ["presencial"],
+      serviceTypes: tiposParaFormulario(pro.serviceTypes),
       active: pro.active ?? true,
       nurseType: p.nurseType ?? "",
       cpf: formatCpfInput(p.cpf ?? ""),
@@ -935,11 +1013,7 @@ export default function Professionals() {
   ]);
 
   const toggleService = (value: string) => {
-    setForm((f) => {
-      const has = f.serviceTypes.includes(value);
-      const next = has ? f.serviceTypes.filter((s) => s !== value) : [...f.serviceTypes, value];
-      return { ...f, serviceTypes: next.length ? next : f.serviceTypes };
-    });
+    setForm((f) => ({ ...f, serviceTypes: alternarTipoDeAtendimento(f.serviceTypes, value) }));
   };
 
   const handleSubmit = () => {
@@ -1316,10 +1390,10 @@ export default function Professionals() {
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipos de atendimento</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="tipos-de-atendimento">
                     {SERVICE_OPTIONS.map((opt) => (
                       <div key={opt.value} className="concave-3d flex items-center gap-3 px-3 py-2.5">
-                        <Switch checked={form.serviceTypes.includes(opt.value)} onCheckedChange={() => toggleService(opt.value)} />
+                        <Switch checked={form.serviceTypes.includes(opt.value)} onCheckedChange={() => toggleService(opt.value)} aria-label={`Tipo de atendimento ${opt.label}`} />
                         <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{opt.label}</Label>
                       </div>
                     ))}

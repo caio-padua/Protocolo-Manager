@@ -76,6 +76,17 @@ Rótulos: FATO CONFIRMADO (verificado no código ou no teste), REGRA APROVADA (d
 6. Conferência das agendas Google por id do calendário (`GET /agenda/google/reconciliacao`, `POST .../aplicar` com `confirmar:true`): renomeia ou cria agenda interna; nunca apaga calendário, evento nem histórico; só diz que conferiu se a conta Google respondeu.
 7. Migração: `scripts/migrations/20261122_home_care_documentos_reconciliacao.sql` (somente desenvolvimento).
 
+## 6B. Cadastro do profissional x Agenda Configuração: via de mão dupla (12/11/2026)
+
+1. Spec completa: `specs/agenda-cadastro-ping-pong.md`.
+2. Agenda COM local: o vínculo do profissional continua em `location_professionals` (mudar só pelo cadastro do local; as rotas de `/professionals/:id/locations` seguem restritas ao dono da plataforma).
+3. Agenda SEM local (Home Care, Outro local): o vínculo é a preferência em `agenda_profissionais_preferidos`. Não cria local falso e não dá acesso clínico.
+4. Cadastro (Editar profissional, aba VÍNCULOS): bloco "Agendas sem local físico" com um interruptor por agenda. Só aparece agenda da empresa da sessão; categoria diferente, agenda individual (titular) e agenda com local aparecem bloqueadas, com o motivo escrito.
+5. Agenda Configuração: o cartão PROFISSIONAL lista quem está vinculado no cadastro (`GET /agenda/resources/:id/profissionais-vinculados`); o cartão CLÍNICA DA SESSÃO mostra o nome da empresa vindo de `GET /agenda/integration`.
+6. Falha ao consultar nunca vira "não administra" nem "não identificada": a tela diz que não conseguiu consultar e oferece tentar de novo.
+7. Qualquer mudança de agenda, local ou vínculo passa por `lib/agenda-propagacao.ts` (lista única de prefixos de consulta) e as telas refazem a consulta ao voltar o foco da janela.
+8. Tipos de atendimento de TODO profissional: três interruptores fixos (Presencial, Home Care, Online). Valores antigos (`clinic`, `home`, `homecare`) são traduzidos na leitura; valor desconhecido é preservado; sem migração em massa no banco.
+
 ## 7. Proibições
 
 1. Exigir local físico para TODA agenda: NÃO aprovado.

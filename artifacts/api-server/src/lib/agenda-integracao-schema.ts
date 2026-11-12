@@ -2,6 +2,66 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { AGENDA_CATEGORIA_AUDITORIA_DDL } from "./agenda-recurso-categoria";
 
+/**
+ * Aditivo e idempotente. (1) Conflitos de edição concorrente com o Google (trilha + decisão humana).
+ * (2) Leitura do Google para agendas SEM registro de local (ex.: Home Care): mesma lógica da leitura por local,
+ * mas a chave é a própria agenda. Nenhuma tabela existente é alterada e nada é apagado.
+ */
+export const AGENDA_GOOGLE_CONFLITOS_E_RECURSOS_DDL = `
+  CREATE TABLE IF NOT EXISTS agenda_google_conflitos (
+    id serial PRIMARY KEY,
+    empresa_id integer NOT NULL,
+    sessao_id integer NOT NULL,
+    google_calendar_id text NOT NULL,
+    google_event_id text NOT NULL,
+    tipo text NOT NULL CHECK (tipo IN ('alterado','apagado')),
+    remoto_inicio text,
+    remoto_fim text,
+    sistema_inicio timestamptz,
+    sistema_fim timestamptz,
+    estado text NOT NULL DEFAULT 'aberto' CHECK (estado IN ('aberto','resolvido','dispensado')),
+    decisao text,
+    ator_id integer,
+    criado_em timestamptz NOT NULL DEFAULT now(),
+    atualizado_em timestamptz NOT NULL DEFAULT now(),
+    resolvido_em timestamptz
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS agenda_google_conflitos_aberto_uq ON agenda_google_conflitos (sessao_id) WHERE estado = 'aberto';
+  CREATE TABLE IF NOT EXISTS agenda_google_sync_recurso (
+    recurso_id integer PRIMARY KEY,
+    cursor text,
+    source_calendar_id text,
+    last_success timestamptz,
+    last_attempt timestamptz,
+    error text,
+    enabled boolean NOT NULL DEFAULT true
+  );
+  CREATE TABLE IF NOT EXISTS agenda_google_source_recurso (
+    recurso_id integer NOT NULL,
+    event_id text NOT NULL,
+    body jsonb NOT NULL,
+    PRIMARY KEY (recurso_id, event_id)
+  );
+  CREATE TABLE IF NOT EXISTS agenda_compromissos_recurso (
+    id serial PRIMARY KEY,
+    recurso_id integer NOT NULL,
+    google_calendar_id text,
+    chave text NOT NULL,
+    ical_uid text NOT NULL,
+    titulo text,
+    descricao text,
+    local_texto text,
+    inicio timestamptz,
+    fim timestamptz,
+    dia_inteiro boolean NOT NULL DEFAULT false,
+    recorrencia text,
+    status text NOT NULL DEFAULT 'ativo',
+    origem text NOT NULL DEFAULT 'google',
+    criado_em timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (recurso_id, chave)
+  );
+`;
+
 export async function ensureAgendaIntegrationSchema() {
   await db.execute(sql`
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS duration_minutes integer;
@@ -50,6 +110,7 @@ export async function ensureAgendaIntegrationSchema() {
     await db.execute(sql.raw(`ALTER TABLE agenda_resources ADD COLUMN IF NOT EXISTS ${coluna} text`));
   }
   await db.execute(sql.raw(AGENDA_CATEGORIA_AUDITORIA_DDL));
+  await db.execute(sql.raw(AGENDA_GOOGLE_CONFLITOS_E_RECURSOS_DDL));
   // Vínculos operacionais conferidos na carga autorizada; não inferir pelo título.
   // Executado apenas na primeira ativação desta agenda, nunca refaz seleção do usuário.
   await db.execute(sql`

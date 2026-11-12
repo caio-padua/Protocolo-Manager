@@ -1155,7 +1155,11 @@ export interface AgendaIntegrationCalendar {
 export interface AgendaIntegrationResource {
   id: number;
   name: string;
-  locationId: number;
+  /**
+   * Agenda sem local fisico (Home Care, Outro local) tem locationId nulo.
+   * @nullable
+   */
+  locationId: number | null;
 }
 
 export interface AgendaIntegrationProfessional {
@@ -1171,6 +1175,8 @@ export interface AgendaIntegrationState {
   globalSettingsOwnerOnly: boolean;
   canManageGlobalSettings: boolean;
   companyId: number;
+  /** @nullable */
+  companyName?: string | null;
 }
 
 export interface AgendaChangeRequest {

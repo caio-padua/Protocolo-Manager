@@ -9,5 +9,9 @@
 export interface AgendaIntegrationResource {
   id: number;
   name: string;
-  locationId: number;
+  /**
+   * Agenda sem local fisico (Home Care, Outro local) tem locationId nulo.
+   * @nullable
+   */
+  locationId: number | null;
 }

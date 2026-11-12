@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useListAgendaResources } from "@workspace/api-client-react";
+import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
 import { CalendarClock, Check, Loader2 } from "lucide-react";
 import { useClientAgendaOptions } from "./client-agenda-defaults";
 
@@ -18,7 +19,7 @@ interface PreferredAgendasFieldProps {
  * não altera o motor de agenda. Data-bound: lista vem do backend, estado controlado.
  */
 export function PreferredAgendasField({ locationId, clinicaId, value, onChange }: PreferredAgendasFieldProps) {
-  const { data: resources, isLoading, isError } = useListAgendaResources();
+  const { data: resources, isLoading, isError } = useListAgendaResources(agendaResourcesFrescas);
   const { data: authorizedOptions, query: authorizedQuery } = useClientAgendaOptions(clinicaId ?? "");
 
   const locId = locationId ? Number(locationId) : null;

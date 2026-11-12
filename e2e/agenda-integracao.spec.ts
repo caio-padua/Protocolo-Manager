@@ -39,6 +39,8 @@ async function fixture(context: BrowserContext, manager: boolean, realOccupied =
         createdAt:now(),locationId:35001,requestedBy:91001,canDecide:manager});
       return route.fulfill({status:201,json:{id:77002,state:"pendente"}});
     } else if(path==="/api/agenda/requests") body={requests:pending};
+    else if(path==="/api/agenda/resources/19001/profissionais-vinculados") body={
+      agenda:{id:19001,name:"Agenda sintética",locationId:35001,professionalId:91001},profissionais:[]};
     else if(path==="/api/agenda/resources/19001/windows" && request.method()==="PUT") {
       state.savedWindows=request.postDataJSON();
       state.windows=state.savedWindows.windows.map((w:any,i:number)=>({...w,id:60010+i,resourceId:19001}));

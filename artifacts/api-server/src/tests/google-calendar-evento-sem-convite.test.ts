@@ -12,6 +12,7 @@ import {
   buildDescriptionBody, calendarEventExists, createCalendarEvent, deleteCalendarEvent, updateCalendarEvent,
   type CalendarEventData,
 } from "../lib/google-calendar";
+import { GoogleConflito, conferirEventoRemoto } from "../lib/google-conflito";
 
 const EVENT_ID = "0123456789abcdef0123456789abcdef";
 const CAL = "agenda-sintetica@example.invalid";
@@ -35,6 +36,8 @@ beforeEach(() => {
   for (const fn of Object.values(calls)) fn.mockReset();
   calls.insert.mockResolvedValue({ data: { id: EVENT_ID } });
   calls.update.mockResolvedValue({ data: {} });
+  // Evento legado, sem marca do sistema: não há base para provar edição remota, então a atualização segue.
+  calls.get.mockResolvedValue({ data: { status: "confirmed" } });
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -96,6 +99,90 @@ describe("Evento do Google: sem convite, sem participante, o mesmo evento é atu
     }));
     await expect(updateCalendarEvent(EVENT_ID, CAL, data, { timeoutMs: 30 })).rejects.toThrow("nada foi enviado");
     expect(calls.update).not.toHaveBeenCalled();
+  });
+});
+
+// Conflito de edição concorrente: o sistema nunca sobrescreve em silêncio o que alguém mudou direto no Google.
+describe("Conflito com o Google: leitura antes da escrita, marca privada e decisão humana", () => {
+  /** Estado do evento no Google logo depois de o sistema gravá-lo (o que o Google devolveria em events.get). */
+  const remotoComoGravado = (body: any) => ({
+    status: "confirmed", summary: body.summary, description: body.description,
+    start: { dateTime: body.start.dateTime.replace("Z", "+00:00") }, end: { dateTime: body.end.dateTime.replace("Z", "+00:00") },
+    extendedProperties: body.extendedProperties,
+  });
+  const criarEPegarRemoto = async () => {
+    await createCalendarEvent({ ...data, eventId: EVENT_ID });
+    return remotoComoGravado(calls.insert.mock.calls[0][0].requestBody);
+  };
+
+  it("o evento criado leva a marca privada (hash) e nenhum dado clínico dentro dela", async () => {
+    await createCalendarEvent({ ...data, eventId: EVENT_ID });
+    const body = calls.insert.mock.calls[0][0].requestBody;
+    const marca = body.extendedProperties.private.paxterFp as string;
+    expect(marca).toMatch(/^[0-9a-f]{24}$/);
+    expect(JSON.stringify(body.extendedProperties)).not.toContain("sintético");
+    expect(JSON.stringify(body.extendedProperties)).not.toContain("000.000.000-00");
+  });
+
+  it("sem alteração remota: atualiza o mesmo evento e regrava a marca", async () => {
+    calls.get.mockResolvedValue({ data: await criarEPegarRemoto() });
+    await updateCalendarEvent(EVENT_ID, CAL, { ...data, weekNumber: 2 });
+    expect(calls.get).toHaveBeenCalledWith({ calendarId: CAL, eventId: EVENT_ID }, undefined);
+    expect(calls.update).toHaveBeenCalledTimes(1);
+    expect(calls.update.mock.calls[0][0].requestBody.extendedProperties.private.paxterFp).toMatch(/^[0-9a-f]{24}$/);
+  });
+
+  it("alguém mudou o horário no Google: bloqueia, devolve o horário remoto e NÃO chama events.update", async () => {
+    const remoto = await criarEPegarRemoto();
+    calls.get.mockResolvedValue({ data: { ...remoto, start: { dateTime: "2030-03-04T14:00:00-03:00" }, end: { dateTime: "2030-03-04T15:00:00-03:00" } } });
+    const erro = await updateCalendarEvent(EVENT_ID, CAL, data).catch((e) => e);
+    expect(erro).toBeInstanceOf(GoogleConflito);
+    expect(erro.tipo).toBe("alterado");
+    expect(erro.remoto.inicio).toBe("2030-03-04T17:00:00.000Z");
+    expect(calls.update).not.toHaveBeenCalled();
+  });
+
+  it("alguém mudou só o título no Google: também é conflito", async () => {
+    const remoto = await criarEPegarRemoto();
+    calls.get.mockResolvedValue({ data: { ...remoto, summary: "Título editado no Google" } });
+    await expect(updateCalendarEvent(EVENT_ID, CAL, data)).rejects.toBeInstanceOf(GoogleConflito);
+    expect(calls.update).not.toHaveBeenCalled();
+  });
+
+  it("alguém editou só a descrição no Google: NÃO é conflito (texto pode ser normalizado pelo Google)", async () => {
+    const remoto = await criarEPegarRemoto();
+    calls.get.mockResolvedValue({ data: { ...remoto, description: "descrição reescrita" } });
+    await updateCalendarEvent(EVENT_ID, CAL, data);
+    expect(calls.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("evento apagado no Google: conflito 'apagado', nada é recriado nem regravado", async () => {
+    calls.get.mockResolvedValue({ data: { status: "cancelled" } });
+    const erro = await updateCalendarEvent(EVENT_ID, CAL, data).catch((e) => e);
+    expect(erro).toBeInstanceOf(GoogleConflito);
+    expect(erro.tipo).toBe("apagado");
+    expect(calls.update).not.toHaveBeenCalled();
+    expect(calls.insert).not.toHaveBeenCalled();
+  });
+
+  it("decisão humana (forcar): grava por cima sem reler e deixa a marca nova", async () => {
+    await updateCalendarEvent(EVENT_ID, CAL, data, { forcar: true });
+    expect(calls.get).not.toHaveBeenCalled();
+    expect(calls.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha ao LER o evento nunca vira escrita às cegas", async () => {
+    calls.get.mockRejectedValue(Object.assign(new Error("Backend Error"), { code: 500 }));
+    await expect(updateCalendarEvent(EVENT_ID, CAL, data)).rejects.toThrow("Backend Error");
+    expect(calls.update).not.toHaveBeenCalled();
+  });
+
+  it("conferirEventoRemoto: sem marca não prova nada; dia inteiro movido é detectado", () => {
+    expect(conferirEventoRemoto({ status: "confirmed", summary: "x" }).tipo).toBe("sem_marca");
+    expect(conferirEventoRemoto({
+      status: "confirmed", summary: "x", start: { date: "2030-03-05" }, end: { date: "2030-03-06" },
+      extendedProperties: { private: { paxterFp: "000000000000000000000000" } },
+    }).tipo).toBe("alterado");
   });
 });
 
