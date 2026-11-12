@@ -40,10 +40,10 @@ export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
     },
   });
 
-  if (consulta.isLoading || agendasQ.isLoading) return <p role="status" className="text-xs flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Consultando locais...</p>;
+  if (consulta.isLoading || agendasQ.isLoading) return <p role="status" className="text-xs flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Consultando agendas...</p>;
   if (consulta.isError || !consulta.data) return (
     <div role="alert" className="text-xs space-y-2">
-      <p>Não foi possível consultar os locais desta empresa.</p>
+      <p>Não foi possível consultar as agendas desta empresa.</p>
       <button type="button" className="btn-3d-soft px-3 py-1.5" onClick={() => void consulta.refetch()}>Tentar novamente</button>
     </div>
   );
@@ -57,7 +57,7 @@ export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
   const agendas = (agendasQ.data ?? []).filter((r) => r.empresaId === empresaId || (r.locationId != null && idsLocais.has(r.locationId)));
   const idsLigados = new Set(agendas.map((r) => r.locationId).filter((v): v is number => v != null));
   const locaisSemAgenda = locais.filter((l) => !idsLigados.has(l.locationId));
-  if (locais.length === 0 && agendas.length === 0) return <p className="text-xs text-muted-foreground">Nenhum local vinculado encontrado.</p>;
+  if (locais.length === 0 && agendas.length === 0) return <p className="text-xs text-muted-foreground">Nenhuma agenda encontrada.</p>;
 
   return (
     <div className="space-y-5">
@@ -80,15 +80,15 @@ export function LocaisDaEmpresa({ empresaId }: { empresaId: number }) {
       )}
       {locaisSemAgenda.length > 0 && (
         <div className="space-y-2">
-          {agendas.length > 0 && <PlacaTitulo titulo="Locais e outras agendas" />}
+          {agendas.length > 0 && <PlacaTitulo titulo="Outros registros da empresa" />}
           <ul className="space-y-2">
             {locaisSemAgenda.map((local) => (
               <li key={local.locationId} className="concave-3d px-3 py-2 flex items-center gap-3 min-w-0">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold uppercase break-words">{local.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{local.active ? "Local ativo" : "Local inativo"}</p>
+                  <p className="text-[10px] text-muted-foreground">{local.active ? "Ativo" : "Inativo"}</p>
                 </div>
-                <a href={`${appBase}/cadastros/clinicas?local=${local.locationId}`} className="bevel-3d shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest" aria-label={`Editar local ${local.name}`}>
+                <a href={`${appBase}/cadastros/clinicas?local=${local.locationId}`} className="bevel-3d shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest" aria-label={`Editar ${local.name}`}>
                   Editar
                 </a>
               </li>

@@ -288,7 +288,7 @@ const ABAS_EMPRESA: ItemTrilho[] = [
   { value: "referencias", label: "Origem", grupo: "fiscal" },
   { value: "integ", label: "Integrações", grupo: "sistema" },
   { value: "contratos", label: "Contratos", grupo: "sistema" },
-  { value: "locais-atendimento", label: "Locais", grupo: "locais" },
+  { value: "locais-atendimento", label: "Agendas", grupo: "locais" },
   { value: "locais-externos", label: "Externos", grupo: "locais" },
 ];
 
@@ -1977,11 +1977,11 @@ export default function CadastroEmpresas() {
                 {/* ── ABA: LOCAIS DE ATENDIMENTO (locais da empresa; saiu da frente do card) ── */}
                 <TabsContent value="locais-atendimento" className="flex-1 overflow-y-auto px-6 py-4 space-y-3 mt-0">
                   {!editingId ? (
-                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para ver os locais de atendimento.</p>
+                    <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para ver as agendas.</p>
                   ) : (
                     <>
                       <p className="text-xs text-muted-foreground">
-                        Locais físicos próprios desta empresa. Cadastrar um local não cria outra empresa. Profissionais que atendem em outro endereço usando o CNPJ desta empresa ficam na aba Externos.
+                        Agendas desta empresa. Cadastrar uma agenda não cria outra empresa. Profissionais que atendem em outro endereço usando o CNPJ desta empresa ficam na aba Externos.
                       </p>
                       <LocaisDaEmpresa empresaId={editingId} />
                     </>

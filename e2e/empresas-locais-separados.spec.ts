@@ -30,7 +30,7 @@ for (const width of [1365, 390]) {
     await expect(page.getByRole("listitem").filter({ hasText: "Local Alfa" })).toBeVisible();
     await expect(page.getByRole("listitem").filter({ hasText: "Local Beta" })).toHaveCount(0);
     await page.screenshot({ path: `generated-artifacts/empresas-locais-${width}.png` });
-    await page.getByRole("link", { name: "Editar local Local Alfa" }).click();
+    await page.getByRole("link", { name: "Editar Local Alfa" }).click();
     await expect(page).toHaveURL(/\/cadastros\/clinicas\?local=11/);
     await expect(page.getByRole("dialog", { name: "EDITAR LOCAL" })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("dialog").getByLabel("Nome *", { exact: true })).toHaveValue("Local Alfa");
@@ -52,8 +52,8 @@ test("erro ao consultar vínculos não é tratado como lista vazia", async ({ pa
   });
   await page.goto("/cadastros/empresas");
   await page.getByRole("button", { name: "Mostrar locais de Empresa Alfa" }).click();
-  await expect(page.getByRole("alert")).toContainText("Não foi possível consultar os locais");
-  await expect(page.getByText("Nenhum local vinculado encontrado.")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText("Não foi possível consultar as agendas");
+  await expect(page.getByText("Nenhuma agenda encontrada.")).toHaveCount(0);
 });
 
 test("novo local exige empresa e envia a seleção para autorização", async ({ page }) => {

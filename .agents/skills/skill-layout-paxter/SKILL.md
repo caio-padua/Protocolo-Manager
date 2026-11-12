@@ -957,13 +957,15 @@ oficial nem batizar a tela so de "Console".
 ### 4.18 Padrao 41 — Cartao de AGENDA (um desenho, duas telas)
 
 Agenda e local de atendimento sao coisas distintas. O cartao de agenda e o MESMO componente
-(`components/CartaoAgenda.tsx`) na Agenda Configuracao (tecla da lista) e no cadastro interno da empresa (aba Locais).
+(`components/CartaoAgenda.tsx`) na Agenda Configuracao (tecla da lista) e no cadastro interno da empresa (aba "Agendas", nunca "Locais").
 
 1. Vidro de cor (`VidroCor`) a esquerda; a cor e UMA so (`agenda_resources.color`, espelhada no local ligado pelo servidor nos dois sentidos).
-2. Linha 1: "AGENDA PROFISSIONAL" + nome da categoria gravada. Sem categoria = "categoria pendente" (nunca deduzir do nome).
-3. Linha 2: "Forma de atendimento" = Sede, Online ou Outro local (valores gravados local, online, externo). A palavra "remoto" nao existe mais.
-4. Linha 3: "Titulo da agenda" = o nome livre da agenda.
-5. Rotulos pequenos escritos (sem simbolo); o titulo pode quebrar em duas linhas, nunca ser cortado com reticencias.
+2. Tres linhas, titulo e valor lado a lado, SEM quebra de linha (valor longo corta com reticencias, o texto inteiro vai no title):
+   "Agenda profissional" + categoria gravada; "Forma" + Sede / Online / Outro local; "Título agenda" + nome livre.
+3. Titulos em EB Garamond semibold discreto (13px) numa coluna de largura fixa (7rem) para os valores alinharem na vertical; valores em Inter medium 10,5px maiusculo. Nada de negrito pesado.
+4. Sem categoria gravada = "categoria pendente" (nunca deduzir do nome). A palavra "remoto" nao existe mais.
+5. Na Agenda Configuracao a coluna da lista tem 400px (lg) e 520px (xl) para o titulo mais longo caber inteiro.
+6. Nenhum texto dessas telas chama a agenda de "local": local e o endereco fisico (aba Externos); agenda e agenda.
 
 RESUMO EM 1 LINHA: design Paxter = paineis 3D skeuomorficos, Saliente para a conclusao e
 Concavo para o dado, cores verde-petroleo/ciano, cantos quadrados, fluxos com setas — so

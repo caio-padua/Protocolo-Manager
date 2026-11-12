@@ -638,7 +638,7 @@ export default function AgendaMotor() {
       </header>
 
       {/* AGENDAS + IDENTIDADE + JANELAS */}
-      <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[400px_minmax(0,1fr)] xl:grid-cols-[520px_minmax(0,1fr)]">
         {/* Coluna agendas */}
         <div className="panel-3d space-y-4 p-4 lg:self-start">
           <BlockTitle icon={Layers}>Agendas de atendimento</BlockTitle>
@@ -660,9 +660,9 @@ export default function AgendaMotor() {
             <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
               <Plus className="h-3.5 w-3.5" /> Nova agenda de atendimento
             </span>
-            <Campo titulo="Título da agenda">
+            <Campo titulo="Título agenda">
               <ComRegistro codigo="A1">
-                <Input className="field-engraved" placeholder="Título da agenda" value={newRes.name}
+                <Input className="field-engraved" placeholder="Título agenda" value={newRes.name}
                   onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))} />
               </ComRegistro>
             </Campo>
@@ -773,7 +773,7 @@ export default function AgendaMotor() {
             {resDraft ? (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Campo titulo="Título da agenda" className="sm:col-span-2">
+                  <Campo titulo="Título agenda" className="sm:col-span-2 lg:col-span-4">
                     <ComRegistro codigo="A1" nota={`id ${selected?.id}`}>
                       <Input className="field-engraved" value={resDraft.name}
                         onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))} />
@@ -849,7 +849,7 @@ export default function AgendaMotor() {
                   </ComRegistro>
                   <ComRegistro codigo="L1" pendente={!!selected?.locationId && !localDoSelecionado}>
                     <div className="concave-3d h-full space-y-1 px-3 py-2.5">
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Local de atendimento</span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Agenda ligada</span>
                       <span className="block text-sm font-semibold">
                         {selected?.locationId
                           ? (localDoSelecionado ? `${localDoSelecionado.name} (${PAPEL_LABEL[localDoSelecionado.role ?? ""] ?? "sem papel"})` : "Sede vinculada (legado) não identificada nos locais que você administra")
