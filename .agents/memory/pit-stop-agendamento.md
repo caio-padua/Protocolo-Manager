@@ -19,4 +19,15 @@ Referência permanente: `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` (glossár
 - Fixture do teste pit-stop precisa da tabela client_visit_preference_revisions (proporDatas e detalharPlano leem preferências).
 **Why:** Home Care exige agenda de categoria enfermagem modalidade home_care ativa; sem ela dá "sem_agenda_da_categoria".
 - CEO mandou tratar a Fábia (Home Nurse) como técnica E enfermeira: habilitacao_nivel gravado = 'enfermeiro' (campo aceita um valor só); exigeNivel='enfermeiro' do Pit Stop compara esse campo.
-- Mês da Agenda (padcom) = GradeMesGoogle: lista "Minhas agendas" + eventos dentro do dia; Google somente leitura (cadeado); sessões do PAXTER não carregam agenda/cor na API (só unit/profissional) — filtro por agenda vale só para Google.
+- Mês da Agenda (padcom) = GradeMesGoogle: lista "Minhas agendas" + eventos dentro do dia; Google somente leitura (cadeado).
+
+## Gerenciamento, encaixe e linha do tempo (12/11/2026)
+- Encaixe: a isenção do prazo mínimo só vale por motivo definido no servidor; nunca por pedido do navegador. Agendas 27–29 sem janelas: marcar só depois que o CEO definir horários.
+- Dia e Semana da Agenda abrem em "Linha do tempo" (GradeTimeline); "Lista" guarda os cartões antigos (Regra de Ouro). `?visao=lista` força a lista: os e2e antigos da Agenda usam isso.
+- Resposta de sessão carrega agenda (id, nome, cor) e duração; sessão sem agenda = cinza "Sem agenda ligada", nunca palpite.
+- Link `/agenda?data=AAAA-MM-DD&modo=dia|semana|mes&visao=...` é lido pela Agenda; valor inválido é ignorado.
+- Aviso sonoro nasce DESLIGADO (navegador bloqueia som sem gesto); animação de aproximação respeita prefers-reduced-motion.
+- **Armadilha:** o codegen do OpenAPI reescreve `lib/api-zod/src/index.ts` com export extra de types (TS2308); restaurar para a linha única `export * from "./generated/api";`.
+- **Armadilha:** teste de toque do dnd-kit precisa de alvo centralizado (autoscroll); dnd-kit desabilitado põe aria-disabled e o clique do Playwright trava.
+- Risco aberto: Google pode reimportar evento criado pelo PAXTER e duplicar na linha do tempo (dev: 0 ecoados de 7; sem dado real).
+- Playwright com relógio fixo: `page.clock.setFixedTime` basta para testar "agora" sem travar os timers do React.

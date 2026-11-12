@@ -14,15 +14,23 @@ export type Participante = {
   profissionalOrigem: string | null;
 };
 export type Visita = { sessionId: number; agenda: string | null; googleEventId: string | null; pendente: boolean };
+/** Comparação da data escolhida com a nominal (protocolo) e com a aplicação anterior; calculada pelo servidor. */
+export type Avaliacao = {
+  dataNominal: string | null; diferencaDias: number | null; foraDaJanela: boolean;
+  intervaloAnterior: number | null; intervaloMinimo: number; abaixoDoMinimo: boolean; naOrdem: boolean;
+};
 export type Ocorrencia = {
   id: number; numero: number; data: string | null; hora: string | null; origem: "automatica" | "manual";
   motivo: string | null; reservada: boolean; visitas: Visita[];
   enderecoVisita: string | null; enderecoVisitaOrigem: "paciente" | "informado" | null;
+  /** Encaixe da 1ª sessão no término da consulta (marca gravada pelo servidor). */
+  encaixe?: boolean; avaliacao?: Avaliacao; rankPreferencia?: number | null;
 };
 export type ItemPlano = {
   id: number; procedimentoId: number; nome: string; totalSessoes: number; intervaloDias: number; dataInicio: string | null;
   duracaoSegundos: number; dose: string | null; equipeOrigem: string; origemRequisito: string | null;
   homeCare: boolean;
+  dataBase?: string; toleranciaDias?: number; intervaloMinimo?: number;
   equipe: Participante[]; problema: { code: string; message: string; opcoes?: unknown } | null; ocorrencias: Ocorrencia[];
 };
 export type EstadoPlano = "pendente" | "em_revisao" | "confirmado" | "cancelado";
@@ -44,6 +52,20 @@ export type LinhaFila = {
 };
 export type ResultadoOcorrencia = { itemId: number; numero: number; data: string | null; hora: string | null; ok: boolean; code?: string; message?: string };
 
+export type AvisoPlano = { code: string; message: string };
+export type VagaAlternativa = { date: string; time: string; rank: number | null; diferenca: number; agendas: string[] };
+export type ImpactoSeguinte = {
+  ocorrenciaId: number; numero: number; data: string | null; hora: string | null; origem: string; reservada: boolean;
+  intervaloDepoisDoMovimento: number | null; abaixoDoMinimo: boolean; seraRecalculada: boolean;
+};
+export type PreviaMover = {
+  ocorrenciaId: number; itemId: number; itemNome: string; numero: number;
+  de: { data: string | null; hora: string | null }; para: { data: string; hora: string };
+  podeMover: boolean; exigeAceite: boolean; bloqueios: AvisoPlano[]; avisos: AvisoPlano[];
+  avaliacao: Avaliacao; rankPreferencia: number | null; impacto: ImpactoSeguinte[]; alternativas: VagaAlternativa[];
+  vagasDoDia: { time: string; agendas: string[] }[];
+};
+
 export class PitStopErro extends Error {
   constructor(message: string, readonly code: string, readonly corpo: Record<string, unknown>) { super(message); }
 }
@@ -57,7 +79,13 @@ async function chamar<T>(caminho: string, init?: RequestInit): Promise<T> {
 const post = <T,>(c: string, body: unknown = {}) => chamar<T>(c, { method: "POST", body: JSON.stringify(body) });
 const put = <T,>(c: string, body: unknown) => chamar<T>(c, { method: "PUT", body: JSON.stringify(body) });
 
-type RespostaPlano = { plano: Plano; planoId?: number; repetido?: boolean; sincronizacao?: { estado: SyncEstado; motivo?: string } | null };
+type RespostaPlano = { plano: Plano; planoId?: number; repetido?: boolean; sincronizacao?: { estado: SyncEstado; motivo?: string } | null;
+  encaixe?: { date: string; time: string } | null };
+
+/** Prévia SOMENTE LEITURA: o servidor valida disponibilidade, equipe, intervalos e conflitos. Não grava nada. */
+export const previaMoverOcorrencia = (planoId: number, ocId: number, data: string, hora: string, signal?: AbortSignal) =>
+  chamar<{ previa: PreviaMover }>(`/agendamento/planos/${planoId}/ocorrencias/${ocId}/mover-previa`,
+    { method: "POST", body: JSON.stringify({ data, hora }), signal }).then((r) => r.previa);
 
 export const CHAVE_FILA = ["pit-stop", "fila"] as const;
 export const chavePlano = (id: number) => ["pit-stop", "plano", id] as const;
@@ -98,6 +126,12 @@ export function useAcoesPlano(id: number) {
       put<RespostaPlano>(`/agendamento/planos/${id}/ocorrencias`, v)),
     equipe: m((v: { versao: number; itemId: number; equipe: { categoryId: number; alternativeCategoryIds?: number[]; professionalIds?: number[]; modalidade?: string; agendaId?: number | null }[] }) =>
       put<RespostaPlano>(`/agendamento/planos/${id}/itens/${v.itemId}/equipe`, { versao: v.versao, equipe: v.equipe })),
+    mover: m((v: { versao: number; ocId: number; data: string; hora: string; aceitarForaDaJanela?: boolean }) =>
+      post<RespostaPlano>(`/agendamento/planos/${id}/ocorrencias/${v.ocId}/mover`,
+        { versao: v.versao, data: v.data, hora: v.hora, aceitarForaDaJanela: v.aceitarForaDaJanela === true })),
+    encaixar: m((v: { versao: number; itemId: number; horaTermino?: string; aceitarForaDaJanela?: boolean }) =>
+      post<RespostaPlano>(`/agendamento/planos/${id}/itens/${v.itemId}/encaixar-primeira`,
+        { versao: v.versao, ...(v.horaTermino ? { horaTermino: v.horaTermino } : {}), aceitarForaDaJanela: v.aceitarForaDaJanela === true })),
     revalidar: useMutation({
       mutationFn: () => post<{ ok: boolean; resultados: ResultadoOcorrencia[] }>(`/agendamento/planos/${id}/revalidar`),
     }),

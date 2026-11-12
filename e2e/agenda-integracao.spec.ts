@@ -103,7 +103,7 @@ test("agenda distingue aplicação não realizada e exige confirmação explíci
       {id:113,substanceId:203,substanceName:"Substância pendente",substanceColor:"#123456",dose:"Dose sintética",sessionNumber:1,totalSessions:1,status:"pending",availability:"disp",appliedAt:null,displayState:"disp"},
     ]};
   const state=await fixture(context,true,false,[session]);
-  await page.goto("/agenda");
+  await page.goto("/agenda?visao=lista");
   await expect(page.getByText("Substância não realizada")).toBeVisible();
   await expect(page.getByLabel("Confirmar Substância não realizada")).toHaveCount(0);
   await page.getByRole("button",{name:"Registrar Substância pendente não aplicada"}).click();
@@ -115,7 +115,7 @@ test("agenda distingue aplicação não realizada e exige confirmação explíci
 });
 test("agenda atualiza por leitura e exibe compromisso sem envio legado",async({page,context})=>{
   const state=await fixture(context,true);
-  await page.goto("/agenda");
+  await page.goto("/agenda?visao=lista");
   await expect(page.getByText("Ocupado — compromisso pessoal",{exact:true})).toBeVisible();
   await page.getByTestId("button-refresh-google").click();
   await expect.poll(()=>state.refreshes).toBe(1);
@@ -123,7 +123,7 @@ test("agenda atualiza por leitura e exibe compromisso sem envio legado",async({p
 });
 test("agenda abre descrição importada sem interpretar conteúdo como procedimento confirmado",async({page,context})=>{
   const state=await fixture(context,true);
-  await page.goto("/agenda");
+  await page.goto("/agenda?visao=lista");
   await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
   const dialog=page.getByRole("dialog");
   await expect(dialog.getByText("Informações do compromisso")).toBeVisible();
@@ -133,7 +133,7 @@ test("agenda abre descrição importada sem interpretar conteúdo como procedime
 });
 test("agenda informa recusa e falhas de descrição sem quebrar o diálogo",async({page,context})=>{
   const state=await fixture(context,true);
-  await page.goto("/agenda");
+  await page.goto("/agenda?visao=lista");
   for (const status of [403,404,500]) {
     state.descriptionStatus=status;
     await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
@@ -151,7 +151,7 @@ test("descrição importada mantém negrito sem executar conteúdo externo",asyn
   state.descriptionValue='<b>Procedimentos sintéticos</b><br>[DISP] Substância fictícia<img src="https://example.invalid/rastreamento"><script>window.descricaoExecutada = true</script><a href="https://example.invalid/">Link visível</a>';
   let externalRequests=0;
   await page.route("https://example.invalid/**",route=>{externalRequests++;return route.abort();});
-  await page.goto("/agenda");
+  await page.goto("/agenda?visao=lista");
   await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
   const dialog=page.getByRole("dialog");
   await expect(dialog.locator("b")).toHaveText("Procedimentos sintéticos");
@@ -163,7 +163,7 @@ test("descrição importada mantém negrito sem executar conteúdo externo",asyn
 test("ocorrência modificada informa que pertence a uma série",async({page,context})=>{
   const state=await fixture(context,true);
   state.recurring=true;
-  await page.goto("/agenda");
+  await page.goto("/agenda?visao=lista");
   await page.getByRole("button",{name:/Ver detalhes: Ocupado — compromisso pessoal/}).click();
   await expect(page.getByRole("dialog").getByText("Recorrente",{exact:true})).toBeVisible();
   expect(state.legacyWrites).toBe(0);

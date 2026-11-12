@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, Lock, Repeat } from "lucide-react";
-import { collabAuthHeaders } from "@/lib/collab-auth";
-import { useCollabIdentity } from "./agenda-integration-api";
-import type { GoogleAgendaCommitment, GoogleAgendaCommitments } from "@workspace/api-client-react";
+import { useGoogleCompromissos } from "./useGoogleCompromissos";
+import type { GoogleAgendaCommitment } from "@workspace/api-client-react";
 
 /**
  * Mês no estilo Google Agenda: lista "Minhas agendas" com bolinha colorida e caixa de seleção à esquerda,
@@ -29,7 +27,6 @@ export function GradeMesGoogle({
   /** Conteúdo exibido abaixo da grade (detalhe do dia). */
   children?: React.ReactNode;
 }) {
-  const identity = useCollabIdentity();
   const monthStart = startOfMonth(currentDate);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const gridEnd = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 });
@@ -37,17 +34,7 @@ export function GradeMesGoogle({
   const ate = format(gridEnd, "yyyy-MM-dd");
   const dias = useMemo(() => eachDayOfInterval({ start: gridStart, end: gridEnd }), [de, ate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const google = useQuery({
-    queryKey: ["google-compromissos", identity, de, ate],
-    queryFn: async ({ signal }) => {
-      const base = import.meta.env.VITE_API_URL || "/api";
-      const r = await fetch(`${base}/agenda/google-compromissos?${new URLSearchParams({ de, ate })}`, { headers: collabAuthHeaders(), signal });
-      if (!r.ok) throw Object.assign(new Error("Não foi possível carregar os compromissos do Google."), { status: r.status });
-      return r.json() as Promise<GoogleAgendaCommitments>;
-    },
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
+  const google = useGoogleCompromissos(de, ate);
 
   // Seleção: "ocultas" guarda só o que o usuário desmarcou; agenda nova nasce marcada.
   const [ocultas, setOcultas] = useState<ReadonlySet<string>>(new Set());

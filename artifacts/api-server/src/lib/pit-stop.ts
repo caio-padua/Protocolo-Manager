@@ -191,6 +191,8 @@ async function gravarAgendaSugerida(itemId: number, ordem: number, agendaId: num
 
 // ───────────────────────── datas propostas ─────────────────────────
 
+/** Marca gravada SÓ pelo servidor em encaixar-primeira; é o que dispensa a antecedência mínima na reserva. */
+export const MOTIVO_ENCAIXE = "encaixe_termino_consulta";
 /** Preferência de dias e horários do paciente para o tipo de profissional do procedimento (médico OU enfermagem). */
 export type TipoPreferencia = "medical" | "nursing";
 export async function tipoPreferenciaDoItem(ex: Tx, equipe: Participante[]): Promise<TipoPreferencia> {
@@ -400,7 +402,7 @@ export async function detalharPlano(empresaId: number, planoId: number) {
           id: Number(o.id), numero: Number(o.numero), data: o.data ?? null, hora: o.hora ?? null, origem: String(o.origem),
           motivo: o.motivo ?? null, reservada: o.ocorrencia_id != null, visitas: o.visitas,
           enderecoVisita: o.endereco_visita ?? null, enderecoVisitaOrigem: o.endereco_visita_origem ?? null,
-          encaixe: o.motivo === "encaixe_termino_consulta",
+          encaixe: o.motivo === MOTIVO_ENCAIXE,
           avaliacao: av,
           rankPreferencia: data && o.hora ? rankPreferencia(prefsCliente[tipoPref], data, String(o.hora)) ?? null : null,
         };
@@ -580,7 +582,7 @@ export type ResultadoOcorrencia = {
 async function tentarReservarTodas(tx: Tx, empresaId: number, planoId: number, me: number): Promise<{
   resultados: ResultadoOcorrencia[]; reservadas: { ocId: number; ocorrenciaId: number }[];
 }> {
-  const ocs = await tx.execute(sql`SELECT o.id, o.protocolo_procedimento_id AS item, o.numero, o.data, o.hora, o.endereco_visita FROM agendamento_plano_ocorrencias o
+  const ocs = await tx.execute(sql`SELECT o.id, o.protocolo_procedimento_id AS item, o.numero, o.data, o.hora, o.endereco_visita, o.motivo FROM agendamento_plano_ocorrencias o
     JOIN protocolo_procedimentos pp ON pp.id=o.protocolo_procedimento_id WHERE o.plano_id=${planoId} ORDER BY pp.ordem, pp.id, o.numero`);
   const resultados: ResultadoOcorrencia[] = [];
   const reservadas: { ocId: number; ocorrenciaId: number }[] = [];
@@ -600,7 +602,8 @@ async function tentarReservarTodas(tx: Tx, empresaId: number, planoId: number, m
     }
     try {
       const r = await reservarOcorrenciaTx(tx, { empresaId, protocoloProcedimentoId: Number(o.item), numero: Number(o.numero),
-        date: String(o.data), time: String(o.hora), criadoPor: me });
+        date: String(o.data), time: String(o.hora), criadoPor: me,
+        semAntecedencia: o.motivo === MOTIVO_ENCAIXE });
       reservadas.push({ ocId: Number(o.id), ocorrenciaId: r.ocorrenciaId });
       resultados.push({ ...base, ok: true });
     } catch (e) {

@@ -7,7 +7,7 @@ import { bookSession, rescheduleSession } from "../lib/agenda-booking";
 import {
   refreshAfterApplication, refreshAfterReschedule, removeSessionEvent, waitForEventUpdateToSettle,
 } from "../lib/session-google-sync";
-import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable, locationsTable, locationProfessionalsTable } from "@workspace/db";
+import { db, sessionsTable, substanceApplicationsTable, clientsTable, professionalsTable, substancesTable, protocolsTable, locationsTable, locationProfessionalsTable, agendaResourcesTable } from "@workspace/db";
 import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "../lib/ics";
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
 import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "../lib/substancias-constantes";
@@ -47,6 +47,16 @@ async function buildSessionResponse(
 
   const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
 
+  // Agenda (recurso) da sessão: nome e cor para a linha do tempo. Sessão sem agenda ligada devolve null (nada é inventado).
+  let agendaNome: string | null = null;
+  let agendaCor: string | null = null;
+  if (session.resourceId) {
+    const [agenda] = await db.select({ name: agendaResourcesTable.name, color: agendaResourcesTable.color })
+      .from(agendaResourcesTable).where(eq(agendaResourcesTable.id, session.resourceId));
+    agendaNome = agenda?.name ?? null;
+    agendaCor = agenda?.color ?? null;
+  }
+
   const substanceMap: Record<number, typeof substancesTable.$inferSelect> = {};
   for (const app of applications) {
     if (!substanceMap[app.substanceId]) {
@@ -82,6 +92,12 @@ async function buildSessionResponse(
     nurseName,
     serviceAddress: (session as any).serviceAddress ?? null,
     unit: session.unit ?? null,
+    resourceId: session.resourceId ?? null,
+    agendaNome,
+    agendaCor,
+    // Duração gravada na sessão; sem ela, a mesma regra do .ics (IV 30 / IM 15 / Implante 60 pelas aplicações do dia).
+    durationMinutes: session.durationMinutes
+      ?? durationFromProcedureTypes(applications.filter(a => a.availability === "disp").map(a => substanceMap[a.substanceId]?.procedureType ?? "iv")),
     serviceType: session.serviceType,
     weekNumber: session.weekNumber,
     notes: session.notes ?? null,

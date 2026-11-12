@@ -620,6 +620,167 @@ describe("Pit Stop: plano de agendamento compartilhado, no banco isolado", () =>
       expect(enfermeira.body.plano.itens[0].equipe[0].exigeNivel).toBe("enfermeiro");
     });
   });
+
+  describe("Redistribuição pós-distribuição: encaixe da 1ª sessão e mover visita (prévia, servidor, concorrência)", () => {
+    const plus = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const previa = (plano: number, oc: number, data: string, hora: string, prof = 101, extra: Record<string, string> = {}) =>
+      api("post", `/agendamento/planos/${plano}/ocorrencias/${oc}/mover-previa`, { data, hora }, prof, extra);
+    const mover = (plano: number, oc: number, body: any, prof = 101) => api("post", `/agendamento/planos/${plano}/ocorrencias/${oc}/mover`, body, prof);
+    const encaixar = (plano: number, item: number, body: any) => api("post", `/agendamento/planos/${plano}/itens/${item}/encaixar-primeira`, body);
+    const linhaOc = async (id: number) => (await q("SELECT data, hora, origem, motivo FROM agendamento_plano_ocorrencias WHERE id=$1", [id])).rows[0];
+    const versaoDe = async (plano: number) => Number((await q("SELECT versao FROM agendamento_planos WHERE id=$1", [plano])).rows[0].versao);
+
+    it("encaixe: hoje, a partir do término da consulta, na 1ª vaga da equipe completa; só o encaixe dispensa a antecedência e a confirmação reserva de fato", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date(`${brtISODate()}T12:15:00Z`)); // 09:15 em Brasília (término da consulta)
+        const hoje = brtISODate();
+        const proto = await novoProtocolo();
+        const r = await criar(proto, [aplicacao(hoje, { totalSessoes: 3, intervaloDias: 7 })], true);
+        expect(r.status).toBe(201);
+        const id = r.body.planoId, item = r.body.plano.itens[0];
+        expect(item.ocorrencias[0].data > hoje).toBe(true); // sem encaixe a antecedência mínima de 24 h vale
+
+        // Controle: escolher hoje 09:30 pelo caminho comum NÃO passa (antecedência mínima), só o encaixe do servidor.
+        const ctrl = await criar(await novoProtocolo(), [aplicacao(hoje)], true);
+        const ocCtrl = ctrl.body.plano.itens[0].ocorrencias[0];
+        expect((await api("put", `/agendamento/planos/${ctrl.body.planoId}/ocorrencias`,
+          { versao: ctrl.body.plano.versao, ajustes: [{ id: ocCtrl.id, data: hoje, hora: "09:30" }] })).status).toBe(200);
+        const rev = await api("post", `/agendamento/planos/${ctrl.body.planoId}/revalidar`, {});
+        expect(rev.body.ok).toBe(false);
+        expect(rev.body.resultados[0].code).toBe("horario_indisponivel");
+
+        const e = await encaixar(id, item.id, { versao: r.body.plano.versao, horaTermino: "09:15" });
+        expect(e.status).toBe(200);
+        expect(e.body.encaixe).toEqual({ date: hoje, time: "09:30" });
+        const oc = e.body.plano.itens[0].ocorrencias;
+        expect(oc[0]).toMatchObject({ data: hoje, hora: "09:30", origem: "manual", encaixe: true, reservada: false });
+        expect(plus(oc[1].data, 0) >= plus(hoje, 3)).toBe(true); // próximas respeitam o intervalo mínimo (7 - 4 = 3 dias)
+        expect(await nSessoes(proto)).toBe(0); // encaixe é prévia: nada reservado ainda
+
+        const c = await confirmar(id, e.body.plano.versao);
+        expect(c.status).toBe(200);
+        expect(await nSessoes(proto)).toBe(3);
+        const primeira = (await q("SELECT scheduled_date, scheduled_time FROM sessions WHERE protocol_id=$1 ORDER BY scheduled_date, scheduled_time", [proto])).rows[0];
+        expect([primeira.scheduled_date, primeira.scheduled_time]).toEqual([hoje, "09:30"]);
+      } finally { vi.useRealTimers(); }
+    }, 60_000);
+
+    it("encaixe sem vaga hoje: 409 com alternativas reais, nada muda; horário inválido e fora da janela exigem tratamento explícito", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date(`${brtISODate()}T12:15:00Z`));
+        const hoje = brtISODate();
+        const r = await criar(await novoProtocolo(), [aplicacao(hoje, { totalSessoes: 2, intervaloDias: 7 })], true);
+        const id = r.body.planoId, item = r.body.plano.itens[0];
+        const antes = await versaoDe(id);
+        const semVaga = await encaixar(id, item.id, { versao: r.body.plano.versao, horaTermino: "12:00" }); // a janela da agenda termina às 12:00
+        expect(semVaga.status).toBe(409);
+        expect(semVaga.body.code).toBe("sem_vaga_no_termino");
+        expect(semVaga.body.alternativas.length).toBeGreaterThan(0);
+        expect(await versaoDe(id)).toBe(antes);
+        expect((await linhaOc(item.ocorrencias[0].id)).origem).toBe("automatica");
+        expect((await encaixar(id, item.id, { versao: r.body.plano.versao, horaTermino: "25:99" })).status).toBe(400);
+        expect((await encaixar(id, item.id, { versao: r.body.plano.versao + 9, horaTermino: "09:15" })).body.code).toBe("plano_mudou");
+
+        // Início do procedimento distante: encaixar hoje fica fora da janela de 4 dias e exige aceite explícito.
+        vi.setSystemTime(new Date(`${brtISODate()}T10:50:00Z`)); // 07:50 em Brasília: a vaga das 09:30 já foi ocupada pelo teste anterior
+        const longe = await criar(await novoProtocolo(), [aplicacao(plus(hoje, 10), { totalSessoes: 2, intervaloDias: 7 })], true);
+        const itL = longe.body.plano.itens[0];
+        const sem = await encaixar(longe.body.planoId, itL.id, { versao: longe.body.plano.versao, horaTermino: "08:00" });
+        expect(sem.status).toBe(422);
+        expect(sem.body.code).toBe("fora_da_janela_exige_aceite");
+        const com = await encaixar(longe.body.planoId, itL.id, { versao: longe.body.plano.versao, horaTermino: "08:00", aceitarForaDaJanela: true });
+        expect(com.status).toBe(200);
+        expect(com.body.plano.itens[0].ocorrencias[0]).toMatchObject({ data: hoje, hora: "08:00", encaixe: true });
+      } finally { vi.useRealTimers(); }
+    }, 60_000);
+
+    it("mover: prévia valida no servidor sem gravar; fora da janela exige aceite; recalcula as próximas; recusa mantém tudo como estava", async () => {
+      const proto = await novoProtocolo();
+      const r = await criar(proto, [aplicacao(D(40), { totalSessoes: 3, intervaloDias: 7 })], true);
+      const id = r.body.planoId, item = r.body.plano.itens[0];
+      const [o1, o2, o3] = item.ocorrencias;
+      const nominal2 = plus(item.dataBase, 7), nominal3 = plus(item.dataBase, 14);
+      const agendaId = item.equipe[0].agendaId;
+
+      const boa = await previa(id, o2.id, plus(nominal2, 1), "09:00");
+      expect(boa.status).toBe(200);
+      expect(boa.body.previa).toMatchObject({ podeMover: true, exigeAceite: false, bloqueios: [] });
+      expect(boa.body.previa.avaliacao.diferencaDias).toBe(1);
+      expect(boa.body.previa.alternativas.length).toBeGreaterThan(0);
+      expect(boa.body.previa.vagasDoDia.map((v: any) => v.time)).toContain("09:00"); // horários livres do dia escolhido
+      expect(boa.body.previa.impacto.find((i: any) => i.numero === 3)).toMatchObject({ seraRecalculada: true, reservada: false });
+      expect((await linhaOc(o2.id)).origem).toBe("automatica"); // a prévia não grava
+
+      const fora = await previa(id, o2.id, plus(nominal2, 6), "09:00");
+      expect(fora.body.previa).toMatchObject({ podeMover: true, exigeAceite: true });
+      expect(fora.body.previa.avisos.map((a: any) => a.code)).toContain("fora_da_janela");
+      const v0 = await versaoDe(id);
+      const semAceite = await mover(id, o2.id, { versao: v0, data: plus(nominal2, 6), hora: "09:00" });
+      expect(semAceite.status).toBe(422);
+      expect(semAceite.body.code).toBe("fora_da_janela_exige_aceite");
+      expect((await linhaOc(o2.id)).origem).toBe("automatica");
+      expect(await versaoDe(id)).toBe(v0);
+
+      const ok = await mover(id, o2.id, { versao: v0, data: plus(nominal2, 6), hora: "09:00", aceitarForaDaJanela: true });
+      expect(ok.status).toBe(200);
+      const oc = ok.body.plano.itens[0].ocorrencias;
+      expect(oc[1]).toMatchObject({ data: plus(nominal2, 6), hora: "09:00", origem: "manual" });
+      expect(oc[1].avaliacao.foraDaJanela).toBe(true);
+      expect(oc[2].data >= plus(oc[1].data, 3)).toBe(true); // a 3ª foi recalculada: respeita o mínimo depois da 2ª
+      expect(await nSessoes(proto)).toBe(0);
+      expect((await q("SELECT acao FROM agendamento_plano_auditoria WHERE plano_id=$1 AND acao='moveu_ocorrencia'", [id])).rows).toHaveLength(1);
+
+      // Recusas: nada muda e a versão não anda.
+      const v1 = await versaoDe(id);
+      await q("INSERT INTO sessions(protocol_id, client_id, scheduled_date, scheduled_time, status, resource_id, empresa_id, duration_minutes) VALUES (1,1,$1,'09:00','scheduled',$2,5,30)",
+        [plus(nominal3, 2), agendaId]);
+      const ocupada = await previa(id, o3.id, plus(nominal3, 2), "09:00");
+      expect(ocupada.body.previa.podeMover).toBe(false);
+      expect(ocupada.body.previa.bloqueios.map((b: any) => b.code)).toContain("horario_indisponivel");
+      const negada = await mover(id, o3.id, { versao: v1, data: plus(nominal3, 2), hora: "09:00" });
+      expect([negada.status, negada.body.code]).toEqual([422, "horario_indisponivel"]);
+      const baixo = await previa(id, o3.id, plus(oc[1].data, 1), "08:30");
+      expect(baixo.body.previa.bloqueios.map((b: any) => b.code)).toContain("abaixo_do_minimo");
+      const passado = await previa(id, o3.id, plus(brtISODate(), -1), "09:00");
+      expect(passado.body.previa.bloqueios.map((b: any) => b.code)).toContain("data_passada");
+      const choque = await previa(id, o3.id, oc[1].data, oc[1].hora);
+      expect(choque.body.previa.bloqueios.map((b: any) => b.code)).toContain("conflito_no_plano");
+      const ordem = await previa(id, o1.id, plus(oc[1].data, 2), "08:00");
+      expect(ordem.body.previa.bloqueios.map((b: any) => b.code)).toContain("proxima_abaixo_do_minimo"); // a 2ª é escolha manual: nunca é empurrada em silêncio
+      expect(await versaoDe(id)).toBe(v1);
+      expect((await linhaOc(o3.id)).origem).toBe("automatica");
+      expect((await previa(id, o2.id, "2026-02-30", "09:00")).status).toBe(200);
+      expect((await previa(id, o2.id, "nao-e-data", "09:00")).status).toBe(400);
+    }, 60_000);
+
+    it("mover: concorrência (mesma versão = só um vence), outra clínica e sem login são recusados, plano confirmado não aceita mudança", async () => {
+      const proto = await novoProtocolo();
+      const r = await criar(proto, [aplicacao(D(45), { totalSessoes: 3, intervaloDias: 7 })], true);
+      const id = r.body.planoId, item = r.body.plano.itens[0];
+      const [, o2, o3] = item.ocorrencias;
+      const versao = r.body.plano.versao;
+      const [a, b] = await Promise.all([
+        mover(id, o2.id, { versao, data: plus(item.dataBase, 8), hora: "09:00" }),
+        mover(id, o3.id, { versao, data: plus(item.dataBase, 15), hora: "09:00" }),
+      ]);
+      expect([a.status, b.status].sort()).toEqual([200, 409]);
+      expect([a.body.code, b.body.code].filter(Boolean)).toEqual(["plano_mudou"]);
+
+      expect([403, 404]).toContain((await previa(id, o2.id, plus(item.dataBase, 8), "09:00", 101, { "x-test-empresa": "6" })).status);
+      expect((await request(app).post(`/agendamento/planos/${id}/ocorrencias/${o2.id}/mover-previa`).send({ data: plus(item.dataBase, 8), hora: "09:00" })).status).toBe(401);
+      expect((await previa(id, 999999, plus(item.dataBase, 8), "09:00")).status).toBe(404);
+
+      const atual = await versaoDe(id);
+      const c = await confirmar(id, atual);
+      expect(c.status).toBe(200);
+      const depois = await mover(id, o2.id, { versao: atual + 1, data: plus(item.dataBase, 9), hora: "09:00" });
+      expect(depois.status).toBe(409);
+      expect(depois.body.code).toBe("plano_ja_confirmado");
+      expect(await nSessoes(proto)).toBe(3);
+    }, 60_000);
+  });
 });
 
 

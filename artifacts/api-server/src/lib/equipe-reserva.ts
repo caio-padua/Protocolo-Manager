@@ -198,11 +198,11 @@ export async function resolverNecessidades(executor: Executor, empresaId: number
 }
 
 async function iniciosDoDia(
-  executor: Executor, recursos: Map<number, RecursoInfo>, date: string, duracaoMinutos: number,
+  executor: Executor, recursos: Map<number, RecursoInfo>, date: string, duracaoMinutos: number, semAntecedencia = false,
 ): Promise<Map<number, Set<string>>> {
   const inicios = new Map<number, Set<string>>();
   for (const recurso of recursos.values()) {
-    const computed = await computeResourceSlots(recurso.id, date, null, executor);
+    const computed = await computeResourceSlots(recurso.id, date, null, executor, undefined, { semAntecedencia });
     inicios.set(recurso.id, computed
       ? iniciosComDuracaoAberta(computed.result.slots, recurso.slotMinutes, duracaoMinutos) : new Set());
   }
@@ -212,6 +212,7 @@ async function iniciosDoDia(
 /** Leitura (nada é gravado): horários em que a equipe inteira cabe, com as agendas escolhidas. */
 export async function buscarHorariosDaEquipe(params: {
   empresaId: number; participantes: Participante[]; duracaoSegundos: number; from: string; to: string; executor?: Executor;
+  semAntecedencia?: boolean;
 }) {
   const executor = params.executor ?? db;
   const datas = datasEntre(params.from, params.to);
@@ -221,7 +222,7 @@ export async function buscarHorariosDaEquipe(params: {
   const dias: { date: string; horarios: { time: string; participantes: any[] }[] }[] = [];
   for (const date of datas) {
     if (date < hoje) continue;
-    const inicios = await iniciosDoDia(executor, recursos, date, duracaoMinutos);
+    const inicios = await iniciosDoDia(executor, recursos, date, duracaoMinutos, params.semAntecedencia === true);
     const horarios = horariosDaEquipe(necessidades, inicios).map((h) => ({
       time: h.time,
       participantes: h.atribuicao.map((a) => ({
@@ -240,6 +241,8 @@ export async function buscarHorariosDaEquipe(params: {
  */
 type ReservaParams = {
   empresaId: number; protocoloProcedimentoId: number; numero: number; date: string; time: string; criadoPor: number | null;
+  /** Só o encaixe no término da consulta (marcado pelo servidor no plano) dispensa a antecedência mínima. */
+  semAntecedencia?: boolean;
 };
 export async function reservarOcorrencia(params: ReservaParams) {
   if (!dataValida(params.date) || !HHMM.test(params.time)) throw new EquipeErro(400, "Data ou horário inválido.", "data_invalida");
@@ -281,7 +284,7 @@ export async function reservarOcorrenciaTx(tx: Executor, params: ReservaParams) 
     const participantes = equipe.rows.map(participanteDaLinha);
     const { necessidades, recursos } = await resolverNecessidades(tx, params.empresaId, participantes);
     const duracaoMinutos = Number(item.duracao_segundos) / 60;
-    const inicios = await iniciosDoDia(tx, recursos, params.date, duracaoMinutos);
+    const inicios = await iniciosDoDia(tx, recursos, params.date, duracaoMinutos, params.semAntecedencia === true);
     const atribuicao = escolherAtribuicao(necessidades, inicios, params.time);
     if (!atribuicao) {
       throw new EquipeErro(409, "Este horário não está livre para a equipe completa. Nada foi reservado.", "horario_indisponivel");

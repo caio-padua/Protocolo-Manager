@@ -45,6 +45,8 @@ export async function computeResourceSlots(
   occupiedOverride?: Set<string> | null,
   executor: AgendaExecutor = db,
   ignoreSessionId?: number,
+  /** `semAntecedencia`: só o encaixe presencial no término da consulta (Pit Stop) dispensa a antecedência mínima. */
+  opts: { semAntecedencia?: boolean } = {},
 ): Promise<{ resource: typeof agendaResourcesTable.$inferSelect; result: EngineResult } | null> {
   if (!validDate(date)) return null;
   const db = executor;
@@ -97,7 +99,7 @@ export async function computeResourceSlots(
     settings: {
       blockMinutes: settings.blockMinutes,
       triggerPercent: settings.triggerPercent,
-      minLeadHours: settings.minLeadHours,
+      minLeadHours: opts.semAntecedencia ? 0 : settings.minLeadHours,
     },
     occupiedTimes,
     now: new Date(),

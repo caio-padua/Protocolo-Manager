@@ -6788,6 +6788,21 @@ components:
         unit:
           type: string
           nullable: true
+        resourceId:
+          type: integer
+          nullable: true
+          description: Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.
+        agendaNome:
+          type: string
+          nullable: true
+        agendaCor:
+          type: string
+          nullable: true
+          description: Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.
+        durationMinutes:
+          type: integer
+          nullable: true
+          description: Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.
         serviceType:
           type: string
           enum: [clinic, homecare]

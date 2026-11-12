@@ -1,0 +1,73 @@
+/* Linha do tempo da Agenda (Dia e Semana). Sem biblioteca de estilo: poucas regras, todas com nome tl-*.
+   Cor da agenda entra por --ev (variável por compromisso). Nada aqui depende de tema claro ou escuro:
+   os tons saem de color-mix com a cor da agenda e com currentColor. */
+
+.tl-raiz { --tl-linha: color-mix(in srgb, currentColor 11%, transparent); --tl-linha-meia: color-mix(in srgb, currentColor 5%, transparent); }
+
+.tl-corpo-coluna {
+  position: relative;
+  background-image:
+    linear-gradient(to bottom, var(--tl-linha) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--tl-linha-meia) 1px, transparent 1px);
+  background-size: 100% var(--tl-hora), 100% calc(var(--tl-hora) / 2);
+  border-left: 1px solid var(--tl-linha);
+}
+.tl-corpo-coluna--hoje { background-color: color-mix(in srgb, #d4af37 5%, transparent); }
+
+.tl-evento {
+  --ev: #64748b;
+  position: absolute;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+  border: 0;
+  border-left: 3px solid var(--ev);
+  padding: 2px 6px;
+  color: inherit;
+  background: color-mix(in srgb, var(--ev) 17%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ev) 22%, transparent);
+  transition: box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.tl-evento:hover,
+.tl-evento:focus-visible {
+  z-index: 6;
+  outline: none;
+  background: color-mix(in srgb, var(--ev) 26%, transparent);
+  box-shadow: 0 0 0 1px var(--ev), 0 0 14px 1px color-mix(in srgb, var(--ev) 65%, transparent);
+}
+.tl-evento--google {
+  border-left-style: dashed;
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--ev) 10%, transparent) 6px 7px);
+}
+.tl-evento--encerrada { opacity: 0.55; }
+.tl-evento--passada { opacity: 0.6; }
+.tl-evento--andamento { box-shadow: inset 0 0 0 1px var(--ev); }
+
+/* Atendimento prestes a começar: respiração lenta do contorno, sem piscar seco. */
+.tl-evento--proxima { animation: tl-respira 2.8s ease-in-out infinite; }
+.tl-evento--proxima:hover,
+.tl-evento--proxima:focus-visible { animation: none; }
+@keyframes tl-respira {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ev) 55%, transparent), 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 1px var(--ev), 0 0 12px 3px color-mix(in srgb, var(--ev) 55%, transparent); }
+}
+
+/* Linha vermelha de agora. */
+.tl-agora { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid #dc2626; z-index: 7; pointer-events: none; }
+.tl-agora::before {
+  content: ""; position: absolute; left: -5px; top: -6px; width: 10px; height: 10px; border-radius: 9999px; background: #dc2626;
+}
+.tl-agora-rotulo {
+  position: absolute; right: 6px; z-index: 8; transform: translateY(-50%);
+  background: #dc2626; color: #fff; border-radius: 9999px; padding: 0 6px; font-size: 10px; font-weight: 800; line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-evento { transition: none; }
+  .tl-evento--proxima {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--ev), 0 0 0 5px color-mix(in srgb, var(--ev) 25%, transparent);
+  }
+}

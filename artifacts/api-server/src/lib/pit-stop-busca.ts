@@ -13,14 +13,14 @@ export const minutosDe = (t: string) => { const [h, m] = t.split(":").map(Number
  * Leitor de vagas de UM procedimento: a equipe inteira, lida em blocos de 31 dias com cache.
  * Só leitura: nada é gravado. EquipeErro (escolha pendente, sem agenda...) sobe para quem chamou.
  */
-export function criarBuscador(p: { empresaId: number; equipe: Participante[]; duracaoSegundos: number; origem: string }) {
+export function criarBuscador(p: { empresaId: number; equipe: Participante[]; duracaoSegundos: number; origem: string; semAntecedencia?: boolean }) {
   const duracaoMin = Math.ceil(p.duracaoSegundos / 60);
   const cache = new Map<string, Awaited<ReturnType<typeof buscarHorariosDaEquipe>>>();
   const dia = async (data: string) => {
     const base = somarDias(p.origem, Math.floor(diferencaDias(data, p.origem) / MAX_DIAS_BUSCA) * MAX_DIAS_BUSCA);
     if (!cache.has(base)) {
       cache.set(base, await buscarHorariosDaEquipe({
-        empresaId: p.empresaId, participantes: p.equipe, duracaoSegundos: p.duracaoSegundos, from: base, to: somarDias(base, MAX_DIAS_BUSCA - 1),
+        empresaId: p.empresaId, participantes: p.equipe, duracaoSegundos: p.duracaoSegundos, from: base, to: somarDias(base, MAX_DIAS_BUSCA - 1), semAntecedencia: p.semAntecedencia,
       }));
     }
     return cache.get(base)!.find((d) => d.date === data)?.horarios ?? [];

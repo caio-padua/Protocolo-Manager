@@ -2854,6 +2854,25 @@ export const ListProtocolsResponseItem = zod.object({
       professionalId: zod.number().nullish(),
       professionalName: zod.string().nullish(),
       unit: zod.string().nullish(),
+      resourceId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+        ),
+      agendaNome: zod.string().nullish(),
+      agendaCor: zod
+        .string()
+        .nullish()
+        .describe(
+          "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+        ),
+      durationMinutes: zod
+        .number()
+        .nullish()
+        .describe(
+          "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+        ),
       serviceType: zod.enum(["clinic", "homecare"]),
       weekNumber: zod.number(),
       notes: zod.string().nullish(),
@@ -3090,6 +3109,25 @@ export const GetProtocolResponse = zod.object({
       professionalId: zod.number().nullish(),
       professionalName: zod.string().nullish(),
       unit: zod.string().nullish(),
+      resourceId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+        ),
+      agendaNome: zod.string().nullish(),
+      agendaCor: zod
+        .string()
+        .nullish()
+        .describe(
+          "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+        ),
+      durationMinutes: zod
+        .number()
+        .nullish()
+        .describe(
+          "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+        ),
       serviceType: zod.enum(["clinic", "homecare"]),
       weekNumber: zod.number(),
       notes: zod.string().nullish(),
@@ -3291,6 +3329,25 @@ export const UpdateProtocolResponse = zod.object({
       professionalId: zod.number().nullish(),
       professionalName: zod.string().nullish(),
       unit: zod.string().nullish(),
+      resourceId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+        ),
+      agendaNome: zod.string().nullish(),
+      agendaCor: zod
+        .string()
+        .nullish()
+        .describe(
+          "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+        ),
+      durationMinutes: zod
+        .number()
+        .nullish()
+        .describe(
+          "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+        ),
       serviceType: zod.enum(["clinic", "homecare"]),
       weekNumber: zod.number(),
       notes: zod.string().nullish(),
@@ -3492,6 +3549,25 @@ export const ValidateProtocolResponse = zod.object({
       professionalId: zod.number().nullish(),
       professionalName: zod.string().nullish(),
       unit: zod.string().nullish(),
+      resourceId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+        ),
+      agendaNome: zod.string().nullish(),
+      agendaCor: zod
+        .string()
+        .nullish()
+        .describe(
+          "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+        ),
+      durationMinutes: zod
+        .number()
+        .nullish()
+        .describe(
+          "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+        ),
       serviceType: zod.enum(["clinic", "homecare"]),
       weekNumber: zod.number(),
       notes: zod.string().nullish(),
@@ -3807,6 +3883,25 @@ export const ListSessionsResponseItem = zod.object({
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
   unit: zod.string().nullish(),
+  resourceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+    ),
+  agendaNome: zod.string().nullish(),
+  agendaCor: zod
+    .string()
+    .nullish()
+    .describe(
+      "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+    ),
+  durationMinutes: zod
+    .number()
+    .nullish()
+    .describe(
+      "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+    ),
   serviceType: zod.enum(["clinic", "homecare"]),
   weekNumber: zod.number(),
   notes: zod.string().nullish(),
@@ -3893,6 +3988,25 @@ export const GetSessionResponse = zod.object({
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
   unit: zod.string().nullish(),
+  resourceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+    ),
+  agendaNome: zod.string().nullish(),
+  agendaCor: zod
+    .string()
+    .nullish()
+    .describe(
+      "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+    ),
+  durationMinutes: zod
+    .number()
+    .nullish()
+    .describe(
+      "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+    ),
   serviceType: zod.enum(["clinic", "homecare"]),
   weekNumber: zod.number(),
   notes: zod.string().nullish(),
@@ -3971,6 +4085,25 @@ export const UpdateSessionResponse = zod.object({
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
   unit: zod.string().nullish(),
+  resourceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+    ),
+  agendaNome: zod.string().nullish(),
+  agendaCor: zod
+    .string()
+    .nullish()
+    .describe(
+      "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+    ),
+  durationMinutes: zod
+    .number()
+    .nullish()
+    .describe(
+      "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+    ),
   serviceType: zod.enum(["clinic", "homecare"]),
   weekNumber: zod.number(),
   notes: zod.string().nullish(),
@@ -4043,6 +4176,25 @@ export const ConfirmSubstanceApplicationResponse = zod.object({
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
   unit: zod.string().nullish(),
+  resourceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+    ),
+  agendaNome: zod.string().nullish(),
+  agendaCor: zod
+    .string()
+    .nullish()
+    .describe(
+      "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+    ),
+  durationMinutes: zod
+    .number()
+    .nullish()
+    .describe(
+      "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+    ),
   serviceType: zod.enum(["clinic", "homecare"]),
   weekNumber: zod.number(),
   notes: zod.string().nullish(),
@@ -4595,6 +4747,25 @@ export const GetUpcomingSessionsResponseItem = zod.object({
   professionalId: zod.number().nullish(),
   professionalName: zod.string().nullish(),
   unit: zod.string().nullish(),
+  resourceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada.",
+    ),
+  agendaNome: zod.string().nullish(),
+  agendaCor: zod
+    .string()
+    .nullish()
+    .describe(
+      "Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo.",
+    ),
+  durationMinutes: zod
+    .number()
+    .nullish()
+    .describe(
+      "Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia.",
+    ),
   serviceType: zod.enum(["clinic", "homecare"]),
   weekNumber: zod.number(),
   notes: zod.string().nullish(),

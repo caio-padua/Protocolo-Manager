@@ -21,6 +21,13 @@ export interface Session {
   professionalId?: number | null;
   professionalName?: string | null;
   unit?: string | null;
+  /** Agenda (recurso) onde a sessão está marcada; nulo quando a sessão não tem agenda ligada. */
+  resourceId?: number | null;
+  agendaNome?: string | null;
+  /** Cor da agenda (a mesma do cadastro e do Google), usada na linha do tempo. */
+  agendaCor?: string | null;
+  /** Duração gravada na sessão ou, na falta dela, a regra do .ics pelas aplicações do dia. */
+  durationMinutes?: number | null;
   serviceType: SessionServiceType;
   weekNumber: number;
   notes?: string | null;

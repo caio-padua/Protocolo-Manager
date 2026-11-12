@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearch } from "wouter";
 import { useListSessions, useConfirmSubstanceApplication } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,8 @@ import { GoogleCommitments } from "./GoogleCommitments";
 import { GradeMesGoogle } from "./GradeMesGoogle";
 import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
 import { useGoogleRefreshCycle } from "./agenda-integration-api";
+import { rotuloAtendimento, lerParametrosAgenda, type VisaoAgenda } from "./timeline-logica";
+import { GradeTimeline, type SessaoLinha } from "./GradeTimeline";
 
 type ViewMode = "dia" | "semana" | "mes";
 
@@ -99,15 +102,7 @@ function MetaField({ label, value, icon: Icon, accent }: { label: string; value:
   );
 }
 
-function getProcedureLabel(session: any): string {
-  const apps = session.substanceApplications?.filter((a: any) => a.availability === "disp") ?? [];
-  if (apps.length === 0) return "Aplicação";
-  const types = new Set(apps.map((a: any) => a.procedureType ?? "iv"));
-  if (types.has("implant")) return "Implante";
-  if (types.has("im") && !types.has("iv")) return "Aplicação IM";
-  if (types.has("iv")) return "Aplicação EV";
-  return "Aplicação";
-}
+const getProcedureLabel = rotuloAtendimento;
 
 function getUnitLabel(session: any): string {
   if (session.serviceType === "homecare") return "Nurse Care Domiciliar";
@@ -527,9 +522,20 @@ export default function Agenda() {
   const today = useMemo(() => new Date(), []);
 
   // ── ESTADO DE NAVEGAÇÃO ───────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>("semana");
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Links como /agenda?data=2026-11-12&modo=dia (vindos do Pit Stop) abrem direto no dia e na visão pedidos.
+  const search = useSearch();
+  const [viewMode, setViewMode] = useState<ViewMode>(() => lerParametrosAgenda(search).modo ?? "semana");
+  const [currentDate, setCurrentDate] = useState(() => lerParametrosAgenda(search).data ?? new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  // Dia e Semana abrem na linha do tempo; "Lista" mantém os cartões com todas as ações de antes.
+  const [visao, setVisao] = useState<VisaoAgenda>(() => lerParametrosAgenda(search).visao ?? "linha");
+  useEffect(() => {
+    const p = lerParametrosAgenda(search);
+    if (p.modo) setViewMode(p.modo);
+    if (p.data) setCurrentDate(p.data);
+    if (p.visao) setVisao(p.visao);
+    if (p.modo || p.data) setSelectedDay(null);
+  }, [search]);
 
   // ── MODAIS ────────────────────────────────────────────────────────────────
   const [codeModalOpen, setCodeModalOpen] = useState(false);
@@ -716,6 +722,12 @@ export default function Agenda() {
     finally { setEmailSending(null); }
   }
 
+  const usaLinhaDoTempo = viewMode !== "mes" && visao === "linha";
+  const diasDaLinha = useMemo(() => {
+    if (viewMode === "dia") return [new Date(`${dateFrom}T12:00:00`)];
+    return Array.from({ length: 7 }, (_, i) => addDays(new Date(`${dateFrom}T12:00:00`), i));
+  }, [viewMode, dateFrom]);
+
   const sharedCardProps = {
     confirmMutation,
     emailSending,
@@ -764,6 +776,26 @@ export default function Agenda() {
             ))}
           </div>
 
+          {/* Linha do tempo (padrão) ou Lista com os cartões e todas as ações: só em Dia e Semana */}
+          {viewMode !== "mes" && (
+            <div className="concave-3d flex items-center p-0.5 gap-0.5" role="group" aria-label="Forma de exibir">
+              {([
+                { id: "linha", label: "Linha do tempo" },
+                { id: "lista", label: "Lista" },
+              ] as { id: VisaoAgenda; label: string }[]).map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={visao === id}
+                  onClick={() => setVisao(id)}
+                  className={`${visao === id ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} rounded-[4px] px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Navegação prev / período / next */}
           <div className="flex items-center gap-1 p-1 concave-3d">
             <Button variant="ghost" size="sm" onClick={navPrev} className="h-8 w-8 p-0">
@@ -789,13 +821,32 @@ export default function Agenda() {
       </div>
 
       {/* ── CORPO ── */}
-      <GoogleCommitments de={dateFrom} ate={dateTo} />
+      {!usaLinhaDoTempo && <GoogleCommitments de={dateFrom} ate={dateTo} />}
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-[6px]" />)}</div>
       ) : (
         <>
-          {/* ═══ MODO DIA ═══ */}
-          {viewMode === "dia" && (
+          {/* ═══ DIA e SEMANA: LINHA DO TEMPO (padrão) ═══ */}
+          {usaLinhaDoTempo && (
+            <GradeTimeline
+              modo={viewMode === "dia" ? "dia" : "semana"}
+              dias={diasDaLinha}
+              sessoes={(sessions ?? []) as unknown as SessaoLinha[]}
+              onAbrirDia={(d) => { setCurrentDate(d); setViewMode("dia"); setSelectedDay(null); }}
+              onReagendar={sharedCardProps.onReschedule}
+              renderCartao={(s) => (
+                <SessionCard
+                  session={s}
+                  isToday={isSameDay(new Date(`${s.scheduledDate}T12:00:00`), today)}
+                  canConfirm={s.status !== "completed" && s.status !== "cancelled" && s.status !== "missed"}
+                  {...sharedCardProps}
+                />
+              )}
+            />
+          )}
+
+          {/* ═══ MODO DIA (lista) ═══ */}
+          {viewMode === "dia" && !usaLinhaDoTempo && (
             <DaySessionList
               day={currentDate}
               sessions={sessions ?? []}
@@ -805,7 +856,7 @@ export default function Agenda() {
           )}
 
           {/* ═══ MODO SEMANA ═══ */}
-          {viewMode === "semana" && (() => {
+          {viewMode === "semana" && !usaLinhaDoTempo && (() => {
             const days = Array.from({ length: 7 }, (_, i) => {
               const d = new Date(weekStart);
               d.setDate(d.getDate() + i);

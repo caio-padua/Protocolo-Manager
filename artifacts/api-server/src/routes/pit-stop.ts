@@ -11,6 +11,7 @@ import {
   estruturaPitStopDisponivel, liberarRevisao, listarPlanos, revalidarPlano,
 } from "../lib/pit-stop.js";
 import { sincronizarPlano } from "../lib/pit-stop-google.js";
+import { encaixarPrimeiraSessao, moverOcorrencia, previaMover } from "../lib/pit-stop-distribuicao.js";
 import { autorizarPitStop } from "../lib/pit-stop-acesso.js";
 
 /**
@@ -51,9 +52,15 @@ const OcorrenciasBody = z.strictObject({
   })).min(1).max(400),
 });
 const EquipeBody = z.strictObject({ versao: z.number().int().positive(), equipe: z.array(Participante).min(1).max(3) });
+const DataHora = { data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) };
+const MoverPreviaBody = z.strictObject(DataHora);
+const MoverBody = z.strictObject({ versao: z.number().int().positive(), ...DataHora, aceitarForaDaJanela: z.boolean().optional() });
+const EncaixarBody = z.strictObject({
+  versao: z.number().int().positive(), horaTermino: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(), aceitarForaDaJanela: z.boolean().optional(),
+});
 const Ids = z.object({
   id: z.coerce.number().int().positive().optional(), planoId: z.coerce.number().int().positive().optional(),
-  itemId: z.coerce.number().int().positive().optional(),
+  itemId: z.coerce.number().int().positive().optional(), ocId: z.coerce.number().int().positive().optional(),
 });
 
 function recusar(res: Response, error: unknown) {
@@ -79,7 +86,7 @@ async function autorizarPlano(req: Request, res: Response) {
   if (!acesso.ok) { res.status(acesso.status).json({ code: acesso.code, error: acesso.error }); return null; }
   const plano = await carregarPlano(acesso.empresaId, ids.data.planoId);
   if (!plano) { res.status(404).json({ code: "plano_nao_encontrado", error: "Registro não encontrado" }); return null; }
-  return { plano, empresaId: acesso.empresaId, planoId: Number(plano.id), itemId: ids.data.itemId, me: acesso.me };
+  return { plano, empresaId: acesso.empresaId, planoId: Number(plano.id), itemId: ids.data.itemId, ocId: ids.data.ocId, me: acesso.me };
 }
 
 async function responderPlano(res: Response, empresaId: number, planoId: number, status = 200, extra: Record<string, unknown> = {}) {
@@ -177,6 +184,41 @@ router.put("/agendamento/planos/:planoId/itens/:itemId/equipe", ...guardAgenda, 
     await ajustarEquipe(a.empresaId, a.planoId, a.me, body.data.versao, a.itemId,
       body.data.equipe.map((e) => ({ ...e, locationId: e.locationId ?? null, agendaId: e.agendaId ?? null })));
     await responderPlano(res, a.empresaId, a.planoId);
+  } catch (e) { recusar(res, e); }
+});
+
+/** Prévia de mover UMA visita (arrastar/soltar ou "Alterar data/hora"): só lê e valida no servidor; não grava nada. */
+router.post("/agendamento/planos/:planoId/ocorrencias/:ocId/mover-previa", ...guardAgenda, async (req, res): Promise<void> => {
+  const body = MoverPreviaBody.safeParse(req.body ?? {});
+  if (!body.success) { pedidoInvalido(res); return; }
+  const a = await autorizarPlano(req, res);
+  if (!a) return;
+  if (!a.ocId) { pedidoInvalido(res, "Ocorrência inválida."); return; }
+  try { res.json({ previa: await previaMover(a.empresaId, a.planoId, a.ocId, body.data.data, body.data.hora) }); } catch (e) { recusar(res, e); }
+});
+
+router.post("/agendamento/planos/:planoId/ocorrencias/:ocId/mover", ...guardAgenda, async (req, res): Promise<void> => {
+  const body = MoverBody.safeParse(req.body ?? {});
+  if (!body.success) { pedidoInvalido(res); return; }
+  const a = await autorizarPlano(req, res);
+  if (!a) return;
+  if (!a.ocId) { pedidoInvalido(res, "Ocorrência inválida."); return; }
+  try {
+    await moverOcorrencia(a.empresaId, a.planoId, a.me, body.data.versao, a.ocId, body.data.data, body.data.hora, body.data.aceitarForaDaJanela === true);
+    await responderPlano(res, a.empresaId, a.planoId);
+  } catch (e) { recusar(res, e); }
+});
+
+/** Presencial: encaixa a 1ª sessão do procedimento hoje, a partir do término da consulta, na primeira vaga da equipe completa. */
+router.post("/agendamento/planos/:planoId/itens/:itemId/encaixar-primeira", ...guardAgenda, async (req, res): Promise<void> => {
+  const body = EncaixarBody.safeParse(req.body ?? {});
+  if (!body.success) { pedidoInvalido(res); return; }
+  const a = await autorizarPlano(req, res);
+  if (!a) return;
+  if (!a.itemId) { pedidoInvalido(res, "Procedimento inválido."); return; }
+  try {
+    const encaixe = await encaixarPrimeiraSessao(a.empresaId, a.planoId, a.me, body.data.versao, a.itemId, body.data.horaTermino, body.data.aceitarForaDaJanela === true);
+    await responderPlano(res, a.empresaId, a.planoId, 200, { encaixe });
   } catch (e) { recusar(res, e); }
 });
 

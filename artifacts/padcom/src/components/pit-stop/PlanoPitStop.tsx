@@ -3,10 +3,16 @@ import { AlertTriangle, CheckCircle2, Lock, RefreshCw, ShieldCheck, XCircle } fr
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getCollabProfessional } from "@/lib/collab-auth";
+import { fmtDataHora, hojeBrt } from "@/lib/pit-stop-formato";
 import {
   PitStopErro, ROTULO_ESTADO, ROTULO_NIVEL, ROTULO_SYNC, motivoLegivel, useAcoesPlano, usePlano,
-  type AjusteOcorrencia, type ItemPlano, type Participante, type Plano, type ResultadoOcorrencia,
+  type ItemPlano, type Participante, type Plano, type ResultadoOcorrencia,
 } from "@/lib/pit-stop-api";
+import { BlocoOcorrencias } from "./BlocoOcorrencias";
+import { CalendarioPlano } from "./CalendarioPlano";
+import { EncaixePrimeira } from "./EncaixePrimeira";
+import { MoverOcorrenciaDialog, type AlvoMover } from "./MoverOcorrenciaDialog";
+import { Selo } from "./Selo";
 
 /**
  * Plano de agendamento compartilhado (Pit Stop). A mesma tela serve o médico logo após lançar e a recepção/enfermagem
@@ -21,11 +27,6 @@ type EquipeRascunho = { categoryId: number; modalidade: Participante["modalidade
 const ID_DO_PARTICIPANTE = (e: Participante): EquipeRascunho => ({
   categoryId: e.categoryId, modalidade: e.modalidade, agendaId: e.agendaId, professionalId: e.professionalIds[0] ?? null,
 });
-
-function Selo({ children, tom }: { children: React.ReactNode; tom: "ok" | "aviso" | "erro" | "neutro" }) {
-  const cor = { ok: "#1f6b3a", aviso: "#7a5a12", erro: "#8a1c1c", neutro: "#2c3e63" }[tom];
-  return <span className="bevel-3d inline-block px-2 py-1 text-[10px] font-black uppercase tracking-widest" style={{ color: cor }}>{children}</span>;
-}
 
 function EditorEquipe({ item, plano, travado, onSalvar, salvando }: {
   item: ItemPlano; plano: Plano; travado: boolean; salvando: boolean; onSalvar: (equipe: EquipeRascunho[]) => void;
@@ -97,86 +98,12 @@ function EditorEquipe({ item, plano, travado, onSalvar, salvando }: {
   );
 }
 
-function BlocoOcorrencias({ item, enderecoPaciente, travado, resultados, onSalvar, salvando }: {
-  item: ItemPlano; enderecoPaciente: string | null; travado: boolean; resultados: ResultadoOcorrencia[]; salvando: boolean;
-  onSalvar: (ajustes: AjusteOcorrencia[]) => void;
-}) {
-  const original = useMemo(() => Object.fromEntries(item.ocorrencias.map((o) => [o.id, { data: o.data ?? "", hora: o.hora ?? "", endereco: o.enderecoVisita ?? "", doPaciente: false }])), [item.ocorrencias]);
-  const [valores, setValores] = useState(original);
-  useEffect(() => setValores(original), [original]);
-  const mudou = (o: ItemPlano["ocorrencias"][number]) => {
-    const v = valores[o.id], x = original[o.id];
-    return v?.data !== x?.data || v?.hora !== x?.hora || (item.homeCare && (v?.endereco !== x?.endereco || v?.doPaciente));
-  };
-  const alteradas = item.ocorrencias.filter(mudou);
-  const montar = (o: ItemPlano["ocorrencias"][number]): AjusteOcorrencia => {
-    const v = valores[o.id]!;
-    const base: AjusteOcorrencia = { id: o.id, data: v.data || null, hora: v.hora || null };
-    if (!item.homeCare) return base;
-    if (v.doPaciente) return { ...base, usarEnderecoPaciente: true };
-    if (v.endereco.trim() && v.endereco !== original[o.id]?.endereco) return { ...base, enderecoVisita: v.endereco.trim() };
-    return base;
-  };
-  return (
-    <div className="space-y-2">
-      {item.ocorrencias.map((o) => {
-        const res = resultados.find((r) => r.itemId === item.id && r.numero === o.numero);
-        const v = valores[o.id];
-        return (
-          <div key={o.id} className="concave-3d flex flex-wrap items-end gap-3 p-3" data-testid={`ocorrencia-${o.id}`}>
-            <span className="text-xs font-black">{o.numero}/{item.totalSessoes}</span>
-            <label className="text-[11px] font-bold">Data
-              <input type="date" className="field-engraved mt-1 block min-h-10 px-2" disabled={travado || o.reservada} value={v?.data ?? ""}
-                onChange={(e) => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, data: e.target.value } }))} />
-            </label>
-            <label className="text-[11px] font-bold">Hora
-              <input type="time" step={900} className="field-engraved mt-1 block min-h-10 px-2" disabled={travado || o.reservada} value={v?.hora ?? ""}
-                onChange={(e) => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, hora: e.target.value } }))} />
-            </label>
-            {o.reservada && <Selo tom="ok">Reservada</Selo>}
-            {!o.reservada && !o.data && <Selo tom="aviso">{motivoLegivel(o.motivo, "Sem data")}</Selo>}
-            {res && !res.ok && <span role="alert" className="text-xs font-bold text-red-800">{motivoLegivel(res.code, res.message)}</span>}
-            {res?.ok && <span className="text-xs font-bold text-green-800">Horário livre para a equipe inteira.</span>}
-            {item.homeCare && (
-              <div className="w-full space-y-1" data-testid={`endereco-visita-${o.id}`}>
-                <label className="block text-[11px] font-bold">Endereço da visita (Home Care)
-                  <input type="text" maxLength={300} className="field-engraved mt-1 block min-h-10 w-full px-2" placeholder="Rua, número, complemento, bairro, cidade"
-                    disabled={travado || o.reservada} value={v?.doPaciente ? enderecoPaciente ?? "" : v?.endereco ?? ""}
-                    onChange={(e) => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, endereco: e.target.value, doPaciente: false } }))} />
-                </label>
-                {!travado && !o.reservada && (
-                  <button type="button" className="text-[11px] font-bold underline disabled:opacity-50" disabled={!enderecoPaciente}
-                    onClick={() => setValores((all) => ({ ...all, [o.id]: { ...all[o.id]!, doPaciente: true } }))}>
-                    {enderecoPaciente ? "Usar o endereço cadastrado do paciente" : "Paciente sem endereço cadastrado: informe o endereço da visita"}
-                  </button>
-                )}
-                {o.enderecoVisita
-                  ? <p className="text-[10px] text-muted-foreground">Gravado: {o.enderecoVisita} ({o.enderecoVisitaOrigem === "paciente" ? "copiado do cadastro do paciente" : "informado pela recepção"}).</p>
-                  : <Selo tom="aviso">Endereço pendente: sem ele a visita Home Care não é reservada</Selo>}
-              </div>
-            )}
-            {o.visitas.length > 0 && (
-              <span className="text-[11px] text-muted-foreground">
-                {o.visitas.map((x) => `${x.agenda ?? "agenda"}: ${x.pendente ? "pendência no Google" : x.googleEventId ? "no Google" : "ainda não enviada"}`).join(" · ")}
-              </span>
-            )}
-          </div>
-        );
-      })}
-      {!travado && alteradas.length > 0 && (
-        <Button type="button" size="sm" disabled={salvando} onClick={() => onSalvar(alteradas.map(montar))}>
-          Salvar datas{item.homeCare ? " e endereços" : ""}
-        </Button>
-      )}
-    </div>
-  );
-}
-
 export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?: () => void }) {
   const { toast } = useToast();
   const { data: plano, isLoading, error, refetch } = usePlano(planoId);
   const acoes = useAcoesPlano(planoId);
   const [resultados, setResultados] = useState<ResultadoOcorrencia[]>([]);
+  const [mover, setMover] = useState<{ ocId: number; destino: { data: string; hora: string } | null } | null>(null);
   const eu = getCollabProfessional()?.id ?? null;
 
   const falha = (titulo: string) => (e: unknown) => {
@@ -196,6 +123,31 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
   const sync = plano.syncEstado;
   const detalheSync = plano.syncDetalhe?.visitas?.filter((v) => v.status !== "sincronizado" && v.status !== "ja_sincronizado") ?? [];
 
+  // Alvo da tela de prévia: sempre derivado do plano atual (o servidor é a fonte da verdade).
+  const alvoMover: AlvoMover | null = (() => {
+    if (!mover) return null;
+    for (const it of plano.itens) {
+      const o = it.ocorrencias.find((x) => x.id === mover.ocId);
+      if (o) return { planoId: plano.id, ocId: o.id, itemNome: it.nome, numero: o.numero, total: it.totalSessoes, data: o.data, hora: o.hora };
+    }
+    return null;
+  })();
+  const soltarNoDia = (ocId: number, data: string) => {
+    const hora = plano.itens.flatMap((i) => i.ocorrencias).find((o) => o.id === ocId)?.hora ?? "09:00";
+    setMover({ ocId, destino: { data, hora } });
+  };
+  const confirmarMover = (v: { ocId: number; data: string; hora: string; aceitarForaDaJanela: boolean }) =>
+    acoes.mover.mutate({ versao: plano.versao, ...v }, {
+      onError: falha("Nada foi movido"),
+      onSuccess: () => { setMover(null); toast({ title: "Visita movida no plano", description: "É só a proposta: nada foi reservado nem enviado ao Google." }); },
+    });
+  const encaixar = async (itemId: number, v: { horaTermino?: string; aceitarForaDaJanela: boolean }) => {
+    const r = await acoes.encaixar.mutateAsync({ versao: plano.versao, itemId, ...v });
+    toast({ title: r.encaixe ? `1ª sessão encaixada hoje às ${r.encaixe.time}` : "Encaixe feito", description: "É só a proposta: reservar acontece em “Confirmar e reservar”." });
+    return r.encaixe ?? null;
+  };
+  const soPresencial = (it: ItemPlano) => it.equipe.length > 0 && it.equipe.every((e) => e.modalidade === "local");
+
   return (
     <div className="space-y-4" data-testid="plano-pit-stop">
       <header className="panel-3d-sub space-y-2 p-4">
@@ -212,6 +164,8 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
         {ocupado && <p role="status" className="flex items-center gap-2 text-xs font-bold text-amber-900"><Lock className="h-4 w-4" />Outra pessoa está revisando este plano. Você só pode ver.</p>}
         <p className="text-[11px] text-muted-foreground">Nenhum horário fica reservado até o botão “Confirmar e reservar”. Médico e recepção veem o mesmo plano.</p>
       </header>
+
+      <CalendarioPlano plano={plano} hoje={hojeBrt()} travado={!editavel} onSoltar={soltarNoDia} onAbrir={(ocId) => setMover({ ocId, destino: null })} />
 
       {plano.itens.map((item) => (
         <section key={item.id} className="panel-3d-sub space-y-3 p-4" aria-label={item.nome}>
@@ -232,7 +186,12 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
               versao: plano.versao, itemId: item.id,
               equipe: equipe.map((e) => ({ categoryId: e.categoryId, modalidade: e.modalidade, agendaId: e.agendaId, professionalIds: e.professionalId ? [e.professionalId] : [] })),
             }, "Não foi possível salvar a equipe", "Equipe salva")} />
+          {editavel && soPresencial(item) && item.ocorrencias[0] && !item.ocorrencias[0].reservada && (
+            <EncaixePrimeira itemNome={item.nome} ocupado={acoes.encaixar.isPending}
+              onEncaixar={(v) => encaixar(item.id, v)} onEscolher={(data, hora) => setMover({ ocId: item.ocorrencias[0]!.id, destino: { data, hora } })} />
+          )}
           <BlocoOcorrencias item={item} enderecoPaciente={plano.enderecoPaciente} travado={!editavel} resultados={resultados} salvando={acoes.ocorrencias.isPending}
+            onAlterar={(ocId) => setMover({ ocId, destino: null })} expandirId={mover?.ocId ?? null}
             onSalvar={(ajustes) => rodar(acoes.ocorrencias, { versao: plano.versao, ajustes }, "Não foi possível salvar as datas", "Datas salvas")} />
         </section>
       ))}
@@ -291,6 +250,7 @@ export function PlanoPitStop({ planoId, onFechar }: { planoId: number; onFechar?
         <Button type="button" variant="ghost" size="sm" onClick={() => void refetch()}>Atualizar</Button>
         {onFechar && <Button type="button" variant="ghost" size="sm" onClick={onFechar}>Fechar</Button>}
       </div>
+      <MoverOcorrenciaDialog alvo={alvoMover} destino={mover?.destino ?? null} salvando={acoes.mover.isPending} onFechar={() => setMover(null)} onMover={confirmarMover} />
     </div>
   );
 }
