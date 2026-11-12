@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agendaReservavel, duracaoValida, ehArraste, explicarPeriodo, intervaloDoArraste, inicioDoClique, jaMarcada, lerDuracao,
+  agendaReservavel, agruparBloqueios, duracaoValida, ehArraste, explicarDia, explicarPeriodo, rotuloSituacao, intervaloDoArraste, inicioDoClique, jaMarcada, lerDuracao,
   lerFalha, lerRespostaDeSucesso, minutoDoPonteiro, periodoDoInicio, primeiroPeriodoIndisponivel, rotuloLocal, rotuloModalidade,
   rotuloProfissional, textoDuracao, textoIntervalo,
 } from "./selecao-logica";
@@ -83,6 +83,46 @@ describe("períodos da agenda", () => {
     expect(primeiroPeriodoIndisponivel("10:00", 40, 20, slots)).toEqual({ time: "10:20", state: "inexistente", reason: null });
     const bloq = slots.map((s) => (s.time === "09:40" ? { ...s, state: "bloqueado", reason: "antecedencia" } : s));
     expect(explicarPeriodo(primeiroPeriodoIndisponivel("09:40", 20, 20, bloq)!)).toContain("antecedência");
+  });
+  it("cada motivo de bloqueio tem texto próprio, com a regra da agenda quando existe", () => {
+    const regras = { minLeadHours: 24, triggerPercent: 60 };
+    expect(explicarPeriodo({ time: "09:20", state: "bloqueado", reason: "passado" }, regras)).toContain("já passou");
+    expect(explicarPeriodo({ time: "09:20", state: "bloqueado", reason: "antecedencia" }, regras)).toContain("24 horas");
+    expect(explicarPeriodo({ time: "14:00", state: "bloqueado", reason: "compromisso" }, regras)).toContain("outro compromisso");
+    expect(explicarPeriodo({ time: "14:00", state: "bloqueado", reason: "cadeia" }, regras)).toContain("em cadeia");
+    expect(explicarPeriodo({ time: "14:00", state: "bloqueado", reason: "integracao" }, regras)).toContain("Google Agenda");
+    expect(explicarPeriodo({ time: "09:00", state: "ocupado", reason: null }, regras)).toContain("consulta marcada");
+    expect(rotuloSituacao("bloqueado", "passado")).toBe(" — já passou");
+    expect(rotuloSituacao("bloqueado", "antecedencia")).toBe(" — antecedência mínima");
+    expect(rotuloSituacao("aberto", null)).toBe("");
+  });
+  it("motivo do dia inteiro em português", () => {
+    expect(explicarDia("sem-expediente")).toContain("janela de atendimento");
+    expect(explicarDia("excecao")).toContain("feriado");
+    expect(explicarDia("sincronizacao-pendente")).toContain("5 minutos");
+    expect(explicarDia(null)).toBeNull();
+  });
+  it("agrupa bloqueios por motivo e diz qual bloco segura a cadeia", () => {
+    const regras = { minLeadHours: 24, triggerPercent: 60 };
+    const blocos = [
+      { startTime: "09:00", endTime: "11:00", released: true, total: 6, occupied: 1, occupancy: 17 },
+      { startTime: "11:00", endTime: "13:00", released: false, total: 6, occupied: 0, occupancy: 0 },
+      { startTime: "14:00", endTime: "16:00", released: false, total: 6, occupied: 0, occupancy: 0 },
+    ];
+    const lista = [
+      { time: "09:00", state: "ocupado", reason: null, subBlockIndex: 0 },
+      { time: "09:20", state: "bloqueado", reason: "passado", subBlockIndex: 0 },
+      { time: "11:00", state: "bloqueado", reason: "cadeia", subBlockIndex: 1 },
+      { time: "14:00", state: "bloqueado", reason: "cadeia", subBlockIndex: 2 },
+      { time: "15:00", state: "aberto", reason: null, subBlockIndex: 2 },
+    ];
+    const g = agruparBloqueios(lista, blocos, regras);
+    expect(g.map((x) => x.chave)).toEqual(["ocupado", "passado", "cadeia"]);
+    expect(g[2]!.horarios).toEqual(["11:00", "14:00"]);
+    expect(g[2]!.explicacoes[0]).toContain("só abre quando o bloco 09:00–11:00 chegar a 60%");
+    expect(g[2]!.explicacoes[0]).toContain("hoje está em 17%");
+    expect(g[2]!.explicacoes).toHaveLength(2);
+    expect(agruparBloqueios([{ time: "10:00", state: "aberto", reason: null }], [], regras)).toEqual([]);
   });
   it("duração que ultrapassa o último período exige o período seguinte", () => {
     expect(primeiroPeriodoIndisponivel("09:00", 21, 20, slots)).toBeNull();

@@ -233,7 +233,7 @@ test.describe("desktop", () => {
     await page.getByTestId("avulsa-horario").selectOption("09:00");
     await page.getByTestId("avulsa-duracao").fill("40"); // 09:00 e 09:20: o segundo está ocupado
     await expect(page.getByTestId("avulsa-provavel-conflito")).toContainText("09:20");
-    await expect(page.getByTestId("avulsa-provavel-conflito")).toContainText("ocupado");
+    await expect(page.getByTestId("avulsa-provavel-conflito")).toContainText("consulta marcada");
   });
 
   test("empresa errada: servidor responde 404, nada é gravado e a tela explica", async ({ page }) => {

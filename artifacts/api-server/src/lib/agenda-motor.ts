@@ -132,6 +132,11 @@ export function computeAgendaSlots(params: {
       } else if (s.blocked) {
         state = "bloqueado";
         reason = "compromisso";
+      } else if (dt.getTime() < now.getTime()) {
+        // Horário que já começou: não é regra de antecedência, é tempo que passou. Motivo próprio para a tela
+        // poder dizer a verdade; o bloqueio é o mesmo de antes (nunca se marca no passado).
+        state = "bloqueado";
+        reason = "passado";
       } else if (dt.getTime() < threshold) {
         state = "bloqueado";
         reason = "antecedencia";

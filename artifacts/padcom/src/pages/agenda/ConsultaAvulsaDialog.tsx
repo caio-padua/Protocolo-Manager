@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  bookAvulsaSession, listSessions, useGetAgendaSlots, useListAgendaResources, useListClients,
+  bookAvulsaSession, listSessions, useGetAgendaSettings, useGetAgendaSlots, useListAgendaResources, useListClients,
 } from "@workspace/api-client-react";
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,9 @@ import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { useToast } from "@/hooks/use-toast";
 import { minutosDoHorario, rotuloHora } from "./timeline-logica";
 import {
-  agendaReservavel, DURACAO_MAX, DURACAO_MIN, duracaoValida, explicarPeriodo, jaMarcada, lerDuracao, lerFalha,
+  agendaReservavel, agruparBloqueios, DURACAO_MAX, DURACAO_MIN, duracaoValida, explicarDia, explicarPeriodo, jaMarcada, lerDuracao, lerFalha,
   lerRespostaDeSucesso, periodoDoInicio, primeiroPeriodoIndisponivel, rotuloLocal, rotuloModalidade, rotuloProfissional,
-  textoDuracao, textoIntervalo, type AgendaOpcao, type ResultadoMarcacao,
+  rotuloSituacao, textoDuracao, textoIntervalo, type AgendaOpcao, type RegrasAgenda, type ResultadoMarcacao,
 } from "./selecao-logica";
 
 /** O que a grade (ou o botão) já sabe: dia e, se houver, início e fim em minutos. */
@@ -98,7 +98,16 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
     { resourceId: agendaId ?? 0, date: data },
     { query: { enabled: aberto && agendaId !== null && dataOk, staleTime: 0, gcTime: 0 } as never },
   );
-  const slots = useMemo(() => (slotsResp?.slots ?? []) as { time: string; state: string; reason?: string | null }[], [slotsResp]);
+  const slots = useMemo(() => (slotsResp?.slots ?? []) as { time: string; state: string; reason?: string | null; subBlockIndex?: number }[], [slotsResp]);
+
+  // Regras da agenda (antecedência mínima e percentual da cadeia): só leitura, para explicar cada bloqueio.
+  const { data: ajustes } = useGetAgendaSettings({ query: { enabled: aberto } as never });
+  const regras: RegrasAgenda = ajustes ? { minLeadHours: ajustes.minLeadHours, triggerPercent: ajustes.triggerPercent } : null;
+  const gruposBloqueio = useMemo(
+    () => agruparBloqueios(slots, slotsResp?.subBlocks ?? [], regras),
+    [slots, slotsResp, regras?.minLeadHours, regras?.triggerPercent], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const textoDia = explicarDia(slotsResp?.reason);
 
   // Início pedido pela grade vira o período da agenda que o contém; sem pedido, o primeiro período aberto.
   useEffect(() => {
@@ -261,7 +270,7 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
                 )}
                 {slots.map((s) => (
                   <option key={s.time} value={s.time} disabled={s.state === "ocupado"}>
-                    {s.time}{s.state === "ocupado" ? " — ocupado" : s.state === "bloqueado" ? " — bloqueado" : ""}
+                    {s.time}{rotuloSituacao(s.state, s.reason)}
                   </option>
                 ))}
               </select>
@@ -290,16 +299,41 @@ export function ConsultaAvulsaDialog({ aberto, preencher, onFechar, onMarcada }:
             </p>
           )}
           {aviso && <p className="text-xs text-muted-foreground" data-testid="avulsa-ajuste">{aviso}</p>}
-          {slotsResp && slots.length === 0 && agendaId !== null && (
+          {slotsResp && agendaId !== null && textoDia && (
+            <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid={slots.length === 0 ? "avulsa-agenda-fechada" : "avulsa-dia-motivo"}>
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              {textoDia}{slots.length === 0 ? " Escolha outra data ou outra agenda." : ""}
+            </p>
+          )}
+          {slotsResp && agendaId !== null && slots.length === 0 && !textoDia && (
             <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid="avulsa-agenda-fechada">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              Esta agenda não tem períodos neste dia{slotsResp.reason ? ` (${slotsResp.reason})` : ""}. Escolha outra data ou outra agenda.
+              Esta agenda não tem períodos neste dia. Escolha outra data ou outra agenda.
             </p>
+          )}
+          {gruposBloqueio.length > 0 && !slots.some((s) => s.state === "aberto") && (
+            <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid="avulsa-nenhum-livre">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              Nenhum horário livre nesta agenda neste dia. Veja abaixo o motivo de cada um.
+            </p>
+          )}
+          {gruposBloqueio.length > 0 && (
+            <details className="concave-3d p-3 text-xs" data-testid="avulsa-motivos" open={!slots.some((s) => s.state === "aberto")}>
+              <summary className="cursor-pointer text-[11px] font-black uppercase tracking-widest">Por que alguns horários não estão livres</summary>
+              <div className="mt-2 space-y-2">
+                {gruposBloqueio.map((g) => (
+                  <div key={g.chave} data-testid={`avulsa-motivo-${g.chave}`}>
+                    <p className="font-bold">{g.titulo} ({g.horarios.length}): <span className="font-semibold tabular-nums">{g.horarios.join(", ")}</span></p>
+                    {g.explicacoes.map((e) => <p key={e} className="text-muted-foreground">{e}</p>)}
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
           {trechoProblema && (
             <p className="flex items-start gap-2 text-xs font-semibold text-amber-700" data-testid="avulsa-provavel-conflito">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              Provável conflito: {explicarPeriodo(trechoProblema)} O sistema confere de novo ao salvar e recusa se houver conflito.
+              Provável conflito: {explicarPeriodo(trechoProblema, regras)} O sistema confere de novo ao salvar e recusa se houver conflito.
             </p>
           )}
 

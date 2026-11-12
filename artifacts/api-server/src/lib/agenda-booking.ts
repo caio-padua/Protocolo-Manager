@@ -25,7 +25,7 @@ const validDate = (date: string) => {
   return Number.isFinite(value.getTime()) && value.toISOString().slice(0,10) === date;
 };
 const blockReason = (reason: string | null) => ({
-  antecedencia:"dentro da antecedência mínima", compromisso:"compromisso existente sobreposto",
+  passado:"o horário já passou", antecedencia:"dentro da antecedência mínima", compromisso:"compromisso existente sobreposto",
   integracao:"aguardando atualização segura da agenda Google",
 }[reason ?? ""] ?? "ainda não liberado (cadeia)");
 export { SIM_TAG };
@@ -255,7 +255,8 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
       const t = hhmmOf(start + i * slotMinutes);
       const next = byTime.get(t);
       if (!next || next.state !== "aberto") {
-        return { ok: false, status: 409, error: `A consulta de ${durationMinutes} minutos precisa de horários seguidos e o das ${t} não está livre nesse dia` };
+        const porque = !next ? "a agenda não tem esse período" : next.state === "ocupado" ? "já ocupado" : blockReason(next.reason);
+        return { ok: false, status: 409, error: `A consulta de ${durationMinutes} minutos precisa de horários seguidos e o das ${t} não está livre nesse dia (${porque})` };
       }
     }
   }

@@ -66,7 +66,10 @@ export const textoDuracao = (min: number) => {
 
 export const textoIntervalo = (ini: number, dur: number) => `${rotuloHora(ini)} às ${rotuloHora(Math.min(ini + dur, 24 * 60))}`;
 
-export type SlotMotor = { time: string; state: string; reason?: string | null };
+export type SlotMotor = { time: string; state: string; reason?: string | null; subBlockIndex?: number };
+export type SubBlocoMotor = { startTime: string; endTime: string; released: boolean; total: number; occupied: number; occupancy: number };
+/** Regras da agenda que explicam bloqueios (lidas de /agenda/settings; nunca alteradas por esta tela). */
+export type RegrasAgenda = { minLeadHours: number; triggerPercent: number } | null;
 
 /**
  * A agenda só aceita início em um período dela (grade de 20 em 20, por exemplo). Pega o período que contém o
@@ -108,14 +111,99 @@ export function primeiroPeriodoIndisponivel(
   return null;
 }
 
-export function explicarPeriodo(p: { time: string; state: string; reason: string | null }): string {
+const textoHoras = (h: number) => (h === 1 ? "1 hora" : `${h} horas`);
+
+/** Frase curta do motivo de um período indisponível, igual ao que o servidor usa para recusar. */
+export function motivoCurto(estado: string, motivo: string | null | undefined, regras: RegrasAgenda = null): string {
+  if (estado === "ocupado") return "já tem consulta marcada nesta agenda";
+  switch (motivo) {
+    case "passado": return "esse horário já passou";
+    case "antecedencia":
+      return regras ? `dentro da antecedência mínima de ${textoHoras(regras.minLeadHours)} da agenda` : "dentro da antecedência mínima da agenda";
+    case "compromisso": return "há outro compromisso no mesmo horário (evento do Google Agenda ou consulta do mesmo profissional em outra agenda)";
+    case "cadeia": return "ainda não liberado pela regra de liberação em cadeia";
+    case "integracao": return "o Google Agenda ainda não foi confirmado como atualizado (bloqueio temporário de segurança)";
+    default: return "bloqueado pela agenda";
+  }
+}
+
+export function explicarPeriodo(
+  p: { time: string; state: string; reason: string | null }, regras: RegrasAgenda = null,
+): string {
   if (p.state === "inexistente") return `A agenda não tem período às ${p.time} neste dia.`;
-  if (p.state === "ocupado") return `O período das ${p.time} já está ocupado nesta agenda.`;
-  const motivo = p.reason === "antecedencia" ? "fora da antecedência mínima"
-    : p.reason === "compromisso" ? "bloqueado por compromisso"
-    : p.reason === "cadeia" ? "ainda não liberado pela agenda"
-    : "bloqueado";
-  return `O período das ${p.time} está ${motivo}.`;
+  return `O período das ${p.time} não pode ser marcado: ${motivoCurto(p.state, p.reason, regras)}.`;
+}
+
+/** Rótulo curto ao lado do horário na lista de horários. */
+export function rotuloSituacao(estado: string, motivo: string | null | undefined): string {
+  if (estado === "aberto") return "";
+  if (estado === "ocupado") return " — ocupado";
+  switch (motivo) {
+    case "passado": return " — já passou";
+    case "antecedencia": return " — antecedência mínima";
+    case "compromisso": return " — compromisso";
+    case "cadeia": return " — aguarda liberação em cadeia";
+    case "integracao": return " — aguarda o Google Agenda";
+    default: return " — bloqueado";
+  }
+}
+
+/** Quando o dia inteiro não tem períodos (ou está travado), o motivo do dia em português. */
+export function explicarDia(motivo: string | null | undefined): string | null {
+  switch (motivo) {
+    case "excecao": return "Dia bloqueado por exceção ou feriado cadastrado nesta agenda.";
+    case "sem-expediente": return "Esta agenda não tem janela de atendimento neste dia da semana.";
+    case "sincronizacao-pendente":
+      return "Todos os horários estão travados por segurança: a leitura do Google Agenda desta agenda está atrasada (mais de 5 minutos) ou falhou. Nada foi alterado; o sistema volta a liberar sozinho quando a leitura for atualizada.";
+    default: return null;
+  }
+}
+
+export type GrupoBloqueio = { chave: string; titulo: string; horarios: string[]; explicacoes: string[] };
+
+/**
+ * Agrupa os períodos que NÃO estão abertos por motivo, na ordem do motor (ocupado, passado, antecedência,
+ * compromisso, cadeia, integração), para a pessoa ver o porquê de cada horário sem adivinhar.
+ * Na cadeia, diz qual bloco anterior está segurando a liberação e em quanto está.
+ */
+export function agruparBloqueios(slots: SlotMotor[], blocos: SubBlocoMotor[], regras: RegrasAgenda): GrupoBloqueio[] {
+  const ordem: Array<[string, string, (s: SlotMotor) => boolean]> = [
+    ["ocupado", "Já ocupados por consulta", (s) => s.state === "ocupado"],
+    ["passado", "Horário que já passou", (s) => s.state === "bloqueado" && s.reason === "passado"],
+    ["antecedencia", "Dentro da antecedência mínima", (s) => s.state === "bloqueado" && s.reason === "antecedencia"],
+    ["compromisso", "Compromisso no mesmo horário", (s) => s.state === "bloqueado" && s.reason === "compromisso"],
+    ["cadeia", "Ainda não liberados (liberação em cadeia)", (s) => s.state === "bloqueado" && s.reason === "cadeia"],
+    ["integracao", "Aguardando o Google Agenda", (s) => s.state === "bloqueado" && s.reason === "integracao"],
+  ];
+  const grupos: GrupoBloqueio[] = [];
+  for (const [chave, titulo, quer] of ordem) {
+    const doGrupo = slots.filter(quer);
+    if (doGrupo.length === 0) continue;
+    const explicacoes: string[] = [];
+    if (chave === "passado") explicacoes.push("O horário já começou. Nunca se marca no passado.");
+    if (chave === "antecedencia") {
+      explicacoes.push(regras
+        ? `A agenda só aceita marcação com ${textoHoras(regras.minLeadHours)} ou mais de antecedência a partir de agora.`
+        : "A agenda só aceita marcação com a antecedência mínima configurada.");
+    }
+    if (chave === "compromisso") explicacoes.push("Evento do Google Agenda desta agenda, ou consulta do mesmo profissional em outra agenda, sobreposto ao período.");
+    if (chave === "integracao") explicacoes.push(explicarDia("sincronizacao-pendente") ?? "");
+    if (chave === "cadeia") {
+      const indices = [...new Set(doGrupo.map((s) => s.subBlockIndex).filter((i): i is number => typeof i === "number"))].sort((a, b) => a - b);
+      for (const i of indices) {
+        const alvo = blocos[i];
+        // Quem segura a cadeia é o primeiro bloco anterior (com períodos) abaixo do percentual de liberação.
+        const culpado = blocos.slice(0, i).find((b) => b.total > 0 && regras !== null && b.occupancy < regras.triggerPercent);
+        if (alvo && culpado && regras) {
+          explicacoes.push(`O bloco ${alvo.startTime}–${alvo.endTime} só abre quando o bloco ${culpado.startTime}–${culpado.endTime} chegar a ${regras.triggerPercent}% de ocupação; hoje está em ${culpado.occupancy}% (${culpado.occupied} de ${culpado.total}).`);
+        } else if (alvo) {
+          explicacoes.push(`O bloco ${alvo.startTime}–${alvo.endTime} só abre depois que o bloco anterior atingir o percentual de ocupação da agenda.`);
+        }
+      }
+    }
+    grupos.push({ chave, titulo, horarios: doGrupo.map((s) => s.time), explicacoes });
+  }
+  return grupos;
 }
 
 // ── Resultado da marcação ─────────────────────────────────────────────────────
