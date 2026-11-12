@@ -176,3 +176,4 @@
 - [Travas de agenda por profissional e cliente](agenda-travas-profissional-cliente.md) — trava 19872026 é por clínica; ordem clínica→profissional(asc)→cliente; conflito por intervalo; irmãs de equipe conjunta não conflitam.
 - [Agenda — tela da consulta avulsa](agenda-consulta-avulsa-tela.md) — período do motor, resultado incerto nunca repete, campos separados; armadilhas do e2e (viewport, CDP) e do codegen (barrel api-zod).
 - [Encaixe rápido interno (Quick Book)](agenda-encaixe-interno.md) — canal decidido no servidor (rota+Governança), antecedência em minutos no app_settings, mesma decisão no seletor e na confirmação, sem cadeia.
+- [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev.

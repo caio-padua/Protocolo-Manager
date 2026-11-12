@@ -64,6 +64,7 @@ test("grupos por categoria cobrem TODAS as agendas, inclusive as sem atendimento
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/agenda");
   const filtro = page.getByTestId("filtro-agendas");
+  await filtro.getByTestId("filtro-agendas-recolher").click(); // + : abre o painel por grupo
   await expect(filtro.getByTestId("grupo-Medicina")).toBeVisible();
   await expect(filtro.getByTestId("grupo-Enfermagem")).toBeVisible();
   await expect(filtro.getByTestId("grupo-Só no Google (somente leitura)")).toBeVisible();
@@ -80,6 +81,7 @@ test("só esta, clicar de novo restaura, valendo para sessão e Google; banner d
   await page.goto("/agenda");
   const linha = page.getByTestId("linha-do-tempo");
   const filtro = page.getByTestId("filtro-agendas");
+  await filtro.getByTestId("filtro-agendas-recolher").click(); // + : abre o painel por grupo
   await expect(linha.getByTestId("evento-s1")).toBeVisible();
   await expect(linha.getByTestId("evento-gg:1")).toBeVisible();
   await filtro.getByTestId("so-esta-r22").click();
@@ -101,6 +103,7 @@ test("grupo inteiro, limpar seleção, mostrar todas e recolher grupo; teclado",
   await page.goto("/agenda");
   const linha = page.getByTestId("linha-do-tempo");
   const filtro = page.getByTestId("filtro-agendas");
+  await filtro.getByTestId("filtro-agendas-recolher").click(); // + : abre o painel por grupo
   await filtro.getByTestId("grupo-marcar-Medicina").click();
   await expect(linha.getByTestId("evento-s1")).toHaveCount(0);
   await expect(linha.getByTestId("evento-s3")).toHaveCount(0);
@@ -128,6 +131,7 @@ test("a mesma escolha vale no Mês e na Lista", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/agenda");
   const filtro = page.getByTestId("filtro-agendas");
+  await filtro.getByTestId("filtro-agendas-recolher").click(); // + : abre o painel por grupo
   await filtro.getByTestId("so-esta-r23").click();
   await page.getByRole("button", { name: "Mês", exact: true }).click();
   const celula = page.getByTestId("grade-mes-google").getByTestId(`dia-${HOJE}`);
@@ -145,7 +149,8 @@ test("celular: filtro cabe na tela, alvos de toque com 36px ou mais", async ({ p
   await page.goto("/agenda");
   const filtro = page.getByTestId("filtro-agendas");
   await expect(filtro).toBeVisible();
-  // no celular o painel nasce recolhido (a grade vem primeiro); o resumo mostra quantas agendas estão exibidas
+  // a barra nasce minimizada (grade primeiro); o resumo mostra quantas agendas estão exibidas
+  await expect(filtro.getByTestId("agendas-faixa")).toBeVisible();
   await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
   await expect(filtro.getByTestId("filtro-agenda-r22")).toHaveCount(0);
   await page.screenshot({ path: "generated-artifacts/filtro-agendas-mobile-recolhido.png" });
@@ -157,4 +162,54 @@ test("celular: filtro cabe na tela, alvos de toque com 36px ou mais", async ({ p
   const transborda = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(transborda).toBe(false);
   await page.screenshot({ path: "generated-artifacts/filtro-agendas-mobile.png" });
+});
+
+test("barra contínua: chips ligam e desligam, dois cliques = só esta, e o + abre o painel (Esc fecha)", async ({ page }) => {
+  await base(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/agenda");
+  const filtro = page.getByTestId("filtro-agendas");
+  const linha = page.getByTestId("linha-do-tempo");
+  await expect(filtro.getByTestId("agendas-faixa")).toBeVisible();
+  await expect(filtro.getByTestId("filtro-agendas-gaveta")).toHaveCount(0);
+  const faixa = (await filtro.getByTestId("agendas-faixa").boundingBox())!;
+  expect(faixa.height).toBeLessThan(50); // uma linha só
+  await filtro.getByTestId("chip-agenda-r23").click();
+  await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
+  await expect(filtro.getByTestId("chip-agenda-r23")).toHaveAttribute("aria-checked", "false");
+  await filtro.getByTestId("chip-agenda-r23").click();
+  await expect(linha.getByTestId("evento-s2")).toBeVisible();
+  await filtro.getByTestId("chip-agenda-r22").dblclick();
+  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("1 de 6");
+  await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
+  await filtro.getByTestId("chip-agenda-r22").dblclick();
+  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
+  const mais = filtro.getByTestId("filtro-agendas-recolher");
+  await expect(mais).toHaveAttribute("aria-expanded", "false");
+  await mais.click();
+  await expect(filtro.getByTestId("filtro-agendas-gaveta")).toBeVisible();
+  await page.screenshot({ path: "generated-artifacts/agenda-barra-maximizada.png" });
+  await page.keyboard.press("Escape");
+  await expect(filtro.getByTestId("filtro-agendas-gaveta")).toHaveCount(0);
+});
+
+test("barra de comandos fica congelada ao rolar e passar o mouse num atendimento abre o resumo e fecha ao sair", async ({ page }) => {
+  await base(page);
+  await page.setViewportSize({ width: 1440, height: 700 });
+  await page.goto("/agenda");
+  const barra = page.getByTestId("agenda-barra-congelada");
+  await expect(barra).toBeVisible();
+  await page.screenshot({ path: "generated-artifacts/agenda-barra-desktop.png", clip: { x: 182, y: 0, width: 1258, height: 260 } });
+  await page.getByTestId("evento-s1").hover();
+  const cartao = page.getByTestId("cartao-rapido");
+  await expect(cartao).toBeVisible();
+  await expect(cartao).toContainText("Paciente 1");
+  await expect(page.getByTestId("cartao-rapido-aplicacoes")).toContainText("Sem aplicação");
+  await page.screenshot({ path: "generated-artifacts/agenda-cartao-rapido.png" });
+  await page.mouse.move(5, 400);
+  await expect(cartao).toHaveCount(0);
+  // rolar a página não tira a barra do topo
+  await page.evaluate(() => { document.querySelectorAll("div").forEach((d) => { if (getComputedStyle(d).overflowY === "auto") d.scrollTop = 400; }); });
+  const topo = (await barra.boundingBox())!;
+  expect(topo.y).toBeLessThanOrEqual(2);
 });

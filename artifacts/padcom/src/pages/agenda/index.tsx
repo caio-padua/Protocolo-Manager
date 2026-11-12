@@ -12,14 +12,13 @@ import { formatStatus, getStatusColor } from "@/lib/status";
 import {
   format, startOfWeek, endOfWeek, addWeeks, subWeeks,
   startOfMonth, endOfMonth, addMonths, subMonths,
-  addDays, subDays, isSameDay, isSameMonth, eachDayOfInterval,
+  addDays, subDays, isSameDay, isSameMonth, eachDayOfInterval, getISOWeek,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  ChevronLeft, ChevronRight, Clock, Home, Building2, User, MapPin, Stethoscope,
+  Clock, Home, Building2, User, MapPin, Stethoscope,
   CheckCircle2, Search, Download, CalendarPlus, Send, MoreHorizontal, Calendar,
   KeyRound, ShieldCheck, Copy, Loader2, Mail, MailCheck, ClipboardList,
-  LayoutGrid, List, Columns3, RefreshCw, Plus,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -34,6 +33,7 @@ import { RescheduleDrawer } from "@/components/RescheduleDrawer";
 import { GoogleCommitments } from "./GoogleCommitments";
 import { GradeMesGoogle } from "./GradeMesGoogle";
 import { FiltroAgendas } from "./FiltroAgendas";
+import { BarraAgenda } from "./BarraAgenda";
 import { chaveDaSessao } from "./filtro-agendas";
 import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
 import { useGoogleRefreshCycle } from "./agenda-integration-api";
@@ -642,12 +642,22 @@ export default function Agenda() {
   }
 
   // ── LABEL DO PERÍODO ──────────────────────────────────────────────────────
+  const mesmoMes = weekStart.getMonth() === weekEnd.getMonth();
   const periodLabel =
     viewMode === "dia"
-      ? format(currentDate, "EEEE, dd 'de' MMM yyyy", { locale: ptBR })
+      ? format(currentDate, "EEE, dd 'de' MMM yyyy", { locale: ptBR }).replace(".", "")
       : viewMode === "semana"
-      ? `${format(weekStart, "dd 'de' MMM", { locale: ptBR })} — ${format(weekEnd, "dd 'de' MMM yyyy", { locale: ptBR })}`
+      ? `${format(weekStart, mesmoMes ? "dd" : "dd MMM", { locale: ptBR }).replace(".", "")} — ${format(weekEnd, "dd MMM yyyy", { locale: ptBR }).replace(".", "")}`
       : format(currentDate, "MMMM yyyy", { locale: ptBR });
+  // Linha pequena sob o período: diz ONDE o usuário está em relação a hoje, sem ele precisar contar datas.
+  const noPeriodoAtual =
+    viewMode === "dia" ? isSameDay(currentDate, today)
+    : viewMode === "semana" ? isSameDay(weekStart, startOfWeek(today, { weekStartsOn: 1 }))
+    : isSameMonth(currentDate, today);
+  const periodCaption =
+    viewMode === "dia" ? (noPeriodoAtual ? "Hoje" : format(currentDate, "EEEE", { locale: ptBR }))
+    : viewMode === "semana" ? (noPeriodoAtual ? "Esta semana" : `Semana ${getISOWeek(weekStart)}`)
+    : (noPeriodoAtual ? "Este mês" : "Mês");
 
   // ── AÇÕES ICS / EMAIL / CAL ───────────────────────────────────────────────
   function downloadWeekICS() {
@@ -768,90 +778,22 @@ export default function Agenda() {
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      {/* ── CABEÇALHO ── */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight uppercase">Agenda</h1>
-          <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">
-            {viewMode === "dia" ? "Visão diária" : viewMode === "semana" ? "Uma visita consolidada por semana" : "Visão mensal — clique num dia para ver detalhes"}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Toggle Dia / Semana / Mês */}
-          <div className="concave-3d flex items-center p-0.5 gap-0.5">
-            {([
-              { id: "dia", label: "Dia", Icon: List },
-              { id: "semana", label: "Semana", Icon: Columns3 },
-              { id: "mes", label: "Mês", Icon: LayoutGrid },
-            ] as { id: ViewMode; label: string; Icon: any }[]).map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => { setViewMode(id); setSelectedDay(null); }}
-                className={`${viewMode === id ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} flex items-center gap-1.5 rounded-[4px] px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all`}
-              >
-                <Icon className="h-3.5 w-3.5" /> {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Linha do tempo (padrão) ou Lista com os cartões e todas as ações: só em Dia e Semana */}
-          {viewMode !== "mes" && (
-            <div className="concave-3d flex items-center p-0.5 gap-0.5" role="group" aria-label="Forma de exibir">
-              {([
-                { id: "linha", label: "Linha do tempo" },
-                { id: "lista", label: "Lista" },
-              ] as { id: VisaoAgenda; label: string }[]).map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={visao === id}
-                  onClick={() => setVisao(id)}
-                  className={`${visao === id ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} rounded-[4px] px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Navegação prev / período / next */}
-          <div className="flex items-center gap-1 p-1 concave-3d">
-            <Button variant="ghost" size="sm" onClick={navPrev} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="bevel-3d px-3 py-1.5 text-[11px] font-black uppercase tracking-widest min-w-[200px] text-center capitalize">
-              {periodLabel}
-            </div>
-            <Button variant="ghost" size="sm" onClick={navNext} className="h-8 w-8 p-0">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <Button size="sm" onClick={novoAgendamento} data-testid="novo-agendamento" className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-black">
-            <Plus className="h-3.5 w-3.5" aria-hidden /> Novo agendamento
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToday} className="btn-3d-soft h-9 px-3 uppercase tracking-widest text-[11px] font-bold">Hoje</Button>
-          <Button variant="outline" size="sm" onClick={downloadWeekICS} className="btn-3d-soft gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={!sessions?.length}>
-            <Download className="h-3.5 w-3.5" /> ICS
-          </Button>
-          <Button variant="outline" size="sm" onClick={refreshFromGoogle} className="btn-3d gap-2 h-9 px-3 uppercase tracking-widest text-[11px] font-bold" disabled={googleRefresh.running} data-testid="button-refresh-google">
-            {googleRefresh.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {googleRefresh.running ? "Atualizando…" : "Atualizar do Google"}
-          </Button>
-        </div>
-      </div>
+      {/* ── BARRA CONGELADA: comandos + agendas (fica no topo ao rolar) ── */}
+      <BarraAgenda
+        modo={viewMode} aoMudarModo={(m) => { setViewMode(m); setSelectedDay(null); }}
+        visao={visao} aoMudarVisao={setVisao}
+        periodo={periodLabel} legenda={periodCaption} noPeriodoAtual={noPeriodoAtual}
+        aoAnterior={navPrev} aoProximo={navNext} aoHoje={goToday} aoNovo={novoAgendamento}
+        aoBaixarIcs={downloadWeekICS} icsDesligado={!sessions?.length}
+        aoAtualizarGoogle={refreshFromGoogle} googleAtualizando={googleRefresh.running}
+        filtro={(
+          <FiltroAgendas de={dateFrom} ate={dateTo} sessoes={(sessoesDoPeriodo ?? []) as unknown as Parameters<typeof FiltroAgendas>[0]["sessoes"]}
+            ocultas={ocultas} onChange={setOcultas} />
+        )}
+      />
 
       {/* ── CORPO ── */}
-      <FiltroAgendas de={dateFrom} ate={dateTo} sessoes={(sessoesDoPeriodo ?? []) as unknown as Parameters<typeof FiltroAgendas>[0]["sessoes"]}
-        ocultas={ocultas} onChange={setOcultas} />
       <ConsultaAvulsaDialog aberto={avulsa !== null} preencher={avulsa} onFechar={() => setAvulsa(null)} onMarcada={() => { refetch(); }} />
-      {usaLinhaDoTempo && (
-        <p className="text-[11px] font-semibold text-muted-foreground" data-testid="dica-selecao">
-          Para marcar uma consulta avulsa: clique ou arraste num horário vazio. No celular, toque e segure. Também vale o botão Novo agendamento.
-        </p>
-      )}
       {!usaLinhaDoTempo && <GoogleCommitments de={dateFrom} ate={dateTo} ocultas={ocultas} />}
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-[6px]" />)}</div>

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { BellRing, CalendarClock, Check, Clock, Lock, Repeat, Volume2, VolumeX, X } from "lucide-react";
+import { BellRing, CalendarClock, Clock, Lock, Repeat, Volume2, VolumeX } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatStatus } from "@/lib/status";
 import type { GoogleAgendaCommitment } from "@workspace/api-client-react";
 import { useGoogleCompromissos } from "./useGoogleCompromissos";
 import { chaveDaSessao, chaveDoCompromisso } from "./filtro-agendas";
 import { InformacoesCompromisso } from "./InformacoesCompromisso";
+import { CartaoRapido } from "./CartaoRapido";
+import { QuadradoAplicacao } from "./QuadradoAplicacao";
 import { avisoSonoroLigado, gravarAvisoSonoro, tocarSino } from "./aviso-sonoro";
 import {
   ESTADO_APLICACAO, JANELA_AVISO_SONORO_MIN, agoraEmBrasilia, colunarSobrepostos, corSegura, estadoDaAplicacao,
@@ -277,21 +279,22 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
         <div className="flex flex-wrap items-center gap-2">
           {proximo?.sessao && (
             <button type="button" data-testid="proximo-atendimento" onClick={() => abrirSessao(proximo.sessao!)}
-              className="concave-3d flex min-h-9 items-center gap-2 px-3 text-[11px] font-bold">
+              className="concave-3d flex min-h-8 items-center gap-2 px-3 text-[11px] font-bold">
               <CalendarClock className="h-3.5 w-3.5 text-accent" aria-hidden />
               <span className="tabular-nums">{rotuloHora(proximo.ini)}</span>
               <span className="max-w-[10rem] truncate">{proximo.sessao.clientName}</span>
               <span className="font-black text-accent">{textoFaltam(proximo.ini - agora.minutos)}</span>
             </button>
           )}
-          <button type="button" onClick={() => irParaAgora(true)} data-testid="ir-para-agora" className="btn-3d-soft flex min-h-9 items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-widest">
+          <button type="button" onClick={() => irParaAgora(true)} data-testid="ir-para-agora" title="Ir para o horário de agora"
+            className="btn-3d-soft flex min-h-8 items-center gap-1.5 px-2.5 text-[10px] font-black uppercase tracking-widest">
             <Clock className="h-3.5 w-3.5" aria-hidden />Agora
           </button>
           <button type="button" role="switch" aria-checked={somLigado} onClick={alternarSom} data-testid="aviso-sonoro"
+            aria-label={`Aviso sonoro ${somLigado ? "ligado" : "desligado"}`}
             title={somLigado ? "Aviso sonoro ligado: um sino suave 10 minutos antes de cada atendimento" : "Aviso sonoro desligado"}
-            className={`${somLigado ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} flex min-h-9 items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-widest`}>
+            className={`${somLigado ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} flex min-h-8 min-w-8 items-center justify-center px-2`}>
             {somLigado ? <Volume2 className="h-3.5 w-3.5" aria-hidden /> : <VolumeX className="h-3.5 w-3.5" aria-hidden />}
-            Aviso sonoro {somLigado ? "ligado" : "desligado"}
           </button>
         </div>
       </div>
@@ -303,7 +306,7 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
       )}
 
       {/* A grade */}
-      <div ref={rolagem} className="relative max-h-[72vh] overflow-auto rounded-[6px]" data-testid="tl-rolagem">
+      <div ref={rolagem} className="relative max-h-[calc(100dvh-12.5rem)] min-h-[22rem] overflow-auto rounded-[6px]" data-testid="tl-rolagem">
         <div className="grid" style={{ gridTemplateColumns: colunasGrid, minWidth: modo === "dia" ? undefined : `${3.25 + dias.length * 7.5}rem`, ["--tl-hora" as string]: `${horaPx}px` }}>
           {/* Cabeçalho fixo: dia e compromissos de dia inteiro */}
           <div className="sticky top-0 z-20 border-b border-muted/30 bg-background" />
@@ -374,7 +377,8 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
                   const nome = i.tipo === "sessao" ? i.sessao!.clientName : i.evento!.titulo;
                   const agendaTxt = i.tipo === "sessao" ? i.sessao!.agendaNome ?? SEM_AGENDA_ROTULO : i.evento!.agenda;
                   return (
-                    <button key={i.chave} type="button" data-testid={`evento-${i.chave}`} data-origem={i.tipo === "google" ? "google" : "paxter"}
+                    <CartaoRapido key={i.chave} cor={i.cor} ini={i.ini} fim={i.fim} sessao={i.sessao} evento={i.evento}>
+                    <button type="button" data-testid={`evento-${i.chave}`} data-origem={i.tipo === "google" ? "google" : "paxter"}
                       data-proximidade={estado}
                       aria-label={`${hora} ${nome}, ${agendaTxt}${i.tipo === "google" ? ", compromisso do Google, somente leitura" : `, ${formatStatus(i.sessao!.status)}`}${estado === "proxima" ? ", começa em breve" : ""}`}
                       onClick={() => (i.tipo === "sessao" ? abrirSessao(i.sessao!) : setEventoAberto(i.evento!))}
@@ -401,6 +405,7 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
                         </>
                       )}
                     </button>
+                    </CartaoRapido>
                   );
                 })}
               </div>
@@ -414,8 +419,9 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
         )}
       </div>
 
-      <p className="text-[10px] text-muted-foreground">
-        Clique num atendimento para ver os detalhes. Compromissos com cadeado são do Google e só podem ser lidos aqui.
+      <p className="text-[10px] text-muted-foreground" data-testid="dica-selecao">
+        Passe o mouse num atendimento para ver o resumo e clique para abrir os detalhes. Compromissos com cadeado são do Google e só podem ser lidos aqui.
+        {onSelecionar && " Para marcar uma consulta avulsa: clique ou arraste num horário vazio (no celular, toque e segure)."}
       </p>
 
       {/* Detalhes da sessão do PAXTER */}
@@ -453,25 +459,6 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
         </DialogContent>
       </Dialog>
     </section>
-  );
-}
-
-function QuadradoAplicacao({ app }: { app: Aplicacao }) {
-  const estado = estadoDaAplicacao(app.displayState);
-  const info = ESTADO_APLICACAO[estado];
-  const cor = corSegura(app.substanceColor, "#94a3b8");
-  const estilo: Record<EstadoAplicacao, string> = {
-    applied: "ring-2 ring-green-600", disp: "ring-2 ring-amber-500", prox: "border border-dashed border-slate-600 opacity-50",
-    notPerformed: "ring-2 ring-red-700", unavailable: "opacity-30 ring-1 ring-slate-400", review: "ring-2 ring-red-700",
-  };
-  return (
-    <span className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px]" aria-hidden>
-      <span className={`absolute inset-0 rounded-[4px] ${estilo[estado]}`} style={{ backgroundColor: cor }} />
-      {estado === "applied" && <Check className="relative h-3 w-3 text-white drop-shadow" strokeWidth={4} />}
-      {(estado === "notPerformed") && <X className="relative h-3 w-3 text-white drop-shadow" strokeWidth={4} />}
-      {estado === "review" && <span className="relative text-[11px] font-black text-white drop-shadow">?</span>}
-      <span className="sr-only">{info.rotulo}</span>
-    </span>
   );
 }
 

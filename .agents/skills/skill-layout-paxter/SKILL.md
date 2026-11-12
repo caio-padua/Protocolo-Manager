@@ -967,6 +967,17 @@ Agenda e local de atendimento sao coisas distintas. O cartao de agenda e o MESMO
 5. Na Agenda Configuracao a coluna da lista tem 400px (lg) e 520px (xl) para o titulo mais longo caber inteiro.
 6. Nenhum texto dessas telas chama a agenda de "local": local e o endereco fisico (aba Externos); agenda e agenda.
 
+### 4.19 Padrao 42 — Barra congelada da Agenda (comandos + faixa de agendas + cartao rapido)
+
+Telas de agenda com muito controle seguem UM bloco congelado no topo (`.ag-congelada`, `pages/agenda/BarraAgenda.tsx` + `agenda-barra.css`).
+
+1. Linha de comandos estreita (36px): seta anterior, periodo (2 linhas: "09 — 15 NOV 2026" + "Esta semana"), seta proxima, Hoje, segmentado Dia/Semana/Mes (Concavo com o ativo Saliente), forma de exibir, ICS e Google so com icone e dica, e "Novo agendamento" em `btn-3d`.
+2. "Hoje" fica apagado (`btn-3d-soft`) quando ja estamos no periodo atual e ganha destaque quando nao estamos.
+3. Faixa de agendas = UMA barra continua (`.ag-trilho`, Concavo) com chips colados (cor da agenda na borda esquerda de 3px, nome, contagem), rotulo da categoria entre os grupos, rolagem lateral sem barra visivel. Clique liga/desliga, dois cliques = so esta.
+4. "+" e "−" na ponta direita (`bevel-3d`, 34px) maximizam/minimizam: maximizado vira gaveta (`.ag-gaveta`, `panel-3d-sub`) por cima da grade, com grupos, "So esta", Mostrar todas e Limpar selecao; Esc fecha. Nasce minimizada em tela e celular.
+5. No celular o bloco ocupa 3 linhas (periodo, comandos, agendas); "Novo agendamento" vira so "+" (texto fica para leitor de tela).
+6. Cartao rapido (`CartaoRapido.tsx`): so de passar o mouse num atendimento abre um quadro `panel-3d` com nome do paciente (EB Garamond), horario, agenda, profissional, local e as aplicacoes (ou "Sem aplicacao nesta visita"); fecha ao sair. No toque nao abre sozinho. Compromisso do Google mostra so titulo, agenda e horario, nunca a descricao.
+
 RESUMO EM 1 LINHA: design Paxter = paineis 3D skeuomorficos, Saliente para a conclusao e
 Concavo para o dado, cores verde-petroleo/ciano, cantos quadrados, fluxos com setas — so
 apresentacao muda, o motor nunca.
