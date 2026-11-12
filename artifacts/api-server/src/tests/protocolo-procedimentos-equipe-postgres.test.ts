@@ -125,6 +125,9 @@ beforeAll(async () => {
   await q(await readFile(new URL("../../../../scripts/migrations/20261112_protocolo_procedimentos_equipe.sql", import.meta.url), "utf8"));
   // Aplicar a migração duas vezes não pode falhar nem duplicar nada.
   await q(await readFile(new URL("../../../../scripts/migrations/20261112_protocolo_procedimentos_equipe.sql", import.meta.url), "utf8"));
+  // Pit Stop: modalidade e agenda escolhida na equipe do protocolo (também idempotente).
+  await q(await readFile(new URL("../../../../scripts/migrations/20261121_pit_stop_agendamento.sql", import.meta.url), "utf8"));
+  await q(await readFile(new URL("../../../../scripts/migrations/20261121_pit_stop_agendamento.sql", import.meta.url), "utf8"));
   await q(`
     INSERT INTO substances VALUES (900,'implant'),(901,'iv');
     INSERT INTO procedimentos_clinicos(id,empresa_id,nome,duracao_segundos,ativo) VALUES
@@ -169,11 +172,19 @@ describe("protocolo por procedimento com equipe, no banco isolado", () => {
     const proto = await novoProtocolo();
     const add = await incluir(proto, { procedimentoId: PROC.aplicacao, produtoId: 901, dose: "10 mg" });
     expect(add.status).toBe(201);
-    const res = await api("post", `/protocols/${proto}/procedimentos/${add.body.itemId}/reservar`, { numero: 1, date: DATE, time: "08:00" });
+    // Duas agendas de enfermagem da Sede igualmente elegíveis (A e B): a ordem de exibição NUNCA decide em silêncio.
+    const pendente = await api("post", `/protocols/${proto}/procedimentos/${add.body.itemId}/reservar`, { numero: 1, date: DATE, time: "08:00" });
+    expect(pendente.status).toBe(409);
+    expect(pendente.body.code).toBe("escolha_agenda_pendente");
+    expect(pendente.body.opcoes.map((o: any) => o.id).sort()).toEqual([2, 3]);
+    expect(await sessoes(proto)).toEqual([]);
+    // Com a escolha explícita (aqui a B, que a ordem de exibição nunca escolheria primeiro), reserva nela.
+    const escolhida = await incluir(proto, { procedimentoId: PROC.aplicacao, produtoId: 901, dose: "10 mg", equipe: [{ categoryId: 2, agendaId: 3 }] });
+    const res = await api("post", `/protocols/${proto}/procedimentos/${escolhida.body.itemId}/reservar`, { numero: 1, date: DATE, time: "08:00" });
     expect(res.status).toBe(201);
     const rows = await sessoes(proto);
     expect(rows).toHaveLength(1);
-    expect([2, 3]).toContain(rows[0].resource_id);
+    expect(rows[0].resource_id).toBe(3);
     expect(rows[0].resource_id).not.toBe(7);
   });
 
@@ -198,7 +209,7 @@ describe("protocolo por procedimento com equipe, no banco isolado", () => {
 
   it("equipe conjunta reserva médico e enfermagem juntos; se um deles está ocupado, nada é gravado", async () => {
     const proto = await novoProtocolo();
-    const add = await incluir(proto, { procedimentoId: PROC.conjunta });
+    const add = await incluir(proto, { procedimentoId: PROC.conjunta, equipe: [{ categoryId: 1 }, { categoryId: 2, agendaId: 2 }] });
     // 08:00 já tem o médico ocupado (consulta anterior): a busca não oferece esse horário.
     const horarios = (await api("post", `/protocols/${proto}/procedimentos/${add.body.itemId}/horarios`, { from: DATE, to: DATE })).body.dias[0].horarios;
     expect(horarios.some((h: any) => h.time === "08:00")).toBe(false);
@@ -216,12 +227,12 @@ describe("protocolo por procedimento com equipe, no banco isolado", () => {
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((r: any) => r.scheduled_time))).toEqual(new Set([livre.time]));
     expect(rows.some((r: any) => r.resource_id === 1 && r.professional_id === 201)).toBe(true);
-    expect(rows.some((r: any) => [2, 3].includes(r.resource_id))).toBe(true);
+    expect(rows.some((r: any) => r.resource_id === 2)).toBe(true);
   });
 
   it("equipe de três participantes reserva três agendas distintas", async () => {
     const proto = await novoProtocolo();
-    const add = await incluir(proto, { procedimentoId: PROC.trio });
+    const add = await incluir(proto, { procedimentoId: PROC.trio, equipe: [{ categoryId: 1 }, { categoryId: 2, agendaId: 2 }, { categoryId: 8 }] });
     const horarios = (await api("post", `/protocols/${proto}/procedimentos/${add.body.itemId}/horarios`, { from: DATE, to: DATE })).body.dias[0].horarios;
     const ok = await api("post", `/protocols/${proto}/procedimentos/${add.body.itemId}/reservar`, { numero: 1, date: DATE, time: horarios[0].time });
     expect(ok.status).toBe(201);
@@ -317,32 +328,48 @@ describe("Botox fictício: uma necessidade, médico OU biomédico (Márcio-like 
     expect(add.body.itens[0].equipe[0]).toMatchObject({ categoryName: "Medicina", alternativeCategoryIds: [8] });
   });
 
-  it("atende UMA pessoa: médico quando livre; senão um biomédico (inclusive o da agenda nova sem local); nunca os dois; nunca inativo nem outra clínica", async () => {
-    // 1º Botox às 09:00: médico (agenda 1) livre e primeiro na ordem.
-    const a = await botox(); expect((await reservar(a.proto, a.item, "09:00")).status).toBe(201);
-    expect(await sessoes(a.proto)).toMatchObject([{ resource_id: 1, professional_id: 201 }]);
-    // 2º e 3º no mesmo horário: médico ocupado -> os dois biomédicos ativos da clínica (agenda 4, e agenda 20 sem local).
-    const b = await botox(); expect((await reservar(b.proto, b.item, "09:00")).status).toBe(201);
-    const c1 = await botox(); expect((await reservar(c1.proto, c1.item, "09:00")).status).toBe(201);
-    const usadasB = [...(await sessoes(b.proto)), ...(await sessoes(c1.proto))];
-    expect(usadasB).toHaveLength(2); // UMA sessão por Botox, nunca médico + biomédico juntos
-    expect(usadasB.map((r: any) => r.resource_id).sort((x: number, y: number) => x - y)).toEqual([4, 20]);
-    expect(usadasB.find((r: any) => r.resource_id === 20)).toMatchObject({ professional_id: 208, duration_minutes: 30 });
-    // 4º: ninguém livre. Agendas 21 (profissional inativo) e 22 (outra clínica) não entram.
-    const c = await botox(); const rc = await reservar(c.proto, c.item, "09:00");
-    expect(rc.status).toBe(409);
-    expect(rc.body.code).toBe("horario_indisponivel");
-    expect(await sessoes(c.proto)).toEqual([]);
-    const usadas = (await q("SELECT DISTINCT resource_id FROM sessions WHERE resource_id IN (21,22)")).rows;
-    expect(usadas).toEqual([]);
+  it("várias agendas igualmente elegíveis (médico OU biomédicos) = escolha pendente, nunca pela ordem de exibição", async () => {
+    const x = await botox();
+    const r = await reservar(x.proto, x.item, "09:00");
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe("escolha_agenda_pendente");
+    expect(r.body.opcoes.map((o: any) => o.id).sort((p: number, q2: number) => p - q2)).toEqual([1, 4, 20]);
+    const h = await api("post", `/protocols/${x.proto}/procedimentos/${x.item}/horarios`, { from: DATE3, to: DATE3 });
+    expect(h.status).toBe(409);
+    expect(h.body.code).toBe("escolha_agenda_pendente");
+    expect(await sessoes(x.proto)).toEqual([]);
   });
 
-  it("a busca de horários oferece o horário se QUALQUER alternativa estiver livre (e só uma pessoa por horário)", async () => {
-    const x = await botox();
+  it("agenda escolhida reserva só nela, sem trocar em silêncio; inativo e outra clínica nunca entram", async () => {
+    const pin = (agendaId: number) => [{ categoryId: 1, alternativeCategoryIds: [8], agendaId }];
+    const a = await botox(pin(1)); expect((await reservar(a.proto, a.item, "09:00")).status).toBe(201);
+    expect(await sessoes(a.proto)).toMatchObject([{ resource_id: 1, professional_id: 201 }]);
+    // Mesma agenda, mesmo horário: recusa. Não cai para outro biomédico por conta própria.
+    const b = await botox(pin(1)); const rb = await reservar(b.proto, b.item, "09:00");
+    expect(rb.status).toBe(409);
+    expect(rb.body.code).toBe("horario_indisponivel");
+    expect(await sessoes(b.proto)).toEqual([]);
+    // Escolhas explícitas das outras duas agendas: cada uma atende uma pessoa só.
+    const c1 = await botox(pin(20)); expect((await reservar(c1.proto, c1.item, "09:00")).status).toBe(201);
+    const c2 = await botox(pin(4)); expect((await reservar(c2.proto, c2.item, "09:00")).status).toBe(201);
+    expect(await sessoes(c1.proto)).toMatchObject([{ resource_id: 20, professional_id: 208, duration_minutes: 30 }]);
+    expect(await sessoes(c2.proto)).toMatchObject([{ resource_id: 4, professional_id: 203 }]);
+    // Agenda de outra clínica não existe para esta; agenda de profissional inativo não oferece horário.
+    const proto = await novoProtocolo();
+    expect((await incluir(proto, { procedimentoId: PROC.botox, equipe: pin(22) })).status).toBe(404);
+    const inativo = await incluir(proto, { procedimentoId: PROC.botox, equipe: pin(21) });
+    expect(inativo.status).toBe(201);
+    const sem = await api("post", `/protocols/${proto}/procedimentos/${inativo.body.itemId}/horarios`, { from: DATE3, to: DATE3 });
+    expect(sem.body.code).toBe("sem_agenda_da_categoria");
+    expect((await q("SELECT DISTINCT resource_id FROM sessions WHERE resource_id IN (21,22)")).rows).toEqual([]);
+  });
+
+  it("a busca de horários da agenda escolhida mostra só o que está livre nela", async () => {
+    const x = await botox([{ categoryId: 1, alternativeCategoryIds: [8], agendaId: 1 }]);
     const h = (await api("post", `/protocols/${x.proto}/procedimentos/${x.item}/horarios`, { from: DATE3, to: DATE3 })).body.dias[0].horarios;
     expect(h.some((i: any) => i.time === "09:00")).toBe(false);
     expect(h.some((i: any) => i.time === "09:30")).toBe(true);
-    expect(h.every((i: any) => i.participantes.length === 1)).toBe(true);
+    expect(h.every((i: any) => i.participantes.length === 1 && i.participantes[0].resourceId === 1)).toBe(true);
   });
 
   it("habilitação configurável: lista de profissionais habilitados restringe quem atende, sem lista fixa por categoria", async () => {
@@ -370,7 +397,7 @@ describe("Botox fictício: uma necessidade, médico OU biomédico (Márcio-like 
 
   it("duas necessidades distintas (consulta + biomédico) continuam exigindo duas pessoas diferentes", async () => {
     const proto = await novoProtocolo();
-    const add = await incluir(proto, { procedimentoId: PROC.botox, equipe: [{ categoryId: 1, alternativeCategoryIds: [8] }, { categoryId: 8 }] });
+    const add = await incluir(proto, { procedimentoId: PROC.botox, equipe: [{ categoryId: 1, alternativeCategoryIds: [8], agendaId: 20 }, { categoryId: 8, agendaId: 4 }] });
     expect(add.status).toBe(201);
     const ok = await api("post", `/protocols/${proto}/procedimentos/${add.body.itemId}/reservar`, { numero: 1, date: DATE3, time: "08:30" });
     expect(ok.status).toBe(201);

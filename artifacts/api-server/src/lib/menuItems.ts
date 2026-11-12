@@ -38,6 +38,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { id: "clientes", label: "Clientes", path: "/clientes", icon: "Users", grupo: "clinica", moduloRequerido: null },
   { id: "cockpit", label: "Cockpit da Consulta", path: "/cockpit", icon: "Stethoscope", grupo: "clinica", moduloRequerido: "cockpit" },
   { id: "agenda", label: "Agenda", path: "/agenda", icon: "Calendar", grupo: "clinica", moduloRequerido: "agenda" },
+  { id: "pit-stop", label: "Pit Stop", path: "/pit-stop", icon: "Flag", grupo: "clinica", moduloRequerido: "agenda" },
   { id: "sessoes", label: "Sessões", path: "/sessoes", icon: "ClipboardList", grupo: "clinica", moduloRequerido: "agenda" },
 
   // ─── Protocolos ───────────────────────────────────────────────────────────

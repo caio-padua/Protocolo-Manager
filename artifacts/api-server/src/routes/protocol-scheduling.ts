@@ -10,6 +10,7 @@ import {
   type SchedulingRefusal,
 } from "../lib/protocol-scheduling";
 import { googleReadinessWarning, syncProtocolSessionsToGoogle } from "../lib/session-google-sync";
+import { protocoloTemPlanoVivo } from "../lib/pit-stop";
 import { requireCollaborator } from "./collaborator";
 import { authorizeProtocol } from "./protocols";
 
@@ -57,6 +58,12 @@ async function loadAuthorized(req: Request, res: Response) {
   }
   const member = await authorizeProtocol(req, protocol, res);
   if (!member) return null;
+  // Um protocolo com plano no Pit Stop tem UMA reserva só: este caminho antigo não pode reservar nem enviar ao Google.
+  if (await protocoloTemPlanoVivo(protocol.id)) {
+    res.status(409).json({ code: "plano_pit_stop_ativo",
+      error: "Este protocolo está sendo agendado pelo Pit Stop. Continue por lá para não duplicar a reserva." });
+    return null;
+  }
   return { protocol, empresaId: member.clinic.empresaId };
 }
 

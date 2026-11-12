@@ -30,6 +30,7 @@ mora num arquivo durável apontado abaixo (e o Git guarda o histórico).
 | Armadilhas técnicas finas e lições | `.agents/memory/` (índice em `MEMORY.md`) | Antes de implementar; ao aprender algo |
 | Funcionalidades e estrutura detalhada (telas, rotas, schemas, integrações Google, portal do cliente) | `docs/PADCOM-FUNCIONALIDADES.md` | Ao mexer numa funcionalidade existente |
 | Conceito Raiz — sistemas primos IHE x Manager (deduplicação `id_ihe`, dívidas técnicas Onda 1) | `docs/CONCEITO-RAIZ-PRIMOS.md` | Em qualquer onda de integração/transmutação |
+| Empresa x Local x Profissional x Agenda x Pit Stop (glossário, vínculos, regras aprovadas, proibições) | `docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md` | Ao mexer em agenda, equipe de procedimento, local, lançador ou Pit Stop |
 | Alvo escrito de cada funcionalidade | `specs/<nome>.md` | Ao especificar/construir uma onda |
 | Cartas para outros primos (IHE, Claude, Manus) | `cartas/` (índice em `cartas/INDEX.md`) | Ao comunicar outro sistema/agente |
 | Pack portável das skills (semear/certificar primos) | `paxter-pack/` (README, SEED, MANIFEST) + `scripts` `paxter:pack`/`paxter:audit` | Ao criar um sistema novo ou auditar um existente |

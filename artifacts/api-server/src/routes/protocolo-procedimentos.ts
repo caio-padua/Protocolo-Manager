@@ -22,6 +22,8 @@ const Participante = z.strictObject({
   alternativeCategoryIds: z.array(z.number().int().positive()).max(5).optional(),
   locationId: z.number().int().positive().nullish(),
   professionalIds: z.array(z.number().int().positive()).max(20).optional(),
+  modalidade: z.enum(["local", "online", "externo"]).optional(),
+  agendaId: z.number().int().positive().nullish(),
 });
 const IncluirBody = z.strictObject({
   procedimentoId: z.number().int().positive(),
@@ -53,7 +55,7 @@ async function autorizar(req: Request, res: Response) {
   return { protocol, empresaId: member.clinic.empresaId, itemId: ids.data.itemId };
 }
 function recusar(res: Response, error: unknown) {
-  if (error instanceof EquipeErro) { res.status(error.status).json({ code: error.code, error: error.message }); return; }
+  if (error instanceof EquipeErro) { res.status(error.status).json({ code: error.code, error: error.message, ...(error.detalhes ?? {}) }); return; }
   throw error;
 }
 
@@ -71,7 +73,7 @@ router.post("/protocols/:id/procedimentos", ...guard, async (req, res): Promise<
   try {
     const itemId = await incluirProcedimento({
       empresaId: a.empresaId, protocolId: a.protocol.id, professionalId: req.collaborator!.professionalId,
-      entrada: { ...body.data, equipe: body.data.equipe?.map((p) => ({ ...p, locationId: p.locationId ?? null })) },
+      entrada: { ...body.data, equipe: body.data.equipe?.map((p) => ({ ...p, locationId: p.locationId ?? null, agendaId: p.agendaId ?? null })) },
     });
     res.status(201).json({ itemId, itens: await listarItens(a.empresaId, a.protocol.id) });
   } catch (error) { recusar(res, error); }

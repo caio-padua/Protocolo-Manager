@@ -23,10 +23,13 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays } from "date-fns";
-import { collabAuthHeaders } from "@/lib/collab-auth";
+import { collabAuthHeaders, getCollabToken } from "@/lib/collab-auth";
 import { toCivilDate } from "@/lib/civil-date";
 import { ProtocolSchedulingDialog } from "@/components/ProtocolSchedulingDialog";
 import { ProtocolGoogleSyncDialog } from "@/components/ProtocolGoogleSyncDialog";
+import { PlanoPitStopDialog } from "@/components/pit-stop/PlanoPitStopDialog";
+import { SeletorProcedimentos, type ProcedimentoEscolhido } from "@/components/pit-stop/SeletorProcedimentos";
+import { criarPlanoDoProtocolo } from "@/lib/pit-stop-api";
 
 // ===========================================================================
 // LANÇADOR INLINE (T004) — mini-lançador de protocolo dentro do Cockpit da
@@ -115,6 +118,11 @@ export default function LancadorInline({
   const [protocolToSchedule, setProtocolToSchedule] = useState<number | null>(null);
   const [schedulingOpen, setSchedulingOpen] = useState(false);
   const [googleSyncOpen, setGoogleSyncOpen] = useState(false);
+  // Caminho B (Pit Stop): procedimentos reais do catálogo; o plano compartilhado é aberto logo após lançar.
+  const [procs, setProcs] = useState<ProcedimentoEscolhido[]>([]);
+  const [planoAberto, setPlanoAberto] = useState<number | null>(null);
+  const procsValidos = procs.filter((p) => p.procedimentoId > 0);
+  const procsIncompletos = procs.length !== procsValidos.length;
   const schedulingConfirmedRef = useRef(false);
 
   const cliente = useMemo(
@@ -208,20 +216,20 @@ export default function LancadorInline({
 
   const canLaunch = Boolean(
     professionalId && availableDoctors.some(doctor => String(doctor.id) === professionalId) &&
-    agendaOptions && !agendaOptionsLoading && !agendaOptionsError && filledSlots.length > 0
+    agendaOptions && !agendaOptionsLoading && !agendaOptionsError && (filledSlots.length > 0 || procsValidos.length > 0) && !procsIncompletos
   );
 
   const buildPayload = () => {
     const autoTitle =
       title ||
-      `Protocolo ${cliente?.name?.split(" ")[0] ?? ""} — ${filledSlots
+      `Protocolo ${cliente?.name?.split(" ")[0] ?? ""}${filledSlots.length > 0 ? ` — ${filledSlots
         .map((s) => s.substanceName)
-        .join(", ")}`;
+        .join(", ")}` : ""}`;
     return {
       clientId,
       title: autoTitle,
       status: "suggested" as const,
-      startDate: filledSlots[0]?.startDate ?? format(new Date(), "yyyy-MM-dd"),
+      startDate: filledSlots[0]?.startDate ?? procsValidos.find((p) => p.dataInicio)?.dataInicio ?? format(new Date(), "yyyy-MM-dd"),
       serviceType: "clinic" as const,
       professionalId: parseInt(professionalId),
       unit: selectedLocation?.name ?? null,
@@ -242,6 +250,7 @@ export default function LancadorInline({
   };
 
   const resetForm = () => {
+    setProcs([]);
     setSlots([emptySlot()]);
     setTitle("");
   };
@@ -252,10 +261,34 @@ export default function LancadorInline({
     });
   };
 
+  /**
+   * Caminho B: cria o plano compartilhado do Pit Stop (sem reservar nada) e abre a tela de gerenciamento para o médico.
+   * Se o plano falhar, o protocolo já existe: o aviso diz isso e o Caminho A continua disponível para ele.
+   */
+  const abrirPlanoPitStop = async (protocoloId: number) => {
+    try {
+      const r = await criarPlanoDoProtocolo(protocoloId, procsValidos.map(({ chave: _c, ...p }) => p), true);
+      setPlanoAberto(r.planoId ?? r.plano.id);
+      return true;
+    } catch (e) {
+      toast({
+        title: "Protocolo criado, mas o plano do Pit Stop não foi criado",
+        description: `${e instanceof Error ? e.message : "Erro inesperado."} Nenhum horário foi reservado.`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const handleLancar = async () => {
     if (!canLaunch || isBusy) return;
     try {
-      await createMutation.mutateAsync({ data: buildPayload() });
+      const created = await createMutation.mutateAsync({ data: buildPayload() });
+      if (procsValidos.length > 0) {
+        invalidarLista();
+        if (await abrirPlanoPitStop(created.id)) resetForm();
+        return;
+      }
       toast({
         title: "Protocolo lançado!",
         description: "Criado como sugerido. Use Agendar protocolo para prévia e reserva.",
@@ -273,6 +306,11 @@ export default function LancadorInline({
     try {
       const created = await createMutation.mutateAsync({ data: buildPayload() });
       invalidarLista();
+      if (procsValidos.length > 0) {
+        if (await abrirPlanoPitStop(created.id)) resetForm();
+        setValidando(false);
+        return;
+      }
       resetForm();
       schedulingConfirmedRef.current = false;
       setProtocolToSchedule(created.id);
@@ -568,6 +606,8 @@ export default function LancadorInline({
           ))}
         </div>
 
+        <SeletorProcedimentos valor={procs} onChange={setProcs} />
+
         {/* Ações */}
         <div className="mt-5 flex flex-wrap justify-end gap-3">
           <button
@@ -623,6 +663,7 @@ export default function LancadorInline({
           invalidarLista();
         }}
       />
+      <PlanoPitStopDialog planoId={planoAberto} open={planoAberto !== null} onOpenChange={(open) => { if (!open) { setPlanoAberto(null); invalidarLista(); } }} />
       <ProtocolGoogleSyncDialog
         protocolId={protocolToSchedule ?? 0}
         open={googleSyncOpen}

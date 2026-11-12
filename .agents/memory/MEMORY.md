@@ -167,3 +167,4 @@
 - [Locais externos da clínica](locais-externos-cadastro.md) — aba dentro do cadastro da empresa, tabela própria com campos da empresa (CNPJ fictício, sem integrações); agenda EXTERNA copia o endereço; sonner sem Toaster.
 - [Agenda x Local — forma Sede/Online/Outro local](agenda-forma-vocabulario.md) — "remoto" abolido; cor única espelhada agenda↔local; cartão único de agenda.
 - [Protocolo: dois fluxos de agenda e local sobrecarregado](protocolo-dois-fluxos-agenda-local.md) — location_id do procedimento aponta para agenda; fluxo por períodos só enfermagem Sede.
+- [Pit Stop + referência agenda/profissional/local](pit-stop-agendamento.md) — plano compartilhado (Caminho B); ler docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md antes de mexer em agenda/equipe/local.

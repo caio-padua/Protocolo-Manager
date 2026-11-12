@@ -17,17 +17,25 @@ import { existeCombinacaoDistinta } from "../../../../lib/procedimentos-shared/s
  * (duas pessoas) = dois participantes. `professionalIds` é a lista configurável de quem está habilitado.
  * O sistema não decide habilitação profissional por categoria: quem configura é a clínica.
  */
+export type Modalidade = "local" | "online" | "externo";
+export const MODALIDADES: readonly Modalidade[] = ["local", "online", "externo"];
 export type Participante = {
   categoryId: number; alternativeCategoryIds?: number[]; locationId?: number | null; professionalIds?: number[];
+  /** Forma do atendimento: local = Sede da empresa (padrão), online ou externo. Nunca se mistura entre formas. */
+  modalidade?: Modalidade;
+  /** Agenda escolhida (sugerida ou pelo prescritor). Sem ela, várias agendas igualmente elegíveis = escolha pendente. */
+  agendaId?: number | null;
 };
 export const categoriasDoParticipante = (p: Participante): number[] =>
   [...new Set([p.categoryId, ...(p.alternativeCategoryIds ?? [])])];
 
 export class EquipeErro extends Error {
-  constructor(readonly status: 400 | 403 | 404 | 409 | 422 | 503, message: string, readonly code = "equipe_invalida") {
+  constructor(readonly status: 400 | 403 | 404 | 409 | 422 | 503, message: string, readonly code = "equipe_invalida",
+    readonly detalhes?: Record<string, unknown>) {
     super(message);
   }
 }
+export type OpcaoAgenda = { id: number; nome: string; modalidade: string; professionalId: number | null; categoryId: number };
 
 type Executor = AgendaExecutor;
 type RecursoInfo = { id: number; slotMinutes: number; modality: string; name: string; locationName: string; categoryId: number };
@@ -71,6 +79,19 @@ export async function validarParticipantes(executor: Executor, empresaId: number
       if (!categoria || !categoria.active) throw new EquipeErro(404, "Categoria profissional não encontrada ou inativa.", "categoria_invalida");
       nomes.push(categoria.name);
     }
+    if (p.modalidade !== undefined && !MODALIDADES.includes(p.modalidade)) {
+      throw new EquipeErro(400, "Modalidade inválida: use local (Sede), online ou externo.", "modalidade_invalida");
+    }
+    if (p.agendaId != null) {
+      const ag = await executor.execute(sql`SELECT r.category_id, r.modality FROM agenda_resources r
+        LEFT JOIN locations l ON l.id=r.location_id
+        WHERE r.id=${p.agendaId} AND r.active AND COALESCE(r.empresa_id, l.empresa_id)=${empresaId}`);
+      const a = ag.rows[0];
+      if (!a) throw new EquipeErro(404, "Agenda não encontrada nesta clínica.", "agenda_invalida");
+      if (!cats.includes(Number(a.category_id)) || String(a.modality) !== (p.modalidade ?? "local")) {
+        throw new EquipeErro(409, "A agenda escolhida não é da categoria ou da forma de atendimento deste participante.", "agenda_incompativel");
+      }
+    }
     if (p.locationId != null) {
       const loc = await executor.execute(sql`SELECT 1 FROM locations WHERE id=${p.locationId} AND active='true' AND empresa_id=${empresaId}`);
       if (!loc.rows.length) throw new EquipeErro(404, "Local não encontrado nesta clínica.", "local_invalido");
@@ -111,7 +132,9 @@ export async function resolverNecessidades(executor: Executor, empresaId: number
       WHERE r.active AND r.category_id = ANY(${`{${cats.join(",")}}`}::int[])
         AND COALESCE(r.empresa_id, l.empresa_id)=${empresaId}
         AND (r.location_id IS NULL OR l.active='true')
-        AND (${p.locationId ?? null}::int IS NULL OR r.location_id IS NULL OR r.location_id=${p.locationId ?? null})`);
+        AND (${p.locationId ?? null}::int IS NULL OR r.location_id IS NULL OR r.location_id=${p.locationId ?? null})
+        AND r.modality=${p.modalidade ?? "local"}
+        AND (${p.agendaId ?? null}::int IS NULL OR r.id=${p.agendaId ?? null})`);
     const candidatos: Candidato[] = [];
     const compartilhadas = rows.rows.filter((r) => r.professional_id == null);
     const vinculos = ids.length && compartilhadas.length
@@ -144,6 +167,19 @@ export async function resolverNecessidades(executor: Executor, empresaId: number
       throw new EquipeErro(422,
         `Não há agenda ativa da categoria ${nomes} com o profissional e o local pedidos. Nada foi agendado.`,
         "sem_agenda_da_categoria");
+    }
+    // Várias agendas igualmente elegíveis NÃO se resolvem pela ordem de exibição: a escolha fica pendente.
+    const distintas = [...new Set(candidatos.map((c) => c.resourceId))];
+    if (distintas.length > 1 && p.agendaId == null) {
+      const opcoes: OpcaoAgenda[] = distintas.map((id) => {
+        const info = recursos.get(id)!;
+        const doRecurso = rows.rows.find((r) => Number(r.id) === id);
+        return { id, nome: info.name, modalidade: info.modality, categoryId: info.categoryId,
+          professionalId: doRecurso?.professional_id == null ? null : Number(doRecurso.professional_id) };
+      });
+      throw new EquipeErro(409,
+        `Há ${distintas.length} agendas igualmente possíveis para ${nomes} (${p.modalidade ?? "local"}). Escolha a agenda; o sistema não decide pela ordem de exibição.`,
+        "escolha_agenda_pendente", { participanteOrdem: i + 1, categoryIds: cats, modalidade: p.modalidade ?? "local", opcoes });
     }
     necessidades.push({ ordem: i + 1, categoryId: p.categoryId, candidatos });
   }
@@ -191,12 +227,20 @@ export async function buscarHorariosDaEquipe(params: {
  * Reserva transacional de UMA ocorrência: todas as agendas da equipe ou nenhuma.
  * Relê a disponibilidade dentro do bloqueio da clínica antes de gravar.
  */
-export async function reservarOcorrencia(params: {
+type ReservaParams = {
   empresaId: number; protocoloProcedimentoId: number; numero: number; date: string; time: string; criadoPor: number | null;
-}) {
+};
+export async function reservarOcorrencia(params: ReservaParams) {
   if (!dataValida(params.date) || !HHMM.test(params.time)) throw new EquipeErro(400, "Data ou horário inválido.", "data_invalida");
   if (params.date < brtISODate()) throw new EquipeErro(422, "Não é possível reservar em data passada.", "data_passada");
-  return db.transaction(async (tx) => {
+  return db.transaction((tx) => reservarOcorrenciaTx(tx, params));
+}
+
+/** Mesma reserva, dentro de uma transação já aberta (o plano do Pit Stop reserva todas as ocorrências ou nenhuma). */
+export async function reservarOcorrenciaTx(tx: Executor, params: ReservaParams) {
+  if (!dataValida(params.date) || !HHMM.test(params.time)) throw new EquipeErro(400, "Data ou horário inválido.", "data_invalida");
+  if (params.date < brtISODate()) throw new EquipeErro(422, "Não é possível reservar em data passada.", "data_passada");
+  {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(19872026,${params.empresaId})`);
     const itens = await tx.execute(sql`SELECT pp.id, pp.protocol_id, pp.duracao_segundos, pp.total_sessoes, pp.nome_snapshot,
         p.client_id, c.status AS client_status, c.empresa_id AS client_empresa, c.clinica_origem_empresa_id AS client_origem
@@ -221,13 +265,9 @@ export async function reservarOcorrencia(params: {
       AND status IN ('scheduled','confirmed') AND NOT agenda_archived LIMIT 1`);
     if (conflitoCliente.rows.length) throw new EquipeErro(409, "O cliente já tem uma visita neste horário.", "cliente_ocupado");
 
-    const equipe = await tx.execute(sql`SELECT ordem, category_id, alternative_category_ids, location_id, professional_ids
-      FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${item.id} ORDER BY ordem`);
-    const participantes: Participante[] = equipe.rows.map((e) => ({
-      categoryId: Number(e.category_id), alternativeCategoryIds: (e.alternative_category_ids as number[] | null ?? []).map(Number),
-      locationId: e.location_id == null ? null : Number(e.location_id),
-      professionalIds: (e.professional_ids as number[] | null ?? []).map(Number),
-    }));
+    const equipe = await tx.execute(sql`SELECT ordem, category_id, alternative_category_ids, location_id, professional_ids,
+        modalidade, agenda_id FROM protocolo_procedimento_equipe WHERE protocolo_procedimento_id=${item.id} ORDER BY ordem`);
+    const participantes = equipe.rows.map(participanteDaLinha);
     const { necessidades, recursos } = await resolverNecessidades(tx, params.empresaId, participantes);
     const duracaoMinutos = Number(item.duracao_segundos) / 60;
     const inicios = await iniciosDoDia(tx, recursos, params.date, duracaoMinutos);
@@ -256,5 +296,16 @@ export async function reservarOcorrencia(params: {
       gravados.push({ ordem: a.ordem, resourceId: a.resourceId, professionalId: a.professionalId, sessionId: Number(sessao.id) });
     }
     return { ocorrenciaId: Number(ocorrencia.id), numero: params.numero, date: params.date, time: params.time, participantes: gravados };
-  });
+  }
+}
+
+/** Linha de protocolo_procedimento_equipe -> participante (um só lugar: reserva, busca e plano leem igual). */
+export function participanteDaLinha(e: Record<string, unknown>): Participante {
+  return {
+    categoryId: Number(e.category_id), alternativeCategoryIds: ((e.alternative_category_ids as number[] | null) ?? []).map(Number),
+    locationId: e.location_id == null ? null : Number(e.location_id),
+    professionalIds: ((e.professional_ids as number[] | null) ?? []).map(Number),
+    modalidade: (e.modalidade as Modalidade | undefined) ?? "local",
+    agendaId: e.agenda_id == null ? null : Number(e.agenda_id),
+  };
 }

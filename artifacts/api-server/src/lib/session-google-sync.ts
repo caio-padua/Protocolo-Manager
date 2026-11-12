@@ -253,7 +253,7 @@ export interface ProtocolGoogleSyncParams {
 export const MAX_VISITS_PER_GOOGLE_SYNC = 40;
 
 type Destination =
-  | { ok: true; resourceKind: string; location: typeof locationsTable.$inferSelect; calendarId: string; externalAddress: string | null }
+  | { ok: true; resourceKind: string; modality: string; location: typeof locationsTable.$inferSelect; calendarId: string; externalAddress: string | null }
   | { ok: false; code: string; error: string };
 
 /** `professionalId` nulo = o chamador já autorizou a sessão (ex.: atualização depois de remarcar); não confere vínculo. */
@@ -285,7 +285,7 @@ async function resolveResourceDestination(resourceId: number | null, empresaId: 
     }
   }
   // Agenda EXTERNA: o endereço digitado na própria agenda (via CEP) é o do atendimento; senão vale o do local ligado.
-  return { ok: true, resourceKind: resource.kind, location, calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
+  return { ok: true, resourceKind: resource.kind, modality: resource.modality, location, calendarId: resource.googleCalendarId, externalAddress: textoExternoDaAgenda(resource) };
 }
 
 /**
@@ -435,6 +435,46 @@ async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitS
         releaseOnUpdateFailure: ctx.releaseOnUpdateFailure, updateDeadlineMs: ctx.updateDeadlineMs,
         expectedProtocolItems: protocolItems,
       });
+    return { ...base, status: "sincronizado", eventId };
+  } catch (error) {
+    const uncertain = error instanceof CalendarSyncUncertain;
+    return { ...base, status: uncertain ? "incerto" : "falhou", code: uncertain ? "resultado_incerto" : "erro_google",
+      error: uncertain ? error.message : "Não foi possível enviar ao Google; a reserva no sistema continua valendo." };
+  }
+}
+
+/**
+ * Pit Stop: uma visita de PROCEDIMENTO (sem substância/via). Mesma reserva durável e mesmo destino do envio legado
+ * (syncReservedEvent / reconcilePendingEvent): repetir nunca duplica o evento. Nunca lança.
+ * Agenda online não leva endereço físico no evento.
+ */
+export async function syncProcedureVisit(session: SessionRow, ctx: VisitContext & { procedureName: string; teamLine: string }): Promise<VisitSyncResult> {
+  const base = { sessionId: session.id, date: session.scheduledDate, time: session.scheduledTime };
+  const destination = await resolveDestination(session, ctx.empresaId, ctx.professionalId);
+  if (!destination.ok) return { ...base, status: "falhou", code: destination.code, error: destination.error };
+  if (session.googleEventId && session.googleCalendarId !== destination.calendarId) {
+    return { ...base, status: "falhou", code: "outra_agenda_google",
+      error: "A visita pertence a outra agenda Google; a transferência exige conferência e não foi feita." };
+  }
+  if (!session.durationMinutes || session.durationMinutes <= 0) {
+    return { ...base, status: "falhou", code: "visita_sem_duracao", error: "A visita não tem duração gravada." };
+  }
+  const online = destination.modality === "online";
+  const data: CalendarEventData = {
+    sessionId: session.id, clientName: ctx.client.name, clientCpf: ctx.client.cpf ?? undefined,
+    scheduledDate: session.scheduledDate, scheduledTime: session.scheduledTime, durationMinutes: session.durationMinutes,
+    weekNumber: ctx.position, totalAppointments: ctx.total,
+    unit: session.unit ?? destination.location.name,
+    locationAddress: online ? undefined : destination.externalAddress ?? destination.location.address ?? undefined,
+    locationPhone: destination.location.phone ?? undefined, calendarId: destination.calendarId,
+    procedureLabel: ctx.procedureName, activeProcedureTypes: [], substances: [],
+    procedureName: ctx.procedureName, teamLine: ctx.teamLine,
+    clientEmail: ctx.client.email || undefined, sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
+  };
+  try {
+    const eventId = session.googleSyncPendingOperation
+      ? await reconcilePendingEvent(session, data, [])
+      : await syncReservedEvent(session, data, []);
     return { ...base, status: "sincronizado", eventId };
   } catch (error) {
     const uncertain = error instanceof CalendarSyncUncertain;

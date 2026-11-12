@@ -12,6 +12,7 @@ import {
 } from "@/lib/format-professional-identity";
 import {
   LayoutDashboard,
+  Flag,
   LayoutTemplate,
   Users,
   FlaskConical,
@@ -107,6 +108,7 @@ const navigation: NavEntry[] = [
       { name: "Marcação de Consulta", href: "/agendar", icon: CalendarDays },
       { name: "Marcação (Modelo Antigo)", href: "/agendar-antigo", icon: CalendarDays },
       { name: "Agenda Diária", href: "/agenda", icon: Calendar },
+      { name: "Pit Stop", href: "/pit-stop", icon: Flag },
       { name: "Agenda Configuração", href: "/agenda/motor", icon: CalendarCog },
       { name: "Clientes", href: "/clients", icon: Users },
     ],
@@ -117,6 +119,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Radar Clínico",       href: "/radar-clinico",   icon: Radar       },
       { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
+      { name: "Pit Stop", href: "/pit-stop", icon: Flag },
       { name: "Pedidos dos Clientes", href: "/pedidos-medicos", icon: FileText },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },

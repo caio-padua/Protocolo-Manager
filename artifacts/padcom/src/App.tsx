@@ -25,6 +25,7 @@ import ProtocolDetail from "@/pages/protocols/detail";
 import NewProtocol from "@/pages/protocols/new";
 import Agenda from "@/pages/agenda";
 import AgendaMotor from "@/pages/agenda/motor";
+import PitStopPage from "@/pages/pit-stop";
 import RAS from "@/pages/ras";
 import RASDetail from "@/pages/ras/detail";
 import Stock from "@/pages/stock";
@@ -242,6 +243,8 @@ function Router() {
             <Route path="/orcamentos/:id/apresentacao" component={ApresentacaoOrcamento} />
             <Route path="/orcamentos" component={OrcamentosList} />
             
+            <Route path="/pit-stop/:id" component={PitStopPage} />
+            <Route path="/pit-stop" component={PitStopPage} />
             <Route path="/agenda/motor" component={AgendaMotor} />
             <Route path="/agenda" component={Agenda} />
             

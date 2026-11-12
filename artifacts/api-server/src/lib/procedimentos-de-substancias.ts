@@ -148,10 +148,10 @@ export async function gerarProcedimentosDeSubstancias(pool: Pool, empresaId: num
       const procedimentoId = criado.rows[0].id;
       await client.query("INSERT INTO procedimento_produtos (procedimento_id, produto_id, ativo) VALUES ($1,$2,TRUE)",
         [procedimentoId, o.id]);
-      await client.query("INSERT INTO procedimento_equipes (procedimento_id, area_id, location_id) VALUES ($1,$2,$3)",
+      await client.query("INSERT INTO procedimento_equipes (procedimento_id, area_id, location_id, origem) VALUES ($1,$2,$3,'substancia_enfermagem')",
         [procedimentoId, enfArea, enfLocal]);
       if (implante) {
-        await client.query("INSERT INTO procedimento_equipes (procedimento_id, area_id, location_id) VALUES ($1,$2,$3)",
+        await client.query("INSERT INTO procedimento_equipes (procedimento_id, area_id, location_id, origem) VALUES ($1,$2,$3,'substancia_participacao_medica')",
           [procedimentoId, medArea, medLocal]);
       }
     }

@@ -85,6 +85,10 @@ export interface CalendarEventData {
   totalAppointments?: number;
   // Telefone da clínica da sessão (SUB-05). Vira blocos LIGAR/WHATSAPP no evento.
   locationPhone?: string;
+  // Pit Stop (procedimento real, sem substância/via): quando presente, a descrição mostra o procedimento e a equipe
+  // no lugar dos blocos PROCEDIMENTOS/SUBSTÂNCIAS. Ausente = formato legado inalterado.
+  procedureName?: string;
+  teamLine?: string;
 }
 
 
@@ -295,6 +299,16 @@ export function buildDescriptionBody(data: CalendarEventData): string {
   const relogio = clockEmojiForTime(horaInicio);
   const horarioBlock = `HORÁRIO:\n${relogio} ${horaInicio} às ${horaFim}`;
 
+  const blocoClinico = data.procedureName
+    ? `PROCEDIMENTO:\n${data.procedureName}\n${data.teamLine ? `EQUIPE: ${data.teamLine}\n` : ""}` +
+      `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
+      `STATUS:\n${data.rescheduleCount ? "Atendimento remarcado" : "Atendimento programado"}`
+    : `PROCEDIMENTOS:\n${procedureChecklist}\n` +
+      `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
+      `STATUS:\n${statusLine}\n\n` +
+      `SUBSTÂNCIAS PROTOCOLO:\n${visitCountLine}${substanceList}\n\n` +
+      `${SUBSTANCE_LEGEND}`;
+
   let desc =
     `Developed by: Padcon \u00b7 Paxter\n\n` +
     `${data.clientName}\n` +
@@ -302,11 +316,7 @@ export function buildDescriptionBody(data: CalendarEventData): string {
     `Agendamento Número: ${data.weekNumber}/${totalAppointments}\n` +
     `UNIDADE: ${data.unit}\n\n` +
     `${horarioBlock}\n\n` +
-    `PROCEDIMENTOS:\n${procedureChecklist}\n` +
-    `DURAÇÃO TOTAL: ${durationTotal}min\n\n` +
-    `STATUS:\n${statusLine}\n\n` +
-    `SUBSTÂNCIAS PROTOCOLO:\n${visitCountLine}${substanceList}\n\n` +
-    `${SUBSTANCE_LEGEND}`;
+    blocoClinico;
 
   if (addressBlock) {
     desc += `\n\n${addressBlock}`;
