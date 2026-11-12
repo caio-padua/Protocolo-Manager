@@ -139,7 +139,15 @@ export interface BookResult {
 export interface BookParams {
   resourceId: number;
   clientId: number;
-  protocolId: number;
+  /** Marcação vinculada a protocolo. Exatamente UM entre protocolId e consultaAvulsa deve ser informado. */
+  protocolId?: number;
+  /**
+   * Consulta avulsa: marcação sem protocolo, pedida de forma EXPLÍCITA. Nunca é inferida da falta de protocolId
+   * (a área do paciente, por exemplo, continua exigindo protocolo ativo).
+   */
+  consultaAvulsa?: boolean;
+  /** Só para consulta avulsa: duração em minutos (inteiro, 5 a 480). Sem ela vale um período da agenda. */
+  durationMinutes?: number;
   date: string;
   time: string;
   serviceType?: string;
@@ -164,9 +172,22 @@ export async function lockAgendaResource(executor: AgendaExecutor, resourceId: n
  * a ocupacao real para evitar corrida). Opcionalmente sincroniza com o Google Calendar.
  */
 const RESERVABLE_KINDS = new Set(["medico", "enfermagem"]);
+const MIN_AVULSA_MINUTES = 5;
+const MAX_AVULSA_MINUTES = 480;
+const ACTIVE_STATUSES = ["scheduled", "confirmed", "completed"];
+const toMinutes = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const hhmmOf = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
 export async function bookSession(params: BookParams): Promise<BookResult> {
   if (!validDate(params.date)) return {ok:false,status:400,error:"Data inválida"};
+  const avulsa = params.consultaAvulsa === true;
+  if (avulsa && params.protocolId != null) return {ok:false,status:400,error:"Consulta avulsa não pode ter protocolo. Informe um ou outro."};
+  if (!avulsa && params.protocolId == null) return {ok:false,status:400,error:"Informe o protocolo ou marque explicitamente como consulta avulsa."};
+  if (!avulsa && params.durationMinutes != null) return {ok:false,status:400,error:"A duração editável vale somente para consulta avulsa."};
+  if (avulsa && params.durationMinutes != null &&
+      (!Number.isInteger(params.durationMinutes) || params.durationMinutes < MIN_AVULSA_MINUTES || params.durationMinutes > MAX_AVULSA_MINUTES)) {
+    return {ok:false,status:400,error:`Duração inválida: informe minutos inteiros de ${MIN_AVULSA_MINUTES} a ${MAX_AVULSA_MINUTES}.`};
+  }
   return db.transaction(async (tx) => {
     const empresaId = await lockAgendaResource(tx, params.resourceId);
     if (!empresaId || (params.empresaId && params.empresaId !== empresaId)) return {ok:false,status:404,error:"Agenda não encontrada"};
@@ -182,6 +203,7 @@ export async function bookSession(params: BookParams): Promise<BookResult> {
 }
 async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promise<BookResult> {
   const { resourceId, clientId, protocolId, date, time, serviceType, unit, simulate } = params;
+  const avulsa = params.consultaAvulsa === true;
 
   if (!HHMM.test(time)) return { ok: false, status: 400, error: "horário inválido (HH:mm)" };
 
@@ -201,8 +223,55 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
 
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
   if (!client || client.empresaId !== params.empresaId) return { ok: false, status: 404, error: "Cliente não encontrado" };
-  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId));
-  if (!protocol || protocol.clientId !== clientId) return { ok: false, status: 404, error: "Protocolo não pertence ao cliente" };
+  if (!avulsa) {
+    const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, protocolId!));
+    if (!protocol || protocol.clientId !== clientId) return { ok: false, status: 404, error: "Protocolo não pertence ao cliente" };
+  }
+
+  // Consulta avulsa: o trecho INTEIRO da duração precisa estar aberto no motor (nenhum período ocupado, bloqueado
+  // ou ainda não liberado) e nada pode se sobrepor, na agenda, no profissional ou no próprio cliente. Sobreposição
+  // nunca é liberada em silêncio: esta etapa não tem política de compartilhamento de horário.
+  let durationMinutes = computed.resource.slotMinutes;
+  if (avulsa) {
+    const slotMinutes = computed.resource.slotMinutes;
+    durationMinutes = params.durationMinutes ?? slotMinutes;
+    const periods = Math.max(1, Math.ceil(durationMinutes / slotMinutes));
+    const start = toMinutes(time);
+    const byTime = new Map(computed.result.slots.map((s) => [s.time, s]));
+    for (let i = 1; i < periods; i++) {
+      const t = hhmmOf(start + i * slotMinutes);
+      const next = byTime.get(t);
+      if (!next || next.state !== "aberto") {
+        return { ok: false, status: 409, error: `A consulta de ${durationMinutes} minutos precisa de horários seguidos e o das ${t} não está livre nesse dia` };
+      }
+    }
+    const end = start + durationMinutes;
+    const sameDay = await db
+      .select({ resourceId: sessionsTable.resourceId, professionalId: sessionsTable.professionalId, clientId: sessionsTable.clientId,
+        time: sessionsTable.scheduledTime, duration: sessionsTable.durationMinutes })
+      .from(sessionsTable)
+      .where(and(
+        // Sem filtro de empresa de propósito: o profissional pode atender em mais de uma clínica e a sobreposição dele
+        // fica bloqueada em qualquer uma. A resposta é genérica ("Horário já ocupado"): não revela dado de outra clínica.
+        eq(sessionsTable.scheduledDate, date),
+        inArray(sessionsTable.status, ACTIVE_STATUSES), eq(sessionsTable.agendaArchived, false),
+        or(
+          eq(sessionsTable.resourceId, resourceId), eq(sessionsTable.clientId, clientId),
+          computed.resource.professionalId != null ? eq(sessionsTable.professionalId, computed.resource.professionalId) : undefined,
+        ),
+      ));
+    const overlapping = sameDay.filter((o) => {
+      const from = toMinutes(o.time);
+      return start < from + (o.duration ?? slotMinutes) && end > from;
+    });
+    if (overlapping.some((o) => o.resourceId === resourceId ||
+        (computed.resource.professionalId != null && o.professionalId === computed.resource.professionalId))) {
+      return { ok: false, status: 409, error: "Horário já ocupado" };
+    }
+    if (overlapping.some((o) => o.clientId === clientId)) {
+      return { ok: false, status: 409, error: "O cliente já tem outra marcação que se sobrepõe a este horário" };
+    }
+  }
 
   // Guarda de corrida: reconsulta direta de ocupacao no exato recurso+data+hora,
   // imediatamente antes do insert, para estreitar a janela entre o motor e a gravacao.
@@ -220,11 +289,11 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
     .limit(1);
   if (clash) return { ok: false, status: 409, error: "Horário já ocupado" };
 
-  const existing = await db
+  // Consulta avulsa não pertence a sequência nenhuma: número 1 fixo (nada é contado em protocolo).
+  const weekNumber = avulsa ? 1 : (await db
     .select({ id: sessionsTable.id })
     .from(sessionsTable)
-    .where(eq(sessionsTable.protocolId, protocolId));
-  const weekNumber = existing.length + 1;
+    .where(eq(sessionsTable.protocolId, protocolId!))).length + 1;
 
   const notes = simulate ? SIM_TAG : null;
   const resourceName = computed.resource.name;
@@ -232,7 +301,7 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
   const [session] = await db
     .insert(sessionsTable)
     .values({
-      protocolId,
+      protocolId: avulsa ? null : protocolId,
       clientId,
       resourceId,
       scheduledDate: date,
@@ -244,7 +313,7 @@ async function bookSessionLocked(params: BookParams, db: AgendaExecutor): Promis
       notes,
       empresaId: params.empresaId,
       professionalId: computed.resource.professionalId,
-      durationMinutes: computed.resource.slotMinutes,
+      durationMinutes,
     })
     .returning();
 
@@ -323,7 +392,8 @@ async function rescheduleSessionLocked(params: RescheduleParams, db: AgendaExecu
   const reservedMinutes = session.resourceId && session.durationMinutes && session.durationMinutes > 0
     ? session.durationMinutes : slotMinutes;
   const neededPeriods = Math.max(1, Math.ceil(reservedMinutes / slotMinutes));
-  const newDuration = neededPeriods * slotMinutes;
+  // Consulta avulsa (sem protocolo) mantém a duração exata escolhida; visita de protocolo segue arredondada por períodos.
+  const newDuration = session.protocolId == null ? reservedMinutes : neededPeriods * slotMinutes;
   if (neededPeriods > 1) {
     const [hh, mm] = time.split(":").map(Number);
     const byTime = new Map(computed.result.slots.map((s) => [s.time, s]));

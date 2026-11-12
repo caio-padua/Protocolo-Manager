@@ -335,7 +335,7 @@ router.get("/area-paciente/sessoes", async (req: Request, res: Response): Promis
         unit: s.unit,
         serviceType: s.serviceType,
         weekNumber: s.weekNumber,
-        protocolTitle: protoMap.get(s.protocolId) ?? null,
+        protocolTitle: s.protocolId == null ? null : protoMap.get(s.protocolId) ?? null,
         substances: apps.map((a) => {
           const sub = subMap.get(a.substanceId);
           return {
@@ -727,7 +727,8 @@ router.post("/area-paciente/reagendar", async (req: Request, res: Response): Pro
     }
 
     // R5.2 nova data nao pode cair depois do fim do protocolo (quando o protocolo tem fim definido)
-    const [proto] = await db
+    // Consulta avulsa (sem protocolo) não tem fim de protocolo para respeitar.
+    const [proto] = session.protocolId == null ? [] : await db
       .select({ endDate: protocolsTable.endDate })
       .from(protocolsTable)
       .where(eq(protocolsTable.id, session.protocolId));

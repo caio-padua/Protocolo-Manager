@@ -26,7 +26,7 @@ export async function mayManageAgendaEmpresa(req: Request) {
 
 export async function agendaWriteGuard(req: Request, res: Response, next: NextFunction) {
   const protectedPath = /^\/agenda\/(resources|exceptions|settings)(\/|$)/.test(req.path);
-  const booking = /^\/agenda\/(book|limpar-simulacao)(\/|$)/.test(req.path);
+  const booking = /^\/agenda\/(book|book-avulsa|limpar-simulacao)(\/|$)/.test(req.path);
   if (["GET","HEAD","OPTIONS"].includes(req.method) || (!protectedPath && !booking)) { next(); return; }
   if (!req.tenantContext?.authenticated) { res.status(401).json({error:"Entre com seu acesso profissional."}); return; }
   if (booking) {

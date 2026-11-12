@@ -4,7 +4,8 @@ import { z } from "zod/v4";
 
 export const sessionsTable = pgTable("sessions", {
   id: serial("id").primaryKey(),
-  protocolId: integer("protocol_id").notNull(),
+  // NULL = consulta avulsa (marcada na agenda, sem protocolo). Nunca presumir um protocolo para ela.
+  protocolId: integer("protocol_id"),
   clientId: integer("client_id").notNull(),
   professionalId: integer("professional_id"),
   resourceId: integer("resource_id"),

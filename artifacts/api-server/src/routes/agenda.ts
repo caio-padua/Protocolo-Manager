@@ -531,6 +531,46 @@ router.post("/agenda/book", async (req, res): Promise<void> => {
   res.status(201).json({ session: r.session, googleEventId: r.googleEventId ?? null, googleSyncWarning: r.googleSyncWarning });
 });
 
+// ---- Consulta avulsa (sem protocolo) ----
+// Caminho EXPLÍCITO: o corpo não tem protocolId (e se vier, é recusado). Empresa vem do acesso, agenda e cliente
+// precisam ser dessa empresa; profissional e modalidade/local são os da agenda escolhida (nada é inferido do protocolo).
+const bookAvulsaSchema = z.object({
+  resourceId: z.number().int().positive(),
+  clientId: z.number().int().positive(),
+  date: z.string().regex(ISO_DATE, "date inválida (YYYY-MM-DD)"),
+  time: z.string().regex(HHMM, "horário inválido (HH:mm)"),
+  durationMinutes: z.number().int().min(5).max(480).optional(),
+  serviceType: z.string().trim().max(40).optional(),
+  unit: z.string().trim().max(200).optional(),
+  syncGoogle: z.boolean().optional(),
+  simulate: z.boolean().optional(),
+}).strict();
+
+router.post("/agenda/book-avulsa", async (req, res): Promise<void> => {
+  const data = parseOr400(bookAvulsaSchema, req.body, res);
+  if (!data) return;
+  const empresaId = req.tenantContext.empresaId;
+  if (empresaId == null) { res.status(403).json({ error: "Acesso sem clínica definida." }); return; }
+  const r = await bookSession({
+    resourceId: data.resourceId,
+    clientId: data.clientId,
+    consultaAvulsa: true,
+    durationMinutes: data.durationMinutes,
+    date: data.date,
+    time: data.time,
+    serviceType: data.serviceType,
+    unit: data.unit,
+    syncGoogle: data.syncGoogle ?? false,
+    simulate: data.simulate ?? false,
+    empresaId,
+  });
+  if (!r.ok) {
+    res.status(r.status).json({ error: r.error });
+    return;
+  }
+  res.status(201).json({ session: r.session, googleEventId: r.googleEventId ?? null, googleSyncWarning: r.googleSyncWarning });
+});
+
 router.delete("/agenda/book/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {

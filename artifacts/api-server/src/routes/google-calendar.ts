@@ -32,6 +32,8 @@ const router: IRouter = Router();
 async function authorizeSession(req: Request, session: typeof sessionsTable.$inferSelect) {
   const empresaId = resolveEmpresaId(req);
   if (session.agendaArchived || (session.empresaId !== null && session.empresaId !== empresaId)) return null;
+  // Envio manual por sessão é do fluxo de protocolo; consulta avulsa (sem protocolo) vai ao Google pela marcação.
+  if (session.protocolId == null) return null;
   const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
   if (!protocol || protocol.empresaId !== empresaId || protocol.clientId !== session.clientId) return null;
   try {
@@ -87,6 +89,7 @@ router.post("/google-calendar/sync-session/:sessionId", requireCollaborator, asy
     return;
   }
   const { client } = authorization;
+  if (session.protocolId == null) { res.status(404).json({ error: "Sessão não encontrada neste acesso." }); return; }
   const destination = await explicitDestination(req, session);
   if (!destination || !session.durationMinutes || session.durationMinutes <= 0) {
     res.status(409).json({ error: "Defina a agenda de atendimento, a agenda Google e a duração da sessão antes de sincronizar." });
@@ -234,7 +237,7 @@ router.post("/google-calendar/sync-week", requireCollaborator, async (req, res):
 
   for (const session of weekSessions) {
     const authorization = await authorizeSession(req, session);
-    if (!authorization) continue;
+    if (!authorization || session.protocolId == null) continue;
     const { client } = authorization;
     const destination = await explicitDestination(req, session);
     if (!destination || !session.durationMinutes || session.durationMinutes <= 0 ||

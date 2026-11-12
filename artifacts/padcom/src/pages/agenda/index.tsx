@@ -269,7 +269,7 @@ function SessionCard({
                 value={getProcedureLabel(session)}
                 accent
               />
-              <MetaField label="Protocolo" value={(session as any).protocolTitle ?? `Protocolo #${session.protocolId}`} />
+              <MetaField label="Protocolo" value={(session as any).protocolTitle ?? (session.protocolId == null ? "Consulta avulsa (sem protocolo)" : `Protocolo #${session.protocolId}`)} />
               <MetaField label="Profissional" value={session.professionalName} icon={User} />
               {(session as any).nurseName && (
                 <MetaField label="Enfermeira" value={(session as any).nurseName} icon={Stethoscope} />

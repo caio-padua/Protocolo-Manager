@@ -29,7 +29,8 @@ async function buildSessionResponse(
   session: typeof sessionsTable.$inferSelect, itemsMemo?: Map<number, Promise<ItemDoProtocolo[]>>,
 ) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
-  const [protocol] = await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
+  // Consulta avulsa (protocol_id nulo): sem protocolo, sem substâncias constantes, nada presumido.
+  const [protocol] = session.protocolId == null ? [] : await db.select().from(protocolsTable).where(eq(protocolsTable.id, session.protocolId));
 
   let professionalName: string | null = null;
   if (session.professionalId) {
@@ -66,7 +67,7 @@ async function buildSessionResponse(
   }
 
   // K7: demais substâncias do protocolo ficam constantes (mesma função do evento do Google).
-  const summary = resumirSubstanciasDaVisita(applications, await carregarItensDoProtocolo(session.protocolId, session.empresaId, itemsMemo));
+  const summary = resumirSubstanciasDaVisita(applications, session.protocolId == null ? [] : await carregarItensDoProtocolo(session.protocolId, session.empresaId, itemsMemo));
   for (const item of summary?.constants ?? []) {
     if (!substanceMap[item.substanceId]) {
       const [s] = await db.select().from(substancesTable).where(eq(substancesTable.id, item.substanceId));
@@ -389,6 +390,7 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
       const companyId = resolveEmpresaId(req);
       if (current.empresaId !== null && current.empresaId !== companyId) throw notFound();
       const [client] = await tx.select().from(clientsTable).where(eq(clientsTable.id, current.clientId)).for("update");
+      if (current.protocolId == null) throw notFound(); // consulta avulsa não tem aplicações a confirmar
       const [protocol] = await tx.select().from(protocolsTable).where(eq(protocolsTable.id, current.protocolId)).for("update");
       const [professional] = await tx.select().from(professionalsTable)
         .where(eq(professionalsTable.id, req.collaborator!.professionalId)).for("update");

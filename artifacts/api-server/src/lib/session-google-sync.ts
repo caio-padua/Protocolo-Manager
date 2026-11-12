@@ -111,7 +111,7 @@ export async function syncReservedEvent(
     const freshApplications = await db.select().from(substanceApplicationsTable)
       .where(eq(substanceApplicationsTable.sessionId, session.id));
     const itemsChanged = options.expectedProtocolItems !== undefined &&
-      JSON.stringify(await carregarItensDoProtocolo(session.protocolId, session.empresaId)) !== JSON.stringify(options.expectedProtocolItems);
+      JSON.stringify(await itensDoProtocoloDaSessao(session, session.empresaId)) !== JSON.stringify(options.expectedProtocolItems);
     drifted = !fresh || stripReservation(fresh) !== stripReservation(session) ||
       serializeApplications(freshApplications) !== serializeApplications(expectedApplications) || itemsChanged;
   } catch (error) {
@@ -170,6 +170,13 @@ export async function syncReservedEvent(
 
 
 type SessionRow = typeof sessionsTable.$inferSelect;
+
+/**
+ * Itens do protocolo da sessão. Consulta avulsa (protocol_id nulo) não tem protocolo: lista vazia, nunca um
+ * protocolo presumido nem substância inventada.
+ */
+const itensDoProtocoloDaSessao = (session: SessionRow, empresaId: number | null): Promise<ItemDoProtocolo[]> =>
+  session.protocolId == null ? Promise.resolve([]) : carregarItensDoProtocolo(session.protocolId, empresaId);
 type ApplicationRow = typeof substanceApplicationsTable.$inferSelect;
 
 /** Mesmas visões comparadas antes de qualquer envio: a sessão e suas aplicações não podem ter mudado. */
@@ -211,7 +218,7 @@ export async function reconcilePendingEvent(
     const freshApplications = await db.select().from(substanceApplicationsTable)
       .where(eq(substanceApplicationsTable.sessionId, session.id));
     const itemsChanged = expectedProtocolItems !== undefined &&
-      JSON.stringify(await carregarItensDoProtocolo(session.protocolId, session.empresaId)) !== JSON.stringify(expectedProtocolItems);
+      JSON.stringify(await itensDoProtocoloDaSessao(session, session.empresaId)) !== JSON.stringify(expectedProtocolItems);
     drifted = !fresh || sessionFingerprint(fresh) !== sessionFingerprint(session) ||
       applicationsFingerprint(freshApplications) !== applicationsFingerprint(expectedApplications) || itemsChanged;
   } catch (error) {
@@ -465,7 +472,7 @@ async function syncVisit(session: SessionRow, ctx: VisitContext): Promise<VisitS
   const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
   let protocolItems: ItemDoProtocolo[];
   try {
-    protocolItems = await carregarItensDoProtocolo(session.protocolId, ctx.empresaId);
+    protocolItems = await itensDoProtocoloDaSessao(session, ctx.empresaId);
   } catch {
     // Falha explícita desta visita (o lote segue): não se envia evento com a composição do protocolo desconhecida.
     return { ...base, status: "falhou", code: "itens_protocolo_indisponiveis",
@@ -565,7 +572,7 @@ async function syncBookedVisit(session: SessionRow, ctx: VisitContext): Promise<
   const applications = await db.select().from(substanceApplicationsTable).where(eq(substanceApplicationsTable.sessionId, session.id));
   let protocolItems: ItemDoProtocolo[];
   try {
-    protocolItems = await carregarItensDoProtocolo(session.protocolId, ctx.empresaId);
+    protocolItems = await itensDoProtocoloDaSessao(session, ctx.empresaId);
   } catch {
     return { ...base, status: "falhou", code: "itens_protocolo_indisponiveis",
       error: "Não foi possível ler as substâncias do protocolo; nenhum evento foi enviado." };
@@ -593,6 +600,8 @@ async function syncBookedVisit(session: SessionRow, ctx: VisitContext): Promise<
     locationPhone: online ? undefined : destination.location.phone ?? undefined, calendarId: destination.calendarId,
     procedureType: primaryType, procedureLabel: primaryType ? procedureTypeLabel(primaryType) : session.unit ?? destination.location.name,
     activeProcedureTypes: Array.from(dispTypes), substances, ...extra.counts,
+    // Consulta avulsa: bloco clínico simples (sem substâncias nem legenda de protocolo, que não existem aqui).
+    ...(session.protocolId == null ? { procedureName: "Consulta avulsa" } : {}),
     clientEmail: ctx.client.email || undefined, sessionStatus: session.status, rescheduleCount: session.rescheduleCount,
     summaryPrefix: session.notes === SIM_TAG ? SIM_TAG : undefined,
   };
@@ -621,7 +630,7 @@ export async function syncBookedSession(sessionId: number, empresaId: number): P
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
     if (!client || client.empresaId !== empresaId) return aviso("cliente não encontrado.");
     if (!(await accountConfirmed())) return aviso("a conta Google da clínica não foi confirmada.");
-    const visits = await activeVisits(session.protocolId, empresaId);
+    const visits = await activeVisits(session, empresaId);
     const index = visits.findIndex(v => v.id === session.id);
     const result = await syncBookedVisit(session, {
       empresaId, professionalId: null, client, position: index >= 0 ? index + 1 : visits.length + 1,
@@ -639,8 +648,12 @@ export async function syncBookedSession(sessionId: number, empresaId: number): P
 }
 
 /** Visitas ativas do protocolo, em ordem cronológica (mesma lista para enviar, numerar e atualizar). */
-async function activeVisits(protocolId: number, empresaId: number): Promise<SessionRow[]> {
-  const all = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, protocolId))
+async function activeVisits(session: SessionRow, empresaId: number): Promise<SessionRow[]> {
+  // Consulta avulsa é uma visita única: não há sequência de protocolo para numerar.
+  if (session.protocolId == null) {
+    return session.agendaArchived || session.status === "cancelled" ? [] : [session];
+  }
+  const all = await db.select().from(sessionsTable).where(eq(sessionsTable.protocolId, session.protocolId))
     .orderBy(asc(sessionsTable.scheduledDate), asc(sessionsTable.scheduledTime), asc(sessionsTable.id));
   return all.filter(s => !s.agendaArchived && s.status !== "cancelled" &&
     (s.empresaId === null || s.empresaId === empresaId));
@@ -666,7 +679,7 @@ export async function refreshSessionEventInPlace(
   }
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, session.clientId));
   if (!client || client.empresaId !== empresaId) return null;
-  const visits = await activeVisits(session.protocolId, empresaId);
+  const visits = await activeVisits(session, empresaId);
   const index = visits.findIndex(v => v.id === session.id);
   if (index < 0) return null;
   // Mesma exigência do envio manual: dados clínicos só vão à conta Google da clínica.
@@ -810,7 +823,7 @@ export async function syncProtocolSessionsToGoogle(params: ProtocolGoogleSyncPar
   if (!client || client.empresaId !== params.empresaId) {
     return { ok: false, status: 404, code: "cliente_nao_encontrado", error: "Cliente não encontrado" };
   }
-  const sessions = await activeVisits(protocol.id, params.empresaId);
+  const sessions = await activeVisits({ protocolId: protocol.id, agendaArchived: false, status: "scheduled" } as SessionRow, params.empresaId);
   if (sessions.length === 0) {
     return { ok: false, status: 409, code: "sem_visitas", error: "O protocolo não tem visitas agendadas para enviar ao Google." };
   }
