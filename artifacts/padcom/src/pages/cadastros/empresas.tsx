@@ -289,7 +289,7 @@ const ABAS_EMPRESA: ItemTrilho[] = [
   { value: "integ", label: "Integrações", grupo: "sistema" },
   { value: "contratos", label: "Contratos", grupo: "sistema" },
   { value: "locais-atendimento", label: "Agendas", grupo: "locais" },
-  { value: "locais-externos", label: "Externos", grupo: "locais" },
+  { value: "locais-externos", label: "Local externo", grupo: "locais" },
 ];
 
 // ── Seções do cadastro (Padrões 37 e 40): título em placa Saliente de largura fixa, sem símbolo e sem contador ──────
@@ -1981,7 +1981,7 @@ export default function CadastroEmpresas() {
                   ) : (
                     <>
                       <p className="text-xs text-muted-foreground">
-                        Agendas desta empresa. Cadastrar uma agenda não cria outra empresa. Profissionais que atendem em outro endereço usando o CNPJ desta empresa ficam na aba Externos.
+                        Agendas desta empresa. Cadastrar uma agenda não cria outra empresa. Profissionais que atendem em outro endereço usando o CNPJ desta empresa ficam na aba Local externo.
                       </p>
                       <LocaisDaEmpresa empresaId={editingId} />
                     </>

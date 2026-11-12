@@ -230,7 +230,7 @@ export function LocaisExternosAba({ empresaId }: { empresaId: number }) {
       </div>
       <p className="shrink-0 text-xs text-muted-foreground">
         Consultórios em outro endereço, com os mesmos campos desta empresa. É cadastro interno, sem ligação com outros sistemas.
-        Na agenda, ao escolher "Externo (outro endereço)", o endereço do local entra sozinho.
+        Na agenda, ao escolher "Local externo (outro endereço)", o endereço do local entra sozinho.
       </p>
 
       <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain pr-1">

@@ -16,3 +16,5 @@ concatena payload+sig com `:`, assina em hex e faz base64url do conjunto inteiro
 Enviar como `Authorization: Bearer <tok>`. O token salvo em `/tmp` some quando o api-server
 reinicia (checkpoint automático); é só regerar. Reiniciar o api-server também zera o estado
 em memória de importações em andamento (dados no banco ficam; dedup por unique(clientId,hash)).
+
+**Versão da credencial entra no token:** o 4º campo é `professionals.credential_version` (ex.: 10 para o titular), não 0; token com versão errada dá 401 e a tela cai no login mesmo que algumas páginas (Agenda Configuração) pareçam abrir. Ler a coluna antes de gerar token para Playwright/curl.

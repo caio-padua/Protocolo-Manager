@@ -84,7 +84,7 @@ export async function validarParticipantes(executor: Executor, empresaId: number
       nomes.push(categoria.name);
     }
     if (p.modalidade !== undefined && !MODALIDADES.includes(p.modalidade)) {
-      throw new EquipeErro(400, "Modalidade inválida: use local (Sede), online, externo (Outro local) ou home_care.", "modalidade_invalida");
+      throw new EquipeErro(400, "Modalidade inválida: use local (Sede), online, externo (Local externo) ou home_care.", "modalidade_invalida");
     }
     if (p.agendaId != null) {
       const ag = await executor.execute(sql`SELECT r.category_id, r.modality FROM agenda_resources r

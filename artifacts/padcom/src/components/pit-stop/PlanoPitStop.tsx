@@ -20,7 +20,7 @@ import { Selo } from "./Selo";
  * a reserva só nasce no botão "Confirmar e reservar".
  */
 const MODALIDADES: { value: Participante["modalidade"]; label: string }[] = [
-  { value: "local", label: "Sede" }, { value: "online", label: "Online" }, { value: "externo", label: "Outro local" }, { value: "home_care", label: "Home Care" },
+  { value: "local", label: "Sede" }, { value: "online", label: "Online" }, { value: "externo", label: "Local externo" }, { value: "home_care", label: "Home Care" },
 ];
 
 type EquipeRascunho = { categoryId: number; modalidade: Participante["modalidade"]; agendaId: number | null; professionalId: number | null };

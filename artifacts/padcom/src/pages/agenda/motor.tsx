@@ -72,7 +72,7 @@ function classeDaCategoria(c: Pick<CategoriaOpcao, "slug" | "professionalType">)
 }
 // Papel gravado no registro do local (campo agenda_papel). Nada é deduzido do nome.
 const PAPEL_LABEL: Record<string, string> = {
-  local: "Sede", online: "Online", externo: "Outro local", home_care: "Home Care", pessoal: "Pessoal", geral: "Geral",
+  local: "Sede", online: "Online", externo: "Local externo", home_care: "Home Care", pessoal: "Pessoal", geral: "Geral",
 };
 const PAPEIS_QUE_ATENDEM = ["local", "online", "externo", "home_care"];
 const enderecoDoRecurso = (r: { externalAddress?: { cep: string; logradouro: string; bairro: string; cidade: string; uf: string; numero: string; complemento?: string | null } | null } | null | undefined): EnderecoExternoForm =>
@@ -721,7 +721,7 @@ export default function AgendaMotor() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="local">Sede</SelectItem>
-                    <SelectItem value="externo">Outro local (outro endereço)</SelectItem>
+                    <SelectItem value="externo">Local externo (outro endereço)</SelectItem>
                     <SelectItem value="online">Online</SelectItem>
                     <SelectItem value="home_care">Home Care (no endereço do paciente)</SelectItem>
                   </SelectContent>
@@ -826,7 +826,7 @@ export default function AgendaMotor() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="local">Sede</SelectItem>
-                          <SelectItem value="externo">Outro local (outro endereço)</SelectItem>
+                          <SelectItem value="externo">Local externo (outro endereço)</SelectItem>
                           <SelectItem value="online">Online</SelectItem>
                           <SelectItem value="home_care">Home Care (no endereço do paciente)</SelectItem>
                           {(selected?.modality === "domiciliar" || resDraft.modality === "domiciliar") && (

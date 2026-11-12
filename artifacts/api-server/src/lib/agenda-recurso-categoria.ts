@@ -99,7 +99,7 @@ const PAPEIS_POR_MODALIDADE: Record<string, (papel: string | null) => boolean> =
   // Valor legado, não oferecido mais em telas novas.
   domiciliar: () => true,
 };
-const ROTULO_MODALIDADE: Record<string, string> = { local: "Sede", externo: "Outro local", online: "Online", home_care: "Home Care", domiciliar: "Domiciliar (legado)" };
+const ROTULO_MODALIDADE: Record<string, string> = { local: "Sede", externo: "Local externo", online: "Online", home_care: "Home Care", domiciliar: "Domiciliar (legado)" };
 
 /** Compatibilidade entre modalidade e papel do registro de local, usada na criação e quando a modalidade muda. */
 export async function validarModalidadeComLocal(

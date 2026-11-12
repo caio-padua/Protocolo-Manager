@@ -6,7 +6,7 @@ import { rotuloDaForma } from "@/lib/agenda-forma";
  * Conteudo do cartao de AGENDA (mesmo desenho na Agenda Configuracao e no cadastro interno da empresa; Padrao 41).
  * Tres linhas: TITULO em fonte serifada (EB Garamond, semibold discreto, coluna fixa para alinhar) + VALOR em fonte operacional, sem quebra de linha:
  *   Agenda profissional  <categoria>
- *   Forma                <Sede | Online | Outro local>
+ *   Forma                <Sede | Online | Local externo>
  *   Título agenda        <nome livre da agenda>
  * A categoria so aparece quando foi gravada; sem ela o cartao diz "pendente" (nunca deduz do nome).
  * A cor e a UNICA cor da agenda (agenda_resources.color, espelhada no local ligado pelo servidor).

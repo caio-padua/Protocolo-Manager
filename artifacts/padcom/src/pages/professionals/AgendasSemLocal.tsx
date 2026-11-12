@@ -4,7 +4,7 @@ import { rotuloDaForma } from "@/lib/agenda-forma";
 import { ROTULO_ORIGEM, type AgendaDoProfissional } from "@/lib/agenda-vinculos-api";
 
 /**
- * Agendas da clínica que NÃO têm local físico (Home Care, Outro local...). Elas não existem na lista de
+ * Agendas da clínica que NÃO têm local físico (Home Care, Local externo...). Elas não existem na lista de
  * clínicas/locais, então antes ficavam invisíveis no cadastro. O vínculo aqui é a preferência da agenda
  * (a mesma que o Pit Stop usa), sem criar local falso e sem dar acesso clínico por engano.
  */
@@ -28,7 +28,7 @@ export function AgendasSemLocal({ agendas, busyId, onToggle }: {
       <p className="px-1 text-[11px] font-black uppercase tracking-widest text-foreground">
         Agendas sem local físico
         <span className="ml-2 text-[9px] font-semibold normal-case tracking-normal text-muted-foreground">
-          Home Care, Outro local e demais agendas criadas em Agenda Configuração
+          Home Care, Local externo e demais agendas criadas em Agenda Configuração
         </span>
       </p>
       {agendas.map((a) => (
