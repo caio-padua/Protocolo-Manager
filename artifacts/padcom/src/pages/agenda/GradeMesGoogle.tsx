@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, Lock, Repeat } from "lucide-react";
+import { Lock, Repeat } from "lucide-react";
 import { useGoogleCompromissos } from "./useGoogleCompromissos";
+import { chaveDoCompromisso } from "./filtro-agendas";
 import type { GoogleAgendaCommitment } from "@workspace/api-client-react";
 
 /**
@@ -12,7 +13,6 @@ import type { GoogleAgendaCommitment } from "@workspace/api-client-react";
  * Nada aqui grava no Google nem move evento externo.
  */
 type SessaoGrade = { id: number; scheduledTime: string; clientName: string; status: string };
-const SESSOES = "sessoes";
 const MAX_CHIPS = 3;
 const corSegura = (c: string) => (/^#[0-9a-fA-F]{3,8}$/.test(c) ? c : "#94a3b8");
 const hora = (e: GoogleAgendaCommitment) => (e.diaInteiro ? "" : e.horario.slice(0, 5));
@@ -20,10 +20,12 @@ const hora = (e: GoogleAgendaCommitment) => (e.diaInteiro ? "" : e.horario.slice
 type Chip = { chave: string; ordem: string; texto: string; cor: string; google: boolean; recorrente?: boolean; titulo: string };
 
 export function GradeMesGoogle({
-  currentDate, today, sessionsByDate, selectedDay, onSelectDay, statusColor, children,
+  currentDate, today, sessionsByDate, selectedDay, onSelectDay, statusColor, ocultas, children,
 }: {
   currentDate: Date; today: Date; sessionsByDate: Record<string, SessaoGrade[]>;
   selectedDay: Date | null; onSelectDay: (d: Date | null) => void; statusColor: Record<string, string>;
+  /** Agendas desmarcadas no filtro único da Agenda Diária (as sessões já chegam filtradas). */
+  ocultas: ReadonlySet<string>;
   /** Conteúdo exibido abaixo da grade (detalhe do dia). */
   children?: React.ReactNode;
 }) {
@@ -36,34 +38,23 @@ export function GradeMesGoogle({
 
   const google = useGoogleCompromissos(de, ate);
 
-  // Seleção: "ocultas" guarda só o que o usuário desmarcou; agenda nova nasce marcada.
-  const [ocultas, setOcultas] = useState<ReadonlySet<string>>(new Set());
   const visivel = (k: string) => !ocultas.has(k);
-  const alternar = (k: string) => setOcultas((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
-  const agendas = google.data?.agendas ?? [];
   const eventosPorDia = useMemo(() => {
     const m: Record<string, GoogleAgendaCommitment[]> = {};
     for (const e of google.data?.eventos ?? []) (m[e.data] ??= []).push(e);
     return m;
   }, [google.data]);
-  const totalSessoes = Object.values(sessionsByDate).reduce((n, l) => n + l.length, 0);
-  const contaGoogle = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const e of google.data?.eventos ?? []) m.set(e.agendaId, (m.get(e.agendaId) ?? 0) + 1);
-    return m;
-  }, [google.data]);
-
   const chipsDoDia = (dia: string): Chip[] => {
     const lista: Chip[] = [];
-    if (visivel(SESSOES)) {
+    {
       for (const s of sessionsByDate[dia] ?? []) {
         lista.push({ chave: `s${s.id}`, ordem: s.scheduledTime, texto: `${s.scheduledTime.slice(0, 5)} ${s.clientName}`, titulo: `Sessão PAXTER: ${s.clientName} às ${s.scheduledTime.slice(0, 5)}`,
           cor: statusColor[s.status] ?? "#45B8CC", google: false });
       }
     }
     for (const e of eventosPorDia[dia] ?? []) {
-      if (!visivel(`g${e.agendaId}`)) continue;
+      if (!visivel(chaveDoCompromisso(e))) continue;
       lista.push({ chave: e.id, ordem: e.diaInteiro ? "00:00" : e.horario.slice(0, 5), texto: `${hora(e)} ${e.titulo}`.trim(), titulo: `${e.titulo} (${e.agenda}, somente leitura)`,
         cor: corSegura(e.cor), google: true, recorrente: e.recorrente });
     }
@@ -74,26 +65,9 @@ export function GradeMesGoogle({
   const nomesDias = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[250px_minmax(0,1fr)]" data-testid="grade-mes-google">
-      {/* ── Minhas agendas (como no Google Agenda) ── */}
-      <aside className="panel-3d-sub space-y-2 self-start p-3" aria-label="Minhas agendas">
-        <h2 className="bevel-3d inline-block px-2 py-1 text-[10px] font-black uppercase tracking-widest">Minhas agendas</h2>
-        <ul className="space-y-1">
-          <li>
-            <ItemAgenda marcado={visivel(SESSOES)} cor="#45B8CC" nome="Sessões do PAXTER" total={totalSessoes} onAlternar={() => alternar(SESSOES)} />
-          </li>
-          {google.isPending && <li className="text-[11px] text-muted-foreground" role="status">Carregando agendas do Google…</li>}
-          {google.isError && <li role="alert" className="text-[11px] font-bold text-red-800">Google indisponível: só as sessões do PAXTER aparecem.</li>}
-          {agendas.map((a) => (
-            <li key={a.id}>
-              <ItemAgenda marcado={visivel(`g${a.id}`)} cor={corSegura(a.cor)} nome={a.nome} total={contaGoogle.get(a.id) ?? 0} somenteLeitura onAlternar={() => alternar(`g${a.id}`)} />
-            </li>
-          ))}
-        </ul>
-        <p className="flex items-center gap-1 text-[10px] text-muted-foreground"><Lock className="h-3 w-3" aria-hidden />Cadeado = compromisso do Google, somente leitura.</p>
-      </aside>
-
+    <div className="grid grid-cols-1 gap-4" data-testid="grade-mes-google">
       <div className="min-w-0 space-y-4">
+        {google.isError && <p role="alert" className="concave-3d px-3 py-2 text-[11px] font-bold text-red-800">Google indisponível: só as sessões do PAXTER aparecem.</p>}
         <div className="panel-3d overflow-hidden rounded-[6px]">
           <div className="grid grid-cols-7 border-b border-muted/20">
             {nomesDias.map((d) => <div key={d} className="py-2 text-center text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">{d}</div>)}
@@ -140,22 +114,6 @@ export function GradeMesGoogle({
   );
 }
 
-function ItemAgenda({ marcado, cor, nome, total, somenteLeitura, onAlternar }: {
-  marcado: boolean; cor: string; nome: string; total: number; somenteLeitura?: boolean; onAlternar: () => void;
-}) {
-  return (
-    <button type="button" role="checkbox" aria-checked={marcado} onClick={onAlternar}
-      className="flex w-full items-center gap-2 rounded-[4px] px-1.5 py-1 text-left hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-[#48b6cc]">
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border"
-        style={marcado ? { backgroundColor: cor, borderColor: cor, color: "#fff" } : { borderColor: cor }}>
-        {marcado && <Check className="h-3 w-3" strokeWidth={3} />}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-tight">{nome}</span>
-      {somenteLeitura && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="somente leitura" />}
-      <span className="shrink-0 text-[10px] font-bold tabular-nums text-muted-foreground">{total}</span>
-    </button>
-  );
-}
 
 function CompromissosDoDia({ dia, eventos }: { dia: Date; eventos: GoogleAgendaCommitment[] }) {
   if (!eventos.length) return null;

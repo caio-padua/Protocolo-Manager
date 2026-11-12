@@ -15,7 +15,10 @@ export interface GoogleAgendaCommitment {
   horario: string;
   diaInteiro: boolean;
   agenda: string;
+  /** Chave numérica da origem. Positivo = id do local; negativo = menos o id de uma agenda sem local (Home Care, Outro local). */
   agendaId: number;
+  /** Id da agenda de atendimento (Agenda Configuração) dona do calendário; nulo quando é um calendário só do Google (Geral, Pessoal, Feriados). */
+  agendaRecursoId?: number | null;
   cor: string;
   recorrente: boolean;
 }

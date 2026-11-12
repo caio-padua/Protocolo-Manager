@@ -30,6 +30,8 @@ export interface ImportedCommitment {
   origem: string;
   agenda: string;
   agendaId: number;
+  /** Agenda de atendimento dona do calendário (nulo = calendário só do Google). */
+  agendaRecursoId?: number | null;
   cor: string;
   papel: string | null;
   belongsToSeries?: boolean;
@@ -65,6 +67,7 @@ export function projectImportedCommitment(row: ImportedCommitment, from: Date, u
       diaInteiro: row.diaInteiro,
       agenda: row.agenda,
       agendaId: row.agendaId,
+      agendaRecursoId: row.agendaRecursoId ?? null,
       cor: row.cor,
       recorrente: row.origem === "google_recorrente" || row.belongsToSeries === true,
     }));

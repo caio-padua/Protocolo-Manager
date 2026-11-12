@@ -33,6 +33,8 @@ import { NursingAssessmentForm } from "@/components/nursing-assessment-form";
 import { RescheduleDrawer } from "@/components/RescheduleDrawer";
 import { GoogleCommitments } from "./GoogleCommitments";
 import { GradeMesGoogle } from "./GradeMesGoogle";
+import { FiltroAgendas } from "./FiltroAgendas";
+import { chaveDaSessao } from "./filtro-agendas";
 import { ConfirmacaoCliente } from "./ConfirmacaoCliente";
 import { useGoogleRefreshCycle } from "./agenda-integration-api";
 import { rotuloAtendimento, lerParametrosAgenda, type VisaoAgenda } from "./timeline-logica";
@@ -575,7 +577,13 @@ export default function Agenda() {
     viewMode === "semana" ? format(weekEnd, "yyyy-MM-dd") :
     format(monthEnd, "yyyy-MM-dd");
 
-  const { data: sessions, isLoading, refetch } = useListSessions({ dateFrom, dateTo });
+  const { data: sessoesDoPeriodo, isLoading, refetch } = useListSessions({ dateFrom, dateTo });
+  // Filtro único de agendas (Dia, Semana, Mês e Lista). Guarda o que foi DESMARCADO e NÃO é lembrado ao sair da tela:
+  // uma agenda escondida nunca fica escondida sem aviso (o painel mostra "N agendas ocultas").
+  const [ocultas, setOcultas] = useState<ReadonlySet<string>>(new Set());
+  const sessions = useMemo(
+    () => (sessoesDoPeriodo ? sessoesDoPeriodo.filter((s) => !ocultas.has(chaveDaSessao(s))) : sessoesDoPeriodo),
+    [sessoesDoPeriodo, ocultas]);
 
   // Mapa date-string → sessões (usado no modo Mês — sempre calculado, hooks não podem ser condicionais)
   const sessionsByDate = useMemo(() => {
@@ -821,7 +829,9 @@ export default function Agenda() {
       </div>
 
       {/* ── CORPO ── */}
-      {!usaLinhaDoTempo && <GoogleCommitments de={dateFrom} ate={dateTo} />}
+      <FiltroAgendas de={dateFrom} ate={dateTo} sessoes={(sessoesDoPeriodo ?? []) as unknown as Parameters<typeof FiltroAgendas>[0]["sessoes"]}
+        ocultas={ocultas} onChange={setOcultas} />
+      {!usaLinhaDoTempo && <GoogleCommitments de={dateFrom} ate={dateTo} ocultas={ocultas} />}
       {isLoading ? (
         <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-[6px]" />)}</div>
       ) : (
@@ -832,6 +842,7 @@ export default function Agenda() {
               modo={viewMode === "dia" ? "dia" : "semana"}
               dias={diasDaLinha}
               sessoes={(sessions ?? []) as unknown as SessaoLinha[]}
+              ocultas={ocultas}
               onAbrirDia={(d) => { setCurrentDate(d); setViewMode("dia"); setSelectedDay(null); }}
               onReagendar={sharedCardProps.onReschedule}
               renderCartao={(s) => (
@@ -932,6 +943,7 @@ export default function Agenda() {
                 selectedDay={selectedDay}
                 onSelectDay={setSelectedDay}
                 statusColor={STATUS_DOT_COLOR}
+                ocultas={ocultas}
               >
                 {/* Legenda de cores */}
                 <div className="flex items-center gap-4 flex-wrap px-1">

@@ -74,13 +74,42 @@ test("Conferência Google lista ajustes e só aplica com confirmação", async (
     { acao: "renomear", googleCalendarId: "a@group.calendar.google.com", nomeAntes: "Enfermeira Domiciliar", nomeDepois: "AGENDA ENFERMAGEM - HOME CARE" },
     { acao: "relatar", googleCalendarId: "b@group", nome: "Aniversários", motivo: "agenda_pessoal_ou_geral", detalhe: "Agenda pessoal; não alterada." }] })));
   await page.route("**/api/agenda/google/reconciliacao/aplicar", (r) => { aplicou = r.request().postDataJSON(); return r.fulfill(json({ aplicados: [], falhas: [], depois: { resumo: {}, itens: [] } })); });
-  page.on("dialog", (d) => d.accept());
   await page.goto("/cadastros/agendas-google");
   await page.getByRole("button", { name: /Conferir \(não altera nada\)/ }).click();
   await expect(page.getByText("Renomear “Enfermeira Domiciliar” para “AGENDA ENFERMAGEM - HOME CARE”")).toBeVisible();
   expect(aplicou).toBeUndefined();
   await page.getByRole("button", { name: "Aplicar ajustes" }).click();
+  // a confirmação é uma janela da própria tela (window.confirm é bloqueado em quadro/iframe); sem confirmar, nada é enviado
+  await expect(page.getByRole("alertdialog")).toContainText("Aplicar 1 ajuste(s)");
+  await page.getByRole("button", { name: "Voltar" }).click();
+  expect(aplicou).toBeUndefined();
+  await page.getByRole("button", { name: "Aplicar ajustes" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Aplicar", exact: true }).click();
   await expect.poll(() => aplicou?.confirmar).toBe(true);
+});
+
+test("Conflito com o Google: mostra os dois horários e só envia depois de confirmar", async ({ page }) => {
+  await base(page);
+  let decisao: any;
+  let aberto = true;
+  await page.route("**/api/agenda-calendars", (r) => r.fulfill(json({ connected: true, calendars: [], googleOnly: [] })));
+  await page.route("**/api/agenda/google/conflitos", (r) => r.fulfill(json({ conflitos: aberto ? [
+    { id: 7, sessaoId: 31, tipo: "alterado", estado: "aberto", agenda: "AGENDA SEDE", remotoInicio: "2026-11-12T17:00:00Z", remotoFim: "2026-11-12T17:30:00Z",
+      sistemaInicio: "2026-11-12T13:00:00Z", sistemaFim: "2026-11-12T13:30:00Z", criadoEm: "2026-11-12T12:00:00Z" }] : [] })));
+  await page.route("**/api/agenda/google/conflitos/7/resolver", (r) => { decisao = r.request().postDataJSON(); aberto = false; return r.fulfill(json({ ok: true, estado: "resolvido", mensagem: "Horário e título do sistema enviados ao mesmo evento do Google." })); });
+  await page.goto("/cadastros/agendas-google");
+  const bloco = page.getByTestId("conflito-7");
+  await expect(bloco).toContainText("Horário alterado no Google");
+  await expect(bloco).toContainText("10:00");
+  await expect(bloco).toContainText("14:00");
+  await page.screenshot({ path: "generated-artifacts/conflitos-google.png", fullPage: true });
+  await bloco.getByRole("button", { name: "Enviar o do sistema" }).click();
+  await page.getByRole("button", { name: "Voltar" }).click();
+  expect(decisao).toBeUndefined();
+  await bloco.getByRole("button", { name: "Enviar o do sistema" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Confirmar" }).click();
+  await expect.poll(() => decisao).toEqual({ decisao: "enviar_sistema", confirmar: true });
+  await expect(page.getByTestId("conflitos-vazio")).toBeVisible();
 });
 
 test("Aba Documentos: lista, mostra titular divergente, sugestão e envia arquivo", async ({ page }) => {

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CalendarDays, Plus, Loader2, Save, Pencil, Trash2, Link2, Link2Off, Unlock, Download, MapPin, CloudOff } from "lucide-react";
 import { toast } from "sonner";
 import { ReconciliacaoGoogle } from "@/components/agenda/ReconciliacaoGoogle";
+import { ConflitosGoogle } from "@/components/agenda/ConflitosGoogle";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -232,6 +233,7 @@ export default function CadastroAgendasGoogle() {
         </div>
       </div>
 
+      {connected && <ConflitosGoogle />}
       {connected && <ReconciliacaoGoogle />}
 
       {!connected && !isLoading && (

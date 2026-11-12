@@ -7,7 +7,10 @@
  */
 
 export interface GoogleAgendaOption {
+  /** Mesma chave de agendaId dos compromissos (positivo = local; negativo = agenda sem local). */
   id: number;
+  agendaRecursoId?: number | null;
+  papel?: string | null;
   nome: string;
   cor: string;
 }

@@ -5086,6 +5086,11 @@ components:
           type: string
         agendaId:
           type: integer
+          description: Chave numérica da origem. Positivo = id do local; negativo = menos o id de uma agenda sem local (Home Care, Outro local).
+        agendaRecursoId:
+          type: integer
+          nullable: true
+          description: Id da agenda de atendimento (Agenda Configuração) dona do calendário; nulo quando é um calendário só do Google (Geral, Pessoal, Feriados).
         cor:
           type: string
         recorrente:
@@ -5110,6 +5115,13 @@ components:
       properties:
         id:
           type: integer
+          description: Mesma chave de agendaId dos compromissos (positivo = local; negativo = agenda sem local).
+        agendaRecursoId:
+          type: integer
+          nullable: true
+        papel:
+          type: string
+          nullable: true
         nome:
           type: string
         cor:

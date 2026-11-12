@@ -168,3 +168,6 @@
 - [Agenda x Local — forma Sede/Online/Outro local](agenda-forma-vocabulario.md) — "remoto" abolido; cor única espelhada agenda↔local; cartão único de agenda.
 - [Protocolo: dois fluxos de agenda e local sobrecarregado](protocolo-dois-fluxos-agenda-local.md) — location_id do procedimento aponta para agenda; fluxo por períodos só enfermagem Sede.
 - [Pit Stop + referência agenda/profissional/local](pit-stop-agendamento.md) — plano compartilhado (Caminho B); ler docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md antes de mexer em agenda/equipe/local.
+- [Vínculo profissional×agenda: três origens](agenda-vinculo-tres-origens.md) — titular + location_professionals + preferidos; tela que lê uma só mente; auditoria em /agenda/auditoria-vinculos.
+- [Conflito Google: marca + decisão humana](google-conflito-marca-fingerprint.md) — marca paxterFp bloqueia sobrescrita (409); UI sem window.confirm (iframe bloqueia).
+- [Filtro único de agendas](agenda-filtro-unico-chaves.md) — chave r{id} compartilhada entre sessão e Google; estado vive no index.tsx, views só recebem `ocultas`.

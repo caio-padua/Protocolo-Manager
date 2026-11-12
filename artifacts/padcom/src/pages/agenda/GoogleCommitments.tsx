@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { chaveDoCalendario, chaveDoCompromisso } from "./filtro-agendas";
 import type { GoogleAgendaCommitments, GoogleAgendaCommitment } from "@workspace/api-client-react";
 
 /* ── Modelo de seleção (puro, testável) ─────────────────────────────────────
@@ -86,12 +87,12 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-export function GoogleCommitments({ de, ate }: { de: string; ate: string }) {
+export function GoogleCommitments({ de, ate, ocultas }: { de: string; ate: string; ocultas?: ReadonlySet<string> }) {
   const identity = useCollabIdentity();
-  return <GoogleCommitmentsPanel key={identity} identity={identity} de={de} ate={ate} />;
+  return <GoogleCommitmentsPanel key={identity} identity={identity} de={de} ate={ate} ocultas={ocultas} />;
 }
 
-function GoogleCommitmentsPanel({ identity, de, ate }: { identity: string; de: string; ate: string }) {
+function GoogleCommitmentsPanel({ identity, de, ate, ocultas }: { identity: string; de: string; ate: string; ocultas?: ReadonlySet<string> }) {
   const [search, setSearch] = useState("");
   // Seleção independente de de/ate: trocar periodo nao reseta.
   const [selection, setSelection] = useState<AgendaSelection>(SELECAO_TODAS);
@@ -111,16 +112,25 @@ function GoogleCommitmentsPanel({ identity, de, ate }: { identity: string; de: s
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-  const agendas = useMemo(() => query.data?.agendas ?? [], [query.data]);
+  // Filtro único da Agenda Diária: agendas desmarcadas lá saem daqui (compromisso e calendário).
+  const dados = useMemo(() => {
+    if (!query.data || !ocultas || ocultas.size === 0) return query.data;
+    return {
+      ...query.data,
+      eventos: query.data.eventos.filter((e) => !ocultas.has(chaveDoCompromisso(e))),
+      agendas: query.data.agendas.filter((a) => !ocultas.has(chaveDoCalendario(a))),
+    };
+  }, [query.data, ocultas]);
+  const agendas = useMemo(() => dados?.agendas ?? [], [dados]);
   const allIds = useMemo(() => agendas.map((a) => a.id), [agendas]);
   const countByAgenda = useMemo(() => {
     const m = new Map<number, number>();
-    for (const e of filterCommitments(query.data?.eventos ?? [], SELECAO_TODAS, search)) m.set(e.agendaId, (m.get(e.agendaId) ?? 0) + 1);
+    for (const e of filterCommitments(dados?.eventos ?? [], SELECAO_TODAS, search)) m.set(e.agendaId, (m.get(e.agendaId) ?? 0) + 1);
     return m;
-  }, [query.data, search]);
+  }, [dados, search]);
   const events = useMemo(
-    () => filterCommitments(query.data?.eventos ?? [], selection, search),
-    [query.data, selection, search],
+    () => filterCommitments(dados?.eventos ?? [], selection, search),
+    [dados, selection, search],
   );
   useEffect(() => {
     if (!detail) return;
@@ -131,7 +141,7 @@ function GoogleCommitmentsPanel({ identity, de, ate }: { identity: string; de: s
   const selectedCount = countSelected(selection, allIds);
   const view = resolveViewState({
     pending: query.isPending, error: query.isError,
-    agendas: agendas.length, selected: selectedCount, results: events.length,
+    agendas: query.data?.agendas.length ?? 0, selected: selectedCount, results: events.length,
   });
   const desde = query.data?.desde ? fmtDate(query.data.desde.slice(0, 10)) : null;
   const all = selection.mode === "todas";

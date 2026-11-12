@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import { mayManageAgendaEmpresa } from "../lib/agenda-governance";
 import { condicaoCorpoClinico } from "../lib/corpo-clinico.js";
+import { auditarVinculosAgendaProfissional } from "../lib/agenda-vinculos-auditoria.js";
 import { agendasDoProfissional, definirPreferenciaDoProfissional, profissionaisVinculadosDaAgenda } from "../lib/agenda-vinculos.js";
 
 /**
@@ -72,6 +73,17 @@ router.get("/professionals/:id/agendas", requireCollaborator, async (req, res): 
   const agendas = await agendasDoProfissional(empresaId, id);
   if (!agendas) { res.status(404).json({ error: "Profissional não encontrado nesta clínica." }); return; }
   res.json({ agendas });
+});
+
+/** Conferência automática: as duas telas (Agenda Configuração e cadastro do profissional) dizem a mesma coisa? Somente leitura. */
+router.get("/agenda/auditoria-vinculos", requireCollaborator, async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  const empresaId = req.tenantContext?.empresaId;
+  if (!empresaId) { res.status(400).json({ error: "Selecione a empresa." }); return; }
+  if (!(await mayManageAgendaEmpresa(req))) {
+    res.status(403).json({ code: "sem_permissao", error: "A conferência de vínculos exige administrador autorizado ou responsável técnico." }); return;
+  }
+  res.json(await auditarVinculosAgendaProfissional(empresaId));
 });
 
 /** Liga ou desliga o profissional numa agenda SEM local. Mesma autoridade do PUT em lista. */

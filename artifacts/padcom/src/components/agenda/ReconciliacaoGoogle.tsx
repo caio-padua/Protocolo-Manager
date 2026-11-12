@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 
@@ -39,9 +42,12 @@ export function ReconciliacaoGoogle() {
     finally { setOcupado(false); }
   };
 
+  // Confirmação dentro da tela: window.confirm é bloqueado quando o sistema roda dentro de um quadro (iframe) e o botão ficava mudo.
+  const [confirmando, setConfirmando] = useState(false);
+  const mudancas = plano?.itens.filter((i) => i.acao === "renomear" || i.acao === "criar").length ?? 0;
   const aplicar = async () => {
-    const mudancas = plano?.itens.filter((i) => i.acao === "renomear" || i.acao === "criar").length ?? 0;
-    if (!mudancas || !window.confirm(`Aplicar ${mudancas} ajuste(s) nas agendas do sistema? Nenhum calendário, evento ou histórico do Google será apagado.`)) return;
+    setConfirmando(false);
+    if (!mudancas) return;
     setOcupado(true);
     try {
       const r = await chamar<Resultado>("/agenda/google/reconciliacao/aplicar", { method: "POST", body: JSON.stringify({ confirmar: true }) });
@@ -64,7 +70,7 @@ export function ReconciliacaoGoogle() {
         <h2 className="text-[11px] font-black uppercase tracking-widest text-primary">Conferir nomes e agendas com o Google</h2>
         <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={() => void conferir()}>Conferir (não altera nada)</Button>
         {plano && plano.itens.some((i) => i.acao === "renomear" || i.acao === "criar") && (
-          <Button type="button" size="sm" disabled={ocupado} onClick={() => void aplicar()}>Aplicar ajustes</Button>
+          <Button type="button" size="sm" disabled={ocupado} onClick={() => setConfirmando(true)}>Aplicar ajustes</Button>
         )}
       </div>
       {erro && <p role="alert" className="text-xs font-bold text-red-800" data-testid="reconciliacao-erro">{erro} Nada foi conferido; não há prova de sincronização.</p>}
@@ -80,6 +86,18 @@ export function ReconciliacaoGoogle() {
         </ul>
       )}
       {resultado?.falhas.map((f) => <p key={f.googleCalendarId} role="alert" className="text-xs font-bold text-red-800">Falhou ({f.googleCalendarId}): {f.motivo}</p>)}
+      <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aplicar {mudancas} ajuste(s) nas agendas do sistema?</AlertDialogTitle>
+            <AlertDialogDescription>Nenhum calendário, evento ou histórico do Google será apagado.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void aplicar()}>Aplicar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

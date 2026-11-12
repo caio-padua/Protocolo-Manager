@@ -6979,14 +6979,30 @@ export const GetGoogleAgendaCommitmentsResponse = zod.object({
       horario: zod.string(),
       diaInteiro: zod.boolean(),
       agenda: zod.string(),
-      agendaId: zod.number(),
+      agendaId: zod
+        .number()
+        .describe(
+          "Chave numérica da origem. Positivo = id do local; negativo = menos o id de uma agenda sem local (Home Care, Outro local).",
+        ),
+      agendaRecursoId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Id da agenda de atendimento (Agenda Configuração) dona do calendário; nulo quando é um calendário só do Google (Geral, Pessoal, Feriados).",
+        ),
       cor: zod.string(),
       recorrente: zod.boolean(),
     }),
   ),
   agendas: zod.array(
     zod.object({
-      id: zod.number(),
+      id: zod
+        .number()
+        .describe(
+          "Mesma chave de agendaId dos compromissos (positivo = local; negativo = agenda sem local).",
+        ),
+      agendaRecursoId: zod.number().nullish(),
+      papel: zod.string().nullish(),
       nome: zod.string(),
       cor: zod.string(),
     }),

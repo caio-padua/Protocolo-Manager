@@ -97,3 +97,13 @@ Rótulos: FATO CONFIRMADO (verificado no código ou no teste), REGRA APROVADA (d
 ## 8. Provas
 
 Testes (banco isolado, dados sintéticos): `artifacts/api-server/src/tests/pit-stop-postgres.test.ts` `protocolo-procedimentos-equipe-postgres.test.ts` e `protocol-google-sync-postgres.test.ts`; telas em `e2e/home-care-documentos-reconciliacao.spec.ts`.
+
+## Anexo (12/11/2026) — Vínculo profissional×agenda, filtro único e conflito com o Google
+
+| Tema | FATO CONFIRMADO |
+|---|---|
+| Três origens de vínculo | Profissional está "vinculado" a uma agenda se existir QUALQUER uma: titular (`agenda_resources.professional_id`), `location_professionals` (agenda com local) ou `agenda_profissionais_preferidos` (agenda sem local). A aba Vínculos do cadastro lê as três (`vinculo-do-local.ts`); o interruptor do titular fica travado lá (titularidade se define na Agenda Configuração). |
+| Auditoria | `GET /api/agenda/auditoria-vinculos` (somente leitura) cruza Agenda Configuração × cadastro para todos os pares. Último resultado ao vivo: 253 pares, 0 divergências. |
+| Filtro único da Agenda Diária | Chave `r{agendaRecursoId}` vale para sessão e para compromisso do Google da mesma agenda; `g{id}` só para calendário que só existe no Google. O conjunto guarda o que foi DESMARCADO e não é lembrado ao sair da tela. |
+| Conflito com o Google | O sistema grava uma marca (`paxterFp`) no evento. Se o Google mudou depois, o envio é bloqueado (409 `google_conflito`) e o aviso aparece em Cadastros > Agendas Google. Decisão humana: "Manter o do Google" ou "Enviar o do sistema". |
+| Pendente | Trazer para a sessão do sistema um horário alterado no Google NÃO existe: hoje só se decide manter o Google (sem enviar) ou sobrescrever com o do sistema. |

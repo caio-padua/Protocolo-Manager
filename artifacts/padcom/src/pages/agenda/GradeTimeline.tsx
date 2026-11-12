@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatStatus } from "@/lib/status";
 import type { GoogleAgendaCommitment } from "@workspace/api-client-react";
 import { useGoogleCompromissos } from "./useGoogleCompromissos";
+import { chaveDaSessao, chaveDoCompromisso } from "./filtro-agendas";
 import { InformacoesCompromisso } from "./InformacoesCompromisso";
 import { avisoSonoroLigado, gravarAvisoSonoro, tocarSino } from "./aviso-sonoro";
 import {
@@ -36,8 +37,6 @@ type Item = {
   agendaChave: string; sessao?: SessaoLinha; evento?: GoogleAgendaCommitment;
 };
 
-const AGENDA_SEM_VINCULO = "r-sem";
-const chaveSessao = (s: SessaoLinha) => (s.resourceId ? `r${s.resourceId}` : AGENDA_SEM_VINCULO);
 const SEM_AGENDA_ROTULO = "Sem agenda ligada";
 const DIA_SEMANA = (d: Date) => format(d, "EEE", { locale: ptBR }).replace(".", "");
 const dataLonga = (iso: string) => {
@@ -47,10 +46,12 @@ const dataLonga = (iso: string) => {
 
 const usaMovimentoReduzido = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export function GradeTimeline({ modo, dias, sessoes, renderCartao, onReagendar, onAbrirDia }: {
+export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onReagendar, onAbrirDia }: {
   modo: "dia" | "semana";
   dias: Date[];
   sessoes: SessaoLinha[];
+  /** Agendas desmarcadas no filtro único da Agenda Diária (vale para sessões e compromissos do Google). */
+  ocultas: ReadonlySet<string>;
   /** Cartão completo da sessão (com as ações já existentes), exibido dentro dos detalhes sob demanda. */
   renderCartao: (sessao: SessaoLinha) => ReactNode;
   onReagendar: (sessao: SessaoLinha) => void;
@@ -68,9 +69,7 @@ export function GradeTimeline({ modo, dias, sessoes, renderCartao, onReagendar, 
     return () => window.clearInterval(t);
   }, []);
 
-  const [ocultas, setOcultas] = useState<ReadonlySet<string>>(new Set());
   const visivel = (k: string) => !ocultas.has(k);
-  const alternar = (k: string) => setOcultas((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   // ── Itens da linha do tempo ───────────────────────────────────────────────
   const todos = useMemo(() => {
@@ -82,19 +81,19 @@ export function GradeTimeline({ modo, dias, sessoes, renderCartao, onReagendar, 
       const dur = s.durationMinutes && s.durationMinutes > 0 ? s.durationMinutes : 30;
       const fim = Math.min(ini + dur, 24 * 60);
       lista.push({ chave: `s${s.id}`, tipo: "sessao", dia: s.scheduledDate, ini, fim, fimD: fimDesenhado(ini, fim),
-        cor: corSegura(s.agendaCor), agendaChave: chaveSessao(s), sessao: s });
+        cor: corSegura(s.agendaCor), agendaChave: chaveDaSessao(s), sessao: s });
     }
     for (const e of google.data?.eventos ?? []) {
       if (!diasIso.includes(e.data)) continue;
       const faixa = faixaDoGoogle(e);
       if (!faixa) continue;
       lista.push({ chave: `g${e.id}`, tipo: "google", dia: e.data, ini: faixa.ini, fim: faixa.fim, fimD: fimDesenhado(faixa.ini, faixa.fim),
-        cor: corSegura(e.cor), agendaChave: `g${e.agendaId}`, evento: e });
+        cor: corSegura(e.cor), agendaChave: chaveDoCompromisso(e), evento: e });
     }
     return lista;
   }, [sessoes, google.data, diasIso]);
 
-  const diaInteiro = useMemo(() => (google.data?.eventos ?? []).filter((e) => e.diaInteiro && diasIso.includes(e.data) && visivel(`g${e.agendaId}`)),
+  const diaInteiro = useMemo(() => (google.data?.eventos ?? []).filter((e) => e.diaInteiro && diasIso.includes(e.data) && visivel(chaveDoCompromisso(e))),
     [google.data, diasIso, ocultas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visiveis = useMemo(() => todos.filter((i) => !ocultas.has(i.agendaChave)), [todos, ocultas]);
@@ -110,23 +109,6 @@ export function GradeTimeline({ modo, dias, sessoes, renderCartao, onReagendar, 
     }
     return m;
   }, [visiveis, diasIso]);
-
-  // ── Legenda: agendas das sessões e agendas do Google com compromisso no período ──
-  const legendaSessoes = useMemo(() => {
-    const m = new Map<string, { nome: string; cor: string; n: number }>();
-    for (const i of todos) {
-      if (i.tipo !== "sessao" || !i.sessao) continue;
-      const atual = m.get(i.agendaChave) ?? { nome: i.sessao.agendaNome ?? SEM_AGENDA_ROTULO, cor: i.cor, n: 0 };
-      atual.n += 1;
-      m.set(i.agendaChave, atual);
-    }
-    return [...m.entries()].map(([chave, v]) => ({ chave, ...v }));
-  }, [todos]);
-  const legendaGoogle = useMemo(() => {
-    const contagem = new Map<number, number>();
-    for (const e of google.data?.eventos ?? []) if (diasIso.includes(e.data)) contagem.set(e.agendaId, (contagem.get(e.agendaId) ?? 0) + 1);
-    return (google.data?.agendas ?? []).filter((a) => contagem.has(a.id)).map((a) => ({ chave: `g${a.id}`, nome: a.nome, cor: corSegura(a.cor), n: contagem.get(a.id) ?? 0 }));
-  }, [google.data, diasIso]);
 
   // ── Agora, próximo atendimento e aviso sonoro ─────────────────────────────
   const hojeNaGrade = diasIso.includes(agora.data);
@@ -192,13 +174,7 @@ export function GradeTimeline({ modo, dias, sessoes, renderCartao, onReagendar, 
   return (
     <section className="tl-raiz panel-3d-sub space-y-3 p-3" data-testid="linha-do-tempo" data-modo={modo} aria-label={modo === "dia" ? "Linha do tempo do dia" : "Linha do tempo da semana"}>
       {/* Barra superior: legenda de agendas à esquerda; próximo atendimento, agora e som à direita */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="group" aria-label="Agendas exibidas">
-          {legendaSessoes.length > 0 && <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">PAXTER</span>}
-          {legendaSessoes.map((a) => <ChipAgenda key={a.chave} {...a} ligado={visivel(a.chave)} onAlternar={() => alternar(a.chave)} />)}
-          {legendaGoogle.length > 0 && <span className="ml-2 flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground"><Lock className="h-3 w-3" aria-hidden />Google</span>}
-          {legendaGoogle.map((a) => <ChipAgenda key={a.chave} {...a} ligado={visivel(a.chave)} onAlternar={() => alternar(a.chave)} google />)}
-        </div>
+      <div className="flex flex-wrap items-start justify-end gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {proximo?.sessao && (
             <button type="button" data-testid="proximo-atendimento" onClick={() => abrirSessao(proximo.sessao!)}
@@ -369,19 +345,6 @@ export function GradeTimeline({ modo, dias, sessoes, renderCartao, onReagendar, 
         </DialogContent>
       </Dialog>
     </section>
-  );
-}
-
-function ChipAgenda({ nome, cor, n, ligado, onAlternar, google }: { nome: string; cor: string; n: number; ligado: boolean; onAlternar: () => void; google?: boolean }) {
-  return (
-    <button type="button" role="checkbox" aria-checked={ligado} onClick={onAlternar} title={google ? `${nome} (Google, somente leitura)` : nome}
-      className={`${ligado ? "panel-3d-sub" : "concave-3d opacity-60"} flex min-h-8 max-w-[16rem] items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-tight`}>
-      <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] ring-1 ring-black/15 ${google ? "border border-dashed border-black/30" : ""}`} style={{ backgroundColor: ligado ? cor : "transparent" }} aria-hidden>
-        {ligado && <Check className="h-2.5 w-2.5 text-white mix-blend-difference" strokeWidth={4} />}
-      </span>
-      <span className="truncate">{nome}</span>
-      <span className="tabular-nums text-muted-foreground">{n}</span>
-    </button>
   );
 }
 

@@ -1,0 +1,102 @@
+/**
+ * Filtro único de agendas da Agenda Diária (Dia, Semana, Mês e Lista usam o MESMO conjunto de agendas ocultas).
+ * A chave de uma agenda é a mesma para as sessões do sistema e para os compromissos do Google dela:
+ *   r{id da agenda}  = agenda de atendimento (Agenda Configuração), sessões + compromissos do Google do calendário dela;
+ *   g{id do local}   = calendário só do Google (Geral, Pessoal, Feriados), sem agenda de atendimento.
+ * O conjunto guarda o que foi DESMARCADO: agenda criada depois nasce marcada.
+ */
+export const SEM_CATEGORIA = "Sem categoria";
+export const CATEGORIA_SO_GOOGLE = "Só no Google (somente leitura)";
+export const CHAVE_SESSAO_SEM_AGENDA = "r-sem";
+
+export const chaveDaAgenda = (id: number) => `r${id}`;
+export const chaveDaSessao = (s: { resourceId?: number | null }) => (s.resourceId ? chaveDaAgenda(s.resourceId) : CHAVE_SESSAO_SEM_AGENDA);
+export const chaveDoCompromisso = (e: { agendaId: number; agendaRecursoId?: number | null }) =>
+  e.agendaRecursoId != null ? chaveDaAgenda(e.agendaRecursoId) : `g${e.agendaId}`;
+export const chaveDoCalendario = (a: { id: number; agendaRecursoId?: number | null }) =>
+  a.agendaRecursoId != null ? chaveDaAgenda(a.agendaRecursoId) : `g${a.id}`;
+
+export interface AgendaDoFiltro {
+  chave: string; nome: string; cor: string; forma: string | null; categoria: string;
+  /** Atendimentos do sistema no período. */
+  sessoes: number;
+  /** Compromissos do Google no período (somente leitura). */
+  google: number;
+  /** Calendário só do Google, sem agenda de atendimento. */
+  somenteGoogle: boolean;
+}
+export interface GrupoDoFiltro { categoria: string; agendas: AgendaDoFiltro[]; }
+
+export interface EntradaCatalogo {
+  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; active?: boolean }[];
+  sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
+  calendarios: { id: number; agendaRecursoId?: number | null; nome: string; cor: string }[];
+  compromissos: { agendaId: number; agendaRecursoId?: number | null }[];
+}
+
+/** Monta os grupos por categoria. Toda agenda ativa aparece, mesmo sem nada no período (o painel cobre TODAS). */
+export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
+  const mapa = new Map<string, AgendaDoFiltro>();
+  for (const a of entrada.agendas) {
+    if (a.active === false) continue;
+    mapa.set(chaveDaAgenda(a.id), {
+      chave: chaveDaAgenda(a.id), nome: a.name, cor: a.color || "#64748b", forma: a.modality ?? null,
+      categoria: a.categoryName?.trim() || SEM_CATEGORIA, sessoes: 0, google: 0, somenteGoogle: false,
+    });
+  }
+  for (const s of entrada.sessoes) {
+    const chave = chaveDaSessao(s);
+    let item = mapa.get(chave);
+    if (!item) {
+      // Sessão de agenda que o catálogo não trouxe (ou sem agenda ligada): aparece, nunca some em silêncio.
+      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, sessoes: 0, google: 0, somenteGoogle: false };
+      mapa.set(chave, item);
+    }
+    item.sessoes += 1;
+  }
+  for (const c of entrada.calendarios) {
+    const chave = chaveDoCalendario(c);
+    if (!mapa.has(chave)) {
+      mapa.set(chave, { chave, nome: c.nome, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, sessoes: 0, google: 0, somenteGoogle: true });
+    }
+  }
+  for (const e of entrada.compromissos) {
+    const item = mapa.get(chaveDoCompromisso(e));
+    if (item) item.google += 1;
+  }
+  const grupos = new Map<string, AgendaDoFiltro[]>();
+  for (const item of mapa.values()) grupos.set(item.categoria, [...(grupos.get(item.categoria) ?? []), item]);
+  const ordemCategoria = (c: string) => (c === CATEGORIA_SO_GOOGLE ? 2 : c === SEM_CATEGORIA ? 1 : 0);
+  return [...grupos.entries()]
+    .sort(([a], [b]) => ordemCategoria(a) - ordemCategoria(b) || a.localeCompare(b, "pt-BR"))
+    .map(([categoria, agendas]) => ({ categoria, agendas: agendas.sort((x, y) => x.nome.localeCompare(y.nome, "pt-BR")) }));
+}
+
+export const todasAsChaves = (grupos: readonly GrupoDoFiltro[]) => grupos.flatMap((g) => g.agendas.map((a) => a.chave));
+
+export function alternarAgenda(ocultas: ReadonlySet<string>, chave: string): Set<string> {
+  const n = new Set(ocultas);
+  if (n.has(chave)) n.delete(chave); else n.add(chave);
+  return n;
+}
+
+/** "Só esta": oculta todas as outras. Clicar de novo, quando já é a única visível, devolve todas. */
+export function soEstaAgenda(ocultas: ReadonlySet<string>, chave: string, todas: readonly string[]): Set<string> {
+  const outras = todas.filter((c) => c !== chave);
+  const jaEhSo = !ocultas.has(chave) && outras.every((c) => ocultas.has(c));
+  return jaEhSo ? new Set() : new Set(outras);
+}
+
+/** Marca ou desmarca um grupo inteiro: se todo o grupo está visível, oculta; senão, mostra todo o grupo. */
+export function alternarGrupo(ocultas: ReadonlySet<string>, chavesDoGrupo: readonly string[]): Set<string> {
+  const n = new Set(ocultas);
+  const todasVisiveis = chavesDoGrupo.every((c) => !n.has(c));
+  for (const c of chavesDoGrupo) { if (todasVisiveis) n.add(c); else n.delete(c); }
+  return n;
+}
+
+export const mostrarTodas = (): Set<string> => new Set();
+export const ocultarTodas = (todas: readonly string[]): Set<string> => new Set(todas);
+
+/** Quantas agendas conhecidas estão ocultas (só conta chaves que existem no painel). */
+export const quantasOcultas = (ocultas: ReadonlySet<string>, todas: readonly string[]) => todas.filter((c) => ocultas.has(c)).length;

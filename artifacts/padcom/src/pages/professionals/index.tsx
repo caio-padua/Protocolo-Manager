@@ -63,6 +63,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { propagarMudancaDeAgenda } from "@/lib/agenda-propagacao";
 import { carregarAgendasDoProfissional, definirVinculoComAgenda, type AgendaDoProfissional } from "@/lib/agenda-vinculos-api";
 import { AgendasSemLocal, agendasSemLocalDaEmpresa, nomeDaAgendaDoLocal } from "./AgendasSemLocal";
+import { vinculoDoLocal, type VinculoDoLocal } from "./vinculo-do-local";
 import { formatCpfInput } from "@/lib/cpf";
 import AccountAccessPanel from "./AccountAccessPanel";
 import ProfessionalHistoryPanel from "./ProfessionalHistoryPanel";
@@ -354,8 +355,12 @@ function resolveZone(loc: LocRow): string {
 }
 
 // ── Linha individual de local ─────────────────────────────────────────────────
-function LocRow({ loc, linked, busy, onToggle, agendaName }: {
+function LocRow({ loc, linked, busy, onToggle, agendaName, origem, travadoPor }: {
   loc: LocRow; linked: boolean; busy: boolean; onToggle: () => void;
+  /** De onde vem o vínculo (titular, cadastro, preferência), na mesma linguagem da Agenda Configuração. */
+  origem?: string | null;
+  /** Motivo exato de o botão estar travado aqui; null/ausente = pode mexer. */
+  travadoPor?: string | null;
   /** Nome da agenda (Agenda Configuração) que usa este local; quando existe, é ele que aparece. */
   agendaName?: string | null;
 }) {
@@ -376,20 +381,24 @@ function LocRow({ loc, linked, busy, onToggle, agendaName }: {
             {loc.address}
           </p>
         )}
+        {origem && <p className="mt-0.5 truncate text-[9px] font-semibold text-muted-foreground/80" data-testid={`origem-local-${loc.id}`}>{origem}</p>}
+        {travadoPor && <p className="mt-0.5 text-[9px] font-semibold text-amber-600" data-testid={`motivo-local-${loc.id}`}>{travadoPor}</p>}
       </div>
-      <Switch checked={linked} disabled={busy} onCheckedChange={onToggle} />
+      <Switch checked={linked} disabled={busy || !!travadoPor} onCheckedChange={onToggle}
+        aria-label={`Vincular a ${agendaName ?? loc.name}`} />
     </div>
   );
 }
 
 // ── Painel de um estado ───────────────────────────────────────────────────────
-function StateBucket({ state, locs, linkedFn, busyFn, onToggle, agendaNameFn }: {
+function StateBucket({ state, locs, linkedFn, busyFn, onToggle, agendaNameFn, vinculoFn }: {
   state: string;
   locs: LocRow[];
   linkedFn: (id: number) => boolean;
   busyFn: (id: number) => boolean;
   onToggle: (id: number) => void;
   agendaNameFn: (locationId: number) => string | null;
+  vinculoFn: (locationId: number) => VinculoDoLocal;
 }) {
   const meta = STATE_META[state] ?? { label: state === "—" ? "Sem endereço" : state, accent: "border-muted/40" };
   const linkedCount = locs.filter((l) => linkedFn(l.id)).length;
@@ -433,6 +442,8 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle, agendaNameFn }: 
                       busy={busyFn(loc.id)}
                       onToggle={() => onToggle(loc.id)}
                       agendaName={agendaNameFn(loc.id)}
+                      origem={vinculoFn(loc.id).rotuloOrigem}
+                      travadoPor={vinculoFn(loc.id).travadoPor}
                     />
                   ))}
                 </div>
@@ -453,6 +464,8 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle, agendaNameFn }: 
             busy={busyFn(loc.id)}
             onToggle={() => onToggle(loc.id)}
             agendaName={agendaNameFn(loc.id)}
+            origem={vinculoFn(loc.id).rotuloOrigem}
+            travadoPor={vinculoFn(loc.id).travadoPor}
           />
         ))}
       </div>
@@ -485,13 +498,14 @@ function StateBucket({ state, locs, linkedFn, busyFn, onToggle, agendaNameFn }: 
 }
 
 // Agendas liberadas por empresa: só aparecem as empresas em que o profissional está cadastrado.
-function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle, agendaNameFn, agendasSemLocal, agendaBusyId, onToggleAgenda }: {
+function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle, agendaNameFn, vinculoFn, agendasSemLocal, agendaBusyId, onToggleAgenda }: {
   vinculo: VinculoEmpresaLinha;
   locs: LocRow[];
   linkedFn: (id: number) => boolean;
   busyFn: (id: number) => boolean;
   onToggle: (id: number) => void;
   agendaNameFn: (locationId: number) => string | null;
+  vinculoFn: (locationId: number) => VinculoDoLocal;
   agendasSemLocal: AgendaDoProfissional[];
   agendaBusyId: number | null;
   onToggleAgenda: (agenda: AgendaDoProfissional) => void;
@@ -541,6 +555,7 @@ function EmpresaAgendas({ vinculo, locs, linkedFn, busyFn, onToggle, agendaNameF
             busyFn={busyFn}
             onToggle={onToggle}
             agendaNameFn={agendaNameFn}
+            vinculoFn={vinculoFn}
           />
         ))
       )}
@@ -617,7 +632,12 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
     };
   }, [fetchLinks]);
 
-  const isLinked  = useCallback((id: number) => links.some((l) => l.locationId === id), [links]);
+  /** Só o vínculo do cadastro com o local (é ele que o botão grava). */
+  const temVinculoDoLocal = useCallback((id: number) => links.some((l) => l.locationId === id), [links]);
+  /** Situação completa em um local: titular da agenda, vínculo do cadastro ou preferência (mesma leitura da Agenda Configuração). */
+  const vinculoEmLocal = useCallback(
+    (id: number) => vinculoDoLocal(agendas, id, temVinculoDoLocal(id)), [agendas, temVinculoDoLocal]);
+  const isLinked  = useCallback((id: number) => vinculoEmLocal(id).ligado, [vinculoEmLocal]);
   const isBusy    = useCallback((id: number) => toggling === id, [toggling]);
 
   // Mudou a lista de empresas: o servidor passa a mostrar (ou esconder) as agendas dessas empresas.
@@ -630,7 +650,7 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
   async function toggle(locationId: number) {
     setToggling(locationId);
     try {
-      const linked = isLinked(locationId);
+      const linked = temVinculoDoLocal(locationId);
       const t = getCollabToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (t) headers.Authorization = `Bearer ${t}`;
@@ -734,6 +754,7 @@ function VinculosPanel({ professionalId, empresas, empresasErro, canEdit, onEmpr
           busyFn={isBusy}
           onToggle={toggle}
           agendaNameFn={(locationId) => nomeDaAgendaDoLocal(agendas, locationId)}
+          vinculoFn={vinculoEmLocal}
           agendasSemLocal={agendasSemLocalDaEmpresa(agendas, vinculo.empresaId)}
           agendaBusyId={agendaBusy}
           onToggleAgenda={(a) => { void alternarAgenda(a); }}

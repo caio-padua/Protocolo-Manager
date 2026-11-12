@@ -8,6 +8,14 @@ import {
 } from "../lib/agenda-google-projection";
 
 const router = Router();
+
+/**
+ * Agenda de atendimento (Agenda Configuração) dona do calendário deste local, pela identidade real do calendário
+ * Google. Se mais de uma agenda aponta para o mesmo calendário, não escolhe por ordem: devolve nulo.
+ */
+const AGENDA_DONA_DO_LOCAL = sql`(SELECT CASE WHEN count(*) = 1 THEN min(r.id) END FROM agenda_resources r
+  WHERE r.active AND r.empresa_id = l.empresa_id AND r.google_calendar_id IS NOT NULL
+    AND r.google_calendar_id = l.google_calendar_id)`;
 // A descrição importada pode conter dados clínicos sem vínculo validado.
 // Até existir autorização por cliente, somente o proprietário pode consultá-la.
 router.get("/agenda/google-compromissos/:id/descricao", requireCollaborator, async (req, res): Promise<void> => {
@@ -19,7 +27,7 @@ router.get("/agenda/google-compromissos/:id/descricao", requireCollaborator, asy
   const id = Number(req.params.id);
   const value = req.query.inicio;
   const start = typeof value === "string" ? new Date(value) : new Date(NaN);
-  if (!Number.isSafeInteger(id) || id <= 0 || typeof value !== "string" ||
+  if (!Number.isSafeInteger(id) || id === 0 || typeof value !== "string" ||
       !Number.isFinite(start.getTime()) || start.toISOString() !== value) {
     res.status(400).json({ error: "Identificador ou início do compromisso inválido." });
     return;
@@ -27,11 +35,18 @@ router.get("/agenda/google-compromissos/:id/descricao", requireCollaborator, asy
   const empresaId = req.tenantContext.empresaId;
   if (!empresaId) { res.status(403).json({ error: "Selecione a empresa." }); return; }
   try {
-    const result = await db.execute(sql`
+    // Id negativo = compromisso de agenda sem local (Home Care, Outro local), tabela própria.
+    const result = id > 0 ? await db.execute(sql`
       SELECT c.id, c.titulo, c.descricao, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
         c.recorrencia, c.origem, l.name AS agenda, l.id AS "agendaId", l.color AS cor, l.agenda_papel AS papel
       FROM agenda_compromissos c JOIN locations l ON l.id = c.location_id
       WHERE c.id = ${id} AND l.empresa_id = ${empresaId} AND l.active = 'true' AND c.status = 'ativo'
+      LIMIT 1
+    `) : await db.execute(sql`
+      SELECT -c.id AS id, c.titulo, c.descricao, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
+        c.recorrencia, c.origem, r.name AS agenda, -r.id AS "agendaId", r.color AS cor, NULL::text AS papel
+      FROM agenda_compromissos_recurso c JOIN agenda_resources r ON r.id = c.recurso_id
+      WHERE c.id = ${-id} AND r.empresa_id = ${empresaId} AND r.active AND r.location_id IS NULL AND c.status = 'ativo'
       LIMIT 1
     `);
     const row = result.rows[0] as unknown as (ImportedCommitment & { descricao: string | null }) | undefined;
@@ -60,6 +75,11 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
   try {
     const empresaId = req.tenantContext.empresaId;
     if (!empresaId) { res.status(403).json({ error: "Selecione a empresa." }); return; }
+    // Ecos: sessões do próprio sistema que foram enviadas ao Google e voltam na leitura do mesmo calendário.
+    // A sessão já aparece como atendimento; mostrar o evento de volta duplicaria o horário e confundiria a origem.
+    const semEcos = (calendario: ReturnType<typeof sql>, chave: ReturnType<typeof sql>) => sql`NOT (c.origem = 'google' AND EXISTS (
+      SELECT 1 FROM sessions s WHERE s.empresa_id = ${empresaId} AND s.google_calendar_id = ${calendario}
+        AND (${chave} = 'google:' || s.google_event_id OR ${chave} = 'google:' || s.google_sync_pending_event_id)))`;
     const result = await db.execute(sql`
       SELECT c.id, c.titulo, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
         c.recorrencia, c.origem,
@@ -71,18 +91,35 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
         END AS "belongsToSeries",
         CASE WHEN l.agenda_papel = 'pessoal' AND NOT ${req.tenantContext.isPlatformOwner} THEN 'Agenda pessoal'
           ELSE l.name END AS agenda,
-        l.id AS "agendaId", l.color AS cor, l.agenda_papel AS papel
+        l.id AS "agendaId", ${AGENDA_DONA_DO_LOCAL} AS "agendaRecursoId", l.color AS cor, l.agenda_papel AS papel
       FROM agenda_compromissos c
       JOIN locations l ON l.id = c.location_id
       LEFT JOIN agenda_google_source source ON source.location_id = c.location_id
         AND c.origem = 'google' AND c.chave = 'google:' || source.event_id
       WHERE l.empresa_id = ${empresaId} AND l.active = 'true' AND c.status = 'ativo'
+        AND ${semEcos(sql`c.google_calendar_id`, sql`c.chave`)}
+        AND (c.origem = 'google_recorrente' OR (c.inicio < ${until.toISOString()}::timestamptz
+          AND c.fim > ${start.toISOString()}::timestamptz))
+      ORDER BY c.inicio, c.id
+    `);
+    // Agendas SEM local (Home Care, Outro local): leitura própria, chave negativa para nunca colidir com um local.
+    const resultRecursos = await db.execute(sql`
+      SELECT -c.id AS id, c.titulo, c.inicio, c.fim, c.dia_inteiro AS "diaInteiro",
+        c.recorrencia, c.origem,
+        COALESCE(NULLIF(source.body->>'recurringEventId', ''), '') <> '' AS "belongsToSeries",
+        r.name AS agenda, -r.id AS "agendaId", r.id AS "agendaRecursoId", r.color AS cor, NULL::text AS papel
+      FROM agenda_compromissos_recurso c
+      JOIN agenda_resources r ON r.id = c.recurso_id
+      LEFT JOIN agenda_google_source_recurso source ON source.recurso_id = c.recurso_id
+        AND c.origem = 'google' AND c.chave = 'google:' || source.event_id
+      WHERE r.empresa_id = ${empresaId} AND r.active AND r.location_id IS NULL AND c.status = 'ativo'
+        AND ${semEcos(sql`c.google_calendar_id`, sql`c.chave`)}
         AND (c.origem = 'google_recorrente' OR (c.inicio < ${until.toISOString()}::timestamptz
           AND c.fim > ${start.toISOString()}::timestamptz))
       ORDER BY c.inicio, c.id
     `);
     const calendars = await db.execute(sql`
-      SELECT l.id,
+      SELECT l.id, ${AGENDA_DONA_DO_LOCAL} AS "agendaRecursoId", l.agenda_papel AS papel,
         CASE WHEN l.agenda_papel = 'pessoal' AND NOT ${req.tenantContext.isPlatformOwner} THEN 'Agenda pessoal'
           ELSE l.name END AS nome,
         l.color AS cor
@@ -92,9 +129,14 @@ router.get("/agenda/google-compromissos", requireCollaborator, async (req, res):
           SELECT 1 FROM agenda_compromissos c
           WHERE c.location_id = l.id AND c.status = 'ativo'
         ))
-      ORDER BY l.name, l.id
+      UNION ALL
+      SELECT -r.id AS id, r.id AS "agendaRecursoId", NULL AS papel, r.name AS nome, COALESCE(r.color, '#888888') AS cor
+      FROM agenda_resources r
+      WHERE r.empresa_id = ${empresaId} AND r.active AND r.location_id IS NULL AND r.google_calendar_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM locations l2 WHERE l2.google_calendar_id = r.google_calendar_id)
+      ORDER BY nome, id
     `);
-    const events = (result.rows as unknown as ImportedCommitment[]).flatMap((row) => {
+    const events = ([...result.rows, ...resultRecursos.rows] as unknown as ImportedCommitment[]).flatMap((row) => {
       // O cadastro atual não prova titularidade pessoal: só o proprietário da plataforma vê o título.
       const safe = row.papel === "pessoal" && !req.tenantContext.isPlatformOwner
         ? { ...row, titulo: "Ocupado — compromisso pessoal" } : row;

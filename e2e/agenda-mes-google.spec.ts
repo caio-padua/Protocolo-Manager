@@ -36,16 +36,17 @@ test("mês estilo Google: agendas com cor à esquerda e eventos dentro do dia, G
   await page.goto("/agenda");
   await page.getByRole("button", { name: "Mês", exact: true }).click();
   const grade = page.getByTestId("grade-mes-google");
-  await expect(grade.getByRole("checkbox", { name: /AGENDA ENFERMAGEM - HOME CARE/ })).toBeVisible();
+  const filtro = page.getByTestId("filtro-agendas");
+  await expect(filtro.getByRole("checkbox", { name: /AGENDA ENFERMAGEM - HOME CARE/ })).toBeVisible();
   const celula = grade.getByTestId(`dia-${dia(10)}`);
   await expect(celula.locator('[data-origem="google"]')).toHaveCount(2);
   await expect(celula.locator('[data-origem="paxter"]')).toHaveCount(1);
   await expect(celula).toContainText("Visita sintética");
   await page.screenshot({ path: "test-results/agenda-mes-google.png", fullPage: true });
   // desmarcar uma agenda esconde só os eventos dela
-  await grade.getByRole("checkbox", { name: /AGENDA GERAL/ }).click();
+  await filtro.getByRole("checkbox", { name: /AGENDA GERAL/ }).click();
   await expect(celula.locator('[data-origem="google"]')).toHaveCount(1);
-  await grade.getByRole("checkbox", { name: /Sessões do PAXTER/ }).click();
+  await filtro.getByRole("checkbox", { name: /Sem agenda ligada/ }).click();
   await expect(celula.locator('[data-origem="paxter"]')).toHaveCount(0);
 });
 
