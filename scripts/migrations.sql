@@ -428,3 +428,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Vocabulario unico da agenda: "remoto" vira "online" (papel gravado e sufixo do nome). Ver specs/agenda-forma-online.md.
 \ir migrations/20261120_agenda_online.sql
+
+-- Classificacao (A a D) e plano do cliente, ambos com padrao D e bronze.
+\ir migrations/20261121_cliente_classificacao_plano.sql

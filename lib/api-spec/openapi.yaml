@@ -5961,6 +5961,12 @@ components:
         photoUrl:
           type: string
           nullable: true
+        classificacao:
+          type: string
+          enum: [A, B, C, D]
+        plano:
+          type: string
+          enum: [bronze, prata, ouro, rodio]
         preferredAgendaResourceIds:
           type: array
           items:

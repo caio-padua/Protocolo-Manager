@@ -22,6 +22,9 @@ export const clientsTable = pgTable("clients", {
   agendaEnfermagemPadraoId: integer("agenda_enfermagem_padrao_id"),
   agendaMedicoPadraoId: integer("agenda_medico_padrao_id"),
   photoUrl: text("photo_url"),
+  // Classificacao interna A a D (inicial D) e plano bronze/prata/ouro/rodio (inicial bronze)
+  classificacao: text("classificacao").notNull().default("D"),
+  plano: text("plano").notNull().default("bronze"),
   notes: text("notes"),
   validationPassword: text("validation_password"),
   validationPasswordSentAt: timestamp("validation_password_sent_at", { withTimezone: true }),

@@ -1680,6 +1680,25 @@ export const ClientStatus = {
   pending: "pending",
 } as const;
 
+export type ClientClassificacao =
+  (typeof ClientClassificacao)[keyof typeof ClientClassificacao];
+
+export const ClientClassificacao = {
+  A: "A",
+  B: "B",
+  C: "C",
+  D: "D",
+} as const;
+
+export type ClientPlano = (typeof ClientPlano)[keyof typeof ClientPlano];
+
+export const ClientPlano = {
+  bronze: "bronze",
+  prata: "prata",
+  ouro: "ouro",
+  rodio: "rodio",
+} as const;
+
 export interface Client {
   id: number;
   name: string;
@@ -1697,6 +1716,8 @@ export interface Client {
   agendaEnfermagemPadraoId?: number | null;
   agendaMedicoPadraoId?: number | null;
   photoUrl?: string | null;
+  classificacao?: ClientClassificacao;
+  plano?: ClientPlano;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
   /** @minimum 0 */

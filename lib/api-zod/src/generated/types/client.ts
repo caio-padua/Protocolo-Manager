@@ -5,6 +5,8 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+import type { ClientClassificacao } from "./clientClassificacao";
+import type { ClientPlano } from "./clientPlano";
 import type { ClientStatus } from "./clientStatus";
 import type { ClientVisitPreferences } from "./clientVisitPreferences";
 
@@ -25,6 +27,8 @@ export interface Client {
   agendaEnfermagemPadraoId?: number | null;
   agendaMedicoPadraoId?: number | null;
   photoUrl?: string | null;
+  classificacao?: ClientClassificacao;
+  plano?: ClientPlano;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
   /** @minimum 0 */

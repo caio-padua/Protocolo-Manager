@@ -1506,6 +1506,8 @@ export const ListClientsResponseItem = zod.object({
   agendaEnfermagemPadraoId: zod.number().nullish(),
   agendaMedicoPadraoId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "rodio"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({
@@ -1923,6 +1925,8 @@ export const GetClientResponse = zod.object({
   agendaEnfermagemPadraoId: zod.number().nullish(),
   agendaMedicoPadraoId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "rodio"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({
@@ -2276,6 +2280,8 @@ export const UpdateClientResponse = zod.object({
   agendaEnfermagemPadraoId: zod.number().nullish(),
   agendaMedicoPadraoId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "rodio"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({

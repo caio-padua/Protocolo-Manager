@@ -74,9 +74,14 @@ interface ClientIdentityProps {
   onMensagens: () => void;
 }
 
+const PLANO_NOME: Record<string, string> = { bronze: "Bronze", prata: "Prata", ouro: "Ouro", rodio: "Ródio" };
+
 export default function ClientIdentity({ client, onMensagens }: ClientIdentityProps) {
   const [aberto, setAberto] = useState<"resumo" | "imagem" | null>(null);
   const idade = idadeCompleta(client.birthDate);
+  // Dado ausente (resposta sem o campo) aparece como traco, nunca como valor inventado
+  const classif = client.classificacao ?? "—";
+  const planoNome = client.plano ? PLANO_NOME[client.plano] : "—";
   const campos = [
     { label: "CPF", value: formatarCpf(client.cpf) },
     { label: "NASCIMENTO", value: formatarNascimento(client.birthDate) ?? "—" },
@@ -103,9 +108,9 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
             <span aria-hidden="true">{iniciais(client.name) || <UserRound size={26} />}</span>
           )}
         </div>
-        <div className="cc-grade-plan" aria-label="Classificação e plano não disponíveis no cadastro consultado">
-          <span title="Classificação não disponível">—</span>
-          <span title="Plano não disponível">—</span>
+        <div className="cc-grade-plan" aria-label={`Classificação ${classif}, plano ${planoNome}`}>
+          <span title={`Classificação ${classif}`}>{classif}</span>
+          <span title={`Plano ${planoNome}`} data-plano={client.plano ?? undefined}>{planoNome}</span>
         </div>
       </div>
 
