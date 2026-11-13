@@ -317,7 +317,7 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
               <>
                 <span className="tl-dia-faixa">{format(d, "LLLL", { locale: ptBR })}</span>
                 <span className="tl-dia-corpo">
-                  <span className={`flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xl font-black leading-none tabular-nums ${ehHoje ? "bg-primary text-primary-foreground" : ""}`}>{format(d, "d")}</span>
+                  <span className={`tl-dia-numero ${ehHoje ? "tl-dia-numero--hoje" : ""}`}>{format(d, "d")}</span>
                   <span className={`text-[9.5px] font-bold lowercase tracking-wide ${ehHoje ? "text-amber-800" : "text-muted-foreground"}`}>{format(d, "EEEE", { locale: ptBR })}</span>
                 </span>
               </>
@@ -326,8 +326,8 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
               <div key={iso} data-testid={`tl-cabecalho-${iso}`} className="sticky top-0 z-20 border-b border-l border-muted/30 bg-background px-1 pb-1.5 pt-1.5 text-center">
                 {modo === "semana" ? (
                   <button type="button" onClick={() => onAbrirDia(d)} aria-label={`Abrir o dia ${format(d, "d 'de' MMMM", { locale: ptBR })}`}
-                    className={`tl-dia-moldura mx-auto ${ehHoje ? "tl-dia-moldura--hoje" : ""}`}>{conteudo}</button>
-                ) : <div className={`tl-dia-moldura mx-auto ${ehHoje ? "tl-dia-moldura--hoje" : ""}`}>{conteudo}</div>}
+                    className={`tl-dia-moldura ${ehHoje ? "tl-dia-moldura--hoje" : ""}`}>{conteudo}</button>
+                ) : <div className={`tl-dia-moldura ${ehHoje ? "tl-dia-moldura--hoje" : ""}`}>{conteudo}</div>}
                 {diaTodo.length > 0 && (
                   <ul className="mt-1 space-y-0.5 text-left" aria-label="Compromissos de dia inteiro">
                     {diaTodo.map((e) => (

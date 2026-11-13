@@ -993,7 +993,7 @@ apresentacao muda, o motor nunca.
 4. Nuvenzinha sem titulo (nao repete o botao), 2 colunas, endereco na linha inteira embaixo; ~2 s.
 
 ### Padrao 44 - Grade da Agenda: folhinha de dia, compromisso em up bevel, cantos limpos
-1. Cabecalho do dia = folhinha: faixa azul-marinho clara com o MES em cima (letras creme), corpo creme com numero grande e dia da semana por extenso; hoje = moldura e corpo dourados.
+1. Cabecalho do dia = folhinha retangular de quinas quase retas (3px), sem aparencia de botao: faixa azul-marinho clara e alta com o MES, corpo creme com numero e dia da semana por extenso; HOJE = moldura dourada dupla em relevo, nunca circulo escuro.
 2. Compromisso = tom pastel da cor da agenda + moldura fina da MESMA cor + relevo para fora (luz no topo, assentamento embaixo). Faixa lateral ("giz") proibida. Google = mesma moldura + hachura fina.
 3. "Agora" e o som moram no canto superior esquerdo da grade (coluna das horas), sem linha propria; a faixa de cima so existe quando ha proximo atendimento.
 4. Barra de agendas: sem contador "N de N" e sem indicador de ocultas; botao apagado ja mostra o que esta desligado; "Mostrar todas" fica no painel do +.
