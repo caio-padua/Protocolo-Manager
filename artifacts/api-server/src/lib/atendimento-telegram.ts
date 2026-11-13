@@ -36,9 +36,9 @@ export const TEXTO_ENCAMINHADO =
  */
 export const TEXTOS_QUEIXA_PARA_REVISAO = {
   emergencia:
-    "Sua mensagem pode indicar uma situação urgente. Procure agora o pronto-socorro mais próximo ou ligue 192 (SAMU). Não espere a resposta da clínica. Já avisei a equipe.",
+    "Sua mensagem pode indicar uma situação urgente. Procure agora o pronto-socorro mais próximo ou ligue 192 (SAMU). Não espere a resposta da clínica. Sua mensagem fica registrada para a equipe.",
   queixa:
-    "Sinto muito que você não esteja bem. Já avisei a equipe, que vai ver sua mensagem com prioridade. Se piorar ou surgir falta de ar, dor no peito, desmaio ou inchaço no rosto, procure o pronto-socorro ou ligue 192 (SAMU).",
+    "Sinto muito que você não esteja bem. Sua mensagem fica registrada para a equipe. Se piorar ou surgir falta de ar, dor no peito, desmaio ou inchaço no rosto, procure o pronto-socorro ou ligue 192 (SAMU).",
 } as const;
 
 // ─────────────────────────── texto ───────────────────────────
@@ -101,7 +101,7 @@ export function escolhaDeterministica(c: Candidata[]): OrientacaoAprovada | null
 
 export type Desfecho =
   | "desligado" | "fora_da_lista" | "pausado_humano" | "ja_tratado"
-  | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado" | "falha_envio";
+  | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado" | "falha_envio" | "falha_alerta";
 
 export interface DepsAtendimento {
   lerConfig: () => Promise<ConfigAtendimentoIA>;
@@ -114,7 +114,7 @@ export interface DepsAtendimento {
   enviarAoPaciente: (chatId: string, texto: string) => Promise<boolean>;
   registrarSaida: (p: { empresaId: number; clienteId: number; chatId: string; texto: string }) => Promise<void>;
   passarParaHumano: (clienteId: number, motivo: string) => Promise<void>;
-  alertarEquipe: (texto: string) => Promise<void>;
+  alertarEquipe: (texto: string) => Promise<boolean>;
   registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null) => Promise<void>;
 }
 
@@ -147,9 +147,10 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
   const queixa = classificarQueixa(e.texto);
   if (queixa) {
     await deps.passarParaHumano(e.clienteId, queixa === "emergencia" ? "possivel_emergencia" : "queixa_clinica");
-    await deps.alertarEquipe(
-      `${queixa === "emergencia" ? "URGENTE — possível emergência" : "PRIORIDADE — queixa clínica"}: ${e.clienteNome} escreveu no Telegram. Atendimento automático pausado; abra a conversa no Cockpit.`,
+    const alertou = await deps.alertarEquipe(
+      `${queixa === "emergencia" ? "URGENTE" : "PRIORIDADE"} — atendimento #${e.inboxMessageId}, cliente #${e.clienteId}. Abra a conversa no Cockpit protegido.`,
     );
+    if (!alertou) return fechar("falha_alerta");
     if (cfg.queixaRevisada) {
       const ok = await deps.enviarAoPaciente(e.chatId, TEXTOS_QUEIXA_PARA_REVISAO[queixa]);
       if (ok) {
@@ -186,8 +187,31 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
 
   // Sem orientação aprovada que sirva: encaminha para pessoa (nada inventado) e pausa a IA nesta conversa.
   await deps.passarParaHumano(e.clienteId, "sem_orientacao_aprovada");
-  await deps.alertarEquipe(`Dúvida sem orientação aprovada: ${e.clienteNome} escreveu no Telegram. Atendimento automático pausado; abra a conversa no Cockpit.`);
+  if (!await deps.alertarEquipe(`Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`)) return fechar("falha_alerta");
   const ok = await deps.enviarAoPaciente(e.chatId, TEXTO_ENCAMINHADO);
   if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: TEXTO_ENCAMINHADO });
   return fechar(ok ? "encaminhado_humano" : "falha_envio");
+}
+
+export interface PlanoAtendimento {
+  pausa: string | null;
+  alerta: string | null;
+  resposta: string | null;
+  orientacaoId: number | null;
+  desfecho: Desfecho;
+}
+
+/** Usa a MESMA decisão sem executar efeitos. O worker persiste este plano antes da rede. */
+export async function planejarAtendimento(deps: DepsAtendimento, e: EntradaAtendimento): Promise<PlanoAtendimento> {
+  const plano: PlanoAtendimento = { pausa: null, alerta: null, resposta: null, orientacaoId: null, desfecho: "desligado" };
+  plano.desfecho = await processarAtendimento({
+    ...deps,
+    reivindicar: async () => true,
+    passarParaHumano: async (_cid, motivo) => { plano.pausa = motivo; },
+    alertarEquipe: async texto => { plano.alerta = texto; return true; },
+    enviarAoPaciente: async (_chat, texto) => { plano.resposta = texto; return true; },
+    registrarSaida: async () => {},
+    registrarDesfecho: async (_id, _d, orientacaoId) => { plano.orientacaoId = orientacaoId; },
+  }, e);
+  return plano;
 }

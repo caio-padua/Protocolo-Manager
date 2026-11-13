@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const retomada=vi.hoisted(()=>vi.fn(async()=>({incertosNovos:0,examinados:0,aceitos:0,falhas:0})));
+vi.mock("../lib/telegram-repasse-worker",()=>({processarRepassesPendentes:retomada}));
 
 import {
   categorizarErroDeWorker,
@@ -65,7 +67,7 @@ describe("perfil restrito do api-worker", () => {
     expect(summary).toContain("token=[redacted]");
   });
 
-  it("registra somente um cron do outbox e impede duplicação ou perfil misto", () => {
+  it("registra somente um cron, não ativa atendimento e impede duplicação ou perfil misto", async () => {
     startWorkerJobs(logger, "telegram-relay-dev", scheduler);
     startWorkerJobs(logger, "telegram-relay-dev", scheduler);
 
@@ -79,5 +81,7 @@ describe("perfil restrito do api-worker", () => {
       "não pode iniciar também full"
     );
     expect(schedule).toHaveBeenCalledTimes(1);
+    await schedule.mock.calls[0][1]();
+    expect(retomada).toHaveBeenCalledWith({atendimento:false});
   });
 });

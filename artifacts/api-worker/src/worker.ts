@@ -67,7 +67,7 @@ export function resumoErroSeguro(err: unknown): string {
     .slice(0, 160);
 }
 
-function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler): void {
+function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler, atendimento = false): void {
   let repasseRodando = false;
   let primeiroTickConcluido = false;
   scheduler.schedule(
@@ -79,7 +79,7 @@ function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler
         const { processarRepassesPendentes } = await import(
           "../../api-server/src/lib/telegram-repasse-worker.js" as string
         );
-        const resultado = await processarRepassesPendentes();
+        const resultado = await processarRepassesPendentes({ atendimento });
         if (
           !primeiroTickConcluido ||
           resultado.incertosNovos > 0 ||
@@ -211,7 +211,7 @@ export function startWorkerJobs(
 
   // ─── Job 3b: Retomada dos repasses do Telegram ao chat de alerta — a cada minuto ───
   // Reenvia o que ficou pendente/falhou (com espera crescente). "incerto" NUNCA é reenviado sozinho.
-  iniciarJobRepasseTelegram(logger, cron);
+  iniciarJobRepasseTelegram(logger, cron, true);
 
   // ─── Job 4: Drive Watcher — a cada 5 minutos ────────────────────────────
   let driveRunning = false;

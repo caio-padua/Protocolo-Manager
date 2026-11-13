@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../lib/atendimento-telegram-store",()=>({processarAtendimentosPendentes:mocks.atendimento}));
 import type { DepsOutbox, LinhaRepasse } from "../lib/telegram-repasse-outbox";
 
 const mocks = vi.hoisted(() => ({
-  resolver: vi.fn(), enviar: vi.fn(), processar: vi.fn(),
+  resolver: vi.fn(), enviar: vi.fn(), processar: vi.fn(), atendimento:vi.fn(async()=>{}),
 }));
 vi.mock("@workspace/db", () => ({ db: {} }));
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
@@ -37,6 +38,10 @@ describe("destino gravado x configuração atual do repasse", () => {
     expect(await tentativa()).toEqual({ kind: "entregue" });
     expect(mocks.enviar).toHaveBeenCalledTimes(1);
     expect(mocks.enviar.mock.calls[0][0]).toBe("22222");
+    expect(mocks.atendimento).not.toHaveBeenCalled();
+  });
+  it("atendimento só é consumido quando o perfil completo solicita explicitamente",async()=>{
+    await processarRepassesPendentes({atendimento:true});expect(mocks.atendimento).toHaveBeenCalledTimes(1);
   });
 
   it.each(["33333", null])("destino alterado ou removido bloqueia e não redireciona", async (chatId) => {

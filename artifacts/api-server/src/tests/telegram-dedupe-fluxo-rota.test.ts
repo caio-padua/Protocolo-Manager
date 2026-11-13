@@ -149,7 +149,8 @@ describe("POST /webhooks/telegram — dedupe de ponta a ponta (rota real, banco 
     const ins = mockExecute.mock.calls.map((c) => c[0]).find(isInsert)!;
     expect(ins.values).toContain(555);
     await flush();
-    expect(mockSend).toHaveBeenCalledWith("CEO_OUTRO_CHAT", expect.stringContaining("mensagem de teste"));
+    expect(mockSend).toHaveBeenCalledWith("CEO_OUTRO_CHAT", expect.stringContaining("Cliente interno:</b> #42"));
+    expect(mockSend.mock.calls[0][1]).not.toContain("mensagem de teste");
   });
   it("R2 reentrega duplicada (repasse já fechado): 200, SEM repasse ao CEO e SEM alerta Slack", async () => {
     configOutboxFake.reivindica = false;

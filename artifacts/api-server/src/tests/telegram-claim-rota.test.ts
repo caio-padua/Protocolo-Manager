@@ -185,6 +185,24 @@ describe("chave por identidade do bot", () => {
 });
 
 describe("falhas, concorrência e reinício", () => {
+  it("registro durável do atendimento falha: inbox permanece e reentrega duplicada recupera antes do aceite",async()=>{
+    estado.vinculado=[{id:7,name:"Nome Sintético",empresaId:5}];
+    let falha=true;
+    mockExecute.mockImplementation(async(q)=>{
+      const texto=sqlTexto(q);
+      if(texto.includes("INSERT INTO telegram_atendimento_respostas")&&falha) throw Object.assign(new Error("banco sintético indisponível"),{code:"ECONNREFUSED"});
+      if(texto.includes("INSERT INTO telegram_inbox_messages")) return {rows:falha?[{id:77}]:[]};
+      if(texto.includes("SELECT id FROM telegram_inbox_messages")) return {rows:[{id:77}]};
+      return {rows:[]};
+    });
+    expect((await enviar(msg(299,"ENTRADA SINTÉTICA"))).status).toBe(500);
+    expect(claimStore.has("111222333:299")).toBe(false);
+    expect(escritas("INSERT INTO telegram_inbox_messages")).toHaveLength(1);
+    falha=false;
+    expect((await enviar(msg(299,"ENTRADA SINTÉTICA"))).status).toBe(200);
+    expect(escritas("INSERT INTO telegram_atendimento_respostas")).toHaveLength(2);
+    expect(claimStore.get("111222333:299")).toBe("concluido");
+  });
   it("X1 falha técnica passageira: 500, reivindicação LIBERADA, reentrega processa de verdade", async () => {
     estado.falhaSelect = { code: "ECONNREFUSED" };
     expect((await enviar(msg(300, "oi"))).status).toBe(500);

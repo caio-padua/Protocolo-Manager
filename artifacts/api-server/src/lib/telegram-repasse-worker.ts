@@ -46,8 +46,12 @@ export async function tentarRepasseAgora(repasseId: number): Promise<void> {
   }
 }
 
-export async function processarRepassesPendentes() {
+export async function processarRepassesPendentes(opcoes: { atendimento?: boolean } = {}) {
   const r = await processarRepassesVencidos(db, deps);
+  if (opcoes.atendimento === true) {
+    const { processarAtendimentosPendentes } = await import("./atendimento-telegram-store");
+    await processarAtendimentosPendentes();
+  }
   if (r.incertosNovos > 0) logger.warn({ incertos: r.incertosNovos }, "[telegram] repasses marcados incertos (processo caiu durante envio); conferência humana necessária");
   if (r.examinados > 0) logger.info({ examinados: r.examinados, aceitos: r.aceitos, falhas: r.falhas }, "[telegram] retomada de repasses concluída");
   return r;

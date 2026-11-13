@@ -25,7 +25,7 @@ function deps(over: Partial<DepsAtendimento> & { cfg?: ConfigAtendimentoIA; modo
     enviarAoPaciente: vi.fn(async () => true),
     registrarSaida: vi.fn(async () => {}),
     passarParaHumano: vi.fn(async () => {}),
-    alertarEquipe: vi.fn(async () => {}),
+    alertarEquipe: vi.fn(async () => true),
     registrarDesfecho: vi.fn(async () => {}),
     ...over,
   };
@@ -120,6 +120,13 @@ describe("fluxo de atendimento", () => {
 });
 
 describe("queixa clínica (Etapa 8)", () => {
+  it("alerta sem aceite não promete encaminhamento nem envia texto ao cliente",async()=>{
+    const {d}=deps({cfg:{...CFG,queixaRevisada:true},alertarEquipe:vi.fn(async()=>false)});
+    expect(await processarAtendimento(d,E("estou com falta de ar"))).toBe("falha_alerta");
+    expect(d.enviarAoPaciente).not.toHaveBeenCalled();
+    expect(d.registrarDesfecho).toHaveBeenCalledWith(expect.any(Number),"falha_alerta",null);
+    for(const texto of Object.values(TEXTOS_QUEIXA_PARA_REVISAO)) expect(texto).not.toContain("Já avisei");
+  });
   it("queixa NUNCA recebe orientação nem IA, mesmo que case com uma orientação; vai para pessoa com prioridade", async () => {
     const escolherComIA = vi.fn(async () => 1);
     const { d } = deps({ escolherComIA });

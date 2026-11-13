@@ -91,6 +91,20 @@ describe("cadastro e aprovação", () => {
 });
 
 describe("assumir e devolver atendimento", () => {
+  it("entregas pendentes exigem autenticação e isolam inbox/cliente pela clínica",async()=>{
+    await pool.query(`INSERT INTO telegram_inbox_messages(id,empresa_id,cliente_id,chat_id,texto,direcao) VALUES
+      (100,5,10,'TESTE5','SINTÉTICA','entrada'),(101,7,20,'TESTE7','SINTÉTICA','entrada'),
+      (102,5,20,'TESTE-MALFORMADO','SINTÉTICA','entrada');
+      INSERT INTO telegram_atendimento_respostas(inbox_message_id,estado,ultimo_erro) VALUES
+      (100,'incerto','resultado_desconhecido'),(101,'esgotado','telegram_http_403'),(102,'falhou','destino_ausente')`);
+    const path="/duvidas-orientacoes/atendimento/estado";
+    expect((await request(app).get(path)).status).toBe(401);
+    expect((await request(app).get(path).set("Authorization",VERSAO_VELHA)).status).toBe(401);
+    const r5=await request(app).get(path).set("Authorization",MEDICO5);
+    expect(r5.status).toBe(200);expect(r5.body.pendencias.map((p:any)=>p.mensagemId)).toEqual([100]);
+    const r7=await request(app).get(path).set("Authorization",MEDICO7);
+    expect(r7.body.pendencias.map((p:any)=>p.mensagemId)).toEqual([101]);
+  });
   it("clínica 5 não mexe em paciente da clínica 7", async () => {
     expect((await request(app).post("/duvidas-orientacoes/atendimento/20/assumir").set("Authorization", MEDICO5)).status).toBe(404);
     expect((await request(app).post("/duvidas-orientacoes/atendimento/20/devolver-ia").set("Authorization", MEDICO5)).status).toBe(404);

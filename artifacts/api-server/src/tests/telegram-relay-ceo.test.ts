@@ -36,17 +36,18 @@ describe("repassarMensagemAoCeo", () => {
   });
   it("excecao no envio: falhou, nao propaga", async () => {
     const { d } = deps(vi.fn().mockRejectedValue(new Error("rede caiu")));
-    expect(await repassarMensagemAoCeo(base, d)).toEqual({ kind: "falhou", erro: "rede caiu" });
+    expect(await repassarMensagemAoCeo(base, d)).toEqual({ kind: "falhou", erro: "falha_de_rede_ou_excecao" });
   });
   it("envio sem resultado (undefined) e falha, nao sucesso", async () => {
     const { d } = deps(vi.fn().mockResolvedValue(undefined));
     expect(await repassarMensagemAoCeo(base, d)).toEqual({ kind: "falhou", erro: "sem_resultado" });
   });
-  it("texto com < & > e escapado (senao o Telegram recusa em HTML)", async () => {
+  it("alerta não transcreve texto livre; escape auxiliar segue correto", async () => {
     const enviar = vi.fn().mockResolvedValue({ sent: true, mock: false });
     const { d } = deps(enviar);
     await repassarMensagemAoCeo({ ...base, texto: "a<b & c>d" }, d);
-    expect(enviar.mock.calls[0][1]).toContain("a&lt;b &amp; c&gt;d");
+    expect(enviar.mock.calls[0][1]).not.toContain("a&lt;b");
+    expect(enviar.mock.calls[0][1]).toContain("Cliente interno:</b> #7");
     expect(escaparHtmlTelegram("<x>")).toBe("&lt;x&gt;");
   });
   it("log nunca contem o texto da mensagem", async () => {
@@ -73,7 +74,18 @@ describe("repassarMensagemAoCeo", () => {
     }
     expect(alerta).not.toMatch(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/);
     expect(alerta).not.toContain("<b>CPF:</b>");
-    expect(alerta).toContain("Teste não clínico");
+    expect(alerta).not.toContain("Teste não clínico");
     expect(texto).toContain("12345678900"); // original preservado
+  });
+  it.each(["retorno","excecao"])("CPF e token sintéticos no erro do transporte nunca saem pelo %s",async(tipo)=>{
+    const bruto="123.456.789-00 exemplo@teste.invalid TOKEN_SINTETICO";
+    const enviar=tipo==="retorno"?vi.fn().mockResolvedValue({sent:false,mock:false,error:`telegram_http_403 ${bruto}`}):
+      vi.fn().mockRejectedValue(new Error(bruto));
+    const {d,log}=deps(enviar);const r=await repassarMensagemAoCeo({...base,texto:bruto},d);
+    for(const trecho of [bruto,"123.456.789-00","TOKEN_SINTETICO"]){
+      expect(JSON.stringify(r)).not.toContain(trecho);
+      expect(JSON.stringify([log.info.mock.calls,log.warn.mock.calls])).not.toContain(trecho);
+      expect(enviar.mock.calls[0][1]).not.toContain(trecho);
+    }
   });
 });

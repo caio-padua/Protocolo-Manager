@@ -11,9 +11,10 @@ import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
 import { requireAiTenant } from "./ai-central";
 import {
-  processarAtendimento, normalizar,
+  planejarAtendimento, normalizar,
   type ConfigAtendimentoIA, type DepsAtendimento, type Desfecho, type EntradaAtendimento, type Candidata,
 } from "./atendimento-telegram";
+import { migrarRecuperacaoAtendimento, registrarAtendimentoDuravel, processarAtendimentosDuraveis } from "./atendimento-telegram-recuperacao";
 
 export interface ExecutorAtendimento {
   execute: (q: SQL) => Promise<{ rows: unknown[] }>;
@@ -51,6 +52,7 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       fechado_em       TIMESTAMPTZ
     )`);
+  await migrarRecuperacaoAtendimento(exec);
 }
 
 /** Profissional assumiu: pausa as respostas automáticas deste cliente. */
@@ -135,22 +137,53 @@ export function depsReaisAtendimento(empresaId: number): DepsAtendimento {
     passarParaHumano: (clienteId, motivo) => pausarParaHumano(db, clienteId, motivo, null),
     alertarEquipe: async (texto) => {
       const chat = await chatAlertaOuNull();
-      if (chat) await sendTelegram(chat, texto);
+      if (!chat) return false;
+      const r = await sendTelegram(chat, texto);
+      return r.sent && !r.mock;
     },
     registrarDesfecho: async (id, d, orientacaoId) => {
-      await db.execute(sql`UPDATE telegram_atendimento_respostas SET desfecho=${d}, orientacao_id=${orientacaoId}, fechado_em=NOW() WHERE inbox_message_id=${id}`);
+      await db.execute(sql`UPDATE telegram_atendimento_respostas SET desfecho=${d}, orientacao_id=${orientacaoId}, fechado_em=NOW(), estado='concluido' WHERE inbox_message_id=${id}`);
     },
   };
 }
 
-/** Chamado pelo webhook DEPOIS de salvar a mensagem; nunca lança e nunca atrasa a resposta ao Telegram. */
-export async function atenderMensagemTelegram(e: EntradaAtendimento): Promise<Desfecho | null> {
-  try {
-    return await processarAtendimento(depsReaisAtendimento(e.empresaId), e);
-  } catch (err) {
-    logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err, clienteId: e.clienteId }, "[atendimento-ia] falha ao atender mensagem (a mensagem segue salva para a equipe)");
-    return null;
-  }
+/** Somente registro durável; falha lança para o webhook solicitar reentrega. Não envia. */
+export async function atenderMensagemTelegram(e: EntradaAtendimento): Promise<void> {
+  const cfg = await lerConfigAtendimento();
+  await registrarAtendimentoDuravel(db,e.inboxMessageId,
+    cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId)));
+}
+
+/** Executado no mesmo tick do outbox, sem cron adicional. */
+export async function processarAtendimentosPendentes(): Promise<void> {
+  await processarAtendimentosDuraveis(db,{
+    permitido: async e=>{
+      const cfg=await lerConfigAtendimento();
+      return cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId));
+    },
+    planejar: e=>planejarAtendimento(depsReaisAtendimento(e.empresaId),e),
+    pausar: async (e,motivo)=>{
+      await db.execute(sql`INSERT INTO telegram_atendimento (cliente_id,modo,motivo)
+        SELECT id,'humano',${motivo} FROM clients WHERE id=${e.clienteId} AND empresa_id=${e.empresaId}
+        ON CONFLICT (cliente_id) DO UPDATE
+        SET modo='humano',motivo=${motivo},alterado_em=NOW(),alterado_por=NULL
+        WHERE telegram_atendimento.modo='ia'`);
+    },
+    chatAlerta: chatAlertaOuNull,
+    autorizarResposta: async (e,plano)=>{
+      const modo=await db.execute(sql`SELECT modo,motivo,alterado_por FROM telegram_atendimento WHERE cliente_id=${e.clienteId}`);
+      const atual=modo.rows[0] as {modo:string;motivo:string;alterado_por:number|null}|undefined;
+      if(atual?.modo==="humano" && (!plano.pausa || atual.motivo!==plano.pausa || atual.alterado_por!==null)) return false;
+      if(plano.orientacaoId){
+        const r=await db.execute(sql`SELECT id FROM orientacoes_aprovadas WHERE id=${plano.orientacaoId}
+          AND empresa_id=${e.empresaId} AND status='aprovada' AND resposta=${plano.resposta}`);
+        if(!r.rows.length) return false;
+      }
+      const cfg=await lerConfigAtendimento();
+      return !plano.pausa || plano.desfecho!=="queixa_texto_enviado" || cfg.queixaRevisada;
+    },
+    enviar: sendTelegram,
+  });
 }
 
 export { normalizar };

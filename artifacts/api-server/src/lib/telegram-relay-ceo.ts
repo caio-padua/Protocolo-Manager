@@ -78,9 +78,9 @@ export async function repassarMensagemAoCeo(
   const repasse =
     aviso +
     `💬 <b>Mensagem via Telegram</b>\n\n` +
-    `"${escaparHtmlTelegram(ocultarIdentificadoresAlerta(e.texto))}"\n\n` +
+    `<b>Cliente interno:</b> #${Number.isSafeInteger(e.clienteId) && e.clienteId > 0 && e.clienteId <= 2_147_483_647 ? e.clienteId : "indisponível"}\n\n` +
     `──────────────────\n` +
-    `Consulte a conversa no Cockpit.`;
+    `Consulte a conversa no Cockpit protegido. O alerta não contém a transcrição.`;
 
   let r: Awaited<ReturnType<RepasseCeoDeps["enviar"]>>;
   try {
@@ -88,7 +88,7 @@ export async function repassarMensagemAoCeo(
   } catch (err) {
     const erro = err instanceof Error ? err.message : String(err);
     deps.log.warn({ erro: erroSeguroParaLog(erro) }, "[telegram] repasse ao CEO: exceção ao enviar");
-    return { kind: "falhou", erro };
+    return { kind: "falhou", erro: erroSeguroParaLog(erro) };
   }
 
   if (!r) {
@@ -104,5 +104,5 @@ export async function repassarMensagemAoCeo(
     return { kind: "simulado" };
   }
   deps.log.warn({ erro: erroSeguroParaLog(r.error ?? "desconhecido") }, "[telegram] repasse ao CEO RECUSADO pelo Telegram");
-  return { kind: "falhou", erro: r.error ?? "desconhecido" };
+  return { kind: "falhou", erro: erroSeguroParaLog(r.error ?? "desconhecido") };
 }

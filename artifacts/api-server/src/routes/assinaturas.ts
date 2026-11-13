@@ -662,10 +662,9 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
           }
           if (repasseId !== null) void tentarRepasseAgora(repasseId);
         }
-        // Atendimento por IA (desligado por padrão; ver lib/atendimento-telegram.ts). Só mensagem NOVA e salva;
-        // roda depois do repasse e nunca atrasa nem derruba a resposta ao Telegram.
-        if (resultado?.kind === "gravado" && resultado.mensagemId > 0 && cliente.empresaId > 0) {
-          void atenderMensagemTelegram({
+        // Registro durável ANTES do aceite, inclusive na reentrega; nenhum envio aqui.
+        if ((resultado?.kind === "gravado" || resultado?.kind === "duplicado") && resultado.mensagemId > 0 && cliente.empresaId > 0) {
+          await atenderMensagemTelegram({
             inboxMessageId: resultado.mensagemId, empresaId: cliente.empresaId, clienteId: cliente.id,
             clienteNome: cliente.name, chatId, texto,
           });

@@ -7,16 +7,18 @@ import { join } from "node:path";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 
-const h = vi.hoisted(() => ({ db: null as any, enviados: [] as { chat: string; texto: string }[], settings: {} as Record<string, string> }));
+const h = vi.hoisted(() => ({ db: null as any, enviados: [] as { chat: string; texto: string }[], settings: {} as Record<string, string>,
+  noEnvio:null as null|((chat:string)=>Promise<void>) }));
 vi.mock("@workspace/db", () => ({ db: { execute: (...a: unknown[]) => h.db.execute(...a) } }));
 vi.mock("@workspace/integrations-anthropic-ai", () => ({ anthropic: {} }));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("../lib/secure-settings", () => ({ getSetting: async (k: string) => h.settings[k] ?? null }));
-vi.mock("../lib/telegram", () => ({ sendTelegram: async (chat: string, texto: string) => { h.enviados.push({ chat, texto }); return { sent: true, mock: false }; } }));
+vi.mock("../lib/telegram", () => ({ sendTelegram: async (chat: string, texto: string) => { h.enviados.push({ chat, texto }); await h.noEnvio?.(chat); return { sent: true, mock: false }; } }));
 vi.mock("../lib/telegram-config", () => ({ chatAlertaOuNull: async () => "ALERTA" }));
 vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => ({ headers: {} }) }));
 
-import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento } from "../lib/atendimento-telegram-store";
+import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
+  atenderMensagemTelegram,processarAtendimentosPendentes } from "../lib/atendimento-telegram-store";
 import { processarAtendimento } from "../lib/atendimento-telegram";
 
 const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k8yrwp-postgresql-16.10/bin";
@@ -31,7 +33,9 @@ beforeAll(async () => {
   for (let i = 0; i < 60; i++) { if (existsSync(join(dir, ".s.PGSQL.5432"))) break; await new Promise((r) => setTimeout(r, 250)); }
   pool = new pg.Pool({ host: dir, user: "teste", database: "postgres", max: 30 });
   for (let i = 0; i < 80; i++) { try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
-  await pool.query(`CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0, cliente_id INTEGER NOT NULL,
+  await pool.query(`CREATE TABLE clients(id integer primary key,empresa_id integer,telegram_chat_id text);
+    INSERT INTO clients VALUES(1,5,'C1'),(2,5,'C2'),(3,7,'C3');
+    CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0, cliente_id INTEGER NOT NULL,
     chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT)`);
   h.db = drizzle(pool);
   await aplicarMigracaoAtendimento(h.db);
@@ -94,5 +98,47 @@ describe("SQL real", () => {
     h.settings = { "atendimento.ia.modo": "lista", "atendimento.ia.permitidos": "{x" };
     expect((await lerConfigAtendimento()).modo).toBe("desligado");
     h.settings = { "atendimento.ia.modo": "ligado" };
+  });
+});
+
+describe("consumidor real do atendimento com banco descartável e somente transporte simulado",()=>{
+  const entrada=async(id:number,texto:string,cid=1,empresaId=5)=>{
+    h.settings={"atendimento.ia.modo":"ligado"};h.enviados.length=0;h.noEnvio=null;
+    await devolverParaIA(h.db,cid,null);
+    await pool.query(`INSERT INTO telegram_inbox_messages(id,empresa_id,cliente_id,chat_id,texto,direcao)
+      VALUES($1,$2,$3,$4,$5,'entrada')`,[id,empresaId,cid,`C${cid}`,texto]);
+    const e={...base,inboxMessageId:id,texto,clienteId:cid,empresaId,chatId:`C${cid}`};
+    await atenderMensagemTelegram(e);return e;
+  };
+  it("enfileira sem enviar; mesmo consumidor existente planeja, aprova e registra uma resposta",async()=>{
+    await entrada(201,"quantas horas de jejum para o exame de sangue?");
+    expect(h.enviados).toHaveLength(0);
+    await processarAtendimentosPendentes();await processarAtendimentosPendentes();
+    expect(h.enviados).toEqual([{chat:"C1",texto:"APROVADA: jejum de 8 horas."}]);
+    const r=await pool.query("SELECT estado,orientacao_id FROM telegram_atendimento_respostas WHERE inbox_message_id=201");
+    expect(r.rows[0]).toEqual({estado:"concluido",orientacao_id:"1"});
+  });
+  it("profissional assume após o alerta: não é sobrescrito e não há resposta automática",async()=>{
+    await entrada(202,"dúvida sem orientação correspondente");
+    h.noEnvio=async chat=>{if(chat==="ALERTA")await pausarParaHumano(h.db,1,"profissional_assumiu",6);};
+    await processarAtendimentosPendentes();h.noEnvio=null;
+    expect(h.enviados.map(e=>e.chat)).toEqual(["ALERTA"]);
+    expect((await pool.query("SELECT ultimo_erro FROM telegram_atendimento_respostas WHERE inbox_message_id=202")).rows[0].ultimo_erro).toBe("resposta_nao_autorizada");
+    expect((await pool.query("SELECT alterado_por FROM telegram_atendimento WHERE cliente_id=1")).rows[0].alterado_por).toBe(6);
+  });
+  it("aprovação retirada depois do plano impede o envio do texto antigo",async()=>{
+    await entrada(203,"quantas horas de jejum para o exame de sangue?");
+    const plano={pausa:null,alerta:null,resposta:"APROVADA: jejum de 8 horas.",orientacaoId:1,desfecho:"orientacao_enviada"};
+    await pool.query("UPDATE telegram_atendimento_respostas SET plano=$1 WHERE inbox_message_id=203",[plano]);
+    await pool.query("UPDATE orientacoes_aprovadas SET status='rascunho' WHERE id=1");
+    await processarAtendimentosPendentes();expect(h.enviados).toHaveLength(0);
+    expect((await pool.query("SELECT ultimo_erro FROM telegram_atendimento_respostas WHERE inbox_message_id=203")).rows[0].ultimo_erro).toBe("resposta_nao_autorizada");
+    await pool.query("UPDATE orientacoes_aprovadas SET status='aprovada' WHERE id=1");
+  });
+  it("origem de clínica diferente não pausa nem envia",async()=>{
+    await entrada(204,"dúvida sintética",3,5);
+    await processarAtendimentosPendentes();expect(h.enviados).toHaveLength(0);
+    expect((await pool.query("SELECT ultimo_erro FROM telegram_atendimento_respostas WHERE inbox_message_id=204")).rows[0].ultimo_erro).toBe("vinculo_origem_alterado");
+    expect((await pool.query("SELECT modo FROM telegram_atendimento WHERE cliente_id=3")).rows[0].modo).toBe("ia");
   });
 });

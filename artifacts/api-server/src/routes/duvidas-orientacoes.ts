@@ -116,7 +116,13 @@ router.get("/duvidas-orientacoes/atendimento/estado", async (req, res): Promise<
   const r = await db.execute(sql`SELECT a.cliente_id AS "clienteId", c.name AS nome, a.motivo, a.alterado_em AS "alteradoEm"
     FROM telegram_atendimento a JOIN clients c ON c.id = a.cliente_id
     WHERE a.modo='humano' AND c.empresa_id=${q.empresaId} ORDER BY a.alterado_em DESC LIMIT 200`);
-  res.json({ modoIA: cfg.modo, queixaRevisada: cfg.queixaRevisada, emAtendimentoHumano: r.rows });
+  const pendencias=await db.execute(sql`SELECT m.id AS "mensagemId",m.cliente_id AS "clienteId",
+    a.estado,a.ultimo_erro AS erro,a.etapas,a.atualizado_em AS "atualizadoEm"
+    FROM telegram_atendimento_respostas a JOIN telegram_inbox_messages m ON m.id=a.inbox_message_id
+    JOIN clients c ON c.id=m.cliente_id AND c.empresa_id=m.empresa_id
+    WHERE m.empresa_id=${q.empresaId} AND a.estado IN ('pendente','processando','falhou','esgotado','incerto')
+    ORDER BY a.atualizado_em DESC LIMIT 200`);
+  res.json({ modoIA: cfg.modo, queixaRevisada: cfg.queixaRevisada, emAtendimentoHumano: r.rows, pendencias:pendencias.rows });
 });
 
 async function clienteDaEmpresa(clienteId: number, empresaId: number): Promise<boolean> {

@@ -43,6 +43,8 @@ type EstadoAtendimento = {
   modoIA: "desligado" | "lista" | "ligado";
   queixaRevisada: boolean;
   emAtendimentoHumano: Atendimento[];
+  pendencias?: {mensagemId:number;clienteId:number;estado:string;erro:string|null;
+    etapas:Record<string,{estado:string}>;atualizadoEm:string}[];
 };
 type ListaResponse = { orientacoes: Orientacao[]; podeAprovar: boolean };
 type FormValues = { tema: string; perguntasExemplo: string; resposta: string };
@@ -143,6 +145,11 @@ export default function DuvidasOrientacoes() {
     void loadOrientations();
     void loadAttendance();
   }, [loadOrientations, loadAttendance]);
+
+  useEffect(() => {
+    const timer=window.setInterval(()=>{ if(document.visibilityState==="visible") void loadAttendance(); },30_000);
+    return ()=>window.clearInterval(timer);
+  },[loadAttendance]);
 
   const filteredOrientations = useMemo(() => {
     if (!orientacoes) return [];
@@ -340,6 +347,23 @@ export default function DuvidasOrientacoes() {
             </div>
           </div>
         ) : null}
+      </section>
+
+      <section className="panel-3d space-y-4 p-4 sm:p-5" aria-label="Pendências de entrega do atendimento">
+        <BlockTitle icon={Headset}>Entregas do atendimento</BlockTitle>
+        <p className="text-sm text-muted-foreground">Resultado incerto exige conferência humana e nunca é reenviado automaticamente.</p>
+        {estadoLoading ? <p>Consultando entregas…</p> : estadoError ?
+          <p role="alert">Entregas indisponíveis. Atualize o estado antes de concluir.</p> :
+          estado?.pendencias ? (estado.pendencias.length ? estado.pendencias.map(p=>(
+            <div key={p.mensagemId} className="concave-3d grid gap-3 p-3 sm:grid-cols-2" data-testid={`delivery-${p.mensagemId}`}>
+              <p>Mensagem #{p.mensagemId} · Cliente #{p.clienteId}</p>
+              <p>{({pendente:"Aguardando processamento",processando:"Em processamento",falhou:"Falhou; aguarda recuperação limitada",
+                esgotado:"Não enviado; exige conferência",incerto:"Resultado incerto; sem reenvio automático"} as Record<string,string>)[p.estado]??"Estado não reconhecido"}</p>
+              <p>Alerta: {p.etapas.alerta?.estado??"Não iniciado"} · Resposta: {p.etapas.resposta?.estado??"Não iniciada"}</p>
+              <p>Motivo técnico: {p.erro??"—"} · {dateLabel(p.atualizadoEm)}</p>
+            </div>
+          )) : <p>Nenhuma pendência de entrega registrada.</p>) :
+          <p>Estado de entregas indisponível nesta versão do servidor.</p>}
       </section>
 
       <section className="panel-3d p-4 sm:p-5" aria-label="Conversas em atendimento humano">
