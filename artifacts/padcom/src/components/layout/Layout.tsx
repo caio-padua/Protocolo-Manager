@@ -437,6 +437,13 @@ export function Layout({ children }: LayoutProps) {
     }
   });
 
+  // Ao trocar de tela pelo menu, volta ao topo (janela e area interna)
+  const conteudoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+    conteudoRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [location]);
+
   useEffect(() => {
     try {
       localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0");
@@ -903,7 +910,7 @@ export function Layout({ children }: LayoutProps) {
         {/* A marca PAXTER vive no canto superior ESQUERDO (topo do menu lateral)
             dentro do sistema. O canto superior DIREITO e reservado so para os
             PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
-        <div className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>{children}</div>
+        <div ref={conteudoRef} className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>{children}</div>
       </main>
 
       {sidebarOpen && (
