@@ -15,7 +15,7 @@
 .ag-comandos { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
 /* a fita ocupa a largura toda da barra e encosta no teto; o respiro abaixo dela vem desta margem */
 .ag-fita { margin: 0 -1rem 0.25rem; }
-@media (min-width: 768px) { .ag-fita { margin: 0 -2rem 0.25rem; } }
+@media (min-width: 768px) { .fita-tela.ag-fita { display: none; } }
 
 .ag-grupo { display: flex; align-items: center; gap: 0.25rem; }
 .ag-nav { gap: 0.25rem; }
