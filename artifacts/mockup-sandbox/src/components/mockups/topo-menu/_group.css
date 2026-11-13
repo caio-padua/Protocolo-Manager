@@ -1,0 +1,64 @@
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;700;800&family=Inter:wght@500;600;700;800&display=swap");
+
+/* Bancada de modelos da parte superior das telas (Agenda Diária como exemplo). Cores = marca Paxter (azul-marinho, ouro, creme). */
+.tm-root {
+  --navy: #14294a; --navy-2: #1b3558; --navy-3: #35527f; --gold: #c9a24a; --cream: #f7f3e8;
+  display: grid; grid-template-columns: 188px 1fr; min-height: 100vh; width: 100%;
+  font-family: Inter, system-ui, sans-serif; color: var(--navy); background: var(--cream);
+}
+.tm-side { background: linear-gradient(180deg, #11284a 0%, #0b1b33 100%); padding: 14px 10px; color: #c9d4e6; font-size: 12px; box-shadow: inset -1px 0 0 rgba(255,255,255,.06); }
+.tm-side-sec { margin: 14px 6px 6px; font-size: 9px; font-weight: 800; letter-spacing: .16em; color: #7f93b3; text-transform: uppercase; }
+.tm-side-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 4px; margin-bottom: 2px; }
+.tm-side-item.on { color: #fff; font-weight: 700; background: linear-gradient(180deg, #2a4670, #1d3659); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.5), 0 0 0 1px rgba(201,162,74,.55); }
+.tm-main { padding: 22px 18px 14px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+
+/* botões claros (os mesmos do app: creme com relevo) */
+.tm-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 4px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--navy);
+  background: linear-gradient(180deg, #fff 0%, #efe6cf 100%); border: 1px solid #d9c9a0; box-shadow: inset 0 1px 0 #fff, inset 0 -2px 3px rgba(138,109,47,.15), 0 2px 3px -1px rgba(20,41,74,.25); }
+.tm-btn.sq { width: 34px; padding: 0; }
+.tm-btn.navy { color: #fff; background: linear-gradient(180deg, #243f68, #12284a); border-color: #0b1b33; }
+.tm-periodo { height: 34px; min-width: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; line-height: 1.05; background: linear-gradient(180deg, #fff, #efe6cf); border: 1px solid #d9c9a0; box-shadow: inset 0 1px 0 #fff, 0 2px 3px -1px rgba(20,41,74,.25); }
+.tm-periodo b { font-family: "EB Garamond", serif; font-size: 12px; font-weight: 800; letter-spacing: .05em; }
+.tm-periodo i { font-style: normal; font-size: 7px; font-weight: 800; letter-spacing: .16em; opacity: .55; }
+.tm-grupo { display: flex; gap: 3px; padding: 2px; border-radius: 5px; background: #e9e0c9; box-shadow: inset 0 2px 3px rgba(20,41,74,.2); }
+.tm-grupo .tm-btn { height: 28px; }
+.tm-grupo .tm-btn.off { background: transparent; border-color: transparent; box-shadow: none; color: #6b7c97; }
+.tm-comandos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tm-comandos .grow { flex: 1; }
+
+/* faixa de agendas */
+.tm-chips { display: flex; gap: 8px; }
+.tm-chip { flex: 1; min-width: 0; padding: 6px 9px 7px; border-radius: 5px; background: linear-gradient(180deg, #fff, #f1e9d3); border: 1px solid #d9c9a0; box-shadow: inset 0 1px 0 #fff, 0 2px 3px -1px rgba(20,41,74,.25); }
+.tm-chip b { display: block; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tm-chip span { display: block; font-size: 8px; font-weight: 700; opacity: .6; text-transform: uppercase; letter-spacing: .06em; }
+.tm-chip u { display: block; height: 5px; margin-top: 5px; border-radius: 3px; text-decoration: none; background: var(--c); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -1px 1px rgba(0,0,0,.25); }
+
+/* grade (só o contexto) */
+.tm-grade { flex: 1; border-radius: 6px; padding: 8px 8px 0; background: linear-gradient(180deg, #fbf8ef, #f6f1e2); border: 1px solid #e0d4b3; display: grid; grid-template-columns: 34px repeat(5, 1fr); gap: 0 8px; align-content: start; overflow: hidden; }
+.tm-leaf { border: 1px solid #3a557f; border-radius: 3px; overflow: hidden; text-align: center; background: linear-gradient(180deg, #fff, #f1ead8); }
+.tm-leaf i { display: block; font-style: normal; font-size: 7px; font-weight: 900; letter-spacing: .22em; color: #f4ead2; padding: 2px 0; background: linear-gradient(180deg, #4d6ea1, #35527f); }
+.tm-leaf b { display: block; font-family: "EB Garamond", serif; font-size: 17px; font-weight: 800; line-height: 1.1; }
+.tm-leaf small { display: block; font-size: 6.5px; font-weight: 700; opacity: .6; padding-bottom: 3px; }
+.tm-hoje { border-color: var(--gold); background: linear-gradient(180deg, #fffdf4, #f3e6bb); box-shadow: 0 0 0 2px #fffaf0, 0 0 0 3px #c9a24a; }
+.tm-hora { grid-column: 1; font-size: 8px; font-weight: 700; opacity: .5; text-align: right; padding-top: 14px; }
+.tm-linha { grid-column: 2 / -1; border-top: 1px solid rgba(20,41,74,.12); height: 20px; }
+
+/* tecido terno: risca de giz sobre azul-marinho */
+.tm-giz {
+  background-image: repeating-linear-gradient(90deg, transparent 0 11px, rgba(190,215,255,.2) 11px 12px, transparent 12px 15px, rgba(190,215,255,.09) 15px 15.5px, transparent 15.5px 24px), linear-gradient(180deg, #1b3558, #12284a);
+}
+/* moldura em relevo (up bevel) em volta de um miolo afundado */
+.tm-moldura { padding: 3px; border-radius: 4px; background: linear-gradient(160deg, #5a7bad, #34527f 40%, #223c64);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 1px 0 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(4,12,26,.7), inset -1px 0 0 rgba(4,12,26,.45), 0 3px 6px -3px rgba(7,22,43,.55); }
+.tm-moldura > .tm-miolo { border-radius: 2px; box-shadow: inset 0 2px 5px rgba(0,0,0,.55), inset 0 0 0 1px rgba(4,12,26,.6); }
+
+/* letras soltas de vidro em alto-relevo. Base escura: creme. Base clara: azul-marinho. */
+.tm-vidro { display: inline-flex; gap: .5em; font-family: "EB Garamond", Georgia, serif; font-weight: 800; line-height: 1.1; }
+.tm-vidro .p { display: inline-flex; gap: .15em; }
+.tm-vidro .l { position: relative; display: inline-block; color: #f1e8d0; -webkit-text-stroke: .3px rgba(255,255,255,.75);
+  text-shadow: 0 -1px 0 rgba(255,255,255,.55), 0 1px 0 #b9a77a, 0 2px 0 #7f6f48, 0 3px 3px rgba(0,0,0,.6); }
+.tm-vidro .l::before { content: attr(data-l); position: absolute; inset: 0; color: transparent; -webkit-text-stroke: 0; text-shadow: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.95) 0%, rgba(255,255,255,.5) 46%, rgba(255,255,255,0) 52%, rgba(190,215,255,.35) 100%); -webkit-background-clip: text; background-clip: text; }
+.tm-vidro.claro .l { color: #1f3a63; -webkit-text-stroke: .3px rgba(255,255,255,.6);
+  text-shadow: 0 -1px 0 rgba(255,255,255,.95), 0 1px 0 #8aa0c4, 0 2px 0 #4a6590, 0 3px 3px rgba(20,41,74,.35); }
+.tm-vidro.claro .l::before { background: linear-gradient(180deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.25) 46%, rgba(255,255,255,0) 52%, rgba(120,150,200,.3) 100%); -webkit-background-clip: text; background-clip: text; }

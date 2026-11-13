@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { CalendarRange, ChevronLeft, ChevronRight, Clock, Download, LayoutGrid, Loader2, Plus, RefreshCw, Rows3, Sun } from "lucide-react";
 import type { VisaoAgenda } from "./timeline-logica";
-import { FaixaTela } from "@/components/layout/faixa-tela/FaixaTela";
 import "./agenda-barra.css";
 
 export type ModoAgenda = "dia" | "semana" | "mes";
@@ -36,7 +35,8 @@ export function BarraAgenda({
 }) {
   return (
     <div className="ag-congelada" data-testid="agenda-barra-congelada">
-      <FaixaTela titulo="Agenda Diária" className="ag-comandos">
+      <div className="ag-comandos">
+        <h1 className="ag-titulo">Agenda</h1>
 
         <div className="ag-grupo ag-nav" role="group" aria-label="Navegar no período">
           <button type="button" onClick={aoAnterior} className="ag-seta btn-3d-soft" aria-label={ANTERIOR[modo]} title={ANTERIOR[modo]} data-testid="agenda-anterior">
@@ -91,7 +91,7 @@ export function BarraAgenda({
             <Plus className="h-3.5 w-3.5" aria-hidden /><span className="max-sm:sr-only">Novo agendamento</span>
           </button>
         </div>
-      </FaixaTela>
+      </div>
       {filtro}
     </div>
   );

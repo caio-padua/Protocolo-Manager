@@ -997,9 +997,3 @@ apresentacao muda, o motor nunca.
 2. Compromisso = tom pastel da cor da agenda + moldura fina da MESMA cor + relevo para fora (luz no topo, assentamento embaixo). Faixa lateral ("giz") proibida. Google = mesma moldura + hachura fina.
 3. "Agora" e o som moram no canto superior esquerdo da grade (coluna das horas), sem linha propria; a faixa de cima so existe quando ha proximo atendimento.
 4. Barra de agendas: sem contador "N de N" e sem indicador de ocultas; botao apagado ja mostra o que esta desligado; "Mostrar todas" fica no painel do +.
-
-### Padrao 45 - Faixa superior padrao das telas (componente FaixaTela)
-1. Toda tela tem UMA faixa superior igual: base de tecido terno azul-marinho com risca de giz, AFUNDADA dentro de uma moldura fina em relevo (up bevel). A faixa e o painel; nao e botao (sem clique, sem efeito ao passar o mouse).
-2. O nome da tela vai numa etiqueta discreta no canto superior direito, a cavaleiro da borda de cima: nao ocupa linha nem espaco do conteudo.
-3. Letras do nome = adesivos de vidro soltos, em alto-relevo, creme com reflexo na metade de cima (mesma ideia do simbolo Paxter). Cada letra tem a propria sombra de extrusao.
-4. Uso: componente components/layout/faixa-tela/FaixaTela.tsx (titulo + botoes como filhos). Agenda = "Agenda Diaria". Nao recriar a faixa em CSS solto.
