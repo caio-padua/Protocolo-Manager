@@ -16,3 +16,4 @@ A tela /agenda tem um bloco sticky (comandos + faixa de agendas contínua com +/
 - Ocupacao "N/M" = vagas ocupadas / vagas das janelas (agenda_windows) no periodo, calculada no servidor (GET /agenda/ocupacao, funcao pura); nao usa o motor de slots (cadeia/Google).
 - Se o preview cair ("ERR_CONNECTION_REFUSED" no e2e), reiniciar os workflows padcom e api-server antes de culpar o codigo.
 - Ocupacao no botao da agenda: porcentagem (Percentual/Numeral) + sigla OCUP no canto direito; cor da agenda so no rodape de vidro acetinado (CEO reprovou faixa lateral e retirou a barra OCUPADO n/m).
+- Ao reescrever CSS por fatia (index..index) conferir se nao ha regras irmas no meio: uma troca apagou .ag-vidro e .ag-ocup sem aviso; apos editar, grep das classes criticas. Vidro aprovado = 0.72rem de altura, nao mudar.

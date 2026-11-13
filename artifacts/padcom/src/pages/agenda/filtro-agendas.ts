@@ -22,6 +22,26 @@ export function rotuloDaEquipe(categoria: string): string {
   return EQUIPES[chave] ?? `Agenda ${categoria.trim().toLowerCase()}`;
 }
 
+const UNIDADES = ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"];
+const DEZENAS = ["", "", "vinte", "trinta", "quarenta", "cinquenta", "sessenta", "setenta", "oitenta", "noventa"];
+const CENTENAS = ["", "cento", "duzentos", "trezentos", "quatrocentos", "quinhentos", "seiscentos", "setecentos", "oitocentos", "novecentos"];
+/** Número inteiro (0 a 999, masculino) por extenso; acima disso devolve os algarismos. */
+export function numeroPorExtenso(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > 999) return String(n);
+  if (n < 20) return UNIDADES[n];
+  if (n === 100) return "cem";
+  const c = Math.floor(n / 100); const resto = n % 100;
+  const dez = resto < 20 ? UNIDADES[resto] : `${DEZENAS[Math.floor(resto / 10)]}${resto % 10 ? ` e ${UNIDADES[resto % 10]}` : ""}`;
+  if (c === 0) return dez;
+  return resto === 0 ? CENTENAS[c] : `${CENTENAS[c]} e ${dez}`;
+}
+/** "Cinco agendamentos", "Um agendamento", "Nenhum agendamento". */
+export function agendamentosPorExtenso(n: number, substantivo: [string, string] = ["agendamento", "agendamentos"]): string {
+  if (n === 0) return `Nenhum ${substantivo[0]}`;
+  const texto = `${numeroPorExtenso(n)} ${n === 1 ? substantivo[0] : substantivo[1]}`;
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 export const chaveDaAgenda = (id: number) => `r${id}`;
 export const chaveDaSessao = (s: { resourceId?: number | null }) => (s.resourceId ? chaveDaAgenda(s.resourceId) : CHAVE_SESSAO_SEM_AGENDA);
 export const chaveDoCompromisso = (e: { agendaId: number; agendaRecursoId?: number | null }) =>
@@ -31,6 +51,8 @@ export const chaveDoCalendario = (a: { id: number; agendaRecursoId?: number | nu
 
 export interface AgendaDoFiltro {
   chave: string; nome: string; cor: string; forma: string | null; categoria: string;
+  /** Profissional titular da agenda; nulo em agenda compartilhada ou só do Google. */
+  profissional: string | null;
   /** Atendimentos do sistema no período. */
   sessoes: number;
   /** Compromissos do Google no período (somente leitura). */
@@ -41,7 +63,7 @@ export interface AgendaDoFiltro {
 export interface GrupoDoFiltro { categoria: string; agendas: AgendaDoFiltro[]; }
 
 export interface EntradaCatalogo {
-  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; active?: boolean }[];
+  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; active?: boolean }[];
   sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
   calendarios: { id: number; agendaRecursoId?: number | null; nome: string; cor: string }[];
   compromissos: { agendaId: number; agendaRecursoId?: number | null }[];
@@ -54,7 +76,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
     if (a.active === false) continue;
     mapa.set(chaveDaAgenda(a.id), {
       chave: chaveDaAgenda(a.id), nome: a.name, cor: a.color || "#64748b", forma: a.modality ?? null,
-      categoria: a.categoryName?.trim() || SEM_CATEGORIA, sessoes: 0, google: 0, somenteGoogle: false,
+      categoria: a.categoryName?.trim() || SEM_CATEGORIA, profissional: a.professionalName?.trim() || null, sessoes: 0, google: 0, somenteGoogle: false,
     });
   }
   for (const s of entrada.sessoes) {
@@ -62,7 +84,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
     let item = mapa.get(chave);
     if (!item) {
       // Sessão de agenda que o catálogo não trouxe (ou sem agenda ligada): aparece, nunca some em silêncio.
-      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, sessoes: 0, google: 0, somenteGoogle: false };
+      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, profissional: null, sessoes: 0, google: 0, somenteGoogle: false };
       mapa.set(chave, item);
     }
     item.sessoes += 1;
@@ -70,7 +92,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
   for (const c of entrada.calendarios) {
     const chave = chaveDoCalendario(c);
     if (!mapa.has(chave)) {
-      mapa.set(chave, { chave, nome: c.nome, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, sessoes: 0, google: 0, somenteGoogle: true });
+      mapa.set(chave, { chave, nome: c.nome, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, profissional: null, sessoes: 0, google: 0, somenteGoogle: true });
     }
   }
   for (const e of entrada.compromissos) {

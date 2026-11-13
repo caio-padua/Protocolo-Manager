@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  alternarAgenda, alternarGrupo, CATEGORIA_SO_GOOGLE, chaveDoCompromisso, montarGrupos, ocultarTodas, quantasOcultas,
+  agendamentosPorExtenso, alternarAgenda, alternarGrupo, CATEGORIA_SO_GOOGLE, numeroPorExtenso, chaveDoCompromisso, montarGrupos, ocultarTodas, quantasOcultas,
   soEstaAgenda, todasAsChaves,
 } from "./filtro-agendas";
 
@@ -64,5 +64,23 @@ describe("filtros", () => {
   it("ocultar todas e contar ignora chaves desconhecidas", () => {
     expect(quantasOcultas(ocultarTodas(todas), todas)).toBe(5);
     expect(quantasOcultas(new Set(["x1"]), todas)).toBe(0);
+  });
+});
+
+describe("por extenso", () => {
+  it("escreve números em português", () => {
+    expect(numeroPorExtenso(0)).toBe("zero");
+    expect(numeroPorExtenso(5)).toBe("cinco");
+    expect(numeroPorExtenso(21)).toBe("vinte e um");
+    expect(numeroPorExtenso(100)).toBe("cem");
+    expect(numeroPorExtenso(115)).toBe("cento e quinze");
+    expect(numeroPorExtenso(342)).toBe("trezentos e quarenta e dois");
+    expect(numeroPorExtenso(1200)).toBe("1200");
+  });
+  it("concorda o plural e trata zero", () => {
+    expect(agendamentosPorExtenso(0)).toBe("Nenhum agendamento");
+    expect(agendamentosPorExtenso(1)).toBe("Um agendamento");
+    expect(agendamentosPorExtenso(5)).toBe("Cinco agendamentos");
+    expect(agendamentosPorExtenso(3, ["compromisso do Google", "compromissos do Google"])).toBe("Três compromissos do Google");
   });
 });

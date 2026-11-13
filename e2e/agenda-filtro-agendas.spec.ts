@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) => ({ status, contentType: "applicati
 const HOJE = "2026-11-12";
 
 const agenda = (id: number, name: string, modality: string, categoryName: string, color: string) => ({
-  id, name, kind: "x", modality, color, slotMinutes: 30, active: true, sortOrder: id, categoryName, canManage: true, locationId: null, professionalId: null,
+  id, name, kind: "x", modality, color, slotMinutes: 30, active: true, sortOrder: id, categoryName, canManage: true, locationId: null, professionalId: null, professionalName: id === 22 ? "Dr. Caio Padua" : null,
 });
 const RECURSOS = [
   agenda(22, "MEDICO - SEDE", "local", "Medicina", "#1d4f8f"),
@@ -227,4 +227,25 @@ test("barra de comandos fica congelada ao rolar e passar o mouse num atendimento
   await page.evaluate(() => { document.querySelectorAll("div").forEach((d) => { if (getComputedStyle(d).overflowY === "auto") d.scrollTop = 400; }); });
   const topo = (await barra.boundingBox())!;
   expect(topo.y).toBeLessThanOrEqual(2);
+});
+
+test("passar o mouse numa agenda abre a nuvenzinha ao lado com nome, quantidade por extenso e profissional, sem cobrir a grade", async ({ page }) => {
+  await base(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/agenda");
+  const filtro = page.getByTestId("filtro-agendas");
+  await filtro.getByTestId("chip-agenda-r22").hover();
+  const dica = page.getByTestId("dica-agenda-r22");
+  await expect(dica).toBeVisible({ timeout: 1500 });
+  await expect(dica).toContainText("MEDICO - SEDE");
+  await expect(page.getByTestId("dica-qtd-r22")).toHaveText("Um agendamento");
+  await expect(dica).toContainText("Dr. Caio Padua");
+  await expect(dica).toContainText("Um compromisso do Google");
+  const caixa = (await dica.boundingBox())!;
+  await page.screenshot({ path: "generated-artifacts/agenda-dica-agenda.png", clip: { x: 182, y: 0, width: 1258, height: 220 } });
+  const grade = (await page.getByTestId("linha-do-tempo").boundingBox())!;
+  expect(caixa.y + caixa.height).toBeLessThanOrEqual(grade.y + 4); // não cobre a grade
+  await filtro.getByTestId("chip-agenda-r29").hover();
+  await expect(page.getByTestId("dica-qtd-r29")).toHaveText("Nenhum agendamento");
+  await expect(page.getByTestId("dica-agenda-r29")).toContainText("Agenda compartilhada");
 });

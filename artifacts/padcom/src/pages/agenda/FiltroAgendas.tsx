@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Eye, EyeOff, Lock, Minus, Plus } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff, Lock, Minus, Plus, UserRound } from "lucide-react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useGetAgendaOcupacao, useListAgendaResources } from "@workspace/api-client-react";
 import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
 import { rotuloDaForma } from "@/lib/agenda-forma";
@@ -7,7 +8,7 @@ import { useGoogleCompromissos } from "./useGoogleCompromissos";
 import { Percentual } from "@/components/numeral/Numeral";
 import { corSegura } from "./timeline-logica";
 import {
-  alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
+  agendamentosPorExtenso, alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
   type AgendaDoFiltro,
 } from "./filtro-agendas";
 
@@ -35,7 +36,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
 
   const grupos = useMemo(() => montarGrupos({
     agendas: (recursos.data ?? []).map((r) => ({
-      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, active: r.active,
+      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, active: r.active,
     })),
     sessoes,
     calendarios: google.data?.agendas ?? [],
@@ -70,19 +71,37 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                   const o = ocupacaoPorChave.get(a.chave);
                   return (
                     <div key={a.chave} className="ag-cel" style={{ ["--ev" as string]: corSegura(a.cor) }}>
-                      <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
-                        onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
-                        onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
-                        title={`${rotuloDaEquipe(g.categoria)} · ${a.nome} · ${detalhe}\nClique para mostrar ou esconder. Dois cliques: só esta agenda.`}
-                        className={`${marcada ? "bevel-3d" : "concave-3d"} ag-chip`}>
-                        <span className="ag-chip-equipe">{rotuloDaEquipe(g.categoria)}</span>
-                        <span className="ag-chip-nome">
-                          {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
-                          {a.nome}
-                        </span>
-                        <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
-                        <span className="ag-vidro" aria-hidden />
-                      </button>
+                      <HoverCard openDelay={70} closeDelay={30}>
+                        <HoverCardTrigger asChild>
+                          <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
+                            onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
+                            onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
+                            className={`${marcada ? "bevel-3d" : "concave-3d"} ag-chip`}>
+                            <span className="ag-chip-equipe">{rotuloDaEquipe(g.categoria)}</span>
+                            <span className="ag-chip-nome">
+                              {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
+                              <span className="ag-chip-nome-txt">{a.nome}</span>
+                            </span>
+                            <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
+                            <span className="ag-vidro" aria-hidden />
+                          </button>
+                        </HoverCardTrigger>
+                        {/* Nuvenzinha ao lado, opaca e sem capturar o mouse: nunca cobre nem atrapalha a grade da agenda. */}
+                        <HoverCardContent side="right" align="start" alignOffset={-16} sideOffset={6} collisionPadding={12} avoidCollisions
+                          className="ag-dica panel-3d" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
+                          <p className="ag-dica-nome">{a.nome}</p>
+                          <p className="ag-dica-qtd" data-testid={`dica-qtd-${a.chave}`}>
+                            {a.somenteGoogle ? agendamentosPorExtenso(a.google, ["compromisso do Google", "compromissos do Google"]) : agendamentosPorExtenso(a.sessoes)}
+                          </p>
+                          {!a.somenteGoogle && a.google > 0 && (
+                            <p className="ag-dica-extra">{agendamentosPorExtenso(a.google, ["compromisso do Google", "compromissos do Google"])}</p>
+                          )}
+                          <p className="ag-dica-prof">
+                            <UserRound className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                            <span>{a.somenteGoogle ? "Calendário somente leitura" : a.profissional ?? "Agenda compartilhada"}</span>
+                          </p>
+                        </HoverCardContent>
+                      </HoverCard>
                     </div>
                   );
                 })}
@@ -194,7 +213,7 @@ function OcupacaoDaAgenda({ o, carregando, falhou, somenteGoogle, chave }: {
     ok: `${o?.ocupadas} de ${o?.capacidade} vagas ocupadas no período exibido`,
   }[estado];
   return (
-    <span className="ag-ocup" data-testid={`ocupacao-${chave}`} data-estado={estado} data-cheia={estado === "cheia" ? "sim" : "nao"} title={dica}>
+    <span className="ag-ocup" data-testid={`ocupacao-${chave}`} data-estado={estado} data-cheia={estado === "cheia" ? "sim" : "nao"} aria-label={dica}>
       {estado === "ok" || estado === "cheia" ? <Percentual valor={pct} casas={0} peso={700} className="ag-ocup-pct" /> : <span className="ag-ocup-pct" aria-label={dica}>{estado === "carregando" ? "…" : "—"}</span>}
       <span className="ag-ocup-sigla" aria-hidden>Ocup</span>
     </span>
