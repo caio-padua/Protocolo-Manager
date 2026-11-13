@@ -195,3 +195,27 @@
 .cc-shell:not(.dark) .cc-summary-data span { color: #8a6d2f; }
 .cc-shell:not(.dark) .cc-empty-identity { color: #16294a; }
 .cc-shell:not(.dark) .cc-empty-identity span { color: #5b6a82; }
+
+/* ── Ajustes da faixa superior ─────────────────────────────────────────────────────────────── */
+/* Titulo repetido saiu (o nome esta na aba do topo). No computador, o seletor claro/escuro sobe para a linha da aba. */
+.cc-heading { justify-content: flex-end; margin-bottom: 8px; }
+@media (min-width: 768px) {
+  .cc-header { position: relative; padding-top: 4px; }
+  .cc-heading { position: absolute; top: -40px; right: clamp(12px, 2.4vw, 32px); margin: 0; max-width: none; z-index: 5; }
+}
+/* Barra de abas: sem a barra de rolagem cinza (as setas ja rolam), e setas em alto-relevo */
+.cc-rail-list { scrollbar-width: none; -ms-overflow-style: none; }
+.cc-rail-list::-webkit-scrollbar { display: none; }
+/* Botoes da faixa em ALTO-RELEVO (up bevel) no tema claro */
+.cc-shell:not(.dark) .cc-context-button,
+.cc-shell:not(.dark) .cc-action,
+.cc-shell:not(.dark) .cc-rail-arrow,
+.cc-shell:not(.dark) .cc-rail-item {
+  background: linear-gradient(180deg,#ffffff 0%,#fbf5e6 55%,#eadfc4 100%);
+  box-shadow: inset 0 2px 0 #fff, inset 0 -3px 0 rgba(150,120,60,.28), 0 3px 0 rgba(130,100,45,.55), 0 7px 10px -3px rgba(60,40,10,.35);
+}
+.cc-shell:not(.dark) .cc-context-button:active:not(:disabled),
+.cc-shell:not(.dark) .cc-action:active:not(:disabled),
+.cc-shell:not(.dark) .cc-rail-item:active { transform: translateY(2px); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(130,100,45,.55); }
+.cc-shell:not(.dark) .cc-rail-item[data-active="true"],
+.cc-shell:not(.dark) .cc-context-button[data-active="true"] { box-shadow: inset 0 2px 0 rgba(255,255,255,.25), inset 0 -3px 0 rgba(0,0,0,.35), 0 3px 0 #060f1f, 0 7px 10px -3px rgba(6,15,31,.5); }

@@ -154,7 +154,7 @@ function FlagshipDrCaio({ theme, name, onClick }: { theme: "dark" | "light"; nam
     <button onClick={onClick} className="w-full text-left group">
       <div
         className="relative rounded-xl overflow-hidden p-5 transition-transform duration-300 group-hover:-translate-y-0.5"
-        style={{ background: t.cardBg, border: `1px solid ${t.border}`, boxShadow: t.shadow }}
+        style={{ background: t.cardBg, border: "1px solid transparent", boxShadow: t.shadow }}
       >
         {/* Faixa dourada (topo do cartão) */}
         <div className="absolute top-0 left-0 right-0" style={{ height: 3, background: t.goldBand }} />
