@@ -85,6 +85,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
+import { AbaTitulo } from "./AbaTitulo";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
 interface LayoutProps {
@@ -496,6 +497,19 @@ export function Layout({ children }: LayoutProps) {
       setProfileActionBusy(false);
     }
   }
+
+  // Nome do menu ativo (maior href que casa com a rota) para a aba do topo
+  const tituloAba = (() => {
+    let melhor: { name: string; len: number } | null = null;
+    for (const e of navFiltrada) {
+      for (const l of isGroup(e) ? e.children : [e]) {
+        if (l.external) continue;
+        const casa = location === l.href || (l.href !== "/" && location.startsWith(`${l.href}/`));
+        if (casa && (!melhor || l.href.length > melhor.len)) melhor = { name: l.name, len: l.href.length };
+      }
+    }
+    return melhor ? melhor.name : null;
+  })();
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -910,6 +924,7 @@ export function Layout({ children }: LayoutProps) {
         {/* A marca PAXTER vive no canto superior ESQUERDO (topo do menu lateral)
             dentro do sistema. O canto superior DIREITO e reservado so para os
             PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
+        <AbaTitulo titulo={tituloAba} />
         <div ref={conteudoRef} className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>{children}</div>
       </main>
 
