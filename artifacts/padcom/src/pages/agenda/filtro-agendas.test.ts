@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  agendamentosPorExtenso, alternarAgenda, alternarGrupo, CATEGORIA_SO_GOOGLE, numeroPorExtenso, chaveDoCompromisso, montarGrupos, ocultarTodas, quantasOcultas,
+  agendamentosPorExtenso, alternarAgenda, alternarGrupo, CATEGORIA_SO_GOOGLE, nomeCurtoDaAgenda, numeroPorExtenso, rotuloDaEquipe, chaveDoCompromisso, montarGrupos, ocultarTodas, quantasOcultas,
   soEstaAgenda, todasAsChaves,
 } from "./filtro-agendas";
 
@@ -82,5 +82,20 @@ describe("por extenso", () => {
     expect(agendamentosPorExtenso(1)).toBe("Um agendamento");
     expect(agendamentosPorExtenso(5)).toBe("Cinco agendamentos");
     expect(agendamentosPorExtenso(3, ["compromisso do Google", "compromissos do Google"])).toBe("Três compromissos do Google");
+  });
+});
+
+describe("botão da agenda: categoria e nome curto", () => {
+  it("linha de cima = só a categoria profissional", () => {
+    expect(rotuloDaEquipe("Medicina")).toBe("Médico");
+    expect(rotuloDaEquipe("Enfermagem")).toBe("Enfermeira");
+    expect(rotuloDaEquipe("Biomedicina")).toBe("Biomédico");
+    expect(rotuloDaEquipe("Nutrição")).toBe("Nutrição");
+  });
+  it("linha de baixo não repete a categoria, mas nunca inventa nome", () => {
+    expect(nomeCurtoDaAgenda("MEDICO - CAIO - SEDE", "Medicina")).toBe("CAIO - SEDE");
+    expect(nomeCurtoDaAgenda("ENFERMAGEM - HOME CARE", "Enfermagem")).toBe("HOME CARE");
+    expect(nomeCurtoDaAgenda("AGENDA GERAL", "Só no Google (somente leitura)")).toBe("AGENDA GERAL");
+    expect(nomeCurtoDaAgenda("SEDE - ONLINE", "Medicina")).toBe("SEDE - ONLINE");
   });
 });

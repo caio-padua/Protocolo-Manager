@@ -9,17 +9,28 @@ export const SEM_CATEGORIA = "Sem categoria";
 export const CATEGORIA_SO_GOOGLE = "Só no Google (somente leitura)";
 export const CHAVE_SESSAO_SEM_AGENDA = "r-sem";
 
-/** Linha de cima do botão da agenda: a equipe da agenda, no jeito que a clínica fala ("Agenda médico"). Só apresentação. */
-const EQUIPES: Record<string, string> = {
-  medicina: "Agenda médico", medico: "Agenda médico", medicos: "Agenda médico",
-  enfermagem: "Agenda enfermagem",
-  biomedicina: "Agenda biomédico", biomedico: "Agenda biomédico", biomedicos: "Agenda biomédico",
+/** Linha de cima do botão da agenda: só a categoria profissional, vinda do campo "categoria" da agenda ("Médico", "Enfermeira"). Só apresentação. */
+const PROFISSAO: Record<string, string> = {
+  medicina: "Médico", medico: "Médico", medicos: "Médico",
+  enfermagem: "Enfermeira", enfermeira: "Enfermeira", enfermeiro: "Enfermeira",
+  biomedicina: "Biomédico", biomedico: "Biomédico", biomedicos: "Biomédico",
 };
+const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 export function rotuloDaEquipe(categoria: string): string {
   if (categoria === CATEGORIA_SO_GOOGLE) return "Só no Google";
-  if (categoria === SEM_CATEGORIA) return "Agenda";
-  const chave = categoria.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  return EQUIPES[chave] ?? `Agenda ${categoria.trim().toLowerCase()}`;
+  if (categoria === SEM_CATEGORIA) return "Sem categoria";
+  return PROFISSAO[semAcento(categoria)] ?? categoria.trim();
+}
+/**
+ * Linha de baixo do botão: o nome da agenda sem repetir a categoria que já está em cima
+ * ("MEDICO - CAIO - SEDE" em Medicina vira "CAIO - SEDE"). Só no botão: a nuvenzinha e os painéis mostram o nome inteiro.
+ */
+export function nomeCurtoDaAgenda(nome: string, categoria: string): string {
+  const partes = nome.split(/\s+-\s+/);
+  if (partes.length < 2) return nome;
+  const a = semAcento(partes[0]); const c = semAcento(categoria);
+  const mesmaCategoria = a.length >= 5 && c.length >= 5 && (c.startsWith(a.slice(0, 5)) || a.startsWith(c.slice(0, 5)));
+  return mesmaCategoria ? partes.slice(1).join(" - ") : nome;
 }
 
 const UNIDADES = ["zero", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove"];

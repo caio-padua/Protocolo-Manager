@@ -8,7 +8,7 @@ import { useGoogleCompromissos } from "./useGoogleCompromissos";
 import { Percentual } from "@/components/numeral/Numeral";
 import { corSegura } from "./timeline-logica";
 import {
-  agendamentosPorExtenso, alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
+  agendamentosPorExtenso, alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, nomeCurtoDaAgenda, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
   type AgendaDoFiltro,
 } from "./filtro-agendas";
 
@@ -80,14 +80,14 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                             <span className="ag-chip-equipe">{rotuloDaEquipe(g.categoria)}</span>
                             <span className="ag-chip-nome">
                               {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
-                              <span className="ag-chip-nome-txt">{a.nome}</span>
+                              <span className="ag-chip-nome-txt">{nomeCurtoDaAgenda(a.nome, g.categoria)}</span>
                             </span>
                             <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
                             <span className="ag-vidro" aria-hidden />
                           </button>
                         </HoverCardTrigger>
                         {/* Nuvenzinha ao lado, opaca e sem capturar o mouse: nunca cobre nem atrapalha a grade da agenda. */}
-                        <HoverCardContent side="right" align="start" alignOffset={-16} sideOffset={6} collisionPadding={12} avoidCollisions
+                        <HoverCardContent side="right" align="start" alignOffset={-22} sideOffset={6} collisionPadding={12} avoidCollisions
                           className="ag-dica panel-3d" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
                           <p className="ag-dica-nome">{a.nome}</p>
                           <p className="ag-dica-qtd" data-testid={`dica-qtd-${a.chave}`}>

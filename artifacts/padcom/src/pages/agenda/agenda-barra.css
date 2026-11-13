@@ -63,19 +63,20 @@
    Rodapé: barrinha delgada de VIDRO ACETINADO na cor da agenda (a cor mora aqui, nunca na lateral). */
 .ag-chip {
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto; column-gap: 0.4rem;
-  align-content: center; width: 100%; height: 4.1rem; padding: 0.3rem 0.55rem 0.35rem 0.65rem; text-align: left; color: inherit; cursor: pointer;
+  align-content: center; width: 100%; height: 3.5rem; padding: 0.3rem 0.55rem 0.35rem 0.65rem; text-align: left; color: inherit; cursor: pointer;
   transition: opacity 0.15s ease;
 }
 .ag-chip:hover { filter: brightness(1.03); }
 .ag-chip:focus-visible { outline: 2px solid var(--ev); outline-offset: 2px; z-index: 1; }
 .ag-chip[aria-checked="false"] { opacity: 0.6; }
 .ag-chip[aria-checked="false"]:hover { opacity: 0.9; }
-/* Linha de cima (equipe): maior e em negrito. Linha de baixo (agenda): nítida e com o máximo do título (até 2 linhas). */
-.ag-chip-equipe { grid-column: 1; grid-row: 1; font-size: 0.66rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.88; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-chip-nome { grid-column: 1; grid-row: 2; align-self: center; display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
+/* Linha de cima: SÓ a categoria profissional (Médico, Enfermeira), maior e em negrito.
+   Linha de baixo: nome da agenda sem repetir a categoria, MENOR, em uma linha (o nome inteiro está na nuvenzinha). */
+.ag-chip-equipe { grid-column: 1; grid-row: 1; font-size: 0.82rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-chip-nome { grid-column: 1; grid-row: 2; align-self: center; display: flex; align-items: center; gap: 0.3rem; min-width: 0; margin-top: 0.08rem; }
 .ag-chip-nome-txt {
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
-  font-size: 0.68rem; font-weight: 700; line-height: 1.12; letter-spacing: 0; text-transform: uppercase; opacity: 1;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.58rem; font-weight: 600; line-height: 1.15; letter-spacing: 0.02em; text-transform: uppercase; opacity: 0.82;
   -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision;
 }
 /* Porcentagem: EB Garamond pelo molde Numeral (fonte principal do Paxter), sigla discreta embaixo */

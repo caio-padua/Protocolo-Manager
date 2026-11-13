@@ -179,9 +179,9 @@ test("barra contínua: chips ligam e desligam, dois cliques = só esta, e o + ab
   const faixa = (await filtro.getByTestId("agendas-faixa").boundingBox())!;
   expect(faixa.height).toBeLessThan(90); // uma faixa só (botão de 2 linhas + vidro no rodapé)
   // botão de duas linhas (equipe + agenda), porcentagem + OCUP no canto direito e vidro no rodapé
-  await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("Agenda médico");
-  await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("MEDICO - SEDE");
-  await expect(filtro.getByTestId("chip-agenda-r23")).toContainText("Agenda enfermagem");
+  await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("Médico");
+  await expect(filtro.getByTestId("chip-agenda-r22").locator(".ag-chip-nome-txt")).toHaveText("SEDE"); // categoria não se repete embaixo
+  await expect(filtro.getByTestId("chip-agenda-r23")).toContainText("Enfermeira");
   await expect(filtro.getByTestId("ocupacao-r22")).toContainText("67%");
   await expect(filtro.getByTestId("ocupacao-r22")).toContainText("Ocup", { ignoreCase: true });
   await expect(filtro.getByTestId("chip-agenda-r22").locator(".ag-vidro")).toBeVisible();
