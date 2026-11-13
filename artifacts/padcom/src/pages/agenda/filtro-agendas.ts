@@ -47,6 +47,10 @@ export function numeroPorExtenso(n: number): string {
   return resto === 0 ? CENTENAS[c] : `${CENTENAS[c]} e ${dez}`;
 }
 /** "Cinco agendamentos", "Um agendamento", "Nenhum agendamento". */
+/** "38 atendimentos", "1 atendimento", "0 atendimentos" (número em algarismos, como o CEO pediu para a nuvenzinha). */
+export function contagem(n: number, substantivo: [string, string] = ["atendimento", "atendimentos"]): string {
+  return `${n} ${n === 1 ? substantivo[0] : substantivo[1]}`;
+}
 export function agendamentosPorExtenso(n: number, substantivo: [string, string] = ["agendamento", "agendamentos"]): string {
   if (n === 0) return `Nenhum ${substantivo[0]}`;
   const texto = `${numeroPorExtenso(n)} ${n === 1 ? substantivo[0] : substantivo[1]}`;
@@ -64,6 +68,10 @@ export interface AgendaDoFiltro {
   chave: string; nome: string; cor: string; forma: string | null; categoria: string;
   /** Profissional titular da agenda; nulo em agenda compartilhada ou só do Google. */
   profissional: string | null;
+  /** Duração padrão de cada horário da agenda, em minutos (nulo se desconhecida). */
+  minutos: number | null;
+  /** Endereço, só quando a agenda tem um próprio (agenda externa); nulo nos demais casos. */
+  endereco: string | null;
   /** Atendimentos do sistema no período. */
   sessoes: number;
   /** Compromissos do Google no período (somente leitura). */
@@ -74,7 +82,7 @@ export interface AgendaDoFiltro {
 export interface GrupoDoFiltro { categoria: string; agendas: AgendaDoFiltro[]; }
 
 export interface EntradaCatalogo {
-  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; active?: boolean }[];
+  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; slotMinutes?: number | null; externalAddressText?: string | null; active?: boolean }[];
   sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
   calendarios: { id: number; agendaRecursoId?: number | null; nome: string; cor: string }[];
   compromissos: { agendaId: number; agendaRecursoId?: number | null }[];
@@ -87,7 +95,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
     if (a.active === false) continue;
     mapa.set(chaveDaAgenda(a.id), {
       chave: chaveDaAgenda(a.id), nome: a.name, cor: a.color || "#64748b", forma: a.modality ?? null,
-      categoria: a.categoryName?.trim() || SEM_CATEGORIA, profissional: a.professionalName?.trim() || null, sessoes: 0, google: 0, somenteGoogle: false,
+      categoria: a.categoryName?.trim() || SEM_CATEGORIA, profissional: a.professionalName?.trim() || null, minutos: a.slotMinutes ?? null, endereco: a.externalAddressText?.trim() || null, sessoes: 0, google: 0, somenteGoogle: false,
     });
   }
   for (const s of entrada.sessoes) {
@@ -95,7 +103,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
     let item = mapa.get(chave);
     if (!item) {
       // Sessão de agenda que o catálogo não trouxe (ou sem agenda ligada): aparece, nunca some em silêncio.
-      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, profissional: null, sessoes: 0, google: 0, somenteGoogle: false };
+      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, profissional: null, minutos: null, endereco: null, sessoes: 0, google: 0, somenteGoogle: false };
       mapa.set(chave, item);
     }
     item.sessoes += 1;
@@ -103,7 +111,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
   for (const c of entrada.calendarios) {
     const chave = chaveDoCalendario(c);
     if (!mapa.has(chave)) {
-      mapa.set(chave, { chave, nome: c.nome, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, profissional: null, sessoes: 0, google: 0, somenteGoogle: true });
+      mapa.set(chave, { chave, nome: c.nome, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, profissional: null, minutos: null, endereco: null, sessoes: 0, google: 0, somenteGoogle: true });
     }
   }
   for (const e of entrada.compromissos) {

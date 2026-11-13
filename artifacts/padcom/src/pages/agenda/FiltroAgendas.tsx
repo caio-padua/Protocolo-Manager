@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Eye, EyeOff, Lock, Minus, Plus, UserRound } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Eye, EyeOff, Lock, Minus, Plus } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useGetAgendaOcupacao, useListAgendaResources } from "@workspace/api-client-react";
 import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
@@ -8,7 +8,7 @@ import { useGoogleCompromissos } from "./useGoogleCompromissos";
 import { Percentual } from "@/components/numeral/Numeral";
 import { corSegura } from "./timeline-logica";
 import {
-  agendamentosPorExtenso, alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, nomeCurtoDaAgenda, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
+  alternarAgenda, contagem, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, nomeCurtoDaAgenda, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
   type AgendaDoFiltro,
 } from "./filtro-agendas";
 
@@ -18,6 +18,9 @@ import {
  * valendo para Dia, Semana, Mês e Lista, para as sessões do sistema e para os compromissos do Google.
  * As agendas vêm da Agenda Configuração (mesma fonte das outras telas): criar, renomear ou desligar lá muda aqui.
  */
+/** Quanto tempo a nuvenzinha fica antes de esvanecer. */
+const DICA_FICA_MS = 3500;
+
 export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   de: string; ate: string;
   sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
@@ -32,11 +35,29 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   useEffect(() => { void refazerOcupacao(); }, [sessoes.length, refazerOcupacao]);
   const ocupacaoPorChave = useMemo(() => new Map((ocupacao.data ?? []).map((o) => [`r${o.resourceId}`, o])), [ocupacao.data]);
   const [recolhidos, setRecolhidos] = useState<ReadonlySet<string>>(new Set());
+  // Nuvenzinha: abre quase na hora, fica ~3,5 s e esvanece; mexer o mouse de novo faz aparecer de novo.
+  const [dicaAberta, setDicaAberta] = useState<string | null>(null);
+  const tEntrar = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const tSair = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const limparTempos = () => { clearTimeout(tEntrar.current); clearTimeout(tSair.current); };
+  const mostrarDica = useCallback((chave: string, atraso: number) => {
+    clearTimeout(tEntrar.current);
+    tEntrar.current = setTimeout(() => {
+      setDicaAberta(chave);
+      clearTimeout(tSair.current);
+      tSair.current = setTimeout(() => setDicaAberta(null), DICA_FICA_MS);
+    }, atraso);
+  }, []);
+  const esconderDica = useCallback(() => {
+    clearTimeout(tEntrar.current); clearTimeout(tSair.current);
+    tSair.current = setTimeout(() => setDicaAberta(null), 350);
+  }, []);
+  useEffect(() => limparTempos, []);
   const [painelAberto, setPainelAberto] = useState(false); // nasce como barra estreita (tela e celular); o + abre o painel por grupo
 
   const grupos = useMemo(() => montarGrupos({
     agendas: (recursos.data ?? []).map((r) => ({
-      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, active: r.active,
+      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, slotMinutes: r.slotMinutes, externalAddressText: r.externalAddressText, active: r.active,
     })),
     sessoes,
     calendarios: google.data?.agendas ?? [],
@@ -71,9 +92,12 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                   const o = ocupacaoPorChave.get(a.chave);
                   return (
                     <div key={a.chave} className="ag-cel" style={{ ["--ev" as string]: corSegura(a.cor) }}>
-                      <HoverCard openDelay={70} closeDelay={30}>
+                      <HoverCard open={dicaAberta === a.chave}>
                         <HoverCardTrigger asChild>
                           <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
+                            onPointerEnter={() => mostrarDica(a.chave, 40)}
+                            onPointerMove={() => { if (dicaAberta !== a.chave) mostrarDica(a.chave, 40); }}
+                            onPointerLeave={esconderDica}
                             onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
                             onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
                             className={`${marcada ? "bevel-3d" : "concave-3d"} ag-chip`}>
@@ -86,20 +110,22 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                             <span className="ag-vidro" aria-hidden />
                           </button>
                         </HoverCardTrigger>
-                        {/* Nuvenzinha ao lado, opaca e sem capturar o mouse: nunca cobre nem atrapalha a grade da agenda. */}
-                        <HoverCardContent side="right" align="start" alignOffset={-22} sideOffset={6} collisionPadding={12} avoidCollisions
-                          className="ag-dica panel-3d" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
+                        {/* Nuvenzinha pequena e translúcida, no canto inferior direito do botão: não cobre as outras agendas nem captura o mouse. */}
+                        <HoverCardContent side="bottom" align="end" sideOffset={3} collisionPadding={8} avoidCollisions={false}
+                          className="ag-dica" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
                           <p className="ag-dica-nome">{a.nome}</p>
-                          <p className="ag-dica-qtd" data-testid={`dica-qtd-${a.chave}`}>
-                            {a.somenteGoogle ? agendamentosPorExtenso(a.google, ["compromisso do Google", "compromissos do Google"]) : agendamentosPorExtenso(a.sessoes)}
-                          </p>
-                          {!a.somenteGoogle && a.google > 0 && (
-                            <p className="ag-dica-extra">{agendamentosPorExtenso(a.google, ["compromisso do Google", "compromissos do Google"])}</p>
-                          )}
-                          <p className="ag-dica-prof">
-                            <UserRound className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
-                            <span>{a.somenteGoogle ? "Calendário somente leitura" : a.profissional ?? "Agenda compartilhada"}</span>
-                          </p>
+                          <dl className="ag-dica-lista">
+                            <div><dt>Atendimentos</dt><dd data-testid={`dica-qtd-${a.chave}`}>
+                              {a.somenteGoogle ? contagem(a.google, ["compromisso do Google", "compromissos do Google"])
+                                : `${contagem(a.sessoes)}${a.google > 0 ? ` · ${a.google} Google` : ""}`}
+                            </dd></div>
+                            {!a.somenteGoogle && (
+                              <div><dt>Ocupação</dt><dd data-testid={`dica-ocup-${a.chave}`}>{textoOcupacao(o)}</dd></div>
+                            )}
+                            {a.minutos != null && <div><dt>Tempo</dt><dd data-testid={`dica-tempo-${a.chave}`}>{a.minutos} min</dd></div>}
+                            {a.endereco && <div><dt>Endereço</dt><dd className="ag-dica-endereco" data-testid={`dica-endereco-${a.chave}`}>{a.endereco}</dd></div>}
+                            <div><dt>Profissional</dt><dd>{a.somenteGoogle ? "Calendário somente leitura" : a.profissional ?? "Agenda compartilhada"}</dd></div>
+                          </dl>
                         </HoverCardContent>
                       </HoverCard>
                     </div>
@@ -197,12 +223,20 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   );
 }
 
+/** Texto da linha "Ocupação" da nuvenzinha. */
+function textoOcupacao(o?: { capacidade: number; ocupadas: number }): string {
+  if (!o) return "Indisponível agora";
+  if (o.capacidade === 0) return "0% · sem vagas previstas";
+  return `${Math.round((o.ocupadas / o.capacidade) * 100)}% · ${o.ocupadas} de ${o.capacidade} vagas`;
+}
+
 /** Canto direito do botão da agenda: porcentagem de ocupação (vagas ocupadas / vagas previstas no período) e a sigla "OCUP" embaixo. */
 function OcupacaoDaAgenda({ o, carregando, falhou, somenteGoogle, chave }: {
   o?: { capacidade: number; ocupadas: number }; carregando: boolean; falhou: boolean; somenteGoogle: boolean; chave: string;
 }) {
+  // Sem vagas previstas = 0% (pedido do CEO). Ocupadas nunca passa da capacidade (cálculo do servidor), então 0 vagas = 0 ocupadas de verdade.
   const sem = !o || o.capacidade === 0;
-  const pct = o && o.capacidade > 0 ? Math.round((o.ocupadas / o.capacidade) * 100) : null;
+  const pct = o ? (o.capacidade > 0 ? Math.round((o.ocupadas / o.capacidade) * 100) : 0) : null;
   const estado = somenteGoogle ? "somente-leitura" : carregando ? "carregando" : falhou ? "indisponivel" : sem ? "sem-vagas" : pct! >= 100 ? "cheia" : "ok";
   const dica = {
     "somente-leitura": "Somente leitura (Google): sem vagas do sistema",
@@ -214,7 +248,7 @@ function OcupacaoDaAgenda({ o, carregando, falhou, somenteGoogle, chave }: {
   }[estado];
   return (
     <span className="ag-ocup" data-testid={`ocupacao-${chave}`} data-estado={estado} data-cheia={estado === "cheia" ? "sim" : "nao"} aria-label={dica}>
-      {estado === "ok" || estado === "cheia" ? <Percentual valor={pct} casas={0} peso={700} className="ag-ocup-pct" /> : <span className="ag-ocup-pct" aria-label={dica}>{estado === "carregando" ? "…" : "—"}</span>}
+      {estado === "ok" || estado === "cheia" || estado === "sem-vagas" ? <Percentual valor={pct} casas={0} peso={700} className="ag-ocup-pct" /> : <span className="ag-ocup-pct" aria-label={dica}>{estado === "carregando" ? "…" : "—"}</span>}
       <span className="ag-ocup-sigla" aria-hidden>Ocup</span>
     </span>
   );

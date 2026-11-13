@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) => ({ status, contentType: "applicati
 const HOJE = "2026-11-12";
 
 const agenda = (id: number, name: string, modality: string, categoryName: string, color: string) => ({
-  id, name, kind: "x", modality, color, slotMinutes: 30, active: true, sortOrder: id, categoryName, canManage: true, locationId: null, professionalId: null, professionalName: id === 22 ? "Dr. Caio Padua" : null,
+  id, name, kind: "x", modality, color, slotMinutes: 30, active: true, sortOrder: id, categoryName, canManage: true, locationId: null, professionalId: null, professionalName: id === 22 ? "Dr. Caio Padua" : null, externalAddressText: id === 27 ? "Praça da Sé, 100 - Sé, São Paulo/SP" : null,
 });
 const RECURSOS = [
   agenda(22, "MEDICO - SEDE", "local", "Medicina", "#1d4f8f"),
@@ -187,6 +187,7 @@ test("barra contínua: chips ligam e desligam, dois cliques = só esta, e o + ab
   await expect(filtro.getByTestId("chip-agenda-r22").locator(".ag-vidro")).toBeVisible();
   await expect(filtro.getByTestId("ocupacao-r24")).toHaveAttribute("data-cheia", "sim");
   await expect(filtro.getByTestId("ocupacao-r29")).toHaveAttribute("data-estado", "sem-vagas");
+  await expect(filtro.getByTestId("ocupacao-r29")).toContainText("0%"); // sem vagas = zero, nunca travessão
   await expect(filtro.getByTestId("ocupacao-g30")).toHaveAttribute("data-estado", "somente-leitura");
   await page.screenshot({ path: "generated-artifacts/agenda-chips-ocupacao.png", clip: { x: 182, y: 0, width: 1258, height: 200 } });
   await filtro.getByTestId("chip-agenda-r23").click();
@@ -229,23 +230,39 @@ test("barra de comandos fica congelada ao rolar e passar o mouse num atendimento
   expect(topo.y).toBeLessThanOrEqual(2);
 });
 
-test("passar o mouse numa agenda abre a nuvenzinha ao lado com nome, quantidade por extenso e profissional, sem cobrir a grade", async ({ page }) => {
+test("nuvenzinha: abre rápido, fica no canto inferior direito do botão sem cobrir outras agendas, esvanece sozinha e reaparece ao mexer", async ({ page }) => {
   await base(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/agenda");
   const filtro = page.getByTestId("filtro-agendas");
-  await filtro.getByTestId("chip-agenda-r22").hover();
+  const chip = filtro.getByTestId("chip-agenda-r22");
+  await chip.hover();
   const dica = page.getByTestId("dica-agenda-r22");
-  await expect(dica).toBeVisible({ timeout: 1500 });
+  await expect(dica).toBeVisible({ timeout: 1000 });
   await expect(dica).toContainText("MEDICO - SEDE");
-  await expect(page.getByTestId("dica-qtd-r22")).toHaveText("Um agendamento");
+  await expect(page.getByTestId("dica-qtd-r22")).toHaveText("1 atendimento · 1 Google");
+  await expect(dica).toContainText("Profissional");
+  await expect(page.getByTestId("dica-tempo-r22")).toHaveText("30 min");
+  await expect(page.getByTestId("dica-endereco-r22")).toHaveCount(0); // endereço só quando a agenda tem um próprio
   await expect(dica).toContainText("Dr. Caio Padua");
-  await expect(dica).toContainText("Um compromisso do Google");
-  const caixa = (await dica.boundingBox())!;
-  await page.screenshot({ path: "generated-artifacts/agenda-dica-agenda.png", clip: { x: 182, y: 0, width: 1258, height: 220 } });
-  const grade = (await page.getByTestId("linha-do-tempo").boundingBox())!;
-  expect(caixa.y + caixa.height).toBeLessThanOrEqual(grade.y + 4); // não cobre a grade
+  await expect(page.getByTestId("dica-ocup-r22")).toHaveText("67% · 4 de 6 vagas");
+  await page.waitForTimeout(250);
+  const c = (await chip.boundingBox())!; const d = (await dica.boundingBox())!;
+  expect(d.y).toBeGreaterThanOrEqual(c.y + c.height - 1); // abaixo do botão: nunca sobre as outras agendas
+  expect(Math.abs(d.x + d.width - (c.x + c.width))).toBeLessThan(8); // alinhada ao canto direito
+  expect(d.width).toBeLessThan(280); expect(d.height).toBeLessThan(110);
+  await page.screenshot({ path: "generated-artifacts/agenda-dica-agenda.png", clip: { x: 182, y: 0, width: 1258, height: 260 } });
+  // some sozinha (~3,5 s + esvanecer 1,1 s), mesmo com o mouse parado
+  await expect(dica).toHaveCount(0, { timeout: 7000 });
+  // mexer de novo faz aparecer de novo
+  await page.mouse.move(c.x + 30, c.y + 10);
+  await page.mouse.move(c.x + 40, c.y + 14);
+  await expect(page.getByTestId("dica-agenda-r22")).toBeVisible({ timeout: 1000 });
+  // endereço aparece só na agenda que tem um
+  await filtro.getByTestId("chip-agenda-r27").hover();
+  await expect(page.getByTestId("dica-endereco-r27")).toContainText("Praça da Sé, 100");
+  // agenda sem vagas mostra 0%, não travessão
   await filtro.getByTestId("chip-agenda-r29").hover();
-  await expect(page.getByTestId("dica-qtd-r29")).toHaveText("Nenhum agendamento");
+  await expect(page.getByTestId("dica-qtd-r29")).toHaveText("0 atendimentos");
   await expect(page.getByTestId("dica-agenda-r29")).toContainText("Agenda compartilhada");
 });

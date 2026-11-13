@@ -18,3 +18,4 @@ A tela /agenda tem um bloco sticky (comandos + faixa de agendas contínua com +/
 - Ocupacao no botao da agenda: porcentagem (Percentual/Numeral) + sigla OCUP no canto direito; cor da agenda so no rodape de vidro acetinado (CEO reprovou faixa lateral e retirou a barra OCUPADO n/m).
 - Ao reescrever CSS por fatia (index..index) conferir se nao ha regras irmas no meio: uma troca apagou .ag-vidro e .ag-ocup sem aviso; apos editar, grep das classes criticas. Vidro aprovado = 0.72rem de altura, nao mudar.
 - Botao da agenda (decisao CEO): linha 1 = so categoria profissional (Medico/Enfermeira/Biomedico); linha 2 menor, nome sem repetir categoria; nome inteiro na nuvenzinha.
+- Nuvenzinha do botao de agenda (decisao CEO): translucida, canto inferior direito, 3,5 s e esvanece, numero em algarismos, Tempo e Endereco (so externo); sem vagas = 0%, falha = travessao.
