@@ -210,6 +210,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Plataforma Gateway de Comunicação", href: "/comunicacao/gateways", icon: Network },
       { name: "Mensageria", href: "/comunicacao/mensageria", icon: MessageSquareText },
+      { name: "Dúvidas e Orientações", href: "/comunicacao/duvidas-orientacoes", icon: Library },
       { name: "Carta de Encantamento", href: "/comunicacao/carta-encantamento", icon: Sparkles },
       { name: "Central de Lembretes", href: "/comunicacao/central-lembretes", icon: BellRing },
       { name: "Comunicação Digital", href: "/comunicacao/digital", icon: Smartphone },

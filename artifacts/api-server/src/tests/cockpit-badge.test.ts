@@ -267,8 +267,8 @@ describe("GET /cockpit/:clientId — badge Telegram + DTO básico", () => {
 // número de chamadas a db.execute:
 //
 //   sent=false, mock=false → 1 execute (UPDATE false)  + 502 (sem INSERT)
-//   sent=true,  mock=false → 2 executes (UPDATE true + INSERT inbox)
-//   sent=true,  mock=true  → 1 execute (INSERT inbox, sem UPDATE)
+//   sent=true,  mock=false → 3 executes (UPDATE + INSERT inbox + pausa da IA)
+//   sent=true,  mock=true  → 2 executes (INSERT inbox + pausa da IA, sem UPDATE)
 
 describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_ok", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -309,11 +309,14 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
 
-    // db.execute deve ter sido chamado EXATAMENTE 2 vezes:
-    // 1) UPDATE SET telegram_last_test_ok = true
-    // 2) INSERT INTO telegram_inbox_messages (registro no inbox)
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls).toHaveLength(3);
+    const statements = executeCalls.map(([query]) =>
+      (query as { strings?: string[] }).strings?.join(" ") ?? "",
+    );
+    expect(statements.some((statement) => statement.includes("UPDATE clients"))).toBe(true);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_inbox_messages"))).toBe(true);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_atendimento"))).toBe(true);
   });
 
   it("não persiste telegram_last_test_ok quando o envio é mock (token ausente)", async () => {
@@ -326,9 +329,13 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
 
     expect(res.status).toBe(200);
 
-    // db.execute deve ter sido chamado EXATAMENTE 1 vez:
-    // somente o INSERT do inbox. O UPDATE NÃO ocorre porque mock=true.
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(1);
+    expect(executeCalls).toHaveLength(2);
+    const statements = executeCalls.map(([query]) =>
+      (query as { strings?: string[] }).strings?.join(" ") ?? "",
+    );
+    expect(statements.some((statement) => statement.includes("UPDATE clients"))).toBe(false);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_inbox_messages"))).toBe(true);
+    expect(statements.some((statement) => statement.includes("INSERT INTO telegram_atendimento"))).toBe(true);
   });
 });

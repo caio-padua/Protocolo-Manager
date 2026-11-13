@@ -11,16 +11,18 @@ vi.mock("../lib/lembrete-periodo", () => ({ MAPA_PERIODO: {
   manha: { sigla: "IM", nome: "Inicio da Manha", inicio: "07:00" },
   noite: { sigla: "NO", nome: "Noite", inicio: "18:00" },
 } }));
-import { invalidarCacheCatalogo } from "../lib/mensageria-paxmed";
+import { invalidarCacheCatalogo, montarMensagemPaxmed } from "../lib/mensageria-paxmed";
 import { templateLembretePrescricao } from "../lib/lembrete-templates";
 import { montarMensagemLembrete, prescriptionReminderMessage, mapPeriodosTextoToCanonicos } from "../lib/prescription-reminder-message";
 const agora = new Date("2026-08-14T10:00:00Z");
 const periodos = [{ sigla: "IM", nome: "Inicio da Manha", tipo: "tomar" as const,
   formulas: [{ nome: "Formula Teste", dose: "10 mg" }] }];
 const catalogo = [
-  { categoria: "PERIODO", chave: "inicioManha", conteudo: { saudacao: "Saudacao rica IM", abertura: "Abertura IM" } },
-  { categoria: "DIA_SEMANA", chave: "sexta", conteudo: { label: "sexta-feira", frase: "Frase exclusiva sexta" } },
+  { categoria: "PERIODO", chave: "inicioManha", conteudo: { saudacao: "Saudacao rica IM", abertura: "Abertura IM", desejo: "Lembrete motivacional do periodo" } },
+  { categoria: "DIA_SEMANA", chave: "sexta", conteudo: { label: "sexta-feira", frase: "Frase exclusiva sexta — mensagem motivacional de sexta" } },
+  { categoria: "DIA_SEMANA", chave: "sabado", conteudo: { label: "sabado", frase: "Mensagem motivacional de sabado" } },
   { categoria: "SEMANA_MES", chave: "2", conteudo: { frase: "segunda semana rica" } },
+  { categoria: "VERSICULO_SABADO", chave: "1", conteudo: { texto: "VERSICULO SINTETICO DE SABADO" } },
 ].map((row, id) => ({ ...row, id, ordem: id }));
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(agora);
@@ -45,5 +47,18 @@ describe("prévia do envio explícito preserva motor rico sem disparar provedor"
   it("mantém conversão canônica dos períodos", () => {
     expect(mapPeriodosTextoToCanonicos("À Tarde; 2h Antes do Jantar")).toEqual(["tarde", "noite"]);
     expect(mapPeriodosTextoToCanonicos("")).toEqual(["manha", "noite"]);
+  });
+  it("preserva a mensagem motivacional nos dias úteis e inclui versículo somente no sábado em BRT", async () => {
+    const entrada = { nome: "Exemplo", periodos };
+    invalidarCacheCatalogo();
+    const sexta = await montarMensagemPaxmed({ ...entrada, agora: new Date("2026-11-13T21:00:00.000Z") });
+    invalidarCacheCatalogo();
+    const sabado = await montarMensagemPaxmed({ ...entrada, agora: new Date("2026-11-14T21:00:00.000Z") });
+
+    expect(sexta).toContain("mensagem motivacional de sexta");
+    expect(sexta).not.toContain("VERSICULO SINTETICO DE SABADO");
+    expect(sabado).toContain("Mensagem motivacional de sabado");
+    expect(sabado).toContain("VERSICULO SINTETICO DE SABADO");
+    expect(sabado).toContain("Feliz Sabado");
   });
 });

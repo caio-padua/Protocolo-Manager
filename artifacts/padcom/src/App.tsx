@@ -105,6 +105,7 @@ import Vitrine from "@/pages/orcamentos/vitrine";
 import ApresentacaoOrcamento from "@/pages/orcamentos/apresentacao";
 import ComunicacaoGateways from "@/pages/comunicacao/gateways";
 import ComunicacaoMensageria from "@/pages/comunicacao/mensageria";
+import DuvidasOrientacoes from "@/pages/comunicacao/duvidas-orientacoes";
 import ComunicacaoCartaEncantamento from "@/pages/comunicacao/carta-encantamento";
 import ExamesCliente from "@/pages/exames-cliente";
 import ComunicacaoCentralLembretes from "@/pages/comunicacao/central-lembretes";
@@ -340,6 +341,11 @@ function Router() {
             
             <Route path="/comunicacao/gateways" component={ComunicacaoGateways} />
             <Route path="/comunicacao/mensageria" component={ComunicacaoMensageria} />
+            <Route path="/comunicacao/duvidas-orientacoes">
+              <CollaboratorGate>
+                <DuvidasOrientacoes />
+              </CollaboratorGate>
+            </Route>
             <Route path="/comunicacao/carta-encantamento" component={ComunicacaoCartaEncantamento} />
             <Route path="/comunicacao/central-lembretes" component={ComunicacaoCentralLembretes} />
             <Route path="/comunicacao/digital" component={ComunicacaoDigital} />

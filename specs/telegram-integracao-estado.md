@@ -65,6 +65,7 @@ Motor reaproveitado: `executarLembretesPeriodo` (lib/lembrete-periodo), mesmo cr
 | DADO | texto por dia da semana, por período, semana do mês; versículo só no sábado | mensagens reais do catálogo geradas para seg 07:00, seg 18:00, sáb 18:00, qua 11:00: aberturas diferentes por período; versículo só no sábado | sim |
 | DADO | canal Telegram só quando liberado e vinculado | modo `desligado` (padrão), `lista`, `ligado`; lista ilegível = desligado; sem chat = WhatsApp; 14 testes do motor | sim |
 | DADO | sem token não conta como entregue; 403 vira FALHOU com código curto; 2 ticks na mesma janela = 1 envio | testes | sim |
+| DADO | mensagens motivacionais continuam nos dias úteis e de sábado; versículo aparece somente no sábado (BRT) | teste sintético dedicado do montador + conferência de leitura do catálogo real para sexta e sábado | sim |
 | LOG | execução AUTOMÁTICA real | Job 2 do worker executado isolado (mesmo agendamento `* * * * *`): às 03:05:01 BRT, janela 03:05, tick sozinho enviou 1 mensagem; `lembrete_envios` id 306 = ENVIADO; log de mensagens id 166 via=telegram status=sent | sim |
 Envio real: 1 mensagem, texto NÃO clínico ("MENSAGEM DE TESTE DO SISTEMA"), ao chat autorizado da cliente 1924 (contato do Dr. Caio). Não confirmei visualmente a chegada (API do Telegram aceitou; Dr. Caio pode conferir no aparelho).
 Ajustes de teste para a prova (todos revertidos): autorização de lembrete (registro de teste em `dispatch_log`, apagado), chaves `lembrete.telegram.*` (apagadas), lembrete 54 da cliente 1924 (mantido DESATIVADO como evidência, junto com os envios). Cliente 44 não foi tocado (sem autorização de lembrete, nada saiu para ela).
@@ -72,8 +73,27 @@ Correção extra: a saudação do modelo simples usava a hora do servidor (UTC);
 Achados para o Dr. Caio (não alterei conteúdo do catálogo): (a) período "Almoço" usa saudação "Boa tarde" mesmo às 11:00; (b) a frase de status do Dr. Caio varia por dia da semana, então manhã e noite do mesmo dia repetem essa frase; (c) o worker real (api-worker) continua sem workflow no desenvolvimento.
 Para ligar em produção (só com o comando "100%"): gravar `lembrete.telegram.modo` = `lista` (testes) ou `ligado`, e cada cliente precisa de autorização de lembrete recorrente válida.
 
+## Revisão de retomada — 13/11/2026 (prioridade de autorização, testes e lembretes)
+- Autorização e isolamento revalidados: 24 arquivos / 361 testes passaram, incluindo os testes das rotas Telegram e guia; as recusas de clínica, cliente, credencial e token adulterado continuam cobertas.
+- O teste do Cockpit agora também confirma que uma mensagem humana pausa o atendimento automático daquele cliente; a lógica de autorização e o destino do envio não foram alterados.
+- Banco temporário isolado: deduplicação 14/14, reivindicação 11/11, encaminhamento/outbox 15/15 e concorrência de lembretes 13/13. Nenhum desses testes escreveu no banco da aplicação.
+- Teste automatizado adicional confirma que a mensagem motivacional permanece na sexta e no sábado, e que o versículo só aparece no sábado no fuso de Brasília.
+- Execução de leitura do catálogo real, sem envio: catálogo disponível; frase motivacional detectada na sexta e no sábado; versículo ausente na sexta e presente no sábado.
+- Compilação do api-worker aprovada. A API respondeu `GET /api/brt` com HTTP 200 e as tabelas aditivas do Telegram estão presentes no banco de desenvolvimento.
+- As chaves de modo do Telegram não estão gravadas em `app_settings`; pela regra do código, o modo permanece `desligado`. Nenhum envio real foi feito nesta retomada e nada foi ativado em produção.
+- Limite ainda aberto: o api-worker não tem workflow no desenvolvimento; portanto, a retomada contínua do outbox não foi comprovada ao vivo. A prova automatizada usa banco temporário e transporte simulado. Um envio real de confirmação fica pendente por causa da instrução atual de não enviar mensagens a clientes.
+- Nos logs revisados, a API estava ativa; há avisos recorrentes de atualização da Agenda, fora deste escopo. Não declaro o log global sem avisos.
+
 ## Próxima ação
 Etapa 7: serviço de IA "Dúvidas e Orientações" (somente orientações aprovadas; transferência humana pausa a IA; nunca recria prescrição).
+
+### Etapa 7 — tela administrativa parcial (13/11/2026)
+- Tela de administração criada em `/comunicacao/duvidas-orientacoes`, com rota protegida por `CollaboratorGate`, biblioteca de orientações e estado de atendimento humano.
+- Não foi criado motor de mensageria, envio, geração documental ou agendamento; os botões usam somente as rotas já existentes.
+- Evidências e limites da interface estão em `specs/duvidas-orientacoes.md`.
+- A tela ainda não passou pela revisão independente obrigatória: o recurso de revisor está indisponível neste modo. Não declarar homologada.
+- A captura sem sessão redireciona ao login; não houve homologação visual autenticada.
+- Documentos e agenda permanecem fora desta entrega; a especificação funcional desses fluxos não foi localizada, portanto nenhuma ação foi inferida.
 
 ## Pendências conhecidas
 - Etapas 7 e 8 não concluídas: IA (7), queixas clínicas (8).
