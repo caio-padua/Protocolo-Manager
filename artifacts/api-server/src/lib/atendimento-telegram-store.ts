@@ -154,6 +154,19 @@ export async function atenderMensagemTelegram(e: EntradaAtendimento): Promise<vo
     cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId)));
 }
 
+/** Efeito condicionado ao vínculo único e à reivindicação ainda válida, na mesma instrução. */
+export async function pausarAtendimentoDuravel(e:EntradaAtendimento,motivo:string,dono:string):Promise<void>{
+      await db.execute(sql`INSERT INTO telegram_atendimento (cliente_id,modo,motivo)
+        SELECT id,'humano',${motivo} FROM clients WHERE id=${e.clienteId} AND empresa_id=${e.empresaId}
+          AND telegram_chat_id=${e.chatId}
+          AND NOT EXISTS(SELECT 1 FROM clients outra WHERE outra.telegram_chat_id=${e.chatId} AND outra.id<>${e.clienteId})
+          AND EXISTS(SELECT 1 FROM telegram_atendimento_respostas WHERE inbox_message_id=${e.inboxMessageId}
+            AND estado='processando' AND dono=${dono} AND atualizado_em>=NOW()-interval '5 minutes')
+        ON CONFLICT (cliente_id) DO UPDATE
+        SET modo='humano',motivo=${motivo},alterado_em=NOW(),alterado_por=NULL
+        WHERE telegram_atendimento.modo='ia'`);
+}
+
 /** Executado no mesmo tick do outbox, sem cron adicional. */
 export async function processarAtendimentosPendentes(): Promise<void> {
   await processarAtendimentosDuraveis(db,{
@@ -162,13 +175,7 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       return cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId));
     },
     planejar: e=>planejarAtendimento(depsReaisAtendimento(e.empresaId),e),
-    pausar: async (e,motivo)=>{
-      await db.execute(sql`INSERT INTO telegram_atendimento (cliente_id,modo,motivo)
-        SELECT id,'humano',${motivo} FROM clients WHERE id=${e.clienteId} AND empresa_id=${e.empresaId}
-        ON CONFLICT (cliente_id) DO UPDATE
-        SET modo='humano',motivo=${motivo},alterado_em=NOW(),alterado_por=NULL
-        WHERE telegram_atendimento.modo='ia'`);
-    },
+    pausar: pausarAtendimentoDuravel,
     chatAlerta: chatAlertaOuNull,
     autorizarResposta: async (e,plano)=>{
       const modo=await db.execute(sql`SELECT modo,motivo,alterado_por FROM telegram_atendimento WHERE cliente_id=${e.clienteId}`);

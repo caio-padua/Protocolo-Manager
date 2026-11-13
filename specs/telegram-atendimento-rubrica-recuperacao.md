@@ -25,8 +25,9 @@ os motores existentes nem fazer envios reais.
    com consulta empresarial e atualização, inclusive queda antes da pausa humana.
 8. Novos estados não reexecutam reivindicações legadas: fechadas permanecem
    concluídas; não fechadas ficam incertas para conferência humana.
-9. Na confirmação/rubrica da visita, vincular atomicamente versão, caminho
-   privado e hash da imagem daquele momento (ou ausência explícita).
+9. Na confirmação/rubrica da visita, vincular atomicamente versão e hash da
+   imagem daquele momento (ou ausência explícita), resolvendo o caminho privado
+   pela versão imutável, sem copiar arquivo para o banco.
    A troca de imagem usa a mesma trava da captura; nunca apagar versões antigas.
 10. Documento regenerado lê somente o vínculo histórico da visita e valida
     cliente, clínica, versão e hash. Sem vínculo legado não inventa imagem atual;
@@ -131,3 +132,110 @@ recusar aprovação retirada depois do plano e recusar origem de outra clínica.
 O teste de encerramento do banco expôs corrida do desligamento rápido do
 PostgreSQL com socket em fechamento; a parada inteligente resolveu sem ocultar
 erros nem tocar banco da aplicação. A rodada seguinte encerrou sem erro não tratado.
+
+## Lote 2 — rubrica histórica, execução em 13/11/2026
+Confirmado: ras-fap-registros.ts consultava lerRubricaAtiva ao regenerar qualquer
+visita, portanto trocar o cadastro mudaria o documento histórico.
+
+Corrigido nos três caminhos de confirmação: chave, desafio e e-mail usam uma
+transação com a MESMA trava da troca de imagem. A leitura da versão ocorre em
+uma instrução posterior à aquisição da trava, não em uma expressão com
+instantâneo anterior à espera. Versão/hash/data (ou ausência explícita) ficam
+na confirmação, junto da mudança de estado, sem enviar arquivo.
+Confirmação de e-mail posterior ao desafio preserva a captura original.
+Rubrica legada já prestada, mas sem prova de versão, não é preenchida por inferência.
+
+O montador lê a versão histórica de cada visita, com validação de cliente,
+clínica, versão, hash registrado e conteúdo do arquivo. Versões antigas não
+são apagadas, e a referência restringe exclusão da linha utilizada.
+Ausência comprovada continua sem imagem depois de novo upload.
+Pendente/não confirmada não lê nem desenha imagem, mesmo com referência presente.
+Legado sem versão recebe **RUBRICA SEM VERSÃO** no documento.
+Nenhuma rubrica ou confirmação real foi retropreenchida nos testes.
+
+Arquivos: client-rubrica.ts, ensure-visit-confirmations.ts,
+visit-rubrica-historica.ts, visit-confirmation.ts, ras-fap{,-registros,-rubrica}.ts;
+client-rubrica-postgres.test.ts, visit-confirmation-postgres.test.ts e
+ras-fap-rubrica-imagem-pdf.test.ts.
+
+| Comando | Resultado |
+|---|---|
+| `pnpm --filter @workspace/api-server exec vitest run src/tests/visit-confirmation src/tests/ras-fap-registros-postgres.test.ts src/tests/ras-fap-rubrica src/tests/client-rubrica-postgres.test.ts --maxWorkers=2` | 113 testes / 6 arquivos passaram |
+| `pnpm --filter @workspace/api-server run typecheck` | Passou |
+| `pnpm run typecheck:libs` | Passou |
+| `pnpm --filter @workspace/api-server run build` | Passou |
+| `pnpm --filter @workspace/api-worker run build` | Passou; não iniciou segundo trabalhador |
+
+Prova de regeneração: carregador real, banco descartável e arquivos privados
+simulados; troca da imagem ativa, imagem histórica preservada e impressões
+digitais de TODAS as imagens embutidas no documento regenerado iguais às anteriores.
+Prova de concorrência: transação de troca mantém a trava; a confirmação é vista
+aguardando essa trava no PostgreSQL e captura a versão nova depois do commit.
+Três testes antigos dependiam implicitamente da imagem ativa: as fixtures foram
+atualizadas com versão sintética explícita, mantendo as recusas de integridade e
+indisponibilidade, sem relaxar as verificações.
+
+## Preparação para revisão independente
+Estado: EM REVISÃO; **não homologado**.
+Conferência final do atendimento também cobre fechamento após aceites persistidos
+na última tentativa: não pode virar falso esgotamento nem reenvio. Pausa humana
+automática é condicionada ao dono/prazo da reivindicação, para processo antigo
+não sobrescrever operação posterior. A tela diz entrega incompleta (não afirma
+que nada foi enviado quando apenas uma das etapas falhou).
+Reinicialização controlada, regressão final e parecer independente ainda precisam
+ser registrados; compilar não comprova inicialização nem sessão real autenticada.
+
+## Parecer independente e correções subsequentes
+O revisor independente examinou o primeiro lote e o segundo diff após compilação.
+Parecer: **REPROVADO**, com dois impedimentos dos requisitos 3 e 7:
+1. A pausa humana ocorria depois do planejamento, mas antes de conferir novamente
+   vínculo/configuração; o predicado do efeito também precisava de vínculo único.
+2. Chat de alerta igual ao remetente permitia eco do alerta interno para o cliente.
+
+Correções: conferência novamente antes de pausar; vínculo/chat único na própria
+instrução da pausa junto da reivindicação; destino de alerta igual à origem
+encerra como bloqueado, sem transporte nem encaminhamento aceito.
+Testes acrescentados: desligamento/desvínculo/duplicidade durante o planejamento,
+pausa atômica com desvínculo/duplicidade/dono antigo/caminho legítimo e alerta
+destinado à própria origem. Resultados executados na seção seguinte.
+O parecer anterior NÃO aprova estas correções: reavaliação independente da versão
+corrigida continua pendente; a presente execução não o substitui por autoavaliação.
+
+## Validação final executada — 13/11/2026
+Estado de engenharia: **BLOQUEADO para homologação**, aguardando reavaliação
+independente da versão corrigida e validação com sessão administrativa real.
+Implementação e regressões deste lote concluídas; isso não equivale a homologar.
+
+| Verificação | Resultado observado |
+|---|---|
+| `pnpm --filter @workspace/api-server exec vitest run src/tests/atendimento src/tests/duvidas src/tests/telegram src/tests/lembrete-telegram src/tests/client-rubrica src/tests/ras-fap src/tests/visit-confirmation --maxWorkers=2` | **604 testes / 36 arquivos passaram**, sem erro não tratado |
+| `CHROMIUM_PATH=/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0.7204.100/bin/chromium pnpm exec playwright test e2e/atendimento-telegram-pendencias.spec.ts --timeout=45000` | **1 passou**: computador/celular, atualização automática, erro não vira fila vazia, nenhum envio |
+| Verificações de tipos do servidor e trabalhador | Passaram após correções do parecer |
+| Compilações do servidor e trabalhador | Passaram após correções do parecer |
+| `git diff --check` | Passou |
+| Consulta anterior ao reinício, transação somente leitura | 0 documentos clínicos sujeitos à recuperação automática; 0 repasses pendentes |
+| Reinício dos serviços existentes | Servidor iniciou e garantiu as estruturas; trabalhador executou o arquivo compilado no Node 24 |
+| Perfil do trabalhador | `telegram-relay-dev`, **somente** `telegram-relay-1min`; não houve segundo trabalhador nem ativação de atendimento/lembretes gerais |
+| Primeiro ciclo após reinício | 0 examinados/aceitos/falhas/incertos novos; **fila vazia não comprova encaminhamento** |
+| Rota administrativa sem sessão | `/api/duvidas-orientacoes/atendimento/estado` devolveu **401** |
+| Captura real da prévia sem sessão | Mostrou o login, mantendo a proteção; não verifica a tela autenticada real |
+
+Capturas sintéticas: generated-artifacts/atendimento-pendencias-desktop.png e
+generated-artifacts/atendimento-pendencias-mobile.png.
+Captura sem sessão: generated-artifacts/atendimento-preview-sem-sessao.jpg.
+São saídas ignoradas pelo versionamento, sem dados reais e sem segredos.
+
+Limitações de execução que não foram ocultadas: a primeira consulta automática
+de saúde do webhook, pelo serviço já existente, registrou **fetch failed**;
+portanto não comprova disponibilidade externa atual do Telegram.
+A sincronização de duas agendas também registrou atualização falha e preservação
+do estado anterior; não foi alterada como parte desta auditoria.
+Não se publicou, não se alterou webhook ou autorização de cliente e não se
+disparou novo teste real de envio. Textos motivacionais/por período e regra de
+versículo aos sábados não foram alterados.
+
+As evidências visuais anteriores continuam com o alcance documentado em
+telegram-canal-basico-retomada.md: encaminhamento das 14:16 observado pelo
+assistente ChatGPT/Codex na sessão autorizada, não confirmação pessoal do
+Dr. Caio; relato das 03:05 correlacionado pelo horário/texto, sem prova isolada
+de identidade da mensagem nem atribuição ao trabalhador restrito atual.

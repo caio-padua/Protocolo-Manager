@@ -711,9 +711,12 @@ function desenharGrade(
       const wCiencia = COLS_FIXAS.find((c) => c.key === "cienciaPac")!.w;
       const wEnf = COLS_FIXAS.find((c) => c.key === "rubEnf")!.w;
       // Com imagem de rubrica no cadastro, ela substitui as iniciais (so nas marcas que mostram rubrica).
-      imagemRubrica = reg.rubricaPng && (reg.confirmacaoCliente === "plena" || reg.confirmacaoCliente === "cadastro")
+      imagemRubrica = reg.rubricaHistorica!=="sem_imagem" && reg.rubricaPng && (reg.confirmacaoCliente === "plena" || reg.confirmacaoCliente === "cadastro")
         ? reg.rubricaPng : null;
-      if (reg.confirmacaoCliente === "plena") {
+      if ((reg.confirmacaoCliente === "plena" || reg.confirmacaoCliente === "cadastro") && reg.rubricaHistorica==="legado_sem_versao") {
+        imagemRubrica=null;
+        fixedVals.cienciaPac="RUBRICA SEM VERSÃO";
+      } else if (reg.confirmacaoCliente === "plena") {
         if (!imagemRubrica) fixedVals.cienciaPac = rubricaCliente(reg.clienteNome, cabeEm(wCiencia));
       } else if (reg.confirmacaoCliente === "cadastro") {
         if (imagemRubrica) sufixoImagem = "(cadastro)";

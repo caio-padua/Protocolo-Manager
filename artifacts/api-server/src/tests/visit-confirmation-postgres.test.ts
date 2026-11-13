@@ -141,6 +141,89 @@ beforeAll(async () => {
 
 afterAll(async () => { await isolated?.stop(); }, 60_000);
 
+describe("versão da rubrica capturada pelas confirmações reais, sem transporte externo",()=>{
+  beforeAll(async()=>{
+    for(const id of [3000,3001,3002,3003,3004]){
+      await q(`INSERT INTO sessions VALUES($1,5,10,100,'scheduled',false,'2026-11-13','14:30')`,[id]);
+      await q("INSERT INTO substance_applications(session_id,status) VALUES($1,'applied')",[id]);
+    }
+    await q(`INSERT INTO sessions VALUES(3011,5,11,101,'scheduled',false,'2026-11-13','14:30');
+      INSERT INTO substance_applications(session_id,status) VALUES(3011,'applied');
+      INSERT INTO client_rubricas(id,client_id,empresa_id,object_path,sha256,width,height,origem_mime)
+      VALUES(9000,10,5,'client-rubricas/sintetica-a.png',repeat('a',64),10,10,'image/png')`);
+  });
+  it("chave incorreta não captura; chave válida congela versão e hash na mesma atualização",async()=>{
+    const now=new Date();const emitida=await core.issueKey(ref(3000),1,now);
+    const chave=(emitida as {key:string}).key;
+    await core.verifyKey(ref(3000),chave==="000000"?"111111":"000000",1,now);
+    expect((await rowOf(3000)).rubrica_snapshot_at).toBeNull();
+    expect(await core.verifyKey(ref(3000),chave,1,now)).toEqual({ok:true});
+    expect(await rowOf(3000)).toMatchObject({rubrica_version_id:9000,rubrica_sha256:"a".repeat(64)});
+    expect((await rowOf(3000)).rubrica_snapshot_at).not.toBeNull();
+  });
+  it("desafio captura a versão, e confirmação posterior por e-mail não a troca pela nova",async()=>{
+    await request(app).get("/sessions/3001/confirmacao/desafio").set(H(1,5));
+    const ctx=(await core.loadContext(3001))!;const row=await rowOf(3001);
+    const r=await request(app).post("/sessions/3001/confirmacao/desafio").set(H(1,5)).send({
+      metade1:expectedValue(row.challenge_field_a,ctx),metade2:expectedValue(row.challenge_field_b,ctx),
+    });
+    expect(r.status).toBe(200);
+    const antes=await rowOf(3001);expect(antes.rubrica_version_id).toBe(9000);
+    await q(`UPDATE client_rubricas SET ativa=false WHERE client_id=10;
+      INSERT INTO client_rubricas(id,client_id,empresa_id,object_path,sha256,width,height,origem_mime)
+      VALUES(9001,10,5,'client-rubricas/sintetica-b.png',repeat('b',64),10,10,'image/png')`);
+    expect((await core.confirmByLink(core.buildLinkToken(antes)!,"impressao-sintetica")).status).toBe("confirmada");
+    const depois=await rowOf(3001);
+    expect(depois.rubrica_version_id).toBe(9000);expect(depois.rubrica_sha256).toBe("a".repeat(64));
+    expect(depois.rubrica_snapshot_at).toEqual(antes.rubrica_snapshot_at);
+  });
+  it("confirmação pelo e-mail sem rubrica anterior captura a versão vigente",async()=>{
+    await core.markPending(ref(3003),{professionalId:1,origin:"enfermeira"},new Date());
+    const antes=await rowOf(3003);expect(antes.rubrica_snapshot_at).toBeNull();
+    expect((await core.confirmByLink(core.buildLinkToken(antes)!,"impressao-sintetica")).status).toBe("confirmada");
+    expect(await rowOf(3003)).toMatchObject({rubrica_version_id:9001,rubrica_sha256:"b".repeat(64)});
+  });
+  it("troca concorrente: confirmação espera a mesma trava e lê a versão após o commit",async()=>{
+    const now=new Date();const key=await core.issueKey(ref(3002),1,now);
+    const tx=await isolated.pool.connect();let concluida=false;let confirmacao:Promise<unknown>|undefined;
+    try{
+      await tx.query("BEGIN;SELECT pg_advisory_xact_lock(7101,10)");
+      await tx.query(`UPDATE client_rubricas SET ativa=false WHERE client_id=10;
+        INSERT INTO client_rubricas(id,client_id,empresa_id,object_path,sha256,width,height,origem_mime)
+        VALUES(9002,10,5,'client-rubricas/sintetica-c.png',repeat('c',64),10,10,'image/png')`);
+      confirmacao=core.verifyKey(ref(3002),(key as {key:string}).key,1,now).then(r=>{concluida=true;return r;});
+      let esperou=false;
+      for(let i=0;i<100;i++){
+        const espera=await q("SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND lower(wait_event)='advisory'");
+        if(espera.rows.length){esperou=true;break;}
+        await new Promise(r=>setTimeout(r,10));
+      }
+      expect(esperou).toBe(true);expect(concluida).toBe(false);
+      await tx.query("COMMIT");
+      expect(await confirmacao).toEqual({ok:true});
+      expect(await rowOf(3002)).toMatchObject({rubrica_version_id:9002,rubrica_sha256:"c".repeat(64)});
+    }finally{await tx.query("ROLLBACK");tx.release();await confirmacao?.catch(()=>{});}
+  });
+  it("ausência explícita permanece ausência depois de adicionar uma imagem",async()=>{
+    const ref11={...ref(3011),clientId:11};
+    const now=new Date();const key=await core.issueKey(ref11,1,now);
+    expect(await core.verifyKey(ref11,(key as {key:string}).key,1,now)).toEqual({ok:true});
+    const antes=await rowOf(3011);
+    expect(antes.rubrica_snapshot_at).not.toBeNull();expect(antes.rubrica_version_id).toBeNull();
+    await q(`INSERT INTO client_rubricas(id,client_id,empresa_id,object_path,sha256,width,height,origem_mime)
+      VALUES(9011,11,5,'client-rubricas/sintetica-11.png',repeat('d',64),10,10,'image/png')`);
+    expect((await rowOf(3011)).rubrica_version_id).toBeNull();
+  });
+  it("rubrica legada sem prova não é preenchida por inferência ao completar pelo e-mail",async()=>{
+    await core.markPending(ref(3004),{professionalId:1,origin:"enfermeira"},new Date());
+    await q("UPDATE visit_confirmations SET state='rubrica_desafio',rubrica_at=NOW() WHERE session_id=3004");
+    const row=await rowOf(3004);
+    expect((await core.confirmByLink(core.buildLinkToken(row)!,"impressao-sintetica")).status).toBe("confirmada");
+    const depois=await rowOf(3004);
+    expect(depois.rubrica_version_id).toBeNull();expect(depois.rubrica_snapshot_at).toBeNull();
+  });
+});
+
 beforeEach(() => {
   sim.emails.length = 0; sim.whats.length = 0; sim.tg.length = 0;
   sim.emailOk = true; sim.whatsOk = true; sim.tgOk = true; sim.tgMock = false; sim.agendaOff = false;

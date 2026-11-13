@@ -72,10 +72,14 @@ export interface RegistroRasFap {
   confirmacaoCliente: MarcaConfirmacaoCliente | null;
   aplicadas: boolean[];
   /**
-   * PNG da rubrica do cliente (só tinta, fundo transparente), quando o cadastro tem uma. É desenhado no lugar
-   * das iniciais nas marcas "plena" e "cadastro"; sem imagem, a coluna mostra "Sobrenome, I.N.I." como sempre.
+   * PNG da versão vinculada à confirmação (só tinta, fundo transparente), nunca a ativa de hoje.
+   * Ausência capturada usa iniciais; legado sem versão recebe sinalização explícita.
    */
   rubricaPng?: Buffer | null;
+  /** Nunca preencher uma confirmação legada com a imagem ativa de hoje. */
+  rubricaHistorica?: "imagem" | "sem_imagem" | "legado_sem_versao";
+  rubricaVersionId?: number | null;
+  rubricaSha256?: string | null;
 }
 
 const MARCA_POR_ESTADO: Record<string, MarcaConfirmacaoCliente | undefined> = {

@@ -2,7 +2,7 @@
  * Migração de boot idempotente da confirmação do cliente por visita (K8).
  *
  * SQL bruto de propósito: o push automático do drizzle já propôs apagar colunas
- * com dados reais por causa de drift. Aqui só se CRIA (nada é alterado nem apagado).
+ * com dados reais por causa de drift. Aqui só se cria/acrescenta estrutura, sem apagar dados.
  *
  * Uma linha por visita (session_id único). Nenhum valor secreto fica em texto puro:
  * a chave de 6 dígitos guarda só o hash (HMAC) e o link guarda só um sal aleatório
@@ -10,6 +10,7 @@
  */
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { ensureClientRubricas } from "./client-rubrica";
 
 let _ready: Promise<void> | null = null;
 
@@ -61,6 +62,12 @@ export async function ensureVisitConfirmations(): Promise<void> {
         CREATE UNIQUE INDEX IF NOT EXISTS visit_confirmations_session_uk
         ON visit_confirmations (session_id)
       `);
+      await ensureClientRubricas();
+      // Sem retropreenchimento: uma confirmação antiga não prova qual imagem existia.
+      await db.execute(sql`ALTER TABLE visit_confirmations
+        ADD COLUMN IF NOT EXISTS rubrica_version_id INTEGER REFERENCES client_rubricas(id),
+        ADD COLUMN IF NOT EXISTS rubrica_sha256 TEXT,
+        ADD COLUMN IF NOT EXISTS rubrica_snapshot_at TIMESTAMPTZ`);
       await db.execute(sql`
         CREATE INDEX IF NOT EXISTS visit_confirmations_engine_idx
         ON visit_confirmations (state, next_client_email_at)

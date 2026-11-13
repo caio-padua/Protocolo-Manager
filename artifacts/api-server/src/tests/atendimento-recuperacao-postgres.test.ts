@@ -31,6 +31,34 @@ function deps(over:Partial<DepsAtendimentoDuravel>={}):DepsAtendimentoDuravel{
 const cair=(id:number,ponto:string)=>expect(()=>execFileSync(process.execPath,["--import","tsx","src/tests/helpers/atendimento-crash-child.ts",b.dir,String(id),ponto],{stdio:"pipe",timeout:15000})).toThrow();
 
 describe("atendimento recuperável, somente banco descartável",()=>{
+  it.each(["desligado","desvinculado","duplicado"])("mudança %s durante o planejamento não pausa nem envia",async(caso)=>{
+    const id=await novo();let permitido=true;
+    const d=deps({permitido:async()=>permitido});
+    const planejar=d.planejar;
+    d.planejar=async e=>{
+      const plano=await planejar(e);
+      if(caso==="desligado")permitido=false;
+      if(caso==="desvinculado")await b.pool.query("UPDATE clients SET telegram_chat_id=NULL WHERE id=1");
+      if(caso==="duplicado")await b.pool.query("INSERT INTO clients VALUES(2,6,'111')");
+      return plano;
+    };
+    try{
+      await tentarAtendimentoDuravel(b.db,id,d);
+      expect(d.pausar).not.toHaveBeenCalled();expect(d.enviar).not.toHaveBeenCalled();
+      expect((await estado(id)).ultimo_erro).toBe("autorizacao_alterada");
+    }finally{
+      await b.pool.query("DELETE FROM clients WHERE id=2");
+      await b.pool.query("UPDATE clients SET telegram_chat_id='111' WHERE id=1");
+    }
+  });
+  it("chat de alerta igual ao remetente é bloqueado sem eco nem encaminhamento aceito",async()=>{
+    const id=await novo();const d=deps({chatAlerta:async()=>"111"});
+    await tentarAtendimentoDuravel(b.db,id,d);
+    const r=await estado(id);
+    expect(d.enviar).not.toHaveBeenCalled();expect(r.estado).toBe("esgotado");
+    expect(r.ultimo_erro).toBe("destino_igual_origem");expect(r.desfecho).toBeNull();
+    expect(r.etapas).toEqual({});
+  });
   it("migração repetida mantém legado não fechado incerto",async()=>{
     await b.pool.query("INSERT INTO telegram_atendimento_respostas(inbox_message_id,estado) VALUES(-1,NULL)");
     await migrarRecuperacaoAtendimento(b.db);
@@ -109,5 +137,13 @@ describe("atendimento recuperável, somente banco descartável",()=>{
     const d=deps();await processarAtendimentosDuraveis(b.db,d);
     expect((await estado(id)).estado).toBe("concluido");expect(d.enviar).not.toHaveBeenCalled();
     const r=await b.pool.query("SELECT count(*)::int n FROM efeitos_sinteticos WHERE origem=$1",[id]);expect(r.rows[0].n).toBe(2);
+  });
+  it("aceites persistidos na sexta tentativa fecham sem novo envio nem falso esgotamento",async()=>{
+    const id=await novo();
+    await b.pool.query("UPDATE telegram_atendimento_respostas SET tentativas=5 WHERE inbox_message_id=$1",[id]);
+    cair(id,"fechar");await vencer(id);
+    const d=deps();await processarAtendimentosDuraveis(b.db,d);
+    const r=await estado(id);expect(r.estado).toBe("concluido");expect(r.desfecho).toBe("encaminhado_humano");
+    expect(r.tentativas).toBe(6);expect(d.enviar).not.toHaveBeenCalled();
   });
 });

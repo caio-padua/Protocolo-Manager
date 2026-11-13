@@ -12,7 +12,7 @@ export interface ExecutorAtendimentoDuravel { execute(q: SQL): Promise<{ rows: u
 export interface DepsAtendimentoDuravel {
   permitido(e: EntradaAtendimento): Promise<boolean>;
   planejar(e: EntradaAtendimento): Promise<PlanoAtendimento>;
-  pausar(e: EntradaAtendimento, motivo: string): Promise<void>;
+  pausar(e: EntradaAtendimento, motivo: string, dono:string): Promise<void>;
   chatAlerta(): Promise<string | null>;
   autorizarResposta(e: EntradaAtendimento, plano: PlanoAtendimento): Promise<boolean>;
   enviar(chat: string, texto: string): Promise<{ sent: boolean; mock: boolean; error?: string }>;
@@ -53,10 +53,16 @@ export async function registrarAtendimentoDuravel(exec: ExecutorAtendimentoDurav
 }
 
 export async function recuperarAtendimentosAbandonados(exec: ExecutorAtendimentoDuravel): Promise<void> {
+  const completo=sql`plano IS NOT NULL
+    AND (plano->>'alerta' IS NULL OR etapas->'alerta'->>'estado'='aceito_telegram')
+    AND (plano->>'resposta' IS NULL OR etapas->'resposta'->>'estado'='aceito_telegram')`;
   await exec.execute(sql`UPDATE telegram_atendimento_respostas SET
     estado=CASE WHEN etapas->'alerta'->>'estado'='enviando' OR etapas->'resposta'->>'estado'='enviando'
-      THEN 'incerto' WHEN tentativas >= ${MAX_TENTATIVAS} THEN 'esgotado' ELSE 'falhou' END,
-    ultimo_erro='processo_interrompido', dono=NULL, atualizado_em=NOW()
+      THEN 'incerto' WHEN ${completo} THEN 'concluido'
+      WHEN tentativas >= ${MAX_TENTATIVAS} THEN 'esgotado' ELSE 'falhou' END,
+    desfecho=CASE WHEN ${completo} THEN plano->>'desfecho' ELSE desfecho END,
+    fechado_em=CASE WHEN ${completo} THEN NOW() ELSE fechado_em END,
+    ultimo_erro=CASE WHEN ${completo} THEN NULL ELSE 'processo_interrompido' END, dono=NULL, atualizado_em=NOW()
     WHERE estado='processando' AND atualizado_em < NOW()-interval '5 minutes'`);
 }
 
@@ -92,7 +98,10 @@ export async function tentarAtendimentoDuravel(exec: ExecutorAtendimentoDuravel,
       WHERE inbox_message_id=${id} AND dono=${dono} AND estado='processando'
         AND atualizado_em>=NOW()-interval '5 minutes' RETURNING inbox_message_id`);
     if (!salvo.rows.length) return; // dono antigo não pode produzir efeitos.
-    if (plano.pausa) await deps.pausar(e, plano.pausa);
+    if (plano.pausa) {
+      if (!await deps.permitido(e) || !await origemValida()) { await salvar("esgotado","autorizacao_alterada"); return; }
+      await deps.pausar(e, plano.pausa,dono);
+    }
     const etapas = l.etapas ?? {};
     for (const etapa of ["alerta", "resposta"] as const) {
       const texto = plano[etapa];
@@ -102,6 +111,7 @@ export async function tentarAtendimentoDuravel(exec: ExecutorAtendimentoDuravel,
       if (etapa === "alerta") {
         const atual = await deps.chatAlerta();
         if (!atual) { await salvar(Number(l.tentativas)>=MAX_TENTATIVAS?"esgotado":"falhou","destino_ausente"); return; }
+        if (atual===e.chatId) { await salvar("esgotado","destino_igual_origem"); return; }
         if (l.destino_alerta && atual !== l.destino_alerta) { await salvar("esgotado","destino_configurado_alterado"); return; }
         destino = l.destino_alerta ?? atual;
       } else if (!await deps.autorizarResposta(e,plano)) { await salvar("esgotado","resposta_nao_autorizada"); return; }

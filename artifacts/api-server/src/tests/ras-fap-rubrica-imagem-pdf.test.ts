@@ -39,6 +39,17 @@ async function imagensDaMarca(): Promise<number> {
 }
 
 describe("Rubrica do cliente em imagem — RAS FAP em PDF", () => {
+  it("legado sem prova fica explícito e nunca recebe imagem atual nem iniciais como substituição silenciosa",async()=>{
+    const pdf=await gerarRasFapPdf(dados(new Map([[1,reg({confirmacaoCliente:"plena",
+      rubricaHistorica:"legado_sem_versao",rubricaPng:RUBRICA})]])));
+    expect(imagensNoPdf(pdf)).toBe(await imagensDaMarca());
+    const t=await texto(pdf);expect(t).toContain("RUBRICA SEM VERSÃO");expect(t).not.toContain("Souza, C.F.");
+  });
+  it("ausência explicitamente capturada não aceita imagem adicionada depois",async()=>{
+    const pdf=await gerarRasFapPdf(dados(new Map([[1,reg({confirmacaoCliente:"plena",
+      rubricaHistorica:"sem_imagem",rubricaPng:RUBRICA})]])));
+    expect(imagensNoPdf(pdf)).toBe(await imagensDaMarca());expect(await texto(pdf)).toContain("Souza, C.F.");
+  });
   it("T-RUB-15: a imagem entra no PDF UMA vez, mesmo desenhada em várias linhas (F71)", async () => {
     const uma = new Map([[1, reg({ confirmacaoCliente: "plena", rubricaPng: RUBRICA })]]);
     const quatro = new Map([1, 2, 3, 4].map((n) => [n, reg({ confirmacaoCliente: "plena", rubricaPng: RUBRICA })] as const));

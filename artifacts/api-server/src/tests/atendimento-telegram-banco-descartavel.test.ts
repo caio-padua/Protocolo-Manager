@@ -18,7 +18,7 @@ vi.mock("../lib/telegram-config", () => ({ chatAlertaOuNull: async () => "ALERTA
 vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => ({ headers: {} }) }));
 
 import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
-  atenderMensagemTelegram,processarAtendimentosPendentes } from "../lib/atendimento-telegram-store";
+  atenderMensagemTelegram,processarAtendimentosPendentes,pausarAtendimentoDuravel } from "../lib/atendimento-telegram-store";
 import { processarAtendimento } from "../lib/atendimento-telegram";
 
 const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k8yrwp-postgresql-16.10/bin";
@@ -140,5 +140,22 @@ describe("consumidor real do atendimento com banco descartável e somente transp
     await processarAtendimentosPendentes();expect(h.enviados).toHaveLength(0);
     expect((await pool.query("SELECT ultimo_erro FROM telegram_atendimento_respostas WHERE inbox_message_id=204")).rows[0].ultimo_erro).toBe("vinculo_origem_alterado");
     expect((await pool.query("SELECT modo FROM telegram_atendimento WHERE cliente_id=3")).rows[0].modo).toBe("ia");
+  });
+  it.each(["desvinculado","duplicado","dono_antigo","legitimo"])("pausa atômica: %s no instante do efeito",async(caso)=>{
+    const id=205+["desvinculado","duplicado","dono_antigo","legitimo"].indexOf(caso);
+    const e=await entrada(id,"teste sintético da pausa");
+    await pool.query("UPDATE telegram_atendimento_respostas SET estado='processando',dono='dono-sintetico' WHERE inbox_message_id=$1",[id]);
+    try{
+      if(caso==="desvinculado")await pool.query("UPDATE clients SET telegram_chat_id=NULL WHERE id=1");
+      if(caso==="duplicado")await pool.query("UPDATE clients SET telegram_chat_id='C1' WHERE id=3");
+      await pausarAtendimentoDuravel(e,"teste_sintetico",caso==="dono_antigo"?"dono-expirado":"dono-sintetico");
+      expect((await pool.query("SELECT modo FROM telegram_atendimento WHERE cliente_id=1")).rows[0].modo)
+        .toBe(caso==="legitimo"?"humano":"ia");
+      expect(h.enviados).toHaveLength(0);
+    }finally{
+      await pool.query("UPDATE clients SET telegram_chat_id='C1' WHERE id=1");
+      await pool.query("UPDATE clients SET telegram_chat_id='C3' WHERE id=3");
+      await pool.query("UPDATE telegram_atendimento_respostas SET estado='esgotado' WHERE inbox_message_id=$1",[id]);
+    }
   });
 });

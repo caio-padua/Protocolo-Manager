@@ -3,6 +3,8 @@ import express from "express";
 import request from "supertest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import { createHash } from "node:crypto";
+import { PDFDocument,PDFRawStream,PDFName } from "pdf-lib";
 import { startIsolatedPostgres } from "./helpers/postgres-isolado";
 import { comoJpeg, comoPng, rabisco } from "./helpers/rubrica-sintetica";
 
@@ -53,9 +55,10 @@ import {
 import { createCollaboratorToken } from "../lib/collaborator-auth";
 import { tenantContextMiddleware } from "../middleware/tenantContext";
 import clientRubricaRouter from "../routes/client-rubrica";
-import { ensureClientRubricas, lerRubricaAtiva, salvarRubricaCliente } from "../lib/client-rubrica";
+import { ensureClientRubricas, lerRubricaAtiva, lerRubricaHistorica, salvarRubricaCliente } from "../lib/client-rubrica";
 import { prepararRubrica } from "../lib/client-rubrica-imagem";
 import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
+import { gerarRasFapPdf } from "../lib/ras-fap";
 
 let isolated: Awaited<ReturnType<typeof startIsolatedPostgres>>;
 const q = (text: string, values?: unknown[]) => isolated.pool.query(text, values);
@@ -121,6 +124,8 @@ beforeAll(async () => {
   await q(`INSERT INTO visit_confirmations (session_id, empresa_id, client_id, state) VALUES
     (1000,5,10,'rubrica_chave'), (1001,5,10,'rubrica_desafio'), (1002,5,10,'pendente'),
     (1100,5,11,'rubrica_chave'), (1200,5,10,'pendente')`);
+  // Fixture nova com ausência comprovada; não é retropreenchimento de dados reais.
+  await q("UPDATE visit_confirmations SET rubrica_snapshot_at=NOW() WHERE session_id=1100");
 }, 120_000);
 
 afterAll(async () => {
@@ -206,6 +211,12 @@ describe("Rubrica do cliente em imagem — armazenamento", () => {
 });
 
 describe("Rubrica do cliente em imagem — integridade do arquivo guardado", () => {
+  beforeAll(async()=>{
+    // Estas confirmações SINTÉTICAS têm versão conhecida, para continuar provando integridade.
+    const [v]=await ativas(10);
+    await q(`UPDATE visit_confirmations SET rubrica_version_id=$1,rubrica_sha256=$2,rubrica_snapshot_at=NOW()
+      WHERE session_id IN (1000,1001)`,[v.id,v.sha256]);
+  });
   it("T-RUB-14c: PNG válido porém DIFERENTE do registrado derruba a leitura, o GET e o RAS (F75)", async () => {
     const [linha] = await ativas(10);
     const original = state.arquivos.get(linha.object_path)!;
@@ -213,7 +224,7 @@ describe("Rubrica do cliente em imagem — integridade do arquivo guardado", () 
     try {
       await expect(lerRubricaAtiva(10, 5)).rejects.toThrow(/não confere com o registro/);
       await expect(loadProtocolRasRegistros({ id: 100, schedulingMode: "exact", empresaId: 5, clientId: 10 }, SUBS))
-        .rejects.toThrow(/não confere com o registro/);
+        .rejects.toThrow(/integridade da imagem não confere/);
       const rota = await request(app).get("/clients/10/rubrica").set(auth(tokenEmpresa5));
       expect(rota.status).toBe(500);
       expect(rota.headers["content-type"]).not.toBe("image/png");
@@ -266,7 +277,7 @@ describe("Rubrica do cliente em imagem — carregador do RAS FAP", () => {
 
   it("T-RUB-14b: rubrica registrada e ilegível derruba a emissão do RAS (sem iniciais em silêncio, R18)", async () => {
     state.armazenamentoCaido = true;
-    await expect(loadProtocolRasRegistros(protocolo(100, 10), SUBS)).rejects.toThrow(/imagem não pôde ser lida/);
+    await expect(loadProtocolRasRegistros(protocolo(100, 10), SUBS)).rejects.toThrow(/imagem registrada indisponível/);
   });
 });
 
@@ -336,5 +347,78 @@ describe("Rubrica do cliente em imagem — rotas (cadeia real de autenticação)
     const semArquivo = await request(app).post("/clients/11/rubrica").set(auth(tokenEmpresa5));
     expect(semArquivo.status).toBe(400);
     expect((await todas(11)).length).toBe(antes);
+  });
+});
+
+describe("histórico do documento nunca usa a imagem atual por inferência",()=>{
+  const protocolo={id:100,schedulingMode:"exact",empresaId:5,clientId:10};
+  const snapshot=async()=> (await q("SELECT rubrica_version_id,rubrica_sha256 FROM visit_confirmations WHERE session_id=1000")).rows[0];
+  async function gerar(mapa:Awaited<ReturnType<typeof loadProtocolRasRegistros>>){
+    return gerarRasFapPdf({nome:"CLIENTE SINTÉTICO",medicoResponsavel:"MÉDICO SINTÉTICO",enfermeira:"EQUIPE SINTÉTICA",
+      unidade:"CLÍNICA SINTÉTICA",dataAtendimento:new Date("2026-11-13T15:00:00-03:00"),protocoloNumero:"100",
+      gradePersistida:[{numero:1,data:new Date("2026-11-09T12:00:00-03:00"),contadores:["1/1","1/1"]}],
+      registros:mapa,substancias:[{nome:"ITEM SINTÉTICO A",sessoes:1,frequenciaDias:7,inicio:new Date("2026-11-09T12:00:00-03:00")},
+        {nome:"ITEM SINTÉTICO B",sessoes:1,frequenciaDias:7,inicio:new Date("2026-11-09T12:00:00-03:00")}]});
+  }
+  async function imagens(pdf:Buffer){
+    const doc=await PDFDocument.load(pdf);
+    return doc.context.enumerateIndirectObjects().flatMap(([,obj])=>
+      obj instanceof PDFRawStream && obj.dict.get(PDFName.of("Subtype"))?.toString()==="/Image"?
+        [createHash("sha256").update(obj.getContents()).digest("hex")]:[]).sort();
+  }
+  it("trocar a rubrica mantém a imagem histórica e as imagens do PDF regenerado",async()=>{
+    const antes=(await loadProtocolRasRegistros(protocolo,SUBS))!;
+    const rubricaAntes=antes.get(1)!.rubricaPng!;
+    const pdfAntes=await gerar(antes);
+    const vinculo=await snapshot();
+    await salvarRubricaCliente({clientId:10,empresaId:5,professionalId:101,pronta:rubrica(7)});
+    expect((await lerRubricaAtiva(10,5))?.equals(rubricaAntes)).toBe(false);
+    const depois=(await loadProtocolRasRegistros(protocolo,SUBS))!;
+    expect(depois.get(1)!.rubricaPng?.equals(rubricaAntes)).toBe(true);
+    expect(depois.get(1)!.rubricaVersionId).toBe(vinculo.rubrica_version_id);
+    expect(await imagens(await gerar(depois))).toEqual(await imagens(pdfAntes));
+    expect((await lerRubricaHistorica(10,5,vinculo.rubrica_version_id,vinculo.rubrica_sha256)).equals(rubricaAntes)).toBe(true);
+  });
+  it("clínica, cliente ou hash divergente recusam antes de ler o arquivo",async()=>{
+    const v=await snapshot();const leituras=state.leituras;
+    await expect(lerRubricaHistorica(10,6,v.rubrica_version_id,v.rubrica_sha256)).rejects.toThrow(/vínculo/);
+    await expect(lerRubricaHistorica(11,5,v.rubrica_version_id,v.rubrica_sha256)).rejects.toThrow(/vínculo/);
+    await expect(lerRubricaHistorica(10,5,v.rubrica_version_id,"f".repeat(64))).rejects.toThrow(/vínculo/);
+    expect(state.leituras).toBe(leituras);
+  });
+  it("referência adulterada para imagem de outra clínica no documento também recusa",async()=>{
+    const original=await snapshot();
+    await salvarRubricaCliente({clientId:20,empresaId:6,professionalId:102,pronta:rubrica(4)});
+    const [outra]=await ativas(20);
+    try{
+      await q("UPDATE visit_confirmations SET rubrica_version_id=$1,rubrica_sha256=$2 WHERE session_id=1000",[outra.id,outra.sha256]);
+      await expect(loadProtocolRasRegistros(protocolo,SUBS)).rejects.toThrow(/vínculo/);
+    }finally{
+      await q("UPDATE visit_confirmations SET rubrica_version_id=$1,rubrica_sha256=$2 WHERE session_id=1000",
+        [original.rubrica_version_id,original.rubrica_sha256]);
+    }
+  });
+  it("pendente ignora até uma referência de versão presente; ausência capturada permanece sem imagem",async()=>{
+    const v=await snapshot();
+    await q("UPDATE visit_confirmations SET rubrica_version_id=$1,rubrica_sha256=$2,rubrica_snapshot_at=NOW() WHERE session_id=1200",
+      [v.rubrica_version_id,v.rubrica_sha256]);
+    const leituras=state.leituras;
+    const pendente=(await loadProtocolRasRegistros({id:102,schedulingMode:"exact",empresaId:5,clientId:10},SUBS))!;
+    expect(pendente.get(1)!.rubricaPng).toBeUndefined();expect(state.leituras).toBe(leituras);
+    const semImagem=(await loadProtocolRasRegistros({id:101,schedulingMode:"exact",empresaId:5,clientId:11},SUBS))!;
+    expect(semImagem.get(1)!.rubricaHistorica).toBe("sem_imagem");expect(semImagem.get(1)!.rubricaPng).toBeUndefined();
+  });
+  it("versão não registrada no legado fica explícita, sem consultar a imagem de hoje",async()=>{
+    const v=await snapshot();
+    try{
+      await q("UPDATE visit_confirmations SET rubrica_version_id=NULL,rubrica_sha256=NULL,rubrica_snapshot_at=NULL WHERE session_id IN(1000,1001)");
+      const leituras=state.leituras;
+      const mapa=(await loadProtocolRasRegistros(protocolo,SUBS))!;
+      expect(mapa.get(1)!.rubricaHistorica).toBe("legado_sem_versao");expect(mapa.get(1)!.rubricaPng).toBeUndefined();
+      expect(state.leituras).toBe(leituras);
+    }finally{
+      await q("UPDATE visit_confirmations SET rubrica_version_id=$1,rubrica_sha256=$2,rubrica_snapshot_at=NOW() WHERE session_id IN(1000,1001)",
+        [v.rubrica_version_id,v.rubrica_sha256]);
+    }
   });
 });

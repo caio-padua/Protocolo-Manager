@@ -57,7 +57,7 @@ async function rowsOf<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   return (result as unknown as { rows: T[] }).rows;
 }
 
-const TRAVA_RUBRICA = 7101; // espaço próprio das travas de rubrica (pg_advisory_xact_lock com duas chaves)
+export const TRAVA_RUBRICA = 7101; // compartilhada com a captura histórica da confirmação
 
 export interface RubricaSalva {
   /** false = o mesmo arquivo já era a rubrica ativa; nada foi criado. */
@@ -123,6 +123,24 @@ export async function lerRubricaAtiva(clientId: number, empresaId: number): Prom
   // seria impresso no RAS como se fosse a rubrica do cliente.
   if (createHash("sha256").update(png).digest("hex") !== linha.sha256) {
     throw new Error(`Rubrica do cliente ${clientId}: o arquivo guardado não confere com o registro`);
+  }
+  return png;
+}
+
+/** A versão histórica não precisa continuar ativa; ausência/divergência é erro, nunca substituição. */
+export async function lerRubricaHistorica(clientId:number,empresaId:number,versionId:number,sha256:string):Promise<Buffer> {
+  if(!Number.isSafeInteger(versionId)||versionId<=0||!/^[a-f0-9]{64}$/.test(sha256)) {
+    throw new Error("Rubrica histórica: versão ou hash inválido");
+  }
+  await ensureClientRubricas();
+  const [linha]=await rowsOf<RubricaRow>(sql`SELECT id,object_path,sha256,created_at FROM client_rubricas
+    WHERE id=${versionId} AND client_id=${clientId} AND empresa_id=${empresaId} AND sha256=${sha256}`);
+  if(!linha) throw new Error("Rubrica histórica: vínculo de versão, cliente, clínica ou hash não confere");
+  let png:Buffer;
+  try { png=await new ObjectStorageService().readPrivateObject(linha.object_path); }
+  catch { throw new Error("Rubrica histórica: imagem registrada indisponível"); }
+  if(!png?.length||createHash("sha256").update(png).digest("hex")!==sha256) {
+    throw new Error("Rubrica histórica: integridade da imagem não confere");
   }
   return png;
 }

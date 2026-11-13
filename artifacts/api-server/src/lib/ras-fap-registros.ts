@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { parseBrtParts } from "./brt";
-import { lerRubricaAtiva } from "./client-rubrica";
+import { lerRubricaHistorica } from "./client-rubrica";
 import { ensureVisitConfirmations } from "./ensure-visit-confirmations";
 import { marcaDoEstado, type RegistroRasFap } from "./ras-fap-rubrica";
 
@@ -11,15 +11,16 @@ import { marcaDoEstado, type RegistroRasFap } from "./ras-fap-rubrica";
  *
  * Só protocolos de datas exatas: a linha da grade deles É uma visita (sessão). No protocolo semanal antigo a
  * linha é uma semana consolidada e ligá-la a uma sessão seria adivinhar; ele continua exatamente como era.
- * Lê substance_applications, professionals, clients, visit_confirmations e a rubrica em imagem do cadastro
- * do cliente (client_rubricas), que desenha no lugar das iniciais quando existe.
+ * Lê substance_applications, professionals, clients, visit_confirmations e a versão
+ * histórica da imagem (client_rubricas), nunca a imagem ativa por inferência.
  */
 
 interface SessionRow { id: number; week_number: number | null; empresa_id: number | null; client_id: number | null }
 interface ApplicationRow {
   session_id: number; substance_id: number; status: string; applied_at: string | null; confirmed_by: number | null;
 }
-interface ConfirmationRow { session_id: number; state: string }
+interface ConfirmationRow { session_id: number; state: string; rubrica_version_id:number|null;
+  rubrica_sha256:string|null;rubrica_snapshot_at:Date|string|null }
 
 async function rowsOf<T>(query: ReturnType<typeof sql>): Promise<T[]> {
   const result = await db.execute(query);
@@ -73,9 +74,10 @@ export async function loadProtocolRasRegistros(
 
   await ensureVisitConfirmations();
   const confirmacoes = await rowsOf<ConfirmationRow>(sql`
-    SELECT session_id, state FROM visit_confirmations
+    SELECT session_id, state, rubrica_version_id, rubrica_sha256, rubrica_snapshot_at FROM visit_confirmations
      WHERE session_id IN (${idList}) AND empresa_id = ${empresaId} AND client_id = ${protocol.clientId}`);
   const estadoPorSessao = new Map(confirmacoes.map((c) => [c.session_id, c.state]));
+  const confirmacaoPorSessao = new Map(confirmacoes.map(c=>[c.session_id,c]));
 
   const [cliente] = await rowsOf<{ name: string }>(sql`
     SELECT name FROM clients WHERE id = ${protocol.clientId} AND empresa_id = ${empresaId}`);
@@ -113,12 +115,19 @@ export async function loadProtocolRasRegistros(
     });
   }
 
-  // Rubrica em imagem do cadastro: só é lida se alguma linha vai mostrar rubrica (marcas plena e cadastro).
-  // Cliente e empresa são os do protocolo; falha de leitura de uma rubrica registrada lança (sem iniciais em silêncio).
+  // Cada visita usa sua própria versão. Sem prova legada não se inventa imagem.
   const mostraRubrica = (r: RegistroRasFap) => r.confirmacaoCliente === "plena" || r.confirmacaoCliente === "cadastro";
-  if ([...registros.values()].some(mostraRubrica)) {
-    const rubricaPng = await lerRubricaAtiva(protocol.clientId, empresaId as number);
-    if (rubricaPng) for (const r of registros.values()) if (mostraRubrica(r)) r.rubricaPng = rubricaPng;
+  for(const session of sessions) {
+    const registro=registros.get(session.week_number!)!;
+    if(!mostraRubrica(registro)) continue;
+    const c=confirmacaoPorSessao.get(session.id);
+    if(!c?.rubrica_snapshot_at) { registro.rubricaHistorica="legado_sem_versao";continue; }
+    if(c.rubrica_version_id===null && c.rubrica_sha256===null) {registro.rubricaHistorica="sem_imagem";continue;}
+    if(!c.rubrica_version_id||!c.rubrica_sha256) throw new Error("RASP: vínculo histórico da rubrica incompleto");
+    registro.rubricaPng=await lerRubricaHistorica(protocol.clientId,empresaId as number,c.rubrica_version_id,c.rubrica_sha256);
+    registro.rubricaHistorica="imagem";
+    registro.rubricaVersionId=c.rubrica_version_id;
+    registro.rubricaSha256=c.rubrica_sha256;
   }
   return registros;
 }

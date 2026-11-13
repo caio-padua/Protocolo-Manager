@@ -22,6 +22,7 @@ import {
 import { clientConfirmEmail, keyMessage, managerEmail, whenLabel } from "./visit-confirmation-messages";
 import { baseUrlFromEnv } from "./messaging/base-url";
 import type { PaxterDoc } from "./messaging/types";
+import { comRubricaHistorica } from "./visit-rubrica-historica";
 
 // ---------------------------------------------------------------------------
 // Constantes (decisões do CEO)
@@ -284,12 +285,13 @@ export async function verifyKey(ref: VisitRef, code: unknown, professionalId: nu
   }
   const { key_hash: stored, key_attempts: attempts } = counted[0];
   if (safeEqualHex(stored, hashKey(row.id, typed))) {
-    const consumed = await rowsOf<{ id: number }>(sql`
+    const consumed = await comRubricaHistorica<{ id: number }>(ref.clientId,ref.empresaId,now,campos=>sql`
       UPDATE visit_confirmations
-         SET key_hash = NULL, key_used_at = ${iso(now)}::timestamptz, state = 'rubrica_chave',
+         SET ${campos} key_hash = NULL, key_used_at = ${iso(now)}::timestamptz, state = 'rubrica_chave',
              rubrica_at = ${iso(now)}::timestamptz, rubrica_method = 'chave',
              rubrica_by_professional_id = ${professionalId}, updated_at = ${iso(now)}::timestamptz
        WHERE id = ${row.id} AND key_hash = ${stored} AND key_used_at IS NULL
+         AND client_id=${ref.clientId} AND empresa_id=${ref.empresaId}
          AND state <> 'confirmada_email'
        RETURNING id`);
     if (consumed.length === 0) {
@@ -483,12 +485,14 @@ export async function confirmByLink(token: string, fingerprint: string, now: Dat
   const found = await lookupLink(token, now);
   if (found.status === "invalido" || found.status === "expirado") return { status: found.status };
   if (found.status === "ja_confirmada") return { status: "ja_confirmada" };
-  const claimed = await rowsOf<{ confirmed_late: boolean }>(sql`
+  const claimed = await comRubricaHistorica<{ confirmed_late: boolean }>(
+    found.row.client_id,found.row.empresa_id,now,campos=>sql`
     UPDATE visit_confirmations
-       SET confirmed_late = (state = 'nao_confirmada'), state = 'confirmada_email',
+       SET ${campos} confirmed_late = (state = 'nao_confirmada'), state = 'confirmada_email',
            confirmed_at = ${iso(now)}::timestamptz, confirmed_fingerprint = ${fingerprint},
            updated_at = ${iso(now)}::timestamptz
      WHERE id = ${found.row.id} AND confirmed_at IS NULL
+       AND client_id=${found.row.client_id} AND empresa_id=${found.row.empresa_id}
        AND state IN ('pendente', 'rubrica_desafio', 'nao_confirmada')
      RETURNING confirmed_late`);
   if (claimed.length === 0) return { status: "ja_confirmada" };
@@ -741,12 +745,13 @@ export async function submitChallenge(ref: VisitRef, ctx: VisitContext,
 
   if (answersMatch(a, b, h1, h2, clientData(ctx))) {
     // Só vale se o sorteio ainda for o vigente (uma rodada encerrada ou travada em paralelo anula a resposta).
-    const won = await rowsOf<{ id: number }>(sql`
+    const won = await comRubricaHistorica<{ id: number }>(ref.clientId,ref.empresaId,now,campos=>sql`
       UPDATE visit_confirmations
-         SET state = CASE WHEN state IN ('sem_pedido', 'chave_enviada', 'pendente', 'nao_confirmada') THEN 'rubrica_desafio' ELSE state END,
+         SET ${campos} state = CASE WHEN state IN ('sem_pedido', 'chave_enviada', 'pendente', 'nao_confirmada') THEN 'rubrica_desafio' ELSE state END,
              rubrica_at = ${iso(now)}::timestamptz, rubrica_method = 'desafio',
              rubrica_by_professional_id = ${professionalId}, updated_at = ${iso(now)}::timestamptz
        WHERE id = ${row.id} AND state NOT IN ('rubrica_chave', 'confirmada_email')
+         AND client_id=${ref.clientId} AND empresa_id=${ref.empresaId}
          AND challenge_locked IS FALSE AND challenge_round = ${row.challenge_round}
          AND challenge_field_a = ${a} AND challenge_field_b = ${b}
        RETURNING id`);

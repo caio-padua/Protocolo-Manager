@@ -1,5 +1,8 @@
 # Canal básico Telegram — retomada controlada
 
+Revisão adicional vigente: [atendimento recuperável e rubrica histórica](telegram-atendimento-rubrica-recuperacao.md).
+Ela complementa esta evidência; sincronizar código não autoriza publicação nem novos envios reais.
+
 ## Objetivo e escopo
 Executar a etapa 1 do pedido de integração da comunicação, reutilizando webhook,
 inbox, resposta da equipe, outbox e worker existentes.
