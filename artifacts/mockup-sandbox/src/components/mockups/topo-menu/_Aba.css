@@ -1,0 +1,13 @@
+/* Aba de fichario: faixa azul-marinho (mesma cor do menu lateral) no teto; a aba desce, contorna o nome e sobe para a faixa com ombros curvos. */
+.ab-faixa { position: relative; margin: 0 -18px; padding: 0 18px; flex: none; background: #12294c; }
+.ab-aba { position: relative; display: inline-flex; align-items: center; background: #12294c; color: #f1e8d0; font-family: "EB Garamond", Georgia, serif; font-weight: 800; white-space: nowrap;
+  border-radius: 0 0 var(--r,8px) var(--r,8px);
+  box-shadow: inset -1px 0 0 rgba(255,255,255,.12), inset 1px 0 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(201,162,74,.7), 0 3px 0 rgba(6,17,34,.55), 0 8px 12px -6px rgba(4,13,27,.8);
+  text-shadow: 0 -.5px 0 rgba(255,255,255,.5), 0 1px 0 #8a7a50, 0 1.6px 1.6px rgba(0,0,0,.6); }
+.ab-aba::before, .ab-aba::after { content: ""; position: absolute; top: 0; width: var(--o,10px); height: var(--o,10px); pointer-events: none; }
+.ab-aba::before { left: calc(var(--o,10px) * -1); background: radial-gradient(circle at 0 100%, transparent calc(var(--o,10px) - .5px), #12294c var(--o,10px)); }
+.ab-aba::after { right: calc(var(--o,10px) * -1); background: radial-gradient(circle at 100% 100%, transparent calc(var(--o,10px) - .5px), #12294c var(--o,10px)); }
+.ab-aba.rente-esq { border-bottom-left-radius: 0; }
+.ab-aba.rente-esq::before { display: none; }
+.ab-fantasma { display: inline-flex; align-items: center; height: 14px; padding: 0 9px; margin-right: 3px; border-radius: 0 0 5px 5px; background: #0e2240; color: #7f93b3; font: 700 8px/1 "EB Garamond", serif; letter-spacing: .12em; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
+.ab-ouro { position: absolute; left: 0; right: 0; bottom: 3px; height: 1px; background: linear-gradient(90deg, transparent, rgba(240,214,150,.8), transparent); }
