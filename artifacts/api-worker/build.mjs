@@ -18,6 +18,12 @@ async function buildAll() {
     platform: "node",
     bundle: true,
     format: "esm",
+    // O bundle ESM executa dependências CommonJS que ainda fazem require
+    // dinâmico de módulos nativos do Node (por exemplo, pg → events).
+    // O require local precisa existir em runtime, não apenas neste script.
+    banner: {
+      js: 'import { createRequire } from "node:module";\nconst require = createRequire(import.meta.url);',
+    },
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",

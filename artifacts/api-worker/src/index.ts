@@ -16,25 +16,17 @@
  */
 
 import http from "http";
-import { parseWorkerProfile, startWorkerJobs, type WorkerProfile } from "./worker";
+import {
+  categorizarErroDeWorker,
+  parseWorkerProfile,
+  resumoErroSeguro,
+  startWorkerJobs,
+  type WorkerProfile,
+} from "./worker";
 import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 const workerProfile = parseWorkerProfile(process.env.PADAXOR_WORKER_PROFILE);
-
-function categoriaErroSeguro(err: unknown): string {
-  const code =
-    err && typeof err === "object" && "code" in err && typeof err.code === "string"
-      ? err.code
-      : "";
-  if (code && /^[A-Z0-9_]+$/.test(code)) return code;
-
-  const message = err instanceof Error ? err.message : "";
-  if (/DATABASE_URL must be set/i.test(message)) return "database_url_missing";
-  if (/APP_ENCRYPTION_KEY|SESSION_SECRET/i.test(message)) return "vault_key_configuration";
-  if (/ERR_MODULE_NOT_FOUND|Cannot find package/i.test(message)) return "module_unavailable";
-  return "unclassified";
-}
 
 const jobsByProfile: Record<WorkerProfile, string[]> = {
   full: [
@@ -109,6 +101,28 @@ if (workerProfile === "full") {
 // Mesma fonte de configuração da API: o cofre (gravado pela tela) vence o ambiente. Sem isto, o
 // worker leria o valor antigo do ambiente (ex.: chat de alerta, token do bot, Twilio).
 void (async () => {
+  if (workerProfile === "telegram-relay-dev") {
+    try {
+      const { pool } = await import("@workspace/db");
+      await pool.query("SELECT 1");
+      logger.info(
+        { profile: workerProfile },
+        "api-worker: conexão de desenvolvimento com o banco confirmada"
+      );
+    } catch (err) {
+      logger.error(
+        {
+          profile: workerProfile,
+          errorType: err instanceof Error ? err.constructor.name : typeof err,
+          errorCategory: categorizarErroDeWorker(err),
+          errorSummary: resumoErroSeguro(err),
+        },
+        "api-worker: perfil restrito interrompido antes de agendar por falha no banco"
+      );
+      return;
+    }
+  }
+
   try {
     const { hydrateEnvFromVault } = await import("../../api-server/src/lib/secure-settings.js" as string);
     const { hidratadas } = await hydrateEnvFromVault();
@@ -117,7 +131,8 @@ void (async () => {
     logger.error(
       {
         errorType: err instanceof Error ? err.constructor.name : typeof err,
-        errorCategory: categoriaErroSeguro(err),
+        errorCategory: categorizarErroDeWorker(err),
+        errorSummary: resumoErroSeguro(err),
       },
       "api-worker: falha ao hidratar o cofre (jobs seguem com o ambiente)"
     );

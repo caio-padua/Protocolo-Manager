@@ -32,7 +32,7 @@ Retomar continuamente o encaminhamento já salvo no outbox usando o `api-worker`
 | Mensagem real é enviada durante a validação | Alta | Conferir contagem por estado antes de iniciar; não inserir repasse sintético no banco da aplicação | Iniciar com fila vazia; usar transporte simulado nos testes |
 | Regressão nos lembretes ou duplicação de cron | Alta | Não iniciar o Job 2 no perfil restrito; preservar o único Job 2 do perfil completo | Suítes do motor, concorrência e textos por dia/período |
 | Reinício do workflow cria outro processo | Média | Reutilizar o nome do mesmo workflow e verificar a lista de processos | Reiniciar uma única vez e confirmar uma instância |
-| Worker não consegue ler o cofre ou o banco no seu contexto | Alta | Não registrar mensagem de erro ou credenciais; classificar a falha sem expor valores e confirmar o primeiro tick | Exigir tick concluído antes de afirmar retomada ativa |
+| Worker não consegue ler o cofre ou o banco no seu contexto | Alta | Registrar somente categoria e resumo estritamente sanitizado, sem credenciais ou identificadores | Exigir conexão e primeiro tick concluído antes de afirmar retomada ativa |
 
 ## Definição de pronto
 1. A especificação e a implementação mostram que o perfil de desenvolvimento registra apenas um cron do outbox.
@@ -43,12 +43,20 @@ Retomar continuamente o encaminhamento já salvo no outbox usando o `api-worker`
 6. Logs identificam o perfil e os ticks sem expor texto, identificadores de clientes, destinos ou segredos.
 7. Revisão independente examina esta especificação e as alterações; sem ela, o estado permanece BLOQUEADO, nunca HOMOLOGADO.
 
-## Evidências de linha de base antes da implementação
+## Evidências e resultado — 13/11/2026
 - A árvore local estava limpa.
-- O outbox de desenvolvimento não tinha linhas em nenhum estado.
-- Quatro suítes focadas passaram: 50 testes.
-- Compilação e checagem de tipos do `api-worker` passaram.
+- O outbox de desenvolvimento não tinha linhas em nenhum estado antes e depois da validação; nenhuma mensagem foi enviada nesta rodada.
+- Doze suítes focadas passaram: 189 testes, incluindo sete suítes de autorização e isolamento, dados sintéticos em banco descartável e transporte simulado.
+- Compilação, checagem de tipos do `api-worker` e `git diff --check` passaram.
 - Não havia workflow nem processo do `api-worker` ativo.
 - O Job 2 de lembretes e a retomada do outbox já existiam no worker; o perfil padrão completo também inicia outros trabalhos com efeitos externos.
 - A primeira tentativa do workflow confirmou o perfil restrito, mas falhou porque a porta padrão 8081 já era atendida pelo serviço de prévia do mockup; nenhum tick ocorreu. O perfil restrito passou a não abrir essa porta.
-- A segunda tentativa permanece em execução, mas o carregamento inicial do cofre registrou erro genérico; a fila segue vazia. O primeiro tick precisa confirmar acesso operacional ao outbox antes de declarar a retomada funcional.
+- A prova de conexão do workflow revelou a causa: o pacote ESM (módulos JavaScript modernos) empacotado não conseguia executar uma chamada `require` dinâmica (carregamento tradicional de módulos) para o módulo nativo `events`; o processador do outbox depende do pacote PostgreSQL incluído no bundle.
+- A compilação passou apesar da incompatibilidade, mas a verificação de execução do artefato a revelou antes de qualquer agendamento ou envio.
+- O carregador de runtime baseado no Node.js corrigiu a chamada dinâmica; a prova de conexão com o banco passou.
+- O cofre inicialmente falhou porque `pino-pretty` só estava declarado no api-server, embora o worker carregue o logger compartilhado; o worker agora declara a dependência de desenvolvimento diretamente e hidratou nove configurações sem registrar seus valores.
+- O workflow único `api-worker: Telegram development` iniciou com perfil restrito, concluiu um tick, foi reiniciado uma vez e concluiu outro tick; ambos examinaram zero repasses e registraram zero envios e falhas.
+- A lista de processos mostrou uma instância do worker, além do processo pai do gerenciador do workflow e do servidor de programação de aplicações existente; não foi iniciado worker completo nem processo paralelo.
+- O motor de lembretes não foi agendado no perfil restrito; o Job 2 existente segue único no perfil completo. Testes preservaram textos por dia e período, motivação na sexta e no sábado e versículo somente no sábado.
+- Nenhum webhook, autorização, configuração de produção ou dado clínico foi alterado. Não houve envio a nenhum contato.
+- **Estado:** execução contínua em desenvolvimento comprovada para startup, cofre, banco, ticks e reinício; repasse real não comprovado porque o outbox estava vazio. BLOQUEADO para HOMOLOGAÇÃO até revisão independente.

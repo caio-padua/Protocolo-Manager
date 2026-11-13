@@ -26,6 +26,47 @@ export function parseWorkerProfile(value: string | undefined): WorkerProfile {
   throw new Error(`Perfil de api-worker inválido: ${value}`);
 }
 
+export function categorizarErroDeWorker(err: unknown): string {
+  const vistos = new Set<unknown>();
+  let atual: unknown = err;
+  while (atual && typeof atual === "object" && !vistos.has(atual)) {
+    vistos.add(atual);
+    const item = atual as { code?: unknown; message?: unknown; cause?: unknown };
+    const code = typeof item.code === "string" ? item.code : "";
+    if (code && /^[A-Z0-9_]+$/.test(code)) return code;
+
+    const message = typeof item.message === "string" ? item.message : "";
+    if (/DATABASE_URL must be set/i.test(message)) return "database_url_missing";
+    if (/APP_ENCRYPTION_KEY|SESSION_SECRET/i.test(message)) return "vault_key_configuration";
+    if (/ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Cannot find package|Cannot find module/i.test(message)) {
+      return "module_unavailable";
+    }
+    if (/Dynamic require of .* is not supported/i.test(message)) {
+      return "esm_commonjs_dynamic_require";
+    }
+    if (/telegram_repasse_ceo.*does not exist|relation .*does not exist/i.test(message)) {
+      return "database_schema_unavailable";
+    }
+    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|connection terminated|connect timeout/i.test(message)) {
+      return "database_connection_failed";
+    }
+    atual = item.cause;
+  }
+  return "unclassified";
+}
+
+export function resumoErroSeguro(err: unknown): string {
+  if (!(err instanceof Error)) return typeof err;
+  return err.message
+    .replace(/postgres(?:ql)?:\/\/[^\s"'`]+/gi, "[database-url-redacted]")
+    .replace(/https?:\/\/[^\s"'`]+/gi, "[url-redacted]")
+    .replace(/\b\d{6,}:[A-Za-z0-9_-]{20,}\b/g, "[token-redacted]")
+    .replace(/\b(password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*[^,\s]+/gi, "$1=[redacted]")
+    .replace(/\b\d{5,20}\b/g, "[id-redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .slice(0, 160);
+}
+
 function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler): void {
   let repasseRodando = false;
   let primeiroTickConcluido = false;
@@ -57,7 +98,10 @@ function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler
         primeiroTickConcluido = true;
       } catch (err) {
         logger.error(
-          { errorType: err instanceof Error ? err.constructor.name : typeof err },
+          {
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+            errorCategory: categorizarErroDeWorker(err),
+          },
           "Worker: falha na retomada de repasses do Telegram"
         );
       } finally {

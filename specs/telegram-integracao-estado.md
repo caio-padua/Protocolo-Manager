@@ -1,6 +1,6 @@
 # Telegram — estado do trabalho (arquivo durável)
 
-Enquadramento obrigatório: Deduplicação aplicada e testada em desenvolvimento. Integração Telegram ainda não integralmente validada: pendências de recuperação de encaminhamento, cobertura dos demais fluxos e ativação da mensageria.
+Enquadramento obrigatório: Deduplicação, autorização e isolamento seguem testados em desenvolvimento. O worker restrito agora inicia, conecta ao banco, hidrata o cofre, executa ticks e sobrevive a um reinício; nenhum repasse real foi comprovado nesta rodada porque o outbox estava vazio. Produção permanece desligada.
 
 ## Etapa atual
 Etapa 7 — serviço de IA "Dúvidas e Orientações" (Etapas 3 a 6 feitas em desenvolvimento).
@@ -42,7 +42,7 @@ Revisão independente: 1 rodada. Achados corrigidos: dono da reivindicação, AC
 ## Etapa 4 — recuperação do repasse (FEITA em desenvolvimento; ver specs/telegram-repasse-outbox.md)
 - Tabela aditiva `telegram_repasse_ceo` (estados: pendente, enviando, aceito_telegram, falhou, esgotado, incerto). Salvo != entregue; sem promessa de exatamente-uma-vez; incerto nunca é reenviado sozinho.
 - Registro no outbox acontece ANTES do 200; reentrega de mensagem já salva refaz o registro (idempotente).
-- Retomada: job a cada minuto no api-worker (`artifacts/api-worker/src/worker.ts`). Atenção: no desenvolvimento NÃO existe workflow do api-worker; a retomada automática só foi provada em banco descartável, não em execução contínua.
+- Retomada: job a cada minuto no perfil restrito do worker existente, no workflow único `api-worker: Telegram development`. Dois ticks foram concluídos, antes e depois de um reinício; ambos encontraram zero repasses. O perfil agenda somente o outbox e não inicia outros jobs.
 - Evidência: banco descartável 13/13 (concorrência 20 = 1 envio, limite de tentativas, processo caiu = incerto, cascata).
 - NÃO provado ao vivo: repasse real ao chat da clínica (evitei inserir mensagem sintética no cadastro de cliente real). Entra no teste real autorizado da Etapa 6.
 
@@ -70,7 +70,7 @@ Motor reaproveitado: `executarLembretesPeriodo` (lib/lembrete-periodo), mesmo cr
 Envio real: 1 mensagem, texto NÃO clínico ("MENSAGEM DE TESTE DO SISTEMA"), ao chat autorizado da cliente 1924 (contato do Dr. Caio). Não confirmei visualmente a chegada (API do Telegram aceitou; Dr. Caio pode conferir no aparelho).
 Ajustes de teste para a prova (todos revertidos): autorização de lembrete (registro de teste em `dispatch_log`, apagado), chaves `lembrete.telegram.*` (apagadas), lembrete 54 da cliente 1924 (mantido DESATIVADO como evidência, junto com os envios). Cliente 44 não foi tocado (sem autorização de lembrete, nada saiu para ela).
 Correção extra: a saudação do modelo simples usava a hora do servidor (UTC); agora usa Brasília (`lib/brt`).
-Achados para o Dr. Caio (não alterei conteúdo do catálogo): (a) período "Almoço" usa saudação "Boa tarde" mesmo às 11:00; (b) a frase de status do Dr. Caio varia por dia da semana, então manhã e noite do mesmo dia repetem essa frase; (c) o worker real (api-worker) continua sem workflow no desenvolvimento.
+Achados para o Dr. Caio (não alterei conteúdo do catálogo): (a) período "Almoço" usa saudação "Boa tarde" mesmo às 11:00; (b) a frase de status do Dr. Caio varia por dia da semana, então manhã e noite do mesmo dia repetem essa frase; (c) o perfil restrito de desenvolvimento processa só repasses; o Job 2 de lembretes não foi ativado nele para evitar disparos a clientes.
 Para ligar em produção (só com o comando "100%"): gravar `lembrete.telegram.modo` = `lista` (testes) ou `ligado`, e cada cliente precisa de autorização de lembrete recorrente válida.
 
 ## Revisão de retomada — 13/11/2026 (prioridade de autorização, testes e lembretes)
@@ -81,7 +81,9 @@ Para ligar em produção (só com o comando "100%"): gravar `lembrete.telegram.m
 - Execução de leitura do catálogo real, sem envio: catálogo disponível; frase motivacional detectada na sexta e no sábado; versículo ausente na sexta e presente no sábado.
 - Compilação do api-worker aprovada. A API respondeu `GET /api/brt` com HTTP 200 e as tabelas aditivas do Telegram estão presentes no banco de desenvolvimento.
 - As chaves de modo do Telegram não estão gravadas em `app_settings`; pela regra do código, o modo permanece `desligado`. Nenhum envio real foi feito nesta retomada e nada foi ativado em produção.
-- Limite ainda aberto: o api-worker não tem workflow no desenvolvimento; portanto, a retomada contínua do outbox não foi comprovada ao vivo. A prova automatizada usa banco temporário e transporte simulado. Um envio real de confirmação fica pendente por causa da instrução atual de não enviar mensagens a clientes.
+- Retomada contínua do outbox: inicialização do banco e do cofre, dois ticks sem erro, reinício e instância única foram comprovados no workflow de desenvolvimento. Doze suítes focadas passaram (189 testes), incluindo 134 testes de autorização e isolamento; os testes de fluxo usaram dados sintéticos e transporte simulado.
+- Limite ainda aberto: não houve repasse real, pois o outbox estava vazio; não foi necessário enviar teste aos contatos autorizados. O modo de lembretes segue desligado em `app_settings`, produção não foi tocada e o perfil restrito não executa o Job 2.
+- A revisão independente continua pendente neste modo; portanto, o estado permanece BLOQUEADO para homologação e a próxima etapa não foi iniciada.
 - Nos logs revisados, a API estava ativa; há avisos recorrentes de atualização da Agenda, fora deste escopo. Não declaro o log global sem avisos.
 
 ## Próxima ação
@@ -98,6 +100,6 @@ Etapa 7: serviço de IA "Dúvidas e Orientações" (somente orientações aprova
 ## Pendências conhecidas
 - Etapas 7 e 8 não concluídas: IA (7), queixas clínicas (8).
 - Tela para resolver as pendências de vínculo ambíguo ainda não existe (hoje a pendência é consultável no banco e avisa o chat de alerta).
-- Retomada automática do outbox e dos lembretes depende do api-worker, que não roda no desenvolvimento (provado executando o Job 2 isolado).
+- O outbox tem retomada contínua comprovada no workflow restrito de desenvolvimento; lembretes seguem no único Job 2 do worker completo e permanecem sem ativação em desenvolvimento nesta rodada.
 - Repasse real do outbox ao chat de alerta ainda sem prova ao vivo.
 - Nada publicado em produção.
