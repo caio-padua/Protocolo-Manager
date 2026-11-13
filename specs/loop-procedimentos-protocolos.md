@@ -86,6 +86,70 @@ continua sem prova de reinício seguro. A solução precisa preservar as operaç
 necessárias, controlar as primeiras requisições e provar autenticação,
 persistência e isolamento externo antes de qualquer ativação.
 
+### Retomada: prova reproduzível antes da ativação
+
+O primeiro passo é reproduzir as provas existentes sem iniciar a entrada normal
+do servidor. O procedimento de teste deve usar uma rede isolada pelo sistema
+operacional, um banco PostgreSQL descartável criado pelos próprios testes,
+credenciais sintéticas e uma interface temporária acessível somente dentro da
+rede isolada. A configuração do ambiente deve ser limpa antes da execução;
+se o isolamento não puder ser criado ou se houver arquivos locais de ambiente
+que a interface possa carregar, o procedimento deve parar sem iniciar o teste.
+
+As duas suítes de procedimentos exercitam autorização, separação entre clínicas,
+gravação, leitura e interface em navegador. Na interface, algumas respostas são
+simuladas e as requisições de procedimentos são encaminhadas às rotas reais
+com sessão e banco sintéticos. Essa prova não substitui a sessão autenticada do
+ambiente atual nem demonstra a inicialização completa do servidor.
+
+Falhas previstas: conexão externa acidental, uso do banco configurado, leitura
+de credenciais existentes, processos temporários deixados ativos, arquivos de
+ambiente carregados implicitamente e teste apresentado como ativação. As
+barreiras são isolamento de rede, ambiente limpo, banco descartável, recusa
+explícita diante de arquivos de ambiente, encerramento dos processos temporários
+e apresentação separada dos limites da prova.
+
+Em 13/11/2026, a execução isolada anterior passou em 35 testes; dois testes da
+sincronização de campos vinculados permaneceram desativados. A consulta somente
+de leitura ao banco de desenvolvimento do Replit encontrou as cinco tabelas do
+cadastro e as três colunas exigidas pela verificação inicial da rota. Isso não
+comprova a compatibilidade integral do banco nem o salvamento no servidor em uso.
+O reinício e a homologação continuam bloqueados até haver procedimento completo,
+validação autenticada no ambiente atual e revisão independente.
+
+Comando reproduzível: `bash scripts/testar-cadastro-procedimentos-isolado.sh`.
+O procedimento passou nas duas suítes, com 35 testes aprovados e dois
+desativados. As verificações separadas de ausência de isolamento e presença de
+arquivo de ambiente interromperam o procedimento antes da interface; nenhum
+processo temporário permaneceu ao final. O procedimento não executa a entrada
+normal do servidor nem constitui um modo seguro de ativação.
+
+Para preparar uma futura ativação, testar também a agenda com relógio e
+serviços simulados: um início deve disparar uma leitura imediata, repetir após
+60 segundos e compartilhar uma leitura já em andamento. Essa prova não confirma
+acesso ao Google nem permite afirmar que os efeitos operacionais completos da
+agenda foram verificados.
+
+O teste `agenda-google-ciclo-isolado.test.ts` confirmou esses dois
+comportamentos com serviços simulados. Ele e os testes existentes de integração
+da agenda somaram 15 aprovações em rede isolada. A leitura de calendário real
+não foi executada.
+
+O levantamento estático percorreu 390 arquivos locais alcançáveis a partir da
+entrada do servidor. Foram identificadas rotinas com escrita durante a
+importação das rotas, além de sincronização externa e sementes na importação
+da aplicação. O levantamento não prova ausência de efeitos em dependências
+externas ou chamadas dinâmicas. A sincronização periódica da agenda inicia uma
+leitura imediatamente e pode atualizar registros locais; por isso, não basta
+desligá-la silenciosamente nem presumir que o reinício preservará todos os
+dados. Algumas primeiras consultas também podem criar estruturas.
+
+O bloqueio concreto permanece: ainda não foi identificado e comprovado um
+procedimento que controle todos esses efeitos preservando a agenda, o cofre, a
+autenticação e o perímetro de acesso. A revisão independente necessária também
+não está disponível nesta execução. Não iniciar o servidor normal nem declarar
+salvamento autenticado no ambiente atual com base apenas nas provas isoladas.
+
 ## Estado inicial
 
 - O catálogo de produtos foi disponibilizado na tela e testado em ambiente

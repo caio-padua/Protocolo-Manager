@@ -49,6 +49,7 @@
 - [Cockpit DTO burro + mensageria](onda-e-cockpit-mensageria.md) — cockpit re-deriva doenças com gatilhoBate (não toca motor); agendarLembretes apaga todo status=agendado do cliente (escopar por origem antes de abrir a outras fontes).
 - [Background bash não sobrevive entre chamadas](bash-background-nao-sobrevive.md) — nohup/& morrem ao retornar a tool; trabalho tem de caber em 1 chamada (~120s) ou virar workflow.
 - [Inicialização do preview e da API](api-preview-startup-race.md) — serviços independentes podem deixar o login sem API no primeiro instante; aguardar saúde antes de enviar credenciais, sem repetir o POST.
+- [Rede isolada para testes](rede-isolada-testes.md) — namespace de usuário e rede pode funcionar quando unshare -n falha; confirmar interfaces, capacidades e sockets Unix.
 - [Reinício seguro e importações](boot-servidor-efeitos-importacao.md) — inicialização também ocorre ao importar rotas; teste isolado da migração não comprova todo o reinício.
 - [Webhook vincula canal a paciente](webhook-vinculo-canal-paciente.md) — 3 camadas: segredo de origem fail-closed + prova de posse + match ÚNICO (colisão nunca vincula).
 - [Cadastro público por voz + CEP auto](cadastro-publico-voz-cep.md) — voz em campo mascarado normaliza fala→dígitos (pt-BR); auto-fill (ViaCEP) passa valor EXPLÍCITO, guarda corrida por seq.
