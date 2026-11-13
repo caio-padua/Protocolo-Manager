@@ -404,7 +404,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           .from(clientsTable)
           .where(eq(clientsTable.id, clientId));
         const client = clients[0];
-        if (client?.cpf) {
+        if (client) {
           const firstName = client.name.split(" ")[0];
           if (client.email) {
             await sendGmailMessage({

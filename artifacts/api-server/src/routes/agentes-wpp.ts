@@ -133,7 +133,8 @@ _PAXTER Clinical Intelligence System_`;
     const r = await sendWhatsapp(telefone, mensagem, { clienteId: client_id });
     logIntegracao({ tipo: "wpp_proativo", client_id, status: r.sent ? "ok" : "falhou", detalhe: { logId: r.logId, via: r.via } }).catch(() => {});
     if (!r.sent) {
-      res.status(502).json({
+      // Resultado de negócio: o consumidor atual lê ok=false e o link no corpo 2xx.
+      res.json({
         ok: false,
         error: r.error ?? "Não foi possível enviar a mensagem.",
         via: r.via,

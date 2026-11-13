@@ -74,18 +74,36 @@ uma nova checagem completa e pelos testes relevantes.
 
    Resultado: 19 arquivos e 237 testes aprovados. Ambiente de desenvolvimento,
    dados sintéticos, banco isolado nos testes de integração e serviços externos
-   simulados; nenhuma mensagem foi enviada. A suíte completa de 211 arquivos não
+   simulados; nenhuma mensagem foi enviada. A suíte completa não
    foi executada.
 4. Dois problemas de ambiente de teste foram corrigidos sem alterar a segurança
    de produção: um teste de rota agora simula explicitamente o contexto já
    autenticado e também cobre a recusa a não proprietários; o simulador do
    conector do Google agora declara a resposta HTTP como bem-sucedida.
-5. Revisão independente: BLOQUEADA. A ferramenta de revisor separado está
-   indisponível nesta sessão. Autorrevisão não substitui essa etapa.
+5. Revisão independente executada após a indisponibilidade inicial: reprovou
+   a condição de CPF nas notificações, o tratamento de falha consumido pela tela
+   de WhatsApp e a insuficiência da prova de autenticação do Concierge.
+   Correções necessárias: notificar sem exigir CPF; preservar resultado
+   `ok=false` e link legível pelo consumidor; testar a cadeia real de contexto
+   empresarial com tokens assinados e contas sintéticas.
+   As três correções foram aplicadas: a condição da notificação voltou a depender
+   somente da existência do cliente; a falha do envio retorna resultado de negócio
+   `ok=false` em resposta 200 para o consumidor existente; novos testes usam
+   `tenantContextMiddleware` e tokens assinados de verdade, com apenas a
+   persistência simulada.
+   Verificação posterior:
+   - `pnpm --filter @workspace/api-server run typecheck`: passou.
+   - `pnpm --filter @workspace/api-server run build`: passou.
+   - `pnpm --filter @workspace/api-server exec vitest run --maxWorkers=2 src/tests/concierge-admin-auth.test.ts src/tests/concierge-admin-routes.test.ts`: 27 testes passaram.
+   - `pnpm --filter @workspace/api-server exec vitest run src/tests/agentes-wpp-result.test.ts`: dois testes passaram, sem envio real.
+   - O aviso de exames teve a condição original restaurada, mas não foi executado
+     o processamento completo de exame nesta etapa.
+   A revisão não foi repetida e não há parecer final de aprovação.
 6. O servidor da API não foi reiniciado. O início do processo também sincroniza
    dados externos e ativa tarefas de manutenção; reiniciá-lo neste escopo poderia
    produzir efeitos fora dos testes.
 
 Estado do PAXTER Loop: checagem, build e testes direcionados passaram; a
-homologação permanece pendente da suíte completa, da revisão independente e da
-validação de inicialização segura.
+homologação permanece pendente da suíte completa, do parecer final independente
+e da validação de inicialização segura. Nenhum teste real de encaminhamento
+Telegram foi executado nesta etapa de checagem de tipos.
