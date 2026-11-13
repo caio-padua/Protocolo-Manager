@@ -4,6 +4,7 @@
  */
 export const linhaOutboxFake: Record<string, unknown> = {
   inbox_message_id: 50, chat_id_destino: "CEO_OUTRO_CHAT", tentativas: 1,
+  empresa_id: 5, direcao: "entrada",
   texto: "mensagem de teste", chat_id_remetente: "999888777", cliente_id: 42, nome: "Ana Lima", cpf: "12345678900",
 };
 
@@ -14,6 +15,9 @@ export function respostaOutboxFake(q: unknown): { rows: unknown[] } | null {
   const strings = (q as { strings?: readonly string[] } | null)?.strings;
   if (!strings) return null;
   const t = strings.join("?");
+  if (t.includes("SELECT id, empresa_id FROM clients") && t.includes("WHERE telegram_chat_id =")) {
+    return { rows: [{ id: linhaOutboxFake.cliente_id, empresa_id: linhaOutboxFake.empresa_id }] };
+  }
   if (!t.includes("telegram_repasse_ceo")) return null;
   if (t.includes("INSERT INTO telegram_repasse_ceo")) {
     if (configOutboxFake.falhaRegistro) throw configOutboxFake.falhaRegistro;

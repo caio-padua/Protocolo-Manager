@@ -30,7 +30,9 @@ import { enriquecerItemFormula } from "../lib/formula-manipulada";
 import { registrarLogMensagem } from "../lib/whatsapp";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { sendTelegram } from "../lib/telegram";
+import { logger } from "../lib/logger";
 import { pausarParaHumano } from "../lib/atendimento-telegram-store";
+import { vinculoTelegramAtualUnico } from "../lib/telegram-vinculo-atual";
 import { inboxRouter } from "./telegram-inbox";
 const router = Router();
 router.use(moduleGuard("cockpit"));
@@ -375,7 +377,7 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     return;
   }
 
-  const texto: string = (req.body?.texto ?? "").trim();
+  const texto = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
   if (!texto) {
     res.status(400).json({ error: "texto obrigatorio" });
     return;
@@ -405,6 +407,11 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     return;
   }
 
+  if (!await vinculoTelegramAtualUnico(db, { clienteId, empresaId, chatId })) {
+    res.status(409).json({ error: "Vínculo do Telegram alterado ou ambíguo; confira o cadastro antes de enviar." });
+    return;
+  }
+
   const resultado = await sendTelegram(chatId, texto);
 
   // Persiste saúde do chatId do paciente: true = entregue, false = falhou.
@@ -415,7 +422,8 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     try {
       await db.execute(sql`UPDATE clients SET telegram_last_test_ok = ${testOk} WHERE id = ${clienteId} AND empresa_id = ${empresaId}`);
     } catch (e: unknown) {
-      console.warn("[cockpit/enviar] falha ao persistir telegram_last_test_ok:", e);
+      logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e },
+        "[cockpit/enviar] falha ao persistir telegram_last_test_ok");
     }
   }
 
@@ -434,7 +442,8 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
   try {
     await pausarParaHumano(db, clienteId, "profissional_assumiu", null);
   } catch (e: unknown) {
-    console.warn("[cockpit/enviar] falha ao pausar atendimento automatico:", e instanceof Error ? e.constructor.name : typeof e);
+    logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e },
+      "[cockpit/enviar] falha ao pausar atendimento automatico");
   }
 
   // Registra no log unificado de mensagens (via='telegram') para o cockpit

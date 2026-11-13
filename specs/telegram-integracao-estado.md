@@ -1,9 +1,16 @@
 # Telegram — estado do trabalho (arquivo durável)
 
-Enquadramento obrigatório: Deduplicação, autorização e isolamento seguem testados em desenvolvimento. O worker restrito agora inicia, conecta ao banco, hidrata o cofre, executa ticks e sobrevive a um reinício; nenhum repasse real foi comprovado nesta rodada porque o outbox estava vazio. Produção permanece desligada.
+Enquadramento obrigatório: este arquivo reúne rodadas históricas diferentes.
+O resultado da retomada atual do canal básico está em
+`specs/telegram-canal-basico-retomada.md`: teste de encaminhamento aceito pelo
+Telegram, observação visual pelo assistente ChatGPT/Codex na sessão autorizada
+e correção da exposição de CPF. Nenhuma liberação de produção foi executada.
 
 ## Etapa atual
-Etapa 7 — serviço de IA "Dúvidas e Orientações" (Etapas 3 a 6 feitas em desenvolvimento).
+Ordem vigente do pedido: fechar a etapa 1 (canal básico e suas provas) antes de
+avançar para autorização específica de lembretes e, depois, dúvidas e documentos.
+As seções abaixo descrevem histórico; seus títulos "FEITA" não constituem
+homologação da revisão atual.
 
 ## Etapa 1 — Deduplicação (feita, desenvolvimento)
 - Chave (chat_id, update_id), índice único parcial `ux_telegram_inbox_chat_update`; tabela de backup `telegram_inbox_messages_bkp_20261113` preservada.
@@ -68,6 +75,18 @@ Motor reaproveitado: `executarLembretesPeriodo` (lib/lembrete-periodo), mesmo cr
 | DADO | mensagens motivacionais continuam nos dias úteis e de sábado; versículo aparece somente no sábado (BRT) | teste sintético dedicado do montador + conferência de leitura do catálogo real para sexta e sábado | sim |
 | LOG | execução AUTOMÁTICA real | Job 2 do worker executado isolado (mesmo agendamento `* * * * *`): às 03:05:01 BRT, janela 03:05, tick sozinho enviou 1 mensagem; `lembrete_envios` id 306 = ENVIADO; log de mensagens id 166 via=telegram status=sent | sim |
 Envio real: 1 mensagem, texto NÃO clínico ("MENSAGEM DE TESTE DO SISTEMA"), ao chat autorizado da cliente 1924 (contato do Dr. Caio). Não confirmei visualmente a chegada (API do Telegram aceitou; Dr. Caio pode conferir no aparelho).
+Complemento de evidência recebido em 13/11/2026: foi relatada observação visual
+no Telegram Web, conversa Instituto Padua, dessa mensagem às 03:05.
+A consulta somente de leitura confirmou envio 306, lembrete 54, janela
+`2026-11-13 03:05`, conclusão às 03:05:01 de Brasília, log 166, via `telegram`,
+estado `sent`, mesmo destinatário e presença do texto de teste; o lembrete segue
+inativo. A correlação de texto/data/horário/registros é com este teste histórico
+do **Job 2 executado isoladamente**, não com o perfil atual restrito do worker.
+Proveniência visual: relato recebido nesta conversa; não foi uma observação
+direta do Dr. Replit nem atribuída pessoalmente ao Dr. Caio.
+Não há identificação externa da mensagem nesta evidência para comparação
+independente. O relato complementa o recebimento dessa mensagem específica,
+sem comprovar operação atual, sem validar outros lembretes e sem autorizar envios.
 Ajustes de teste para a prova (todos revertidos): autorização de lembrete (registro de teste em `dispatch_log`, apagado), chaves `lembrete.telegram.*` (apagadas), lembrete 54 da cliente 1924 (mantido DESATIVADO como evidência, junto com os envios). Cliente 44 não foi tocado (sem autorização de lembrete, nada saiu para ela).
 Correção extra: a saudação do modelo simples usava a hora do servidor (UTC); agora usa Brasília (`lib/brt`).
 Achados para o Dr. Caio (não alterei conteúdo do catálogo): (a) período "Almoço" usa saudação "Boa tarde" mesmo às 11:00; (b) a frase de status do Dr. Caio varia por dia da semana, então manhã e noite do mesmo dia repetem essa frase; (c) o perfil restrito de desenvolvimento processa só repasses; o Job 2 de lembretes não foi ativado nele para evitar disparos a clientes.

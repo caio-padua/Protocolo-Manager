@@ -7,6 +7,7 @@
  * transporte são injetados (testável em banco descartável).
  */
 import { sql, type SQL } from "drizzle-orm";
+import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual";
 
 export interface ExecutorOutbox {
   execute: (query: SQL) => Promise<{ rows: unknown[] }>;
@@ -59,6 +60,7 @@ export type ResultadoEnvio =
   | { kind: "entregue" }
   | { kind: "simulado" }
   | { kind: "omitido_remetente_e_ceo" }
+  | { kind: "bloqueado"; motivo: "vinculo_origem_alterado" | "destino_configurado_alterado" }
   | { kind: "falhou"; erro: string };
 
 export interface ClassificacaoEnvio {
@@ -75,6 +77,7 @@ function erroCurto(erro: string): string {
 }
 
 export function classificarResultado(r: ResultadoEnvio, tentativasJaFeitas: number): ClassificacaoEnvio {
+  if (r.kind === "bloqueado") return { estado: "esgotado", erro: r.motivo };
   if (r.kind === "entregue" || r.kind === "omitido_remetente_e_ceo") return { estado: "aceito_telegram", erro: null };
   const esgotou = tentativasJaFeitas >= MAX_TENTATIVAS;
   if (r.kind === "simulado") return { estado: esgotou ? "esgotado" : "falhou", erro: "simulado_sem_token" };
@@ -96,6 +99,8 @@ export interface LinhaRepasse {
   texto: string;
   chat_id_remetente: string;
   cliente_id: number;
+  empresa_id: number;
+  direcao: string;
   nome: string;
   cpf: string | null;
 }
@@ -108,15 +113,15 @@ export interface DepsOutbox {
 async function carregarLinha(exec: ExecutorOutbox, id: number): Promise<LinhaRepasse | null> {
   const r = await exec.execute(sql`
     SELECT r.id, r.inbox_message_id, r.chat_id_destino, r.tentativas,
-           m.texto, m.chat_id AS chat_id_remetente, m.cliente_id, c.name AS nome, c.cpf
+           m.texto, m.chat_id AS chat_id_remetente, m.cliente_id, m.empresa_id,
+           m.direcao
     FROM telegram_repasse_ceo r
     JOIN telegram_inbox_messages m ON m.id = r.inbox_message_id
-    JOIN clients c ON c.id = m.cliente_id
     WHERE r.id = ${id}
   `);
-  const l = r.rows[0] as (Omit<LinhaRepasse, "id" | "tentativas" | "inbox_message_id" | "cliente_id"> & Record<"id" | "tentativas" | "inbox_message_id" | "cliente_id", number | string>) | undefined;
+  const l = r.rows[0] as (Omit<LinhaRepasse, "id" | "tentativas" | "inbox_message_id" | "cliente_id" | "empresa_id"> & Record<"id" | "tentativas" | "inbox_message_id" | "cliente_id" | "empresa_id", number | string>) | undefined;
   if (!l) return null;
-  return { ...l, id: Number(l.id), tentativas: Number(l.tentativas), inbox_message_id: Number(l.inbox_message_id), cliente_id: Number(l.cliente_id) };
+  return { ...l, nome: "", cpf: null, id: Number(l.id), tentativas: Number(l.tentativas), inbox_message_id: Number(l.inbox_message_id), cliente_id: Number(l.cliente_id), empresa_id: Number(l.empresa_id) };
 }
 
 /**
@@ -141,6 +146,10 @@ export async function tentarRepasse(
   let resultado: ResultadoEnvio;
   if (!linha) {
     resultado = { kind: "falhou", erro: "telegram_http_404" }; // mensagem de origem sumiu: nada a enviar
+  } else if (linha.direcao !== "entrada" || !await vinculoTelegramAtualUnico(exec, {
+    clienteId: linha.cliente_id, empresaId: linha.empresa_id, chatId: linha.chat_id_remetente,
+  })) {
+    resultado = { kind: "bloqueado", motivo: "vinculo_origem_alterado" };
   } else {
     try {
       resultado = await deps.enviar(linha);

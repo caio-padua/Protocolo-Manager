@@ -134,10 +134,10 @@ describe("processarWebhookInbox — duplicata e falhas", () => {
     const r = await processarWebhookInbox({ chatId: "1", texto: "t", chatIdCEO: "9", updateId: 77 }, d);
     expect(r.kind).toBe("gravado");
   });
-  it("falha ANTES da gravação: propaga o erro e avisa o CEO com gravacaoFalhou", async () => {
+  it("falha ANTES da gravação: propaga o erro sem encaminhar", async () => {
     const d = deps({ insertMensagem: vi.fn().mockRejectedValue(new Error("db")) });
     await expect(processarWebhookInbox({ chatId: "1", texto: "t", chatIdCEO: "9", updateId: 77 }, d)).rejects.toThrow("db");
-    expect(d.notificarCEO).toHaveBeenCalledWith("9", cliente, "t", { gravacaoFalhou: true });
+    expect(d.notificarCEO).not.toHaveBeenCalled();
   });
 });
 
@@ -172,19 +172,20 @@ describe("POST /webhooks/telegram — dedupe de ponta a ponta (rota real, banco 
     const ins = mockExecute.mock.calls.map((c) => c[0]).find(isInsert)!;
     expect(ins.strings.join("?")).not.toContain("ON CONFLICT");
   });
-  it("R4 FALHA ANTES, banco fora (ECONNREFUSED): 500 para o Telegram reentregar; aviso ao CEO marcado como não gravada; log sem texto da mensagem", async () => {
+  it("R4 banco fora: 500 para reentregar, sem envio direto e log sem texto", async () => {
     mockExecute.mockImplementation(async (q) => { if (isInsert(q)) throw Object.assign(new Error("Failed query: ... mensagem de teste"), { code: "ECONNREFUSED" }); return { rows: [] }; });
     const res = await enviar(payload(556));
     expect(res.status).toBe(500);
     await flush();
-    expect(mockSend).toHaveBeenCalledWith("CEO_OUTRO_CHAT", expect.stringContaining("Não gravada no Cockpit"));
+    expect(mockSend).not.toHaveBeenCalled();
     expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain("mensagem de teste");
   });
-  it("R5 FALHA ANTES, permanente (FK 23503): 200 (reentregar não adianta) e erro registrado sem o texto", async () => {
+  it("R5 falha estrutural na gravação: 500 até corrigir, sem texto externo", async () => {
     mockExecute.mockImplementation(async (q) => { if (isInsert(q)) throw Object.assign(new Error("Failed query: mensagem de teste"), { cause: { code: "23503" } }); return { rows: [] }; });
     const res = await enviar(payload(557));
-    expect(res.status).toBe(200);
-    expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "23503" }), expect.stringContaining("permanente"));
+    expect(res.status).toBe(500);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "23503" }), expect.stringContaining("reentrega necessária"));
     expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain("mensagem de teste");
   });
   it("R2b reentrega duplicada com repasse ainda PENDENTE (registro ficou pela metade): repasse é recuperado, 1 envio", async () => {

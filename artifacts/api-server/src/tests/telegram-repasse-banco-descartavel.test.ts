@@ -2,19 +2,22 @@
  * Outbox do repasse ao chat de alerta — SQL real em BANCO DESCARTÁVEL (socket Unix em /tmp;
  * nunca toca DATABASE_URL). Dados 100% sintéticos.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import {
   aplicarMigracaoOutbox, registrarRepasse, tentarRepasse, processarRepassesVencidos,
   marcarEnviandoAbandonadoComoIncerto, resumoRepasses, classificarResultado, MAX_TENTATIVAS,
   type DepsOutbox, type ResultadoEnvio,
 } from "../lib/telegram-repasse-outbox";
 import { aplicarMigracaoPendenciaVinculo, registrarPendenciaVinculo } from "../lib/telegram-vinculo-pendencia";
+import { repassarMensagemAoCeo } from "../lib/telegram-relay-ceo";
 
 const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k8yrwp-postgresql-16.10/bin";
 let dir = "";
@@ -36,9 +39,10 @@ beforeAll(async () => {
     try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
   }
   await pool.query(`
-    CREATE TABLE clients (id SERIAL PRIMARY KEY, name TEXT, cpf TEXT);
+    CREATE TABLE clients (id SERIAL PRIMARY KEY, name TEXT, cpf TEXT,
+      empresa_id INTEGER NOT NULL DEFAULT 5, telegram_chat_id TEXT DEFAULT '111');
     CREATE TABLE telegram_inbox_messages (
-      id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0,
+      id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 5,
       cliente_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
       chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT);
@@ -83,6 +87,28 @@ describe("outbox do repasse", () => {
     expect(r).toEqual({ kind: "tratado", estado: "aceito_telegram" });
     expect(ch).toEqual(["texto salvo no banco"]);
     expect((await estadoDe(id)).tentativas).toBe(1);
+  });
+
+  it("privacidade no fluxo SQL → montador: não carrega CPF e oculta identificadores no alerta", async () => {
+    const texto = "Teste não clínico 12345678900 / 123.456.789-00 / exemplo@teste.invalid";
+    const m = await novaMensagem(texto);
+    const id = await registrarRepasse(db, m, "CEO");
+    const enviar = vi.fn().mockResolvedValue({ sent: true, mock: false });
+    await tentarRepasse(db, id, { enviar: async linha => {
+      expect(linha.cpf).toBeNull();
+      expect(linha.nome).toBe("");
+      return repassarMensagemAoCeo({
+        chatIdCeo: linha.chat_id_destino, chatIdRemetente: linha.chat_id_remetente,
+        clienteId: linha.cliente_id, nome: linha.nome, cpfDisplay: "",
+        texto: linha.texto,
+      }, { enviar, log: { info: vi.fn(), warn: vi.fn() } });
+    } });
+    expect((await estadoDe(id)).estado).toBe("aceito_telegram");
+    const alerta = enviar.mock.calls[0][1] as string;
+    expect(alerta).not.toContain("12345678900");
+    expect(alerta).not.toContain("123.456.789-00");
+    expect(alerta).not.toContain("exemplo@teste.invalid");
+    expect((await pool.query("SELECT texto FROM telegram_inbox_messages WHERE id=$1", [m])).rows[0].texto).toBe(texto);
   });
 
   it("O3 aceito não é reenviado nunca mais (nem pelo worker)", async () => {
@@ -239,6 +265,57 @@ describe("outbox do repasse", () => {
     const id = await registrarRepasse(db, m, "CEO_X");
     await pool.query("DELETE FROM telegram_inbox_messages WHERE id=$1", [m]);
     expect((await pool.query("SELECT 1 FROM telegram_repasse_ceo WHERE id=$1", [id])).rowCount).toBe(0);
+  });
+
+  it.each([
+    "empresa_cliente", "empresa_mensagem", "chat_removido", "chat_trocado",
+    "chat_duplicado", "mensagem_saida",
+  ])("revalida vínculo antes de retomar: %s bloqueia sem envio", async (caso) => {
+    const chat = `vinculo-sintetico-${++seq}`;
+    const c = (await pool.query(
+      "INSERT INTO clients (name, cpf, empresa_id, telegram_chat_id) VALUES ('Sintetico', NULL, 5, $1) RETURNING id", [chat],
+    )).rows[0].id;
+    const m = (await pool.query(
+      "INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto) VALUES (5,$1,$2,'teste sintetico') RETURNING id",
+      [c, chat],
+    )).rows[0].id;
+    const id = await registrarRepasse(db, m, "CEO");
+    if (caso === "empresa_cliente") await pool.query("UPDATE clients SET empresa_id=7 WHERE id=$1", [c]);
+    if (caso === "empresa_mensagem") await pool.query("UPDATE telegram_inbox_messages SET empresa_id=7 WHERE id=$1", [m]);
+    if (caso === "chat_removido") await pool.query("UPDATE clients SET telegram_chat_id=NULL WHERE id=$1", [c]);
+    if (caso === "chat_trocado") await pool.query("UPDATE clients SET telegram_chat_id='outro' WHERE id=$1", [c]);
+    if (caso === "chat_duplicado") await pool.query(
+      "INSERT INTO clients (name, empresa_id, telegram_chat_id) VALUES ('Outro sintetico',7,$1)", [chat],
+    );
+    if (caso === "mensagem_saida") await pool.query("UPDATE telegram_inbox_messages SET direcao='saida' WHERE id=$1", [m]);
+    const enviar = vi.fn().mockResolvedValue({ kind: "entregue" });
+    expect(await tentarRepasse(db, id, { enviar })).toEqual({ kind: "tratado", estado: "esgotado" });
+    expect(enviar).not.toHaveBeenCalled();
+    expect(await estadoDe(id)).toMatchObject({ tentativas: 1, ultimo_erro: "vinculo_origem_alterado" });
+    await vencer(id);
+    expect(await tentarRepasse(db, id, { enviar })).toEqual({ kind: "nao_reivindicado" });
+    expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it("falha do banco na revalidação não envia; recuperação preserva estado incerto", async () => {
+    const m = await novaMensagem("teste sintetico falha de leitura");
+    const id = await registrarRepasse(db, m, "CEO");
+    const enviar = vi.fn().mockResolvedValue({ kind: "entregue" });
+    const indisponivel = {
+      execute: async (query: SQL) => {
+        const texto = new PgDialect().sqlToQuery(query).sql;
+        if (texto.includes("WHERE telegram_chat_id =")) throw new Error("falha sintetica");
+        return db.execute(query);
+      },
+    };
+    await expect(tentarRepasse(indisponivel, id, { enviar })).rejects.toThrow("falha sintetica");
+    expect(enviar).not.toHaveBeenCalled();
+    expect((await estadoDe(id)).estado).toBe("enviando");
+    await pool.query("UPDATE telegram_repasse_ceo SET atualizado_em=NOW()-interval '10 minutes' WHERE id=$1", [id]);
+    await marcarEnviandoAbandonadoComoIncerto(db);
+    expect((await estadoDe(id)).estado).toBe("incerto");
+    expect(await tentarRepasse(db, id, { enviar })).toEqual({ kind: "nao_reivindicado" });
+    expect(enviar).not.toHaveBeenCalled();
   });
 });
 

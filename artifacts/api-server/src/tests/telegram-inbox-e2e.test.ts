@@ -210,9 +210,7 @@ describe("Falha silenciosa no INSERT — contrato da rota de produção", () => 
     expect(loggerError).toHaveBeenCalledWith({ err: dbErr });
   });
 
-  it("3. CEO é avisado (marcado como NÃO gravada) quando o INSERT falha", async () => {
-    // Desde a deduplicação por update_id a gravação vem primeiro; se ela falha, o CEO
-    // ainda recebe o aviso (best-effort) com gravacaoFalhou=true.
+  it("3. INSERT falhou: não contorna persistência com notificação direta", async () => {
     const notificarCEO = vi.fn().mockResolvedValue(undefined);
     const deps = makeWebhookDeps({
       insertMensagem: vi.fn().mockRejectedValue(new Error("DB offline")),
@@ -227,13 +225,7 @@ describe("Falha silenciosa no INSERT — contrato da rota de produção", () => 
     // Aguarda microtasks fire-and-forget
     await Promise.resolve();
 
-    expect(notificarCEO).toHaveBeenCalledOnce();
-    expect(notificarCEO).toHaveBeenCalledWith(
-      "999",
-      expect.objectContaining({ id: CLIENTE_ID }),
-      TEXTO,
-      { gravacaoFalhou: true },
-    );
+    expect(notificarCEO).not.toHaveBeenCalled();
   });
 
   it("3b. CEO NÃO é notificado quando chatIdCEO está ausente (mesmo com falha no INSERT)", async () => {

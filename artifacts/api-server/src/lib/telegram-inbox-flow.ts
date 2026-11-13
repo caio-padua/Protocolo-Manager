@@ -84,8 +84,8 @@ export type WebhookInboxResult =
  * O comportamento é intencional e documentado aqui para rastreabilidade.
  *
  * Erros no insertMensagem são propagados ao chamador; a rota de produção
- * captura com `.catch(logger.error)` para nunca falhar o Telegram (que
- * reentregaria em loop caso recebesse status != 200).
+ * responde 500 para permitir reentrega. A rota registra o repasse no outbox;
+ * esta função nunca envia notificação quando a persistência falha.
  */
 export async function processarWebhookInbox(
   params: { chatId: string; texto: string; chatIdCEO?: string | null; updateId?: number | null },
@@ -106,26 +106,13 @@ export async function processarWebhookInbox(
 
   // Ordem: GRAVA primeiro (é a única forma de saber se a entrega é duplicada) e só
   // então repassa ao CEO. Entrega duplicada nunca repassa de novo.
-  let gravada: { id: number; duplicada?: boolean };
-  try {
-    gravada = await deps.insertMensagem({
+  const gravada = await deps.insertMensagem({
       empresaId: cliente.empresaId,
       clienteId: cliente.id,
       chatId,
       texto,
       updateId: updateId ?? null,
     });
-  } catch (err) {
-    // Falha ANTES da gravação: mantém a decisão anterior de o CEO ver a mensagem
-    // mesmo com o banco recusando (best-effort, marcada como não gravada) e
-    // propaga o erro — a rota decide se pede reentrega ao Telegram.
-    if (chatIdCEO && deps.notificarCEO) {
-      void deps.notificarCEO(chatIdCEO, cliente, texto, { gravacaoFalhou: true }).catch(() => {
-        /* best-effort */
-      });
-    }
-    throw err;
-  }
 
   if (gravada.duplicada) {
     return { kind: "duplicado", mensagemId: gravada.id, clienteId: cliente.id };

@@ -275,6 +275,7 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
 
   /** Fila para o POST: apenas 1 select (busca do cliente). */
   function queueForEnviar(telegramChatId: string | null) {
+    vi.mocked(dbModule.db.execute).mockResolvedValueOnce({ rows: [{ id: 42, empresa_id: 5 }] } as never);
     (dbModule.db as unknown as DbHelper)._queueResults(
       telegramChatId !== null ? [{ id: 42, telegramChatId }] : [],
     );
@@ -291,11 +292,10 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
     // 502 porque o envio real falhou
     expect(res.status).toBe(502);
 
-    // db.execute deve ter sido chamado EXATAMENTE 1 vez:
-    // o UPDATE SET telegram_last_test_ok = false.
+    // Uma leitura do vínculo único e o UPDATE SET telegram_last_test_ok = false.
     // O INSERT do inbox NÃO ocorre pois a rota retorna antes.
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(1);
+    expect(executeCalls).toHaveLength(2);
   });
 
   it("persiste telegram_last_test_ok=true e retorna 200 após envio bem-sucedido", async () => {
@@ -310,7 +310,7 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
     expect(res.body.ok).toBe(true);
 
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(3);
+    expect(executeCalls).toHaveLength(4);
     const statements = executeCalls.map(([query]) =>
       (query as { strings?: string[] }).strings?.join(" ") ?? "",
     );
@@ -330,7 +330,7 @@ describe("POST /cockpit/:clientId/telegram-inbox/enviar — telegram_last_test_o
     expect(res.status).toBe(200);
 
     const executeCalls = vi.mocked(dbModule.db.execute as ReturnType<typeof vi.fn>).mock.calls;
-    expect(executeCalls).toHaveLength(2);
+    expect(executeCalls).toHaveLength(3);
     const statements = executeCalls.map(([query]) =>
       (query as { strings?: string[] }).strings?.join(" ") ?? "",
     );

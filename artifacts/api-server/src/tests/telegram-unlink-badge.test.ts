@@ -90,6 +90,14 @@ vi.mock("@workspace/db", () => {
 vi.mock("../middleware/moduleGuard", () => ({
   moduleGuard: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
+// Esta suíte verifica desvinculação, não autenticação.
+// A cadeia real da ferramenta é exercitada em telegram-inbox-enviar-isolation.
+vi.mock("../middleware/messageClinic", () => ({
+  requireMessageClinic: (req: { messageEmpresaId?: number }, _res: unknown, next: () => void) => {
+    req.messageEmpresaId = 5;
+    next();
+  },
+}));
 
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (req: Record<string, unknown>, _res: unknown, next: () => void) => {

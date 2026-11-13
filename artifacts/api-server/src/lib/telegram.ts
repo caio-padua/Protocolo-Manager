@@ -173,12 +173,13 @@ export async function sendTelegram(chatId: string, text: string): Promise<Telegr
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
     // MOCK: registra só metadados — JAMAIS o token.
-    logger.info({ chatId, len: text.length }, "[telegram] MOCK envio (sem token no cofre)");
+    logger.info({ len: text.length }, "[telegram] MOCK envio (sem token no cofre)");
     return { sent: true, mock: true };
   }
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
@@ -188,12 +189,18 @@ export async function sendTelegram(chatId: string, text: string): Promise<Telegr
       }),
     });
     if (!resp.ok) {
-      const corpo = await resp.text().catch(() => "");
-      return { sent: false, mock: false, error: `telegram_http_${resp.status}: ${corpo.slice(0, 140)}` };
+      return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    }
+    const data: unknown = await resp.json();
+    if (!data || typeof data !== "object" || !("ok" in data) || data.ok !== true
+      || !("result" in data) || !data.result || typeof data.result !== "object"
+      || !("message_id" in data.result) || typeof data.result.message_id !== "number"
+      || !Number.isSafeInteger(data.result.message_id) || data.result.message_id <= 0) {
+      return { sent: false, mock: false, error: "telegram_resultado_invalido" };
     }
     return { sent: true, mock: false };
-  } catch (e) {
-    return { sent: false, mock: false, error: (e as Error).message };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
   }
 }
 
@@ -211,7 +218,7 @@ export async function sendTelegramPhoto(
   await ensureTelegramTokenLoaded();
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
-    logger.info({ chatId, len: caption.length }, "[telegram] MOCK envio de foto (sem token no cofre)");
+    logger.info({ len: caption.length }, "[telegram] MOCK envio de foto (sem token no cofre)");
     return { sent: true, mock: true };
   }
   try {

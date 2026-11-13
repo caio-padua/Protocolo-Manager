@@ -91,6 +91,7 @@ import request from "supertest";
 import { telegramWebhookRouter } from "../routes/assinaturas.js";
 import { logger } from "../lib/logger.js";
 import { linhaOutboxFake, configOutboxFake } from "./helpers/outbox-sql-fake";
+import * as configTelegram from "../lib/telegram-config";
 
 const app = () => { const a = express(); a.use(express.json()); a.use((q, _s, n) => { q.log = logger; n(); }); a.use(telegramWebhookRouter); return a; };
 const enviar = (body: unknown) => request(app()).post("/webhooks/telegram").set("x-telegram-bot-api-secret-token", "segredo-teste").send(body as object);
@@ -206,15 +207,16 @@ describe("falhas, concorrência e reinício", () => {
     expect(escritas("INSERT INTO telegram_inbox_messages")).toHaveLength(0);
   });
 
-  it("X3 sucesso fecha a reivindicação como concluída; falha permanente também (200, sem reentrega)", async () => {
+  it("X3 falha estrutural ao gravar libera reivindicação para recuperação (500)", async () => {
     estado.vinculado = [{ id: 7, name: "Ana", cpf: "1", empresaId: 5 }];
     mockExecute.mockImplementation(async (q) => {
       if (sqlTexto(q).includes("INSERT INTO telegram_inbox_messages")) throw Object.assign(new Error("fk"), { code: "23503" });
       return { rows: [] };
     });
-    expect((await enviar(msg(302, "texto sigiloso do paciente"))).status).toBe(200);
+    expect((await enviar(msg(302, "texto sigiloso do paciente"))).status).toBe(500);
     await aguardar();
-    expect(claimCalls.concluir).toEqual(["111222333:302"]);
+    expect(claimCalls.concluir).toEqual([]);
+    expect(claimStore.has("111222333:302")).toBe(false);
     const logs = JSON.stringify([(logger.error as any).mock.calls, (logger.warn as any).mock.calls, (logger.info as any).mock.calls]);
     expect(logs).not.toContain("texto sigiloso");
   });
@@ -266,15 +268,40 @@ describe("repasse ao chat de alerta: registro durável antes do 200", () => {
     expect(mockSend.mock.calls.filter((c) => c[0] === "CEO_CHAT")).toHaveLength(1);
   });
 
-  it("D2 falha PERMANENTE no outbox (ex.: tabela ausente): 200, aviso direto ao CEO e ERROR no log (sem texto)", async () => {
+  it("D2 falha estrutural no outbox: 500, sem envio direto e ERROR sem texto", async () => {
     vinc();
     configOutboxFake.falhaRegistro = Object.assign(new Error("relation does not exist"), { code: "42P01" });
-    expect((await enviar(msg(501, "texto sigiloso"))).status).toBe(200);
+    expect((await enviar(msg(501, "texto sigiloso"))).status).toBe(500);
     await aguardar();
-    expect(mockSend.mock.calls.filter((c) => c[0] === "CEO_CHAT")).toHaveLength(1);
+    expect(mockSend).not.toHaveBeenCalled();
     expect((logger.error as any).mock.calls.some((c: unknown[]) => String(c[1]).includes("outbox indisponível"))).toBe(true);
     expect(JSON.stringify((logger.error as any).mock.calls)).not.toContain("texto sigiloso");
   });
+
+  it.each(["destino_alterado", "cofre_indisponivel"])(
+    "webhook → outbox → processador: %s após registro não envia",
+    async (falha) => {
+      vinc();
+      let chamadas = 0;
+      const spy = vi.spyOn(configTelegram, "resolverChatAlerta").mockImplementation(async () => {
+        chamadas++;
+        if (chamadas === 1) return { chatId: "CEO_CHAT", fonte: "cofre", motivo: null };
+        return falha === "destino_alterado"
+          ? { chatId: "OUTRO_DESTINO", fonte: "cofre", motivo: null }
+          : { chatId: null, fonte: "ausente", motivo: "cofre_indisponivel" };
+      });
+      try {
+        expect((await enviar(msg(505, "teste sintetico"))).status).toBe(200);
+        await aguardar();
+        expect(chamadas).toBeGreaterThanOrEqual(2);
+        expect(mockSend).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ estado: falha === "destino_alterado" ? "esgotado" : "incerto" }),
+          expect.stringContaining("não aceito"),
+        );
+      } finally { spy.mockRestore(); }
+    },
+  );
 
   it("D3 ACK só depois do fechamento: ao receber o 200, a reivindicação já está concluída", async () => {
     vinc();

@@ -6,20 +6,27 @@
 import { db } from "@workspace/db";
 import { logger } from "./logger";
 import { sendTelegram } from "./telegram";
+import { resolverChatAlerta } from "./telegram-config";
 import { repassarMensagemAoCeo, formatarCpfDisplay } from "./telegram-relay-ceo";
 import {
   registrarRepasse, tentarRepasse, processarRepassesVencidos, type DepsOutbox, type LinhaRepasse,
 } from "./telegram-repasse-outbox";
 
 const deps: DepsOutbox = {
-  enviar: (l: LinhaRepasse) =>
-    repassarMensagemAoCeo(
+  enviar: async (l: LinhaRepasse) => {
+    const atual = await resolverChatAlerta();
+    if (atual.motivo === "cofre_indisponivel") throw new Error("configuracao_indisponivel");
+    if (!atual.chatId || atual.chatId !== l.chat_id_destino) {
+      return { kind: "bloqueado", motivo: "destino_configurado_alterado" };
+    }
+    return repassarMensagemAoCeo(
       {
         chatIdCeo: l.chat_id_destino, chatIdRemetente: l.chat_id_remetente, clienteId: l.cliente_id,
         nome: l.nome, cpfDisplay: formatarCpfDisplay(l.cpf), texto: l.texto,
       },
       { enviar: sendTelegram, log: logger },
-    ),
+    );
+  },
 };
 
 /** Registra o repasse no outbox (idempotente). LANÇA em falha: o chamador decide 500 (reentrega) ou plano B. */

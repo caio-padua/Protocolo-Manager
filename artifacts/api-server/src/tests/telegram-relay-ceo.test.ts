@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { repassarMensagemAoCeo, escaparHtmlTelegram, type RepasseCeoDeps } from "../lib/telegram-relay-ceo";
+import { repassarMensagemAoCeo, escaparHtmlTelegram, formatarCpfDisplay, type RepasseCeoDeps } from "../lib/telegram-relay-ceo";
 
 const base = { chatIdCeo: "1000", chatIdRemetente: "2000", clienteId: 7, nome: "Fulano de Tal", cpfDisplay: "000.000.000-00", texto: "ola" };
 function deps(enviar: RepasseCeoDeps["enviar"]) {
@@ -12,7 +12,8 @@ describe("repassarMensagemAoCeo", () => {
     const enviar = vi.fn().mockResolvedValue({ sent: true, mock: false });
     const { d, log } = deps(enviar);
     expect(await repassarMensagemAoCeo(base, d)).toEqual({ kind: "entregue" });
-    expect(enviar).toHaveBeenCalledWith("1000", expect.stringContaining("Fulano de Tal"));
+    expect(enviar).toHaveBeenCalledWith("1000", expect.stringContaining("Mensagem via Telegram"));
+    expect(enviar.mock.calls[0][1]).not.toContain("Fulano de Tal");
     expect(log.info).toHaveBeenCalledOnce();
     expect(log.warn).not.toHaveBeenCalled();
   });
@@ -52,5 +53,27 @@ describe("repassarMensagemAoCeo", () => {
     const { d, log } = deps(vi.fn().mockResolvedValue({ sent: true, mock: false }));
     await repassarMensagemAoCeo({ ...base, texto: "segredo-clinico-123" }, d);
     expect(JSON.stringify([...log.info.mock.calls, ...log.warn.mock.calls])).not.toContain("segredo-clinico-123");
+  });
+  it.each(["12345678900", "123.456.789-00", "123 456 789 00", null, "", "valor-invalido-12345678900"])(
+    "o antigo formatador realmente oculta e nunca ecoa o CPF (%s)", cpf => {
+      const r = formatarCpfDisplay(cpf);
+      expect(r).toBe("***.***.***-**");
+      expect(r).not.toMatch(/\d/);
+    },
+  );
+  it("alerta inteiro não contém CPF, nome completo, telefone ou e-mail sintéticos", async () => {
+    const enviar = vi.fn().mockResolvedValue({ sent: true, mock: false });
+    const { d, log } = deps(enviar);
+    const texto = "Teste não clínico: 12345678900 / 123.456.789-00 / (11) 99999-8888 / exemplo@teste.invalid";
+    await repassarMensagemAoCeo({ ...base, cpfDisplay: "123.456.789-00", texto }, d);
+    const alerta = enviar.mock.calls[0][1] as string;
+    for (const segredo of ["12345678900", "123.456.789-00", "99999-8888", "exemplo@teste.invalid", base.nome, base.chatIdRemetente]) {
+      expect(alerta).not.toContain(segredo);
+      expect(JSON.stringify([log.info.mock.calls, log.warn.mock.calls])).not.toContain(segredo);
+    }
+    expect(alerta).not.toMatch(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/);
+    expect(alerta).not.toContain("<b>CPF:</b>");
+    expect(alerta).toContain("Teste não clínico");
+    expect(texto).toContain("12345678900"); // original preservado
   });
 });
