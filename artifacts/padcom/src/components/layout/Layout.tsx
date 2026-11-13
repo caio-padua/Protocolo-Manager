@@ -516,15 +516,18 @@ export function Layout({ children }: LayoutProps) {
         `}
       >
         {/* Botao recolher/expandir (desktop) */}
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-          title={collapsed ? "Expandir menu" : "Recolher menu"}
-          className="hidden md:flex absolute -right-3 top-[78px] z-50 h-7 w-7 items-center justify-center rounded-full bg-sidebar-accent border border-sidebar-primary/50 text-sidebar-primary shadow-lg hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+        {/* Faixa de altura total: o botao e sticky e acompanha a janela ao rolar */}
+        <div className="hidden md:block absolute inset-y-0 -right-3 w-7 z-50 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+            className="pointer-events-auto sticky top-[78px] flex h-7 w-7 items-center justify-center rounded-full bg-sidebar-accent border border-sidebar-primary/50 text-sidebar-primary shadow-lg hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        </div>
 
         <div className="h-full flex flex-col">
           {/* Logo */}
