@@ -15,3 +15,4 @@ A tela /agenda tem um bloco sticky (comandos + faixa de agendas contínua com +/
 - Aviso que aparece/some ao lado de uma faixa clicavel precisa de largura FIXA: senao o 2o clique do duplo clique cai no aviso (dblclick falhava).
 - Ocupacao "N/M" = vagas ocupadas / vagas das janelas (agenda_windows) no periodo, calculada no servidor (GET /agenda/ocupacao, funcao pura); nao usa o motor de slots (cadeia/Google).
 - Se o preview cair ("ERR_CONNECTION_REFUSED" no e2e), reiniciar os workflows padcom e api-server antes de culpar o codigo.
+- Ocupacao no botao da agenda: porcentagem (Percentual/Numeral) + sigla OCUP no canto direito; cor da agenda so no rodape de vidro acetinado (CEO reprovou faixa lateral e retirou a barra OCUPADO n/m).

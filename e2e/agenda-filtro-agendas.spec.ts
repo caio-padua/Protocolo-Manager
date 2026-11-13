@@ -177,16 +177,17 @@ test("barra contínua: chips ligam e desligam, dois cliques = só esta, e o + ab
   await expect(filtro.getByTestId("agendas-faixa")).toBeVisible();
   await expect(filtro.getByTestId("filtro-agendas-gaveta")).toHaveCount(0);
   const faixa = (await filtro.getByTestId("agendas-faixa").boundingBox())!;
-  expect(faixa.height).toBeLessThan(100); // uma faixa só (barrinha de ocupação + botão de 2 linhas)
-  // botão de duas linhas (equipe + agenda) e barrinha "OCUPADO 4/6" em relevo acima dele
+  expect(faixa.height).toBeLessThan(90); // uma faixa só (botão de 2 linhas + vidro no rodapé)
+  // botão de duas linhas (equipe + agenda), porcentagem + OCUP no canto direito e vidro no rodapé
   await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("Agenda médico");
   await expect(filtro.getByTestId("chip-agenda-r22")).toContainText("MEDICO - SEDE");
   await expect(filtro.getByTestId("chip-agenda-r23")).toContainText("Agenda enfermagem");
-  await expect(filtro.getByTestId("ocupacao-r22")).toContainText("Ocupado", { ignoreCase: true });
-  await expect(filtro.getByTestId("ocupacao-r22")).toContainText("4/6");
+  await expect(filtro.getByTestId("ocupacao-r22")).toContainText("67%");
+  await expect(filtro.getByTestId("ocupacao-r22")).toContainText("Ocup", { ignoreCase: true });
+  await expect(filtro.getByTestId("chip-agenda-r22").locator(".ag-vidro")).toBeVisible();
   await expect(filtro.getByTestId("ocupacao-r24")).toHaveAttribute("data-cheia", "sim");
-  await expect(filtro.getByTestId("ocupacao-r29")).toContainText("SEM VAGAS");
-  await expect(filtro.getByTestId("ocupacao-g30")).toContainText("SOMENTE LEITURA");
+  await expect(filtro.getByTestId("ocupacao-r29")).toHaveAttribute("data-estado", "sem-vagas");
+  await expect(filtro.getByTestId("ocupacao-g30")).toHaveAttribute("data-estado", "somente-leitura");
   await page.screenshot({ path: "generated-artifacts/agenda-chips-ocupacao.png", clip: { x: 182, y: 0, width: 1258, height: 200 } });
   await filtro.getByTestId("chip-agenda-r23").click();
   await expect(linha.getByTestId("evento-s2")).toHaveCount(0);

@@ -4,6 +4,7 @@ import { useGetAgendaOcupacao, useListAgendaResources } from "@workspace/api-cli
 import { agendaResourcesFrescas } from "@/lib/agenda-propagacao";
 import { rotuloDaForma } from "@/lib/agenda-forma";
 import { useGoogleCompromissos } from "./useGoogleCompromissos";
+import { Percentual } from "@/components/numeral/Numeral";
 import { corSegura } from "./timeline-logica";
 import {
   alternarAgenda, alternarGrupo, mostrarTodas, montarGrupos, ocultarTodas, quantasOcultas, rotuloDaEquipe, soEstaAgenda, todasAsChaves,
@@ -69,7 +70,6 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                   const o = ocupacaoPorChave.get(a.chave);
                   return (
                     <div key={a.chave} className="ag-cel" style={{ ["--ev" as string]: corSegura(a.cor) }}>
-                      <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
                       <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
                         onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
                         onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
@@ -80,6 +80,8 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                           {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
                           {a.nome}
                         </span>
+                        <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
+                        <span className="ag-vidro" aria-hidden />
                       </button>
                     </div>
                   );
@@ -176,25 +178,26 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   );
 }
 
-/** Barrinha em relevo acima do botão da agenda: "OCUPADO 4/6" (vagas ocupadas / vagas previstas no período exibido). */
+/** Canto direito do botão da agenda: porcentagem de ocupação (vagas ocupadas / vagas previstas no período) e a sigla "OCUP" embaixo. */
 function OcupacaoDaAgenda({ o, carregando, falhou, somenteGoogle, chave }: {
   o?: { capacidade: number; ocupadas: number }; carregando: boolean; falhou: boolean; somenteGoogle: boolean; chave: string;
 }) {
   const sem = !o || o.capacidade === 0;
-  const pct = o && o.capacidade > 0 ? Math.round((o.ocupadas / o.capacidade) * 100) : 0;
-  const texto = somenteGoogle ? "SOMENTE LEITURA" : carregando ? "…" : falhou ? "INDISPONÍVEL" : sem ? "SEM VAGAS NO PERÍODO" : null;
+  const pct = o && o.capacidade > 0 ? Math.round((o.ocupadas / o.capacidade) * 100) : null;
+  const estado = somenteGoogle ? "somente-leitura" : carregando ? "carregando" : falhou ? "indisponivel" : sem ? "sem-vagas" : pct! >= 100 ? "cheia" : "ok";
+  const dica = {
+    "somente-leitura": "Somente leitura (Google): sem vagas do sistema",
+    carregando: "Calculando a ocupação…",
+    indisponivel: "Ocupação indisponível agora",
+    "sem-vagas": "Sem vagas previstas no período exibido",
+    cheia: `${o?.ocupadas} de ${o?.capacidade} vagas ocupadas no período exibido`,
+    ok: `${o?.ocupadas} de ${o?.capacidade} vagas ocupadas no período exibido`,
+  }[estado];
   return (
-    <div className="ag-ocup bevel-3d" data-testid={`ocupacao-${chave}`} data-cheia={pct >= 100 ? "sim" : "nao"}
-      role="img" aria-label={texto ?? `${o!.ocupadas} de ${o!.capacidade} vagas ocupadas no período`}
-      title={texto ?? `${o!.ocupadas} de ${o!.capacidade} vagas ocupadas no período exibido (${pct}%)`}>
-      {texto ? <span className="ag-ocup-rotulo">{texto}</span> : (
-        <>
-          <span className="ag-ocup-rotulo">Ocupado</span>
-          <span className="ag-ocup-trilho" aria-hidden><span className="ag-ocup-nivel" style={{ width: `${Math.min(100, pct)}%` }} /></span>
-          <span className="ag-ocup-n">{o!.ocupadas}<i>/{o!.capacidade}</i></span>
-        </>
-      )}
-    </div>
+    <span className="ag-ocup" data-testid={`ocupacao-${chave}`} data-estado={estado} data-cheia={estado === "cheia" ? "sim" : "nao"} title={dica}>
+      {estado === "ok" || estado === "cheia" ? <Percentual valor={pct} casas={0} peso={700} className="ag-ocup-pct" /> : <span className="ag-ocup-pct" aria-label={dica}>{estado === "carregando" ? "…" : "—"}</span>}
+      <span className="ag-ocup-sigla" aria-hidden>Ocup</span>
+    </span>
   );
 }
 
