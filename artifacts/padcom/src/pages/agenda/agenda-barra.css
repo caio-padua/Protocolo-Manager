@@ -95,25 +95,26 @@
 }
 .ag-vidro::before { content: ""; position: absolute; left: 2px; right: 2px; top: 1px; height: 1px; background: rgba(240,248,244,0.7); }
 /* Nuvenzinha ao passar o mouse: pequena, translúcida, no canto inferior direito do botão, sem capturar o mouse.
-   Abre rápido, fica ~3,5 s (controle em FiltroAgendas) e esvanece devagar. */
+   Abre rápido, fica ~2 s (controle em FiltroAgendas) e esvanece devagar. */
 .ag-dica {
-  --ev: #64748b; width: 17rem; padding: 0.35rem 0.6rem 0.4rem; pointer-events: none; z-index: 60;
+  --ev: #64748b; width: 16rem; padding: 0.3rem 0.55rem 0.35rem; pointer-events: none; z-index: 60;
   background: color-mix(in srgb, hsl(var(--background)) 62%, transparent) !important;
   backdrop-filter: blur(9px) saturate(1.1);
   border: 1px solid color-mix(in srgb, var(--ev) 40%, rgba(7, 22, 43, 0.25)); border-radius: 6px;
-  box-shadow: 0 10px 22px -10px rgba(7, 22, 43, 0.4), inset 0 1px 0 rgba(255,255,255,0.7);
+  box-shadow: 0 8px 18px -10px rgba(7, 22, 43, 0.4), inset 0 1px 0 rgba(255,255,255,0.7);
   animation-duration: 0.12s;
 }
 .ag-dica[data-state="open"] { animation: ag-dica-entra 0.12s ease-out both !important; }
 .ag-dica[data-state="closed"] { animation: ag-dica-sai 1.1s ease-in forwards !important; }
 @keyframes ag-dica-entra { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ag-dica-sai { from { opacity: 1; } to { opacity: 0; } }
-.ag-dica-nome { font-family: var(--app-font-display, "EB Garamond", serif); font-size: 0.9rem; font-weight: 700; line-height: 1.12; padding-bottom: 0.2rem; margin-bottom: 0.2rem; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
-.ag-dica-lista { display: flex; flex-direction: column; gap: 0.12rem; margin: 0; }
-.ag-dica-lista > div { display: grid; grid-template-columns: 4.9rem minmax(0, 1fr); align-items: baseline; gap: 0.3rem; line-height: 1.2; }
-.ag-dica-lista dt { font-size: 0.5rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.55; }
-.ag-dica-lista dd.ag-dica-endereco { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.64rem; font-weight: 600; }
-.ag-dica-lista dd { margin: 0; font-size: 0.7rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Duas colunas (rótulo pequeno em cima, valor embaixo); o endereço ocupa a linha inteira no fim. */
+.ag-dica-lista { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 0.2rem 0.7rem; margin: 0; }
+.ag-dica-lista > div { display: flex; flex-direction: column; gap: 0.02rem; min-width: 0; line-height: 1.15; }
+.ag-dica-lista > .ag-dica-largo { grid-column: 1 / -1; padding-top: 0.15rem; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.ag-dica-lista dt { font-size: 0.46rem; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.55; }
+.ag-dica-lista dd { margin: 0; font-size: 0.64rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-dica-lista dd.ag-dica-endereco { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.62rem; font-weight: 600; }
 .ag-chip-cad { height: 0.65rem; width: 0.65rem; opacity: 0.6; flex: none; }
 .ag-ponta { display: flex; flex: none; align-items: center; gap: 0.4rem; }
 .ag-ocultas { display: flex; flex: none; width: 4.4rem; align-items: center; justify-content: flex-end; gap: 0.3rem; font-size: 0.7rem; font-weight: 900; font-variant-numeric: tabular-nums; }

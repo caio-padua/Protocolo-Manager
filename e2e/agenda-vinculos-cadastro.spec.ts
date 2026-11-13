@@ -241,3 +241,35 @@ test("Agenda Configuração: falha ao consultar o cadastro é dita no cartão do
   await expect(page.getByTestId("card-profissionais-da-agenda")).toContainText("Falha sintética do cadastro");
   await expect(page.getByTestId("card-profissionais-da-agenda").getByTestId("profissional-vinculado-26")).toHaveCount(0);
 });
+
+test("Agenda Configuração: apelido já vem sugerido a partir do nome, respeita o que a clínica digitou e grava sem mexer no nome", async ({ page }) => {
+  await abrirAgendaConfiguracao(page);
+  const puts: any[] = [];
+  await page.route("**/api/agenda/resources/27", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    puts.push(route.request().postDataJSON());
+    return json(route, RECURSO(27, "AGENDA ENFERMAGEM - HOME CARE", { modality: "home_care" }));
+  });
+  await page.goto("/agenda/motor?agenda=27");
+  const nome = page.getByTestId("campo-nome-agenda"); const apelido = page.getByTestId("campo-apelido-agenda");
+  await expect(nome).toHaveValue("AGENDA ENFERMAGEM - HOME CARE");
+  await expect(apelido).toHaveValue("HOME CARE"); // sem "AGENDA" nem a profissão, que já é o título do botão
+  await expect(page.getByTestId("previa-botao-agenda")).toContainText("Enfermeira");
+  await expect(page.getByTestId("previa-botao-agenda")).toContainText("HOME CARE");
+  // enquanto não foi digitado, o apelido acompanha o nome
+  await nome.fill("AGENDA ENFERMAGEM - HOME CARE ZONA SUL");
+  await expect(apelido).toHaveValue("HOME CARE ZONA SUL");
+  // o que a clínica digita é respeitado
+  await apelido.fill("Visitas");
+  await nome.fill("AGENDA ENFERMAGEM - HOME CARE");
+  await expect(apelido).toHaveValue("Visitas");
+  await page.getByTestId("usar-sugestao-apelido").click();
+  await expect(apelido).toHaveValue("HOME CARE");
+  await apelido.fill("Domicílio");
+  await expect(page.getByTestId("previa-botao-agenda")).toContainText("Domicílio"); // a prévia acompanha o que se digita
+  await page.locator(".panel-3d", { has: page.getByTestId("campo-nome-agenda") }).last().screenshot({ path: "generated-artifacts/agenda-configuracao-apelido.png" });
+  await page.locator(".panel-3d", { has: page.getByTestId("campo-apelido-agenda-nova") }).first().screenshot({ path: "generated-artifacts/agenda-configuracao-nova.png" });
+  await page.getByRole("button", { name: "Salvar", exact: true }).first().click();
+  await expect.poll(() => puts.length).toBe(1);
+  expect(puts[0]).toMatchObject({ name: "AGENDA ENFERMAGEM - HOME CARE", displayName: "Domicílio" });
+});

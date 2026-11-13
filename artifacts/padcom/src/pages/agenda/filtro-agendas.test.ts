@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { apelidoDaAgenda, sugerirApelido } from "./apelido-agenda";
 import {
   agendamentosPorExtenso, alternarAgenda, alternarGrupo, CATEGORIA_SO_GOOGLE, nomeCurtoDaAgenda, numeroPorExtenso, rotuloDaEquipe, chaveDoCompromisso, montarGrupos, ocultarTodas, quantasOcultas,
   soEstaAgenda, todasAsChaves,
@@ -97,5 +98,26 @@ describe("botão da agenda: categoria e nome curto", () => {
     expect(nomeCurtoDaAgenda("ENFERMAGEM - HOME CARE", "Enfermagem")).toBe("HOME CARE");
     expect(nomeCurtoDaAgenda("AGENDA GERAL", "Só no Google (somente leitura)")).toBe("AGENDA GERAL");
     expect(nomeCurtoDaAgenda("SEDE - ONLINE", "Medicina")).toBe("SEDE - ONLINE");
+  });
+});
+
+describe("apelido da agenda", () => {
+  it("sugere o apelido tirando 'AGENDA' e a profissão que já está no título do botão", () => {
+    expect(sugerirApelido("AGENDA MEDICO - CAIO PADUA - HOME CARE")).toBe("CAIO PADUA - HOME CARE");
+    expect(sugerirApelido("AGENDA ENFERMAGEM - SEDE")).toBe("SEDE");
+    expect(sugerirApelido("MEDICO - SEDE")).toBe("SEDE");
+    expect(sugerirApelido("AGENDA GERAL")).toBe("GERAL");
+    expect(sugerirApelido("SEDE - ONLINE")).toBe("SEDE - ONLINE");
+    expect(sugerirApelido("MEDICO")).toBe("MEDICO");
+  });
+  it("o apelido cadastrado vence a sugestão; vazio volta à sugestão", () => {
+    expect(apelidoDaAgenda("AGENDA MEDICO - CAIO - SEDE", "Caio Pádua - Sede")).toBe("Caio Pádua - Sede");
+    expect(apelidoDaAgenda("AGENDA MEDICO - CAIO - SEDE", "  ")).toBe("CAIO - SEDE");
+    expect(apelidoDaAgenda("AGENDA MEDICO - CAIO - SEDE", null)).toBe("CAIO - SEDE");
+  });
+  it("montarGrupos leva o apelido cadastrado até o botão", () => {
+    const a = montarGrupos({ agendas: [{ id: 1, name: "AGENDA MEDICO - X", displayName: "Dr. X", categoryName: "Medicina" }], sessoes: [], calendarios: [], compromissos: [] })[0].agendas[0];
+    expect(a.apelido).toBe("Dr. X");
+    expect(a.nome).toBe("AGENDA MEDICO - X");
   });
 });

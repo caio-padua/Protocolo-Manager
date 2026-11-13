@@ -6470,6 +6470,12 @@ export const DeleteBudgetParams = zod.object({
 export const ListAgendaResourcesResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  displayName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google.",
+    ),
   kind: zod.string(),
   modality: zod.string(),
   color: zod.string(),
@@ -6527,6 +6533,7 @@ export const ListAgendaResourcesResponse = zod.array(
  */
 export const CreateAgendaResourceBody = zod.object({
   name: zod.string(),
+  displayName: zod.string().nullish(),
   categoryId: zod.number(),
   modality: zod.string(),
   color: zod.string().optional(),
@@ -6556,6 +6563,7 @@ export const UpdateAgendaResourceParams = zod.object({
 
 export const UpdateAgendaResourceBody = zod.object({
   name: zod.string().optional(),
+  displayName: zod.string().nullish(),
   categoryId: zod.number().optional(),
   modality: zod.string().optional(),
   color: zod.string().optional(),
@@ -6580,6 +6588,12 @@ export const UpdateAgendaResourceBody = zod.object({
 export const UpdateAgendaResourceResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
+  displayName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google.",
+    ),
   kind: zod.string(),
   modality: zod.string(),
   color: zod.string(),

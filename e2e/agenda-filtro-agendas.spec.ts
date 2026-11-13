@@ -239,21 +239,27 @@ test("nuvenzinha: abre rápido, fica no canto inferior direito do botão sem cob
   await chip.hover();
   const dica = page.getByTestId("dica-agenda-r22");
   await expect(dica).toBeVisible({ timeout: 1000 });
-  await expect(dica).toContainText("MEDICO - SEDE");
+  await expect(dica).not.toContainText("MEDICO - SEDE"); // sem título: o botão já diz quem é
   await expect(page.getByTestId("dica-qtd-r22")).toHaveText("1 atendimento · 1 Google");
+  expect(await page.getByTestId("dica-qtd-r22").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true); // nada cortado com reticências
   await expect(dica).toContainText("Profissional");
   await expect(page.getByTestId("dica-tempo-r22")).toHaveText("30 min");
   await expect(page.getByTestId("dica-endereco-r22")).toContainText("Rua da Sede, 10"); // endereço da sede (agenda presencial)
   await expect(page.getByTestId("dica-ocup-r22")).not.toContainText("%"); // a porcentagem já está no botão
   await expect(dica).toContainText("Dr. Caio Padua");
+  // duas colunas: Atendimentos e Ocupação lado a lado; o endereço ocupa a linha de baixo inteira
+  const qtd = (await page.getByTestId("dica-qtd-r22").boundingBox())!; const ocup = (await page.getByTestId("dica-ocup-r22").boundingBox())!;
+  expect(Math.abs(qtd.y - ocup.y)).toBeLessThan(4); expect(ocup.x).toBeGreaterThan(qtd.x + 20);
+  const dBox = (await dica.boundingBox())!; const end = (await page.getByTestId("dica-endereco-r22").boundingBox())!;
+  expect(end.width).toBeGreaterThan(dBox.width * 0.8);
   await expect(page.getByTestId("dica-ocup-r22")).toHaveText("4 de 6 vagas");
   await page.waitForTimeout(250);
   const c = (await chip.boundingBox())!; const d = (await dica.boundingBox())!;
   expect(d.y).toBeGreaterThanOrEqual(c.y + c.height - 1); // abaixo do botão: nunca sobre as outras agendas
   expect(Math.abs(d.x + d.width - (c.x + c.width))).toBeLessThan(8); // alinhada ao canto direito
-  expect(d.width).toBeLessThan(280); expect(d.height).toBeLessThan(130);
+  expect(d.width).toBeLessThan(270); expect(d.height).toBeLessThan(100); // estreita e achatada, mesmo com endereço
   await page.screenshot({ path: "generated-artifacts/agenda-dica-agenda.png", clip: { x: 182, y: 0, width: 1258, height: 260 } });
-  // tirar o mouse NÃO a fecha na hora: ela segue o próprio tempo (~2,2 s) e esvanece (~1,1 s)
+  // tirar o mouse NÃO a fecha na hora: ela segue o próprio tempo (~2 s) e esvanece (~1,1 s)
   await page.mouse.move(700, 600);
   await page.waitForTimeout(400);
   await expect(dica).toBeVisible();
@@ -268,5 +274,5 @@ test("nuvenzinha: abre rápido, fica no canto inferior direito do botão sem cob
   // agenda sem vagas mostra 0%, não travessão
   await filtro.getByTestId("chip-agenda-r29").hover();
   await expect(page.getByTestId("dica-qtd-r29")).toHaveText("0 atendimentos");
-  await expect(page.getByTestId("dica-agenda-r29")).toContainText("Agenda compartilhada");
+  await expect(page.getByTestId("dica-agenda-r29")).toContainText("Compartilhada");
 });

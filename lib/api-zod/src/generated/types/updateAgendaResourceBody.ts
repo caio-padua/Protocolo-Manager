@@ -9,6 +9,7 @@ import type { AgendaExternalAddress } from "./agendaExternalAddress";
 
 export interface UpdateAgendaResourceBody {
   name?: string;
+  displayName?: string | null;
   categoryId?: number;
   modality?: string;
   color?: string;

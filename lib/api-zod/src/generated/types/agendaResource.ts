@@ -13,6 +13,8 @@ import type { AgendaResourceSharing } from "./agendaResourceSharing";
 export interface AgendaResource {
   id: number;
   name: string;
+  /** Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google. */
+  displayName?: string | null;
   kind: string;
   modality: string;
   color: string;

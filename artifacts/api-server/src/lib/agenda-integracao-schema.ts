@@ -109,6 +109,8 @@ export async function ensureAgendaIntegrationSchema() {
   for (const coluna of ["external_cep", "external_logradouro", "external_bairro", "external_cidade", "external_uf", "external_numero", "external_complemento"]) {
     await db.execute(sql.raw(`ALTER TABLE agenda_resources ADD COLUMN IF NOT EXISTS ${coluna} text`));
   }
+  // Apelido de exibição da agenda (aditivo, nulo nas agendas existentes; a tela sugere um a partir do nome).
+  await db.execute(sql`ALTER TABLE agenda_resources ADD COLUMN IF NOT EXISTS display_name text`);
   await db.execute(sql.raw(AGENDA_CATEGORIA_AUDITORIA_DDL));
   await db.execute(sql.raw(AGENDA_GOOGLE_CONFLITOS_E_RECURSOS_DDL));
   // Vínculos operacionais conferidos na carga autorizada; não inferir pelo título.

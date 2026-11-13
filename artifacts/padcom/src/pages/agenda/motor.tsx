@@ -32,6 +32,9 @@ import { ListaAgendas } from "./ListaAgendas";
 import { SeletorCorVidro } from "@/components/VidroCor";
 import { SeletorLocalExterno } from "./SeletorLocalExterno";
 import { EnderecoExternoCampos, ENDERECO_VAZIO, enderecoCompleto, type EnderecoExternoForm } from "@/components/EnderecoExternoCampos";
+import { sugerirApelido } from "./apelido-agenda";
+import { PreviaBotaoAgenda } from "./PreviaBotaoAgenda";
+import { rotuloDaEquipe } from "./filtro-agendas";
 import { profissionaisParaNovaAgenda } from "@/lib/agenda-profissionais";
 import { AgendaIntegrationPanel } from "./AgendaIntegrationPanel";
 import { JanelasAtendimento, type JanelasRascunho } from "./JanelasAtendimento";
@@ -93,6 +96,54 @@ function Campo({ titulo, children, className = "" }: { titulo: string; children:
       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{titulo}</Label>
       {children}
     </div>
+  );
+}
+
+/** Bloco do cadastro: título pequeno em relevo + campos, para a tela não virar uma sopa de campos. */
+function Secao({ titulo, dica, children }: { titulo: string; dica?: string; children: React.ReactNode }) {
+  return (
+    <div className="panel-3d-sub space-y-3 p-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <span className="bevel-3d inline-flex px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">{titulo}</span>
+        {dica && <span className="text-[11px] leading-snug text-muted-foreground">{dica}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Campo com uma linha pequena embaixo (altura fixa, para os campos empilhados ficarem alinhados). */
+function CampoComLinha({ titulo, linha, children }: { titulo: string; linha: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Campo titulo={titulo}>
+      {children}
+      <div className="flex min-h-6 items-center text-[10px] leading-snug text-muted-foreground">{linha}</div>
+    </Campo>
+  );
+}
+
+/**
+ * Apelido da agenda: o nome que aparece na segunda linha do botão da agenda (embaixo da profissão).
+ * Já nasce preenchido com a sugestão feita a partir do nome; se a pessoa digitar o seu, o sistema respeita.
+ * O nome da agenda não muda: continua sendo a referência do Google.
+ */
+function CampoApelido({ nome, valor, onChange, testId }: {
+  nome: string; valor: string; onChange: (valor: string, tocado: boolean) => void; testId: string;
+}) {
+  const sugestao = sugerirApelido(nome);
+  const igual = valor.trim() === sugestao;
+  return (
+    <CampoComLinha titulo="Apelido: o nome que aparece na segunda linha"
+      linha={!igual && sugestao ? (
+        <button type="button" className="btn-3d-soft px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest"
+          onClick={() => onChange(sugestao, false)} data-testid="usar-sugestao-apelido">
+          Usar sugestão: {sugestao}
+        </button>
+      ) : "Sugerido a partir do nome da agenda"}>
+      <Input className="field-engraved" value={valor} maxLength={80} placeholder={sugestao || "Ex.: CAIO PADUA - SEDE"}
+        aria-label="Apelido da agenda" data-testid={testId}
+        onChange={(e) => onChange(e.target.value, true)} />
+    </CampoComLinha>
   );
 }
 
@@ -189,6 +240,8 @@ export default function AgendaMotor() {
   // ---- Identidade da agenda (draft) ----
   const [resDraft, setResDraft] = useState<{
     name: string;
+    displayName: string;
+    apelidoTocado: boolean;
     categoryId: number | null;
     modality: string;
     color: string;
@@ -199,8 +252,12 @@ export default function AgendaMotor() {
 
   useEffect(() => {
     if (selected) {
+      const sugerido = sugerirApelido(selected.name);
       setResDraft({
         name: selected.name,
+        displayName: selected.displayName?.trim() || sugerido,
+        // Apelido que a clínica já escolheu (diferente da sugestão) nunca é sobrescrito pelo nome.
+        apelidoTocado: !!selected.displayName?.trim() && selected.displayName.trim() !== sugerido,
         categoryId: selected.categoryId ?? null,
         modality: selected.modality,
         color: selected.color,
@@ -517,7 +574,7 @@ export default function AgendaMotor() {
   }
 
   // ---- Handlers ----
-  const EMPTY_NEW = { name: "", categoryId: "", professionalId: "", modality: "local", color: "#16284a", endereco: ENDERECO_VAZIO };
+  const EMPTY_NEW = { name: "", displayName: "", apelidoTocado: false, categoryId: "", professionalId: "", modality: "local", color: "#16284a", endereco: ENDERECO_VAZIO };
   const [newRes, setNewRes] = useState(EMPTY_NEW);
   // Corpo Clínico ativo da clínica, comparado pelo id da categoria gravada (nunca pelo rótulo da profissão).
   const professionalsOfCategory = useMemo(
@@ -545,6 +602,7 @@ export default function AgendaMotor() {
       {
         data: {
           name: newRes.name.trim(),
+          displayName: newRes.displayName.trim() || sugerirApelido(newRes.name),
           categoryId: Number(newRes.categoryId),
           professionalId: newRes.professionalId ? Number(newRes.professionalId) : null,
           modality: newRes.modality,
@@ -562,7 +620,8 @@ export default function AgendaMotor() {
 
   function saveResource() {
     if (!selectedId || !resDraft || !selected) return;
-    const { categoryId, endereco, ...rest } = resDraft;
+    const { categoryId, endereco, apelidoTocado: _tocado, displayName, ...rest } = resDraft;
+    void _tocado;
     const virouExterno = rest.modality === "externo" && selected.modality !== "externo";
     const enderecoMudou = JSON.stringify(endereco) !== JSON.stringify(enderecoDoRecurso(selected));
     if (rest.modality === "externo" && (virouExterno || enderecoMudou) && !enderecoCompleto(endereco)) {
@@ -573,6 +632,8 @@ export default function AgendaMotor() {
       id: selectedId,
       data: {
         ...rest,
+        // Vazio volta ao padrão sugerido (o servidor guarda nulo).
+        displayName: displayName.trim() || null,
         ...(categoryId != null && categoryId !== selected.categoryId ? { categoryId } : {}),
         ...(rest.modality === "externo" && (virouExterno || enderecoMudou)
           ? { externalAddress: { ...endereco, complemento: endereco.complemento.trim() || null } }
@@ -671,12 +732,18 @@ export default function AgendaMotor() {
             <span className="bevel-3d inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
               <Plus className="h-3.5 w-3.5" /> Nova agenda de atendimento
             </span>
-            <Campo titulo="Título agenda">
+            <CampoComLinha titulo="Nome da agenda" linha="Referência do Google">
               <ComRegistro codigo="A1">
-                <Input className="field-engraved" placeholder="Título agenda" value={newRes.name}
-                  onChange={(e) => setNewRes((s) => ({ ...s, name: e.target.value }))} />
+                <Input className="field-engraved" placeholder="Ex.: AGENDA MEDICO - CAIO PADUA - SEDE" value={newRes.name}
+                  onChange={(e) => setNewRes((s) => ({
+                    ...s, name: e.target.value,
+                    // Enquanto a pessoa não digitou o apelido, ele acompanha o nome.
+                    ...(s.apelidoTocado ? {} : { displayName: sugerirApelido(e.target.value) }),
+                  }))} />
               </ComRegistro>
-            </Campo>
+            </CampoComLinha>
+            <CampoApelido nome={newRes.name} valor={newRes.displayName} testId="campo-apelido-agenda-nova"
+              onChange={(displayName, apelidoTocado) => setNewRes((s) => ({ ...s, displayName, apelidoTocado }))} />
             <Campo titulo="Categoria profissional">
               <ComRegistro codigo="C1">
                 <Select value={newRes.categoryId} onValueChange={(v) => v && setNewRes((s) => ({ ...s, categoryId: v, professionalId: "" }))}>
@@ -736,6 +803,10 @@ export default function AgendaMotor() {
                 <EnderecoExternoCampos value={newRes.endereco} onChange={(endereco) => setNewRes((s) => ({ ...s, endereco }))} />
               </>
             )}
+            <Campo titulo="Como fica o botão">
+              <PreviaBotaoAgenda profissao={rotuloDaEquipe(categorias.find((c) => String(c.id) === newRes.categoryId)?.name ?? "Sem categoria")}
+                apelido={newRes.displayName.trim() || sugerirApelido(newRes.name)} cor={newRes.color} testId="previa-botao-agenda-nova" />
+            </Campo>
             <div className="flex items-center gap-2">
               <div className="w-[8.5rem] shrink-0">
                 <SeletorCorVidro rotulo="Cor da agenda" valor={newRes.color}
@@ -784,24 +855,24 @@ export default function AgendaMotor() {
             </div>
             {resDraft ? (
               <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Campo titulo="Título agenda" className="sm:col-span-2 lg:col-span-4">
-                    <ComRegistro codigo="A1" nota={`id ${selected?.id}`}>
-                      <Input className="field-engraved" value={resDraft.name}
-                        onChange={(e) => setResDraft((d) => (d ? { ...d, name: e.target.value } : d))} />
-                    </ComRegistro>
-                  </Campo>
-                  <Campo titulo="Duração do atendimento (min)">
-                    <ComRegistro codigo="S1">
-                      <Input type="number" min={5} step={5} className="field-engraved" value={resDraft.slotMinutes}
-                        onChange={(e) => setResDraft((d) => (d ? { ...d, slotMinutes: Number(e.target.value) || 0 } : d))} />
-                    </ComRegistro>
-                  </Campo>
-                  <Campo titulo="Cor">
-                    <SeletorCorVidro rotulo="Cor" valor={resDraft.color}
-                      onChange={(cor) => setResDraft((d) => (d ? { ...d, color: cor } : d))} />
-                  </Campo>
-                  <Campo titulo="Categoria profissional" className="sm:col-span-2">
+                <Secao titulo="Nome">
+                  <div className="space-y-3">
+                    <CampoComLinha titulo="Nome da agenda" linha="Referência do Google">
+                      <ComRegistro codigo="A1" nota={`id ${selected?.id}`}>
+                        <Input className="field-engraved" value={resDraft.name} data-testid="campo-nome-agenda"
+                          onChange={(e) => setResDraft((d) => (d ? {
+                            ...d, name: e.target.value,
+                            ...(d.apelidoTocado ? {} : { displayName: sugerirApelido(e.target.value) }),
+                          } : d))} />
+                      </ComRegistro>
+                    </CampoComLinha>
+                    <CampoApelido nome={resDraft.name} valor={resDraft.displayName} testId="campo-apelido-agenda"
+                      onChange={(displayName, apelidoTocado) => setResDraft((d) => (d ? { ...d, displayName, apelidoTocado } : d))} />
+                  </div>
+                </Secao>
+                <Secao titulo="Onde e quem atende">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                  <Campo titulo="Categoria profissional" className="sm:col-span-1">
                     <ComRegistro codigo="C1" pendente={selected?.categoryStatus === "pendente"}>
                       <Select
                         value={resDraft.categoryId != null ? String(resDraft.categoryId) : ""}
@@ -820,7 +891,7 @@ export default function AgendaMotor() {
                       </Select>
                     </ComRegistro>
                   </Campo>
-                  <Campo titulo="Forma de atendimento" className="sm:col-span-2">
+                  <Campo titulo="Forma de atendimento" className="sm:col-span-1">
                     <ComRegistro codigo="L1">
                       <Select value={resDraft.modality} onValueChange={(v) => setResDraft((d) => (d ? { ...d, modality: v } : d))}>
                         <SelectTrigger className="field-engraved">
@@ -838,7 +909,7 @@ export default function AgendaMotor() {
                       </Select>
                     </ComRegistro>
                   </Campo>
-                </div>
+                  </div>
                 {resDraft.modality === "externo" && (
                   <div className="space-y-3">
                     <SeletorLocalExterno onEscolher={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
@@ -846,6 +917,26 @@ export default function AgendaMotor() {
                       onChange={(endereco) => setResDraft((d) => (d ? { ...d, endereco } : d))} />
                   </div>
                 )}
+                </Secao>
+                <Secao titulo="Duração, cor e botão">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Campo titulo="Duração do atendimento (min)">
+                      <ComRegistro codigo="S1">
+                        <Input type="number" min={5} step={5} className="field-engraved" value={resDraft.slotMinutes}
+                          onChange={(e) => setResDraft((d) => (d ? { ...d, slotMinutes: Number(e.target.value) || 0 } : d))} />
+                      </ComRegistro>
+                    </Campo>
+                    <Campo titulo="Cor">
+                      <SeletorCorVidro rotulo="Cor" valor={resDraft.color}
+                        onChange={(cor) => setResDraft((d) => (d ? { ...d, color: cor } : d))} />
+                    </Campo>
+                  </div>
+                  <Campo titulo="Como fica o botão na Agenda Diária">
+                    <PreviaBotaoAgenda
+                      profissao={rotuloDaEquipe(categorias.find((c) => c.id === resDraft.categoryId)?.name ?? selected?.categoryName ?? "Sem categoria")}
+                      apelido={resDraft.displayName.trim() || sugerirApelido(resDraft.name)} cor={resDraft.color} testId="previa-botao-agenda" />
+                  </Campo>
+                </Secao>
                 {selected?.categoryStatus === "pendente" && (
                   <p className="paxter-alert paxter-alert-amber px-3 py-2 text-xs font-semibold">
                     Categoria pendente de conferência: nada foi deduzido do nome nem do tipo antigo desta agenda.

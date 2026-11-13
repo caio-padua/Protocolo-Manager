@@ -5,6 +5,8 @@
  *   g{id do local}   = calendário só do Google (Geral, Pessoal, Feriados), sem agenda de atendimento.
  * O conjunto guarda o que foi DESMARCADO: agenda criada depois nasce marcada.
  */
+import { sugerirApelido } from "./apelido-agenda";
+
 export const SEM_CATEGORIA = "Sem categoria";
 export const CATEGORIA_SO_GOOGLE = "Só no Google (somente leitura)";
 export const CHAVE_SESSAO_SEM_AGENDA = "r-sem";
@@ -25,7 +27,8 @@ export function rotuloDaEquipe(categoria: string): string {
  * Linha de baixo do botão: o nome da agenda sem repetir a categoria que já está em cima
  * ("MEDICO - CAIO - SEDE" em Medicina vira "CAIO - SEDE"). Só no botão: a nuvenzinha e os painéis mostram o nome inteiro.
  */
-export function nomeCurtoDaAgenda(nome: string, categoria: string): string {
+export function nomeCurtoDaAgenda(nomeCompleto: string, categoria: string): string {
+  const nome = categoria === CATEGORIA_SO_GOOGLE ? nomeCompleto : sugerirApelido(nomeCompleto);
   const partes = nome.split(/\s+-\s+/);
   if (partes.length < 2) return nome;
   const a = semAcento(partes[0]); const c = semAcento(categoria);
@@ -65,7 +68,9 @@ export const chaveDoCalendario = (a: { id: number; agendaRecursoId?: number | nu
   a.agendaRecursoId != null ? chaveDaAgenda(a.agendaRecursoId) : `g${a.id}`;
 
 export interface AgendaDoFiltro {
-  chave: string; nome: string; cor: string; forma: string | null; categoria: string;
+  chave: string; nome: string;
+  /** Apelido cadastrado (o que o dono da clínica quer ver no botão); nulo = usa a sugestão. */
+  apelido: string | null; cor: string; forma: string | null; categoria: string;
   /** Profissional titular da agenda; nulo em agenda compartilhada ou só do Google. */
   profissional: string | null;
   /** Duração padrão de cada horário da agenda, em minutos (nulo se desconhecida). */
@@ -82,7 +87,7 @@ export interface AgendaDoFiltro {
 export interface GrupoDoFiltro { categoria: string; agendas: AgendaDoFiltro[]; }
 
 export interface EntradaCatalogo {
-  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; slotMinutes?: number | null; externalAddressText?: string | null; locationAddressText?: string | null; active?: boolean }[];
+  agendas: { id: number; name: string; displayName?: string | null; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; slotMinutes?: number | null; externalAddressText?: string | null; locationAddressText?: string | null; active?: boolean }[];
   sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
   calendarios: { id: number; agendaRecursoId?: number | null; nome: string; cor: string }[];
   compromissos: { agendaId: number; agendaRecursoId?: number | null }[];
@@ -94,7 +99,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
   for (const a of entrada.agendas) {
     if (a.active === false) continue;
     mapa.set(chaveDaAgenda(a.id), {
-      chave: chaveDaAgenda(a.id), nome: a.name, cor: a.color || "#64748b", forma: a.modality ?? null,
+      chave: chaveDaAgenda(a.id), nome: a.name, apelido: a.displayName?.trim() || null, cor: a.color || "#64748b", forma: a.modality ?? null,
       categoria: a.categoryName?.trim() || SEM_CATEGORIA, profissional: a.professionalName?.trim() || null, minutos: a.slotMinutes ?? null, endereco: a.externalAddressText?.trim() || a.locationAddressText?.trim() || null, sessoes: 0, google: 0, somenteGoogle: false,
     });
   }
@@ -103,7 +108,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
     let item = mapa.get(chave);
     if (!item) {
       // Sessão de agenda que o catálogo não trouxe (ou sem agenda ligada): aparece, nunca some em silêncio.
-      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, profissional: null, minutos: null, endereco: null, sessoes: 0, google: 0, somenteGoogle: false };
+      item = { chave, nome: s.agendaNome ?? "Sem agenda ligada", apelido: null, cor: s.agendaCor || "#64748b", forma: null, categoria: SEM_CATEGORIA, profissional: null, minutos: null, endereco: null, sessoes: 0, google: 0, somenteGoogle: false };
       mapa.set(chave, item);
     }
     item.sessoes += 1;
@@ -111,7 +116,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
   for (const c of entrada.calendarios) {
     const chave = chaveDoCalendario(c);
     if (!mapa.has(chave)) {
-      mapa.set(chave, { chave, nome: c.nome, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, profissional: null, minutos: null, endereco: null, sessoes: 0, google: 0, somenteGoogle: true });
+      mapa.set(chave, { chave, nome: c.nome, apelido: null, cor: c.cor || "#64748b", forma: null, categoria: CATEGORIA_SO_GOOGLE, profissional: null, minutos: null, endereco: null, sessoes: 0, google: 0, somenteGoogle: true });
     }
   }
   for (const e of entrada.compromissos) {

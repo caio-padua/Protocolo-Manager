@@ -44,6 +44,7 @@ const EXCEPTION_KIND = ["feriado", "bloqueio"] as const;
 // O tipo legado (kind) nunca vem do navegador: é derivado da categoria no servidor.
 const createResourceSchema = z.object({
   name: z.string().trim().min(1, "name é obrigatório").max(200),
+  displayName: z.string().trim().max(80).nullable().optional(),
   categoryId: z.number().int().positive("Escolha a categoria profissional."),
   modality: z.enum(MODALITY),
   color: z.string().trim().max(20).optional(),
@@ -58,6 +59,7 @@ const createResourceSchema = z.object({
 const updateResourceSchema = z
   .object({
     name: z.string().trim().min(1).max(200),
+    displayName: z.string().trim().max(80).nullable(),
     categoryId: z.number().int().positive(),
     modality: z.enum(MODALITY),
     color: z.string().trim().max(20),
@@ -240,6 +242,7 @@ router.post("/agenda/resources", async (req, res): Promise<void> => {
     if (!decision.ok) return decision;
     const [created] = await tx.insert(agendaResourcesTable).values({
       name: data.name,
+      displayName: data.displayName?.trim() || null,
       kind: decision.kind,
       categoryId: decision.categoryId,
       modality: data.modality,
@@ -274,6 +277,7 @@ router.put("/agenda/resources/:id", async (req, res): Promise<void> => {
   for (const [k, v] of Object.entries(data)) {
     if (v !== undefined && k !== "externalAddress") updates[k] = v;
   }
+  if (typeof updates.displayName === "string") updates.displayName = updates.displayName.trim() || null; // vazio = volta ao padrão sugerido
   if (data.externalAddress !== undefined) {
     const endereco = normalizarEnderecoExterno(data.externalAddress);
     if (!endereco.ok) { res.status(400).json({ error: `Endereço externo inválido: ${endereco.error}` }); return; }

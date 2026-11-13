@@ -4750,6 +4750,10 @@ components:
           type: integer
         name:
           type: string
+        displayName:
+          type: string
+          nullable: true
+          description: Apelido que o dono da clínica quer ver no botão da agenda. O nome completo (name) não muda e continua sendo a referência do Google.
         kind:
           type: string
         modality:
@@ -4821,6 +4825,9 @@ components:
       properties:
         name:
           type: string
+        displayName:
+          type: string
+          nullable: true
         categoryId:
           type: integer
         modality:
@@ -4845,6 +4852,9 @@ components:
       properties:
         name:
           type: string
+        displayName:
+          type: string
+          nullable: true
         categoryId:
           type: integer
         modality:

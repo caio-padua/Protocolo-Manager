@@ -26,6 +26,8 @@ export const agendaResourcesTable = pgTable("agenda_resources", {
   externalUf: text("external_uf"),
   externalNumero: text("external_numero"),
   externalComplemento: text("external_complemento"),
+  // Apelido de exibicao (o que o dono da clinica quer ver no botao da agenda). O nome completo (name) segue igual: e a referencia do Google.
+  displayName: text("display_name"),
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

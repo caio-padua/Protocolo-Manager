@@ -18,8 +18,8 @@ import {
  * valendo para Dia, Semana, Mês e Lista, para as sessões do sistema e para os compromissos do Google.
  * As agendas vêm da Agenda Configuração (mesma fonte das outras telas): criar, renomear ou desligar lá muda aqui.
  */
-/** Quanto tempo a nuvenzinha fica antes de esvanecer (CEO achou 3,5 s demais). */
-const DICA_FICA_MS = 2200;
+/** Quanto tempo a nuvenzinha fica antes de esvanecer (2 s: o CEO achou 3,5 s demais; só segue na tela enquanto ele mexe o mouse). */
+const DICA_FICA_MS = 2000;
 
 export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   de: string; ate: string;
@@ -55,7 +55,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
 
   const grupos = useMemo(() => montarGrupos({
     agendas: (recursos.data ?? []).map((r) => ({
-      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, slotMinutes: r.slotMinutes, externalAddressText: r.externalAddressText, locationAddressText: r.locationAddressText, active: r.active,
+      id: r.id, name: r.name, displayName: r.displayName, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, slotMinutes: r.slotMinutes, externalAddressText: r.externalAddressText, locationAddressText: r.locationAddressText, active: r.active,
     })),
     sessoes,
     calendarios: google.data?.agendas ?? [],
@@ -102,7 +102,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                             <span className="ag-chip-equipe">{rotuloDaEquipe(g.categoria)}</span>
                             <span className="ag-chip-nome">
                               {a.somenteGoogle && <Lock className="ag-chip-cad" aria-label="Somente leitura (Google)" />}
-                              <span className="ag-chip-nome-txt">{nomeCurtoDaAgenda(a.nome, g.categoria)}</span>
+                              <span className="ag-chip-nome-txt">{a.apelido || nomeCurtoDaAgenda(a.nome, g.categoria)}</span>
                             </span>
                             <OcupacaoDaAgenda o={a.somenteGoogle ? undefined : o} carregando={ocupacao.isLoading} falhou={ocupacao.isError} somenteGoogle={a.somenteGoogle} chave={a.chave} />
                             <span className="ag-vidro" aria-hidden />
@@ -111,7 +111,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                         {/* Nuvenzinha pequena e translúcida, no canto inferior direito do botão: não cobre as outras agendas nem captura o mouse. */}
                         <HoverCardContent side="bottom" align="end" sideOffset={14} collisionPadding={8} avoidCollisions={false}
                           className="ag-dica" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
-                          <p className="ag-dica-nome">{a.nome}</p>
+                          {/* Sem título: o botão já diz a profissão e a agenda. Duas colunas; o endereço ocupa a linha de baixo inteira. */}
                           <dl className="ag-dica-lista">
                             <div><dt>Atendimentos</dt><dd data-testid={`dica-qtd-${a.chave}`}>
                               {a.somenteGoogle ? contagem(a.google, ["compromisso do Google", "compromissos do Google"])
@@ -121,8 +121,8 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                               <div><dt>Ocupação</dt><dd data-testid={`dica-ocup-${a.chave}`}>{textoOcupacao(o)}</dd></div>
                             )}
                             {a.minutos != null && <div><dt>Tempo</dt><dd data-testid={`dica-tempo-${a.chave}`}>{a.minutos} min</dd></div>}
-                            {a.endereco && <div><dt>Endereço</dt><dd className="ag-dica-endereco" data-testid={`dica-endereco-${a.chave}`}>{a.endereco}</dd></div>}
-                            <div><dt>Profissional</dt><dd>{a.somenteGoogle ? "Calendário somente leitura" : a.profissional ?? "Agenda compartilhada"}</dd></div>
+                            <div><dt>Profissional</dt><dd>{a.somenteGoogle ? "Somente leitura" : a.profissional ?? "Compartilhada"}</dd></div>
+                            {a.endereco && <div className="ag-dica-largo"><dt>Endereço</dt><dd className="ag-dica-endereco" data-testid={`dica-endereco-${a.chave}`}>{a.endereco}</dd></div>}
                           </dl>
                         </HoverCardContent>
                       </HoverCard>
