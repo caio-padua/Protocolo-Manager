@@ -43,7 +43,6 @@ type Item = {
 };
 
 const SEM_AGENDA_ROTULO = "Sem agenda ligada";
-const DIA_SEMANA = (d: Date) => format(d, "EEE", { locale: ptBR }).replace(".", "");
 const dataLonga = (iso: string) => {
   const t = format(new Date(`${iso}T12:00:00`), "EEEE, d 'de' MMMM", { locale: ptBR });
   return t.charAt(0).toUpperCase() + t.slice(1);
@@ -269,35 +268,24 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
     onSelecionar?.(escolha);
   };
 
-  const colunasGrid = `3.25rem repeat(${dias.length}, minmax(${modo === "dia" ? "0" : "7.5rem"}, 1fr))`;
+  const COL_HORAS_REM = 4.25; // coluna das horas: também abriga "Agora" e o som
+  const colunasGrid = `${COL_HORAS_REM}rem repeat(${dias.length}, minmax(${modo === "dia" ? "0" : "7.5rem"}, 1fr))`;
   const semNada = todos.length === 0 && diaInteiro.length === 0;
 
   return (
-    <section className="tl-raiz panel-3d-sub space-y-3 p-3" data-testid="linha-do-tempo" data-modo={modo} aria-label={modo === "dia" ? "Linha do tempo do dia" : "Linha do tempo da semana"}>
-      {/* Barra superior: legenda de agendas à esquerda; próximo atendimento, agora e som à direita */}
-      <div className="flex flex-wrap items-start justify-end gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {proximo?.sessao && (
-            <button type="button" data-testid="proximo-atendimento" onClick={() => abrirSessao(proximo.sessao!)}
+    <section className="tl-raiz panel-3d-sub space-y-2 p-2.5" data-testid="linha-do-tempo" data-modo={modo} aria-label={modo === "dia" ? "Linha do tempo do dia" : "Linha do tempo da semana"}>
+      {/* Faixa superior só existe quando há um próximo atendimento hoje; "Agora" e o som moram no canto da grade (sem linha própria). */}
+      {proximo?.sessao && (
+        <div className="flex justify-end">
+          <button type="button" data-testid="proximo-atendimento" onClick={() => abrirSessao(proximo.sessao!)}
               className="concave-3d flex min-h-8 items-center gap-2 px-3 text-[11px] font-bold">
               <CalendarClock className="h-3.5 w-3.5 text-accent" aria-hidden />
               <span className="tabular-nums">{rotuloHora(proximo.ini)}</span>
               <span className="max-w-[10rem] truncate">{proximo.sessao.clientName}</span>
               <span className="font-black text-accent">{textoFaltam(proximo.ini - agora.minutos)}</span>
-            </button>
-          )}
-          <button type="button" onClick={() => irParaAgora(true)} data-testid="ir-para-agora" title="Ir para o horário de agora"
-            className="btn-3d-soft flex min-h-8 items-center gap-1.5 px-2.5 text-[10px] font-black uppercase tracking-widest">
-            <Clock className="h-3.5 w-3.5" aria-hidden />Agora
-          </button>
-          <button type="button" role="switch" aria-checked={somLigado} onClick={alternarSom} data-testid="aviso-sonoro"
-            aria-label={`Aviso sonoro ${somLigado ? "ligado" : "desligado"}`}
-            title={somLigado ? "Aviso sonoro ligado: um sino suave 10 minutos antes de cada atendimento" : "Aviso sonoro desligado"}
-            className={`${somLigado ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} flex min-h-8 min-w-8 items-center justify-center px-2`}>
-            {somLigado ? <Volume2 className="h-3.5 w-3.5" aria-hidden /> : <VolumeX className="h-3.5 w-3.5" aria-hidden />}
           </button>
         </div>
-      </div>
+      )}
 
       {google.isError && (
         <p role="alert" className="concave-3d px-3 py-2 text-[11px] font-bold text-amber-700">
@@ -307,25 +295,39 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
 
       {/* A grade */}
       <div ref={rolagem} className="relative max-h-[calc(100dvh-15rem)] min-h-[22rem] overflow-auto rounded-[6px]" data-testid="tl-rolagem">
-        <div className="grid" style={{ gridTemplateColumns: colunasGrid, minWidth: modo === "dia" ? undefined : `${3.25 + dias.length * 7.5}rem`, ["--tl-hora" as string]: `${horaPx}px` }}>
+        <div className="grid" style={{ gridTemplateColumns: colunasGrid, minWidth: modo === "dia" ? undefined : `${COL_HORAS_REM + dias.length * 7.5}rem`, ["--tl-hora" as string]: `${horaPx}px` }}>
           {/* Cabeçalho fixo: dia e compromissos de dia inteiro */}
-          <div className="sticky top-0 z-20 border-b border-muted/30 bg-background" />
+          <div className="sticky top-0 z-20 flex flex-col items-stretch justify-center gap-1 border-b border-muted/30 bg-background px-1 py-1">
+            <button type="button" onClick={() => irParaAgora(true)} data-testid="ir-para-agora" title="Ir para o horário de agora (leva a grade até a linha vermelha)"
+              className="btn-3d-soft flex min-h-6 items-center justify-center gap-1 px-1 text-[9px] font-black uppercase tracking-wider">
+              <Clock className="h-3 w-3 shrink-0" aria-hidden />Agora
+            </button>
+            <button type="button" role="switch" aria-checked={somLigado} onClick={alternarSom} data-testid="aviso-sonoro"
+              aria-label={`Aviso sonoro ${somLigado ? "ligado" : "desligado"}`}
+              title={somLigado ? "Aviso sonoro ligado: um sino suave 10 minutos antes de cada atendimento" : "Aviso sonoro desligado: toque para ligar o sino de 10 minutos antes de cada atendimento"}
+              className={`${somLigado ? "bevel-3d text-primary" : "btn-3d-soft text-muted-foreground"} flex min-h-6 items-center justify-center px-1`}>
+              {somLigado ? <Volume2 className="h-3.5 w-3.5" aria-hidden /> : <VolumeX className="h-3.5 w-3.5" aria-hidden />}
+            </button>
+          </div>
           {dias.map((d, idx) => {
             const iso = diasIso[idx]!;
             const ehHoje = iso === agora.data;
             const diaTodo = diaInteiro.filter((e) => e.data === iso);
             const conteudo = (
               <>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${ehHoje ? "text-accent" : "text-muted-foreground"}`}>{DIA_SEMANA(d)}</span>
-                <span className={`mt-0.5 flex h-8 min-w-8 items-center justify-center rounded-full px-1 text-lg font-black tabular-nums ${ehHoje ? "bg-primary text-primary-foreground" : ""}`}>{format(d, "d")}</span>
+                <span className="tl-dia-faixa">{format(d, "LLLL", { locale: ptBR })}</span>
+                <span className="tl-dia-corpo">
+                  <span className={`flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xl font-black leading-none tabular-nums ${ehHoje ? "bg-primary text-primary-foreground" : ""}`}>{format(d, "d")}</span>
+                  <span className={`text-[9.5px] font-bold lowercase tracking-wide ${ehHoje ? "text-amber-800" : "text-muted-foreground"}`}>{format(d, "EEEE", { locale: ptBR })}</span>
+                </span>
               </>
             );
             return (
-              <div key={iso} data-testid={`tl-cabecalho-${iso}`} className="sticky top-0 z-20 border-b border-l border-muted/30 bg-background px-1 pb-1 pt-1 text-center">
+              <div key={iso} data-testid={`tl-cabecalho-${iso}`} className="sticky top-0 z-20 border-b border-l border-muted/30 bg-background px-1 pb-1.5 pt-1.5 text-center">
                 {modo === "semana" ? (
                   <button type="button" onClick={() => onAbrirDia(d)} aria-label={`Abrir o dia ${format(d, "d 'de' MMMM", { locale: ptBR })}`}
-                    className="mx-auto flex flex-col items-center rounded-[6px] px-2 hover:bg-muted/40">{conteudo}</button>
-                ) : <div className="flex flex-col items-center">{conteudo}</div>}
+                    className={`tl-dia-moldura mx-auto ${ehHoje ? "tl-dia-moldura--hoje" : ""}`}>{conteudo}</button>
+                ) : <div className={`tl-dia-moldura mx-auto ${ehHoje ? "tl-dia-moldura--hoje" : ""}`}>{conteudo}</div>}
                 {diaTodo.length > 0 && (
                   <ul className="mt-1 space-y-0.5 text-left" aria-label="Compromissos de dia inteiro">
                     {diaTodo.map((e) => (

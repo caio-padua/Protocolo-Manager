@@ -117,9 +117,6 @@
 .ag-dica-lista dd.ag-dica-endereco { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.62rem; font-weight: 600; }
 .ag-chip-cad { height: 0.65rem; width: 0.65rem; opacity: 0.6; flex: none; }
 .ag-ponta { display: flex; flex: none; align-items: center; gap: 0.4rem; }
-.ag-ocultas { display: flex; flex: none; width: 4.4rem; align-items: center; justify-content: flex-end; gap: 0.3rem; font-size: 0.7rem; font-weight: 900; font-variant-numeric: tabular-nums; }
-.ag-ocultas-btn { display: flex; height: 1.75rem; width: 1.75rem; align-items: center; justify-content: center; border-radius: 4px; }
-.ag-resumo { font-size: 0.6rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.65; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ag-maxmin { display: flex; height: 2.1rem; width: 2.1rem; align-items: center; justify-content: center; border-radius: 4px; }
 .ag-gaveta {
   position: absolute; left: 0; right: 0; top: calc(100% + 0.4rem); z-index: 40; max-height: min(62vh, 30rem); overflow-y: auto;

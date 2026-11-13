@@ -135,16 +135,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
           </div>
         )}
         <div className="ag-ponta">
-          {/* Espaço FIXO: aparecer ou sumir o aviso nunca desloca as agendas (o clique seguinte cai no mesmo lugar). */}
-          {nOcultas > 0 ? (
-            <span role="status" className="ag-ocultas text-amber-700" data-testid="filtro-agendas-ocultas">
-              <EyeOff className="h-3.5 w-3.5" aria-hidden />{nOcultas} <span className="sr-only">{nOcultas === 1 ? "agenda oculta" : "agendas ocultas"}</span>
-              <button type="button" onClick={() => onChange(mostrarTodas())} className="btn-3d-soft ag-ocultas-btn" aria-label="Mostrar todas as agendas" title="Mostrar todas as agendas">
-                <Eye className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            </span>
-          ) : <span className="ag-ocultas" aria-hidden />}
-          <span className="ag-resumo" data-testid="filtro-agendas-resumo">{todas.length - nOcultas} de {todas.length}</span>
+          {/* Sem contador "N de N" e sem aviso de agendas ocultas aqui (decisão do CEO): o botão apagado já mostra o que está desligado; "Mostrar todas" fica no painel do +. */}
           <button type="button" aria-expanded={painelAberto} onClick={() => setPainelAberto((v) => !v)} data-testid="filtro-agendas-recolher"
             aria-label={painelAberto ? "Minimizar agendas" : "Maximizar agendas"} title={painelAberto ? "Minimizar: voltar para a barra" : "Maximizar: ver agendas por grupo, com “Só esta”"}
             className="ag-maxmin bevel-3d">

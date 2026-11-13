@@ -163,10 +163,10 @@ test("legenda liga e desliga agendas; dia abre pelo cabeçalho da semana; Lista 
   await page.goto("/agenda");
   const linha = page.getByTestId("linha-do-tempo");
   const filtro = page.getByTestId("filtro-agendas");
-  await filtro.getByRole("checkbox", { name: /AGENDA HOME CARE/ }).click();
+  await filtro.getByRole("checkbox", { name: /HOME CARE/ }).click();
   await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
   await expect(linha.getByTestId("evento-s1")).toBeVisible();
-  await filtro.getByRole("checkbox", { name: /AGENDA HOME CARE/ }).click();
+  await filtro.getByRole("checkbox", { name: /HOME CARE/ }).click();
   await expect(linha.getByTestId("evento-s2")).toBeVisible();
   // dia pelo cabeçalho
   await linha.getByRole("button", { name: /Abrir o dia 13 de novembro/ }).click();

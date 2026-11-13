@@ -75,7 +75,9 @@ test("grupos por categoria cobrem TODAS as agendas, inclusive as sem atendimento
   for (const chave of ["r22", "r24", "r29", "r23", "r27", "g30"]) await expect(filtro.getByTestId(`filtro-agenda-${chave}`)).toBeVisible();
   await expect(filtro.getByTestId("filtro-agenda-r29")).toContainText("Home Care");
   await expect(filtro.getByTestId("filtro-agenda-r24")).toContainText("Online");
-  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
+  // sem contador "N de N" e sem aviso de ocultas na barra (CEO): só os botões das agendas e a nuvenzinha
+  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveCount(0);
+  await expect(filtro.getByTestId("filtro-agendas-ocultas")).toHaveCount(0);
   await page.screenshot({ path: "generated-artifacts/filtro-agendas-desktop.png", fullPage: true });
 });
 
@@ -94,9 +96,7 @@ test("só esta, clicar de novo restaura, valendo para sessão e Google; banner d
   await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
   await expect(linha.getByTestId("evento-gg:2")).toHaveCount(0);
   await expect(linha.getByTestId("evento-gg:3")).toHaveCount(0);
-  await expect(filtro.getByTestId("filtro-agendas-ocultas")).toContainText("5");
   await filtro.getByTestId("so-esta-r22").click();
-  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
   await expect(linha.getByTestId("evento-s2")).toBeVisible();
   await expect(linha.getByTestId("evento-gg:3")).toBeVisible();
 });
@@ -122,7 +122,6 @@ test("grupo inteiro, limpar seleção, mostrar todas e recolher grupo; teclado",
   // recolher não oculta nada
   await filtro.getByTestId("grupo-recolher-Medicina").click();
   await expect(filtro.getByTestId("filtro-agenda-r22")).toHaveCount(0);
-  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
   await filtro.getByTestId("grupo-recolher-Medicina").click();
   // teclado: foco na caixa da agenda e Espaço alterna
   await filtro.getByTestId("filtro-agenda-r23").getByRole("checkbox").focus();
@@ -141,7 +140,6 @@ test("a mesma escolha vale no Mês e na Lista", async ({ page }) => {
   const celula = page.getByTestId("grade-mes-google").getByTestId(`dia-${HOJE}`);
   await expect(celula.locator('[data-origem="paxter"]')).toHaveCount(1);
   await expect(celula.locator('[data-origem="google"]')).toHaveCount(0);
-  await expect(page.getByTestId("filtro-agendas-ocultas")).toBeVisible();
   await filtro.getByTestId("so-esta-r27").click();
   await expect(celula.locator('[data-origem="paxter"]')).toHaveCount(0);
   await expect(celula.locator('[data-origem="google"]')).toHaveCount(1);
@@ -155,7 +153,6 @@ test("celular: filtro cabe na tela, alvos de toque com 36px ou mais", async ({ p
   await expect(filtro).toBeVisible();
   // a barra nasce minimizada (grade primeiro); o resumo mostra quantas agendas estão exibidas
   await expect(filtro.getByTestId("agendas-faixa")).toBeVisible();
-  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
   await expect(filtro.getByTestId("filtro-agenda-r22")).toHaveCount(0);
   await page.screenshot({ path: "generated-artifacts/filtro-agendas-mobile-recolhido.png" });
   await filtro.getByTestId("filtro-agendas-recolher").click();
@@ -196,10 +193,11 @@ test("barra contínua: chips ligam e desligam, dois cliques = só esta, e o + ab
   await filtro.getByTestId("chip-agenda-r23").click();
   await expect(linha.getByTestId("evento-s2")).toBeVisible();
   await filtro.getByTestId("chip-agenda-r22").dblclick();
-  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("1 de 6");
+  await expect(filtro.getByTestId("chip-agenda-r22")).toHaveAttribute("aria-checked", "true");
+  await expect(filtro.getByTestId("chip-agenda-r24")).toHaveAttribute("aria-checked", "false");
   await expect(linha.getByTestId("evento-s2")).toHaveCount(0);
   await filtro.getByTestId("chip-agenda-r22").dblclick();
-  await expect(filtro.getByTestId("filtro-agendas-resumo")).toHaveText("6 de 6");
+  await expect(filtro.getByTestId("chip-agenda-r24")).toHaveAttribute("aria-checked", "true");
   const mais = filtro.getByTestId("filtro-agendas-recolher");
   await expect(mais).toHaveAttribute("aria-expanded", "false");
   await mais.click();
@@ -264,6 +262,7 @@ test("nuvenzinha: abre rápido, fica no canto inferior direito do botão sem cob
   await page.waitForTimeout(400);
   await expect(dica).toBeVisible();
   await expect(dica).toHaveCount(0, { timeout: 6000 });
+  await page.screenshot({ path: "generated-artifacts/agenda-grade.png" });
   // mexer de novo faz aparecer de novo
   await page.mouse.move(c.x + 30, c.y + 10);
   await page.mouse.move(c.x + 40, c.y + 14);
