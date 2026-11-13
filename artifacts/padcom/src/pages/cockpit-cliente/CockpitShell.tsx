@@ -270,20 +270,22 @@ export default function CockpitShell({
       <main className="cc-main">
         {!clientId ? (
           // Estado vazio — guia o usuário
-          <div className="panel-3d mx-auto mt-10 max-w-xl p-8 text-center">
-            <UserRound
-              className="mx-auto mb-3 h-8 w-8"
-              style={{ color: "#9a7b32" }}
-            />
-            <div className="text-[15px] font-bold uppercase tracking-[0.12em] text-foreground">
-              Busque o Cliente
+          // Mesmo perfil do card "Médicos assistentes" da marcação de consulta (alto-relevo, ícone em quadrado gravado)
+          <div className="panel-3d-hero mx-auto mt-10 max-w-xl rounded-xl px-5 py-5 flex items-start gap-3.5">
+            <div className="field-engraved flex items-center justify-center shrink-0 rounded-md" style={{ width: 48, height: 48 }}>
+              <UserRound className="h-5 w-5 text-accent" />
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Use o campo de busca acima para encontrar o cliente pelo nome ou CPF.
-              Todas as ferramentas da consulta — prescrição, injetáveis, implantes,
-              exames, evolução, anamnese, protocolos, financeiro e cadastro — ficam
-              nesta tela sem trocar de página.
-            </p>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-black uppercase tracking-[0.06em] text-primary leading-snug">
+                Busque o Cliente
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Use o campo de busca acima para encontrar o cliente pelo nome ou CPF.
+                Todas as ferramentas da consulta — prescrição, injetáveis, implantes,
+                exames, evolução, anamnese, protocolos, financeiro e cadastro — ficam
+                nesta tela sem trocar de página.
+              </p>
+            </div>
           </div>
         ) : (
           <>
