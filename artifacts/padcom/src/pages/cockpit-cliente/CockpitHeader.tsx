@@ -49,7 +49,7 @@ export default function CockpitHeader({
 
   return (
     <header className="cc-header">
-      <div className="cc-heading"><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div>
+      <div className="cc-heading"><ThemeToggle theme={theme} onToggle={onToggleTheme} className="!h-6 !w-11 !rounded-[4px]" /></div>
       {confirmado ? (
         <ClientIdentity client={client} onMensagens={onMensagens} />
       ) : (

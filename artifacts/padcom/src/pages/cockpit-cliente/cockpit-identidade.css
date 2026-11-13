@@ -201,7 +201,7 @@
 .cc-heading { justify-content: flex-end; margin-bottom: 8px; }
 @media (min-width: 768px) {
   .cc-header { position: relative; padding-top: 4px; }
-  .cc-heading { position: absolute; top: -40px; right: clamp(12px, 2.4vw, 32px); margin: 0; max-width: none; z-index: 5; }
+  .cc-heading { position: absolute; top: -34px; right: clamp(12px, 2.4vw, 32px); margin: 0; max-width: none; z-index: 5; }
 }
 /* Barra de abas: sem a barra de rolagem cinza (as setas ja rolam), e setas em alto-relevo */
 .cc-rail-list { scrollbar-width: none; -ms-overflow-style: none; }
@@ -219,3 +219,7 @@
 .cc-shell:not(.dark) .cc-rail-item:active { transform: translateY(2px); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(130,100,45,.55); }
 .cc-shell:not(.dark) .cc-rail-item[data-active="true"],
 .cc-shell:not(.dark) .cc-context-button[data-active="true"] { box-shadow: inset 0 2px 0 rgba(255,255,255,.25), inset 0 -3px 0 rgba(0,0,0,.35), 0 3px 0 #060f1f, 0 7px 10px -3px rgba(6,15,31,.5); }
+
+/* Tecido de giz ate o fim de todas as telas e subtelas do cockpit, nos dois temas */
+.cc-workspace-background,
+.cc-shell.dark .cc-workspace-background { background-image: var(--cc-fabric); background-attachment: fixed; }
