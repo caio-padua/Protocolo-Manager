@@ -351,6 +351,9 @@ importers:
       '@types/pdfkit':
         specifier: ^0.17.6
         version: 0.17.6
+      '@types/pg':
+        specifier: ^8.18.0
+        version: 8.18.0
       '@types/pngjs':
         specifier: ^6.0.5
         version: 6.0.5
@@ -369,6 +372,9 @@ importers:
       jsqr:
         specifier: ^1.4.0
         version: 1.4.0
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
       pino-pretty:
         specifier: ^13
         version: 13.1.3

@@ -18,6 +18,8 @@ export interface RepasseCeoEntrada {
   nome: string;
   cpfDisplay: string;
   texto: string;
+  /** true = a mensagem NÃO foi gravada no Cockpit (falha técnica); o Telegram tentará reentregar. */
+  gravacaoFalhou?: boolean;
 }
 
 export type RepasseCeoResultado =
@@ -48,7 +50,11 @@ export async function repassarMensagemAoCeo(
     return { kind: "omitido_remetente_e_ceo" };
   }
 
+  const aviso = e.gravacaoFalhou
+    ? `⚠️ <b>Não gravada no Cockpit (falha técnica).</b> O Telegram tentará reentregar; quando gravar, ela aparece no Cockpit.\n\n`
+    : "";
   const repasse =
+    aviso +
     `💬 <b>Mensagem via Telegram</b>\n\n` +
     `<b>De:</b> ${escaparHtmlTelegram(e.nome)}\n` +
     `<b>CPF:</b> ${escaparHtmlTelegram(e.cpfDisplay)}\n\n` +

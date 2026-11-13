@@ -5,6 +5,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { aplicarMigracaoUpdateId } from "./telegram-inbox-migracao";
 
 export async function ensureTelegramInboxTable(): Promise<void> {
   await db.execute(sql`
@@ -36,5 +37,7 @@ export async function ensureTelegramInboxTable(): Promise<void> {
     ALTER TABLE telegram_inbox_messages
       ADD COLUMN IF NOT EXISTS direcao TEXT NOT NULL DEFAULT 'entrada'
   `);
+  /* Deduplicação por update_id (aditiva e reversível — ver telegram-inbox-migracao.ts) */
+  await aplicarMigracaoUpdateId(db);
   logger.info("telegram_inbox_messages: tabela pronta");
 }

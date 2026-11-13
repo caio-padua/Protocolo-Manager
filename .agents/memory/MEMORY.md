@@ -178,3 +178,4 @@
 - [Encaixe rápido interno (Quick Book)](agenda-encaixe-interno.md) — canal decidido no servidor (rota+Governança), antecedência em minutos no app_settings, mesma decisão no seletor e na confirmação, sem cadeia.
 - [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev.
 - [Telegram — chat do CEO, repasse e status](telegram-diagnostico-repasse-ceo.md) — webhook único aponta para um ambiente; repasse ao CEO sem eco; status honesto na Central de Auditoria.
+- [Telegram — deduplicação por update_id](telegram-dedupe-update-id.md) — chave (chat_id, update_id); gravar antes de repassar; 500 só em falha transitória.

@@ -14,7 +14,6 @@ import {
   assinaturaTogglesAdminTable,
   assinaturaSolicitacoesTable,
   assinaturaTemplatesTable,
-  telegramInboxTable,
 } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import {
@@ -51,6 +50,7 @@ import {
 } from "../lib/telegram-inbox-flow";
 import { parseStart, consumirLinkMagico } from "../lib/telegram-magic-link";
 import { repassarMensagemAoCeo } from "../lib/telegram-relay-ceo";
+import { gravarMensagemEntrada, extrairUpdateId, erroTransitorioDeBanco } from "../lib/telegram-inbox-store";
 
 // ---------------------------------------------------------------------------
 // Webhook ZapSign (livre — registrado antes do guard).
@@ -526,36 +526,49 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
           cpf: clienteJaVinculado.cpf,
         };
 
-        await processarWebhookInbox(
-          { chatId, texto, chatIdCEO },
-          {
-            findClienteByChatId: async () => cliente,
-            insertMensagem: async (params) => {
-              const inserted = await db
-                .insert(telegramInboxTable)
-                .values({
-                  empresaId: params.empresaId,
-                  clienteId: params.clienteId,
-                  chatId: params.chatId,
-                  texto: params.texto,
-                })
-                .returning({ id: telegramInboxTable.id });
-              return { id: inserted[0]?.id ?? 0 };
+        let resultado: Awaited<ReturnType<typeof processarWebhookInbox>> | null = null;
+        try {
+          resultado = await processarWebhookInbox(
+            { chatId, texto, chatIdCEO, updateId: extrairUpdateId(update.update_id) },
+            {
+              findClienteByChatId: async () => cliente,
+              insertMensagem: (params) => gravarMensagemEntrada(db, params),
+              notificarCEO: chatIdCEO
+                ? async (ceoId, cli, _txt, opcoes) => {
+                    const cpfDisplay = (cli.cpf || "00000000000")
+                      .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+                    await repassarMensagemAoCeo(
+                      {
+                        chatIdCeo: ceoId, chatIdRemetente: chatId, clienteId: cli.id,
+                        nome: cli.name, cpfDisplay, texto,
+                        gravacaoFalhou: opcoes?.gravacaoFalhou === true,
+                      },
+                      { enviar: sendTelegram, log: logger },
+                    );
+                  }
+                : undefined,
             },
-            notificarCEO: chatIdCEO
-              ? async (ceoId, cli) => {
-                  const cpfDisplay = (cli.cpf || "00000000000")
-                    .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-                  await repassarMensagemAoCeo(
-                    { chatIdCeo: ceoId, chatIdRemetente: chatId, clienteId: cli.id, nome: cli.name, cpfDisplay, texto },
-                    { enviar: sendTelegram, log: logger },
-                  );
-                }
-              : undefined,
-          },
-        ).catch((err: unknown) =>
-          logger.error({ err }, "[telegram] falha ao processar mensagem no inbox"),
-        );
+          );
+        } catch (err) {
+          // Falha técnica passageira (banco fora, conexão caiu): NADA foi gravado, então
+          // pedimos reentrega ao Telegram (500). A deduplicação por update_id torna a
+          // reentrega segura. Falha permanente: reentregar não ajuda, registra e responde 200.
+          if (erroTransitorioDeBanco(err)) throw err;
+          const code = (err as { code?: unknown; cause?: { code?: unknown } } | null);
+          logger.error(
+            { errorType: err instanceof Error ? err.constructor.name : typeof err, errorCode: String(code?.code ?? code?.cause?.code ?? "") || undefined },
+            "[telegram] falha permanente ao gravar mensagem no inbox (sem reentrega)",
+          );
+        }
+        if (resultado?.kind === "duplicado") {
+          logger.info({ clienteId: cliente.id }, "[telegram] entrega duplicada ignorada (update_id já gravado)");
+          res.status(200).json({ ok: true });
+          return;
+        }
+        if (!resultado) {
+          res.status(200).json({ ok: true });
+          return;
+        }
         // Best-effort: alerta Slack quando paciente responde após CEO ter enviado mensagem
         void (async () => {
           try {
@@ -661,6 +674,15 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     }
     res.status(200).json({ ok: true });
   } catch (err) {
+    if (erroTransitorioDeBanco(err)) {
+      const code = err as { code?: unknown; cause?: { code?: unknown } };
+      req.log.error(
+        { errorCode: String(code.code ?? code.cause?.code ?? "") || undefined },
+        "[telegram] falha técnica passageira no webhook — reentrega solicitada ao Telegram (500)",
+      );
+      res.status(500).json({ ok: false });
+      return;
+    }
     req.log.error({ err: String(err) }, "[telegram] erro no webhook");
     res.status(200).json({ ok: true });
   }

@@ -48,7 +48,9 @@ export interface WebhookInboxDeps {
     clienteId: number;
     chatId: string;
     texto: string;
-  }) => Promise<{ id: number }>;
+    /** update_id do Telegram (chave de deduplicação). null/ausente = sem dedupe. */
+    updateId?: number | null;
+  }) => Promise<{ id: number; duplicada?: boolean }>;
   /**
    * Notifica o CEO (fire-and-forget; falha não bloqueia o fluxo).
    * O chamador é responsável por formatar a mensagem — recebe o objeto
@@ -58,12 +60,15 @@ export interface WebhookInboxDeps {
     chatIdCEO: string,
     cliente: ClienteVinculado,
     texto: string,
+    /** Presente só quando a gravação falhou: o CEO deve saber que não ficou no Cockpit. */
+    opcoes?: { gravacaoFalhou: boolean },
   ) => Promise<void>;
 }
 
 export type WebhookInboxResult =
   | { kind: "ignorado"; motivo: string }
   | { kind: "gravado"; mensagemId: number; clienteId: number }
+  | { kind: "duplicado"; mensagemId: number; clienteId: number }
   | { kind: "nao_vinculado" };
 
 /**
@@ -83,10 +88,10 @@ export type WebhookInboxResult =
  * reentregaria em loop caso recebesse status != 200).
  */
 export async function processarWebhookInbox(
-  params: { chatId: string; texto: string; chatIdCEO?: string | null },
+  params: { chatId: string; texto: string; chatIdCEO?: string | null; updateId?: number | null },
   deps: WebhookInboxDeps,
 ): Promise<WebhookInboxResult> {
-  const { chatId, texto, chatIdCEO } = params;
+  const { chatId, texto, chatIdCEO, updateId } = params;
 
   // Comportamento idêntico ao webhook: `if (texto)` — texto vazio ignorado,
   // espaços sozinhos são considerados mensagem válida (consistente com produção).
@@ -99,22 +104,41 @@ export async function processarWebhookInbox(
     return { kind: "nao_vinculado" };
   }
 
-  // Notificar CEO ANTES do INSERT: garante que o CEO veja a mensagem mesmo se o banco
-  // recusar o INSERT (ex.: constraint violada, banco fora do ar). O repasse ao CEO é
-  // fire-and-forget e nunca bloqueia nem derruba o fluxo principal.
+  // Ordem: GRAVA primeiro (é a única forma de saber se a entrega é duplicada) e só
+  // então repassa ao CEO. Entrega duplicada nunca repassa de novo.
+  let gravada: { id: number; duplicada?: boolean };
+  try {
+    gravada = await deps.insertMensagem({
+      empresaId: cliente.empresaId,
+      clienteId: cliente.id,
+      chatId,
+      texto,
+      updateId: updateId ?? null,
+    });
+  } catch (err) {
+    // Falha ANTES da gravação: mantém a decisão anterior de o CEO ver a mensagem
+    // mesmo com o banco recusando (best-effort, marcada como não gravada) e
+    // propaga o erro — a rota decide se pede reentrega ao Telegram.
+    if (chatIdCEO && deps.notificarCEO) {
+      void deps.notificarCEO(chatIdCEO, cliente, texto, { gravacaoFalhou: true }).catch(() => {
+        /* best-effort */
+      });
+    }
+    throw err;
+  }
+
+  if (gravada.duplicada) {
+    return { kind: "duplicado", mensagemId: gravada.id, clienteId: cliente.id };
+  }
+
+  // Falha DEPOIS da gravação: a mensagem já está salva; repasse é best-effort.
   if (chatIdCEO && deps.notificarCEO) {
     void deps.notificarCEO(chatIdCEO, cliente, texto).catch(() => {
       /* best-effort — falha não derruba o fluxo principal */
     });
   }
 
-  const { id: mensagemId } = await deps.insertMensagem({
-    empresaId: cliente.empresaId,
-    clienteId: cliente.id,
-    chatId,
-    texto,
-  });
-
+  const mensagemId = gravada.id;
   return { kind: "gravado", mensagemId, clienteId: cliente.id };
 }
 

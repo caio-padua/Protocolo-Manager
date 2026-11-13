@@ -50,7 +50,15 @@ vi.mock("@workspace/db", () => {
     db: {
       select:  () => makeSelectChain([CLIENTE_VINCULADO]),
       insert:  () => makeInsertChain(),
-      execute: (...args: unknown[]) => mockDbExecute(...(args as [])),
+      // A gravação do inbox agora é um INSERT ... ON CONFLICT via execute (dedupe por update_id);
+      // as demais consultas (histórico de saída para o Slack) seguem em mockDbExecute.
+      execute: (...args: unknown[]) => {
+        const q = args[0] as { strings?: readonly string[] } | undefined;
+        if (q?.strings?.join("?").includes("INSERT INTO telegram_inbox_messages")) {
+          return mockDbInsertReturning().then((rows) => ({ rows }));
+        }
+        return mockDbExecute(...(args as []));
+      },
     },
     clientsTable:                {},
     telegramInboxTable:          {},

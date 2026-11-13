@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, bigint, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { clientsTable } from "./clients";
@@ -27,10 +28,15 @@ export const telegramInboxTable = pgTable(
     direcao: text("direcao").notNull().default("entrada"),
     recebidaEm: timestamp("recebida_em", { withTimezone: true }).notNull().defaultNow(),
     lidaEm: timestamp("lida_em", { withTimezone: true }), // NULL = não lida
+    /** update_id do Telegram (deduplicação de reentrega). NULL em linhas antigas e de saída. */
+    updateId: bigint("update_id", { mode: "number" }),
   },
   (t) => ({
     idxCliente: index("idx_telegram_inbox_cliente").on(t.clienteId),
     idxRecebida: index("idx_telegram_inbox_recebida").on(t.recebidaEm),
+    uxChatUpdate: uniqueIndex("ux_telegram_inbox_chat_update")
+      .on(t.chatId, t.updateId)
+      .where(sql`${t.updateId} IS NOT NULL`),
   }),
 );
 

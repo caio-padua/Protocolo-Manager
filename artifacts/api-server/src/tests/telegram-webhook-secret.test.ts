@@ -3,9 +3,11 @@
  *
  * Testes de integração HTTP para a validação do segredo no webhook Telegram.
  *
- * Regra de ouro: o webhook SEMPRE responde HTTP 200 (Telegram reentreguaria
- * em loop se recebesse 4xx/5xx). Quando o segredo está ausente ou errado,
- * a rota silencia — sem gravar nada, sem vazar o motivo ao chamador.
+ * Regra: o webhook responde HTTP 200 (Telegram reentregaria em loop se recebesse
+ * 4xx/5xx). Única exceção: falha técnica passageira do banco ao gravar mensagem
+ * (500, para pedir reentrega — ver telegram-dedupe-fluxo-rota.test.ts). Quando o
+ * segredo está ausente ou errado, a rota silencia — sem gravar nada, sem vazar o
+ * motivo ao chamador.
  *
  * Cenários cobertos:
  *   C1. Segredo correto no cabeçalho → 200 + processarWebhookInbox chamado

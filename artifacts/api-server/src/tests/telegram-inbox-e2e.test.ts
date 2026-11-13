@@ -93,6 +93,7 @@ describe("Etapa 1 — Webhook: mensagem do paciente grava no inbox", () => {
       clienteId: CLIENTE_ID,
       chatId: CHAT_ID,
       texto: TEXTO,
+      updateId: null, // sem update_id no chamador => sem chave de deduplicação
     });
   });
 
@@ -209,9 +210,9 @@ describe("Falha silenciosa no INSERT — contrato da rota de produção", () => 
     expect(loggerError).toHaveBeenCalledWith({ err: dbErr });
   });
 
-  it("3. CEO é notificado mesmo quando o INSERT falha (notificarCEO roda antes do INSERT)", async () => {
-    // notificarCEO é chamado ANTES do insertMensagem; por isso chega ao CEO
-    // mesmo que o banco esteja fora do ar.
+  it("3. CEO é avisado (marcado como NÃO gravada) quando o INSERT falha", async () => {
+    // Desde a deduplicação por update_id a gravação vem primeiro; se ela falha, o CEO
+    // ainda recebe o aviso (best-effort) com gravacaoFalhou=true.
     const notificarCEO = vi.fn().mockResolvedValue(undefined);
     const deps = makeWebhookDeps({
       insertMensagem: vi.fn().mockRejectedValue(new Error("DB offline")),
@@ -231,6 +232,7 @@ describe("Falha silenciosa no INSERT — contrato da rota de produção", () => 
       "999",
       expect.objectContaining({ id: CLIENTE_ID }),
       TEXTO,
+      { gravacaoFalhou: true },
     );
   });
 
