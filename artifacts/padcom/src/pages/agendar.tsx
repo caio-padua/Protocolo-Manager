@@ -19,6 +19,7 @@ import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkA
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { FitaTela } from "@/components/layout/FitaTela";
 import {
   Loader2,
   ChevronRight,
@@ -412,8 +413,11 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
     >
       <div className="leva-fabric" aria-hidden="true" />
       <div className="relative z-[1] flex flex-col min-h-screen">
+        {/* Fita de terno de giz (modelo 11) rente ao teto + header panel-3d, congelados juntos */}
+        <div className="sticky top-0 z-20">
+        <FitaTela nome="Marcação de Consulta" />
         {/* Header panel-3d — mesmo padrão do /area (Área do Paciente) */}
-        <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60 sticky top-0 z-20">
+        <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60">
           <div className="flex items-center gap-3">
             <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />
             <div className="flex flex-col items-start gap-1">
@@ -438,6 +442,7 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
           </div>
           <ThemeToggle theme={theme} onToggle={toggle} />
         </header>
+        </div>
         <main className="flex-1 w-full max-w-lg mx-auto p-4 sm:p-6 pb-20 flex flex-col gap-6">
           {flows}
         </main>

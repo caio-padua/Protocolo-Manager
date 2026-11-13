@@ -3,18 +3,19 @@
 
 .ag-congelada {
   position: sticky; top: -1rem; z-index: 30;
-  margin: -1rem -1rem 0; padding: 0.5rem 1rem 0.5rem;
+  margin: -1rem -1rem 0; padding: 0 1rem 0.5rem;
   background: color-mix(in srgb, hsl(var(--background)) 94%, transparent);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
   display: flex; flex-direction: column; gap: 0.4rem;
 }
-@media (min-width: 768px) { .ag-congelada { top: -1.5rem; margin: -1.5rem -2rem 0; padding: 0.5rem 2rem 0.5rem; } }
+@media (min-width: 768px) { .ag-congelada { top: -1.5rem; margin: -1.5rem -2rem 0; padding: 0 2rem 0.5rem; } }
 
 
 .ag-comandos { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
-.ag-titulo { font-size: 1.05rem; font-weight: 900; letter-spacing: -0.01em; text-transform: uppercase; margin-right: 0.25rem; }
-@media (max-width: 1023px) { .ag-titulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+/* a fita ocupa a largura toda da barra e encosta no teto; o respiro abaixo dela vem desta margem */
+.ag-fita { margin: 0 -1rem 0.5rem; }
+@media (min-width: 768px) { .ag-fita { margin: 0 -2rem 0.5rem; } }
 
 .ag-grupo { display: flex; align-items: center; gap: 0.25rem; }
 .ag-nav { gap: 0.25rem; }

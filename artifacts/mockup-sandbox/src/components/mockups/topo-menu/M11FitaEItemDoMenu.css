@@ -1,0 +1,83 @@
+.m11-shell {
+  min-height: 100vh;
+  background: #f7f3e8;
+}
+
+/* A risca de giz fica como uma régua contínua, presa ao teto e sem aumentar a área do cabeçalho. */
+.m11-shell .tm-teto.tm-faixa {
+  position: relative;
+  z-index: 2;
+  height: 20px;
+  isolation: isolate;
+  overflow: visible;
+  padding-left: 18px;
+  border: 0;
+  background: linear-gradient(180deg, #7692b8 0%, #314f7b 8%, #1b3558 32%, #12284a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .96),
+    inset 0 2px 0 rgba(205, 222, 247, .32),
+    inset 0 -1px 0 rgba(5, 15, 31, .92),
+    0 1px 0 rgba(245, 229, 186, .9),
+    0 3px 0 rgba(8, 24, 47, .65),
+    0 5px 7px -4px rgba(7, 22, 43, .85);
+}
+
+.m11-shell .tm-teto.tm-faixa::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 2px 0 3px;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 8px,
+      rgba(220, 233, 250, .24) 8px 8.7px,
+      transparent 8.7px 11px,
+      rgba(220, 233, 250, .1) 11px 11.4px,
+      transparent 11.4px 16px
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    inset 0 -1px 0 rgba(3, 12, 25, .5);
+  pointer-events: none;
+}
+
+.m11-shell .tm-teto .tm-vidro {
+  position: relative;
+  z-index: 1;
+  padding: 1px 0 2px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .42));
+}
+
+/* O menu ativo repete a mesma superfície e o mesmo bisel: a correspondência é de material, não de ícone. */
+.m11-shell .tm-side-item.on.giz {
+  position: relative;
+  border: 1px solid #627fa8;
+  border-radius: 3px;
+  background-color: #173153;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 8px,
+      rgba(220, 233, 250, .19) 8px 8.7px,
+      transparent 8.7px 11px,
+      rgba(220, 233, 250, .08) 11px 11.4px,
+      transparent 11.4px 16px
+    ),
+    linear-gradient(180deg, #314f7b 0%, #1d3659 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .78),
+    inset 1px 0 0 rgba(255, 255, 255, .12),
+    inset 0 -1px 0 rgba(5, 15, 31, .78),
+    0 2px 0 rgba(6, 17, 34, .62),
+    0 3px 4px -2px rgba(0, 0, 0, .65);
+}
+
+@media (max-width: 767px) {
+  .m11-shell .tm-teto.tm-faixa {
+    padding-left: 12px;
+  }
+  .m11-shell .tm-teto .tm-vidro {
+    font-size: 10px !important;
+  }
+}

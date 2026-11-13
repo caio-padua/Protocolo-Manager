@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { CalendarRange, ChevronLeft, ChevronRight, Clock, Download, LayoutGrid, Loader2, Plus, RefreshCw, Rows3, Sun } from "lucide-react";
 import type { VisaoAgenda } from "./timeline-logica";
+import { FitaTela } from "@/components/layout/FitaTela";
 import "./agenda-barra.css";
 
 export type ModoAgenda = "dia" | "semana" | "mes";
@@ -35,8 +36,9 @@ export function BarraAgenda({
 }) {
   return (
     <div className="ag-congelada" data-testid="agenda-barra-congelada">
+      {/* nome da tela = nome do item do menu lateral, em fita de giz rente ao teto */}
+      <FitaTela nome="Agenda Diária" className="ag-fita" />
       <div className="ag-comandos">
-        <h1 className="ag-titulo">Agenda</h1>
 
         <div className="ag-grupo ag-nav" role="group" aria-label="Navegar no período">
           <button type="button" onClick={aoAnterior} className="ag-seta btn-3d-soft" aria-label={ANTERIOR[modo]} title={ANTERIOR[modo]} data-testid="agenda-anterior">
