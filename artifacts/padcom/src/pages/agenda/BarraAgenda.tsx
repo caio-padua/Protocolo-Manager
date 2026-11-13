@@ -36,8 +36,8 @@ export function BarraAgenda({
 }) {
   return (
     <div className="ag-congelada" data-testid="agenda-barra-congelada">
-      {/* nome da tela = nome do item do menu lateral, em fita de giz rente ao teto */}
-      <FitaTela nome="Agenda Diária" className="ag-fita" />
+      {/* no computador o nome vive na aba do topo; a fita só aparece no celular */}
+      <FitaTela nome="Agenda Diária" className="ag-fita md:hidden" />
       <div className="ag-comandos">
 
         <div className="ag-grupo ag-nav" role="group" aria-label="Navegar no período">
