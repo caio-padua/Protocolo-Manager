@@ -8,7 +8,4 @@
 
 .aba-s { position: absolute; top: 11px; white-space: nowrap; font-family: "EB Garamond", Georgia, serif; font-style: italic; font-weight: 500; font-size: 13px; line-height: 1.2; letter-spacing: .01em; color: #4d5f80; }
 
-.aba-t { display: inline-block; font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 16px; letter-spacing: .045em; line-height: 1;
-  background-image: linear-gradient(180deg, #fff3c9 0%, #f2d98a 22%, #dcb458 46%, #b98b36 62%, #d7ae55 80%, #f0d286 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(5,14,30,.75)) drop-shadow(0 0 3px rgba(224,184,96,.22)); }
+.aba-t { display: inline-block; font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 16px; letter-spacing: .045em; line-height: 1; color: #d2ab57; }
