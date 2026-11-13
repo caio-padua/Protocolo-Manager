@@ -41,6 +41,18 @@ export function escaparHtmlTelegram(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** CPF com máscara para exibição; sem 11 dígitos devolve o valor como veio (nunca inventa). */
+export function formatarCpfDisplay(cpf: string | null | undefined): string {
+  return (cpf || "00000000000").replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+}
+
+/** Para log: só o código técnico; corpo de erro do Telegram/rede pode conter trechos de conteúdo. */
+export function erroSeguroParaLog(erro: string): string {
+  const m = /^(telegram_http_\d{3})/.exec(erro);
+  if (m) return m[1];
+  return erro === "sem_resultado" ? erro : "falha_de_rede_ou_excecao";
+}
+
 export async function repassarMensagemAoCeo(
   e: RepasseCeoEntrada,
   deps: RepasseCeoDeps,
@@ -67,7 +79,7 @@ export async function repassarMensagemAoCeo(
     r = await deps.enviar(e.chatIdCeo, repasse);
   } catch (err) {
     const erro = err instanceof Error ? err.message : String(err);
-    deps.log.warn({ clienteId: e.clienteId, erro }, "[telegram] repasse ao CEO: exceção ao enviar");
+    deps.log.warn({ clienteId: e.clienteId, erro: erroSeguroParaLog(erro) }, "[telegram] repasse ao CEO: exceção ao enviar");
     return { kind: "falhou", erro };
   }
 
@@ -83,6 +95,6 @@ export async function repassarMensagemAoCeo(
     deps.log.warn({ clienteId: e.clienteId }, "[telegram] repasse ao CEO SIMULADO (sem token): nada foi entregue");
     return { kind: "simulado" };
   }
-  deps.log.warn({ clienteId: e.clienteId, erro: r.error ?? "desconhecido" }, "[telegram] repasse ao CEO RECUSADO pelo Telegram");
+  deps.log.warn({ clienteId: e.clienteId, erro: erroSeguroParaLog(r.error ?? "desconhecido") }, "[telegram] repasse ao CEO RECUSADO pelo Telegram");
   return { kind: "falhou", erro: r.error ?? "desconhecido" };
 }

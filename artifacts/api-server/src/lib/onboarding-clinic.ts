@@ -35,10 +35,11 @@ export async function resolveOnboardingClinic(
       FROM professionals p
       JOIN empresas e ON e.id = p.empresa_id
       WHERE p.id = ${claims.professionalId} AND p.active = true
+        AND p.credential_version = ${claims.credentialVersion ?? 0}
         AND e.ativa = true AND e.status = 'ATIVO'
       LIMIT 1
     `);
-    const clinic = result.rows[0] as OnboardingClinic | undefined;
+    const clinic = result.rows[0] as unknown as OnboardingClinic | undefined;
     if (!clinic || !Number.isSafeInteger(clinic.id) || clinic.id <= 0) {
       res.status(403).json({ ok: false, error: "Colaborador sem vínculo ativo com uma clínica." });
       return null;

@@ -15,12 +15,31 @@
  *   C3. Segredo errado no cabeçalho → 200 + nada gravado
  *   C4. Cabeçalho completamente ausente → 200 + nada gravado
  *   C5. Resposta não vaza o motivo de rejeição (corpo idêntico ao caminho feliz)
- *   C6. Falha técnica do cofre → 200 + ERROR específico sem credenciais
+ *   C6. Falha técnica do cofre → 500 (Telegram reentrega; 200 perderia o update) + ERROR sem credenciais
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 // ── Mocks OBRIGATORIAMENTE antes dos imports das rotas ───────────────────────
+// A camada de reivindicação por (bot, update_id) é testada à parte (telegram-claim-*.test.ts,
+// SQL real em banco descartável). Aqui ela fica transparente para isolar o fluxo testado.
+// Resolver do chat de alerta simulado: lê o ambiente (equivale ao processo com o cofre hidratado).
+// A regra real (cofre > ambiente, validação numérica) é provada em telegram-config.test.ts.
+vi.mock("../lib/telegram-config", () => ({
+  chatIdValido: () => true,
+  chatAlertaOuNull: async () => process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null,
+  resolverChatAlerta: async () => {
+    const c = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+    return { chatId: c, fonte: c ? "ambiente" : "ausente", motivo: c ? null : "ausente" };
+  },
+}));
+vi.mock("../lib/telegram-update-claim", async (orig) => ({
+  ...(await orig<typeof import("../lib/telegram-update-claim")>()),
+  reivindicarUpdate: vi.fn().mockResolvedValue("reivindicado"),
+  concluirUpdate: vi.fn().mockResolvedValue(undefined),
+  liberarUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../lib/logger.js", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
@@ -308,7 +327,7 @@ describe("POST /webhooks/telegram — validação do segredo", () => {
     expect(resErrado.body).not.toHaveProperty("motivo");
   });
 
-  it("C6 — cofre indisponível: responde 200 e registra ERROR distinto sem vazar dados", async () => {
+  it("C6 — cofre indisponível: responde 500 (reentrega) e registra ERROR distinto sem vazar dados", async () => {
     const selectSpy = vi.spyOn(db, "select");
     mockGetSecret.mockRejectedValueOnce(Object.assign(
       new Error(`DB offline; credentials=${SEGREDO_CORRETO}`),
@@ -320,13 +339,13 @@ describe("POST /webhooks/telegram — validação do segredo", () => {
         .set("x-telegram-bot-api-secret-token", SEGREDO_CORRETO)
         .send(PAYLOAD_VALIDO);
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true });
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ ok: false });
       expect(logger.error).toHaveBeenCalledExactlyOnceWith({
         secretKey: "telegram.webhookSecret",
         errorType: "Error",
         errorCode: "ECONNREFUSED",
-      }, "[telegram] falha técnica ao consultar cofre; update não processado");
+      }, "[telegram] falha técnica ao consultar cofre; update não processado (500 para o Telegram reentregar)");
       expect(logger.warn).not.toHaveBeenCalled();
       expect(selectSpy).not.toHaveBeenCalled();
       expect(mockProcessarWebhookInbox).not.toHaveBeenCalled();

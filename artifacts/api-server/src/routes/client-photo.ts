@@ -10,6 +10,7 @@ import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js"
 import { requireCollaborator } from "./collaborator.js";
 import { ensureClientFolderStructure, uploadFileToDrive, formatCpfDisplay, removeDiacritics } from "../lib/google-drive.js";
 import { sendTelegram } from "../lib/telegram.js";
+import { chatAlertaOuNull } from "../lib/telegram-config.js";
 import { brtNow } from "../lib/brt.js";
 
 const router: IRouter = Router();
@@ -238,7 +239,7 @@ async function afterPhotoSaved(
 
   // 2. Notificação ao médico via Telegram
   try {
-    const chatId = process.env["PADAXOR_TELEGRAM_CHAT_ID"];
+    const chatId = await chatAlertaOuNull();
     if (chatId) {
       const cpfDisplay = formatCpfDisplay(cpf || "00000000000");
       const msg =

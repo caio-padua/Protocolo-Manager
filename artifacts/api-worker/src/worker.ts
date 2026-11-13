@@ -17,6 +17,37 @@ import type pino from "pino";
 
 let started = false;
 
+/**
+ * Job 2: lembrete por período (tick a cada minuto). Função própria apenas para poder ser executada
+ * isoladamente em verificação; é o MESMO agendamento e o MESMO motor usados pelo worker completo.
+ */
+export function iniciarJobLembretes(logger: pino.Logger): void {
+  cron.schedule(
+    "* * * * *",
+    async () => {
+      try {
+        const { executarLembretesPeriodo } = await import(
+          "../../api-server/src/lib/lembrete-periodo.js" as string
+        );
+        const r = await executarLembretesPeriodo();
+        if (r.enviados > 0 || r.falhas > 0) {
+          logger.info(
+            { examinados: r.examinados, enviados: r.enviados, falhas: r.falhas, pulados: r.pulados },
+            "Worker: tick de lembrete por período"
+          );
+        }
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : String(err) },
+          "Worker: falha no tick de lembrete por período"
+        );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+
 export function startWorkerJobs(logger: pino.Logger): void {
   if (started) return;
   started = true;
@@ -42,29 +73,7 @@ export function startWorkerJobs(logger: pino.Logger): void {
   );
 
   // ─── Job 2: Lembrete por período — tick a cada minuto ───────────────────
-  cron.schedule(
-    "* * * * *",
-    async () => {
-      try {
-        const { executarLembretesPeriodo } = await import(
-          "../../api-server/src/lib/lembrete-periodo.js" as string
-        );
-        const r = await executarLembretesPeriodo();
-        if (r.enviados > 0 || r.falhas > 0) {
-          logger.info(
-            { examinados: r.examinados, enviados: r.enviados, falhas: r.falhas, pulados: r.pulados },
-            "Worker: tick de lembrete por período"
-          );
-        }
-      } catch (err) {
-        logger.error(
-          { err: err instanceof Error ? err.message : String(err) },
-          "Worker: falha no tick de lembrete por período"
-        );
-      }
-    },
-    { timezone: "America/Sao_Paulo" }
-  );
+  iniciarJobLembretes(logger);
 
   // ─── Job 3: Receituário magistral 06h BRT ───────────────────────────────
   cron.schedule(
@@ -81,6 +90,31 @@ export function startWorkerJobs(logger: pino.Logger): void {
           { err: err instanceof Error ? err.message : String(err) },
           "Worker: falha no processamento diário do receituário"
         );
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
+  // ─── Job 3b: Retomada dos repasses do Telegram ao chat de alerta — a cada minuto ───
+  // Reenvia o que ficou pendente/falhou (com espera crescente). "incerto" NUNCA é reenviado sozinho.
+  let repasseRodando = false;
+  cron.schedule(
+    "* * * * *",
+    async () => {
+      if (repasseRodando) return;
+      repasseRodando = true;
+      try {
+        const { processarRepassesPendentes } = await import(
+          "../../api-server/src/lib/telegram-repasse-worker.js" as string
+        );
+        await processarRepassesPendentes();
+      } catch (err) {
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err },
+          "Worker: falha na retomada de repasses do Telegram"
+        );
+      } finally {
+        repasseRodando = false;
       }
     },
     { timezone: "America/Sao_Paulo" }
@@ -123,7 +157,9 @@ export function startWorkerJobs(logger: pino.Logger): void {
     async () => {
       if (process.env.PADAXOR_AI_BYPASS !== "true") return; // clone: ignora silenciosamente
       const channelId      = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "C0BLW5S7GQL";
-      const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+      // Fonte única do chat de alerta (cofre > ambiente, validado): o worker não hidrata o ambiente.
+      const { chatAlertaOuNull } = await import("../../api-server/src/lib/telegram-config.js" as string);
+      const telegramChatId: string = (await chatAlertaOuNull()) ?? "";
       logger.info(
         { channelId, telegramChatId: telegramChatId || "(não configurado)" },
         "Worker: gerando monitor horário (LLMs + planilha)"

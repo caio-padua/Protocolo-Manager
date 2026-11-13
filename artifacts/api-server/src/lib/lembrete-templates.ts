@@ -6,6 +6,7 @@
 // cai no primeiro nome (sem Sr./Sra.) — comportamento esperado.
 import type { LembretePeriodoJson } from "@workspace/db";
 import { semAcento } from "@workspace/posologia";
+import { parseBrtParts } from "./brt";
 
 export type Genero = "masculino" | "feminino" | "outro" | "nao_informado";
 
@@ -46,7 +47,7 @@ export function montarSaudacao(
   genero: Genero | undefined,
   agora: Date = new Date(),
 ): string {
-  const cumprimento = cumprimentoPorHora(agora.getHours());
+  const cumprimento = cumprimentoPorHora(parseInt(parseBrtParts(agora).hour, 10));
   const tratamento = tratamentoPorGenero(genero, nome);
   return `${cumprimento}\n\n${tratamento}, tudo bem?`;
 }

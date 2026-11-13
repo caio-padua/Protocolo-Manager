@@ -30,6 +30,7 @@ import { enriquecerItemFormula } from "../lib/formula-manipulada";
 import { registrarLogMensagem } from "../lib/whatsapp";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
 import { sendTelegram } from "../lib/telegram";
+import { pausarParaHumano } from "../lib/atendimento-telegram-store";
 import { inboxRouter } from "./telegram-inbox";
 const router = Router();
 router.use(moduleGuard("cockpit"));
@@ -428,6 +429,13 @@ router.post("/cockpit/:clientId/telegram-inbox/enviar", requireCollaborator, req
     INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao, lida_em)
     VALUES (${empresaId}, ${clienteId}, ${chatId}, ${texto}, NOW(), 'saida', NOW())
   `);
+
+  // Profissional assumiu a conversa: pausa as respostas automáticas da IA para este paciente.
+  try {
+    await pausarParaHumano(db, clienteId, "profissional_assumiu", null);
+  } catch (e: unknown) {
+    console.warn("[cockpit/enviar] falha ao pausar atendimento automatico:", e instanceof Error ? e.constructor.name : typeof e);
+  }
 
   // Registra no log unificado de mensagens (via='telegram') para o cockpit
   // poder exibir "último contato Telegram". Só loga quando enviado com sucesso.

@@ -22,6 +22,7 @@
 
 import type pino from "pino";
 import { getWebhookInfo, sendTelegram } from "./telegram.js";
+import { chatAlertaOuNull } from "./telegram-config.js";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 
 // ---------------------------------------------------------------------------
@@ -170,7 +171,7 @@ export async function runGuardCycle(logger: pino.Logger): Promise<void> {
       await sendSlackAlert(msg);
 
       // Também tenta alertar via Telegram se chatId do CEO estiver configurado
-      const ceoChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID;
+      const ceoChatId = await chatAlertaOuNull();
       if (ceoChatId) {
         void sendTelegram(
           ceoChatId,

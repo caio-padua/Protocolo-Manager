@@ -34,7 +34,12 @@ vi.mock("@workspace/db", () => ({
     }),
   },
 }));
-vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: mocks.send }));
+vi.mock("../lib/whatsapp", () => ({ sendWhatsapp: mocks.send, registrarLogMensagem: vi.fn() }));
+vi.mock("../lib/lembrete-telegram", () => ({
+  lerConfigLembreteTelegram: async () => ({ modo: "desligado", permitidos: new Set() }),
+  usaTelegram: () => false,
+  enviarLembreteTelegram: vi.fn(),
+}));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
 vi.mock("../lib/mensageria-paxmed", () => ({ montarMensagemPaxmed: async () => "lembrete" }));
 vi.mock("../lib/lembrete-templates", () => ({

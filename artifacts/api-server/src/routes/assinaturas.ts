@@ -41,6 +41,7 @@ import {
 import { contextoPaciente } from "../lib/assinatura/contexto";
 import type { ProvedorCodigo } from "../lib/assinatura/types";
 import { logger } from "../lib/logger";
+import { randomUUID } from "node:crypto";
 import { getSecret } from "../lib/secure-settings";
 import { sendTelegram } from "../lib/telegram.js";
 import { postSlackAlert } from "../lib/slack-reporter.js";
@@ -49,8 +50,15 @@ import {
   type ClienteVinculado,
 } from "../lib/telegram-inbox-flow";
 import { parseStart, consumirLinkMagico } from "../lib/telegram-magic-link";
-import { repassarMensagemAoCeo } from "../lib/telegram-relay-ceo";
+import { repassarMensagemAoCeo, formatarCpfDisplay } from "../lib/telegram-relay-ceo";
 import { gravarMensagemEntrada, extrairUpdateId, erroTransitorioDeBanco } from "../lib/telegram-inbox-store";
+import { resolverChatAlerta } from "../lib/telegram-config";
+import { registrarPendenciaVinculo } from "../lib/telegram-vinculo-pendencia";
+import { registrarRepasseDuravel, tentarRepasseAgora } from "../lib/telegram-repasse-worker";
+import { atenderMensagemTelegram } from "../lib/atendimento-telegram-store";
+import {
+  reivindicarUpdate, concluirUpdate, liberarUpdate, botIdDoToken,
+} from "../lib/telegram-update-claim";
 
 // ---------------------------------------------------------------------------
 // Webhook ZapSign (livre — registrado antes do guard).
@@ -476,8 +484,9 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         secretKey: "telegram.webhookSecret",
         errorType: err instanceof Error ? err.constructor.name : typeof err,
         errorCode: typeof code === "string" && /^[A-Z0-9_]{2,40}$/.test(code) ? code : undefined,
-      }, "[telegram] falha técnica ao consultar cofre; update não processado");
-      res.status(200).json({ ok: true });
+      }, "[telegram] falha técnica ao consultar cofre; update não processado (500 para o Telegram reentregar)");
+      // Falha técnica passageira: 200 descartaria para sempre um update legítimo. Telegram reentrega.
+      res.status(500).json({ ok: false });
       return;
     }
     const segredoRecebido = req.header("x-telegram-bot-api-secret-token") || "";
@@ -492,15 +501,79 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     const chatId = msg.chat?.id != null ? String(msg.chat.id) : null;
     const texto: string = typeof msg.text === "string" ? msg.text.trim() : "";
     if (!chatId) {
+      // Log mínimo: só o TIPO do evento (nunca texto, nome, token ou identificador de pessoa).
+      const tipo = Object.keys(update).find((k) => k !== "update_id") ?? "vazio";
+      logger.info({ tipo }, "[telegram] update ignorado: sem chat de mensagem (nenhum efeito)");
       res.status(200).json({ ok: true });
       return;
     }
 
-    const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+    // ── Deduplicação de TODOS os fluxos (mensagem, /start, link mágico, senha, chat sem vínculo).
+    // Chave por identidade do bot + update_id. Ver lib/telegram-update-claim.ts.
+    const updateIdEntrada = extrairUpdateId(update.update_id);
+    if (updateIdEntrada === null) {
+      logger.warn("[telegram] update sem update_id válido: processado sem deduplicação");
+    } else {
+      let tokenDoBot: string | null = process.env["TELEGRAM_BOT_TOKEN"] || null;
+      if (!tokenDoBot) {
+        try { tokenDoBot = await getSecret("telegram.botToken"); } catch { tokenDoBot = null; }
+      }
+      const botId = botIdDoToken(tokenDoBot);
+      const dono = randomUUID();
+      let reivindicou = false;
+      try {
+        const claim = await reivindicarUpdate(db, botId, updateIdEntrada, dono);
+        if (claim === "ja_concluido") {
+          logger.info("[telegram] entrega repetida de update já concluído ignorada (nenhum efeito repetido)");
+          res.status(200).json({ ok: true });
+          return;
+        }
+        if (claim === "em_andamento") {
+          // O primeiro processamento ainda pode falhar: 200 aqui perderia a mensagem.
+          logger.info("[telegram] update ainda em processamento; nova tentativa solicitada (500)");
+          res.status(500).json({ ok: false });
+          return;
+        }
+        reivindicou = true;
+      } catch (err) {
+        if (erroTransitorioDeBanco(err)) throw err;
+        // Decisão documentada (specs/telegram-repasse-outbox.md): erro NÃO transitório na reivindicação
+        // (ex.: tabela ausente) não derruba o recebimento — a mensagem é processada e a gravação do inbox
+        // ainda deduplica por (chat_id, update_id). Registrado como ERROR para alerta.
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err },
+          "[telegram] reivindicação indisponível; processando sem a camada de deduplicação (a gravação do inbox ainda deduplica)",
+        );
+      }
+      if (reivindicou) {
+        // Fecha o ciclo ANTES de responder ao Telegram (o ACK só sai depois do fechamento durável):
+        // sucesso conclui; 5xx libera para a reentrega. Falha ao fechar não bloqueia a resposta (log).
+        const jsonOriginal = res.json.bind(res);
+        let fechado = false;
+        res.json = ((corpo?: unknown) => {
+          if (fechado) return jsonOriginal(corpo);
+          fechado = true;
+          const fechar = res.statusCode >= 500 ? liberarUpdate : concluirUpdate;
+          void fechar(db, botId, updateIdEntrada, dono)
+            .catch((e: unknown) =>
+              logger.warn({ errorType: e instanceof Error ? e.constructor.name : typeof e }, "[telegram] falha ao fechar a reivindicação do update"),
+            )
+            .finally(() => { jsonOriginal(corpo); });
+          return res;
+        }) as typeof res.json;
+      }
+    }
+
+    // Chat de alerta: fonte única (cofre > ambiente, validado como numérico). Nunca troca de chat.
+    const alertaCfg = await resolverChatAlerta();
+    const chatIdCEO = alertaCfg.chatId;
+    if (!chatIdCEO) {
+      logger.error({ motivo: alertaCfg.motivo }, "[telegram] chat de alerta indisponível: repasse não será feito (mensagem continua salva)");
+    }
     const { isStart, payload: tokenMagico } = parseStart(texto);
 
     // ── PASSO 1: verifica se este chatId já está vinculado a algum cliente ───
-    const [clienteJaVinculado] = await db
+    const vinculados = await db
       .select({
         id: clientsTable.id,
         name: clientsTable.name,
@@ -509,7 +582,25 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       })
       .from(clientsTable)
       .where(eq(clientsTable.telegramChatId, chatId))
-      .limit(1);
+      .limit(5);
+
+    if (vinculados.length > 1) {
+      // Vínculo ambíguo: o mesmo chat em mais de um cliente. NÃO escolhe um deles (nunca grava no
+      // prontuário errado): guarda a mensagem numa pendência verificável e avisa o chat de alerta.
+      const nova = await registrarPendenciaVinculo(db, {
+        chatId, updateId: updateIdEntrada, candidatos: vinculados.map((v) => v.id), texto,
+      });
+      logger.error({ candidatos: vinculados.length, nova }, "[telegram] vínculo ambíguo: mensagem guardada em pendência (nenhum cliente escolhido)");
+      if (nova && chatIdCEO && chatIdCEO !== chatId) {
+        void sendTelegram(
+          chatIdCEO,
+          "Atenção: um chat do Telegram está ligado a mais de um cliente. A mensagem foi guardada em pendência, sem escolher nenhum deles. Confira em Radar / vínculos do Telegram.",
+        );
+      }
+      res.status(200).json({ ok: true });
+      return;
+    }
+    const clienteJaVinculado = vinculados[0];
 
     if (clienteJaVinculado) {
       if (isStart) {
@@ -527,21 +618,27 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         };
 
         let resultado: Awaited<ReturnType<typeof processarWebhookInbox>> | null = null;
+        const gravada: { id: number | null } = { id: null };
         try {
           resultado = await processarWebhookInbox(
             { chatId, texto, chatIdCEO, updateId: extrairUpdateId(update.update_id) },
             {
               findClienteByChatId: async () => cliente,
-              insertMensagem: (params) => gravarMensagemEntrada(db, params),
+              insertMensagem: async (params) => {
+                const g = await gravarMensagemEntrada(db, params);
+                gravada.id = g.id;
+                return g;
+              },
               notificarCEO: chatIdCEO
                 ? async (ceoId, cli, _txt, opcoes) => {
-                    const cpfDisplay = (cli.cpf || "00000000000")
-                      .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+                    // Só o aviso de "NÃO gravada" sai por aqui. O repasse de mensagem SALVA é registrado
+                    // no outbox de forma durável, ANTES da resposta ao Telegram (abaixo).
+                    if (opcoes?.gravacaoFalhou !== true) return;
                     await repassarMensagemAoCeo(
                       {
                         chatIdCeo: ceoId, chatIdRemetente: chatId, clienteId: cli.id,
-                        nome: cli.name, cpfDisplay, texto,
-                        gravacaoFalhou: opcoes?.gravacaoFalhou === true,
+                        nome: cli.name, cpfDisplay: formatarCpfDisplay(cli.cpf), texto,
+                        gravacaoFalhou: true,
                       },
                       { enviar: sendTelegram, log: logger },
                     );
@@ -559,6 +656,38 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
             { errorType: err instanceof Error ? err.constructor.name : typeof err, errorCode: String(code?.code ?? code?.cause?.code ?? "") || undefined },
             "[telegram] falha permanente ao gravar mensagem no inbox (sem reentrega)",
           );
+        }
+        // Repasse ao chat de alerta: registrado no outbox ANTES do 200 (idempotente). Vale também para a
+        // reentrega de mensagem já salva, para recuperar um registro que tenha ficado pela metade.
+        if ((resultado?.kind === "gravado" || resultado?.kind === "duplicado") && chatIdCEO && resultado.mensagemId > 0 && chatIdCEO !== chatId) {
+          let repasseId: number | null = null;
+          try {
+            repasseId = await registrarRepasseDuravel({ inboxMessageId: resultado.mensagemId, chatIdDestino: chatIdCEO });
+          } catch (err) {
+            if (erroTransitorioDeBanco(err)) throw err; // 500: o Telegram reentrega e o registro é refeito
+            // Falha permanente (ex.: tabela do outbox ausente): não há como recuperar depois; aviso direto,
+            // best-effort, e ERROR no log. A mensagem continua salva no Cockpit.
+            logger.error(
+              { errorType: err instanceof Error ? err.constructor.name : typeof err },
+              "[telegram] outbox indisponível: repasse enviado direto, sem recuperação",
+            );
+            void repassarMensagemAoCeo(
+              {
+                chatIdCeo: chatIdCEO, chatIdRemetente: chatId, clienteId: cliente.id,
+                nome: cliente.name, cpfDisplay: formatarCpfDisplay(cliente.cpf), texto,
+              },
+              { enviar: sendTelegram, log: logger },
+            ).catch(() => { /* best-effort */ });
+          }
+          if (repasseId !== null) void tentarRepasseAgora(repasseId);
+        }
+        // Atendimento por IA (desligado por padrão; ver lib/atendimento-telegram.ts). Só mensagem NOVA e salva;
+        // roda depois do repasse e nunca atrasa nem derruba a resposta ao Telegram.
+        if (resultado?.kind === "gravado" && resultado.mensagemId > 0 && cliente.empresaId > 0) {
+          void atenderMensagemTelegram({
+            inboxMessageId: resultado.mensagemId, empresaId: cliente.empresaId, clienteId: cliente.id,
+            clienteNome: cliente.name, chatId, texto,
+          });
         }
         if (resultado?.kind === "duplicado") {
           logger.info({ clienteId: cliente.id }, "[telegram] entrega duplicada ignorada (update_id já gravado)");
@@ -683,7 +812,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       res.status(500).json({ ok: false });
       return;
     }
-    req.log.error({ err: String(err) }, "[telegram] erro no webhook");
+    req.log.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram] erro no webhook");
     res.status(200).json({ ok: true });
   }
 });
@@ -734,9 +863,10 @@ assinaturasRouter.post(
         return;
       }
 
-      const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+      const alertaCfg = await resolverChatAlerta();
+      const chatIdCEO = alertaCfg.chatId;
       if (!chatIdCEO) {
-        res.status(503).json({ ok: false, error: "ceo_chatid_ausente", detalhe: "PADAXOR_TELEGRAM_CHAT_ID não configurado." });
+        res.status(503).json({ ok: false, error: "ceo_chatid_ausente", detalhe: `Chat de alerta indisponível (${alertaCfg.motivo}).` });
         return;
       }
 

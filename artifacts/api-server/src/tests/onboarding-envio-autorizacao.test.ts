@@ -91,7 +91,8 @@ describe("Envio do guia — autenticação e pertencimento antes de efeitos", ()
       if (compiled.sql.includes("FROM professionals p")) {
         expect(compiled.sql).toContain("p.active = true");
         expect(compiled.sql).toContain("JOIN empresas e ON e.id = p.empresa_id");
-        expect(compiled.params).toEqual([1]);
+        expect(compiled.sql).toContain("p.credential_version = $2");
+        expect(compiled.params).toEqual([1, 0]);
         return {
           rows: professional?.active && professional.empresa_id
             ? [{ id: professional.empresa_id, nome: "Clínica de teste", slug: "clinica-teste" }]

@@ -21,6 +21,7 @@ import { db } from "@workspace/db";
 import { sql, eq } from "drizzle-orm";
 import { clientsTable } from "@workspace/db/schema";
 import { sendTelegram } from "../lib/telegram.js";
+import { chatAlertaOuNull } from "../lib/telegram-config.js";
 import { sendWhatsapp } from "../lib/whatsapp.js";
 
 const router = Router();
@@ -65,7 +66,7 @@ router.get("/padaxor/slack/preview", async (req: Request, res: Response): Promis
 // ---------------------------------------------------------------------------
 router.post("/padaxor/slack/relatorio", async (req: Request, res: Response): Promise<void> => {
   const channelId      = (req.body.channelId as string) || process.env.PADAXOR_SLACK_CHANNEL_ID;
-  const telegramChatId = (req.body.telegramChatId as string) || process.env.PADAXOR_TELEGRAM_CHAT_ID || "";
+  const telegramChatId = (req.body.telegramChatId as string) || (await chatAlertaOuNull()) || "";
 
   if (!channelId) {
     res.status(400).json({
@@ -376,7 +377,7 @@ router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response)
 // ---------------------------------------------------------------------------
 router.get("/padaxor/slack/status", async (_req: Request, res: Response): Promise<void> => {
   const slackChannel   = process.env.PADAXOR_SLACK_CHANNEL_ID ?? "";
-  const telegramChatId = process.env.PADAXOR_TELEGRAM_CHAT_ID ?? "";
+  const telegramChatId = (await chatAlertaOuNull()) ?? "";
   const ceoSecret      = process.env.PADAXOR_CEO_SECRET       ?? "";
   const planilhaId     = "1SW6K2JNUEP4i1I16v_ZYhtwxTpUkT_dx3ERHkj9HQcw";
 
@@ -803,7 +804,7 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
   }
 
   // ── Notificação ao CEO via Telegram ──────────────────────────────────────
-  const chatIdCEO = process.env["PADAXOR_TELEGRAM_CHAT_ID"] ?? null;
+  const chatIdCEO = await chatAlertaOuNull();
   if (chatIdCEO) {
     const waSent = resultados.whatsapp && (resultados.whatsapp as any).sent;
     const tgSent = chatId && (resultados.telegram as any).sent;

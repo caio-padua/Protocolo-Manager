@@ -26,6 +26,15 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 const mockDbExecute = vi.fn<() => Promise<{ rows: unknown[] }>>();
 const mockDbInsertReturning = vi.fn<() => Promise<{ id: number }[]>>();
 
+// A camada de reivindicação por (bot, update_id) é testada à parte (telegram-claim-*.test.ts,
+// SQL real em banco descartável). Aqui ela fica transparente para isolar o fluxo testado.
+vi.mock("../lib/telegram-update-claim", async (orig) => ({
+  ...(await orig<typeof import("../lib/telegram-update-claim")>()),
+  reivindicarUpdate: vi.fn().mockResolvedValue("reivindicado"),
+  concluirUpdate: vi.fn().mockResolvedValue(undefined),
+  liberarUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@workspace/db", () => {
   function makeSelectChain(resolvedValue: unknown[] = []) {
     const chain: Record<string, unknown> & PromiseLike<unknown[]> = {

@@ -66,4 +66,15 @@ server.listen(PORT, () => {
 });
 
 // ─── Inicia os jobs ──────────────────────────────────────────────────────────
-startWorkerJobs(logger);
+// Mesma fonte de configuração da API: o cofre (gravado pela tela) vence o ambiente. Sem isto, o
+// worker leria o valor antigo do ambiente (ex.: chat de alerta, token do bot, Twilio).
+void (async () => {
+  try {
+    const { hydrateEnvFromVault } = await import("../../api-server/src/lib/secure-settings.js" as string);
+    const { hidratadas } = await hydrateEnvFromVault();
+    logger.info({ total: hidratadas.length }, "api-worker: segredos do cofre hidratados no ambiente");
+  } catch (err) {
+    logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "api-worker: falha ao hidratar o cofre (jobs seguem com o ambiente)");
+  }
+  startWorkerJobs(logger);
+})();

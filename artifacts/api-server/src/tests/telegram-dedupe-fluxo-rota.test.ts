@@ -5,10 +5,30 @@
  */
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
+// A camada de reivindicação por (bot, update_id) é testada à parte (telegram-claim-*.test.ts,
+// SQL real em banco descartável). Aqui ela fica transparente para isolar o fluxo testado.
+// Resolver do chat de alerta simulado: lê o ambiente (equivale ao processo com o cofre hidratado).
+// A regra real (cofre > ambiente, validação numérica) é provada em telegram-config.test.ts.
+vi.mock("../lib/telegram-config", () => ({
+  chatIdValido: () => true,
+  chatAlertaOuNull: async () => process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null,
+  resolverChatAlerta: async () => {
+    const c = process.env["PADAXOR_TELEGRAM_CHAT_ID"] || null;
+    return { chatId: c, fonte: c ? "ambiente" : "ausente", motivo: c ? null : "ausente" };
+  },
+}));
+vi.mock("../lib/telegram-update-claim", async (orig) => ({
+  ...(await orig<typeof import("../lib/telegram-update-claim")>()),
+  reivindicarUpdate: vi.fn().mockResolvedValue("reivindicado"),
+  concluirUpdate: vi.fn().mockResolvedValue(undefined),
+  liberarUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../lib/logger.js", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 const mockExecute = vi.fn();
-vi.mock("@workspace/db", () => {
+vi.mock("@workspace/db", async () => {
+  const { respostaOutboxFake } = await import("./helpers/outbox-sql-fake");
   const chain = (v: unknown[]) => {
     const c: Record<string, unknown> & PromiseLike<unknown[]> = {
       from: vi.fn(() => c), where: vi.fn(() => c),
@@ -20,7 +40,7 @@ vi.mock("@workspace/db", () => {
   return {
     db: {
       select: () => chain([{ id: 42, name: "Ana Lima", cpf: "12345678900", empresaId: 5 }]),
-      execute: (...a: unknown[]) => mockExecute(...a),
+      execute: (...a: unknown[]) => respostaOutboxFake(a[0]) ?? mockExecute(...a),
     },
     clientsTable: {}, assinaturaTogglesAdminTable: {}, secureSettingsTable: {}, appSettingsTable: {},
   };
@@ -48,6 +68,7 @@ vi.mock("drizzle-orm", () => ({
 
 import express from "express";
 import request from "supertest";
+import { configOutboxFake } from "./helpers/outbox-sql-fake";
 import { telegramWebhookRouter } from "../routes/assinaturas.js";
 import { logger } from "../lib/logger.js";
 import { processarWebhookInbox } from "../lib/telegram-inbox-flow";
@@ -61,6 +82,7 @@ const flush = () => new Promise<void>((r) => setImmediate(() => setImmediate(r))
 
 beforeEach(() => {
   vi.clearAllMocks();
+  configOutboxFake.reivindica = true;
   process.env["PADAXOR_TELEGRAM_CHAT_ID"] = "CEO_OUTRO_CHAT";
   mockSend.mockResolvedValue({ sent: true, mock: false });
   mockSlack.mockResolvedValue(undefined);
@@ -128,7 +150,8 @@ describe("POST /webhooks/telegram — dedupe de ponta a ponta (rota real, banco 
     await flush();
     expect(mockSend).toHaveBeenCalledWith("CEO_OUTRO_CHAT", expect.stringContaining("mensagem de teste"));
   });
-  it("R2 reentrega duplicada: 200, SEM repasse ao CEO e SEM alerta Slack", async () => {
+  it("R2 reentrega duplicada (repasse já fechado): 200, SEM repasse ao CEO e SEM alerta Slack", async () => {
+    configOutboxFake.reivindica = false;
     mockExecute.mockImplementation(async (q) => {
       if (isInsert(q)) return { rows: [] };                        // conflito: nada inserido
       if (q.strings.join("?").includes("SELECT id FROM telegram_inbox_messages\n    WHERE chat_id")) return { rows: [{ id: 50 }] };
@@ -162,6 +185,17 @@ describe("POST /webhooks/telegram — dedupe de ponta a ponta (rota real, banco 
     expect(res.status).toBe(200);
     expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "23503" }), expect.stringContaining("permanente"));
     expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain("mensagem de teste");
+  });
+  it("R2b reentrega duplicada com repasse ainda PENDENTE (registro ficou pela metade): repasse é recuperado, 1 envio", async () => {
+    mockExecute.mockImplementation(async (q) => {
+      if (isInsert(q)) return { rows: [] };
+      if (q.strings.join("?").includes("SELECT id FROM telegram_inbox_messages\n    WHERE chat_id")) return { rows: [{ id: 50 }] };
+      return { rows: [] };
+    });
+    const res = await enviar(payload(555));
+    expect(res.status).toBe(200);
+    await flush();
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
   it("R6 FALHA DEPOIS: gravou, repasse ao CEO falhou => 200 e mensagem preservada", async () => {
     mockExecute.mockImplementation(async (q) => (isInsert(q) ? { rows: [{ id: 52 }] } : { rows: [] }));

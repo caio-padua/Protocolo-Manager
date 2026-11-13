@@ -6,6 +6,10 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { aplicarMigracaoUpdateId } from "./telegram-inbox-migracao";
+import { aplicarMigracaoClaim } from "./telegram-update-claim";
+import { aplicarMigracaoOutbox } from "./telegram-repasse-outbox";
+import { aplicarMigracaoPendenciaVinculo } from "./telegram-vinculo-pendencia";
+import { aplicarMigracaoAtendimento } from "./atendimento-telegram-store";
 
 export async function ensureTelegramInboxTable(): Promise<void> {
   await db.execute(sql`
@@ -39,5 +43,13 @@ export async function ensureTelegramInboxTable(): Promise<void> {
   `);
   /* Deduplicação por update_id (aditiva e reversível — ver telegram-inbox-migracao.ts) */
   await aplicarMigracaoUpdateId(db);
+  /* Reivindicação por (bot, update_id) para todos os fluxos do webhook (aditiva) */
+  await aplicarMigracaoClaim(db);
+  /* Outbox do repasse ao chat de alerta (aditiva; ver specs/telegram-repasse-outbox.md) */
+  await aplicarMigracaoOutbox(db);
+  /* Pendências de vínculo ambíguo (mesmo chat em mais de um cliente; aditiva) */
+  await aplicarMigracaoPendenciaVinculo(db);
+  /* Atendimento por IA: orientações aprovadas, pausa humana e uma-resposta-por-mensagem (aditiva) */
+  await aplicarMigracaoAtendimento(db);
   logger.info("telegram_inbox_messages: tabela pronta");
 }

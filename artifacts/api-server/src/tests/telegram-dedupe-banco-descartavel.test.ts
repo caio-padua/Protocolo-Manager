@@ -42,6 +42,11 @@ beforeAll(async () => {
     await new Promise((r) => setTimeout(r, 250));
   }
   pool = new pg.Pool({ host: dir, user: "teste", database: "postgres", max: 30 });
+  // O socket aparece ANTES de o servidor terminar de subir ("database system is starting up"):
+  // espera até aceitar consulta de verdade.
+  for (let i = 0; i < 80; i++) {
+    try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); }
+  }
   await pool.query(TABELA_ANTIGA);
   db = drizzle(pool);
   await pool.query("INSERT INTO clients (name, empresa_id) VALUES ('Sintetico A', 5), ('Sintetico B', 6)");

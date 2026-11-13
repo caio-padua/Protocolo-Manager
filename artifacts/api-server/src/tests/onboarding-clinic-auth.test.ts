@@ -76,7 +76,7 @@ beforeEach(async () => {
       ativa BOOLEAN DEFAULT true, status TEXT DEFAULT 'ATIVO'
     ) ON COMMIT DROP;
     CREATE TEMP TABLE professionals (
-      id INT PRIMARY KEY, empresa_id INT, active BOOLEAN
+      id INT PRIMARY KEY, empresa_id INT, active BOOLEAN, credential_version INT NOT NULL DEFAULT 0
     ) ON COMMIT DROP;
     CREATE TEMP TABLE clients (
       id INT PRIMARY KEY, empresa_id INT, name TEXT,
@@ -91,7 +91,7 @@ beforeEach(async () => {
       (5, 'Instituto Pádua', NULL, NULL, NULL),
       (12, 'Clínica Licenciada', 'licenciada', '@LicenciadaBot', 'https://example.com/area'),
       (13, 'Outra Clínica', 'outra', NULL, NULL);
-    INSERT INTO professionals VALUES (101, 12, true), (102, 5, true), (103, 13, true);
+    INSERT INTO professionals (id, empresa_id, active) VALUES (101, 12, true), (102, 5, true), (103, 13, true);
   `);
   await connection.query(
     "INSERT INTO pg_temp.clients (id, empresa_id, name, phone, telegram_chat_id) VALUES ($1, 12, 'Cliente Teste', '+5500000000000', 'synthetic-chat')",
@@ -204,6 +204,7 @@ describe("Guia: clínica autorizada pela identidade do colaborador", () => {
     "UPDATE pg_temp.professionals SET empresa_id = 999 WHERE id = 101",
     "UPDATE pg_temp.empresas SET ativa = false WHERE id = 12",
     "UPDATE pg_temp.empresas SET status = 'SUSPENSO' WHERE id = 12",
+    "UPDATE pg_temp.professionals SET credential_version = 1 WHERE id = 101",
   ])("revalida vínculo no banco mesmo com token válido: %s", async (sql) => {
     await connection.query(sql);
     await send().expect(403);
