@@ -63,7 +63,7 @@
    Rodapé: barrinha delgada de VIDRO ACETINADO na cor da agenda (a cor mora aqui, nunca na lateral). */
 .ag-chip {
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto; column-gap: 0.4rem;
-  align-content: center; width: 100%; height: 3.35rem; padding: 0.3rem 0.55rem 0.3rem 0.65rem; text-align: left; color: inherit; cursor: pointer;
+  align-content: center; width: 100%; height: 3.65rem; padding: 0.3rem 0.55rem 0.35rem 0.65rem; text-align: left; color: inherit; cursor: pointer;
   transition: opacity 0.15s ease;
 }
 .ag-chip:hover { filter: brightness(1.03); }
@@ -83,7 +83,7 @@
 .ag-ocup[data-estado="sem-vagas"], .ag-ocup[data-estado="somente-leitura"], .ag-ocup[data-estado="indisponivel"], .ag-ocup[data-estado="carregando"] { opacity: 0.55; }
 /* Vidro acetinado: a cor da agenda atrás de uma superfície fosca, com fio de luz no topo e leve sombra por baixo (sem neon, sem brilho) */
 .ag-vidro {
-  grid-column: 1 / -1; grid-row: 3; position: relative; align-self: end; height: 0.46rem; margin-top: 0.28rem; border-radius: 2px; overflow: hidden;
+  grid-column: 1 / -1; grid-row: 3; position: relative; align-self: end; height: 0.72rem; margin-top: 0.3rem; border-radius: 3px; overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--ev) 62%, #07162b);
   background: linear-gradient(180deg, color-mix(in srgb, var(--ev) 58%, #ffffff) 0%, color-mix(in srgb, var(--ev) 82%, #0b1d2c) 100%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -2px 3px color-mix(in srgb, var(--ev) 45%, rgba(0,20,25,0.4));
