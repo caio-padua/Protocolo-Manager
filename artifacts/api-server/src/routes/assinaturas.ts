@@ -50,6 +50,7 @@ import {
   type ClienteVinculado,
 } from "../lib/telegram-inbox-flow";
 import { parseStart, consumirLinkMagico } from "../lib/telegram-magic-link";
+import { repassarMensagemAoCeo } from "../lib/telegram-relay-ceo";
 
 // ---------------------------------------------------------------------------
 // Webhook ZapSign (livre — registrado antes do guard).
@@ -545,15 +546,10 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
               ? async (ceoId, cli) => {
                   const cpfDisplay = (cli.cpf || "00000000000")
                     .replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-                  const repasse =
-                    `💬 <b>Mensagem via Telegram</b>\n\n` +
-                    `<b>De:</b> ${cli.name}\n` +
-                    `<b>CPF:</b> ${cpfDisplay}\n\n` +
-                    `"${texto}"\n\n` +
-                    `──────────────────\n` +
-                    `Responda em: Cockpit → ${cli.name.split(" ")[0]}`;
-                  void sendTelegram(ceoId, repasse);
-                  logger.info({ clienteId: cli.id }, "[telegram] mensagem encaminhada ao CEO");
+                  await repassarMensagemAoCeo(
+                    { chatIdCeo: ceoId, chatIdRemetente: chatId, clienteId: cli.id, nome: cli.name, cpfDisplay, texto },
+                    { enviar: sendTelegram, log: logger },
+                  );
                 }
               : undefined,
           },
