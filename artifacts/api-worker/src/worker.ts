@@ -15,7 +15,58 @@
 import cron from "node-cron";
 import type pino from "pino";
 
-let started = false;
+export type WorkerProfile = "full" | "telegram-relay-dev";
+type CronScheduler = Pick<typeof cron, "schedule">;
+
+let startedProfile: WorkerProfile | null = null;
+
+export function parseWorkerProfile(value: string | undefined): WorkerProfile {
+  if (value === undefined || value === "full") return "full";
+  if (value === "telegram-relay-dev") return value;
+  throw new Error(`Perfil de api-worker inválido: ${value}`);
+}
+
+function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler): void {
+  let repasseRodando = false;
+  let primeiroTickConcluido = false;
+  scheduler.schedule(
+    "* * * * *",
+    async () => {
+      if (repasseRodando) return;
+      repasseRodando = true;
+      try {
+        const { processarRepassesPendentes } = await import(
+          "../../api-server/src/lib/telegram-repasse-worker.js" as string
+        );
+        const resultado = await processarRepassesPendentes();
+        if (
+          !primeiroTickConcluido ||
+          resultado.incertosNovos > 0 ||
+          resultado.examinados > 0
+        ) {
+          logger.info(
+            {
+              examinados: resultado.examinados,
+              aceitos: resultado.aceitos,
+              falhas: resultado.falhas,
+              incertosNovos: resultado.incertosNovos,
+            },
+            "Worker: retomada de repasses do Telegram"
+          );
+        }
+        primeiroTickConcluido = true;
+      } catch (err) {
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err },
+          "Worker: falha na retomada de repasses do Telegram"
+        );
+      } finally {
+        repasseRodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
 
 /**
  * Job 2: lembrete por período (tick a cada minuto). Função própria apenas para poder ser executada
@@ -47,10 +98,29 @@ export function iniciarJobLembretes(logger: pino.Logger): void {
   );
 }
 
+export function startWorkerJobs(
+  logger: pino.Logger,
+  profile: WorkerProfile = "full",
+  scheduler: CronScheduler = cron
+): void {
+  if (startedProfile) {
+    if (startedProfile !== profile) {
+      throw new Error(
+        `api-worker já iniciado no perfil ${startedProfile}; não pode iniciar também ${profile}`
+      );
+    }
+    return;
+  }
+  startedProfile = profile;
 
-export function startWorkerJobs(logger: pino.Logger): void {
-  if (started) return;
-  started = true;
+  if (profile === "telegram-relay-dev") {
+    iniciarJobRepasseTelegram(logger, scheduler);
+    logger.info(
+      { profile, jobs: ["telegram-relay-1min"] },
+      "api-worker iniciado em perfil restrito de desenvolvimento"
+    );
+    return;
+  }
 
   // ─── Job 1: Farmácia 22h BRT ────────────────────────────────────────────
   cron.schedule(
@@ -97,28 +167,7 @@ export function startWorkerJobs(logger: pino.Logger): void {
 
   // ─── Job 3b: Retomada dos repasses do Telegram ao chat de alerta — a cada minuto ───
   // Reenvia o que ficou pendente/falhou (com espera crescente). "incerto" NUNCA é reenviado sozinho.
-  let repasseRodando = false;
-  cron.schedule(
-    "* * * * *",
-    async () => {
-      if (repasseRodando) return;
-      repasseRodando = true;
-      try {
-        const { processarRepassesPendentes } = await import(
-          "../../api-server/src/lib/telegram-repasse-worker.js" as string
-        );
-        await processarRepassesPendentes();
-      } catch (err) {
-        logger.error(
-          { errorType: err instanceof Error ? err.constructor.name : typeof err },
-          "Worker: falha na retomada de repasses do Telegram"
-        );
-      } finally {
-        repasseRodando = false;
-      }
-    },
-    { timezone: "America/Sao_Paulo" }
-  );
+  iniciarJobRepasseTelegram(logger, cron);
 
   // ─── Job 4: Drive Watcher — a cada 5 minutos ────────────────────────────
   let driveRunning = false;
@@ -411,6 +460,6 @@ export function startWorkerJobs(logger: pino.Logger): void {
   );
 
   logger.info(
-    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h"
+    "Worker iniciado. Jobs ativos: farmácia-22h, lembrete-minuto, receituário-6h, telegram-repasse-1min, drive-watcher-5min, slack-monitor-horário, telegram-webhook-guard, device-offer-limits-cleanup-3h, webhook-eventos-purge-mensal, device-verification-purge-315h, cert-expiry-08h, visit-confirmations-10min"
   );
 }

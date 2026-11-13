@@ -26,6 +26,10 @@ author = "agent"
 task = "workflow.run"
 args = "e2e-dieta-pdf"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "api-worker: Telegram development"
+
 [[workflows.workflow]]
 name = "e2e-dieta-pdf"
 author = "agent"
@@ -36,6 +40,17 @@ args = "CHROMIUM_PATH=/nix/store/qa9cnw4v5xkxyip6mb9kxqfq1z4x2dx1-chromium-138.0
 
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow]]
+name = "api-worker: Telegram development"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PADAXOR_WORKER_PROFILE=telegram-relay-dev pnpm --filter @workspace/api-worker run dev"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"

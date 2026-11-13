@@ -30,3 +30,4 @@ Reversão: `DROP TABLE IF EXISTS telegram_repasse_ceo;`
 - Registro do repasse no outbox acontece antes do 200; falha passageira = 500; falha permanente = aviso direto + ERROR.
 - Logs de erro do Telegram saneados (apenas `telegram_http_NNN` ou categoria genérica).
 - Retomada: job no api-worker (a função `startCronJobs` do api-server é legada e não é chamada).
+- No desenvolvimento, `PADAXOR_WORKER_PROFILE=telegram-relay-dev` inicia somente a retomada do outbox no api-worker existente; não inicia lembretes nem outros jobs. Detalhes e evidências ficam em `specs/telegram-worker-desenvolvimento.md`.
