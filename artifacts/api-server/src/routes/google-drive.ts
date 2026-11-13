@@ -18,6 +18,12 @@ import { renameAllClientFiles, diagnosePdfContent } from "../lib/drive-file-rena
 
 const router = Router();
 
+function parseClientId(raw: string | string[] | undefined): number | null {
+  if (typeof raw !== "string" || !/^\d+$/.test(raw)) return null;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 router.get("/status", async (_req: Request, res: Response) => {
   try {
     const connected = await isDriveConnected();
@@ -29,19 +35,22 @@ router.get("/status", async (_req: Request, res: Response) => {
 
 router.post("/setup-client/:clientId", async (req: Request, res: Response) => {
   try {
-    const clientId = parseInt(req.params.clientId);
+    const clientId = parseClientId(req.params.clientId);
+    if (clientId === null) return res.status(400).json({ error: "ID inválido" });
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     if (!client) {
       return res.status(404).json({ error: "Cliente nao encontrado" });
     }
 
-    const result = await ensureClientFolderStructure(client.name, client.cpf);
+    const cpf = client.cpf;
+    if (!cpf) return res.status(422).json({ error: "Cliente sem CPF cadastrado." });
+    const result = await ensureClientFolderStructure(client.name, cpf);
 
     let spreadsheetUrl = "";
     try {
       const sheetResult = await createClientSpreadsheet(
         client.name,
-        client.cpf,
+        cpf,
         {
           birthDate: client.birthDate,
           phone: client.phone,
@@ -62,7 +71,7 @@ router.post("/setup-client/:clientId", async (req: Request, res: Response) => {
       await shareWithClient(result.clientFolderId, client.email);
     }
 
-    res.json({
+    return res.json({
       success: true,
       clientFolderId: result.clientFolderId,
       subfolders: result.subfolders,
@@ -71,7 +80,7 @@ router.post("/setup-client/:clientId", async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Drive setup error:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -82,13 +91,18 @@ router.post("/setup-all-clients", async (_req: Request, res: Response) => {
 
     for (const client of allClients) {
       try {
-        const result = await ensureClientFolderStructure(client.name, client.cpf);
+        const cpf = client.cpf;
+        if (!cpf) {
+          results.push({ clientId: client.id, name: client.name, success: false, error: "CPF não cadastrado" });
+          continue;
+        }
+        const result = await ensureClientFolderStructure(client.name, cpf);
 
         let spreadsheetUrl = "";
         try {
           const sheetResult = await createClientSpreadsheet(
             client.name,
-            client.cpf,
+            cpf,
             {
               birthDate: client.birthDate,
               phone: client.phone,
@@ -123,13 +137,16 @@ router.post("/setup-all-clients", async (_req: Request, res: Response) => {
 
 router.post("/upload-protocol/:clientId", async (req: Request, res: Response) => {
   try {
-    const clientId = parseInt(req.params.clientId);
+    const clientId = parseClientId(req.params.clientId);
+    if (clientId === null) return res.status(400).json({ error: "ID inválido" });
     const { pdfBase64, protocolDate, protocolName } = req.body;
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     if (!client) return res.status(404).json({ error: "Cliente nao encontrado" });
+    const cpf = client.cpf;
+    if (!cpf) return res.status(422).json({ error: "Cliente sem CPF cadastrado." });
 
-    const folders = await ensureClientFolderStructure(client.name, client.cpf);
+    const folders = await ensureClientFolderStructure(client.name, cpf);
     const protocolsFolderId = folders.subfolders["PROTOCOLOS"];
 
     const fileName = formatProtocolFileName(protocolDate || new Date().toISOString().slice(0, 10), client.name);
@@ -141,7 +158,7 @@ router.post("/upload-protocol/:clientId", async (req: Request, res: Response) =>
       await shareWithClient(result.fileId, client.email);
     }
 
-    res.json({
+    return res.json({
       success: true,
       fileId: result.fileId,
       webViewLink: result.webViewLink,
@@ -149,24 +166,27 @@ router.post("/upload-protocol/:clientId", async (req: Request, res: Response) =>
     });
   } catch (err: any) {
     console.error("Drive upload protocol error:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 router.post("/upload-ras/:clientId", async (req: Request, res: Response) => {
   try {
-    const clientId = parseInt(req.params.clientId);
+    const clientId = parseClientId(req.params.clientId);
+    if (clientId === null) return res.status(400).json({ error: "ID inválido" });
     const { pdfBase64, rasDate, cpf: rasClientCpf } = req.body;
 
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     if (!client) return res.status(404).json({ error: "Cliente nao encontrado" });
+    const cpf = client.cpf;
+    if (!cpf) return res.status(422).json({ error: "Cliente sem CPF cadastrado." });
 
-    const folders = await ensureClientFolderStructure(client.name, client.cpf);
+    const folders = await ensureClientFolderStructure(client.name, cpf);
 
     const fileName = formatRASFileName(
       rasDate || new Date().toISOString().slice(0, 10),
       client.name,
-      client.cpf,
+      cpf,
     );
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
@@ -177,7 +197,7 @@ router.post("/upload-ras/:clientId", async (req: Request, res: Response) => {
       await shareWithClient(result.fileId, client.email);
     }
 
-    res.json({
+    return res.json({
       success: true,
       fileId: result.fileId,
       webViewLink: result.webViewLink,
@@ -185,7 +205,7 @@ router.post("/upload-ras/:clientId", async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("Drive upload RAS error:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -314,9 +334,9 @@ router.post("/upload-image-as-pdf", async (req: Request, res: Response) => {
     const pdfBuf = Buffer.from(pdfBytes);
     const safeName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
     const result = await uploadFileToDrive(folderId, safeName, "application/pdf", pdfBuf, true);
-    res.json({ ok: true, fileId: result.fileId, webViewLink: result.webViewLink });
+    return res.json({ ok: true, fileId: result.fileId, webViewLink: result.webViewLink });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -341,9 +361,9 @@ router.post("/upload-asset", async (req: Request, res: Response) => {
       : ext === "jpg" || ext === "jpeg" ? "image/jpeg"
       : "application/octet-stream";
     const result = await uploadFileToDrive(folderId, fileName, mime, buf, true);
-    res.json({ ok: true, fileId: result.fileId, webViewLink: result.webViewLink });
+    return res.json({ ok: true, fileId: result.fileId, webViewLink: result.webViewLink });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

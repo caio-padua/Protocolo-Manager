@@ -17,19 +17,27 @@
  */
 
 import { logger } from "./logger";
+import {
+  ObjectNotFoundError,
+  ObjectStorageService,
+  objectStorageClient,
+} from "./objectStorage";
+import {
+  canAccessObject,
+  getObjectAclPolicy,
+  ObjectPermission,
+  setObjectAclPolicy,
+} from "./objectAcl";
+import type { File } from "@google-cloud/storage";
 
 // ─── Re-exporta tudo do objectStorage original (ACL, classes de erro) ────────
 export {
   ObjectNotFoundError,
-  ObjectAclPolicy,
-  ObjectPermission,
-  canAccessObject,
-  getObjectAclPolicy,
-  setObjectAclPolicy,
   objectStorageClient,
   ObjectStorageService,
-  PRIVATE_OBJECT_DIR,
 } from "./objectStorage";
+export type { ObjectAclPolicy } from "./objectAcl";
+export const PRIVATE_OBJECT_DIR = process.env.PRIVATE_OBJECT_DIR ?? "";
 
 // ─── Detecção de ambiente ─────────────────────────────────────────────────────
 
@@ -40,19 +48,14 @@ function isReplitEnv(): boolean {
 // ─── S3 client (carregado só quando não está no Replit) ──────────────────────
 
 type S3Client = import("@aws-sdk/client-s3").S3Client;
-type GetObjectCommand = import("@aws-sdk/client-s3").GetObjectCommand;
-type PutObjectCommand = import("@aws-sdk/client-s3").PutObjectCommand;
-type DeleteObjectCommand = import("@aws-sdk/client-s3").DeleteObjectCommand;
-type HeadObjectCommand = import("@aws-sdk/client-s3").HeadObjectCommand;
 type GetSignedUrlFn = typeof import("@aws-sdk/s3-request-presigner").getSignedUrl;
 
 let _s3: S3Client | null = null;
 let _getSignedUrlFn: GetSignedUrlFn | null = null;
 let _cmds: {
-  GetObjectCommand: typeof GetObjectCommand;
-  PutObjectCommand: typeof PutObjectCommand;
-  DeleteObjectCommand: typeof DeleteObjectCommand;
-  HeadObjectCommand: typeof HeadObjectCommand;
+  PutObjectCommand: typeof import("@aws-sdk/client-s3").PutObjectCommand;
+  DeleteObjectCommand: typeof import("@aws-sdk/client-s3").DeleteObjectCommand;
+  HeadObjectCommand: typeof import("@aws-sdk/client-s3").HeadObjectCommand;
 } | null = null;
 
 async function getS3() {
@@ -79,7 +82,7 @@ async function getS3() {
 
     _s3 = new S3C({ endpoint, credentials: { accessKeyId, secretAccessKey }, region });
     _getSignedUrlFn = getSignedUrl;
-    _cmds = { GetObjectCommand: GOC, PutObjectCommand: POC, DeleteObjectCommand: DOC, HeadObjectCommand: HOC };
+    _cmds = { PutObjectCommand: POC, DeleteObjectCommand: DOC, HeadObjectCommand: HOC };
   }
   return { s3: _s3!, getSignedUrl: _getSignedUrlFn!, cmds: _cmds! };
 }
@@ -88,6 +91,26 @@ function bucket(): string {
   const b = process.env.S3_BUCKET_NAME;
   if (!b) throw new Error("S3_BUCKET_NAME não definida.");
   return b;
+}
+
+function getReplitPrivateFile(key: string): File {
+  const relativeKey = key.replace(/^\/+/, "");
+  if (
+    !relativeKey ||
+    relativeKey.split("/").some((part) => part === "" || part === "." || part === "..")
+  ) {
+    throw new Error("Invalid private object key");
+  }
+
+  const directory = new ObjectStorageService()
+    .getPrivateObjectDir()
+    .replace(/\/+$/, "");
+  const fullPath = `${directory}/${relativeKey}`;
+  const [bucketName, ...objectParts] = fullPath.split("/").filter(Boolean);
+  if (!bucketName || objectParts.length === 0) {
+    throw new Error("Invalid PRIVATE_OBJECT_DIR path");
+  }
+  return objectStorageClient.bucket(bucketName).file(objectParts.join("/"));
 }
 
 // ─── Funções públicas ─────────────────────────────────────────────────────────
@@ -99,9 +122,7 @@ export async function upload(
   mimeType: string
 ): Promise<string> {
   if (isReplitEnv()) {
-    const { ObjectStorageService } = await import("./objectStorage");
-    const svc = new ObjectStorageService();
-    await svc.uploadObject(key, data, mimeType);
+    await getReplitPrivateFile(key).save(data, { contentType: mimeType });
     return key;
   }
 
@@ -121,22 +142,21 @@ export async function upload(
 /** Baixa um arquivo do storage. Lança ObjectNotFoundError se não existir. */
 export async function download(key: string): Promise<Buffer> {
   if (isReplitEnv()) {
-    const { ObjectStorageService } = await import("./objectStorage");
-    const svc = new ObjectStorageService();
-    return svc.downloadObject(key);
+    const file = getReplitPrivateFile(key);
+    const [exists] = await file.exists();
+    if (!exists) throw new ObjectNotFoundError();
+    const [data] = await file.download();
+    return data;
   }
 
-  const { s3, cmds } = await getS3();
+  const { s3 } = await getS3();
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
   try {
-    const resp = await s3.send(
-      new cmds.GetObjectCommand({ Bucket: bucket(), Key: key })
-    );
-    const chunks: Uint8Array[] = [];
-    const stream = resp.Body as AsyncIterable<Uint8Array>;
-    for await (const chunk of stream) chunks.push(chunk);
-    return Buffer.concat(chunks);
+    const resp = await s3.send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+    if (!resp.Body) throw new Error("S3 returned an empty object body");
+    return Buffer.from(await resp.Body.transformToByteArray());
   } catch (err: unknown) {
-    const code = (err as { name?: string }).name;
+    const code = err instanceof Error ? err.name : undefined;
     if (code === "NoSuchKey" || code === "NotFound") {
       const { ObjectNotFoundError } = await import("./objectStorage");
       throw new ObjectNotFoundError();
@@ -148,9 +168,7 @@ export async function download(key: string): Promise<Buffer> {
 /** Remove um arquivo do storage. Silencia se já não existir. */
 export async function deleteObject(key: string): Promise<void> {
   if (isReplitEnv()) {
-    const { ObjectStorageService } = await import("./objectStorage");
-    const svc = new ObjectStorageService();
-    await svc.deleteObject(key);
+    await getReplitPrivateFile(key).delete({ ignoreNotFound: true });
     return;
   }
 
@@ -164,15 +182,21 @@ export async function getSignedUrl(
   expiresInSeconds = 3600
 ): Promise<string> {
   if (isReplitEnv()) {
-    const { ObjectStorageService } = await import("./objectStorage");
-    const svc = new ObjectStorageService();
-    return svc.getSignedUrl(key, expiresInSeconds);
+    if (!Number.isFinite(expiresInSeconds) || expiresInSeconds <= 0) {
+      throw new Error("expiresInSeconds must be a positive number");
+    }
+    const [url] = await getReplitPrivateFile(key).getSignedUrl({
+      action: "read",
+      expires: Date.now() + expiresInSeconds * 1000,
+    });
+    return url;
   }
 
-  const { s3, getSignedUrl: gsu, cmds } = await getS3();
+  const { s3, getSignedUrl: gsu } = await getS3();
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
   return gsu(
     s3,
-    new cmds.GetObjectCommand({ Bucket: bucket(), Key: key }),
+    new GetObjectCommand({ Bucket: bucket(), Key: key }),
     { expiresIn: expiresInSeconds }
   );
 }
@@ -180,9 +204,8 @@ export async function getSignedUrl(
 /** Verifica se um arquivo existe no storage. */
 export async function exists(key: string): Promise<boolean> {
   if (isReplitEnv()) {
-    const { ObjectStorageService } = await import("./objectStorage");
-    const svc = new ObjectStorageService();
-    return svc.objectExists(key);
+    const [exists] = await getReplitPrivateFile(key).exists();
+    return exists;
   }
 
   try {

@@ -220,7 +220,7 @@ describe("Pit Stop: plano de agendamento compartilhado, no banco isolado", () =>
     // Completa as tabelas feitas à mão com TODAS as colunas do esquema real (consultas do drizzle selecionam todas).
     for (const [tabela, t] of [["sessions", sessionsTable], ["clients", clientsTable], ["locations", locationsTable],
       ["agenda_resources", agendaResourcesTable], ["protocols", protocolsTable], ["location_professionals", locationProfessionalsTable]] as const) {
-      const existentes = new Set((await q("SELECT column_name FROM information_schema.columns WHERE table_name=$1", [tabela])).rows.map((r) => r.column_name));
+      const existentes = new Set((await q("SELECT column_name FROM information_schema.columns WHERE table_name=$1", [tabela])).rows.map((r: { column_name: string }) => r.column_name));
       for (const col of Object.values(getTableColumns(t as any)) as any[]) {
         if (!existentes.has(col.name)) await q(`ALTER TABLE ${tabela} ADD COLUMN IF NOT EXISTS "${col.name}" ${col.getSQLType()}`);
       }
@@ -514,8 +514,8 @@ describe("Pit Stop: plano de agendamento compartilhado, no banco isolado", () =>
         expect(c.body.sincronizacao.estado).toBe("sincronizado");
         expect(gcal.created).toHaveLength(1);
         const trilha = (await q("SELECT ator_id, acao FROM agendamento_plano_auditoria WHERE plano_id=$1 ORDER BY id", [r.body.planoId])).rows;
-        expect(trilha.map((x) => x.acao)).toEqual(["abriu_revisao", "confirmou_plano", "enviou_ao_google"]);
-        expect(trilha.every((x) => x.ator_id === 103)).toBe(true);
+        expect(trilha.map((x: { acao: string }) => x.acao)).toEqual(["abriu_revisao", "confirmou_plano", "enviou_ao_google"]);
+        expect(trilha.every((x: { ator_id: number }) => x.ator_id === 103)).toBe(true);
       } finally { gov.matriz = null; }
     });
 
@@ -914,7 +914,7 @@ describe("Documentos do profissional: upload, visualização protegida, empresa,
     expect(linha.storage_path.startsWith("uploads/")).toBe(false);
     expect(linha.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(armazem.has(linha.storage_path)).toBe(true);
-    expect((await q("SELECT acao FROM profissional_documento_auditoria WHERE documento_id=$1", [docId])).rows.map((x) => x.acao)).toEqual(["enviou"]);
+    expect((await q("SELECT acao FROM profissional_documento_auditoria WHERE documento_id=$1", [docId])).rows.map((x: { acao: string }) => x.acao)).toEqual(["enviou"]);
   });
 
   it("recusa conteúdo que não é PDF/imagem (mesmo com nome .png), arquivo repetido e tipo inválido", async () => {

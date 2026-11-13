@@ -4,26 +4,13 @@
  * Executar: npx tsx src/scripts/upload-modelo-venda-drive.ts
  */
 import { google } from "googleapis";
+import { loadReplitConnectorAccessToken } from "../lib/replit-connection";
 
 const FOLDER_ID = "1NxUeMNehz8_l_TR9NpigIjVNBiyGY4UR";
 const NOME_ARQUIVO = "MODELO DE VENDA SISTEMA (MONETIZAR SISTEMA)";
 
 async function getAccessToken(): Promise<string> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-    ? "depl " + process.env.WEB_REPL_RENEWAL
-    : null;
-  if (!xReplitToken || !hostname) throw new Error("REPL_IDENTITY ausente");
-  const res = await fetch(`https://${hostname}/api/v2/connection?include_secrets=true`, {
-    headers: { Accept: "application/json", "X-Replit-Token": xReplitToken },
-  });
-  const data = await res.json();
-  const conn = data.items?.find((i: any) => i.connector_name === "google-drive");
-  const token = conn?.settings?.access_token || conn?.settings?.oauth?.credentials?.access_token;
-  if (!token) throw new Error("Google Drive não conectado");
-  return token;
+  return loadReplitConnectorAccessToken("google-drive");
 }
 
 const CONTEUDO = `MODELO DE VENDA SISTEMA (MONETIZAR SISTEMA)

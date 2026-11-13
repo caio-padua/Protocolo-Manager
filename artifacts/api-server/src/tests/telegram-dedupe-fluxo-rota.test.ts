@@ -30,10 +30,11 @@ const mockExecute = vi.fn();
 vi.mock("@workspace/db", async () => {
   const { respostaOutboxFake } = await import("./helpers/outbox-sql-fake");
   const chain = (v: unknown[]) => {
+    const result = Promise.resolve(v);
     const c: Record<string, unknown> & PromiseLike<unknown[]> = {
       from: vi.fn(() => c), where: vi.fn(() => c),
       limit: vi.fn().mockResolvedValue(v),
-      then: (res: (x: unknown[]) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(v).then(res, rej),
+      then: result.then.bind(result),
     };
     return c;
   };

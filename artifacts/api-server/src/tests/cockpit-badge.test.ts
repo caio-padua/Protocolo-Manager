@@ -37,8 +37,8 @@ vi.mock("@workspace/db", () => {
     chain.orderBy = vi.fn().mockReturnValue(chain);
     chain.limit   = vi.fn().mockResolvedValue(result);
     // Torna o chain "thenable" (para queries sem .limit())
-    (chain as unknown as Promise<unknown[]>).then = (res: (v: unknown[]) => unknown) =>
-      Promise.resolve(result).then(res);
+    const resolved = Promise.resolve(result);
+    (chain as unknown as Promise<unknown[]>).then = resolved.then.bind(resolved);
     return chain;
   }
 

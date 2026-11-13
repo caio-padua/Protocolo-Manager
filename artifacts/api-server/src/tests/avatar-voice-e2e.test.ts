@@ -170,7 +170,7 @@ describe("enviarMensagemPaxter — canal VOICE", () => {
     vi.mocked(gerarAudio).mockResolvedValue(FAKE_MP3);
     vi.mocked(sendWhatsapp).mockResolvedValue({
       sent: true,
-      via:  "twilio_mock",
+      via:  "twilio",
       link: "SM_FAKE_SID",
     });
     vi.mocked(sendGmailMessage).mockResolvedValue({ success: true });

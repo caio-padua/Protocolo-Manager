@@ -165,13 +165,11 @@ interface LlmStep {
 
 /** Mescla analitos de dois resultados (union por nome normalizado). */
 function mergeExtractions(base: ExtractedExam, extra: ExtractedExam): ExtractedExam {
-  const baseNames = new Set(
-    (base.tests ?? []).map((t) => (t.name ?? "").toLowerCase().trim()),
+  const baseNames = new Set(base.analytes.map((t) => t.name.toLowerCase().trim()));
+  const novos = extra.analytes.filter(
+    (t) => !baseNames.has(t.name.toLowerCase().trim()),
   );
-  const novos = (extra.tests ?? []).filter(
-    (t) => !baseNames.has((t.name ?? "").toLowerCase().trim()),
-  );
-  return { ...base, tests: [...(base.tests ?? []), ...novos] };
+  return { ...base, analytes: [...base.analytes, ...novos] };
 }
 
 /** Persiste resultado + pipeline multi-IA no banco (raw SQL para evitar db push). */
@@ -221,7 +219,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           provider: "gemini",
           model: modelUsed,
           ok: true,
-          analitos: data.tests?.length ?? 0,
+          analitos: data.analytes.length,
           ms: Date.now() - t0,
         });
       } catch (err: any) {
@@ -249,7 +247,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           provider: "claude",
           model: CLAUDE_MODEL_NAME,
           ok: true,
-          analitos: claudeResult.data.tests?.length ?? 0,
+          analitos: claudeResult.data.analytes.length,
           ms: claudeResult.ms,
         });
       } else {
@@ -276,7 +274,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           provider: "openai",
           model: OPENAI_MODEL,
           ok: true,
-          analitos: openaiResult.data.tests?.length ?? 0,
+          analitos: openaiResult.data.analytes.length,
           ms: openaiResult.ms,
         });
       } else {
@@ -406,7 +404,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
           .from(clientsTable)
           .where(eq(clientsTable.id, clientId));
         const client = clients[0];
-        if (client) {
+        if (client?.cpf) {
           const firstName = client.name.split(" ")[0];
           if (client.email) {
             await sendGmailMessage({
@@ -604,9 +602,10 @@ export async function recoverStuckDocuments(): Promise<void> {
           .from(clientsTable)
           .where(eq(clientsTable.id, doc.clientId));
         const client = clients[0];
-        if (client) {
+        const cpf = client?.cpf;
+        if (client && cpf) {
           try {
-            const structure = await ensureClientFolderStructure(client.name, client.cpf);
+            const structure = await ensureClientFolderStructure(client.name, cpf);
             const examesFolderId = structure.subfolders["EXAMES"];
             if (examesFolderId) {
               const files = await driveListChildren(examesFolderId);
@@ -749,7 +748,11 @@ router.get(
       let bufferForDryRun: Buffer;
       if (hasCopy) {
         const copy = await getInternalCopy(documentId);
-        bufferForDryRun = copy.buffer;
+        if (!copy) {
+          res.status(409).json({ error: "Cópia interna indisponível; recarregue o documento antes de simular." });
+          return;
+        }
+        bufferForDryRun = copy.bytes;
       } else {
         // Sem cópia interna: simula com buffer vazio (tamanho = 0)
         bufferForDryRun = Buffer.alloc(0);
@@ -3173,7 +3176,7 @@ router.post("/exames-lab/reprocessar/:id", requireCollaborator, async (req: Requ
     let buffer: Buffer | null = null;
     const copy = await getInternalCopy(docId);
     if (copy) {
-      buffer = copy.buffer;
+      buffer = copy.bytes;
     } else if (doc.sourcePdfDriveId) {
       try {
         buffer = await driveDownloadFile(doc.sourcePdfDriveId);

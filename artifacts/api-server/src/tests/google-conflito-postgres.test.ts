@@ -78,6 +78,7 @@ beforeAll(async () => {
   process.env.REPL_IDENTITY = "identidade-sintetica";
   process.env.REPLIT_CONNECTORS_HOSTNAME = "conectores.example.invalid";
   vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
     json: async () => ({ items: [{ connector_name: "google-calendar", settings: { access_token: "token-sintetico", expires_at: null } }] }),
   })));
   isolated = await startIsolatedPostgres();
@@ -246,7 +247,7 @@ describe("Conflito com o Google — nunca sobrescrever em silêncio", () => {
     expect(calls.update).not.toHaveBeenCalled();
     const outra = await refreshSessionEventInPlace(1, 5, { releaseUpdateFailure: true });
     expect(outra).toMatchObject({ code: "google_conflito" });
-    expect((await all("SELECT estado FROM agenda_google_conflitos WHERE sessao_id=1 ORDER BY id")).map((c) => c.estado))
+    expect((await all("SELECT estado FROM agenda_google_conflitos WHERE sessao_id=1 ORDER BY id")).map((c: { estado: string }) => c.estado))
       .toEqual(["dispensado", "aberto"]);
   });
 

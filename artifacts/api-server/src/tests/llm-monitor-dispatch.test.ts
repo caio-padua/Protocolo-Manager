@@ -33,6 +33,8 @@ function makeReport(overrides: Partial<LlmReport> = {}): LlmReport {
     totalChamadas:      0,
     mudancasPlanilha:   [],
     totalItensPlanilha: 0,
+    itensConcluidos:    [],
+    ultimoPreenchimento: null,
     ...overrides,
   };
 }

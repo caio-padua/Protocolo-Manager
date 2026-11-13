@@ -1,19 +1,35 @@
 // Replit Integration: Gmail (connector: google-mail)
 import { google } from 'googleapis';
 import { ReplitConnectors } from '@replit/connectors-sdk';
+import {
+  findReplitConnection,
+  getReplitConnectionAccessToken,
+  type ReplitConnectorConnection,
+} from "./replit-connection";
 
-let connectionSettings: any;
+let connectionSettings: ReplitConnectorConnection | undefined;
 const connectors = new ReplitConnectors();
 
 async function gmailProfile(): Promise<{ emailAddress?: string }> {
   const response = await connectors.proxy("google-mail", "/gmail/v1/users/me/profile", { method: "GET" });
   if (!response.ok) throw new Error(`Gmail indisponível ou não autorizado (código ${response.status}).`);
-  return await response.json() as { emailAddress?: string };
+  const payload: unknown = await response.json();
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("emailAddress" in payload) ||
+    typeof payload.emailAddress !== "string"
+  ) {
+    return {};
+  }
+  return { emailAddress: payload.emailAddress };
 }
 
 async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
+  const cachedToken = getReplitConnectionAccessToken(connectionSettings);
+  const expiresAt = connectionSettings?.settings.expires_at;
+  if (cachedToken && expiresAt && new Date(expiresAt).getTime() > Date.now()) {
+    return cachedToken;
   }
   
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -27,7 +43,7 @@ async function getAccessToken() {
     throw new Error('X-Replit-Token not found for repl/depl');
   }
 
-  connectionSettings = await fetch(
+  const response = await fetch(
     'https://' + hostname + '/api/v2/connection?include_secrets=true',
     {
       headers: {
@@ -35,9 +51,11 @@ async function getAccessToken() {
         'X-Replit-Token': xReplitToken
       }
     }
-  ).then(res => res.json()).then(data => data.items?.find((i: any) => i.connector_name === 'google-mail'));
+  );
+  if (!response.ok) throw new Error("Gmail não conectado");
+  connectionSettings = findReplitConnection(await response.json(), "google-mail");
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+  const accessToken = getReplitConnectionAccessToken(connectionSettings);
 
   if (!connectionSettings || !accessToken) {
     throw new Error('Gmail não conectado');

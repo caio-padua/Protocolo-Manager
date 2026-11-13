@@ -161,6 +161,10 @@ router.post(
       const client = clients[0];
       const folder = FILE_TYPE_TO_FOLDER[fileType] || "EXAMES";
       const typeLabel = FILE_TYPE_LABELS[fileType] || "DOCUMENTO";
+      if (!client.cpf) {
+        res.status(422).json({ error: "Cliente sem CPF cadastrado." });
+        return;
+      }
 
       const structure = await ensureClientFolderStructure(client.name, client.cpf);
       const targetFolderId = structure.subfolders[folder];

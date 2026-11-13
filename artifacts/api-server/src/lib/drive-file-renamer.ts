@@ -3,6 +3,11 @@ import { Readable } from "stream";
 import { execSync } from "child_process";
 import { writeFileSync, readFileSync, unlinkSync, readdirSync, mkdirSync, existsSync, rmSync } from "fs";
 import { join } from "path";
+import {
+  findReplitConnection,
+  getReplitConnectionAccessToken,
+  type ReplitConnectorConnection,
+} from "./replit-connection";
 
 function getOAuth2Client() {
   return getAccessTokenInternal().then(accessToken => {
@@ -12,11 +17,12 @@ function getOAuth2Client() {
   });
 }
 
-let _connSettings: any;
+let _connSettings: ReplitConnectorConnection | undefined;
 
 async function getAccessTokenInternal(): Promise<string> {
-  if (_connSettings?.settings?.expires_at && new Date(_connSettings.settings.expires_at).getTime() > Date.now()) {
-    const t = _connSettings?.settings?.access_token || _connSettings?.settings?.oauth?.credentials?.access_token;
+  const cachedToken = getReplitConnectionAccessToken(_connSettings);
+  if (_connSettings?.settings.expires_at && new Date(_connSettings.settings.expires_at).getTime() > Date.now()) {
+    const t = cachedToken;
     if (t) return t;
   }
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -27,12 +33,14 @@ async function getAccessTokenInternal(): Promise<string> {
     : null;
   if (!xReplitToken) throw new Error("X-Replit-Token not found");
 
-  _connSettings = await fetch(
+  const response = await fetch(
     "https://" + hostname + "/api/v2/connection?include_secrets=true&connector_names=google-drive",
     { headers: { Accept: "application/json", "X-Replit-Token": xReplitToken } }
-  ).then(r => r.json()).then(d => d.items?.[0]);
+  );
+  if (!response.ok) throw new Error("Google Drive not connected");
+  _connSettings = findReplitConnection(await response.json(), "google-drive");
 
-  const token = _connSettings?.settings?.access_token || _connSettings?.settings?.oauth?.credentials?.access_token;
+  const token = getReplitConnectionAccessToken(_connSettings);
   if (!token) throw new Error("Google Drive not connected");
   return token;
 }

@@ -1,5 +1,6 @@
 import { ExtractedExamSchema, type ExtractedExam } from "./schema";
 import { requireAiTenant, logAiUsage } from "../ai-central";
+import type Anthropic from "@anthropic-ai/sdk";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Extrator Claude (Anthropic) — lazy init: não estoura no boot se as vars
@@ -46,19 +47,18 @@ function stripJsonFences(raw: string): string {
   return s.trim();
 }
 
-let _client: import("@anthropic-ai/sdk").default | null = null;
+let _client: Anthropic | null = null;
 let _initAttempted = false;
 
-function getClient(): import("@anthropic-ai/sdk").default | null {
+function getClient(): Anthropic | null {
   if (_initAttempted) return _client;
   _initAttempted = true;
   const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
   const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
   if (!apiKey || !baseURL) return null;
   try {
-    const Anthropic = require("@anthropic-ai/sdk");
-    const Cls = Anthropic.default ?? Anthropic;
-    _client = new Cls({ apiKey, baseURL }) as import("@anthropic-ai/sdk").default;
+    const sdk = require("@anthropic-ai/sdk") as typeof import("@anthropic-ai/sdk");
+    _client = new sdk.default({ apiKey, baseURL });
   } catch {
     _client = null;
   }
@@ -72,7 +72,7 @@ export async function extractExamWithClaude(text: string, empresaId = 0): Promis
   const { headers: aiHeaders } = requireAiTenant(empresaId, "clinical");
   const t0 = Date.now();
   try {
-    const msg = await (client.messages.create as Function)(
+    const msg = await client.messages.create(
       {
         model: CLAUDE_MODEL,
         max_tokens: 8096,
@@ -86,18 +86,16 @@ export async function extractExamWithClaude(text: string, empresaId = 0): Promis
       { headers: aiHeaders },
     );
 
-    const usage = (msg as any).usage;
     void logAiUsage({
       empresaId,
       provider: "anthropic",
       tipo: "clinical",
-      inputTokens:  usage?.input_tokens  ?? undefined,
-      outputTokens: usage?.output_tokens ?? undefined,
+      inputTokens: msg.usage.input_tokens,
+      outputTokens: msg.usage.output_tokens,
     });
 
-    const raw = (msg.content as Array<{ type: string; text?: string }>)
-      .filter((b) => b.type === "text")
-      .map((b) => b.text ?? "")
+    const raw = msg.content
+      .flatMap((block) => block.type === "text" ? [block.text] : [])
       .join("");
 
     const parsed = JSON.parse(stripJsonFences(raw));

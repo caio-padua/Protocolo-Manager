@@ -7,6 +7,7 @@ import express from "express";
 import request from "supertest";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { PgDialect } from "drizzle-orm/pg-core";
+import type { PoolClient } from "pg";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn().mockResolvedValue({ rows: [] }),
@@ -44,7 +45,7 @@ app.use((req, _res, next) => {
 });
 app.use("/api/onboarding", onboardingRouter);
 
-let connection: Awaited<ReturnType<typeof pool.connect>>;
+let connection!: PoolClient;
 const licensedToken = createCollaboratorToken({ professionalId: 101, role: "admin" });
 const legacyToken = createCollaboratorToken({ professionalId: 102, role: "admin" });
 const otherToken = createCollaboratorToken({ professionalId: 103, role: "admin" });

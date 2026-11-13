@@ -54,7 +54,7 @@ async function main() {
     const found = data.analytes.find((a) =>
       exp.aliases.some((al) => norm(a.name).includes(norm(al))),
     );
-    const ok = !!found && norm(found.value).includes(norm(exp.value));
+    const ok = !!found && found.value !== null && norm(found.value).includes(norm(exp.value));
     console.log(
       `${ok ? "OK " : "XX "} ${exp.aliases[0]}: esperado ${exp.value} ${exp.unit} -> ${
         found ? `${found.value} ${found.unit ?? ""} (hist:${found.history.length})` : "NÃO ENCONTRADO"

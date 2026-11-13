@@ -85,6 +85,7 @@ export interface AsaasChargeInput {
   value: number;
   dueDate: string; // YYYY-MM-DD
   description?: string;
+  externalReference?: string;
   // "PIX" gera cobranca PIX (com QR embutido, pago DENTRO do Paxter);
   // "UNDEFINED" abre a pagina hospedada (cliente escolhe PIX/boleto/cartao).
   billingType?: "PIX" | "UNDEFINED";
@@ -105,6 +106,7 @@ export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasC
     value: input.value,
     dueDate: input.dueDate,
     description: input.description,
+    externalReference: input.externalReference,
   };
   return asaasFetch("/payments", { method: "POST", body: JSON.stringify(body) });
 }

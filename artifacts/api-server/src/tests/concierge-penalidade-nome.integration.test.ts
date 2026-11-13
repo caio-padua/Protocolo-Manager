@@ -2,6 +2,17 @@ import { expect, test, vi } from "vitest";
 import { sql } from "drizzle-orm";
 import puppeteer from "puppeteer";
 
+interface BrowserElementForTest {
+  textContent: string | null;
+  querySelector(selector: string): BrowserElementForTest | null;
+  querySelectorAll(selector: string): ArrayLike<BrowserElementForTest>;
+  getBoundingClientRect(): { top: number; bottom: number; width: number; height: number };
+}
+
+declare const document: {
+  querySelectorAll(selector: string): ArrayLike<BrowserElementForTest>;
+};
+
 // Explicit opt-in: this test needs the development database and the running PADCOM.
 test.skipIf(process.env.RUN_CONCIERGE_NAME_INTEGRATION !== "1")(
   "real registrarFalha/listPenalidades show the patient below the masked CPF, or — without a match",

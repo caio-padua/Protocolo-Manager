@@ -189,7 +189,7 @@ router.post("/dominios-comercial/propostas/:id/gerar-cobranca", async (req, res)
       const dueDateStr = dueDate.toISOString().slice(0, 10);
 
       const charge = await asaasCreateCharge({
-        customer: customerId,
+        customerId,
         billingType: "UNDEFINED",
         value: adesaoCentavos / 100,
         dueDate: dueDateStr,
@@ -198,7 +198,6 @@ router.post("/dominios-comercial/propostas/:id/gerar-cobranca", async (req, res)
       });
       chargeId = charge.id;
       invoiceUrl = charge.invoiceUrl ?? null;
-      pixQr = (charge as Record<string, unknown>).pixQrCodeUrl as string ?? null;
     }
 
     // 3. Assinatura recorrente mensal via Asaas subscriptions

@@ -45,13 +45,14 @@ const mockExecute = vi.hoisted(() => vi.fn());
 vi.mock("@workspace/db", async () => {
   const { respostaOutboxFake } = await import("./helpers/outbox-sql-fake");
   const chain = () => {
+    const result = Promise.resolve(estado.senhas);
     const c: Record<string, unknown> & PromiseLike<unknown[]> = {
       from: vi.fn(() => c), where: vi.fn(() => c),
       limit: vi.fn(async () => {
         if (estado.falhaSelect) throw Object.assign(new Error("db fora"), estado.falhaSelect);
         return estado.vinculado;
       }),
-      then: (res: (x: unknown[]) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(estado.senhas).then(res, rej),
+      then: result.then.bind(result),
     };
     return c;
   };

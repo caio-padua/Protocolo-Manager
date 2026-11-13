@@ -64,7 +64,7 @@ router.put("/mensagens-catalogo/:id", async (req, res) => {
 
   if (!row) return res.status(404).json({ error: "bloco não encontrado" });
   invalidarCacheCatalogo();
-  res.json(toDTO(row));
+  return res.json(toDTO(row));
 });
 
 // POST → upsert por (categoria, chave). Cria bloco novo ou substitui o conteúdo.
@@ -91,7 +91,7 @@ router.post("/mensagens-catalogo", async (req, res) => {
     .returning();
 
   invalidarCacheCatalogo();
-  res.status(201).json(toDTO(row));
+  return res.status(201).json(toDTO(row));
 });
 
 // DELETE /:id → desativa (soft delete). Preserva histórico e não quebra o motor.
@@ -108,7 +108,7 @@ router.delete("/mensagens-catalogo/:id", async (req, res) => {
 
   if (!row) return res.status(404).json({ error: "bloco não encontrado" });
   invalidarCacheCatalogo();
-  res.json({ ok: true, id });
+  return res.json({ ok: true, id });
 });
 
 export default router;

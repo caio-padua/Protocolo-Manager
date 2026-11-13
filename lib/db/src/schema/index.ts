@@ -71,3 +71,4 @@ export * from "./telegram-inbox";
 // + deviceOfferLimitsTable (com verified_at). device-offer-limits.ts é redundante.
 export * from "./device-throttle";
 export * from "./pesquisas";
+export * from "./agent-integration-log";

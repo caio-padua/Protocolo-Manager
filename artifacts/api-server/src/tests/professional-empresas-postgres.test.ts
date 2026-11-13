@@ -163,7 +163,7 @@ describe("regras de vínculo (biblioteca)", () => {
   };
 
   it("grava a ordem pedida, reordena e informa a mudança", async () => {
-    expect((await aplicar(201, { adicionaisIds: [3, 2] })).depois.map((v) => `${v.ordem}:${v.empresaId}`)).toEqual(["1:5", "2:3", "3:2"]);
+    expect((await aplicar(201, { adicionaisIds: [3, 2] })).depois.map((v: { ordem: number; empresaId: number }) => `${v.ordem}:${v.empresaId}`)).toEqual(["1:5", "2:3", "3:2"]);
     const reordenado = await aplicar(201, { adicionaisIds: [2, 3] });
     expect(reordenado.mudou).toBe(true);
     expect(await vinculos(201)).toEqual(["2:2", "3:3"]);
@@ -212,7 +212,7 @@ describe("regras de vínculo (biblioteca)", () => {
     await sql("DELETE FROM location_professionals WHERE professional_id=201");
     await sql("INSERT INTO professional_empresas (professional_id, empresa_id, ordem) VALUES (201,2,2),(201,3,3)");
     const trocado = await aplicar(201, { originariaId: 3 });
-    expect(trocado.depois.map((v) => `${v.ordem}:${v.empresaId}`)).toEqual(["1:3", "2:2"]);
+    expect(trocado.depois.map((v: { ordem: number; empresaId: number }) => `${v.ordem}:${v.empresaId}`)).toEqual(["1:3", "2:2"]);
     expect(await empresaOriginaria(201)).toBe(3);
     expect(await vinculos(201)).toEqual(["2:2"]);
   });

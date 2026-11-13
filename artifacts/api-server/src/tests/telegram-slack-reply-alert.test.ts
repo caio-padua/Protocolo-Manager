@@ -37,12 +37,12 @@ vi.mock("../lib/telegram-update-claim", async (orig) => ({
 
 vi.mock("@workspace/db", () => {
   function makeSelectChain(resolvedValue: unknown[] = []) {
+    const result = Promise.resolve(resolvedValue);
     const chain: Record<string, unknown> & PromiseLike<unknown[]> = {
       from:  vi.fn(() => chain),
       where: vi.fn(() => chain),
       limit: vi.fn().mockResolvedValue(resolvedValue),
-      then:  (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(resolvedValue).then(resolve, reject),
+      then: result.then.bind(result),
     };
     return chain;
   }

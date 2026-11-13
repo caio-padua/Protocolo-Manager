@@ -16,7 +16,18 @@ import request from "supertest";
 // ── Mocks pesados (declarados ANTES do import do router) ─────────────────────
 
 const mockDbExecute = vi.fn();
-const mockDbSelect  = vi.fn(() => ({
+interface ClientLookup {
+  phone: string | null;
+  telegramChatId: string | null;
+}
+interface SelectChain {
+  from(): {
+    where(): {
+      limit(): ClientLookup[];
+    };
+  };
+}
+const mockDbSelect = vi.fn<(...args: unknown[]) => SelectChain>(() => ({
   from: () => ({ where: () => ({ limit: () => [] }) }),
 }));
 

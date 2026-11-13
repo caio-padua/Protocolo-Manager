@@ -55,13 +55,13 @@ vi.mock("@workspace/db", () => {
   // Para cobrir ambos, o chain precisa ser thenable (para o Padrão B) E
   // ter .where()/.limit() encadeáveis (para o Padrão A).
   function makeChain(resolvedValue: unknown[] = []) {
+    const result = Promise.resolve(resolvedValue);
     const chain: Record<string, unknown> & PromiseLike<unknown[]> = {
       from:  vi.fn(() => chain),
       where: vi.fn(() => chain),
       limit: vi.fn().mockResolvedValue(resolvedValue),
       // thenable — permite `await db.select().from()` sem .limit()
-      then:  (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(resolvedValue).then(resolve, reject),
+      then: result.then.bind(result),
     };
     return chain;
   }

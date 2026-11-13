@@ -171,7 +171,7 @@ export async function processarFilaVideo(): Promise<{ processadas: number; entre
           logger.info({ fila: item.id }, "[avatar-worker] vídeo entregue");
 
         } else if (status.status === "failed") {
-          await atualizarFila(item.id, { status: "erro", erro: status.error ?? "HeyGen: failed" });
+          await atualizarFila(item.id, { status: "erro", erro: status.erro ?? "HeyGen: failed" });
           erros += 1;
 
         } else {

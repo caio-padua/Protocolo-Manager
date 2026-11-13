@@ -2,29 +2,17 @@
  * Script único — posta resumo da sessão 12/08/2026 no Slack #padaxor-projeto
  * Executar: npx tsx src/scripts/post-slack-sessao.ts
  */
+import { isRecord, loadReplitConnectorAccessToken } from "../lib/replit-connection";
+
+export {};
 
 const CHANNEL_ID = "C0BLW5S7GQL";
 
 async function getSlackToken(): Promise<string> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-    ? "depl " + process.env.WEB_REPL_RENEWAL
-    : null;
-  if (!xReplitToken || !hostname) throw new Error("REPL_IDENTITY ausente");
-
-  const res = await fetch(`https://${hostname}/api/v2/connection?include_secrets=true`, {
-    headers: { Accept: "application/json", "X-Replit-Token": xReplitToken },
-  });
-  const data = await res.json();
-  const conn = data.items?.find((i: any) => i.connector_name === "slack");
-  const token = conn?.settings?.access_token || conn?.settings?.oauth?.credentials?.access_token;
-  if (!token) throw new Error("Slack não conectado — token não encontrado");
-  return token;
+  return loadReplitConnectorAccessToken("slack");
 }
 
-async function postMessage(token: string, text: string) {
+async function postMessage(token: string, text: string): Promise<Record<string, unknown>> {
   const res = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
@@ -33,7 +21,9 @@ async function postMessage(token: string, text: string) {
     },
     body: JSON.stringify({ channel: CHANNEL_ID, text }),
   });
-  return res.json();
+  const result: unknown = await res.json();
+  if (!isRecord(result)) throw new Error("Resposta inválida do Slack");
+  return result;
 }
 
 async function main() {
@@ -61,7 +51,7 @@ async function main() {
 *Spec Dr. Manus salva:* specs/SPEC-MANUS-80-81-83-concierge-v2.md`;
 
   const result = await postMessage(token, texto);
-  if (result.ok) {
+  if (result.ok === true) {
     console.log("✅ Slack postado com sucesso — ts:", result.ts);
   } else {
     console.error("ERRO Slack:", result.error, result);

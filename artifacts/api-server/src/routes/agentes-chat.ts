@@ -125,12 +125,10 @@ IMPORTANTE:
         res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
       }
       if (event.type === "message_delta" && "usage" in event) {
-        outputTokens = (event as Record<string, unknown> & { usage?: { output_tokens?: number } }).usage?.output_tokens ?? 0;
+        outputTokens = event.usage.output_tokens;
       }
       if (event.type === "message_start" && "message" in event) {
-        const msg = event.message as Record<string, unknown>;
-        const usage = msg.usage as Record<string, number> | undefined;
-        inputTokens = usage?.input_tokens ?? 0;
+        inputTokens = event.message.usage.input_tokens;
       }
     }
 

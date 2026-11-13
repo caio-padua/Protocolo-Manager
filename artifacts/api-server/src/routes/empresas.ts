@@ -863,7 +863,8 @@ router.delete("/empresas/:id/colaboradores/:colabId", async (req, res): Promise<
 
 // ── GET /empresas/:id/contratos — lista documentos da empresa ────────────────
 router.get("/empresas/:id/contratos", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const rawId = req.params.id;
+  const id = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : NaN;
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   const docs = await db.select().from(empresaContratosTable)
     .where(eq(empresaContratosTable.empresaId, id))
@@ -873,7 +874,8 @@ router.get("/empresas/:id/contratos", async (req, res): Promise<void> => {
 
 // ── POST /empresas/:id/contratos — upload de documento ──────────────────────
 router.post("/empresas/:id/contratos", upload.single("file"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const rawId = req.params.id;
+  const id = typeof rawId === "string" && /^\d+$/.test(rawId) ? Number(rawId) : NaN;
   if (isNaN(id)) { res.status(400).json({ error: "ID inválido" }); return; }
   if (!req.file) { res.status(400).json({ error: "Arquivo não enviado" }); return; }
 

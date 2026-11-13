@@ -184,7 +184,7 @@ router.post("/comunicacao/gateways/:provider", requireCollaborator, async (req, 
     return res.status(400).json({ error: "Campo 'enabled' deve ser booleano" });
   }
   await setSetting(`gateway.${provider}.enabled`, JSON.stringify(enabled));
-  res.json({ provider, enabled });
+  return res.json({ provider, enabled });
 });
 
 // Grava as CREDENCIAIS do gateway no cofre cifrado. Campo vazio = nao altera
@@ -218,7 +218,7 @@ router.put("/comunicacao/gateways/:provider/credentials", requireCollaborator, a
     saved += 1;
   }
   const { fields, missingKeys } = await buildFields(provider as GatewayProvider);
-  res.json({
+  return res.json({
     provider,
     saved,
     missingKeys,
@@ -260,7 +260,7 @@ router.post("/comunicacao/gateways/:provider/reveal", requireCollaborator, async
     },
     "Revelacao de credencial de gateway",
   );
-  res.json({ provider, values });
+  return res.json({ provider, values });
 });
 
 // ===========================================================================

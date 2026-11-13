@@ -153,7 +153,9 @@ export async function montarMensagemPaxmed(dados: MontarPaxmedDados): Promise<st
   // Resolve o bloco de PERIODO: por sigla → por label == nome → primeiro.
   let periodo: BlocoCatalogo | undefined;
   if (primeiroPeriodo) {
-    const chavePorSigla = SIGLA_PERIODO[primeiroPeriodo.sigla];
+    const chavePorSigla = primeiroPeriodo.sigla
+      ? SIGLA_PERIODO[primeiroPeriodo.sigla]
+      : undefined;
     if (chavePorSigla) periodo = pegar(periodosCat, chavePorSigla);
     if (!periodo) periodo = periodosCat.find((b) => str(b.conteudo.label) === primeiroPeriodo.nome);
   }

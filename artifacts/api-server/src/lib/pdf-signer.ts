@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, degrees } from "pdf-lib";
+import type { PDFFont } from "pdf-lib";
 import forge from "node-forge";
 import fs from "fs";
 import path from "path";

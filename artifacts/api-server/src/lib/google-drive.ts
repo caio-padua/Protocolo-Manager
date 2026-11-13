@@ -1,14 +1,15 @@
 import { google } from "googleapis";
+import {
+  findReplitConnection,
+  getReplitConnectionAccessToken,
+  type ReplitConnectorConnection,
+} from "./replit-connection";
 
-let connectionSettings: any;
-
-function extractToken(conn: any): string | undefined {
-  return conn?.settings?.access_token || conn?.settings?.oauth?.credentials?.access_token;
-}
+let connectionSettings: ReplitConnectorConnection | undefined;
 
 async function getAccessToken(): Promise<string> {
-  if (connectionSettings && connectionSettings.settings?.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    const cached = extractToken(connectionSettings);
+  if (connectionSettings?.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
+    const cached = getReplitConnectionAccessToken(connectionSettings);
     if (cached) return cached;
   }
 
@@ -23,7 +24,7 @@ async function getAccessToken(): Promise<string> {
     throw new Error("X-Replit-Token not found");
   }
 
-  connectionSettings = await fetch(
+  const response = await fetch(
     "https://" + hostname + "/api/v2/connection?include_secrets=true",
     {
       headers: {
@@ -31,9 +32,11 @@ async function getAccessToken(): Promise<string> {
         "X-Replit-Token": xReplitToken,
       },
     }
-  ).then(res => res.json()).then(data => data.items?.find((i: any) => i.connector_name === "google-drive"));
+  );
+  if (!response.ok) throw new Error("Google Drive not connected");
+  connectionSettings = findReplitConnection(await response.json(), "google-drive");
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings?.settings?.oauth?.credentials?.access_token;
+  const accessToken = getReplitConnectionAccessToken(connectionSettings);
   if (!connectionSettings || !accessToken) {
     throw new Error("Google Drive not connected");
   }
@@ -556,7 +559,7 @@ export async function uploadFileToDrive(
 
     if (existingFiles.data.files?.length) {
       for (const f of existingFiles.data.files) {
-        await drive.files.delete({ fileId: f.id });
+        if (f.id) await drive.files.delete({ fileId: f.id });
       }
     }
   }
@@ -1659,7 +1662,10 @@ export async function listDriveFolder(
     spaces: "drive",
     pageSize: 1000,
   });
-  return res.data.files || [];
+  return (res.data.files || []).flatMap((file) => {
+    if (!file.id || !file.name || !file.mimeType) return [];
+    return [{ id: file.id, name: file.name, mimeType: file.mimeType }];
+  });
 }
 
 // Move um arquivo/pasta para a lixeira do Drive.
