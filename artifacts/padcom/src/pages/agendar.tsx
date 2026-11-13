@@ -19,7 +19,6 @@ import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkA
 import { PadconWordmark } from "@/components/layout/paxter-fx/PadconWordmark";
 import { useScreenTheme } from "@/components/theme/useScreenTheme";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { FitaTela } from "@/components/layout/FitaTela";
 import {
   Loader2,
   ChevronRight,
@@ -415,7 +414,6 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
       <div className="relative z-[1] flex flex-col min-h-screen">
         {/* Fita de terno de giz (modelo 11) rente ao teto + header panel-3d, congelados juntos */}
         <div className="sticky top-0 z-20">
-        <FitaTela nome="Marcação de Consulta" />
         {/* Header panel-3d — mesmo padrão do /area (Área do Paciente) */}
         <header className="panel-3d px-4 py-5 flex items-center justify-between border-b border-border/60">
           <div className="flex items-center gap-3">
