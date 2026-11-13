@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import "./AbaTitulo.css";
+import { useFraseAbaAtual } from "./abaTopo";
 
 const COR = "hsl(var(--sidebar))";
 const OMBRO = 12; // curva que sobe para a faixa
@@ -10,6 +11,8 @@ const CANTO = 10; // canto inferior direito
  * conteudo, entao serve para qualquer nome e qualquer resumo. Plana (sem relevo), so o nome dentro; resumo fora, a direita.
  */
 export function AbaTitulo({ titulo, resumo }: { titulo: string | null; resumo?: string | null }) {
+  const fraseTela = useFraseAbaAtual();
+  resumo = fraseTela ?? resumo;
   const ref = useRef<HTMLDivElement>(null);
   const [dim, setDim] = useState({ w: 0, h: 0 });
 
@@ -43,6 +46,7 @@ export function AbaTitulo({ titulo, resumo }: { titulo: string | null; resumo?: 
         </div>
         {resumo && w > 0 ? <div className="aba-s" style={{ left: w + r + 14 }}>{resumo}</div> : null}
       </div>
+      <div id="aba-acoes" className="aba-acoes" />
     </div>
   );
 }

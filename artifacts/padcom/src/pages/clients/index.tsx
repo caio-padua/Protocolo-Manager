@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatStatus, getStatusColor } from "@/lib/status";
 import { tituloProprio, cn } from "@/lib/utils";
+import { AcoesTopo, useFraseAba } from "@/components/layout/abaTopo";
 
 type Tab = "ativos" | "desativados" | "apagados";
 type BulkAction = "activate" | "deactivate" | "delete" | "restore";
@@ -206,27 +207,23 @@ export default function Clients() {
     }
   }
 
+  useFraseAba(afterLetter.length > 0 ? `${afterLetter.length} ${afterLetter.length === 1 ? "cliente listado" : "clientes listados"} nesta visão` : null);
+
   const allSelected  = visible.length > 0 && selected.size === visible.length;
   const someSelected = selected.size > 0;
 
   return (
     <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] mt-1">
-            Gerencie os pacientes da clínica e seus protocolos.
-          </p>
-        </div>
+      {/* Cabeçalho: título e frase vivem na aba do topo; o botão sobe para a faixa */}
+      <AcoesTopo>
         <Link href="/clients/new">
-          <Button className="btn-3d w-full sm:w-auto">
+          <Button className="btn-3d">
             <Plus className="w-4 h-4 mr-2" />
             NOVO CLIENTE
           </Button>
         </Link>
-      </div>
+      </AcoesTopo>
 
       {/* Sub-abas */}
       <div className="flex gap-1 border-b border-border/40 pb-0">

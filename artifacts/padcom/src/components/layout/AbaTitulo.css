@@ -9,3 +9,4 @@
 .aba-s { position: absolute; top: 11px; white-space: nowrap; font-family: "EB Garamond", Georgia, serif; font-style: italic; font-weight: 500; font-size: 13px; line-height: 1.2; letter-spacing: .01em; color: #4d5f80; }
 
 .aba-t { display: inline-block; font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 16px; letter-spacing: .045em; line-height: 1; color: #d2ab57; }
+.aba-acoes { position: absolute; right: 16px; top: 8px; display: flex; align-items: center; gap: 8px; }
