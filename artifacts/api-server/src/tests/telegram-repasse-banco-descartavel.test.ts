@@ -185,6 +185,55 @@ describe("outbox do repasse", () => {
     expect(res["incerto"]).toBeGreaterThanOrEqual(1);
   });
 
+  it("O13 falha temporária persiste e processo novo retoma após reinício com transporte simulado", async () => {
+    const m = await novaMensagem("mensagem sintetica para retry apos reinicio");
+    const id = await registrarRepasse(db, m, "CEO");
+    const primeira = await tentarRepasse(
+      db,
+      id,
+      enviarCom({ kind: "falhou", erro: "telegram_http_503: falha sintetica" }),
+    );
+    expect(primeira).toEqual({ kind: "tratado", estado: "falhou" });
+    expect((await estadoDe(id)).tentativas).toBe(1);
+
+    await vencer(id);
+    await pool.query(
+      "UPDATE telegram_repasse_ceo SET proxima_tentativa_em = NOW() + interval '1 hour' WHERE id <> $1 AND estado IN ('pendente','falhou')",
+      [id],
+    );
+    const childScript = [
+      'import pg from "pg";',
+      'import { drizzle } from "drizzle-orm/node-postgres";',
+      'import { processarRepassesVencidos } from "./src/lib/telegram-repasse-outbox.ts";',
+      'const pool = new pg.Pool({ host: process.env.TEST_PG_HOST, user: "teste", database: "postgres", max: 4 });',
+      'const db = drizzle(pool);',
+      'const retomada = await processarRepassesVencidos(db, { enviar: async () => ({ kind: "entregue" }) });',
+      'const row = await pool.query("SELECT estado, tentativas FROM telegram_repasse_ceo WHERE id = $1", [Number(process.env.TEST_REPASSE_ID)]);',
+      'console.log(JSON.stringify({ retomada, estado: row.rows[0]?.estado, tentativas: Number(row.rows[0]?.tentativas) }));',
+      'await pool.end();',
+    ].join("\n");
+    const output = execFileSync(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "-e", childScript],
+      {
+        cwd: process.cwd(),
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: process.env.HOME ?? "",
+          TEST_PG_HOST: dir,
+          TEST_REPASSE_ID: String(id),
+        },
+        encoding: "utf8",
+      },
+    );
+    const retomada = JSON.parse(output.trim());
+    expect(retomada.retomada.examinados).toBe(1);
+    expect(retomada.retomada.aceitos).toBe(1);
+    expect(retomada.estado).toBe("aceito_telegram");
+    expect(retomada.tentativas).toBe(2);
+    expect((await estadoDe(id)).estado).toBe("aceito_telegram");
+  });
+
   it("O12 apagar a mensagem de origem não deixa repasse órfão (cascata) e não quebra o worker", async () => {
     const m = await novaMensagem();
     const id = await registrarRepasse(db, m, "CEO_X");

@@ -33,6 +33,8 @@ Retomar continuamente o encaminhamento já salvo no outbox usando o `api-worker`
 | Regressão nos lembretes ou duplicação de cron | Alta | Não iniciar o Job 2 no perfil restrito; preservar o único Job 2 do perfil completo | Suítes do motor, concorrência e textos por dia/período |
 | Reinício do workflow cria outro processo | Média | Reutilizar o nome do mesmo workflow e verificar a lista de processos | Reiniciar uma única vez e confirmar uma instância |
 | Worker não consegue ler o cofre ou o banco no seu contexto | Alta | Registrar somente categoria e resumo estritamente sanitizado, sem credenciais ou identificadores | Exigir conexão e primeiro tick concluído antes de afirmar retomada ativa |
+| Teste ao vivo usa vínculo removido, duplicado ou destino fora da autorização | Alta | Antes da inserção, confirmar no banco de desenvolvimento que os dois chats autorizados continuam vinculados uma única vez e que o destino configurado é um deles | Bloquear a inserção se qualquer vínculo ou destino não corresponder; não mostrar identificadores |
+| Falha real de rede deixa incerto se o Telegram recebeu a mensagem | Alta | Não provocar falha externa em chat real; cobrir falha temporária, persistência e nova tentativa após reinício em PostgreSQL descartável com transporte simulado | Exigir que `incerto` nunca seja reenviado sozinho e que `falhou` só retente após vencer a espera |
 
 ## Definição de pronto
 1. A especificação e a implementação mostram que o perfil de desenvolvimento registra apenas um cron do outbox.
@@ -42,6 +44,8 @@ Retomar continuamente o encaminhamento já salvo no outbox usando o `api-worker`
 5. Um único workflow de desenvolvimento inicia, permanece ativo, registra o primeiro tick concluído e continua ativo após um reinício.
 6. Logs identificam o perfil e os ticks sem expor texto, identificadores de clientes, destinos ou segredos.
 7. Revisão independente examina esta especificação e as alterações; sem ela, o estado permanece BLOQUEADO, nunca HOMOLOGADO.
+8. Um envio real, se autorizado, percorre a fila e o worker de desenvolvimento, com estado final lido do banco; o Telegram só é declarado como tendo aceitado a chamada da interface de programação, sem afirmar recebimento visual.
+9. Falha temporária seguida de nova tentativa após reinício é validada apenas com dados sintéticos e transporte simulado em banco descartável.
 
 ## Evidências e resultado — 13/11/2026
 - A árvore local estava limpa.
@@ -60,3 +64,20 @@ Retomar continuamente o encaminhamento já salvo no outbox usando o `api-worker`
 - O motor de lembretes não foi agendado no perfil restrito; o Job 2 existente segue único no perfil completo. Testes preservaram textos por dia e período, motivação na sexta e no sábado e versículo somente no sábado.
 - Nenhum webhook, autorização, configuração de produção ou dado clínico foi alterado. Não houve envio a nenhum contato.
 - **Estado:** execução contínua em desenvolvimento comprovada para startup, cofre, banco, ticks e reinício; repasse real não comprovado porque o outbox estava vazio. BLOQUEADO para HOMOLOGAÇÃO até revisão independente.
+
+## Evidências complementares — teste controlado de encaminhamento — 13/11/2026
+
+- **Arquivos alterados nesta etapa:** `artifacts/api-server/src/tests/telegram-repasse-banco-descartavel.test.ts` e esta especificação. Nenhum arquivo de autenticação, webhook, worker de produção ou lembretes foi alterado.
+- **Vínculos antes do envio:** os contatos autorizados A e B estavam vinculados de forma única no banco de desenvolvimento; o destino de alerta configurado correspondia a B. A validação não imprimiu identificadores de chat, nomes ou documentos pessoais.
+- **Fila real de desenvolvimento:** uma mensagem sintética, identificada como teste técnico não clínico, foi gravada para o remetente A; o destino foi B. O item foi observado como `pendente` com zero tentativas antes de liberar o horário.
+- **Processamento real:** o workflow restrito observou a sequência `pendente` → `enviando` → `aceito_telegram`; o banco confirmou uma tentativa, sem erro e sem itens pendentes ou falhos ao final.
+- **Resultado externo:** o Telegram aceitou a chamada de envio pela interface de programação. O recebimento visual no aplicativo não foi observado e não é declarado. O encaminhador usou o formato normal, que inclui o nome do remetente e o CPF mascarado; nenhum valor foi copiado para esta evidência.
+- **Reinício após o envio:** o mesmo workflow foi reiniciado; o novo tick examinou zero itens, e a linha `aceito_telegram` permaneceu terminal. A lista de processos mostrou o api-server e uma única instância do api-worker, em diretórios distintos.
+- **Falha e retentativa:** o teste O13 injeta uma resposta HTTP 503 sintética, confirma `falhou` e uma tentativa, vence a espera e inicia um processo Node.js separado com transporte simulado. O novo processo termina em `aceito_telegram`, com duas tentativas totais. Nenhuma falha foi provocada contra o Telegram real.
+- **Comando das 12 suítes focadas:** `pnpm --filter @workspace/api-server exec vitest run src/tests/telegram-worker-profile.test.ts src/tests/telegram-repasse-banco-descartavel.test.ts src/tests/lembrete-periodo-concorrencia.test.ts src/tests/lembrete-telegram-motor.test.ts src/tests/prescriptions-lembrete.test.ts src/tests/telegram-inbox-enviar-isolation.test.ts src/tests/telegram-inbox-multitenant-isolation.test.ts src/tests/telegram-webhook-guard.test.ts src/tests/telegram-webhook-secret.test.ts src/tests/telegram-config.test.ts src/tests/onboarding-envio-autorizacao.test.ts src/tests/onboarding-clinic-auth.test.ts --testTimeout=30000` — **12 suítes e 190 testes passaram**.
+- **Comando de verificação de tipos:** `pnpm --filter @workspace/api-server run typecheck` — falhou com 169 erros em 52 arquivos, inclusive problemas de tipos de arquivos não relacionados e uma importação entre api-server e api-worker fora do `rootDir`. O arquivo de teste de outbox alterado não aparece na lista de erros.
+- **Comando de integridade do diff:** `git diff --check` — passou.
+- **Comando de build do worker:** o workflow `api-worker: Telegram development` executou `pnpm run build` e iniciou após o reinício — passou; perfil restrito e primeiro tick do novo processo foram registrados sem expor conteúdo ou destino.
+- **Comando do envio controlado:** execução única com `pnpm --filter @workspace/api-server exec tsx -e` para validar os vínculos, inserir mensagem sintética e repasse na base de desenvolvimento, observar os estados e ler o resultado; o roteiro não foi salvo como script reutilizável.
+- **Limites preservados:** somente um envio não clínico à conversa B; nenhum paciente contatado; nenhum webhook, destino de produção ou autorização alterado; lembretes gerais continuam desligados e não foram agendados pelo perfil restrito.
+- **Estado:** encaminhamento real pelo worker comprovado para uma mensagem controlada; retentativa após falha/reinício comprovada somente em banco descartável e com transporte simulado; typecheck global e revisão independente pendentes. **BLOQUEADO para HOMOLOGAÇÃO.**
