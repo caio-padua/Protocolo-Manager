@@ -1,12 +1,12 @@
 /* Aba de fichario (Modelo 14): faixa no teto na cor do menu lateral; a aba nasce do menu e desce contornando o nome. */
-.aba-teto { --aba-cor: hsl(var(--sidebar)); position: relative; flex: none; height: 33px; display: none; }
+.aba-teto { --aba-cor: hsl(var(--sidebar)); position: relative; flex: none; height: 45px; display: none; }
 @media (min-width: 768px) { .aba-teto { display: block; } }
 .aba-teto-faixa { position: absolute; inset: 0 0 auto 0; height: 6px; background: var(--aba-cor); box-shadow: 0 1px 0 rgba(201,162,74,.5); }
-.aba-teto-aba { position: absolute; left: 0; top: 5px; height: 28px; display: inline-flex; align-items: center; padding: 0 18px; max-width: 70%;
+.aba-teto-aba { position: absolute; left: 0; top: 5px; min-height: 28px; display: inline-flex; flex-direction: column; justify-content: center; gap: 1px; padding: 3px 20px 4px 18px; max-width: 70%;
   background: var(--aba-cor); color: #f1e8d0; border-radius: 0 0 10px 0; white-space: nowrap; overflow: visible;
-  font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 14px; letter-spacing: .02em;
-  text-shadow: 0 -.5px 0 rgba(255,255,255,.5), 0 1px 0 #8a7a50, 0 1.6px 1.6px rgba(0,0,0,.6);
+  
   box-shadow: inset -1px 0 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(201,162,74,.7), 0 3px 0 rgba(6,17,34,.55), 0 8px 12px -6px rgba(4,13,27,.8); }
 .aba-teto-aba::after { content: ""; position: absolute; top: 0; right: -12px; width: 12px; height: 12px; pointer-events: none;
   background: radial-gradient(circle at 100% 100%, transparent 11.5px, var(--aba-cor) 12px); }
-.aba-teto-aba span { overflow: hidden; text-overflow: ellipsis; }
+.aba-t { overflow: hidden; text-overflow: ellipsis; font-family: "EB Garamond", Georgia, serif; font-weight: 800; font-size: 14px; line-height: 1.1; letter-spacing: .02em; color: #f1e8d0; text-shadow: 0 -.5px 0 rgba(255,255,255,.5), 0 1px 0 #8a7a50, 0 1.6px 1.6px rgba(0,0,0,.6); }
+.aba-s { overflow: hidden; text-overflow: ellipsis; font-family: "EB Garamond", Georgia, serif; font-style: italic; font-weight: 400; font-size: 10.5px; line-height: 1.1; letter-spacing: .02em; color: #aebbd2; }

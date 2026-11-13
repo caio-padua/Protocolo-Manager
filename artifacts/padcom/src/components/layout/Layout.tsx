@@ -86,6 +86,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
 import { AbaTitulo } from "./AbaTitulo";
+import { RESUMO_ABA } from "./resumosAba";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
 interface LayoutProps {
@@ -500,15 +501,18 @@ export function Layout({ children }: LayoutProps) {
 
   // Nome do menu ativo (maior href que casa com a rota) para a aba do topo
   const tituloAba = (() => {
-    let melhor: { name: string; len: number } | null = null;
+    let melhor: { name: string; len: number; href: string } | null = null;
     for (const e of navFiltrada) {
       for (const l of isGroup(e) ? e.children : [e]) {
         if (l.external) continue;
         const casa = location === l.href || (l.href !== "/" && location.startsWith(`${l.href}/`));
-        if (casa && (!melhor || l.href.length > melhor.len)) melhor = { name: l.name, len: l.href.length };
+        if (casa && (!melhor || l.href.length > melhor.len)) melhor = { name: l.name, len: l.href.length, href: l.href };
       }
     }
-    return melhor ? melhor.name : null;
+    if (!melhor) return { titulo: null as string | null, resumo: null as string | null };
+    // "Nome — complemento": o nome vai na 1a linha e o complemento vira o resumo
+    const [nome, ...resto] = melhor.name.split(" — ");
+    return { titulo: nome, resumo: RESUMO_ABA[melhor.href] ?? (resto.join(" — ") || null) };
   })();
 
   return (
@@ -924,7 +928,7 @@ export function Layout({ children }: LayoutProps) {
         {/* A marca PAXTER vive no canto superior ESQUERDO (topo do menu lateral)
             dentro do sistema. O canto superior DIREITO e reservado so para os
             PDFs emitidos (decisao do CEO em 26/06/2026, sobre a spec do Manus). */}
-        <AbaTitulo titulo={tituloAba} />
+        <AbaTitulo titulo={tituloAba.titulo} resumo={tituloAba.resumo} />
         <div ref={conteudoRef} className={isCockpit ? "flex-1" : "flex-1 overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-6"}>{children}</div>
       </main>
 
