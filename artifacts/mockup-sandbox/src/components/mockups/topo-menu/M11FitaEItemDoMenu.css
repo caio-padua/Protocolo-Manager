@@ -3,51 +3,57 @@
   background: #f7f3e8;
 }
 
-/* A risca de giz fica como uma régua contínua, presa ao teto e sem aumentar a área do cabeçalho. */
-.m11-shell .tm-teto.tm-faixa {
+/* A moldura usa o tom do menu lateral. A área interna recebe luz de cima e
+   sombra sob a borda: bevel para cima, sem contorno fechado no título. */
+.m11-shell .tm-main.rente { gap: 8px; }
+.m11-topo {
+  position: relative;
+  z-index: 3;
+  height: 31px;
+  margin: 0 -18px -1px;
+  padding: 0 18px;
+  display: flex;
+  align-items: flex-start;
+  background: linear-gradient(180deg, #11284a 0%, #0b1b33 100%);
+}
+.m11-painel {
   position: relative;
   z-index: 2;
-  height: 20px;
-  isolation: isolate;
-  overflow: visible;
-  padding-left: 18px;
+  display: flex;
+  align-items: center;
+  height: 27px;
+  padding: 0 13px 1px;
+  margin-top: 0;
   border: 0;
-  background: linear-gradient(180deg, #7692b8 0%, #314f7b 8%, #1b3558 32%, #12284a 100%);
+  border-radius: 0 0 7px 0;
+  color: #f1e8d0;
+  background: linear-gradient(180deg, #27466f 0%, #1b3558 48%, #14294a 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .96),
-    inset 0 2px 0 rgba(205, 222, 247, .32),
-    inset 0 -1px 0 rgba(5, 15, 31, .92),
-    0 1px 0 rgba(245, 229, 186, .9),
-    0 3px 0 rgba(8, 24, 47, .65),
-    0 5px 7px -4px rgba(7, 22, 43, .85);
+    inset 0 1px 0 rgba(255,255,255,.72),
+    inset 1px 0 0 rgba(255,255,255,.18),
+    inset 0 -1px 0 rgba(5,15,31,.78),
+    0 3px 0 rgba(6,17,34,.55),
+    0 7px 12px -5px rgba(4,13,27,.8);
 }
-
-.m11-shell .tm-teto.tm-faixa::before {
+.m11-painel::after {
   content: "";
   position: absolute;
-  z-index: -1;
-  inset: 2px 0 3px;
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 8px,
-      rgba(220, 233, 250, .24) 8px 8.7px,
-      transparent 8.7px 11px,
-      rgba(220, 233, 250, .1) 11px 11.4px,
-      transparent 11.4px 16px
-    );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .28),
-    inset 0 -1px 0 rgba(3, 12, 25, .5);
-  pointer-events: none;
+  left: 0;
+  right: -1px;
+  bottom: -3px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(201,162,74,.7), rgba(201,162,74,.12));
 }
-
-.m11-shell .tm-teto .tm-vidro {
-  position: relative;
-  z-index: 1;
-  padding: 1px 0 2px;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .42));
+.m11-title {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  color: #e6eaf0;
+  text-shadow: 0 1px 0 rgba(8,20,38,.72), 0 2px 3px rgba(0,0,0,.22);
 }
+.m11-shell .tm-topo .tm-teto,
+.m11-shell .m11-linha { display: none; }
 
 /* O menu ativo repete a mesma superfície e o mesmo bisel: a correspondência é de material, não de ícone. */
 .m11-shell .tm-side-item.on.giz {
@@ -74,10 +80,5 @@
 }
 
 @media (max-width: 767px) {
-  .m11-shell .tm-teto.tm-faixa {
-    padding-left: 12px;
-  }
-  .m11-shell .tm-teto .tm-vidro {
-    font-size: 10px !important;
-  }
+  .m11-topo { margin-left: -12px; margin-right: -12px; padding-left: 12px; }
 }

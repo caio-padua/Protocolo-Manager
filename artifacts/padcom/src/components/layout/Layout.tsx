@@ -85,7 +85,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaxterLogo } from "./PaxterLogo";
-import "./fita-tela.css";
 import { ClinicalCertificateStatus } from "@/components/ClinicalCertificateStatus";
 
 interface LayoutProps {
@@ -689,7 +688,7 @@ export function Layout({ children }: LayoutProps) {
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
-                    } ${isActive && item.href === "/agenda" && location === "/agenda" ? "fita-item-ativo" : ""}`}
+                    }`}
                   >
                     {isActive && !collapsed && (
                       <span className="absolute -left-2.5 top-2 bottom-2 w-[3px] rounded-r-full bg-sidebar-primary" />

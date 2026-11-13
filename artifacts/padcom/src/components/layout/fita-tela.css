@@ -1,50 +1,30 @@
-/* Fita de terno de giz (modelo 11): régua elevada rente ao teto + o mesmo material no item ativo do menu. Prefixo fita-. */
+/* Faixa de topo (modelo 11): mesmo tom do menu lateral + painel de título suspenso, sem contorno fechado. Prefixo fita-. */
 
 .fita-tela {
   --fita-pad: 1rem;
-  position: relative; z-index: 2; isolation: isolate; overflow: visible;
-  display: flex; align-items: center; gap: 8px; flex: none; height: 20px;
+  position: relative; z-index: 3; flex: none; height: 31px;
+  display: flex; align-items: flex-start;
   padding: 0 var(--fita-pad);
-  border: 0;
-  background: linear-gradient(180deg, #7692b8 0%, #314f7b 8%, #1b3558 32%, #12284a 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .96),
-    inset 0 2px 0 rgba(205, 222, 247, .32),
-    inset 0 -1px 0 rgba(5, 15, 31, .92),
-    0 1px 0 rgba(245, 229, 186, .9),
-    0 3px 0 rgba(8, 24, 47, .65),
-    0 5px 7px -4px rgba(7, 22, 43, .85);
-}
-.fita-tela::before {
-  content: ""; position: absolute; z-index: -1; inset: 2px 0 3px; pointer-events: none;
-  background-image: repeating-linear-gradient(90deg, transparent 0 8px, rgba(220, 233, 250, .24) 8px 8.7px, transparent 8.7px 11px, rgba(220, 233, 250, .1) 11px 11.4px, transparent 11.4px 16px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(3, 12, 25, .5);
+  background: linear-gradient(180deg, color-mix(in srgb, hsl(var(--sidebar)) 100%, #000 0%) 0%, color-mix(in srgb, hsl(var(--sidebar)) 82%, #000 18%) 100%);
 }
 @media (min-width: 768px) { .fita-tela { --fita-pad: 2rem; } }
 
-/* nome da tela em letras soltas de vidro */
-.fita-vidro { position: relative; z-index: 1; display: inline-flex; gap: .45em; padding: 1px 0 2px; font-size: 12px; font-family: "EB Garamond", Georgia, serif; font-weight: 800; line-height: 1.1;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .42)); }
-.fita-vidro .p { display: inline-flex; gap: .15em; }
-.fita-vidro .l { position: relative; display: inline-block; color: #f1e8d0; letter-spacing: .02em; -webkit-text-stroke: .2px rgba(255,255,255,.7);
-  text-shadow: 0 -.5px 0 rgba(255,255,255,.55), 0 1px 0 #8a7a50, 0 1.6px 1.6px rgba(0,0,0,.65); }
-.fita-vidro .l::before { content: attr(data-l); position: absolute; inset: 0; color: transparent; -webkit-text-stroke: 0; text-shadow: none;
-  background: linear-gradient(180deg, rgba(255,255,255,.95) 0%, rgba(255,255,255,.5) 46%, rgba(255,255,255,0) 52%, rgba(190,215,255,.35) 100%); -webkit-background-clip: text; background-clip: text; }
-@media (max-width: 767px) { .fita-vidro { font-size: 10px; } }
-
-/* item ativo do menu lateral com o mesmo material da fita (só nas telas que têm fita) */
-.fita-item-ativo {
-  border: 1px solid #627fa8 !important; border-radius: 3px !important;
-  background-color: #173153 !important;
-  background-image:
-    repeating-linear-gradient(90deg, transparent 0 8px, rgba(220, 233, 250, .19) 8px 8.7px, transparent 8.7px 11px, rgba(220, 233, 250, .08) 11px 11.4px, transparent 11.4px 16px),
-    linear-gradient(180deg, #314f7b 0%, #1d3659 100%) !important;
+.fita-painel {
+  position: relative; z-index: 2; display: flex; align-items: center; height: 27px; padding: 0 13px 1px;
+  border: 0; border-radius: 0 0 7px 0; color: #f1e8d0;
+  background: linear-gradient(180deg, color-mix(in srgb, hsl(var(--sidebar)) 78%, #fff 22%) 0%, color-mix(in srgb, hsl(var(--sidebar)) 90%, #fff 10%) 48%, hsl(var(--sidebar)) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .78),
-    inset 1px 0 0 rgba(255, 255, 255, .12),
-    inset 0 -1px 0 rgba(5, 15, 31, .78),
-    0 2px 0 rgba(6, 17, 34, .62),
-    0 3px 4px -2px rgba(0, 0, 0, .65) !important;
-  color: #f1e8d0 !important;
+    inset 0 1px 0 rgba(255,255,255,.72),
+    inset 1px 0 0 rgba(255,255,255,.18),
+    inset 0 -1px 0 rgba(5,15,31,.78),
+    0 3px 0 rgba(6,17,34,.55),
+    0 7px 12px -5px rgba(4,13,27,.8);
 }
-.fita-item-ativo span.text-sm { font-family: "EB Garamond", serif; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
+.fita-painel::after {
+  content: ""; position: absolute; left: 0; right: -1px; bottom: -3px; height: 1px;
+  background: linear-gradient(90deg, rgba(201,162,74,.7), rgba(201,162,74,.12));
+}
+.fita-titulo {
+  margin: 0; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .01em; color: #e6eaf0;
+  text-shadow: 0 1px 0 rgba(8,20,38,.72), 0 2px 3px rgba(0,0,0,.22);
+}
