@@ -70,7 +70,7 @@ export interface AgendaDoFiltro {
   profissional: string | null;
   /** Duração padrão de cada horário da agenda, em minutos (nulo se desconhecida). */
   minutos: number | null;
-  /** Endereço, só quando a agenda tem um próprio (agenda externa); nulo nos demais casos. */
+  /** Endereço: o da sede (agenda presencial na sede) ou o próprio da agenda externa, quando cadastrado; nulo nos demais casos. */
   endereco: string | null;
   /** Atendimentos do sistema no período. */
   sessoes: number;
@@ -82,7 +82,7 @@ export interface AgendaDoFiltro {
 export interface GrupoDoFiltro { categoria: string; agendas: AgendaDoFiltro[]; }
 
 export interface EntradaCatalogo {
-  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; slotMinutes?: number | null; externalAddressText?: string | null; active?: boolean }[];
+  agendas: { id: number; name: string; color?: string | null; modality?: string | null; categoryName?: string | null; professionalName?: string | null; slotMinutes?: number | null; externalAddressText?: string | null; locationAddressText?: string | null; active?: boolean }[];
   sessoes: { resourceId?: number | null; agendaNome?: string | null; agendaCor?: string | null }[];
   calendarios: { id: number; agendaRecursoId?: number | null; nome: string; cor: string }[];
   compromissos: { agendaId: number; agendaRecursoId?: number | null }[];
@@ -95,7 +95,7 @@ export function montarGrupos(entrada: EntradaCatalogo): GrupoDoFiltro[] {
     if (a.active === false) continue;
     mapa.set(chaveDaAgenda(a.id), {
       chave: chaveDaAgenda(a.id), nome: a.name, cor: a.color || "#64748b", forma: a.modality ?? null,
-      categoria: a.categoryName?.trim() || SEM_CATEGORIA, profissional: a.professionalName?.trim() || null, minutos: a.slotMinutes ?? null, endereco: a.externalAddressText?.trim() || null, sessoes: 0, google: 0, somenteGoogle: false,
+      categoria: a.categoryName?.trim() || SEM_CATEGORIA, profissional: a.professionalName?.trim() || null, minutos: a.slotMinutes ?? null, endereco: a.externalAddressText?.trim() || a.locationAddressText?.trim() || null, sessoes: 0, google: 0, somenteGoogle: false,
     });
   }
   for (const s of entrada.sessoes) {

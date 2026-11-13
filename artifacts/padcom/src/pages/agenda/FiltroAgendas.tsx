@@ -18,8 +18,8 @@ import {
  * valendo para Dia, Semana, Mês e Lista, para as sessões do sistema e para os compromissos do Google.
  * As agendas vêm da Agenda Configuração (mesma fonte das outras telas): criar, renomear ou desligar lá muda aqui.
  */
-/** Quanto tempo a nuvenzinha fica antes de esvanecer. */
-const DICA_FICA_MS = 3500;
+/** Quanto tempo a nuvenzinha fica antes de esvanecer (CEO achou 3,5 s demais). */
+const DICA_FICA_MS = 2200;
 
 export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   de: string; ate: string;
@@ -48,16 +48,14 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
       tSair.current = setTimeout(() => setDicaAberta(null), DICA_FICA_MS);
     }, atraso);
   }, []);
-  const esconderDica = useCallback(() => {
-    clearTimeout(tEntrar.current); clearTimeout(tSair.current);
-    tSair.current = setTimeout(() => setDicaAberta(null), 350);
-  }, []);
+  // Sair do botão NÃO fecha a nuvenzinha: ela segue o próprio tempo e esvanece. Só cancela uma abertura que ainda não aconteceu.
+  const cancelarAbertura = useCallback(() => { clearTimeout(tEntrar.current); }, []);
   useEffect(() => limparTempos, []);
   const [painelAberto, setPainelAberto] = useState(false); // nasce como barra estreita (tela e celular); o + abre o painel por grupo
 
   const grupos = useMemo(() => montarGrupos({
     agendas: (recursos.data ?? []).map((r) => ({
-      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, slotMinutes: r.slotMinutes, externalAddressText: r.externalAddressText, active: r.active,
+      id: r.id, name: r.name, color: r.color, modality: r.modality, categoryName: r.categoryName, professionalName: r.professionalName, slotMinutes: r.slotMinutes, externalAddressText: r.externalAddressText, locationAddressText: r.locationAddressText, active: r.active,
     })),
     sessoes,
     calendarios: google.data?.agendas ?? [],
@@ -97,7 +95,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                           <button type="button" role="checkbox" aria-checked={marcada} data-testid={`chip-agenda-${a.chave}`}
                             onPointerEnter={() => mostrarDica(a.chave, 40)}
                             onPointerMove={() => { if (dicaAberta !== a.chave) mostrarDica(a.chave, 40); }}
-                            onPointerLeave={esconderDica}
+                            onPointerLeave={cancelarAbertura}
                             onClick={() => onChange(alternarAgenda(ocultas, a.chave))}
                             onDoubleClick={() => onChange(soEsta ? mostrarTodas() : soEstaAgenda(ocultas, a.chave, todas))}
                             className={`${marcada ? "bevel-3d" : "concave-3d"} ag-chip`}>
@@ -111,7 +109,7 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
                           </button>
                         </HoverCardTrigger>
                         {/* Nuvenzinha pequena e translúcida, no canto inferior direito do botão: não cobre as outras agendas nem captura o mouse. */}
-                        <HoverCardContent side="bottom" align="end" sideOffset={3} collisionPadding={8} avoidCollisions={false}
+                        <HoverCardContent side="bottom" align="end" sideOffset={14} collisionPadding={8} avoidCollisions={false}
                           className="ag-dica" style={{ ["--ev" as string]: corSegura(a.cor) }} data-testid={`dica-agenda-${a.chave}`}>
                           <p className="ag-dica-nome">{a.nome}</p>
                           <dl className="ag-dica-lista">
@@ -223,11 +221,11 @@ export function FiltroAgendas({ de, ate, sessoes, ocultas, onChange }: {
   );
 }
 
-/** Texto da linha "Ocupação" da nuvenzinha. */
+/** Texto da linha "Ocupação" da nuvenzinha. Sem a porcentagem: ela já está no botão. */
 function textoOcupacao(o?: { capacidade: number; ocupadas: number }): string {
   if (!o) return "Indisponível agora";
-  if (o.capacidade === 0) return "0% · sem vagas previstas";
-  return `${Math.round((o.ocupadas / o.capacidade) * 100)}% · ${o.ocupadas} de ${o.capacidade} vagas`;
+  if (o.capacidade === 0) return "Sem vagas previstas";
+  return `${o.ocupadas} de ${o.capacidade} vagas`;
 }
 
 /** Canto direito do botão da agenda: porcentagem de ocupação (vagas ocupadas / vagas previstas no período) e a sigla "OCUP" embaixo. */

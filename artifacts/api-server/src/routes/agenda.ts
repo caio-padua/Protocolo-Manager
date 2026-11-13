@@ -4,6 +4,7 @@ import { agendaWriteGuard, mayManageAgenda, mayManageAgendaEmpresa } from "../li
 import { colunasDoEndereco, enderecoDoRecurso, enderecoExternoSchema, normalizarEnderecoExterno } from "../lib/agenda-endereco-externo.js";
 import { canonicalWindows, janelasSobrepostas, validWindowRecurrence } from "../lib/agenda-window-recurrence";
 import { requireCollaborator } from "./collaborator";
+import { enderecoDaSede } from "./locations";
 import { eq, and, or, isNull, sql, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
@@ -14,6 +15,7 @@ import {
   agendaSettingsTable,
   locationsTable,
   professionalsTable,
+  empresasTable,
 } from "@workspace/db";
 import { brtISODate } from "../lib/brt.js";
 import {
@@ -182,8 +184,26 @@ router.get("/agenda/resources", async (req, res): Promise<void> => {
     for (const p of await db.select({ id: professionalsTable.id, name: professionalsTable.name }).from(professionalsTable).where(inArray(professionalsTable.id, idsProf))) nomesProf.set(p.id, p.name);
   }
   const nomesLocal = new Map<number, string>();
+  // Endereço da SEDE (só para agenda presencial "local" cujo local é a sede da empresa); nunca presumido para online/home care.
+  const enderecoSedePorLocal = new Map<number, string | null>();
   if (idsLocal.length > 0) {
-    for (const l of await db.select({ id: locationsTable.id, name: locationsTable.name }).from(locationsTable).where(inArray(locationsTable.id, idsLocal))) nomesLocal.set(l.id, l.name);
+    const locais = await db.select({
+      id: locationsTable.id, name: locationsTable.name, empresaId: locationsTable.empresaId,
+      mesmoEnderecoEmpresa: locationsTable.mesmoEnderecoEmpresa, modalidade: locationsTable.modalidade,
+    }).from(locationsTable).where(inArray(locationsTable.id, idsLocal));
+    const idsEmpresa = [...new Set(locais.map((l) => l.empresaId).filter((v): v is number => v != null))];
+    const empresas = idsEmpresa.length > 0
+      ? await db.select({
+        id: empresasTable.id, nome: empresasTable.nome, endereco: empresasTable.endereco, cep: empresasTable.cep,
+        bairro: empresasTable.bairro, cidade: empresasTable.cidade, estado: empresasTable.estado,
+        zona: empresasTable.zona, telefone: empresasTable.telefone,
+      }).from(empresasTable).where(inArray(empresasTable.id, idsEmpresa))
+      : [];
+    const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
+    for (const l of locais) {
+      nomesLocal.set(l.id, l.name);
+      enderecoSedePorLocal.set(l.id, enderecoDaSede(l, l.empresaId != null ? empresaPorId.get(l.empresaId) : null));
+    }
   }
   const out = [];
   for (const row of rows) {
@@ -192,6 +212,7 @@ router.get("/agenda/resources", async (req, res): Promise<void> => {
       canManage: await podeGerir(row.locationId),
       professionalName: row.professionalId != null ? nomesProf.get(row.professionalId) ?? null : null,
       locationName: row.locationId != null ? nomesLocal.get(row.locationId) ?? null : null,
+      locationAddressText: row.modality === "local" && row.locationId != null ? enderecoSedePorLocal.get(row.locationId) ?? null : null,
     });
   }
   res.json(out);

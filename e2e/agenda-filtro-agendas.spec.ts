@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) => ({ status, contentType: "applicati
 const HOJE = "2026-11-12";
 
 const agenda = (id: number, name: string, modality: string, categoryName: string, color: string) => ({
-  id, name, kind: "x", modality, color, slotMinutes: 30, active: true, sortOrder: id, categoryName, canManage: true, locationId: null, professionalId: null, professionalName: id === 22 ? "Dr. Caio Padua" : null, externalAddressText: id === 27 ? "Praça da Sé, 100 - Sé, São Paulo/SP" : null,
+  id, name, kind: "x", modality, color, slotMinutes: 30, active: true, sortOrder: id, categoryName, canManage: true, locationId: null, professionalId: null, professionalName: id === 22 ? "Dr. Caio Padua" : null, externalAddressText: id === 27 ? "Praça da Sé, 100 - Sé, São Paulo/SP" : null, locationAddressText: id === 22 ? "Rua da Sede, 10, Centro, São Paulo - SP" : null,
 });
 const RECURSOS = [
   agenda(22, "MEDICO - SEDE", "local", "Medicina", "#1d4f8f"),
@@ -243,17 +243,21 @@ test("nuvenzinha: abre rápido, fica no canto inferior direito do botão sem cob
   await expect(page.getByTestId("dica-qtd-r22")).toHaveText("1 atendimento · 1 Google");
   await expect(dica).toContainText("Profissional");
   await expect(page.getByTestId("dica-tempo-r22")).toHaveText("30 min");
-  await expect(page.getByTestId("dica-endereco-r22")).toHaveCount(0); // endereço só quando a agenda tem um próprio
+  await expect(page.getByTestId("dica-endereco-r22")).toContainText("Rua da Sede, 10"); // endereço da sede (agenda presencial)
+  await expect(page.getByTestId("dica-ocup-r22")).not.toContainText("%"); // a porcentagem já está no botão
   await expect(dica).toContainText("Dr. Caio Padua");
-  await expect(page.getByTestId("dica-ocup-r22")).toHaveText("67% · 4 de 6 vagas");
+  await expect(page.getByTestId("dica-ocup-r22")).toHaveText("4 de 6 vagas");
   await page.waitForTimeout(250);
   const c = (await chip.boundingBox())!; const d = (await dica.boundingBox())!;
   expect(d.y).toBeGreaterThanOrEqual(c.y + c.height - 1); // abaixo do botão: nunca sobre as outras agendas
   expect(Math.abs(d.x + d.width - (c.x + c.width))).toBeLessThan(8); // alinhada ao canto direito
-  expect(d.width).toBeLessThan(280); expect(d.height).toBeLessThan(110);
+  expect(d.width).toBeLessThan(280); expect(d.height).toBeLessThan(130);
   await page.screenshot({ path: "generated-artifacts/agenda-dica-agenda.png", clip: { x: 182, y: 0, width: 1258, height: 260 } });
-  // some sozinha (~3,5 s + esvanecer 1,1 s), mesmo com o mouse parado
-  await expect(dica).toHaveCount(0, { timeout: 7000 });
+  // tirar o mouse NÃO a fecha na hora: ela segue o próprio tempo (~2,2 s) e esvanece (~1,1 s)
+  await page.mouse.move(700, 600);
+  await page.waitForTimeout(400);
+  await expect(dica).toBeVisible();
+  await expect(dica).toHaveCount(0, { timeout: 6000 });
   // mexer de novo faz aparecer de novo
   await page.mouse.move(c.x + 30, c.y + 10);
   await page.mouse.move(c.x + 40, c.y + 14);

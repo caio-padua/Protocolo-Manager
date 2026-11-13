@@ -6502,6 +6502,12 @@ export const ListAgendaResourcesResponseItem = zod.object({
     })
     .nullish(),
   externalAddressText: zod.string().nullish(),
+  locationAddressText: zod
+    .string()
+    .nullish()
+    .describe(
+      "Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa.",
+    ),
   externalAddressStatus: zod.enum(["confirmado", "pendente"]).nullish(),
   mapsUrl: zod.string().nullish(),
   wazeUrl: zod.string().nullish(),
@@ -6606,6 +6612,12 @@ export const UpdateAgendaResourceResponse = zod.object({
     })
     .nullish(),
   externalAddressText: zod.string().nullish(),
+  locationAddressText: zod
+    .string()
+    .nullish()
+    .describe(
+      "Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa.",
+    ),
   externalAddressStatus: zod.enum(["confirmado", "pendente"]).nullish(),
   mapsUrl: zod.string().nullish(),
   wazeUrl: zod.string().nullish(),

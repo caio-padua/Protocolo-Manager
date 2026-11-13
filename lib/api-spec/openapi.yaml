@@ -4784,6 +4784,10 @@ components:
         externalAddressText:
           type: string
           nullable: true
+        locationAddressText:
+          type: string
+          nullable: true
+          description: Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa.
         externalAddressStatus:
           type: string
           nullable: true

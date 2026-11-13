@@ -163,6 +163,18 @@ function enderecoDaEmpresa(emp: EmpresaEndereco) {
   return { ...campos, address: textoEndereco(campos) };
 }
 
+/**
+ * Endereço da SEDE para exibição em outras telas (ex.: nuvenzinha da Agenda): só quando o local é presencial no mesmo
+ * endereço da empresa. Online, externo e home care nunca herdam endereço (nada é presumido). Sempre o endereço ATUAL da empresa.
+ */
+export function enderecoDaSede(
+  loc: { mesmoEnderecoEmpresa: boolean; modalidade: string | null },
+  emp: EmpresaEndereco | null | undefined,
+): string | null {
+  if (!loc.mesmoEnderecoEmpresa || loc.modalidade !== "presencial" || !emp) return null;
+  return enderecoDaEmpresa(emp).address;
+}
+
 async function carregarEmpresa(empresaId: number | null): Promise<EmpresaEndereco | null> {
   if (!empresaId) return null;
   const [emp] = await db.select({

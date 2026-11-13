@@ -27,6 +27,8 @@ export interface AgendaResource {
   locationName?: string | null;
   externalAddress?: AgendaExternalAddress | null;
   externalAddressText?: string | null;
+  /** Endereço atual da sede, só quando a agenda é presencial (local) e o local é a sede da empresa. */
+  locationAddressText?: string | null;
   externalAddressStatus?: AgendaResourceExternalAddressStatus;
   mapsUrl?: string | null;
   wazeUrl?: string | null;
