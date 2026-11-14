@@ -33,6 +33,14 @@ Duas abas independentes na Área do Cliente, sem módulo novo de bolões:
    envio, convite, pagamento, aposta, cota, bilhete, Telegram, WhatsApp ou e-mail.
 6. Voltar: a aba `boloes` mostra "← Voltar ao Club VIP" para quem veio dele; quem vem do Início volta ao Início.
 
+## Menu lateral do Manager (gestão)
+
+Hierarquia decidida pelo Dr. Caio: MENU ESQUERDO DA CLÍNICA > CLUBE VIP > CONEXÃO MILIONÁRIA. Em
+`components/layout/Layout.tsx` o item antigo "Central de Bolões" (grupo "O Ato Médico") foi MOVIDO para o grupo novo
+"CLUBE VIP" (ícone coroa), com o filho "Conexão Milionária" apontando para a MESMA rota `/boloes`
+(`CollaboratorGate` mantido em `App.tsx`) e o MESMO backend `/boloes/gestao/*` (`requireCollaborator`). Sem rota,
+tabela ou link duplicado. Teste: `e2e/menu-clube-vip-conexao-milionaria.spec.ts`.
+
 ## Falhas previstas e barreiras
 
 | Gravidade | Falha | Barreira | Evidência |

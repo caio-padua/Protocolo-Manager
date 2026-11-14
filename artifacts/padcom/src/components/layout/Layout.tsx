@@ -126,7 +126,6 @@ const navigation: NavEntry[] = [
       { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
       { name: "Pit Stop", href: "/pit-stop", icon: Flag },
       { name: "Pedidos dos Clientes", href: "/pedidos-medicos", icon: FileText },
-      { name: "Central de Bolões", href: "/boloes", icon: Ticket },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },
@@ -156,6 +155,15 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Experiência do Cliente (Admin Preview)", href: "/experiencia-cliente", icon: Sparkles },
       { name: "Área do Paciente (Direto)", href: "/area", icon: Users },
+    ],
+  },
+  // CLUBE VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.
+  // CONEXÃO MILIONÁRIA reaproveita a tela e o backend de Bolões (/boloes); não existe convite/aceite persistido.
+  {
+    name: "CLUBE VIP",
+    icon: Crown,
+    children: [
+      { name: "Conexão Milionária", href: "/boloes", icon: Ticket },
     ],
   },
   {
@@ -286,6 +294,7 @@ const GRUPO_MODULO: Record<string, string | null> = {
   "O Ato Médico":                  null,     // cockpit e anamnese têm acesso universal
   "Exames":                        "exames_lab",
   "Área do Cliente":               null,
+  "CLUBE VIP":                     null,     // acesso à tela vem do CollaboratorGate da rota /boloes
   "Órgãos de Prescrição":         "protocolos",
   "Arsenal Clínico":               "protocolos",
   "Cadastros Clínicos":            null,
