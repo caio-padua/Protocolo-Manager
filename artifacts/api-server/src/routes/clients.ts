@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { codigoTelegramSemantico } from "../lib/telegram-codigo";
+import { contarCadastrosComCodigo } from "../lib/telegram-contato";
 import { carregarHorarioPadraoDaAgenda } from "../lib/agenda-horario-padrao";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
@@ -609,6 +610,7 @@ router.get("/clients/:id/comunicacao", requireCollaborator, async (req, res): Pr
     .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)))
     .limit(1);
   if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  const codigoRepetido = c.validationPassword ? (await contarCadastrosComCodigo(c.validationPassword, id)) > 0 : false;
   res.json({
     botUsername: BOT_USERNAME,
     botLink: BOT_LINK,
@@ -617,6 +619,7 @@ router.get("/clients/:id/comunicacao", requireCollaborator, async (req, res): Pr
       senhaGerada: Boolean(c.validationPassword),
       senha: c.validationPassword ?? null,
       senhaGeradaEm: c.validationPasswordSentAt ? c.validationPasswordSentAt.toISOString() : null,
+      codigoRepetido,
     },
     contato: { temEmail: Boolean(c.email), temTelefone: Boolean(c.phone) },
     areaCliente: {
@@ -680,21 +683,11 @@ router.post("/clients/:id/activate-telegram", requireCollaborator, async (req, r
     return;
   }
 
-  // Dispara e-mail de onboarding somente se o paciente tiver e-mail.
-  // Falha no e-mail NÃO bloqueia — código retorna na resposta para o CEO repassar.
-  let emailEnviado = false;
-  if (client.email) {
-    try {
-      // Link mágico: o paciente ativa em um toque, sem digitar a senha.
-      // Se a emissão falhar, o e-mail ainda vai com o caminho da senha.
-      const linkMagico = await emitirLinkMagico(id);
-      if (linkMagico) emailEnviado = true;
-    } catch (err) {
-      console.warn("Email de onboarding falhou (não bloqueante):", err);
-    }
-  }
-
-  res.json({ ok: true, code: senha, emailEnviado });
+  // Gerar o código NÃO envia nada ao cliente. O e-mail só sai pelo botão explícito
+  // "Enviar e-mail de ativação" (resend-telegram-onboarding); o link individual é gerado
+  // em /clients/:id/telegram-link para a equipe repassar.
+  const codigoRepetido = (await contarCadastrosComCodigo(senha, id)) > 0;
+  res.json({ ok: true, code: senha, emailEnviado: false, codigoRepetido });
 });
 
 // ── Reenvio do onboarding Telegram com a senha existente ────────────────────
@@ -733,12 +726,38 @@ router.post("/clients/:id/resend-telegram-onboarding", requireCollaborator, asyn
   }
 
   try {
-    // Cada reenvio emite um link mágico novo — o e-mail mais recente é o que vale.
-    await emitirLinkMagico(id);
-    res.json({ ok: true, message: `E-mail reenviado para ${client.email} com a senha existente` });
+    // Cada envio emite um link mágico novo — o e-mail mais recente é o que vale.
+    const link = await emitirLinkMagico(id);
+    const envio = await sendTelegramOnboardingEmail({
+      clientName: client.name,
+      clientEmail: client.email,
+      validationPassword: client.validationPassword,
+      magicLink: link?.url,
+    });
+    if (!envio.success) { res.status(502).json({ error: "O serviço de e-mail não aceitou o envio. Use o link individual." }); return; }
+    res.json({ ok: true, message: "E-mail de ativação enviado ao cliente." });
   } catch (err) {
     res.status(500).json({ error: "erro_resend_telegram_onboarding", detalhe: String(err) });
   }
+});
+
+// ── POST /api/clients/:id/telegram-link ──────────────────────────────────────
+// Gera o link individual de vinculação (uso único, 7 dias) para a equipe repassar.
+// Não envia nada. Gerar de novo invalida o link anterior. Recusa se já vinculado.
+router.post("/clients/:id/telegram-link", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
+  const [c] = await db
+    .select({ telegramChatId: clientsTable.telegramChatId, status: clientsTable.status })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)))
+    .limit(1);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  if (c.status !== "active") { res.status(409).json({ error: "Cadastro inativo" }); return; }
+  if (c.telegramChatId) { res.status(409).json({ error: "Telegram já vinculado" }); return; }
+  const link = await emitirLinkMagico(id);
+  if (!link) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  res.json({ url: link.url, expiraEm: link.expiraEm.toISOString() });
 });
 
 // ── DELETE /api/clients/:id/telegram ─────────────────────────────────────────

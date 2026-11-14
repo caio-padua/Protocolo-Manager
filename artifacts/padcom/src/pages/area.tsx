@@ -1055,6 +1055,23 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
 
 function ComunicacaoTab({ client }: { client: ClientInfo }) {
   const { data, loading, error } = useApi<{ vinculado: boolean; senha: string | null; botUsername: string; botLink: string }>(client, "comunicacao");
+  const [link, setLink] = useState<string | null>(null);
+  const [erroLink, setErroLink] = useState("");
+  const [gerando, setGerando] = useState(false);
+
+  async function gerarLink() {
+    setGerando(true); setErroLink("");
+    try {
+      const res = await fetch(`${API_BASE}/api/area-paciente/comunicacao/link`, {
+        method: "POST", headers: { Authorization: `Bearer ${client.token}` },
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? "Não foi possível gerar o link.");
+      setLink(j.url);
+    } catch (e) { setErroLink((e as Error).message); }
+    finally { setGerando(false); }
+  }
+
   if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
   if (error || !data) return <p className="text-sm text-destructive">{error || "Erro ao carregar."}</p>;
   return (
@@ -1064,25 +1081,43 @@ function ComunicacaoTab({ client }: { client: ClientInfo }) {
         <p className="text-sm">Seu Telegram já está ativo. Você receberá os avisos da clínica por lá.</p>
       ) : (
         <>
-          <ol className="list-decimal pl-5 space-y-2 text-sm">
-            <li>Toque no botão abaixo para abrir o robô <b>@{data.botUsername}</b> no Telegram.</li>
-            <li>Toque em <b>Iniciar</b> (Start).</li>
-            <li>Envie, em uma mensagem, a senha de validação abaixo.</li>
-            <li>Aguarde a mensagem de boas-vindas.</li>
+          <p className="text-sm">O jeito mais simples é o seu link individual. Ele é só seu e liga o Telegram ao seu cadastro com um toque.</p>
+          <button onClick={gerarLink} disabled={gerando}
+            className="block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground disabled:opacity-60">
+            {gerando ? "Gerando..." : "Gerar meu link para o Telegram"}
+          </button>
+          {erroLink && <p className="text-xs text-destructive">{erroLink}</p>}
+          {link && (
+            <a href={link} target="_blank" rel="noreferrer"
+               className="block rounded-md border px-4 py-3 text-center text-sm font-bold">
+              Abrir o Telegram e ativar
+            </a>
+          )}
+          <ol className="list-decimal pl-5 space-y-1 text-sm">
+            <li>Toque em <b>Gerar meu link</b>.</li>
+            <li>Toque em <b>Abrir o Telegram e ativar</b>.</li>
+            <li>No Telegram, toque em <b>Iniciar</b> (Start).</li>
           </ol>
-          <div className="rounded-md border p-4 text-center">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sua senha de validação</div>
-            <div className="mt-1 font-mono text-3xl font-bold tracking-[0.3em]">{data.senha ?? "Peça à clínica"}</div>
-          </div>
-          <a href={data.botLink} target="_blank" rel="noreferrer"
-             className="block rounded-md bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground">
-            Abrir o robô no Telegram
-          </a>
-          <p className="text-xs text-muted-foreground">
-            Pedimos a senha para ter certeza de que o Telegram é seu. Não compartilhe esta senha.
-          </p>
+          {data.senha && (
+            <div className="rounded-md border p-4 space-y-1">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">Se preferir usar o código</div>
+              <div className="font-mono text-2xl font-bold tracking-[0.3em] text-center">{data.senha}</div>
+              <p className="text-xs text-muted-foreground">
+                Abra <b>@{data.botUsername}</b>, toque em Iniciar e envie este código. Ele é do seu cadastro na clínica, não é a senha do Telegram.
+              </p>
+            </div>
+          )}
         </>
       )}
+      <div className="rounded-md border p-4 space-y-1 text-sm">
+        <div className="font-semibold">Esqueceu a senha da Área do Cliente?</div>
+        <p className="text-xs text-muted-foreground">
+          Na tela de entrada, toque em <b>Entrar com data de nascimento</b> e use seu CPF e sua data de nascimento.
+        </p>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Ainda não é cliente? Abra <b>@{data.botUsername}</b> no Telegram e escreva sua dúvida. Não precisa de senha nem de cadastro.
+      </p>
     </div>
   );
 }

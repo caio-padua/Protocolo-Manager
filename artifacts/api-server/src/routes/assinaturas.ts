@@ -58,6 +58,7 @@ import { registrarPendenciaVinculo } from "../lib/telegram-vinculo-pendencia";
 import { registrarRepasseDuravel, tentarRepasseAgora } from "../lib/telegram-repasse-worker";
 import { atenderMensagemTelegram } from "../lib/atendimento-telegram-store";
 import { atenderVisitante, visitanteAutorizado } from "../lib/telegram-agendamento-store";
+import { MENSAGEM_PRIMEIRO_CONTATO, MENSAGEM_CODIGO_REPETIDO, buscarCadastroPorCodigo } from "../lib/telegram-contato";
 import {
   reivindicarUpdate, concluirUpdate, liberarUpdate, botIdDoToken,
 } from "../lib/telegram-update-claim";
@@ -732,20 +733,21 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       for (const tok of textoLimpo.split(/\s+/)) if (tok) candidatos.add(tok);
     }
 
-    // validationPassword NÃO é UNIQUE — colisão = recusa segura
+    // validationPassword NÃO é UNIQUE — colisão = recusa segura.
+    // A busca é feita no banco só pelos candidatos digitados e só em cadastros ativos
+    // (nunca carrega a base inteira nem vincula cadastro inativo).
     let alvo: { id: number; name: string } | undefined;
     let ambiguo = false;
     if (candidatos.size > 0) {
-      const clientRows = await db
-        .select({ id: clientsTable.id, name: clientsTable.name, vp: clientsTable.validationPassword })
-        .from(clientsTable);
-      const matches = clientRows.filter((r) => r.vp && candidatos.has(r.vp.trim().toUpperCase()));
-      if (matches.length === 1) alvo = { id: matches[0].id, name: matches[0].name };
-      else if (matches.length > 1) ambiguo = true;
+      const achado = await buscarCadastroPorCodigo(candidatos);
+      if (achado === "ambiguo") ambiguo = true;
+      else if (achado) alvo = achado;
     }
 
     if (ambiguo) {
       logger.warn("[telegram] vínculo recusado: senha de validação ambígua (colisão)");
+      void sendTelegram(chatId, MENSAGEM_CODIGO_REPETIDO);
+      if (chatIdCEO) void sendTelegram(chatIdCEO, "Um código de validação repetido foi recusado no Telegram. Envie o link individual ao cliente (aba Comunicação do cadastro).");
     } else if (alvo) {
       await db.execute(
         sql`UPDATE clients SET telegram_chat_id = ${chatId}, telegram_vinculado_em = now() WHERE id = ${alvo.id}`
@@ -781,13 +783,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
           return;
         }
       } else if (texto) {
-        void sendTelegram(
-          chatId,
-          `👋 Olá!\n\n` +
-          `Para ativar a comunicação com o <b>Instituto Pádua</b>, envie a sua <b>senha de validação</b> ` +
-          `que foi enviada por e-mail ou WhatsApp.\n\n` +
-          `Dúvidas? WhatsApp: (11) 94655-4000`,
-        );
+        void sendTelegram(chatId, MENSAGEM_PRIMEIRO_CONTATO);
       }
       logger.info("[telegram] update sem prova de posse — instrução enviada ao cliente");
     }

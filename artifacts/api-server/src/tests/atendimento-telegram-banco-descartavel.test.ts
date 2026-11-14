@@ -8,8 +8,12 @@ import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 const h = vi.hoisted(() => ({ db: null as any, enviados: [] as { chat: string; texto: string }[], settings: {} as Record<string, string>,
-  noEnvio:null as null|((chat:string)=>Promise<void>) }));
-vi.mock("@workspace/db", () => ({ db: { execute: (...a: unknown[]) => h.db.execute(...a) } }));
+  noEnvio:null as null|((chat:string)=>Promise<void>), pg: null as any }));
+vi.mock("@workspace/db", () => ({
+  db: { execute: (...a: unknown[]) => h.db.execute(...a) },
+  // O crédito da mensageria usa o mesmo banco descartável (Instituto, empresa 5, é isento).
+  pool: { query: (...a: unknown[]) => h.pg.query(...a), connect: () => h.pg.connect() },
+}));
 vi.mock("@workspace/integrations-anthropic-ai", () => ({ anthropic: {} }));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("../lib/secure-settings", () => ({ getSetting: async (k: string) => h.settings[k] ?? null }));
@@ -38,6 +42,7 @@ beforeAll(async () => {
     CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0, cliente_id INTEGER NOT NULL,
     chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT)`);
   h.db = drizzle(pool);
+  h.pg = pool;
   await aplicarMigracaoAtendimento(h.db);
   await pool.query(`INSERT INTO orientacoes_aprovadas (empresa_id,tema,perguntas_exemplo,resposta,status) VALUES
     (5,'Jejum antes do exame','preciso de jejum para exame de sangue, quantas horas de jejum','APROVADA: jejum de 8 horas.','aprovada'),
@@ -110,6 +115,27 @@ describe("consumidor real do atendimento com banco descartável e somente transp
     const e={...base,inboxMessageId:id,texto,clienteId:cid,empresaId,chatId:`C${cid}`};
     await atenderMensagemTelegram(e);return e;
   };
+  it("clínica sem crédito: mensagem preservada, nenhuma resposta; após recarga de teste a resposta sai e é cobrada",async()=>{
+    const c=await import("../lib/mensageria-credito");
+    await c.definirTarifa({empresaId:null,tipo:"recebida",valorCentavos:10,ativo:true,por:"teste"});
+    await c.definirTarifa({empresaId:null,tipo:"enviada",valorCentavos:20,ativo:true,por:"teste"});
+    await c.definirTarifa({empresaId:null,tipo:"solucionada",valorCentavos:50,ativo:true,por:"teste"});
+    await entrada(301,"quantas horas de jejum para o exame de sangue?",3,7);
+    await processarAtendimentosPendentes();await processarAtendimentosPendentes();
+    expect(h.enviados.filter(x=>x.chat==="C3")).toHaveLength(0); // sem saldo: nada sai
+    const preserv=await pool.query(`SELECT 1 FROM telegram_inbox_messages WHERE id=301`);
+    expect(preserv.rows).toHaveLength(1); // a mensagem do cliente continua para a equipe
+    expect((await pool.query(`SELECT COUNT(*)::int n FROM msg_extrato WHERE empresa_id=7`)).rows[0].n).toBe(0);
+    const r=await c.solicitarRecarga(7,200,"teste","teste");
+    await c.confirmarRecarga(r.id,"teste");
+    await processarAtendimentosPendentes();await processarAtendimentosPendentes();
+    expect(h.enviados.filter(x=>x.chat==="C3")).toHaveLength(1); // retomada: responde uma vez
+    const tipos=(await pool.query(`SELECT tipo_evento FROM msg_extrato WHERE empresa_id=7 AND natureza='consumo' ORDER BY id`)).rows.map(x=>x.tipo_evento);
+    expect(tipos).toEqual(["recebida","enviada","solucionada"]);
+    expect(Number((await pool.query(`SELECT saldo_centavos s FROM msg_carteira WHERE empresa_id=7`)).rows[0].s)).toBe(200-80);
+    // Instituto (empresa 5) continua isento e sem débito.
+    expect(Number((await pool.query(`SELECT saldo_centavos s FROM msg_carteira WHERE empresa_id=5`)).rows[0].s)).toBe(0);
+  });
   it("enfileira sem enviar; mesmo consumidor existente planeja, aprova e registra uma resposta",async()=>{
     await entrada(201,"quantas horas de jejum para o exame de sangue?");
     expect(h.enviados).toHaveLength(0);

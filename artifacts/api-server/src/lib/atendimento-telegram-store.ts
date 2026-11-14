@@ -11,6 +11,8 @@ import { sendTelegram } from "./telegram";
 import { escaparHtmlTelegram } from "./orientacao-texto";
 import { chatAlertaOuNull } from "./telegram-config";
 import { requireAiTenant } from "./ai-central";
+import { registrarEvento, podeAtenderAutomatico, registrarCustoProvedor } from "./mensageria-credito";
+import { randomUUID } from "node:crypto";
 import { planejarAgendamentoCliente, aplicarMigracaoAgendamentoTelegram } from "./telegram-agendamento-store";
 import {
   planejarAtendimento, normalizar,
@@ -127,10 +129,22 @@ Pergunta: """${texto.slice(0, 600)}"""
 
 Orientações:
 ${lista}`;
+  // Modelo escolhido pela clínica (só modelos realmente conectados); sem escolha, o padrão atual.
+  let modelo = "claude-sonnet-4-6";
+  try {
+    const cfg = await db.execute(sql`SELECT provedor, modelo FROM msg_config_ia WHERE empresa_id=${empresaId} AND etapa='escolha_de_orientacao'`);
+    const c = cfg.rows[0] as { provedor?: string; modelo?: string } | undefined;
+    if (c?.provedor === "anthropic" && c.modelo === "claude-sonnet-4-6") modelo = c.modelo;
+  } catch { /* tabela ainda não criada: usa o padrão */ }
   const msg = await anthropic.messages.create(
-    { model: "claude-sonnet-4-6", max_tokens: 10, messages: [{ role: "user", content: prompt }] },
+    { model: modelo, max_tokens: 10, messages: [{ role: "user", content: prompt }] },
     Object.keys(ctx.headers).length ? { headers: ctx.headers } : undefined,
   );
+  // Custo do provedor fica à parte do saldo da clínica; sem valor informado pelo provedor, fica vazio.
+  await registrarCustoProvedor({
+    empresaId, chave: `ia:${randomUUID()}`, etapa: "escolha_de_orientacao", provedor: "anthropic", modelo,
+    inputTokens: msg.usage?.input_tokens ?? null, outputTokens: msg.usage?.output_tokens ?? null,
+  });
   const out = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
   const m = /^\d+$/.exec(out);
   if (!m) return null;
@@ -206,7 +220,12 @@ export async function processarAtendimentosPendentes(): Promise<void> {
   await processarAtendimentosDuraveis(db,{
     permitido: async e=>{
       const cfg=await lerConfigAtendimento();
-      return cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId));
+      if(!(cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId)))) return false;
+      // Crédito: a mensagem recebida é registrada (e cobrada uma só vez, por chave). Sem saldo, a mensagem fica
+      // preservada para a equipe, sem resposta automática, e é retomada após a recarga.
+      const rec=await registrarEvento({empresaId:e.empresaId,tipo:"recebida",chave:`recebida:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Mensagem recebida no Telegram"});
+      if(!rec.ok) return false;
+      return (await podeAtenderAutomatico(e.empresaId)).pode;
     },
     planejar: async e=>{
       const deps=depsReaisAtendimento(e.empresaId);
@@ -242,6 +261,12 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       return !plano.pausa || plano.desfecho!=="queixa_texto_enviado" || cfg.queixaRevisada;
     },
     enviar: (chat,texto)=>sendTelegram(chat,escaparHtmlTelegram(texto)),
+    aposRespostaEntregue: async (e,texto)=>{
+      await registrarEvento({empresaId:e.empresaId,tipo:"enviada",chave:`enviada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Resposta enviada ao cliente no Telegram"});
+    },
+    aposConclusao: async (e,desfecho)=>{
+      if(desfecho==="orientacao_enviada") await registrarEvento({empresaId:e.empresaId,tipo:"solucionada",chave:`solucionada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Solicitação solucionada com orientação aprovada"});
+    },
   });
 }
 

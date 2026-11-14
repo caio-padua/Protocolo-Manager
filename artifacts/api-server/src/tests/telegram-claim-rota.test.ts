@@ -68,6 +68,17 @@ vi.mock("../lib/secure-settings.js", () => ({
 const mockSend = vi.hoisted(() => vi.fn());
 vi.mock("../lib/telegram.js", () => ({ sendTelegram: (...a: unknown[]) => mockSend(...a), getTelegramBotInfo: vi.fn() }));
 vi.mock("../lib/slack-reporter.js", () => ({ postSlackAlert: vi.fn() }));
+// A busca real por código é provada no banco descartável (telegram-vinculo-banco-isolado.test.ts);
+// aqui ela é simulada com as mesmas regras: um achado vincula, mais de um é ambíguo.
+vi.mock("../lib/telegram-contato", async (orig) => ({
+  ...(await orig<typeof import("../lib/telegram-contato")>()),
+  buscarCadastroPorCodigo: vi.fn(async (cands: Iterable<string>) => {
+    const set = new Set([...cands].map((c) => c.toUpperCase()));
+    const achados = (estado.senhas as Array<{ id: number; name: string; vp: string }>).filter((r) => set.has(r.vp.toUpperCase()));
+    if (achados.length === 1) return { id: achados[0].id, name: achados[0].name };
+    return achados.length > 1 ? "ambiguo" : null;
+  }),
+}));
 const mockConsumir = vi.hoisted(() => vi.fn());
 vi.mock("../lib/telegram-magic-link", async (orig) => ({
   ...(await orig<typeof import("../lib/telegram-magic-link")>()),
@@ -136,6 +147,24 @@ describe("reentrega do MESMO update em cada fluxo: efeito acontece uma única ve
     await enviar(msg(101, "oi"));
     await aguardar();
     expect(mockSend.mock.calls.length).toBe(1);
+  });
+
+  it("F2b código repetido em dois cadastros: não vincula, orienta o link individual e avisa a equipe", async () => {
+    estado.senhas = [{ id: 7, name: "Sintetico A", vp: "REPET99" }, { id: 8, name: "Sintetico B", vp: "REPET99" }];
+    await enviar(msg(103, "REPET99"));
+    await aguardar();
+    expect(escritas("UPDATE clients SET telegram_chat_id")).toHaveLength(0);
+    const textos = mockSend.mock.calls.map((c) => String(c[1]));
+    expect(textos.some((t) => t.includes("link individual"))).toBe(true);
+    expect(textos.some((t) => t.includes("Sintetico"))).toBe(false); // nenhum nome vaza
+  });
+
+  it("F2c primeiro contato explica link individual e que o código não é a senha do Telegram", async () => {
+    await enviar(msg(104, "oi"));
+    await aguardar();
+    const t = String(mockSend.mock.calls[0][1]);
+    expect(t).toContain("link individual");
+    expect(t).toContain("não é a senha do Telegram");
   });
 
   it("F3 link mágico (/start TOKEN): consome o token uma vez; reentrega NÃO manda 'não foi possível ativar'", async () => {

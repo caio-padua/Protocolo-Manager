@@ -138,6 +138,10 @@ vi.mock("../routes/collaborator.js", () => ({
 }));
 
 // drizzle-orm — helpers de query usados no handler
+vi.mock("../lib/telegram-contato", async (orig) => ({
+  ...(await orig<typeof import("../lib/telegram-contato")>()),
+  buscarCadastroPorCodigo: vi.fn(),
+}));
 vi.mock("drizzle-orm", () => ({
   eq:    vi.fn((...a) => a),
   and:   vi.fn((...a) => a),
@@ -156,6 +160,7 @@ import { telegramWebhookRouter } from "../routes/assinaturas.js";
 import { logger } from "../lib/logger.js";
 import { db } from "@workspace/db";
 import { sendTelegram } from "../lib/telegram.js";
+import { buscarCadastroPorCodigo } from "../lib/telegram-contato";
 
 // ── Constantes de teste ───────────────────────────────────────────────────────
 
@@ -378,19 +383,20 @@ describe("POST /webhooks/telegram — senha de validação com match único", ()
   });
 
   function mockClientes(clientes: typeof CLIENTES) {
-    // Primeira consulta: chat ainda não vinculado.
-    // Segunda consulta: todos os candidatos à senha (await direto em from()).
-    vi.mocked(db.select)
-      .mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      } as unknown as ReturnType<typeof db.select>)
-      .mockReturnValueOnce({
-        from: vi.fn().mockResolvedValue(clientes),
-      } as unknown as ReturnType<typeof db.select>);
+    // Primeira consulta: chat ainda não vinculado (db.select).
+    vi.mocked(db.select).mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+      }),
+    } as unknown as ReturnType<typeof db.select>);
+    // Busca por código: simulada com as mesmas regras (um achado vincula; mais de um é ambíguo).
+    // A consulta SQL real é provada em telegram-vinculo-banco-isolado.test.ts.
+    vi.mocked(buscarCadastroPorCodigo).mockImplementationOnce(async (cands: Iterable<string>) => {
+      const set = new Set([...cands].map((c) => c.toUpperCase()));
+      const achados = clientes.filter((c) => c.vp && set.has(String(c.vp).trim().toUpperCase()));
+      if (achados.length === 1) return { id: achados[0].id, name: achados[0].name };
+      return achados.length > 1 ? "ambiguo" : null;
+    });
   }
 
   function enviarSenha(chatId = CHAT_ID) {
@@ -418,12 +424,15 @@ describe("POST /webhooks/telegram — senha de validação com match único", ()
       expect(res.body).toEqual({ ok: true });
       // Prova que a busca de candidatos ocorreu, evitando um falso positivo
       // caso o texto do Telegram seja ignorado antes da verificação de colisão.
-      expect(db.select).toHaveBeenCalledTimes(2);
+      expect(buscarCadastroPorCodigo).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(
         "[telegram] vínculo recusado: senha de validação ambígua (colisão)",
       );
       expect(db.execute).not.toHaveBeenCalled();
-      expect(sendTelegram).not.toHaveBeenCalled();
+      // Nada vincula; a pessoa só recebe a orientação do link individual (sem nome de ninguém).
+      const textos = vi.mocked(sendTelegram).mock.calls.map((c) => String(c[1]));
+      expect(textos.some((t) => t.includes("link individual"))).toBe(true);
+      expect(textos.some((t) => /Paciente (Um|Dois)/.test(t))).toBe(false);
       expect(mockProcessarWebhookInbox).not.toHaveBeenCalled();
       expect(logger.error).not.toHaveBeenCalled();
     },
@@ -436,7 +445,7 @@ describe("POST /webhooks/telegram — senha de validação com match único", ()
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
-    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(buscarCadastroPorCodigo).toHaveBeenCalledTimes(1);
     expect(db.execute).toHaveBeenCalledOnce();
     const query = vi.mocked(db.execute).mock.calls[0][0] as unknown as {
       strings: readonly string[];

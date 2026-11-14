@@ -188,3 +188,4 @@
 - [Assistente de agendamento no Telegram](telegram-assistente-agendamento.md) — cliente reserva real, visitante vira pedido; planejar do pipeline durável; testar via vitest.
 - [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.
 - [Modelos de orientação como dado](orientacoes-modelos-semente.md) — 28 rascunhos por clínica via API; variáveis ainda não ligadas ao envio; envio pelo cockpit pausa a IA.
+- [Crédito pré-pago da mensageria](mensageria-credito-pay-per-use.md) — pay per use por clínica, isenção do Instituto, custo de IA à parte; falta tela, pagamento real e tarifas.

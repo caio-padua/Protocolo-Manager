@@ -31,6 +31,17 @@ export interface ExecutarLembretesOptions {
   toleranciaMinutos?: number;
   /** Máximo de lembretes processados simultaneamente por tick (padrão: 10). */
   concorrencia?: number;
+  /**
+   * Teste controlado: processa SOMENTE este cliente. Os demais lembretes não são
+   * carregados, avaliados nem enviados, por nenhum canal. Não altera nem pausa nada.
+   */
+  clienteId?: number;
+  /**
+   * Quando verdadeiro, só o Telegram pode ser usado: se o Telegram não estiver liberado
+   * ou vinculado para o cliente, NADA é enviado nem gravado (sem recuo para WhatsApp).
+   * Padrão: verdadeiro quando `clienteId` é informado; falso na execução normal.
+   */
+  somenteTelegram?: boolean;
 }
 
 export interface LembreteEnvioResult {
@@ -137,7 +148,7 @@ interface LembreteComContexto {
   empresaId: number | null;
 }
 
-async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
+async function carregarLembretesAtivos(clienteId?: number): Promise<LembreteComContexto[]> {
   const rows = await db
     .select({
       id: lembretesPrescricaoTable.id,
@@ -156,10 +167,14 @@ async function carregarLembretesAtivos(): Promise<LembreteComContexto[]> {
         eq(lembretesPrescricaoTable.ativo, true),
         eq(clientsTable.status, "active"),
         reminderConsentFilter(),
+        ...(clienteId !== undefined ? [eq(lembretesPrescricaoTable.clienteId, clienteId)] : []),
       ),
     );
 
-  return rows.map((r) => ({
+  return rows
+    // Defesa em profundidade: mesmo que a consulta mude, nunca devolve outro cliente.
+    .filter((r) => clienteId === undefined || r.clienteId === clienteId)
+    .map((r) => ({
     id: r.id,
     clienteId: r.clienteId,
     periodos: Array.isArray(r.periodos) ? r.periodos : [],
@@ -339,7 +354,11 @@ export async function executarLembretesPeriodo(
     throw new RangeError("concorrencia deve ser um inteiro positivo");
   }
 
-  const lembretes = await carregarLembretesAtivos();
+  if (options.clienteId !== undefined && (!Number.isSafeInteger(options.clienteId) || options.clienteId < 1)) {
+    throw new RangeError("clienteId deve ser um inteiro positivo");
+  }
+  const somenteTelegram = options.somenteTelegram ?? options.clienteId !== undefined;
+  const lembretes = await carregarLembretesAtivos(options.clienteId);
   const detalhes: LembreteEnvioResult[] = [];
   let enviados = 0;
   let falhas = 0;
@@ -362,6 +381,14 @@ export async function executarLembretesPeriodo(
     }
 
     const janela = janelaKey(local.data, horarioMatch);
+
+    // Modo restrito ao Telegram: sem Telegram liberado e vinculado não há envio por outro
+    // canal e nenhum marcador é gravado (não consome a janela do envio real).
+    if (somenteTelegram && !usaTelegram(cfgTelegram, ctx.clienteId, ctx.telegramChatId)) {
+      pulados += 1;
+      detalhes.push({ lembreteId: ctx.id, clienteId: ctx.clienteId, janela, sucesso: false, erro: "telegram_indisponivel_no_teste" });
+      return;
+    }
 
     // Idempotência: tenta inserir o marcador PENDENTE. Se a unique bater, pula.
     const claimRows = await db

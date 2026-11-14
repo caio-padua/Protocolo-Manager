@@ -2,9 +2,11 @@
  * Ligações reais do assistente de agendamento do Telegram (banco, agenda, envio).
  * A regra de conversa mora em telegram-agendamento.ts (pura e testada).
  */
+import { registrarEvento, podeAtenderAutomatico } from "./mensageria-credito";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { logger } from "./logger";
+import { LIMITE_MENSAGENS_VISITANTE_HORA } from "./telegram-contato";
 import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
@@ -36,11 +38,15 @@ export async function aplicarMigracaoAgendamentoTelegram(exec: { execute: (q: SQ
 
 // ─────────────────────────── configuração ───────────────────────────
 
-/** Visitantes: só atende chat que esteja na lista E com a assistente fora de "desligado". */
+/**
+ * Visitantes: "ligado" atende qualquer pessoa nova (sem senha nem cadastro);
+ * "lista" atende só chats autorizados; "desligado" não atende ninguém.
+ */
 export async function visitanteAutorizado(chatId: string): Promise<boolean> {
   try {
     const modo = (await getSetting("atendimento.ia.modo"))?.trim().toLowerCase();
-    if (modo !== "lista" && modo !== "ligado") return false;
+    if (modo === "ligado") return true;
+    if (modo !== "lista") return false;
     const raw = await getSetting("atendimento.visitantes.permitidos");
     if (!raw) return false;
     const arr: unknown = JSON.parse(raw);
@@ -198,6 +204,26 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
   const ins = await db.execute(sql`INSERT INTO telegram_visitante_mensagens (chat_id, direcao, texto, update_id)
     VALUES (${chatId}, 'entrada', ${texto.slice(0, 2000)}, ${updateId}) ON CONFLICT DO NOTHING RETURNING id`);
   if (!ins.rows.length && updateId !== null) return; // entrega repetida
+  // Crédito da clínica: a mensagem recebida é medida; sem saldo ela fica preservada (a equipe vê na Central),
+  // sem resposta automática, e a equipe é avisada uma vez.
+  const msgId = (ins.rows[0] as { id: number | string } | undefined)?.id;
+  const conversaRef = `vis:${chatId}`;
+  const rec = await registrarEvento({ empresaId: empresaPadrao, tipo: "recebida", chave: `recebida:vis:${msgId ?? `${chatId}:${updateId}`}`, conversaRef, descricao: "Mensagem recebida de visitante no Telegram" });
+  if (!rec.ok || !(await podeAtenderAutomatico(empresaPadrao)).pode) {
+    if (rec.avisoSemSaldo || !rec.ok) {
+      const equipe = await chatAlertaOuNull();
+      if (equipe && equipe !== chatId && rec.avisoSemSaldo) await sendTelegram(equipe, "Crédito de mensagens esgotado: novas respostas automáticas pausadas. As mensagens continuam salvas na Central Telegram. Solicite uma recarga.");
+    }
+    logger.warn("[telegram-agendamento] sem saldo: mensagem de visitante preservada, sem resposta automática");
+    return;
+  }
+  // Limite por hora: acima disso só registra (a equipe vê na Central), sem resposta automática.
+  const recentes = await db.execute(sql`SELECT COUNT(*)::int AS n FROM telegram_visitante_mensagens
+    WHERE chat_id=${chatId} AND direcao='entrada' AND recebida_em > NOW() - INTERVAL '1 hour'`);
+  if (Number((recentes.rows[0] as { n: number | string }).n) > LIMITE_MENSAGENS_VISITANTE_HORA) {
+    logger.warn("[telegram-agendamento] visitante acima do limite por hora; só registrado");
+    return;
+  }
   const chave = `visitante:${chatId}`;
   const pausado = await db.execute(sql`SELECT 1 FROM telegram_agendamento_estado WHERE chave=${`pausa:${chatId}`}`);
   const alertar = async (t: string) => {
@@ -237,7 +263,10 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
   if (resposta) {
     const env = await sendTelegram(chatId, resposta);
     if (env.sent && !env.mock) {
-      await db.execute(sql`INSERT INTO telegram_visitante_mensagens (chat_id, direcao, texto, lida_em) VALUES (${chatId}, 'saida', ${resposta}, NOW())`);
+      const saida = await db.execute(sql`INSERT INTO telegram_visitante_mensagens (chat_id, direcao, texto, lida_em) VALUES (${chatId}, 'saida', ${resposta}, NOW()) RETURNING id`);
+      const sid = (saida.rows[0] as { id: number | string }).id;
+      await registrarEvento({ empresaId: empresaPadrao, tipo: "enviada", chave: `enviada:vis:${sid}`, conversaRef, descricao: "Resposta enviada ao visitante no Telegram" });
+      if (r.desfecho === "pedido_registrado") await registrarEvento({ empresaId: empresaPadrao, tipo: "solucionada", chave: `solucionada:vis:${chatId}:${msgId}`, conversaRef, descricao: "Pedido de agendamento registrado" });
     } else {
       logger.warn("[telegram-agendamento] resposta ao visitante não foi aceita pelo Telegram");
     }

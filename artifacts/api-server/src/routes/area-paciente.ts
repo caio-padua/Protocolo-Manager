@@ -23,7 +23,8 @@ import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/age
 import { refreshAfterReschedule } from "../lib/session-google-sync";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
 import { codigoTelegramSemantico } from "../lib/telegram-codigo";
-import { BOT_USERNAME, BOT_LINK } from "../lib/telegram-magic-link";
+import { BOT_USERNAME, BOT_LINK, emitirLinkMagico } from "../lib/telegram-magic-link";
+import { contarCadastrosComCodigo } from "../lib/telegram-contato";
 import { z } from "zod/v4";
 
 // ===========================================================================
@@ -248,9 +249,10 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
 });
 
 // --- COMUNICACAO (Telegram) -------------------------------------------------
-// Mostra ao proprio cliente (token do portal) como ativar o Telegram e a senha de
-// validacao dele. Se ainda nao existir, gera o codigo deterministico (sobrenome+CPF)
-// - o mesmo do cadastro. Nunca expoe dados de outro cliente (clientId vem do token).
+// Mostra ao proprio cliente (token do portal) como ativar o Telegram. O caminho principal
+// e o LINK INDIVIDUAL (POST abaixo): nao exige saber codigo nenhum. O codigo de validacao
+// do cadastro e o caminho alternativo e SO e mostrado se for unico entre cadastros ativos
+// (um codigo repetido nunca vincula; nesse caso so o link serve). clientId vem do token.
 router.get("/area-paciente/comunicacao", async (req: Request, res: Response): Promise<void> => {
   const clientId = getClientId(req);
   if (clientId === null) { unauthorized(res); return; }
@@ -261,17 +263,41 @@ router.get("/area-paciente/comunicacao", async (req: Request, res: Response): Pr
     }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
     if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
     const vinculado = Boolean(c.telegramChatId);
-    let senha = c.validationPassword ?? null;
-    if (!vinculado && !senha && c.cpf && c.cpf.replace(/\D/g, "").length === 11) {
-      senha = codigoTelegramSemantico(c.name, c.cpf);
-      await db.update(clientsTable)
-        .set({ validationPassword: senha, validationPasswordSentAt: new Date() })
-        .where(and(eq(clientsTable.id, clientId), sql`${clientsTable.validationPassword} IS NULL`));
+    let senha: string | null = null;
+    if (!vinculado) {
+      const existente = c.validationPassword ?? null;
+      const candidata = existente ?? (c.cpf && c.cpf.replace(/\D/g, "").length === 11 ? codigoTelegramSemantico(c.name, c.cpf) : null);
+      if (candidata && (await contarCadastrosComCodigo(candidata, clientId)) === 0) {
+        senha = candidata;
+        if (!existente) {
+          await db.update(clientsTable)
+            .set({ validationPassword: candidata, validationPasswordSentAt: new Date() })
+            .where(and(eq(clientsTable.id, clientId), sql`${clientsTable.validationPassword} IS NULL`));
+        }
+      }
     }
-    res.json({ vinculado, senha: vinculado ? null : senha, botUsername: BOT_USERNAME, botLink: BOT_LINK });
+    res.json({ vinculado, senha, botUsername: BOT_USERNAME, botLink: BOT_LINK });
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao carregar comunicacao");
     res.status(500).json({ error: "Erro ao carregar dados" });
+  }
+});
+
+// Gera o link individual do PROPRIO cliente (uso unico, 7 dias). Nao envia nada.
+router.post("/area-paciente/comunicacao/link", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  try {
+    const [c] = await db.select({ telegramChatId: clientsTable.telegramChatId, status: clientsTable.status })
+      .from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!c || c.status !== "active") { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    if (c.telegramChatId) { res.status(409).json({ error: "Seu Telegram já está ativo." }); return; }
+    const link = await emitirLinkMagico(clientId);
+    if (!link) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    res.json({ url: link.url, expiraEm: link.expiraEm.toISOString() });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao gerar link individual");
+    res.status(500).json({ error: "Erro ao gerar o link" });
   }
 });
 
