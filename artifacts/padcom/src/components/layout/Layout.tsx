@@ -554,7 +554,7 @@ export function Layout({ children }: LayoutProps) {
           </button>
         </div>
 
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col overflow-y-clip">
           {/* Logo */}
           <div
             className={`hidden md:flex items-center justify-center border-b border-sidebar-border ${
@@ -735,7 +735,13 @@ export function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Rodape — identidade profissional, acesso e troca de usuario */}
-          <div className="relative border-t border-sidebar-border p-2">
+          {/* Lingueta: so uma faixa fina do perfil fica visivel; ao passar o mouse (ou focar, ou com o menu aberto) ela sobe. */}
+          <div className="group/perfil relative h-3 shrink-0">
+          <div
+            className={`absolute inset-x-0 bottom-0 z-[60] rounded-t-md border-t border-sidebar-border bg-sidebar px-2 pb-2 pt-1.5 shadow-[0_-6px_12px_-6px_rgba(0,0,0,.45)] transition-transform duration-200 ease-out group-hover/perfil:translate-y-0 focus-within:translate-y-0 ${
+              profileOpen && hasCollaboratorSession ? "translate-y-0" : "translate-y-[calc(100%-12px)]"
+            }`}
+          >
             {profileOpen && hasCollaboratorSession ? (
               <section
                 id="collaborator-profile-actions"
@@ -860,13 +866,13 @@ export function Layout({ children }: LayoutProps) {
                 }
                 setProfileOpen((open) => !open);
               }}
-              className={`bevel-3d flex min-h-[54px] w-full items-center ${
+              className={`bevel-3d flex min-h-[44px] w-full items-center ${
                 collapsed ? "justify-center px-2" : "gap-3 px-2.5"
-              } py-2 text-left`}
+              } py-1.5 text-left`}
             >
               <Avatar
                 data-testid="img-sidebar-account-avatar"
-                className="h-10 w-10 border border-[#c6a35a]/80 bg-[#16284a] shadow-sm"
+                className="h-9 w-9 border border-[#c6a35a]/80 bg-[#16284a] shadow-sm"
               >
                 {me?.photoUrl ? (
                   <AvatarImage
@@ -908,6 +914,9 @@ export function Layout({ children }: LayoutProps) {
                     </span>
                   </span>
                   {hasCollaboratorSession ? (
+                    <ClinicalCertificateStatus badge responsibleProfessionalId={me?.id ?? null} />
+                  ) : null}
+                  {hasCollaboratorSession ? (
                     <ChevronDown
                       className={`h-4 w-4 shrink-0 text-sidebar-foreground/50 transition-transform ${
                         profileOpen ? "rotate-180" : ""
@@ -917,9 +926,7 @@ export function Layout({ children }: LayoutProps) {
                 </>
               ) : null}
             </button>
-            {isCockpit && hasCollaboratorSession && (
-              <ClinicalCertificateStatus compact iconOnly={collapsed} responsibleProfessionalId={me?.id ?? null} />
-            )}
+          </div>
           </div>
         </div>
       </div>

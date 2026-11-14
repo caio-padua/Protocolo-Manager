@@ -22,6 +22,8 @@ type CertificateResult = {
 type Props = {
   scope?: "professional" | "system";
   compact?: boolean;
+  /** Apenas um escudo fino dentro do painel: verde = vigente, vermelho = vencido ou com problema. */
+  badge?: boolean;
   iconOnly?: boolean;
   professionalType?: string | null;
   responsibleDoctorName?: string | null;
@@ -53,6 +55,7 @@ function formatDate(value: string | null): string | null {
 export function ClinicalCertificateStatus({
   scope = "professional",
   compact = false,
+  badge = false,
   iconOnly = false,
   professionalType,
   responsibleDoctorName,
@@ -162,6 +165,22 @@ export function ClinicalCertificateStatus({
   const expiry = formatDate(currentCertificate?.validTo ?? null);
   const start = formatDate(currentCertificate?.validFrom ?? null);
   const showUnsignedAction = allowUnsignedPrescription && state === "expired" && !!onGenerateUnsigned;
+
+  if (badge) {
+    if (waitingForDoctor) return null;
+    const verificando = checking || resolvedEpoch !== sessionEpoch;
+    if (!verificando && !state) return null;
+    const ok = state === "valid";
+    const texto = verificando ? "Verificando certificado digital" : `${copy?.title ?? "Certificado digital"}${expiry ? ` (${ok ? "válido até" : state === "expired" ? "venceu em" : "data"} ${expiry})` : ""}`;
+    const cor = verificando ? "#94a3b8" : ok ? "#22c55e" : "#ef4444";
+    const Icone = ok || verificando ? ShieldCheck : ShieldAlert;
+    return (
+      <span role="status" aria-label={texto} title={texto} className="inline-flex shrink-0 items-center">
+        <Icone aria-hidden="true" strokeWidth={1.5} className="h-[18px] w-[18px]"
+          style={{ color: cor, filter: verificando ? undefined : `drop-shadow(0 0 3px ${cor}aa)` }} />
+      </span>
+    );
+  }
 
   if (compact) {
     const description = waitingForDoctor
