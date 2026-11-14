@@ -535,7 +535,7 @@ export function Layout({ children }: LayoutProps) {
         className={`
           fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground
           transition-all duration-300 ease-in-out md:translate-x-0
-          ${isCockpit ? "md:sticky md:top-0 md:h-screen md:self-start" : "md:relative"}
+          md:sticky md:top-0 md:h-screen md:self-start
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           ${collapsed ? "md:w-[78px]" : "md:w-64"}
         `}
@@ -746,20 +746,20 @@ export function Layout({ children }: LayoutProps) {
               <section
                 id="collaborator-profile-actions"
                 aria-label="Identidade e ações do colaborador"
-                className={`panel-3d-sub absolute bottom-full z-[70] mb-2 w-[calc(100%-1rem)] p-3 ${
+                className={`panel-3d-sub absolute bottom-full z-[70] mb-2 w-[calc(100%-1rem)] p-2 ${
                   collapsed ? "md:left-full md:right-auto md:ml-2 md:bottom-2 md:w-64" : "left-2 right-2 md:left-2 md:right-2 md:w-auto"
                 }`}
               >
-                <div className="border-b border-sidebar-border/70 pb-2">
+                <div className="border-b border-sidebar-border/70 pb-1">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#16284a]">
                     Minha conta
                   </p>
-                  <p className="mt-1 truncate text-xs font-medium text-slate-900">
+                  <p className="truncate text-xs font-medium text-slate-900">
                     {me ? formatProfessionalName(me.name) : identityLoading ? "Validando sessão…" : "Sessão não validada"}
                   </p>
                 </div>
 
-                <div className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 gap-y-1 text-[11px]">
+                <div className="mt-1.5 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5 text-[10px]">
                   <span className="text-slate-600">Cargo</span>
                   <span className="truncate text-slate-900">
                     {me ? formatProfessionalRole(me.role, me.category) : "—"}
@@ -780,9 +780,9 @@ export function Layout({ children }: LayoutProps) {
                         onClick={() => setCpfVisible((visible) => !visible)}
                         aria-label={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
                         title={cpfVisible ? "Ocultar CPF" : "Mostrar CPF"}
-                        className="bevel-3d flex h-7 w-7 shrink-0 items-center justify-center text-[#16284a]"
+                        className="bevel-3d flex h-5 w-5 shrink-0 items-center justify-center text-[#16284a]"
                       >
-                        {cpfVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        {cpfVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                       </button>
                     ) : null}
                   </span>
@@ -798,13 +798,13 @@ export function Layout({ children }: LayoutProps) {
                   </p>
                 ) : null}
 
-                <div className="mt-3 grid gap-2">
+                <div className="mt-2 grid gap-1.5">
                   {me && !me.googleLinked ? (
                     <button
                       type="button"
                       disabled={profileActionBusy}
                       onClick={() => void beginGoogleLink()}
-                      className="btn-3d flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] font-semibold disabled:opacity-60"
+                      className="btn-3d flex min-h-7 w-full items-center justify-center gap-2 px-2 text-[10px] font-semibold disabled:opacity-60"
                     >
                       <Link2 className="h-3.5 w-3.5" />
                       Vincular conta Google
@@ -817,7 +817,7 @@ export function Layout({ children }: LayoutProps) {
                       setProfileOpen(false);
                       navigate("/professionals?selfAccess=1");
                     }}
-                    className="btn-3d-soft flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-60"
+                    className="btn-3d-soft flex min-h-7 w-full items-center justify-center gap-2 px-2 text-[10px] disabled:opacity-60"
                   >
                     <UserRound className="h-3.5 w-3.5" />
                     Abrir meu cadastro
@@ -826,7 +826,7 @@ export function Layout({ children }: LayoutProps) {
                     type="button"
                     disabled={profileActionBusy}
                     onClick={() => void switchCollaboratorUser()}
-                    className="btn-3d-soft flex min-h-9 w-full items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-60"
+                    className="btn-3d-soft flex min-h-7 w-full items-center justify-center gap-2 px-2 text-[10px] disabled:opacity-60"
                   >
                     <UserRound className="h-3.5 w-3.5" />
                     Trocar usuário
