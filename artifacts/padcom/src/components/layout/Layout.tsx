@@ -557,7 +557,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="h-full flex flex-col overflow-y-clip">
           {/* Logo */}
           <div
-            className={`hidden md:flex items-center justify-center border-b border-sidebar-border ${
+            className={`hidden md:flex items-center justify-center ${
               collapsed ? "py-5 px-2" : "py-6 px-4"
             }`}
           >
@@ -565,7 +565,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           {/* Navegacao */}
-          <nav className={`flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden ${isCockpit ? "min-h-0" : ""}`}>
+          <nav className={`flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${isCockpit ? "min-h-0" : ""}`}>
             {navFiltrada.map((item) => {
               const Icon = item.icon;
 
@@ -736,10 +736,10 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Rodape — identidade profissional, acesso e troca de usuario */}
           {/* Lingueta: so uma faixa fina do perfil fica visivel; ao passar o mouse (ou focar, ou com o menu aberto) ela sobe. */}
-          <div className="group/perfil relative h-3 shrink-0">
+          <div className="group/perfil relative h-6 shrink-0">
           <div
             className={`absolute inset-x-0 bottom-0 z-[60] rounded-t-md border-t border-sidebar-border bg-sidebar px-2 pb-2 pt-1.5 shadow-[0_-6px_12px_-6px_rgba(0,0,0,.45)] transition-transform duration-200 ease-out group-hover/perfil:translate-y-0 focus-within:translate-y-0 ${
-              profileOpen && hasCollaboratorSession ? "translate-y-0" : "translate-y-[calc(100%-12px)]"
+              profileOpen && hasCollaboratorSession ? "translate-y-0" : "translate-y-[calc(100%-24px)]"
             }`}
           >
             {profileOpen && hasCollaboratorSession ? (
