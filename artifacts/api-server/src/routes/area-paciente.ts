@@ -22,6 +22,8 @@ import { verifyPassword, hashPassword } from "../lib/patient-auth.js";
 import { computeResourceSlots, bookSession, rescheduleSession } from "../lib/agenda-booking";
 import { refreshAfterReschedule } from "../lib/session-google-sync";
 import { enviarMensagemPaxter } from "../lib/messaging/index.js";
+import { codigoTelegramSemantico } from "../lib/telegram-codigo";
+import { BOT_USERNAME, BOT_LINK } from "../lib/telegram-magic-link";
 import { z } from "zod/v4";
 
 // ===========================================================================
@@ -242,6 +244,34 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
   } catch (err: any) {
     console.error("[AreaPaciente] resumo:", err.message);
     res.status(500).json({ error: "Erro ao carregar resumo" });
+  }
+});
+
+// --- COMUNICACAO (Telegram) -------------------------------------------------
+// Mostra ao proprio cliente (token do portal) como ativar o Telegram e a senha de
+// validacao dele. Se ainda nao existir, gera o codigo deterministico (sobrenome+CPF)
+// - o mesmo do cadastro. Nunca expoe dados de outro cliente (clientId vem do token).
+router.get("/area-paciente/comunicacao", async (req: Request, res: Response): Promise<void> => {
+  const clientId = getClientId(req);
+  if (clientId === null) { unauthorized(res); return; }
+  try {
+    const [c] = await db.select({
+      name: clientsTable.name, cpf: clientsTable.cpf,
+      telegramChatId: clientsTable.telegramChatId, validationPassword: clientsTable.validationPassword,
+    }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    const vinculado = Boolean(c.telegramChatId);
+    let senha = c.validationPassword ?? null;
+    if (!vinculado && !senha && c.cpf && c.cpf.replace(/\D/g, "").length === 11) {
+      senha = codigoTelegramSemantico(c.name, c.cpf);
+      await db.update(clientsTable)
+        .set({ validationPassword: senha, validationPasswordSentAt: new Date() })
+        .where(and(eq(clientsTable.id, clientId), sql`${clientsTable.validationPassword} IS NULL`));
+    }
+    res.json({ vinculado, senha: vinculado ? null : senha, botUsername: BOT_USERNAME, botLink: BOT_LINK });
+  } catch (err) {
+    req.log.error({ err: String(err) }, "Erro ao carregar comunicacao");
+    res.status(500).json({ error: "Erro ao carregar dados" });
   }
 });
 

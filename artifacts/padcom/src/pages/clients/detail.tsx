@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, User, Phone, Mail, MapPin, Calendar, Activity, CreditCard, Clock, FileText, CheckCircle2, FolderOpen, Loader2, Pencil, Plus, DollarSign, Banknote, QrCode, Receipt, ExternalLink, Zap, Home } from "lucide-react";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
+import { ClientComunicacao } from "@/components/ClientComunicacao";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -291,6 +292,7 @@ export default function ClientDetail() {
               <TabsTrigger value="protocols" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Protocolos</TabsTrigger>
               <TabsTrigger value="sessions" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Sessões</TabsTrigger>
               <TabsTrigger value="financial" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Financeiro</TabsTrigger>
+              <TabsTrigger value="comunicacao" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none">Comunicação</TabsTrigger>
               <TabsTrigger value="enderecos" className="bevel-3d rounded-none data-[state=active]:panel-3d-active data-[state=active]:text-primary px-6 py-2.5 text-[10px] font-black uppercase tracking-widest shadow-none flex items-center gap-1.5">
                 <Home className="h-3 w-3" />
                 Endereços
@@ -636,6 +638,10 @@ export default function ClientDetail() {
                   </div>
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="comunicacao" className="focus:outline-none">
+              <ClientComunicacao clientId={client.id} />
             </TabsContent>
 
             <TabsContent value="enderecos" className="focus:outline-none">

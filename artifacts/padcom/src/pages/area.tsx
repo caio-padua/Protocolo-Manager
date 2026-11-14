@@ -99,7 +99,7 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao";
+           | "duvidas" | "suporte" | "evolucao" | "comunicacao";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -110,6 +110,7 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "duvidas",    label: "DÚVIDAS",     icon: HelpCircle },
   { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
   { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
+  { key: "comunicacao", label: "COMUNICAÇÃO", icon: MessageCircle },
 ];
 
 // ---------------------------------------------------------------------------
@@ -230,6 +231,7 @@ export default function Area() {
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
+        {tab === "comunicacao" && <ComunicacaoTab client={client} />}
         {tab === "evolucao"   && (
           <div className="space-y-6">
             <EvolucaoExamesPanel clientId={client.id} />
@@ -1047,6 +1049,40 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function ComunicacaoTab({ client }: { client: ClientInfo }) {
+  const { data, loading, error } = useApi<{ vinculado: boolean; senha: string | null; botUsername: string; botLink: string }>(client, "comunicacao");
+  if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (error || !data) return <p className="text-sm text-destructive">{error || "Erro ao carregar."}</p>;
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold">Receba seus avisos no Telegram</h2>
+      {data.vinculado ? (
+        <p className="text-sm">Seu Telegram já está ativo. Você receberá os avisos da clínica por lá.</p>
+      ) : (
+        <>
+          <ol className="list-decimal pl-5 space-y-2 text-sm">
+            <li>Toque no botão abaixo para abrir o robô <b>@{data.botUsername}</b> no Telegram.</li>
+            <li>Toque em <b>Iniciar</b> (Start).</li>
+            <li>Envie, em uma mensagem, a senha de validação abaixo.</li>
+            <li>Aguarde a mensagem de boas-vindas.</li>
+          </ol>
+          <div className="rounded-md border p-4 text-center">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Sua senha de validação</div>
+            <div className="mt-1 font-mono text-3xl font-bold tracking-[0.3em]">{data.senha ?? "Peça à clínica"}</div>
+          </div>
+          <a href={data.botLink} target="_blank" rel="noreferrer"
+             className="block rounded-md bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground">
+            Abrir o robô no Telegram
+          </a>
+          <p className="text-xs text-muted-foreground">
+            Pedimos a senha para ter certeza de que o Telegram é seu. Não compartilhe esta senha.
+          </p>
+        </>
+      )}
     </div>
   );
 }

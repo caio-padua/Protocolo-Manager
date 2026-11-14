@@ -1,11 +1,12 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { codigoTelegramSemantico } from "../lib/telegram-codigo";
 import { carregarHorarioPadraoDaAgenda } from "../lib/agenda-horario-padrao";
 import { eq, ilike, or, inArray, and, isNull, isNotNull } from "drizzle-orm";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 import { db, clientsTable, clientPreferredAgendasTable, empresasTable, clientClinicAgendaDefaultsTable, agendaResourcesTable, locationsTable } from "@workspace/db";
 import { sendWhatsapp, isWhatsappConfigured } from "../lib/whatsapp";
 import { sendTelegramOnboardingEmail } from "../lib/email-service";
-import { emitirLinkMagico } from "../lib/telegram-magic-link";
+import { emitirLinkMagico, BOT_USERNAME, BOT_LINK } from "../lib/telegram-magic-link";
 import { requireCollaborator } from "./collaborator";
 import { getPreferredAgendas, setPreferredAgendas, validateClientLocation, validateDefaultAgenda, InvalidPreferredAgendas } from "../lib/client-preferred-agendas";
 import { getVisitOptions, getVisitPreferences, setVisitPreferences, VisitPreferenceError } from "../lib/client-visit-preferences";
@@ -586,19 +587,45 @@ router.get("/cep/:cep", async (req, res): Promise<void> => {
 // Exemplos: "CARLUCIA SANTOS FERNANDES" + CPF "···678-90" → "DES7890"
 //           "JOAO SILVA"               + CPF "···432-10" → "VAS4321" ← usa 3 letras de SILVA
 // Elimina dependência de e-mail: o CEO pode repassar o código verbalmente.
-function codigoTelegramSemantico(nome: string, cpf: string | null | undefined): string {
-  const sobrenome = nome.trim().split(/\s+/).pop() ?? nome;
-  // Normaliza acentos (FERNANDES → FERNANDES, ÁVILA → AVILA)
-  const limpo = sobrenome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^A-Za-z]/g, "")
-    .toUpperCase();
-  const sufixoNome = limpo.slice(-3).padStart(3, "X");    // ex: "DES"
-  const digCpf    = (cpf ?? "").replace(/\D/g, "");
-  const sufixoCpf = digCpf.slice(-4).padStart(4, "0");    // ex: "7890"
-  return `${sufixoNome}${sufixoCpf}`;
-}
+
+// ── GET /api/clients/:id/comunicacao ─────────────────────────────────────────
+// Painel "Comunicação" do cadastro: estado do Telegram e da Área do Cliente.
+// Somente leitura; colaborador autenticado; isolado por empresa.
+router.get("/clients/:id/comunicacao", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "clientId inválido" }); return; }
+  const [c] = await db
+    .select({
+      telegramChatId: clientsTable.telegramChatId,
+      validationPassword: clientsTable.validationPassword,
+      validationPasswordSentAt: clientsTable.validationPasswordSentAt,
+      email: clientsTable.email,
+      phone: clientsTable.phone,
+      cpf: clientsTable.cpf,
+      birthDate: clientsTable.birthDate,
+      passwordHash: clientsTable.passwordHash,
+    })
+    .from(clientsTable)
+    .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, req.tenantContext.empresaId)))
+    .limit(1);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+  res.json({
+    botUsername: BOT_USERNAME,
+    botLink: BOT_LINK,
+    telegram: {
+      vinculado: Boolean(c.telegramChatId),
+      senhaGerada: Boolean(c.validationPassword),
+      senha: c.validationPassword ?? null,
+      senhaGeradaEm: c.validationPasswordSentAt ? c.validationPasswordSentAt.toISOString() : null,
+    },
+    contato: { temEmail: Boolean(c.email), temTelefone: Boolean(c.phone) },
+    areaCliente: {
+      temCpf: Boolean(c.cpf && c.cpf.replace(/\D/g, "").length === 11),
+      temDataNascimento: Boolean(c.birthDate),
+      temSenhaPropria: Boolean(c.passwordHash),
+    },
+  });
+});
 
 // ── POST /api/clients/:id/activate-telegram ───────────────────────────────────
 // Gera código semântico (sobrenome + CPF), salva no banco e envia e-mail se
