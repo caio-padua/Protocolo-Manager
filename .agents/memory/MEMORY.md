@@ -191,3 +191,4 @@
 - [Crédito pré-pago da mensageria](mensageria-credito-pay-per-use.md) — pay per use por clínica, isenção do Instituto, custo de IA à parte; falta tela, pagamento real e tarifas.
 - [Cobrança de teste Asaas — guard de identidade](asaas-guard-identidade-teste.md) — teto R$5/10/R$50; divergência local×Asaas bloqueia; webhook de produção só por diagnóstico de leitura.
 - [Exames avulsos — entrada separada](exames-avulsos-entrada.md) — escolha não é prescrição; preço só do titular, editável até o aceite; cobrança/emissão pendentes.
+- [Meus Bolões — base mínima](meus-boloes-base-minima.md) — tabelas vazias, download só de recibo CAIXA validado, 404 uniforme + auditoria; venda/cobrança/Asaas desligados.

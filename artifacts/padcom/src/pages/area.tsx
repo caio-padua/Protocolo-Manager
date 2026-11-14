@@ -19,6 +19,7 @@ import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 
 import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
 import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
+import MeusBoloesCliente from "@/components/MeusBoloesCliente";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -100,7 +101,7 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao" | "comunicacao";
+           | "duvidas" | "suporte" | "evolucao" | "comunicacao" | "boloes";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -233,6 +234,15 @@ export default function Area() {
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
         {tab === "comunicacao" && <ComunicacaoTab client={client} />}
+        {tab === "boloes" && (
+          <div className="space-y-3">
+            <button onClick={() => setTab("inicio")}
+              className="text-accent text-[10px] font-black uppercase tracking-widest underline-offset-4 hover:underline">
+              ← Voltar ao início
+            </button>
+            <MeusBoloesCliente token={client.token} />
+          </div>
+        )}
         {tab === "evolucao"   && (
           <div className="space-y-6">
             <EvolucaoExamesPanel clientId={client.id} />
@@ -1193,6 +1203,11 @@ function InicioTab({ client, onGo }: { client: ClientInfo; onGo: (t: TabKey) => 
           <FileText className="w-4 h-4" /> Documentos
         </button>
       </div>
+      {/* Acesso discreto: Meus Bolões (somente leitura) */}
+      <button onClick={() => onGo("boloes")}
+        className="w-full text-center text-accent text-[10px] font-black uppercase tracking-widest py-2 underline-offset-4 hover:underline">
+        Meus Bolões
+      </button>
     </div>
   );
 }
