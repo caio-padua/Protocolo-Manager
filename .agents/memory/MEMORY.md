@@ -187,3 +187,4 @@
 - [Publicação do Manager indisponível](publicacao-manager-indisponivel.md) — 404 com hasSuccessfulBuild=false; correção preparada em .replitignore, falta publicar.
 - [Assistente de agendamento no Telegram](telegram-assistente-agendamento.md) — cliente reserva real, visitante vira pedido; planejar do pipeline durável; testar via vitest.
 - [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.
+- [Modelos de orientação como dado](orientacoes-modelos-semente.md) — 28 rascunhos por clínica via API; variáveis ainda não ligadas ao envio; envio pelo cockpit pausa a IA.
