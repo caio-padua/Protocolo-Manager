@@ -262,3 +262,44 @@ inboxRouter.get("/telegram-inbox/visitantes", requireCollaborator, requireMessag
     })),
   });
 });
+
+// ── 6) GET /telegram-inbox/painel-operacional ────────────────────────────────
+// Dados reais para o painel da Central de Auditoria. Nunca devolve token, segredo, URL do webhook,
+// chat id nem texto de mensagem: só presença, contagens e estados.
+inboxRouter.get("/telegram-inbox/painel-operacional", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const empresaId = req.messageEmpresaId!;
+  const [{ getSecretStatus, getSetting }, { checkWebhookHealth }] = await Promise.all([
+    import("../lib/secure-settings.js"), import("../lib/telegram-webhook-guard.js"),
+  ]);
+  const seguro = async <T,>(f: () => Promise<T>): Promise<T | null> => { try { return await f(); } catch { return null; } };
+  const [token, segredo, ativo, webhook] = await Promise.all([
+    seguro(() => getSecretStatus("telegram.botToken")), seguro(() => getSecretStatus("telegram.webhookSecret")),
+    seguro(() => getSetting("telegram.active")), seguro(() => checkWebhookHealth()),
+  ]);
+  const cont = async (q: ReturnType<typeof sql>) => {
+    try { return ((await db.execute(q)).rows as Array<Record<string, unknown>>).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v]))); } catch { return null; }
+  };
+  const vinculados = await cont(sql`SELECT COUNT(*)::int AS n FROM clients WHERE empresa_id=${empresaId} AND telegram_chat_id IS NOT NULL AND deleted_at IS NULL`);
+  const mensagens = await cont(sql`SELECT direcao, COUNT(*)::int AS n, MAX(recebida_em) AS ultima FROM telegram_inbox_messages WHERE empresa_id=${empresaId} GROUP BY direcao`);
+  const atendimento = await cont(sql`SELECT r.estado, COUNT(*)::int AS n FROM telegram_atendimento_respostas r
+    JOIN telegram_inbox_messages m ON m.id=r.inbox_message_id WHERE m.empresa_id=${empresaId} GROUP BY r.estado`);
+  const humano = await cont(sql`SELECT COUNT(*)::int AS n FROM telegram_atendimento a JOIN clients c ON c.id=a.cliente_id WHERE c.empresa_id=${empresaId} AND a.modo='humano'`);
+  const orientacoes = await cont(sql`SELECT status, COUNT(*)::int AS n FROM orientacoes_aprovadas WHERE empresa_id=${empresaId} GROUP BY status`);
+  const pedidos = await cont(sql`SELECT COUNT(*) FILTER (WHERE status='novo')::int AS novos, COUNT(*)::int AS total FROM telegram_pedidos_agendamento WHERE empresa_id=${empresaId}`);
+  const modoIa = (await seguro(() => getSetting("atendimento.ia.modo")))?.trim().toLowerCase() ?? "desligado";
+  const modoLembrete = (await seguro(() => getSetting("lembrete.telegram.modo")))?.trim().toLowerCase() ?? "desligado";
+  const lista = async (k: string) => { try { const a: unknown = JSON.parse((await getSetting(k)) ?? "[]"); return Array.isArray(a) ? a.length : 0; } catch { return 0; } };
+  res.json({
+    token: token ? { definido: token.isSet, origem: token.source } : null,
+    segredoWebhook: segredo ? { definido: segredo.isSet } : null,
+    canalAtivo: ativo === null ? null : ativo === "true",
+    webhook: webhook ? {
+      consultado: !webhook.mock && !webhook.fetchError, saudavel: webhook.healthy, pendentes: webhook.pendingUpdateCount,
+      ultimoErro: webhook.lastErrorMessage ? "registrado" : null, verificadoEm: webhook.checkedAt,
+    } : null,
+    vinculados: (vinculados?.[0]?.["n"] as number | undefined) ?? null,
+    mensagens: mensagens, atendimento, humano: (humano?.[0]?.["n"] as number | undefined) ?? null,
+    orientacoes, pedidos: pedidos?.[0] ?? null,
+    modos: { atendimentoIa: modoIa, lembretes: modoLembrete, atendimentoLista: await lista("atendimento.ia.permitidos"), lembretesLista: await lista("lembrete.telegram.permitidos") },
+  });
+});

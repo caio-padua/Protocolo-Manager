@@ -186,3 +186,4 @@
 - [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único em lib/avaliacoes-corporais; campos vazios; remoção por deleted_at.
 - [Publicação do Manager indisponível](publicacao-manager-indisponivel.md) — 404 com hasSuccessfulBuild=false; correção preparada em .replitignore, falta publicar.
 - [Assistente de agendamento no Telegram](telegram-assistente-agendamento.md) — cliente reserva real, visitante vira pedido; planejar do pipeline durável; testar via vitest.
+- [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.

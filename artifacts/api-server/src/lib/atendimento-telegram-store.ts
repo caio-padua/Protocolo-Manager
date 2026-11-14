@@ -8,6 +8,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { logger } from "./logger";
 import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
+import { escaparHtmlTelegram } from "./orientacao-texto";
 import { chatAlertaOuNull } from "./telegram-config";
 import { requireAiTenant } from "./ai-central";
 import { planejarAgendamentoCliente, aplicarMigracaoAgendamentoTelegram } from "./telegram-agendamento-store";
@@ -37,6 +38,19 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       atualizado_em     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
   await exec.execute(sql`CREATE INDEX IF NOT EXISTS ix_orientacoes_empresa_status ON orientacoes_aprovadas (empresa_id, status)`);
+  /* Categorias (aditivo; registros antigos ficam sem categoria) e tom de voz por clínica */
+  await exec.execute(sql`ALTER TABLE orientacoes_aprovadas ADD COLUMN IF NOT EXISTS categoria TEXT`);
+  await exec.execute(sql`ALTER TABLE orientacoes_aprovadas ADD COLUMN IF NOT EXISTS subcategoria TEXT`);
+  await exec.execute(sql`
+    CREATE TABLE IF NOT EXISTS assistente_tom_voz (
+      empresa_id     INTEGER PRIMARY KEY,
+      texto          TEXT        NOT NULL,
+      status         TEXT        NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho','aprovada')),
+      atualizado_por INTEGER,
+      aprovado_por   INTEGER,
+      aprovado_em    TIMESTAMPTZ,
+      atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
   await exec.execute(sql`
     CREATE TABLE IF NOT EXISTS telegram_atendimento (
       cliente_id    INTEGER PRIMARY KEY,
@@ -130,7 +144,7 @@ export function depsReaisAtendimento(empresaId: number): DepsAtendimento {
     },
     escolherComIA: (texto, cand) => escolherOrientacaoComIA(texto, cand, empresaId),
     enviarAoPaciente: async (chatId, texto) => {
-      const r = await sendTelegram(chatId, texto);
+      const r = await sendTelegram(chatId, escaparHtmlTelegram(texto));
       return r.sent && !r.mock;
     },
     registrarSaida: async (p) => {
@@ -210,7 +224,7 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       const cfg=await lerConfigAtendimento();
       return !plano.pausa || plano.desfecho!=="queixa_texto_enviado" || cfg.queixaRevisada;
     },
-    enviar: sendTelegram,
+    enviar: (chat,texto)=>sendTelegram(chat,escaparHtmlTelegram(texto)),
   });
 }
 

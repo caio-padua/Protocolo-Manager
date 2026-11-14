@@ -67,7 +67,7 @@ describe("perfil restrito do api-worker", () => {
     expect(summary).toContain("token=[redacted]");
   });
 
-  it("registra somente um cron, não ativa atendimento e impede duplicação ou perfil misto", async () => {
+  it("registra somente um cron, ativa o atendimento (restrito pela lista de clientes autorizados) e impede duplicação ou perfil misto", async () => {
     startWorkerJobs(logger, "telegram-relay-dev", scheduler);
     startWorkerJobs(logger, "telegram-relay-dev", scheduler);
 
@@ -82,6 +82,6 @@ describe("perfil restrito do api-worker", () => {
     );
     expect(schedule).toHaveBeenCalledTimes(1);
     await schedule.mock.calls[0][1]();
-    expect(retomada).toHaveBeenCalledWith({atendimento:false});
+    expect(retomada).toHaveBeenCalledWith({atendimento:true});
   });
 });

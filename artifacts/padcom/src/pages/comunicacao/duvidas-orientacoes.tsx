@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { PreviaTelegram, EXEMPLO_ILUSTRATIVO, LIMITE_RESPOSTA, CATEGORIAS, VARIAVEIS, rotuloCategoria } from "./orientacao-previa";
+import { TomDeVoz } from "./tom-de-voz";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -28,6 +30,8 @@ type Orientacao = {
   tema: string;
   perguntasExemplo: string;
   resposta: string;
+  categoria: string | null;
+  subcategoria: string | null;
   status: StatusOrientacao;
   aprovadoPor: number | null;
   aprovadoEm: string | null;
@@ -47,9 +51,9 @@ type EstadoAtendimento = {
     etapas:Record<string,{estado:string}>;atualizadoEm:string}[];
 };
 type ListaResponse = { orientacoes: Orientacao[]; podeAprovar: boolean };
-type FormValues = { tema: string; perguntasExemplo: string; resposta: string };
+type FormValues = { tema: string; perguntasExemplo: string; resposta: string; categoria: string; subcategoria: string };
 
-const EMPTY_FORM: FormValues = { tema: "", perguntasExemplo: "", resposta: "" };
+const EMPTY_FORM: FormValues = { tema: "", perguntasExemplo: "", resposta: "", categoria: "", subcategoria: "" };
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(collabAuthHeaders());
@@ -101,6 +105,8 @@ export default function DuvidasOrientacoes() {
   const [estadoError, setEstadoError] = useState("");
   const [filter, setFilter] = useState<"todas" | StatusOrientacao>("todas");
   const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("");
+  const [subFilter, setSubFilter] = useState("");
   const [editing, setEditing] = useState<Orientacao | null>(null);
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
   const [formError, setFormError] = useState("");
@@ -157,9 +163,11 @@ export default function DuvidasOrientacoes() {
     return orientacoes.filter((item) => {
       const statusMatch = filter === "todas" || item.status === filter;
       const searchMatch = !query || `${item.tema} ${item.perguntasExemplo} ${item.resposta}`.toLocaleLowerCase("pt-BR").includes(query);
-      return statusMatch && searchMatch;
+      const catMatch = !catFilter || (catFilter === "_sem" ? !item.categoria : item.categoria === catFilter);
+      const subMatch = !subFilter || item.subcategoria === subFilter;
+      return statusMatch && searchMatch && catMatch && subMatch;
     });
-  }, [orientacoes, filter, search]);
+  }, [orientacoes, filter, search, catFilter, subFilter]);
 
   const counts = useMemo(() => ({
     total: orientacoes?.length ?? 0,
@@ -176,7 +184,7 @@ export default function DuvidasOrientacoes() {
 
   function startEdit(item: Orientacao) {
     setEditing(item);
-    setForm({ tema: item.tema, perguntasExemplo: item.perguntasExemplo, resposta: item.resposta });
+    setForm({ tema: item.tema, perguntasExemplo: item.perguntasExemplo, resposta: item.resposta, categoria: item.categoria ?? "", subcategoria: item.subcategoria ?? "" });
     setFormError("");
     setSaveNotice("");
   }
@@ -187,7 +195,7 @@ export default function DuvidasOrientacoes() {
     const resposta = form.resposta.trim();
     if (tema.length < 3 || tema.length > 120) return "O tema precisa ter entre 3 e 120 caracteres.";
     if (perguntas.length > 1000) return "As perguntas de exemplo podem ter no máximo 1.000 caracteres.";
-    if (resposta.length < 10 || resposta.length > 1500) return "A resposta precisa ter entre 10 e 1.500 caracteres.";
+    if (resposta.length < 10 || resposta.length > LIMITE_RESPOSTA) return `A resposta precisa ter entre 10 e ${LIMITE_RESPOSTA.toLocaleString("pt-BR")} caracteres.`;
     return "";
   }
 
@@ -201,7 +209,7 @@ export default function DuvidasOrientacoes() {
     setSaving(true);
     setFormError("");
     setSaveNotice("");
-    const payload = { tema: form.tema.trim(), perguntasExemplo: form.perguntasExemplo.trim(), resposta: form.resposta.trim() };
+    const payload = { tema: form.tema.trim(), perguntasExemplo: form.perguntasExemplo.trim(), resposta: form.resposta.trim(), categoria: form.categoria || null, subcategoria: form.categoria ? form.subcategoria || null : null };
     try {
       if (editing) {
         const result = await apiRequest<{ ok: boolean; status: string }>(`/duvidas-orientacoes/${editing.id}`, {
@@ -414,6 +422,16 @@ export default function DuvidasOrientacoes() {
 
       {actionNotice && <div role={actionFailed ? "alert" : "status"} aria-live="polite" data-testid="action-feedback" className="panel-3d-sub flex items-start gap-2 p-3 text-sm"><Check className={`mt-0.5 h-4 w-4 shrink-0 ${actionFailed ? "text-rose-700 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"}`} />{actionNotice}</div>}
 
+      <TomDeVoz />
+
+      <section className="panel-3d p-4 sm:p-5" aria-label="Variáveis previstas" data-testid="variables-catalog">
+        <BlockTitle icon={ShieldCheck}>Variáveis (dados reais)</BlockTitle>
+        <p className="mb-2 text-xs leading-relaxed text-muted-foreground">Variáveis só podem vir de dado real. Hoje elas ainda NÃO são trocadas no envio: um texto com variável fica em rascunho e não pode ser aprovado. Horários nunca são digitados; vêm da agenda.</p>
+        <ul className="grid gap-2 sm:grid-cols-3">
+          {VARIAVEIS.map((v) => <li key={v.nome} className="concave-3d px-3 py-2 text-[11px]"><b className="font-mono">{v.nome}</b><br />{v.fonte}<br /><span className="text-amber-800 dark:text-amber-300">Não ligada ao envio</span></li>)}
+        </ul>
+      </section>
+
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
         <section className="panel-3d min-w-0 p-4 sm:p-5" aria-label="Biblioteca de orientações">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -429,6 +447,23 @@ export default function DuvidasOrientacoes() {
               <label htmlFor="orientation-filter" className="lbl mb-1 block">Estado</label>
               <select id="orientation-filter" data-testid="orientation-filter" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                 <option value="todas">Todos os estados</option><option value="rascunho">Rascunhos</option><option value="aprovada">Aprovadas</option><option value="inativa">Inativas</option>
+              </select>
+            </div>
+          </div>
+          <div className="mb-4 grid gap-3 sm:grid-cols-2" data-testid="category-filters">
+            <div>
+              <label htmlFor="orientation-cat-filter" className="lbl mb-1 block">Categoria</label>
+              <select id="orientation-cat-filter" data-testid="category-filter" value={catFilter} onChange={(e) => { setCatFilter(e.target.value); setSubFilter(""); }} className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                <option value="">Todas as categorias</option>
+                {Object.entries(CATEGORIAS).map(([k, c]) => <option key={k} value={k}>{c.rotulo}</option>)}
+                <option value="_sem">Sem categoria</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="orientation-sub-filter" className="lbl mb-1 block">Subcategoria</label>
+              <select id="orientation-sub-filter" data-testid="subcategory-filter" value={subFilter} onChange={(e) => setSubFilter(e.target.value)} disabled={!catFilter || catFilter === "_sem"} className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50">
+                <option value="">Todas</option>
+                {catFilter && CATEGORIAS[catFilter] && Object.entries(CATEGORIAS[catFilter].sub).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
           </div>
@@ -456,7 +491,8 @@ export default function DuvidasOrientacoes() {
                           <span className="concave-3d shrink-0 px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground">#{item.id}</span>
                           <h3 className="truncate text-sm font-bold uppercase tracking-wide" data-testid={`orientation-title-${item.id}`}>{item.tema}</h3>
                         </div>
-                        <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.resposta}</p>
+                        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#8a6d2f] dark:text-[#d9b97a]" data-testid={`orientation-category-${item.id}`}>{rotuloCategoria(item.categoria, item.subcategoria)}</p>
+                        <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground" style={{ whiteSpace: "pre-line" }}>{item.resposta}</p>
                       </div>
                       <span className={`concave-3d inline-flex shrink-0 items-center gap-2 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide ${meta.color}`} data-testid={`orientation-status-${item.id}`}><span className={`paxter-led ${meta.led}`} />{meta.label}</span>
                     </div>
@@ -489,6 +525,22 @@ export default function DuvidasOrientacoes() {
           </div>
           {editing?.status === "aprovada" && <div className="concave-3d mb-3 flex items-start gap-2 p-3 text-xs text-amber-800 dark:text-amber-300" data-testid="edit-approved-warning"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />Ao editar, a aprovação anterior será invalidada pelo servidor e o texto voltará a rascunho.</div>}
           <form onSubmit={saveOrientation} className="space-y-3" data-testid="orientation-form">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="orientation-category" className="lbl mb-1 block">Categoria</label>
+                <select id="orientation-category" data-testid="field-category" value={form.categoria} onChange={(e) => setForm((c) => ({ ...c, categoria: e.target.value, subcategoria: "" }))} className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                  <option value="">Sem categoria</option>
+                  {Object.entries(CATEGORIAS).map(([k, c]) => <option key={k} value={k}>{c.rotulo}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="orientation-subcategory" className="lbl mb-1 block">Subcategoria</label>
+                <select id="orientation-subcategory" data-testid="field-subcategory" value={form.subcategoria} onChange={(e) => setForm((c) => ({ ...c, subcategoria: e.target.value }))} disabled={!form.categoria} className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50">
+                  <option value="">Nenhuma</option>
+                  {form.categoria && CATEGORIAS[form.categoria] && Object.entries(CATEGORIAS[form.categoria].sub).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+            </div>
             <div>
               <label htmlFor="orientation-topic" className="lbl mb-1 block">Tema <span className="normal-case tracking-normal text-muted-foreground">(3–120 caracteres)</span></label>
               <input id="orientation-topic" data-testid="field-topic" value={form.tema} onChange={(event) => setField("tema", event.target.value)} maxLength={120} required minLength={3} placeholder="Ex.: preparo para a primeira consulta" className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40" />
@@ -500,10 +552,13 @@ export default function DuvidasOrientacoes() {
               <p className="mt-1 text-right text-[10px] text-muted-foreground" data-testid="questions-counter">{form.perguntasExemplo.length}/1000</p>
             </div>
             <div>
-              <label htmlFor="orientation-answer" className="lbl mb-1 block">Resposta aprovada / texto de referência <span className="normal-case tracking-normal text-muted-foreground">(10–1.500 caracteres)</span></label>
-              <textarea id="orientation-answer" data-testid="field-answer" value={form.resposta} onChange={(event) => setField("resposta", event.target.value)} maxLength={1500} required minLength={10} rows={7} placeholder="Registre o texto elaborado e validado pela equipe clínica." className="field-engraved min-h-[168px] w-full resize-y rounded-[4px] border px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-primary/40" />
-              <p className="mt-1 text-right text-[10px] text-muted-foreground" data-testid="answer-counter">{form.resposta.length}/1500</p>
+              <label htmlFor="orientation-answer" className="lbl mb-1 block">Resposta aprovada / texto de referência <span className="normal-case tracking-normal text-muted-foreground">(10–4.000 caracteres)</span></label>
+              <textarea id="orientation-answer" data-testid="field-answer" value={form.resposta} onChange={(event) => setField("resposta", event.target.value)} maxLength={LIMITE_RESPOSTA} required minLength={10} rows={7} placeholder="Registre o texto elaborado e validado pela equipe clínica." className="field-engraved min-h-[168px] w-full resize-y rounded-[4px] border px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-primary/40" />
+              <button type="button" data-testid="load-example" onClick={() => setForm((f) => ({ ...f, tema: f.tema || "Exemplo ilustrativo: apresentação e horários", resposta: EXEMPLO_ILUSTRATIVO }))} className="btn-3d-soft mt-2 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide">Carregar exemplo ilustrativo (editável)</button>
+              <p className="mt-1 text-[10px] text-muted-foreground">O exemplo usa campos genéricos e horários de mentira. Numa conversa real os horários vêm da agenda. Nada é salvo nem aprovado até você salvar.</p>
+              <p className="mt-1 text-right text-[10px] text-muted-foreground" data-testid="answer-counter">{form.resposta.length}/{LIMITE_RESPOSTA}</p>
             </div>
+            <PreviaTelegram texto={form.resposta} />
             {formError && <div role="alert" data-testid="form-error" className="concave-3d flex items-start gap-2 p-3 text-xs text-rose-700 dark:text-rose-400"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{formError}</div>}
             {saveNotice && <div role="status" aria-live="polite" data-testid="save-success" className="concave-3d flex items-start gap-2 p-3 text-xs text-emerald-800 dark:text-emerald-300"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{saveNotice}</div>}
             <div className="concave-3d flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">

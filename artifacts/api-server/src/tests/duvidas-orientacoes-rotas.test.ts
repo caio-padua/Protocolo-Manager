@@ -118,3 +118,70 @@ describe("assumir e devolver atendimento", () => {
     expect((await request(app).get("/duvidas-orientacoes/atendimento/estado").set("Authorization", MEDICO5)).body.emAtendimentoHumano).toEqual([]);
   });
 });
+
+describe("categorias, texto longo e marcadores", () => {
+  let id = 0;
+  it("registro antigo (sem categoria) é preservado; categoria inválida é recusada", async () => {
+    await pool.query(`INSERT INTO orientacoes_aprovadas(empresa_id,tema,resposta) VALUES (5,'Antigo sem categoria','Texto antigo preservado sem categoria.')`);
+    const l = await request(app).get("/duvidas-orientacoes").set("Authorization", MEDICO5);
+    const antigo = l.body.orientacoes.find((o: any) => o.tema === "Antigo sem categoria");
+    expect(antigo.categoria).toBeNull(); expect(antigo.subcategoria).toBeNull();
+    expect(l.body.categorias.agendamento.sub.horarios).toBeTruthy();
+    expect((await request(app).post("/duvidas-orientacoes").set("Authorization", MEDICO5).send({ ...corpo, categoria: "inventada" })).status).toBe(400);
+    expect((await request(app).post("/duvidas-orientacoes").set("Authorization", MEDICO5).send({ ...corpo, categoria: "agendamento", subcategoria: "valores" })).status).toBe(400);
+    expect((await request(app).post("/duvidas-orientacoes").set("Authorization", MEDICO5).send({ ...corpo, subcategoria: "valores" })).status).toBe(400);
+  });
+  it("salva texto longo com quebras e emojis, reabre idêntico e sem corte; acima do limite recusa", async () => {
+    const longo = Array.from({ length: 60 }, (_, i) => `Parágrafo ${i + 1} ☺️ com acento.`).join("\n\n");
+    expect(longo.length).toBeGreaterThan(1500);
+    const c = await request(app).post("/duvidas-orientacoes").set("Authorization", ENF5).send({ ...corpo, resposta: longo, categoria: "apresentacao", subcategoria: "primeiro_contato" });
+    expect(c.status).toBe(201); id = c.body.id;
+    const r = await pool.query(`SELECT resposta, categoria, subcategoria, status FROM orientacoes_aprovadas WHERE id=${id}`);
+    expect(r.rows[0]).toEqual({ resposta: longo, categoria: "apresentacao", subcategoria: "primeiro_contato", status: "rascunho" });
+    const crlf = await request(app).post("/duvidas-orientacoes").set("Authorization", ENF5).send({ ...corpo, resposta: "Olá!\r\n\r\nTudo bem?" });
+    const r2 = await pool.query(`SELECT resposta FROM orientacoes_aprovadas WHERE id=${crlf.body.id}`);
+    expect(r2.rows[0].resposta).toBe("Olá!\n\nTudo bem?");
+    expect((await request(app).post("/duvidas-orientacoes").set("Authorization", ENF5).send({ ...corpo, resposta: "x".repeat(4001) })).status).toBe(400);
+  });
+  it("marcador pendente bloqueia aprovação; trocar só a categoria NÃO derruba aprovação; trocar texto derruba", async () => {
+    const m = await request(app).post("/duvidas-orientacoes").set("Authorization", ENF5).send({ ...corpo, resposta: "Olá, [nome]! Tudo bem?" });
+    expect((await request(app).post(`/duvidas-orientacoes/${m.body.id}/aprovar`).set("Authorization", MEDICO5)).status).toBe(422);
+    expect((await pool.query(`SELECT status FROM orientacoes_aprovadas WHERE id=${m.body.id}`)).rows[0].status).toBe("rascunho");
+    expect((await request(app).post(`/duvidas-orientacoes/${id}/aprovar`).set("Authorization", MEDICO5)).status).toBe(200);
+    const so = await request(app).put(`/duvidas-orientacoes/${id}`).set("Authorization", ENF5).send({ ...corpo, resposta: (await pool.query(`SELECT resposta FROM orientacoes_aprovadas WHERE id=${id}`)).rows[0].resposta, categoria: "gerais", subcategoria: "locais" });
+    expect(so.body.status).toBe("aprovada");
+    expect((await pool.query(`SELECT categoria FROM orientacoes_aprovadas WHERE id=${id}`)).rows[0].categoria).toBe("gerais");
+    const sem = await request(app).put(`/duvidas-orientacoes/${id}`).set("Authorization", ENF5).send({ ...corpo, resposta: (await pool.query(`SELECT resposta FROM orientacoes_aprovadas WHERE id=${id}`)).rows[0].resposta });
+    expect((await pool.query(`SELECT categoria FROM orientacoes_aprovadas WHERE id=${id}`)).rows[0].categoria).toBe("gerais"); // campo ausente mantém
+    expect(sem.body.status).toBe("aprovada");
+    const txt = await request(app).put(`/duvidas-orientacoes/${id}`).set("Authorization", ENF5).send({ ...corpo, resposta: "Texto diferente agora." });
+    expect(txt.body.status).toBe("rascunho");
+  });
+});
+
+describe("tom de voz por clínica", () => {
+  const T = "/duvidas-orientacoes/tom-de-voz";
+  it("exige login; sem registro devolve nulo; enfermagem salva rascunho e não aprova; médico aprova", async () => {
+    expect((await request(app).get(T)).status).toBe(401);
+    expect((await request(app).get(T).set("Authorization", MEDICO5)).body.tom).toBeNull();
+    expect((await request(app).put(T).set("Authorization", ENF5).send({ texto: "curto" })).status).toBe(400);
+    const p = await request(app).put(T).set("Authorization", ENF5).send({ texto: "Tom elegante e acolhedor.\r\n\r\nFrases curtas." });
+    expect(p.body.status).toBe("rascunho");
+    expect((await request(app).get(T).set("Authorization", ENF5)).body.tom.texto).toBe("Tom elegante e acolhedor.\n\nFrases curtas.");
+    expect((await request(app).post(`${T}/aprovar`).set("Authorization", ENF5)).status).toBe(403);
+    expect((await request(app).post(`${T}/aprovar`).set("Authorization", MEDICO5)).status).toBe(200);
+    expect((await request(app).get(T).set("Authorization", MEDICO5)).body.tom.status).toBe("aprovada");
+  });
+  it("salvar o mesmo texto mantém aprovação; texto novo volta a rascunho", async () => {
+    const igual = await request(app).put(T).set("Authorization", ENF5).send({ texto: "Tom elegante e acolhedor.\n\nFrases curtas." });
+    expect(igual.body.status).toBe("aprovada");
+    const novo = await request(app).put(T).set("Authorization", ENF5).send({ texto: "Tom alterado pela enfermagem." });
+    expect(novo.body.status).toBe("rascunho");
+  });
+  it("clínica 7 não vê nem aprova o tom da clínica 5", async () => {
+    expect((await request(app).get(T).set("Authorization", MEDICO7)).body.tom).toBeNull();
+    expect((await request(app).post(`${T}/aprovar`).set("Authorization", MEDICO7)).status).toBe(404);
+    await request(app).put(T).set("Authorization", MEDICO7).send({ texto: "Tom próprio da clínica sete." });
+    expect((await request(app).get(T).set("Authorization", MEDICO5)).body.tom.texto).toBe("Tom alterado pela enfermagem.");
+  });
+});

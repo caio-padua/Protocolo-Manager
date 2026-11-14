@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { ConsoleShell, BlockTitle, StatusVela, BASE } from "./_shared";
 import { getCollabToken } from "@/lib/collab-auth";
+import { PainelOperacionalTelegram } from "./painel-telegram";
 import { classificarStatusTelegram, mensagemErroTelegram, type StatusTelegram } from "./telegram-status";
 
 // ============================================================================
@@ -633,6 +634,7 @@ export default function CentralAuditoriaComunicacao() {
       {/* 4 blocos de canal */}
       <BlocoWhatsApp filtroData={filtroData} />
       <BlocoEmail />
+      <PainelOperacionalTelegram />
       <BlocoTelegram />
       <BlocoTrello />
     </ConsoleShell>

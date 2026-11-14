@@ -122,3 +122,12 @@ Etapa 7: serviço de IA "Dúvidas e Orientações" (somente orientações aprova
 - O outbox tem retomada contínua comprovada no workflow restrito de desenvolvimento; lembretes seguem no único Job 2 do worker completo e permanecem sem ativação em desenvolvimento nesta rodada.
 - Repasse real do outbox ao chat de alerta ainda sem prova ao vivo.
 - Nada publicado em produção.
+
+## Painel operacional e prévia fiel (14/11/2026, desenvolvimento)
+Reuso obrigatório antes de qualquer tela nova: `duvidas-orientacoes.tsx`, `central-auditoria.tsx`, `telegram-inbox.ts`, `atendimento-telegram.ts` e este arquivo.
+- Painel na Central de Auditoria (`painel-telegram.tsx`) lê `GET /api/telegram-inbox/painel-operacional`: só presença, contagens e estados; nunca token, segredo, URL do webhook, chat id ou texto. Estados: conectado, parcial, documentado, não comprovado, pendente.
+- Prova de ida e volta registrada no painel: contato pessoal, em desenvolvimento. Contato da clínica e produção: NÃO testados.
+- Não encontrados no código: consulta da própria agenda ("próxima consulta") e reenvio de RAS, RASP e prescrição pela conversa.
+- Dúvidas e Orientações: limite 4.000 caracteres, prévia fiel (parágrafos, linhas em branco, emojis), exemplo ilustrativo editável (não salvo sozinho), aprovação bloqueada com marcadores `[x]` ou `{{x}}` pendentes, envio escapa `<`, `>` e `&` (formato HTML do Telegram).
+- Teste: texto de 20 linhas salvo e relido idêntico no banco; enviado ao contato autorizado (aceite do Telegram, sem confirmação visual minha); registro de teste apagado. Orientação existente (rascunho) intacta.
+- Modelos de "Padua - Mensagem padrão": NENHUM importado (leitura não respondeu).

@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { verifyCollaboratorToken } from "../lib/collaborator-auth";
+import { LIMITE_RESPOSTA, LIMITE_TOM, CATEGORIAS, validarCategoria, normalizarQuebras, marcadoresPendentes } from "../lib/orientacao-texto";
 import { lerConfigAtendimento, pausarParaHumano, devolverParaIA } from "../lib/atendimento-telegram-store";
 
 const router = Router();
@@ -39,23 +40,65 @@ function idDe(req: Request): number | null {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
-function validar(body: unknown): { tema: string; perguntasExemplo: string; resposta: string } | string {
+function validar(body: unknown): { tema: string; perguntasExemplo: string; resposta: string; cat: { categoria: string | null; subcategoria: string | null } | undefined } | string {
   const b = (body ?? {}) as Record<string, unknown>;
   const tema = typeof b.tema === "string" ? b.tema.trim() : "";
   const perguntasExemplo = typeof b.perguntasExemplo === "string" ? b.perguntasExemplo.trim() : "";
-  const resposta = typeof b.resposta === "string" ? b.resposta.trim() : "";
+  const resposta = typeof b.resposta === "string" ? normalizarQuebras(b.resposta).trim() : "";
   if (tema.length < 3 || tema.length > 120) return "tema deve ter de 3 a 120 caracteres";
   if (perguntasExemplo.length > 1000) return "perguntas de exemplo: no máximo 1000 caracteres";
-  if (resposta.length < 10 || resposta.length > 1500) return "resposta deve ter de 10 a 1500 caracteres";
-  return { tema, perguntasExemplo, resposta };
+  if (resposta.length < 10 || resposta.length > LIMITE_RESPOSTA) return `resposta deve ter de 10 a ${LIMITE_RESPOSTA} caracteres`;
+  // Campo ausente = manter o que já está salvo (clientes antigos da API não apagam categoria).
+  let cat: { categoria: string | null; subcategoria: string | null } | undefined;
+  if ("categoria" in b || "subcategoria" in b) {
+    const c = validarCategoria(b.categoria, b.subcategoria);
+    if (typeof c === "string") return c;
+    cat = c;
+  }
+  return { tema, perguntasExemplo, resposta, cat };
 }
+
+// ── Tom de voz da assistente (por clínica). Guia de estilo para a equipe; a IA nunca redige texto ao paciente. ──
+router.get("/duvidas-orientacoes/tom-de-voz", async (req, res): Promise<void> => {
+  const q = await resolverQuem(req, res);
+  if (!q) return;
+  const r = await db.execute(sql`SELECT texto, status, aprovado_por AS "aprovadoPor", aprovado_em AS "aprovadoEm", atualizado_em AS "atualizadoEm" FROM assistente_tom_voz WHERE empresa_id=${q.empresaId}`);
+  res.json({ tom: r.rows[0] ?? null, podeAprovar: q.medico, limite: LIMITE_TOM });
+});
+
+router.put("/duvidas-orientacoes/tom-de-voz", async (req, res): Promise<void> => {
+  const q = await resolverQuem(req, res);
+  if (!q) return;
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  const texto = typeof b.texto === "string" ? normalizarQuebras(b.texto).trim() : "";
+  if (texto.length < 10 || texto.length > LIMITE_TOM) { res.status(400).json({ error: `tom de voz deve ter de 10 a ${LIMITE_TOM} caracteres` }); return; }
+  // Salvar sempre volta a rascunho quando o texto muda; igual ao aprovado mantém a aprovação.
+  await db.execute(sql`INSERT INTO assistente_tom_voz (empresa_id, texto, atualizado_por) VALUES (${q.empresaId}, ${texto}, ${q.professionalId})
+    ON CONFLICT (empresa_id) DO UPDATE SET
+      status = CASE WHEN assistente_tom_voz.texto IS DISTINCT FROM EXCLUDED.texto THEN 'rascunho' ELSE assistente_tom_voz.status END,
+      aprovado_por = CASE WHEN assistente_tom_voz.texto IS DISTINCT FROM EXCLUDED.texto THEN NULL ELSE assistente_tom_voz.aprovado_por END,
+      aprovado_em = CASE WHEN assistente_tom_voz.texto IS DISTINCT FROM EXCLUDED.texto THEN NULL ELSE assistente_tom_voz.aprovado_em END,
+      texto = EXCLUDED.texto, atualizado_por = EXCLUDED.atualizado_por, atualizado_em = NOW()`);
+  const r = await db.execute(sql`SELECT status FROM assistente_tom_voz WHERE empresa_id=${q.empresaId}`);
+  res.json({ ok: true, status: (r.rows[0] as { status: string }).status });
+});
+
+router.post("/duvidas-orientacoes/tom-de-voz/aprovar", async (req, res): Promise<void> => {
+  const q = await resolverQuem(req, res);
+  if (!q) return;
+  if (!q.medico) { res.status(403).json({ error: "Somente médico aprova o tom de voz." }); return; }
+  const r = await db.execute(sql`UPDATE assistente_tom_voz SET status='aprovada', aprovado_por=${q.professionalId}, aprovado_em=NOW(), atualizado_em=NOW()
+    WHERE empresa_id=${q.empresaId} AND status='rascunho' RETURNING empresa_id`);
+  if (r.rows.length === 0) { res.status(404).json({ error: "nenhum rascunho de tom de voz para aprovar" }); return; }
+  res.json({ ok: true });
+});
 
 router.get("/duvidas-orientacoes", async (req, res): Promise<void> => {
   const q = await resolverQuem(req, res);
   if (!q) return;
-  const r = await db.execute(sql`SELECT id, tema, perguntas_exemplo AS "perguntasExemplo", resposta, status, aprovado_por AS "aprovadoPor", aprovado_em AS "aprovadoEm", atualizado_em AS "atualizadoEm"
+  const r = await db.execute(sql`SELECT id, tema, perguntas_exemplo AS "perguntasExemplo", resposta, categoria, subcategoria, status, aprovado_por AS "aprovadoPor", aprovado_em AS "aprovadoEm", atualizado_em AS "atualizadoEm"
     FROM orientacoes_aprovadas WHERE empresa_id = ${q.empresaId} ORDER BY status, id DESC`);
-  res.json({ orientacoes: r.rows, podeAprovar: q.medico });
+  res.json({ orientacoes: r.rows, podeAprovar: q.medico, categorias: CATEGORIAS });
 });
 
 router.post("/duvidas-orientacoes", async (req, res): Promise<void> => {
@@ -63,8 +106,8 @@ router.post("/duvidas-orientacoes", async (req, res): Promise<void> => {
   if (!q) return;
   const v = validar(req.body);
   if (typeof v === "string") { res.status(400).json({ error: v }); return; }
-  const r = await db.execute(sql`INSERT INTO orientacoes_aprovadas (empresa_id, tema, perguntas_exemplo, resposta, criado_por)
-    VALUES (${q.empresaId}, ${v.tema}, ${v.perguntasExemplo}, ${v.resposta}, ${q.professionalId}) RETURNING id`);
+  const r = await db.execute(sql`INSERT INTO orientacoes_aprovadas (empresa_id, tema, perguntas_exemplo, resposta, criado_por, categoria, subcategoria)
+    VALUES (${q.empresaId}, ${v.tema}, ${v.perguntasExemplo}, ${v.resposta}, ${q.professionalId}, ${v.cat?.categoria ?? null}, ${v.cat?.subcategoria ?? null}) RETURNING id`);
   res.status(201).json({ id: Number((r.rows[0] as { id: number | string }).id), status: "rascunho" });
 });
 
@@ -75,12 +118,15 @@ router.put("/duvidas-orientacoes/:id", async (req, res): Promise<void> => {
   const v = validar(req.body);
   if (!id) { res.status(400).json({ error: "id inválido" }); return; }
   if (typeof v === "string") { res.status(400).json({ error: v }); return; }
-  // Editar qualquer campo invalida a aprovação anterior: o médico aprova o texto que de fato será enviado.
+  // Mudar o TEXTO (tema, perguntas ou resposta) invalida a aprovação: o médico aprova o que de fato será enviado.
+  // Mudar só a categoria não altera o que o paciente lê e não derruba a aprovação.
+  const mudou = sql`(tema IS DISTINCT FROM ${v.tema} OR perguntas_exemplo IS DISTINCT FROM ${v.perguntasExemplo} OR resposta IS DISTINCT FROM ${v.resposta})`;
   const r = await db.execute(sql`UPDATE orientacoes_aprovadas
     SET tema=${v.tema}, perguntas_exemplo=${v.perguntasExemplo}, resposta=${v.resposta},
-        status = CASE WHEN status='aprovada' THEN 'rascunho' ELSE status END,
-        aprovado_por = CASE WHEN status='aprovada' THEN NULL ELSE aprovado_por END,
-        aprovado_em = CASE WHEN status='aprovada' THEN NULL ELSE aprovado_em END,
+        categoria = ${v.cat ? v.cat.categoria : sql`categoria`}, subcategoria = ${v.cat ? v.cat.subcategoria : sql`subcategoria`},
+        status = CASE WHEN status='aprovada' AND ${mudou} THEN 'rascunho' ELSE status END,
+        aprovado_por = CASE WHEN status='aprovada' AND ${mudou} THEN NULL ELSE aprovado_por END,
+        aprovado_em = CASE WHEN status='aprovada' AND ${mudou} THEN NULL ELSE aprovado_em END,
         atualizado_em = NOW()
     WHERE id=${id} AND empresa_id=${q.empresaId} RETURNING status`);
   if (r.rows.length === 0) { res.status(404).json({ error: "orientação não encontrada" }); return; }
@@ -93,6 +139,13 @@ router.post("/duvidas-orientacoes/:id/aprovar", async (req, res): Promise<void> 
   if (!q.medico) { res.status(403).json({ error: "Somente médico aprova orientações." }); return; }
   const id = idDe(req);
   if (!id) { res.status(400).json({ error: "id inválido" }); return; }
+  const atual = await db.execute(sql`SELECT resposta FROM orientacoes_aprovadas WHERE id=${id} AND empresa_id=${q.empresaId}`);
+  const texto = (atual.rows[0] as { resposta?: string } | undefined)?.resposta;
+  const pend = texto ? marcadoresPendentes(texto) : [];
+  if (pend.length) {
+    res.status(422).json({ error: `Não é possível aprovar: o texto ainda tem marcadores a preencher (${pend.slice(0, 5).join(", ")}). Troque por texto final antes de aprovar.` });
+    return;
+  }
   const r = await db.execute(sql`UPDATE orientacoes_aprovadas SET status='aprovada', aprovado_por=${q.professionalId}, aprovado_em=NOW(), atualizado_em=NOW()
     WHERE id=${id} AND empresa_id=${q.empresaId} AND status IN ('rascunho','inativa') RETURNING id`);
   if (r.rows.length === 0) { res.status(404).json({ error: "orientação não encontrada ou já aprovada" }); return; }
