@@ -107,7 +107,7 @@ export default function EditClient() {
   const queryClient = useQueryClient();
   const { data: client, isLoading, isError, error } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
   const updateClient = useUpdateClient();
-  const [aba, setAba] = useState<"dados" | "endereco" | "midia" | "notas" | "cadastro">("dados");
+  const [aba, setAba] = useState<"dados" | "vinculo" | "preferencias" | "endereco" | "midia" | "notas" | "cadastro">("dados");
   const [loadingCep, setLoadingCep] = useState(false);
   const [saveError, setSaveError] = useState("");
   const loadedClientId = useRef<number | null>(null);
@@ -313,6 +313,8 @@ export default function EditClient() {
       <div role="tablist" className="panel-3d-sub flex flex-wrap gap-2 p-2">
         {([
           { value: "dados", label: "DADOS", Icon: User },
+          { value: "vinculo", label: "VÍNCULO", Icon: Building2 },
+          { value: "preferencias", label: "PREFERÊNCIAS", Icon: Crown },
           { value: "endereco", label: "ENDEREÇO", Icon: MapPin },
           { value: "midia", label: "FOTO E ASSINATURA", Icon: Camera },
           { value: "notas", label: "ADICIONAIS E NOTAS", Icon: Plus },
@@ -345,6 +347,8 @@ export default function EditClient() {
             <form onSubmit={form.handleSubmit(onSubmit, (erros) => {
               // Campo com erro numa aba escondida: abre a aba certa para o erro aparecer
               const campos = Object.keys(erros);
+              if (campos.includes("clinicaOrigemEmpresaId") || campos.includes("preferredAgendaResourceIds") || campos.includes("locationId")) { setAba("vinculo"); return; }
+              if (campos.includes("visitPreferences")) { setAba("preferencias"); return; }
               const enderecoCampos = ["cep", "logradouro", "numero", "complemento", "bairro", "cidade", "estado", "pais"];
               const notasCampos = ["instagram", "comoConheceu", "notes"];
               if (campos.some((c) => !enderecoCampos.includes(c) && !notasCampos.includes(c))) setAba("dados");
@@ -462,6 +466,16 @@ export default function EditClient() {
                     )}
                   />
 
+                </div>
+              </div>
+              </div>
+
+              <div className={aba === "vinculo" ? "space-y-8" : "hidden"}>
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <Building2 className="h-3 w-3 text-primary" /> Vínculo
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                   <FormField
                     control={form.control}
                     name="clinicaOrigemEmpresaId"
@@ -486,6 +500,16 @@ export default function EditClient() {
                       />
                     )}
                   />
+                </div>
+              </div>
+              </div>
+
+              <div className={aba === "preferencias" ? "space-y-8" : "hidden"}>
+              <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
+                <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
+                  <Crown className="h-3 w-3 text-primary" /> Preferências
+                </div>
+                <div className="grid grid-cols-1 gap-6 pt-2">
                   <FormField control={form.control} name="visitPreferences" render={({ field }) => (
                     <div className="col-span-full">
                       <VisitPreferencesField value={field.value} onChange={field.onChange} disabled={visitRevision.current === null} />
