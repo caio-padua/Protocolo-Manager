@@ -57,6 +57,7 @@ import { resolverChatAlerta } from "../lib/telegram-config";
 import { registrarPendenciaVinculo } from "../lib/telegram-vinculo-pendencia";
 import { registrarRepasseDuravel, tentarRepasseAgora } from "../lib/telegram-repasse-worker";
 import { atenderMensagemTelegram } from "../lib/atendimento-telegram-store";
+import { atenderVisitante, visitanteAutorizado } from "../lib/telegram-agendamento-store";
 import {
   reivindicarUpdate, concluirUpdate, liberarUpdate, botIdDoToken,
 } from "../lib/telegram-update-claim";
@@ -770,7 +771,16 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
         );
       }
     } else {
-      if (texto) {
+      if (texto && await visitanteAutorizado(chatId)) {
+        // Assistente de agendamento para quem ainda não é cliente (somente chats autorizados; nunca reserva).
+        try {
+          await atenderVisitante(chatId, texto, updateIdEntrada, 5);
+        } catch (err) {
+          logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram] falha no atendimento de visitante");
+          res.status(500).json({ ok: false });
+          return;
+        }
+      } else if (texto) {
         void sendTelegram(
           chatId,
           `👋 Olá!\n\n` +

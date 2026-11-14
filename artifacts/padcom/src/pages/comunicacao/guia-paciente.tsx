@@ -565,7 +565,17 @@ export default function GuiaPaciente() {
         <div className="panel-3d rounded-xl p-5 space-y-4">
           <p className="text-primary text-xs font-black uppercase tracking-widest">Enviar automaticamente</p>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {/* Somente Telegram: não depende de telefone nem de WhatsApp */}
+            <button
+              onClick={() => enviar(["TELEGRAM"])}
+              disabled={!clinicaReady || loading || countdown > 0}
+              className="btn-3d flex items-center justify-center gap-2 py-3 text-sm font-black uppercase tracking-wider disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {countdown > 0 ? `Aguarde ${countdown}s…` : "Somente Telegram"}
+            </button>
+
             {/* WhatsApp */}
             <button
               onClick={() => enviar(["WHATSAPP"])}

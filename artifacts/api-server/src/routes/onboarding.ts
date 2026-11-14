@@ -200,7 +200,7 @@ Qualquer dúvida, estamos à disposição! 😊`;
   if (canais.includes("TELEGRAM")) {
     const chatId = cliente.telegramChatId;
     if (!chatId) {
-      resultados.push({ canal: "TELEGRAM", ok: false, mensagem: "Paciente não tem Telegram vinculado. Use WhatsApp primeiro." });
+      resultados.push({ canal: "TELEGRAM", ok: false, mensagem: "Cliente ainda não vinculou o Telegram. Envie o link de ativação pelo Cockpit ou use outro canal." });
     } else {
       try {
         const r = await sendTelegram(chatId, mensagem.replace(/\*/g, ""));

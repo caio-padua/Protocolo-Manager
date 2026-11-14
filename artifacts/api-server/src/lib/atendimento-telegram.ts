@@ -101,7 +101,7 @@ export function escolhaDeterministica(c: Candidata[]): OrientacaoAprovada | null
 
 export type Desfecho =
   | "desligado" | "fora_da_lista" | "pausado_humano" | "ja_tratado"
-  | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado" | "falha_envio" | "falha_alerta";
+  | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado" | "falha_envio" | "falha_alerta" | "agendamento_conduzido";
 
 export interface DepsAtendimento {
   lerConfig: () => Promise<ConfigAtendimentoIA>;

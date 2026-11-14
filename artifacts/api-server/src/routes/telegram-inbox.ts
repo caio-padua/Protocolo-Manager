@@ -235,3 +235,30 @@ inboxRouter.get("/telegram-inbox/conversas", requireCollaborator, requireMessage
   }));
   res.json({ conversas: itens });
 });
+
+// ── 5) GET /telegram-inbox/visitantes ────────────────────────────────────────
+// Quem escreve no Telegram sem ser cliente: pedidos de agendamento (para a equipe confirmar) e últimas
+// mensagens por conversa. O identificador do chat sai mascarado. Mensagens de visitante ainda não
+// carregam clínica própria: valem para a clínica padrão (5), a mesma usada pelo webhook.
+inboxRouter.get("/telegram-inbox/visitantes", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const empresaId = req.messageEmpresaId!;
+  const pedidos = await db.execute(sql`
+    SELECT id, nome, telefone, modalidade, oferta, status, criado_em AS "criadoEm"
+    FROM telegram_pedidos_agendamento WHERE empresa_id = ${empresaId}
+    ORDER BY (status = 'novo') DESC, criado_em DESC LIMIT 100`);
+  const conversas = empresaId !== 5 ? { rows: [] } : await db.execute(sql`
+    SELECT RIGHT(m.chat_id, 4) AS final, m.direcao, m.texto, m.recebida_em AS "ultimaEm", u.total
+    FROM (SELECT chat_id, MAX(id) AS ultimo, COUNT(*)::int AS total FROM telegram_visitante_mensagens GROUP BY chat_id) u
+    JOIN telegram_visitante_mensagens m ON m.id = u.ultimo ORDER BY m.recebida_em DESC LIMIT 100`);
+  res.json({
+    pedidos: (pedidos.rows as Array<Record<string, unknown>>).map((r) => ({
+      id: Number(r["id"]), nome: String(r["nome"]), telefone: String(r["telefone"]).replace(/\d(?=\d{4})/g, "•"),
+      modalidade: r["modalidade"] ?? null, oferta: r["oferta"] ?? null, status: String(r["status"]),
+      criadoEm: new Date(String(r["criadoEm"])).toISOString(),
+    })),
+    conversas: (conversas.rows as Array<Record<string, unknown>>).map((r) => ({
+      final: String(r["final"]), ultimaDirecao: String(r["direcao"]), ultimaTexto: String(r["texto"]).slice(0, 140),
+      ultimaEm: new Date(String(r["ultimaEm"])).toISOString(), total: Number(r["total"]),
+    })),
+  });
+});

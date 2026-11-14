@@ -8,6 +8,10 @@ interface Conversa {
   clienteId: number; nome: string; naoLidas: number; total: number;
   ultimaEm: string; ultimaTexto: string; ultimaDirecao: string;
 }
+interface VisitantesResp {
+  pedidos: Array<{ id: number; nome: string; telefone: string; modalidade: string | null; oferta: { data: string; hora: string } | null; status: string; criadoEm: string }>;
+  conversas: Array<{ final: string; ultimaDirecao: string; ultimaTexto: string; ultimaEm: string; total: number }>;
+}
 const api = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
 
 function quando(iso: string): string {
@@ -32,6 +36,18 @@ export default function CentralTelegram() {
     },
   });
   const conversas = lista.data?.conversas ?? [];
+  const visitantes = useQuery<VisitantesResp>({
+    queryKey: ["central-telegram-visitantes"],
+    retry: false,
+    refetchInterval: 30_000,
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${api}/telegram-inbox/visitantes`, { signal, headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` } });
+      if (!r.ok) throw new Error("Não foi possível carregar os visitantes.");
+      return r.json();
+    },
+  });
+  const pedidos = visitantes.data?.pedidos ?? [];
+  const convVisitantes = visitantes.data?.conversas ?? [];
   return (
     <div className="mx-auto max-w-[1400px] space-y-4 p-4">
       <header>
@@ -80,6 +96,35 @@ export default function CentralTelegram() {
           )}
         </section>
       </div>
+      <section className="panel-3d-sub p-3" aria-label="Quem ainda não é cliente">
+        <h2 className="mb-1 text-lg font-black">Quem ainda não é cliente</h2>
+        <p className="mb-2 text-xs text-muted-foreground">Pedidos de agendamento feitos pelo Telegram. O horário citado NÃO está reservado: a equipe confirma com a pessoa.</p>
+        {pedidos.length === 0 && convVisitantes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum pedido ou conversa de visitante até agora.</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            <ul className="space-y-2">
+              {pedidos.map((p) => (
+                <li key={p.id} className="concave-3d rounded-lg px-3 py-2 text-sm">
+                  <strong>{p.nome}</strong> <span className="text-xs">(telefone {p.telefone})</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Pedido {p.id} · {p.status === "novo" ? "aguardando a equipe" : p.status} · {p.modalidade ?? "modalidade não informada"}
+                    {p.oferta ? ` · ${p.oferta.data.slice(8, 10)}/${p.oferta.data.slice(5, 7)} às ${p.oferta.hora}` : ""} · {quando(p.criadoEm)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <ul className="space-y-2">
+              {convVisitantes.map((c) => (
+                <li key={c.final + c.ultimaEm} className="concave-3d rounded-lg px-3 py-2 text-xs">
+                  <strong>Chat final {c.final}</strong> · {c.total} mensagens · {quando(c.ultimaEm)}
+                  <span className="block truncate text-muted-foreground">{c.ultimaDirecao === "saida" ? "Assistente: " : "Pessoa: "}{c.ultimaTexto}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

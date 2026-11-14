@@ -10,6 +10,7 @@ import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
 import { requireAiTenant } from "./ai-central";
+import { planejarAgendamentoCliente, aplicarMigracaoAgendamentoTelegram } from "./telegram-agendamento-store";
 import {
   planejarAtendimento, normalizar,
   type ConfigAtendimentoIA, type DepsAtendimento, type Desfecho, type EntradaAtendimento, type Candidata,
@@ -53,6 +54,8 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       fechado_em       TIMESTAMPTZ
     )`);
   await migrarRecuperacaoAtendimento(exec);
+  /* Assistente de agendamento: estado, visitantes e pedidos (aditiva) */
+  await aplicarMigracaoAgendamentoTelegram(exec);
 }
 
 /** Profissional assumiu: pausa as respostas automáticas deste cliente. */
@@ -174,7 +177,16 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       const cfg=await lerConfigAtendimento();
       return cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId));
     },
-    planejar: e=>planejarAtendimento(depsReaisAtendimento(e.empresaId),e),
+    planejar: async e=>{
+      const deps=depsReaisAtendimento(e.empresaId);
+      // Agendamento primeiro (só se a conversa for de agendamento); o resto segue o fluxo de orientações.
+      const cfg=await deps.lerConfig();
+      if(cfg.modo!=="desligado" && (await deps.modoDoCliente(e.clienteId))!=="humano"){
+        const ag=await planejarAgendamentoCliente({empresaId:e.empresaId,clienteId:e.clienteId,texto:e.texto});
+        if(ag.tratada) return {pausa:ag.pausa,alerta:ag.alerta,resposta:ag.resposta,orientacaoId:null,desfecho:"agendamento_conduzido" as const};
+      }
+      return planejarAtendimento(deps,e);
+    },
     pausar: pausarAtendimentoDuravel,
     chatAlerta: chatAlertaOuNull,
     autorizarResposta: async (e,plano)=>{
