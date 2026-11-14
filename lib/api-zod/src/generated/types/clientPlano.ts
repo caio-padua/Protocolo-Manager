@@ -12,5 +12,5 @@ export const ClientPlano = {
   bronze: "bronze",
   prata: "prata",
   ouro: "ouro",
-  rodio: "rodio",
+  platina: "platina",
 } as const;

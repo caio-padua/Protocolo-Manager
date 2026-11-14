@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ClientVisitPreferences } from "./clientVisitPreferences";
+import type { CreateClientBodyClassificacao } from "./createClientBodyClassificacao";
+import type { CreateClientBodyPlano } from "./createClientBodyPlano";
 import type { CreateClientBodyStatus } from "./createClientBodyStatus";
 
 export interface CreateClientBody {
@@ -27,6 +29,8 @@ export interface CreateClientBody {
   agendaEnfermagemEsperada?: number | null;
   agendaMedicoEsperada?: number | null;
   photoUrl?: string | null;
+  classificacao?: CreateClientBodyClassificacao;
+  plano?: CreateClientBodyPlano;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
   /** @minimum 0 */

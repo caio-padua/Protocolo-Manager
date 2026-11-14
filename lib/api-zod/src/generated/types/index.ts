@@ -156,6 +156,8 @@ export * from "./createAgendaExceptionBodyKind";
 export * from "./createAgendaResourceBody";
 export * from "./createCatalogOptionBody";
 export * from "./createClientBody";
+export * from "./createClientBodyClassificacao";
+export * from "./createClientBodyPlano";
 export * from "./createClientBodyStatus";
 export * from "./createClientServiceAddressBody";
 export * from "./createClinicalDemonstrationModelo";

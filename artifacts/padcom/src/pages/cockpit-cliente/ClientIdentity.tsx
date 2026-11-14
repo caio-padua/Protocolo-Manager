@@ -74,7 +74,7 @@ interface ClientIdentityProps {
   onMensagens: () => void;
 }
 
-const PLANO_NOME: Record<string, string> = { bronze: "Bronze", prata: "Prata", ouro: "Ouro", rodio: "Ródio" };
+const PLANO_NOME: Record<string, string> = { bronze: "Bronze", prata: "Prata", ouro: "Ouro", platina: "Platina" };
 
 export default function ClientIdentity({ client, onMensagens }: ClientIdentityProps) {
   const [aberto, setAberto] = useState<"resumo" | "imagem" | null>(null);

@@ -8,6 +8,7 @@ import { Loader2, Pencil, FileText, FolderOpen, Phone, Mail, Calendar, MapPin, H
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
+import CategoriaCliente from "./CategoriaCliente";
 import TelegramUnlinkButton from "../TelegramUnlinkButton";
 
 const API = import.meta.env.VITE_API_URL || "/api";
@@ -59,6 +60,8 @@ export default function CadastroPanel({ clientId }: Props) {
           </Button>
         </div>
       </div>
+
+      <CategoriaCliente key={`${client.id}-${client.classificacao}-${client.plano}`} client={client} />
 
       {/* Info pessoal + locais */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

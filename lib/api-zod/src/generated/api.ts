@@ -1507,7 +1507,7 @@ export const ListClientsResponseItem = zod.object({
   agendaMedicoPadraoId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
-  plano: zod.enum(["bronze", "prata", "ouro", "rodio"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "platina"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({
@@ -1689,6 +1689,8 @@ export const CreateClientBody = zod.object({
   agendaEnfermagemEsperada: zod.number().nullish(),
   agendaMedicoEsperada: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "platina"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({
@@ -1926,7 +1928,7 @@ export const GetClientResponse = zod.object({
   agendaMedicoPadraoId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
-  plano: zod.enum(["bronze", "prata", "ouro", "rodio"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "platina"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({
@@ -2111,6 +2113,8 @@ export const UpdateClientBody = zod.object({
   agendaEnfermagemEsperada: zod.number().nullish(),
   agendaMedicoEsperada: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
+  classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "platina"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({
@@ -2281,7 +2285,7 @@ export const UpdateClientResponse = zod.object({
   agendaMedicoPadraoId: zod.number().nullish(),
   photoUrl: zod.string().nullish(),
   classificacao: zod.enum(["A", "B", "C", "D"]).optional(),
-  plano: zod.enum(["bronze", "prata", "ouro", "rodio"]).optional(),
+  plano: zod.enum(["bronze", "prata", "ouro", "platina"]).optional(),
   preferredAgendaResourceIds: zod.array(zod.number()).nullish(),
   visitPreferences: zod
     .object({

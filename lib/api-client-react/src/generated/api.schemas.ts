@@ -1696,7 +1696,7 @@ export const ClientPlano = {
   bronze: "bronze",
   prata: "prata",
   ouro: "ouro",
-  rodio: "rodio",
+  platina: "platina",
 } as const;
 
 export interface Client {
@@ -1736,6 +1736,26 @@ export const CreateClientBodyStatus = {
   pending: "pending",
 } as const;
 
+export type CreateClientBodyClassificacao =
+  (typeof CreateClientBodyClassificacao)[keyof typeof CreateClientBodyClassificacao];
+
+export const CreateClientBodyClassificacao = {
+  A: "A",
+  B: "B",
+  C: "C",
+  D: "D",
+} as const;
+
+export type CreateClientBodyPlano =
+  (typeof CreateClientBodyPlano)[keyof typeof CreateClientBodyPlano];
+
+export const CreateClientBodyPlano = {
+  bronze: "bronze",
+  prata: "prata",
+  ouro: "ouro",
+  platina: "platina",
+} as const;
+
 export interface CreateClientBody {
   name: string;
   cpf: string;
@@ -1755,6 +1775,8 @@ export interface CreateClientBody {
   agendaEnfermagemEsperada?: number | null;
   agendaMedicoEsperada?: number | null;
   photoUrl?: string | null;
+  classificacao?: CreateClientBodyClassificacao;
+  plano?: CreateClientBodyPlano;
   preferredAgendaResourceIds?: number[] | null;
   visitPreferences?: ClientVisitPreferences;
   /** @minimum 0 */

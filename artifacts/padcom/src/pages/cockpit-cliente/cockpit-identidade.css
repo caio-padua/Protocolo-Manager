@@ -229,8 +229,8 @@
 .cc-grade-plan span[data-plano="bronze"] { color: #b9773a; }
 .cc-grade-plan span[data-plano="prata"] { color: #9aa7b5; }
 .cc-grade-plan span[data-plano="ouro"] { color: #d2ab57; }
-.cc-grade-plan span[data-plano="rodio"] { color: #7fb7c9; }
+.cc-grade-plan span[data-plano="platina"] { color: #7fb7c9; }
 .cc-shell:not(.dark) .cc-grade-plan span[data-plano="bronze"] { color: #8f5420; }
 .cc-shell:not(.dark) .cc-grade-plan span[data-plano="prata"] { color: #6b7886; }
 .cc-shell:not(.dark) .cc-grade-plan span[data-plano="ouro"] { color: #8a6d2f; }
-.cc-shell:not(.dark) .cc-grade-plan span[data-plano="rodio"] { color: #3f7f93; }
+.cc-shell:not(.dark) .cc-grade-plan span[data-plano="platina"] { color: #3f7f93; }
