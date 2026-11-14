@@ -3,6 +3,7 @@ import { useGetReconciliation, type ReconciliationItem } from "@workspace/api-cl
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Scale, ExternalLink, CheckCircle2, AlertTriangle, CircleDollarSign, CircleSlash, ChevronDown } from "lucide-react";
+import TesteCobrancasPanel from "./TesteCobrancasPanel";
 import { fmtBRL } from "@/components/settings/SettingsUI";
 
 const PAGE = 100;
@@ -80,6 +81,8 @@ export default function FinanceiroConciliacao() {
           Atualizar
         </Button>
       </header>
+
+      <TesteCobrancasPanel onChanged={reload} />
 
       {q.isLoading ? (
         <Skeleton className="h-96 w-full" />

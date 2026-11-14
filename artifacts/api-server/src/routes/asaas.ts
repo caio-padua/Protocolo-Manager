@@ -23,6 +23,7 @@ import { getSecret } from "../lib/secure-settings.js";
 import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { registrarFalha } from "../lib/concierge-penalidade.js";
 import { requireCollaborator } from "./collaborator.js";
+import { aplicarStatusTeste } from "../lib/asaas-teste-cobrancas.js";
 import { montarAssuntoCobranca, formatBRL, formatDataBR } from "../lib/cobranca-mensagem.js";
 import {
   enviarMensagemPaxter,
@@ -653,6 +654,20 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
   }
 
   try {
+    // Cobranca de teste (laboratorio): atualiza so o livro de teste; nao toca pagamentos reais.
+    const testeHit = await db.execute(
+      sql`SELECT 1 FROM asaas_cobrancas_teste WHERE asaas_charge_id = ${payment.id} LIMIT 1`,
+    );
+    if (testeHit.rows.length > 0) {
+      const st = event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED" ? "RECEIVED"
+        : event === "PAYMENT_OVERDUE" ? "OVERDUE"
+        : event === "PAYMENT_DELETED" ? "DELETED"
+        : event === "PAYMENT_REFUNDED" ? "REFUNDED" : String(payment.status ?? event);
+      await aplicarStatusTeste(payment.id, st, payment.paymentDate ?? null);
+      res.status(200).json({ ok: true, teste: true });
+      return;
+    }
+
     // Pedido medico do cliente (Area do Cliente): cobranca propria, transicoes idempotentes.
     const pedidoHit = await db.execute(
       sql`SELECT 1 FROM client_medical_requests WHERE asaas_charge_id = ${payment.id} LIMIT 1`,

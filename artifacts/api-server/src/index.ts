@@ -9,6 +9,7 @@ import { ensureExamSetsTable } from "./lib/exam-sets";
 import { ensureSystemErrorLogTable } from "./lib/system-error-log";
 import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
+import { ensureAsaasTesteTable } from "./lib/asaas-teste-cobrancas.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
@@ -107,6 +108,13 @@ if (Number.isNaN(port) || port <= 0) {
     await ensurePedidosMedicosTable();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela client_medical_requests — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureAsaasTesteTable();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabela asaas_cobrancas_teste — abortando boot");
     process.exit(1);
   }
 

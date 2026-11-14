@@ -69,7 +69,8 @@ async function asaasFetch(path: string, init?: RequestInit, ambiente: AsaasAmbie
   }
   if (!res.ok) {
     const msg = json?.errors?.[0]?.description || `Asaas erro HTTP ${res.status}`;
-    throw new Error(msg);
+    // httpStatus permite distinguir recusa definitiva (4xx) de falha incerta (rede/5xx).
+    throw Object.assign(new Error(msg), { httpStatus: res.status });
   }
   return json;
 }
@@ -81,14 +82,18 @@ export interface AsaasCustomerInput {
   phone?: string | null;
 }
 
-export async function asaasCreateCustomer(input: AsaasCustomerInput, ambiente: AsaasAmbiente = "producao"): Promise<{ id: string }> {
+export async function asaasCreateCustomer(
+  input: AsaasCustomerInput,
+  ambiente: AsaasAmbiente = "producao",
+  opts: { semNotificacao?: boolean } = {},
+): Promise<{ id: string }> {
   const body = {
     name: input.name,
     cpfCnpj: input.cpfCnpj.replace(/\D/g, ""),
     email: input.email || undefined,
     mobilePhone: input.phone ? input.phone.replace(/\D/g, "") : undefined,
     // Piloto: nenhuma notificacao externa (e-mail/SMS) de cobranca de teste.
-    ...(ambiente === "sandbox" ? { notificationDisabled: true } : {}),
+    ...(ambiente === "sandbox" || opts.semNotificacao ? { notificationDisabled: true } : {}),
   };
   return asaasFetch("/customers", { method: "POST", body: JSON.stringify(body) }, ambiente);
 }
@@ -116,7 +121,7 @@ export interface AsaasChargeInput {
   externalReference?: string;
   // "PIX" gera cobranca PIX (com QR embutido, pago DENTRO do Paxter);
   // "UNDEFINED" abre a pagina hospedada (cliente escolhe PIX/boleto/cartao).
-  billingType?: "PIX" | "UNDEFINED";
+  billingType?: "PIX" | "BOLETO" | "UNDEFINED";
 }
 
 export interface AsaasCharge {

@@ -77,6 +77,7 @@ import schedulingRouter from "./scheduling";
 import storageRouter from "./storage";
 import collaboratorRouter, { collaboratorGuard } from "./collaborator";
 import asaasRouter from "./asaas";
+import asaasTesteRouter from "./asaas-teste";
 import settingsRouter from "./settings";
 import integrationsRouter from "./integrations";
 import comunicacaoRouter from "./comunicacao";
@@ -140,6 +141,7 @@ router.use(brandRouter);
 // Pagamentos Asaas (cobranca + webhook): registrado ANTES do portao de
 // colaborador para o webhook externo do Asaas nao ser bloqueado.
 router.use(asaasRouter);
+router.use(asaasTesteRouter);
 
 // Webhook de Assinatura Remota (ZapSign): provedor externo sem sessao, tambem
 // registrado ANTES do portao. Autenticidade via header secreto proprio.

@@ -11,6 +11,7 @@ import {
 } from "@workspace/api-zod";
 import { requireCollaborator } from "./collaborator";
 import { asaasListCharges } from "../lib/asaas";
+import { linhasLocaisTeste } from "../lib/asaas-teste-cobrancas.js";
 
 // ===========================================================================
 // FINANCEIRO — Conciliacao (Asaas x payments locais) e Metas & Crescimento.
@@ -72,6 +73,18 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
     for (const c of cs) clientNameById.set(c.id, c.name);
   }
 
+  // Livro de cobrancas de teste entra como lado "sistema" (rotulado TESTE), com ids negativos
+  // para nunca colidir com pagamentos reais.
+  const testeNomeByCharge = new Map<string, string>();
+  for (const t of await linhasLocaisTeste()) {
+    const stLocal = ASAAS_PAID.has(String(t.asaas_status)) ? "paid" : String(t.asaas_status ?? "pending").toLowerCase();
+    localRows.push({
+      id: -Number(t.id), amount: t.valor_centavos / 100, status: stLocal,
+      asaasChargeId: t.asaas_charge_id, invoiceUrl: t.invoice_url, dueDate: t.vencimento, clientId: 0,
+    });
+    testeNomeByCharge.set(t.asaas_charge_id, `[TESTE] ${t.descricao}`);
+  }
+
   const localByCharge = new Map<string, (typeof localRows)[number]>();
   for (const r of localRows) {
     if (r.asaasChargeId) localByCharge.set(r.asaasChargeId, r);
@@ -111,7 +124,7 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
       });
       continue;
     }
-    const clientName = local.clientId != null ? clientNameById.get(local.clientId) ?? null : null;
+    const clientName = testeNomeByCharge.get(ch.id) ?? (local.clientId != null ? clientNameById.get(local.clientId) ?? null : null);
     let match: Item["match"] = "ok";
     if (Math.abs((local.amount ?? 0) - ch.value) > 0.01) {
       match = "value_mismatch";
@@ -140,7 +153,7 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
       items.push({
         asaasChargeId: r.asaasChargeId,
         paymentId: r.id,
-        clientName: r.clientId != null ? clientNameById.get(r.clientId) ?? null : null,
+        clientName: testeNomeByCharge.get(r.asaasChargeId) ?? (r.clientId != null ? clientNameById.get(r.clientId) ?? null : null),
         asaasStatus: null,
         localStatus: r.status,
         asaasValue: null,
