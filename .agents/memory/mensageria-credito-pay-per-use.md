@@ -28,3 +28,5 @@ Confirmar o pagamento e retomar o atendimento são etapas recuperáveis separada
 **Why:** uma resposta perdida ou uma falha transitória após o crédito não pode gerar nova cobrança nem deixar a clínica dependente de intervenção no código.
 
 **How to apply:** a reentrega válida da mesma confirmação tenta a recuperação, sem repetir crédito ou consumo; a retomada exige procedência da própria clínica e ambiente.
+
+**Asaas produção recusa cobrança abaixo de R$ 5,00** (inclusive centavos/PIX). Teto autorizado pelo titular para testes reais é R$ 1,00: logo teste real em produção é inviável; só sandbox. Nunca subir o teto sem ordem.

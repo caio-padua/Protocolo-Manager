@@ -130,3 +130,23 @@ Uma tentativa com o identificador operacional inicial foi recusada; a alternativ
 - A isenção histórica do Instituto continua com inicialização herdada baseada em identificador fixo; a exigência de política comercial inteiramente configurável ainda não está concluída.
 - Lembrete individual foi testado com transporte simulado; não se declara entrega externa ao Telegram.
 - Rotação no provedor, aprovação clínica dos rascunhos e documentos comerciais continuam necessários para as próximas provas.
+
+## Cobranças de teste em produção (14/11/2026)
+
+Autorização do titular: no máximo R$ 1,00 por cobrança, 50 cobranças, total R$ 50,00. Mantida após a recusa abaixo.
+
+| Item | Resultado |
+|---|---|
+| Travas no servidor | Valor 1 a 100 centavos, 50 cobranças, 5.000 centavos; reserva sob trava de banco; restrição também na tabela. |
+| Concorrência | 80 reservas simultâneas: exatamente 50 passaram, total 5.000 centavos (banco descartável). |
+| Tentativa real nº 1 | PIX de R$ 1,00 para o cadastro do próprio titular: recusada pelo Asaas ("valor menor que R$ 5,00"). Registrada como recusada (id 1), não conta no limite. Nenhuma cobrança nasceu. |
+| Conclusão | O Asaas de produção não aceita menos de R$ 5,00; nenhuma cobrança de R$ 5,00 foi criada, por ordem do titular. Teste de pagamento ponta a ponta fica não realizado. |
+| Conciliação | Lê o Asaas de produção com sessão real: 18 cobranças (2 batem, 4 status diverge, 12 só no gateway). Cobranças de teste entram rotuladas [TESTE]. |
+| Webhook | Cobrança de teste atualiza só o livro de teste. Se o webhook de produção está apontado para esta aplicação: não verificado. |
+
+### O que falta para o sandbox do Asaas
+
+1. Conta sandbox criada pelo titular em sandbox.asaas.com.
+2. Chave de API própria do sandbox no cofre (campo do sandbox em Portas de Pagamento).
+3. Token de webhook próprio do sandbox e webhook cadastrado no painel sandbox apontando para a aplicação.
+4. Confirmar o mínimo do sandbox (pode aceitar valores abaixo de R$ 5,00; não verificado).
