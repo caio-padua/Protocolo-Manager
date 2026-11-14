@@ -8,7 +8,7 @@ import { Loader2, Pencil, FileText, FolderOpen, Phone, Mail, Calendar, MapPin, H
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ClientServiceAddresses } from "@/components/ClientServiceAddresses";
-import CategoriaCliente from "./CategoriaCliente";
+import CategoriaCliente from "@/components/clients/categoria-cliente";
 import TelegramUnlinkButton from "../TelegramUnlinkButton";
 
 const API = import.meta.env.VITE_API_URL || "/api";

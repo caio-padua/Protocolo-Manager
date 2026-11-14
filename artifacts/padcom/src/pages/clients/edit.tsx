@@ -9,7 +9,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown } from "lucide-react";
+import CategoriaCliente from "@/components/clients/categoria-cliente";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { ClientRubricaCard } from "@/components/clients/rubrica-card";
 import { ClinicaOrigemField } from "@/components/clients/clinica-origem-field";
@@ -106,6 +107,7 @@ export default function EditClient() {
   const queryClient = useQueryClient();
   const { data: client, isLoading, isError, error } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
   const updateClient = useUpdateClient();
+  const [aba, setAba] = useState<"dados" | "cadastro">("dados");
   const [loadingCep, setLoadingCep] = useState(false);
   const [saveError, setSaveError] = useState("");
   const loadedClientId = useRef<number | null>(null);
@@ -307,7 +309,34 @@ export default function EditClient() {
         </div>
       </div>
 
-      <Card className="panel-3d border-none">
+      {/* Abas lado a lado, no mesmo padrao do cadastro do Corpo Clinico */}
+      <div role="tablist" className="panel-3d-sub flex flex-wrap gap-2 p-2">
+        {([
+          { value: "dados", label: "DADOS", Icon: User },
+          { value: "cadastro", label: "CADASTRO", Icon: Crown },
+        ] as const).map(({ value, label, Icon }) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={aba === value}
+            onClick={() => setAba(value)}
+            className={`${aba === value ? "bevel-3d text-primary" : "concave-3d text-muted-foreground/60"} flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all`}
+          >
+            <Icon className="h-3 w-3" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {aba === "cadastro" && (
+        <Card className="panel-3d border-none">
+          <CardContent className="p-6">
+            <CategoriaCliente key={`${client.id}-${client.classificacao}-${client.plano}`} client={client} />
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className={`panel-3d border-none ${aba !== "dados" ? "hidden" : ""}`}>
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
