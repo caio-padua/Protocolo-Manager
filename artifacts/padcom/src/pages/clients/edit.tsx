@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown, Camera } from "lucide-react";
+import { AbasRolaveis } from "@/components/AbasRolaveis";
 import CategoriaCliente from "@/components/clients/categoria-cliente";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { ClientRubricaCard } from "@/components/clients/rubrica-card";
@@ -310,8 +311,7 @@ export default function EditClient() {
       </div>
 
       {/* Abas lado a lado, no mesmo padrao do cadastro do Corpo Clinico */}
-      <div role="tablist" className="panel-3d-sub flex flex-wrap gap-2 p-2">
-        {([
+      <AbasRolaveis ativa={aba} onChange={(v) => setAba(v as typeof aba)} abas={[
           { value: "dados", label: "DADOS", Icon: User },
           { value: "vinculo", label: "VÍNCULO", Icon: Building2 },
           { value: "preferencias", label: "PREFERÊNCIAS", Icon: Crown },
@@ -319,19 +319,7 @@ export default function EditClient() {
           { value: "midia", label: "FOTO E ASSINATURA", Icon: Camera },
           { value: "notas", label: "ADICIONAIS E NOTAS", Icon: Plus },
           { value: "cadastro", label: "CADASTRO", Icon: Crown },
-        ] as const).map(({ value, label, Icon }) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={aba === value}
-            onClick={() => setAba(value)}
-            className={`${aba === value ? "bevel-3d text-primary" : "concave-3d text-muted-foreground/60"} flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all`}
-          >
-            <Icon className="h-3 w-3" /> {label}
-          </button>
-        ))}
-      </div>
+      ]} />
 
       {aba === "cadastro" && (
         <Card className="panel-3d border-none">

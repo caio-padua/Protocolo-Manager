@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DocumentosProfissional } from "@/components/profissionais/DocumentosProfissional";
+import { AbasRolaveis } from "@/components/AbasRolaveis";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -1164,29 +1165,19 @@ export default function Professionals() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3 flex min-h-0 flex-1 flex-col">
               {/* Painel superior saliente — barra de abas como botões físicos */}
-              <TabsList className="panel-3d-sub w-full shrink-0 border-none h-auto p-2 flex flex-wrap gap-2 mb-4">
-                {[
-                  { value: "dados", label: "DADOS", icon: User },
+              <div className="mb-4 shrink-0">
+                <AbasRolaveis ativa={activeTab} onChange={setActiveTab} abas={[
+                  { value: "dados", label: "DADOS", Icon: User },
                   ...(isSelfEditing
-                    ? [{ value: "acesso", label: "ACESSO", icon: KeyRound }]
+                    ? [{ value: "acesso", label: "ACESSO", Icon: KeyRound }]
                     : []),
-                  { value: "vinculos", label: "VÍNCULOS", icon: Link2, disabled: !editingId },
-                  { value: "documentos", label: "DOCUMENTOS", icon: FileText, disabled: !editingId },
+                  { value: "vinculos", label: "VÍNCULOS", Icon: Link2, disabled: !editingId },
+                  { value: "documentos", label: "DOCUMENTOS", Icon: FileText, disabled: !editingId },
                   ...(canViewProfessionalHistory
-                    ? [{ value: "historico", label: "HISTÓRICO", icon: History }]
+                    ? [{ value: "historico", label: "HISTÓRICO", Icon: History }]
                     : []),
-                ].map(({ value, label, icon: Icon, disabled }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => !disabled && setActiveTab(value)}
-                    className={`${activeTab === value ? "bevel-3d text-primary" : "concave-3d text-muted-foreground/60"} flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed`}
-                  >
-                    <Icon className="h-3 w-3" /> {label}
-                  </button>
-                ))}
-              </TabsList>
+                ]} />
+              </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
               {/* ── Aba: Dados ── */}
