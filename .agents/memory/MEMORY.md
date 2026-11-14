@@ -183,3 +183,4 @@
 - [Telegram webhook — claim, outbox, config única](telegram-webhook-claim-outbox.md) — dedupe por bot+update (500 em andamento), outbox sem reenvio de "incerto", chat de alerta só por telegram-config.
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
 - [Lembrete no Telegram](lembrete-telegram-motor.md) — mesmo motor, canal por modo em app_settings; janela leva só seus períodos; prova automática isolando o Job 2.
+- [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único em lib/avaliacoes-corporais; campos vazios; remoção por deleted_at.

@@ -35,6 +35,7 @@
     "@workspace/integrations-anthropic-ai": "workspace:*",
     "@workspace/integrations-gemini-ai": "workspace:*",
     "@workspace/password-policy": "workspace:*",
+    "@workspace/avaliacoes-corporais": "workspace:*",
     "@workspace/posologia": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",

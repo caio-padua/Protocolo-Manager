@@ -22,6 +22,9 @@
       "path": "./lib/posologia"
     },
     {
+      "path": "./lib/avaliacoes-corporais"
+    },
+    {
       "path": "./lib/governanca"
     },
     {

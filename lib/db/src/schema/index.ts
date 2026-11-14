@@ -72,3 +72,4 @@ export * from "./telegram-inbox";
 export * from "./device-throttle";
 export * from "./pesquisas";
 export * from "./agent-integration-log";
+export * from "./client-avaliacoes";

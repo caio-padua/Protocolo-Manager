@@ -2,9 +2,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Client } from "@workspace/api-client-react";
 import {
-  Activity, Camera, ChevronDown, ClipboardList, HeartPulse, Image,
-  MessageCircle, Ruler, ScanLine, Scale, Stethoscope, UserRound,
+  Camera, ChevronDown, Image,
+  MessageCircle, Stethoscope, UserRound,
 } from "lucide-react";
+import { AVALIACOES, TIPOS_AVALIACAO } from "@workspace/avaliacoes-corporais";
+import type { TipoAvaliacao } from "@workspace/avaliacoes-corporais";
+import { AvaliacaoModal } from "./avaliacoes/AvaliacaoModal";
+import { ICONES_AVALIACAO } from "./avaliacoes/icones";
+import { dataBr, useMedicoes } from "./avaliacoes/api";
 import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
@@ -89,14 +94,21 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
     { label: "E-MAIL", value: client.email || "—" },
     { label: "ENDEREÇO", value: client.address || "Não informado", address: true },
   ];
-  const indisponiveis = [
-    { label: "BIOIMPEDÂNCIA", Icon: Scale },
-    { label: "ANTROPOMETRIA", Icon: Ruler },
-    { label: "DINAMOMETRIA", Icon: HeartPulse },
-    { label: "CALORIMETRIA", Icon: Activity },
-    { label: "ULTRASSOM", Icon: ScanLine },
-    { label: "OUTRAS AVALIAÇÕES", Icon: ClipboardList },
-  ];
+  const medicoes = useMedicoes(client.id);
+  const [avaliacaoAberta, setAvaliacaoAberta] = useState<TipoAvaliacao | null>(null);
+  const [escuro, setEscuro] = useState(false);
+  const abrirAvaliacao = (tipo: TipoAvaliacao) => {
+    // O modal fica fora do cockpit (portal): leva o tema escolhido no botao claro/escuro
+    setEscuro(Boolean(document.querySelector(".cc-shell.dark")));
+    setAvaliacaoAberta(tipo);
+  };
+  const resumoAvaliacao = (tipo: TipoAvaliacao) => {
+    if (medicoes.isLoading) return "Carregando…";
+    if (medicoes.isError) return "Erro ao carregar";
+    const lista = (medicoes.data ?? []).filter((m) => m.tipo === tipo);
+    if (!lista.length) return "Sem medições";
+    return `${lista.length} ${lista.length === 1 ? "medição" : "medições"} · ${dataBr(lista[lista.length - 1].data)}`;
+  };
 
   return (
     <section className="cc-identity" aria-label="Identificação do cliente">
@@ -149,13 +161,16 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
             <span><strong>IMAGENS</strong><small>Foto do cadastro</small></span>
             <ChevronDown size={13} aria-hidden="true" />
           </button>
-          {indisponiveis.map(({ label, Icon }) => (
-            <button key={label} type="button" className="cc-context-button"
-              disabled title="Ainda não conectado a uma fonte de dados real.">
-              <Icon size={15} aria-hidden="true" />
-              <span><strong>{label}</strong><small>Não conectado</small></span>
-            </button>
-          ))}
+          {TIPOS_AVALIACAO.map((tipo) => {
+            const Icone = ICONES_AVALIACAO[tipo];
+            return (
+              <button key={tipo} type="button" className="cc-context-button" onClick={() => abrirAvaliacao(tipo)}
+                title={AVALIACOES[tipo].descricao}>
+                <Icone size={15} aria-hidden="true" />
+                <span><strong>{AVALIACOES[tipo].titulo.toUpperCase()}</strong><small>{resumoAvaliacao(tipo)}</small></span>
+              </button>
+            );
+          })}
         </div>
         {aberto === "resumo" && (
           <div id="cc-resumo-cliente" className="cc-context-content">
@@ -175,6 +190,8 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
           </div>
         )}
       </div>
+      <AvaliacaoModal clientId={client.id} clienteNome={tituloProprio(client.name)} tipo={avaliacaoAberta}
+        medicoes={medicoes.data ?? []} escuro={escuro} onClose={() => setAvaliacaoAberta(null)} />
     </section>
   );
 }

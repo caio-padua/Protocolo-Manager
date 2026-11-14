@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import clinicalDemonstrationsRouter from "./clinical-demonstrations";
 import healthRouter from "./health";
 import clientsRouter from "./clients";
+import avaliacoesCorporaisRouter from "./avaliacoes-corporais";
 import clientRubricaRouter from "./client-rubrica";
 import substancesRouter from "./substances";
 import procedimentosRouter from "./procedimentos";
@@ -182,6 +183,7 @@ router.use(collaboratorGuard);
 
 router.use(healthRouter);
 router.use(clientsRouter);
+router.use(avaliacoesCorporaisRouter);
 router.use(clientRubricaRouter);
 router.use(substancesRouter);
 router.use(procedimentosRouter);

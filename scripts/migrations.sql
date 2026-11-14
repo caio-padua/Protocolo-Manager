@@ -431,3 +431,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Classificacao (A a D) e plano do cliente, ambos com padrao D e bronze.
 \ir migrations/20261121_cliente_classificacao_plano.sql
+
+-- Medicoes corporais do cliente (avaliacoes do Cockpit).
+\ir migrations/20261124_client_avaliacoes.sql
