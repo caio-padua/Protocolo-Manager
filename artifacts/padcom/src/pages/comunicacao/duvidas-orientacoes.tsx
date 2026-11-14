@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { PreviaTelegram, EXEMPLO_ILUSTRATIVO, LIMITE_RESPOSTA, CATEGORIAS, VARIAVEIS, rotuloCategoria } from "./orientacao-previa";
 import { TomDeVoz } from "./tom-de-voz";
+import { PropostasInternas } from "./propostas-internas";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -425,6 +426,7 @@ export default function DuvidasOrientacoes() {
       {actionNotice && <div role={actionFailed ? "alert" : "status"} aria-live="polite" data-testid="action-feedback" className="panel-3d-sub flex items-start gap-2 p-3 text-sm"><Check className={`mt-0.5 h-4 w-4 shrink-0 ${actionFailed ? "text-rose-700 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"}`} />{actionNotice}</div>}
 
       <TomDeVoz />
+      <PropostasInternas />
 
       <section className="panel-3d p-4 sm:p-5" aria-label="Variáveis previstas" data-testid="variables-catalog">
         <BlockTitle icon={ShieldCheck}>Variáveis (dados reais)</BlockTitle>

@@ -29,6 +29,7 @@ export const CATEGORIAS: Record<string, { rotulo: string; sub: Record<string, st
   prescricao: { rotulo: "Prescrição e fórmulas", sub: { acabando: "Fórmula acabando", renovacao: "Solicitação de renovação", perdida: "Receita perdida", vigente: "Prescrição vigente" } },
   emagrecimento: { rotulo: "Tratamento para emagrecimento", sub: { tratamento: "Como é o tratamento", expectativas: "Expectativas individualizadas", acompanhamento: "Acompanhamento" } },
   medicacoes: { rotulo: "Medicações — reações e sintomas", sub: { tirzepatida_geral: "Tirzepatida — dúvida geral", tirzepatida_sintomas: "Tirzepatida — sintomas", sibutramina_geral: "Sibutramina — dúvida geral", sibutramina_sintomas: "Sibutramina — sintomas", bupropiona_naltrexona_geral: "Bupropiona com naltrexona — dúvida geral", bupropiona_naltrexona_sintomas: "Bupropiona com naltrexona — sintomas" } },
+  efeitos: { rotulo: "Efeitos relatados — orientação prática", sub: { sibutramina: "Sibutramina isolada", sibutramina_bupropiona: "Sibutramina + bupropiona", bupropiona_naltrexona: "Bupropiona + naltrexona", tirzepatida: "Tirzepatida" } },
   clinicas: { rotulo: "Dúvidas clínicas e medicações", sub: { acolhimento: "Acolhimento", encaminhamento: "Encaminhamento" } },
   gerais: { rotulo: "Informações gerais", sub: { valores: "Valores", locais: "Locais", atendimento: "Atendimento", exames: "Exames", aplicativo: "Aplicativo" } },
   outros: { rotulo: "Outros assuntos", sub: { a_classificar: "A classificar" } },

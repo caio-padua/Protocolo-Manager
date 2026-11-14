@@ -41,6 +41,19 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
   /* Categorias (aditivo; registros antigos ficam sem categoria) e tom de voz por clínica */
   await exec.execute(sql`ALTER TABLE orientacoes_aprovadas ADD COLUMN IF NOT EXISTS categoria TEXT`);
   await exec.execute(sql`ALTER TABLE orientacoes_aprovadas ADD COLUMN IF NOT EXISTS subcategoria TEXT`);
+  /* Propostas internas: ideias clínicas em revisão. NUNCA são orientação, nunca são usadas pela IA nem enviadas. */
+  await exec.execute(sql`
+    CREATE TABLE IF NOT EXISTS orientacoes_propostas_internas (
+      id            BIGSERIAL PRIMARY KEY,
+      empresa_id    INTEGER     NOT NULL,
+      titulo        TEXT        NOT NULL,
+      descricao     TEXT        NOT NULL,
+      riscos        TEXT        NOT NULL DEFAULT '',
+      fontes        TEXT        NOT NULL DEFAULT '',
+      status        TEXT        NOT NULL DEFAULT 'pendente_revisao' CHECK (status = 'pendente_revisao'),
+      criado_por    INTEGER,
+      criado_em     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
   await exec.execute(sql`
     CREATE TABLE IF NOT EXISTS assistente_tom_voz (
       empresa_id     INTEGER PRIMARY KEY,

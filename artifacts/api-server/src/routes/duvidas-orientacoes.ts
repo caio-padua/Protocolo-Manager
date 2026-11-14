@@ -98,6 +98,30 @@ router.post("/duvidas-orientacoes/tom-de-voz/aprovar", async (req, res): Promise
   res.json({ ok: true });
 });
 
+// ── Propostas internas pendentes de revisão clínica. Somente leitura e registro: não há rota que aprove, ative ou envie. ──
+router.get("/duvidas-orientacoes/propostas-internas", async (req, res): Promise<void> => {
+  const q = await resolverQuem(req, res);
+  if (!q) return;
+  const r = await db.execute(sql`SELECT id, titulo, descricao, riscos, fontes, status, criado_em AS "criadoEm"
+    FROM orientacoes_propostas_internas WHERE empresa_id=${q.empresaId} ORDER BY id DESC`);
+  res.json({ propostas: r.rows, usoPermitido: "interno", enviavel: false });
+});
+
+router.post("/duvidas-orientacoes/propostas-internas", async (req, res): Promise<void> => {
+  const q = await resolverQuem(req, res);
+  if (!q) return;
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  const t = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
+  const titulo = t("titulo"), descricao = t("descricao"), riscos = t("riscos"), fontes = t("fontes");
+  if (titulo.length < 3 || titulo.length > 160 || descricao.length < 10 || descricao.length > 4000 || riscos.length > 4000 || fontes.length > 2000) {
+    res.status(400).json({ error: "título 3-160, descrição 10-4000, riscos até 4000 e fontes até 2000 caracteres" });
+    return;
+  }
+  const r = await db.execute(sql`INSERT INTO orientacoes_propostas_internas (empresa_id, titulo, descricao, riscos, fontes, criado_por)
+    VALUES (${q.empresaId}, ${titulo}, ${descricao}, ${riscos}, ${fontes}, ${q.professionalId}) RETURNING id`);
+  res.status(201).json({ id: Number((r.rows[0] as { id: number | string }).id), status: "pendente_revisao" });
+});
+
 router.get("/duvidas-orientacoes", async (req, res): Promise<void> => {
   const q = await resolverQuem(req, res);
   if (!q) return;
