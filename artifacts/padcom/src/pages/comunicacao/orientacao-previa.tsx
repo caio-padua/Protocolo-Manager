@@ -79,6 +79,11 @@ export const EXEMPLO_ILUSTRATIVO = [
   "Me diga qual horário fica melhor para você.",
 ].join("\n");
 
+/** Hora só de ilustração da prévia (horário de Brasília). */
+function horaAgora(): string {
+  return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
 const RE_VAR = /(\[[^\]\n]{1,60}\]|\{\{[^}\n]{1,60}\}\})/g;
 
 export function PreviaTelegram({ texto, clinica }: { texto: string; clinica?: string | null }) {
@@ -88,27 +93,41 @@ export function PreviaTelegram({ texto, clinica }: { texto: string; clinica?: st
   const dicas = dicasDeEstilo(normal);
   return (
     <div data-testid="orientation-preview" aria-label="Prévia da mensagem no celular">
-      <p className="lbl mb-1">Prévia no celular <span className="normal-case tracking-normal text-muted-foreground">(é assim que o paciente lê)</span></p>
+      <p className="lbl mb-1">Prévia no celular <span className="normal-case tracking-normal text-muted-foreground">(simulação no estilo WhatsApp, do lado de quem envia)</span></p>
       <div className="mx-auto w-full max-w-[360px] overflow-hidden rounded-[22px] border-2 border-[#0b1f3a] shadow-lg">
-        <div className="flex items-center gap-2 bg-[#0b1f3a] px-3 py-2 text-[12px] font-semibold text-[#d9b97a]">
-          <span className="inline-block h-2 w-2 rounded-full bg-[#d9b97a]" />Assistente virtual{clinica ? ` · ${clinica}` : ""}
+        <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2 text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b97a] text-[12px] font-bold text-[#0b1f3a]">A</span>
+          <span className="leading-tight">
+            <span className="block text-[13px] font-semibold">Assistente virtual{clinica ? ` · ${clinica}` : ""}</span>
+            <span className="block text-[10px] opacity-80">online</span>
+          </span>
         </div>
-        <div className="bg-[#e9eef5] p-3">
+        <div className="flex min-h-[140px] flex-col items-end bg-[#efeae2] p-3" style={{ backgroundImage: "radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px)", backgroundSize: "14px 14px" }}>
           <div
             data-testid="orientation-preview-body"
-            className="max-w-[300px] rounded-[12px] rounded-tl-[3px] bg-white px-3 py-2 text-[14px] leading-[1.45] text-slate-900 shadow"
-            style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: "Inter, system-ui, sans-serif" }}
+            className="relative max-w-[88%] rounded-[8px] rounded-tr-[2px] bg-[#d9fdd3] px-2.5 pb-1.5 pt-1.5 text-[14px] leading-[1.4] text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]"
+            style={{ fontFamily: "Inter, system-ui, sans-serif" }}
           >
-            {vazio ? <span className="text-slate-400">A prévia aparece aqui enquanto você escreve.</span>
-              : normal.split(RE_VAR).map((parte, i) => (i % 2 === 1
-                ? <mark key={i} data-testid="preview-variable" className="rounded-sm bg-[#f3e3b8] px-0.5 text-[#0b1f3a]" title="Variável: será trocada por dado real">{parte}</mark>
-                : <span key={i}>{parte}</span>))}
+            <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+              {vazio ? <span className="text-slate-500">A prévia aparece aqui enquanto você escreve.</span>
+                : normal.split(RE_VAR).map((parte, i) => (i % 2 === 1
+                  ? <mark key={i} data-testid="preview-variable" className="rounded-sm bg-[#f3e3b8] px-0.5 text-[#0b1f3a]" title="Variável: será trocada por dado real">{parte}</mark>
+                  : <span key={i}>{parte}</span>))}
+            </div>
+            <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-[#667781]" data-testid="preview-ticks">
+              <span>{horaAgora()}</span>
+              <svg width="16" height="11" viewBox="0 0 16 11" aria-label="Lida (dois tracinhos azuis)" role="img">
+                <path d="M11.07.65 5.9 7.4 3.4 4.9a.7.7 0 0 0-1 1l3.1 3.1a.7.7 0 0 0 1.05-.07l5.7-7.3a.7.7 0 0 0-1.18-.98Z" fill="#53bdeb" />
+                <path d="M14.9.65 9.7 7.4l-.45-.45-.9 1.15 1.1 1.1a.7.7 0 0 0 1.05-.07l5.7-7.3A.7.7 0 0 0 14.9.65Z" fill="#53bdeb" />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
       <p className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
         <span><b className="text-foreground">Texto fixo</b>: escrito por você</span>
         <span><mark className="rounded-sm bg-[#f3e3b8] px-1 text-[#0b1f3a]">variável</mark>: dado real (cadastro ou agenda)</span>
+        <span>Os dois tracinhos e a hora são só ilustração; a leitura real não é mostrada aqui</span>
         <span><b className="text-foreground">Perguntas de exemplo</b>: só ajudam a achar o tema; nunca são enviadas</span>
       </p>
       {pend.length > 0 && (
