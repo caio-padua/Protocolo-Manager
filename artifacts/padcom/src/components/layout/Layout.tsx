@@ -736,10 +736,10 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Rodape — identidade profissional, acesso e troca de usuario */}
           {/* Lingueta: so uma faixa fina do perfil fica visivel; ao passar o mouse (ou focar, ou com o menu aberto) ela sobe. */}
-          <div className="group/perfil relative h-6 shrink-0">
+          <div className="group/perfil relative h-[18px] shrink-0">
           <div
             className={`absolute inset-x-0 bottom-0 z-[60] rounded-t-md border-t border-sidebar-border bg-sidebar px-2 pb-2 pt-1.5 shadow-[0_-6px_12px_-6px_rgba(0,0,0,.45)] transition-transform duration-200 ease-out group-hover/perfil:translate-y-0 focus-within:translate-y-0 ${
-              profileOpen && hasCollaboratorSession ? "translate-y-0" : "translate-y-[calc(100%-24px)]"
+              profileOpen && hasCollaboratorSession ? "translate-y-0" : "translate-y-[calc(100%-18px)]"
             }`}
           >
             {profileOpen && hasCollaboratorSession ? (
