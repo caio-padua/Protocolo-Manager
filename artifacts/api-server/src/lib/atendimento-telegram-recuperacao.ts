@@ -111,7 +111,11 @@ export async function tentarAtendimentoDuravel(exec: ExecutorAtendimentoDuravel,
       if (etapa === "alerta") {
         const atual = await deps.chatAlerta();
         if (!atual) { await salvar(Number(l.tentativas)>=MAX_TENTATIVAS?"esgotado":"falhou","destino_ausente"); return; }
-        if (atual===e.chatId) { await salvar("esgotado","destino_igual_origem"); return; }
+        if (atual===e.chatId) {
+          // Chat de alerta igual ao do cliente (ex.: contato de teste do próprio responsável): sem pausa, o alerta é dispensado e a resposta segue.
+          if (plano.pausa) { await salvar("esgotado","destino_igual_origem"); return; }
+          continue;
+        }
         if (l.destino_alerta && atual !== l.destino_alerta) { await salvar("esgotado","destino_configurado_alterado"); return; }
         destino = l.destino_alerta ?? atual;
       } else if (!await deps.autorizarResposta(e,plano)) { await salvar("esgotado","resposta_nao_autorizada"); return; }

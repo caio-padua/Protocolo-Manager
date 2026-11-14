@@ -158,7 +158,9 @@ export function startWorkerJobs(
   startedProfile = profile;
 
   if (profile === "telegram-relay-dev") {
-    iniciarJobRepasseTelegram(logger, scheduler);
+    // atendimento=true: o atendimento por IA/agendamento só age para os clientes da lista restrita
+    // (app_settings atendimento.ia.modo/permitidos); com modo desligado nada é respondido.
+    iniciarJobRepasseTelegram(logger, scheduler, true);
     logger.info(
       { profile, jobs: ["telegram-relay-1min"] },
       "api-worker iniciado em perfil restrito de desenvolvimento"

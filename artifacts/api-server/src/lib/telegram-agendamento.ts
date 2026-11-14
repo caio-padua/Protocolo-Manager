@@ -350,6 +350,19 @@ async function ofertar(estado: EstadoConversa, deps: DepsAgendamento, prefixo: s
     modalidade: estado.modalidade!, dias: estado.datas ? null : (estado.dias ?? null), datas: estado.datas ?? null,
     periodo: estado.periodo ?? "qualquer", excluir: estado.mostradas ?? [], max: 4,
   });
+  if (r.ofertas.length === 0 && (estado.periodo !== "qualquer" || estado.dias != null || estado.datas)) {
+    // Nada na preferência pedida: mostra alternativas reais (qualquer dia/período) antes de chamar a equipe.
+    const alt = await deps.buscarHorarios({
+      modalidade: estado.modalidade!, dias: null, datas: null, periodo: "qualquer", excluir: estado.mostradas ?? [], max: 4,
+    });
+    if (alt.ofertas.length > 0) {
+      estado.ofertas = alt.ofertas;
+      estado.etapa = "escolha";
+      estado.tentativas = 0;
+      return { tratada: true, estado, desfecho: "ofereceu_alternativas", resposta:
+        `${prefixo} Não há horário livre ${rotulo(estado.modalidade!)} nessa preferência, mas estes outros estão livres:\n${listaOfertas(alt.ofertas)}\nResponda com o número da opção que prefere, ou diga outros dias e períodos.` };
+    }
+  }
   if (r.ofertas.length === 0) {
     await deps.encaminharEquipe("sem_horario_disponivel");
     estado.etapa = "concluido";

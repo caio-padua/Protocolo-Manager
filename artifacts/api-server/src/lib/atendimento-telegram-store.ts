@@ -183,7 +183,16 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       const cfg=await deps.lerConfig();
       if(cfg.modo!=="desligado" && (await deps.modoDoCliente(e.clienteId))!=="humano"){
         const ag=await planejarAgendamentoCliente({empresaId:e.empresaId,clienteId:e.clienteId,texto:e.texto});
-        if(ag.tratada) return {pausa:ag.pausa,alerta:ag.alerta,resposta:ag.resposta,orientacaoId:null,desfecho:"agendamento_conduzido" as const};
+        if(ag.tratada){
+          // Várias mensagens acumuladas no mesmo minuto não devem repetir a mesma pergunta ao cliente.
+          let resposta=ag.resposta;
+          if(resposta){
+            const rep=await db.execute(sql`SELECT 1 FROM telegram_inbox_messages WHERE cliente_id=${e.clienteId}
+              AND direcao='saida' AND texto LIKE ${"%"+resposta.slice(-60).replace(/[%_\\]/g,"\\$&")} AND recebida_em>NOW()-interval '3 minutes' LIMIT 1`);
+            if(rep.rows.length) resposta=null;
+          }
+          return {pausa:ag.pausa,alerta:ag.alerta,resposta,orientacaoId:null,desfecho:"agendamento_conduzido" as const};
+        }
       }
       return planejarAtendimento(deps,e);
     },
