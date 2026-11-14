@@ -54,6 +54,7 @@ export default function Licenciado() {
     setCarregando(true); setErro("");
     try {
       if (modo === "clinica") {
+        setVisaoClinica(null);
         setVisaoClinica(await requisicao<Linha>("/catalogo/minha-clinica"));
         return;
       }
@@ -105,7 +106,7 @@ export default function Licenciado() {
   return <div className="min-h-screen bg-[#e8edf5] text-slate-900">
     <header className="flex items-center justify-between border-b-4 border-[#e7cd8f]/50 bg-[#0a1120] px-5 py-4 text-white">
       <PaxterLogo />
-      <div className="flex items-center gap-3"><button onClick={() => { setModo(modo === "admin" ? "clinica" : "admin"); setAviso(""); }} className="btn-3d-soft px-3 py-2 text-xs">{modo === "admin" ? "Minha Clínica" : "Administração CEO"}</button><span className="text-xs text-slate-300">{modo === "admin" ? "ADMINISTRAÇÃO COMERCIAL · HOMOLOGAÇÃO" : "VISÃO RESTRITA DA CLÍNICA"}</span><button onClick={sair} className="btn-3d-soft px-3 py-2 text-xs">Sair</button></div>
+      <div className="flex items-center gap-3"><button onClick={() => { setVisaoClinica(null); setModo(modo === "admin" ? "clinica" : "admin"); setAviso(""); }} className="btn-3d-soft px-3 py-2 text-xs">{modo === "admin" ? "Minha Clínica" : "Administração CEO"}</button><span className="text-xs text-slate-300">{modo === "admin" ? "ADMINISTRAÇÃO COMERCIAL · HOMOLOGAÇÃO" : "VISÃO RESTRITA DA CLÍNICA"}</span><button onClick={sair} className="btn-3d-soft px-3 py-2 text-xs">Sair</button></div>
     </header>
     <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6">
       {modo === "admin" && <section className="panel-3d p-4 sm:p-5">

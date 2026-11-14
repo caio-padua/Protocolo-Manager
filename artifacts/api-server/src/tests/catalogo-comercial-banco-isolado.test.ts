@@ -69,6 +69,16 @@ describe("proposta persistida e cálculos", () => {
     expect(catalogo.calcularFracionado(180, "minuto", 1)).toBe(3); // 1 segundo de minuto ativo
     expect(catalogo.calcularFracionado(190, "mil_caracteres", 1)).toBe(1);
     expect(catalogo.calcularFracionado(190, "mil_caracteres", 1000)).toBe(190);
+    expect(() => catalogo.calcularFracionado(-1, "minuto", 1)).toThrow(/preço deve ser inteiro/i);
+  });
+
+  it("impede bônus, acúmulo de franquia e cobrança recorrente nesta homologação", async () => {
+    await expect(catalogo.editarConfig("cobranca_recorrente_automatica", true, "teste-isolado"))
+      .rejects.toThrow(/ficam desativados/i);
+    await expect(catalogo.editarConfig("franquia_acumula", true, "teste-isolado"))
+      .rejects.toThrow(/ficam desativados/i);
+    await expect(catalogo.editarConfig("recarga_bonus_automatico", true, "teste-isolado"))
+      .rejects.toThrow(/ficam desativados/i);
   });
 });
 

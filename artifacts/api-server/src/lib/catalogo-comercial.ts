@@ -314,6 +314,8 @@ export function modulosAvulsosCobraveis(planoModulos: string[], pedidos: string[
 
 /** Consumo fracionado por duração/caracteres: arredonda para cima, sempre verificável. */
 export function calcularFracionado(precoUnitarioCentavos: number, unidade: "minuto" | "mil_caracteres", quantidade: number): number {
+  if (!Number.isSafeInteger(precoUnitarioCentavos) || precoUnitarioCentavos < 0) throw new RangeError("preço deve ser inteiro não negativo");
+  if (unidade !== "minuto" && unidade !== "mil_caracteres") throw new RangeError("unidade de fracionamento inválida");
   if (!Number.isFinite(quantidade) || quantidade < 0) throw new RangeError("quantidade inválida");
   if (unidade === "minuto") return Math.ceil((precoUnitarioCentavos * Math.ceil(quantidade)) / 60); // quantidade em segundos
   return Math.ceil((precoUnitarioCentavos * Math.ceil(quantidade)) / 1000);
@@ -457,6 +459,11 @@ export async function editarConfig(chave: string, valor: unknown, por: string) {
   if (chave === "alertas_pct" && (!Array.isArray(valor) || valor.some((v) => !percentual(v)))) throw new RangeError("alertas devem ser percentuais de 0 a 100");
   if (chave === "recargas_sugeridas_centavos" && (!Array.isArray(valor) || valor.some((v) => !Number.isSafeInteger(v) || (v as number) <= 0))) throw new RangeError("recargas devem ser valores positivos em centavos");
   if (["juros_padrao_pct", "multa_padrao_pct"].includes(chave) && !percentual(valor)) throw new RangeError("juros e multa devem estar entre 0 e 100");
+  if (["recarga_bonus_automatico", "franquia_acumula", "cobranca_recorrente_automatica"].includes(chave) && valor !== false) {
+    throw new RangeError("bônus, acumulação de franquia e cobrança recorrente ficam desativados nesta homologação");
+  }
+  if (chave === "credito_comprado_expira" && valor !== "nunca") throw new RangeError("crédito comprado não expira nesta homologação");
+  if (chave === "limite_frequencia_visitante_por_hora" && (!Number.isSafeInteger(valor) || (valor as number) < 1)) throw new RangeError("limite de frequência deve ser inteiro positivo");
   const existe = await pool.query(`SELECT 1 FROM cat_config WHERE chave = $1`, [chave]);
   if (!existe.rows.length) throw new RangeError("configuração inexistente");
   await pool.query(`UPDATE cat_config SET valor = $2::jsonb, atualizado_por = $3, atualizado_em = NOW() WHERE chave = $1`, [chave, JSON.stringify(valor), por]);
