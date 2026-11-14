@@ -1,17 +1,23 @@
 /**
- * Laboratorio de cobrancas de teste em PRODUCAO (autorizado pelo titular em 14/11/2026).
- * Travas no SERVIDOR: ate 100 centavos por cobranca, ate 50 cobrancas, soma ate 5000 centavos.
+ * Laboratorio de cobrancas de teste em PRODUCAO (autorizado pelo titular).
+ * 14/11/2026 (1a ordem): ate R$ 1,00 por cobranca, 50 cobrancas. 14/11/2026 (ordem posterior, vigente):
+ * ate R$ 5,00 por cobranca (minimo do Asaas de producao), ate 10 cobrancas, soma ate R$ 50,00.
+ * Travas no SERVIDOR: ate 500 centavos por cobranca, ate 10 cobrancas, soma ate 5000 centavos.
  * Cada tentativa reserva uma linha (contada) ANTES de falar com o Asaas, sob trava de banco,
  * entao concorrencia ou repeticao nunca ultrapassa o teto. Recusa definitiva do Asaas (4xx)
  * libera a reserva; falha incerta (rede/5xx) continua contada ate conferencia humana.
  */
 import { db, clientsTable } from "@workspace/db";
+import { logger } from "./logger.js";
 import { eq, sql } from "drizzle-orm";
-import { asaasCreateCharge, asaasCreateCustomer, asaasGetCharge } from "./asaas.js";
+import { asaasCreateCharge, asaasCreateCustomer, asaasGetCharge, asaasGetCustomer } from "./asaas.js";
+import { sendGmailMessage } from "./google-gmail.js";
+import { sendTelegram } from "./telegram.js";
+import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { brtISODate } from "./brt.js";
 
-export const TESTE_MAX_CENTAVOS_POR_COBRANCA = 100;
-export const TESTE_MAX_COBRANCAS = 50;
+export const TESTE_MAX_CENTAVOS_POR_COBRANCA = 500;
+export const TESTE_MAX_COBRANCAS = 10;
 export const TESTE_MAX_TOTAL_CENTAVOS = 5000;
 export const TESTE_TIPOS = ["PIX", "BOLETO", "UNDEFINED"] as const;
 export type TesteTipo = (typeof TESTE_TIPOS)[number];
@@ -28,7 +34,7 @@ export async function ensureAsaasTesteTable(): Promise<void> {
     CREATE TABLE IF NOT EXISTS asaas_cobrancas_teste (
       id SERIAL PRIMARY KEY,
       client_id INTEGER NOT NULL,
-      valor_centavos INTEGER NOT NULL CHECK (valor_centavos BETWEEN 1 AND 100),
+      valor_centavos INTEGER NOT NULL,
       tipo TEXT NOT NULL,
       descricao TEXT NOT NULL,
       vencimento TEXT NOT NULL,
@@ -42,6 +48,17 @@ export async function ensureAsaasTesteTable(): Promise<void> {
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       pago_em TEXT
     )`);
+  // Evolucao aditiva e idempotente: teto por cobranca (troca da restricao antiga de 100 centavos),
+  // valor liquido informado pelo Asaas e registro de entrega do link por canal.
+  await db.execute(sql`ALTER TABLE asaas_cobrancas_teste DROP CONSTRAINT IF EXISTS asaas_cobrancas_teste_valor_centavos_check`);
+  await db.execute(sql`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'asaas_cobrancas_teste_valor_max_500') THEN
+      ALTER TABLE asaas_cobrancas_teste ADD CONSTRAINT asaas_cobrancas_teste_valor_max_500 CHECK (valor_centavos BETWEEN 1 AND 500);
+    END IF; END $$`);
+  await db.execute(sql`ALTER TABLE asaas_cobrancas_teste
+    ADD COLUMN IF NOT EXISTS liquido_centavos INTEGER,
+    ADD COLUMN IF NOT EXISTS link_email_em TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS link_telegram_em TIMESTAMPTZ`);
 }
 
 export interface TesteEntrada {
@@ -100,11 +117,36 @@ export async function reservarTeste(e: TesteEntrada, venc: string, operador: str
   });
 }
 
+const soDigitos = (v?: string | null) => (v ?? "").replace(/\D/g, "");
+const norm = (v?: string | null) => (v ?? "").trim().toLowerCase();
+
+/**
+ * Conferencia SOMENTE LEITURA: o cliente no Asaas precisa ser a mesma pessoa e ter o mesmo e-mail do
+ * cadastro local. Divergencia bloqueia ANTES de reservar ou cobrar; nada e corrigido por inferencia.
+ * Devolve se o Asaas avisara o cliente por conta propria (e-mail/SMS do proprio Asaas).
+ */
+export async function conferirTitularAsaas(client: { name: string; cpf: string | null; email: string | null; asaasCustomerId: string | null }) {
+  if (!client.asaasCustomerId) return { asaasAvisaCliente: false };
+  if (!client.email) throw new TesteRecusado(409, "Cadastro sem e-mail: o link nao tem para onde ir.");
+  const a = await asaasGetCustomer(client.asaasCustomerId).catch((err: any) => {
+    throw new TesteRecusado(502, `Nao foi possivel conferir o cliente no Asaas (${err?.message ?? "erro"}).`);
+  });
+  const diverge: string[] = [];
+  if (a.deleted) diverge.push("cliente removido no Asaas");
+  if (norm(a.name) !== norm(client.name)) diverge.push("nome");
+  if (soDigitos(a.cpfCnpj) !== soDigitos(client.cpf)) diverge.push("documento");
+  if (norm(a.email) !== norm(client.email)) diverge.push("e-mail");
+  if (diverge.length)
+    throw new TesteRecusado(409, `Cadastro local e cliente do Asaas divergem (${diverge.join(", ")}). Nada foi cobrado nem alterado; a correcao exige decisao do titular.`);
+  return { asaasAvisaCliente: !a.notificationDisabled };
+}
+
 export async function criarCobrancaTeste(e: TesteEntrada, operador: string) {
   const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, e.clientId));
   if (!client) throw new TesteRecusado(404, "Cliente nao encontrado.");
   if (!client.asaasCustomerId && !client.cpf)
     throw new TesteRecusado(400, "Cliente sem cadastro Asaas e sem CPF.");
+  const { asaasAvisaCliente } = await conferirTitularAsaas(client);
 
   const hoje = new Date(`${brtISODate()}T12:00:00-03:00`);
   const venc = brtISODate(new Date(hoje.getTime() + e.diasVencimento * 86400000));
@@ -132,8 +174,14 @@ export async function criarCobrancaTeste(e: TesteEntrada, operador: string) {
     });
     await db.execute(sql`
       UPDATE asaas_cobrancas_teste SET estado='criada', asaas_charge_id=${ch.id}, asaas_status=${ch.status},
-        invoice_url=${ch.invoiceUrl}, atualizado_em=NOW() WHERE id=${reservaId}`);
-    return { id: reservaId, asaasChargeId: ch.id, invoiceUrl: ch.invoiceUrl, status: ch.status, valorCentavos: e.valorCentavos, vencimento: venc };
+        invoice_url=${ch.invoiceUrl}, liquido_centavos=${typeof ch.netValue === "number" ? Math.round(ch.netValue * 100) : null},
+        atualizado_em=NOW() WHERE id=${reservaId}`);
+    return {
+      id: reservaId, asaasChargeId: ch.id, invoiceUrl: ch.invoiceUrl, status: ch.status, valorCentavos: e.valorCentavos, vencimento: venc,
+      liquidoCentavos: typeof ch.netValue === "number" ? Math.round(ch.netValue * 100) : null,
+      taxaCentavos: typeof ch.netValue === "number" ? e.valorCentavos - Math.round(ch.netValue * 100) : null,
+      asaasAvisaCliente,
+    };
   } catch (err: any) {
     const definitiva = typeof err?.httpStatus === "number" && err.httpStatus >= 400 && err.httpStatus < 500;
     await db.execute(sql`
@@ -148,7 +196,8 @@ export async function criarCobrancaTeste(e: TesteEntrada, operador: string) {
 export async function listarTeste() {
   const r = await db.execute(sql`
     SELECT t.id, t.client_id, c.name AS cliente, t.valor_centavos, t.tipo, t.descricao, t.vencimento, t.estado,
-           t.asaas_charge_id, t.asaas_status, t.invoice_url, t.erro, t.criado_em, t.pago_em
+           t.asaas_charge_id, t.asaas_status, t.invoice_url, t.erro, t.criado_em, t.pago_em,
+           t.liquido_centavos, t.link_email_em, t.link_telegram_em
     FROM asaas_cobrancas_teste t LEFT JOIN clients c ON c.id = t.client_id ORDER BY t.id DESC`);
   return r.rows as any[];
 }
@@ -169,6 +218,8 @@ export async function sincronizarTeste(): Promise<{ consultadas: number; falhas:
     try {
       const c: any = await asaasGetCharge(row.asaas_charge_id);
       await aplicarStatusTeste(row.asaas_charge_id, String(c.status), c.paymentDate ?? null);
+      if (typeof c.netValue === "number")
+        await db.execute(sql`UPDATE asaas_cobrancas_teste SET liquido_centavos=${Math.round(c.netValue * 100)} WHERE asaas_charge_id=${row.asaas_charge_id}`);
     } catch { falhas++; }
   }
   return { consultadas: r.rows.length, falhas };
@@ -179,4 +230,66 @@ export async function linhasLocaisTeste() {
     SELECT id, valor_centavos, asaas_status, estado, asaas_charge_id, invoice_url, vencimento, descricao
     FROM asaas_cobrancas_teste WHERE asaas_charge_id IS NOT NULL`);
   return r.rows as any[];
+}
+
+const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const brl = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+export interface EnvioLinkResultado {
+  email: "aceito" | "ja_enviado" | "recusado" | "sem_email";
+  telegram: "aceito" | "ja_enviado" | "recusado" | "sem_vinculo";
+  detalhe: string[];
+}
+
+/**
+ * Envia o link da cobranca de teste SOMENTE ao e-mail e ao Telegram ja registrados no cadastro do titular
+ * da cobranca (destino nunca vem do navegador). Cada canal e enviado no maximo uma vez: "aceito" so e
+ * gravado quando o provedor confirma; resposta perdida exige conferencia humana, nunca reenvio automatico.
+ * Aceito pelo provedor NAO e recebido pelo paciente.
+ */
+export async function enviarLinkCobrancaTeste(id: number): Promise<EnvioLinkResultado> {
+  const r: any = (await db.execute(sql`
+    SELECT id, client_id, valor_centavos, descricao, vencimento, estado, asaas_status, invoice_url, pago_em, link_email_em, link_telegram_em
+    FROM asaas_cobrancas_teste WHERE id=${id}`)).rows[0];
+  if (!r) throw new TesteRecusado(404, "Cobranca de teste nao encontrada.");
+  if (r.estado !== "criada" || !r.invoice_url) throw new TesteRecusado(409, "Cobranca ainda nao foi criada no Asaas.");
+  if (r.pago_em || PAGO.has(String(r.asaas_status))) throw new TesteRecusado(409, "Cobranca ja paga: nao ha link a enviar.");
+  const [c] = await db.select().from(clientsTable).where(eq(clientsTable.id, r.client_id));
+  if (!c) throw new TesteRecusado(404, "Cliente nao encontrado.");
+
+  const out: EnvioLinkResultado = { email: "sem_email", telegram: "sem_vinculo", detalhe: [] };
+  const titulo = `[TESTE] Cobranca de teste PaxMed #${r.id}`;
+  const resumo = `${brl(r.valor_centavos)} · vence em ${String(r.vencimento).split("-").reverse().join("/")}`;
+
+  // E-mail
+  if (r.link_email_em) out.email = "ja_enviado";
+  else if (c.email) {
+    const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1a2540">
+      <p style="background:#fff3cd;border:1px solid #e0c36a;padding:10px;border-radius:6px"><strong>TESTE autorizado.</strong> Esta e uma cobranca real de valor de teste, criada com sua autorizacao.</p>
+      <h2 style="margin:12px 0">${esc(titulo)}</h2>
+      <p>${esc(r.descricao)}</p><p><strong>${esc(resumo)}</strong></p>
+      <p><a href="${esc(r.invoice_url)}" style="display:inline-block;background:#0b1b3a;color:#e6c47a;padding:10px 18px;border-radius:6px;text-decoration:none">Abrir a cobranca</a></p>
+      <p style="font-size:12px;color:#667">Se voce nao reconhece este teste, nao pague e avise a clinica.</p></div>`;
+    const env = await sendGmailMessage({ to: c.email, subject: titulo, html });
+    if (env.success) {
+      await db.execute(sql`UPDATE asaas_cobrancas_teste SET link_email_em=NOW() WHERE id=${id} AND link_email_em IS NULL`);
+      out.email = "aceito";
+    } else { out.email = "recusado"; out.detalhe.push(env.error ?? "e-mail nao confirmado"); }
+  }
+
+  // Telegram (somente vinculo atual e unico)
+  if (r.link_telegram_em) out.telegram = "ja_enviado";
+  else if (c.telegramChatId && c.empresaId != null
+    && await vinculoTelegramAtualUnico(db, { clienteId: c.id, empresaId: c.empresaId, chatId: c.telegramChatId })) {
+    const texto = `<b>${esc(titulo)}</b>\nTESTE autorizado: cobranca real de valor de teste.\n${esc(resumo)}\n${esc(r.invoice_url)}`;
+    const env = await sendTelegram(c.telegramChatId, texto);
+    if (env.sent && !env.mock) {
+      await db.execute(sql`UPDATE asaas_cobrancas_teste SET link_telegram_em=NOW() WHERE id=${id} AND link_telegram_em IS NULL`);
+      await db.execute(sql`INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao, lida_em)
+        VALUES (${c.empresaId}, ${c.id}, ${c.telegramChatId}, ${`[TESTE] link da cobranca de teste #${r.id} enviado`}, NOW(), 'saida', NOW())`);
+      out.telegram = "aceito";
+    } else { out.telegram = "recusado"; out.detalhe.push(env.error ?? "telegram nao confirmado"); }
+  }
+  logger.info({ id, email: out.email, telegram: out.telegram }, "Link de cobranca de teste: resultado por canal");
+  return out;
 }

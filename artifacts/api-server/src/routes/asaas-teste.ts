@@ -2,8 +2,9 @@ import { Router, type IRouter } from "express";
 import { requireCollaborator } from "./collaborator.js";
 import { requirePlatformOwner } from "../middleware/tenantContext";
 import {
-  validarEntrada, criarCobrancaTeste, listarTeste, resumoTeste, sincronizarTeste, TesteRecusado,
+  validarEntrada, criarCobrancaTeste, enviarLinkCobrancaTeste, listarTeste, resumoTeste, sincronizarTeste, TesteRecusado,
 } from "../lib/asaas-teste-cobrancas.js";
+import { diagnosticarWebhookAsaas } from "../lib/asaas-webhook-diagnostico.js";
 
 // Cobrancas REAIS de teste (centavos) — somente proprietario autenticado; travas no servidor.
 const router: IRouter = Router();
@@ -27,12 +28,30 @@ router.post("/asaas/teste-cobrancas", ...guard, async (req, res): Promise<void> 
   }
 });
 
+router.post("/asaas/teste-cobrancas/:id/enviar-link", ...guard, async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "id invalido" }); return; }
+    res.json({ ...(await enviarLinkCobrancaTeste(id)), itens: await listarTeste() });
+  } catch (e) {
+    if (e instanceof TesteRecusado) { res.status(e.codigo).json({ error: e.message }); return; }
+    req.log.error({ err: String(e) }, "Falha ao enviar link de cobranca de teste");
+    res.status(500).json({ error: "Erro interno ao enviar o link." });
+  }
+});
+
 router.post("/asaas/teste-cobrancas/sincronizar", ...guard, async (_req, res): Promise<void> => {
   try {
     res.json({ ...(await sincronizarTeste()), resumo: await resumoTeste(), itens: await listarTeste() });
   } catch (e) {
     res.status(502).json({ error: e instanceof Error ? e.message : "Falha ao sincronizar." });
   }
+});
+
+// Diagnostico SOMENTE LEITURA do webhook de producao (nada e criado, editado ou reativado).
+router.get("/asaas/webhook-diagnostico", ...guard, async (_req, res): Promise<void> => {
+  try { res.json(await diagnosticarWebhookAsaas()); }
+  catch (e) { res.status(502).json({ error: e instanceof Error ? e.message : "Falha ao consultar o Asaas." }); }
 });
 
 export default router;

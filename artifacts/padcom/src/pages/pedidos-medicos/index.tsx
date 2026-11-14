@@ -33,6 +33,68 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+type Avulso = {
+  id: number; clientName: string; status: string; items: Array<{ codigo: string; nome: string }>; notes: string | null;
+  quoteAmount: number | null; quoteNote: string | null;
+};
+
+// Orcamentos de exames avulsos: so o titular informa/edita o valor e publica (confirmacao explicita).
+function ExamesAvulsosFila() {
+  const [rows, setRows] = useState<Avulso[] | null>(null);
+  const [draft, setDraft] = useState<Record<number, { valor: string; nota: string }>>({});
+  const [msg, setMsg] = useState("");
+  const [hidden, setHidden] = useState(false);
+  const load = useCallback(async () => {
+    const res = await fetch(`${BASE}/api/exames-avulsos/fila`, { headers: collabAuthHeaders() });
+    if (res.status === 403 || res.status === 401) { setHidden(true); return; }
+    if (res.ok) setRows(await res.json());
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  if (hidden) return null;
+  async function publish(a: Avulso) {
+    const d = draft[a.id];
+    const valor = Number((d?.valor ?? "").replace(",", "."));
+    if (!Number.isFinite(valor) || valor <= 0) { setMsg("Informe um valor maior que zero."); return; }
+    if (!window.confirm(`Publicar o orçamento de ${valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} para ${a.clientName}? O cliente passa a ver este valor.`)) return;
+    const res = await fetch(`${BASE}/api/exames-avulsos/${a.id}/orcamento`, {
+      method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ valor, nota: d?.nota || undefined, confirmo: true }),
+    });
+    const b = await res.json().catch(() => ({}));
+    setMsg(res.ok ? "Orçamento publicado." : b.error ?? "Não foi possível publicar.");
+    await load();
+  }
+  return (
+    <section className="space-y-3" aria-label="Exames avulsos">
+      <h2 className="font-black uppercase tracking-wider text-sm text-primary">Exames avulsos: orçamentos</h2>
+      <p className="text-xs text-muted-foreground">O cliente só escolheu exames. A indicação depende de avaliação profissional. O valor é seu e editável até o cliente aceitar.</p>
+      {msg && <p role="status" className="text-sm">{msg}</p>}
+      {rows?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma solicitação.</p>}
+      {(rows ?? []).map((a) => (
+        <article key={a.id} className="panel-3d-sub rounded-lg p-4 space-y-2">
+          <p className="font-semibold text-primary text-sm">{a.clientName} · {a.status === "solicitado" ? "Aguardando orçamento" : a.status === "orcamento_enviado" ? "Orçamento publicado" : "Aceito pelo cliente"}</p>
+          <p className="text-sm break-words">{a.items.map((i) => i.nome).join(", ")}</p>
+          {a.notes && <p className="text-sm text-muted-foreground">Observação do cliente: {a.notes}</p>}
+          {a.status !== "aceito" && (
+            <div className="grid sm:grid-cols-[10rem_1fr_auto] gap-2 items-end">
+              <label className="text-xs space-y-1 block"><span>Valor (R$)</span>
+                <input inputMode="decimal" value={draft[a.id]?.valor ?? (a.quoteAmount !== null ? String(a.quoteAmount).replace(".", ",") : "")}
+                  onChange={(e) => setDraft((d) => ({ ...d, [a.id]: { valor: e.target.value, nota: d[a.id]?.nota ?? a.quoteNote ?? "" } }))}
+                  className="w-full rounded-md border border-border bg-background p-2" /></label>
+              <label className="text-xs space-y-1 block"><span>Observação ao cliente (opcional)</span>
+                <input maxLength={500} value={draft[a.id]?.nota ?? a.quoteNote ?? ""}
+                  onChange={(e) => setDraft((d) => ({ ...d, [a.id]: { valor: d[a.id]?.valor ?? (a.quoteAmount !== null ? String(a.quoteAmount).replace(".", ",") : ""), nota: e.target.value } }))}
+                  className="w-full rounded-md border border-border bg-background p-2" /></label>
+              <button type="button" onClick={() => publish(a)} className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider">Publicar orçamento</button>
+            </div>
+          )}
+          {a.status === "aceito" && a.quoteAmount !== null && <p className="text-sm">Valor aceito: {a.quoteAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Cobrança e emissão dependem de etapa seguinte.</p>}
+        </article>
+      ))}
+    </section>
+  );
+}
+
 export default function PedidosMedicosPage() {
   const { isCeo } = usePermissoes();
   const [items, setItems] = useState<Item[] | null>(null);
@@ -174,6 +236,7 @@ export default function PedidosMedicosPage() {
           );
         })}
       </section>
+      <ExamesAvulsosFila />
     </div>
   );
 }

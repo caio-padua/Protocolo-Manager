@@ -18,6 +18,7 @@ import { isAppPasswordValid, PASSWORD_POLICY_MESSAGE } from "@workspace/password
 import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 
 import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
+import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1672,6 +1673,7 @@ function DocumentosTab({ client }: { client: ClientInfo }) {
   return (
     <div className="space-y-4">
       <PedidosMedicosCliente token={client.token} />
+      <ExamesAvulsosCliente token={client.token} />
       {/* RAS */}
       {d && d.ras.length > 0 && (
         <CategorySection label="REGISTROS DE APLICAÇÃO (RASP)" count={d.ras.length} defaultOpen>

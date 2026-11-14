@@ -130,6 +130,22 @@ export interface AsaasCharge {
   billingType: string;
   status: string;
   value: number;
+  netValue?: number;
+  paymentDate?: string | null;
+}
+
+export interface AsaasCustomerView {
+  id: string;
+  name: string;
+  cpfCnpj: string | null;
+  email: string | null;
+  notificationDisabled: boolean;
+  deleted: boolean;
+}
+
+/** Leitura (sem alterar nada) do cliente no Asaas, para conferir identidade antes de cobrar. */
+export async function asaasGetCustomer(id: string, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCustomerView> {
+  return asaasFetch(`/customers/${encodeURIComponent(id)}`, { method: "GET" }, ambiente);
 }
 
 export async function asaasCreateCharge(input: AsaasChargeInput, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCharge> {
@@ -342,4 +358,10 @@ export async function asaasListTransfers(max = 100): Promise<AsaasTransfer[]> {
     offset += limit;
   }
   return out.slice(0, max);
+}
+
+/** SOMENTE LEITURA: lista os webhooks configurados na conta Asaas (nenhuma alteracao). */
+export async function asaasListWebhooks(): Promise<any[]> {
+  const j = await asaasFetch(`/webhooks?limit=100`);
+  return Array.isArray(j?.data) ? j.data : [];
 }
