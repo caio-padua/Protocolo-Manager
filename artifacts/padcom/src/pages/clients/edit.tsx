@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Search, User, MapPin, Plus, Building2, Crown, Camera } from "lucide-react";
 import CategoriaCliente from "@/components/clients/categoria-cliente";
 import { ClientPhotoCard } from "@/components/clients/photo-card";
 import { ClientRubricaCard } from "@/components/clients/rubrica-card";
@@ -107,7 +107,7 @@ export default function EditClient() {
   const queryClient = useQueryClient();
   const { data: client, isLoading, isError, error } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
   const updateClient = useUpdateClient();
-  const [aba, setAba] = useState<"dados" | "cadastro">("dados");
+  const [aba, setAba] = useState<"dados" | "endereco" | "midia" | "notas" | "cadastro">("dados");
   const [loadingCep, setLoadingCep] = useState(false);
   const [saveError, setSaveError] = useState("");
   const loadedClientId = useRef<number | null>(null);
@@ -313,6 +313,9 @@ export default function EditClient() {
       <div role="tablist" className="panel-3d-sub flex flex-wrap gap-2 p-2">
         {([
           { value: "dados", label: "DADOS", Icon: User },
+          { value: "endereco", label: "ENDEREÇO", Icon: MapPin },
+          { value: "midia", label: "FOTO E ASSINATURA", Icon: Camera },
+          { value: "notas", label: "ADICIONAIS E NOTAS", Icon: Plus },
           { value: "cadastro", label: "CADASTRO", Icon: Crown },
         ] as const).map(({ value, label, Icon }) => (
           <button
@@ -336,11 +339,20 @@ export default function EditClient() {
         </Card>
       )}
 
-      <Card className={`panel-3d border-none ${aba !== "dados" ? "hidden" : ""}`}>
+      <Card className={`panel-3d border-none ${aba === "cadastro" ? "hidden" : ""}`}>
         <CardContent className="p-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <form onSubmit={form.handleSubmit(onSubmit, (erros) => {
+              // Campo com erro numa aba escondida: abre a aba certa para o erro aparecer
+              const campos = Object.keys(erros);
+              const enderecoCampos = ["cep", "logradouro", "numero", "complemento", "bairro", "cidade", "estado", "pais"];
+              const notasCampos = ["instagram", "comoConheceu", "notes"];
+              if (campos.some((c) => !enderecoCampos.includes(c) && !notasCampos.includes(c))) setAba("dados");
+              else if (campos.some((c) => enderecoCampos.includes(c))) setAba("endereco");
+              else setAba("notas");
+            })} className="space-y-8">
               {saveError && <p role="alert" className="text-sm font-semibold text-red-700 dark:text-red-300">{saveError}</p>}
+              <div className={aba === "dados" ? "space-y-8" : "hidden"}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <User className="h-3 w-3 text-primary" /> Informações Pessoais
@@ -481,7 +493,9 @@ export default function EditClient() {
                   )} />
                 </div>
               </div>
+              </div>
 
+              <div className={aba === "midia" ? "space-y-8" : "hidden"}>
               <ClientPhotoCard
                 clientId={id}
                 photoUrl={(client as any).photoUrl}
@@ -490,7 +504,9 @@ export default function EditClient() {
               />
 
               <ClientRubricaCard clientId={id} />
+              </div>
 
+              <div className={aba === "endereco" ? "space-y-8" : "hidden"}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <MapPin className="h-3 w-3 text-primary" /> Endereço
@@ -629,7 +645,9 @@ export default function EditClient() {
                   />
                 </div>
               </div>
+              </div>
 
+              <div className={aba === "notas" ? "space-y-8" : "hidden"}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <Plus className="h-3 w-3 text-primary" /> Adicionais e Notas
@@ -695,6 +713,7 @@ export default function EditClient() {
                     </FormItem>
                   )}
                 />
+              </div>
               </div>
 
               <div className="flex justify-end gap-4 pt-4">
