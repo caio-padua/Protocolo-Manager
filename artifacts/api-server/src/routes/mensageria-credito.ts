@@ -5,14 +5,16 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { pool } from "@workspace/db";
+import { GetMensageriaCreditoResponse, SolicitarMensageriaRecargaBody } from "@workspace/api-zod";
 import { requireCollaborator } from "./collaborator";
-import { requireCeoInstance } from "../middleware/tenantContext";
+import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
 import {
   visaoCredito, solicitarRecarga, confirmarRecarga, definirTarifa, definirIsencao, estornarConsumo,
-  garantirTabelasCredito, TIPOS_EVENTO, type TipoEvento,
+  ambienteCreditoAtual, garantirTabelasCredito, TIPOS_EVENTO, type TipoEvento,
 } from "../lib/mensageria-credito";
 
 const router = Router();
+router.use("/mensageria/admin", requireCollaborator, requirePlatformOwner);
 const MODELOS_CONECTADOS: Record<string, string[]> = { anthropic: ["claude-sonnet-4-6"] };
 
 function empresaDaSessao(req: Request): number | null {
@@ -25,17 +27,29 @@ const inteiro = (v: unknown): number | null => (typeof v === "number" && Number.
 router.get("/mensageria/credito", requireCollaborator, async (req: Request, res: Response) => {
   const empresaId = empresaDaSessao(req);
   if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
-  res.json(await visaoCredito(empresaId));
+  const visao = await visaoCredito(empresaId);
+  // Lista explícita: custos do fornecedor pertencem somente à administração.
+  const publica = {
+    ambiente: visao.ambiente, saldoCentavos: visao.saldoCentavos, limiteAvisoCentavos: visao.limiteAvisoCentavos,
+    pausadoPorSaldo: visao.pausadoPorSaldo, isento: visao.isento, isentoMotivo: visao.isentoMotivo,
+    tarifas: visao.tarifas, extrato: visao.extrato, recargas: visao.recargas, avisos: visao.avisos,
+    mensagensAguardandoSaldo: visao.mensagensAguardandoSaldo,
+    mensagensAguardandoRetomada: visao.mensagensAguardandoRetomada,
+  };
+  GetMensageriaCreditoResponse.parse(publica);
+  res.json(publica);
 });
 
 router.post("/mensageria/credito/recargas", requireCollaborator, async (req: Request, res: Response) => {
   const empresaId = empresaDaSessao(req);
-  const valor = inteiro(req.body?.valorCentavos);
+  const entrada = SolicitarMensageriaRecargaBody.safeParse(req.body);
+  const valor = entrada.success ? inteiro(entrada.data.valorCentavos) : null;
   if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
   if (!valor || valor <= 0) { res.status(400).json({ error: "Informe o valor da recarga em centavos." }); return; }
-  const r = await solicitarRecarga(empresaId, valor, `profissional:${req.tenantContext.professionalId ?? "?"}`, "real");
+  const ambiente = ambienteCreditoAtual();
+  const r = await solicitarRecarga(empresaId, valor, `profissional:${req.tenantContext.professionalId ?? "?"}`, ambiente);
   // Honesto: solicitar não credita. O saldo só sobe quando o pagamento for confirmado.
-  res.status(201).json({ id: r.id, status: "solicitada", creditado: false });
+  res.status(201).json({ id: r.id, status: "solicitada", creditado: false, ambiente });
 });
 
 router.get("/mensageria/ia", requireCollaborator, async (req: Request, res: Response) => {

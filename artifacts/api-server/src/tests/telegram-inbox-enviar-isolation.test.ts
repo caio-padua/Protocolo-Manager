@@ -414,7 +414,8 @@ describe("ferramenta test-inbox: cadeia real de autorização e fila", () => {
     expect(mocks.send).not.toHaveBeenCalled();
     expect(writeQueries().map(q => q.sql).filter(q => q.includes("INSERT INTO telegram_"))).toHaveLength(2);
     expect(writeQueries().find(q => q.sql.includes("INSERT INTO telegram_inbox_messages"))?.params)
-      .toEqual([5, 42, "test-chat-42", "Teste técnico sintético"]);
+      .toEqual([5, 42, "test-chat-42", "Teste técnico sintético", "teste"]);
+    expect(writeQueries().find(q => q.sql.includes("INSERT INTO telegram_inbox_messages"))?.sql).toContain("ambiente_credito");
     expect(JSON.stringify(r.body)).not.toContain("test-chat-42");
   });
 });

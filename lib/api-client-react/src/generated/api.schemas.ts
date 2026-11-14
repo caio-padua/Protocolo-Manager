@@ -5,6 +5,94 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export interface CreditoRecargaInput {
+  /**
+   * @minimum 1
+   * @maximum 9007199254740991
+   */
+  valorCentavos: number;
+}
+
+export type CreditoRecargaSolicitadaStatus =
+  (typeof CreditoRecargaSolicitadaStatus)[keyof typeof CreditoRecargaSolicitadaStatus];
+
+export const CreditoRecargaSolicitadaStatus = {
+  solicitada: "solicitada",
+} as const;
+
+export type CreditoRecargaSolicitadaAmbiente =
+  (typeof CreditoRecargaSolicitadaAmbiente)[keyof typeof CreditoRecargaSolicitadaAmbiente];
+
+export const CreditoRecargaSolicitadaAmbiente = {
+  teste: "teste",
+  real: "real",
+} as const;
+
+export interface CreditoRecargaSolicitada {
+  id: number;
+  status: CreditoRecargaSolicitadaStatus;
+  creditado: boolean;
+  ambiente: CreditoRecargaSolicitadaAmbiente;
+}
+
+export type MensageriaCreditoAmbiente =
+  (typeof MensageriaCreditoAmbiente)[keyof typeof MensageriaCreditoAmbiente];
+
+export const MensageriaCreditoAmbiente = {
+  teste: "teste",
+  real: "real",
+} as const;
+
+export type MensageriaCreditoExtratoItem = { [key: string]: unknown };
+
+export type MensageriaCreditoRecargasItem = { [key: string]: unknown };
+
+export type MensageriaCreditoTarifasItem = { [key: string]: unknown };
+
+export interface MensageriaCredito {
+  ambiente: MensageriaCreditoAmbiente;
+  /** @minimum 0 */
+  saldoCentavos: number;
+  /** @minimum 0 */
+  mensagensAguardandoRetomada?: number;
+  extrato: MensageriaCreditoExtratoItem[];
+  recargas: MensageriaCreditoRecargasItem[];
+  tarifas: MensageriaCreditoTarifasItem[];
+  [key: string]: unknown;
+}
+
+export type CatalogoClinicaResumoAmbienteCredito =
+  (typeof CatalogoClinicaResumoAmbienteCredito)[keyof typeof CatalogoClinicaResumoAmbienteCredito];
+
+export const CatalogoClinicaResumoAmbienteCredito = {
+  teste: "teste",
+  real: "real",
+} as const;
+
+/**
+ * @nullable
+ */
+export type CatalogoClinicaResumoContrato = { [key: string]: unknown } | null;
+
+export type CatalogoClinicaResumoExtratoItem = { [key: string]: unknown };
+
+export type CatalogoClinicaResumoRecargasItem = { [key: string]: unknown };
+
+export type CatalogoClinicaResumoTarifasItem = { [key: string]: unknown };
+
+export interface CatalogoClinicaResumo {
+  ambienteCredito: CatalogoClinicaResumoAmbienteCredito;
+  /** @minimum 0 */
+  saldoCentavos: number;
+  /** @minimum 0 */
+  mensagensAguardandoRetomada?: number;
+  /** @nullable */
+  contrato: CatalogoClinicaResumoContrato;
+  extrato: CatalogoClinicaResumoExtratoItem[];
+  recargas: CatalogoClinicaResumoRecargasItem[];
+  tarifas: CatalogoClinicaResumoTarifasItem[];
+}
+
 export interface FornecedorEntrada {
   /**
    * @minLength 1

@@ -26,6 +26,9 @@ export async function aplicarMigracaoUpdateId(exec: ExecutorSql): Promise<void> 
     ALTER TABLE telegram_inbox_messages
       ADD COLUMN IF NOT EXISTS update_id BIGINT
   `);
+  // Legado permanece sem procedência comprovada e não é retomado pela recarga.
+  await exec.execute(sql`ALTER TABLE telegram_inbox_messages
+    ADD COLUMN IF NOT EXISTS ambiente_credito TEXT CHECK (ambiente_credito IN ('real','teste'))`);
   await exec.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS ux_telegram_inbox_chat_update
       ON telegram_inbox_messages (chat_id, update_id)

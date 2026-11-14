@@ -24,6 +24,7 @@ vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => ({ headers: {} }) }
 import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
   atenderMensagemTelegram,processarAtendimentosPendentes,pausarAtendimentoDuravel } from "../lib/atendimento-telegram-store";
 import { processarAtendimento } from "../lib/atendimento-telegram";
+import { aplicarMigracaoUpdateId } from "../lib/telegram-inbox-migracao";
 
 const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k8yrwp-postgresql-16.10/bin";
 let dir = ""; let proc: ChildProcess | null = null; let pool: pg.Pool;
@@ -43,6 +44,7 @@ beforeAll(async () => {
     chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT)`);
   h.db = drizzle(pool);
   h.pg = pool;
+  await aplicarMigracaoUpdateId(h.db);
   await aplicarMigracaoAtendimento(h.db);
   await pool.query(`INSERT INTO orientacoes_aprovadas (empresa_id,tema,perguntas_exemplo,resposta,status) VALUES
     (5,'Jejum antes do exame','preciso de jejum para exame de sangue, quantas horas de jejum','APROVADA: jejum de 8 horas.','aprovada'),
@@ -110,8 +112,8 @@ describe("consumidor real do atendimento com banco descartável e somente transp
   const entrada=async(id:number,texto:string,cid=1,empresaId=5)=>{
     h.settings={"atendimento.ia.modo":"ligado"};h.enviados.length=0;h.noEnvio=null;
     await devolverParaIA(h.db,cid,null);
-    await pool.query(`INSERT INTO telegram_inbox_messages(id,empresa_id,cliente_id,chat_id,texto,direcao)
-      VALUES($1,$2,$3,$4,$5,'entrada')`,[id,empresaId,cid,`C${cid}`,texto]);
+    await pool.query(`INSERT INTO telegram_inbox_messages(id,empresa_id,cliente_id,chat_id,texto,direcao,ambiente_credito)
+      VALUES($1,$2,$3,$4,$5,'entrada','teste')`,[id,empresaId,cid,`C${cid}`,texto]);
     const e={...base,inboxMessageId:id,texto,clienteId:cid,empresaId,chatId:`C${cid}`};
     await atenderMensagemTelegram(e);return e;
   };

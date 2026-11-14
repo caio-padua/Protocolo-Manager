@@ -67,3 +67,66 @@ mensageria ou clínica em homologação.
 
 Em construção. Evidências de ambientes externos, rotação do Telegram e conta Asaas sandbox são dependências
 do titular e não podem ser simuladas.
+
+### Bloqueio encontrado na retomada de 14/11/2026
+
+O código distinguia o ambiente da recarga, mas não o ambiente da carteira que recebia o crédito.
+Consequentemente, confirmar uma recarga de teste podia financiar consumo real da mesma empresa.
+Esta conclusão vem da leitura do código; não é uma afirmação de que ocorreu em uma conta externa.
+
+A correção exige:
+
+1. Separar por empresa **e ambiente** carteira, extrato, tarifas, franquia, avisos, custos e eventos pendentes.
+2. Derivar o ambiente da aplicação no servidor; o navegador não escolhe ambiente nem empresa.
+3. Impedir que a retomada de um ambiente reprocesse a fila de outro.
+4. Preservar registros antigos; se houver recargas de teste já confirmadas sem separação, bloquear a migração
+   para conferência, em vez de reclassificar ou apagar dinheiro silenciosamente.
+5. Provar isolamento com a mesma empresa e a mesma chave de evento nos dois ambientes, incluindo
+   confirmação concorrente, estorno e leitura da carteira.
+
+Até essas provas, o ciclo de cobrança permanece não homologado.
+
+A revisão encontrou também exposição de custos internos na resposta de carteira e ausência de validação
+do papel de proprietário nas rotas administrativas (a flag da instância não representa uma pessoa
+autenticada). A correção deve exigir sessão e proprietário antes da guarda de instância, devolver apenas
+os campos públicos da carteira e provar recusa a visitante e profissional comum.
+Como as credenciais Asaas e os metadados do cofre são globais nesta versão, suas rotas
+também exigem o proprietário da plataforma; ser colaborador de uma clínica não concede essa autoridade.
+
+## Evidências da rodada de 14/11/2026
+
+Esta rodada não homologa a demanda completa e não realizou cobrança ou envio real.
+
+| Verificação | Resultado e limite |
+|---|---|
+| Carteiras, catálogo, migração e separação do cliente Asaas | Cinco arquivos passaram com 59 testes; a suíte de carteira foi ampliada depois e terminou com 28 testes aprovados. |
+| Migração parcial | Coluna adicionada manualmente não comprova conciliação; legado com teste confirmado sem marcador transacional bloqueia e preserva o saldo. |
+| Recuperação | Falha sintética depois de creditar foi recuperada pela mesma confirmação; nova reentrega não repetiu crédito nem débito. |
+| Permissões | Visitante recebe 401; colaborador comum recebe 403 na administração e nas seis operações globais de credenciais; proprietário permanece autorizado. |
+| Telegram | 219 testes em treze arquivos foram verificados; dois testes inicialmente falharam por fixtures sem a nova origem e passaram após correção das fixtures, sem afrouxar a guarda. |
+| Bibliotecas e servidor | Verificação de tipos e compilação aprovadas. |
+| Aplicação visual | Compilação aprovada; verificação global de tipos ainda acusa 35 erros fora dos arquivos alterados. |
+| Revisão independente | Aprovou a unidade de separação, recuperação e autorização após correções; não certificou a demanda completa. |
+| Aplicação em execução | Servidor e worker reiniciados; worker permaneceu no perfil restrito de repasse, sem ativação do motor completo de lembretes. |
+| Tela autenticada | Dúvidas e Orientações abriu com sessão operacional real, apenas leitura; zero mutações e zero envios. Captura em `generated-artifacts/comunicacao-autenticada.png`. |
+| Conteúdo clínico observado | A tela mostrou 72 rascunhos e zero orientações aprovadas; nenhuma aprovação foi feita. |
+| Administração comercial | Captura sem sessão confirma recusa de acesso e marca PaxMed; não houve navegação autenticada que executasse o cadastro inicial de propostas comerciais ainda sem fonte confirmada. |
+| Asaas configurado | Rotas reais de metadados, com sessão proprietária, responderam 200: chave e segredo de confirmação de produção configurados, mas não verificados; chave e segredo próprios do sandbox ausentes. |
+| Rotação Telegram | Metadado autenticado informa token configurado, validade não verificada e rotação pendente; não foi feita troca no provedor. |
+| Banco da aplicação | Consulta somente de leitura confirmou que `cat_contratos` e `msg_carteira` ainda não existem; nenhuma instalação ou dado do piloto comercial foi presumido. |
+
+As consultas autenticadas ao cofre descartaram os valores e máscaras; esta evidência registra somente presença, ambiente e estados.
+Uma tentativa com o identificador operacional inicial foi recusada; a alternativa operacional já disponibilizada autenticou normalmente, sem redefinição de acesso.
+
+### Bloqueios e pendências sem disfarçar testes isolados
+
+- Os arquivos `PAXMED_ARQUITETURA_COBRANCA_CLINICAS_98` e `PAXMED_COBRANCA_CODIGO_E_ESPECIFICACAO_98` não foram localizados entre os documentos do projeto.
+- Há propostas históricas divergentes; esta rodada não as transformou em preços aprovados nem substituiu edições existentes.
+- Não existe credencial própria do sandbox configurada; não foi comprovada a existência de uma conta sandbox externa.
+- A ligação comercial Asaas → confirmação de pagamento → carteira ainda não está integrada ao fluxo de recargas; recarga pendente não representa cobrança emitida.
+- O recebimento de pagamento Asaas, sua notificação externa, a atualização do saldo e o consumo ainda não foram observados de ponta a ponta.
+- Instituto Lemos foi identificado anteriormente como empresa 2; isso não certifica isolamento integral nem autoriza misturar clientes sintéticos com cadastros reais.
+- Os dois clientes fictícios do piloto ainda não foram criados na aplicação; não houve alteração na clínica do piloto.
+- A isenção histórica do Instituto continua com inicialização herdada baseada em identificador fixo; a exigência de política comercial inteiramente configurável ainda não está concluída.
+- Lembrete individual foi testado com transporte simulado; não se declara entrega externa ao Telegram.
+- Rotação no provedor, aprovação clínica dos rascunhos e documentos comerciais continuam necessários para as próximas provas.

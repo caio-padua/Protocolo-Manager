@@ -107,6 +107,11 @@ describe("preço congelado no evento e franquia mensal", () => {
     await credito.registrarEvento({ empresaId, tipo: "recebida", chave: "franquia-1" });
     const uso = await pool.query(`SELECT usado_centavos FROM msg_franquia_uso WHERE empresa_id=$1`, [empresaId]);
     expect(uso.rows[0].usado_centavos).toBe("3");
+    await credito.definirTarifa({ empresaId, ambiente: "real", tipo: "recebida", valorCentavos: 3, ativo: true, por: "teste-isolado" });
+    expect(await credito.registrarEvento({ empresaId, ambiente: "real", tipo: "recebida", chave: "franquia-1" }))
+      .toMatchObject({ ok: false, situacao: "saldo_insuficiente" });
+    expect((await pool.query(`SELECT usado_centavos, ambiente FROM msg_franquia_uso WHERE empresa_id=$1`, [empresaId])).rows)
+      .toEqual([{ usado_centavos: "3", ambiente: "teste" }]);
   });
 
   it("não cria contrato para empresa inexistente nem aceita condição comercial desconhecida", async () => {

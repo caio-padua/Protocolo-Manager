@@ -41,6 +41,49 @@ tags:
     description: Agenda Configuração — agendas de atendimento, janelas, exceções e liberação anti-ilha
 
 paths:
+  /mensageria/credito:
+    get:
+      operationId: getMensageriaCredito
+      tags: [payments]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Carteira da empresa autenticada no ambiente determinado pelo servidor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MensageriaCredito" }
+        "401": { description: Sessão inválida. }
+  /mensageria/credito/recargas:
+    post:
+      operationId: solicitarMensageriaRecarga
+      tags: [payments]
+      security: [{ collaboratorBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreditoRecargaInput" }
+      responses:
+        "201":
+          description: Solicitação registrada, ainda sem pagamento ou crédito.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreditoRecargaSolicitada" }
+        "400": { description: Valor inválido. }
+        "401": { description: Sessão inválida. }
+  /catalogo/minha-clinica:
+    get:
+      operationId: getCatalogoClinica
+      tags: [payments]
+      security: [{ collaboratorBearer: [] }]
+      responses:
+        "200":
+          description: Contrato e carteira da própria clínica, sem custos internos ou margem.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogoClinicaResumo" }
+        "401": { description: Sessão inválida. }
+        "503": { description: Catálogo indisponível neste ambiente. }
   /fornecedores:
     get:
       operationId: listFornecedores
@@ -3945,6 +3988,41 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    CreditoRecargaInput:
+      type: object
+      required: [valorCentavos]
+      properties:
+        valorCentavos: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    CreditoRecargaSolicitada:
+      type: object
+      required: [id, status, creditado, ambiente]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [solicitada] }
+        creditado: { type: boolean, enum: [false] }
+        ambiente: { type: string, enum: [teste, real] }
+    MensageriaCredito:
+      type: object
+      additionalProperties: true
+      required: [ambiente, saldoCentavos, extrato, recargas, tarifas]
+      properties:
+        ambiente: { type: string, enum: [teste, real] }
+        saldoCentavos: { type: integer, minimum: 0 }
+        mensagensAguardandoRetomada: { type: integer, minimum: 0 }
+        extrato: { type: array, items: { type: object, additionalProperties: true } }
+        recargas: { type: array, items: { type: object, additionalProperties: true } }
+        tarifas: { type: array, items: { type: object, additionalProperties: true } }
+    CatalogoClinicaResumo:
+      type: object
+      required: [ambienteCredito, saldoCentavos, contrato, extrato, recargas, tarifas]
+      properties:
+        ambienteCredito: { type: string, enum: [teste, real] }
+        saldoCentavos: { type: integer, minimum: 0 }
+        mensagensAguardandoRetomada: { type: integer, minimum: 0 }
+        contrato: { type: [object, "null"], additionalProperties: true }
+        extrato: { type: array, items: { type: object, additionalProperties: true } }
+        recargas: { type: array, items: { type: object, additionalProperties: true } }
+        tarifas: { type: array, items: { type: object, additionalProperties: true } }
     FornecedorEntrada:
       type: object
       required: [nome, razaoSocial, cnpj, endereco, telefone, email, site, instagram, fabricante, fornecedor, fonte, ativo]

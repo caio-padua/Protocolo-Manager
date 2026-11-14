@@ -96,6 +96,8 @@ describe("deduplicação", () => {
     expect(b.duplicada).toBe(true);
     expect(b.id).toBe(a.id);
     expect(await contar("update_id=5001")).toBe(1);
+    expect((await pool.query(`SELECT ambiente_credito FROM telegram_inbox_messages WHERE id=$1`, [a.id])).rows[0].ambiente_credito).toBe("teste");
+    expect((await pool.query(`SELECT ambiente_credito FROM telegram_inbox_messages WHERE texto='legado 1'`)).rows[0].ambiente_credito).toBeNull();
   });
   it("D2 mensagem NOVA do mesmo chat (update_id diferente, texto igual) grava normalmente", async () => {
     const r = await gravarMensagemEntrada(db, { ...base, updateId: 5002 });

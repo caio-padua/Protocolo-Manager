@@ -20,7 +20,7 @@ import {
   type Matriz,
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
-import { requireCeoInstance } from "../middleware/tenantContext";
+import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { getPrescriptionCertificateStatus, inspectPrescriptionCertificate } from "../lib/prescription-signing";
 import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
@@ -265,11 +265,11 @@ async function paymentGatewayPayload(): Promise<unknown> {
   return { provider: "asaas", baseUrl, apiKeyStatus, webhookTokenStatus };
 }
 
-router.get("/settings/payment-gateway", requireCollaborator, async (_req, res): Promise<void> => {
+router.get("/settings/payment-gateway", requireCollaborator, requirePlatformOwner, async (_req, res): Promise<void> => {
   res.json(await paymentGatewayPayload());
 });
 
-router.put("/settings/payment-gateway", requireCollaborator, async (req, res): Promise<void> => {
+router.put("/settings/payment-gateway", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   const parsed = UpdatePaymentGatewaySettingsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Dados invalidos", details: parsed.error.issues });
@@ -285,7 +285,7 @@ router.put("/settings/payment-gateway", requireCollaborator, async (req, res): P
 
 // Conta sandbox é independente da produção. Valores sempre entram no cofre e
 // respostas expõem somente metadados; campo vazio nunca remove a credencial.
-router.get("/settings/payment-gateway/sandbox", requireCollaborator, requireCeoInstance, async (_req, res): Promise<void> => {
+router.get("/settings/payment-gateway/sandbox", requireCollaborator, requirePlatformOwner, requireCeoInstance, async (_req, res): Promise<void> => {
   const [apiKeyStatus, webhookTokenStatus] = await Promise.all([
     getSecretStatus("asaas.sandbox.apiKey"),
     getSecretStatus("asaas.sandbox.webhookToken"),
@@ -293,7 +293,7 @@ router.get("/settings/payment-gateway/sandbox", requireCollaborator, requireCeoI
   res.json({ provider: "asaas", ambiente: "sandbox", baseUrl: "https://api-sandbox.asaas.com/v3", apiKeyStatus, webhookTokenStatus });
 });
 
-router.put("/settings/payment-gateway/sandbox", requireCollaborator, requireCeoInstance, async (req, res): Promise<void> => {
+router.put("/settings/payment-gateway/sandbox", requireCollaborator, requirePlatformOwner, requireCeoInstance, async (req, res): Promise<void> => {
   if (process.env.NODE_ENV === "production") {
     res.status(403).json({ error: "Configuração do sandbox está bloqueada nesta versão de produção." }); return;
   }

@@ -10,7 +10,7 @@
  *  - Cadastrar preço NÃO ativa integração: cada tarifa informa a disponibilidade real.
  */
 import { pool } from "@workspace/db";
-import { garantirTabelasCredito, type TipoEvento } from "./mensageria-credito";
+import { ambienteCreditoAtual, garantirTabelasCredito, type TipoEvento } from "./mensageria-credito";
 
 export const AMBIENTE_PADRAO = "homologacao";
 export const PROPOSTA_REF = "Proposta comercial de homologação do CEO";
@@ -80,7 +80,8 @@ export function garantirCatalogo(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS cat_contratos_vigente_unico ON cat_contratos (empresa_id) WHERE status IN ('piloto','ativo');
       CREATE TABLE IF NOT EXISTS msg_franquia_uso (
         empresa_id INTEGER NOT NULL, mes TEXT NOT NULL, usado_centavos BIGINT NOT NULL DEFAULT 0,
-        PRIMARY KEY (empresa_id, mes)
+        ambiente TEXT NOT NULL CHECK (ambiente IN ('real','teste')),
+        PRIMARY KEY (empresa_id, ambiente, mes)
       );
     `);
     await pool.query(`ALTER TABLE cat_contratos ADD COLUMN IF NOT EXISTS valor_periodo_centavos BIGINT NOT NULL DEFAULT 0`);
@@ -243,15 +244,15 @@ export async function aplicarProposta(): Promise<void> {
     if (jaEspelhou.rows.length) return;
     for (const t of TARIFAS.filter((x) => x.grupo === "mensageria")) {
       const tipo = TIPO_DO_CODIGO[t.codigo];
-      const existe = await c.query(`SELECT 1 FROM msg_tarifas WHERE empresa_id IS NULL AND tipo_evento = $1 LIMIT 1`, [tipo]);
+      const existe = await c.query(`SELECT 1 FROM msg_tarifas WHERE empresa_id IS NULL AND tipo_evento = $1 AND ambiente = $2 LIMIT 1`, [tipo, ambienteCreditoAtual()]);
       if (!existe.rows.length) {
         // Uma proposta cadastrada NÃO ativa cobrança. Só a ação explícita do CEO
         // cria nova tarifa ativa; linhas antigas nunca são sobrescritas.
         await c.query(
-          `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao)
-           VALUES (NULL,$1,$2,$3,$4,$5,'proposta inicial',$6,1)`,
+          `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao, ambiente)
+           VALUES (NULL,$1,$2,$3,$4,$5,'proposta inicial',$6,1,$7)`,
           [tipo, t.preco, false, tipo === "tempo" ? "minuto" : null,
-            tipo === "tempo" ? "tempo ativo de processamento, proporcional aos segundos" : null, t.codigo]);
+            tipo === "tempo" ? "tempo ativo de processamento, proporcional aos segundos" : null, t.codigo, ambienteCreditoAtual()]);
       }
     }
     await c.query(`INSERT INTO cat_config (chave, valor, atualizado_por) VALUES ('tarifas_motor_espelhadas','true'::jsonb,'sistema') ON CONFLICT (chave) DO NOTHING`);
@@ -434,9 +435,9 @@ export async function editarTarifa(codigo: string, body: Record<string, unknown>
     await versionar(c, "tarifa", codigo, Number(ant.versao), ant, por);
     // Motor e catálogo gravam na mesma transação: preço parcialmente atualizado é impossível.
     if (tipo) await c.query(
-      `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao)
-       VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8)`,
-      [tipo, preco, ativo, tipo === "tempo" ? unidade : null, tipo === "tempo" ? regraCobranca : null, por, codigo, versao]);
+      `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao, ambiente)
+       VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [tipo, preco, ativo, tipo === "tempo" ? unidade : null, tipo === "tempo" ? regraCobranca : null, por, codigo, versao, ambienteCreditoAtual()]);
     const r = await c.query(
       `INSERT INTO cat_tarifas (codigo, versao, grupo, nome_evento, unidade, preco_centavos, moeda, regra_cobranca, regra_fracionamento, elegivel_franquia,
          disponibilidade, ativo, observacao, proposta_ref, proposta_data, criado_por)

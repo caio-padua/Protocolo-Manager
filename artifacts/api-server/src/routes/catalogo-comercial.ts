@@ -5,14 +5,16 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { requireCollaborator } from "./collaborator";
-import { requireCeoInstance } from "../middleware/tenantContext";
+import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
 import {
   lerCatalogo, editarPlano, criarPlano, editarItem, editarTarifa, editarCusto, editarConfig, analiseMargem,
   criarContrato, contratoVigente, contratosDeTodas,
 } from "../lib/catalogo-comercial";
 import { visaoCredito } from "../lib/mensageria-credito";
+import { GetCatalogoClinicaResponse } from "@workspace/api-zod";
 
 const router = Router();
+router.use("/catalogo/admin", requireCollaborator, requirePlatformOwner);
 const erro = (res: Response, e: unknown) => res.status(e instanceof RangeError ? 400 : 500).json({ error: e instanceof RangeError ? e.message : "Falha ao processar." });
 const por = (req: Request) => `ceo:${req.tenantContext?.professionalId ?? "instancia"}`;
 
@@ -40,12 +42,13 @@ router.get("/catalogo/minha-clinica", requireCollaborator, async (req: Request, 
   if (!c?.authenticated || !Number.isSafeInteger(c.empresaId)) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
   try {
     const [contrato, credito] = await Promise.all([contratoVigente(c.empresaId), visaoCredito(c.empresaId)]);
-    res.json({
+    res.json(GetCatalogoClinicaResponse.parse({
       contrato: contrato && { plano: contrato.plano_snapshot?.nome, ambiente: contrato.ambiente, status: contrato.status, mensalidadeCentavos: Number(contrato.preco_mensal_centavos),
         condicao: contrato.condicao, valorPeriodoCentavos: Number(contrato.valor_periodo_centavos),
         franquiaTextoCentavos: Number(contrato.franquia_texto_centavos), modulos: contrato.modulos, vigenciaInicio: contrato.vigencia_inicio, renovacao: contrato.renovacao },
-      saldoCentavos: credito.saldoCentavos, extrato: credito.extrato, recargas: credito.recargas, tarifas: credito.tarifas,
-    });
+      ambienteCredito: credito.ambiente, saldoCentavos: credito.saldoCentavos, mensagensAguardandoRetomada: credito.mensagensAguardandoRetomada,
+      extrato: credito.extrato, recargas: credito.recargas, tarifas: credito.tarifas,
+    }));
   } catch (e) { erro(res, e); }
 });
 

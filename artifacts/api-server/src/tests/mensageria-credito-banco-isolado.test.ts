@@ -6,11 +6,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { iniciarPgDescartavel } from "./helpers/pg-descartavel";
 
-const sessao = vi.hoisted(() => ({ empresaId: 11, autenticado: true }));
+const sessao = vi.hoisted(() => ({ empresaId: 11, autenticado: true, dono: false }));
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (q: any, s: any, n: () => void) => {
     if (!sessao.autenticado) { s.status(401).json({ error: "x" }); return; }
-    q.tenantContext = { empresaId: sessao.empresaId, authenticated: true, professionalId: 1 }; n();
+    q.tenantContext = { empresaId: sessao.empresaId, authenticated: true, professionalId: 1, isPlatformOwner: sessao.dono }; n();
   },
 }));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -180,7 +180,10 @@ describe("rotas: isolamento e permissões", () => {
   async function app() {
     const express = (await import("express")).default;
     const router = (await import("../routes/mensageria-credito")).default;
-    const a = express(); a.use(express.json()); a.use(router); return a;
+    const catalogo = (await import("../routes/catalogo-comercial")).default;
+    const settings = (await import("../routes/settings")).default;
+    const cofre = (await import("../routes/cofre-estado")).default;
+    const a = express(); a.use(express.json()); a.use(router); a.use(catalogo); a.use(settings); a.use(cofre); return a;
   }
   it("sem sessão: 401", async () => {
     const request = (await import("supertest")).default;
@@ -194,10 +197,11 @@ describe("rotas: isolamento e permissões", () => {
     const r = await request(await app()).get("/mensageria/credito?empresaId=12");
     expect(r.status).toBe(200);
     expect(r.body.saldoCentavos).toBe(await saldo(A));
-    const rec = await request(await app()).post("/mensageria/credito/recargas").send({ empresaId: B, valorCentavos: 500 });
-    expect(rec.body).toMatchObject({ status: "solicitada", creditado: false });
-    const dono = await pool.query(`SELECT empresa_id FROM msg_recargas WHERE id=$1`, [rec.body.id]);
+    const rec = await request(await app()).post("/mensageria/credito/recargas").send({ empresaId: B, ambiente: "real", valorCentavos: 500 });
+    expect(rec.body).toMatchObject({ status: "solicitada", creditado: false, ambiente: "teste" });
+    const dono = await pool.query(`SELECT empresa_id, ambiente FROM msg_recargas WHERE id=$1`, [rec.body.id]);
     expect(dono.rows[0].empresa_id).toBe(A);
+    expect(dono.rows[0].ambiente).toBe("teste");
   });
   it("administração é negada fora da instância do CEO", async () => {
     const request = (await import("supertest")).default;
@@ -205,9 +209,52 @@ describe("rotas: isolamento e permissões", () => {
     expect((await request(await app()).put("/mensageria/admin/tarifas").send({})).status).toBe(403);
     expect((await request(await app()).put("/mensageria/admin/isencao/12").send({ isento: true, motivo: "x" })).status).toBe(403);
   });
+  it("a resposta da clínica não expõe custos internos do fornecedor", async () => {
+    const request = (await import("supertest")).default;
+    sessao.empresaId = B;
+    const r = await request(await app()).get("/mensageria/credito");
+    expect(r.status).toBe(200);
+    expect(r.body).not.toHaveProperty("custosProvedor");
+    expect(r.body).not.toHaveProperty("observacaoCustoProvedor");
+    expect(r.body).not.toHaveProperty("margem");
+    expect(r.body).toHaveProperty("saldoCentavos");
+    sessao.empresaId = A;
+  });
+  it("a flag de instância nunca substitui a sessão nem o papel de proprietário", async () => {
+    const request = (await import("supertest")).default;
+    process.env.PADAXOR_AI_BYPASS = "true"; delete process.env.PADAXOR_CEO_SECRET;
+    for (const caminho of ["/catalogo/admin", "/mensageria/admin/carteiras/12"]) {
+      sessao.autenticado = false;
+      expect((await request(await app()).get(caminho)).status).toBe(401);
+      sessao.autenticado = true;
+      sessao.dono = false;
+      expect((await request(await app()).get(caminho)).status).toBe(403);
+    }
+    sessao.dono = true;
+    expect((await request(await app()).get("/mensageria/admin/carteiras/12")).status).toBe(200);
+    sessao.dono = false;
+    delete process.env.PADAXOR_AI_BYPASS;
+  });
+  it("um colaborador da clínica não pode ler ou trocar credenciais globais do Asaas nem verificar o cofre", async () => {
+    const request = (await import("supertest")).default;
+    const servidor = await app();
+    process.env.PADAXOR_AI_BYPASS = "true"; delete process.env.PADAXOR_CEO_SECRET;
+    for (const [metodo, caminho] of [
+      ["get", "/settings/payment-gateway"], ["put", "/settings/payment-gateway"],
+      ["get", "/settings/payment-gateway/sandbox"], ["put", "/settings/payment-gateway/sandbox"],
+      ["get", "/cofre/estado"], ["post", "/cofre/verificar"],
+    ] as const) {
+      sessao.autenticado = false;
+      expect((await request(servidor)[metodo](caminho).send({})).status).toBe(401);
+      sessao.autenticado = true; sessao.dono = false;
+      expect((await request(servidor)[metodo](caminho).send({})).status).toBe(403);
+    }
+    delete process.env.PADAXOR_AI_BYPASS;
+  });
   it("recarga de teste é proibida em produção e a configuração de IA só aceita modelo conectado", async () => {
     const request = (await import("supertest")).default;
     process.env.PADAXOR_AI_BYPASS = "true"; delete process.env.PADAXOR_CEO_SECRET;
+    sessao.dono = true;
     process.env.NODE_ENV = "production";
     expect((await request(await app()).post("/mensageria/admin/recargas-teste").send({ empresaId: A, valorCentavos: 100 })).status).toBe(403);
     process.env.NODE_ENV = "test";
@@ -215,5 +262,105 @@ describe("rotas: isolamento e permissões", () => {
     expect((await request(await app()).put("/mensageria/ia/escolha_de_orientacao").send({ provedor: "openai", modelo: "gpt-x" })).status).toBe(400);
     expect((await request(await app()).put("/mensageria/ia/escolha_de_orientacao").send({ provedor: "anthropic", modelo: "claude-sonnet-4-6", orientacoes: "tom acolhedor" })).status).toBe(200);
     delete process.env.PADAXOR_AI_BYPASS;
+    sessao.dono = false;
+  });
+});
+
+describe("dinheiro de teste nunca financia consumo real", () => {
+  const empresa = 301;
+  it("mesma empresa, referência e chave têm saldos e idempotência separados", async () => {
+    for (const ambiente of ["teste", "real"] as const) {
+      await c.definirTarifa({ empresaId: empresa, ambiente, tipo: "recebida", valorCentavos: ambiente === "teste" ? 10 : 40, ativo: true, por: "teste-isolado" });
+    }
+    const teste = await c.solicitarRecarga(empresa, 100, "teste-isolado", "teste", "referencia-sintetica-compartilhada");
+    await c.confirmarRecarga(teste.id, "teste");
+    expect((await c.visaoCredito(empresa, 100, "real")).saldoCentavos).toBe(0);
+    const real = await c.solicitarRecarga(empresa, 200, "teste-isolado", "real", "referencia-sintetica-compartilhada");
+    const rs = await Promise.all(Array.from({ length: 20 }, () => c.confirmarRecarga(real.id, "real")));
+    expect(rs.filter((r) => r.ok && !r.jaConfirmada)).toHaveLength(1);
+    await c.registrarEvento({ empresaId: empresa, ambiente: "teste", tipo: "recebida", chave: "mesma-chave" });
+    await c.registrarEvento({ empresaId: empresa, ambiente: "real", tipo: "recebida", chave: "mesma-chave" });
+    const vt = await c.visaoCredito(empresa, 100, "teste");
+    const vr = await c.visaoCredito(empresa, 100, "real");
+    expect(vt).toMatchObject({ ambiente: "teste", saldoCentavos: 90 });
+    expect(vr).toMatchObject({ ambiente: "real", saldoCentavos: 160 });
+    expect(vt.recargas.map((r) => Number(r.id))).toEqual([teste.id]);
+    expect(vr.recargas.map((r) => Number(r.id))).toEqual([real.id]);
+    const consumoReal = vr.extrato.find((r) => r.natureza === "consumo")!;
+    expect(await c.estornarConsumo(empresa, consumoReal.id, "tentativa cruzada", "teste", "teste"))
+      .toMatchObject({ ok: false, erro: "consumo_nao_encontrado" });
+    expect((await c.visaoCredito(empresa, 100, "real")).saldoCentavos).toBe(160);
+  });
+
+  it("recarga de teste não retoma pendências reais", async () => {
+    const outra = 302;
+    await c.definirTarifa({ empresaId: outra, ambiente: "real", tipo: "recebida", valorCentavos: 40, ativo: true, por: "teste" });
+    expect(await c.registrarEvento({ empresaId: outra, ambiente: "real", tipo: "recebida", chave: "pendente" }))
+      .toMatchObject({ ok: false, situacao: "saldo_insuficiente" });
+    const teste = await c.solicitarRecarga(outra, 1000, "teste", "teste");
+    await c.confirmarRecarga(teste.id, "teste");
+    expect(await c.visaoCredito(outra, 100, "real")).toMatchObject({ saldoCentavos: 0, mensagensAguardandoSaldo: 1, pausadoPorSaldo: true });
+    expect(await c.visaoCredito(outra, 100, "teste")).toMatchObject({ saldoCentavos: 1000, mensagensAguardandoSaldo: 0 });
+    expect(await c.confirmarRecarga(teste.id, "real")).toMatchObject({ ok: false, erro: "ambiente_diferente" });
+  });
+
+  it("custos e isenção também não atravessam o ambiente", async () => {
+    await c.definirIsencao(empresa, true, "somente no teste", "teste", "teste");
+    expect((await c.visaoCredito(empresa, 100, "real")).isento).toBe(false);
+    for (const ambiente of ["teste", "real"] as const) {
+      await c.registrarCustoProvedor({ empresaId: empresa, ambiente, chave: "custo-igual", etapa: "teste", provedor: "sintetico", modelo: ambiente });
+    }
+    expect((await c.visaoCredito(empresa, 100, "teste")).custosProvedor.map((r) => r.modelo)).toEqual(["teste"]);
+    expect((await c.visaoCredito(empresa, 100, "real")).custosProvedor.map((r) => r.modelo)).toEqual(["real"]);
+    await expect(c.solicitarRecarga(empresa, 100, "teste", undefined as never)).rejects.toThrow(/ambiente/);
+  });
+
+  it("retoma somente inbox comprovado da mesma clínica e ambiente; falha de origem continua recuperável", async () => {
+    await pool.query(`CREATE TABLE telegram_inbox_messages (id INTEGER PRIMARY KEY, empresa_id INTEGER NOT NULL, ambiente_credito TEXT, direcao TEXT);
+      CREATE TABLE telegram_atendimento_respostas (inbox_message_id INTEGER PRIMARY KEY, estado TEXT, desfecho TEXT, fechado_em TIMESTAMPTZ, proxima_tentativa_em TIMESTAMPTZ);
+      INSERT INTO telegram_inbox_messages VALUES (1,303,'real','entrada'),(2,303,'teste','entrada'),(3,304,'teste','entrada'),(4,303,NULL,'entrada');
+      INSERT INTO telegram_atendimento_respostas SELECT id,'concluido','desligado_ou_fora_da_lista',NOW(),NULL FROM telegram_inbox_messages`);
+    for (const id of [1, 2, 3, 4]) {
+      await c.registrarEvento({ empresaId: 303, ambiente: "teste", tipo: "recebida", chave: `fila:${id}`, inboxMessageId: id });
+    }
+    const rec = await c.solicitarRecarga(303, 100, "teste", "teste");
+    expect(await c.confirmarRecarga(rec.id, "teste")).toMatchObject({ ok: true, retomadaPendente: true });
+    expect((await c.visaoCredito(303)).mensagensAguardandoRetomada).toBe(3);
+    const estados = (await pool.query(`SELECT inbox_message_id, estado FROM telegram_atendimento_respostas ORDER BY inbox_message_id`)).rows;
+    expect(estados).toEqual([
+      { inbox_message_id: 1, estado: "concluido" }, { inbox_message_id: 2, estado: "pendente" },
+      { inbox_message_id: 3, estado: "concluido" }, { inbox_message_id: 4, estado: "concluido" },
+    ]);
+    const antes = (await c.visaoCredito(303)).saldoCentavos;
+    // A origem foi conferida no ambiente sintético: a retomada pode ser repetida sem novo débito.
+    await pool.query(`UPDATE telegram_inbox_messages SET ambiente_credito='teste' WHERE id=4`);
+    expect(await c.retomarAposRecarga(303, "teste")).toMatchObject({ reenfileirados: 1 });
+    expect((await c.visaoCredito(303)).saldoCentavos).toBe(antes);
+    expect((await pool.query(`SELECT estado FROM telegram_atendimento_respostas WHERE inbox_message_id=4`)).rows[0].estado).toBe("pendente");
+  });
+
+  it("reentrega da confirmação recupera falha pós-crédito sem exigir outra recarga", async () => {
+    await pool.query(`INSERT INTO telegram_inbox_messages VALUES (5,305,'teste','entrada');
+      INSERT INTO telegram_atendimento_respostas VALUES (5,'concluido','desligado_ou_fora_da_lista',NOW(),NULL)`);
+    await c.registrarEvento({ empresaId: 305, tipo: "recebida", chave: "recuperar:5", inboxMessageId: 5 });
+    const rec = await c.solicitarRecarga(305, 100, "teste-isolado", "teste");
+    const consultar = pool.query.bind(pool);
+    let falhou = false;
+    const falha = vi.spyOn(pool, "query").mockImplementation(async (q, valores) => {
+      if (!falhou && q.includes("FROM msg_eventos_pendentes") && q.includes("ORDER BY id")) {
+        falhou = true;
+        throw new Error("Falha sintética transitória após o crédito");
+      }
+      return consultar(q, valores);
+    });
+    try {
+      expect(await c.confirmarRecarga(rec.id, "teste")).toMatchObject({ ok: true, retomadaPendente: true });
+    } finally { falha.mockRestore(); }
+    expect((await c.visaoCredito(305)).saldoCentavos).toBe(100);
+    expect(await c.confirmarRecarga(rec.id, "teste")).toMatchObject({ ok: true, jaConfirmada: true, retomadaPendente: false });
+    expect((await c.visaoCredito(305)).saldoCentavos).toBe(90);
+    expect((await pool.query(`SELECT estado FROM telegram_atendimento_respostas WHERE inbox_message_id=5`)).rows[0].estado).toBe("pendente");
+    await c.confirmarRecarga(rec.id, "teste");
+    expect((await c.visaoCredito(305)).saldoCentavos).toBe(90);
   });
 });

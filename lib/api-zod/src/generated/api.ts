@@ -7,6 +7,48 @@
  */
 import * as zod from "zod";
 
+export const getMensageriaCreditoResponseSaldoCentavosMin = 0;
+
+export const getMensageriaCreditoResponseMensagensAguardandoRetomadaMin = 0;
+
+export const GetMensageriaCreditoResponse = zod.object({
+  ambiente: zod.enum(["teste", "real"]),
+  saldoCentavos: zod.number().min(getMensageriaCreditoResponseSaldoCentavosMin),
+  mensagensAguardandoRetomada: zod
+    .number()
+    .min(getMensageriaCreditoResponseMensagensAguardandoRetomadaMin)
+    .optional(),
+  extrato: zod.array(zod.record(zod.string(), zod.unknown())),
+  recargas: zod.array(zod.record(zod.string(), zod.unknown())),
+  tarifas: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+export const solicitarMensageriaRecargaBodyValorCentavosMax = 9007199254740991;
+
+export const SolicitarMensageriaRecargaBody = zod.object({
+  valorCentavos: zod
+    .number()
+    .min(1)
+    .max(solicitarMensageriaRecargaBodyValorCentavosMax),
+});
+
+export const getCatalogoClinicaResponseSaldoCentavosMin = 0;
+
+export const getCatalogoClinicaResponseMensagensAguardandoRetomadaMin = 0;
+
+export const GetCatalogoClinicaResponse = zod.object({
+  ambienteCredito: zod.enum(["teste", "real"]),
+  saldoCentavos: zod.number().min(getCatalogoClinicaResponseSaldoCentavosMin),
+  mensagensAguardandoRetomada: zod
+    .number()
+    .min(getCatalogoClinicaResponseMensagensAguardandoRetomadaMin)
+    .optional(),
+  contrato: zod.record(zod.string(), zod.unknown()).nullable(),
+  extrato: zod.array(zod.record(zod.string(), zod.unknown())),
+  recargas: zod.array(zod.record(zod.string(), zod.unknown())),
+  tarifas: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
 export const listFornecedoresResponseOneNomeMax = 200;
 
 export const listFornecedoresResponseOneRazaoSocialMax = 500;

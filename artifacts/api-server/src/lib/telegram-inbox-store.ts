@@ -9,6 +9,7 @@
  * primeira falhar, a segunda insere normalmente (nada é bloqueado em falso).
  */
 import { sql, type SQL } from "drizzle-orm";
+import { ambienteCreditoAtual } from "./mensageria-credito-ambiente";
 
 export interface ExecutorConsulta {
   execute: (query: SQL) => Promise<{ rows: unknown[] }>;
@@ -36,16 +37,16 @@ export async function gravarMensagemEntrada(
 
   if (updateId === null) {
     const r = await exec.execute(sql`
-      INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto)
-      VALUES (${p.empresaId}, ${p.clienteId}, ${p.chatId}, ${p.texto})
+      INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, ambiente_credito)
+      VALUES (${p.empresaId}, ${p.clienteId}, ${p.chatId}, ${p.texto}, ${ambienteCreditoAtual()})
       RETURNING id
     `);
     return { id: Number((r.rows[0] as { id: number }).id), duplicada: false };
   }
 
   const ins = await exec.execute(sql`
-    INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, update_id)
-    VALUES (${p.empresaId}, ${p.clienteId}, ${p.chatId}, ${p.texto}, ${updateId})
+    INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, update_id, ambiente_credito)
+    VALUES (${p.empresaId}, ${p.clienteId}, ${p.chatId}, ${p.texto}, ${updateId}, ${ambienteCreditoAtual()})
     ON CONFLICT (chat_id, update_id) WHERE update_id IS NOT NULL DO NOTHING
     RETURNING id
   `);

@@ -14,3 +14,17 @@ Comunicação é inclusa no PaxMed; cobra-se só uso (recebida, enviada, solucio
 - Auditoria: Telegram só usa 1 IA real (Anthropic, escolha de orientação aprovada); visitante e agendamento são regras fixas. ai_usage_log antigo não cobria Telegram.
 - Tela da clínica deve mostrar somente contrato, saldo, tarifas vigentes, recargas e extrato; custos internos e margens ficam restritos ao CEO.
 - Antes de integrar Asaas, usar chave, host e webhook próprios do sandbox; nunca reaproveitar credencial ou histórico de produção.
+
+## Separação e recuperação financeira
+Teste e operação real não podem compartilhar saldo, extrato, tarifa, franquia, custo ou pendência da mesma clínica.
+Histórico sem procedência comprovada não pode ser convertido automaticamente em dinheiro real nem liberar mensagens.
+
+**Why:** a autorização do piloto exige dados exclusivamente sintéticos e preservação dos registros; a simples marcação de uma recarga como teste não torna seu destino financeiro seguro.
+
+**How to apply:** conferir o ambiente em todas as etapas e conciliar manualmente qualquer legado ambíguo, sem apagar, recalcular ou classificar saldos por suposição.
+
+Confirmar o pagamento e retomar o atendimento são etapas recuperáveis separadas; a falha da segunda não exige outra compra.
+
+**Why:** uma resposta perdida ou uma falha transitória após o crédito não pode gerar nova cobrança nem deixar a clínica dependente de intervenção no código.
+
+**How to apply:** a reentrega válida da mesma confirmação tenta a recuperação, sem repetir crédito ou consumo; a retomada exige procedência da própria clínica e ambiente.

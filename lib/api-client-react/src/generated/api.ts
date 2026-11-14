@@ -70,6 +70,7 @@ import type {
   BudgetSettingsUpdate,
   BudgetUpdate,
   CatalogOption,
+  CatalogoClinicaResumo,
   CertificateStatus,
   ClearAgendaSimulationsBody,
   ClearAgendaSimulationsResponse,
@@ -111,6 +112,8 @@ import type {
   CreateSncrRangeBody,
   CreateStockItemBody,
   CreateSubstanceBody,
+  CreditoRecargaInput,
+  CreditoRecargaSolicitada,
   DashboardSummary,
   DeleteAnamnesePergunta200,
   DeleteResult,
@@ -166,6 +169,7 @@ import type {
   ListaProcedimentos,
   LocationCodigoSemantico,
   LocationCodigoSemanticoLista,
+  MensageriaCredito,
   Paxmed2bClinicas,
   Paxmed2bEmpresaEntrada,
   Paxmed2bEmpresaResposta,
@@ -237,6 +241,226 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getGetMensageriaCreditoUrl = () => {
+  return `/api/mensageria/credito`;
+};
+
+export const getMensageriaCredito = async (
+  options?: RequestInit,
+): Promise<MensageriaCredito> => {
+  return customFetch<MensageriaCredito>(getGetMensageriaCreditoUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMensageriaCreditoQueryKey = () => {
+  return [`/api/mensageria/credito`] as const;
+};
+
+export const getGetMensageriaCreditoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMensageriaCredito>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMensageriaCredito>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMensageriaCreditoQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMensageriaCredito>>
+  > = ({ signal }) => getMensageriaCredito({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMensageriaCredito>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMensageriaCreditoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMensageriaCredito>>
+>;
+export type GetMensageriaCreditoQueryError = ErrorType<void>;
+
+export function useGetMensageriaCredito<
+  TData = Awaited<ReturnType<typeof getMensageriaCredito>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMensageriaCredito>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMensageriaCreditoQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSolicitarMensageriaRecargaUrl = () => {
+  return `/api/mensageria/credito/recargas`;
+};
+
+export const solicitarMensageriaRecarga = async (
+  creditoRecargaInput: CreditoRecargaInput,
+  options?: RequestInit,
+): Promise<CreditoRecargaSolicitada> => {
+  return customFetch<CreditoRecargaSolicitada>(
+    getSolicitarMensageriaRecargaUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(creditoRecargaInput),
+    },
+  );
+};
+
+export const getSolicitarMensageriaRecargaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+    TError,
+    { data: BodyType<CreditoRecargaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+  TError,
+  { data: BodyType<CreditoRecargaInput> },
+  TContext
+> => {
+  const mutationKey = ["solicitarMensageriaRecarga"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+    { data: BodyType<CreditoRecargaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return solicitarMensageriaRecarga(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SolicitarMensageriaRecargaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof solicitarMensageriaRecarga>>
+>;
+export type SolicitarMensageriaRecargaMutationBody =
+  BodyType<CreditoRecargaInput>;
+export type SolicitarMensageriaRecargaMutationError = ErrorType<void>;
+
+export const useSolicitarMensageriaRecarga = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+    TError,
+    { data: BodyType<CreditoRecargaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof solicitarMensageriaRecarga>>,
+  TError,
+  { data: BodyType<CreditoRecargaInput> },
+  TContext
+> => {
+  return useMutation(getSolicitarMensageriaRecargaMutationOptions(options));
+};
+
+export const getGetCatalogoClinicaUrl = () => {
+  return `/api/catalogo/minha-clinica`;
+};
+
+export const getCatalogoClinica = async (
+  options?: RequestInit,
+): Promise<CatalogoClinicaResumo> => {
+  return customFetch<CatalogoClinicaResumo>(getGetCatalogoClinicaUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCatalogoClinicaQueryKey = () => {
+  return [`/api/catalogo/minha-clinica`] as const;
+};
+
+export const getGetCatalogoClinicaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatalogoClinica>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogoClinica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCatalogoClinicaQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCatalogoClinica>>
+  > = ({ signal }) => getCatalogoClinica({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogoClinica>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCatalogoClinicaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatalogoClinica>>
+>;
+export type GetCatalogoClinicaQueryError = ErrorType<void>;
+
+export function useGetCatalogoClinica<
+  TData = Awaited<ReturnType<typeof getCatalogoClinica>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogoClinica>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCatalogoClinicaQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getListFornecedoresUrl = () => {
   return `/api/fornecedores`;

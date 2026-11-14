@@ -14,6 +14,8 @@
  */
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
+import { ambienteCreditoAtual, migrarCreditoPorAmbiente, validarAmbienteCredito, type AmbienteCredito } from "./mensageria-credito-ambiente";
+export { ambienteCreditoAtual, type AmbienteCredito } from "./mensageria-credito-ambiente";
 
 export type TipoEvento = "recebida" | "enviada" | "solucionada" | "tempo";
 export const TIPOS_EVENTO: readonly TipoEvento[] = ["recebida", "enviada", "solucionada", "tempo"];
@@ -119,11 +121,12 @@ export function garantirTabelasCredito(): Promise<void> {
         PRIMARY KEY (empresa_id, etapa)
       );
     `);
+    await migrarCreditoPorAmbiente(pool);
     // Isenção explícita e administrável do Instituto Pádua (única clínica isenta; as demais nascem sem isenção).
     await pool.query(
-      `INSERT INTO msg_carteira (empresa_id, isento, isento_motivo, isento_por, isento_em)
-       VALUES ($1, TRUE, 'Instituto Pádua (matriz) isento da tarifa PaxMed por decisão do CEO', 'sistema', NOW())
-       ON CONFLICT (empresa_id) DO NOTHING`, [INSTITUTO_EMPRESA_ID]);
+      `INSERT INTO msg_carteira (empresa_id, ambiente, isento, isento_motivo, isento_por, isento_em)
+       VALUES ($1, $2, TRUE, 'Instituto Pádua (matriz) isento da tarifa PaxMed por decisão do CEO', 'sistema', NOW())
+       ON CONFLICT (empresa_id, ambiente) DO NOTHING`, [INSTITUTO_EMPRESA_ID, ambienteCreditoAtual()]);
   })().catch((e) => { _pronto = null; throw e; });
   return _pronto;
 }
@@ -155,6 +158,8 @@ export interface ResultadoEvento {
 
 export interface EventoParams {
   empresaId: number;
+  /** Uso interno. As rotas usam exclusivamente o ambiente determinado pelo servidor. */
+  ambiente?: AmbienteCredito;
   tipo: TipoEvento;
   /** Identifica o evento de forma estável: a mesma chave nunca cobra duas vezes. */
   chave: string;
@@ -163,27 +168,28 @@ export interface EventoParams {
   descricao?: string;
 }
 
-async function tarifaVigente(c: Consulta, empresaId: number, tipo: TipoEvento) {
+async function tarifaVigente(c: Consulta, empresaId: number, tipo: TipoEvento, ambiente: AmbienteCredito) {
   const r = await c.query(
     `SELECT id, valor_centavos, ativo, catalogo_codigo, catalogo_versao FROM msg_tarifas
-      WHERE tipo_evento = $1 AND (empresa_id = $2 OR empresa_id IS NULL)
-      ORDER BY (empresa_id IS NULL), vigente_desde DESC, id DESC LIMIT 1`, [tipo, empresaId]);
+      WHERE tipo_evento = $1 AND (empresa_id = $2 OR empresa_id IS NULL) AND ambiente = $3
+      ORDER BY (empresa_id IS NULL), vigente_desde DESC, id DESC LIMIT 1`, [tipo, empresaId, ambiente]);
   const t = r.rows[0];
   if (!t || !t.ativo) return null; // desativada ou inexistente: sem tarifa
   return { id: Number(t.id), valor: Number(t.valor_centavos), codigo: t.catalogo_codigo ?? null, versao: t.catalogo_versao == null ? null : Number(t.catalogo_versao) };
 }
 
 /** Franquia mensal restante (centavos de tabela) do contrato vigente; null sem contrato/franquia/elegibilidade. */
-async function franquiaDisponivel(c: Consulta, empresaId: number, tipo: TipoEvento): Promise<{ restante: number; mes: string } | null> {
+async function franquiaDisponivel(c: Consulta, empresaId: number, tipo: TipoEvento, ambiente: AmbienteCredito): Promise<{ restante: number; mes: string } | null> {
   const ok = await c.query(`SELECT to_regclass('cat_contratos') IS NOT NULL AND to_regclass('cat_tarifas') IS NOT NULL AND to_regclass('msg_franquia_uso') IS NOT NULL AS ok`);
   if (!ok.rows[0]?.ok) return null;
   const el = await c.query(`SELECT elegivel_franquia FROM cat_tarifas WHERE codigo = $1 ORDER BY versao DESC LIMIT 1`, [`msg_${tipo}`]);
   if (!el.rows[0]?.elegivel_franquia) return null;
-  const ct = await c.query(`SELECT franquia_texto_centavos FROM cat_contratos WHERE empresa_id = $1 AND status IN ('piloto','ativo') ORDER BY id DESC LIMIT 1`, [empresaId]);
+  const ct = await c.query(`SELECT franquia_texto_centavos FROM cat_contratos WHERE empresa_id = $1 AND ambiente = $2 AND status IN ('piloto','ativo') ORDER BY id DESC LIMIT 1`,
+    [empresaId, ambiente === "teste" ? "homologacao" : "producao"]);
   const total = Number(ct.rows[0]?.franquia_texto_centavos ?? 0);
   if (total <= 0) return null;
   const mes = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
-  const u = await c.query(`SELECT usado_centavos FROM msg_franquia_uso WHERE empresa_id = $1 AND mes = $2`, [empresaId, mes]);
+  const u = await c.query(`SELECT usado_centavos FROM msg_franquia_uso WHERE empresa_id = $1 AND mes = $2 AND ambiente = $3`, [empresaId, mes, ambiente]);
   return { restante: Math.max(0, total - Number(u.rows[0]?.usado_centavos ?? 0)), mes };
 }
 
@@ -192,33 +198,34 @@ export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento>
   if (!TIPOS_EVENTO.includes(p.tipo)) throw new RangeError("tipo de evento inválido");
   if (!Number.isSafeInteger(p.empresaId) || p.empresaId < 1) throw new RangeError("empresaId inválido");
   if (!p.chave) throw new RangeError("chave obrigatória");
+  const ambiente = validarAmbienteCredito(p.ambiente ?? ambienteCreditoAtual());
   await garantirTabelasCredito();
   return tx(async (c) => {
-    await c.query(`INSERT INTO msg_carteira (empresa_id) VALUES ($1) ON CONFLICT (empresa_id) DO NOTHING`, [p.empresaId]);
-    const w = (await c.query(`SELECT * FROM msg_carteira WHERE empresa_id = $1 FOR UPDATE`, [p.empresaId])).rows[0];
+    await c.query(`INSERT INTO msg_carteira (empresa_id, ambiente) VALUES ($1,$2) ON CONFLICT (empresa_id, ambiente) DO NOTHING`, [p.empresaId, ambiente]);
+    const w = (await c.query(`SELECT * FROM msg_carteira WHERE empresa_id = $1 AND ambiente = $2 FOR UPDATE`, [p.empresaId, ambiente])).rows[0];
     const saldo = Number(w.saldo_centavos);
-    const ja = await c.query(`SELECT valor_centavos, isento, sem_tarifa FROM msg_extrato WHERE empresa_id = $1 AND chave = $2`, [p.empresaId, p.chave]);
+    const ja = await c.query(`SELECT valor_centavos, isento, sem_tarifa FROM msg_extrato WHERE empresa_id = $1 AND chave = $2 AND ambiente = $3`, [p.empresaId, p.chave, ambiente]);
     if (ja.rows[0]) {
       return { ok: true, situacao: "ja_registrado", valorCobradoCentavos: Number(ja.rows[0].valor_centavos), isento: ja.rows[0].isento, semTarifa: ja.rows[0].sem_tarifa, saldoCentavos: saldo } as ResultadoEvento;
     }
-    const t = await tarifaVigente(c, p.empresaId, p.tipo);
+    const t = await tarifaVigente(c, p.empresaId, p.tipo, ambiente);
     const tabela = t?.valor ?? 0;
     const isento: boolean = w.isento === true;
     const semTarifa = !t;
     const devidoTabela = isento || semTarifa ? 0 : tabela;
     // Franquia mensal do contrato vigente: usada ANTES do crédito comprado, só para tarifa elegível, sem acumular.
-    const fr = devidoTabela > 0 ? await franquiaDisponivel(c, p.empresaId, p.tipo) : null;
+    const fr = devidoTabela > 0 ? await franquiaDisponivel(c, p.empresaId, p.tipo, ambiente) : null;
     const abatido = fr ? Math.min(fr.restante, devidoTabela) : 0;
     const cobrar = devidoTabela - abatido;
     if (cobrar > saldo) {
       await c.query(
-        `INSERT INTO msg_eventos_pendentes (empresa_id, tipo_evento, chave, conversa_ref, inbox_message_id, descricao)
-         VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (empresa_id, chave) DO NOTHING`,
-        [p.empresaId, p.tipo, p.chave, p.conversaRef ?? null, p.inboxMessageId ?? null, p.descricao ?? null]);
+        `INSERT INTO msg_eventos_pendentes (empresa_id, tipo_evento, chave, conversa_ref, inbox_message_id, descricao, ambiente)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (empresa_id, ambiente, chave) DO NOTHING`,
+        [p.empresaId, p.tipo, p.chave, p.conversaRef ?? null, p.inboxMessageId ?? null, p.descricao ?? null, ambiente]);
       let avisoSemSaldo = false;
       if (!w.pausado || !w.aviso_sem_saldo_em) {
-        await c.query(`UPDATE msg_carteira SET pausado = TRUE, aviso_sem_saldo_em = NOW() WHERE empresa_id = $1`, [p.empresaId]);
-        await c.query(`INSERT INTO msg_avisos (empresa_id, tipo) VALUES ($1,'sem_saldo')`, [p.empresaId]);
+        await c.query(`UPDATE msg_carteira SET pausado = TRUE, aviso_sem_saldo_em = NOW() WHERE empresa_id = $1 AND ambiente = $2`, [p.empresaId, ambiente]);
+        await c.query(`INSERT INTO msg_avisos (empresa_id, tipo, ambiente) VALUES ($1,'sem_saldo',$2)`, [p.empresaId, ambiente]);
         avisoSemSaldo = !w.aviso_sem_saldo_em;
       }
       return { ok: false, situacao: "saldo_insuficiente", valorCobradoCentavos: 0, isento: false, semTarifa: false, saldoCentavos: saldo, avisoSemSaldo } as ResultadoEvento;
@@ -226,22 +233,22 @@ export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento>
     const novo = saldo - cobrar;
     await c.query(
       `INSERT INTO msg_extrato (empresa_id, natureza, tipo_evento, conversa_ref, chave, valor_centavos, valor_tabela_centavos,
-         isento, sem_tarifa, tarifa_id, saldo_apos_centavos, descricao, franquia_abatida_centavos, tarifa_codigo, tarifa_versao)
-       VALUES ($1,'consumo',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [p.empresaId, p.tipo, p.conversaRef ?? null, p.chave, cobrar, t ? tabela : null, isento, semTarifa, t?.id ?? null, novo, p.descricao ?? null, abatido, t?.codigo ?? null, t?.versao ?? null]);
+         isento, sem_tarifa, tarifa_id, saldo_apos_centavos, descricao, franquia_abatida_centavos, tarifa_codigo, tarifa_versao, ambiente)
+       VALUES ($1,'consumo',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [p.empresaId, p.tipo, p.conversaRef ?? null, p.chave, cobrar, t ? tabela : null, isento, semTarifa, t?.id ?? null, novo, p.descricao ?? null, abatido, t?.codigo ?? null, t?.versao ?? null, ambiente]);
     if (abatido > 0 && fr) {
-      await c.query(`INSERT INTO msg_franquia_uso (empresa_id, mes, usado_centavos) VALUES ($1,$2,$3)
-                     ON CONFLICT (empresa_id, mes) DO UPDATE SET usado_centavos = msg_franquia_uso.usado_centavos + EXCLUDED.usado_centavos`, [p.empresaId, fr.mes, abatido]);
+      await c.query(`INSERT INTO msg_franquia_uso (empresa_id, mes, usado_centavos, ambiente) VALUES ($1,$2,$3,$4)
+                     ON CONFLICT (empresa_id, ambiente, mes) DO UPDATE SET usado_centavos = msg_franquia_uso.usado_centavos + EXCLUDED.usado_centavos`, [p.empresaId, fr.mes, abatido, ambiente]);
     }
-    if (cobrar > 0) await c.query(`UPDATE msg_carteira SET saldo_centavos = $2 WHERE empresa_id = $1`, [p.empresaId, novo]);
-    await c.query(`UPDATE msg_eventos_pendentes SET status = 'cobrado' WHERE empresa_id = $1 AND chave = $2`, [p.empresaId, p.chave]);
+    if (cobrar > 0) await c.query(`UPDATE msg_carteira SET saldo_centavos = $2 WHERE empresa_id = $1 AND ambiente = $3`, [p.empresaId, novo, ambiente]);
+    await c.query(`UPDATE msg_eventos_pendentes SET status = 'cobrado' WHERE empresa_id = $1 AND chave = $2 AND ambiente = $3`, [p.empresaId, p.chave, ambiente]);
     let avisoSaldoBaixo = false;
     const lim = w.limite_aviso_centavos == null ? null : Number(w.limite_aviso_centavos);
     if (!isento && lim !== null && novo <= lim) {
       const recente = w.aviso_baixo_em && Date.now() - new Date(w.aviso_baixo_em).getTime() < 24 * 3600 * 1000;
       if (!recente) {
-        await c.query(`UPDATE msg_carteira SET aviso_baixo_em = NOW() WHERE empresa_id = $1`, [p.empresaId]);
-        await c.query(`INSERT INTO msg_avisos (empresa_id, tipo) VALUES ($1,'saldo_baixo')`, [p.empresaId]);
+        await c.query(`UPDATE msg_carteira SET aviso_baixo_em = NOW() WHERE empresa_id = $1 AND ambiente = $2`, [p.empresaId, ambiente]);
+        await c.query(`INSERT INTO msg_avisos (empresa_id, tipo, ambiente) VALUES ($1,'saldo_baixo',$2)`, [p.empresaId, ambiente]);
         avisoSaldoBaixo = true;
       }
     }
@@ -250,16 +257,17 @@ export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento>
 }
 
 /** Pode a clínica receber novas respostas automáticas/envios tarifados agora? (não cobra nada). */
-export async function podeAtenderAutomatico(empresaId: number): Promise<{ pode: boolean; motivo?: "sem_saldo" }> {
+export async function podeAtenderAutomatico(empresaId: number, ambiente: AmbienteCredito = ambienteCreditoAtual()): Promise<{ pode: boolean; motivo?: "sem_saldo" }> {
+  validarAmbienteCredito(ambiente);
   await garantirTabelasCredito();
-  const r = await pool.query(`SELECT saldo_centavos, isento, pausado FROM msg_carteira WHERE empresa_id = $1`, [empresaId]);
+  const r = await pool.query(`SELECT saldo_centavos, isento, pausado FROM msg_carteira WHERE empresa_id = $1 AND ambiente = $2`, [empresaId, ambiente]);
   const w = r.rows[0];
   if (!w) return { pode: false, motivo: "sem_saldo" }; // sem carteira = sem crédito
   if (w.isento) return { pode: true };
   if (w.pausado) return { pode: false, motivo: "sem_saldo" };
   const t = await pool.query(
-    `SELECT valor_centavos, ativo FROM msg_tarifas WHERE tipo_evento = 'enviada' AND (empresa_id = $1 OR empresa_id IS NULL)
-      ORDER BY (empresa_id IS NULL), vigente_desde DESC, id DESC LIMIT 1`, [empresaId]);
+    `SELECT valor_centavos, ativo FROM msg_tarifas WHERE tipo_evento = 'enviada' AND (empresa_id = $1 OR empresa_id IS NULL) AND ambiente = $2
+      ORDER BY (empresa_id IS NULL), vigente_desde DESC, id DESC LIMIT 1`, [empresaId, ambiente]);
   const custo = t.rows[0]?.ativo ? Number(t.rows[0].valor_centavos) : 0;
   const saldo = Number(w.saldo_centavos);
   // Com tarifa de envio ativa, precisa caber ao menos um envio; sem tarifa, só vale a pausa.
@@ -267,34 +275,36 @@ export async function podeAtenderAutomatico(empresaId: number): Promise<{ pode: 
 }
 
 /** Estorno auditável: devolve o valor de um consumo, uma única vez, com motivo e autor. */
-export async function estornarConsumo(empresaId: number, extratoId: number, motivo: string, por: string): Promise<{ ok: boolean; erro?: string; saldoCentavos?: number }> {
+export async function estornarConsumo(empresaId: number, extratoId: number, motivo: string, por: string, ambiente: AmbienteCredito = ambienteCreditoAtual()): Promise<{ ok: boolean; erro?: string; saldoCentavos?: number }> {
+  validarAmbienteCredito(ambiente);
   if (!motivo.trim()) return { ok: false, erro: "motivo_obrigatorio" };
   await garantirTabelasCredito();
   return tx(async (c) => {
-    const w = (await c.query(`SELECT saldo_centavos FROM msg_carteira WHERE empresa_id = $1 FOR UPDATE`, [empresaId])).rows[0];
+    const w = (await c.query(`SELECT saldo_centavos FROM msg_carteira WHERE empresa_id = $1 AND ambiente = $2 FOR UPDATE`, [empresaId, ambiente])).rows[0];
     if (!w) return { ok: false, erro: "carteira_inexistente" };
-    const o = (await c.query(`SELECT * FROM msg_extrato WHERE id = $1 AND empresa_id = $2`, [extratoId, empresaId])).rows[0];
+    const o = (await c.query(`SELECT * FROM msg_extrato WHERE id = $1 AND empresa_id = $2 AND ambiente = $3`, [extratoId, empresaId, ambiente])).rows[0];
     if (!o || o.natureza !== "consumo") return { ok: false, erro: "consumo_nao_encontrado" };
     if (Number(o.valor_centavos) <= 0) return { ok: false, erro: "nada_a_estornar" };
     const jaEstornado = await c.query(`SELECT 1 FROM msg_extrato WHERE estorno_de = $1`, [extratoId]);
     if (jaEstornado.rows.length) return { ok: false, erro: "ja_estornado" };
     const novo = Number(w.saldo_centavos) + Number(o.valor_centavos);
     await c.query(
-      `INSERT INTO msg_extrato (empresa_id, natureza, tipo_evento, conversa_ref, chave, valor_centavos, saldo_apos_centavos, estorno_de, descricao)
-       VALUES ($1,'estorno',$2,$3,$4,$5,$6,$7,$8)`,
-      [empresaId, o.tipo_evento, o.conversa_ref, `estorno:${extratoId}`, o.valor_centavos, novo, extratoId, `Estorno por ${por}: ${motivo.trim()}`]);
-    await c.query(`UPDATE msg_carteira SET saldo_centavos = $2 WHERE empresa_id = $1`, [empresaId, novo]);
+      `INSERT INTO msg_extrato (empresa_id, natureza, tipo_evento, conversa_ref, chave, valor_centavos, saldo_apos_centavos, estorno_de, descricao, ambiente)
+       VALUES ($1,'estorno',$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [empresaId, o.tipo_evento, o.conversa_ref, `estorno:${extratoId}`, o.valor_centavos, novo, extratoId, `Estorno por ${por}: ${motivo.trim()}`, ambiente]);
+    await c.query(`UPDATE msg_carteira SET saldo_centavos = $2 WHERE empresa_id = $1 AND ambiente = $3`, [empresaId, novo, ambiente]);
     return { ok: true, saldoCentavos: novo };
   });
 }
 
-export async function solicitarRecarga(empresaId: number, valorCentavos: number, por: string, ambiente: "real" | "teste" = "real", provedorRef?: string) {
+export async function solicitarRecarga(empresaId: number, valorCentavos: number, por: string, ambiente: AmbienteCredito, provedorRef?: string) {
+  validarAmbienteCredito(ambiente);
   if (!Number.isSafeInteger(valorCentavos) || valorCentavos <= 0) throw new RangeError("valor inválido");
   await garantirTabelasCredito();
   const r = await pool.query(
     `INSERT INTO msg_recargas (empresa_id, valor_centavos, ambiente, provedor_ref, solicitada_por) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
     [empresaId, valorCentavos, ambiente, provedorRef ?? null, por]);
-  await pool.query(`INSERT INTO msg_avisos (empresa_id, tipo) VALUES ($1,'recarga_solicitada')`, [empresaId]);
+  await pool.query(`INSERT INTO msg_avisos (empresa_id, tipo, ambiente) VALUES ($1,'recarga_solicitada',$2)`, [empresaId, ambiente]);
   return { id: Number(r.rows[0].id) };
 }
 
@@ -302,27 +312,35 @@ export async function solicitarRecarga(empresaId: number, valorCentavos: number,
  * Confirma o pagamento de uma recarga. SÓ aqui o saldo aumenta; idempotente (a 2ª confirmação não soma de novo).
  * O ambiente da confirmação precisa ser o da recarga: confirmação de teste nunca vale para recarga real.
  */
-export async function confirmarRecarga(recargaId: number, ambiente: "real" | "teste"): Promise<{ ok: boolean; erro?: string; jaConfirmada?: boolean; saldoCentavos?: number }> {
+export async function confirmarRecarga(recargaId: number, ambiente: "real" | "teste"): Promise<{ ok: boolean; erro?: string; jaConfirmada?: boolean; saldoCentavos?: number; retomadaPendente?: boolean }> {
+  validarAmbienteCredito(ambiente);
   await garantirTabelasCredito();
   const res = await tx(async (c) => {
     const rec = (await c.query(`SELECT * FROM msg_recargas WHERE id = $1 FOR UPDATE`, [recargaId])).rows[0];
     if (!rec) return { ok: false, erro: "recarga_inexistente" };
     if (rec.ambiente !== ambiente) return { ok: false, erro: "ambiente_diferente" };
     if (rec.status === "cancelada") return { ok: false, erro: "recarga_cancelada" };
-    await c.query(`INSERT INTO msg_carteira (empresa_id) VALUES ($1) ON CONFLICT (empresa_id) DO NOTHING`, [rec.empresa_id]);
-    const w = (await c.query(`SELECT saldo_centavos FROM msg_carteira WHERE empresa_id = $1 FOR UPDATE`, [rec.empresa_id])).rows[0];
+    await c.query(`INSERT INTO msg_carteira (empresa_id, ambiente) VALUES ($1,$2) ON CONFLICT (empresa_id, ambiente) DO NOTHING`, [rec.empresa_id, ambiente]);
+    const w = (await c.query(`SELECT saldo_centavos FROM msg_carteira WHERE empresa_id = $1 AND ambiente = $2 FOR UPDATE`, [rec.empresa_id, ambiente])).rows[0];
     if (rec.status === "confirmada") return { ok: true, jaConfirmada: true, saldoCentavos: Number(w.saldo_centavos), empresaId: rec.empresa_id };
     const novo = Number(w.saldo_centavos) + Number(rec.valor_centavos);
     await c.query(`UPDATE msg_recargas SET status = 'confirmada', confirmada_em = NOW() WHERE id = $1`, [recargaId]);
     await c.query(
-      `INSERT INTO msg_extrato (empresa_id, natureza, chave, valor_centavos, saldo_apos_centavos, descricao)
-       VALUES ($1,'credito',$2,$3,$4,$5)`,
-      [rec.empresa_id, `recarga:${recargaId}`, rec.valor_centavos, novo, rec.ambiente === "teste" ? "Recarga (AMBIENTE DE TESTE, sem pagamento real)" : "Recarga confirmada"]);
-    await c.query(`UPDATE msg_carteira SET saldo_centavos = $2, pausado = FALSE, aviso_baixo_em = NULL, aviso_sem_saldo_em = NULL WHERE empresa_id = $1`, [rec.empresa_id, novo]);
+      `INSERT INTO msg_extrato (empresa_id, natureza, chave, valor_centavos, saldo_apos_centavos, descricao, ambiente)
+       VALUES ($1,'credito',$2,$3,$4,$5,$6)`,
+      [rec.empresa_id, `recarga:${recargaId}`, rec.valor_centavos, novo, rec.ambiente === "teste" ? "Recarga (AMBIENTE DE TESTE, sem pagamento real)" : "Recarga confirmada", ambiente]);
+    await c.query(`UPDATE msg_carteira SET saldo_centavos = $2, pausado = FALSE, aviso_baixo_em = NULL, aviso_sem_saldo_em = NULL WHERE empresa_id = $1 AND ambiente = $3`, [rec.empresa_id, novo, ambiente]);
     return { ok: true, saldoCentavos: novo, empresaId: rec.empresa_id };
   });
-  if (res.ok && !res.jaConfirmada) {
-    try { await retomarAposRecarga((res as any).empresaId); } catch (e) { logger.warn({ err: (e as Error).message }, "[credito] retomada após recarga falhou"); }
+  // Reentrega também recupera a etapa pós-crédito, sem repetir o crédito nem o débito.
+  if (res.ok) {
+    try {
+      const retomada = await retomarAposRecarga(res.empresaId!, ambiente);
+      return { ...res, retomadaPendente: retomada.retomadaBloqueada };
+    } catch (e) {
+      logger.warn({ err: (e as Error).message }, "[credito] retomada após recarga falhou");
+      return { ...res, retomadaPendente: true };
+    }
   }
   return res;
 }
@@ -331,62 +349,82 @@ export async function confirmarRecarga(recargaId: number, ambiente: "real" | "te
  * Retomada: cobra, em ordem, os eventos que ficaram aguardando saldo (enquanto couber) e devolve à fila de
  * atendimento as mensagens de clientes que estavam preservadas sem resposta automática.
  */
-export async function retomarAposRecarga(empresaId: number): Promise<{ cobrados: number; reenfileirados: number }> {
+export async function retomarAposRecarga(empresaId: number, ambiente: AmbienteCredito = ambienteCreditoAtual()): Promise<{ cobrados: number; reenfileirados: number; retomadaBloqueada: boolean }> {
+  validarAmbienteCredito(ambiente);
   await garantirTabelasCredito();
   const pend = await pool.query(
     `SELECT tipo_evento, chave, conversa_ref, inbox_message_id, descricao FROM msg_eventos_pendentes
-      WHERE empresa_id = $1 AND status = 'aguardando_saldo' ORDER BY id`, [empresaId]);
+      WHERE empresa_id = $1 AND ambiente = $2 AND
+        (status = 'aguardando_saldo' OR (status = 'cobrado' AND inbox_message_id IS NOT NULL AND retomada_em IS NULL))
+      ORDER BY id`, [empresaId, ambiente]);
   let cobrados = 0; const ids: number[] = [];
   for (const p of pend.rows) {
-    const r = await registrarEvento({ empresaId, tipo: p.tipo_evento, chave: p.chave, conversaRef: p.conversa_ref ?? undefined, descricao: p.descricao ?? undefined });
+    const r = await registrarEvento({ empresaId, ambiente, tipo: p.tipo_evento, chave: p.chave, conversaRef: p.conversa_ref ?? undefined, descricao: p.descricao ?? undefined });
     if (!r.ok) break; // acabou o saldo de novo: o restante continua preservado
     cobrados++;
     if (p.inbox_message_id) ids.push(Number(p.inbox_message_id));
   }
   let reenfileirados = 0;
-  if (ids.length) {
-    try {
+  let retomadaBloqueada = ids.length > 0;
+  if (ids.length && ambiente === ambienteCreditoAtual()) {
+    const origem = await pool.query(`SELECT to_regclass('telegram_atendimento_respostas') IS NOT NULL
+      AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema()
+        AND table_name = 'telegram_inbox_messages' AND column_name = 'ambiente_credito') AS comprovavel`);
+    if (origem.rows[0]?.comprovavel) {
       const u = await pool.query(
-        `UPDATE telegram_atendimento_respostas SET estado = 'pendente', desfecho = NULL, fechado_em = NULL, proxima_tentativa_em = NOW()
-          WHERE inbox_message_id = ANY($1::bigint[]) AND desfecho = 'desligado_ou_fora_da_lista'`, [ids]);
+        `UPDATE telegram_atendimento_respostas a SET estado = 'pendente', desfecho = NULL, fechado_em = NULL, proxima_tentativa_em = NOW()
+          FROM telegram_inbox_messages m
+          WHERE a.inbox_message_id = m.id AND m.id = ANY($1::bigint[]) AND m.empresa_id = $2
+            AND m.ambiente_credito = $3 AND m.direcao = 'entrada'
+            AND a.desfecho = 'desligado_ou_fora_da_lista'
+          RETURNING a.inbox_message_id`, [ids, empresaId, ambiente]);
       reenfileirados = u.rowCount ?? 0;
-    } catch { /* tabela do atendimento pode não existir neste ambiente */ }
+      if (u.rows.length) await pool.query(`UPDATE msg_eventos_pendentes SET retomada_em = NOW()
+        WHERE empresa_id = $1 AND ambiente = $2 AND inbox_message_id = ANY($3::bigint[])`,
+      [empresaId, ambiente, u.rows.map((r) => r.inbox_message_id)]);
+      retomadaBloqueada = reenfileirados < new Set(ids).size;
+    }
   }
-  return { cobrados, reenfileirados };
+  if (retomadaBloqueada) logger.warn({ empresaId, ambiente }, "[credito] retomada exige conferência da origem das mensagens");
+  return { cobrados, reenfileirados, retomadaBloqueada };
 }
 
 export async function registrarCustoProvedor(p: {
   empresaId: number; chave: string; etapa: string; provedor: string; modelo: string;
   inputTokens?: number | null; outputTokens?: number | null; custoInformado?: number | null; moeda?: string | null;
+  ambiente?: AmbienteCredito;
 }): Promise<void> {
   try {
     await garantirTabelasCredito();
     await pool.query(
-      `INSERT INTO msg_custos_provedor (empresa_id, chave, etapa, provedor, modelo, input_tokens, output_tokens, custo_informado, moeda)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (empresa_id, chave) DO NOTHING`,
-      [p.empresaId, p.chave, p.etapa, p.provedor, p.modelo, p.inputTokens ?? null, p.outputTokens ?? null, p.custoInformado ?? null, p.moeda ?? null]);
+      `INSERT INTO msg_custos_provedor (empresa_id, chave, etapa, provedor, modelo, input_tokens, output_tokens, custo_informado, moeda, ambiente)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (empresa_id, ambiente, chave) DO NOTHING`,
+      [p.empresaId, p.chave, p.etapa, p.provedor, p.modelo, p.inputTokens ?? null, p.outputTokens ?? null, p.custoInformado ?? null, p.moeda ?? null, validarAmbienteCredito(p.ambiente ?? ambienteCreditoAtual())]);
   } catch (e) {
     logger.error({ err: (e as Error).message, empresaId: p.empresaId }, "[credito] custo de provedor NÃO gravado");
   }
 }
 
 /** Visão da clínica: tudo escopado pela própria empresa. */
-export async function visaoCredito(empresaId: number, limite = 100) {
+export async function visaoCredito(empresaId: number, limite = 100, ambiente: AmbienteCredito = ambienteCreditoAtual()) {
+  validarAmbienteCredito(ambiente);
   await garantirTabelasCredito();
-  await pool.query(`INSERT INTO msg_carteira (empresa_id) VALUES ($1) ON CONFLICT (empresa_id) DO NOTHING`, [empresaId]);
+  await pool.query(`INSERT INTO msg_carteira (empresa_id, ambiente) VALUES ($1,$2) ON CONFLICT (empresa_id, ambiente) DO NOTHING`, [empresaId, ambiente]);
   const [w, tar, ext, rec, av, cus, pend] = await Promise.all([
-    pool.query(`SELECT saldo_centavos, limite_aviso_centavos, pausado, isento, isento_motivo FROM msg_carteira WHERE empresa_id = $1`, [empresaId]),
+    pool.query(`SELECT saldo_centavos, limite_aviso_centavos, pausado, isento, isento_motivo FROM msg_carteira WHERE empresa_id = $1 AND ambiente = $2`, [empresaId, ambiente]),
     pool.query(`SELECT DISTINCT ON (tipo_evento) tipo_evento, valor_centavos, ativo, unidade, criterio, empresa_id IS NULL AS padrao, vigente_desde
-                  FROM msg_tarifas WHERE (empresa_id = $1 OR empresa_id IS NULL) AND ativo = TRUE
-                  ORDER BY tipo_evento, (empresa_id IS NULL), vigente_desde DESC, id DESC`, [empresaId]),
+                  FROM msg_tarifas WHERE (empresa_id = $1 OR empresa_id IS NULL) AND ativo = TRUE AND ambiente = $2
+                  ORDER BY tipo_evento, (empresa_id IS NULL), vigente_desde DESC, id DESC`, [empresaId, ambiente]),
      pool.query(`SELECT id, natureza, tipo_evento, conversa_ref, valor_centavos, valor_tabela_centavos, franquia_abatida_centavos,
                         tarifa_codigo, tarifa_versao, isento, sem_tarifa, saldo_apos_centavos, estorno_de, descricao, criado_em
-                   FROM msg_extrato WHERE empresa_id = $1 ORDER BY id DESC LIMIT $2`, [empresaId, limite]),
-    pool.query(`SELECT id, valor_centavos, status, ambiente, solicitada_em, confirmada_em FROM msg_recargas WHERE empresa_id = $1 ORDER BY id DESC LIMIT 50`, [empresaId]),
-    pool.query(`SELECT tipo, criado_em FROM msg_avisos WHERE empresa_id = $1 ORDER BY id DESC LIMIT 10`, [empresaId]),
+                   FROM msg_extrato WHERE empresa_id = $1 AND ambiente = $3 ORDER BY id DESC LIMIT $2`, [empresaId, limite, ambiente]),
+    pool.query(`SELECT id, valor_centavos, status, ambiente, solicitada_em, confirmada_em FROM msg_recargas WHERE empresa_id = $1 AND ambiente = $2 ORDER BY id DESC LIMIT 50`, [empresaId, ambiente]),
+    pool.query(`SELECT tipo, criado_em FROM msg_avisos WHERE empresa_id = $1 AND ambiente = $2 ORDER BY id DESC LIMIT 10`, [empresaId, ambiente]),
     pool.query(`SELECT etapa, provedor, modelo, input_tokens, output_tokens, custo_informado, moeda, criado_em
-                  FROM msg_custos_provedor WHERE empresa_id = $1 ORDER BY id DESC LIMIT 50`, [empresaId]),
-    pool.query(`SELECT COUNT(*)::int AS n FROM msg_eventos_pendentes WHERE empresa_id = $1 AND status = 'aguardando_saldo'`, [empresaId]),
+                  FROM msg_custos_provedor WHERE empresa_id = $1 AND ambiente = $2 ORDER BY id DESC LIMIT 50`, [empresaId, ambiente]),
+    pool.query(`SELECT COUNT(*) FILTER (WHERE status = 'aguardando_saldo')::int AS n,
+        COUNT(*) FILTER (WHERE status = 'cobrado' AND inbox_message_id IS NOT NULL AND retomada_em IS NULL)::int AS retomadas
+      FROM msg_eventos_pendentes WHERE empresa_id = $1 AND ambiente = $2`, [empresaId, ambiente]),
   ]);
   const por = new Map<string, Set<string>>();
   for (const l of ext.rows) if (l.natureza === "consumo" && l.conversa_ref) {
@@ -403,6 +441,7 @@ export async function visaoCredito(empresaId: number, limite = 100) {
   }));
   const wx = w.rows[0];
   return {
+    ambiente,
     saldoCentavos: Number(wx.saldo_centavos),
     limiteAvisoCentavos: wx.limite_aviso_centavos == null ? null : Number(wx.limite_aviso_centavos),
     pausadoPorSaldo: wx.pausado, isento: wx.isento, isentoMotivo: wx.isento_motivo,
@@ -411,24 +450,26 @@ export async function visaoCredito(empresaId: number, limite = 100) {
     custosProvedor: cus.rows,
     observacaoCustoProvedor: "Custo do provedor de IA é cobrado à conta que contratou o provedor e não entra neste saldo. Vazio = provedor não informou valor.",
     mensagensAguardandoSaldo: pend.rows[0].n,
+    mensagensAguardandoRetomada: pend.rows[0].retomadas,
   };
 }
 
 /** Nova tarifa = nova linha (histórico preservado). */
-export async function definirTarifa(p: { empresaId: number | null; tipo: TipoEvento; valorCentavos: number; ativo: boolean; unidade?: string; criterio?: string; por: string; catalogoCodigo?: string; catalogoVersao?: number }) {
+export async function definirTarifa(p: { empresaId: number | null; tipo: TipoEvento; valorCentavos: number; ativo: boolean; unidade?: string; criterio?: string; por: string; catalogoCodigo?: string; catalogoVersao?: number; ambiente?: AmbienteCredito }) {
   if (!Number.isSafeInteger(p.valorCentavos) || p.valorCentavos < 0) throw new RangeError("valor inválido");
   if (!TIPOS_EVENTO.includes(p.tipo)) throw new RangeError("tipo inválido");
   if (p.tipo === "tempo" && p.ativo && (!p.unidade || !p.criterio)) throw new RangeError("cobrança por tempo exige unidade e critério");
   await garantirTabelasCredito();
   await pool.query(
-    `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [p.empresaId, p.tipo, p.valorCentavos, p.ativo, p.unidade ?? null, p.criterio ?? null, p.por, p.catalogoCodigo ?? null, p.catalogoVersao ?? null]);
+    `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao, ambiente)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [p.empresaId, p.tipo, p.valorCentavos, p.ativo, p.unidade ?? null, p.criterio ?? null, p.por, p.catalogoCodigo ?? null, p.catalogoVersao ?? null, validarAmbienteCredito(p.ambiente ?? ambienteCreditoAtual())]);
 }
 
-export async function definirIsencao(empresaId: number, isento: boolean, motivo: string, por: string) {
+export async function definirIsencao(empresaId: number, isento: boolean, motivo: string, por: string, ambiente: AmbienteCredito = ambienteCreditoAtual()) {
+  validarAmbienteCredito(ambiente);
   if (!motivo.trim()) throw new RangeError("motivo obrigatório");
   await garantirTabelasCredito();
-  await pool.query(`INSERT INTO msg_carteira (empresa_id) VALUES ($1) ON CONFLICT (empresa_id) DO NOTHING`, [empresaId]);
-  await pool.query(`UPDATE msg_carteira SET isento = $2, isento_motivo = $3, isento_por = $4, isento_em = NOW() WHERE empresa_id = $1`, [empresaId, isento, motivo.trim(), por]);
+  await pool.query(`INSERT INTO msg_carteira (empresa_id, ambiente) VALUES ($1,$2) ON CONFLICT (empresa_id, ambiente) DO NOTHING`, [empresaId, ambiente]);
+  await pool.query(`UPDATE msg_carteira SET isento = $2, isento_motivo = $3, isento_por = $4, isento_em = NOW() WHERE empresa_id = $1 AND ambiente = $5`, [empresaId, isento, motivo.trim(), por, ambiente]);
 }

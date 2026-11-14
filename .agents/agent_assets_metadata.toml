@@ -1222,3 +1222,17 @@ mtime_ms = 1794413993393
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c00e11d-1fb4-41f2-bcbe-3d8781679c56/3859db43-692d-4e87-ae0d-5370d256d2c4"
 storage_version_token = "1794414005655378"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "CRZzY-2QuufaiuRww6ESx"
+uri = "file://generated-artifacts/comunicacao-autenticada.png"
+type = "image"
+title = "Dúvidas e Orientações com sessão real"
+description = "Verificação somente de leitura, sem alterações e sem envio de mensagens; a lista de clientes foi excluída da captura."
+logical_id = "33627cd1-4af7-44cf-b5a9-f178c47c6312"
+content_hash = "sha256:37d7198deaa33c3fb4fe1845dd98dca35b952fa37093850aaded1e0814e6296f"
+size = 704817
+mtime_ms = 1794672902560
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/33627cd1-4af7-44cf-b5a9-f178c47c6312/2b94eb24-c147-4088-809c-2c72492b7cb0"
+storage_version_token = "1794672973489932"
+content_type = "image/png"

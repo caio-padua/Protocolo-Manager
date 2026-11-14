@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { clearCollabSession, collabAuthHeaders } from "@/lib/collab-auth";
-import { PaxterLogo } from "@/components/layout/PaxterLogo";
+import paxmedWordmark from "../../../../api-server/assets/paxmed-wordmark.png";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const ABAS = ["Planos e Módulos", "Tarifas e Créditos", "Custos e Margem", "Integrações e IA", "Piloto e Evidências"] as const;
@@ -105,7 +105,7 @@ export default function Licenciado() {
 
   return <div className="min-h-screen bg-[#e8edf5] text-slate-900">
     <header className="flex items-center justify-between border-b-4 border-[#e7cd8f]/50 bg-[#0a1120] px-5 py-4 text-white">
-      <PaxterLogo />
+      <img src={paxmedWordmark} alt="PaxMed" width={1024} height={172} className="h-auto w-48 shrink-0" />
       <div className="flex items-center gap-3"><button onClick={() => { setVisaoClinica(null); setModo(modo === "admin" ? "clinica" : "admin"); setAviso(""); }} className="btn-3d-soft px-3 py-2 text-xs">{modo === "admin" ? "Minha Clínica" : "Administração CEO"}</button><span className="text-xs text-slate-300">{modo === "admin" ? "ADMINISTRAÇÃO COMERCIAL · HOMOLOGAÇÃO" : "VISÃO RESTRITA DA CLÍNICA"}</span><button onClick={sair} className="btn-3d-soft px-3 py-2 text-xs">Sair</button></div>
     </header>
     <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6">
@@ -122,13 +122,15 @@ export default function Licenciado() {
 
       {!carregando && modo === "clinica" && visaoClinica && <section className="space-y-4">
         <div className="panel-3d p-4"><Titulo>Meu contrato e saldo</Titulo>
+          <p className="mb-3 text-xs font-semibold">{visaoClinica.ambienteCredito === "teste" ? "Carteira de teste — separada do dinheiro real" : visaoClinica.ambienteCredito === "real" ? "Carteira do ambiente real" : "Ambiente da carteira não informado"}</p>
+          {visaoClinica.mensagensAguardandoRetomada > 0 && <p role="alert" className="paxter-alert paxter-alert-amber mb-3 p-3 text-sm">Há mensagens já cobradas aguardando conferência para retomada; não faça nova recarga para tentar reenviá-las.</p>}
           {visaoClinica.contrato ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <div className="concave-3d p-3 text-sm"><b>Plano</b><p>{visaoClinica.contrato.plano ?? "—"}</p></div>
             <div className="concave-3d p-3 text-sm"><b>Ambiente</b><p>{visaoClinica.contrato.ambiente} · {visaoClinica.contrato.status}</p></div>
             <div className="concave-3d p-3 text-sm"><b>Mensalidade contratada</b><p>{dinheiro(visaoClinica.contrato.mensalidadeCentavos)}</p></div>
             <div className="concave-3d p-3 text-sm"><b>Condição e valor do período</b><p>{visaoClinica.contrato.condicao} · {dinheiro(visaoClinica.contrato.valorPeriodoCentavos)}</p></div>
             <div className="concave-3d p-3 text-sm"><b>Franquia incluída</b><p>{dinheiro(visaoClinica.contrato.franquiaTextoCentavos)}</p></div>
-            <div className="concave-3d p-3 text-sm"><b>Saldo comprado</b><p>{dinheiro(visaoClinica.saldoCentavos)}</p></div>
+            <div className="concave-3d p-3 text-sm"><b>Saldo comprado</b><p>{dinheiro(visaoClinica.saldoCentavos)}</p><p className="mt-1 text-xs">{visaoClinica.ambienteCredito === "teste" ? "Ambiente de teste — sem saldo real" : visaoClinica.ambienteCredito === "real" ? "Ambiente real" : "Ambiente não informado"}</p></div>
             <div className="concave-3d p-3 text-sm"><b>Renovação</b><p>{visaoClinica.contrato.renovacao ?? "—"}</p></div>
             <div className="concave-3d p-3 text-sm sm:col-span-2 lg:col-span-3"><b>Módulos incluídos</b><p>{Array.isArray(visaoClinica.contrato.modulos) ? visaoClinica.contrato.modulos.join(" · ") : "—"}</p></div>
           </div> : <p className="text-sm text-slate-600">Nenhum contrato foi vinculado a esta clínica.</p>}
