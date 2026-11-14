@@ -189,7 +189,7 @@ interface Fonts {
 }
 
 function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, qrImg: QrImage = null) {
-  const footerText = `Instituto Pádua · Paxter — desenvolvido pela Padcon · Advanced Systems Architecture · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+  const footerText = `Instituto Pádua · PaxMed — desenvolvido pela Padcon · Advanced Systems Architecture · Página ${pageNum} de ${totalPages} · ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
   page.drawText(footerText, {
     x: MARGIN,
     y: MARGIN - 20,
@@ -203,7 +203,7 @@ function drawPageFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages
       const qx = PAGE_W - MARGIN - qs;
       const qy = 20;
       page.drawImage(qrImg, { x: qx, y: qy, width: qs, height: qs });
-      page.drawText("Paxter", { x: qx - 52, y: qy + 13, size: 5.5, font: fonts.bold, color: GRAY });
+      page.drawText("PaxMed", { x: qx - 52, y: qy + 13, size: 5.5, font: fonts.bold, color: GRAY });
       page.drawText("paxter.com.br", { x: qx - 52, y: qy + 5, size: 5, font: fonts.regular, color: GRAY });
     } catch { /* nunca derruba a emissao */ }
   }
@@ -247,9 +247,9 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(`RASP ${String(ras.id).padStart(6, "0")} — ${ras.clientName}`);
-  pdfDoc.setAuthor("Instituto Pádua — Paxter");
+  pdfDoc.setAuthor("Instituto Pádua — PaxMed");
   pdfDoc.setSubject("Registro de Atendimentos, Substâncias e Procedimentos");
-  pdfDoc.setCreator("Sistema Paxter");
+  pdfDoc.setCreator("Sistema PaxMed");
 
   const fonts: Fonts = {
     regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
@@ -631,7 +631,7 @@ export async function generateSignedRASPdf(ras: RASData): Promise<{ pdfBytes: Ui
       },
       {
         title: "9. ARMAZENAMENTO DIGITAL",
-        text: "Autorizo o armazenamento digital de todos os registros de atendimento, incluindo o presente termo, no sistema Paxter e, quando aplicável, em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.",
+        text: "Autorizo o armazenamento digital de todos os registros de atendimento, incluindo o presente termo, no sistema PaxMed e, quando aplicável, em ambiente de nuvem seguro (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.",
       },
       {
         title: "10. DECLARAÇÃO FINAL",
@@ -962,7 +962,7 @@ function drawRubricLine(page: PDFPage, fonts: Fonts, clientName: string) {
 }
 
 function drawDocFooter(page: PDFPage, fonts: Fonts, pageNum: number, totalPages: number, clientName: string) {
-  const footerText = `Instituto Padua · Padaxor - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
+  const footerText = `Instituto Padua · PaxMed - desenvolvido pela Padcon · Advanced Systems Architecture | Protocolo Medico Personalizado | Pagina ${pageNum} de ${totalPages}`;
   page.drawText(footerText, { x: MARGIN, y: 18, size: 6, font: fonts.regular, color: GRAY });
   drawRubricLine(page, fonts, clientName);
 }

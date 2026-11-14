@@ -846,7 +846,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
           <div className="grid grid-cols-3 gap-2">
             {/* Bevel A — Nome canônico PAXTER */}
             <BevelCelula
-              label="Arquivo PAXTER"
+              label="Arquivo PaxMed"
               conteudo={nomeRen || doc.fileName}
               cor={NAVY}
               bold

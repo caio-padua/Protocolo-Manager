@@ -185,12 +185,12 @@ export default function Portal() {
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="PAXTER — site institucional"
+          aria-label="PaxMed — site institucional"
           className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 transition-opacity hover:opacity-90"
         >
           <PaxterSymbolGlass size={26} tone="dark" />
           <div>
-            <h1 className="text-white font-bold text-lg tracking-[0.16em] uppercase">PAXTER</h1>
+            <h1 className="text-white font-bold text-lg tracking-[0.16em] uppercase">PaxMed</h1>
             <p className="text-[#7e93b8] text-xs uppercase tracking-widest">PORTAL DO CLIENTE</p>
           </div>
         </a>
@@ -453,7 +453,7 @@ export default function Portal() {
           )}
 
           <p className="text-center text-[#5a6f96] text-xs mt-6 uppercase tracking-wider">
-            Instituto Pádua · Paxter — desenvolvido pela Padcon
+            Instituto Pádua · PaxMed — desenvolvido pela Padcon
           </p>
         </div>
       </main>

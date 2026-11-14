@@ -209,7 +209,7 @@ interface Fonts {
 
 function drawPageHeader(page: PDFPage, fonts: Fonts, titulo: string, subtitulo: string, pageNum: number, totalPages: number) {
   page.drawRectangle({ x: 0, y: PAGE_H - 38, width: PAGE_W, height: 38, color: NAVY });
-  dt(page, "PADAXOR", { x: ML, y: PAGE_H - 25, size: 11, font: fonts.bold, color: GOLD });
+  dt(page, "PAXMED", { x: ML, y: PAGE_H - 25, size: 11, font: fonts.bold, color: GOLD });
   dt(page, "Clinical Intelligence System", { x: ML, y: PAGE_H - 35, size: 5.5, font: fonts.regular, color: rgb(0.7, 0.7, 0.7) });
   const safeTitulo = safe(titulo);
   const safeSub = safe(subtitulo);
@@ -218,7 +218,7 @@ function drawPageHeader(page: PDFPage, fonts: Fonts, titulo: string, subtitulo: 
   page.drawRectangle({ x: 0, y: PAGE_H - 40, width: PAGE_W, height: 2, color: GOLD });
   const now = brtNow();
   const dateStr = now.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  const footer = `PADAXOR - Nutricao Clinica - Documento personalizado e intransferivel - ${dateStr} - Pag. ${pageNum} de ${totalPages}`;
+  const footer = `PaxMed - Nutricao Clinica - Documento personalizado e intransferivel - ${dateStr} - Pag. ${pageNum} de ${totalPages}`;
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: MB - 4, color: NAVY });
   dt(page, footer, { x: ML, y: 18, size: 5.5, font: fonts.regular, color: rgb(0.65, 0.65, 0.65) });
 }
@@ -833,9 +833,9 @@ export async function gerarDietaPdf(input: DietaPdfInput, signal?: AbortSignal):
 
   // Metadata
   pdfDoc.setTitle(`Plano Nutricional — ${input.nomePaciente}`);
-  pdfDoc.setAuthor("PADAXOR Clinical Intelligence System");
+  pdfDoc.setAuthor("PaxMed Clinical Intelligence System");
   pdfDoc.setSubject("Plano Alimentar Personalizado");
-  pdfDoc.setCreator("PADAXOR · Instituto Pádua");
+  pdfDoc.setCreator("PaxMed · Instituto Pádua");
   pdfDoc.setLanguage("pt-BR");
 
   let pageNum = 1;

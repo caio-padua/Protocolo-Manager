@@ -179,7 +179,7 @@ export default function Area() {
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="PADAXOR — site institucional"
+          aria-label="PaxMed — site institucional"
           className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
         >
           <PaxterSymbolGlass size={40} tone={theme === "dark" ? "dark" : "light"} sharp={true} />
@@ -453,7 +453,7 @@ function LoginShell({ subtitle, children }: { subtitle: string; children: ReactN
               href={PAXTER_SITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="PADAXOR — site institucional"
+              aria-label="PaxMed — site institucional"
               className="flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70"
             >
               <PaxterSymbolGlass size={52} tone={isDark ? "dark" : "light"} sharp={true} />

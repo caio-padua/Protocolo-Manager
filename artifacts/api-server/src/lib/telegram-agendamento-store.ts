@@ -12,7 +12,7 @@ import { brtISODate } from "./brt";
 import { normalizar } from "./atendimento-telegram";
 import { bookSession, computeResourceSlots } from "./agenda-booking";
 import {
-  conduzirAgendamento, ehPedidoDeAgendamento, ESTADO_INICIAL, type DepsAgendamento, type EstadoConversa, type Modalidade, type Oferta, type Periodo,
+  apresentacao, conduzirAgendamento, ehPedidoDeAgendamento, ESTADO_INICIAL, type DepsAgendamento, type EstadoConversa, type Modalidade, type Oferta, type Periodo,
 } from "./telegram-agendamento";
 
 export const MARCA_RESERVA_TELEGRAM = "Reservado pelo assistente virtual (Telegram)";
@@ -174,7 +174,7 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
     endereco: enderecoReal,
   };
   const agora = new Date().toISOString();
-  const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome }, deps, agora);
+  const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId) }, deps, agora);
   if (!r.tratada) return { tratada: false, pausa: null, alerta: null, resposta: null, desfecho: r.desfecho };
   await gravarEstado(chave, r.estado);
   return {
@@ -189,6 +189,11 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
 // ─────────────────────────── visitante (sem cadastro) ───────────────────────────
 
 /** Atende quem ainda não é cliente. Nunca cria cliente nem reserva: grava mensagem e, no fim, um pedido para a equipe. */
+async function nomeDaClinica(empresaId: number): Promise<string | undefined> {
+  const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${empresaId}`);
+  return (r.rows[0] as { nome?: string } | undefined)?.nome?.trim() || undefined;
+}
+
 export async function atenderVisitante(chatId: string, texto: string, updateId: number | null, empresaPadrao: number): Promise<void> {
   const ins = await db.execute(sql`INSERT INTO telegram_visitante_mensagens (chat_id, direcao, texto, update_id)
     VALUES (${chatId}, 'entrada', ${texto.slice(0, 2000)}, ${updateId}) ON CONFLICT DO NOTHING RETURNING id`);
@@ -215,12 +220,12 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
     encaminharEquipe: async (m) => { motivo = m; },
     endereco: enderecoReal,
   };
-  const r = await conduzirAgendamento(await lerEstado(chave), texto, { ehCliente: false }, deps, new Date().toISOString());
+  const r = await conduzirAgendamento(await lerEstado(chave), texto, { ehCliente: false, nomeClinica: await nomeDaClinica(empresaId) }, deps, new Date().toISOString());
   let resposta = r.resposta;
   if (!r.tratada) {
     // Queixa de saúde: sem texto automático (revisão do Dr. Caio pendente). Só avisa a equipe e acolhe sem opinar.
     motivo = "queixa_de_visitante";
-    resposta = "Olá! Sou a assistente virtual da clínica. Recebi sua mensagem e já avisei a equipe, que responde por aqui. Se for algo urgente, procure o pronto-socorro ou ligue 192 (SAMU).";
+    resposta = `${apresentacao(await nomeDaClinica(empresaId))} Recebi sua mensagem e já avisei a equipe, que responde por aqui. Se for algo urgente, procure o pronto-socorro ou ligue 192 (SAMU).`;
   }
   await gravarEstado(chave, r.estado);
   if (r.desfecho === "pedido_registrado") await alertar("Novo pedido de agendamento pelo Telegram (visitante sem cadastro). Abra a Central Telegram.");

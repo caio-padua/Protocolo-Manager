@@ -64,7 +64,7 @@ export function montarHtmlCobranca(input: CobrancaMensagemInput): string {
   <div style="font-family:Arial,Helvetica,sans-serif;background:#f1f5f9;padding:24px;">
     <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
       <div style="background:#16284a;padding:20px 24px;">
-        <div style="color:#e9d7a7;font-size:20px;font-weight:800;letter-spacing:2px;">PAXTER</div>
+        <div style="color:#e9d7a7;font-size:20px;font-weight:800;letter-spacing:2px;">PAXMED</div>
         <div style="color:#cbd5e1;font-size:11px;letter-spacing:1px;margin-top:2px;">${CLINICA} — ${SUBTITULO}</div>
       </div>
       <div style="padding:24px;">
@@ -78,7 +78,7 @@ export function montarHtmlCobranca(input: CobrancaMensagemInput): string {
         <p style="color:#64748b;font-size:12px;margin:16px 0 0;text-align:center;">Pague com PIX, cartão ou boleto. Qualquer dúvida, estamos à disposição.</p>
       </div>
       <div style="background:#f8fafc;padding:12px 24px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:11px;text-align:center;">
-        ${CLINICA} — enviado automaticamente pelo PAXTER.
+        ${CLINICA} — enviado automaticamente pelo PaxMed.
       </div>
     </div>
   </div>`;

@@ -142,6 +142,10 @@ export function depsReaisAtendimento(empresaId: number): DepsAtendimento {
         id: Number(x.id), tema: x.tema, perguntasExemplo: x.perguntas_exemplo, resposta: x.resposta,
       }));
     },
+    nomeClinica: async (eid) => {
+      const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
+      return (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
+    },
     escolherComIA: (texto, cand) => escolherOrientacaoComIA(texto, cand, empresaId),
     enviarAoPaciente: async (chatId, texto) => {
       const r = await sendTelegram(chatId, escaparHtmlTelegram(texto));

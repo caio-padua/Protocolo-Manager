@@ -1112,7 +1112,7 @@ export default function ConfigReceituario() {
 
             {/* ── P1 + P5: Rodapé direito — sistema ─────────────────────── */}
             <Section icon={<Zap className="w-4 h-4"/>}
-              label="Rodapé — Marca do Sistema PARXIS / PAXTER (direita)" badge="P1–P5">
+              label="Rodapé — Marca do Sistema PaxMed (direita)" badge="P1–P5">
 
               {/* Preview do bloco */}
               <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-3 mb-1">
@@ -1124,7 +1124,7 @@ export default function ConfigReceituario() {
                   {cfg.rodapeSistemaModo === "imagem" && cfg.rodapeSistemaImagemDataUrl
                     ? <img src={cfg.rodapeSistemaImagemDataUrl} alt="wordmark" className="h-4 object-contain"/>
                     : <div className="text-xs font-black tracking-widest text-amber-400 uppercase">
-                        {cfg.rodapePaxterNome || "PARXIS"}
+                        {cfg.rodapePaxterNome || "PaxMed"}
                       </div>
                   }
                   <div className="text-xs text-gray-400">{cfg.rodapePaxterSubtitulo || "Clinical Intelligence System"}</div>
@@ -1159,7 +1159,7 @@ export default function ConfigReceituario() {
 
               {cfg.rodapeSistemaModo === "imagem" ? (
                 <FieldRow label="Imagem da wordmark (nome do sistema)"
-                  hint="PNG/SVG com fundo transparente · máx 2 MB — ex: arte PARXIS ou PAXTER">
+                  hint="PNG/SVG com fundo transparente · máx 2 MB — ex: arte oficial PaxMed">
                   <div className="flex items-center gap-3">
                     <div className="w-28 h-10 border border-dashed border-gray-300 rounded bg-slate-800 overflow-hidden flex items-center justify-center">
                       {cfg.rodapeSistemaImagemDataUrl
@@ -1180,9 +1180,9 @@ export default function ConfigReceituario() {
                 </FieldRow>
               ) : (
                 <>
-                  <FieldRow label="Nome do sistema em texto (P5)" hint="Ex: PARXIS — amanhã pode virar PAXTER ou outro">
+                  <FieldRow label="Nome do sistema em texto (P5)" hint="Ex: PaxMed">
                     <Input value={cfg.rodapePaxterNome} onChange={e => patch({ rodapePaxterNome: e.target.value })}
-                      placeholder="PARXIS" className="text-sm font-bold tracking-widest uppercase"/>
+                      placeholder="PaxMed" className="text-sm font-bold tracking-widest uppercase"/>
                   </FieldRow>
                 </>
               )}

@@ -322,7 +322,7 @@ export function buildDescriptionBody(data: CalendarEventData): string {
       `${SUBSTANCE_LEGEND}`;
 
   let desc =
-    `Developed by: Padcon \u00b7 Paxter\n\n` +
+    `Developed by: Padcon \u00b7 PaxMed\n\n` +
     `${data.clientName}\n` +
     `CPF.: ${data.clientCpf || "-"}\n` +
     `Agendamento Número: ${data.weekNumber}/${totalAppointments}\n` +

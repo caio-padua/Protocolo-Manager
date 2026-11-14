@@ -422,7 +422,7 @@ export default function Agendar({ _variant = "novo" }: { _variant?: "novo" | "an
               {/* Wordmark PAXTER — arte oficial */}
               <img
                 src="/brand/paxter-wordmark.png"
-                alt="PAXTER"
+                alt="PaxMed"
                 style={{ height: 24, width: "auto", objectFit: "contain" }}
                 draggable={false}
               />

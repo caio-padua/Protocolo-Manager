@@ -1,6 +1,6 @@
 {
-  "name": "Paxter — Motor Clínico",
-  "short_name": "Paxter",
+  "name": "PaxMed — Motor Clínico",
+  "short_name": "PaxMed",
   "description": "Protocolos injetáveis — área do cliente e ficha de saúde.",
   "start_url": "/entrada",
   "scope": "/",

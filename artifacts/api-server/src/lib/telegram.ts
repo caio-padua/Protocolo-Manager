@@ -329,7 +329,7 @@ export async function getTelegramBotInfo(): Promise<TelegramBotInfo> {
   await ensureTelegramTokenLoaded();
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
-    return { username: "Paduaclinica_bot", firstName: "Paxter Bot", mock: true };
+    return { username: "Paduaclinica_bot", firstName: "PaxMed Bot", mock: true };
   }
   try {
     const resp = await fetch(`https://api.telegram.org/bot${token}/getMe`);

@@ -299,7 +299,7 @@ export default function LoginPage() {
         <PaxterSymbolGlass size={56} tone="dark" sharp />
         <div className="text-center">
           <p className="text-[28px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none dark:text-[#f4e2a8]">
-            PADAXOR
+            PAXMED
           </p>
           <p className="text-[11px] tracking-[0.22em] text-[#916f32] uppercase mt-1 dark:text-[#d9bd78]">
             Motor Clínico · PAWARDS
@@ -664,7 +664,7 @@ export default function LoginPage() {
 
         {/* Rodapé discreto */}
         <p className="mt-6 text-center text-[10px] tracking-wider text-[#16284a]/55 dark:text-slate-400">
-          PADAXOR © {new Date().getFullYear()} · PAWARDS Sistemas
+          PaxMed © {new Date().getFullYear()} · PAWARDS Sistemas
         </p>
       </div>
       </div>

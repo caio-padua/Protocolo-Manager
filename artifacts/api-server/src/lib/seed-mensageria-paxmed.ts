@@ -368,7 +368,7 @@ const ASSINATURA: BlocoSeed[] = [
       saudacao_fechamento: "Com atenção clínica,",
       nome: "Equipe Padcon Conect",
       papel: "Assistência ao Protocolo",
-      rodape_linha1: "PAXTER®",
+      rodape_linha1: "PaxMed®",
       rodape_subtitulo1: "Motor Clínico · Protocolos Injetáveis",
       rodape_linha2: "Padcon Conect®",
       rodape_subtitulo2: "Cuidado que acompanha cada dose",

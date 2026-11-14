@@ -134,7 +134,7 @@ export async function getModeloAtivo(modeloId?: number): Promise<ReceituarioMode
   if (!row) {
     return {
       id: 0,
-      nome: "Faixas Paxter (padrão)",
+      nome: "Faixas PaxMed (padrão)",
       tipo: "faixas_paxter",
       config: {},
       ativo: true,
@@ -367,7 +367,7 @@ async function emitirReceituarioPdfHistorico(params: EmitirParams): Promise<Emit
     });
     const mailResult = await sendGmailMessage({
       to: emailRecipients.join(", "),
-      subject: `PAXTER | Receituário | ${params.patient.nome} | ${d}/${m}/${y}`,
+      subject: `PAXMED | Receituário | ${params.patient.nome} | ${d}/${m}/${y}`,
       html: emailHtml,
       attachments: [{
         filename: fileName,
@@ -484,7 +484,7 @@ export async function garantirTabelaModelos(): Promise<void> {
     if (n === 0) {
       await db.execute(sql`
         INSERT INTO receituario_modelos (nome, tipo, config, ativo) VALUES
-        ('Faixas Paxter', 'faixas_paxter', '{}', TRUE),
+        ('Faixas PaxMed', 'faixas_paxter', '{}', TRUE),
         ('Clássico ANVISA', 'classico_anvisa', '{}', FALSE)
       `);
       logger.info("receituario-motor: tabela criada e seed aplicado (2 modelos)");

@@ -476,12 +476,12 @@ export default function Anamnese() {
           href={PAXTER_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="PAXTER — site institucional"
+          aria-label="PaxMed — site institucional"
           className="flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2a05a]/70 transition-opacity hover:opacity-90"
         >
           <PaxterSymbolGlass size={26} tone="dark" />
           <div>
-            <h1 className="text-white font-bold text-base tracking-[0.16em] uppercase leading-tight">PAXTER</h1>
+            <h1 className="text-white font-bold text-base tracking-[0.16em] uppercase leading-tight">PaxMed</h1>
             <p className="text-[#6b9b9b] text-[10px] uppercase tracking-widest">FICHA DE ANAMNESE</p>
           </div>
         </a>
@@ -665,7 +665,7 @@ export default function Anamnese() {
 
           {step !== "fill" && (
             <p className="text-center text-[#3a6666] text-xs mt-6 uppercase tracking-wider">
-              Instituto Pádua · Paxter — desenvolvido pela Padcon
+              Instituto Pádua · PaxMed — desenvolvido pela Padcon
             </p>
           )}
         </div>

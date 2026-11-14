@@ -320,7 +320,7 @@ export function buildPrescricaoHtml(d: PrescricaoHtmlData): string {
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
       <img src="${paxterLogoSrc}" alt="ícone" style="height:22px;width:22px;object-fit:contain;opacity:0.8"/>
       <div>
-        <img src="${paxterWordmarkSrc}" alt="PAXTER" style="max-height:16px;object-fit:contain;display:block"/>
+        <img src="${paxterWordmarkSrc}" alt="PAXMED" style="max-height:16px;object-fit:contain;display:block"/>
         <div style="font-size:5.5px;color:#aaa;letter-spacing:0.8px;margin-top:1px">Clinical Intelligence System</div>
       </div>
     </div>

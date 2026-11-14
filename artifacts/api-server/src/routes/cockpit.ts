@@ -253,7 +253,7 @@ router.get("/cockpit/:clientId/pdf", requireCollaborator, async (req, res): Prom
   };
 
   page.drawRectangle({ x: 0, y: 802, width: 595, height: 40, color: navy });
-  page.drawText("PAXTER — RESUMO DA CONSULTA", { x: 50, y: 814, size: 16, font: bold, color: gold });
+  page.drawText("PAXMED — RESUMO DA CONSULTA", { x: 50, y: 814, size: 16, font: bold, color: gold });
   y = 770;
   linha(`Cliente: ${cliente.name}`, bold, 13, navy);
   linha(`Data: ${new Date().toLocaleDateString("pt-BR")}`);

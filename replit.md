@@ -12,7 +12,7 @@
 
 ## Overview
 
-Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca interna do produto: **Padcon Conect** (com 1 N); marca VISIVEL ao cliente: **PAXTER** (Clinical Intelligence System). Tagline: "Motor Clinico | Protocolos Injetaveis".
+Sistema completo (SaaS) para gerenciamento de protocolos injetaveis em clinica de medicina estetica (Brasil). Monorepo pnpm com TypeScript. Marca interna do produto: **Padcon Conect** (com 1 N); nome do SISTEMA (visivel ao cliente): **PaxMed** (Clinical Intelligence System). Tagline: "Motor Clinico | Protocolos Injetaveis".
 
 Agente da plataforma: **Dr. Replit Paxter** (renomeado de Dr. Replit Manager em 18/06/2026, decisao do CEO Dr. Caio). Sistema de design proprio documentado na skill `skill-layout-paxter`.
 
@@ -42,7 +42,7 @@ vai ao dono certo deste mapa, nunca fica só na conversa; toda inserção é anu
 
 ## Branding
 
-- **Marca visível ao cliente**: PAXTER (Clinical Intelligence System) — chrome navy + ouro; símbolo = PaxterSymbolGlass; wordmark = arte oficial (nunca texto digitado). Detalhe na skill `skill-layout-paxter` e nas memórias `paxter-*`.
+- **IDENTIDADE (decisão definitiva do Dr. Caio, 14/11/2026)**: **PaxMed é o nome do SISTEMA licenciado**. **Instituto Pádua é uma CLÍNICA que usa uma licença**; outras clínicas aparecem com o próprio nome. **"Paxter" foi descontinuado** e não pode mais aparecer como marca em tela, app, ícone, prévia, e-mail, WhatsApp, Telegram ou PDF. A assistente virtual se apresenta com o NOME DA CLÍNICA (campo `empresas.nome`), nunca como "PaxMed" e sem nome inventado. Nomes técnicos internos (pastas, pacotes, classes CSS, componentes `Paxter*`, skills, chaves de localStorage, colunas) NÃO mudam sem ordem escrita. Wordmark = arte oficial (nunca texto digitado); a arte antiga "PAXTER" ainda precisa ser trocada pela arte PaxMed (ver `artifacts/api-server/assets/paxmed-wordmark.png`). Visual: chrome navy + ouro; símbolo = PaxterSymbolGlass. Detalhe na skill `skill-layout-paxter` e nas memórias `paxter-*`.
 - **Exceção**: receituário emite como Instituto Padua.
 - **Estilo visual**: linguagem 3D skeuomórfica (bevel/well/painel 3D), bordas 6px, MAIUSCULO nos labels KPI, TDAH-friendly (alto contraste, hierarquia clara), sem infantilidades.
 - **Status**: verde = concluído (emerald preservado); cor de status NUNCA trocada em massa.

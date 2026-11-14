@@ -115,7 +115,7 @@ export default function Entrada() {
 
           <div className="text-center">
             <div className="text-3xl sm:text-4xl font-bold tracking-[0.35em] text-[#f1dca6] pl-[0.35em]">
-              PAXTER
+              PAXMED
             </div>
             <div className="mt-2 text-[11px] sm:text-xs uppercase tracking-[0.45em] text-[#8aa0c4] pl-[0.45em]">
               Clinical Intelligence System
@@ -141,7 +141,7 @@ export default function Entrada() {
         <div className="entrada-fade w-full max-w-2xl flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-2">
             <PaxterSymbolGlass size={48} tone="dark" />
-            <div className="text-xl font-bold tracking-[0.3em] text-[#f1dca6] pl-[0.3em]">PAXTER</div>
+            <div className="text-xl font-bold tracking-[0.3em] text-[#f1dca6] pl-[0.3em]">PaxMed</div>
             <div className="text-[10px] uppercase tracking-[0.4em] text-[#8aa0c4] pl-[0.4em]">
               Welcome · Selecione seu acesso
             </div>

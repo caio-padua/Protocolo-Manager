@@ -102,7 +102,7 @@ export default function CockpitAnamnese() {
             className="font-serif text-[19px] font-semibold tracking-[0.16em]"
             style={{ color: "#e7cd8f", textShadow: "0 1px 0 rgba(0,0,0,0.45)" }}
           >
-            PAXTER
+            PAXMED
           </span>
           <span className="text-[11px] uppercase tracking-[0.22em] text-slate-300">
             Cockpit da Anamnese
@@ -258,7 +258,7 @@ function StatusLinkPanel({
   const mensagem = useMemo(() => {
     const firstName = (nome.split(" ")[0] || nome).trim();
     return (
-      `Olá${firstName ? `, ${firstName}` : ""}! Aqui é do Instituto Pádua (Paxter). ` +
+      `Olá${firstName ? `, ${firstName}` : ""}! Aqui é do Instituto Pádua. ` +
       `Antes da sua sessão, preencha sua ficha de saúde (anamnese) neste link: ` +
       `${anamneseUrl}\n\n` +
       `Você vai se identificar com CPF e data de nascimento. Leva poucos minutos. Obrigado!`

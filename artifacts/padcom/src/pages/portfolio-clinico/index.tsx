@@ -39,7 +39,7 @@ const LINHAS: LinhaConfig[] = [
   },
   {
     key: "digital",
-    nome: "PAXTER DIGITAL",
+    nome: "PaxMed DIGITAL",
     subtitulo: "Captação por redes sociais, campanhas e links externos",
     icon: Smartphone,
     acento: "text-blue-600",
@@ -187,7 +187,7 @@ function ProtoCard({ protocol, onNavigate, onReatribuir, linhaAtual }: ProtoCard
             >
               <option value="null">— sem classificação —</option>
               <option value="magistral">PROGRAMA MAGISTRAL</option>
-              <option value="digital">PAXTER DIGITAL</option>
+              <option value="digital">PaxMed DIGITAL</option>
               <option value="injetoterapia">INJETOTERAPIA</option>
             </select>
           </div>

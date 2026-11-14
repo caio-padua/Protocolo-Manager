@@ -419,7 +419,7 @@ router.post("/dieta/enviar-pdf-email", requireCollaborator, async (req, res): Pr
         plano.estrategia ?? "Hiperproteica para hipertrofia e definição muscular"
       }`,
       "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
-      "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
+      "Em caso de dúvidas, entre em contato com a equipe PAXMED.",
     ],
     notaRodape:
       "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",
@@ -666,7 +666,7 @@ router.post(
           "Segue o reenvio do seu Plano Alimentar Personalizado com base nos seus dados clínicos.",
           `Meta energética: ${plano.caloriasAlvo ?? "—"} kcal/dia · Estratégia: ${plano.estrategia ?? "Personalizada"}`,
           "O PDF em anexo contém todas as refeições com 3 opções por refeição, guia de suplementação, guia de treino e tabela de acompanhamento de 8 semanas.",
-          "Em caso de dúvidas, entre em contato com a equipe PADAXOR.",
+          "Em caso de dúvidas, entre em contato com a equipe PAXMED.",
         ],
         notaRodape:
           "Este plano é personalizado e intransferível. O acompanhamento médico é indispensável.",

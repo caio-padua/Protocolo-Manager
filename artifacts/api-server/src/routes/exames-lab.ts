@@ -410,7 +410,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
             await sendGmailMessage({
               to: client.email,
               subject: "Clinica Padua | Exame recebido",
-              html: `<p>Ola, ${firstName}!</p><p>Recebemos o seu exame (<strong>${fileName}</strong>) e ele ja foi lido e arquivado no seu prontuario.</p><p>Qualquer ponto de atencao sera avaliado pela equipe.</p><p>Equipe PAXTER</p>`,
+              html: `<p>Ola, ${firstName}!</p><p>Recebemos o seu exame (<strong>${fileName}</strong>) e ele ja foi lido e arquivado no seu prontuario.</p><p>Qualquer ponto de atencao sera avaliado pela equipe.</p><p>Equipe PaxMed</p>`,
             });
           }
           if (client.phone) {
@@ -2948,7 +2948,7 @@ router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) =>
           empresaId: 5,
           hash: DEMO_HASH,
           fileName: "DEMO — Conversão de Unidade g_L para g_dL.pdf",
-          labName: "Laboratório Demonstração PAXTER",
+          labName: "Laboratório Demonstração PaxMed",
           collectionDate: "2026-07-23",
           examKind: "lab",
           origin: "demo",

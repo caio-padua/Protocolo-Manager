@@ -108,7 +108,7 @@ PASSOS: [passo1] | [passo2]`,
       proximosPassos.split("|").map(p => `• ${p.trim()}`).join("\n")
     : "";
 
-  const mensagem = `*PAXTER — ${ag.emoji} ${ag.nome}*
+  const mensagem = `*PaxMed — ${ag.emoji} ${ag.nome}*
 ─────────────────────
 Olá, ${clientName}! Seguem informações sobre nosso último atendimento.
 

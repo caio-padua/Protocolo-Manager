@@ -19,7 +19,7 @@ export type GlossarioEntry = {
   termo:        string;  // termo técnico exato (case-insensitive na busca)
   leigo:        string;  // Col D — analogia clínica para o CEO
   explicacao?:  string;  // Col C — definição técnica concisa (1-2 frases)
-  ondeUsar?:    string;  // Col E — onde aparece no projeto PADAXOR/Manager
+  ondeUsar?:    string;  // Col E — onde aparece no projeto PaxMed/Manager
   funcaoUsual?: string;  // Col F — o que o CEO costuma perguntar sobre este termo
 };
 
@@ -39,7 +39,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 2, termo: "Anthropic",
     leigo:       "E um dos laboratorios de onde vem a inteligencia que o sistema usa.",
     explicacao:  "Empresa criadora do Claude (séries claude-3 e claude-4); usada para raciocínio clínico, análise de texto e agentes.",
-    ondeUsar:    "Chamada em processamento de laudos, resumo de prontuário, cockpit e agentes do PADAXOR.",
+    ondeUsar:    "Chamada em processamento de laudos, resumo de prontuário, cockpit e agentes do PaxMed.",
     funcaoUsual: "Analisa este laudo / Gera um resumo do prontuário / Qual IA está respondendo?",
   },
   {
@@ -81,7 +81,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 8, termo: "CI/CD",
     leigo:       "E a conferencia dupla da enfermagem antes de aplicar a medicacao. Ninguem confia so na memoria de quem preparou.",
     explicacao:  "Continuous Integration / Continuous Delivery — automação de testes e publicação a cada mudança de código.",
-    ondeUsar:    "Não configurado ativamente no PADAXOR; Dr. Code responde por pipeline de deploy no Railway e no GitHub.",
+    ondeUsar:    "Não configurado ativamente no PaxMed; Dr. Code responde por pipeline de deploy no Railway e no GitHub.",
     funcaoUsual: "A nova versão está no ar? / Subiu sem erro? / Os testes passaram?",
   },
   {
@@ -94,8 +94,8 @@ export const GLOSSARIO: GlossarioEntry[] = [
   {
     numero: 10, termo: "clone",
     leigo:       "E uma franquia: mesma placa, dono diferente, cozinha propria.",
-    explicacao:  "Instância licenciada do sistema com banco e domínio próprios, derivada da plataforma central PADAXOR.",
-    ondeUsar:    "Modelo comercial PADAXOR: cada clínica licenciada roda sua própria instância isolada.",
+    explicacao:  "Instância licenciada do sistema com banco e domínio próprios, derivada da plataforma central PaxMed.",
+    ondeUsar:    "Modelo comercial PaxMed: cada clínica licenciada roda sua própria instância isolada.",
     funcaoUsual: "Como funciona a franquia do sistema? / O licenciado tem acesso a IA?",
   },
   {
@@ -214,7 +214,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 27, termo: "ledger",
     leigo:       "E o livro-caixa: cada linha e uma coisa que aconteceu e vale dinheiro.",
     explicacao:  "Tabela de lançamentos financeiros imutáveis (append-only) que registra toda movimentação de valor com timestamp.",
-    ondeUsar:    "Financeiro do PADAXOR: cada pagamento, saque e repasse gera uma linha no ledger — nunca se apaga.",
+    ondeUsar:    "Financeiro do PaxMed: cada pagamento, saque e repasse gera uma linha no ledger — nunca se apaga.",
     funcaoUsual: "Qual o extrato financeiro? / Posso ver o histórico de pagamentos? / O valor está correto?",
   },
   {
@@ -263,14 +263,14 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 34, termo: "multi-tenant",
     leigo:       "E um predio de consultorios: mesma estrutura, mesmo elevador, mas cada sala tem chave propria e ninguem entra na do outro.",
     explicacao:  "Arquitetura em que um único sistema atende múltiplos clientes com isolamento completo de dados por empresa_id.",
-    ondeUsar:    "Toda a plataforma PADAXOR é multi-tenant; cada clínica licenciada é um tenant com dados isolados.",
+    ondeUsar:    "Toda a plataforma PaxMed é multi-tenant; cada clínica licenciada é um tenant com dados isolados.",
     funcaoUsual: "Como garantir que a clínica A não vê dados da clínica B? / É seguro para múltiplas clínicas?",
   },
   {
     numero: 35, termo: "OpenAI",
     leigo:       "Um terceiro laboratorio, forte em transcrever audio.",
     explicacao:  "Empresa criadora da família de modelos GPT; API usada principalmente para transcrição de áudio (Whisper).",
-    ondeUsar:    "Acionada em funcionalidades de transcrição de voz; menos usada que Anthropic e Gemini no PADAXOR.",
+    ondeUsar:    "Acionada em funcionalidades de transcrição de voz; menos usada que Anthropic e Gemini no PaxMed.",
     funcaoUsual: "Transcreve essa gravação / Qual IA está sendo usada aqui?",
   },
   {
@@ -298,7 +298,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 39, termo: "repositorio",
     leigo:       "E o arquivo morto da clinica, mas em que nada se perde e da para voltar a qualquer dia do passado.",
     explicacao:  "Diretório git com todo o histórico versionado de commits, branches e tags do projeto.",
-    ondeUsar:    "O repositório PADAXOR está no GitHub (caio-padua/PADAXOR); contém todo o código e histórico.",
+    ondeUsar:    "O repositório PaxMed está no GitHub (caio-padua/PADAXOR); contém todo o código e histórico.",
     funcaoUsual: "Onde está o código? / Posso ver o que mudou? / Como acesso o repositório?",
   },
   {
@@ -368,7 +368,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 49, termo: "tenant",
     leigo:       "É um apartamento no prédio: mesma estrutura física, porta separada, mobília própria, vizinho não acessa.",
     explicacao:  "Unidade isolada de cliente ou clínica dentro da arquitetura multi-tenant — identificada pelo empresa_id.",
-    ondeUsar:    "Cada clínica licenciada no PADAXOR é um tenant; o tenantContextMiddleware injeta o contexto em cada requisição.",
+    ondeUsar:    "Cada clínica licenciada no PaxMed é um tenant; o tenantContextMiddleware injeta o contexto em cada requisição.",
     funcaoUsual: "Como o sistema separa os dados de cada clínica? / Esta clínica é um tenant separado?",
   },
   {
@@ -403,7 +403,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 54, termo: "royalty",
     leigo:       "É a comissão do médico que assina o protocolo: toda vez que a clínica licenciada aplica, ele recebe.",
     explicacao:  "Percentual contratual do faturamento pago ao criador/licenciante pelo uso do produto licenciado.",
-    ondeUsar:    "Modelo comercial do PADAXOR: clínicas licenciadas pagam royalty mensal sobre uso da plataforma.",
+    ondeUsar:    "Modelo comercial do PaxMed: clínicas licenciadas pagam royalty mensal sobre uso da plataforma.",
     funcaoUsual: "Como funciona o financeiro das franquias? / Quanto a clínica licenciada me paga?",
   },
   {
@@ -494,7 +494,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 67, termo: "logAiUsage",
     leigo:       "É o carimbo automático da balança: todo peso registrado ganha carimbo de data e hora sem ninguém pedir.",
     explicacao:  "Função TypeScript que persiste um registro de uso de IA na tabela ai_usage_log a cada chamada de modelo.",
-    ondeUsar:    "Chamada em toda rota que invoca Anthropic, Gemini ou OpenAI no PADAXOR — sem ela o consumo não é rastreado.",
+    ondeUsar:    "Chamada em toda rota que invoca Anthropic, Gemini ou OpenAI no PAXMED — sem ela o consumo não é rastreado.",
     funcaoUsual: "O uso de IA está sendo monitorado? / Por que não aparece no relatório?",
   },
   {
@@ -550,7 +550,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 75, termo: "Railway",
     leigo:       "É o data center terceirizado: você coloca o servidor lá, eles garantem a luz, o ar-condicionado e o acesso.",
     explicacao:  "Plataforma PaaS (Platform as a Service) para deploy de contêineres com banco de dados gerenciado.",
-    ondeUsar:    "Servidor de produção do PADAXOR (api-server) e banco PostgreSQL de produção rodam no Railway.",
+    ondeUsar:    "Servidor de produção do PaxMed (api-server) e banco PostgreSQL de produção rodam no Railway.",
     funcaoUsual: "O sistema está no ar em produção? / Onde fica o servidor? / O deploy foi para Railway?",
   },
   {
@@ -613,7 +613,7 @@ export const GLOSSARIO: GlossarioEntry[] = [
     numero: 84, termo: "cron horário",
     leigo:       "É o residente que bate na porta a cada hora para checar o pós-operatório — pontual, sem precisar de chamado.",
     explicacao:  "Cron com expressão `0 * * * *` — executa exatamente uma vez por hora, todo dia, sem falhar.",
-    ondeUsar:    "Relatório horário Slack/Telegram do PADAXOR usa esse cron; dispara às horas exatas.",
+    ondeUsar:    "Relatório horário Slack/Telegram do PaxMed usa esse cron; dispara às horas exatas.",
     funcaoUsual: "O relatório chega sempre na hora exata? / Por que atrasou essa hora?",
   },
   {

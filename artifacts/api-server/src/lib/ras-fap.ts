@@ -484,7 +484,7 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   // MESMO NIVEL do wordmark. PAXTER = sistema clinico; PADCON = empresa-raiz
   // de tecnologia (holding que cria varias empresas de tecnologia).
   const colW = 190;
-  const colAx = rEnd - 400; // coluna PAXTER (borda direita em rEnd-210)
+  const colAx = rEnd - 400; // coluna PaxMed (borda direita em rEnd-210)
   const colBx = rEnd - colW; // coluna PADCON (borda direita em rEnd)
   const brandSize = 9.5;
   const tagSize = 6.5;
@@ -492,7 +492,7 @@ function desenharCabecalho(doc: Doc, pal: Paleta, y: number): number {
   const blockH = brandSize * 0.72 + gapBT + tagSize * 0.72;
   const yBrand = yc - blockH / 2;
   const yTag = yBrand + brandSize * 0.72 + gapBT;
-  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAXTER", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
+  doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PAXMED", colAx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
   doc.font("Helvetica-Bold").fontSize(brandSize).fillColor(pal.brand).text("PADCON", colBx, yBrand, { width: colW, align: "right", lineBreak: false, characterSpacing: 0.5 });
   doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("CLINICAL INTELLIGENCE SYSTEM", colAx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.1 });
   doc.font("Helvetica-Bold").fontSize(tagSize).fillColor(pal.accent).text("ADVANCED SYSTEMS ARCHITECTURE", colBx, yTag, { width: colW, align: "right", lineBreak: false, characterSpacing: 1.3 });
@@ -874,7 +874,7 @@ function desenharFaixaLateral(
 
 function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: number, qrBuf: Buffer | null): void {
   const yb = PAGE_H - M + 2;
-  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PAXTER  \u00b7  DESENVOLVIDO PELA PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
+  doc.font("Helvetica").fontSize(6).fillColor(pal.labelInk).text("PaxMed  \u00b7  DESENVOLVIDO PELA PADCON  \u00b7  ADVANCED SYSTEMS ARCHITECTURE  \u00b7  DOCUMENTO DE AUDITORIA — PREENCHIMENTO À CANETA NA SALA.", ML, yb, { lineBreak: false, characterSpacing: 0.4 });
   const pagX = PAGE_W - M - 90;
   doc.font("Helvetica").fontSize(6.5).fillColor(pal.labelInk).text(`PAG. ${pageNum} / ${totalPages}`, pagX, yb, { width: 90, align: "right", lineBreak: false });
   // Selo QR PAXTER (best-effort): pequeno, a esquerda do indicador de pagina.
@@ -884,7 +884,7 @@ function desenharRodape(doc: Doc, pal: Paleta, pageNum: number, totalPages: numb
     const qy = yb - (qrSize - 8);
     try {
       doc.image(qrBuf, qx, qy, { width: qrSize, height: qrSize });
-      doc.font("Helvetica-Bold").fontSize(5).fillColor(pal.labelInk).text("PAXTER", qx + qrSize + 3, qy + 2, { lineBreak: false, characterSpacing: 0.3 });
+      doc.font("Helvetica-Bold").fontSize(5).fillColor(pal.labelInk).text("PAXMED", qx + qrSize + 3, qy + 2, { lineBreak: false, characterSpacing: 0.3 });
       doc.font("Helvetica").fontSize(4.5).fillColor(pal.labelInk).text("paxter.com.br", qx + qrSize + 3, qy + 9, { lineBreak: false, characterSpacing: 0.2 });
     } catch { /* nunca derruba a emissao */ }
   }

@@ -104,7 +104,7 @@ export function templateLembretePrescricao(dados: LembretePrescricaoDados): stri
     linhas.push(bloco);
   }
   linhas.push("");
-  linhas.push("PAXTER — Padcon Conect");
+  linhas.push("PaxMed — Padcon Conect");
 
   // Funil de normalização (regra do CEO, 09/07/2026): mensagem inteira SEM acento.
   return semAcento(linhas.join("\n"));

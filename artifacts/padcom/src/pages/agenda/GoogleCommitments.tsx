@@ -172,7 +172,7 @@ function GoogleCommitmentsPanel({ identity, de, ate, ocultas }: { identity: stri
           <div className="min-w-0">
             <p className="lbl">Filtro de agendas importadas</p>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Alcança apenas compromissos do Google. Sessões clínicas do PAXTER não são filtradas aqui.
+              Alcança apenas compromissos do Google. Sessões clínicas do PaxMed não são filtradas aqui.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 shrink-0" role="group" aria-label="Seleção rápida">

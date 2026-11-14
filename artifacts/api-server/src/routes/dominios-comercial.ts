@@ -193,7 +193,7 @@ router.post("/dominios-comercial/propostas/:id/gerar-cobranca", async (req, res)
         billingType: "UNDEFINED",
         value: adesaoCentavos / 100,
         dueDate: dueDateStr,
-        description: `Adesão módulo domínio PAXTER — ${p.dominio}`,
+        description: `Adesão módulo domínio PaxMed — ${p.dominio}`,
         externalReference: `proposta_${id}_adesao`,
       });
       chargeId = charge.id;
@@ -226,7 +226,7 @@ router.post("/dominios-comercial/propostas/:id/gerar-cobranca", async (req, res)
             value: mensalCentavos / 100,
             nextDueDate: nextBillingStr,
             cycle: "MONTHLY",
-            description: `Módulo domínio PAXTER mensal — ${p.dominio}`,
+            description: `Módulo domínio PaxMed mensal — ${p.dominio}`,
             externalReference: `proposta_${id}_mensal`,
           }),
         });

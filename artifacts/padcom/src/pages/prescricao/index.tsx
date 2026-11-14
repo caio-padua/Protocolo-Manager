@@ -1100,7 +1100,7 @@ export default function PrescricaoPage(
                       <div className="mt-3 rounded-md border border-cyan-300 bg-cyan-50 p-3">
                         <h3 className="text-[11px] font-bold uppercase tracking-wide text-cyan-800 flex items-center gap-1 mb-2">
                           <FileSignature className="w-3.5 h-3.5" />
-                          Cópia visual do paciente — Motor Único PAXTER
+                          Cópia visual do paciente — Motor Único PaxMed
                         </h3>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -1177,7 +1177,7 @@ function PdfModel({ patient, idade, today, duracao, cid, selected, print }: PdfM
     <div style={{ fontSize: print ? "11pt" : "12px", color: "#0f172a" }}>
       <div style={{ textAlign: "center", borderBottom: `3px solid ${NAVY}`, paddingBottom: "8px", marginBottom: "14px" }}>
         <div style={{ fontSize: print ? "20pt" : "20px", fontWeight: 700, color: NAVY, letterSpacing: "0.04em" }}>INSTITUTO PÁDUA</div>
-        <div style={{ fontSize: print ? "8pt" : "9px", color: OURO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>Paxter — desenvolvido pela Padcon</div>
+        <div style={{ fontSize: print ? "8pt" : "9px", color: OURO, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 600 }}>PaxMed — desenvolvido pela Padcon</div>
         <div style={{ fontSize: print ? "10pt" : "11px", color: "#475569", marginTop: "2px" }}>Dr. Caio Henrique Pádua — CRM-SP 125475</div>
       </div>
       {patient.nome && (

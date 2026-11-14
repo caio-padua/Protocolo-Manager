@@ -1509,7 +1509,7 @@ function AbaProvedores({ agentes }: { agentes: Agente[] }) {
               titulo: "Operar Internamente (Agora)",
               cor: "#45B8CC",
               itens: [
-                "Cadastre os primeiros 5 clientes reais no PAXTER",
+                "Cadastre os primeiros 5 clientes reais no PaxMed",
                 "Lance um protocolo completo com RASP FAP",
                 "Configure os Agentes Virtuais para sua equipe",
                 "Use o sistema por 2–4 semanas para dominar o fluxo",
@@ -2353,7 +2353,7 @@ function AbaUso() {
           <p className="text-sm font-bold text-emerald-400">Custo via Replit AI Integrations</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Este sistema usa o proxy do Replit para as chamadas de IA — <strong>você não precisa de uma chave própria da Anthropic</strong>.
-            O custo real é incluído na sua assinatura Replit. Ao vender licenças do PAXTER,
+            O custo real é incluído na sua assinatura Replit. Ao vender licenças do PaxMed,
             inclua uma margem de segurança de <strong>20–30%</strong> sobre o custo de IA estimado acima.
           </p>
         </div>
@@ -2438,7 +2438,7 @@ function AbaComercial() {
     const medico = nomeMedico || "Dr(a).";
     return `Olá, ${medico}! 👋
 
-Quero te apresentar o *PAXTER* — o sistema de gestão clínica mais completo para protocolos injetáveis do Brasil.
+Quero te apresentar o *PaxMed* — o sistema de gestão clínica mais completo para protocolos injetáveis do Brasil.
 
 *${plano.nome} — R$ ${plano.preco.toLocaleString("pt-BR")}/mês*
 
@@ -2593,7 +2593,7 @@ _PAXTER — Clinical Intelligence System_`;
             </thead>
             <tbody className="divide-y divide-border/30">
               {[
-                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RASP)", ferr:"PAXTER internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
+                { e:"1", acao:"Operar 2 semanas com dados reais (protocolos + agenda + RASP)", ferr:"PaxMed internamente", prazo:"Semanas 1-2", meta:"Dominar o fluxo clínico" },
                 { e:"2", acao:"Gravar vídeo de 3min mostrando o sistema em uso real", ferr:"Celular + Loom", prazo:"Dia 14", meta:"Prova social visual" },
                 { e:"3", acao:"Listar 10 médicos conhecidos do seu network (WhatsApp)", ferr:"Contatos pessoais", prazo:"Dia 15", meta:"Pipeline de 10 leads" },
                 { e:"4", acao:"Enviar pitch personalizado para os 10 (usar gerador acima)", ferr:"WhatsApp + pitch desta aba", prazo:"Dias 15-17", meta:"3+ respostas positivas" },
@@ -2871,7 +2871,7 @@ function AbaIntegracoes() {
             </thead>
             <tbody className="divide-y divide-border">
               {[
-                ["Webhook", "Canal de escuta", "Trello avisa o PAXTER quando algo muda no quadro"],
+                ["Webhook", "Canal de escuta", "Trello avisa o PaxMed quando algo muda no quadro"],
                 ["Card Trello", "Cartão de tarefa", "Criado automaticamente quando o agente age"],
                 ["WPP Proativo", "Mensagem ativa no WhatsApp", "Agente envia msg ao cliente sem que ele pergunte"],
                 ["Boas-vindas WPP", "Primeira mensagem automática", "Enviada ao cadastrar um cliente novo com telefone"],

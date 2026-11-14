@@ -891,7 +891,7 @@ router.post("/ras/physical/:protocolId/reenviar-email", requireCollaborator, req
         tipo: "ras_fap_reenviado",
         clienteNome: client.name,
         destinatario: client.email,
-        assunto: `PAXTER | ${protocol.title} — RASP FAP`,
+        assunto: `PAXMED | ${protocol.title} — RASP FAP`,
         status: emailResult.success ? "enviado" : "falhou",
         erro: emailResult.success ? null : (emailResult.error ?? null),
         protocolId: protocol.id,
@@ -1104,7 +1104,7 @@ router.get("/ras-fap-demo", async (req, res) => {
             paragrafos: [],
             blocosHtml: demoBlocks(demoSubs, clientName, valor),
             anexos: [{ filename: driveFileNameFapDemo, content: pdfBuffer, contentType: "application/pdf" }],
-            assunto: "PAXTER | RASP FAP — Demonstração",
+            assunto: "PAXMED | RASP FAP — Demonstração",
           };
           const envio = await enviarMensagemPaxter(
             doc,
@@ -1266,7 +1266,7 @@ router.get("/ras-fichas-demo", async (req, res) => {
             paragrafos: [],
             blocosHtml: fichasBlocks(emailItems, clientName),
             anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-            assunto: `PAXTER | ${protocoloTitulo} — RASP`,
+            assunto: `PAXMED | ${protocoloTitulo} — RASP`,
           };
           const envio = await enviarMensagemPaxter(
             doc,
@@ -1472,7 +1472,7 @@ router.post("/ras-fap/entregar-protocolo", requireCollaborator, requireRasTenant
         paragrafos: [],
         blocosHtml: blocos,
         anexos: [{ filename: driveFileName, content: pdfBuffer, contentType: "application/pdf" }],
-        assunto: `PAXTER | ${protocoloTitulo} — RASP FAP`,
+        assunto: `PAXMED | ${protocoloTitulo} — RASP FAP`,
       };
       const envio = await enviarMensagemPaxter(
         doc,

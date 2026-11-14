@@ -63,7 +63,7 @@ function buildGoogleCalendarLink(session: {
   const startDt = `${dateStr}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
   const endH = String(h + 1).padStart(2, "0");
   const endDt = `${dateStr}T${endH}${String(m).padStart(2, "0")}00`;
-  const title = encodeURIComponent(`PAXTER: ${session.clientName} — Semana ${session.weekNumber}`);
+  const title = encodeURIComponent(`PaxMed: ${session.clientName} — Semana ${session.weekNumber}`);
   const dispNames = session.substanceApplications
     .filter(a => a.availability === "disp")
     .map(a => `${a.substanceName} ${a.sessionNumber}/${a.totalSessions}`)
@@ -1024,7 +1024,7 @@ export default function Agenda() {
                     if (!phone) { toast({ title: "Cliente sem telefone", variant: "destructive" }); return; }
                     const dateStr = codeModalSession?.scheduledDate ? format(new Date(codeModalSession.scheduledDate + "T12:00:00"), "dd/MM/yyyy") : "";
                     const proc = getProcedureLabel(codeModalSession);
-                    const msg = encodeURIComponent(`PAXTER | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.`);
+                    const msg = encodeURIComponent(`PaxMed | ${proc} | ${generatedCode}\n\nOlá ${codeModalSession?.clientName?.split(" ")[0]}!\n\nSeu código de validação para a sessão de ${dateStr} é:\n\n🔑 *${generatedCode}*\n\nApresente este código à enfermeira no momento da aplicação.`);
                     window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
                   }}
                 >

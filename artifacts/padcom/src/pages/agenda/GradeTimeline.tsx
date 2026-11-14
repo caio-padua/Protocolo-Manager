@@ -289,7 +289,7 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
 
       {google.isError && (
         <p role="alert" className="concave-3d px-3 py-2 text-[11px] font-bold text-amber-700">
-          Google indisponível agora: as sessões do PAXTER continuam abaixo, sem os compromissos do Google.
+          Google indisponível agora: as sessões do PaxMed continuam abaixo, sem os compromissos do Google.
         </p>
       )}
 
@@ -452,7 +452,7 @@ export function GradeTimeline({ modo, dias, sessoes, ocultas, renderCartao, onRe
                 </p>
                 <p className="tabular-nums">{eventoAberto.diaInteiro ? "Dia inteiro" : eventoAberto.horario}{eventoAberto.recorrente ? " · repete" : ""}</p>
                 <p className="concave-3d px-3 py-2 text-[11px] text-muted-foreground">
-                  Compromisso do Google, somente leitura. O PAXTER não altera nem move este compromisso.
+                  Compromisso do Google, somente leitura. O PaxMed não altera nem move este compromisso.
                 </p>
                 <InformacoesCompromisso evento={eventoAberto} />
               </div>

@@ -72,7 +72,7 @@ const HTML_CGLO = `<h2>CONSENTIMENTO GLOBAL DE TRATAMENTO — CGLO</h2>
 <h3>7. PROTEÇÃO DE DADOS — LGPD (Lei nº 13.709/2018)</h3>
 <p>Os dados pessoais e de saúde serão usados exclusivamente para: execução do protocolo, emissão de documentos clínicos, acompanhamento evolutivo e cumprimento de obrigações legais. O(a) cliente tem direito a acessar, corrigir, excluir ou portar seus dados a qualquer tempo.</p>
 <h3>8. ARMAZENAMENTO DIGITAL</h3>
-<p>O(a) cliente autoriza o armazenamento digital no sistema PAXTER e em nuvem segura (Google Drive), com acesso somente leitura ao e-mail cadastrado.</p>
+<p>O(a) cliente autoriza o armazenamento digital no sistema PaxMed e em nuvem segura (Google Drive), com acesso somente leitura ao e-mail cadastrado.</p>
 <h3>9. DECLARAÇÃO FINAL</h3>
 <p>Declaro ter lido, compreendido e concordado integralmente com este Termo Global de Consentimento, em {{data.hoje}}.</p>
 <br/>
@@ -300,7 +300,7 @@ const HTML_TCLE = `<h2>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO — TCLE</h2>
 <h3>10. PROTEÇÃO DE DADOS (LGPD — Lei nº 13.709/2018)</h3>
 <p>Os dados pessoais e de saúde serão tratados exclusivamente para: execução do protocolo, emissão de documentos clínicos (RASP, receituários, atestados), acompanhamento evolutivo e cumprimento de obrigações legais e regulatórias. O(a) cliente tem direito a acessar, corrigir, excluir ou portar seus dados.</p>
 <h3>11. ARMAZENAMENTO DIGITAL</h3>
-<p>Autorizo o armazenamento digital no sistema PAXTER (Motor Clínico — Protocolos Injetáveis) e em nuvem segura (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.</p>
+<p>Autorizo o armazenamento digital no sistema PaxMed (Motor Clínico — Protocolos Injetáveis) e em nuvem segura (Google Drive), com compartilhamento exclusivo ao meu e-mail cadastrado, em modo somente leitura.</p>
 <h3>12. CONTATO DE EMERGÊNCIA</h3>
 <p>Em caso de reação adversa fora do ambiente clínico, o(a) cliente deve entrar em contato imediatamente pelo telefone da clínica: {{clinica.endereco}}.</p>
 <h3>13. DECLARAÇÃO FINAL</h3>
@@ -318,7 +318,7 @@ const HTML_TCLE = `<h2>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO — TCLE</h2>
 <p>_________________________________ <br/><strong>{{medico.nome}}</strong><br/>CRM: {{medico.crm}}/{{medico.uf}}<br/><em>Médico(a) Responsável</em></p>`;
 
 const HTML_RAS_JUR = `<h2>REGISTRO DE ASSISTÊNCIA SISTÊMICA — VERSÃO JURÍDICA — RASP-JUR</h2>
-<p><strong>SISTEMA PAXTER — MOTOR CLÍNICO | PROTOCOLOS INJETÁVEIS</strong><br/>
+<p><strong>SISTEMA PaxMed — MOTOR CLÍNICO | PROTOCOLOS INJETÁVEIS</strong><br/>
 <em>Este documento possui valor jurídico e é assinado digitalmente com certificado ICP-Brasil A1.</em></p>
 <hr/>
 <h3>1. DADOS DA CLÍNICA E DO PROFISSIONAL</h3>
@@ -356,7 +356,7 @@ const HTML_RAS_JUR = `<h2>REGISTRO DE ASSISTÊNCIA SISTÊMICA — VERSÃO JURÍD
 <h3>8. ASSINATURA ELETRÔNICA</h3>
 <p><strong>Data de Emissão:</strong> {{data.hoje}}<br/>
 <strong>Assinado por:</strong> {{medico.nome}} — CRM {{medico.crm}}/{{medico.uf}}<br/>
-<em>Assinatura digital verificável via PAXTER — Motor Clínico.</em></p>
+<em>Assinatura digital verificável via PaxMed — Motor Clínico.</em></p>
 <br/>
 <p>_________________________________ <br/><strong>{{cliente.nome}}</strong><br/>CPF: {{cliente.cpf}}<br/><em>Cliente / Responsável</em></p>
 <p>_________________________________ <br/><strong>{{medico.nome}}</strong><br/>CRM: {{medico.crm}}/{{medico.uf}}<br/><em>Médico(a) Responsável</em></p>`;
@@ -434,7 +434,7 @@ const HTML_CPRIV = `<h2>POLÍTICA DE PRIVACIDADE E SIGILO MÉDICO — CPRIV</h2>
 <h3>4. COMUNICAÇÕES ELETRÔNICAS</h3>
 <p>Comunicações via WhatsApp, e-mail e SMS são utilizadas exclusivamente para: confirmação de agendamentos, resultados de exames, orientações pós-procedimento e envio de documentos clínicos. Nenhum dado sensível é transmitido por canais não criptografados sem consentimento do(a) cliente.</p>
 <h3>5. CIÊNCIA E ACEITE</h3>
-<p>O(a) cliente declara ciência sobre a política de privacidade desta clínica e do sistema PAXTER — Motor Clínico, concordando com as práticas descritas neste documento.</p>
+<p>O(a) cliente declara ciência sobre a política de privacidade desta clínica e do sistema PaxMed — Motor Clínico, concordando com as práticas descritas neste documento.</p>
 <br/>
 <p><strong>Data:</strong> {{data.hoje}}</p>
 <p>_________________________________ <br/><strong>{{cliente.nome}}</strong><br/><em>Cliente</em></p>
@@ -612,7 +612,7 @@ const HTML_CDIG = `<h2>ACEITE DIGITAL E ASSINATURA ELETRÔNICA — VALIDADE ICP-
 <hr/>
 <h3>PARTES</h3>
 <p><strong>Signatário:</strong> {{cliente.nome}} — CPF: {{cliente.cpf}}<br/>
-<strong>Provedor:</strong> {{clinica.nome}} — via PAXTER Motor Clínico</p>
+<strong>Provedor:</strong> {{clinica.nome}} — via PaxMed Motor Clínico</p>
 <h3>1. VALIDADE JURÍDICA DA ASSINATURA ELETRÔNICA</h3>
 <p>O(A) signatário(a) declara ciência de que as assinaturas eletrônicas realizadas neste sistema têm plena validade jurídica nos termos de:</p>
 <ul>
@@ -657,7 +657,7 @@ const HTML_CFIN = `<h2>CIÊNCIA FINANCEIRA E ACEITAÇÃO COMERCIAL — CFIN</h2>
 <li>Consultas médicas e avaliações clínicas inclusas no protocolo</li>
 <li>Substâncias, insumos e materiais necessários para todas as sessões contratadas</li>
 <li>Honorários profissionais (médico e equipe de enfermagem)</li>
-<li>Acesso ao sistema PAXTER — Motor Clínico (agenda, resultados, comunicação)</li>
+<li>Acesso ao sistema PaxMed — Motor Clínico (agenda, resultados, comunicação)</li>
 <li>Emissão de laudos, relatórios e documentos clínicos</li>
 </ul>
 <h3>3. POLÍTICA DE CANCELAMENTO</h3>

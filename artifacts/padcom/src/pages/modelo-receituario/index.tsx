@@ -32,7 +32,7 @@ interface EmitirTesteResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function tipoLabel(tipo: string): string {
-  if (tipo === "faixas_paxter") return "Faixas Paxter";
+  if (tipo === "faixas_paxter") return "Faixas PaxMed";
   if (tipo === "classico_anvisa") return "Clássico ANVISA";
   return tipo;
 }
@@ -285,7 +285,7 @@ export default function ModeloReceituario() {
               <tbody className="divide-y divide-slate-800">
                 {[
                   ["Modelo Usado", ultimoTeste.modeloUsado],
-                  ["Motor", ultimoTeste.tipoMotor === "faixas_paxter" ? "Faixas Paxter (Puppeteer)" : "Clássico ANVISA (PDF-lib)"],
+                  ["Motor", ultimoTeste.tipoMotor === "faixas_paxter" ? "Faixas PaxMed (Puppeteer)" : "Clássico ANVISA (PDF-lib)"],
                   ["Arquivo", ultimoTeste.fileName],
                   ["Tamanho do PDF", `${((ultimoTeste.pdfSizeBytes ?? 0) / 1024).toFixed(0)} KB`],
                 ].map(([k, v]) => (
@@ -317,7 +317,7 @@ export default function ModeloReceituario() {
         </p>
         <p>
           A tela <span className="text-white font-medium">Faixas do Receituário</span> no menu de Configurações
-          continua disponível para editar o design visual do modelo Faixas Paxter.
+          continua disponível para editar o design visual do modelo Faixas PaxMed.
         </p>
       </div>
     </div>

@@ -298,7 +298,7 @@ router.get("/padaxor/telegram/meu-chat-id", async (_req: Request, res: Response)
       chatIdConfigurado,
       aviso: "TELEGRAM_BOT_TOKEN não configurado no cofre — não é possível buscar getUpdates.",
       instrucao: [
-        "1. Abra o bot PADAXOR no Telegram e envie /start",
+        "1. Abra o bot PaxMed no Telegram e envie /start",
         "2. Abra @userinfobot no Telegram e envie qualquer mensagem — ele responde com o seu chatId",
         "3. Configure PADAXOR_TELEGRAM_CHAT_ID=<seu-chat-id> como Replit Secret",
       ],
@@ -486,7 +486,7 @@ router.post("/padaxor/slack/test-fallback-telegram", async (_req: Request, res: 
       erro: erroMensagem || null,
       historicoId,
       mensagem: telegramFailed
-        ? "Fallback testado: Telegram recusou, aviso enviado ao Slack. Confirme a mensagem ⚠️ PADAXOR — Telegram offline no canal."
+        ? "Fallback testado: Telegram recusou, aviso enviado ao Slack. Confirme a mensagem ⚠️ PAXMED — Telegram offline no canal."
         : "Telegram enviou com sucesso (token real configurado — use chatId inválido para testar fallback).",
     });
   } catch (e: any) {
@@ -768,7 +768,7 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
 
   // ── Texto compartilhado: o mesmo chega via WhatsApp e via Telegram ────────
   const msgTeste =
-    `🩺 *Instituto Pádua — Sistema PADAXOR*\n\n` +
+    `🩺 *Instituto Pádua — Sistema PAXMED*\n\n` +
     `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
     `Você está recebendo este teste porque o canal está ativo. ` +
     `Para ativar o Telegram, abra *@Paduaclinica_bot* e envie a senha de validação informada por e-mail.`;
@@ -789,7 +789,7 @@ router.post("/padaxor/teste-canal/:clientId", requireCeoInstance, async (req: Re
   // Capturamos sent:true/false para reportar no JSON desta resposta.
   if (chatId) {
     const msgTelegramCliente =
-      `🩺 <b>Instituto Pádua — Sistema PADAXOR</b>\n\n` +
+      `🩺 <b>Instituto Pádua — Sistema PAXMED</b>\n\n` +
       `Olá, ${primeiroNome}! Esta é uma mensagem de teste enviada às ${agora}.\n\n` +
       `Você está recebendo este teste porque o seu Telegram está ativo. ✅`;
     const tgResult = await sendTelegram(chatId, msgTelegramCliente);

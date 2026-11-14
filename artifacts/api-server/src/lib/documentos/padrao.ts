@@ -54,7 +54,7 @@ export interface CabecalhoOpts {
 }
 
 export interface RodapeOpts {
-  legenda?: string; // default "PAXTER · Motor Clínico — Protocolos Injetáveis"
+  legenda?: string; // default "PAXMED · Motor Clínico — Protocolos Injetáveis"
 }
 
 // Resolve um asset de marca. Em produção/dev-workflow o servidor roda do bundle
@@ -181,7 +181,7 @@ export async function iniciarFabrica(opts?: {
       page.drawImage(marca, { x: margem, y, width: w, height: h });
     } else {
       // Degradação: nome em texto ouro (último recurso, registrado em log).
-      const nome = emissor === "instituto_padua" ? "INSTITUTO PÁDUA" : "PAXTER";
+      const nome = emissor === "instituto_padua" ? "INSTITUTO PÁDUA" : "PAXMED";
       page.drawText(nome, {
         x: margem,
         y: bandaY + MASTRO_ALTURA / 2 - 8,
@@ -242,7 +242,7 @@ export async function iniciarFabrica(opts?: {
     const legendaPadrao =
       emissorDoc === "instituto_padua"
         ? "Instituto Pádua — Protocolos Injetáveis"
-        : "PAXTER · Motor Clínico — Protocolos Injetáveis";
+        : "PAXMED · Motor Clínico — Protocolos Injetáveis";
     const legenda = opts?.legenda ?? legendaPadrao;
     const paginas = doc.getPages();
     const total = paginas.length;

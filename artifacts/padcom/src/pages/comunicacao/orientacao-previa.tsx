@@ -73,7 +73,7 @@ export const EXEMPLO_ILUSTRATIVO = [
 
 const RE_VAR = /(\[[^\]\n]{1,60}\]|\{\{[^}\n]{1,60}\}\})/g;
 
-export function PreviaTelegram({ texto }: { texto: string }) {
+export function PreviaTelegram({ texto, clinica }: { texto: string; clinica?: string | null }) {
   const normal = texto.replace(/\r\n?/g, "\n");
   const vazio = normal.trim().length === 0;
   const pend = marcadoresPendentes(normal);
@@ -83,7 +83,7 @@ export function PreviaTelegram({ texto }: { texto: string }) {
       <p className="lbl mb-1">Prévia no celular <span className="normal-case tracking-normal text-muted-foreground">(é assim que o paciente lê)</span></p>
       <div className="mx-auto w-full max-w-[360px] overflow-hidden rounded-[22px] border-2 border-[#0b1f3a] shadow-lg">
         <div className="flex items-center gap-2 bg-[#0b1f3a] px-3 py-2 text-[12px] font-semibold text-[#d9b97a]">
-          <span className="inline-block h-2 w-2 rounded-full bg-[#d9b97a]" />Assistente virtual · PAXMED
+          <span className="inline-block h-2 w-2 rounded-full bg-[#d9b97a]" />Assistente virtual{clinica ? ` · ${clinica}` : ""}
         </div>
         <div className="bg-[#e9eef5] p-3">
           <div

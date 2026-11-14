@@ -161,7 +161,7 @@ router.post("/prova-de-valor/exportar-pdf", async (req: Request, res: Response):
 
     // Faixa de topo
     page.drawRectangle({ x: 0, y: height - 80, width, height: 80, color: rgb(navyR, navyG, navyB) });
-    page.drawText("PADAXOR", {
+    page.drawText("PAXMED", {
       x: 40, y: height - 52, size: 28, font: fontBold, color: rgb(goldR, goldG, goldB),
     });
     page.drawText("Clinical Intelligence System", {
@@ -207,7 +207,7 @@ router.post("/prova-de-valor/exportar-pdf", async (req: Request, res: Response):
 
     // Rodapé
     page.drawRectangle({ x: 0, y: 0, width, height: 40, color: rgb(navyR, navyG, navyB) });
-    page.drawText(`PADAXOR — Instituto Pádua — Painel de Prova de Valor — Gerado em ${new Date().toLocaleDateString("pt-BR")}`, {
+    page.drawText(`PAXMED — Instituto Pádua — Painel de Prova de Valor — Gerado em ${new Date().toLocaleDateString("pt-BR")}`, {
       x: 40, y: 14, size: 8, font: fontReg, color: rgb(0.7, 0.7, 0.7),
     });
 

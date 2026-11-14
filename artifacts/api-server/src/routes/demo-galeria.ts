@@ -171,7 +171,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
     tipo: "boas_vindas",
     descricao: "Boas-vindas ao protocolo",
     texto:
-      `PAXTER | Clinical Intelligence System\n\n` +
+      `PAXMED | Clinical Intelligence System\n\n` +
       `Olá, ${pnome}! Seja muito bem-vindo(a).\n\n` +
       `Seu protocolo injetável foi ativado com ${itensRaw.length} substância(s) e ${totalSessoes} sessão(ões) programada(s). ` +
       `A partir de agora, cuidamos de cada detalhe com você.\n\n` +
@@ -214,7 +214,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
     tipo: "pre_sessao",
     descricao: "Lembrete pré-sessão (código de validação)",
     texto:
-      `PAXTER | Aplicação Endovenosa\n\n` +
+      `PAXMED | Aplicação Endovenosa\n\n` +
       `Olá, ${pnome}. Sua próxima sessão está agendada para *${primeira ? dataBr(primeira.scheduledDate) : "a definir"}* às ${primeira?.scheduledTime ?? "09:00"}.\n\n` +
       `Substâncias previstas:\n${listaSubs}\n\n` +
       `Código de validação da sessão: *${codigo}*\n` +
@@ -227,7 +227,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
     tipo: "pos_sessao",
     descricao: "Confirmação pós-sessão (RASP assinado)",
     texto:
-      `PAXTER | Sessão concluída\n\n` +
+      `PAXMED | Sessão concluída\n\n` +
       `${pnome}, sua sessão foi concluída com sucesso. As substâncias foram administradas conforme o protocolo.\n\n` +
       `O RASP assinado digitalmente já está disponível no seu prontuário. ` +
       `Você receberá o arquivo por e-mail e no seu Drive.\n\n` +
@@ -239,7 +239,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
     tipo: "lembrete_exames",
     descricao: "Lembrete de exames (antepenúltima sessão)",
     texto:
-      `PAXTER | Exames de acompanhamento\n\n` +
+      `PAXMED | Exames de acompanhamento\n\n` +
       `${pnome}, estamos chegando na reta final do seu protocolo (sessão de *${antepenultima ? dataBr(antepenultima.scheduledDate) : "a definir"}*).\n\n` +
       `É hora de colher os exames de acompanhamento para o médico avaliar a evolução. ` +
       `Envie os resultados pela sua Área do Cliente (pasta "Exames Solicitados") assim que tiver.`,
@@ -250,7 +250,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
     tipo: "ultima_sessao",
     descricao: "Última sessão (consulta de fechamento)",
     texto:
-      `PAXTER | Fechamento do protocolo\n\n` +
+      `PAXMED | Fechamento do protocolo\n\n` +
       `${pnome}, sua última sessão está marcada para *${ultima ? dataBr(ultima.scheduledDate) : "a definir"}*.\n\n` +
       `Vamos agendar sua consulta de fechamento com o médico designado para revisar resultados e planejar os próximos passos. ` +
       `Nossa equipe entrará em contato para escolher o melhor horário.`,
@@ -261,7 +261,7 @@ router.post("/demo/galeria/:clientId", async (req, res): Promise<void> => {
     tipo: "resumo_cockpit",
     descricao: "Resumo do cockpit (consulta finalizada)",
     texto:
-      `PAXTER | ${cliente.name}: protocolo emitido.\n\n` +
+      `PAXMED | ${cliente.name}: protocolo emitido.\n\n` +
       `${itensRaw.length} substância(s), ${totalSessoes} sessão(ões) programada(s). ` +
       `Documentos gerados e enviados ao seu e-mail e Drive. ` +
       `Em breve você recebe os lembretes de cada aplicação.`,

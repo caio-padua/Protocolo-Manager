@@ -390,7 +390,7 @@ function BlocoCertificado({ cfg }: { cfg: ReceituarioConfig }) {
         ["Assinante", assinante],
         ["Certificado", certLabel],
         ["Validade", validadeStr],
-        ["Verificação", "validar.iti.gov.br / PAXTER"],
+        ["Verificação", "validar.iti.gov.br / PaxMed"],
       ].map(([k, v]) => (
         <div key={k} style={{ fontSize: 5.5, marginBottom: 2, display: "flex", gap: 4 }}>
           <span style={{ fontWeight: 700, color: "#666", minWidth: 24 }}>{k}:</span>
@@ -705,7 +705,7 @@ export function ReceituarioPreview({
                   fontWeight: 800, fontSize: 9, letterSpacing: 3,
                   textTransform: "uppercase", color: "#c9a24e",
                 }}>
-                  {cfg.rodapePaxterNome || "PARXIS"}
+                  {cfg.rodapePaxterNome || "PaxMed"}
                 </div>
             }
             <div style={{ fontSize: 5.5, color: "#aaa", letterSpacing: 0.8, marginTop: 1 }}>

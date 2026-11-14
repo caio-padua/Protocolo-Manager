@@ -810,7 +810,7 @@ export default function PainelDominios() {
           </Button>
         </div>
         <ExplainRow>
-          Domínios PAXTER comercializados para clínicas parceiras como módulo mensal com e-mail corporativo Zoho incluso.
+          Domínios PaxMed comercializados para clínicas parceiras como módulo mensal com e-mail corporativo Zoho incluso.
           Fluxo: clínica solicita → CEO aprova → Asaas cobra → pagamento confirmado → e-mail criado automaticamente.
         </ExplainRow>
 

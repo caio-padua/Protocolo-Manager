@@ -26,7 +26,7 @@ export function renderWhatsappCaption(doc: PaxterDoc): string {
     linhas.push(`_${doc.notaRodape}_`);
   }
   linhas.push("");
-  linhas.push("— PAXTER · Clinical Intelligence System");
+  linhas.push("— PAXMED · Clinical Intelligence System");
   return linhas.join("\n");
 }
 
@@ -46,7 +46,7 @@ export function renderTelegramCaption(doc: PaxterDoc): string {
     linhas.push(`<i>${escapeTgHtml(doc.notaRodape)}</i>`);
   }
   linhas.push("");
-  linhas.push("— PAXTER · Clinical Intelligence System");
+  linhas.push("— PAXMED · Clinical Intelligence System");
   const out = linhas.join("\n");
   return out.length > 1024 ? out.slice(0, 1021) + "..." : out;
 }

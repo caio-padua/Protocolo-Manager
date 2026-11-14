@@ -766,7 +766,7 @@ async function dispararBoasVindas(clientId: number, nome: string, telefone: stri
     `Olá, ${nomeFormatado}! 🌿\n\n` +
     `Bem-vindo(a) ao Instituto Padua — cuidado real, resultado clínico.\n\n` +
     `Seu cadastro foi concluído com sucesso. Em breve nossa equipe entrará em contato para agendar sua consulta de avaliação.\n\n` +
-    `Qualquer dúvida, estamos aqui!\n— Equipe PAXTER`;
+    `Qualquer dúvida, estamos aqui!\n— Equipe PaxMed`;
   try {
     const resultado = await sendWhatsapp(telefone, mensagem, { clienteId: clientId });
     await logIntegracao({

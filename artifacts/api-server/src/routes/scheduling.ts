@@ -1066,7 +1066,7 @@ router.get("/scheduling/concierge-offer", async (req, res): Promise<void> => {
             if (phoneDigits) maskedPhone = `(***) *****-${phoneDigits.slice(-4)}`;
 
             const otpMessage =
-              `Seu código de verificação PAXTER: ${codeVal}\n\n` +
+              `Seu código de verificação PaxMed: ${codeVal}\n\n` +
               `Válido por 10 minutos. Não compartilhe este código com ninguém.`;
 
             // Caminho 1: WhatsApp (se o paciente tem telefone).
@@ -1263,7 +1263,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
     // NUNCA incluir o código numa URL/link de fallback — exporia o OTP a
     // qualquer chamador que conheça o CPF (ataque de SMS pumping).
     const otpMessage =
-      `Seu código de verificação PAXTER: ${code}\n\n` +
+      `Seu código de verificação PaxMed: ${code}\n\n` +
       `Válido por 10 minutos. Não compartilhe este código com ninguém.`;
     const sendResult = await sendWhatsapp(phone, otpMessage, {
       contexto: "device_verification",
@@ -1279,7 +1279,7 @@ router.post("/scheduling/send-verification-code", async (req, res): Promise<void
         try {
           const { sendTelegram } = await import("../lib/telegram.js");
           const tgMessage =
-            `Seu código de verificação PAXTER: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
+            `Seu código de verificação PaxMed: *${code}*\n\nVálido por 10 minutos. Não compartilhe este código com ninguém.`;
           const tgResult = await sendTelegram(telegramChatId, tgMessage);
           if (tgResult.sent) {
             res.json({ sent: true, via: "telegram", maskedPhone, challengeId: newChallengeId });

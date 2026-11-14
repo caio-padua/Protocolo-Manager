@@ -73,7 +73,7 @@ Personalidade calibrada (escala 1-5):
 - Criatividade: ${pers.criatividade ?? 3}/5
 - Foco: ${pers.foco_tarefa ?? 3}/5` : "";
 
-  const systemPrompt = `Você é ${agente.nome}, ${agente.cargo} da clínica PAXTER Padcon Conect.
+  const systemPrompt = `Você é ${agente.nome}, ${agente.cargo} do sistema PaxMed (Padcon Conect). Você NUNCA chama a clínica de PaxMed: a clínica tem o próprio nome.
 
 DESCRIÇÃO: ${agente.descricao ?? `Agente especializado do grupo ${agente.grupo}`}
 TOM DE VOZ: ${agente.tom_voz ?? "Profissional, claro e objetivo"}

@@ -60,6 +60,8 @@ export interface ContextoAgendamento {
   ehCliente: boolean;
   /** Primeiro nome já cadastrado (cliente). */
   primeiroNome?: string;
+  /** Nome real da clínica (empresa) em que a conversa acontece. Ausente = "da clínica", sem inventar nome. */
+  nomeClinica?: string;
 }
 
 export interface ResultadoAgendamento {
@@ -223,7 +225,11 @@ function listaOfertas(ofertas: Oferta[]): string {
 const rotulo = (m: Modalidade) => (m === "online" ? "online" : "presencial");
 const chaveOferta = (o: Oferta) => `${o.recursoId}|${o.data}|${o.hora}`;
 
-const APRESENTACAO = "Olá! Sou a assistente virtual da clínica.";
+/** A assistente se apresenta como virtual e com o nome da CLÍNICA (nunca o nome do sistema, nunca nome inventado). */
+export function apresentacao(nomeClinica?: string): string {
+  const n = nomeClinica?.trim();
+  return n ? `Olá! Sou a assistente virtual de ${n}.` : "Olá! Sou a assistente virtual da clínica.";
+}
 const PERGUNTA_MODALIDADE = "A consulta seria online ou presencial?";
 const PERGUNTA_PREFERENCIAS = "Quais dias da semana e qual período (manhã, tarde ou noite) ficam melhores para você?";
 
@@ -232,10 +238,10 @@ function perguntaFaltante(estado: EstadoConversa): string {
   return "Qual período prefere: manhã, tarde ou noite? Se tanto faz, é só dizer.";
 }
 
-function comApresentacao(estado: EstadoConversa, corpo: string): string {
+function comApresentacao(estado: EstadoConversa, nomeClinica: string | undefined, corpo: string): string {
   if (estado.apresentada) return corpo;
   estado.apresentada = true;
-  return `${APRESENTACAO} ${corpo}`;
+  return `${apresentacao(nomeClinica)} ${corpo}`;
 }
 
 // ─────────────────────────── orquestração ───────────────────────────
@@ -262,18 +268,18 @@ export async function conduzirAgendamento(
   }
   if (PALAVRAS_CANCELAR.test(n)) {
     await deps.encaminharEquipe("cancelar_ou_remarcar");
-    return fim(comApresentacao(estado, `Para cancelar ou remarcar uma consulta já marcada, vou encaminhar seu pedido para a equipe${nome1}. Ela responde por aqui assim que possível.`), "encaminhada_cancelar_remarcar");
+    return fim(comApresentacao(estado, ctx.nomeClinica, `Para cancelar ou remarcar uma consulta já marcada, vou encaminhar seu pedido para a equipe${nome1}. Ela responde por aqui assim que possível.`), "encaminhada_cancelar_remarcar");
   }
   if (PALAVRAS_EQUIPE.test(n) && !emAndamento) {
     await deps.encaminharEquipe("pediu_pessoa");
-    return fim(comApresentacao(estado, `Claro${nome1}. Já avisei a equipe da clínica e ela responde por aqui assim que possível.`), "encaminhada_pediu_pessoa");
+    return fim(comApresentacao(estado, ctx.nomeClinica, `Claro${nome1}. Já avisei a equipe da clínica e ela responde por aqui assim que possível.`), "encaminhada_pediu_pessoa");
   }
 
   // Sem conversa em andamento: cliente só entra se pediu agendamento; visitante recebe orientação e a equipe é avisada.
   if (!emAndamento && !ehPedidoDeAgendamento(texto)) {
     if (ctx.ehCliente) return fim(null, "fora_do_assunto", false);
     await deps.encaminharEquipe("duvida_de_visitante");
-    return fim(comApresentacao(estado, "Posso ajudar a marcar uma consulta ou encaminhar sua dúvida para a equipe. Já avisei a equipe sobre a sua mensagem. Se quiser marcar agora, me diga: a consulta seria online ou presencial?"), "visitante_encaminhado");
+    return fim(comApresentacao(estado, ctx.nomeClinica, "Posso ajudar a marcar uma consulta ou encaminhar sua dúvida para a equipe. Já avisei a equipe sobre a sua mensagem. Se quiser marcar agora, me diga: a consulta seria online ou presencial?"), "visitante_encaminhado");
   }
 
   // ── dados de quem ainda não é cliente (não reinterpreta o texto como preferência) ──
@@ -330,7 +336,7 @@ export async function conduzirAgendamento(
 
   // ── levantamento de preferências ──
   estado.etapa = estado.modalidade ? "preferencias" : "modalidade";
-  if (!estado.modalidade) return fim(comApresentacao(estado, `Vamos marcar sua consulta${nome1}. ${PERGUNTA_MODALIDADE}`), "perguntou_modalidade");
+  if (!estado.modalidade) return fim(comApresentacao(estado, ctx.nomeClinica, `Vamos marcar sua consulta${nome1}. ${PERGUNTA_MODALIDADE}`), "perguntou_modalidade");
   const faltaDia = estado.dias === undefined && !estado.datas;
   const faltaPeriodo = !estado.periodo;
   if (faltaDia || faltaPeriodo) {
@@ -339,10 +345,10 @@ export async function conduzirAgendamento(
       if (faltaPeriodo) estado.periodo = "qualquer";
     } else {
       estado.tentativas++;
-      return fim(comApresentacao(estado, `Certo, ${rotulo(estado.modalidade)}. ${perguntaFaltante(estado)}`), "perguntou_preferencias");
+      return fim(comApresentacao(estado, ctx.nomeClinica, `Certo, ${rotulo(estado.modalidade)}. ${perguntaFaltante(estado)}`), "perguntou_preferencias");
     }
   }
-  return ofertar(estado, deps, comApresentacao(estado, "Deixa eu ver a agenda."));
+  return ofertar(estado, deps, comApresentacao(estado, ctx.nomeClinica, "Deixa eu ver a agenda."));
 }
 
 async function ofertar(estado: EstadoConversa, deps: DepsAgendamento, prefixo: string): Promise<ResultadoAgendamento> {

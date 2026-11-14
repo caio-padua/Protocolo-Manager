@@ -50,7 +50,7 @@ type EstadoAtendimento = {
   pendencias?: {mensagemId:number;clienteId:number;estado:string;erro:string|null;
     etapas:Record<string,{estado:string}>;atualizadoEm:string}[];
 };
-type ListaResponse = { orientacoes: Orientacao[]; podeAprovar: boolean };
+type ListaResponse = { orientacoes: Orientacao[]; podeAprovar: boolean; clinica?: string | null };
 type FormValues = { tema: string; perguntasExemplo: string; resposta: string; categoria: string; subcategoria: string };
 
 const EMPTY_FORM: FormValues = { tema: "", perguntasExemplo: "", resposta: "", categoria: "", subcategoria: "" };
@@ -98,6 +98,7 @@ export default function DuvidasOrientacoes() {
   const { toast } = useToast();
   const [orientacoes, setOrientacoes] = useState<Orientacao[] | null>(null);
   const [podeAprovar, setPodeAprovar] = useState(false);
+  const [clinica, setClinica] = useState<string | null>(null);
   const [estado, setEstado] = useState<EstadoAtendimento | null>(null);
   const [listaLoading, setListaLoading] = useState(true);
   const [estadoLoading, setEstadoLoading] = useState(true);
@@ -124,6 +125,7 @@ export default function DuvidasOrientacoes() {
       const data = await apiRequest<ListaResponse>("/duvidas-orientacoes");
       setOrientacoes(data.orientacoes);
       setPodeAprovar(data.podeAprovar);
+      setClinica(data.clinica ?? null);
       return true;
     } catch (error) {
       setListaError(error instanceof Error ? error.message : "Falha ao carregar orientações.");
@@ -558,7 +560,7 @@ export default function DuvidasOrientacoes() {
               <p className="mt-1 text-[10px] text-muted-foreground">O exemplo usa campos genéricos e horários de mentira. Numa conversa real os horários vêm da agenda. Nada é salvo nem aprovado até você salvar.</p>
               <p className="mt-1 text-right text-[10px] text-muted-foreground" data-testid="answer-counter">{form.resposta.length}/{LIMITE_RESPOSTA}</p>
             </div>
-            <PreviaTelegram texto={form.resposta} />
+            <PreviaTelegram texto={form.resposta} clinica={clinica} />
             {formError && <div role="alert" data-testid="form-error" className="concave-3d flex items-start gap-2 p-3 text-xs text-rose-700 dark:text-rose-400"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{formError}</div>}
             {saveNotice && <div role="status" aria-live="polite" data-testid="save-success" className="concave-3d flex items-start gap-2 p-3 text-xs text-emerald-800 dark:text-emerald-300"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{saveNotice}</div>}
             <div className="concave-3d flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">

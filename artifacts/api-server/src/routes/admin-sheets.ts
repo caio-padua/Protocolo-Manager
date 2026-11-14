@@ -186,7 +186,7 @@ const GRUPOS: Grupo[] = [
       { num: 84, nome: "Agendar Consulta (Público)", funcao: "Cliente agenda horário sem login", menu: "❌", necessidade: "★★★★★", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/agendar` },
       { num: 85, nome: "Foto de Perfil", funcao: "Upload de foto pelo cliente", menu: "❌", necessidade: "★★★★☆", fusao: "★★★★☆", candidata: "Área do Cliente (aba Foto)", link: `${BASE}/foto` },
       { num: 86, nome: "Cadastro (Público / Voz)", funcao: "Cadastro público por voz ou formulário", menu: "❌", necessidade: "★★★★★", fusao: "★★★★☆", candidata: "Área do Cliente (entrada)", link: `${BASE}/cadastro` },
-      { num: 87, nome: "Abertura — Landing PAXTER", funcao: "Tela de entrada da marca PAXTER", menu: "❌", necessidade: "★★★★☆", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/abertura` },
+      { num: 87, nome: "Abertura — Landing PaxMed", funcao: "Tela de entrada da marca PaxMed", menu: "❌", necessidade: "★★★★☆", fusao: "★★☆☆☆", candidata: "—", link: `${BASE}/abertura` },
       { num: 88, nome: "Vitrine Pública", funcao: "Catálogo público de serviços da clínica", menu: "❌", necessidade: "★★★★☆", fusao: "★★★☆☆", candidata: "—", link: `${BASE}/vitrine` },
     ],
   },

@@ -52,13 +52,13 @@ export function docAmostraBoasVindas(): PaxterDoc {
     eyebrow: "Olá, Caio",
     titulo: "Sessão concluída",
     paragrafos: [
-      "Este é um e-mail de amostra para você conferir o padrão visual PAXTER.",
+      "Este é um e-mail de amostra para você conferir o padrão visual PaxMed.",
       "A cada etapa do tratamento (boas-vindas, lembrete pré-sessão, confirmação pós-sessão e documentos), você receberá uma mensagem como esta — com a mesma identidade no e-mail, no WhatsApp e no Telegram.",
       "Abaixo, as substâncias da sessão em cartões com as informações alinhadas:",
     ],
     blocosHtml: [tabela],
     botao: { label: "Acessar minha área", url: "https://app.paxter.exemplo/area" },
     notaRodape: "Mensagem de AMOSTRA — dados fictícios, apenas para validação do layout.",
-    assunto: "PAXTER | Amostra do padrão de e-mail",
+    assunto: "PAXMED | Amostra do padrão de e-mail",
   };
 }

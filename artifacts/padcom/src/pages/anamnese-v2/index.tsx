@@ -443,8 +443,8 @@ export default function AnamneseV2() {
         {/* tecido terno CRISP sobre o painel do cabecalho (acima do bg, abaixo do conteudo).
             CEO confirmou em 24/06/2026: MANTER o tecido aqui (claro e escuro) e UNIFICAR com o das
             questoes — por isso a base do header e a MESMA .anamnese-solo da pagina (mesmo degrade/cor),
-            nao bg-background (que era navy mais escuro/chapado e destoava ao redor do PAXTER). Assim a
-            MESMA base + a MESMA .leva-fabric leem como um unico tecido. PAXTER por ultimo (z-[1]). */}
+            nao bg-background (que era navy mais escuro/chapado e destoava ao redor do PaxMed). Assim a
+            MESMA base + a MESMA .leva-fabric leem como um unico tecido. PaxMed por ultimo (z-[1]). */}
         <div className="leva-fabric" aria-hidden="true" />
         <div className="relative z-[1] mx-auto max-w-2xl">
           {/* controles verticais no canto superior direito (retangulos finos,

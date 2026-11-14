@@ -366,7 +366,7 @@ export default function AtestadosPage() {
                 <div className="border-b-2 pb-2 text-center" style={{ borderColor: NAVY }}>
                   <div className="text-lg font-bold tracking-wide" style={{ color: NAVY }}>INSTITUTO PÁDUA</div>
                   <div className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: OURO }}>
-                    Paxter — desenvolvido pela Padcon
+                    PaxMed — desenvolvido pela Padcon
                   </div>
                 </div>
                 <div className="mt-4 text-center text-base font-bold uppercase tracking-wide" style={{ color: NAVY }}>

@@ -49,7 +49,7 @@ export function GradeMesGoogle({
     const lista: Chip[] = [];
     {
       for (const s of sessionsByDate[dia] ?? []) {
-        lista.push({ chave: `s${s.id}`, ordem: s.scheduledTime, texto: `${s.scheduledTime.slice(0, 5)} ${s.clientName}`, titulo: `Sessão PAXTER: ${s.clientName} às ${s.scheduledTime.slice(0, 5)}`,
+        lista.push({ chave: `s${s.id}`, ordem: s.scheduledTime, texto: `${s.scheduledTime.slice(0, 5)} ${s.clientName}`, titulo: `Sessão PaxMed: ${s.clientName} às ${s.scheduledTime.slice(0, 5)}`,
           cor: statusColor[s.status] ?? "#45B8CC", google: false });
       }
     }
@@ -67,7 +67,7 @@ export function GradeMesGoogle({
   return (
     <div className="grid grid-cols-1 gap-4" data-testid="grade-mes-google">
       <div className="min-w-0 space-y-4">
-        {google.isError && <p role="alert" className="concave-3d px-3 py-2 text-[11px] font-bold text-red-800">Google indisponível: só as sessões do PAXTER aparecem.</p>}
+        {google.isError && <p role="alert" className="concave-3d px-3 py-2 text-[11px] font-bold text-red-800">Google indisponível: só as sessões do PaxMed aparecem.</p>}
         <div className="panel-3d overflow-hidden rounded-[6px]">
           <div className="grid grid-cols-7 border-b border-muted/20">
             {nomesDias.map((d) => <div key={d} className="py-2 text-center text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">{d}</div>)}

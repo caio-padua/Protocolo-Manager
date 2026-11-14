@@ -203,7 +203,7 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
 
   const handleInstall = async () => {
     const outcome = await promptInstall();
-    if (outcome === "accepted") setMsg("Aplicativo instalado. Procure o ícone PAXTER na sua tela.");
+    if (outcome === "accepted") setMsg("Aplicativo instalado. Procure o ícone PaxMed na sua tela.");
     else if (outcome === "dismissed") setMsg("Instalação cancelada. Você pode instalar quando quiser.");
     else setMsg(null);
   };
@@ -224,7 +224,7 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
             <CheckCircle className="h-6 w-6 shrink-0 text-[#e7cd8f]" />
             <div>
               <div className="text-[13px] font-bold text-white">Aplicativo já instalado</div>
-              <div className="text-[11px] text-slate-300">Procure o ícone PAXTER na tela do seu celular.</div>
+              <div className="text-[11px] text-slate-300">Procure o ícone PaxMed na tela do seu celular.</div>
             </div>
           </div>
         ) : (
@@ -239,7 +239,7 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
               <div className="mt-3 flex flex-col gap-2 fade-in">
                 {[
                   { Icon: Share2, t: "Toque em Compartilhar", s: "o ícone do quadrado com a seta para cima" },
-                  { Icon: Plus, t: "Toque em “Adicionar à Tela de Início”", s: "o ícone PAXTER vira um app no seu iPhone" },
+                  { Icon: Plus, t: "Toque em “Adicionar à Tela de Início”", s: "o ícone PaxMed vira um app no seu iPhone" },
                 ].map((p, i) => (
                   <div key={i} className="suit-navy-bg gold-hair flex items-center gap-3 px-3 py-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-[6px]" style={{ background: "rgba(231,205,143,0.14)" }}>
@@ -302,7 +302,7 @@ export default function Vitrine() {
         {/* HERO */}
         <div className="px-5 pb-5 pt-6 text-center">
           <div className="font-serif text-[26px] font-bold leading-tight text-white">
-            Veja como é ser<br />um cliente PAXTER
+            Veja como é ser<br />um cliente PaxMed
           </div>
           <div className="mx-auto mt-3 max-w-[320px] text-[12px] leading-snug text-slate-300">
             Experimente o aplicativo agora. Toque nas abas e sinta a sua jornada na palma da mão.
@@ -336,7 +336,7 @@ export default function Vitrine() {
           {/* OS CIRCULOS PAXTER (escada aspiracional, sem preco) */}
           <div className="mb-3 mt-6 inline-flex items-center gap-2 bg-white/90 px-3 py-[6px]">
             <Crown className="h-4 w-4" style={{ color: "#9a7b32" }} />
-            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#16294a]">Os Círculos PAXTER</span>
+            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#16294a]">Os Círculos PaxMed</span>
           </div>
           <div className="flex flex-col gap-2">
             {TIERS.map((t, i) => (

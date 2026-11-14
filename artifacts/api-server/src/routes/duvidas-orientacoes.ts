@@ -15,6 +15,11 @@ const router = Router();
 
 interface Quem { professionalId: number; empresaId: number; medico: boolean }
 
+async function nomeDaClinica(empresaId: number): Promise<string | null> {
+  const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${empresaId}`);
+  return (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
+}
+
 async function resolverQuem(req: Request, res: Response): Promise<Quem | null> {
   const h = req.headers.authorization;
   const claims = h?.startsWith("Bearer ") ? verifyCollaboratorToken(h.slice(7).trim()) : null;
@@ -63,7 +68,7 @@ router.get("/duvidas-orientacoes/tom-de-voz", async (req, res): Promise<void> =>
   const q = await resolverQuem(req, res);
   if (!q) return;
   const r = await db.execute(sql`SELECT texto, status, aprovado_por AS "aprovadoPor", aprovado_em AS "aprovadoEm", atualizado_em AS "atualizadoEm" FROM assistente_tom_voz WHERE empresa_id=${q.empresaId}`);
-  res.json({ tom: r.rows[0] ?? null, podeAprovar: q.medico, limite: LIMITE_TOM });
+  res.json({ tom: r.rows[0] ?? null, podeAprovar: q.medico, limite: LIMITE_TOM, clinica: await nomeDaClinica(q.empresaId) });
 });
 
 router.put("/duvidas-orientacoes/tom-de-voz", async (req, res): Promise<void> => {
@@ -98,7 +103,7 @@ router.get("/duvidas-orientacoes", async (req, res): Promise<void> => {
   if (!q) return;
   const r = await db.execute(sql`SELECT id, tema, perguntas_exemplo AS "perguntasExemplo", resposta, categoria, subcategoria, status, aprovado_por AS "aprovadoPor", aprovado_em AS "aprovadoEm", atualizado_em AS "atualizadoEm"
     FROM orientacoes_aprovadas WHERE empresa_id = ${q.empresaId} ORDER BY status, id DESC`);
-  res.json({ orientacoes: r.rows, podeAprovar: q.medico, categorias: CATEGORIAS });
+  res.json({ orientacoes: r.rows, podeAprovar: q.medico, categorias: CATEGORIAS, clinica: await nomeDaClinica(q.empresaId) });
 });
 
 router.post("/duvidas-orientacoes", async (req, res): Promise<void> => {

@@ -15,7 +15,7 @@ export const TOM_EXEMPLO = [
   "",
   "No máximo um emoji discreto por conversa.",
   "",
-  "A assistente se apresenta como virtual, sem nome inventado.",
+  "A assistente se apresenta como virtual, com o nome da clínica e sem nome próprio inventado.",
   "",
   "Nunca afirmar encaminhamento, prazo ou envio sem confirmação efetiva do sistema.",
   "",
@@ -37,14 +37,15 @@ export function TomDeVoz() {
   const [limite, setLimite] = useState(4000);
   const [podeAprovar, setPodeAprovar] = useState(false);
   const [texto, setTexto] = useState("");
+  const [clinica, setClinica] = useState<string | null>(null);
   const [carregado, setCarregado] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
-      const d = await chamar<{ tom: Tom; podeAprovar: boolean; limite: number }>("/duvidas-orientacoes/tom-de-voz");
-      setTom(d.tom); setPodeAprovar(d.podeAprovar); setLimite(d.limite); setTexto(d.tom?.texto ?? "");
+      const d = await chamar<{ tom: Tom; podeAprovar: boolean; limite: number; clinica?: string | null }>("/duvidas-orientacoes/tom-de-voz");
+      setTom(d.tom); setPodeAprovar(d.podeAprovar); setLimite(d.limite); setClinica(d.clinica ?? null); setTexto(d.tom?.texto ?? "");
       setCarregado(true);
     } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : "Não foi possível carregar o tom de voz." }); }
   }, []);
@@ -95,7 +96,7 @@ export function TomDeVoz() {
           {!podeAprovar && <p className="mt-1 text-[10px] text-muted-foreground">A aprovação é restrita a profissionais médicos.</p>}
           {msg && <p role={msg.ok ? "status" : "alert"} data-testid="tom-msg" className={`mt-2 text-xs ${msg.ok ? "text-emerald-800 dark:text-emerald-300" : "text-rose-700 dark:text-rose-400"}`}>{msg.t}</p>}
         </div>
-        <PreviaTelegram texto={texto} />
+        <PreviaTelegram texto={texto} clinica={clinica} />
       </div>
     </section>
   );

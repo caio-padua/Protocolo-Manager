@@ -99,10 +99,10 @@ export default function Abertura() {
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2"
-          aria-label="Abrir site do Paxter"
+          aria-label="Abrir site do PaxMed"
         >
-          <img src={paxterSymbol} alt="Paxter" className="h-9 w-9 object-contain" />
-          <span className="font-serif text-lg tracking-[0.16em] text-[#e8cf95]">PAXTER</span>
+          <img src={paxterSymbol} alt="PaxMed" className="h-9 w-9 object-contain" />
+          <span className="font-serif text-lg tracking-[0.16em] text-[#e8cf95]">PaxMed</span>
         </a>
         <button
           type="button"
@@ -135,15 +135,15 @@ export default function Abertura() {
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3"
-            aria-label="Abrir site do Paxter"
+            aria-label="Abrir site do PaxMed"
           >
             <img
               src={paxterSymbol}
-              alt="Paxter"
+              alt="PaxMed"
               className="h-14 w-14 object-contain drop-shadow-[0_2px_7px_rgba(194,160,90,0.30)]"
             />
             <div className="leading-tight">
-              <div className="font-serif text-2xl tracking-[0.16em] text-[#e8cf95]">PAXTER</div>
+              <div className="font-serif text-2xl tracking-[0.16em] text-[#e8cf95]">PaxMed</div>
               <div className="text-[9px] uppercase tracking-[0.22em] text-white/55">
                 Clinical Intelligence System
               </div>
@@ -196,7 +196,7 @@ export default function Abertura() {
         </nav>
 
         <div className="border-t border-white/10 px-6 py-4 text-[10px] uppercase tracking-[0.18em] text-white/35">
-          PAXTER · Clinical Intelligence System
+          PaxMed · Clinical Intelligence System
         </div>
       </aside>
 
@@ -233,7 +233,7 @@ export default function Abertura() {
           />
           <div className="relative mx-auto max-w-3xl text-center">
             <h1 className="sr-only">
-              PAXTER — Clinical Intelligence System · Precisão em cuidado integrativo
+              PaxMed — Clinical Intelligence System · Precisão em cuidado integrativo
             </h1>
             <BrandLockup variant="hero" className="mx-auto" />
 
@@ -282,7 +282,7 @@ export default function Abertura() {
             <Eyebrow>Entrar no sistema</Eyebrow>
             <h2 className="mt-4 font-serif text-3xl text-white sm:text-4xl">Acessos</h2>
             <p className="mt-3 text-sm leading-relaxed text-white/60">
-              Escolha sua porta de entrada no Paxter.
+              Escolha sua porta de entrada no PaxMed.
             </p>
           </div>
 
@@ -457,7 +457,7 @@ export default function Abertura() {
             </div>
             <PadconLogo />
             <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">
-              PAXTER · Clinical Intelligence System &nbsp;·&nbsp; © {ano} PADCON
+              PaxMed · Clinical Intelligence System &nbsp;·&nbsp; © {ano} PADCON
             </div>
           </div>
         </footer>

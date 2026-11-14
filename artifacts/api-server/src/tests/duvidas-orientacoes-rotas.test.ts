@@ -37,10 +37,10 @@ beforeAll(async () => {
   pool = new pg.Pool({ host: dir, user: "teste", database: "postgres", max: 10 });
   for (let i = 0; i < 80; i++) { try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
   await pool.query(`
-    CREATE TABLE empresas (id INTEGER PRIMARY KEY, ativa BOOLEAN, status TEXT);
+    CREATE TABLE empresas (id INTEGER PRIMARY KEY, ativa BOOLEAN, status TEXT, nome TEXT);
     CREATE TABLE professionals (id INTEGER PRIMARY KEY, empresa_id INTEGER, active BOOLEAN, credential_version INTEGER DEFAULT 0, professional_type TEXT);
     CREATE TABLE clients (id INTEGER PRIMARY KEY, name TEXT, empresa_id INTEGER);
-    INSERT INTO empresas VALUES (5,true,'ATIVO'),(7,true,'ATIVO');
+    INSERT INTO empresas VALUES (5,true,'ATIVO','Instituto Padua'),(7,true,'ATIVO','Instituto Barakat');
     INSERT INTO professionals VALUES (1,5,true,0,'medico'),(2,5,true,0,'enfermeira'),(3,7,true,0,'medico'),(4,5,false,0,'medico');
     INSERT INTO clients VALUES (10,'Paciente 5',5),(20,'Paciente 7',7);
     CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER, cliente_id INTEGER, chat_id TEXT, texto TEXT, recebida_em TIMESTAMPTZ, lida_em TIMESTAMPTZ, direcao TEXT);`);
@@ -177,6 +177,12 @@ describe("tom de voz por clínica", () => {
     expect(igual.body.status).toBe("aprovada");
     const novo = await request(app).put(T).set("Authorization", ENF5).send({ texto: "Tom alterado pela enfermagem." });
     expect(novo.body.status).toBe("rascunho");
+  });
+  it("a resposta traz o nome da PRÓPRIA clínica (nunca PaxMed nem a de outra)", async () => {
+    const a = await request(app).get(T).set("Authorization", MEDICO7);
+    expect(a.body.clinica).toBe("Instituto Barakat");
+    const l = await request(app).get("/duvidas-orientacoes").set("Authorization", MEDICO7);
+    expect(l.body.clinica).toBe("Instituto Barakat");
   });
   it("clínica 7 não vê nem aprova o tom da clínica 5", async () => {
     expect((await request(app).get(T).set("Authorization", MEDICO7)).body.tom).toBeNull();

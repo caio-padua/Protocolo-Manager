@@ -214,7 +214,7 @@ router.post("/email/send-pre-session/:sessionId", async (req, res): Promise<void
   }
 
   const primaryProcType = substances[0]?.procedureType ?? "iv";
-  const assunto = `PAXTER | ${procedureTypeLabel(primaryProcType)} | ${code}`;
+  const assunto = `PAXMED | ${procedureTypeLabel(primaryProcType)} | ${code}`;
 
   const result = await sendPreSessionEmail({
     clientEmail: client.email,
@@ -330,7 +330,7 @@ router.post("/email/resend-ics/:sessionId", async (req, res): Promise<void> => {
   }
 
   const primaryProcType = substances[0]?.procedureType ?? "iv";
-  const assunto = `PAXTER | ICS Reenviado | ${procedureTypeLabel(primaryProcType)}`;
+  const assunto = `PAXMED | ICS Reenviado | ${procedureTypeLabel(primaryProcType)}`;
 
   const result = await sendPreSessionEmail({
     clientName: client.name,
@@ -425,7 +425,7 @@ router.post("/email/send-post-session/:sessionId", async (req, res): Promise<voi
     // RAS PDF opcional — não bloqueia o e-mail
   }
 
-  const assunto = `PAXTER | Sessão Concluída | ${session.scheduledDate}`;
+  const assunto = `PAXMED | Sessão Concluída | ${session.scheduledDate}`;
 
   const result = await sendPostSessionEmail({
     clientName: client.name,
@@ -535,7 +535,7 @@ router.post("/email/send-weekly-reminders", async (_req, res): Promise<void> => 
     }
 
     const primaryProcType = substances[0]?.procedureType ?? "iv";
-    const assunto = `PAXTER | Lembrete Semanal | ${procedureTypeLabel(primaryProcType)} | ${code}`;
+    const assunto = `PAXMED | Lembrete Semanal | ${procedureTypeLabel(primaryProcType)} | ${code}`;
 
     const emailResult = await sendPreSessionEmail({
       clientName: client.name,
@@ -629,10 +629,10 @@ router.post("/email/send-copy", requireCollaborator, async (req, res): Promise<v
     const hoje = new Date().toLocaleDateString("pt-BR");
     const html = `
       <div style="font-family:sans-serif;max-width:600px;margin:auto;">
-        <h2 style="color:#3D7A7A;">PAXTER — Cópia do Protocolo</h2>
+        <h2 style="color:#3D7A7A;">PaxMed — Cópia do Protocolo</h2>
         <p>Segue em anexo o documento jurídico completo do protocolo:</p>
         <p><strong>${protocol.title}</strong></p>
-        <p>Gerado em ${hoje} pelo sistema PAXTER Clinical Intelligence.</p>
+        <p>Gerado em ${hoje} pelo sistema PaxMed Clinical Intelligence.</p>
         <hr/>
         <p style="font-size:12px;color:#666;">Este é um envio automático — cópia para o médico/administrador.</p>
       </div>`;
@@ -640,7 +640,7 @@ router.post("/email/send-copy", requireCollaborator, async (req, res): Promise<v
     const filename = `${hoje.replace(/\//g,"-")} COPIA PROTOCOLO ${protocol.title.substring(0,40)}.pdf`;
     const result = await sendGmailMessage({
       to,
-      subject: `PAXTER | Cópia Protocolo | ${protocol.title.substring(0,50)}`,
+      subject: `PAXMED | Cópia Protocolo | ${protocol.title.substring(0,50)}`,
       html,
       attachments: [{ filename, content: pdfBuf, contentType: "application/pdf" }],
     });

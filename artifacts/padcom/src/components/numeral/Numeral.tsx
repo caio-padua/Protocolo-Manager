@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   O MOSTRADOR — molde unico do numeral Paxter
+   O MOSTRADOR — molde unico do numeral PaxMed
    ------------------------------------------------------------------------------
    CONCEITO (proposto ao CEO em 13/08/2026):
    Numero nao e digito. Numero e uma EXPRESSAO com anatomia — simbolo de moeda,

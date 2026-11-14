@@ -85,7 +85,7 @@ export function RescheduleDrawer({ open, onOpenChange, session, onSuccess }: Pro
           const phone = session.clientPhone.replace(/\D/g, "");
           const dateStr = format(newDate!, "dd/MM/yyyy", { locale: ptBR });
           const msg = encodeURIComponent(
-            `PAXTER | Reagendamento\n\nOlá ${session.clientName.split(" ")[0]}! 👋\n\nSua sessão foi reagendada:\n\n📅 *${dateStr}* às *${newTime}*\n📍 ${getUnitLabel(session)}\n\nAté lá! 💉`
+            `PaxMed | Reagendamento\n\nOlá ${session.clientName.split(" ")[0]}! 👋\n\nSua sessão foi reagendada:\n\n📅 *${dateStr}* às *${newTime}*\n📍 ${getUnitLabel(session)}\n\nAté lá! 💉`
           );
           window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
         }

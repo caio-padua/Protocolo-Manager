@@ -259,7 +259,7 @@ export default function Licenciado() {
               Quero ativar este modulo
             </button>
             <p className="mt-2 text-center text-[10px] uppercase tracking-widest text-slate-500">
-              A ativacao e concluida com a equipe PAXTER
+              A ativacao e concluida com a equipe PaxMed
             </p>
           </div>
         </div>

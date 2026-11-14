@@ -25,7 +25,7 @@ export function PadaxorLogo({
       className={`padaxor-logo padaxor-logo--${variant} ${className}`.trim()}
       style={style}
       role="img"
-      aria-label="PADAXOR — Clinical Intelligence System"
+      aria-label="PaxMed — Clinical Intelligence System"
     >
       <picture>
         <img

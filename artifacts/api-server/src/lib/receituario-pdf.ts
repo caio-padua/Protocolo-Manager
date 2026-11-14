@@ -206,7 +206,7 @@ export async function generateReceituarioPdf(data: ReceituarioData, signer?: Pre
   page.drawRectangle({ x: 0, y: PAGE_H - HEADER_H, width: PAGE_W, height: HEADER_H, color: NAVY });
 
   // Wordmark "PAXTER"
-  page.drawText("PAXTER", {
+  page.drawText("PAXMED", {
     x: MARGIN, y: PAGE_H - 42,
     font: fontBold, size: 22, color: GOLD,
   });
@@ -350,7 +350,7 @@ export async function generateReceituarioPdf(data: ReceituarioData, signer?: Pre
   // ── Rodapé ────────────────────────────────────────────────────────────────
   const FOOTER_H = 36;
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: FOOTER_H, color: NAVY });
-  page.drawText("PAXTER Clinical Intelligence System — Documento gerado e assinado digitalmente (ICP-Brasil / PAdES)", {
+  page.drawText("PAXMED Clinical Intelligence System — Documento gerado e assinado digitalmente (ICP-Brasil / PAdES)", {
     x: MARGIN, y: 14, font: fontRegular, size: 6.5, color: CYAN,
   });
   page.drawText(`Receituário ID: ${data.nomeSlot} | ${fmtData(data.dataLiberacao)}`, {
@@ -863,7 +863,7 @@ export async function generateReceituarioPdfV2(data: ReceituarioDataV2, signer?:
       const wmarkW = (footerMarkImg.width / footerMarkImg.height) * wmarkH;
       page.drawImage(footerMarkImg, { x: PAGE_W - M - wmarkW, y: FOOTER_TOP - wmarkH - 2, width: wmarkW, height: wmarkH });
     } else {
-      const brandName = configText(designer, "rodapePaxterNome", "PAXTER");
+      const brandName = configText(designer, "rodapePaxterNome", "PAXMED");
       const paxterW = (titleBold as any).widthOfTextAtSize(brandName, 9);
       const subTxt  = configText(designer, "rodapePaxterSubtitulo", "Clinical Intelligence System");
       const subW    = (fontReg as any).widthOfTextAtSize(subTxt, 5);

@@ -35,7 +35,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
           <PaxterSymbolGlass size={52} tone="dark" sharp />
           <div className="text-center">
             <p className="text-[24px] font-bold tracking-[0.18em] text-[#16284a] uppercase leading-none">
-              PAXTER
+              PAXMED
             </p>
             <p className="text-[10px] tracking-[0.22em] text-[#916f32] uppercase mt-1">
               Clinical Intelligence System

@@ -924,7 +924,7 @@ router.post("/collaborator/password-recovery/request", async (req, res): Promise
     ],
     botao: { label: "Criar nova senha", url: recoveryUrl.toString() },
     notaRodape: "Não encaminhe este link. A equipe da clínica nunca pedirá sua senha.",
-    assunto: "Redefinição de senha — PAXTER",
+    assunto: "Redefinição de senha — PaxMed",
   };
 
   try {

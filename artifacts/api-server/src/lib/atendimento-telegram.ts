@@ -28,7 +28,13 @@ export interface OrientacaoAprovada {
 }
 
 export const TEXTO_ENCAMINHADO =
-  "Olá! Sou o assistente virtual da clínica. Recebi sua mensagem e vou encaminhar para a equipe da clínica. Assim que um profissional puder, você recebe a resposta por aqui.";
+  "Olá! Sou a assistente virtual da clínica. Recebi sua mensagem e vou encaminhar para a equipe da clínica. Assim que um profissional puder, você recebe a resposta por aqui.";
+
+/** Mesma mensagem, com o nome real da clínica. Sem nome, cai no texto genérico (nunca usa o nome do sistema). */
+export function textoEncaminhado(nomeClinica?: string | null): string {
+  const n = nomeClinica?.trim();
+  return n ? TEXTO_ENCAMINHADO.replace("da clínica. Recebi", `de ${n}. Recebi`).replace("equipe da clínica", `equipe de ${n}`) : TEXTO_ENCAMINHADO;
+}
 
 /**
  * RASCUNHOS para revisão clínica do Dr. Caio. Não são enviados enquanto `queixaRevisada` for false.
@@ -115,6 +121,8 @@ export interface DepsAtendimento {
   registrarSaida: (p: { empresaId: number; clienteId: number; chatId: string; texto: string }) => Promise<void>;
   passarParaHumano: (clienteId: number, motivo: string) => Promise<void>;
   alertarEquipe: (texto: string) => Promise<boolean>;
+  /** Nome real da clínica (empresa). Opcional: ausente = texto genérico. */
+  nomeClinica?: (empresaId: number) => Promise<string | null>;
   registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null) => Promise<void>;
 }
 
@@ -188,8 +196,9 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
   // Sem orientação aprovada que sirva: encaminha para pessoa (nada inventado) e pausa a IA nesta conversa.
   await deps.passarParaHumano(e.clienteId, "sem_orientacao_aprovada");
   if (!await deps.alertarEquipe(`Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`)) return fechar("falha_alerta");
-  const ok = await deps.enviarAoPaciente(e.chatId, TEXTO_ENCAMINHADO);
-  if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: TEXTO_ENCAMINHADO });
+  const textoEnc = textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
+  const ok = await deps.enviarAoPaciente(e.chatId, textoEnc);
+  if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: textoEnc });
   return fechar(ok ? "encaminhado_humano" : "falha_envio");
 }
 
