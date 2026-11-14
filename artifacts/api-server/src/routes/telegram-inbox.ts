@@ -193,3 +193,45 @@ inboxRouter.post("/cockpit/:clientId/telegram-inbox/marcar-lidas", requireCollab
 
   res.json({ ok: true, marcadas: result.marcadas });
 });
+
+// ── 4) GET /telegram-inbox/conversas ─────────────────────────────────────────
+// Central da equipe: uma linha por cliente com conversa, da mais recente para a mais antiga.
+// Só devolve identificação mínima (id, nome) e a última mensagem; o histórico completo
+// continua sendo lido por /cockpit/:clientId/telegram-inbox (mesma regra de clínica).
+inboxRouter.get("/telegram-inbox/conversas", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const empresaId = req.messageEmpresaId!;
+  const busca = typeof req.query["busca"] === "string" ? req.query["busca"].trim().slice(0, 80) : "";
+  const apenasNaoLidas = req.query["naoLidas"] === "1";
+  const linhas = await db.execute(sql`
+    SELECT c.id AS "clienteId", c.name AS nome,
+           u.nao_lidas AS "naoLidas", u.total,
+           u.ultima_em AS "ultimaEm", m.texto AS "ultimaTexto", m.direcao AS "ultimaDirecao"
+    FROM (
+      SELECT cliente_id,
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE lida_em IS NULL AND direcao = 'entrada')::int AS nao_lidas,
+             MAX(recebida_em) AS ultima_em,
+             MAX(id) AS ultimo_id
+      FROM telegram_inbox_messages
+      WHERE empresa_id = ${empresaId}
+      GROUP BY cliente_id
+    ) u
+    JOIN telegram_inbox_messages m ON m.id = u.ultimo_id
+    JOIN clients c ON c.id = u.cliente_id
+    WHERE c.empresa_id = ${empresaId}
+      ${busca ? sql`AND c.name ILIKE ${"%" + busca.replace(/[%_\\]/g, "\\$&") + "%"}` : sql``}
+      ${apenasNaoLidas ? sql`AND u.nao_lidas > 0` : sql``}
+    ORDER BY u.ultima_em DESC
+    LIMIT 200
+  `);
+  const itens = (linhas.rows as Array<Record<string, unknown>>).map((r) => ({
+    clienteId: Number(r["clienteId"]),
+    nome: String(r["nome"]),
+    naoLidas: Number(r["naoLidas"]),
+    total: Number(r["total"]),
+    ultimaEm: new Date(String(r["ultimaEm"])).toISOString(),
+    ultimaTexto: String(r["ultimaTexto"]).slice(0, 140),
+    ultimaDirecao: String(r["ultimaDirecao"]),
+  }));
+  res.json({ conversas: itens });
+});

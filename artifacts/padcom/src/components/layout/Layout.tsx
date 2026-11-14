@@ -81,6 +81,7 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -110,6 +111,7 @@ const navigation: NavEntry[] = [
       { name: "Marcação de Consulta", href: "/agendar", icon: CalendarDays },
       { name: "Marcação (Modelo Antigo)", href: "/agendar-antigo", icon: CalendarDays },
       { name: "Agenda Diária", href: "/agenda", icon: Calendar },
+      { name: "Central Telegram", href: "/central-telegram", icon: MessageCircle },
       { name: "Pit Stop", href: "/pit-stop", icon: Flag },
       { name: "Agenda Configuração", href: "/agenda/motor", icon: CalendarCog },
       { name: "Clientes", href: "/clients", icon: Users },

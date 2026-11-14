@@ -28,7 +28,7 @@ export interface OrientacaoAprovada {
 }
 
 export const TEXTO_ENCAMINHADO =
-  "Recebi sua mensagem e vou encaminhar para a equipe da clínica. Assim que um profissional puder, você recebe a resposta por aqui.";
+  "Olá! Sou o assistente virtual da clínica. Recebi sua mensagem e vou encaminhar para a equipe da clínica. Assim que um profissional puder, você recebe a resposta por aqui.";
 
 /**
  * RASCUNHOS para revisão clínica do Dr. Caio. Não são enviados enquanto `queixaRevisada` for false.

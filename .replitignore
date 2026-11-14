@@ -6,3 +6,8 @@
 
 # Relatorios gerados nao fazem parte da aplicacao publicada.
 generated-artifacts
+
+# Anexos enviados pelo CEO (1,3 GB) e cache local (1,6 GB): nenhum codigo publicado le esses
+# arquivos (verificado: sem imports de @assets; so scripts de prova e testes citam attached_assets).
+attached_assets
+.cache

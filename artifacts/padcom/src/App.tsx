@@ -41,6 +41,7 @@ import CentralPesquisa from "@/pages/central-pesquisa";
 import Treino from "@/pages/treino";
 import Craniotomia from "@/pages/craniotomia";
 import Cockpit from "@/pages/cockpit";
+import CentralTelegram from "@/pages/central-telegram";
 import RadarClinico from "@/pages/radar-clinico";
 import CockpitShell from "@/pages/cockpit-cliente/CockpitShell";
 import type { AbaId } from "@/pages/cockpit-cliente/CockpitTabs";
@@ -205,6 +206,7 @@ function Router() {
             }} />
             {/* Cockpit v2: picker vazio */}
             <Route path="/cockpit" component={() => <CockpitShell />} />
+            <Route path="/central-telegram" component={CentralTelegram} />
             {/* Cockpit v2: cliente + aba (deep-link) */}
             <Route path="/cockpit/:clientId/:aba" component={({ params }: { params?: { clientId?: string; aba?: string } }) => {
               const id = params?.clientId && /^\d+$/.test(params.clientId) ? Number(params.clientId) : null;

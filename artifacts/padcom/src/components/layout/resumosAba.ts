@@ -5,6 +5,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/agendar-antigo": "Marcação no modelo anterior",
   "/agenda": "Sessões do dia, por agenda",
   "/pit-stop": "Parada rápida de atendimento",
+  "/central-telegram": "Conversas dos clientes com o bot da clínica",
   "/agenda/motor": "Horários, locais e repetições",
   "/clients": "Cadastro e busca de clientes",
   "/cockpit": "Atendimento do cliente em consulta",
