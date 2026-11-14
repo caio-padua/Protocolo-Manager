@@ -64,6 +64,7 @@ export function garantirTabelasCredito(): Promise<void> {
         UNIQUE (empresa_id, chave)
       );
       CREATE UNIQUE INDEX IF NOT EXISTS msg_extrato_estorno_unico ON msg_extrato (estorno_de) WHERE estorno_de IS NOT NULL;
+      ALTER TABLE msg_extrato ADD COLUMN IF NOT EXISTS franquia_abatida_centavos BIGINT NOT NULL DEFAULT 0;
       CREATE TABLE IF NOT EXISTS msg_recargas (
         id BIGSERIAL PRIMARY KEY,
         empresa_id INTEGER NOT NULL,
@@ -168,6 +169,20 @@ async function tarifaVigente(c: Consulta, empresaId: number, tipo: TipoEvento) {
   return { id: Number(t.id), valor: Number(t.valor_centavos) };
 }
 
+/** Franquia mensal restante (centavos de tabela) do contrato vigente; null sem contrato/franquia/elegibilidade. */
+async function franquiaDisponivel(c: Consulta, empresaId: number, tipo: TipoEvento): Promise<{ restante: number; mes: string } | null> {
+  const ok = await c.query(`SELECT to_regclass('cat_contratos') IS NOT NULL AND to_regclass('cat_tarifas') IS NOT NULL AND to_regclass('msg_franquia_uso') IS NOT NULL AS ok`);
+  if (!ok.rows[0]?.ok) return null;
+  const el = await c.query(`SELECT elegivel_franquia FROM cat_tarifas WHERE codigo = $1 ORDER BY versao DESC LIMIT 1`, [`msg_${tipo}`]);
+  if (!el.rows[0]?.elegivel_franquia) return null;
+  const ct = await c.query(`SELECT franquia_texto_centavos FROM cat_contratos WHERE empresa_id = $1 AND status IN ('piloto','ativo') ORDER BY id DESC LIMIT 1`, [empresaId]);
+  const total = Number(ct.rows[0]?.franquia_texto_centavos ?? 0);
+  if (total <= 0) return null;
+  const mes = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+  const u = await c.query(`SELECT usado_centavos FROM msg_franquia_uso WHERE empresa_id = $1 AND mes = $2`, [empresaId, mes]);
+  return { restante: Math.max(0, total - Number(u.rows[0]?.usado_centavos ?? 0)), mes };
+}
+
 /** Registra e cobra um evento. Atômico: trava a carteira, confere a chave e debita sem deixar saldo negativo. */
 export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento> {
   if (!TIPOS_EVENTO.includes(p.tipo)) throw new RangeError("tipo de evento inválido");
@@ -186,7 +201,11 @@ export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento>
     const tabela = t?.valor ?? 0;
     const isento: boolean = w.isento === true;
     const semTarifa = !t;
-    const cobrar = isento || semTarifa ? 0 : tabela;
+    const devidoTabela = isento || semTarifa ? 0 : tabela;
+    // Franquia mensal do contrato vigente: usada ANTES do crédito comprado, só para tarifa elegível, sem acumular.
+    const fr = devidoTabela > 0 ? await franquiaDisponivel(c, p.empresaId, p.tipo) : null;
+    const abatido = fr ? Math.min(fr.restante, devidoTabela) : 0;
+    const cobrar = devidoTabela - abatido;
     if (cobrar > saldo) {
       await c.query(
         `INSERT INTO msg_eventos_pendentes (empresa_id, tipo_evento, chave, conversa_ref, inbox_message_id, descricao)
@@ -203,9 +222,13 @@ export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento>
     const novo = saldo - cobrar;
     await c.query(
       `INSERT INTO msg_extrato (empresa_id, natureza, tipo_evento, conversa_ref, chave, valor_centavos, valor_tabela_centavos,
-         isento, sem_tarifa, tarifa_id, saldo_apos_centavos, descricao)
-       VALUES ($1,'consumo',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [p.empresaId, p.tipo, p.conversaRef ?? null, p.chave, cobrar, t ? tabela : null, isento, semTarifa, t?.id ?? null, novo, p.descricao ?? null]);
+         isento, sem_tarifa, tarifa_id, saldo_apos_centavos, descricao, franquia_abatida_centavos)
+       VALUES ($1,'consumo',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [p.empresaId, p.tipo, p.conversaRef ?? null, p.chave, cobrar, t ? tabela : null, isento, semTarifa, t?.id ?? null, novo, p.descricao ?? null, abatido]);
+    if (abatido > 0 && fr) {
+      await c.query(`INSERT INTO msg_franquia_uso (empresa_id, mes, usado_centavos) VALUES ($1,$2,$3)
+                     ON CONFLICT (empresa_id, mes) DO UPDATE SET usado_centavos = msg_franquia_uso.usado_centavos + EXCLUDED.usado_centavos`, [p.empresaId, fr.mes, abatido]);
+    }
     if (cobrar > 0) await c.query(`UPDATE msg_carteira SET saldo_centavos = $2 WHERE empresa_id = $1`, [p.empresaId, novo]);
     await c.query(`UPDATE msg_eventos_pendentes SET status = 'cobrado' WHERE empresa_id = $1 AND chave = $2`, [p.empresaId, p.chave]);
     let avisoSaldoBaixo = false;

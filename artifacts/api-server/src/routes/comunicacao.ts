@@ -643,8 +643,9 @@ router.post("/comunicacao/canais/:canal/revelar", requireCollaborator, async (re
 
   for (const d of CANAL_SLOTS[canal]) {
     if (!d.aplicavel) continue;
+    // Etapa 0: segredos nunca trafegam em claro; so slots sem cofre.
     if (d.vaultKey) {
-      valores[d.slot] = await getSecret(d.vaultKey);
+      valores[d.slot] = null;
     }
   }
 

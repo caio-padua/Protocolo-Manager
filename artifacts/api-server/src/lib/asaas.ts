@@ -8,19 +8,40 @@ import { getSecret, getSetting } from "./secure-settings.js";
 
 const DEFAULT_BASE_URL = "https://api.asaas.com/v3";
 
-async function resolveApiKey(): Promise<string> {
+export type AsaasAmbiente = "producao" | "sandbox";
+
+const SANDBOX_BASE_URL = "https://api-sandbox.asaas.com/v3";
+
+// Chave e URL andam SEMPRE juntas por ambiente (docs.asaas.com/docs/sandbox:
+// "chave de Sandbox na URL de Sandbox e chave de Producao na URL de Producao").
+// Sandbox usa credencial PROPRIA (asaas.sandbox.apiKey); nunca reaproveita a
+// chave de producao e nunca altera a configuracao de producao.
+async function resolveCredenciais(ambiente: AsaasAmbiente): Promise<{ key: string; baseUrl: string }> {
+  if (ambiente === "sandbox") {
+    const key = await getSecret("asaas.sandbox.apiKey");
+    if (!key) {
+      throw new Error("Asaas SANDBOX nao configurado: falta a chave propria do sandbox (cofre asaas.sandbox.apiKey).");
+    }
+    const base = ((await getSetting("asaas.sandbox.baseUrl")) || SANDBOX_BASE_URL).trim();
+    if (!/sandbox/i.test(base)) throw new Error("URL do sandbox invalida: precisa apontar para o ambiente sandbox do Asaas.");
+    if (/\$aact_prod_/.test(key)) throw new Error("A chave informada e de PRODUCAO; o sandbox exige chave propria de sandbox.");
+    return { key, baseUrl: base };
+  }
   const key = await getSecret("asaas.apiKey");
   if (!key) throw new Error("Chave do Asaas nao configurada. Defina em Configuracoes > Portas de Pagamento.");
-  return key;
+  const base = ((await getSetting("asaas.baseUrl")) || "").trim() || process.env.ASAAS_BASE_URL || DEFAULT_BASE_URL;
+  if (/sandbox/i.test(base) || /\$aact_hmlg_/.test(key)) {
+    throw new Error("Configuracao de PRODUCAO aponta para sandbox ou usa chave de sandbox: ambientes nao podem se misturar.");
+  }
+  return { key, baseUrl: base };
 }
 
-async function resolveBaseUrl(): Promise<string> {
-  const fromDb = await getSetting("asaas.baseUrl");
-  return (fromDb && fromDb.trim()) || process.env.ASAAS_BASE_URL || DEFAULT_BASE_URL;
+export async function asaasSandboxConfigurado(): Promise<boolean> {
+  return Boolean(await getSecret("asaas.sandbox.apiKey"));
 }
 
-async function asaasFetch(path: string, init?: RequestInit): Promise<any> {
-  const [key, baseUrl] = await Promise.all([resolveApiKey(), resolveBaseUrl()]);
+async function asaasFetch(path: string, init?: RequestInit, ambiente: AsaasAmbiente = "producao"): Promise<any> {
+  const { key, baseUrl } = await resolveCredenciais(ambiente);
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     // Limite de tempo (20s) para nunca pendurar a requisicao se o Asaas travar.
@@ -55,14 +76,16 @@ export interface AsaasCustomerInput {
   phone?: string | null;
 }
 
-export async function asaasCreateCustomer(input: AsaasCustomerInput): Promise<{ id: string }> {
+export async function asaasCreateCustomer(input: AsaasCustomerInput, ambiente: AsaasAmbiente = "producao"): Promise<{ id: string }> {
   const body = {
     name: input.name,
     cpfCnpj: input.cpfCnpj.replace(/\D/g, ""),
     email: input.email || undefined,
     mobilePhone: input.phone ? input.phone.replace(/\D/g, "") : undefined,
+    // Piloto: nenhuma notificacao externa (e-mail/SMS) de cobranca de teste.
+    ...(ambiente === "sandbox" ? { notificationDisabled: true } : {}),
   };
-  return asaasFetch("/customers", { method: "POST", body: JSON.stringify(body) });
+  return asaasFetch("/customers", { method: "POST", body: JSON.stringify(body) }, ambiente);
 }
 
 // Atualiza um cliente existente no Asaas (ex.: corrigir CPF/CNPJ do titular).
@@ -99,7 +122,7 @@ export interface AsaasCharge {
   value: number;
 }
 
-export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasCharge> {
+export async function asaasCreateCharge(input: AsaasChargeInput, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCharge> {
   const body = {
     customer: input.customerId,
     billingType: input.billingType ?? "UNDEFINED",
@@ -108,11 +131,11 @@ export async function asaasCreateCharge(input: AsaasChargeInput): Promise<AsaasC
     description: input.description,
     externalReference: input.externalReference,
   };
-  return asaasFetch("/payments", { method: "POST", body: JSON.stringify(body) });
+  return asaasFetch("/payments", { method: "POST", body: JSON.stringify(body) }, ambiente);
 }
 
-export async function asaasGetCharge(id: string): Promise<AsaasCharge> {
-  return asaasFetch(`/payments/${id}`, { method: "GET" });
+export async function asaasGetCharge(id: string, ambiente: AsaasAmbiente = "producao"): Promise<AsaasCharge> {
+  return asaasFetch(`/payments/${id}`, { method: "GET" }, ambiente);
 }
 
 export interface AsaasPixQrCode {

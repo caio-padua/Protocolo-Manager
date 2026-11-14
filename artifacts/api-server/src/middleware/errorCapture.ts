@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { redigirTexto } from "../lib/redact";
 import { registrarErroSistema } from "../lib/system-error-log";
 
 // Captura toda resposta 5xx (erro do servidor) para a Central de Erros.
@@ -14,7 +15,7 @@ export function errorCaptureMiddleware(req: Request, res: Response, next: NextFu
         method: req.method,
         path: req.originalUrl,
         status: res.statusCode,
-        message: msg,
+        message: msg ? redigirTexto(msg) : msg,
         professionalId: req.collaborator?.professionalId ?? null,
       });
     }

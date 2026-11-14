@@ -11,6 +11,7 @@ import { tenantContextMiddleware } from "./middleware/tenantContext";
 import { corsMiddleware, helmetMiddleware, rateLimitMiddleware } from "./middleware/securityConfig";
 import { basicAuthMiddleware } from "./middleware/basicAuth";
 import { errorCaptureMiddleware } from "./middleware/errorCapture";
+import { protecaoCredenciaisMiddleware } from "./middleware/protecaoCredenciais.js";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -89,6 +90,7 @@ app.get("/preview-capa.pdf", (_req, res) => {
 app.use(basicAuthMiddleware);
 app.use(rateLimitMiddleware);
 app.use(tenantContextMiddleware);
+app.use(protecaoCredenciaisMiddleware);
 app.use(errorCaptureMiddleware);
 
 // ─── DICIONARIO: sincronizar aba Google Sheets no boot ───────────────────────
