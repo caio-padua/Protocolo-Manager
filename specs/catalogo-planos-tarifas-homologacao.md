@@ -150,3 +150,22 @@ Autorização do titular: no máximo R$ 1,00 por cobrança, 50 cobranças, total
 2. Chave de API própria do sandbox no cofre (campo do sandbox em Portas de Pagamento).
 3. Token de webhook próprio do sandbox e webhook cadastrado no painel sandbox apontando para a aplicação.
 4. Confirmar o mínimo do sandbox (pode aceitar valores abaixo de R$ 5,00; não verificado).
+
+## Rodada de 14/11/2026 (tarde): Telegram, Lemos e conciliação
+
+| Item | Resultado observado |
+|---|---|
+| Webhook do Telegram | Aponta para este ambiente de desenvolvimento, sem erro registrado e sem fila pendente. |
+| Envio real pelo Cockpit | Mensagem técnica ao cliente 44 (telefone cadastrado confere com a linha da clínica, 11 97715-4000); Telegram aceitou com identificador de mensagem válido; registro de saída gravado. |
+| Resposta recebida | Nenhuma resposta nova até o fim da rodada; depende de o titular responder "OK" no Telegram. Recebimento NÃO observado nesta rodada. |
+| Contato do Dr. Caio | Cliente 1924 está na lista permitida, mas o telefone cadastrado difere em um dígito do informado (11 9465-4000 contra 11 94655-4000). Nenhum envio feito; vínculo não alterado. Falta confirmação do titular. |
+| Instituto Lemos | Criados Caio X (5295) e Caio Y (5296), empresa 2, agenda 16, sem CPF, sem contato, sem Telegram, sem dado clínico, com nota de sintético. Nenhum vínculo de outra clínica foi tocado. Sem Telegram vinculado, ainda não recebem mensagens. |
+| Credencial Telegram | Rotação continua pendente (ação do titular no BotFather). Não bloqueou as demais tarefas. |
+| Conciliação, causa das diferenças | Concierge guarda cobranças em scheduling_requests e a tela só lia payments: 10 cobranças de R$ 150 apareciam como "só no gateway". Corrigido (leitura somente). Resultado: 18 itens, 11 batem, 5 status diverge, 2 só no gateway. |
+| Divergências restantes | 5 cobranças recebidas no Asaas aparecem pendentes/aguardando aqui; 2 cobranças recebidas de R$ 5,00 sem registro local. Nenhuma transação foi alterada. |
+| Causa raiz provável | O webhook cadastrado no Asaas de produção aponta para o endereço de desenvolvimento, está desabilitado e interrompido, e não tem token de autenticação cadastrado (nosso receptor exige o token). Eventos de pagamento não chegam. |
+| Telas autenticadas | Conciliação (com o laboratório de teste) e Administração de Planos e Tarifas abriram com sessão real; zero chamadas de escrita à aplicação. Capturas em generated-artifacts/. |
+
+Pendências do titular: responder OK no Telegram; confirmar o telefone do Dr. Caio; decidir se corrige o webhook do Asaas
+(endereço de produção da aplicação, token, reativar; isso pode reentregar eventos antigos e baixar pagamentos locais);
+criar conta e chaves do sandbox; enviar os arquivos de arquitetura 98.

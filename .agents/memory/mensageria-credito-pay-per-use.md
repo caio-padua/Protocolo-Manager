@@ -30,3 +30,5 @@ Confirmar o pagamento e retomar o atendimento são etapas recuperáveis separada
 **How to apply:** a reentrega válida da mesma confirmação tenta a recuperação, sem repetir crédito ou consumo; a retomada exige procedência da própria clínica e ambiente.
 
 **Asaas produção recusa cobrança abaixo de R$ 5,00** (inclusive centavos/PIX). Teto autorizado pelo titular para testes reais é R$ 1,00: logo teste real em produção é inviável; só sandbox. Nunca subir o teto sem ordem.
+
+**Conciliação Asaas**: cobranças do Concierge ficam em scheduling_requests, não em payments; ler as duas fontes. Webhook de produção do Asaas foi achado apontando ao domínio de desenvolvimento, desabilitado/interrompido e sem authToken: eventos de pagamento não chegam; religar pode reentregar eventos antigos, então só com ordem do titular.

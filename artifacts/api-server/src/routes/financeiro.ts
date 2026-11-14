@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { eq, and } from "drizzle-orm";
-import { db, paymentsTable, clientsTable, financialGoalsTable } from "@workspace/db";
+import { db, paymentsTable, clientsTable, financialGoalsTable, schedulingRequestsTable } from "@workspace/db";
 import {
   GetReconciliationQueryParams,
   ListFinancialGoalsQueryParams,
@@ -83,6 +83,26 @@ router.get("/reconciliation", requireCollaborator, async (req, res): Promise<voi
       asaasChargeId: t.asaas_charge_id, invoiceUrl: t.invoice_url, dueDate: t.vencimento, clientId: 0,
     });
     testeNomeByCharge.set(t.asaas_charge_id, `[TESTE] ${t.descricao}`);
+  }
+
+  // Cobrancas do Concierge vivem em scheduling_requests (nao em payments): entram como lado
+  // "sistema" para nao aparecerem como "so no gateway". Sem nome do paciente (so o numero do pedido).
+  const sreqs = await db
+    .select({
+      id: schedulingRequestsTable.id,
+      chargeId: schedulingRequestsTable.asaasChargeId,
+      amount: schedulingRequestsTable.paymentAmount,
+      status: schedulingRequestsTable.paymentStatus,
+      invoiceUrl: schedulingRequestsTable.asaasInvoiceUrl,
+    })
+    .from(schedulingRequestsTable);
+  for (const q of sreqs) {
+    if (!q.chargeId) continue;
+    localRows.push({
+      id: -(1_000_000 + q.id), amount: q.amount ?? 0, status: q.status,
+      asaasChargeId: q.chargeId, invoiceUrl: q.invoiceUrl, dueDate: null, clientId: 0,
+    });
+    testeNomeByCharge.set(q.chargeId, `Concierge #${q.id}`);
   }
 
   const localByCharge = new Map<string, (typeof localRows)[number]>();
