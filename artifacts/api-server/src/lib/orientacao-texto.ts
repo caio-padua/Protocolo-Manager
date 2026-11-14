@@ -20,12 +20,15 @@ export function marcadoresPendentes(t: string): string[] {
 
 /** Catálogo fixo de categorias e subcategorias (espelhado na tela). Nulo = "Sem categoria" (registros antigos). */
 export const CATEGORIAS: Record<string, { rotulo: string; sub: Record<string, string> }> = {
-  apresentacao: { rotulo: "Apresentação e acolhimento", sub: { clinica: "Apresentação da clínica", assistente: "Apresentação da assistente virtual", primeiro_contato: "Primeiro contato", retorno: "Retorno", medico_curta: "Médico — apresentação curta", medico_detalhada: "Médico — apresentação detalhada" } },
+  apresentacao: { rotulo: "Apresentação e acolhimento", sub: { clinica: "Apresentação da clínica", assistente: "Apresentação da assistente virtual", primeiro_contato: "Primeiro contato", retorno: "Retorno", medico_curta: "Médico — apresentação curta", medico_detalhada: "Médico — apresentação detalhada", consulta: "Consulta e primeira avaliação" } },
   agendamento: { rotulo: "Agendamento", sub: { modalidade: "Modalidade", preferencia: "Preferência", horarios: "Horários", confirmacao: "Confirmação", remarcacao: "Remarcação", retorno: "Retorno" } },
   cadastro: { rotulo: "Cadastro", sub: { dados: "Dados de cadastro", orientacoes: "Orientações de cadastro", pendente: "Cadastro pendente" } },
   documentos: { rotulo: "Exames e documentos", sub: { exames: "Exames", receitas: "Receitas e prescrições", atestados: "Atestados e declarações", envio: "Envio de documentos" } },
   orcamento: { rotulo: "Orçamento", sub: { apresentacao: "Apresentação do orçamento", pagamento: "Formas de pagamento", validade: "Validade e aceite" } },
   duvidas: { rotulo: "Dúvidas frequentes", sub: { consulta: "Sobre a consulta", aplicativo: "Sobre o aplicativo", prazos: "Prazos e retornos" } },
+  prescricao: { rotulo: "Prescrição e fórmulas", sub: { acabando: "Fórmula acabando", renovacao: "Solicitação de renovação", perdida: "Receita perdida", vigente: "Prescrição vigente" } },
+  emagrecimento: { rotulo: "Tratamento para emagrecimento", sub: { tratamento: "Como é o tratamento", expectativas: "Expectativas individualizadas", acompanhamento: "Acompanhamento" } },
+  medicacoes: { rotulo: "Medicações — reações e sintomas", sub: { tirzepatida_geral: "Tirzepatida — dúvida geral", tirzepatida_sintomas: "Tirzepatida — sintomas", sibutramina_geral: "Sibutramina — dúvida geral", sibutramina_sintomas: "Sibutramina — sintomas", bupropiona_naltrexona_geral: "Bupropiona com naltrexona — dúvida geral", bupropiona_naltrexona_sintomas: "Bupropiona com naltrexona — sintomas" } },
   clinicas: { rotulo: "Dúvidas clínicas e medicações", sub: { acolhimento: "Acolhimento", encaminhamento: "Encaminhamento" } },
   gerais: { rotulo: "Informações gerais", sub: { valores: "Valores", locais: "Locais", atendimento: "Atendimento", exames: "Exames", aplicativo: "Aplicativo" } },
   outros: { rotulo: "Outros assuntos", sub: { a_classificar: "A classificar" } },
