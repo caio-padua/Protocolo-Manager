@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CreateClientBody, UpdateClientBody } from "@workspace/api-zod";
 import { clientsTable } from "@workspace/db";
-import { NIVEIS_CLIENTE, NIVEL_ENTRADA, PALETA_NIVEL, rotuloNivel } from "../../../padcom/src/lib/nivel-cliente";
+import { NIVEIS_CLIENTE, NIVEL_ENTRADA, PALETA_NIVEL, nivelLegado, rotuloNivel } from "../../../padcom/src/lib/nivel-cliente";
 
 const raiz = join(__dirname, "../../../..");
 const base = { name: "Cliente Sintetico", cpf: "52998224725", email: "sintetico@example.com", phone: "11999990000", status: "active" as const };
@@ -46,12 +46,41 @@ describe("Niveis do cliente", () => {
     expect(Object.keys(PALETA_NIVEL)).toEqual([...NIVEIS_CLIENTE]);
   });
 
-  it("a migracao converte bronze e platina, preserva o resto e e idempotente", () => {
+  it("nivel antigo sem equivalente seguro aparece como A revisar e preserva o valor anterior", () => {
+    expect(nivelLegado("legado:ouro")).toBe("ouro");
+    expect(nivelLegado("legado:rodio")).toBe("rodio");
+    expect(nivelLegado("ouro")).toBeNull();
+    expect(nivelLegado(null)).toBeNull();
+    expect(rotuloNivel("legado:ouro")).toBe("A revisar");
+    expect(rotuloNivel("legado:prata")).toBe("A revisar");
+  });
+
+  it("o contrato nao aceita gravar o marcador de pendencia pela API", () => {
+    expect(UpdateClientBody.safeParse({ ...base, plano: "legado:ouro" }).success).toBe(false);
+  });
+
+  it("contraste texto/fundo atinge o minimo AA (4,5:1) no ponto mais escuro de cada degrade", () => {
+    const lum = (h: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const razao = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+    for (const n of NIVEIS_CLIENTE) {
+      const p = PALETA_NIVEL[n];
+      expect(razao(p.texto, p.fundoDe)).toBeGreaterThanOrEqual(4.5);
+      expect(razao(p.texto, p.fundoAte)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("a migracao registra o fluxo, tem rollback fora de migrations.sql e nao apaga dados", () => {
     const sql = readFileSync(join(raiz, "scripts/migrations/20261125_cliente_plano_niveis.sql"), "utf8");
     expect(sql).toContain("SET DEFAULT 'prata'");
-    expect(sql).toMatch(/SET plano = 'prata' WHERE plano = 'bronze'/);
-    expect(sql).toMatch(/SET plano = 'platinum' WHERE plano = 'platina'/);
-    expect(sql).not.toMatch(/DELETE|DROP|TRUNCATE/i);
-    expect(readFileSync(join(raiz, "scripts/migrations.sql"), "utf8")).toContain("20261125_cliente_plano_niveis.sql");
+    expect(sql).toMatch(/WHEN plano = 'bronze' THEN 'prata'/);
+    expect(sql).toContain("'legado:' || plano");
+    expect(sql).not.toMatch(/\bDELETE\b|\bDROP\b|TRUNCATE/i);
+    const todas = readFileSync(join(raiz, "scripts/migrations.sql"), "utf8");
+    expect(todas).toContain("20261125_cliente_plano_niveis.sql");
+    expect(todas).not.toContain("rollback/");
   });
 });

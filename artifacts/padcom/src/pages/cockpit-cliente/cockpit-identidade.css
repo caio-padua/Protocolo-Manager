@@ -231,3 +231,5 @@
 .cc-grade-plan span[data-plano="ouro"] { color: #4a3608; background: linear-gradient(180deg,#f3dfa3,#c9a24f); }
 .cc-grade-plan span[data-plano="platinum"] { color: #3b4a5a; background: linear-gradient(180deg,#fcfdfe,#dde4ec); }
 .cc-grade-plan span[data-plano="diamond"] { color: #0b3b52; background: linear-gradient(180deg,#d9f2fc,#79cbe9); }
+/* Nivel antigo sem equivalente seguro: valor preservado, aguardando escolha da equipe (contorno tracejado, sem cor de nivel). */
+.cc-grade-plan span[data-plano="pendente"] { color: #2b3340; background: #f4f1ea; outline: 1.5px dashed #6b7280; outline-offset: -3px; }

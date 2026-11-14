@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Crown, Save } from "lucide-react";
-import { NIVEIS_CLIENTE, NIVEL_ENTRADA, PALETA_NIVEL, ehNivelCliente, fundoNivel } from "@/lib/nivel-cliente";
+import { NIVEIS_CLIENTE, NIVEL_ENTRADA, PALETA_NIVEL, ehNivelCliente, fundoNivel, nivelLegado } from "@/lib/nivel-cliente";
 
 const CLASSES = [
   { v: "A", d: "Paga em dia e fecha protocolos sempre" },
@@ -20,13 +20,18 @@ export default function CategoriaCliente({ client }: { client: Client }) {
   const qc = useQueryClient();
   const update = useUpdateClient();
   const [classe, setClasse] = useState<string>(client.classificacao ?? "D");
-  const [plano, setPlano] = useState<string>(ehNivelCliente(client.plano) ? client.plano : NIVEL_ENTRADA);
-  const mudou = classe !== client.classificacao || plano !== client.plano;
+  // Nivel pendente (valor antigo sem equivalente seguro): nada vem marcado; a equipe escolhe.
+  const anterior = nivelLegado(client.plano);
+  const [plano, setPlano] = useState<string>(
+    ehNivelCliente(client.plano) ? client.plano : anterior !== null ? "" : NIVEL_ENTRADA,
+  );
+  const planoValido = ehNivelCliente(plano);
+  const mudou = classe !== client.classificacao || (planoValido && plano !== client.plano);
 
   const salvar = () =>
     update.mutate(
       // O servidor aceita atualização parcial: só estes dois campos mudam.
-      { id: client.id, data: { classificacao: classe, plano } as unknown as Parameters<typeof update.mutate>[0]["data"] },
+      { id: client.id, data: { classificacao: classe, ...(planoValido ? { plano } : {}) } as unknown as Parameters<typeof update.mutate>[0]["data"] },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getGetClientQueryKey(client.id) });
@@ -58,6 +63,11 @@ export default function CategoriaCliente({ client }: { client: Client }) {
         </div>
         <div>
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground mb-2">Plano</p>
+          {anterior !== null && (
+            <p role="status" className="text-xs mb-2 font-semibold">
+              Nível anterior preservado: <strong>{anterior}</strong>. Não há equivalente seguro no modelo novo; escolha o nível e salve.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {NIVEIS_CLIENTE.map((v) => (
               <button key={v} type="button" aria-pressed={plano === v} className={`${opcao(plano === v)} inline-flex items-center gap-2`} onClick={() => setPlano(v)}>

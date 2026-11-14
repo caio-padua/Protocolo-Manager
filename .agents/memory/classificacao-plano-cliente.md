@@ -1,25 +1,27 @@
 ---
 name: Classificação e nível (plano) do cliente
-description: Níveis Prata/Ouro/Platinum/Diamond (campo clients.plano), classificação A–D, e o que ainda não está definido.
+description: Níveis Prata/Ouro/Platinum/Diamond (clients.plano), mapeamento do modelo antigo, marcador legado, rollback e o que não existe.
 ---
 
-O nível do cliente (coluna `clients.plano`) é, nesta ordem: **prata, ouro, platinum, diamond**.
-Entrada = prata. Decisão do responsável em 14/11/2026; substitui Bronze/Platina/Noir
-(o desenho antigo de 08/11/2026 com Bronze deixou de valer). Nomes e paleta moram em um
-único módulo da interface (`padcom/src/lib/nivel-cliente.ts`); o contrato aceita só esses
-quatro valores (OpenAPI → zod). A classificação (A–D, padrão D no banco) é atributo distinto
-do nível; a nota "E" da decisão de 08/11/2026 não está no banco (divergência não resolvida).
+Nível do cliente (`clients.plano`), na ordem: **prata, ouro, platinum, diamond**; entrada = prata.
+Decisão do responsável em 14/11/2026. Nomes e paleta moram em `padcom/src/lib/nivel-cliente.ts`;
+o contrato (OpenAPI → zod) aceita só esses quatro valores. Classificação A–D é outro atributo.
 
-Os critérios de progressão, descontos por classificação e privilégios por nível NÃO foram
-definidos nem implementados: nada no código promove o cliente de nível.
+**Modelo antigo real** (contrato de 13/11/2026): bronze, prata, ouro, "rodio" (erro de voz para
+"ródio"). Platina/Noir só existiam em textos e cartas, nunca no banco. Todos os clientes estavam em bronze.
 
-**Why:** o CEO quis eliminar "Bronze" (percepção de inferioridade) e uma escada luminosa
-(prata cinza, ouro dourado, platinum perolado, diamond azul-cristal) com termos em
-português nos degraus iniciais e internacionais nos superiores.
+**Mapeamento:** só bronze→prata é automático. prata, ouro e rodio antigos coincidem em nome mas não em
+posição, então ficam preservados como `legado:<valor>` e a interface mostra "A REVISAR" (nada vem
+marcado; a equipe escolhe). A API recusa gravar `legado:*`. A migração é de execução única: o livro
+`cliente_nivel_migracao` (cliente, clínica, valor antes/depois) impede reinterpretar "prata" novo como
+antigo e alimenta o rollback em `scripts/migrations/rollback/` (restaura só quem não foi alterado depois).
 
-**How to apply:** não reintroduzir bronze/platina/noir. "BRONZE" em `ras-fap.ts`/`ras.ts` é um
-TEMA DE COR do documento RAS, outro conceito — não renomear. Ao mexer em valores aceitos,
-mudar OpenAPI, rodar o codegen e conferir que `lib/api-zod/src/index.ts` continua exportando
-só `./generated/api` (o codegen acrescenta `generated/types` e quebra o barrel). A migração
-é idempotente e converte só bronze→prata e platina→platinum. Não apresentar falha de leitura
-como um nível; valor ausente ou antigo vira "—".
+**Não existe no código** (não inventar): filtro por nível, progressão automática, benefícios por nível,
+nível na Área do Cliente do celular. Critérios, descontos e privilégios nunca foram definidos.
+
+**Why:** pedido de preservar hierarquia, vínculos e histórico; nome igual não prova equivalência.
+
+**How to apply:** não reintroduzir bronze/platina/noir. "BRONZE" em `ras-fap.ts`/`ras.ts` é tema de cor do
+RAS, outro conceito. Ao mudar valores aceitos: OpenAPI, codegen e conferir que `lib/api-zod/src/index.ts`
+exporta só `./generated/api`. Teste de e2e: `toHaveText` lê o HTML, o CSS põe caixa alta (usar regex /i).
+Antes de aplicar a migração em outro banco, conferir os valores existentes de `plano` (pendências = `legado:%`).

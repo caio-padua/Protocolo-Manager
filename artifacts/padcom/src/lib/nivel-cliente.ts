@@ -22,9 +22,22 @@ export function ehNivelCliente(valor: unknown): valor is NivelCliente {
   return typeof valor === "string" && (NIVEIS_CLIENTE as readonly string[]).includes(valor);
 }
 
-/** Rotulo exibido; valor ausente ou fora do modelo vira traco, nunca um nivel inventado. */
+// Cliente cujo nivel antigo nao tem equivalente seguro no modelo novo (migracao 20261125): o valor anterior
+// fica preservado como "legado:<valor>" e o cliente aparece como "A REVISAR" ate a equipe escolher o nivel.
+export const PREFIXO_NIVEL_LEGADO = "legado:";
+export const ROTULO_NIVEL_PENDENTE = "A revisar";
+
+/** Valor anterior preservado (ex.: "ouro"), ou null se o nivel nao e pendente. */
+export function nivelLegado(valor: string | null | undefined): string | null {
+  return typeof valor === "string" && valor.startsWith(PREFIXO_NIVEL_LEGADO)
+    ? valor.slice(PREFIXO_NIVEL_LEGADO.length)
+    : null;
+}
+
+/** Rotulo exibido; pendente vira "A revisar"; ausente ou desconhecido vira traco, nunca um nivel inventado. */
 export function rotuloNivel(valor: string | null | undefined): string {
-  return ehNivelCliente(valor) ? PALETA_NIVEL[valor].nome : "—";
+  if (ehNivelCliente(valor)) return PALETA_NIVEL[valor].nome;
+  return nivelLegado(valor) !== null ? ROTULO_NIVEL_PENDENTE : "—";
 }
 
 export function fundoNivel(valor: NivelCliente): string {

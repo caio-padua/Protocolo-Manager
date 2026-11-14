@@ -12,7 +12,7 @@ import { ICONES_AVALIACAO } from "./avaliacoes/icones";
 import { dataBr, useMedicoes } from "./avaliacoes/api";
 import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
-import { rotuloNivel } from "@/lib/nivel-cliente";
+import { ehNivelCliente, nivelLegado, rotuloNivel } from "@/lib/nivel-cliente";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
 import { formatarNascimento, idadeCompleta } from "./idadeCliente";
 
@@ -86,6 +86,11 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
   // Dado ausente (resposta sem o campo) aparece como traco, nunca como valor inventado
   const classif = client.classificacao ?? "—";
   const planoNome = rotuloNivel(client.plano);
+  const planoAnterior = nivelLegado(client.plano);
+  const planoTitulo = planoAnterior !== null
+    ? `Nível anterior preservado: ${planoAnterior}. Escolha o nível novo no cadastro.`
+    : `Plano ${planoNome}`;
+  const planoMarca = ehNivelCliente(client.plano) ? client.plano : planoAnterior !== null ? "pendente" : undefined;
   const campos = [
     { label: "CPF", value: formatarCpf(client.cpf) },
     { label: "NASCIMENTO", value: formatarNascimento(client.birthDate) ?? "—" },
@@ -121,7 +126,7 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
         </div>
         <div className="cc-grade-plan" aria-label={`Classificação ${classif}, plano ${planoNome}`}>
           <span title={`Classificação ${classif}`}>{classif}</span>
-          <span title={`Plano ${planoNome}`} data-plano={client.plano ?? undefined}>{planoNome}</span>
+          <span title={planoTitulo} data-plano={planoMarca}>{planoNome}</span>
         </div>
       </div>
 
