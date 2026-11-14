@@ -160,7 +160,7 @@ export function VitrineClinica() {
           <div className="mt-6 flex items-center gap-3 px-4 py-3 gold-hair" style={{ background: "rgba(255,255,255,0.04)" }}>
             <Crown className="h-5 w-5 shrink-0 text-[#e7cd8f]" />
             <span className="text-[11px] leading-snug text-slate-300">
-              Os Círculos PAXTER (Bronze, Ouro, Platina e Noir) transformam atendimento avulso
+              Os Círculos PAXTER (Prata, Ouro, Platinum e Diamond) transformam atendimento avulso
               em relação de longo prazo — recorrência para a clínica, pertencimento para o paciente.
             </span>
           </div>

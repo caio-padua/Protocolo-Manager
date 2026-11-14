@@ -12,6 +12,7 @@ import { ICONES_AVALIACAO } from "./avaliacoes/icones";
 import { dataBr, useMedicoes } from "./avaliacoes/api";
 import { BASE } from "@/pages/comunicacao/_shared";
 import { tituloProprio } from "@/lib/utils";
+import { rotuloNivel } from "@/lib/nivel-cliente";
 import { NomeClienteResponsivo } from "./NomeClienteResponsivo";
 import { formatarNascimento, idadeCompleta } from "./idadeCliente";
 
@@ -79,14 +80,12 @@ interface ClientIdentityProps {
   onMensagens: () => void;
 }
 
-const PLANO_NOME: Record<string, string> = { bronze: "Bronze", prata: "Prata", ouro: "Ouro", platina: "Platina" };
-
 export default function ClientIdentity({ client, onMensagens }: ClientIdentityProps) {
   const [aberto, setAberto] = useState<"resumo" | "imagem" | null>(null);
   const idade = idadeCompleta(client.birthDate);
   // Dado ausente (resposta sem o campo) aparece como traco, nunca como valor inventado
   const classif = client.classificacao ?? "—";
-  const planoNome = client.plano ? PLANO_NOME[client.plano] : "—";
+  const planoNome = rotuloNivel(client.plano);
   const campos = [
     { label: "CPF", value: formatarCpf(client.cpf) },
     { label: "NASCIMENTO", value: formatarNascimento(client.birthDate) ?? "—" },

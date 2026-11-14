@@ -224,13 +224,10 @@
 .cc-workspace-background,
 .cc-shell.dark .cc-workspace-background { background-image: var(--cc-fabric); background-attachment: fixed; }
 
-/* Classificacao (A a D) e plano sob a foto: cor do plano; legivel nos dois temas */
+/* Classificacao (A a D) e nivel sob a foto: chip na paleta do nivel; identico nos dois temas.
+   Valores: prata, ouro, platinum, diamond (fonte: lib/nivel-cliente.ts). */
 .cc-grade-plan { font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.cc-grade-plan span[data-plano="bronze"] { color: #b9773a; }
-.cc-grade-plan span[data-plano="prata"] { color: #9aa7b5; }
-.cc-grade-plan span[data-plano="ouro"] { color: #d2ab57; }
-.cc-grade-plan span[data-plano="platina"] { color: #7fb7c9; }
-.cc-shell:not(.dark) .cc-grade-plan span[data-plano="bronze"] { color: #8f5420; }
-.cc-shell:not(.dark) .cc-grade-plan span[data-plano="prata"] { color: #6b7886; }
-.cc-shell:not(.dark) .cc-grade-plan span[data-plano="ouro"] { color: #8a6d2f; }
-.cc-shell:not(.dark) .cc-grade-plan span[data-plano="platina"] { color: #3f7f93; }
+.cc-grade-plan span[data-plano="prata"] { color: #38424f; background: linear-gradient(180deg,#e6eaef,#b9c1cc); }
+.cc-grade-plan span[data-plano="ouro"] { color: #4a3608; background: linear-gradient(180deg,#f3dfa3,#c9a24f); }
+.cc-grade-plan span[data-plano="platinum"] { color: #3b4a5a; background: linear-gradient(180deg,#fcfdfe,#dde4ec); }
+.cc-grade-plan span[data-plano="diamond"] { color: #0b3b52; background: linear-gradient(180deg,#d9f2fc,#79cbe9); }

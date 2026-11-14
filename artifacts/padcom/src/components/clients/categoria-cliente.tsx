@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Crown, Save } from "lucide-react";
+import { NIVEIS_CLIENTE, NIVEL_ENTRADA, PALETA_NIVEL, ehNivelCliente, fundoNivel } from "@/lib/nivel-cliente";
 
 const CLASSES = [
   { v: "A", d: "Paga em dia e fecha protocolos sempre" },
@@ -13,19 +14,13 @@ const CLASSES = [
   { v: "C", d: "Fecha protocolos de vez em quando" },
   { v: "D", d: "Sem histórico (padrão de quem chega)" },
 ] as const;
-const PLANOS = [
-  { v: "bronze", n: "Bronze" },
-  { v: "prata", n: "Prata" },
-  { v: "ouro", n: "Ouro" },
-  { v: "platina", n: "Platina" },
-] as const;
 
 export default function CategoriaCliente({ client }: { client: Client }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const update = useUpdateClient();
   const [classe, setClasse] = useState<string>(client.classificacao ?? "D");
-  const [plano, setPlano] = useState<string>(client.plano ?? "bronze");
+  const [plano, setPlano] = useState<string>(ehNivelCliente(client.plano) ? client.plano : NIVEL_ENTRADA);
   const mudou = classe !== client.classificacao || plano !== client.plano;
 
   const salvar = () =>
@@ -64,8 +59,11 @@ export default function CategoriaCliente({ client }: { client: Client }) {
         <div>
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground mb-2">Plano</p>
           <div className="flex flex-wrap gap-2">
-            {PLANOS.map((p) => (
-              <button key={p.v} type="button" aria-pressed={plano === p.v} className={opcao(plano === p.v)} onClick={() => setPlano(p.v)}>{p.n}</button>
+            {NIVEIS_CLIENTE.map((v) => (
+              <button key={v} type="button" aria-pressed={plano === v} className={`${opcao(plano === v)} inline-flex items-center gap-2`} onClick={() => setPlano(v)}>
+                <span aria-hidden="true" className="inline-block h-3 w-3 rounded-[2px] border border-black/20" style={{ background: fundoNivel(v) }} />
+                {PALETA_NIVEL[v].nome}
+              </button>
             ))}
           </div>
         </div>

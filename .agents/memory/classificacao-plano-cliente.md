@@ -1,18 +1,25 @@
 ---
-name: Classificação e plano do cliente
-description: Regra inicial comercial e limites para classificação e plano de adesão.
+name: Classificação e nível (plano) do cliente
+description: Níveis Prata/Ouro/Platinum/Diamond (campo clients.plano), classificação A–D, e o que ainda não está definido.
 ---
 
-O responsável definiu que cada cliente começa com classificação interna E e
-plano Bronze. A classificação de A a E e o plano são atributos distintos.
-A evolução da classificação poderá trazer descontos; o plano poderá conferir
-privilégios conforme sua categoria. Os critérios de progressão, percentuais e
-privilégios específicos ainda não foram definidos nessa decisão.
+O nível do cliente (coluna `clients.plano`) é, nesta ordem: **prata, ouro, platinum, diamond**.
+Entrada = prata. Decisão do responsável em 14/11/2026; substitui Bronze/Platina/Noir
+(o desenho antigo de 08/11/2026 com Bronze deixou de valer). Nomes e paleta moram em um
+único módulo da interface (`padcom/src/lib/nivel-cliente.ts`); o contrato aceita só esses
+quatro valores (OpenAPI → zod). A classificação (A–D, padrão D no banco) é atributo distinto
+do nível; a nota "E" da decisão de 08/11/2026 não está no banco (divergência não resolvida).
 
-**Why:** em 08/11/2026, o responsável estabeleceu E e Bronze como ponto de partida
-ao definir a faixa de identificação do Cockpit.
+Os critérios de progressão, descontos por classificação e privilégios por nível NÃO foram
+definidos nem implementados: nada no código promove o cliente de nível.
 
-**How to apply:** manter os valores efetivamente atribuídos como fonte de verdade;
-inicializar os valores pelo fluxo autorizado, sem sobrescrever níveis ou planos
-já atribuídos. Não apresentar falha de leitura como E ou Bronze e não presumir
-contratação ou pagamento a partir de uma página demonstrativa.
+**Why:** o CEO quis eliminar "Bronze" (percepção de inferioridade) e uma escada luminosa
+(prata cinza, ouro dourado, platinum perolado, diamond azul-cristal) com termos em
+português nos degraus iniciais e internacionais nos superiores.
+
+**How to apply:** não reintroduzir bronze/platina/noir. "BRONZE" em `ras-fap.ts`/`ras.ts` é um
+TEMA DE COR do documento RAS, outro conceito — não renomear. Ao mexer em valores aceitos,
+mudar OpenAPI, rodar o codegen e conferir que `lib/api-zod/src/index.ts` continua exportando
+só `./generated/api` (o codegen acrescenta `generated/types` e quebra o barrel). A migração
+é idempotente e converte só bronze→prata e platina→platinum. Não apresentar falha de leitura
+como um nível; valor ausente ou antigo vira "—".

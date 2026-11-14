@@ -6044,7 +6044,7 @@ components:
           enum: [A, B, C, D]
         plano:
           type: string
-          enum: [bronze, prata, ouro, platina]
+          enum: [prata, ouro, platinum, diamond]
         preferredAgendaResourceIds:
           type: array
           items:
@@ -6130,7 +6130,7 @@ components:
           enum: [A, B, C, D]
         plano:
           type: string
-          enum: [bronze, prata, ouro, platina]
+          enum: [prata, ouro, platinum, diamond]
         preferredAgendaResourceIds:
           type: array
           items:

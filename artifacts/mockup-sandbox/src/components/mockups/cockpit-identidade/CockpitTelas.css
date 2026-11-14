@@ -2325,7 +2325,7 @@
   outline-offset: 3px;
 }
 
-/* A nota fica compacta; Bronze ocupa 3/4 e a classificação ganha selo dourado. */
+/* A nota fica compacta; O nível ocupa 3/4 e a classificação ganha selo dourado. */
 .ct-client-classification {
   grid-template-columns: minmax(0, 3fr) minmax(32px, 1fr);
   height: 34px;

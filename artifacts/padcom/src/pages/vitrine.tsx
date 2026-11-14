@@ -66,10 +66,10 @@ const VITRINE_STYLE = `
 `;
 
 const TIERS = [
-  { nome: "BRONZE", essencia: "O cuidado essencial do seu protocolo." },
-  { nome: "OURO", essencia: "Acompanhamento ampliado e prioridade no atendimento." },
-  { nome: "PLATINA", essencia: "Concierge dedicada e mais solicitações inclusas." },
-  { nome: "NOIR", essencia: "Tudo incluso. O círculo mais reservado." },
+  { nome: "PRATA", cor: "#c3ccd6", essencia: "O cuidado essencial do seu protocolo." },
+  { nome: "OURO", cor: "#e7cd8f", essencia: "Acompanhamento ampliado e prioridade no atendimento." },
+  { nome: "PLATINUM", cor: "#f4f7fb", essencia: "Concierge dedicada e mais solicitações inclusas." },
+  { nome: "DIAMOND", cor: "#8fd8f2", essencia: "Tudo incluso. O círculo mais reservado." },
 ];
 
 const PILARES = [
@@ -342,7 +342,7 @@ export default function Vitrine() {
             {TIERS.map((t, i) => (
               <div key={t.nome} className="gold-hair flex items-center gap-3 px-3 py-3" style={{ background: "rgba(255,255,255,0.05)" }}>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px]" style={{ background: "rgba(231,205,143,0.12)" }}>
-                  {i >= 2 ? <Crown className="h-5 w-5" style={{ color: "#e7cd8f" }} /> : <Sparkles className="h-4 w-4" style={{ color: "#cbb778" }} />}
+                  {i >= 2 ? <Crown className="h-5 w-5" style={{ color: t.cor }} /> : <Sparkles className="h-4 w-4" style={{ color: t.cor }} />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-bold tracking-[0.06em] text-white">{t.nome}</div>

@@ -9,8 +9,8 @@
 export type ClientPlano = (typeof ClientPlano)[keyof typeof ClientPlano];
 
 export const ClientPlano = {
-  bronze: "bronze",
   prata: "prata",
   ouro: "ouro",
-  platina: "platina",
+  platinum: "platinum",
+  diamond: "diamond",
 } as const;

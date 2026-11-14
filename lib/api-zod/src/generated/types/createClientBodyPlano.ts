@@ -10,8 +10,8 @@ export type CreateClientBodyPlano =
   (typeof CreateClientBodyPlano)[keyof typeof CreateClientBodyPlano];
 
 export const CreateClientBodyPlano = {
-  bronze: "bronze",
   prata: "prata",
   ouro: "ouro",
-  platina: "platina",
+  platinum: "platinum",
+  diamond: "diamond",
 } as const;

@@ -90,7 +90,7 @@
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as internas repetem a 50%, marca e peca unica.
 - [Workspace travando = peso do repo](workspace-lento-peso-repo.md) — medir antes de culpar codigo: anexos versionados, size-pack do git e servidores simultaneos; nunca apagar sem ordem escrita.
 - [Área do Cliente: desejo IMPLÍCITO + faixas](area-cliente-desejo-implicito.md) — planos viram ícone-coroa a descobrir (sem upsell/preço na home); cabeçalho em 3 faixas, nome nunca sob PAXTER.
-- [Classificação e plano do cliente](classificacao-plano-cliente.md) — entrada em E e Bronze; nota e plano são distintos, sem regras de progressão inventadas.
+- [Nível do cliente: Prata/Ouro/Platinum/Diamond](classificacao-plano-cliente.md) — substitui Bronze/Platina/Noir; módulo único nivel-cliente.ts; codegen quebra o barrel api-zod; sem progressão.
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange.
 - [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de reverter.
 - [Lembrete por período do IHE (portar ao Manager)](ihe-mensageria-periodo.md) — motor cronobiológico: 1 msg POR JANELA (não por fórmula), 9 períodos canônicos, tolerância 5min, madrugada vazia.

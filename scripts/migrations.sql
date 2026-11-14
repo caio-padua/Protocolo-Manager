@@ -434,3 +434,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS recipes_qr_token_hash_unique
 
 -- Medicoes corporais do cliente (avaliacoes do Cockpit).
 \ir migrations/20261124_client_avaliacoes.sql
+
+-- Niveis do cliente: Prata, Ouro, Platinum e Diamond (substitui bronze/prata/ouro/platina).
+\ir migrations/20261125_cliente_plano_niveis.sql

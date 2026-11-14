@@ -836,17 +836,17 @@ export function CockpitTelas() {
                 className="ct-client-classification"
                 role="group"
                 aria-label={cliente
-                  ? "Campos demonstrativos e independentes: classificação fictícia E e plano ilustrativo Bronze. Não representam nota, contrato, desconto ou privilégio real."
+                  ? "Campos demonstrativos e independentes: classificação fictícia E e plano ilustrativo Prata. Não representam nota, contrato, desconto ou privilégio real."
                   : "Classificação e plano não consultados."}
               >
                 <div
                   className="ct-plan-slot"
                   role="img"
                   aria-label={cliente
-                    ? "Círculo PAXTER ilustrativo: Bronze; não confirma adesão real"
+                    ? "Círculo PAXTER ilustrativo: Prata; não confirma adesão real"
                     : "Plano não consultado"}
                 >
-                  <strong aria-hidden="true">{cliente ? "BRONZE" : "—"}</strong>
+                  <strong aria-hidden="true">{cliente ? "PRATA" : "—"}</strong>
                 </div>
                 <div
                   className="ct-grade-slot"
