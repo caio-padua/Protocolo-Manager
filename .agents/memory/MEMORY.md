@@ -192,3 +192,4 @@
 - [Cobrança de teste Asaas — guard de identidade](asaas-guard-identidade-teste.md) — teto R$5/10/R$50; divergência local×Asaas bloqueia; webhook de produção só por diagnóstico de leitura.
 - [Exames avulsos — entrada separada](exames-avulsos-entrada.md) — escolha não é prescrição; preço só do titular, editável até o aceite; cobrança/emissão pendentes.
 - [Meus Bolões — base mínima + automação de recibos](meus-boloes-base-minima.md) — quarentena + casamento determinístico + aprovação humana; auto-aprovar desligado; 3 estados distintos; sem API/login CAIXA.
+- [Conciliação Asaas por leitura + extrato real](asaas-conciliacao-leitura-extrato.md) — webhook interrompido; job só lê; líquido real vem do extrato (taxa de mensageria fora do netValue); legado só por ID.

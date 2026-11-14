@@ -132,6 +132,13 @@ export interface AsaasCharge {
   value: number;
   netValue?: number;
   paymentDate?: string | null;
+  // Campos de leitura usados pela conciliacao (todos opcionais: o Asaas so os preenche conforme o status).
+  clientPaymentDate?: string | null;
+  creditDate?: string | null;
+  estimatedCreditDate?: string | null;
+  dateCreated?: string | null;
+  deleted?: boolean;
+  refunds?: Array<{ value?: number; status?: string }> | null;
 }
 
 export interface AsaasCustomerView {
@@ -364,4 +371,40 @@ export async function asaasListTransfers(max = 100): Promise<AsaasTransfer[]> {
 export async function asaasListWebhooks(): Promise<any[]> {
   const j = await asaasFetch(`/webhooks?limit=100`);
   return Array.isArray(j?.data) ? j.data : [];
+}
+
+export interface AsaasLancamentoExtrato {
+  id: string;
+  valor: number; // negativo = saida/taxa
+  tipo: string; // PAYMENT_RECEIVED | PAYMENT_FEE | PAYMENT_MESSAGING_NOTIFICATION_FEE | ...
+  data: string; // YYYY-MM-DD
+  paymentId: string | null;
+  descricao: string | null;
+}
+
+/** SOMENTE LEITURA: extrato real da conta (lancamentos efetivos, com taxas), paginado. */
+export async function asaasListExtrato(inicio: string, fim: string, max = 1000): Promise<AsaasLancamentoExtrato[]> {
+  const out: AsaasLancamentoExtrato[] = [];
+  let offset = 0;
+  const limit = 100;
+  while (out.length < max) {
+    const page = await asaasFetch(
+      `/financialTransactions?startDate=${encodeURIComponent(inicio)}&finishDate=${encodeURIComponent(fim)}&offset=${offset}&limit=${limit}&order=asc`,
+      { method: "GET" },
+    );
+    const data: any[] = Array.isArray(page?.data) ? page.data : [];
+    for (const t of data) {
+      out.push({
+        id: String(t.id),
+        valor: Number(t.value ?? 0),
+        tipo: String(t.type ?? ""),
+        data: String(t.date ?? ""),
+        paymentId: t.paymentId ? String(t.paymentId) : null,
+        descricao: t.description ?? null,
+      });
+    }
+    if (!page?.hasMore || data.length === 0) break;
+    offset += limit;
+  }
+  return out;
 }

@@ -653,6 +653,15 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
     return;
   }
 
+  // Depois que a resposta sai (e o banco ja foi atualizado), grava o retrato financeiro (bruto, taxas, liquido,
+  // extrato) por LEITURA no Asaas. Nunca altera status e nunca derruba o webhook.
+  res.on("finish", () => {
+    if (res.statusCode !== 200) return;
+    void import("../lib/asaas-conciliacao.js")
+      .then((m) => m.reconciliarCobranca(String(payment.id), { origem: "webhook", aplicar: false }))
+      .catch((err: unknown) => req.log.warn({ err: String(err) }, "Retrato financeiro pos-webhook falhou (sem efeito no pagamento)"));
+  });
+
   try {
     // Cobranca de teste (laboratorio): atualiza so o livro de teste; nao toca pagamentos reais.
     const testeHit = await db.execute(

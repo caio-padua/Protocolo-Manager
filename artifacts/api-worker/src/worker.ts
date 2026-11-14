@@ -113,6 +113,44 @@ function iniciarJobRepasseTelegram(logger: pino.Logger, scheduler: CronScheduler
 }
 
 /**
+ * Conciliação automática com o Asaas (a cada 3 minutos), SOMENTE LEITURA no Asaas.
+ * Existe porque o webhook de produção pode estar desligado/interrompido: sem este job, um pagamento
+ * recebido nunca chegava ao sistema. Só marca "pago" com consulta direta que comprove (status pago, valor
+ * igual, cobrança não removida), apenas no livro de teste e em pagamentos criados após a data de corte.
+ */
+export function iniciarJobConciliacaoAsaas(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "*/3 * * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { ensureAsaasConciliacaoTables, varrerPendentes } = await import(
+          "../../api-server/src/lib/asaas-conciliacao.js" as string
+        );
+        await ensureAsaasConciliacaoTables();
+        const r = await varrerPendentes();
+        if (r.aplicadas > 0 || r.bloqueadas > 0 || r.falhas > 0) {
+          logger.info(r, "Worker: conciliação Asaas");
+        }
+      } catch (err) {
+        logger.error(
+          {
+            errorType: err instanceof Error ? err.constructor.name : typeof err,
+            errorCategory: categorizarErroDeWorker(err),
+          },
+          "Worker: falha na conciliação Asaas"
+        );
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
+/**
  * Job 2: lembrete por período (tick a cada minuto). Função própria apenas para poder ser executada
  * isoladamente em verificação; é o MESMO agendamento e o MESMO motor usados pelo worker completo.
  */
@@ -161,8 +199,9 @@ export function startWorkerJobs(
     // atendimento=true: o atendimento por IA/agendamento só age para os clientes da lista restrita
     // (app_settings atendimento.ia.modo/permitidos); com modo desligado nada é respondido.
     iniciarJobRepasseTelegram(logger, scheduler, true);
+    iniciarJobConciliacaoAsaas(logger, scheduler);
     logger.info(
-      { profile, jobs: ["telegram-relay-1min"] },
+      { profile, jobs: ["telegram-relay-1min", "asaas-conciliacao-3min"] },
       "api-worker iniciado em perfil restrito de desenvolvimento"
     );
     return;
@@ -214,6 +253,9 @@ export function startWorkerJobs(
   // ─── Job 3b: Retomada dos repasses do Telegram ao chat de alerta — a cada minuto ───
   // Reenvia o que ficou pendente/falhou (com espera crescente). "incerto" NUNCA é reenviado sozinho.
   iniciarJobRepasseTelegram(logger, cron, true);
+
+  // ─── Job 3c: Conciliação Asaas por leitura — a cada 3 minutos ───
+  iniciarJobConciliacaoAsaas(logger, cron);
 
   // ─── Job 4: Drive Watcher — a cada 5 minutos ────────────────────────────
   let driveRunning = false;

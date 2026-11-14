@@ -11,6 +11,7 @@ import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-prot
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
 import { ensureExamesAvulsosTable } from "./lib/exames-avulsos.js";
 import { ensureAsaasTesteTable } from "./lib/asaas-teste-cobrancas.js";
+import { ensureAsaasConciliacaoTables } from "./lib/asaas-conciliacao.js";
 import { ensureBoloesTables } from "./lib/boloes.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
@@ -131,6 +132,13 @@ if (Number.isNaN(port) || port <= 0) {
     await ensureAsaasTesteTable();
   } catch (e) {
     logger.error({ err: e }, "Falha ao criar tabela asaas_cobrancas_teste — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureAsaasConciliacaoTables();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabelas da conciliacao Asaas — abortando boot");
     process.exit(1);
   }
 
