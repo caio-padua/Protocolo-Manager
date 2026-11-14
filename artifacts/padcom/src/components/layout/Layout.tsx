@@ -82,6 +82,7 @@ import {
   EyeOff,
   ChevronDown,
   MessageCircle,
+  Ticket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,6 +126,7 @@ const navigation: NavEntry[] = [
       { name: "Cockpit da Consulta", href: "/cockpit", icon: Stethoscope },
       { name: "Pit Stop", href: "/pit-stop", icon: Flag },
       { name: "Pedidos dos Clientes", href: "/pedidos-medicos", icon: FileText },
+      { name: "Central de Bolões", href: "/boloes", icon: Ticket },
       { name: "Cockpit da Anamnese", href: "/cockpit-anamnese", icon: Brain },
       { name: "Cartório", href: "/cartorio", icon: Stamp },
       { name: "Craniotomia", href: "/craniotomia", icon: BrainCircuit },

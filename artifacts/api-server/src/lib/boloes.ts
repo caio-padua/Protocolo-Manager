@@ -74,6 +74,62 @@ export async function ensureBoloesTables(): Promise<void> {
       criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_boloes_aud_cliente ON boloes_auditoria (client_id, criado_em)`);
+
+  // ---- Automacao de recebimento (aditivo; nada existente e apagado) ----
+  // Pagamento e informado pela clinica: este sistema NAO cobra e NAO usa Asaas.
+  await db.execute(sql`ALTER TABLE boloes_participacoes ADD COLUMN IF NOT EXISTS pagamento_status TEXT NOT NULL DEFAULT 'nao_informado'`);
+  await db.execute(sql`ALTER TABLE boloes_participacoes ADD COLUMN IF NOT EXISTS pagamento_atualizado_em TIMESTAMPTZ`);
+  await db.execute(sql`ALTER TABLE boloes_participacoes ADD COLUMN IF NOT EXISTS pagamento_atualizado_por INTEGER`);
+  await db.execute(sql`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'boloes_participacoes_pagamento_ck') THEN
+        ALTER TABLE boloes_participacoes ADD CONSTRAINT boloes_participacoes_pagamento_ck
+          CHECK (pagamento_status IN ('nao_informado','pendente','confirmado'));
+      END IF;
+    END $$`);
+  // Aprovacao pelo robo nao tem profissional: o ator passa a ser texto.
+  await db.execute(sql`ALTER TABLE boloes_comprovantes ALTER COLUMN validado_por DROP NOT NULL`);
+  await db.execute(sql`ALTER TABLE boloes_comprovantes ADD COLUMN IF NOT EXISTS validado_ator TEXT`);
+  await db.execute(sql`ALTER TABLE boloes_comprovantes ADD COLUMN IF NOT EXISTS recebimento_id INTEGER`);
+  // O mesmo arquivo nao vale para duas participacoes.
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_boloes_comprovante_sha_ativo
+      ON boloes_comprovantes (empresa_id, sha256) WHERE revogado_em IS NULL`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS boloes_recebimentos (
+      id SERIAL PRIMARY KEY,
+      empresa_id INTEGER NOT NULL,
+      origem TEXT NOT NULL,
+      drive_file_id TEXT,
+      nome_original TEXT,
+      storage_key TEXT,
+      mime TEXT,
+      bytes INTEGER,
+      sha256 TEXT,
+      status TEXT NOT NULL DEFAULT 'recebido',
+      extraido JSONB,
+      motivos JSONB NOT NULL DEFAULT '[]'::jsonb,
+      codigo_recibo TEXT,
+      participacao_sugerida_id INTEGER,
+      comprovante_id INTEGER,
+      duplicado_de INTEGER,
+      decidido_por TEXT,
+      decidido_em TIMESTAMPTZ,
+      motivo_rejeicao TEXT,
+      tentativas INTEGER NOT NULL DEFAULT 0,
+      criado_por INTEGER,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT boloes_recebimentos_origem_ck CHECK (origem IN ('manual','drive')),
+      CONSTRAINT boloes_recebimentos_status_ck CHECK (status IN ('recebido','lendo','em_revisao','aprovado','rejeitado','duplicado'))
+    )`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_boloes_receb_sha_vivo
+      ON boloes_recebimentos (empresa_id, sha256) WHERE status IN ('recebido','lendo','em_revisao','aprovado')`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_boloes_receb_drive
+      ON boloes_recebimentos (empresa_id, drive_file_id) WHERE drive_file_id IS NOT NULL`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_boloes_receb_status ON boloes_recebimentos (empresa_id, status, criado_em)`);
   logger.info("boloes: tabelas prontas");
 }
 
@@ -116,7 +172,12 @@ export interface ParticipacaoCliente {
   cotas: number;
   status: StatusExibicao;
   registradaEm: string | null;
-  comprovante: { id: number; tipo: "pdf" | "imagem"; bytes: number; validadoEm: string } | null;
+  comprovante: { id: number; tipo: "pdf" | "imagem"; bytes: number; validadoEm: string; integridadeCodigo: string } | null;
+  /** Informado pela clinica; este sistema nao cobra. */
+  pagamento: "nao_informado" | "pendente" | "confirmado";
+  /** Derivado: so existe "disponivel" com comprovante ativo; "baixado" quando o proprio cliente ja baixou. */
+  entrega: "indisponivel" | "disponivel" | "baixado";
+  baixadoEm: string | null;
 }
 
 /**
@@ -125,9 +186,10 @@ export interface ParticipacaoCliente {
  */
 export async function listarParticipacoesDoCliente(clientId: number): Promise<ParticipacaoCliente[]> {
   const rows = (await db.execute(sql`
-    SELECT p.id, p.cotas, p.status, p.registrada_em,
+    SELECT p.id, p.cotas, p.status, p.registrada_em, p.pagamento_status,
            ca.nome AS campanha_nome, ca.concurso, to_char(ca.data_sorteio, 'YYYY-MM-DD') AS data_sorteio,
-           co.id AS comp_id, co.mime AS comp_mime, co.bytes AS comp_bytes, co.validado_em AS comp_validado_em
+           co.id AS comp_id, co.mime AS comp_mime, co.bytes AS comp_bytes, co.validado_em AS comp_validado_em, left(co.sha256, 12) AS comp_integridade,
+           (SELECT MAX(a.criado_em) FROM boloes_auditoria a WHERE a.comprovante_id = co.id AND a.client_id = c.id AND a.acao = 'download' AND a.resultado = 'ok') AS baixado_em
       FROM clients c
       JOIN boloes_participacoes p ON p.client_id = c.id AND p.empresa_id = c.empresa_id
       JOIN boloes_campanhas ca ON ca.id = p.campanha_id AND ca.empresa_id = p.empresa_id
@@ -137,14 +199,18 @@ export async function listarParticipacoesDoCliente(clientId: number): Promise<Pa
   return rows.map((r) => {
     const temComp = r.comp_id != null;
     const status: StatusExibicao = r.status === "cancelada" ? "cancelada" : r.status === "registrada" && temComp ? "registrada" : "pendente_registro";
+    const comprovanteVisivel = temComp && r.status !== "cancelada";
     return {
       id: r.id,
+      pagamento: (r.pagamento_status ?? "nao_informado") as ParticipacaoCliente["pagamento"],
+      entrega: !comprovanteVisivel ? "indisponivel" : r.baixado_em ? "baixado" : "disponivel",
+      baixadoEm: comprovanteVisivel && r.baixado_em ? new Date(r.baixado_em).toISOString() : null,
       campanha: { nome: r.campanha_nome, concurso: r.concurso ?? null, dataSorteio: r.data_sorteio ?? null },
       cotas: r.cotas,
       status,
       registradaEm: status === "registrada" && r.registrada_em ? new Date(r.registrada_em).toISOString() : null,
       comprovante: temComp && r.status !== "cancelada"
-        ? { id: r.comp_id, tipo: r.comp_mime === "application/pdf" ? "pdf" : "imagem", bytes: r.comp_bytes, validadoEm: new Date(r.comp_validado_em).toISOString() }
+        ? { id: r.comp_id, tipo: r.comp_mime === "application/pdf" ? "pdf" : "imagem", bytes: r.comp_bytes, validadoEm: new Date(r.comp_validado_em).toISOString(), integridadeCodigo: String(r.comp_integridade ?? "") }
         : null,
     };
   });

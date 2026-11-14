@@ -103,6 +103,32 @@ export async function clinicManagementPermission(
   return { allowed, isOwner: false, empresaId: location.empresaId };
 }
 
+/**
+ * Gestor de UMA empresa: titular da plataforma, ou profissional ativo que seja administrador da clinica
+ * (concessao local) em um local ativo dessa empresa onde ele esteja vinculado. Nunca inferido por cargo.
+ */
+export async function isGestorDaEmpresa(professionalId: number, empresaId: number): Promise<boolean> {
+  const [actor] = await db.select({ active: professionalsTable.active, owner: professionalsTable.isPlatformOwner })
+    .from(professionalsTable).where(eq(professionalsTable.id, professionalId)).limit(1);
+  if (!actor?.active) return false;
+  if (actor.owner) return true;
+  const rows = await db.select({ id: clinicalAccessGrantsTable.id })
+    .from(clinicalAccessGrantsTable)
+    .innerJoin(locationsTable, eq(locationsTable.id, clinicalAccessGrantsTable.locationId))
+    .innerJoin(locationProfessionalsTable, and(
+      eq(locationProfessionalsTable.locationId, clinicalAccessGrantsTable.locationId),
+      eq(locationProfessionalsTable.professionalId, clinicalAccessGrantsTable.professionalId),
+    ))
+    .where(and(
+      eq(clinicalAccessGrantsTable.professionalId, professionalId),
+      eq(clinicalAccessGrantsTable.empresaId, empresaId),
+      eq(clinicalAccessGrantsTable.isClinicAdmin, true),
+      eq(locationsTable.empresaId, empresaId),
+      eq(locationsTable.active, "true"),
+    )).limit(1);
+  return rows.length > 0;
+}
+
 export async function currentResponsibleDoctor(locationId: number, empresaId: number) {
   const [result] = await db.select({
     grant: clinicalAccessGrantsTable,

@@ -240,6 +240,32 @@ export function startWorkerJobs(
   void runDriveWatcher();
   setInterval(() => void runDriveWatcher(), 5 * 60 * 1000);
 
+  // ─── Job 4b: Bolões — recebimento assistido da pasta do Drive de cada clínica — a cada 5 minutos ───
+  // Só age em clínica com pasta configurada pelo gestor (sem pasta = não faz nada). Sem CAIXA, sem login, sem compra.
+  let boloesRunning = false;
+
+  async function runBoloesRobo() {
+    if (boloesRunning) return;
+    boloesRunning = true;
+    try {
+      const { varrerPastasBoloesAgora } = await import(
+        "../../api-server/src/lib/boloes-robo.js" as string
+      );
+      const r = await varrerPastasBoloesAgora();
+      if (r.empresasComPasta > 0) logger.info(r, "Worker: boloes-robo varredura concluída");
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Worker: boloes-robo erro"
+      );
+    } finally {
+      boloesRunning = false;
+    }
+  }
+
+  setTimeout(() => void runBoloesRobo(), 3 * 60 * 1000);
+  setInterval(() => void runBoloesRobo(), 5 * 60 * 1000);
+
   // ─── Job 5: Monitor horário de LLMs + planilha no Slack ────────────────
   // Roda todo início de hora (XX:00), 24h/dia.
   // Só executa na instância CEO (PADAXOR_AI_BYPASS=true). Fail-safe total.

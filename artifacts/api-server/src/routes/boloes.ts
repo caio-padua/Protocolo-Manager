@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import multer, { MulterError } from "multer";
 import { sql } from "drizzle-orm";
@@ -8,6 +7,7 @@ import { verifyPortalToken } from "../lib/portal-token";
 import { isPlatformOwner } from "../lib/clinical-access";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { requireCollaborator } from "./collaborator";
+import { anexarComprovante, criarCampanha, criarParticipacao } from "../lib/boloes-gestao";
 import {
   BOLOES_AVISO, BOLOES_COMPROVANTE_MAX_BYTES, auditarBolao, comprovanteDoCliente,
   detectarTipoComprovante, listarParticipacoesDoCliente, sha256Hex,
@@ -99,13 +99,7 @@ router.post("/boloes/campanhas", requireCollaborator, async (req, res): Promise<
   if (!b.success) { res.status(400).json({ error: "Informe empresa, nome (até 120 caracteres) e, se houver, concurso e data AAAA-MM-DD." }); return; }
   const emp: any = (await db.execute(sql`SELECT id FROM empresas WHERE id = ${b.data.empresaId}`)).rows[0];
   if (!emp) { res.status(404).json({ error: "Empresa não encontrada." }); return; }
-  const out = await db.transaction(async (tx) => {
-    const r: any = (await tx.execute(sql`
-      INSERT INTO boloes_campanhas (empresa_id, nome, concurso, data_sorteio, criado_por)
-      VALUES (${b.data.empresaId}, ${b.data.nome}, ${b.data.concurso ?? null}, ${b.data.dataSorteio ?? null}, ${actor}) RETURNING id`)).rows[0];
-    await auditarBolao({ empresaId: b.data.empresaId, ator: `titular:${actor}`, acao: "campanha_criada", resultado: "ok", detalhe: `campanha ${r.id}` }, tx);
-    return r.id as number;
-  });
+  const out = await criarCampanha({ empresaId: b.data.empresaId, nome: b.data.nome, concurso: b.data.concurso, dataSorteio: b.data.dataSorteio, ator: { texto: `titular:${actor}`, profissionalId: actor } });
   res.status(201).json({ id: out });
 });
 
@@ -120,27 +114,14 @@ router.post("/boloes/participacoes", requireCollaborator, async (req, res): Prom
   if (!actor) return;
   const b = Participacao.safeParse(req.body);
   if (!b.success) { res.status(400).json({ error: "Informe campanha, cliente e cotas (1 a 1000)." }); return; }
-  const code = await db.transaction(async (tx) => {
-    const ca: any = (await tx.execute(sql`SELECT id, empresa_id FROM boloes_campanhas WHERE id = ${b.data.campanhaId}`)).rows[0];
-    const cl: any = (await tx.execute(sql`SELECT id, empresa_id FROM clients WHERE id = ${b.data.clientId} AND deleted_at IS NULL`)).rows[0];
-    if (!ca || !cl) return { s: 404 as const };
-    // A clinica do cliente e a da campanha precisam ser a mesma: nunca se cruza clinica.
-    if (ca.empresa_id !== cl.empresa_id) return { s: 409 as const };
-    const ins: any = await tx.execute(sql`
-      INSERT INTO boloes_participacoes (empresa_id, campanha_id, client_id, cotas, criado_por)
-      VALUES (${ca.empresa_id}, ${ca.id}, ${cl.id}, ${b.data.cotas}, ${actor})
-      ON CONFLICT (campanha_id, client_id) DO NOTHING RETURNING id`);
-    if (!ins.rows[0]) return { s: 409 as const, dup: true };
-    await auditarBolao({ empresaId: ca.empresa_id, clientId: cl.id, ator: `titular:${actor}`, acao: "participacao_criada", participacaoId: ins.rows[0].id, resultado: "ok" }, tx);
-    return { s: 201 as const, id: ins.rows[0].id as number };
-  });
+  const code = await criarParticipacao({ empresaId: null, campanhaId: b.data.campanhaId, clientId: b.data.clientId, cotas: b.data.cotas, ator: { texto: `titular:${actor}`, profissionalId: actor } });
   if (code.s === 404) { res.status(404).json({ error: "Campanha ou cliente não encontrado." }); return; }
-  if (code.s === 409) { res.status(409).json({ error: "dup" in code ? "Este cliente já tem participação nesta campanha." : "Cliente e campanha pertencem a clínicas diferentes." }); return; }
+  if (code.s === 409) { res.status(409).json({ error: code.dup ? "Este cliente já tem participação nesta campanha." : "Cliente e campanha pertencem a clínicas diferentes." }); return; }
   res.status(201).json({ id: code.id });
 });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: BOLOES_COMPROVANTE_MAX_BYTES, files: 1 } });
-function uploadMw(req: Request, res: Response, next: NextFunction): void {
+export function uploadMw(req: Request, res: Response, next: NextFunction): void {
   upload.single("file")(req, res, (err: unknown) => {
     if (err instanceof MulterError) {
       res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "Arquivo maior que 10 MB." : "Arquivo inválido." });
@@ -165,32 +146,14 @@ router.post("/boloes/participacoes/:id/comprovante", requireCollaborator, upload
   const tipo = detectarTipoComprovante(file.buffer);
   if (!tipo) { res.status(422).json({ error: "Tipo de arquivo não aceito. Envie PDF, PNG ou JPEG." }); return; }
 
-  const part: any = (await db.execute(sql`SELECT id, empresa_id, client_id, status FROM boloes_participacoes WHERE id = ${id}`)).rows[0];
-  if (!part) { res.status(404).json({ error: "Participação não encontrada." }); return; }
-  if (part.status === "cancelada") { res.status(409).json({ error: "Participação cancelada não recebe comprovante." }); return; }
-
-  const key = `boloes-comprovantes/${part.empresa_id}/${randomUUID()}`;
-  await storage.savePrivateObject(key, file.buffer, tipo.mime);
   try {
-    const compId = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT id FROM boloes_participacoes WHERE id = ${id} FOR UPDATE`);
-      const ins: any = await tx.execute(sql`
-        INSERT INTO boloes_comprovantes (empresa_id, participacao_id, storage_key, mime, bytes, sha256, validado_por)
-        VALUES (${part.empresa_id}, ${id}, ${key}, ${tipo.mime}, ${file.size}, ${sha256Hex(file.buffer)}, ${actor})
-        ON CONFLICT DO NOTHING RETURNING id`);
-      if (!ins.rows[0]) return null;
-      await tx.execute(sql`UPDATE boloes_participacoes SET status = 'registrada', registrada_em = NOW() WHERE id = ${id}`);
-      await auditarBolao({ empresaId: part.empresa_id, clientId: part.client_id, ator: `titular:${actor}`, acao: "comprovante_anexado", participacaoId: id, comprovanteId: ins.rows[0].id, resultado: "ok" }, tx);
-      return ins.rows[0].id as number;
-    });
-    if (compId === null) {
-      await storage.deletePrivateObject(key).catch(() => undefined);
-      res.status(409).json({ error: "Esta participação já tem comprovante ativo." });
-      return;
-    }
-    res.status(201).json({ id: compId, tipo: tipo.mime });
+    const r = await anexarComprovante(storage, { empresaId: null, participacaoId: id, origem: { buffer: file.buffer, tipo }, ator: { texto: `titular:${actor}`, profissionalId: actor } });
+    if (r.ok) { res.status(201).json({ id: r.comprovanteId, tipo: tipo.mime }); return; }
+    if (r.motivo === "participacao_inexistente") res.status(404).json({ error: "Participação não encontrada." });
+    else if (r.motivo === "cancelada") res.status(409).json({ error: "Participação cancelada não recebe comprovante." });
+    else if (r.motivo === "arquivo_duplicado") res.status(409).json({ error: "Este mesmo arquivo já é comprovante de outra participação." });
+    else res.status(409).json({ error: "Esta participação já tem comprovante ativo." });
   } catch (err) {
-    await storage.deletePrivateObject(key).catch(() => undefined);
     req.log.error({ err: String(err) }, "Falha ao anexar comprovante de bolao");
     res.status(500).json({ error: "Não foi possível anexar o comprovante." });
   }
