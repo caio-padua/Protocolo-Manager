@@ -193,3 +193,4 @@
 - [Exames avulsos — entrada separada](exames-avulsos-entrada.md) — escolha não é prescrição; preço só do titular, editável até o aceite; cobrança/emissão pendentes.
 - [Meus Bolões — base mínima + automação de recibos](meus-boloes-base-minima.md) — quarentena + casamento determinístico + aprovação humana; auto-aprovar desligado; 3 estados distintos; sem API/login CAIXA.
 - [Conciliação Asaas por leitura + extrato real](asaas-conciliacao-leitura-extrato.md) — webhook interrompido; job só lê; líquido real vem do extrato (taxa de mensageria fora do netValue); legado só por ID.
+- [Club VIP x Minha Categoria](club-vip-minha-categoria-separacao.md) — categoria comercial NUNCA no Club VIP; Conexão Milionária = convite de bolões que só navega para Meus Bolões.

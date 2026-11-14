@@ -4,7 +4,7 @@ import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
-  HelpCircle, MessageCircle, TrendingUp, Sun, Moon, Crown,
+  HelpCircle, MessageCircle, TrendingUp, Sun, Moon, Crown, Award,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -21,6 +21,7 @@ import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
 import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
 import MeusBoloesCliente from "@/components/MeusBoloesCliente";
 import ClubVipCliente from "@/components/ClubVipCliente";
+import MinhaCategoriaCliente from "@/components/MinhaCategoriaCliente";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -102,7 +103,7 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao" | "clubvip" | "comunicacao" | "boloes";
+           | "duvidas" | "suporte" | "evolucao" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -113,6 +114,7 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "duvidas",    label: "DÚVIDAS",     icon: HelpCircle },
   { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
   { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
+  { key: "minhacategoria", label: "MINHA CATEGORIA", icon: Award },
   { key: "clubvip",    label: "CLUB VIP",    icon: Crown },
   { key: "comunicacao", label: "COMUNICAÇÃO", icon: MessageCircle },
 ];
@@ -238,8 +240,9 @@ export default function Area() {
         {tab === "agenda"     && <AgendaTab     client={client} />}
         {tab === "documentos" && <DocumentosTab client={client} />}
         {tab === "enviar"     && <EnviarTab     client={client} />}
+        {tab === "minhacategoria" && <MinhaCategoriaCliente token={client.token} />}
         {tab === "clubvip" && (
-          <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} />
+          <ClubVipCliente onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} />
         )}
         {tab === "comunicacao" && <ComunicacaoTab client={client} />}
         {tab === "boloes" && (

@@ -248,12 +248,13 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
   }
 });
 
-// --- CLUB VIP ---------------------------------------------------------------
-// Projecao minima para a aba Club VIP: SO o nivel (clients.plano) do proprio cliente do token.
-// Separado do resumo clinico de proposito. So devolve um dos quatro niveis existentes; qualquer outro
-// valor (nulo, "legado:*", desconhecido) vira null e a tela diz que o nivel nao esta disponivel.
-const NIVEIS_CLUB_VIP = ["prata", "ouro", "platinum", "diamond"] as const;
-router.get("/area-paciente/club-vip", async (req: Request, res: Response): Promise<void> => {
+// --- MINHA CATEGORIA --------------------------------------------------------
+// Projecao minima para a aba Minha Categoria: SO o nivel comercial (clients.plano) do proprio cliente do token.
+// Separado do resumo clinico de proposito e SEM relacao com o Club VIP (que nao le nivel algum).
+// So devolve um dos quatro niveis existentes; qualquer outro valor (nulo, "legado:*", desconhecido)
+// vira null e a tela diz que a categoria nao esta disponivel.
+const NIVEIS_CATEGORIA = ["prata", "ouro", "platinum", "diamond"] as const;
+router.get("/area-paciente/minha-categoria", async (req: Request, res: Response): Promise<void> => {
   // Somente cabecalho Authorization (nunca ?token=, que vaza em log e historico).
   const auth = req.headers.authorization;
   const clientId = auth && auth.startsWith("Bearer ") ? verifyPortalToken(auth.slice(7)) : null;
@@ -261,12 +262,12 @@ router.get("/area-paciente/club-vip", async (req: Request, res: Response): Promi
   try {
     const [row] = await db.select({ plano: clientsTable.plano }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
     if (!row) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
-    const nivel = (NIVEIS_CLUB_VIP as readonly string[]).includes(row.plano) ? row.plano : null;
+    const nivel = (NIVEIS_CATEGORIA as readonly string[]).includes(row.plano) ? row.plano : null;
     res.set("Cache-Control", "private, no-store");
     res.json({ nivel });
   } catch (err) {
-    req.log.error({ err: String(err) }, "Falha ao carregar nivel do Club VIP");
-    res.status(500).json({ error: "Não foi possível carregar seu nível agora." });
+    req.log.error({ err: String(err) }, "Falha ao carregar a categoria do cliente");
+    res.status(500).json({ error: "Não foi possível carregar sua categoria agora." });
   }
 });
 
