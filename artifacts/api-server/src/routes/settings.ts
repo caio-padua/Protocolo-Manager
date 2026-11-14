@@ -20,6 +20,7 @@ import {
   type Matriz,
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
+import { requireCeoInstance } from "../middleware/tenantContext";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { getPrescriptionCertificateStatus, inspectPrescriptionCertificate } from "../lib/prescription-signing";
 import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
@@ -280,6 +281,46 @@ router.put("/settings/payment-gateway", requireCollaborator, async (req, res): P
   if (typeof webhookToken === "string" && webhookToken.trim())
     await setSecret("asaas.webhookToken", webhookToken.trim(), actor(req));
   res.json(await paymentGatewayPayload());
+});
+
+// Conta sandbox é independente da produção. Valores sempre entram no cofre e
+// respostas expõem somente metadados; campo vazio nunca remove a credencial.
+router.get("/settings/payment-gateway/sandbox", requireCollaborator, requireCeoInstance, async (_req, res): Promise<void> => {
+  const [apiKeyStatus, webhookTokenStatus] = await Promise.all([
+    getSecretStatus("asaas.sandbox.apiKey"),
+    getSecretStatus("asaas.sandbox.webhookToken"),
+  ]);
+  res.json({ provider: "asaas", ambiente: "sandbox", baseUrl: "https://api-sandbox.asaas.com/v3", apiKeyStatus, webhookTokenStatus });
+});
+
+router.put("/settings/payment-gateway/sandbox", requireCollaborator, requireCeoInstance, async (req, res): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(403).json({ error: "Configuração do sandbox está bloqueada nesta versão de produção." }); return;
+  }
+  const { apiKey, webhookToken } = req.body ?? {};
+  if (apiKey !== undefined && typeof apiKey !== "string") {
+    res.status(400).json({ error: "Chave do sandbox inválida." }); return;
+  }
+  if (webhookToken !== undefined && typeof webhookToken !== "string") {
+    res.status(400).json({ error: "Token do webhook sandbox inválido." }); return;
+  }
+  const key = typeof apiKey === "string" ? apiKey.trim() : "";
+  const token = typeof webhookToken === "string" ? webhookToken.trim() : "";
+  if (!key && !token) {
+    res.status(400).json({ error: "Preencha ao menos um campo. Campo vazio mantém o valor guardado." }); return;
+  }
+  if (/\$aact_prod_/i.test(key)) {
+    res.status(400).json({ error: "Uma chave de produção não pode ser gravada no cofre do sandbox." }); return;
+  }
+  const actorInfo = (req as { collaborator?: { professionalId?: number } }).collaborator;
+  const updatedBy = `colaborador:${actorInfo?.professionalId ?? "desconhecido"}`;
+  if (key) await setSecret("asaas.sandbox.apiKey", key, updatedBy);
+  if (token) await setSecret("asaas.sandbox.webhookToken", token, updatedBy);
+  const [apiKeyStatus, webhookTokenStatus] = await Promise.all([
+    getSecretStatus("asaas.sandbox.apiKey"),
+    getSecretStatus("asaas.sandbox.webhookToken"),
+  ]);
+  res.json({ provider: "asaas", ambiente: "sandbox", apiKeyStatus, webhookTokenStatus });
 });
 
 // -------------------------------------------------- ASSINATURA ELETRONICA ----

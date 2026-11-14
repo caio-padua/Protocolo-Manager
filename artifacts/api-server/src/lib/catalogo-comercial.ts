@@ -10,7 +10,7 @@
  *  - Cadastrar preço NÃO ativa integração: cada tarifa informa a disponibilidade real.
  */
 import { pool } from "@workspace/db";
-import { definirTarifa, type TipoEvento } from "./mensageria-credito";
+import { garantirTabelasCredito, type TipoEvento } from "./mensageria-credito";
 
 export const AMBIENTE_PADRAO = "homologacao";
 export const PROPOSTA_REF = "Proposta comercial de homologação do CEO";
@@ -18,6 +18,7 @@ export const PROPOSTA_DATA = "2026-11-14";
 
 let _pronto: Promise<void> | null = null;
 export function garantirCatalogo(): Promise<void> {
+  if (process.env.NODE_ENV === "production") return Promise.reject(new Error("Catálogo de homologação bloqueado em produção."));
   _pronto ??= (async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS cat_config (
@@ -68,6 +69,7 @@ export function garantirCatalogo(): Promise<void> {
       CREATE TABLE IF NOT EXISTS cat_contratos (
         id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL, plano_codigo TEXT NOT NULL, plano_versao INTEGER NOT NULL,
         plano_snapshot JSONB NOT NULL, rotulo TEXT, preco_mensal_centavos BIGINT NOT NULL, desconto_anual_pct NUMERIC(5,2) NOT NULL DEFAULT 0,
+        valor_periodo_centavos BIGINT NOT NULL DEFAULT 0,
         condicao TEXT NOT NULL DEFAULT 'mensal', compromisso_meses INTEGER NOT NULL DEFAULT 0,
         franquia_texto_centavos BIGINT NOT NULL DEFAULT 0, modulos JSONB NOT NULL DEFAULT '[]'::jsonb,
         vigencia_inicio DATE, vigencia_fim DATE, renovacao TEXT, reajuste_proposto_pct NUMERIC(6,2),
@@ -81,6 +83,7 @@ export function garantirCatalogo(): Promise<void> {
         PRIMARY KEY (empresa_id, mes)
       );
     `);
+    await pool.query(`ALTER TABLE cat_contratos ADD COLUMN IF NOT EXISTS valor_periodo_centavos BIGINT NOT NULL DEFAULT 0`);
     await aplicarProposta();
   })().catch((e) => { _pronto = null; throw e; });
   return _pronto;
@@ -181,7 +184,7 @@ const CONFIG_INICIAL: Record<string, unknown> = {
   regra_limite_frequencia: "Mensagens acima do limite por hora não geram cobrança nem resposta; o filtro roda antes do registro do evento.",
 };
 
-async function aplicarProposta(): Promise<void> {
+export async function aplicarProposta(): Promise<void> {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
@@ -211,8 +214,8 @@ async function aplicarProposta(): Promise<void> {
         await c.query(
           `INSERT INTO cat_tarifas (codigo, versao, grupo, nome_evento, unidade, preco_centavos, regra_cobranca, regra_fracionamento,
              elegivel_franquia, disponibilidade, ativo, observacao, proposta_ref, proposta_data, criado_por)
-           VALUES ($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'proposta inicial') ON CONFLICT (codigo, versao) DO NOTHING`,
-          [t.codigo, t.grupo, t.nome, t.unidade, t.preco, t.regra, t.fracao, t.franquia, t.disp, t.ativo ?? true, t.obs ?? null, PROPOSTA_REF, PROPOSTA_DATA]);
+           VALUES ($1,1,$2,$3,$4,$5,$6,$7,$8,$9,FALSE,$10,$11,$12,'proposta inicial') ON CONFLICT (codigo, versao) DO NOTHING`,
+          [t.codigo, t.grupo, t.nome, t.unidade, t.preco, t.regra, t.fracao, t.franquia, t.disp, t.obs ?? null, PROPOSTA_REF, PROPOSTA_DATA]);
       }
       for (const k of CUSTOS) {
         await c.query(
@@ -232,19 +235,27 @@ async function aplicarProposta(): Promise<void> {
     throw e;
   } finally { c.release(); }
 
-  // Motor de cobrança lê msg_tarifas: espelha a proposta UMA vez só onde ainda não existe tarifa padrão.
-  const jaEspelhou = await pool.query(`SELECT 1 FROM cat_config WHERE chave = 'tarifas_motor_espelhadas'`);
-  if (jaEspelhou.rows.length === 0) {
+  // O motor de cobrança recebe as tarifas do catálogo uma vez, sob trava global.
+  await garantirTabelasCredito();
+  await txn(async (c) => {
+    await c.query("SELECT pg_advisory_xact_lock(7790002)");
+    const jaEspelhou = await c.query(`SELECT 1 FROM cat_config WHERE chave = 'tarifas_motor_espelhadas'`);
+    if (jaEspelhou.rows.length) return;
     for (const t of TARIFAS.filter((x) => x.grupo === "mensageria")) {
       const tipo = TIPO_DO_CODIGO[t.codigo];
-      const existe = await pool.query(`SELECT 1 FROM msg_tarifas WHERE empresa_id IS NULL AND tipo_evento = $1 LIMIT 1`, [tipo]).catch(() => ({ rows: [] as unknown[] }));
-      if (existe.rows.length === 0) {
-        await definirTarifa({ empresaId: null, tipo, valorCentavos: t.preco, ativo: t.ativo ?? true,
-          unidade: tipo === "tempo" ? "minuto" : undefined, criterio: tipo === "tempo" ? "tempo ativo de processamento, proporcional aos segundos" : undefined, por: "proposta inicial" });
+      const existe = await c.query(`SELECT 1 FROM msg_tarifas WHERE empresa_id IS NULL AND tipo_evento = $1 LIMIT 1`, [tipo]);
+      if (!existe.rows.length) {
+        // Uma proposta cadastrada NÃO ativa cobrança. Só a ação explícita do CEO
+        // cria nova tarifa ativa; linhas antigas nunca são sobrescritas.
+        await c.query(
+          `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao)
+           VALUES (NULL,$1,$2,$3,$4,$5,'proposta inicial',$6,1)`,
+          [tipo, t.preco, false, tipo === "tempo" ? "minuto" : null,
+            tipo === "tempo" ? "tempo ativo de processamento, proporcional aos segundos" : null, t.codigo]);
       }
     }
-    await pool.query(`INSERT INTO cat_config (chave, valor, atualizado_por) VALUES ('tarifas_motor_espelhadas','true'::jsonb,'sistema') ON CONFLICT (chave) DO NOTHING`);
-  }
+    await c.query(`INSERT INTO cat_config (chave, valor, atualizado_por) VALUES ('tarifas_motor_espelhadas','true'::jsonb,'sistema') ON CONFLICT (chave) DO NOTHING`);
+  });
 }
 
 export const TIPO_DO_CODIGO: Record<string, TipoEvento> = {
@@ -352,6 +363,9 @@ async function txn<T>(fn: (c: { query: (q: string, v?: unknown[]) => Promise<{ r
 export async function editarPlano(codigo: string, body: Record<string, unknown>, por: string) {
   await garantirCatalogo();
   const { sets, vals } = validar(CAMPOS_PLANO, body);
+  if (body.status !== undefined && !["rascunho", "proposta", "ativo", "inativo"].includes(String(body.status))) throw new RangeError("status do plano inválido");
+  if (body.ambiente !== undefined && body.ambiente !== "homologacao") throw new RangeError("planos desta entrega ficam em homologação");
+  if (body.desconto_anual_pct !== undefined && Number(body.desconto_anual_pct) > 100) throw new RangeError("desconto anual não pode exceder 100%");
   return txn(async (c) => {
     const ant = (await c.query(`SELECT * FROM cat_planos WHERE codigo = $1 FOR UPDATE`, [codigo])).rows[0];
     if (!ant) throw new RangeError("plano inexistente");
@@ -399,34 +413,50 @@ export async function editarCusto(codigo: string, body: Record<string, unknown>,
 /** Nova versão da tarifa (linha nova). Para eventos de mensageria, o motor de cobrança recebe a mesma versão. */
 export async function editarTarifa(codigo: string, body: Record<string, unknown>, por: string) {
   await garantirCatalogo();
-  const ant = (await pool.query(`SELECT * FROM cat_tarifas WHERE codigo = $1 ORDER BY versao DESC LIMIT 1`, [codigo])).rows[0];
-  if (!ant) throw new RangeError("tarifa inexistente");
-  const pick = <T,>(k: string, d: T): T => (k in body ? (body[k] as T) : d);
-  const preco = pick<number | null>("preco_centavos", num(ant.preco_centavos));
-  if (preco !== null && !(typeof preco === "number" && Number.isSafeInteger(preco) && preco >= 0)) throw new RangeError("preco_centavos: inteiro não negativo");
-  const ativo = pick<boolean>("ativo", ant.ativo);
-  const unidade = pick<string>("unidade", ant.unidade);
-  const regraCobranca = pick<string | null>("regra_cobranca", ant.regra_cobranca);
-  const tipo = TIPO_DO_CODIGO[codigo];
-  // Motor primeiro: se recusar (ex.: tempo ativo sem critério), nada é gravado no catálogo.
-  if (tipo) {
-    if (preco === null) throw new RangeError("tarifa do motor exige preço");
-    await definirTarifa({ empresaId: null, tipo, valorCentavos: preco, ativo, unidade: tipo === "tempo" ? unidade : undefined,
-      criterio: tipo === "tempo" ? (regraCobranca ?? undefined) : undefined, por });
-  }
-  const r = await pool.query(
-    `INSERT INTO cat_tarifas (codigo, versao, grupo, nome_evento, unidade, preco_centavos, moeda, regra_cobranca, regra_fracionamento, elegivel_franquia,
-       disponibilidade, ativo, observacao, proposta_ref, proposta_data, criado_por)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-    [codigo, ant.versao + 1, ant.grupo, pick("nome_evento", ant.nome_evento), unidade, preco, pick("moeda", ant.moeda), regraCobranca,
-      pick("regra_fracionamento", ant.regra_fracionamento), pick("elegivel_franquia", ant.elegivel_franquia), pick("disponibilidade", ant.disponibilidade),
-      ativo, pick("observacao", ant.observacao), ant.proposta_ref, ant.proposta_data, por]);
-  return r.rows[0];
+  await garantirTabelasCredito();
+  return txn(async (c) => {
+    const ant = (await c.query(`SELECT * FROM cat_tarifas WHERE codigo = $1 ORDER BY versao DESC LIMIT 1 FOR UPDATE`, [codigo])).rows[0];
+    if (!ant) throw new RangeError("tarifa inexistente");
+    const pick = <T,>(k: string, d: T): T => (k in body ? (body[k] as T) : d);
+    const preco = pick<number | null>("preco_centavos", num(ant.preco_centavos));
+    if (preco !== null && !(typeof preco === "number" && Number.isSafeInteger(preco) && preco >= 0)) throw new RangeError("preco_centavos: inteiro não negativo");
+    const ativo = pick<boolean>("ativo", ant.ativo);
+    if (typeof ativo !== "boolean") throw new RangeError("ativo: verdadeiro/falso");
+    if (ativo && process.env.NODE_ENV === "production") throw new RangeError("ativação de tarifa está bloqueada em produção");
+    const unidade = pick<string>("unidade", ant.unidade);
+    const regraCobranca = pick<string | null>("regra_cobranca", ant.regra_cobranca);
+    const tipo = TIPO_DO_CODIGO[codigo];
+    if (tipo === "tempo" && ativo && (!unidade || !regraCobranca)) throw new RangeError("tarifa por tempo ativa exige unidade e critério explícito");
+    if (tipo && preco === null) throw new RangeError("tarifa do motor exige preço");
+    const versao = Number(ant.versao) + 1;
+    await versionar(c, "tarifa", codigo, Number(ant.versao), ant, por);
+    // Motor e catálogo gravam na mesma transação: preço parcialmente atualizado é impossível.
+    if (tipo) await c.query(
+      `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao)
+       VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8)`,
+      [tipo, preco, ativo, tipo === "tempo" ? unidade : null, tipo === "tempo" ? regraCobranca : null, por, codigo, versao]);
+    const r = await c.query(
+      `INSERT INTO cat_tarifas (codigo, versao, grupo, nome_evento, unidade, preco_centavos, moeda, regra_cobranca, regra_fracionamento, elegivel_franquia,
+         disponibilidade, ativo, observacao, proposta_ref, proposta_data, criado_por)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [codigo, versao, ant.grupo, pick("nome_evento", ant.nome_evento), unidade, preco, pick("moeda", ant.moeda), regraCobranca,
+        pick("regra_fracionamento", ant.regra_fracionamento), pick("elegivel_franquia", ant.elegivel_franquia), pick("disponibilidade", ant.disponibilidade),
+        ativo, pick("observacao", ant.observacao), ant.proposta_ref, ant.proposta_data, por]);
+    return r.rows[0];
+  });
 }
 
 export async function editarConfig(chave: string, valor: unknown, por: string) {
   await garantirCatalogo();
   if (["proposta_inicial_aplicada", "tarifas_motor_espelhadas"].includes(chave)) throw new RangeError("chave reservada");
+  if (valor === undefined) throw new RangeError("valor obrigatório");
+  const percentual = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100;
+  const cambioValido = (v: unknown) => v === null || (typeof v === "number" && Number.isFinite(v) && v > 0);
+  if (chave === "margem_alvo_pct" && !percentual(valor)) throw new RangeError("margem-alvo deve estar entre 0 e 100");
+  if (["cambio_efetivo", "cambio_planejamento"].includes(chave) && !cambioValido(valor)) throw new RangeError("câmbio deve ser positivo ou nulo");
+  if (chave === "alertas_pct" && (!Array.isArray(valor) || valor.some((v) => !percentual(v)))) throw new RangeError("alertas devem ser percentuais de 0 a 100");
+  if (chave === "recargas_sugeridas_centavos" && (!Array.isArray(valor) || valor.some((v) => !Number.isSafeInteger(v) || (v as number) <= 0))) throw new RangeError("recargas devem ser valores positivos em centavos");
+  if (["juros_padrao_pct", "multa_padrao_pct"].includes(chave) && !percentual(valor)) throw new RangeError("juros e multa devem estar entre 0 e 100");
   const existe = await pool.query(`SELECT 1 FROM cat_config WHERE chave = $1`, [chave]);
   if (!existe.rows.length) throw new RangeError("configuração inexistente");
   await pool.query(`UPDATE cat_config SET valor = $2::jsonb, atualizado_por = $3, atualizado_em = NOW() WHERE chave = $1`, [chave, JSON.stringify(valor), por]);
@@ -443,28 +473,31 @@ export async function analiseMargem() {
   const metaPct = num(cfg.margem_alvo_pct);
   const linhas = cat.custos.map((k) => {
     const tarifa = cat.tarifas.find((t) => t.codigo === k.tarifa_codigo) ?? null;
-    const receita = tarifa?.preco_centavos ?? null;
-    const brl = (cambio: number | null) => {
-      const ref = k.custo_efetivo ?? k.custo_referencia;
-      if (ref == null) return null;
-      if (k.moeda === "BRL") return Math.round(ref * 100);
-      return cambio == null ? null : Math.round(ref * cambio * 100);
+    const receitaProposta = tarifa?.preco_centavos ?? null;
+    const receitaAplicada = tarifa?.ativo ? receitaProposta : null;
+    const converterParaCentavos = (valor: number | null, cambio: number | null) => {
+      if (valor == null) return null;
+      if (k.moeda === "BRL") return Math.round(valor * 100);
+      return cambio == null ? null : Math.round(valor * cambio * 100);
     };
     // Unidades: Scribe é por hora e a tarifa por minuto.
     const fator = k.codigo === "elevenlabs_scribe" ? 1 / 60 : 1;
     const fx = (v: number | null) => (v == null ? null : Math.round(v * fator));
-    const custoReal = fx(brl(cambioEfetivo));
-    const custoHip = fx(brl(cambioPlan));
-    const contribuicao = (custo: number | null) => (receita == null || custo == null ? null : receita - custo);
-    const margem = (custo: number | null) => (receita == null || custo == null || receita === 0 ? null : Math.round(((receita - custo) / receita) * 1000) / 10);
+    // "Real" exige custo efetivamente contratado/informado e tarifa ativa; tabela pública
+    // e valores sugeridos alimentam apenas a hipótese, nunca viram fato financeiro.
+    const custoReal = fx(converterParaCentavos(k.custo_efetivo, cambioEfetivo));
+    const custoHip = fx(converterParaCentavos(k.custo_referencia, cambioPlan));
+    const contribuicao = (receita: number | null, custo: number | null) => (receita == null || custo == null ? null : receita - custo);
+    const margem = (receita: number | null, custo: number | null) =>
+      (receita == null || custo == null || receita === 0 ? null : Math.round(((receita - custo) / receita) * 1000) / 10);
     return {
       custoCodigo: k.codigo, tarifaCodigo: k.tarifa_codigo, provedor: k.provedor, servico: k.servico, moedaCusto: k.moeda,
-      receitaUnitariaCentavos: receita,
-      real: { custoCentavos: custoReal, contribuicaoCentavos: contribuicao(custoReal), margemPct: margem(custoReal),
-        situacao: custoReal == null ? "nao_informado" : "calculado" },
-      hipotese: { custoCentavos: custoHip, contribuicaoCentavos: contribuicao(custoHip), margemPct: margem(custoHip),
+      receitaUnitariaCentavos: receitaProposta, receitaAplicadaCentavos: receitaAplicada,
+      real: { custoCentavos: custoReal, contribuicaoCentavos: contribuicao(receitaAplicada, custoReal), margemPct: margem(receitaAplicada, custoReal),
+        situacao: custoReal == null ? "custo_efetivo_nao_informado" : receitaAplicada == null ? "tarifa_proposta_inativa" : "calculado" },
+      hipotese: { custoCentavos: custoHip, contribuicaoCentavos: contribuicao(receitaProposta, custoHip), margemPct: margem(receitaProposta, custoHip),
         situacao: custoHip == null ? "nao_informado" : "hipotese", rotulo: "CENÁRIO DE PLANEJAMENTO (hipótese), não resultado real" },
-      acimaDaMeta: margem(custoHip) == null || metaPct == null ? null : (margem(custoHip) as number) >= metaPct,
+      acimaDaMeta: margem(receitaProposta, custoHip) == null || metaPct == null ? null : (margem(receitaProposta, custoHip) as number) >= metaPct,
     };
   });
   return {
@@ -483,18 +516,27 @@ export async function analiseMargem() {
 export async function criarContrato(p: { empresaId: number; planoCodigo: string; rotulo: string; condicao?: "mensal" | "anual_antecipado"; por: string; ambiente?: string }) {
   await garantirCatalogo();
   if ((p.ambiente ?? AMBIENTE_PADRAO) !== "homologacao") throw new RangeError("somente homologação nesta implementação");
+  if (!Number.isSafeInteger(p.empresaId) || p.empresaId < 1) throw new RangeError("clínica inválida");
+  if (!p.rotulo.trim()) throw new RangeError("rótulo obrigatório");
+  const condicao = p.condicao ?? "mensal";
+  if (condicao !== "mensal" && condicao !== "anual_antecipado") throw new RangeError("condição de pagamento inválida");
   return txn(async (c) => {
+    const empresa = (await c.query(`SELECT id FROM empresas WHERE id = $1`, [p.empresaId])).rows[0];
+    if (!empresa) throw new RangeError("clínica inexistente");
     const pl = (await c.query(`SELECT * FROM cat_planos WHERE codigo = $1`, [p.planoCodigo])).rows[0];
     if (!pl) throw new RangeError("plano inexistente");
     const vig = (await c.query(`SELECT id FROM cat_contratos WHERE empresa_id = $1 AND status IN ('piloto','ativo')`, [p.empresaId])).rows[0];
     if (vig) throw new RangeError("a clínica já tem contrato vigente; encerre-o antes");
     const cfg = (await c.query(`SELECT chave, valor FROM cat_config WHERE chave IN ('juros_padrao_pct','multa_padrao_pct')`)).rows;
     const g = (k: string) => Number(cfg.find((x) => x.chave === k)?.valor ?? 0);
+    const mensal = Number(pl.preco_mensal_centavos);
+    const anual = Math.round(mensal * 12 * (100 - Number(pl.desconto_anual_pct)) / 100);
+    const valorPeriodo = condicao === "anual_antecipado" ? anual : mensal;
     const r = await c.query(
-      `INSERT INTO cat_contratos (empresa_id, plano_codigo, plano_versao, plano_snapshot, rotulo, preco_mensal_centavos, desconto_anual_pct, condicao,
+      `INSERT INTO cat_contratos (empresa_id, plano_codigo, plano_versao, plano_snapshot, rotulo, preco_mensal_centavos, desconto_anual_pct, valor_periodo_centavos, condicao,
          compromisso_meses, franquia_texto_centavos, modulos, vigencia_inicio, renovacao, juros_pct, multa_pct, ambiente, status, criado_por)
-       VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11::jsonb,CURRENT_DATE,'Sem renovação automática (piloto)',$12,$13,'homologacao','piloto',$14) RETURNING *`,
-      [p.empresaId, pl.codigo, pl.versao, JSON.stringify(pl), p.rotulo, pl.preco_mensal_centavos, pl.desconto_anual_pct, p.condicao ?? "mensal",
+       VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,CURRENT_DATE,'Sem renovação automática (piloto)',$13,$14,'homologacao','piloto',$15) RETURNING *`,
+      [p.empresaId, pl.codigo, pl.versao, JSON.stringify(pl), p.rotulo, mensal, pl.desconto_anual_pct, valorPeriodo, condicao,
         pl.compromisso_meses, pl.franquia_texto_centavos, JSON.stringify(pl.modulos), g("juros_padrao_pct"), g("multa_padrao_pct"), p.por]);
     return r.rows[0];
   });

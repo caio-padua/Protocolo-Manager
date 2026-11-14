@@ -44,6 +44,8 @@ export function garantirTabelasCredito(): Promise<void> {
         unidade TEXT, criterio TEXT,             -- só para tipo 'tempo'
         definido_por TEXT, vigente_desde TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE msg_tarifas ADD COLUMN IF NOT EXISTS catalogo_codigo TEXT;
+      ALTER TABLE msg_tarifas ADD COLUMN IF NOT EXISTS catalogo_versao INTEGER;
       CREATE INDEX IF NOT EXISTS msg_tarifas_busca ON msg_tarifas (tipo_evento, empresa_id, vigente_desde DESC);
       CREATE TABLE IF NOT EXISTS msg_extrato (
         id BIGSERIAL PRIMARY KEY,
@@ -63,8 +65,10 @@ export function garantirTabelasCredito(): Promise<void> {
         criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (empresa_id, chave)
       );
-      CREATE UNIQUE INDEX IF NOT EXISTS msg_extrato_estorno_unico ON msg_extrato (estorno_de) WHERE estorno_de IS NOT NULL;
       ALTER TABLE msg_extrato ADD COLUMN IF NOT EXISTS franquia_abatida_centavos BIGINT NOT NULL DEFAULT 0;
+      ALTER TABLE msg_extrato ADD COLUMN IF NOT EXISTS tarifa_codigo TEXT;
+      ALTER TABLE msg_extrato ADD COLUMN IF NOT EXISTS tarifa_versao INTEGER;
+      CREATE UNIQUE INDEX IF NOT EXISTS msg_extrato_estorno_unico ON msg_extrato (estorno_de) WHERE estorno_de IS NOT NULL;
       CREATE TABLE IF NOT EXISTS msg_recargas (
         id BIGSERIAL PRIMARY KEY,
         empresa_id INTEGER NOT NULL,
@@ -161,12 +165,12 @@ export interface EventoParams {
 
 async function tarifaVigente(c: Consulta, empresaId: number, tipo: TipoEvento) {
   const r = await c.query(
-    `SELECT id, valor_centavos, ativo FROM msg_tarifas
+    `SELECT id, valor_centavos, ativo, catalogo_codigo, catalogo_versao FROM msg_tarifas
       WHERE tipo_evento = $1 AND (empresa_id = $2 OR empresa_id IS NULL)
       ORDER BY (empresa_id IS NULL), vigente_desde DESC, id DESC LIMIT 1`, [tipo, empresaId]);
   const t = r.rows[0];
   if (!t || !t.ativo) return null; // desativada ou inexistente: sem tarifa
-  return { id: Number(t.id), valor: Number(t.valor_centavos) };
+  return { id: Number(t.id), valor: Number(t.valor_centavos), codigo: t.catalogo_codigo ?? null, versao: t.catalogo_versao == null ? null : Number(t.catalogo_versao) };
 }
 
 /** Franquia mensal restante (centavos de tabela) do contrato vigente; null sem contrato/franquia/elegibilidade. */
@@ -222,9 +226,9 @@ export async function registrarEvento(p: EventoParams): Promise<ResultadoEvento>
     const novo = saldo - cobrar;
     await c.query(
       `INSERT INTO msg_extrato (empresa_id, natureza, tipo_evento, conversa_ref, chave, valor_centavos, valor_tabela_centavos,
-         isento, sem_tarifa, tarifa_id, saldo_apos_centavos, descricao, franquia_abatida_centavos)
-       VALUES ($1,'consumo',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [p.empresaId, p.tipo, p.conversaRef ?? null, p.chave, cobrar, t ? tabela : null, isento, semTarifa, t?.id ?? null, novo, p.descricao ?? null, abatido]);
+         isento, sem_tarifa, tarifa_id, saldo_apos_centavos, descricao, franquia_abatida_centavos, tarifa_codigo, tarifa_versao)
+       VALUES ($1,'consumo',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [p.empresaId, p.tipo, p.conversaRef ?? null, p.chave, cobrar, t ? tabela : null, isento, semTarifa, t?.id ?? null, novo, p.descricao ?? null, abatido, t?.codigo ?? null, t?.versao ?? null]);
     if (abatido > 0 && fr) {
       await c.query(`INSERT INTO msg_franquia_uso (empresa_id, mes, usado_centavos) VALUES ($1,$2,$3)
                      ON CONFLICT (empresa_id, mes) DO UPDATE SET usado_centavos = msg_franquia_uso.usado_centavos + EXCLUDED.usado_centavos`, [p.empresaId, fr.mes, abatido]);
@@ -373,10 +377,11 @@ export async function visaoCredito(empresaId: number, limite = 100) {
   const [w, tar, ext, rec, av, cus, pend] = await Promise.all([
     pool.query(`SELECT saldo_centavos, limite_aviso_centavos, pausado, isento, isento_motivo FROM msg_carteira WHERE empresa_id = $1`, [empresaId]),
     pool.query(`SELECT DISTINCT ON (tipo_evento) tipo_evento, valor_centavos, ativo, unidade, criterio, empresa_id IS NULL AS padrao, vigente_desde
-                  FROM msg_tarifas WHERE empresa_id = $1 OR empresa_id IS NULL
+                  FROM msg_tarifas WHERE (empresa_id = $1 OR empresa_id IS NULL) AND ativo = TRUE
                   ORDER BY tipo_evento, (empresa_id IS NULL), vigente_desde DESC, id DESC`, [empresaId]),
-    pool.query(`SELECT id, natureza, tipo_evento, conversa_ref, valor_centavos, valor_tabela_centavos, isento, sem_tarifa,
-                       saldo_apos_centavos, estorno_de, descricao, criado_em FROM msg_extrato WHERE empresa_id = $1 ORDER BY id DESC LIMIT $2`, [empresaId, limite]),
+     pool.query(`SELECT id, natureza, tipo_evento, conversa_ref, valor_centavos, valor_tabela_centavos, franquia_abatida_centavos,
+                        tarifa_codigo, tarifa_versao, isento, sem_tarifa, saldo_apos_centavos, estorno_de, descricao, criado_em
+                   FROM msg_extrato WHERE empresa_id = $1 ORDER BY id DESC LIMIT $2`, [empresaId, limite]),
     pool.query(`SELECT id, valor_centavos, status, ambiente, solicitada_em, confirmada_em FROM msg_recargas WHERE empresa_id = $1 ORDER BY id DESC LIMIT 50`, [empresaId]),
     pool.query(`SELECT tipo, criado_em FROM msg_avisos WHERE empresa_id = $1 ORDER BY id DESC LIMIT 10`, [empresaId]),
     pool.query(`SELECT etapa, provedor, modelo, input_tokens, output_tokens, custo_informado, moeda, criado_em
@@ -392,6 +397,7 @@ export async function visaoCredito(empresaId: number, limite = 100) {
     ...l,
     saldo_apos_centavos: Number(l.saldo_apos_centavos), valor_centavos: Number(l.valor_centavos),
     valor_tabela_centavos: l.valor_tabela_centavos == null ? null : Number(l.valor_tabela_centavos),
+    franquia_abatida_centavos: Number(l.franquia_abatida_centavos ?? 0),
     /** Verdadeiro quando esta conversa gerou mais de um tipo de evento cobrado (ex.: recebida + enviada + solucionada). */
     eventosDistintosNaConversa: l.conversa_ref ? (por.get(l.conversa_ref)?.size ?? 0) > 1 : false,
   }));
@@ -409,14 +415,15 @@ export async function visaoCredito(empresaId: number, limite = 100) {
 }
 
 /** Nova tarifa = nova linha (histórico preservado). */
-export async function definirTarifa(p: { empresaId: number | null; tipo: TipoEvento; valorCentavos: number; ativo: boolean; unidade?: string; criterio?: string; por: string }) {
+export async function definirTarifa(p: { empresaId: number | null; tipo: TipoEvento; valorCentavos: number; ativo: boolean; unidade?: string; criterio?: string; por: string; catalogoCodigo?: string; catalogoVersao?: number }) {
   if (!Number.isSafeInteger(p.valorCentavos) || p.valorCentavos < 0) throw new RangeError("valor inválido");
   if (!TIPOS_EVENTO.includes(p.tipo)) throw new RangeError("tipo inválido");
   if (p.tipo === "tempo" && p.ativo && (!p.unidade || !p.criterio)) throw new RangeError("cobrança por tempo exige unidade e critério");
   await garantirTabelasCredito();
   await pool.query(
-    `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [p.empresaId, p.tipo, p.valorCentavos, p.ativo, p.unidade ?? null, p.criterio ?? null, p.por]);
+    `INSERT INTO msg_tarifas (empresa_id, tipo_evento, valor_centavos, ativo, unidade, criterio, definido_por, catalogo_codigo, catalogo_versao)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [p.empresaId, p.tipo, p.valorCentavos, p.ativo, p.unidade ?? null, p.criterio ?? null, p.por, p.catalogoCodigo ?? null, p.catalogoVersao ?? null]);
 }
 
 export async function definirIsencao(empresaId: number, isento: boolean, motivo: string, por: string) {

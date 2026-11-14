@@ -42,6 +42,7 @@ router.get("/catalogo/minha-clinica", requireCollaborator, async (req: Request, 
     const [contrato, credito] = await Promise.all([contratoVigente(c.empresaId), visaoCredito(c.empresaId)]);
     res.json({
       contrato: contrato && { plano: contrato.plano_snapshot?.nome, ambiente: contrato.ambiente, status: contrato.status, mensalidadeCentavos: Number(contrato.preco_mensal_centavos),
+        condicao: contrato.condicao, valorPeriodoCentavos: Number(contrato.valor_periodo_centavos),
         franquiaTextoCentavos: Number(contrato.franquia_texto_centavos), modulos: contrato.modulos, vigenciaInicio: contrato.vigencia_inicio, renovacao: contrato.renovacao },
       saldoCentavos: credito.saldoCentavos, extrato: credito.extrato, recargas: credito.recargas, tarifas: credito.tarifas,
     });

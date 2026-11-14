@@ -51,6 +51,12 @@ export async function ambienteAsaas(): Promise<"sandbox" | "producao"> {
   return base.includes("sandbox") ? "sandbox" : "producao";
 }
 
+function ambienteDaChave(chave: string): string {
+  if (chave.startsWith("asaas.sandbox.")) return "sandbox";
+  if (chave.startsWith("asaas.")) return "producao";
+  return "producao";
+}
+
 export async function verificarEGravar(chave: string): Promise<EstadoCredencial> {
   let validade: EstadoCredencial["validade"] = "nao_verificada";
   if (chave === "telegram.botToken") validade = await verificarTelegram();
@@ -65,6 +71,8 @@ const ROTULOS: Record<string, string> = {
   "telegram.webhookSecret": "Segredo do webhook do Telegram",
   "asaas.apiKey": "Chave do Asaas",
   "asaas.webhookToken": "Token do webhook do Asaas",
+  "asaas.sandbox.apiKey": "Chave própria do Asaas Sandbox",
+  "asaas.sandbox.webhookToken": "Token do webhook do Asaas Sandbox",
   "zapsign.token": "Credencial de assinatura externa",
 };
 
@@ -98,7 +106,11 @@ export async function estadoCredencial(chave: string): Promise<EstadoCredencial>
       }
     }
   }
-  const ambiente = chave.startsWith("asaas.") ? await ambienteAsaas() : "producao";
+  const ambiente = chave.startsWith("asaas.sandbox.")
+    ? ambienteDaChave(chave)
+    : chave.startsWith("asaas.")
+      ? await ambienteAsaas()
+      : ambienteDaChave(chave);
   return {
     chave, rotulo: ROTULOS[chave] ?? chave, configurada: st.isSet, origem: st.source === "vault" ? "cofre" : st.source,
     ambiente, atualizadaEm: st.updatedAt, validade, verificadaEm, rotacao, rotacaoDetalhe,

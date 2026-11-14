@@ -23,14 +23,19 @@ async function resolveCredenciais(ambiente: AsaasAmbiente): Promise<{ key: strin
       throw new Error("Asaas SANDBOX nao configurado: falta a chave propria do sandbox (cofre asaas.sandbox.apiKey).");
     }
     const base = ((await getSetting("asaas.sandbox.baseUrl")) || SANDBOX_BASE_URL).trim();
-    if (!/sandbox/i.test(base)) throw new Error("URL do sandbox invalida: precisa apontar para o ambiente sandbox do Asaas.");
-    if (/\$aact_prod_/.test(key)) throw new Error("A chave informada e de PRODUCAO; o sandbox exige chave propria de sandbox.");
+    const url = new URL(base);
+    if (url.protocol !== "https:" || url.origin + url.pathname.replace(/\/$/, "") !== SANDBOX_BASE_URL || url.search || url.hash) {
+      throw new Error("URL do sandbox invalida: precisa apontar exatamente para https://api-sandbox.asaas.com/v3.");
+    }
+    if (/\$aact_prod_/i.test(key)) throw new Error("A chave informada e de PRODUCAO; o sandbox exige chave propria de sandbox.");
     return { key, baseUrl: base };
   }
   const key = await getSecret("asaas.apiKey");
   if (!key) throw new Error("Chave do Asaas nao configurada. Defina em Configuracoes > Portas de Pagamento.");
   const base = ((await getSetting("asaas.baseUrl")) || "").trim() || process.env.ASAAS_BASE_URL || DEFAULT_BASE_URL;
-  if (/sandbox/i.test(base) || /\$aact_hmlg_/.test(key)) {
+  let url: URL;
+  try { url = new URL(base); } catch { throw new Error("URL do Asaas invalida."); }
+  if (url.protocol !== "https:" || url.origin + url.pathname.replace(/\/$/, "") !== DEFAULT_BASE_URL || url.search || url.hash || /\$aact_hmlg_/i.test(key)) {
     throw new Error("Configuracao de PRODUCAO aponta para sandbox ou usa chave de sandbox: ambientes nao podem se misturar.");
   }
   return { key, baseUrl: base };
@@ -130,6 +135,7 @@ export async function asaasCreateCharge(input: AsaasChargeInput, ambiente: Asaas
     dueDate: input.dueDate,
     description: input.description,
     externalReference: input.externalReference,
+    ...(ambiente === "sandbox" ? { notificationDisabled: true } : {}),
   };
   return asaasFetch("/payments", { method: "POST", body: JSON.stringify(body) }, ambiente);
 }
