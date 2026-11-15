@@ -5,7 +5,7 @@ import { MINHA_CATEGORIA_NOTAS, MINHA_CATEGORIA_SUBTITULO, MINHA_CATEGORIA_TITUL
 
 // MINHA CATEGORIA (Área do Cliente). Mostra SÓ o nível comercial já cadastrado (Prata, Ouro, Platinum, Diamond),
 // lido por rota própria (GET /area-paciente/minha-categoria, cliente vindo do token). Não mostra benefício,
-// preço ou comparativo: nada disso está cadastrado. É independente do Club VIP, que não lê nível algum.
+// preço ou comparativo: nada disso está cadastrado. É independente do Grupo VIP, que não lê nível algum.
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 

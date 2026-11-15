@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Eye, FileUp, History, Inbox, Loader2, RefreshCw, Settings, Ticket, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Crown, Clock3, Eye, FileUp, History, Inbox, Loader2, RefreshCw, Settings, Ticket, Users } from "lucide-react";
+import { useListClients } from "@workspace/api-client-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
+import GrupoVipGestao, { type CampanhaVip, type ParticipacaoVip } from "./GrupoVipGestao";
 
 // Central de Bolões (gestor da clínica).
 // Recebe recibos REAIS por canal autorizado (envio manual ou pasta do Drive da própria clínica), mostra o que o
@@ -75,7 +78,7 @@ function Campo({ label, value }: { label: string; value: string }) {
 
 const BTN = "btn-3d-soft min-h-[44px] px-3 text-xs font-black uppercase tracking-wider disabled:opacity-60 inline-flex items-center justify-center gap-2";
 
-type Aba = "fila" | "participacoes" | "cadastro" | "historico";
+type Aba = "fila" | "participacoes" | "grupovip" | "cadastro" | "historico";
 
 export default function CentralBoloesPage() {
   const [aba, setAba] = useState<Aba>("fila");
@@ -132,10 +135,11 @@ export default function CentralBoloesPage() {
         </div>
       )}
 
-      <nav className="grid grid-cols-2 sm:grid-cols-4 gap-2" aria-label="Seções da Central de Bolões">
+      <nav className="grid grid-cols-2 sm:grid-cols-5 gap-2" aria-label="Seções da Central de Bolões">
         {([
           ["fila", `Fila de revisão (${emRevisao.length})`, Inbox],
           ["participacoes", `Participações (${partes.length})`, Users],
+          ["grupovip", "Grupo VIP", Crown],
           ["cadastro", "Cadastro e configuração", Settings],
           ["historico", "Histórico", History],
         ] as const).map(([k, rot, Icone]) => (
@@ -163,6 +167,10 @@ export default function CentralBoloesPage() {
               onReler={() => executar(`rl${r.id}`, () => chamar(`/recebimentos/${r.id}/reprocessar`, { method: "POST" }), "Arquivo lido novamente.")} />
           ))}
         </Painel>
+      )}
+
+      {aba === "grupovip" && (
+        <GrupoVipGestao chamar={chamar} partes={partes as unknown as ParticipacaoVip[]} campanhas={campanhas as unknown as CampanhaVip[]} ocupado={ocupado} executar={executar} />
       )}
 
       {aba === "participacoes" && (
@@ -353,6 +361,8 @@ function Cadastro({ campanhas, partes, config, ocupado, onCampanha, onParticipac
   const [campId, setCampId] = useState(""); const [clientId, setClientId] = useState(""); const [cotas, setCotas] = useState("1");
   const [pasta, setPasta] = useState(config?.driveFolderId ?? ""); const [auto, setAuto] = useState(config?.autoAprovar ?? false); const [confAuto, setConfAuto] = useState(false);
   useEffect(() => { setPasta(config?.driveFolderId ?? ""); setAuto(config?.autoAprovar ?? false); setConfAuto(false); }, [config]);
+  const { data: todosCli } = useListClients();
+  const opcoesCli = useMemo(() => (todosCli ?? []).map((cl) => ({ id: cl.id, name: cl.name, cpf: cl.cpf ?? null, phone: cl.phone ?? null, photoUrl: (cl as { photoUrl?: string | null }).photoUrl ?? null })), [todosCli]);
   const ligandoAuto = auto && !(config?.autoAprovar ?? false);
   return (
     <>
@@ -376,8 +386,8 @@ function Cadastro({ campanhas, partes, config, ocupado, onCampanha, onParticipac
             <select id="p-camp" className="field-engraved w-full min-h-[44px] px-2 text-sm" value={campId} onChange={(e) => setCampId(e.target.value)}>
               <option value="">Escolha…</option>{campanhas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select></div>
-          <div><label className="block text-[11px] font-black uppercase tracking-wider text-primary" htmlFor="p-cli">Número do cliente</label>
-            <input id="p-cli" inputMode="numeric" className="field-engraved w-full min-h-[44px] px-2 text-sm" value={clientId} onChange={(e) => setClientId(e.target.value.replace(/\D/g, ""))} /></div>
+          <div><label className="block text-[11px] font-black uppercase tracking-wider text-primary">Cliente</label>
+            <PaxterClientSelector clientes={opcoesCli} value={clientId ? Number(clientId) : null} onChange={(id) => setClientId(id ? String(id) : "")} placeholder="Selecionar cliente…" /></div>
           <div><label className="block text-[11px] font-black uppercase tracking-wider text-primary" htmlFor="p-cotas">Cotas</label>
             <input id="p-cotas" inputMode="numeric" className="field-engraved w-full min-h-[44px] px-2 text-sm" value={cotas} onChange={(e) => setCotas(e.target.value.replace(/\D/g, ""))} /></div>
         </div>

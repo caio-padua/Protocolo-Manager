@@ -1,7 +1,7 @@
 /**
- * Área do Cliente (/area): abas MINHA CATEGORIA e CLUB VIP, celular e desktop.
+ * Área do Cliente (/area): abas MINHA CATEGORIA e GRUPO VIP, celular e desktop.
  * API simulada com dados SINTÉTICOS (o servidor é provado em area-minha-categoria.test.ts).
- * Prova: as duas abas são independentes; o CLUB VIP não mostra nem consulta nível comercial; MINHA CATEGORIA mostra
+ * Prova: as duas abas são independentes; o GRUPO VIP não mostra nem consulta nível comercial; MINHA CATEGORIA mostra
  * só o nível cadastrado (4 níveis, sem nível, erro); CONVITES ESPECIAIS / CONEXÃO MILIONÁRIA só navega para
  * Meus Bolões (sem escrita); ida e volta; sem rolagem horizontal.
  */
@@ -33,17 +33,17 @@ async function preparar(page: Page, categoria: { status: number; body: unknown }
 }
 
 for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop", width: 1280, height: 800 }]) {
-  test.describe(`Minha Categoria e Club VIP — ${vp.nome}`, () => {
+  test.describe(`Minha Categoria e Grupo VIP — ${vp.nome}`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    test("menu: MINHA CATEGORIA e CLUB VIP são abas separadas entre EVOLUÇÃO e COMUNICAÇÃO", async ({ page }) => {
+    test("menu: MINHA CATEGORIA e GRUPO VIP são abas separadas entre EVOLUÇÃO e COMUNICAÇÃO", async ({ page }) => {
       await preparar(page, { status: 200, body: { nivel: "ouro" } });
       await page.goto(URL_AREA);
       const nav = page.locator("nav");
       await expect(nav.getByRole("button", { name: /EVOLUÇÃO/ })).toBeVisible({ timeout: 20000 });
       const rotulos = (await nav.getByRole("button").allInnerTexts()).map((t) => t.trim().toUpperCase());
       const cat = rotulos.findIndex((t) => t.includes("MINHA CATEGORIA"));
-      const club = rotulos.findIndex((t) => t.includes("CLUB VIP"));
+      const club = rotulos.findIndex((t) => t.includes("GRUPO VIP"));
       expect(cat).toBeGreaterThan(-1);
       expect(club).toBe(cat + 1);
       expect(rotulos[cat - 1]).toContain("EVOLUÇÃO");
@@ -54,27 +54,27 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       }
     });
 
-    test("CLUB VIP: sem nível comercial, sem consulta de nível, com CONVITES ESPECIAIS e CONEXÃO MILIONÁRIA", async ({ page }) => {
+    test("GRUPO VIP: sem nível comercial, sem consulta de nível, com CONVITES ESPECIAIS e CONEXÃO MILIONÁRIA", async ({ page }) => {
       // O servidor devolveria "ouro" se fosse perguntado: a tela não pode perguntar nem mostrar.
       const { escritas, leituras } = await preparar(page, { status: 200, body: { nivel: "ouro" } });
       await page.goto(URL_AREA);
       const nav = page.locator("nav");
-      await nav.getByRole("button", { name: /CLUB VIP/ }).click({ timeout: 20000 });
+      await nav.getByRole("button", { name: /GRUPO VIP/ }).click({ timeout: 20000 });
       const raiz = page.getByTestId("club-vip");
       await expect(raiz).toBeVisible();
-      await expect(raiz.getByRole("heading", { name: "CLUB VIP" })).toBeVisible();
+      await expect(raiz.getByRole("heading", { name: "GRUPO VIP" })).toBeVisible();
       await expect(page.getByTestId("club-vip-como-funciona")).toContainText("por convite");
       await expect(page.getByTestId("club-vip-como-funciona")).toContainText("livre e espontânea vontade");
       await expect(page.getByTestId("club-vip-como-funciona")).toContainText("não depende da sua categoria");
 
-      // Nenhum nível comercial dentro do Club VIP.
+      // Nenhum nível comercial dentro do Grupo VIP.
       await expect(page.getByTestId("club-vip-nivel-card")).toHaveCount(0);
       await expect(page.getByTestId("club-vip-nivel")).toHaveCount(0);
       await expect(page.getByTestId("club-vip-sem-nivel")).toHaveCount(0);
       await expect(page.getByTestId("minha-categoria-nivel")).toHaveCount(0);
       const texto = (await raiz.innerText()).toLowerCase();
       for (const nivel of ["prata", "ouro", "platinum", "diamond", "nível", "nivel"]) expect(texto).not.toContain(nivel);
-      // Nenhuma leitura de categoria/nível ao abrir o Club VIP.
+      // Nenhuma leitura de categoria/nível ao abrir o Grupo VIP.
       expect(leituras.filter((u) => /minha-categoria|club-vip/.test(u))).toEqual([]);
 
       // Benefícios continuam "em configuração", sem nada comercial.
@@ -107,14 +107,14 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       expect(escritas).toEqual([]);
     });
 
-    test("CONEXÃO MILIONÁRIA abre Meus Bolões existente e Voltar retorna ao Club VIP; do Início volta ao Início", async ({ page }) => {
+    test("CONEXÃO MILIONÁRIA abre Meus Bolões existente e Voltar retorna ao Grupo VIP; do Início volta ao Início", async ({ page }) => {
       const { escritas } = await preparar(page, { status: 200, body: { nivel: "prata" } });
       await page.goto(URL_AREA);
-      await page.locator("nav").getByRole("button", { name: /CLUB VIP/ }).click({ timeout: 20000 });
+      await page.locator("nav").getByRole("button", { name: /GRUPO VIP/ }).click({ timeout: 20000 });
       await page.getByTestId("club-vip-cta-boloes").click();
       await expect(page.getByTestId("meus-boloes")).toBeVisible();
       await expect(page.getByTestId("boloes-vazio")).toBeVisible();
-      await page.getByRole("button", { name: /Voltar ao Club VIP/ }).click();
+      await page.getByRole("button", { name: /Voltar ao Grupo VIP/ }).click();
       await expect(page.getByTestId("club-vip")).toBeVisible();
 
       // Caminho antigo pelo Início continua voltando ao Início.
@@ -133,10 +133,10 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       const raiz = page.getByTestId("minha-categoria");
       await expect(raiz.getByRole("heading", { name: "MINHA CATEGORIA" })).toBeVisible();
       await expect(page.getByTestId("minha-categoria-nivel")).toHaveAttribute("data-nivel", "ouro");
-      await expect(page.getByTestId("minha-categoria-notas")).toContainText("independente do Club VIP");
+      await expect(page.getByTestId("minha-categoria-notas")).toContainText("independente do Grupo VIP");
       expect(leituras.filter((u) => u.endsWith("/minha-categoria"))).toHaveLength(1);
 
-      // Nada de Club VIP, bolões, benefícios inventados ou preço dentro de Minha Categoria.
+      // Nada de Grupo VIP, bolões, benefícios inventados ou preço dentro de Minha Categoria.
       await expect(page.getByTestId("club-vip")).toHaveCount(0);
       await expect(page.getByTestId("club-vip-convite-boloes")).toHaveCount(0);
       const texto = (await raiz.innerText()).toLowerCase();
@@ -177,13 +177,13 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       await semRolagemHorizontal(page);
     });
 
-    test("MINHA CATEGORIA com erro de carga: aviso honesto; o Club VIP continua utilizável", async ({ page }) => {
+    test("MINHA CATEGORIA com erro de carga: aviso honesto; o Grupo VIP continua utilizável", async ({ page }) => {
       await preparar(page, { status: 500, body: { error: "x" } });
       await page.goto(URL_AREA);
       await page.locator("nav").getByRole("button", { name: /MINHA CATEGORIA/ }).click({ timeout: 20000 });
       await expect(page.getByTestId("minha-categoria-erro")).toBeVisible();
       await expect(page.getByTestId("minha-categoria-nivel")).toHaveCount(0);
-      await page.locator("nav").getByRole("button", { name: /CLUB VIP/ }).click();
+      await page.locator("nav").getByRole("button", { name: /GRUPO VIP/ }).click();
       await expect(page.getByTestId("club-vip-cta-boloes")).toBeVisible();
     });
   });

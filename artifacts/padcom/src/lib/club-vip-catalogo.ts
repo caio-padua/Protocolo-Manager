@@ -1,5 +1,5 @@
-// Club VIP (Área do Cliente): conteúdo configurável e tipado.
-// Regra do Dr. Caio (14/11/2026): o Club VIP é um programa POR CONVITE, de aceite voluntário, e NÃO tem relação
+// Grupo VIP (Área do Cliente): conteúdo configurável e tipado.
+// Regra do Dr. Caio (14/11/2026): o Grupo VIP é um programa POR CONVITE, de aceite voluntário, e NÃO tem relação
 // com a categoria comercial (Prata, Ouro, Platinum, Diamond), que vive na aba MINHA CATEGORIA.
 // Nenhum benefício concreto é afirmado até o administrador definir e aprovar: enquanto `itens` estiver vazio,
 // a área aparece como "Em configuração". Sem preço, desconto, prioridade, brinde ou promessa de serviço.
@@ -14,7 +14,7 @@ export type AreaBeneficio = {
   itens: readonly BeneficioAprovado[];
 };
 
-export const CLUB_VIP_TITULO = "CLUB VIP";
+export const CLUB_VIP_TITULO = "GRUPO VIP";
 export const CLUB_VIP_SUBTITULO = "Um programa por convite do Instituto Pádua";
 
 export const AREAS_BENEFICIO: readonly AreaBeneficio[] = [
@@ -39,12 +39,12 @@ export const AREAS_BENEFICIO: readonly AreaBeneficio[] = [
 ];
 
 export const BENEFICIOS_NOTA =
-  "Os benefícios do Club VIP ainda estão em configuração e serão exibidos aqui somente depois de definidos e aprovados pelo Instituto.";
+  "Os benefícios do Grupo VIP ainda estão em configuração e serão exibidos aqui somente depois de definidos e aprovados pelo Instituto.";
 
 export const CLUB_VIP_COMO_FUNCIONA = {
   titulo: "Como funciona",
   texto:
-    "O Club VIP é um programa por convite. Você participa somente se for convidado e aceitar, por livre e espontânea vontade. Ele não depende da sua categoria nem de consultas, tratamentos, mensalidades ou descontos.",
+    "O Grupo VIP é um programa por convite. Você participa somente se for convidado e aceitar, por livre e espontânea vontade. Ele não depende da sua categoria nem de consultas, tratamentos, mensalidades ou descontos.",
 } as const;
 
 export const CONVITES_ESPECIAIS_TITULO = "CONVITES ESPECIAIS";

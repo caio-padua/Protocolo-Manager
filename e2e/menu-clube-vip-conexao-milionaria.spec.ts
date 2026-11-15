@@ -1,5 +1,5 @@
 /**
- * Menu lateral do Manager: CLUBE VIP > Conexão Milionária (mesma rota /boloes), celular e desktop.
+ * Menu lateral do Manager: GRUPO VIP > Conexão Milionária (mesma rota /boloes), celular e desktop.
  * API simulada com dados SINTÉTICOS; nenhuma escrita. Prova: grupo novo com 1 filho, sem duplicidade com o item
  * antigo "Central de Bolões", mesma rota, sem confundir com categorias comerciais, gestão continua atrás do
  * CollaboratorGate (sem sessão ou sessão recusada pelo servidor nunca mostra a Central).
@@ -33,18 +33,18 @@ async function simularBoloes(page: Page) {
 }
 
 for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop", width: 1280, height: 800 }]) {
-  test.describe(`Menu CLUBE VIP — ${vp.nome}`, () => {
+  test.describe(`Menu GRUPO VIP — ${vp.nome}`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    test("grupo CLUBE VIP com um único filho Conexão Milionária apontando para /boloes", async ({ page }) => {
+    test("grupo GRUPO VIP com um único filho Conexão Milionária apontando para /boloes", async ({ page }) => {
       await sessao(page);
       const escritas = await simularBoloes(page);
       await page.goto("/boloes");
       await expect(page.getByTestId("central-boloes")).toBeVisible({ timeout: 20000 });
       if (vp.width < 768) await page.locator("div.md\\:hidden button").first().click();
 
-      const aside = page.locator("nav").filter({ has: page.getByText("CLUBE VIP", { exact: true }) }).first();
-      await expect(aside.getByText("CLUBE VIP", { exact: true })).toHaveCount(1);
+      const aside = page.locator("nav").filter({ has: page.getByText("GRUPO VIP", { exact: true }) }).first();
+      await expect(aside.getByText("GRUPO VIP", { exact: true })).toHaveCount(1);
       const links = aside.locator('a[href$="/boloes"]');
       await expect(links).toHaveCount(1); // um só link para /boloes em todo o menu
       await expect(links.first()).toContainText("Conexão Milionária");
@@ -52,7 +52,7 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
 
       // Ordem e conteúdo: o grupo fica logo depois de "Área do Cliente" e tem só um filho.
       const nomes = await aside.locator("span.uppercase").allInnerTexts();
-      const i = nomes.findIndex((t) => t.trim().toUpperCase() === "CLUBE VIP");
+      const i = nomes.findIndex((t) => t.trim().toUpperCase() === "GRUPO VIP");
       expect(i).toBeGreaterThan(0);
       expect(nomes[i - 1].trim().toUpperCase()).toContain("ÁREA DO CLIENTE");
 
@@ -60,7 +60,7 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       const texto = (await aside.innerText()).toLowerCase();
       for (const nivel of ["prata", "ouro", "platinum", "diamond", "minha categoria"]) expect(texto).not.toContain(nivel);
 
-      // O item "O Ato Médico" não leva mais a /boloes (o único link é o do CLUBE VIP, já provado acima).
+      // O item "O Ato Médico" não leva mais a /boloes (o único link é o do GRUPO VIP, já provado acima).
       await expect(page.locator('a[href$="/boloes"]')).toHaveCount(1);
       expect(escritas).toEqual([]);
     });

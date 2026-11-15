@@ -130,7 +130,62 @@ export async function ensureBoloesTables(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS uq_boloes_receb_drive
       ON boloes_recebimentos (empresa_id, drive_file_id) WHERE drive_file_id IS NOT NULL`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_boloes_receb_status ON boloes_recebimentos (empresa_id, status, criado_em)`);
+  await ensureGrupoVipTables();
   logger.info("boloes: tabelas prontas");
+}
+
+/**
+ * Grupo VIP e regras do bolao (aditivo, idempotente; nada existente e alterado ou apagado).
+ * O Grupo VIP e independente da categoria comercial (Prata, Ouro, Platinum, Diamond): nenhuma tabela aqui
+ * le ou grava categoria. Campanha antiga nasce como rascunho: nada vira "aberto" sem decisao da clinica.
+ */
+async function ensureGrupoVipTables(): Promise<void> {
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'rascunho' CHECK (status IN ('rascunho','aberto','encerrado'))`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS valor_cota_centavos INTEGER CHECK (valor_cota_centavos IS NULL OR valor_cota_centavos >= 0)`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS cotas_total INTEGER CHECK (cotas_total IS NULL OR cotas_total BETWEEN 1 AND 100000)`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS escolha_jogos TEXT NOT NULL DEFAULT 'clinica' CHECK (escolha_jogos IN ('clinica','participante'))`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS modalidade TEXT CHECK (modalidade IS NULL OR length(modalidade) <= 60)`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS dezenas_por_jogo INTEGER CHECK (dezenas_por_jogo IS NULL OR dezenas_por_jogo BETWEEN 1 AND 30)`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS universo_max INTEGER NOT NULL DEFAULT 60 CHECK (universo_max BETWEEN 2 AND 100)`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS jogos_por_cota INTEGER NOT NULL DEFAULT 1 CHECK (jogos_por_cota BETWEEN 1 AND 20)`);
+  await db.execute(sql`ALTER TABLE boloes_campanhas ADD COLUMN IF NOT EXISTS regras_texto TEXT CHECK (regras_texto IS NULL OR length(regras_texto) <= 2000)`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS grupo_vip_membros (
+      id SERIAL PRIMARY KEY,
+      empresa_id INTEGER NOT NULL,
+      client_id INTEGER NOT NULL REFERENCES clients(id),
+      status TEXT NOT NULL DEFAULT 'convidado' CHECK (status IN ('convidado','ativo','recusou','saiu')),
+      convidado_por INTEGER,
+      convidado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      respondido_em TIMESTAMPTZ,
+      CONSTRAINT grupo_vip_membros_unico UNIQUE (empresa_id, client_id)
+    )`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS boloes_convites (
+      id SERIAL PRIMARY KEY,
+      empresa_id INTEGER NOT NULL,
+      campanha_id INTEGER NOT NULL REFERENCES boloes_campanhas(id),
+      client_id INTEGER NOT NULL REFERENCES clients(id),
+      status TEXT NOT NULL DEFAULT 'convidado' CHECK (status IN ('convidado','aceito','recusado')),
+      convidado_por INTEGER,
+      convidado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      respondido_em TIMESTAMPTZ,
+      CONSTRAINT boloes_convites_unico UNIQUE (campanha_id, client_id)
+    )`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS boloes_jogos (
+      id SERIAL PRIMARY KEY,
+      empresa_id INTEGER NOT NULL,
+      participacao_id INTEGER NOT NULL REFERENCES boloes_participacoes(id),
+      ordem INTEGER NOT NULL CHECK (ordem >= 1),
+      dezenas INTEGER[] NOT NULL,
+      origem TEXT NOT NULL CHECK (origem IN ('participante','clinica')),
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT boloes_jogos_ordem_unica UNIQUE (participacao_id, ordem)
+    )`);
+  await db.execute(sql`ALTER TABLE boloes_participacoes ADD COLUMN IF NOT EXISTS asaas_charge_id TEXT`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_boloes_part_cobranca ON boloes_participacoes (empresa_id, asaas_charge_id) WHERE asaas_charge_id IS NOT NULL`);
+  await db.execute(sql`ALTER TABLE boloes_comprovantes ADD COLUMN IF NOT EXISTS natureza TEXT CHECK (natureza IS NULL OR natureza IN ('nominativo','cota_oficial_individual'))`);
 }
 
 export interface AuditoriaBolao {

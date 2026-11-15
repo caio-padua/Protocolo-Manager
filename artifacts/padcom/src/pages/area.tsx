@@ -19,6 +19,7 @@ import EvolucaoExamesPanel from "@/pages/cockpit/panels/EvolucaoExamesPanel";
 
 import PedidosMedicosCliente from "@/components/PedidosMedicosCliente";
 import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
+import { GrupoVipBoloes } from "@/components/GrupoVipConexao";
 import MeusBoloesCliente from "@/components/MeusBoloesCliente";
 import ClubVipCliente from "@/components/ClubVipCliente";
 import MinhaCategoriaCliente from "@/components/MinhaCategoriaCliente";
@@ -115,7 +116,7 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
   { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
   { key: "minhacategoria", label: "MINHA CATEGORIA", icon: Award },
-  { key: "clubvip",    label: "CLUB VIP",    icon: Crown },
+  { key: "clubvip",    label: "GRUPO VIP",    icon: Crown },
   { key: "comunicacao", label: "COMUNICAÇÃO", icon: MessageCircle },
 ];
 
@@ -125,7 +126,7 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
 export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
-  // De onde o cliente abriu "Meus Bolões" (Início ou Club VIP): define para onde o "Voltar" leva.
+  // De onde o cliente abriu "Meus Bolões" (Início ou Grupo VIP): define para onde o "Voltar" leva.
   const [boloesOrigem, setBoloesOrigem] = useState<"inicio" | "clubvip">("inicio");
   useEffect(() => { if (tab !== "boloes") setBoloesOrigem("inicio"); }, [tab]);
   const [adminMode, setAdminMode] = useState(false);
@@ -242,15 +243,16 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
         {tab === "minhacategoria" && <MinhaCategoriaCliente token={client.token} />}
         {tab === "clubvip" && (
-          <ClubVipCliente onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} />
+          <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} />
         )}
         {tab === "comunicacao" && <ComunicacaoTab client={client} />}
         {tab === "boloes" && (
           <div className="space-y-3">
             <button onClick={() => setTab(boloesOrigem)}
               className="text-accent text-[10px] font-black uppercase tracking-widest underline-offset-4 hover:underline">
-              {boloesOrigem === "clubvip" ? "← Voltar ao Club VIP" : "← Voltar ao início"}
+              {boloesOrigem === "clubvip" ? "← Voltar ao Grupo VIP" : "← Voltar ao início"}
             </button>
+            <GrupoVipBoloes token={client.token} />
             <MeusBoloesCliente token={client.token} />
           </div>
         )}

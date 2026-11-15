@@ -9,6 +9,10 @@ import { uploadMw } from "./boloes";
 import { auditarBolao, detectarTipoComprovante, sha256Hex } from "../lib/boloes";
 import { lerComprovanteIA } from "../lib/boloes-leitura";
 import {
+  aplicarRegras, classificarComprovante, convidarParaBolao, convidarParaGrupo, definirJogos, extrasDasParticipacoes,
+  listarConvitesBolao, listarMembros, mudarStatusCampanha, vincularCobranca, type ResultadoConvite,
+} from "../lib/grupo-vip";
+import {
   aprovarRecebimento, criarCampanha, criarParticipacao, definirPagamento, gravarConfig, ingerirArquivo,
   lerConfig, listarAuditoria, listarCampanhas, listarParticipacoesGestor, listarRecebimentos, processarRecebimento,
   reassociarComprovante, recebimentoParaVer, reprocessarRecebimento, rejeitarRecebimento, resumoGestor, revogarComprovante,
@@ -77,7 +81,9 @@ router.get(`${G}/participacoes`, requireCollaborator, async (req, res): Promise<
   if (!g) return;
   try {
     res.set("Cache-Control", "private, no-store");
-    res.json({ participacoes: await listarParticipacoesGestor(g.empresaId), campanhas: await listarCampanhas(g.empresaId) });
+    const base = await listarParticipacoesGestor(g.empresaId);
+    const extras = await extrasDasParticipacoes(g.empresaId, null, base.map((b) => b.id));
+    res.json({ participacoes: base.map((b) => ({ ...b, ...(extras.get(b.id) ?? {}) })), campanhas: await listarCampanhas(g.empresaId) });
   } catch (err) { falha(req, res, err, "Não foi possível carregar as participações."); }
 });
 
@@ -296,15 +302,162 @@ const Campanha = z.object({
   nome: z.string().trim().min(1).max(120),
   concurso: z.string().trim().max(60).optional(),
   dataSorteio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-}).strict();
+  // Regras do bolao (opcionais; a campanha nasce como rascunho e so abre por decisao explicita).
+  valorCotaCentavos: z.number().int().min(0).max(100_000_000).optional(),
+  cotasTotal: z.number().int().min(1).max(100_000).optional(),
+  escolhaJogos: z.enum(["clinica", "participante"]).optional(),
+  modalidade: z.string().trim().min(1).max(60).optional(),
+  dezenasPorJogo: z.number().int().min(1).max(30).optional(),
+  universoMax: z.number().int().min(2).max(100).optional(),
+  jogosPorCota: z.number().int().min(1).max(20).optional(),
+  regrasTexto: z.string().trim().min(1).max(2000).optional(),
+}).strict().refine((v) => v.dezenasPorJogo === undefined || v.dezenasPorJogo <= (v.universoMax ?? 60), { message: "dezenas maiores que o universo" });
 router.post(`${G}/campanhas`, requireCollaborator, async (req, res): Promise<void> => {
   const g = await gestor(req, res);
   if (!g) return;
   const b = Campanha.safeParse(req.body);
-  if (!b.success) return ruim(res, "Informe o nome (até 120 caracteres) e, se houver, concurso e data AAAA-MM-DD.");
+  if (!b.success) return ruim(res, "Informe o nome (até 120 caracteres) e, se houver, concurso, data AAAA-MM-DD e regras válidas (dezenas não podem passar do universo).");
   try {
-    res.status(201).json({ id: await criarCampanha({ empresaId: g.empresaId, ...b.data, ator: g.ator }) });
+    const { nome, concurso, dataSorteio, ...regras } = b.data;
+    const id = await criarCampanha({ empresaId: g.empresaId, nome, concurso, dataSorteio, ator: g.ator });
+    if (Object.keys(regras).length > 0) await aplicarRegras({ empresaId: g.empresaId, campanhaId: id, regras, ator: g.ator });
+    res.status(201).json({ id });
   } catch (err) { falha(req, res, err, "Não foi possível criar a campanha."); }
+});
+
+const MudarStatus = z.object({ status: z.enum(["aberto", "encerrado"]) }).strict();
+router.post(`${G}/campanhas/:id/status`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  const id = idParam(req.params.id);
+  const b = MudarStatus.safeParse(req.body);
+  if (!id) return naoAchou(res, "Bolão não encontrado.");
+  if (!b.success) return ruim(res, "Estado inválido. Use aberto ou encerrado.");
+  try {
+    const r = await mudarStatusCampanha({ empresaId: g.empresaId, campanhaId: id, para: b.data.status, ator: g.ator });
+    if (r.ok) { res.json({ ok: true }); return; }
+    if (r.motivo === "inexistente") return naoAchou(res, "Bolão não encontrado.");
+    if (r.motivo === "regras_incompletas") return ruim(res, "Defina as dezenas por jogo antes de abrir o bolão.");
+    res.status(409).json({ error: "Esta mudança de estado não é permitida." });
+  } catch (err) { falha(req, res, err, "Não foi possível mudar o estado do bolão."); }
+});
+
+// ---------------------------------------------------------------- Grupo VIP: convite, adesao voluntaria e acompanhamento
+const MSG_CONVITE: Record<string, [number, string]> = {
+  cliente_inexistente: [404, "Cliente não encontrado nesta clínica."],
+  ja_convidado: [409, "Este cliente já foi convidado e ainda não respondeu."],
+  ja_ativo: [409, "Este cliente já participa do Grupo VIP."],
+  campanha_indisponivel: [404, "Bolão não encontrado ou não está aberto."],
+  nao_membro: [409, "Só membros ativos do Grupo VIP podem ser convidados para um bolão."],
+  ja_participa: [409, "Este cliente já participa deste bolão."],
+};
+const respostaConvite = (res: Response, r: ResultadoConvite): void => {
+  if (r.ok) { res.status(201).json({ ok: true }); return; }
+  const [status, error] = MSG_CONVITE[r.motivo] ?? [409, "Não foi possível convidar."];
+  res.status(status).json({ error });
+};
+
+router.get(`${G}/grupo-vip`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  try {
+    res.set("Cache-Control", "private, no-store");
+    res.json({ membros: await listarMembros(g.empresaId), convitesBolao: await listarConvitesBolao(g.empresaId) });
+  } catch (err) { falha(req, res, err, "Não foi possível carregar o Grupo VIP."); }
+});
+
+const ConviteGrupo = z.object({ clientId: z.number().int().positive() }).strict();
+router.post(`${G}/grupo-vip/convites`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  const b = ConviteGrupo.safeParse(req.body);
+  if (!b.success) return ruim(res, "Escolha o cliente.");
+  try { respostaConvite(res, await convidarParaGrupo({ empresaId: g.empresaId, clientId: b.data.clientId, ator: g.ator })); }
+  catch (err) { falha(req, res, err, "Não foi possível registrar o convite."); }
+});
+
+const ConviteBolao = z.object({ clientId: z.number().int().positive() }).strict();
+router.post(`${G}/campanhas/:id/convites`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  const id = idParam(req.params.id);
+  const b = ConviteBolao.safeParse(req.body);
+  if (!id) return naoAchou(res, "Bolão não encontrado.");
+  if (!b.success) return ruim(res, "Escolha o cliente.");
+  try { respostaConvite(res, await convidarParaBolao({ empresaId: g.empresaId, campanhaId: id, clientId: b.data.clientId, ator: g.ator })); }
+  catch (err) { falha(req, res, err, "Não foi possível registrar o convite."); }
+});
+
+const MSG_JOGOS: Record<string, [number, string]> = {
+  inexistente: [404, "Participação não encontrada."],
+  cancelada: [409, "Participação cancelada não recebe jogos."],
+  bolao_fechado: [409, "O bolão não está aberto."],
+  origem_nao_permitida: [409, "Neste bolão os jogos são escolhidos pelo participante, não pela clínica."],
+  ja_efetivado: [409, "Já existe comprovante oficial; os jogos não podem mais ser alterados."],
+  regras_ausentes: [409, "O bolão não tem as regras de dezenas definidas."],
+  quantidade: [422, "A quantidade de jogos não confere com as cotas e a regra do bolão."],
+  dezenas_invalidas: [422, "Dezenas inválidas: respeite a quantidade por jogo, o universo e não repita dezenas nem jogos."],
+};
+const Jogos = z.object({ jogos: z.array(z.array(z.number().int()).max(30)).max(400) }).strict();
+router.put(`${G}/participacoes/:id/jogos`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  const id = idParam(req.params.id);
+  const b = Jogos.safeParse(req.body);
+  if (!id) return naoAchou(res, "Participação não encontrada.");
+  if (!b.success) return ruim(res, "Envie a lista de jogos como listas de dezenas.");
+  try {
+    const r = await definirJogos({ participacaoId: id, origem: "clinica", empresaId: g.empresaId, clientId: null, jogos: b.data.jogos, ator: g.ator });
+    if (r.ok) { res.json({ ok: true, jogos: r.jogos }); return; }
+    const [status, error] = MSG_JOGOS[r.motivo] ?? [409, "Não foi possível salvar os jogos."];
+    res.status(status).json({ error });
+  } catch (err) { falha(req, res, err, "Não foi possível salvar os jogos."); }
+});
+
+const Cobranca = z.object({ chargeId: z.string().trim().min(3).max(60) }).strict();
+router.post(`${G}/participacoes/:id/cobranca`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  const id = idParam(req.params.id);
+  const b = Cobranca.safeParse(req.body);
+  if (!id) return naoAchou(res, "Participação não encontrada.");
+  if (!b.success) return ruim(res, "Informe o código da cobrança do Asaas.");
+  try {
+    const r = await vincularCobranca({ empresaId: g.empresaId, participacaoId: id, chargeId: b.data.chargeId, ator: g.ator });
+    if (r.ok) { res.json({ ok: true }); return; }
+    if (r.motivo === "participacao_inexistente") return naoAchou(res, "Participação não encontrada.");
+    if (r.motivo === "id_invalido") return ruim(res, "Código de cobrança inválido.");
+    if (r.motivo === "cobranca_em_uso") { res.status(409).json({ error: "Esta cobrança já está vinculada a outra participação." }); return; }
+    res.status(404).json({ error: "Cobrança não encontrada no livro financeiro desta clínica. Nada foi vinculado e nenhuma cobrança foi criada." });
+  } catch (err) { falha(req, res, err, "Não foi possível vincular a cobrança."); }
+});
+
+const Natureza = z.object({ natureza: z.enum(["nominativo", "cota_oficial_individual"]) }).strict();
+router.post(`${G}/comprovantes/:id/natureza`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  const id = idParam(req.params.id);
+  const b = Natureza.safeParse(req.body);
+  if (!id) return naoAchou(res, "Comprovante não encontrado.");
+  if (!b.success) return ruim(res, "Escolha: comprovante nominativo ou cota oficial individual.");
+  try {
+    if (!(await classificarComprovante({ empresaId: g.empresaId, comprovanteId: id, natureza: b.data.natureza, ator: g.ator }))) return naoAchou(res, "Comprovante não encontrado.");
+    res.json({ ok: true });
+  } catch (err) { falha(req, res, err, "Não foi possível classificar o comprovante."); }
+});
+
+// Automacao CAIXA: NAO existe. Resposta fixa e honesta, para a tela nunca sugerir o contrario.
+router.get(`${G}/automacao`, requireCollaborator, async (req, res): Promise<void> => {
+  const g = await gestor(req, res);
+  if (!g) return;
+  res.set("Cache-Control", "private, no-store");
+  res.json({
+    estado: "pendente",
+    registraJogos: false,
+    coletaComprovantes: false,
+    motivo: "Não há acesso autorizado nem condições formais definidos para automatizar o registro de jogos ou a coleta de comprovantes na CAIXA. O comprovante oficial continua entrando por envio manual ou pela pasta do Drive da clínica.",
+    ambiente: "Prova de conceito isolada em tools/lottery-engine-poc (somente em 127.0.0.1, sem a CAIXA, sem credenciais, sem banco).",
+  });
 });
 
 const Participacao = z.object({

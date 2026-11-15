@@ -250,7 +250,7 @@ router.get("/area-paciente/resumo", async (req: Request, res: Response): Promise
 
 // --- MINHA CATEGORIA --------------------------------------------------------
 // Projecao minima para a aba Minha Categoria: SO o nivel comercial (clients.plano) do proprio cliente do token.
-// Separado do resumo clinico de proposito e SEM relacao com o Club VIP (que nao le nivel algum).
+// Separado do resumo clinico de proposito e SEM relacao com o Grupo VIP (que nao le nivel algum).
 // So devolve um dos quatro niveis existentes; qualquer outro valor (nulo, "legado:*", desconhecido)
 // vira null e a tela diz que a categoria nao esta disponivel.
 const NIVEIS_CATEGORIA = ["prata", "ouro", "platinum", "diamond"] as const;

@@ -157,10 +157,10 @@ const navigation: NavEntry[] = [
       { name: "Área do Paciente (Direto)", href: "/area", icon: Users },
     ],
   },
-  // CLUBE VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.
+  // GRUPO VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.
   // CONEXÃO MILIONÁRIA reaproveita a tela e o backend de Bolões (/boloes); não existe convite/aceite persistido.
   {
-    name: "CLUBE VIP",
+    name: "GRUPO VIP",
     icon: Crown,
     children: [
       { name: "Conexão Milionária", href: "/boloes", icon: Ticket },
@@ -294,7 +294,7 @@ const GRUPO_MODULO: Record<string, string | null> = {
   "O Ato Médico":                  null,     // cockpit e anamnese têm acesso universal
   "Exames":                        "exames_lab",
   "Área do Cliente":               null,
-  "CLUBE VIP":                     null,     // acesso à tela vem do CollaboratorGate da rota /boloes
+  "GRUPO VIP":                     null,     // acesso à tela vem do CollaboratorGate da rota /boloes
   "Órgãos de Prescrição":         "protocolos",
   "Arsenal Clínico":               "protocolos",
   "Cadastros Clínicos":            null,

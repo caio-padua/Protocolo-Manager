@@ -455,9 +455,17 @@ export async function listarParticipacoesGestor(empresaId: number, limite = 300)
 
 export async function listarCampanhas(empresaId: number) {
   return rows(await db.execute(sql`
-    SELECT id, nome, concurso, to_char(data_sorteio, 'YYYY-MM-DD') AS data_sorteio FROM boloes_campanhas
+    SELECT id, nome, concurso, to_char(data_sorteio, 'YYYY-MM-DD') AS data_sorteio, status, valor_cota_centavos, cotas_total,
+           escolha_jogos, modalidade, dezenas_por_jogo, universo_max, jogos_por_cota, regras_texto
+      FROM boloes_campanhas
      WHERE empresa_id = ${empresaId} ORDER BY criado_em DESC, id DESC LIMIT 100`))
-    .map((x) => ({ id: x.id as number, nome: x.nome as string, concurso: (x.concurso ?? null) as string | null, dataSorteio: (x.data_sorteio ?? null) as string | null }));
+    .map((x) => ({
+      id: x.id as number, nome: x.nome as string, concurso: (x.concurso ?? null) as string | null, dataSorteio: (x.data_sorteio ?? null) as string | null,
+      status: x.status as "rascunho" | "aberto" | "encerrado", valorCotaCentavos: (x.valor_cota_centavos ?? null) as number | null,
+      cotasTotal: (x.cotas_total ?? null) as number | null, escolhaJogos: x.escolha_jogos as "clinica" | "participante",
+      modalidade: (x.modalidade ?? null) as string | null, dezenasPorJogo: (x.dezenas_por_jogo ?? null) as number | null,
+      universoMax: x.universo_max as number, jogosPorCota: x.jogos_por_cota as number, regrasTexto: (x.regras_texto ?? null) as string | null,
+    }));
 }
 
 export async function listarAuditoria(empresaId: number, limite = 100) {

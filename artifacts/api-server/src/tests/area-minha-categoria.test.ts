@@ -93,7 +93,7 @@ describe("Área do Cliente > Minha Categoria", () => {
     expect((await request(app()).get("/area-paciente/minha-categoria").set(auth())).status).toBe(404);
   });
 
-  it("o Club VIP não lê nível: a antiga rota /club-vip não existe mais (404, mesmo com sessão válida)", async () => {
+  it("o Grupo VIP não lê nível: a antiga rota /club-vip não existe mais (404, mesmo com sessão válida)", async () => {
     const r = await request(app()).get("/area-paciente/club-vip").set(auth());
     expect(r.status).toBe(404);
     expect(estado.selecionado).toBeNull();

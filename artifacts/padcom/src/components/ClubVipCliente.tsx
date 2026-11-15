@@ -1,11 +1,12 @@
 import { HeartHandshake, MailCheck, Sparkles, Ticket } from "lucide-react";
+import { GrupoVipAdesao } from "@/components/GrupoVipConexao";
 import {
   AREAS_BENEFICIO, BENEFICIOS_NOTA, CLUB_VIP_COMO_FUNCIONA, CLUB_VIP_SUBTITULO, CLUB_VIP_TITULO,
   CONEXAO_MILIONARIA, CONVITES_ESPECIAIS_DESCRICAO, CONVITES_ESPECIAIS_TITULO,
 } from "@/lib/club-vip-catalogo";
 
-// CLUB VIP (Área do Cliente): programa POR CONVITE, de aceite voluntário. NÃO lê nem exibe a categoria comercial
-// (Prata, Ouro, Platinum, Diamond), que vive na aba MINHA CATEGORIA: esta tela não faz nenhuma chamada à API.
+// GRUPO VIP (Área do Cliente): programa POR CONVITE, de aceite voluntário. NÃO lê nem exibe a categoria comercial
+// (Prata, Ouro, Platinum, Diamond), que vive na aba MINHA CATEGORIA: a única leitura é a da própria adesão (/area-paciente/grupo-vip).
 // O convite CONEXÃO MILIONÁRIA é opcional e apenas NAVEGA para a tela já existente "Meus Bolões":
 // não envia mensagem, não cobra, não aposta, não emite bilhete e não liga nada a consulta, plano ou desconto.
 
@@ -96,7 +97,7 @@ function ConvitesEspeciais({ onAbrirBoloes }: { onAbrirBoloes: () => void }) {
   );
 }
 
-export default function ClubVipCliente({ onAbrirBoloes }: { onAbrirBoloes: () => void }) {
+export default function ClubVipCliente({ onAbrirBoloes, token }: { onAbrirBoloes: () => void; token: string }) {
   return (
     <div className="space-y-4" data-testid="club-vip">
       <header className="panel-3d rounded-xl overflow-hidden">
@@ -109,6 +110,7 @@ export default function ClubVipCliente({ onAbrirBoloes }: { onAbrirBoloes: () =>
         </div>
       </header>
       <ComoFunciona />
+      <GrupoVipAdesao token={token} />
       <SecaoBeneficios />
       <ConvitesEspeciais onAbrirBoloes={onAbrirBoloes} />
     </div>
