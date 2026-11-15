@@ -77,7 +77,7 @@ async function abrirCadastro(page: Page, opcoes: Partial<Estado> = {}): Promise<
 test("Vínculos: a agenda Home Care (sem local) aparece, liga e desliga, e o contador acompanha", async ({ page }) => {
   const estado = await abrirCadastro(page);
   const dialogo = page.getByRole("dialog");
-  await dialogo.getByRole("button", { name: "VÍNCULOS" }).click();
+  await dialogo.getByRole("tab", { name: "VÍNCULOS" }).click();
   const regiao = dialogo.getByRole("region", { name: `Agendas de ${EMPRESA.nome}` });
   const bloco = regiao.getByTestId("agendas-sem-local");
   await expect(bloco).toBeVisible();
@@ -114,10 +114,10 @@ test("Vínculos: a agenda Home Care (sem local) aparece, liga e desliga, e o con
 test("Vínculos: recusa do servidor aparece em aviso e a chave volta ao estado real", async ({ page }) => {
   const estado = await abrirCadastro(page, { recusarPut: true });
   const dialogo = page.getByRole("dialog");
-  await dialogo.getByRole("button", { name: "VÍNCULOS" }).click();
+  await dialogo.getByRole("tab", { name: "VÍNCULOS" }).click();
   const outro = dialogo.getByTestId("agenda-sem-local-28");
   await outro.getByRole("switch").click();
-  await expect(page.getByText("Falha ao alterar vínculo com a agenda")).toBeVisible();
+  await expect(page.getByText("Falha ao alterar vínculo com a agenda", { exact: true })).toBeVisible();
   await expect(page.getByText("Agenda individual: o titular é definido em Agenda Configuração.", { exact: true })).toBeVisible();
   await expect(outro.getByRole("switch")).not.toBeChecked();
   expect(estado.agendas.find((a) => a.id === 28)?.vinculado).toBe(false);
@@ -126,7 +126,7 @@ test("Vínculos: recusa do servidor aparece em aviso e a chave volta ao estado r
 test("Vínculos: falha ao consultar agendas mostra erro, mantém a lista de clínicas e tenta de novo", async ({ page }) => {
   const estado = await abrirCadastro(page, { falhaAgendas: true });
   const dialogo = page.getByRole("dialog");
-  await dialogo.getByRole("button", { name: "VÍNCULOS" }).click();
+  await dialogo.getByRole("tab", { name: "VÍNCULOS" }).click();
   await expect(dialogo.getByRole("region", { name: `Agendas de ${EMPRESA.nome}` })).toBeVisible();
   await expect(dialogo.getByTestId("agendas-erro")).toContainText("Falha sintética do servidor");
   await expect(dialogo.getByTestId("agendas-sem-local")).toHaveCount(0);
@@ -136,25 +136,46 @@ test("Vínculos: falha ao consultar agendas mostra erro, mantém a lista de clí
   await expect(dialogo.getByTestId("agendas-erro")).toHaveCount(0);
 });
 
-test("Tipos de atendimento: três interruptores; valor antigo 'clinic' vira Presencial e Home Care grava", async ({ page }) => {
+test("Tipos de atendimento: quatro formas, Local externo grava e disponibilidade fica no mesmo bloco", async ({ page }) => {
   const estado = await abrirCadastro(page, { serviceTypes: ["clinic"] });
   const dialogo = page.getByRole("dialog");
+  const bloco = dialogo.getByTestId("bloco-atendimento-profissional");
   const tipos = dialogo.getByTestId("tipos-de-atendimento");
-  await expect(tipos.getByRole("switch")).toHaveCount(3);
-  await expect(tipos.getByLabel("Tipo de atendimento Presencial")).toBeChecked();
-  await expect(tipos.getByLabel("Tipo de atendimento Home Care")).not.toBeChecked();
+  await expect(tipos.getByRole("switch")).toHaveCount(4);
+  await expect(tipos.getByLabel("Tipo de atendimento Sede")).toBeChecked();
+  await expect(tipos.getByLabel("Tipo de atendimento Local externo")).not.toBeChecked();
   await expect(tipos.getByLabel("Tipo de atendimento Online")).not.toBeChecked();
+  await expect(tipos.getByLabel("Tipo de atendimento Home Care")).not.toBeChecked();
   await tipos.getByLabel("Tipo de atendimento Home Care").click();
   await expect(tipos.getByLabel("Tipo de atendimento Home Care")).toBeChecked();
+  await tipos.getByLabel("Tipo de atendimento Local externo").click();
+  await expect(tipos.getByLabel("Tipo de atendimento Local externo")).toBeChecked();
+  await expect(
+    bloco.getByTestId("disponibilidade-profissional").getByRole("switch", { name: "Disponibilidade do profissional" }),
+  ).toBeChecked();
+  await expect(bloco).toContainText("Ativo — disponível para agenda");
   await page.screenshot({ path: "generated-artifacts/cadastro-tipos-atendimento.png" });
-  // O último interruptor ligado não desliga: o profissional não fica sem nenhum tipo.
-  await tipos.getByLabel("Tipo de atendimento Presencial").click();
-  await tipos.getByLabel("Tipo de atendimento Home Care").click();
+  await tipos.getByLabel("Tipo de atendimento Sede").click();
+  await expect(tipos.getByLabel("Tipo de atendimento Sede")).not.toBeChecked();
   await expect(tipos.getByLabel("Tipo de atendimento Home Care")).toBeChecked();
-  await tipos.getByLabel("Tipo de atendimento Presencial").click();
   await dialogo.getByRole("button", { name: "SALVAR ALTERAÇÕES" }).click();
   await expect.poll(() => estado.profPuts.length).toBe(1);
-  expect(estado.profPuts[0].serviceTypes).toEqual(["presencial", "home_care"]);
+  expect(estado.profPuts[0].serviceTypes).toEqual(["externo", "home_care"]);
+  expect(estado.profPuts[0].active).toBe(true);
+});
+
+test("Tipos de atendimento: quatro formas e disponibilidade visíveis no celular", async ({ page }) => {
+  await abrirCadastro(page);
+  await page.setViewportSize({ width: 402, height: 874 });
+  const dialogo = page.getByRole("dialog");
+  const bloco = dialogo.getByTestId("bloco-atendimento-profissional");
+  const tipos = dialogo.getByTestId("tipos-de-atendimento");
+  await expect(tipos.getByRole("switch")).toHaveCount(4);
+  await expect(tipos.getByLabel("Tipo de atendimento Local externo")).toBeVisible();
+  await expect(bloco.getByTestId("toggle-professional-active")).toBeVisible();
+  await bloco.scrollIntoViewIfNeeded();
+  await expect(bloco).toBeInViewport();
+  await bloco.screenshot({ path: "generated-artifacts/cadastro-tipos-atendimento-mobile.png" });
 });
 
 // ── Agenda Configuração ──────────────────────────────────────────────────────────────────────────────

@@ -1236,3 +1236,31 @@ mtime_ms = 1794672902560
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/33627cd1-4af7-44cf-b5a9-f178c47c6312/2b94eb24-c147-4088-809c-2c72492b7cb0"
 storage_version_token = "1794672973489932"
 content_type = "image/png"
+
+[[outputs]]
+id = "-33drs50Ba0EJBOA_fmku"
+uri = "file://generated-artifacts/cadastro-tipos-atendimento.png"
+type = "image"
+title = "Cadastro profissional — desktop"
+description = "Captura de teste com dados sintéticos: quatro formas e disponibilidade no mesmo bloco."
+logical_id = "f81fde74-ea02-4d14-b048-b185241dc48a"
+content_hash = "sha256:65cdbe9144a627616cf65d8824f290a86454fb0e42c823b60058064ef75e59de"
+size = 379696
+mtime_ms = 1794780395991
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/f81fde74-ea02-4d14-b048-b185241dc48a/b6e0d07d-67d1-4ab6-8528-d71e716fc20c"
+storage_version_token = "1794780597166252"
+content_type = "image/png"
+
+[[outputs]]
+id = "PvEtJyR6DOOYO_WGctzJv"
+uri = "file://generated-artifacts/cadastro-tipos-atendimento-mobile.png"
+type = "image"
+title = "Cadastro profissional — celular"
+description = "Captura de teste com dados sintéticos: as quatro formas e disponibilidade aparecem sem corte."
+logical_id = "9c1eeadf-b469-447b-88c4-888eefe525cc"
+content_hash = "sha256:f5b7904a53c4f108cf9c34c549589d0d59f3192f90e110bd43811a907494aaa6"
+size = 47933
+mtime_ms = 1794780411563
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c1eeadf-b469-447b-88c4-888eefe525cc/423af266-02da-4096-99c6-af01a66c7137"
+storage_version_token = "1794780597871239"
+content_type = "image/png"

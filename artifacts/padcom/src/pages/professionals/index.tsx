@@ -785,7 +785,7 @@ const CATEGORY_OPTIONS = [
   { value: "outro", label: "Outro" },
 ];
 
-// Os três interruptores são iguais para todo profissional; valores antigos do banco são traduzidos na leitura.
+// Os quatro interruptores são iguais para todo profissional; valores antigos do banco são traduzidos na leitura.
 const SERVICE_OPTIONS = TIPOS_ATENDIMENTO;
 
 const EMPTY_FORM = {
@@ -1402,13 +1402,32 @@ export default function Professionals() {
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipos de atendimento</Label>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="tipos-de-atendimento">
-                    {SERVICE_OPTIONS.map((opt) => (
-                      <div key={opt.value} className="concave-3d flex items-center gap-3 px-3 py-2.5">
-                        <Switch checked={form.serviceTypes.includes(opt.value)} onCheckedChange={() => toggleService(opt.value)} aria-label={`Tipo de atendimento ${opt.label}`} />
-                        <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{opt.label}</Label>
-                      </div>
-                    ))}
+                  <div className="space-y-3" data-testid="bloco-atendimento-profissional">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="tipos-de-atendimento">
+                      {SERVICE_OPTIONS.map((opt) => (
+                        <div key={opt.value} className="concave-3d flex items-center gap-3 px-3 py-2.5">
+                          <Switch
+                            checked={form.serviceTypes.includes(opt.value)}
+                            onCheckedChange={() => toggleService(opt.value)}
+                            aria-label={`Tipo de atendimento ${opt.label}`}
+                            data-testid={`switch-service-type-${opt.value}`}
+                          />
+                          <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{opt.label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="concave-3d flex items-center gap-3 px-4 py-3" data-testid="disponibilidade-profissional">
+                      <Switch
+                        id="professional-active"
+                        checked={form.active}
+                        onCheckedChange={(v) => set("active", v)}
+                        aria-label="Disponibilidade do profissional"
+                        data-testid="toggle-professional-active"
+                      />
+                      <Label htmlFor="professional-active" className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                        {form.active ? "Ativo — disponível para agenda" : "Inativo — não aparece na agenda"}
+                      </Label>
+                    </div>
                   </div>
                 </div>
 
@@ -1465,14 +1484,6 @@ export default function Professionals() {
                     </div>
                   </>
                 )}
-
-                {/* Status */}
-                <div className="concave-3d flex items-center gap-3 px-4 py-3">
-                  <Switch checked={form.active} onCheckedChange={(v) => set("active", v)} />
-                  <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    {form.active ? "Ativo — disponível para agenda" : "Inativo — não aparece na agenda"}
-                  </Label>
-                </div>
 
                 {!editingId && (
                   <p className="text-[10px] text-muted-foreground font-medium text-center">

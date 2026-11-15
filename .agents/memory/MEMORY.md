@@ -166,7 +166,7 @@
 - [Campo ligado + legenda de origem](campo-ligado-legenda-origem.md) — dado não digitado = título Saliente + resposta Côncava + chip C/M/E; horário padrão lido de agenda_windows.
 - [Agenda Configuração — códigos de repetição](agenda-repeticao-codigos.md) — repeat_weeks: 1, 2/3/4/6/8 semanas, 101–105 mensal; "recurso" vira "agenda de atendimento"; tela = Agenda Configuração.
 - [Locais externos da clínica](locais-externos-cadastro.md) — aba dentro do cadastro da empresa, tabela própria com campos da empresa (CNPJ fictício, sem integrações); agenda EXTERNA copia o endereço; sonner sem Toaster.
-- [Agenda x Local — forma Sede/Online/Outro local](agenda-forma-vocabulario.md) — "remoto" abolido; cor única espelhada agenda↔local; cartão único de agenda.
+- [Agenda e cadastro profissional — formas de atendimento](agenda-forma-vocabulario.md) — Sede, Local externo, Online e Home Care; disponibilidade do profissional no mesmo bloco, sem ativar a empresa.
 - [Protocolo: dois fluxos de agenda e local sobrecarregado](protocolo-dois-fluxos-agenda-local.md) — location_id do procedimento aponta para agenda; fluxo por períodos só enfermagem Sede.
 - [Pit Stop + referência agenda/profissional/local](pit-stop-agendamento.md) — plano compartilhado (Caminho B); ler docs/REFERENCIA-AGENDA-PROFISSIONAL-LOCAL.md antes de mexer em agenda/equipe/local.
 - [Vínculo profissional×agenda: três origens](agenda-vinculo-tres-origens.md) — titular + location_professionals + preferidos; tela que lê uma só mente; auditoria em /agenda/auditoria-vinculos.
