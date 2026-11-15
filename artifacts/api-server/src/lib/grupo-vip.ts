@@ -308,7 +308,7 @@ export async function cobrancasDasParticipacoes(empresaId: number, ids: number[]
   if (chaves.length === 0) return out;
   try {
     const led = rows(await db.execute(sql`
-      SELECT charge_id, status_asaas, bruto_centavos, data_pagamento, extrato_recebido_centavos
+      SELECT charge_id, CASE WHEN deletada IS TRUE THEN 'DELETED' ELSE status_asaas END AS status_asaas, bruto_centavos, data_pagamento, extrato_recebido_centavos
         FROM asaas_cobranca_financeiro WHERE empresa_id = ${empresaId} AND charge_id = ANY(${`{${chaves.map((c) => `"${String(c.asaas_charge_id).replace(/[^A-Za-z0-9_-]/g, "")}"`).join(",")}}`}::text[])`));
     const porCharge = new Map(led.map((l) => [l.charge_id as string, l]));
     for (const v of chaves) {
@@ -325,7 +325,7 @@ export async function cobrancasDasParticipacoes(empresaId: number, ids: number[]
   return out;
 }
 
-export type ResultadoVinculo = { ok: true } | { ok: false; motivo: "participacao_inexistente" | "cobranca_desconhecida" | "cobranca_em_uso" | "id_invalido" };
+export type ResultadoVinculo = { ok: true } | { ok: false; motivo: "participacao_inexistente" | "cobranca_desconhecida" | "cobranca_em_uso" | "cobranca_de_outro_cliente" | "id_invalido" };
 
 /** Vincula uma cobranca JA existente no livro da clinica. Nao cria cobranca e nao fala com o Asaas. */
 export async function vincularCobranca(p: { empresaId: number; participacaoId: number; chargeId: string; ator: AtorVip }): Promise<ResultadoVinculo> {
@@ -333,11 +333,17 @@ export async function vincularCobranca(p: { empresaId: number; participacaoId: n
   return db.transaction(async (tx) => {
     const part = rows(await tx.execute(sql`SELECT id, client_id FROM boloes_participacoes WHERE id = ${p.participacaoId} AND empresa_id = ${p.empresaId} FOR UPDATE`))[0];
     if (!part) return { ok: false, motivo: "participacao_inexistente" } as const;
-    let achou = false;
+    let cobranca: any;
     try {
-      achou = rows(await tx.execute(sql`SELECT 1 FROM asaas_cobranca_financeiro WHERE charge_id = ${p.chargeId} AND empresa_id = ${p.empresaId}`)).length > 0;
-    } catch { achou = false; }
-    if (!achou) return { ok: false, motivo: "cobranca_desconhecida" } as const;
+      cobranca = rows(await tx.execute(sql`SELECT origem_tabela, origem_id, deletada FROM asaas_cobranca_financeiro WHERE charge_id = ${p.chargeId} AND empresa_id = ${p.empresaId}`))[0];
+    } catch { cobranca = undefined; }
+    if (!cobranca || cobranca.deletada === true) return { ok: false, motivo: "cobranca_desconhecida" } as const;
+    // A cobranca precisa ser do MESMO cliente da participacao: pagamento de outra pessoa nunca confirma a participacao.
+    // Sem titular comprovado no livro (origem diferente de pagamento do cliente), nao vincula (falha fechada).
+    const titular = cobranca.origem_tabela === "payments" && cobranca.origem_id
+      ? rows(await tx.execute(sql`SELECT client_id FROM payments WHERE id = ${cobranca.origem_id}`))[0]
+      : undefined;
+    if (!titular || titular.client_id !== part.client_id) return { ok: false, motivo: "cobranca_de_outro_cliente" } as const;
     const uso = rows(await tx.execute(sql`SELECT id FROM boloes_participacoes WHERE empresa_id = ${p.empresaId} AND asaas_charge_id = ${p.chargeId} AND id <> ${part.id}`))[0];
     if (uso) return { ok: false, motivo: "cobranca_em_uso" } as const;
     await tx.execute(sql`UPDATE boloes_participacoes SET asaas_charge_id = ${p.chargeId} WHERE id = ${part.id}`);

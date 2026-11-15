@@ -87,7 +87,7 @@ assinaturaWebhookRouter.post("/webhooks/assinatura/:provedor", async (req, res):
       res.status(503).json({ error: "falha_transitoria", eventoId: resultado.eventoId });
       return;
     }
-    res.status(200).json({ ok: true, duplicado: resultado.duplicado, eventoId: resultado.eventoId });
+    res.status(200).json({ ok: true, duplicado: resultado.duplicado, eventoId: resultado.eventoId, ...(resultado.semSolicitacao ? { semSolicitacao: true } : {}) });
   } catch (err) {
     req.log.error({ err: String(err) }, "[assinatura] erro no webhook");
     res.status(500).json({ error: "erro_webhook" });

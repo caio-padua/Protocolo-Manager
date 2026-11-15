@@ -54,8 +54,10 @@ beforeAll(async () => {
   await pool.query(`CREATE TABLE app_settings (key text primary key, value text, updated_at timestamptz default now())`);
   await pool.query(`INSERT INTO clients (name, empresa_id, nivel_cliente) VALUES ('Maria Sintetica',1,'prata'),('Joao Sintetico',1,'diamond'),('Ana Sintetica',2,'ouro'),('Pedro Sintetico',1,NULL)`);
   // Livro financeiro do Asaas (so a forma que o codigo le). Tres cobrancas: clinica A, clinica B e sem clinica.
-  await pool.query(`CREATE TABLE asaas_cobranca_financeiro (charge_id text primary key, empresa_id int, status_asaas text, bruto_centavos int, data_pagamento date, extrato_recebido_centavos int)`);
-  await pool.query(`INSERT INTO asaas_cobranca_financeiro VALUES ('pay_A_1',1,'PENDING',5000,NULL,NULL),('pay_A_2',1,'RECEIVED',5000,'2026-11-10',5000),('pay_B_1',2,'RECEIVED',5000,'2026-11-10',5000),('pay_SEM',NULL,'RECEIVED',5000,'2026-11-10',5000)`);
+  await pool.query(`CREATE TABLE asaas_cobranca_financeiro (charge_id text primary key, empresa_id int, status_asaas text, bruto_centavos int, data_pagamento date, extrato_recebido_centavos int, origem_tabela text, origem_id int, deletada boolean not null default false)`);
+  await pool.query(`CREATE TABLE payments (id serial primary key, client_id int)`);
+  await pool.query(`INSERT INTO payments (client_id) VALUES (1),(2),(3),(1)`); // 1 Maria, 2 Joao, 3 Ana, 4 Maria
+  await pool.query(`INSERT INTO asaas_cobranca_financeiro VALUES ('pay_A_1',1,'PENDING',5000,NULL,NULL,'payments',1,false),('pay_A_2',1,'RECEIVED',5000,'2026-11-10',5000,'payments',2,false),('pay_B_1',2,'RECEIVED',5000,'2026-11-10',5000,'payments',3,false),('pay_SEM',NULL,'RECEIVED',5000,'2026-11-10',5000,NULL,NULL,false),('pay_A_REM',1,'PENDING',5000,NULL,NULL,'payments',4,true),('pay_A_CONC',1,'RECEIVED',5000,'2026-11-10',5000,'concierge',9,false)`);
   const base = await import("../lib/boloes");
   await base.ensureBoloesTables();
   await base.ensureBoloesTables(); // idempotente
@@ -260,6 +262,11 @@ describe("cobranca Asaas (somente leitura) e automacao CAIXA", () => {
     expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "pay_SEM" })).status).toBe(404);   // sem clinica no livro
     expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "inexistente_1" })).status).toBe(404);
     expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "x; DROP" })).status).toBe(400);
+    // cobranca da MESMA clinica, mas de OUTRO cliente / sem titular comprovado / removida: nunca vincula
+    expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "pay_A_2" })).status).toBe(409);   // titular e o Joao
+    expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "pay_A_CONC" })).status).toBe(409); // sem titular comprovado
+    expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "pay_A_REM" })).status).toBe(404);  // removida no Asaas
+    expect(await count(`SELECT COUNT(*) n FROM boloes_participacoes WHERE asaas_charge_id IS NOT NULL`)).toBe(0);
     expect((await request(app).post(`${G}/participacoes/${mariaId}/cobranca`).send({ chargeId: "pay_A_1" })).status).toBe(200);
     expect((await request(app).post(`${G}/participacoes/${joaoId}/cobranca`).send({ chargeId: "pay_A_1" })).status).toBe(409);       // em uso
     let m = (await request(app).get(`${G}/participacoes`)).body.participacoes.find((p: any) => p.id === mariaId);
@@ -272,7 +279,7 @@ describe("cobranca Asaas (somente leitura) e automacao CAIXA", () => {
     expect(m.pagamento).toBe("nao_informado");
     const cliente = (await request(app).get(P).set(H(1))).body.participacoes.find((p: any) => p.id === mariaId);
     expect(cliente.cobranca.estado).toBe("confirmado");
-    expect(await count(`SELECT COUNT(*) n FROM asaas_cobranca_financeiro`)).toBe(4); // nada foi criado
+    expect(await count(`SELECT COUNT(*) n FROM asaas_cobranca_financeiro`)).toBe(6); // nada foi criado
     como(8, 2);
     expect((await request(app).get(`${G}/participacoes`)).body.participacoes).toEqual([]); // clinica B nao ve a A
   });

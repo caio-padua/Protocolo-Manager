@@ -398,6 +398,8 @@ export interface WebhookResultado {
   duplicado: boolean;
   transient?: boolean;
   unauthorized?: boolean;
+  /** Evento relevante cujo envelope não pertence a nenhuma solicitação nossa. */
+  semSolicitacao?: boolean;
 }
 
 export async function receberWebhook(
@@ -494,9 +496,14 @@ export async function receberWebhook(
     return rows[0];
   }
 
+  // Evento que muda estado (assinado/recusado/removido) para um envelope que não
+  // casa com nenhuma solicitação: nunca fica como "processado com sucesso".
+  let envelopeSemSolicitacao = false;
+
   try {
     if (evento.envelopeId && isRecusado) {
       const sol = await acharSolicitacaoPorEnvelope(evento.envelopeId);
+      if (!sol) envelopeSemSolicitacao = true;
       if (sol) {
         await db
           .update(assinaturaSolicitacoesTable)
@@ -510,6 +517,7 @@ export async function receberWebhook(
       }
     } else if (evento.envelopeId && isRemovido) {
       const sol = await acharSolicitacaoPorEnvelope(evento.envelopeId);
+      if (!sol) envelopeSemSolicitacao = true;
       if (sol) {
         await db
           .update(assinaturaSolicitacoesTable)
@@ -522,6 +530,7 @@ export async function receberWebhook(
       }
     } else if (evento.envelopeId && isSucesso) {
       const sol = await acharSolicitacaoPorEnvelope(evento.envelopeId);
+      if (!sol) envelopeSemSolicitacao = true;
       if (sol) {
         const pdf = await adapter.downloadSignedArtifact(evento.envelopeId);
         const hashAssinado = createHash("sha256").update(pdf).digest("hex");
@@ -598,6 +607,21 @@ export async function receberWebhook(
       .set({ erroProcessamento: (err as Error).message })
       .where(eq(assinaturaWebhookEventosTable.id, eventoId));
     return { ok: false, eventoId, duplicado: false, transient: true };
+  }
+
+  if (envelopeSemSolicitacao) {
+    // Responde 200 (a conta do provedor recebe avisos de documentos que não
+    // criamos; reentregar sem fim não ajuda), mas o evento permanece visível
+    // como pendente de vínculo e reprocessável. Nenhuma solicitação é alterada.
+    await db
+      .update(assinaturaWebhookEventosTable)
+      .set({ erroProcessamento: "solicitacao_nao_encontrada" })
+      .where(eq(assinaturaWebhookEventosTable.id, eventoId));
+    logger.warn(
+      { eventoId, provedor, tipo: evento.eventType },
+      "[assinatura] webhook relevante sem solicitacao correspondente (mantido pendente)",
+    );
+    return { ok: true, eventoId, duplicado: false, semSolicitacao: true };
   }
 
   await db

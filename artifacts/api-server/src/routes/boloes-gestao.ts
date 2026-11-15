@@ -428,6 +428,7 @@ router.post(`${G}/participacoes/:id/cobranca`, requireCollaborator, async (req, 
     if (r.motivo === "participacao_inexistente") return naoAchou(res, "Participação não encontrada.");
     if (r.motivo === "id_invalido") return ruim(res, "Código de cobrança inválido.");
     if (r.motivo === "cobranca_em_uso") { res.status(409).json({ error: "Esta cobrança já está vinculada a outra participação." }); return; }
+    if (r.motivo === "cobranca_de_outro_cliente") { res.status(409).json({ error: "Esta cobrança não pertence ao cliente desta participação. Nada foi vinculado." }); return; }
     res.status(404).json({ error: "Cobrança não encontrada no livro financeiro desta clínica. Nada foi vinculado e nenhuma cobrança foi criada." });
   } catch (err) { falha(req, res, err, "Não foi possível vincular a cobrança."); }
 });
