@@ -44,7 +44,7 @@ export const REGRAS: Readonly<Record<Modalidade, RegraModalidade>> = {
     precosCentavos: tabela([[15, "3,50"], [16, "56,00"], [17, "476,00"], [18, "2.856,00"], [19, "13.566,00"], [20, "54.264,00"]]),
     apiSlug: "lotofacil", fonteUrl: "https://loterias.caixa.gov.br/Paginas/Lotofacil.aspx",
     ancoras: [/entre 15 e 20 n[uú]meros dentre os 25/i, /aposta m[ií]nima, de 15 n[uú]meros, custa R\$ ?3,50/i],
-    sorteios: "Conforme calendário oficial da CAIXA.",
+    sorteios: "Segundas, terças, quartas, quintas e sextas, às 21h; domingos, às 11h (conforme o cronograma oficial da CAIXA).",
   },
   quina: {
     chave: "quina", nome: "Quina", dezenaMin: 1, dezenaMax: 80, dezenasMin: 5, dezenasMax: 15, sorteadas: 5,
@@ -52,7 +52,7 @@ export const REGRAS: Readonly<Record<Modalidade, RegraModalidade>> = {
       [14, "6.006,00"], [15, "9.009,00"]]),
     apiSlug: "quina", fonteUrl: "https://loterias.caixa.gov.br/Paginas/Quina.aspx",
     ancoras: [/marque de 5 a 15 n[uú]meros dentre os 80/i, /pre[cç]o da aposta com 5 n[uú]meros [eé] de R\$ ?3,00/i],
-    sorteios: "Segunda a sábado, a partir das 21h, e domingos, a partir das 11h (conforme a CAIXA).",
+    sorteios: "Segundas, terças, quartas, quintas e sextas, às 21h; domingos, às 11h (conforme o cronograma oficial da CAIXA).",
   },
   lotomania: {
     chave: "lotomania", nome: "Lotomania", dezenaMin: 0, dezenaMax: 99, dezenasMin: 50, dezenasMax: 50, sorteadas: 20,

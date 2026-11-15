@@ -64,6 +64,7 @@ vi.mock("@workspace/db", () => {
     inArray: vi.fn((col: any, vals: any[]) => ({ col, vals })),
     protocolsTable:              makeT("protocols"),
     clientsTable:                makeT("clients"),
+    empresasTable:               makeT("empresas"),
     professionalsTable:          makeT("professionals"),
     sessionsTable:               makeT("sessions"),
     protocolItemsTable:          makeT("protocol_items"),
@@ -250,8 +251,9 @@ class DbChain {
     switch (name) {
       case "protocols":             return new DbChain([FAKE_PROTOCOL]);
       case "clients":               return new DbChain([FAKE_CLIENT]);
+      case "empresas":              return new DbChain([{ id: testContext.empresaId, nome: testContext.empresaId === 5 ? "Instituto Pádua" : "Clínica Sintética B" }]);
       case "professionals":         return new DbChain([FAKE_PROFESSIONAL]);
-      case "locations":             return new DbChain([FAKE_LOCATION]);
+      case "locations":             return new DbChain([{ ...FAKE_LOCATION, nome: FAKE_LOCATION.name }]);
       case "location_professionals":return new DbChain(clinicMembershipIsValid ? [{ id: 1 }] : []);
       case "protocol_items":        return new DbChain(syntheticItemsEnabled ? [{
         substanceId: 123, dose: "100 MG / 2 ML", totalSessions: 1, intervalDays: 7,
@@ -358,7 +360,7 @@ describe("RAS físico — pré-visualização e entrega separadas", () => {
   it("abrir o documento devolve os bytes sem enviar e-mail ou acessar o Drive", async () => {
     const response = await request(buildApp()).get("/api/ras/physical/99")
       .set("Authorization", "Bearer test-collaborator");
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.headers["content-type"]).toMatch(/pdf/);
     expect(response.body).toEqual(Buffer.from(FAKE_PDF_BYTES));
     expect(emailSvc.sendProtocolEmail).not.toHaveBeenCalled();
@@ -378,7 +380,7 @@ describe("RAS físico — pré-visualização e entrega separadas", () => {
     const response = await request(buildApp())
       .post("/api/ras/physical/99/reenviar-email")
       .set("Authorization", "Bearer test-collaborator");
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(emailSvc.sendProtocolEmail).toHaveBeenCalledOnce();
     expect(emailSvc.sendProtocolEmail).toHaveBeenCalledWith(expect.objectContaining({
       clientEmail: FAKE_CLIENT.email,
@@ -559,7 +561,7 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
     const response = await request(buildApp()).post("/api/protocols/99/emit-document")
       .set("Authorization", "Bearer test-collaborator").send({});
 
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(response.body.driveUploaded).toBe(true);
     expect(response.body.driveError).toBeNull();
     expect(driveLib.ensureClientFolderStructure).toHaveBeenCalledWith(
@@ -593,15 +595,15 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
 
   it.each([
     {
-      empresaId: 5, locationId: 31, locationName: "Clínica Sintética A",
+      empresaId: 5, clinicName: "Instituto Pádua", locationId: 31, locationName: "Clínica Sintética A",
       professionalId: 1, professionalName: "Dra. Ana Sintética", driveRoot: "drive-clients-company-5",
     },
     {
-      empresaId: 6, locationId: 62, locationName: "Clínica Sintética B",
+      empresaId: 6, clinicName: "Clínica Sintética B", locationId: 62, locationName: "Clínica Sintética B",
       professionalId: 2, professionalName: "Dr. Bruno Sintético", driveRoot: "drive-clients-company-6",
     },
   ])("emite com a identidade e pasta próprias da empresa $empresaId", async ({
-    empresaId, locationId, locationName, professionalId, professionalName, driveRoot,
+    empresaId, clinicName, locationId, locationName, professionalId, professionalName, driveRoot,
   }) => {
     testContext.empresaId = empresaId;
     testContext.professionalId = professionalId;
@@ -624,12 +626,12 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
     const response = await request(buildApp()).post("/api/protocols/99/emit-document")
       .set("Authorization", "Bearer test-collaborator").send({});
 
-    expect(response.status).toBe(200);
+    expect(response.status, response.text).toBe(200);
     expect(pdfSigner.generateProtocolDocumentPdf).toHaveBeenCalledWith(
-      expect.objectContaining({ professionalName, unit: locationName }),
+      expect.objectContaining({ professionalName, unit: clinicName }),
     );
     expect(pdfSigner.generatePhysicalRASPdf).toHaveBeenCalledWith(
-      expect.objectContaining({ professionalName, unit: locationName }),
+      expect.objectContaining({ professionalName, unit: clinicName }),
       "PREMIUM",
     );
     expect(driveLib.ensureClientFolderStructure).toHaveBeenCalledWith(
@@ -641,7 +643,7 @@ describe("POST /api/protocols/:id/emit-document — entrega real exige requireCo
       .set("Authorization", "Bearer test-collaborator");
     expect(physicalRas.status).toBe(200);
     expect(pdfSigner.generatePhysicalRASPdf).toHaveBeenCalledWith(
-      expect.objectContaining({ professionalName, unit: locationName }),
+      expect.objectContaining({ professionalName, unit: clinicName }),
       "PREMIUM",
     );
 

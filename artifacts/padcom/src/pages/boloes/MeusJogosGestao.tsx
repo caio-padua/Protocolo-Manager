@@ -3,7 +3,7 @@ import { useListClients } from "@workspace/api-client-react";
 import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
-import { brData, brDataHora, brl, dz, type Modalidade, type PedidoVisto } from "@/components/meus-jogos/tipos";
+import { brData, brDataHora, brl, dz, type EstadoCalendario, type Modalidade, type PedidoVisto } from "@/components/meus-jogos/tipos";
 
 // Aba "Jogos do cliente" (gestor). Acompanha os pedidos INDIVIDUAIS de Meus Jogos do cliente escolhido (somente da clinica do gestor).
 // Nada aqui aposta nem devolve dinheiro: devolucao e ato humano registrado; "registrado" so existe com comprovante oficial anexado.
@@ -13,11 +13,13 @@ const G = `${BASE}/api/boloes/gestao/meus-jogos`;
 const BTN = "btn-3d-soft min-h-[44px] px-3 text-xs font-black uppercase tracking-wider disabled:opacity-60 inline-flex items-center justify-center gap-2";
 const LBL = "block text-[11px] font-black uppercase tracking-wider text-primary";
 const INP = "field-engraved w-full min-h-[44px] px-2 text-sm";
-const MODS: { k: Modalidade; n: string }[] = [{ k: "megasena", n: "Mega-Sena" }, { k: "lotofacil", n: "Lotofácil" }, { k: "quina", n: "Quina" }, { k: "lotomania", n: "Lotomania" }];
-
-type Config = { margemMinutos: number; metaMinutos: number; tetoPedidoCentavos: number; fechamentoOficial: Partial<Record<Modalidade, string>>; fonteFechamento: string | null };
+type Config = { margemMinutos: number; metaMinutos: number; tetoPedidoCentavos: number };
 type Fonte = { modalidade: Modalidade; nome: string; fonteUrl: string; situacao: { desatualizado: boolean; motivo: string | null; verificadoEm: string }; conferencia: { ok: boolean; verificadoEm: string; divergencias: string[] } | null };
-type Painel = { config: Config; execucao: { disponivel: boolean; motivo: string; ambiente: string }; snapshotVerificadoEm: string; fontes: Fonte[] };
+type Painel = {
+  config: Config; execucao: { disponivel: boolean; motivo: string; ambiente: string }; snapshotVerificadoEm: string;
+  fontes: Fonte[]; calendario: EstadoCalendario; podeConfigurarAgendamento: boolean;
+  avatarMedico: { fotoNoCadastro: boolean; acessoAoArquivo: "nao_verificado"; autorizacaoDeUso: "nao_cadastrada"; fotoUtilizada: false; motivo: string };
+};
 type PedidoGestor = PedidoVisto & { motivoInterno: string | null; devolucaoRef: string | null };
 type DadosCliente = { cliente: { id: number; nome: string }; membroAtivo: boolean; favoritos: number; pedidos: PedidoGestor[] };
 
@@ -97,15 +99,17 @@ export default function MeusJogosGestao() {
   const [cli, setCli] = useState<number | null>(null);
   const [dados, setDados] = useState<DadosCliente | null>(null);
   const [painel, setPainel] = useState<Painel | null>(null);
-  const [cfg, setCfg] = useState<{ margem: string; meta: string; teto: string; fonte: string; hor: Record<Modalidade, string> }>({ margem: "240", meta: "30", teto: "500,00", fonte: "", hor: { megasena: "", lotofacil: "", quina: "", lotomania: "" } });
+  const [cfg, setCfg] = useState<{ margem: string; meta: string; teto: string }>({ margem: "240", meta: "30", teto: "500,00" });
+  const [agendamento, setAgendamento] = useState<{ habilitado: boolean; diaSemana: number; hora: string }>({ habilitado: true, diaSemana: 1, hora: "06:00" });
   const [ocupado, setOcupado] = useState(false);
+  const [confirmarEnvio, setConfirmarEnvio] = useState(false);
   const [msg, setMsg] = useState(""); const [erro, setErro] = useState("");
 
   const carregarPainel = useCallback(async () => {
     try {
       const p = await chamar<Painel>("/painel"); setPainel(p);
-      setCfg({ margem: String(p.config.margemMinutos), meta: String(p.config.metaMinutos), teto: (p.config.tetoPedidoCentavos / 100).toFixed(2).replace(".", ","), fonte: p.config.fonteFechamento ?? "",
-        hor: { megasena: p.config.fechamentoOficial.megasena ?? "", lotofacil: p.config.fechamentoOficial.lotofacil ?? "", quina: p.config.fechamentoOficial.quina ?? "", lotomania: p.config.fechamentoOficial.lotomania ?? "" } });
+      setCfg({ margem: String(p.config.margemMinutos), meta: String(p.config.metaMinutos), teto: (p.config.tetoPedidoCentavos / 100).toFixed(2).replace(".", ",") });
+      setAgendamento({ habilitado: p.calendario.agendamento.habilitado, diaSemana: p.calendario.agendamento.diaSemana, hora: p.calendario.agendamento.hora });
       setErro("");
     } catch (e) { setErro((e as Error).message); }
   }, []);
@@ -123,9 +127,10 @@ export default function MeusJogosGestao() {
   }
   function salvarConfig() {
     const teto = Math.round(Number(cfg.teto.replace(/\./g, "").replace(",", ".")) * 100);
-    const fech: Partial<Record<Modalidade, string>> = {};
-    for (const m of MODS) if (cfg.hor[m.k]) fech[m.k] = cfg.hor[m.k];
-    rodar(() => chamar("/config", { method: "PUT", json: { margemMinutos: Number(cfg.margem), metaMinutos: Number(cfg.meta), tetoPedidoCentavos: teto, fechamentoOficial: fech, fonteFechamento: cfg.fonte.trim() || null } }), "Configuração salva.");
+    rodar(() => chamar("/config", { method: "PUT", json: { margemMinutos: Number(cfg.margem), metaMinutos: Number(cfg.meta), tetoPedidoCentavos: teto } }), "Margem, meta e teto salvos.");
+  }
+  function salvarAgendamento() {
+    rodar(() => chamar("/calendario/agendamento", { method: "PUT", json: agendamento }), "Rotina semanal do calendário salva.");
   }
 
   return (
@@ -158,19 +163,70 @@ export default function MeusJogosGestao() {
               <div><label className={LBL} htmlFor="mjg-meta">Meta após pagamento (min)</label><input id="mjg-meta" inputMode="numeric" className={INP} value={cfg.meta} onChange={(e) => setCfg({ ...cfg, meta: e.target.value.replace(/\D/g, "") })} /></div>
               <div><label className={LBL} htmlFor="mjg-teto">Teto por pedido (R$)</label><input id="mjg-teto" inputMode="decimal" className={INP} value={cfg.teto} onChange={(e) => setCfg({ ...cfg, teto: e.target.value.replace(/[^\d,.]/g, "") })} /></div>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-snug">Horário oficial de fechamento da aposta simples: informe com a fonte (comunicado ou página oficial da CAIXA). Sem horário, a modalidade fica bloqueada.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {MODS.map((m) => (
-                <div key={m.k}><label className={LBL} htmlFor={`mjg-h-${m.k}`}>{m.n}</label><input id={`mjg-h-${m.k}`} type="time" className={INP} value={cfg.hor[m.k]} onChange={(e) => setCfg({ ...cfg, hor: { ...cfg.hor, [m.k]: e.target.value } })} /></div>
-              ))}
+            <p className="concave-3d rounded-lg px-3 py-2 text-[11px] text-primary leading-snug">Os horários de fechamento agora vêm do calendário oficial por concurso. Os antigos campos digitados pela clínica não alteram o prazo. A margem interna continua configurável.</p>
+            <div className="concave-3d rounded-lg px-3 py-2 space-y-1" data-testid="mjg-calendario" data-estado={painel.calendario.estado}>
+              <p className="text-primary text-xs font-black">Calendário oficial: {painel.calendario.estado === "verificado" ? "verificado" : painel.calendario.estado === "desatualizado" ? "vencido" : "indisponível"}</p>
+              <p className="text-muted-foreground text-[11px]">
+                {painel.calendario.extraidoEm ? `Última leitura ${brDataHora(painel.calendario.extraidoEm)}.` : "Ainda não houve leitura válida."}
+                {painel.calendario.validoAte ? ` Validade até ${brDataHora(painel.calendario.validoAte)}.` : ""}
+                {painel.calendario.meses.length ? ` Meses cobertos: ${painel.calendario.meses.join(", ")}.` : ""}
+              </p>
+              {painel.calendario.impressoDigital && <p className="break-all text-[10px] text-muted-foreground">Identificador da leitura: {painel.calendario.impressoDigital}</p>}
             </div>
-            <label className={LBL} htmlFor="mjg-fonte">Fonte do horário de fechamento</label>
-            <input id="mjg-fonte" className={INP} maxLength={200} value={cfg.fonte} onChange={(e) => setCfg({ ...cfg, fonte: e.target.value })} placeholder="Ex.: página oficial, comunicado, data da consulta" />
+            <ul className="space-y-1" aria-label="Fontes oficiais lidas">
+              {painel.calendario.fontes.map((f, i) => (
+                <li key={`${f.tipo}-${i}`} className="concave-3d rounded-lg px-3 py-2 text-[11px]" data-testid="mjg-fonte-calendario" data-ok={f.ok ? "sim" : "nao"}>
+                  <strong className={f.ok ? "text-primary" : "text-amber-800 dark:text-amber-300"}>{f.ok ? "Verificado" : "Não confirmado"} · {f.tipo}</strong>
+                  <span className="ml-1 text-muted-foreground">{f.detalhe}</span>
+                </li>
+              ))}
+            </ul>
+            {painel.podeConfigurarAgendamento && (
+              <div className="panel-3d-sub rounded-xl p-3 space-y-2">
+                <p className="text-primary text-xs font-black uppercase tracking-wider">Rotina global da CAIXA</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className={LBL} htmlFor="mjg-dia-atualizacao">Dia da atualização semanal</label>
+                    <select id="mjg-dia-atualizacao" className={INP} value={agendamento.diaSemana} onChange={(e) => setAgendamento({ ...agendamento, diaSemana: Number(e.target.value) })}>
+                      {["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"].map((dia, i) => <option key={dia} value={i}>{dia}</option>)}
+                    </select>
+                  </div>
+                  <div><label className={LBL} htmlFor="mjg-hora-atualizacao">Horário de Brasília</label><input id="mjg-hora-atualizacao" type="time" className={INP} value={agendamento.hora} onChange={(e) => setAgendamento({ ...agendamento, hora: e.target.value })} /></div>
+                </div>
+                <label className="flex min-h-[44px] items-center gap-2 text-xs text-primary"><input type="checkbox" checked={agendamento.habilitado} onChange={(e) => setAgendamento({ ...agendamento, habilitado: e.target.checked })} /> Ativar atualização automática semanal</label>
+                <button type="button" className={BTN} disabled={ocupado} onClick={salvarAgendamento}>Salvar rotina semanal</button>
+              </div>
+            )}
+            <div className="space-y-1" aria-label="Últimas cinco extrações oficiais">
+              <p className="text-primary text-xs font-black uppercase tracking-wider">Últimas cinco leituras</p>
+              {painel.calendario.ultimasExtracoes.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhuma leitura foi registrada ainda.</p>}
+              {painel.calendario.ultimasExtracoes.map((x) => <p key={x.id} className="concave-3d rounded-lg px-3 py-2 text-[11px] text-muted-foreground" data-testid="mjg-extracao">
+                <strong className={x.ok ? "text-primary" : "text-amber-800 dark:text-amber-300"}>{x.ok ? "Válida" : "Não validada"}</strong> · {x.tipo} · {brDataHora(x.extraidoEm)} · {x.origem}
+              </p>)}
+            </div>
+            <div className="concave-3d rounded-lg px-3 py-2 space-y-1" data-testid="mjg-avatar-identidade">
+              <p className="text-primary text-xs font-black">Avatar ilustrativo</p>
+              <p className="text-[11px] text-muted-foreground">
+                Foto no cadastro do médico: {painel.avatarMedico.fotoNoCadastro ? "sim" : "não"} · acesso ao arquivo: não verificado · autorização de uso: não cadastrada.
+                {" "}{painel.avatarMedico.motivo}
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={BTN} disabled={ocupado} onClick={salvarConfig} data-testid="mj-gestor-salvar-config">Salvar configuração</button>
-              <button type="button" className={BTN} disabled={ocupado} onClick={() => rodar(() => chamar("/fonte/conferir", { method: "POST" }), "Conferência com as páginas oficiais concluída.")} data-testid="mj-gestor-conferir"><RefreshCw className="w-4 h-4" aria-hidden="true" /> Conferir regras e preços na CAIXA</button>
-              <button type="button" className={BTN} disabled={ocupado} onClick={() => rodar(() => chamar("/fila/processar", { method: "POST" }), "Fila verificada.")}>Verificar fila agora</button>
+              <button type="button" className={BTN} disabled={ocupado} onClick={() => rodar(() => chamar("/fonte/conferir", { method: "POST" }), "Calendário, regras e preços foram conferidos.")} data-testid="mj-gestor-conferir"><RefreshCw className="w-4 h-4" aria-hidden="true" /> Conferir calendário, regras e preços</button>
+              <button type="button" className={BTN} disabled={ocupado || !painel.execucao.disponivel} onClick={() => setConfirmarEnvio(true)}>Verificar fila de pedidos pagos</button>
             </div>
+            {confirmarEnvio && (
+              <div className="panel-3d-sub rounded-xl p-3 space-y-2" role="alertdialog" aria-label="Confirmar envio manual de jogos">
+                <p className="text-xs leading-relaxed text-primary"><strong>Ação manual.</strong> Ao confirmar, pedidos pagos podem ser enviados ao canal de registro conectado e apostas reais podem ser feitas. Esta ação não inicia pagamentos. Não há integração autorizada conectada agora.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" className={BTN} disabled={ocupado} onClick={() => setConfirmarEnvio(false)}>Cancelar</button>
+                  <button type="button" className={BTN} disabled={ocupado || !painel.execucao.disponivel}
+                    onClick={() => { setConfirmarEnvio(false); rodar(() => chamar("/fila/processar", { method: "POST", json: { confirmarEnvio: true } }), "Fila conferida; veja os estados dos pedidos."); }}>
+                    Confirmar envio manual
+                  </button>
+                </div>
+              </div>
+            )}
             <ul className="space-y-1.5" aria-label="Situação das regras por modalidade">
               {painel.fontes.map((f) => (
                 <li key={f.modalidade} className="concave-3d rounded-lg px-3 py-2 text-xs" data-testid="mj-gestor-fonte" data-desatualizado={f.situacao.desatualizado ? "sim" : "nao"}>

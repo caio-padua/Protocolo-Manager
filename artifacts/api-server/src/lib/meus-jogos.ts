@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { ObjectStorageService } from "./objectStorage";
@@ -7,6 +7,8 @@ import { brtISODate } from "./brt";
 import { getJsonSetting, setJsonSetting } from "./secure-settings";
 import { asaasCreateCharge, asaasGetCharge, asaasGetPixQrCode } from "./asaas";
 import { proximoConcurso, ensureMeusJogosResultadosTables, lerConferencia } from "./meus-jogos-resultados";
+import { ensureMeusJogosCalendarioTables, lerEstadoCalendario, verificarVendaCalendario } from "./meus-jogos-calendario-store";
+import type { OpcaoConcurso } from "./meus-jogos-calendario";
 import {
   MODALIDADES, REGRAS, situacaoDaFonte, validarAposta, type Modalidade, type SituacaoFonte,
 } from "./meus-jogos-regras";
@@ -25,6 +27,7 @@ const rows = (r: unknown): any[] => (r as { rows: any[] }).rows;
 // ---------------------------------------------------------------- tabelas
 export async function ensureMeusJogosTables(): Promise<void> {
   await ensureMeusJogosResultadosTables();
+  await ensureMeusJogosCalendarioTables();
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS meus_jogos_favoritos (
       id SERIAL PRIMARY KEY,
@@ -56,6 +59,11 @@ export async function ensureMeusJogosTables(): Promise<void> {
       pago_em TIMESTAMPTZ,
       meta_efetivacao_em TIMESTAMPTZ,
       robo_ref TEXT,
+      despachado_em TIMESTAMPTZ,
+      suspenso_motivo TEXT,
+      suspenso_em TIMESTAMPTZ,
+      despacho_claim TEXT,
+      despacho_claimed_at TIMESTAMPTZ,
       motivo TEXT CHECK (motivo IS NULL OR length(motivo) <= 300),
       devolucao_ref TEXT,
       devolvido_em TIMESTAMPTZ,
@@ -63,6 +71,11 @@ export async function ensureMeusJogosTables(): Promise<void> {
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT meus_jogos_pedidos_chave UNIQUE (client_id, idempotency_key)
     )`);
+  await db.execute(sql`ALTER TABLE meus_jogos_pedidos ADD COLUMN IF NOT EXISTS despachado_em TIMESTAMPTZ`);
+  await db.execute(sql`ALTER TABLE meus_jogos_pedidos ADD COLUMN IF NOT EXISTS suspenso_motivo TEXT`);
+  await db.execute(sql`ALTER TABLE meus_jogos_pedidos ADD COLUMN IF NOT EXISTS suspenso_em TIMESTAMPTZ`);
+  await db.execute(sql`ALTER TABLE meus_jogos_pedidos ADD COLUMN IF NOT EXISTS despacho_claim TEXT`);
+  await db.execute(sql`ALTER TABLE meus_jogos_pedidos ADD COLUMN IF NOT EXISTS despacho_claimed_at TIMESTAMPTZ`);
   await db.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS uq_meus_jogos_pedido_ativo
       ON meus_jogos_pedidos (client_id, modalidade, concurso, hash_jogos)
@@ -173,13 +186,21 @@ export async function gravarConfig(empresaId: number, entrada: unknown, ator: st
 }
 
 // ---------------------------------------------------------------- disponibilidade (fonte unica da regra de bloqueio)
-export type MotivoIndisponivel = "execucao_indisponivel" | "regras_desatualizadas" | "concurso_desconhecido" | "fechamento_nao_informado" | "fora_do_prazo";
+export type MotivoIndisponivel = "execucao_indisponivel" | "regras_desatualizadas" | "concurso_desconhecido" | "fechamento_nao_informado" | "fora_do_prazo" | "calendario_indisponivel" | "calendario_desatualizado" | "dados_divergentes" | "proximo_indisponivel" | "precos_indisponiveis" | "precos_divergentes" | "concurso_nao_selecionado" | "concurso_especial";
 const MSG_INDISPONIVEL: Record<MotivoIndisponivel, string> = {
   execucao_indisponivel: "O registro automático dos jogos ainda não está conectado a um canal autorizado. Você pode montar e salvar seus jogos, mas ainda não é possível confirmar pedidos.",
   regras_desatualizadas: "Os preços e regras desta modalidade precisam ser conferidos com a CAIXA antes de aceitar pedidos.",
   concurso_desconhecido: "O próximo concurso oficial ainda não foi identificado.",
   fechamento_nao_informado: "O horário oficial de fechamento desta modalidade ainda não foi informado pela clínica.",
   fora_do_prazo: "O prazo para novos pedidos deste concurso já passou. Nenhum valor é cobrado.",
+  calendario_indisponivel: "O calendário oficial da CAIXA ainda não foi confirmado. Nenhum pedido pode ser criado.",
+  calendario_desatualizado: "O calendário oficial venceu e precisa ser atualizado antes de aceitar pedidos.",
+  dados_divergentes: "A data ou o número do concurso diverge entre a API e o cronograma oficial. Nenhum pedido pode ser criado.",
+  proximo_indisponivel: "A CAIXA não confirmou o próximo concurso nos últimos dez minutos. Nenhum pedido pode ser criado.",
+  precos_indisponiveis: "Preço e regras não foram confirmados na fonte oficial nos últimos dez minutos. Nenhum pedido pode ser criado.",
+  precos_divergentes: "O preço ou as regras da modalidade divergiram da fonte oficial. Nenhum pedido pode ser criado.",
+  concurso_nao_selecionado: "O prazo deste concurso terminou. Escolha explicitamente um próximo concurso antes de continuar.",
+  concurso_especial: "Este concurso especial ainda não tem preço e regras de venda confirmados. Nenhum pedido é aceito.",
 };
 export const mensagemIndisponivel = (m: MotivoIndisponivel) => MSG_INDISPONIVEL[m];
 
@@ -187,28 +208,50 @@ export interface Prazos { fechamentoOficialEm: string; limiteInternoEm: string }
 export interface Disponibilidade {
   modalidade: Modalidade; aberto: boolean; motivo: MotivoIndisponivel | null; mensagem: string | null;
   concurso: { numero: number; data: string } | null; prazos: Prazos | null; fonte: SituacaoFonte;
+  opcoesConcurso: OpcaoConcurso[];
 }
 
-export function calcularPrazos(dataSorteio: string, hhmm: string, margemMinutos: number): Prazos {
-  const fechamento = new Date(`${dataSorteio}T${hhmm}:00-03:00`);
-  return { fechamentoOficialEm: fechamento.toISOString(), limiteInternoEm: new Date(fechamento.getTime() - margemMinutos * 60_000).toISOString() };
+export function calcularPrazos(dataSorteioOuInstante: string, hhmmOuMargem: string | number, margemMinutos?: number): Prazos {
+  const fechamento = typeof hhmmOuMargem === "number"
+    ? new Date(dataSorteioOuInstante)
+    : new Date(`${dataSorteioOuInstante}T${hhmmOuMargem}:00-03:00`);
+  const margem = typeof hhmmOuMargem === "number" ? hhmmOuMargem : margemMinutos ?? 0;
+  if (!Number.isFinite(fechamento.getTime()) || !Number.isInteger(margem) || margem < 0 || margem > 1440) throw new Error("Prazo oficial ou margem inválida.");
+  return { fechamentoOficialEm: fechamento.toISOString(), limiteInternoEm: new Date(fechamento.getTime() - margem * 60_000).toISOString() };
 }
 
-export async function disponibilidade(m: Modalidade, empresaId: number, agora: Date, robo: RoboLoterias = roboAtual()): Promise<Disponibilidade> {
-  const fonte = situacaoDaFonte(m, agora, await lerConferencia(m));
+export async function disponibilidade(m: Modalidade, empresaId: number, agora: Date, robo: RoboLoterias = roboAtual(), concursoSelecionado?: number): Promise<Disponibilidade> {
   const prox = await proximoConcurso(m);
   const cfg = await lerConfig(empresaId);
-  const hoje = brtISODate(agora);
-  const concurso = prox && prox.data >= hoje ? { numero: prox.concurso, data: prox.data } : null;
-  const hhmm = cfg.fechamentoOficial[m] ?? null;
-  const prazos = concurso && hhmm ? calcularPrazos(concurso.data, hhmm, cfg.margemMinutos) : null;
+  const estadoRobo = await robo.estado().catch(() => ({ disponivel: false, motivo: "Estado indisponível.", ambiente: "nenhum" as const }));
+  const verificacao = await verificarVendaCalendario(
+    m, agora, cfg.margemMinutos,
+    estadoRobo.disponivel && estadoRobo.ambiente !== "simulado",
+    estadoRobo.disponivel && estadoRobo.ambiente !== "simulado",
+  );
+  const fonte = situacaoDaFonte(m, agora, await lerConferencia(m));
+  const opcaoAtual = prox ? verificacao.opcoes.find((o) => o.concurso === prox.concurso && o.data === prox.data) : undefined;
+  const selecionada = concursoSelecionado === undefined ? opcaoAtual : verificacao.opcoes.find((o) => o.concurso === concursoSelecionado);
+  const concurso = selecionada ? { numero: selecionada.concurso, data: selecionada.data } : null;
+  const prazos = selecionada?.canais.aposta_simples
+    ? { fechamentoOficialEm: selecionada.canais.aposta_simples.oficialEm, limiteInternoEm: selecionada.canais.aposta_simples.internoEm }
+    : null;
   let motivo: MotivoIndisponivel | null = null;
-  if (!(await robo.estado().catch(() => ({ disponivel: false } as EstadoRobo))).disponivel) motivo = "execucao_indisponivel";
+  if (!estadoRobo.disponivel) motivo = "execucao_indisponivel";
   else if (fonte.desatualizado) motivo = "regras_desatualizadas";
-  else if (!concurso) motivo = "concurso_desconhecido";
+  else if (!verificacao.ok) motivo = verificacao.motivo ?? "calendario_indisponivel";
+  else if (concursoSelecionado !== undefined && !selecionada) motivo = "concurso_desconhecido";
+  else if (selecionada?.especial) motivo = "concurso_especial";
+  else if (selecionada && !selecionada.aberto && selecionada.motivo === "fora_do_prazo" && concursoSelecionado === undefined) motivo = "concurso_nao_selecionado";
+  else if (prox && !opcaoAtual && concursoSelecionado === undefined) motivo = "concurso_desconhecido";
+  else if (!selecionada && !prox) motivo = "concurso_desconhecido";
   else if (!prazos) motivo = "fechamento_nao_informado";
-  else if (agora.getTime() >= new Date(prazos.limiteInternoEm).getTime()) motivo = "fora_do_prazo";
-  return { modalidade: m, aberto: motivo === null, motivo, mensagem: motivo ? MSG_INDISPONIVEL[motivo] : null, concurso, prazos, fonte };
+  else if (!selecionada?.aberto) motivo = selecionada?.motivo === "fora_do_prazo" ? "fora_do_prazo" : "fechamento_nao_informado";
+  return {
+    modalidade: m, aberto: motivo === null, motivo,
+    mensagem: motivo ? (verificacao.detalhe && ["calendario_indisponivel", "calendario_desatualizado", "dados_divergentes", "proximo_indisponivel", "precos_indisponiveis", "precos_divergentes"].includes(motivo) ? `${MSG_INDISPONIVEL[motivo]} ${verificacao.detalhe}` : MSG_INDISPONIVEL[motivo]) : null,
+    concurso, prazos, fonte, opcoesConcurso: verificacao.opcoes,
+  };
 }
 
 // ---------------------------------------------------------------- catalogo do portal
@@ -227,7 +270,11 @@ export async function catalogoDoPortal(clientId: number, agora: Date = new Date(
       sorteios: r.sorteios, fonteUrl: r.fonteUrl, disponibilidade: await disponibilidade(m, cl.empresaId, agora, robo),
     });
   }
-  return { membro, execucao: { disponivel: execucao.disponivel, motivo: execucao.motivo }, tetoPedidoCentavos: cfg.tetoPedidoCentavos, margemMinutos: cfg.margemMinutos, metaMinutos: cfg.metaMinutos, modalidades };
+  return {
+    membro, execucao: { disponivel: execucao.disponivel, motivo: execucao.motivo },
+    tetoPedidoCentavos: cfg.tetoPedidoCentavos, margemMinutos: cfg.margemMinutos, metaMinutos: cfg.metaMinutos,
+    calendario: await lerEstadoCalendario(agora), modalidades,
+  };
 }
 
 // ---------------------------------------------------------------- favoritos
@@ -313,9 +360,9 @@ export interface JogoPedido { ordem: number; dezenas: number[]; precoCentavos: n
 const hashJogos = (jogos: number[][]) => createHash("sha256").update(JSON.stringify(jogos.map((j) => j.join(",")).sort())).digest("hex");
 
 export type MotivoPedido = MotivoIndisponivel | "sem_cadastro" | "nao_membro" | "jogos_invalidos" | "chave_invalida" | "chave_reutilizada" | "pedido_duplicado" | "acima_do_teto" | "quantidade_jogos" | "jogo_repetido";
-export type ResultadoPedido = { ok: true; id: number; repetido: boolean } | { ok: false; motivo: MotivoPedido; mensagem?: string; pedidoId?: number };
+export type ResultadoPedido = { ok: true; id: number; repetido: boolean } | { ok: false; motivo: MotivoPedido; mensagem?: string; pedidoId?: number; opcoesConcurso?: OpcaoConcurso[] };
 
-export async function criarPedido(p: { clientId: number; modalidade: Modalidade; jogos: unknown; idempotencyKey: unknown; agora?: Date; robo?: RoboLoterias }): Promise<ResultadoPedido> {
+export async function criarPedido(p: { clientId: number; modalidade: Modalidade; jogos: unknown; idempotencyKey: unknown; concurso?: number; agora?: Date; robo?: RoboLoterias }): Promise<ResultadoPedido> {
   const agora = p.agora ?? new Date();
   if (typeof p.idempotencyKey !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(p.idempotencyKey)) return { ok: false, motivo: "chave_invalida" };
   const cl = await clienteBasico(db, p.clientId);
@@ -329,8 +376,11 @@ export async function criarPedido(p: { clientId: number; modalidade: Modalidade;
     jogos.push(v.dezenas); precos.push(v.precoCentavos);
   }
   if (new Set(jogos.map((j) => j.join(","))).size !== jogos.length) return { ok: false, motivo: "jogo_repetido" };
-  const disp = await disponibilidade(p.modalidade, cl.empresaId, agora, p.robo);
-  if (!disp.aberto || !disp.concurso || !disp.prazos) return { ok: false, motivo: disp.motivo ?? "concurso_desconhecido", mensagem: disp.mensagem ?? undefined };
+  const disp = await disponibilidade(p.modalidade, cl.empresaId, agora, p.robo, p.concurso);
+  if (!disp.aberto || !disp.concurso || !disp.prazos) return {
+    ok: false, motivo: disp.motivo ?? "concurso_desconhecido", mensagem: disp.mensagem ?? undefined,
+    ...(disp.opcoesConcurso.length ? { opcoesConcurso: disp.opcoesConcurso } : {}),
+  };
   const total = precos.reduce((a, b) => a + b, 0);
   const cfg = await lerConfig(cl.empresaId);
   if (total > cfg.tetoPedidoCentavos) return { ok: false, motivo: "acima_do_teto" };
@@ -388,14 +438,29 @@ export const asaasReal: DepsAsaas = {
 
 export type ResultadoPagar =
   | { ok: true; invoiceUrl: string | null; pix: { payload: string; encodedImage: string } | null }
-  | { ok: false; motivo: "inexistente" | "estado_invalido" | "cliente_sem_cadastro_pagamento" | "execucao_indisponivel" | "fora_do_prazo" | "asaas_indisponivel" };
+  | { ok: false; motivo: "inexistente" | "estado_invalido" | "cliente_sem_cadastro_pagamento" | "execucao_indisponivel" | "fora_do_prazo" | "asaas_indisponivel" | "calendario_indisponivel" | "calendario_desatualizado" | "dados_divergentes" | "proximo_indisponivel" | "precos_indisponiveis" | "precos_divergentes" | "concurso_desconhecido" | "concurso_especial" };
 
 /** Cria a cobranca PIX do pedido (uma so; repetir devolve a mesma). Exige robo disponivel e cadastro do cliente no Asaas. */
 export async function iniciarPagamento(p: { clientId: number; pedidoId: number; deps?: DepsAsaas; agora?: Date; robo?: RoboLoterias }): Promise<ResultadoPagar> {
   const deps = p.deps ?? asaasReal; const agora = p.agora ?? new Date();
   const cl = await clienteBasico(db, p.clientId);
   if (!cl) return { ok: false, motivo: "inexistente" };
-  if (!(await (p.robo ?? roboAtual()).estado().catch(() => ({ disponivel: false }))).disponivel) return { ok: false, motivo: "execucao_indisponivel" };
+  const robo = p.robo ?? roboAtual();
+  const estadoRobo = await robo.estado().catch(() => ({ disponivel: false, motivo: "Estado indisponível.", ambiente: "nenhum" as const }));
+  if (!estadoRobo.disponivel) return { ok: false, motivo: "execucao_indisponivel" };
+  const prePedido = rows(await db.execute(sql`
+    SELECT modalidade, concurso, data_sorteio, status FROM meus_jogos_pedidos
+     WHERE id = ${p.pedidoId} AND client_id = ${cl.id} AND empresa_id = ${cl.empresaId}`))[0];
+  if (!prePedido) return { ok: false, motivo: "inexistente" };
+  const verificacao = await verificarVendaCalendario(
+    prePedido.modalidade as Modalidade, agora, (await lerConfig(cl.empresaId)).margemMinutos,
+    estadoRobo.ambiente !== "simulado", estadoRobo.ambiente !== "simulado",
+  );
+  if (!verificacao.ok) return { ok: false, motivo: verificacao.motivo ?? "calendario_indisponivel" };
+  const concursoAtual = verificacao.opcoes.find((o) => o.concurso === Number(prePedido.concurso) && o.data === String(prePedido.data_sorteio).slice(0, 10));
+  if (!concursoAtual) return { ok: false, motivo: "concurso_desconhecido" };
+  if (concursoAtual.especial) return { ok: false, motivo: "concurso_especial" };
+  if (!concursoAtual.aberto) return { ok: false, motivo: "fora_do_prazo" };
   try {
     return await db.transaction(async (tx): Promise<ResultadoPagar> => {
       const ped = rows(await tx.execute(sql`SELECT * FROM meus_jogos_pedidos WHERE id = ${p.pedidoId} AND client_id = ${cl.id} AND empresa_id = ${cl.empresaId} FOR UPDATE`))[0];
@@ -502,25 +567,108 @@ export async function anexarComprovante(p: { pedidoId: number; empresaId: number
   }
 }
 
-export interface ResumoFila { robotIndisponivel: boolean; enviados: number; incertos: number; efetivados: number; devolucaoPendente: number }
+export interface ResumoFila { robotIndisponivel: boolean; enviados: number; incertos: number; efetivados: number; devolucaoPendente: number; suspensos: number }
 
 /** Processa a fila com o robo informado. Sem robo disponivel nao toca em nenhum pedido. Resultado incerto vai para conferencia (nunca repete). */
 export async function processarFila(robo: RoboLoterias = roboAtual(), agora: Date = new Date(), limite = 10): Promise<ResumoFila> {
-  const resumo: ResumoFila = { robotIndisponivel: false, enviados: 0, incertos: 0, efetivados: 0, devolucaoPendente: 0 };
+  const resumo: ResumoFila = { robotIndisponivel: false, enviados: 0, incertos: 0, efetivados: 0, devolucaoPendente: 0, suspensos: 0 };
   const est = await robo.estado().catch(() => ({ disponivel: false } as EstadoRobo));
   if (!est.disponivel) { resumo.robotIndisponivel = true; return resumo; }
+  const bloqueadosNestaExecucao: number[] = [];
   for (let i = 0; i < limite; i++) {
+    const claim = randomUUID();
+    const excluirBloqueados = bloqueadosNestaExecucao.length
+      ? sql`AND id NOT IN (${sql.join(bloqueadosNestaExecucao.map((id) => sql`${id}`), sql`, `)})`
+      : sql``;
     const ped = await db.transaction(async (tx) => {
       const alvo = rows(await tx.execute(sql`
-        SELECT id FROM meus_jogos_pedidos WHERE status = 'pago_na_fila' AND fechamento_oficial_em > ${agora.toISOString()}
+        SELECT * FROM meus_jogos_pedidos
+         WHERE status = 'pago_na_fila'
+           AND (despacho_claim IS NULL OR despacho_claimed_at < ${new Date(agora.getTime() - 5 * 60_000).toISOString()})
+           ${excluirBloqueados}
          ORDER BY pago_em, id FOR UPDATE SKIP LOCKED LIMIT 1`))[0];
-      return alvo ? mover(tx, { id: alvo.id, de: "pago_na_fila", para: "processando", ator: "robo", detalhe: "enviado ao canal de registro" }) : null;
+      if (!alvo) return null;
+      return rows(await tx.execute(sql`
+        UPDATE meus_jogos_pedidos SET despacho_claim = ${claim}, despacho_claimed_at = ${agora.toISOString()}
+         WHERE id = ${alvo.id} AND status = 'pago_na_fila' RETURNING *`))[0] ?? null;
     });
     if (!ped) break;
+    const verificacao = await verificarVendaCalendario(
+      ped.modalidade as Modalidade, agora, (await lerConfig(Number(ped.empresa_id))).margemMinutos,
+      est.ambiente !== "simulado", est.ambiente !== "simulado",
+    );
+    const escolhido = verificacao.ok
+      ? verificacao.opcoes.find((o) => o.concurso === Number(ped.concurso) && o.data === String(ped.data_sorteio).slice(0, 10))
+      : undefined;
+    const suspensao = !verificacao.ok
+      ? `${verificacao.motivo}: ${verificacao.detalhe ?? "fonte oficial não validada"}`
+      : !escolhido
+        ? "concurso não consta entre as opções futuras do calendário validado"
+        : escolhido.especial || !escolhido.canais.aposta_simples
+          ? "concurso especial ou fechamento oficial ausente"
+          : null;
+    if (suspensao) {
+      await db.transaction(async (tx) => {
+        const atual = rows(await tx.execute(sql`
+          SELECT suspenso_motivo FROM meus_jogos_pedidos
+           WHERE id = ${ped.id} AND status = 'pago_na_fila' AND despacho_claim = ${claim} FOR UPDATE`))[0];
+        if (!atual) return;
+        await tx.execute(sql`UPDATE meus_jogos_pedidos
+          SET suspenso_motivo = ${suspensao.slice(0, 300)}, suspenso_em = ${agora.toISOString()},
+              despacho_claim = NULL, despacho_claimed_at = NULL, atualizado_em = NOW()
+          WHERE id = ${ped.id} AND despacho_claim = ${claim}`);
+        if (atual.suspenso_motivo !== suspensao.slice(0, 300)) {
+          await evento(tx, { empresaId: ped.empresa_id, clientId: ped.client_id, pedidoId: ped.id, evento: "despacho_suspenso", ator: "sistema", detalhe: suspensao });
+        }
+      });
+      bloqueadosNestaExecucao.push(Number(ped.id));
+      resumo.suspensos++;
+      continue;
+    }
+    const fechamentoAtual = new Date(escolhido!.canais.aposta_simples!.oficialEm);
+    if (!Number.isFinite(fechamentoAtual.getTime())) {
+      bloqueadosNestaExecucao.push(Number(ped.id));
+      resumo.suspensos++;
+      continue;
+    }
+    if (agora.getTime() >= fechamentoAtual.getTime()) {
+      const devolvido = await db.transaction(async (tx) => {
+        const atual = rows(await tx.execute(sql`
+          SELECT id, status FROM meus_jogos_pedidos
+           WHERE id = ${ped.id} AND status = 'pago_na_fila' AND despacho_claim = ${claim} FOR UPDATE`))[0];
+        if (!atual) return null;
+        await tx.execute(sql`UPDATE meus_jogos_pedidos SET despacho_claim = NULL, despacho_claimed_at = NULL WHERE id = ${ped.id}`);
+        return mover(tx, { id: ped.id, de: "pago_na_fila", para: "devolucao_pendente", ator: "sistema", motivo: "nao_processado_ate_fechamento", detalhe: "fonte oficial confirmou que o fechamento já passou" });
+      });
+      if (devolvido) resumo.devolucaoPendente++;
+      continue;
+    }
+    const fechamentoAnterior = new Date(ped.fechamento_oficial_em).toISOString();
+    const fechamentoNovo = fechamentoAtual.toISOString();
+    const margem = (await lerConfig(Number(ped.empresa_id))).margemMinutos;
+    const limiteNovo = new Date(fechamentoAtual.getTime() - margem * 60_000).toISOString();
     const jogos = rows(await db.execute(sql`SELECT dezenas FROM meus_jogos_pedido_jogos WHERE pedido_id = ${ped.id} ORDER BY ordem`)).map((r) => r.dezenas as number[]);
+    const pronto = await db.transaction(async (tx) => {
+      const atual = rows(await tx.execute(sql`
+        SELECT id FROM meus_jogos_pedidos
+         WHERE id = ${ped.id} AND status = 'pago_na_fila' AND despacho_claim = ${claim} FOR UPDATE`))[0];
+      if (!atual) return null;
+      if (fechamentoAnterior !== fechamentoNovo) {
+        await tx.execute(sql`UPDATE meus_jogos_pedidos SET fechamento_oficial_em = ${fechamentoNovo}, limite_interno_em = ${limiteNovo} WHERE id = ${ped.id}`);
+        await evento(tx, { empresaId: ped.empresa_id, clientId: ped.client_id, pedidoId: ped.id, evento: "fechamento_atualizado", ator: "sistema", detalhe: `novo fechamento oficial ${fechamentoNovo}` });
+      }
+      if (ped.suspenso_motivo) await evento(tx, { empresaId: ped.empresa_id, clientId: ped.client_id, pedidoId: ped.id, evento: "despacho_retomado", ator: "sistema", detalhe: "fontes oficiais novamente validadas" });
+      return mover(tx, {
+        id: ped.id, de: "pago_na_fila", para: "processando", ator: "gestor",
+        detalhe: "envio manual autorizado após nova conferência oficial",
+        extra: sql`fechamento_oficial_em = ${fechamentoNovo}, limite_interno_em = ${limiteNovo},
+          despacho_claim = NULL, despacho_claimed_at = NULL, suspenso_motivo = NULL, suspenso_em = NULL`,
+      });
+    });
+    if (!pronto) continue;
     try {
       const { ref } = await robo.registrarJogos({ pedidoId: ped.id, chave: `mj-${ped.id}`, modalidade: ped.modalidade, concurso: ped.concurso, jogos });
-      await db.execute(sql`UPDATE meus_jogos_pedidos SET robo_ref = ${String(ref).slice(0, 120)}, atualizado_em = NOW() WHERE id = ${ped.id}`);
+      await db.execute(sql`UPDATE meus_jogos_pedidos SET robo_ref = ${String(ref).slice(0, 120)}, despachado_em = NOW(), atualizado_em = NOW() WHERE id = ${ped.id}`);
       resumo.enviados++;
     } catch (e) {
       await db.transaction(async (tx) => { await mover(tx, { id: ped.id, de: "processando", para: "falha_em_conferencia", ator: "robo", motivo: "robo_resultado_incerto", detalhe: String((e as Error).message ?? e).slice(0, 120) }); });
@@ -593,19 +741,24 @@ export async function registrarDevolucao(p: { empresaId: number; pedidoId: numbe
 
 // ---------------------------------------------------------------- leitura de pedidos
 type PassoEstado = "feito" | "atual" | "pendente" | "falhou" | "em_conferencia";
-export interface PassoLinha { chave: "pagamento" | "fila" | "processamento" | "efetivacao" | "comprovante"; rotulo: string; estado: PassoEstado }
+export interface PassoLinha { chave: "solicitado" | "pago" | "despachado" | "registro" | "comprovante"; rotulo: string; estado: PassoEstado }
 
-function linhaDoTempo(status: StatusPedido, pagoEm: string | null): PassoLinha[] {
+function linhaDoTempo(status: StatusPedido, pagoEm: string | null, despachadoEm: string | null, temComprovante: boolean): PassoLinha[] {
   const P = (chave: PassoLinha["chave"], rotulo: string, estado: PassoEstado): PassoLinha => ({ chave, rotulo, estado });
-  switch (status) {
-    case "aguardando_pagamento": return [P("pagamento", "Pagamento", "atual"), P("fila", "Fila", "pendente"), P("processamento", "Processamento", "pendente"), P("efetivacao", "Efetivação", "pendente"), P("comprovante", "Comprovante", "pendente")];
-    case "pago_na_fila": return [P("pagamento", "Pagamento", "feito"), P("fila", "Fila", "atual"), P("processamento", "Processamento", "pendente"), P("efetivacao", "Efetivação", "pendente"), P("comprovante", "Comprovante", "pendente")];
-    case "processando": return [P("pagamento", "Pagamento", "feito"), P("fila", "Fila", "feito"), P("processamento", "Processamento", "atual"), P("efetivacao", "Efetivação", "pendente"), P("comprovante", "Comprovante", "pendente")];
-    case "efetivado": return [P("pagamento", "Pagamento", "feito"), P("fila", "Fila", "feito"), P("processamento", "Processamento", "feito"), P("efetivacao", "Efetivação", "feito"), P("comprovante", "Comprovante", "feito")];
-    case "falha_em_conferencia": return [P("pagamento", "Pagamento", "feito"), P("fila", "Fila", "feito"), P("processamento", "Processamento", "em_conferencia"), P("efetivacao", "Efetivação", "pendente"), P("comprovante", "Comprovante", "pendente")];
-    case "devolucao_pendente": case "devolvido": return [P("pagamento", "Pagamento", pagoEm ? "feito" : "pendente"), P("fila", "Fila", "falhou"), P("processamento", "Processamento", "pendente"), P("efetivacao", "Efetivação", "pendente"), P("comprovante", "Comprovante", "pendente")];
-    default: return [P("pagamento", "Pagamento", "falhou"), P("fila", "Fila", "pendente"), P("processamento", "Processamento", "pendente"), P("efetivacao", "Efetivação", "pendente"), P("comprovante", "Comprovante", "pendente")];
-  }
+  const terminado = status === "efetivado" && temComprovante;
+  const solicitado = P("solicitado", "Solicitado", "feito");
+  const pago = P("pago", "Pago", pagoEm ? "feito" : status === "aguardando_pagamento" ? "atual" : ["cancelado", "expirado"].includes(status) ? "falhou" : "pendente");
+  const despachado = P("despachado", "Despachado",
+    despachadoEm ? "feito" : status === "pago_na_fila" ? "atual" :
+      status === "falha_em_conferencia" ? "em_conferencia" :
+        status === "devolucao_pendente" || status === "devolvido" ? "falhou" : "pendente");
+  const registro = P("registro", "Registro",
+    terminado ? "feito" : status === "processando" ? "atual" :
+      status === "falha_em_conferencia" ? "em_conferencia" :
+        status === "devolucao_pendente" || status === "devolvido" ? "falhou" : "pendente");
+  const comprovante = P("comprovante", "Comprovante", temComprovante ? "feito" :
+    status === "falha_em_conferencia" ? "em_conferencia" : "pendente");
+  return [solicitado, pago, despachado, registro, comprovante];
 }
 
 export interface PedidoVisto {
@@ -628,7 +781,7 @@ async function montar(r: any, agora: Date): Promise<PedidoVisto> {
     ? (TEXTO_MOTIVO[String(r.motivo ?? "")] ?? ROTULO[status]) : null;
   return {
     id: r.id, modalidade: r.modalidade, nome: REGRAS[r.modalidade as Modalidade].nome, concurso: r.concurso, dataSorteio: new Date(r.data_sorteio).toISOString().slice(0, 10),
-    totalCentavos: r.total_centavos, status, rotulo: ROTULO[status], jogos, linhaDoTempo: linhaDoTempo(status, iso(r.pago_em)),
+    totalCentavos: r.total_centavos, status, rotulo: ROTULO[status], jogos, linhaDoTempo: linhaDoTempo(status, iso(r.pago_em), iso(r.despachado_em), Boolean(comp)),
     prazos: { fechamentoOficialEm: iso(r.fechamento_oficial_em)!, limiteInternoEm: iso(r.limite_interno_em)!, metaEfetivacaoEm: metaEm },
     pagoEm: iso(r.pago_em), criadoEm: iso(r.criado_em)!, invoiceUrl: r.asaas_invoice_url ?? null,
     comprovante: comp ? { id: comp.id, mime: comp.mime, bytes: comp.bytes, codigo: comp.codigo, criadoEm: iso(comp.criado_em)! } : null,

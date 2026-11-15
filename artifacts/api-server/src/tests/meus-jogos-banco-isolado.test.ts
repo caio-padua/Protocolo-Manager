@@ -43,6 +43,7 @@ let R: typeof import("../lib/meus-jogos-regras");
 let RES: typeof import("../lib/meus-jogos-resultados");
 let ROBO: typeof import("../lib/meus-jogos-robo");
 let setJson: (k: string, v: unknown) => Promise<void>;
+let calendarioFake: unknown;
 const H = (id: number) => ({ Authorization: `Bearer ${tok(id)}` });
 const P = "/api/area-paciente/meus-jogos";
 const G = "/api/boloes/gestao/meus-jogos";
@@ -86,6 +87,8 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO empresas (nome) VALUES ('Clinica A'),('Clinica B')`);
   await pool.query(`CREATE TABLE clients (id serial primary key, name text, empresa_id int, deleted_at timestamptz, nivel_cliente text, asaas_customer_id text)`);
   await pool.query(`CREATE TABLE app_settings (key text primary key, value text, updated_at timestamptz default now())`);
+  await pool.query(`CREATE TABLE professionals (id serial primary key, photo_url text, is_primary_doctor boolean, active boolean)`);
+  await pool.query(`INSERT INTO professionals (photo_url, is_primary_doctor, active) VALUES ('/private/doctor-photo', true, true)`);
   await pool.query(`INSERT INTO clients (name, empresa_id, nivel_cliente, asaas_customer_id) VALUES ('Maria Sintetica',1,'prata','cus_1'),('Joao Sintetico',1,'diamond',NULL),('Ana Sintetica',2,'ouro','cus_3'),('Pedro Sintetico',1,NULL,NULL)`);
   const base = await import("../lib/boloes");
   await base.ensureBoloesTables();
@@ -112,6 +115,16 @@ beforeAll(async () => {
     await setJson(`meus_jogos.proximo.${m}`, { concurso: 5000, data: dia(3), obtidoEm: agora });
     await setJson(`meus_jogos.fonte.${m}`, { modalidade: m, ok: true, verificadoEm: agora, divergencias: [] });
   }
+  calendarioFake = {
+    geradoEm: agora, validoAte: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+    meses: [dia(3).slice(0, 7), dia(6).slice(0, 7)], feriados: [],
+    regras: { semanal: true, domingoSabado22h: true, bolao15min: true, umaHoraAntes: true, bolaoSemana1930: true },
+    sorteios: R.MODALIDADES.flatMap((modalidade) => [
+      { modalidade, concurso: 5000, data: dia(3), especial: false, apostasEncerramEm: null, horaSorteio: "21:00" },
+      { modalidade, concurso: 5001, data: dia(6), especial: false, apostasEncerramEm: null, horaSorteio: "21:00" },
+    ]),
+  };
+  await setJson("meus_jogos.calendario.oficial", calendarioFake);
   await setJson("meus_jogos.config.1", { ...L.CONFIG_PADRAO, fechamentoOficial: { megasena: "19:00", lotofacil: "19:00", quina: "19:00", lotomania: "19:00" }, fonteFechamento: "texto de teste" });
 }, 90_000);
 afterAll(async () => { try { await pool?.end(); } catch { /* */ } pg.parar(); });
@@ -281,7 +294,7 @@ describe("pedidos: criacao, idempotencia e prazos (robo simulado)", () => {
     const ped = (await q(`SELECT * FROM meus_jogos_pedidos WHERE id = $1`, [(r as any).id]))[0];
     expect(ped).toMatchObject({ empresa_id: 1, client_id: 1, status: "aguardando_pagamento", total_centavos: 1200, qtd_jogos: 2, concurso: 5000 });
     expect(new Date(ped.limite_interno_em).getTime()).toBe(new Date(ped.fechamento_oficial_em).getTime() - 240 * 60_000);
-    expect(new Date(ped.fechamento_oficial_em).toISOString()).toBe(new Date(`${dia(3)}T19:00:00-03:00`).toISOString());
+    expect(new Date(ped.fechamento_oficial_em).toISOString()).toBe(new Date(`${dia(3)}T20:00:00-03:00`).toISOString());
     const rep = await L.criarPedido({ clientId: 1, modalidade: "megasena", jogos: [jogoMega(1), DEZ6], idempotencyKey: k, robo });
     expect(rep).toMatchObject({ ok: true, repetido: true, id: (r as any).id });
     expect(await L.criarPedido({ clientId: 1, modalidade: "megasena", jogos: [jogoMega(2)], idempotencyKey: k, robo })).toMatchObject({ ok: false, motivo: "chave_reutilizada" });
@@ -310,11 +323,13 @@ describe("pedidos: criacao, idempotencia e prazos (robo simulado)", () => {
     expect(await c({ jogos: [] })).toMatchObject({ motivo: "quantidade_jogos" });
     expect(await c({ jogos: [Array.from({ length: 20 }, (_, i) => i + 1)] })).toMatchObject({ motivo: "acima_do_teto" }); // R$ 232.560,00
     expect(await c({ idempotencyKey: "curta" })).toMatchObject({ motivo: "chave_invalida" });
-    const fecha = new Date(`${dia(3)}T19:00:00-03:00`).getTime();
-    expect(await c({ agora: new Date(fecha - 239 * 60_000) })).toMatchObject({ motivo: "fora_do_prazo" });
+    const fecha = new Date(`${dia(3)}T20:00:00-03:00`).getTime();
+    expect(await c({ agora: new Date(fecha - 239 * 60_000) })).toMatchObject({ motivo: "concurso_nao_selecionado" });
+    expect(await c({ concurso: 5000, agora: new Date(fecha - 239 * 60_000), jogos: [jogoMega(9)] })).toMatchObject({ motivo: "fora_do_prazo" });
+    expect(await c({ concurso: 5001, agora: new Date(fecha - 239 * 60_000), jogos: [jogoMega(8)] })).toMatchObject({ ok: true });
     expect(await c({ agora: new Date(fecha - 241 * 60_000), jogos: [jogoMega(9)] })).toMatchObject({ ok: true });
     expect(await c({ agora: new Date(Date.now() + 5 * 86_400_000), jogos: [jogoMega(8)] })).toMatchObject({ motivo: "concurso_desconhecido" });
-    expect(await c({ clientId: 3, jogos: [jogoMega(7)] })).toMatchObject({ motivo: "fechamento_nao_informado" }); // clinica B nao informou horario
+    expect(await c({ clientId: 3, jogos: [jogoMega(7)] })).toMatchObject({ ok: true }); // prazo oficial e global, nao depende do horario digitado por clinica
     expect(await c({ robo: roboFalso({ disponivel: false }) })).toMatchObject({ motivo: "execucao_indisponivel" });
     await setJson("meus_jogos.fonte.megasena", { modalidade: "megasena", ok: false, verificadoEm: new Date().toISOString(), divergencias: ["preco mudou"] });
     expect(await c({ jogos: [jogoMega(6)] })).toMatchObject({ motivo: "regras_desatualizadas" });
@@ -417,6 +432,26 @@ describe("pagamento, fila, comprovante e devolucao", () => {
     expect(await L.baixarComprovante(1, null, id)).not.toBeNull();
   });
 
+  it("suspende o despacho quando a fonte vence e só retoma após reconferência manual", async () => {
+    const as = asaasFalso(); const robo = roboFalso();
+    const id = await novo(1, 11, robo);
+    await L.iniciarPagamento({ clientId: 1, pedidoId: id, deps: as, robo });
+    const charge = (await q(`SELECT asaas_charge_id FROM meus_jogos_pedidos WHERE id = $1`, [id]))[0].asaas_charge_id;
+    as.st.cobrancas.get(charge).status = "RECEIVED";
+    await L.sincronizarPagamento(id, as);
+    await setJson("meus_jogos.calendario.oficial", null);
+
+    const suspensa = await L.processarFila(robo);
+    expect(suspensa).toMatchObject({ enviados: 0, suspensos: 1 });
+    expect(robo.chamadas).toHaveLength(0);
+    expect(await q(`SELECT status, suspenso_motivo FROM meus_jogos_pedidos WHERE id = $1`, [id])).toMatchObject([{ status: "pago_na_fila", suspenso_motivo: expect.stringContaining("calendario_indisponivel") }]);
+
+    await setJson("meus_jogos.calendario.oficial", calendarioFake);
+    expect(await L.processarFila(robo)).toMatchObject({ enviados: 1, suspensos: 0 });
+    expect(await q(`SELECT status, suspenso_motivo, despachado_em FROM meus_jogos_pedidos WHERE id = $1`, [id])).toMatchObject([{ status: "processando", suspenso_motivo: null, despachado_em: expect.any(Date) }]);
+    expect(await n(`SELECT COUNT(*) n FROM meus_jogos_eventos WHERE pedido_id = ${id} AND evento = 'despacho_retomado'`)).toBe(1);
+  });
+
   it("robo que devolve registrado com comprovante efetiva sozinho; recusa sem aposta abre devolucao", async () => {
     const as = asaasFalso();
     const pagar = async (i: number, robo: any) => {
@@ -476,8 +511,10 @@ describe("pagamento, fila, comprovante e devolucao", () => {
     as.st.cobrancas.get(c2).status = "RECEIVED"; await L.sincronizarPagamento(ped2, as);
     expect(await estado(ped2)).toBe("pago_na_fila");
     const depois = new Date(new Date(chg1.fechamento_oficial_em).getTime() + 60_000);
-    expect((await L.processarFila(robo, depois)).enviados).toBe(0); // fechamento passou: nao envia
-    expect((await L.reconciliarPrazos(depois, as)).devolucaoPendente).toBeGreaterThanOrEqual(1);
+    const fila = await L.processarFila(robo, depois);
+    expect(fila.enviados).toBe(0); // fechamento passou: nao envia; abre devolucao humana
+    expect(fila.devolucaoPendente).toBeGreaterThanOrEqual(1);
+    expect((await L.reconciliarPrazos(depois, as)).devolucaoPendente).toBe(0);
     expect(await estado(ped2)).toBe("devolucao_pendente");
 
     const ped3 = await ped(10);
@@ -507,7 +544,9 @@ describe("gestor: login, isolamento e configuracao", () => {
     expect((await request(app).get(`${G}/cliente/3`)).status).toBe(404); // cliente da clinica B
     como(8, 2);
     expect((await request(app).get(`${G}/cliente/1`)).status).toBe(404);
-    expect((await request(app).get(`${G}/cliente/3`)).body.pedidos).toHaveLength(0);
+    const pedidosCliente3 = (await request(app).get(`${G}/cliente/3`)).body.pedidos;
+    expect(pedidosCliente3).toHaveLength(1);
+    expect(await q(`SELECT DISTINCT client_id FROM meus_jogos_pedidos WHERE id = ANY($1::int[])`, [pedidosCliente3.map((p: any) => p.id)])).toEqual([{ client_id: 3 }]);
     como(7, 1);
   });
 
@@ -537,7 +576,10 @@ describe("gestor: login, isolamento e configuracao", () => {
     expect(p.status).toBe(200);
     expect(p.body.execucao.disponivel).toBe(false);
     expect(p.body.fontes).toHaveLength(4);
-    const f = await request(app).post(`${G}/fila/processar`);
+    expect(p.body.avatarMedico).toMatchObject({ fotoNoCadastro: true, acessoAoArquivo: "nao_verificado", autorizacaoDeUso: "nao_cadastrada", fotoUtilizada: false });
+    expect(JSON.stringify(p.body.avatarMedico)).not.toContain("/private/doctor-photo");
+    expect((await request(app).post(`${G}/fila/processar`)).status).toBe(409); // nenhuma aposta é enviada sem confirmação explícita
+    const f = await request(app).post(`${G}/fila/processar`).send({ confirmarEnvio: true });
     expect(f.status).toBe(200); expect(f.body.fila.robotIndisponivel).toBe(true);
     expect((await request(app).post(`${G}/pedidos/999999/atestar-sem-aposta`).send({ nota: "conferido sem aposta alguma" })).status).toBe(404);
     expect((await request(app).post(`${G}/pedidos/999999/devolucao`).send({ referencia: "PIX-1" })).status).toBe(404);

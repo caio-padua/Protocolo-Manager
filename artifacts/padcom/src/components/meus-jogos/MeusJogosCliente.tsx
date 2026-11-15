@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dices, Eraser, Heart, Loader2, Plus, ShieldAlert, Trash2, X } from "lucide-react";
+import { CalendarDays, Clock3, Dices, Eraser, Heart, Loader2, Plus, ShieldAlert, Trash2, X } from "lucide-react";
 import Volante from "./Volante";
 import Pedidos from "./Pedidos";
 import Resultados from "./Resultados";
@@ -36,6 +36,8 @@ export default function MeusJogosCliente({ token }: { token: string }) {
   const [erroPedidos, setErroPedidos] = useState("");
   const [resultados, setResultados] = useState<ResultadosModalidade[] | null>(null);
   const [erroResultados, setErroResultados] = useState(""); const [carregandoRes, setCarregandoRes] = useState(false);
+  const [concursoEscolhido, setConcursoEscolhido] = useState<number | null>(null);
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
   const chave = useRef<{ assinatura: string; valor: string } | null>(null);
 
   const cat = useMemo(() => catalogo?.modalidades.find((m) => m.chave === mod) ?? null, [catalogo, mod]);
@@ -60,6 +62,10 @@ export default function MeusJogosCliente({ token }: { token: string }) {
 
   useEffect(() => { void carregarCatalogo(); void carregarFavoritos(); void carregarPedidos(); }, [carregarCatalogo, carregarFavoritos, carregarPedidos]);
   useEffect(() => { if (aba === "resultados" && !resultados) void carregarResultados(); }, [aba, resultados, carregarResultados]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgoraMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
   // Atualizacao automatica enquanto ha pedido em andamento (o servidor confere o pagamento direto no Asaas).
   const haAndamento = pedidos?.some((p) => EM_ANDAMENTO.has(p.status)) ?? false;
   useEffect(() => {
@@ -110,13 +116,16 @@ export default function MeusJogosCliente({ token }: { token: string }) {
 
   // ---- confirmacao (a chave de idempotencia muda quando o conteudo muda; repetir o mesmo envio nunca duplica o pedido)
   async function confirmar() {
-    if (!cat?.disponibilidade.aberto || jogos.length === 0) return;
-    const assinatura = `${mod}|${jogos.map((j) => j.join(",")).sort().join(";")}`;
+    if (!podeCriarPedido || jogos.length === 0) return;
+    const concurso = concursoEscolhido ?? d.concurso?.numero;
+    if (!concurso) return;
+    const assinatura = `${mod}|${concurso}|${jogos.map((j) => j.join(",")).sort().join(";")}`;
     if (!chave.current || chave.current.assinatura !== assinatura) chave.current = { assinatura, valor: novaChave() };
     setEnviando(true); setAviso("");
     try {
-      await chamarMeusJogos(token, "/pedidos", { method: "POST", json: { modalidade: mod, jogos, chave: chave.current.valor } });
+      await chamarMeusJogos(token, "/pedidos", { method: "POST", json: { modalidade: mod, concurso, jogos, chave: chave.current.valor } });
       chave.current = null; setCarrinho((c) => ({ ...c, [mod]: [] })); setRevisando(false);
+      setConcursoEscolhido(null);
       await carregarPedidos(); setAba("pedidos");
     } catch (e) {
       setAviso(e instanceof ErroApi ? e.message : "Não foi possível criar o pedido.");
@@ -129,6 +138,23 @@ export default function MeusJogosCliente({ token }: { token: string }) {
   if (!catalogo || !cat) return <p className="panel-3d rounded-xl p-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Carregando Meus Jogos…</p>;
 
   const d = cat.disponibilidade;
+  const precoEstado = catalogo.calendario.modalidades.find((x) => x.modalidade === mod);
+  const opcaoEscolhida = concursoEscolhido === null
+    ? d.opcoesConcurso.find((o) => o.concurso === d.concurso?.numero)
+    : d.opcoesConcurso.find((o) => o.concurso === concursoEscolhido);
+  const prazoInterno = opcaoEscolhida?.canais.aposta_simples?.internoEm ?? d.prazos?.limiteInternoEm ?? null;
+  const prazoAtivo = prazoInterno ? Date.parse(prazoInterno) > agoraMs : false;
+  const podeCriarPedido = jogos.length > 0 && total <= catalogo.tetoPedidoCentavos &&
+    (d.aberto && (concursoEscolhido === null || Boolean(opcaoEscolhida?.aberto && !opcaoEscolhida.especial)) ||
+      d.motivo === "concurso_nao_selecionado" && Boolean(opcaoEscolhida?.aberto && !opcaoEscolhida.especial)) &&
+    prazoAtivo;
+  const opcoesAbertas = d.opcoesConcurso.filter((o) => o.aberto && !o.especial && o.canais.aposta_simples);
+  const tempoRestante = prazoInterno ? Math.max(0, Date.parse(prazoInterno) - agoraMs) : 0;
+  const diasRestantes = Math.floor(tempoRestante / 86_400_000);
+  const horasRestantes = Math.floor((tempoRestante % 86_400_000) / 3_600_000);
+  const minutosRestantes = Math.floor((tempoRestante % 3_600_000) / 60_000);
+  const segundosRestantes = Math.floor((tempoRestante % 60_000) / 1_000);
+  const contagem = `${diasRestantes ? `${diasRestantes}d ` : ""}${String(horasRestantes).padStart(2, "0")}:${String(minutosRestantes).padStart(2, "0")}:${String(segundosRestantes).padStart(2, "0")}`;
   return (
     <div className="space-y-4" data-testid="meus-jogos">
       <header className="panel-3d rounded-xl overflow-hidden">
@@ -161,7 +187,7 @@ export default function MeusJogosCliente({ token }: { token: string }) {
                 {ORDEM.map((k) => {
                   const m = catalogo.modalidades.find((x) => x.chave === k)!;
                   return (
-                    <button key={k} type="button" role="radio" aria-checked={mod === k} onClick={() => { setMod(k); setAviso(""); setRevisando(false); }} data-testid={`mj-mod-${k}`}
+                    <button key={k} type="button" role="radio" aria-checked={mod === k} onClick={() => { setMod(k); setConcursoEscolhido(null); setAviso(""); setRevisando(false); }} data-testid={`mj-mod-${k}`}
                       className={`min-h-[48px] rounded-lg px-2 text-xs font-black uppercase tracking-wide ${mod === k ? "bevel-3d text-primary" : "btn-3d-soft"}`}>
                       {m.nome}{carrinho[k].length > 0 ? ` (${carrinho[k].length})` : ""}
                     </button>
@@ -178,12 +204,51 @@ export default function MeusJogosCliente({ token }: { token: string }) {
                     <p className="text-muted-foreground text-[11px] leading-snug">{cat.sorteios}. De {cat.dezenasMin === cat.dezenasMax ? `exatamente ${cat.dezenasMin}` : `${cat.dezenasMin} a ${cat.dezenasMax}`} dezenas, de {dz(cat.dezenaMin)} a {dz(cat.dezenaMax)}.</p>
                   </div>
                   <div className="p-3 space-y-3">
+                    <section className="concave-3d rounded-lg px-3 py-2 space-y-1" aria-label="Estado do calendário oficial" data-testid="mj-calendario-oficial" data-estado={catalogo.calendario.estado}>
+                      <p className="flex items-start gap-2 text-xs text-primary">
+                        <CalendarDays className="w-4 h-4 shrink-0 text-accent" aria-hidden="true" />
+                        <span><strong>Calendário oficial: {catalogo.calendario.estado === "verificado" ? "verificado" : catalogo.calendario.estado === "desatualizado" ? "vencido" : "indisponível"}.</strong>
+                          {catalogo.calendario.extraidoEm ? ` Conferido em ${brDataHora(catalogo.calendario.extraidoEm)}.` : " Ainda não houve conferência."}
+                          {catalogo.calendario.validoAte ? ` Válido até ${brDataHora(catalogo.calendario.validoAte)}.` : ""}
+                        </span>
+                      </p>
+                      <p className="ml-6 text-[11px] text-muted-foreground">
+                        Preço e regras de {cat.nome}: {precoEstado?.ok ? "fonte recente confirmada" : "sem confirmação recente"}.
+                      </p>
+                      {d.fonte.desatualizado && <p className="ml-6 text-[11px] text-amber-800 dark:text-amber-300">Preço e regras: {d.fonte.motivo ?? "precisam de nova conferência"}.</p>}
+                    </section>
+                    <details className="concave-3d rounded-lg px-3 py-2" data-testid="mj-ultimas-extracoes">
+                      <summary className="min-h-[32px] cursor-pointer text-[11px] font-black text-primary">Últimas cinco leituras oficiais</summary>
+                      {catalogo.calendario.ultimasExtracoes.length === 0
+                        ? <p className="pt-1 text-[11px] text-muted-foreground">Nenhuma leitura foi registrada.</p>
+                        : <ul className="space-y-1 pt-1">
+                            {catalogo.calendario.ultimasExtracoes.slice(0, 5).map((x) => <li key={x.id} className="text-[10px] text-muted-foreground">
+                              <strong className={x.ok ? "text-primary" : "text-amber-800 dark:text-amber-300"}>{x.ok ? "Válida" : "Não validada"}</strong> · {x.tipo} · {brDataHora(x.extraidoEm)}
+                            </li>)}
+                          </ul>}
+                    </details>
                     <p role="status" data-testid="mj-disponibilidade" data-aberto={d.aberto ? "sim" : "nao"} data-motivo={d.motivo ?? ""}
                       className={`rounded-lg px-3 py-2 text-xs leading-snug ${d.aberto ? "concave-3d text-primary" : "concave-3d text-amber-800 dark:text-amber-300"}`}>
                       {d.aberto && d.concurso && d.prazos
-                        ? <>Próximo concurso: <strong>{d.concurso.numero}</strong>, em {brData(d.concurso.data)}. Pedidos até {brDataHora(d.prazos.limiteInternoEm)}.</>
+                        ? <>Concurso atual: <strong>{d.concurso.numero}</strong>, em {brData(d.concurso.data)}. Prazo interno até {brDataHora(d.prazos.limiteInternoEm)}.</>
                         : <><strong>Pedidos indisponíveis agora.</strong> {d.mensagem}</>}
                     </p>
+                    {d.motivo === "concurso_nao_selecionado" && (
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-black uppercase tracking-wider text-primary" htmlFor="mj-concurso">Escolha explicitamente um concurso futuro</label>
+                        <select id="mj-concurso" className="field-engraved min-h-[44px] w-full px-3 text-sm" value={concursoEscolhido ?? ""} onChange={(e) => { setConcursoEscolhido(e.target.value ? Number(e.target.value) : null); setRevisando(false); }}>
+                          <option value="">Selecione um concurso</option>
+                          {opcoesAbertas.map((o) => <option key={o.concurso} value={o.concurso}>Concurso {o.concurso} · {brData(o.data)} · prazo {brDataHora(o.canais.aposta_simples!.internoEm)}</option>)}
+                        </select>
+                        {opcoesAbertas.length === 0 && <p className="text-[11px] text-amber-800 dark:text-amber-300">Não há outro concurso aberto no calendário validado.</p>}
+                      </div>
+                    )}
+                    {opcaoEscolhida && (
+                      <p className="concave-3d rounded-lg px-3 py-2 text-xs text-primary" data-testid="mj-prazo-contagem">
+                        <Clock3 className="mr-1 inline h-4 w-4 text-accent" aria-hidden="true" />
+                        {prazoAtivo ? <>Prazo interno do concurso {opcaoEscolhida.concurso}: <strong>{contagem}</strong> restante(s).</> : <>Prazo interno encerrado para o concurso {opcaoEscolhida.concurso}.</>}
+                      </p>
+                    )}
                     {d.fonte.desatualizado && <p className="text-[11px] text-amber-800 dark:text-amber-300" data-testid="mj-fonte-desatualizada">Dados desatualizados: {d.fonte.motivo}</p>}
 
                     <Volante min={cat.dezenaMin} max={cat.dezenaMax} marcadas={sel} maximo={cat.dezenasMax} onAlternar={alternar} nome={cat.nome} />
@@ -246,13 +311,13 @@ export default function MeusJogosCliente({ token }: { token: string }) {
                         <p className="flex items-baseline justify-between text-primary"><span className="text-xs font-black uppercase tracking-wider">Total</span><span className="font-black text-xl tabular-nums" style={titulo} data-testid="mj-total">{brl(total)}</span></p>
                         {total > catalogo.tetoPedidoCentavos && <p role="alert" className="text-xs text-red-700 dark:text-red-300">O total passa do limite de {brl(catalogo.tetoPedidoCentavos)} por pedido. Remova algum jogo.</p>}
                         {!revisando ? (
-                          <button type="button" className="btn-3d-soft w-full min-h-[48px] px-3 text-xs font-black uppercase tracking-wider disabled:opacity-60" disabled={!d.aberto || total > catalogo.tetoPedidoCentavos} onClick={() => setRevisando(true)} data-testid="mj-revisar">Revisar e confirmar</button>
+                          <button type="button" className="btn-3d-soft w-full min-h-[48px] px-3 text-xs font-black uppercase tracking-wider disabled:opacity-60" disabled={!podeCriarPedido} onClick={() => setRevisando(true)} data-testid="mj-revisar">Revisar e confirmar</button>
                         ) : (
                           <div className="panel-3d-sub rounded-xl p-3 space-y-2" data-testid="mj-confirmacao">
-                            <p className="text-xs text-primary leading-relaxed">Você vai pedir {jogos.length} jogo(s) da {cat.nome} para o concurso {d.concurso?.numero} por <strong>{brl(total)}</strong>. Depois de confirmar, você paga por PIX na aba Pedidos. O jogo só é considerado registrado quando o comprovante oficial estiver anexado. Se o prazo passar sem registro, o valor é devolvido.</p>
+                            <p className="text-xs text-primary leading-relaxed">Você vai pedir {jogos.length} jogo(s) da {cat.nome} para o concurso {concursoEscolhido ?? d.concurso?.numero} por <strong>{brl(total)}</strong>. Depois de confirmar, você paga por PIX na aba Pedidos. O jogo só é considerado registrado quando o comprovante oficial estiver anexado. Se o prazo passar sem registro, o valor é devolvido.</p>
                             <div className="grid grid-cols-2 gap-2">
                               <button type="button" className="btn-3d-soft min-h-[48px] text-[11px] font-black uppercase tracking-wider" onClick={() => setRevisando(false)}>Voltar</button>
-                              <button type="button" className="btn-3d-soft min-h-[48px] text-[11px] font-black uppercase tracking-wider disabled:opacity-60 inline-flex items-center justify-center gap-2" disabled={enviando} onClick={() => void confirmar()} data-testid="mj-confirmar">{enviando && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />} Confirmar pedido</button>
+                              <button type="button" className="btn-3d-soft min-h-[48px] text-[11px] font-black uppercase tracking-wider disabled:opacity-60 inline-flex items-center justify-center gap-2" disabled={enviando || !podeCriarPedido} onClick={() => void confirmar()} data-testid="mj-confirmar">{enviando && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />} Confirmar pedido</button>
                             </div>
                           </div>
                         )}

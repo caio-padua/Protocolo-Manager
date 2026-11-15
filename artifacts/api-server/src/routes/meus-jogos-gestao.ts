@@ -1,15 +1,17 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod/v4";
-import { isGestorDaEmpresa } from "../lib/clinical-access";
+import { isGestorDaEmpresa, isPlatformOwner } from "../lib/clinical-access";
 import { requireCollaborator } from "./collaborator";
 import { uploadMw } from "./boloes";
 import {
   anexarComprovante, atestarSemAposta, baixarComprovante, gravarConfig, lerConfig, listarPedidosGestor, processarFila,
   reconciliarPrazos, registrarDevolucao,
 } from "../lib/meus-jogos";
-import { conferirFonte, lerConferencia } from "../lib/meus-jogos-resultados";
+import { lerConferencia } from "../lib/meus-jogos-resultados";
 import { roboAtual } from "../lib/meus-jogos-robo";
 import { MODALIDADES, REGRAS, SNAPSHOT_VERIFICADO_EM, situacaoDaFonte } from "../lib/meus-jogos-regras";
+import { atualizarCalendarioPersistido, gravarAgendamentoCalendario, lerEstadoCalendario } from "../lib/meus-jogos-calendario-store";
+import { lerEstadoAvatarMedico } from "../lib/meus-jogos-avatar";
 
 /**
  * MEUS JOGOS na Central do gestor (menu Grupo VIP). A clinica vem SEMPRE do contexto autenticado do servidor;
@@ -59,7 +61,12 @@ router.get(`${G}/painel`, requireCollaborator, async (req, res): Promise<void> =
       fontes.push({ modalidade: m, nome: REGRAS[m].nome, fonteUrl: REGRAS[m].fonteUrl, situacao: situacaoDaFonte(m, agora, conf), conferencia: conf });
     }
     res.set("Cache-Control", "private, no-store");
-    res.json({ config: await lerConfig(g.empresaId), execucao: robo, snapshotVerificadoEm: SNAPSHOT_VERIFICADO_EM, fontes });
+    res.json({
+      config: await lerConfig(g.empresaId), execucao: robo, snapshotVerificadoEm: SNAPSHOT_VERIFICADO_EM, fontes,
+      calendario: await lerEstadoCalendario(),
+      avatarMedico: await lerEstadoAvatarMedico(),
+      podeConfigurarAgendamento: await isPlatformOwner(Number(req.collaborator?.professionalId)),
+    });
   } catch (err) { falha(req, res, err, "Não foi possível carregar o painel de Meus Jogos."); }
 });
 
@@ -80,13 +87,39 @@ router.put(`${G}/config`, requireCollaborator, async (req, res): Promise<void> =
 
 router.post(`${G}/fonte/conferir`, requireCollaborator, async (req, res): Promise<void> => {
   const g = await gestor(req, res); if (!g) return;
-  try { res.json({ conferencias: await conferirFonte() }); }
+  try {
+    const resultado = await atualizarCalendarioPersistido();
+    const calendario = await lerEstadoCalendario();
+    if (!resultado.ok) {
+      res.status(503).json({ error: "A conferência não validou todas as fontes; as vendas continuam bloqueadas.", resultado, calendario });
+      return;
+    }
+    res.json({ resultado, calendario });
+  }
   catch (err) { falha(req, res, err, "Não foi possível conferir a fonte oficial."); }
+});
+
+const Agendamento = z.object({ habilitado: z.boolean(), diaSemana: z.number().int().min(0).max(6), hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) }).strict();
+router.put(`${G}/calendario/agendamento`, requireCollaborator, async (req, res): Promise<void> => {
+  const actor = Number(req.collaborator?.professionalId);
+  if (!Number.isSafeInteger(actor) || actor <= 0) { res.status(401).json({ error: "Faça login de colaborador." }); return; }
+  if (!(await isPlatformOwner(actor))) { res.status(403).json({ error: "Somente o responsável pela plataforma pode alterar a rotina global do calendário." }); return; }
+  const body = Agendamento.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Informe dia da semana, horário e estado válidos." }); return; }
+  try {
+    const saved = await gravarAgendamentoCalendario(body.data);
+    if (!saved.ok) { res.status(422).json({ error: "Agendamento inválido." }); return; }
+    res.json({ ok: true, agendamento: saved.agendamento });
+  } catch (err) { falha(req, res, err, "Não foi possível salvar a rotina do calendário."); }
 });
 
 // Fila e reconciliacao sob demanda (nao ha job agendado). Sem robo disponivel, a fila nao toca em nenhum pedido.
 router.post(`${G}/fila/processar`, requireCollaborator, async (req, res): Promise<void> => {
   const g = await gestor(req, res); if (!g) return;
+  if (req.body?.confirmarEnvio !== true) {
+    res.status(409).json({ error: "Confirme explicitamente o envio manual dos pedidos pagos ao canal de registro. Nenhum pagamento é movimentado por esta ação." });
+    return;
+  }
   try {
     const rec = await reconciliarPrazos();
     res.json({ reconciliacao: rec, fila: await processarFila() });

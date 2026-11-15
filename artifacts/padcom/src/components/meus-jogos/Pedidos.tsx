@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Check, CircleDashed, Download, Loader2, ScanSearch, XCircle } from "lucide-react";
 import { baixarComprovanteCliente, chamarMeusJogos, ErroApi } from "./api";
 import { brData, brDataHora, brl, dz, type PedidoVisto, type PassoLinha } from "./tipos";
+import AvatarComprovante from "./AvatarComprovante";
 
 // Pedidos individuais com linha do tempo. "Registrado" so aparece com comprovante oficial; "pago" so apos confirmacao do Asaas pelo servidor.
 function Passo({ p }: { p: PassoLinha }) {
@@ -48,6 +49,7 @@ function Cartao({ p, token, onMudou }: { p: PedidoVisto; token: string; onMudou:
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${p.status === "efetivado" ? "bg-emerald-600 text-white" : critico ? "bg-amber-500 text-black" : "bg-muted text-primary"}`} data-testid="mj-pedido-rotulo">{p.rotulo}</span>
       </header>
+      {p.status === "efetivado" && p.comprovante && <AvatarComprovante />}
       <ol className="flex items-start gap-1" aria-label="Andamento do pedido">{p.linhaDoTempo.map((x) => <Passo key={x.chave} p={x} />)}</ol>
       {p.falha && <p role="status" className="concave-3d rounded-lg px-3 py-2 text-xs leading-snug text-primary flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" aria-hidden="true" />{p.falha.texto}</p>}
       <ul className="space-y-1">

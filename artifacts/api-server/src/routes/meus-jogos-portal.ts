@@ -83,7 +83,7 @@ router.delete(`${P}/favoritos/:id`, async (req, res): Promise<void> => {
 });
 
 // ------------------------------------------------------------------ pedidos
-const Pedido = z.object({ modalidade: z.string(), jogos: z.array(z.array(z.number().int()).max(60)).min(1).max(20), chave: z.string() }).strict();
+const Pedido = z.object({ modalidade: z.string(), jogos: z.array(z.array(z.number().int()).max(60)).min(1).max(20), chave: z.string(), concurso: z.number().int().positive().optional() }).strict();
 const MSG_PEDIDO: Record<string, [number, string]> = {
   sem_cadastro: [404, "Cadastro não encontrado."],
   nao_membro: [403, "Meus Jogos é exclusivo de quem participa do Grupo VIP."],
@@ -99,6 +99,14 @@ const MSG_PEDIDO: Record<string, [number, string]> = {
   concurso_desconhecido: [503, "O próximo concurso oficial ainda não foi identificado."],
   fechamento_nao_informado: [503, "O horário oficial de fechamento desta modalidade ainda não foi informado pela clínica."],
   fora_do_prazo: [409, "O prazo para novos pedidos deste concurso já passou. Nenhum valor foi cobrado."],
+  calendario_indisponivel: [503, "O calendário oficial da CAIXA não está disponível para conferência."],
+  calendario_desatualizado: [503, "O calendário oficial venceu e precisa ser atualizado."],
+  dados_divergentes: [503, "A data ou o número do concurso diverge da fonte oficial."],
+  proximo_indisponivel: [503, "O próximo concurso não foi confirmado nos últimos dez minutos."],
+  precos_indisponiveis: [503, "O preço e as regras precisam ser confirmados na fonte oficial."],
+  precos_divergentes: [503, "O preço ou as regras divergiram da fonte oficial."],
+  concurso_nao_selecionado: [409, "O prazo terminou. Escolha um próximo concurso antes de criar o pedido."],
+  concurso_especial: [503, "Este concurso especial ainda não tem preço e regras de venda confirmados."],
 };
 router.post(`${P}/pedidos`, async (req, res): Promise<void> => {
   const clientId = portalClientId(req);
@@ -106,10 +114,10 @@ router.post(`${P}/pedidos`, async (req, res): Promise<void> => {
   const b = Pedido.safeParse(req.body);
   if (!b.success || !ehModalidade(b.data.modalidade)) { res.status(400).json({ error: "Informe a modalidade e os jogos." }); return; }
   try {
-    const r = await criarPedido({ clientId, modalidade: b.data.modalidade, jogos: b.data.jogos, idempotencyKey: b.data.chave });
+    const r = await criarPedido({ clientId, modalidade: b.data.modalidade, jogos: b.data.jogos, idempotencyKey: b.data.chave, concurso: b.data.concurso });
     if (r.ok) { res.status(r.repetido ? 200 : 201).json({ ok: true, id: r.id, repetido: r.repetido }); return; }
     const [s, error] = MSG_PEDIDO[r.motivo] ?? [409, "Não foi possível criar o pedido."];
-    res.status(s).json({ error, motivo: r.motivo, ...(r.pedidoId ? { pedidoId: r.pedidoId } : {}) });
+    res.status(s).json({ error: r.mensagem ?? error, motivo: r.motivo, ...(r.pedidoId ? { pedidoId: r.pedidoId } : {}), ...(r.opcoesConcurso ? { opcoesConcurso: r.opcoesConcurso } : {}) });
   } catch (err) { falha(req, res, err, "Não foi possível criar o pedido."); }
 });
 
@@ -141,6 +149,14 @@ const MSG_PAGAR: Record<string, [number, string]> = {
   execucao_indisponivel: [503, "O registro dos jogos está indisponível; o pagamento não pode ser iniciado agora."],
   fora_do_prazo: [409, "O prazo deste pedido passou. Nenhum valor foi cobrado."],
   asaas_indisponivel: [502, "Não foi possível gerar a cobrança agora. Nada foi cobrado; tente novamente."],
+  calendario_indisponivel: [503, "O calendário oficial da CAIXA está indisponível."],
+  calendario_desatualizado: [503, "O calendário oficial venceu e precisa ser atualizado."],
+  dados_divergentes: [503, "A data ou o número do concurso diverge da fonte oficial."],
+  proximo_indisponivel: [503, "O próximo concurso não foi confirmado nos últimos dez minutos."],
+  precos_indisponiveis: [503, "Preço e regras não foram confirmados na fonte oficial."],
+  precos_divergentes: [503, "O preço ou as regras divergiram da fonte oficial."],
+  concurso_desconhecido: [503, "Este concurso não consta no calendário oficial validado."],
+  concurso_especial: [503, "Este concurso especial não pode receber pagamento enquanto preço e regras não forem verificados."],
 };
 router.post(`${P}/pedidos/:id/pagar`, async (req, res): Promise<void> => {
   const clientId = portalClientId(req);

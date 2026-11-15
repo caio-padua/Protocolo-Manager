@@ -180,6 +180,41 @@ export function iniciarJobLembretes(logger: pino.Logger): void {
   );
 }
 
+/** Rotina de calendário e preços oficiais; somente leitura da CAIXA, sem pagamento ou registro de apostas. */
+export function iniciarJobCalendarioMeusJogos(logger: pino.Logger, scheduler: CronScheduler): void {
+  let rodando = false;
+  scheduler.schedule(
+    "*/15 * * * *",
+    async () => {
+      if (rodando) return;
+      rodando = true;
+      try {
+        const { ensureMeusJogosCalendarioTables, executarAtualizacaoSemanalSeDevida } = await import(
+          "../../api-server/src/lib/meus-jogos-calendario-store.js" as string
+        );
+        await ensureMeusJogosCalendarioTables();
+        const r = await executarAtualizacaoSemanalSeDevida();
+        if (r.devida && r.resultado) {
+          logger.info({
+            ok: r.resultado.ok,
+            fontes: r.resultado.fontes.length,
+            fontesInvalidas: r.resultado.fontes.filter((f: { ok: boolean }) => !f.ok).length,
+            erros: r.resultado.erros.length,
+          }, r.resultado.ok ? "Worker: calendário oficial de Meus Jogos atualizado" : "Worker: calendário de Meus Jogos não validado; vendas seguem bloqueadas");
+        }
+      } catch (err) {
+        logger.error(
+          { errorType: err instanceof Error ? err.constructor.name : typeof err, errorCategory: categorizarErroDeWorker(err) },
+          "Worker: falha na rotina do calendário de Meus Jogos"
+        );
+      } finally {
+        rodando = false;
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+}
+
 export function startWorkerJobs(
   logger: pino.Logger,
   profile: WorkerProfile = "full",
@@ -200,8 +235,9 @@ export function startWorkerJobs(
     // (app_settings atendimento.ia.modo/permitidos); com modo desligado nada é respondido.
     iniciarJobRepasseTelegram(logger, scheduler, true);
     iniciarJobConciliacaoAsaas(logger, scheduler);
+    iniciarJobCalendarioMeusJogos(logger, scheduler);
     logger.info(
-      { profile, jobs: ["telegram-relay-1min", "asaas-conciliacao-3min"] },
+      { profile, jobs: ["telegram-relay-1min", "asaas-conciliacao-3min", "meus-jogos-calendario-15min"] },
       "api-worker iniciado em perfil restrito de desenvolvimento"
     );
     return;
@@ -229,6 +265,7 @@ export function startWorkerJobs(
 
   // ─── Job 2: Lembrete por período — tick a cada minuto ───────────────────
   iniciarJobLembretes(logger);
+  iniciarJobCalendarioMeusJogos(logger, scheduler);
 
   // ─── Job 3: Receituário magistral 06h BRT ───────────────────────────────
   cron.schedule(
