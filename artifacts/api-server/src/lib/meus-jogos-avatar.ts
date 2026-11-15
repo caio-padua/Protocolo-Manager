@@ -17,7 +17,9 @@ export async function lerEstadoAvatarMedico(): Promise<EstadoAvatarMedico> {
        WHERE is_primary_doctor = TRUE AND active = TRUE
          AND photo_url IS NOT NULL AND btrim(photo_url) <> ''
     ) AS foto_no_cadastro`);
-  const fotoNoCadastro = Boolean((r as { rows: Array<{ foto_no_cadastro: boolean }> }).rows[0]?.foto_no_cadastro);
+  const fotoNoCadastro = Boolean(
+    (r.rows[0] as Record<string, unknown> | undefined)?.foto_no_cadastro,
+  );
   return {
     fotoNoCadastro,
     acessoAoArquivo: "nao_verificado",
