@@ -1,4 +1,4 @@
-import { HeartHandshake, MailCheck, Sparkles, Ticket } from "lucide-react";
+import { Dices, HeartHandshake, MailCheck, Sparkles, Ticket } from "lucide-react";
 import { GrupoVipAdesao } from "@/components/GrupoVipConexao";
 import {
   AREAS_BENEFICIO, BENEFICIOS_NOTA, CLUB_VIP_COMO_FUNCIONA, CLUB_VIP_SUBTITULO, CLUB_VIP_TITULO,
@@ -97,7 +97,37 @@ function ConvitesEspeciais({ onAbrirBoloes }: { onAbrirBoloes: () => void }) {
   );
 }
 
-export default function ClubVipCliente({ onAbrirBoloes, token }: { onAbrirBoloes: () => void; token: string }) {
+// MEUS JOGOS: jogos individuais, escolhidos pelo proprio cliente. Cartao SEPARADO da Conexao Milionaria (boloes coletivos).
+function MeusJogosCartao({ onAbrir }: { onAbrir: () => void }) {
+  return (
+    <section className="panel-3d rounded-xl overflow-hidden" aria-label="Meus Jogos" data-testid="club-vip-meus-jogos">
+      <div className="login-card-topbar flex items-center gap-2 px-4 py-3">
+        <Dices className="w-4 h-4 text-accent" aria-hidden="true" />
+        <h3 className="text-primary text-xs font-black uppercase tracking-widest">Meus Jogos</h3>
+      </div>
+      <div className="p-3">
+        <article className="panel-3d-sub rounded-xl p-4 space-y-3">
+          <div className="min-w-0">
+            <h4 className="text-primary font-black text-lg uppercase tracking-wide" style={{ fontFamily: "'EB Garamond', serif" }}>O seu jogo, do seu jeito</h4>
+            <p className="text-accent text-[10px] font-black uppercase tracking-widest">Mega-Sena · Lotofácil · Quina · Lotomania</p>
+          </div>
+          <p className="text-primary leading-relaxed" style={{ fontFamily: "'EB Garamond', serif", fontSize: 16 }}>
+            Marque as suas dezenas no volante, veja o preço oficial na hora e acompanhe cada pedido até o comprovante.
+          </p>
+          <p className="concave-3d rounded-lg px-3 py-2.5 text-muted-foreground text-xs leading-relaxed">
+            Jogos individuais, separados dos bolões. Preços e regras seguem a CAIXA; o pedido só vale como registrado com o comprovante oficial.
+          </p>
+          <button type="button" onClick={onAbrir} data-testid="club-vip-cta-meus-jogos"
+            className="btn-3d-soft w-full flex items-center justify-center gap-2 min-h-[48px] px-3 text-xs font-black uppercase tracking-wider">
+            <Dices className="w-4 h-4" aria-hidden="true" /> Abrir Meus Jogos
+          </button>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+export default function ClubVipCliente({ onAbrirBoloes, onAbrirMeusJogos, token }: { onAbrirBoloes: () => void; onAbrirMeusJogos: () => void; token: string }) {
   return (
     <div className="space-y-4" data-testid="club-vip">
       <header className="panel-3d rounded-xl overflow-hidden">
@@ -112,6 +142,7 @@ export default function ClubVipCliente({ onAbrirBoloes, token }: { onAbrirBoloes
       <ComoFunciona />
       <GrupoVipAdesao token={token} />
       <SecaoBeneficios />
+      <MeusJogosCartao onAbrir={onAbrirMeusJogos} />
       <ConvitesEspeciais onAbrirBoloes={onAbrirBoloes} />
     </div>
   );

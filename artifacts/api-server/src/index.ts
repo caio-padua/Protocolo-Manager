@@ -13,6 +13,7 @@ import { ensureExamesAvulsosTable } from "./lib/exames-avulsos.js";
 import { ensureAsaasTesteTable } from "./lib/asaas-teste-cobrancas.js";
 import { ensureAsaasConciliacaoTables } from "./lib/asaas-conciliacao.js";
 import { ensureBoloesTables } from "./lib/boloes.js";
+import { ensureMeusJogosTables } from "./lib/meus-jogos.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
@@ -125,6 +126,13 @@ if (Number.isNaN(port) || port <= 0) {
     await ensureBoloesTables();
   } catch (e) {
     logger.error({ err: e }, "Falha ao criar tabelas de boloes — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureMeusJogosTables();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao criar tabelas de Meus Jogos — abortando boot");
     process.exit(1);
   }
 

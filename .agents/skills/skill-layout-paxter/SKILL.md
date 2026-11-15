@@ -997,3 +997,9 @@ apresentacao muda, o motor nunca.
 2. Compromisso = tom pastel da cor da agenda + moldura fina da MESMA cor + relevo para fora (luz no topo, assentamento embaixo). Faixa lateral ("giz") proibida. Google = mesma moldura + hachura fina.
 3. "Agora" e o som moram no canto superior esquerdo da grade (coluna das horas), sem linha propria; a faixa de cima so existe quando ha proximo atendimento.
 4. Barra de agendas: sem contador "N de N" e sem indicador de ocultas; botao apagado ja mostra o que esta desligado; "Mostrar todas" fica no painel do +.
+
+### Padrao 45 - Volante por toque (Meus Jogos)
+1. Dezena = botao redondo de no minimo 44 x 44 px (classe mj-bola), grade auto-fill sem rolagem horizontal; marcada = aro dourado + miolo dourado afundado + selo de visto no canto (nunca so cor), aria-pressed e foco visivel.
+2. Volante dentro de um poco concavo (concave-3d); faixa de selecao fica em painel-3d-sub fixada acima da barra inferior: dezenas marcadas, quantidade, texto de ajuda e preco em EB Garamond. Preco vem sempre do servidor; sem preco oficial = "—".
+3. Resultado sorteado = bola dourada pequena (mj-bola-resultado), so leitura. Estado de pedido = linha do tempo de 5 passos com icone + rotulo + texto para leitor de tela.
+4. Acoes em 2 colunas (Limpar/Aleatorio, Favorito/Ao pedido), alvo minimo 44 px; confirmacao em duas etapas com texto claro; botao desativado mostra o motivo escrito ao lado.

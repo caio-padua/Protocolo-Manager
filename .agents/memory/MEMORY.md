@@ -196,3 +196,4 @@
 - [Club VIP x Minha Categoria](club-vip-minha-categoria-separacao.md) — categoria comercial NUNCA no Club VIP; Conexão Milionária = convite de bolões que só navega para Meus Bolões.
 - [Grupo VIP e Conexão Milionária](grupo-vip-conexao-milionaria.md) — independente da categoria; convite só registro; efetivado só com comprovante; cobrança Asaas só leitura; CAIXA pendente.
 - [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo cliente.
+- [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem robô = 503 e pedido não aceito; pago só via Asaas, efetivado só com comprovante; fechamento oficial é dado do gestor.

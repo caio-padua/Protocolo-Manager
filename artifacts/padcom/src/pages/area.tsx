@@ -22,6 +22,7 @@ import ExamesAvulsosCliente from "@/components/ExamesAvulsosCliente";
 import { GrupoVipBoloes } from "@/components/GrupoVipConexao";
 import MeusBoloesCliente from "@/components/MeusBoloesCliente";
 import ClubVipCliente from "@/components/ClubVipCliente";
+import MeusJogosCliente from "@/components/meus-jogos/MeusJogosCliente";
 import MinhaCategoriaCliente from "@/components/MinhaCategoriaCliente";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -104,7 +105,7 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes";
+           | "duvidas" | "suporte" | "evolucao" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes" | "meusjogos";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -243,7 +244,7 @@ export default function Area() {
         {tab === "enviar"     && <EnviarTab     client={client} />}
         {tab === "minhacategoria" && <MinhaCategoriaCliente token={client.token} />}
         {tab === "clubvip" && (
-          <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} />
+          <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} onAbrirMeusJogos={() => setTab("meusjogos")} />
         )}
         {tab === "comunicacao" && <ComunicacaoTab client={client} />}
         {tab === "boloes" && (
@@ -254,6 +255,15 @@ export default function Area() {
             </button>
             <GrupoVipBoloes token={client.token} />
             <MeusBoloesCliente token={client.token} />
+          </div>
+        )}
+        {tab === "meusjogos" && (
+          <div className="space-y-3">
+            <button onClick={() => setTab("clubvip")}
+              className="text-accent text-[10px] font-black uppercase tracking-widest underline-offset-4 hover:underline min-h-[44px]">
+              ← Voltar ao Grupo VIP
+            </button>
+            <MeusJogosCliente token={client.token} />
           </div>
         )}
         {tab === "evolucao"   && (

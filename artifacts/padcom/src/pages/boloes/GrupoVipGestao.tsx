@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useListClients } from "@workspace/api-client-react";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { Crown, Loader2, ShieldAlert, Ticket } from "lucide-react";
+import MeusJogosGestao from "./MeusJogosGestao";
 
 // Aba "Grupo VIP" da Central de Bolões (gestor). Convite e adesão são voluntários e só o cliente aceita (no portal).
 // Nada aqui cria cobrança, chama Asaas ou CAIXA, envia mensagem, compra ou aposta. Cobrança só se VINCULA quando já existe
@@ -240,6 +241,7 @@ export default function GrupoVipGestao({ chamar, partes, campanhas, ocupado, exe
             onNatureza={(cid, natureza) => void rodar(`nt${cid}`, () => chamar(`/comprovantes/${cid}/natureza`, { method: "POST", json: { natureza } }), "Tipo do comprovante registrado.")} />
         ))}
       </Bloco>
+      <MeusJogosGestao />
     </div>
   );
 }

@@ -1882,3 +1882,34 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .legenda-respira { animation: none; opacity: 1; }
 }
+
+/* ---- Meus Jogos: bola do volante (Padrao 45). Selecao nunca depende so de cor: aro dourado + marca de visto. ---- */
+.mj-bola {
+  position: relative; min-width: 44px; min-height: 44px; border-radius: 9999px; cursor: pointer;
+  font-family: Inter, system-ui, sans-serif; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary)); border: 1px solid hsl(var(--border));
+  background: linear-gradient(180deg, hsl(var(--card)), hsl(var(--muted)));
+  box-shadow: 0 2px 0 hsl(var(--primary) / 0.22), inset 0 1px 0 hsl(0 0% 100% / 0.55);
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.mj-bola:hover { transform: translateY(-1px); }
+.mj-bola[aria-pressed="true"] {
+  color: hsl(var(--accent-foreground)); border-color: hsl(var(--accent));
+  background: radial-gradient(circle at 35% 28%, hsl(39 62% 70%), hsl(var(--accent)) 55%, hsl(39 41% 36%));
+  box-shadow: inset 0 2px 4px hsl(0 0% 0% / 0.35), 0 0 0 3px hsl(var(--accent) / 0.45);
+  transform: translateY(1px);
+}
+.mj-bola[aria-pressed="true"]::after {
+  content: "\2713"; position: absolute; top: -4px; right: -2px; width: 16px; height: 16px; border-radius: 9999px;
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 10px; line-height: 16px; text-align: center;
+}
+.mj-bola:focus-visible { outline: 3px solid hsl(var(--ring)); outline-offset: 2px; }
+.mj-bola:disabled { opacity: .45; cursor: not-allowed; }
+.mj-bola-resultado {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9999px;
+  font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; color: hsl(var(--accent-foreground));
+  background: radial-gradient(circle at 35% 28%, hsl(39 62% 70%), hsl(var(--accent)) 55%, hsl(39 41% 36%));
+  box-shadow: inset 0 -2px 3px hsl(0 0% 0% / 0.25), 0 1px 0 hsl(var(--primary) / 0.3);
+}
+@media (prefers-reduced-motion: reduce) { .mj-bola { transition: none; } .mj-bola:hover { transform: none; } }
