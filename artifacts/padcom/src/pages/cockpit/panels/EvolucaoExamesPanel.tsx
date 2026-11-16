@@ -398,6 +398,23 @@ function ColunaCabecalho({
 }
 
 // ----------------------------------------------------- cartão de gráfico ------
+// Mede em pixels o maior rótulo do eixo Y (fonte de 10 px do gráfico).
+const EIXO_Y_FOLGA = 8; // tickSize 2 + tickMargin 2 + 4 px de respiro (sem truncar)
+let _canvasMedida: CanvasRenderingContext2D | null | undefined;
+function medirRotuloEixo(rotulos: string[]): number {
+  if (_canvasMedida === undefined) {
+    _canvasMedida = typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
+  }
+  const ctx = _canvasMedida;
+  let maior = 0;
+  for (const r of rotulos) {
+    const w = ctx
+      ? ((ctx.font = "10px Inter, system-ui, sans-serif"), ctx.measureText(r).width)
+      : r.length * 6.2;
+    if (w > maior) maior = w;
+  }
+  return Math.ceil(maior);
+}
 function CartaoGrafico({
   analyte,
   columns,
@@ -530,6 +547,13 @@ function CartaoGrafico({
   }, [serie.length]);
   const fmtEixo = (v: number) =>
     dominio.max - dominio.min >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(".", ",");
+  // Faixa do eixo Y MEDIDA pelo maior rótulo possível (extremos do domínio e
+  // das faixas, com sinal e decimais) em vez de um valor fixo de 44 px.
+  const larguraEixoY = useMemo(() => {
+    const amostras = [dominio.min, dominio.max, ...data.map((d) => d.valor)].map(fmtEixo);
+    return medirRotuloEixo(amostras) + EIXO_Y_FOLGA;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dominio, data]);
 
   // Ponto sob o mouse (pedido do CEO 24/07/2026): NADA de janelinha em cima
   // do gráfico — o valor aparece na barra inferior, mudando conforme o mouse
@@ -624,7 +648,9 @@ function CartaoGrafico({
                   tick={{ fill: MUTED, fontSize: 10 }}
                   tickLine={false}
                   axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
-                  width={44}
+                  width={larguraEixoY}
+                  tickSize={2}
+                  tickMargin={2}
                   tickFormatter={fmtEixo}
                   domain={[dominio.min, dominio.max]}
                 />
@@ -836,6 +862,21 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [selecionados, setSelecionados] = useState<string[]>([]);
+  // Largura REAL visível da moldura da planilha (sem a barra de rolagem): o
+  // cartão "abaixo da linha" nunca pode ser mais largo que ela, senão a borda
+  // direita é recortada pelo overflow-x da moldura.
+  const roMolduraRef = useRef<ResizeObserver | null>(null);
+  const [larguraMoldura, setLarguraMoldura] = useState<number | null>(null);
+  const planilhaRef = useCallback((el: HTMLDivElement | null) => {
+    roMolduraRef.current?.disconnect();
+    roMolduraRef.current = null;
+    if (!el) return;
+    const medir = () => setLarguraMoldura(el.clientWidth);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    roMolduraRef.current = ro;
+  }, []);
   const [mostrarFaixas, setMostrarFaixas] = useState(true);
   // ── Upload admin de PDF ──────────────────────────────────────────────────
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -1169,7 +1210,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       </div>
 
       {/* planilha com rolagem lateral; nome + colunas fixadas grudam à esquerda */}
-      <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+      <div ref={planilhaRef} className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
         <div className="min-w-max">
           {/* cabeçalho — z-[30] + relative: garante que o header row pinta
               acima de TODAS as linhas de dados (panel-3d-sub com GPU layer
@@ -1288,7 +1329,11 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                     sticky à esquerda para o gráfico ficar visível mesmo com a
                     planilha rolada para o lado. */}
                 {layout === "linha" && selecionada && (
-                  <div className="sticky left-0 w-[calc(100vw_-_44px)] py-2 md:w-[min(760px,calc(100vw_-_340px))]">
+                  <div
+                    className="sticky left-0 box-border py-2 px-[3px]"
+                    style={{ width: larguraMoldura == null ? "calc(100vw - 44px)" : Math.min(larguraMoldura, 766) }}
+                    data-evolucao-cartao
+                  >
                     <CartaoGrafico
                       analyte={a}
                       columns={columnsRaw}
