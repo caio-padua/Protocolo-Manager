@@ -45,3 +45,29 @@ Regras permanentes de todas as SPECs abaixo: publicidade e catálogo DESATIVADOS
 
 Ordem: 7 (TEX) -> 8 -> 9 -> 10 -> 11 -> 12 -> 14 -> 15 -> 16 -> 17 -> 13 (Kaizen consolida tudo) -> 5 -> 6. Regressão obrigatória em cada SPEC: TEX, Telegram, exames e prescrições.
 
+## REGRA GLOBAL DE DEFINIÇÃO DE PRONTO (ordem de 16/11/2026, vale para toda SPEC que cria funcionalidade de negócio)
+Nenhuma SPEC pode ficar TESTADA ou apta a homologação sem TODOS os itens: (1) entrada no menu lateral esquerdo do sistema principal (ou submenu de categoria clara); (2) rota real; (3) tela com dado persistido; (4) permissões corretas; (5) formulário e ações funcionais; (6) estados vazio, carregando e erro; (7) responsividade; (8) teste de navegação, incluindo a Área do Cliente quando aplicável; (9) teste de autorização, com casos negativos. Proibidos: botão decorativo, tela fictícia, só backend, só índice.
+Só backend, shell ou placeholder = NÃO IMPLEMENTADO. Funcionalidade existente sem tela, rota ou menu = PENDENTE, nunca pronta.
+Visibilidade: o catálogo completo de módulos aparece no menu do superadmin, com visibilidade individual por permissão; operador comum não vê menu não autorizado; o cliente vê só módulos contratados ou contratáveis, sem dado clínico de terceiros; perfis clínico e comercial não se misturam.
+Controle: `MATRIZ-COBERTURA.md` (demanda, SPEC, menu, rota, tela admin, tela do cliente, backend, persistência, teste, evidência, status). A tela "PAXTERLOOP · Auditoria de módulos" no menu lateral é a SPEC 20.
+
+## Correção do índice (16/11/2026)
+| Nº | SPEC | Estado | Depende de | Observação |
+|---|---|---|---|---|
+| 18 | Convite de médicos e estabelecimentos ("Convites de Médicos"): paciente ou membro indica médico externo já identificado por ele; contatos e opt-in; sem dado clínico do paciente no convite; funil comercial | FILA | 8 | NÃO IMPLEMENTADO |
+| 19 | Participações e repasses: simulador percentual (0% a 100%), denominador bruto/líquido, credor, destinatário, CNPJ, taxa, impostos, vigência/versão, autorização, motivo; contratos independentes; bloqueio de comissão por prescrição, compra de medicamento, consulta ou encaminhamento; sem divisão real no Asaas | FILA | 8 e 17 | NÃO IMPLEMENTADO; "50%" só como rascunho de simulação |
+| 20 | PAXTERLOOP · Auditoria de módulos: tela de superadmin que exibe a matriz de cobertura | FILA | nenhuma | NÃO IMPLEMENTADO |
+
+Arquitetura de produto (ordem de 16/11/2026): (A) PAXMED Clínicas B2B; (B) operação clínica com dado sob clínica; (C) PAXMED Member B2C independente, com login e assinatura próprios, pessoa que pode nunca ter sido paciente. Fronteiras planejadas: identidade e autenticação; cadastro comercial Member; vínculo clínico; prescrições e medicações pessoais; mensagens; catálogo; cobrança e recebedores; auditoria. Chave de pessoa segura, memberships distintos, vínculos múltiplos só por autorização. Categoria Member nunca aparece no Cockpit; categorias Prata/Ouro/Platinum/Diamond não se confundem com planos Member. Equipe comercial não acessa exame, diagnóstico, prescrição nem tratamento. Módulos desmembráveis no futuro, com migrações reversíveis, sem banco paralelo.
+
+## Decisões comerciais PENDENTES (campos configuráveis DESABILITADOS por padrão; nada ativado)
+| Nº | Decisão | Estado |
+|---|---|---|
+| D1 | Base (bruto ou líquido) e destinatário do percentual de 50% | PENDENTE |
+| D2 | Teto do desconto na mensalidade da clínica | PENDENTE |
+| D3 | Contrato e cláusulas da participação e do desconto | PENDENTE, depende do advogado |
+| D4 | Nome final TEX ou DEEx | PENDENTE. Conserva-se TEX; DEEx é alias em discussão; sem renomeação em massa |
+| D5 | Quem é o "gestor comercial" PAXMED (papel e permissões) | PENDENTE |
+| D6 | Modelo de receituário vigente em produção; zona institucional de referência no TEX | PENDENTE |
+Nota jurídica: o que foi dito sobre a legalidade dos repasses e descontos é opinião simulada. Não consta como validado juridicamente.
+

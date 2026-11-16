@@ -1,6 +1,6 @@
 # SPEC 7 — TEX: Descritivo de Evolução de Exames
 
-Estado: EM EXECUÇÃO (fatia 1 de 5 pronta e testada). Não HOMOLOGADO. Data: 16/11/2026.
+Estado: EM EXECUÇÃO (fatias 1 e 2 testadas em MOCK; a fatia 2 é só backend, sem tela nem menu: pela regra global de pronto a SPEC NÃO está pronta). Nome: TEX; DEEx é alias em discussão. Não HOMOLOGADO. Data: 16/11/2026.
 
 ## Fatias
 | Fatia | Conteúdo | Estado |
