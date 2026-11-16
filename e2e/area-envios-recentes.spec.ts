@@ -12,7 +12,7 @@ const et = (estados: Array<"pendente" | "executando" | "concluido" | "falhou">, 
   const base = [["arquivo_recebido", "Arquivo recebido"], ["leitura_preliminar", "Leitura preliminar"], ["dados_extraidos", "Dados extraídos"], ["identidade_validada", "Identificação validada"], ["revisao_c1", "Revisão C1"], ["revisao_c2", "Revisão C2"]];
   return base.map(([chave, rotulo], i) => ({ chave, rotulo, estado: estados[i], em: estados[i] === "concluido" ? ISO : null, metodo: chave === "identidade_validada" && estados[i] === "concluido" ? metodoId : null }));
 };
-const AV = { rotulo: "Etapa avançada — configuração pendente", estado: "pendente" };
+const AV = { rotulo: "Cérebro e sinapses (medicina de alta precisão) — configuração pendente", estado: "pendente" };
 const ENVIOS = [
   { id: 3, arquivo: "hemograma-sintetico-em-andamento.pdf", enviadoEm: ISO, etapa: "identidade", situacao: "Em conferência pela equipe", finalizado: false, analitos: 0, percentual: 50, etapas: et(["concluido", "concluido", "concluido", "pendente", "pendente", "pendente"]), etapaAvancada: AV },
   { id: 2, arquivo: "perfil-sintetico-validado.pdf", enviadoEm: ISO, etapa: "concluido", situacao: "Concluído", finalizado: true, analitos: 12, percentual: 100, etapas: et(["concluido", "concluido", "concluido", "concluido", "concluido", "concluido"]), etapaAvancada: AV },
@@ -26,6 +26,7 @@ async function preparar(page: Page, envios: unknown, status = 200) {
     const req = r.request(); const u = new URL(req.url()).pathname;
     if (req.method() !== "GET") escritas.push(`${req.method()} ${u}`);
     if (u.endsWith("/exames/envios")) return r.fulfill(json(envios, status));
+    if (u.endsWith("/exames/evolucao")) return r.fulfill(json({ columns: [], analytes: [], zones: [] }));
     if (u.endsWith("/protocolos")) return r.fulfill(json(PROTO));
     if (u.endsWith("/resumo")) return r.fulfill(json({ client: { name: "Maria Sintética" }, protocolsCount: 0, activeProtocolsCount: 0, totalSessions: 0, completedSessions: 0, nextSession: null }));
     return r.fulfill(json([]));
@@ -38,7 +39,7 @@ async function semRolagemHorizontal(page: Page) {
 }
 async function abrirEnviar(page: Page) {
   await page.goto(URL_AREA);
-  await page.locator("nav").getByRole("button", { name: /ENVIAR/ }).click({ timeout: 20000 });
+  await page.locator("nav").getByRole("button", { name: /UPLOAD EXAMES/ }).click({ timeout: 20000 });
 }
 
 for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop", width: 1280, height: 900 }]) {
@@ -48,7 +49,7 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
     test("ordem: formulário de envio acima de ENVIOS RECENTES; cartões do mais novo ao mais antigo", async ({ page }) => {
       await preparar(page, ENVIOS);
       await abrirEnviar(page);
-      const form = page.getByText("ENVIAR ARQUIVO", { exact: true }).first();
+      const form = page.getByText("UPLOAD DE EXAMES", { exact: true }).first();
       const painel = page.getByTestId("painel-envios-recentes");
       await expect(painel).toBeVisible({ timeout: 15000 });
       const yForm = (await form.boundingBox())!.y, yPainel = (await painel.boundingBox())!.y;
@@ -67,13 +68,13 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       const c3 = page.getByTestId("envio-3"), c2 = page.getByTestId("envio-2"), c1 = page.getByTestId("envio-1");
       await expect(c3).toContainText("50%"); await expect(c3).toContainText("3 de 6 etapas");
       await expect(c3.getByTestId("etapa-3-identidade_validada")).toContainText("Pendente");
-      await expect(c3.getByTestId("etapa-3-avancada")).toContainText("Etapa avançada — configuração pendente");
+      await expect(c3.getByTestId("etapa-3-avancada")).toContainText("Cérebro e sinapses (medicina de alta precisão) — configuração pendente");
       await expect(c3).not.toContainText("100%");
       await expect(c2).toContainText("100%");
       await expect(c2).toContainText("Validado");
       await expect(c1.getByTestId("etapa-1-leitura_preliminar")).toContainText("Falhou");
       await expect(c1).toContainText("Envie uma versão mais nítida");
-      await expect(page.getByText(/sinapses|fisiologia/i)).toHaveCount(0);
+      await expect(page.getByText(/em breve/i)).toHaveCount(0);
     });
 
     test("hover provisório aparece só em 100% e o cartão 100% não mostra a etapa avançada", async ({ page }) => {
@@ -108,7 +109,19 @@ test("referência: barra do envio usa a mesma barra segmentada do protocolo do p
   const nProto = await page.locator(".paxter-bar-track").count();
   expect(nProto).toBeGreaterThan(0);
   await page.screenshot({ path: "specs/paxterloop/evidencias/envios/referencia-protocolo-celular.png", fullPage: true });
-  await page.locator("nav").getByRole("button", { name: /ENVIAR/ }).click();
+  await page.locator("nav").getByRole("button", { name: /UPLOAD EXAMES/ }).click();
   await expect(page.getByTestId("envio-3")).toBeVisible({ timeout: 15000 });
   expect(await page.getByTestId("envio-3").locator(".paxter-bar-track").count()).toBe(6);
+});
+
+test("o painel de envios também aparece na aba EVOLUÇÃO, acima dos gráficos", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await preparar(page, ENVIOS);
+  await page.goto(URL_AREA);
+  await page.locator("nav").getByRole("button", { name: /EVOLUÇÃO/ }).click({ timeout: 20000 });
+  const painel = page.getByTestId("painel-envios-recentes");
+  await expect(painel).toBeVisible({ timeout: 15000 });
+  await expect(painel.getByTestId("envio-2")).toContainText("100%", { timeout: 20000 });
+  await semRolagemHorizontal(page);
+  await page.screenshot({ path: "specs/paxterloop/evidencias/envios/evolucao-celular.png", fullPage: false });
 });

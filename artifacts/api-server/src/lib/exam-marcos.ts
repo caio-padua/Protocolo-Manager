@@ -104,5 +104,5 @@ export function montarMarcosEnvio(e: EntradaMarcos): MarcosEnvio {
   const concluidas = etapas.filter((x) => x.estado === "concluido").length;
   // 100% exige as seis etapas com evidência E status final real.
   const percentual = concluidas === etapas.length && c2Feita ? 100 : Math.min(99, Math.round((concluidas / etapas.length) * 100));
-  return { etapas, percentual, concluidas, total: etapas.length, etapaAvancada: { rotulo: "Etapa avançada — configuração pendente", estado: "pendente" } };
+  return { etapas, percentual, concluidas, total: etapas.length, etapaAvancada: { rotulo: "Cérebro e sinapses (medicina de alta precisão) — configuração pendente", estado: "pendente" } };
 }

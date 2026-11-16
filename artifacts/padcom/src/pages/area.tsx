@@ -112,7 +112,7 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "protocolos", label: "PROTOCOLOS",  icon: Syringe },
   { key: "agenda",     label: "AGENDA",      icon: CalendarDays },
   { key: "documentos", label: "DOCUMENTOS",  icon: FileText },
-  { key: "enviar",     label: "ENVIAR",      icon: Upload },
+  { key: "enviar",     label: "UPLOAD EXAMES", icon: Upload },
   { key: "duvidas",    label: "DÚVIDAS",     icon: HelpCircle },
   { key: "suporte",    label: "SUPORTE",     icon: MessageCircle },
   { key: "evolucao",   label: "EVOLUÇÃO",    icon: TrendingUp },
@@ -268,6 +268,7 @@ export default function Area() {
         )}
         {tab === "evolucao"   && (
           <div className="space-y-6">
+            <EnviosRecentesPanel token={client.token} />
             <EvolucaoExamesPanel clientId={client.id} portalToken={client.token} />
             <PlanilhaComparativaPortal token={client.token} />
           </div>
@@ -2173,7 +2174,7 @@ function EnviarTabForm({ client }: { client: ClientInfo }) {
       {/* TOP BAR */}
       <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
         <FileUp className="w-5 h-5 text-accent" />
-        <h2 className="text-primary font-black text-sm uppercase tracking-widest">ENVIAR ARQUIVO</h2>
+        <h2 className="text-primary font-black text-sm uppercase tracking-widest">UPLOAD DE EXAMES</h2>
       </div>
       <div className="p-5 space-y-4">
         <div>

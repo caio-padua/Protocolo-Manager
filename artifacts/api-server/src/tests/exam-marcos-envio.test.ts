@@ -55,7 +55,7 @@ describe("marcos do envio de exame", () => {
   });
   it("etapa avançada é rótulo neutro e nunca entra no percentual", () => {
     const r = montarMarcosEnvio(base());
-    expect(r.etapaAvancada).toEqual({ rotulo: "Etapa avançada — configuração pendente", estado: "pendente" }); expect(r.total).toBe(6);
+    expect(r.etapaAvancada).toEqual({ rotulo: "Cérebro e sinapses (medicina de alta precisão) — configuração pendente", estado: "pendente" }); expect(r.total).toBe(6);
   });
   it("trilha temporal ISO e sem dado pessoal no método", () => {
     const r = montarMarcosEnvio(base({ marcos: { leitura_preliminar: { estado: "concluido", em: T(1) } } }));

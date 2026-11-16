@@ -49,7 +49,7 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       expect(rotulos[cat - 1]).toContain("EVOLUÇÃO");
       expect(rotulos[club + 1]).toContain("COMUNICAÇÃO");
       // Menu antigo preservado.
-      for (const r of ["INÍCIO", "PROTOCOLOS", "AGENDA", "DOCUMENTOS", "ENVIAR", "DÚVIDAS", "SUPORTE"]) {
+      for (const r of ["INÍCIO", "PROTOCOLOS", "AGENDA", "DOCUMENTOS", "UPLOAD EXAMES", "DÚVIDAS", "SUPORTE"]) {
         expect(rotulos.some((t) => t.includes(r))).toBe(true);
       }
     });

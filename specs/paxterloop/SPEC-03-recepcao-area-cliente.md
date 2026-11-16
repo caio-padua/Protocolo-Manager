@@ -52,7 +52,7 @@ Decisão: o envio reutiliza SegmentedBar e a gramática do ProtocolCard. Barra H
 | 5 | Revisão C1 | conf1_at preenchido |
 | 6 | Revisão C2 | status "conferido" (única via: rota de conferência exige C1 prévio e médico ativo com vínculo) |
 Regras: percentual = etapas concluídas / 6; 100% só com as seis; "recebido" não prova identidade; envio anterior ao rastreio só conclui etapas 2 e 3 se houver resultados gravados, com a nota "Envio anterior ao rastreio". Tabela nova aditiva exam_document_marcos (reversível com DROP TABLE; nada depende dela). Falha em gravar marco nunca derruba o processamento.
-"Etapa avançada — configuração pendente": rótulo neutro (não conta no percentual, sem indicador de processamento). A etapa "sinapses e fisiologia" não tem mecanismo comprovado: NÃO IMPLEMENTADA.
+"Cérebro e sinapses (medicina de alta precisão) — configuração pendente": rótulo neutro (não conta no percentual, sem indicador de processamento). A etapa "sinapses e fisiologia" não tem mecanismo comprovado: NÃO IMPLEMENTADA.
 Atualização: consulta periódica a cada 4 s ao servidor (não é tempo real); o texto da tela diz isso.
 Privacidade: o portal recebe só rótulo do método e horários; sem CPF, sem nome de profissional; endpoint filtra pelo token do portal (cliente) e pelo client_id nas verificações.
 
