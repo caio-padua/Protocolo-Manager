@@ -1,3 +1,4 @@
+import { registrarMarcoExame } from "../lib/exam-marcos";
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
 import {
@@ -251,7 +252,10 @@ async function finalizeDocumentWithPipeline(
 export async function processExamDocument(job: IngestJobInput): Promise<void> {
   const { documentId, clientId, buffer, fileName } = job;
   try {
+    void registrarMarcoExame(documentId, "leitura_preliminar", "executando");
     const pdfText = await extractPdfText(buffer);
+    await registrarMarcoExame(documentId, "leitura_preliminar", "concluido", { caracteres: pdfText.text.length });
+    await registrarMarcoExame(documentId, "dados_extraidos", "executando");
 
     // Lê configuração de LLMs ativos (fire todos em paralelo para latência mínima)
     const [geminiSetting, claudeSetting, openaiSetting] = await Promise.all([
@@ -374,6 +378,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     }
     const data = mergedData;
     const modelUsed = primaryModel;
+    await registrarMarcoExame(documentId, "dados_extraidos", "concluido", { leituras: candidatos.length, analitos: data.analytes.length });
     const conflitoPaciente = llmPipeline.some(
       (s) => s.provider === "reconciliacao" && (s.detalhe as { conflitoDePaciente?: boolean } | undefined)?.conflitoDePaciente === true,
     );
@@ -400,6 +405,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
   } catch (err) {
     const message = (err as Error).message ?? "erro desconhecido";
     console.error(`[ExamesLab] doc ${documentId}: ERRO no processamento: ${message}`);
+    await registrarMarcoExame(documentId, "processamento", "falhou");
     await markDocumentError(documentId, message).catch(() => undefined);
   }
 }

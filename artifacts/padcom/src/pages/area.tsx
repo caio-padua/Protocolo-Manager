@@ -2273,10 +2273,91 @@ function EnviarTabForm({ client }: { client: ClientInfo }) {
 }
 
 // ---------------------------------------------------------------------------
-// TERCEIRO PAINEL: ENVIOS RECENTES (progresso real por etapa, derivado do status gravado no servidor)
+// TERCEIRO PAINEL: ENVIOS RECENTES (SPEC 3, adendo de 16/11/2026)
+// Mesma gramática do ProtocolCard do paciente: panel-3d + topbar + grade MetaField + "PROGRESSO" + SegmentedBar.
+// Etapas e percentual vêm do servidor, uma etapa só é "concluída" com evidência gravada (nada inferido aqui).
+// Atualização PERIÓDICA (consulta a cada 4 s ao servidor), não é transmissão em tempo real.
 // ---------------------------------------------------------------------------
-const ETAPAS_ENVIO = ["UPLOAD REALIZADO", "ANÁLISE PRELIMINAR", "ANÁLISE DE DADOS", "NOME DO CLIENTE CONFERE", "SINAPSES E FISIOLOGIA"];
-type EnvioItem = { id: number; arquivo: string; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; fase: number; fasesTotal: number; analitos: number };
+type EtapaEnvioUi = { chave: string; rotulo: string; estado: "pendente" | "executando" | "concluido" | "falhou"; em: string | null; metodo: string | null };
+type EnvioItem = {
+  id: number; arquivo: string; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; analitos: number;
+  percentual: number; etapas: EtapaEnvioUi[]; etapaAvancada: { rotulo: string; estado: "pendente" };
+};
+const ESTADO_ETAPA_TXT: Record<EtapaEnvioUi["estado"], { t: string; cls: string }> = {
+  pendente: { t: "Pendente", cls: "text-muted-foreground" },
+  executando: { t: "Executando", cls: "text-cyan-500" },
+  concluido: { t: "Concluído", cls: "text-green-500" },
+  falhou: { t: "Falhou", cls: "text-red-600" },
+};
+function fmtEm(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function EnvioCard({ e }: { e: EnvioItem }) {
+  const [aberto, setAberto] = useState(e.percentual !== 100);
+  const pronto = e.percentual === 100;
+  const falhou = e.etapas.some((x) => x.estado === "falhou") || e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
+  const concluidas = e.etapas.filter((x) => x.estado === "concluido").length;
+  const estadoTxt = e.etapa === "erro" ? "Falha na leitura" : e.etapa === "identidade" && e.finalizado ? "Não incorporado" : pronto ? "Validado" : e.situacao;
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden group" tabIndex={0} data-testid={`envio-${e.id}`}>
+      <div className="login-card-topbar px-4 pt-4 pb-3">
+        <h3 className="text-primary font-black text-sm leading-snug break-words">{e.arquivo}</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-2 p-4 pb-3">
+        <MetaField label="ENVIADO EM" value={fmtEm(e.enviadoEm)} />
+        <MetaField label="SITUAÇÃO" value={<span className={`font-black text-xs ${falhou ? "text-red-600" : pronto ? "text-green-500" : "text-cyan-500"}`}>{estadoTxt}</span>} />
+      </div>
+      <div className="px-4 pb-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
+          <span className={`text-xs font-black ${falhou ? "text-red-600" : "text-accent"}`}>{e.percentual}%</span>
+        </div>
+        <SegmentedBar completed={concluidas} total={e.etapas.length} height={10} />
+      </div>
+      <div className="border-t border-border/40">
+        <button onClick={() => setAberto((x) => !x)} aria-expanded={aberto}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-accent hover:text-primary transition-colors">
+          <span className="text-[10px] font-black uppercase tracking-widest">{concluidas} de {e.etapas.length} etapas</span>
+          {aberto ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {aberto && (
+          <div className="concave-3d mx-4 mb-4 rounded-xl p-3 space-y-2">
+            {e.etapas.map((x) => (
+              <div key={x.chave} className="flex items-start justify-between gap-2" data-testid={`etapa-${e.id}-${x.chave}`}>
+                <div className="min-w-0">
+                  <p className="text-primary text-xs font-black leading-tight">{x.rotulo}</p>
+                  {x.metodo && <p className="text-muted-foreground text-[10px] leading-snug">{x.metodo}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`text-[10px] font-black uppercase tracking-wider ${ESTADO_ETAPA_TXT[x.estado].cls}`}>{ESTADO_ETAPA_TXT[x.estado].t}</p>
+                  {x.em && <p className="text-muted-foreground text-[9px]">{fmtEm(x.em)}</p>}
+                </div>
+              </div>
+            ))}
+            {!pronto && (
+              <div className="flex items-start justify-between gap-2 opacity-70" data-testid={`etapa-${e.id}-avancada`}>
+                <p className="text-primary text-xs font-black leading-tight">{e.etapaAvancada.rotulo}</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground shrink-0">Pendente</p>
+              </div>
+            )}
+          </div>
+        )}
+        {/* PROVISÓRIO, NÃO VALIDADO pelo proprietário: texto de passar o mouse ao chegar a 100% (conteúdo exato a esclarecer). */}
+        {pronto && (
+          <p className="text-muted-foreground text-[10px] px-4 pb-3 hidden group-hover:block group-focus:block" role="note">
+            Validado. {e.analitos} resultado{e.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO.
+          </p>
+        )}
+        {falhou && e.etapa === "erro" && (
+          <p className="text-red-600 text-[10px] px-4 pb-3" role="alert">Não foi possível ler este arquivo. Ele continua guardado no seu cadastro. Envie uma versão mais nítida em PDF ou fale com a clínica.</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function EnviosRecentesPanel({ token }: { token: string }) {
   const [lista, setLista] = useState<EnvioItem[] | null>(null);
@@ -2300,42 +2381,15 @@ function EnviosRecentesPanel({ token }: { token: string }) {
   }, [token]);
 
   return (
-    <div className="panel-3d rounded-xl overflow-hidden" data-testid="painel-envios-recentes">
-      <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
-        <Clock className="w-5 h-5 text-accent" />
-        <h2 className="text-primary font-black text-sm uppercase tracking-widest">ENVIOS RECENTES</h2>
+    <div className="space-y-3" data-testid="painel-envios-recentes">
+      <div className="flex items-center justify-between">
+        <SecLabel label="ENVIOS RECENTES" count={lista?.length ?? 0} />
       </div>
-      <div className="p-3 space-y-3">
-        {lista === null && !falhou && <p className="text-muted-foreground text-xs text-center py-4">Carregando seus envios…</p>}
-        {falhou && <p className="text-red-600 text-xs text-center py-2" role="alert">Não foi possível atualizar agora. Tentando novamente.</p>}
-        {lista !== null && lista.length === 0 && <p className="text-muted-foreground text-xs text-center py-4">Nenhum arquivo enviado ainda.</p>}
-        {(lista ?? []).map((e) => {
-          const pct = Math.round((e.fase / e.fasesTotal) * 100);
-          const pronto = e.etapa === "concluido";
-          const parou = e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
-          const atual = Math.min(e.fase, e.fasesTotal - 1); // índice da etapa em andamento
-          return (
-            <div key={e.id} className="concave-3d rounded-lg p-3 space-y-2 group" tabIndex={0} data-testid={`envio-${e.id}`}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-primary text-sm font-mono truncate">{e.arquivo}</p>
-                <p className={`font-black text-sm ${parou ? "text-red-600" : "text-accent"}`}>{pct}%</p>
-              </div>
-              <SegmentedBar completed={e.fase} total={e.fasesTotal} height={10} />
-              <p className="text-accent text-[10px] font-black uppercase tracking-widest">
-                {parou ? e.situacao : pronto ? "VALIDADO" : `${ETAPAS_ENVIO[atual]}…`}
-              </p>
-              {!pronto && !parou && (
-                <p className="text-muted-foreground text-[10px] uppercase tracking-widest">SINAPSES E FISIOLOGIA: EM BREVE</p>
-              )}
-              {pronto && (
-                <p className="text-muted-foreground text-[10px] hidden group-hover:block group-focus:block" role="note">
-                  Validado. {e.analitos} resultado{e.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO. Etapas: {ETAPAS_ENVIO.join(" › ")}.
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <p className="text-muted-foreground text-[10px]">Atualização automática a cada 4 segundos, a partir do estado registrado no servidor.</p>
+      {lista === null && !falhou && <Loading />}
+      {falhou && <ErrorBox msg="Não foi possível atualizar agora. Tentando novamente." />}
+      {lista !== null && lista.length === 0 && <Empty msg="Nenhum arquivo enviado ainda." />}
+      {(lista ?? []).map((e) => <EnvioCard key={e.id} e={e} />)}
     </div>
   );
 }

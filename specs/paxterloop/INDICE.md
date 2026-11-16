@@ -9,6 +9,7 @@ Legenda de prova: MOCK (dependências simuladas), BANCO (PostgreSQL descartável
 | 1 | Composição segura das leituras Gemini/Claude/OpenAI | TESTADO | MOCK de IA + BANCO | EXTERNA (IA real) e PRODUÇÃO não feitas; conflitos só na trilha, sem tela |
 | 2 | Fluxo de exames ponta a ponta (C1/C2, conversão, evolução) | TESTADO | BANCO + MOCK: 9 testes novos; 308 de regressão | tela de unidade pendente; recuperação de presos; IA real; produção |
 | 3 | Recebimento pela Área do Cliente | TESTADO | BANCO + MOCK: 10 testes novos, bug de contagem corrigido | captura de tela; JPEG/PNG sem leitura; produção |
+| 3a | Adendo da SPEC 3: Envios recentes com marcos explícitos (16/11/2026) | TESTADO | 11 puros + 6 BANCO + 11 navegador (API simulada) | hover não validado; "sinapses/fisiologia" não implementada; login real; HOMOLOGAÇÃO do proprietário |
 | 4 | Anexos PDF/foto no Telegram | TESTADO | MOCK: 10 testes novos; suíte Telegram 381 testes; teste de perfil do worker corrigido (3 crons) | prova EXTERNA e banco real do anexo; produção |
 | 5 | Cadastro de profissionais: Sede, Outro Local, Online, Home Care | PENDENTE | rótulo "Local externo" ainda existe | spec, compatibilidade, testes de persistência |
 | 6 | Gerenciador comercial das categorias Prata/Ouro/Platinum/Diamond | PENDENTE | categorias existem sem regras comerciais | spec; valores e políticas dependem de decisão do gestor (não inventar) |
@@ -66,7 +67,7 @@ Arquitetura de produto (ordem de 16/11/2026): (A) PAXMED Clínicas B2B; (B) oper
 | D1 | Base (bruto ou líquido) e destinatário do percentual de 50% | PENDENTE |
 | D2 | Teto do desconto na mensalidade da clínica | PENDENTE |
 | D3 | Contrato e cláusulas da participação e do desconto | PENDENTE, depende do advogado |
-| D4 | Nome final TEX ou DEEx | PENDENTE. Conserva-se TEX; DEEx é alias em discussão; sem renomeação em massa |
+| D4 | Nome final TEX ou DEEx | DECIDIDO pelo proprietário (16/11/2026): DEEx comercial; TEX = alias anterior; chaves técnicas evolucao_exames |
 | D5 | Quem é o "gestor comercial" PAXMED (papel e permissões) | PENDENTE |
 | D6 | Modelo de receituário vigente em produção; zona institucional de referência no TEX | PENDENTE |
 Nota jurídica: o que foi dito sobre a legalidade dos repasses e descontos é opinião simulada. Não consta como validado juridicamente.

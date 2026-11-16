@@ -888,6 +888,25 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   const [layout, setLayout] = useState<LayoutMode>(modoCliente ? "topo" : "lado");
   const [colapsados, setColapsados] = useState<string[]>([]);
   const [mostrarDirecoes, setMostrarDirecoes] = useState(false);
+  // DEEx (SPEC 7): PDF interno da equipe. Só resultados conferidos; prévia interna só por escolha explícita.
+  const [deexBusy, setDeexBusy] = useState(false);
+  const [deexMsg, setDeexMsg] = useState<{ ok: boolean; txt: string; podePrevia?: "ultimas5" | "completo" } | null>(null);
+  const baixarDeex = useCallback(async (modo: "ultimas5" | "completo", previa: boolean) => {
+    setDeexBusy(true); setDeexMsg(null);
+    try {
+      const r = await fetch(`${BASE}/api/evolucao-exames/cliente/${clientId}/pdf?modo=${modo}${previa ? "&previa=1" : ""}`, { headers: collabAuthHeaders() });
+      if (r.ok) {
+        const url = URL.createObjectURL(await r.blob());
+        window.open(url, "_blank", "noopener");
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        setDeexMsg({ ok: true, txt: previa ? "DEEx aberto como PRÉVIA INTERNA (contém resultados sem conferência final)." : "DEEx aberto." });
+      } else {
+        const j = await r.json().catch(() => ({}));
+        setDeexMsg({ ok: false, txt: j.error ?? "Não foi possível gerar o DEEx.", podePrevia: j.codigo === "EVOLUCAO_EXAMES_NAO_CONFERIDO" ? modo : undefined });
+      }
+    } catch { setDeexMsg({ ok: false, txt: "Falha de conexão ao gerar o DEEx." }); }
+    finally { setDeexBusy(false); }
+  }, [clientId]);
 
   const carregar = useCallback((cid: number) => {
     setCarregando(true);
@@ -1390,6 +1409,27 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           {cabecalhoGraficos}
           {graficos}
         </section>
+      )}
+
+      {!modoCliente && (
+        <div className="mt-5" data-testid="deex-painel">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wide text-[#16294a]">DEEx — PDF da evolução</span>
+            <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
+              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a] disabled:opacity-50">Últimas 5 coletas</button>
+            <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
+              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a] disabled:opacity-50">Histórico completo</button>
+            {deexBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+          </div>
+          {deexMsg && (
+            <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
+              {deexMsg.txt}
+              {deexMsg.podePrevia && (
+                <button type="button" className="ml-2 underline font-bold" onClick={() => void baixarDeex(deexMsg.podePrevia!, true)}>Gerar como prévia interna</button>
+              )}
+            </p>
+          )}
+        </div>
       )}
 
       {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes — só equipe */}

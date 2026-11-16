@@ -4,6 +4,8 @@ Estado real em 16/11/2026. "não" = inexistente. Nada está HOMOLOGADO.
 
 | Demanda | SPEC | Menu | Rota | Tela admin | Tela cliente | Backend | Persistência | Teste | Evidência | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
+| DEEx botão na EVOLUÇÃO (equipe) | 7 f5 parcial | existente | cockpit EVOLUÇÃO | sim (deex-painel) | não | sim | n/a | só typecheck | nenhuma | PENDENTE (sem teste de navegador; botão do paciente não implementado) |
+| Envios recentes (marcos) | 3 adendo | Área > ENVIAR | /area | n/a | sim | sim | exam_document_marcos | 11+6+11 | evidencias/envios | TESTADO (API simulada no navegador) |
 | TEX gerador do PDF | 7 f1 | não | não | não | não | sim | n/a | 11 MOCK | PDFs sintéticos | PENDENTE (sem tela) |
 | TEX emissão interna | 7 f2 | não | /tex/cliente/:id/pdf (API) | não | não | sim | n/a | 6 MOCK | tex-rota-interna | PENDENTE (sem tela) |
 | TEX botão Cockpit e Área do Cliente, cobrança sandbox, config de preço | 7 f2b-f5 | não | não | não | não | não | não | não | nenhuma | NÃO IMPLEMENTADO |
