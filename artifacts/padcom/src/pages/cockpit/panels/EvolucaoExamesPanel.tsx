@@ -491,6 +491,7 @@ function CartaoGrafico({
   // 2 coletas) e mostram, em tracejado, onde o sistema poderia receber um
   // novo valor. Não são dado clínico: não entram em estatística nem tooltip.
   type PontoSerie = {
+    x: number;
     data: string;
     valor: number | null;
     ext: number | null;
@@ -498,27 +499,30 @@ function CartaoGrafico({
     zona: string | null;
     fantasma: boolean;
   };
+  // Eixo X numérico: coletas em 0,1,2…; fantasmas a 1/3 de intervalo para fora
+  // (pedido do CEO: a margem pontilhada ocupa 1/3 do espaço entre coletas).
+  const MARGEM = 1 / 3;
+  const ultimoX = Math.max(data.length - 1, 0);
   const serie = useMemo<PontoSerie[]>(() => {
     if (!data.length) return [];
     const primeiro = data[0];
     const final = data[data.length - 1];
     return [
-      { data: "", valor: null, ext: primeiro.valor, cor: MUTED, zona: null, fantasma: true },
+      { x: -MARGEM, data: "", valor: null, ext: primeiro.valor, cor: MUTED, zona: null, fantasma: true },
       ...data.map((d, i) => ({
         ...d,
+        x: i,
         ext: i === 0 ? d.valor : i === data.length - 1 ? d.valor : null,
         fantasma: false,
       })),
-      { data: "", valor: null, ext: final.valor, cor: MUTED, zona: null, fantasma: true },
+      { x: ultimoX + MARGEM, data: "", valor: null, ext: final.valor, cor: MUTED, zona: null, fantasma: true },
     ];
-  }, [data]);
+  }, [data, ultimoX]);
 
-  // Rolagem interna só quando precisa: cada ponto ganha no MÍNIMO 64 pixels
-  // (as datas nunca se espremem). Com poucas coletas o gráfico ocupa toda a
-  // moldura do celular e a rolagem fica travada (nada para rolar). Com muitas,
-  // rola na horizontal, abre na coleta mais recente e há margem nas duas pontas.
+  // Largura: cada intervalo entre coletas ganha 64 px (mínimo) + margens de 1/3.
+  // Poucas coletas = cabe na moldura inteira, rolagem travada; muitas = rola.
   const LARGURA_POR_PONTO = 64;
-  const larguraMinimaGrafico = serie.length * LARGURA_POR_PONTO;
+  const larguraMinimaGrafico = Math.round((ultimoX + 2 * MARGEM) * LARGURA_POR_PONTO) + 56;
   const rolagemRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = rolagemRef.current;
@@ -606,7 +610,11 @@ function CartaoGrafico({
                   />
                 ))}
                 <XAxis
-                  dataKey="data"
+                  type="number"
+                  dataKey="x"
+                  domain={[-MARGEM, ultimoX + MARGEM]}
+                  ticks={data.map((_, i) => i)}
+                  tickFormatter={(i: number) => data[Math.round(i)]?.data ?? ""}
                   interval={0}
                   tick={{ fill: MUTED, fontSize: 10 }}
                   tickLine={false}
@@ -1280,7 +1288,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                     sticky à esquerda para o gráfico ficar visível mesmo com a
                     planilha rolada para o lado. */}
                 {layout === "linha" && selecionada && (
-                  <div className="sticky left-0 py-2" style={{ width: "max(320px, min(760px, calc(100vw - 340px)))" }}>
+                  <div className="sticky left-0 w-[calc(100vw_-_44px)] py-2 md:w-[min(760px,calc(100vw_-_340px))]">
                     <CartaoGrafico
                       analyte={a}
                       columns={columnsRaw}
