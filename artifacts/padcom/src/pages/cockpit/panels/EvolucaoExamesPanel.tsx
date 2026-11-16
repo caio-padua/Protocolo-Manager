@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Loader2,
   TrendingUp,
@@ -486,10 +486,46 @@ function CartaoGrafico({
     };
   }, [data]);
 
-  // Rolagem interna: cada ponto ganha no MÍNIMO 64 pixels de largura — as
-  // datas nunca se espremem; se não couber, rola da esquerda para a direita.
+  // Série desenhada = coletas reais + UM ponto-fantasma antes e UM depois.
+  // Os fantasmas dão margem (a linha nunca fica colada nas bordas, nem com
+  // 2 coletas) e mostram, em tracejado, onde o sistema poderia receber um
+  // novo valor. Não são dado clínico: não entram em estatística nem tooltip.
+  type PontoSerie = {
+    data: string;
+    valor: number | null;
+    ext: number | null;
+    cor: string;
+    zona: string | null;
+    fantasma: boolean;
+  };
+  const serie = useMemo<PontoSerie[]>(() => {
+    if (!data.length) return [];
+    const primeiro = data[0];
+    const final = data[data.length - 1];
+    return [
+      { data: "", valor: null, ext: primeiro.valor, cor: MUTED, zona: null, fantasma: true },
+      ...data.map((d, i) => ({
+        ...d,
+        ext: i === 0 ? d.valor : i === data.length - 1 ? d.valor : null,
+        fantasma: false,
+      })),
+      { data: "", valor: null, ext: final.valor, cor: MUTED, zona: null, fantasma: true },
+    ];
+  }, [data]);
+
+  // Rolagem interna só quando precisa: cada ponto ganha no MÍNIMO 64 pixels
+  // (as datas nunca se espremem). Com poucas coletas o gráfico ocupa toda a
+  // moldura do celular e a rolagem fica travada (nada para rolar). Com muitas,
+  // rola na horizontal, abre na coleta mais recente e há margem nas duas pontas.
   const LARGURA_POR_PONTO = 64;
-  const larguraMinimaGrafico = Math.max(data.length * LARGURA_POR_PONTO, 320);
+  const larguraMinimaGrafico = serie.length * LARGURA_POR_PONTO;
+  const rolagemRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = rolagemRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [serie.length]);
+  const fmtEixo = (v: number) =>
+    dominio.max - dominio.min >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(".", ",");
 
   // Ponto sob o mouse (pedido do CEO 24/07/2026): NADA de janelinha em cima
   // do gráfico — o valor aparece na barra inferior, mudando conforme o mouse
@@ -543,15 +579,16 @@ function CartaoGrafico({
           {/* Tela do grafico em INSET BEVEL puro (pedido do CEO 25/07/2026:
               sem vidro, sem efeitos por cima). */}
           {/* Rolagem INTERNA esquerda→direita: as datas nunca se espremem */}
-          <div className="scroll-gold overflow-x-auto pb-1">
-            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 220 }}>
+          <div ref={rolagemRef} className="scroll-gold overflow-x-auto pb-1" style={{ overscrollBehaviorX: "contain" }}>
+            <div style={{ minWidth: larguraMinimaGrafico, width: "100%", height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={data}
-                margin={{ top: 12, right: 16, left: 0, bottom: 4 }}
+                data={serie}
+                margin={{ top: 12, right: 12, left: 0, bottom: 4 }}
                 onMouseMove={(st) => {
                   const i = st?.activeTooltipIndex;
-                  setPonteiro(typeof i === "number" && data[i] ? data[i] : null);
+                  const pt = typeof i === "number" ? serie[i] : null;
+                  setPonteiro(pt && !pt.fantasma ? (data[i! - 1] ?? null) : null);
                 }}
                 onMouseLeave={() => setPonteiro(null)}
               >
@@ -570,6 +607,7 @@ function CartaoGrafico({
                 ))}
                 <XAxis
                   dataKey="data"
+                  interval={0}
                   tick={{ fill: MUTED, fontSize: 10 }}
                   tickLine={false}
                   axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
@@ -579,6 +617,7 @@ function CartaoGrafico({
                   tickLine={false}
                   axisLine={{ stroke: "rgba(22,41,74,0.15)" }}
                   width={44}
+                  tickFormatter={fmtEixo}
                   domain={[dominio.min, dominio.max]}
                 />
                 {/* SEM janelinha em cima do gráfico (pedido do CEO): o Tooltip
@@ -588,12 +627,34 @@ function CartaoGrafico({
                   content={() => null}
                   cursor={{ stroke: "rgba(184,146,77,0.55)", strokeDasharray: "4 3" }}
                 />
+                {/* Extensão tracejada + ponto vazado nas pontas: "aqui poderia chegar um número" */}
+                <Line
+                  type="linear"
+                  dataKey="ext"
+                  stroke={NAVY}
+                  strokeOpacity={0.35}
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  isAnimationActive={false}
+                  activeDot={false}
+                  dot={(props: { cx?: number; cy?: number; payload?: PontoSerie; index?: number }) => {
+                    const { cx, cy, payload, index } = props;
+                    if (cx == null || cy == null || !payload?.fantasma) return <g key={`f-${index}`} />;
+                    return (
+                      <circle key={`f-${index}`} cx={cx} cy={cy} r={4} fill="none" stroke={NAVY} strokeOpacity={0.45} strokeWidth={1.5} strokeDasharray="2 2" />
+                    );
+                  }}
+                />
                 <Line
                   type="linear"
                   dataKey="valor"
                   stroke={NAVY}
                   strokeWidth={2.5}
-                  dot={false}
+                  dot={(props: { cx?: number; cy?: number; payload?: PontoSerie; index?: number }) => {
+                    const { cx, cy, payload, index } = props;
+                    if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
+                    return <circle key={`d-${index}`} cx={cx} cy={cy} r={4} fill={NAVY} stroke="#fff" strokeWidth={1.5} />;
+                  }}
                   activeDot={(props: { cx?: number; cy?: number }) => {
                     const { cx, cy } = props;
                     if (cx == null || cy == null) return <g />;
