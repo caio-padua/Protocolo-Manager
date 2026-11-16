@@ -98,7 +98,7 @@ router.get("/area-paciente/exames/envios", async (req: Request, res: Response) =
         fileName: examDocumentsTable.fileName,
         status: examDocumentsTable.status,
         createdAt: examDocumentsTable.createdAt,
-        analitos: sql<number>`(SELECT COUNT(*)::int FROM exam_results r WHERE r.exam_document_id = ${examDocumentsTable.id})`,
+        analitos: sql<number>`(SELECT COUNT(*)::int FROM exam_results r WHERE r.exam_document_id = exam_documents.id)`,
       })
       .from(examDocumentsTable)
       .where(and(eq(examDocumentsTable.clientId, client.id), sql`${examDocumentsTable.status} <> 'ignorado'`))

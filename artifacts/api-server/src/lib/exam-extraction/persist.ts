@@ -245,8 +245,12 @@ export async function persistExtractedResults(
     const applyFactor = (n: number | null): number | null =>
       n === null ? null : n * conv.factor;
 
-    const value = applyFactor(rawValue);
-    const ref = { low: applyFactor(rawRef.low), high: applyFactor(rawRef.high) };
+    // Unidade diferente SEM fator: o número ainda está na escala do laudo e não pode passar por
+    // valor canônico (alimentaria gráfico, tendência e faixa na escala errada). Fica só o texto cru.
+    const value = conv.unknownUnit ? null : applyFactor(rawValue);
+    const ref = conv.unknownUnit
+      ? { low: null, high: null }
+      : { low: applyFactor(rawRef.low), high: applyFactor(rawRef.high) };
     const status = classifyByRef(value, ref.low, ref.high);
 
     // Faixas internas (Subcadastro) tem prioridade sobre a referencia do laudo
@@ -297,7 +301,7 @@ export async function persistExtractedResults(
       const histUnitRaw = point.unit ?? analyte.unit;
       const histConv = resolveConversion(info, histUnitRaw);
       const rawHist = parseBrazilNumber(point.value);
-      const histValue = rawHist === null ? null : rawHist * histConv.factor;
+      const histValue = rawHist === null || histConv.unknownUnit ? null : rawHist * histConv.factor;
       // Unidade histórica diferente sem fator: honesto -> pede conferência humana
       // (mesma regra do ponto principal; não classifica com valor não convertido).
       const histStatus = histConv.unknownUnit

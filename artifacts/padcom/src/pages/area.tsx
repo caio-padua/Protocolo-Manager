@@ -2032,11 +2032,13 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
 function UploadStatusPoller({
   fileName,
   documentoId,
+  processamento,
   token,
   onReset,
 }: {
   fileName: string;
   documentoId: number | null;
+  processamento?: "iniciado" | "nao_iniciado" | "nao_aplicavel";
   token: string;
   onReset: () => void;
 }) {
@@ -2080,8 +2082,11 @@ function UploadStatusPoller({
     : comErro ? "NÃO FOI POSSÍVEL LER"
     : "EXAME RECEBIDO";
   const texto = documentoId === null
-    ? "O arquivo foi guardado no seu cadastro e será conferido pela equipe."
+    ? processamento === "nao_iniciado"
+      ? "O arquivo foi guardado no seu cadastro, mas a leitura automática não foi iniciada. A equipe fará a conferência."
+      : "O arquivo foi guardado no seu cadastro e será conferido pela equipe."
     : semConexao && !envio ? "Não foi possível consultar a situação agora. O exame continua sendo processado; tentando novamente."
+    : comErro ? "Não foi possível ler este arquivo. Ele continua guardado no seu cadastro. Envie uma versão mais nítida em PDF ou fale com a clínica."
     : envio ? `Situação: ${envio.situacao}.${concluido ? ` ${envio.analitos} resultado${envio.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO.` : ""}`
     : "Consultando a situação do exame…";
 
@@ -2124,7 +2129,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading]     = useState(false);
   const [error, setError]             = useState("");
-  const [done, setDone]               = useState<{ fileName: string; exameDocumentoId?: number | null } | null>(null);
+  const [done, setDone]               = useState<{ fileName: string; exameDocumentoId?: number | null; processamento?: "iniciado" | "nao_iniciado" | "nao_aplicavel" } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
@@ -2157,6 +2162,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
     return <UploadStatusPoller
       fileName={done.fileName}
       documentoId={done.exameDocumentoId ?? null}
+      processamento={done.processamento}
       token={client.token}
       onReset={reset}
     />;

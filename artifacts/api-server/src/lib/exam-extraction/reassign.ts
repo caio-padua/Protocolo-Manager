@@ -72,11 +72,14 @@ function classifyForTarget(
   const info = unitsByCode.get(targetCode);
   const conv = resolveConversion(info, row.unitRaw);
   const rawValue = parseBrazilNumber(row.valueRaw);
-  const value = rawValue === null ? null : rawValue * conv.factor;
+  const value = rawValue === null || conv.unknownUnit ? null : rawValue * conv.factor;
 
   let refLowN: number | null;
   let refHighN: number | null;
-  if (conv.factor === 1) {
+  if (conv.unknownUnit) {
+    refLowN = null;
+    refHighN = null;
+  } else if (conv.factor === 1) {
     refLowN = row.refLow === null ? null : Number(row.refLow);
     refHighN = row.refHigh === null ? null : Number(row.refHigh);
   } else {

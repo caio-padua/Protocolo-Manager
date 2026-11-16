@@ -13,12 +13,30 @@ import { startExamIngestion } from "./exames-lab";
 import { brtDateStr } from "../lib/brt";
 
 const router = Router();
+
+/** Assinatura real do arquivo (o tipo declarado pelo navegador não é prova). */
+function detectFileKind(buf: Buffer): "pdf" | "jpeg" | "png" | null {
+  if (buf.subarray(0, 5).toString("latin1") === "%PDF-") return "pdf";
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpeg";
+  if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
+  return null;
+}
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 /**
  * Converte data digitada pelo usuário (DD/MM/AAAA ou DD/MM/AA) para YY.MM.DD.
  * Retorna null se o formato não for reconhecido.
  */
+const EXAM_FILE_TYPES = new Set([
+  "exame_sangue",
+  "ultrassom",
+  "tomografia",
+  "ressonancia",
+  "densitometria",
+  "laudo",
+  "outro",
+]);
+
 function parseUserExamDate(examDate: string): string | null {
   const digits = examDate.replace(/\D/g, "");
   if (digits.length === 8) {
@@ -134,7 +152,9 @@ router.post(
   upload.single("file"),
   async (req: Request, res: Response) => {
     try {
-      const { token, fileType, bodyRegion, description, examDate } = req.body;
+      const { fileType, bodyRegion, description, examDate } = req.body;
+      const bearer = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7).trim() : null;
+      const token = req.body.token || bearer;
       const file = req.file;
 
       if (!token || !fileType || !file) {
@@ -159,6 +179,19 @@ router.post(
       }
 
       const client = clients[0];
+      if (client.status !== "active") {
+        res.status(404).json({ error: "Cliente não encontrado" });
+        return;
+      }
+      // Exame clínico: o conteúdo precisa ser PDF, JPEG ou PNG de verdade e coerente com o tipo declarado.
+      if (EXAM_FILE_TYPES.has(fileType) && fileType !== "outro") {
+        const kind = detectFileKind(file.buffer);
+        const declaredPdf = file.mimetype === "application/pdf";
+        if (!kind || (declaredPdf && kind !== "pdf")) {
+          res.status(400).json({ error: "Envie o exame em PDF, JPEG ou PNG válido." });
+          return;
+        }
+      }
       const folder = FILE_TYPE_TO_FOLDER[fileType] || "EXAMES";
       const typeLabel = FILE_TYPE_LABELS[fileType] || "DOCUMENTO";
       if (!client.cpf) {
@@ -197,17 +230,12 @@ router.post(
 
       // Trajetoria do Exame: PDF de exame laboratorial entra no motor de
       // leitura por IA (assincrono, best-effort — nunca quebra o upload).
-      const EXAM_TYPES = new Set([
-        "exame_sangue",
-        "ultrassom",
-        "tomografia",
-        "ressonancia",
-        "densitometria",
-        "laudo",
-        "outro",
-      ]);
+      const EXAM_TYPES = EXAM_FILE_TYPES;
       let exameDocumentoId: number | null = null;
-      if (file.mimetype === "application/pdf" && EXAM_TYPES.has(fileType)) {
+      // Arquivo guardado (recebido) e leitura iniciada são coisas diferentes: o cliente vê a diferença.
+      let processamento: "iniciado" | "nao_iniciado" | "nao_aplicavel" = "nao_aplicavel";
+      if (detectFileKind(file.buffer) === "pdf" && EXAM_TYPES.has(fileType)) {
+        processamento = "nao_iniciado";
         try {
           const ingestion = await startExamIngestion({
             clientId: client.id,
@@ -218,6 +246,7 @@ router.post(
             userDateStr: userDateStr ?? dateStr,
           });
           exameDocumentoId = ingestion.documentId;
+          processamento = "iniciado";
           console.log(
             `[Portal] Exame encaminhado ao motor: doc ${ingestion.documentId}${ingestion.duplicate ? " (duplicado, ja processado)" : ""}`,
           );
@@ -232,6 +261,7 @@ router.post(
         folder,
         fileId: result.fileId,
         exameDocumentoId,
+        processamento,
       });
     } catch (err: any) {
       console.error("[Portal] Erro no upload:", err.message);

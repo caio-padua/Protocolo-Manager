@@ -46,6 +46,8 @@ import { logger } from "../lib/logger";
 import { randomUUID } from "node:crypto";
 import { getSecret } from "../lib/secure-settings";
 import { sendTelegram } from "../lib/telegram.js";
+import { extrairAnexo, tratarAnexo, baixarArquivoTelegram } from "../lib/telegram-anexo-exame";
+import { startExamIngestion } from "./exames-lab";
 import { postSlackAlert } from "../lib/slack-reporter.js";
 import {
   processarWebhookInbox,
@@ -608,6 +610,54 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
     if (clienteJaVinculado) {
       if (isStart) {
         void sendTelegram(chatId, "Seu Telegram já está vinculado. Pode nos escrever por aqui.");
+        res.status(200).json({ ok: true });
+        return;
+      }
+      // ── Anexo (PDF/foto) de cliente vinculado: mesmo motor de exames da Área do Cliente ──
+      const anexo = extrairAnexo(msg);
+      if (anexo && !update.edited_message) {
+        const empresaIdAnexo = clienteJaVinculado.empresaId ?? 0;
+        if (empresaIdAnexo <= 0) {
+          logger.error({ clienteId: clienteJaVinculado.id }, "[telegram] anexo ignorado: cliente sem clínica");
+          res.status(200).json({ ok: true });
+          return;
+        }
+        let tratado: Awaited<ReturnType<typeof tratarAnexo>>;
+        try {
+          tratado = await tratarAnexo({ id: clienteJaVinculado.id, empresaId: empresaIdAnexo }, anexo, {
+            baixar: baixarArquivoTelegram,
+            iniciarIngestao: (p) => startExamIngestion({ ...p, notify: false }),
+          });
+        } catch (err) {
+          // Falha transitória ao baixar: nada foi gravado; o Telegram reentrega.
+          logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram] falha transitória ao baixar anexo; reentrega necessária");
+          res.status(500).json({ ok: false });
+          return;
+        }
+        try {
+          const registro = await gravarMensagemEntrada(db, {
+            empresaId: empresaIdAnexo, clienteId: clienteJaVinculado.id, chatId,
+            texto: anexo.legenda ? `${tratado.resumo} ${anexo.legenda}` : tratado.resumo,
+            updateId: extrairUpdateId(update.update_id),
+          });
+          if (!registro.duplicada) {
+            if (chatIdCEO && chatIdCEO !== chatId && registro.id > 0) {
+              try {
+                const repasseId = await registrarRepasseDuravel({ inboxMessageId: registro.id, chatIdDestino: chatIdCEO });
+                void tentarRepasseAgora(repasseId);
+              } catch (err) {
+                logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram] outbox indisponível para anexo; reentrega necessária");
+                res.status(500).json({ ok: false });
+                return;
+              }
+            }
+            void sendTelegram(chatId, tratado.resposta);
+          }
+        } catch (err) {
+          logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram] falha ao registrar anexo na Caixa de Entrada; reentrega necessária");
+          res.status(500).json({ ok: false });
+          return;
+        }
         res.status(200).json({ ok: true });
         return;
       }
