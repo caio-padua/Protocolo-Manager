@@ -1,5 +1,4 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { createHash } from "node:crypto";
 import multer from "multer";
 import {
   db,
@@ -29,8 +28,9 @@ import {
 import { getSetting } from "../lib/secure-settings";
 import { saveInternalCopy, hasInternalCopy, getInternalCopy } from "../lib/exam-file-store";
 import { requireCollaborator } from "./collaborator";
+import examConferenceRouter from "./exam-conference";
 import { extractPdfText } from "../lib/exam-extraction/pdf-text";
-import { extractExamFromText, extractExamFromMedia } from "../lib/exam-extraction/extract";
+import { extractExamFromText } from "../lib/exam-extraction/extract";
 import { extractExamWithClaude, CLAUDE_MODEL_NAME } from "../lib/exam-extraction/extract-anthropic";
 import { extractExamWithOpenAI, OPENAI_MODEL } from "../lib/exam-extraction/extract-openai";
 import type { ExtractedExam } from "../lib/exam-extraction/schema";
@@ -75,10 +75,13 @@ import { sendGmailMessage } from "../lib/google-gmail";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { protectCurationMutation } from "../lib/exam-curation-access";
 import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
+import { hashExamDocument, duplicateIngestionAction } from "../lib/exam-extraction/ingestion-policy";
+import { rejectUnversionedReprocessing } from "../lib/exam-extraction/reprocessing-safety";
 
 const router: IRouter = Router();
 router.use(moduleGuard("exames_lab"));
 router.use(protectCurationMutation);
+router.use(examConferenceRouter);
 
 /** Deduz o mime-type pela extensão do nome do arquivo. */
 export function guessMime(fileName: string): string {
@@ -447,7 +450,7 @@ export async function startExamIngestion(params: {
   empresaId?: number | null;
   userDateStr?: string | null;
 }): Promise<{ documentId: number; duplicate: boolean }> {
-  const hash = createHash("sha256").update(params.buffer).digest("hex");
+  const hash = hashExamDocument(params.buffer);
 
   // Idempotencia POR PACIENTE: mesmo arquivo em outro cliente gera doc proprio.
   // EXCECAO: se o doc existente tem status='erro', reprocessa em vez de ignorar.
@@ -476,7 +479,7 @@ export async function startExamIngestion(params: {
       }).catch(() => {});
     });
     // Se ja concluido ou ainda processando, retorna como duplicado sem fazer nada.
-    if (existingDoc.status !== "erro") {
+    if (duplicateIngestionAction(existingDoc.status) === "skip") {
       return { documentId: existingDoc.id, duplicate: true };
     }
     // Se estava com erro: atualiza o Drive ID (se novo disponivel), reseta para
@@ -969,111 +972,6 @@ router.get("/exames-lab/documentos/:id", async (req: Request, res: Response) => 
     res.status(500).json({ error: "Erro ao buscar documento" });
   }
 });
-
-// ---- PATCH /exames-lab/documentos/:id/conferir — conferencia humana em 2 fases ----
-// Body: { fase: 1 | 2, professionalId: number }.
-//   fase 1 (C1, operacional): recebido -> conferido_1. Grava conf1* (snapshot).
-//   fase 2 (C2, clinica = liberado): conferido_1 -> conferido. Grava conf2* + conferredAt.
-// O conferente e sempre gravado como SNAPSHOT (nome + cargo do momento), para o
-// CEO poder renomear os ficticios depois sem perder o registro de auditoria.
-router.patch(
-  "/exames-lab/documentos/:id/conferir",
-  async (req: Request, res: Response) => {
-    try {
-      const id = Number(req.params.id);
-      const fase = Number(req.body?.fase);
-      const professionalId = Number(req.body?.professionalId);
-      if (fase !== 1 && fase !== 2) {
-        res.status(400).json({ error: "fase deve ser 1 (operacional) ou 2 (clinica)" });
-        return;
-      }
-      if (!Number.isInteger(professionalId) || professionalId <= 0) {
-        res.status(400).json({ error: "professionalId (conferente) e obrigatorio" });
-        return;
-      }
-
-      const docs = await db
-        .select({ id: examDocumentsTable.id, status: examDocumentsTable.status })
-        .from(examDocumentsTable)
-        .where(eq(examDocumentsTable.id, id));
-      if (docs.length === 0) {
-        res.status(404).json({ error: "Documento nao encontrado" });
-        return;
-      }
-      const status = docs[0].status;
-      if (status === "processando") {
-        res.status(409).json({ error: "Documento ainda em processamento" });
-        return;
-      }
-      if (status === "erro") {
-        res.status(409).json({ error: "Documento com erro de leitura; nao pode ser conferido" });
-        return;
-      }
-
-      // Snapshot do conferente (nome + cargo do momento).
-      const [prof] = await db
-        .select({
-          id: professionalsTable.id,
-          name: professionalsTable.name,
-          role: professionalsTable.role,
-          category: professionalsTable.category,
-        })
-        .from(professionalsTable)
-        .where(eq(professionalsTable.id, professionalId))
-        .limit(1);
-      if (!prof) {
-        res.status(404).json({ error: "Conferente nao encontrado" });
-        return;
-      }
-      const cargo = cargoLabel(prof.role, prof.category);
-      const now = new Date();
-
-      if (fase === 1) {
-        if (status !== "recebido") {
-          res.status(409).json({
-            error: "A conferencia operacional (C1) so vale quando o documento esta 'recebido'",
-          });
-          return;
-        }
-        await db
-          .update(examDocumentsTable)
-          .set({
-            status: "conferido_1",
-            conf1ProfessionalId: prof.id,
-            conf1Name: prof.name,
-            conf1Cargo: cargo,
-            conf1At: now,
-          })
-          .where(eq(examDocumentsTable.id, id));
-        res.json({ ok: true, status: "conferido_1" });
-        return;
-      }
-
-      // fase === 2
-      if (status !== "conferido_1") {
-        res.status(409).json({
-          error: "Faca a conferencia operacional (C1) antes da conferencia clinica (C2)",
-        });
-        return;
-      }
-      await db
-        .update(examDocumentsTable)
-        .set({
-          status: "conferido",
-          conf2ProfessionalId: prof.id,
-          conf2Name: prof.name,
-          conf2Cargo: cargo,
-          conf2At: now,
-          conferredAt: now,
-        })
-        .where(eq(examDocumentsTable.id, id));
-      res.json({ ok: true, status: "conferido" });
-    } catch (err) {
-      console.error("[ExamesLab] Erro ao conferir:", (err as Error).message);
-      res.status(500).json({ error: "Erro ao conferir documento" });
-    }
-  },
-);
 
 // ---- GET /exames-lab/evolucao/:clientId — antes/depois por analito ----
 router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response) => {
@@ -2679,68 +2577,13 @@ router.get("/exames-lab/documento/:docId/arquivo", async (req: Request, res: Res
 });
 
 // ============================================================================
-// Re-extração manual de um documento (POST /exames-lab/documento/:docId/reextrair)
-// Baixa o PDF do Drive → Gemini vision multimodal → apaga resultados antigos → persiste.
+// Re-extração manual permanece bloqueada até haver histórico versionado.
 // ============================================================================
-router.post("/exames-lab/documento/:docId/reextrair", async (req: Request, res: Response) => {
-  try {
-    const docId = Number(req.params.docId);
-    if (!Number.isFinite(docId)) return res.status(400).json({ error: "docId inválido" });
-
-    const docs = await db
-      .select({
-        id: examDocumentsTable.id,
-        clientId: examDocumentsTable.clientId,
-        driveId: examDocumentsTable.sourcePdfDriveId,
-        fileName: examDocumentsTable.fileName,
-      })
-      .from(examDocumentsTable)
-      .where(eq(examDocumentsTable.id, docId))
-      .limit(1);
-
-    if (docs.length === 0) return res.status(404).json({ error: "Documento não encontrado" });
-    const doc = docs[0];
-    if (!doc.driveId) return res.status(422).json({ error: "Documento sem arquivo no Drive — re-extração impossível" });
-
-    // Baixar o arquivo do Drive
-    const buffer = await driveDownloadFile(doc.driveId);
-
-    // Gemini vision multimodal: lê pixels, não texto — funciona em PDFs escaneados
-    const result = await extractExamFromMedia(buffer, "application/pdf");
-
-    // Apagar resultados antigos deste documento
-    await db.delete(examResultsTable).where(eq(examResultsTable.examDocumentId, docId));
-
-    // Atualizar metadados do documento (lab, data de coleta, modelo usado)
-    await finalizeDocument(docId, result.data, result.modelUsed);
-
-    // Persistir novos analitos
-    const summary = await persistExtractedResults({
-      documentId: docId,
-      clientId: doc.clientId,
-      extracted: result.data,
-    });
-
-    req.log?.info(
-      { docId, analytes: result.data.analytes.length, model: result.modelUsed },
-      "Re-extração concluída",
-    );
-
-    return res.json({
-      ok: true,
-      analytes: result.data.analytes.length,
-      modelUsed: result.modelUsed,
-      escalated: result.escalated,
-      confidence: result.data.confidence,
-      labName: result.data.labName,
-      collectionDate: result.data.collectionDate,
-      summary,
-    });
-  } catch (e) {
-    req.log?.error({ err: e }, "POST /exames-lab/documento/:docId/reextrair falhou");
-    return res.status(500).json({ error: "Falha na re-extração" });
-  }
-});
+router.post(
+  "/exames-lab/documento/:docId/reextrair",
+  requireCollaborator,
+  (_req: Request, res: Response) => rejectUnversionedReprocessing(res),
+);
 
 // ============================================================================
 // Ferramentas de curadoria: ENGLOBAR + TRANSFERIR + DESFAZER (motor em reassign.ts).
@@ -3154,67 +2997,13 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
 });
 
 // ─── Reprocessamento individual por ID ────────────────────────────────────────
-// POST /api/exames-lab/reprocessar/:id
-// Reinicia o pipeline de extração de IA para 1 documento específico.
-// Busca o buffer do cofre interno (preferência) ou do Google Drive.
-// Incrementa reprocessamento_count e grava reprocessado_at = NOW().
+// Permanece bloqueado até haver histórico versionado sem substituir resultados.
 router.post("/exames-lab/reprocessar/:id", requireCollaborator, async (req: Request, res: Response) => {
   const docId = Number(req.params.id);
   if (!docId || Number.isNaN(docId)) {
     return res.status(400).json({ error: "ID inválido" });
   }
-  try {
-    const docs = await db
-      .select()
-      .from(examDocumentsTable)
-      .where(eq(examDocumentsTable.id, docId))
-      .limit(1);
-    if (!docs.length) return res.status(404).json({ error: "Documento não encontrado" });
-    const doc = docs[0];
-
-    // Tenta obter o arquivo: cofre interno → Drive
-    let buffer: Buffer | null = null;
-    const copy = await getInternalCopy(docId);
-    if (copy) {
-      buffer = copy.bytes;
-    } else if (doc.sourcePdfDriveId) {
-      try {
-        buffer = await driveDownloadFile(doc.sourcePdfDriveId);
-      } catch (driveErr: any) {
-        logger.warn({ driveErr: driveErr.message, docId }, "reprocessar: falha ao baixar do Drive");
-      }
-    }
-
-    if (!buffer) {
-      return res.status(422).json({
-        error: "Arquivo original não encontrado no cofre interno nem no Drive. Reprocessamento impossível.",
-      });
-    }
-
-    // Incrementa contador e muda status para processando (raw SQL — colunas via ALTER TABLE)
-    await db.execute(sql`
-      UPDATE exam_documents
-      SET status = 'processando',
-          reprocessamento_count = COALESCE(reprocessamento_count, 0) + 1,
-          reprocessado_at = NOW()
-      WHERE id = ${docId}
-    `);
-
-    // Fire-and-forget: reprocessa em background
-    void processExamDocument({
-      documentId: docId,
-      clientId: doc.clientId,
-      buffer,
-      fileName: doc.fileName ?? "documento.pdf",
-    }).catch((err: Error) => {
-      logger.error({ err: err.message, docId }, "Falha no reprocessamento manual");
-    });
-
-    return res.json({ ok: true, message: "Reprocessamento iniciado em background" });
-  } catch (e: any) {
-    req.log?.error({ err: e }, "POST /exames-lab/reprocessar/:id falhou");
-    return res.status(500).json({ error: "Erro interno ao iniciar reprocessamento" });
-  }
+  return rejectUnversionedReprocessing(res);
 });
 
 // ─── Status público de documento (usado pelo portal do cliente) ───────────────

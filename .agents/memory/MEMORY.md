@@ -197,3 +197,4 @@
 - [Grupo VIP e Conexão Milionária](grupo-vip-conexao-milionaria.md) — independente da categoria; convite só registro; efetivado só com comprovante; cobrança Asaas só leitura; CAIXA pendente.
 - [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo cliente.
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
+- [Preview clínico e dados reais](preview-clinico-dados-reais.md) — não capturar rotas clínicas sem ambiente sintético comprovadamente isolado.

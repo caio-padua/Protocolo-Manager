@@ -23,7 +23,7 @@ import {
 import { BASE, ConsoleShell, BlockTitle } from "../comunicacao/_shared";
 import { DriveLinksField } from "@/components/ProcedenciaDocumentosBloco";
 import { PaxterClientSelector } from "@/components/PaxterClientSelector";
-import { getCollabProfessional, getCollabToken } from "@/lib/collab-auth";
+import { getCollabToken } from "@/lib/collab-auth";
 import DriveWatcherPanel from "@/components/exames/DriveWatcherPanel";
 import ImportarDrivePanel from "@/components/exames/ImportarDrivePanel";
 
@@ -60,13 +60,6 @@ interface DocRow {
   conf2Name: string | null;
   conf2Cargo: string | null;
   conf2At: string | null;
-}
-
-interface ProfOption {
-  id: number;
-  name: string;
-  role: string | null;
-  category: string | null;
 }
 
 interface ResultRow {
@@ -244,15 +237,6 @@ export default function ExamesCliente() {
   const [detalhe, setDetalhe] = useState<DocDetail | null>(null);
   const [conferindo, setConferindo] = useState(false);
 
-  // ---- Conferentes (colaboradores) ----
-  const [profissionais, setProfissionais] = useState<ProfOption[]>([]);
-  const [conferenteId, setConferenteId] = useState<string>(
-    () => {
-      const p = getCollabProfessional();
-      return p ? String(p.id) : "";
-    },
-  );
-
   // ---- Toggle global "liberar validacoes" (exames.exigirValidacaoHumana) ----
   const [exigirValidacao, setExigirValidacao] = useState(true);
   const [salvandoToggle, setSalvandoToggle] = useState(false);
@@ -274,20 +258,6 @@ export default function ExamesCliente() {
         ),
       )
       .catch(() => setClientes([]));
-  }, []);
-
-  // Colaboradores (conferentes). Todos podem conferir; o padrao e o colaborador logado.
-  useEffect(() => {
-    fetch(`${BASE}/api/professionals`, { headers: collabAuthHeaders() })
-      .then((r) => r.json())
-      .then((d: ProfOption[]) =>
-        setProfissionais(
-          Array.isArray(d)
-            ? [...d].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-            : [],
-        ),
-      )
-      .catch(() => setProfissionais([]));
   }, []);
 
   // Toggle global "liberar validacoes". As rotas /settings/* exigem colaborador,
@@ -415,10 +385,6 @@ export default function ExamesCliente() {
 
   const conferir = async (fase: 1 | 2) => {
     if (!docSelecionado) return;
-    if (!conferenteId) {
-      setAviso("Escolha o colaborador conferente antes de conferir.");
-      return;
-    }
     setConferindo(true);
     try {
       const r = await fetch(
@@ -426,7 +392,7 @@ export default function ExamesCliente() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fase, professionalId: Number(conferenteId) }),
+          body: JSON.stringify({ fase }),
         },
       );
       if (!r.ok) {
@@ -627,18 +593,9 @@ export default function ExamesCliente() {
 
               {(detalhe.status === "recebido" || detalhe.status === "conferido_1") && (
                 <div className="flex flex-col items-end gap-2">
-                  <select
-                    className="concave-3d h-9 min-w-[200px] rounded-md bg-transparent px-2 text-xs"
-                    value={conferenteId}
-                    onChange={(e) => setConferenteId(e.target.value)}
-                  >
-                    <option value="">Colaborador conferente…</option>
-                    {profissionais.map((p) => (
-                      <option key={p.id} value={String(p.id)}>
-                        {formatColaborador(p.name, p.role)}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="concave-3d px-3 py-1.5 text-[11px] text-muted-foreground">
+                    Conferente: sessão autenticada, validada pelo servidor.
+                  </span>
                   {detalhe.status === "recebido" ? (
                     <button
                       onClick={() => void conferir(1)}

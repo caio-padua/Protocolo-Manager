@@ -635,8 +635,6 @@ const MAX_ROWS = 10;
 function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: AnalyteResult[]; onRefresh: () => void }) {
   const [verTodos, setVerTodos] = useState(false);
   const [baixando, setBaixando] = useState(false);
-  const [reextrai, setReextrai] = useState(false);
-  const [reextraiMsg, setReextraiMsg] = useState("");
 
   // Clone retroativo no Drive
   const [clonando, setClonando] = useState(false);
@@ -724,23 +722,6 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
       setLabSalvando(false);
     }
   }, [doc.id, labValor, onRefresh]);
-
-  const handleReextrair = useCallback(async (onDone: () => void) => {
-    if (reextrai || !doc.sourcePdfDriveId) return;
-    setReextrai(true);
-    setReextraiMsg("Enviando PDF ao Gemini — pode levar 30–90s…");
-    try {
-      const r = await fetch(`${BASE}/api/exames-lab/documento/${doc.id}/reextrair`, { method: "POST" });
-      const json = await r.json() as { ok?: boolean; analytes?: number; error?: string; modelUsed?: string };
-      if (!r.ok) throw new Error(json.error ?? `HTTP ${r.status}`);
-      setReextraiMsg(`Extração concluída — ${json.analytes ?? 0} analito(s) encontrado(s) via ${json.modelUsed ?? "Gemini"}`);
-      setTimeout(() => { onDone(); setReextraiMsg(""); }, 1500);
-    } catch (e) {
-      setReextraiMsg(`Falha: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setReextrai(false);
-    }
-  }, [doc.id, doc.sourcePdfDriveId, reextrai]);
 
   return (
     <div
@@ -1031,22 +1012,15 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
             <div className="space-y-1.5">
               <Button
                 className="btn-3d-soft w-full inline-flex items-center justify-center gap-2 text-[11px]"
-                onClick={() => void handleReextrair(onRefresh)}
-                disabled={reextrai}
+                disabled
+                title="Bloqueada até haver preservação versionada dos resultados anteriores."
               >
-                {reextrai
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Zap className="h-3.5 w-3.5" />}
-                {reextrai ? "Processando…" : "Re-extrair com IA (Gemini Vision)"}
+                <Zap className="h-3.5 w-3.5" />
+                Re-extração bloqueada para preservar resultados
               </Button>
-              {reextraiMsg && (
-                <div
-                  className="concave-3d px-3 py-1.5 text-[10px] font-semibold text-center"
-                  style={{ color: reextraiMsg.startsWith("Falha") ? "#dc2626" : "#15803d" }}
-                >
-                  {reextraiMsg}
-                </div>
-              )}
+              <div className="concave-3d px-3 py-1.5 text-[10px] text-center" style={{ color: MUTED }}>
+                A reextração será reaberta após existir histórico versionado sem apagar resultados anteriores.
+              </div>
             </div>
           )}
         </div>

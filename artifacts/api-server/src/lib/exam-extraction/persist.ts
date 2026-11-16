@@ -130,6 +130,12 @@ interface UnitInfo {
   factors: Map<string, number>;
 }
 
+export function positiveConversionFactor(value: number | string | null): number | null {
+  if (value === null) return null;
+  const factor = Number(value);
+  return Number.isFinite(factor) && factor > 0 ? factor : null;
+}
+
 export async function loadUnits(): Promise<Map<string, UnitInfo>> {
   const rows = await db
     .select()
@@ -138,8 +144,8 @@ export async function loadUnits(): Promise<Map<string, UnitInfo>> {
   const map = new Map<string, UnitInfo>();
   for (const r of rows) {
     const info = map.get(r.analyteCode) ?? { canonicalUnit: null, factors: new Map<string, number>() };
-    const f = r.factorToCanonical === null ? null : Number(r.factorToCanonical);
-    if (f !== null && Number.isFinite(f)) info.factors.set(normUnit(r.unit), f);
+    const f = positiveConversionFactor(r.factorToCanonical);
+    if (f !== null) info.factors.set(normUnit(r.unit), f);
     if (r.isCanonical) info.canonicalUnit = r.unit;
     map.set(r.analyteCode, info);
   }
