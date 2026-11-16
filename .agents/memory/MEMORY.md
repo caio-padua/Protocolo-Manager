@@ -196,7 +196,5 @@
 - [Grupo VIP e Conexão Milionária](grupo-vip-conexao-milionaria.md) — independente da categoria; convite só registro; efetivado só com comprovante; cobrança Asaas só leitura; CAIXA pendente.
 - [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo cliente.
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
-- [Depuração de Exames: porteiro de identidade](depuracao-exames-identidade-tenant.md) — quarentena sem confirmação de identidade; clínica vem do cliente; portal usa /area-paciente/exames.
+- [Depuração de Exames: porteiro de identidade](depuracao-exames-identidade-tenant.md) — quarentena sem confirmação de identidade; clínica vem do cliente; portal usa /area-paciente/exames; [marcos explícitos](envios-marcos-explicitos.md).
 - [Regras de identidade por clínica](depuracao-exames-regras-identidade.md) — CPF igual aceita variante de nome; sem CPF só preliminar; limites globais no código; registros append-only; mudou 4 comportamentos antigos.
-
-- [Etapas de envio = marcos, nunca inferência](envios-marcos-explicitos.md) — etapa só concluída com evidência gravada; 100% só com C2 real; DEEx = nome comercial.
