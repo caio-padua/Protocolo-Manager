@@ -70,7 +70,7 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       await expect(c3.getByTestId("etapa-3-identidade_validada")).toContainText("Pendente");
       await expect(c3.getByTestId("etapa-3-avancada")).toHaveCount(0);
       await expect(c3.getByTestId("legenda-3")).toContainText("confirmando que este exame pertence a você");
-      await expect(c3.getByTestId("etapa-3-revisao_c2")).toContainText("faixas de referência da medicina de alta precisão");
+      await expect(c3.getByTestId("etapa-3-revisao_c2")).toContainText("motor clínico do sistema distribui cada resultado");
       await expect(c3).not.toContainText("100%");
       await expect(c2).toContainText("100%");
       await expect(c2).toContainText("Validado");
