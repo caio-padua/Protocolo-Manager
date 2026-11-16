@@ -67,11 +67,11 @@ describe("perfil restrito do api-worker", () => {
     expect(summary).toContain("token=[redacted]");
   });
 
-  it("registra somente os dois crons restritos (repasse e conciliação Asaas), ativa o atendimento (restrito pela lista de clientes autorizados) e impede duplicação ou perfil misto", async () => {
+  it("registra somente os três crons restritos (repasse, conciliação Asaas e calendário Meus Jogos, somente leitura), ativa o atendimento (restrito pela lista de clientes autorizados) e impede duplicação ou perfil misto", async () => {
     startWorkerJobs(logger, "telegram-relay-dev", scheduler);
     startWorkerJobs(logger, "telegram-relay-dev", scheduler);
 
-    expect(schedule).toHaveBeenCalledTimes(2);
+    expect(schedule).toHaveBeenCalledTimes(3);
     expect(schedule).toHaveBeenCalledWith(
       "* * * * *",
       expect.any(Function),
@@ -82,10 +82,15 @@ describe("perfil restrito do api-worker", () => {
       expect.any(Function),
       { timezone: "America/Sao_Paulo" }
     );
+    expect(schedule).toHaveBeenCalledWith(
+      "*/15 * * * *",
+      expect.any(Function),
+      { timezone: "America/Sao_Paulo" }
+    );
     expect(() => startWorkerJobs(logger, "full")).toThrow(
       "não pode iniciar também full"
     );
-    expect(schedule).toHaveBeenCalledTimes(2);
+    expect(schedule).toHaveBeenCalledTimes(3);
     await schedule.mock.calls[0][1]();
     expect(retomada).toHaveBeenCalledWith({atendimento:true});
   });

@@ -70,11 +70,17 @@ export async function prepararVisualProva(
   return { header, symbol, wordmark, tagline, serifBold, identidade: custom?.textos, simboloEmpresa };
 }
 
-function garantirA4(page: PDFPage): void {
+/**
+ * A4 retrato (padrão) ou A4 paisagem (somente relatórios comparativos como o TEX).
+ * Em paisagem o conjunto cabeçalho/rodapé mantém o tamanho e a proporção aprovados e
+ * fica centralizado: `dx` é o deslocamento horizontal e `altura` a altura real da página.
+ */
+export function geometriaA4(page: PDFPage): { dx: number; altura: number } {
   const { width, height } = page.getSize();
-  if (Math.abs(width - WIDTH) > 1 || Math.abs(height - HEIGHT) > 1) {
-    throw new Error("A prova do Modelo 2B exige página A4 retrato.");
-  }
+  const retrato = Math.abs(width - WIDTH) <= 1 && Math.abs(height - HEIGHT) <= 1;
+  const paisagem = Math.abs(width - HEIGHT) <= 1 && Math.abs(height - WIDTH) <= 1;
+  if (!retrato && !paisagem) throw new Error("A prova do Modelo 2B exige página A4 (retrato ou paisagem).");
+  return { dx: (width - WIDTH) / 2, altura: height };
 }
 
 function imagemContida(page: PDFPage, image: PDFImage, x: number, y: number, width: number, height: number, centro = false): void {
@@ -88,30 +94,30 @@ export function desenharCabecalhoProva(
   page: PDFPage, visual: VisualProva, font: PDFFont, bold: PDFFont, titulo: string, subtitulo: string,
   demonstracao = true,
 ): number {
-  garantirA4(page);
+  const { dx, altura: H } = geometriaA4(page);
   const title = titulo.trim();
   const subtitle = subtitulo.trim();
   if (!title || !subtitle) throw new Error("Título e subtítulo são obrigatórios no Modelo 2B.");
   if (bold.widthOfTextAtSize(title, 14.6) > mm(79) || font.widthOfTextAtSize(subtitle, 8.95) > mm(79)) {
     throw new Error("Título ou subtítulo excede o espaço do Modelo 2B.");
   }
-  page.drawImage(visual.header, { x: mm(5), y: HEIGHT - mm(39), width: mm(200), height: mm(32) });
+  page.drawImage(visual.header, { x: dx + mm(5), y: H - mm(39), width: mm(200), height: mm(32) });
   if (visual.identidade && visual.simboloEmpresa) {
-    imagemContida(page, visual.simboloEmpresa, mm(14), HEIGHT - mm(34), mm(16), mm(21), true);
+    imagemContida(page, visual.simboloEmpresa, dx + mm(14), H - mm(34), mm(16), mm(21), true);
     const size = tamanhoNomeCabecalho(visual.serifBold, visual.identidade.nomeCabecalho);
     page.drawText(visual.identidade.nomeCabecalho, {
-      x: mm(34), y: HEIGHT - mm(23.5) - visual.serifBold.heightAtSize(size, { descender: false }) / 2,
+      x: dx + mm(34), y: H - mm(23.5) - visual.serifBold.heightAtSize(size, { descender: false }) / 2,
       font: visual.serifBold, size,
       color: rgb(0.94, 0.79, 0.49),
     });
   }
-  page.drawText(title, { x: mm(96.2), y: HEIGHT - mm(21), font: bold, size: 14.6, color: rgb(247 / 255, 217 / 255, 148 / 255) });
-  page.drawText(subtitle, { x: mm(96.2), y: HEIGHT - mm(29), font, size: 8.95, color: rgb(245 / 255, 240 / 255, 232 / 255) });
+  page.drawText(title, { x: dx + mm(96.2), y: H - mm(21), font: bold, size: 14.6, color: rgb(247 / 255, 217 / 255, 148 / 255) });
+  page.drawText(subtitle, { x: dx + mm(96.2), y: H - mm(29), font, size: 8.95, color: rgb(245 / 255, 240 / 255, 232 / 255) });
   if (demonstracao) {
     const notice = "DOCUMENTO DE TESTE — SEM VALIDADE CLÍNICA";
-    page.drawText(notice, { x: mm(13), y: HEIGHT - mm(50), font: bold, size: 9, color: rgb(0.65, 0.08, 0.08) });
+    page.drawText(notice, { x: dx + mm(13), y: H - mm(50), font: bold, size: 9, color: rgb(0.65, 0.08, 0.08) });
   }
-  return HEIGHT - mm(59);
+  return H - mm(59);
 }
 
 function carimbarRodapes(
@@ -121,13 +127,13 @@ function carimbarRodapes(
   const pages = doc.getPages();
   if (!pages.length) throw new Error("Documento de prova sem páginas.");
   pages.forEach((page, index) => {
-    garantirA4(page);
+    const { dx } = geometriaA4(page);
     const bottom = mm(10);
-    page.drawRectangle({ x: mm(11), y: bottom + mm(29.5), width: mm(188), height: mm(0.35), color: GOLD });
-    imagemContida(page, visual.symbol, mm(11), bottom + mm(3.3), mm(14.4), mm(14.5), true);
-    imagemContida(page, visual.wordmark, mm(26.8), bottom + mm(10.9), mm(42), mm(6.5));
-    imagemContida(page, visual.tagline, mm(26.8), bottom + mm(5.1), mm(42), mm(4.8));
-    const center = (mm(71.16) + mm(138.84)) / 2;
+    page.drawRectangle({ x: dx + mm(11), y: bottom + mm(29.5), width: mm(188), height: mm(0.35), color: GOLD });
+    imagemContida(page, visual.symbol, dx + mm(11), bottom + mm(3.3), mm(14.4), mm(14.5), true);
+    imagemContida(page, visual.wordmark, dx + mm(26.8), bottom + mm(10.9), mm(42), mm(6.5));
+    imagemContida(page, visual.tagline, dx + mm(26.8), bottom + mm(5.1), mm(42), mm(4.8));
+    const center = dx + (mm(71.16) + mm(138.84)) / 2;
     const central = (text: string, y: number, size: number, f: PDFFont) => {
       const width = f.widthOfTextAtSize(text, size);
       if (width > mm(66)) throw new Error("Endereço ultrapassa o espaço reservado.");
@@ -136,14 +142,14 @@ function carimbarRodapes(
     central(visual.identidade?.rodapeLinha1 ?? "Instituto Pádua", bottom + mm(17.3), 12.6, visual.serifBold);
     central(visual.identidade?.rodapeLinha2 ?? "Rua Guaxupé, 327 - Tatuapé", bottom + mm(11.4), 7.65, font);
     central(visual.identidade?.rodapeLinha3 ?? "CEP.: 03416-050 - São Paulo - SP", bottom + mm(7.15), 7.65, font);
-    const qrX = mm(199 - 18.3);
+    const qrX = dx + mm(199 - 18.3);
     const textRight = qrX - mm(1.6);
     const textos = modo.tipo === "prova"
       ? ["Documento de teste", "Sem verificação", `Página ${index + 1} de ${pages.length}`]
       : [modo.qr ? "Acesso com login" : "Sem assinatura digital", `Página ${index + 1} de ${pages.length}`];
     textos.forEach((text, i) => {
       const width = font.widthOfTextAtSize(text, 7.9);
-      if (textRight - width < mm(139.64)) throw new Error("Texto da prova invade o espaço central.");
+      if (textRight - width < dx + mm(139.64)) throw new Error("Texto da prova invade o espaço central.");
       page.drawText(text, { x: textRight - width, y: bottom + mm(16 - i * 4.7), size: 7.9, font, color: INK });
     });
     if (modo.tipo === "prova") {

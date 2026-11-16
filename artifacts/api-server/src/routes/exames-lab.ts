@@ -1083,288 +1083,306 @@ router.get("/exames-lab/evolucao/:clientId", (req: Request, res: Response) =>
 );
 
 /** Corpo da evolução; reutilizado pela rota do paciente (clientId vem do token, nunca da URL). */
+/**
+ * Fonte ÚNICA da evolução de exames (tela do Cockpit, Área do Cliente e relatório TEX).
+ * Isolamento por cliente/clínica é responsabilidade de quem chama.
+ */
+export async function montarEvolucao(clientId: number) {
+  // clientId já chega validado e escopado à clínica/ao token pelo chamador.
+  // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
+  //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
+  //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
+  //   CEO ver a evolucao antes da conferencia humana. Afeta SO a Evolucao.
+  const rawToggle = await getSetting("exames.exigirValidacaoHumana");
+  const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
+  const statusPermitidos = exigirValidacao
+    ? ["conferido"]
+    : ["recebido", "conferido_1", "conferido"];
+
+  const joined = await db
+    .select({
+      result: examResultsTable,
+      docStatus: examDocumentsTable.status,
+      conf1Name: examDocumentsTable.conf1Name,
+      conf1Cargo: examDocumentsTable.conf1Cargo,
+      conf2Name: examDocumentsTable.conf2Name,
+      conf2Cargo: examDocumentsTable.conf2Cargo,
+    })
+    .from(examResultsTable)
+    .innerJoin(
+      examDocumentsTable,
+      eq(examResultsTable.examDocumentId, examDocumentsTable.id),
+    )
+    .where(
+      and(
+        eq(examResultsTable.clientId, clientId),
+        inArray(examDocumentsTable.status, statusPermitidos),
+      ),
+    )
+    .orderBy(examResultsTable.collectionDate, examResultsTable.id);
+  const rows = joined.map((j) => j.result);
+
+  // Selo por coluna (data + laboratorio): nivel de conferencia (ia/c1/c2) +
+  // conferente (nome/cargo do snapshot). O documento mais novo (maior id) que
+  // alimenta a coluna define o selo, alinhado com "ultimo escrito vence".
+  interface ColSeal {
+    docId: number;
+    confLevel: "ia" | "c1" | "c2" | null;
+    conferenteName: string | null;
+    conferenteCargo: string | null;
+  }
+  const seals = new Map<string, ColSeal>();
+  for (const j of joined) {
+    const r = j.result;
+    const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    const prev = seals.get(key);
+    if (prev && prev.docId >= r.examDocumentId) continue;
+    const level = confLevelFromStatus(j.docStatus);
+    // C2: usa snapshot da fase 2 (documentos legados sem snapshot => "conferencia legada").
+    // C1: usa snapshot da fase 1. IA: sem conferente.
+    let conferenteName: string | null = null;
+    let conferenteCargo: string | null = null;
+    if (level === "c2") {
+      conferenteName = j.conf2Name ?? (j.docStatus === "conferido" ? "Conferência legada" : null);
+      conferenteCargo = j.conf2Cargo;
+    } else if (level === "c1") {
+      conferenteName = j.conf1Name;
+      conferenteCargo = j.conf1Cargo;
+    }
+    seals.set(key, {
+      docId: r.examDocumentId,
+      confLevel: level,
+      conferenteName,
+      conferenteCargo,
+    });
+  }
+
+  // Determina se uma coluna e inteiramente historica (todos os resultados
+  // dela vieram do historico interno de outro laudo, nao de exame proprio).
+  const colIsHistory = new Map<string, boolean>();
+  for (const r of rows) {
+    const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    if (!r.isHistory) {
+      colIsHistory.set(key, false);          // qualquer nao-historico torna a coluna real
+    } else if (!colIsHistory.has(key)) {
+      colIsHistory.set(key, true);           // primeiro encontrado: assume historico
+    }
+  }
+
+  // Colunas do comparativo: par unico (data + laboratorio), em ordem de data
+  const columnKeys: string[] = [];
+  const columns: Array<{
+    key: string;
+    date: string | null;
+    lab: string | null;
+    confLevel: "ia" | "c1" | "c2" | null;
+    conferenteName: string | null;
+    conferenteCargo: string | null;
+    isHistory: boolean;
+  }> = [];
+  for (const r of rows) {
+    const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    if (!columnKeys.includes(key)) {
+      columnKeys.push(key);
+      const seal = seals.get(key);
+      columns.push({
+        key,
+        date: r.collectionDate,
+        lab: r.labName,
+        confLevel: seal?.confLevel ?? null,
+        conferenteName: seal?.conferenteName ?? null,
+        conferenteCargo: seal?.conferenteCargo ?? null,
+        isHistory: colIsHistory.get(key) ?? false,
+      });
+    }
+  }
+
+  // Linhas: 1 por analito (codigo canonico quando casado; senao nome cru)
+  interface Cell {
+    value: string | null;
+    valueNum: number | null;
+    unit: string | null;
+    unitConverted: boolean;
+    unitRaw: string | null;
+    refLow: string | null;
+    refHigh: string | null;
+    status: string | null;
+    documentId: number;
+  }
+  const lines = new Map<
+    string,
+    { name: string; unit: string | null; refLow: string | null; refHigh: string | null; cells: Map<string, Cell> }
+  >();
+  for (const r of rows) {
+    const lineKey = r.analyteCode ?? r.analyteNameRaw.toLowerCase();
+    if (!lines.has(lineKey)) {
+      lines.set(lineKey, {
+        name: r.analyteNameRaw,
+        unit: r.unitCanonical ?? r.unitRaw,
+        refLow: r.refLow,
+        refHigh: r.refHigh,
+        cells: new Map(),
+      });
+    }
+    const line = lines.get(lineKey)!;
+    const colKey = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
+    // ultimo escrito vence (documento mais novo re-confirma o valor)
+    line.cells.set(colKey, {
+      value: r.valueRaw,
+      valueNum: r.valueCanonical === null ? null : Number(r.valueCanonical),
+      // Quando houve conversao, mostra a NOSSA unidade (o valueNum ja e canonico).
+      unit: r.unitConverted ? (r.unitCanonical ?? r.unitRaw) : r.unitRaw,
+      unitConverted: !!r.unitConverted,
+      unitRaw: r.unitRaw,
+      refLow: r.refLow,
+      refHigh: r.refHigh,
+      status: r.status,
+      documentId: r.examDocumentId,
+    });
+  }
+
+  // ---- Motor de FAIXAS (5 zonas): direção real + trisecção do min/max real --
+  // Direção: 1) exam_analyte_catalog.direction; 2) direcao_favoravel_exame
+  // (transmutado do IHE, casado pelo nome); 3) target (neutro). Faixas
+  // explícitas do Subcadastro (exam_analyte_ranges) mandam quando existirem.
+  const catRows = await db
+    .select({
+      code: examAnalyteCatalogTable.code,
+      direction: examAnalyteCatalogTable.direction,
+      sexDependent: examAnalyteCatalogTable.sexDependent,
+    })
+    .from(examAnalyteCatalogTable);
+  const dirByCode = new Map<string, string | null>();
+  const sexDepByCode = new Map<string, boolean>();
+  for (const c of catRows) {
+    dirByCode.set(c.code, c.direction);
+    sexDepByCode.set(c.code, c.sexDependent ?? false);
+  }
+
+  // Sexo do cliente (clients.ficha_clinica.sexo: 'M' | 'F') para escolher o
+  // conjunto de faixas dos analitos sexo-dependentes. Fallback 'any'.
+  const [clientRow] = await db
+    .select({ ficha: clientsTable.fichaClinica })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, clientId))
+    .limit(1);
+  const rawSexo = ((clientRow?.ficha as { sexo?: string } | null)?.sexo ?? "")
+    .toString()
+    .trim()
+    .toUpperCase();
+  const clientSex: "male" | "female" | null =
+    rawSexo === "M" ? "male" : rawSexo === "F" ? "female" : null;
+
+  const dirRows = await db
+    .select({
+      nome: direcaoFavoravelExameTable.nomeExame,
+      dir: direcaoFavoravelExameTable.direcaoFavoravel,
+    })
+    .from(direcaoFavoravelExameTable);
+  const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
+  const dirByName = new Map<string, string | null>();
+  for (const d of dirRows) dirByName.set(norm(d.nome), d.dir);
+
+  const rangeRows = await db.select().from(examAnalyteRangesTable);
+  const rangesByCode = new Map<string, typeof rangeRows>();
+  for (const r of rangeRows) {
+    const rk = chaveFaixa(r.analyteCode);
+    const arr = rangesByCode.get(rk) ?? [];
+    arr.push(r);
+    rangesByCode.set(rk, arr);
+  }
+
+  const toNum = (s: string | null): number | null => {
+    if (s === null) return null;
+    const n = Number(String(s).replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const analytes = [...lines.entries()].map(([key, line]) => {
+    // tendencia: compara os 2 ultimos valores numericos
+    const nums = columns
+      .map((c) => line.cells.get(c.key)?.valueNum)
+      .filter((v): v is number => v !== null && v !== undefined);
+    let trend: "subiu" | "caiu" | "estavel" | null = null;
+    if (nums.length >= 2) {
+      const prev = nums[nums.length - 2];
+      const last = nums[nums.length - 1];
+      trend = last > prev ? "subiu" : last < prev ? "caiu" : "estavel";
+    }
+
+    // Direção do exame (código canônico primeiro; senão pelo nome cru).
+    const catalogDir = key ? (dirByCode.get(key) ?? null) : null;
+    const iheDir = dirByName.get(norm(line.name)) ?? null;
+    const direction: Direction = resolveDirection(catalogDir, iheDir);
+
+    // Zonas: override do Subcadastro OU trisecção do min/max real.
+    // Chave normalizada por NOME do exame (unifica Config <-> Cockpit e casa
+    // com a semente), independente do code cru da linha.
+    // Faixas: prefere a chave do CODE canonico da linha (casa a semente e os
+    // sinonimos casados); cai para o nome cru quando a linha nao casou.
+    const allRows =
+      rangesByCode.get(chaveFaixa(key)) ??
+      rangesByCode.get(chaveFaixa(line.name)) ??
+      [];
+    // Escolha do conjunto por sexo: analito sexo-dependente + sexo do cliente
+    // conhecido usa 'male'/'female' (com fallback 'any' se aquele sexo estiver
+    // vazio); caso contrario usa apenas a faixa geral 'any'.
+    const isSexDep = key ? (sexDepByCode.get(key) ?? false) : false;
+    const pickBySex = (() => {
+      if (isSexDep && clientSex) {
+        const bySex = allRows.filter((r) => r.sex === clientSex);
+        if (bySex.length) return bySex;
+      }
+      return allRows.filter((r) => (r.sex ?? "any") === "any");
+    })();
+    const overrideRows = pickBySex.map((r) => ({
+      faixaName: r.faixaName,
+      low: toNum(r.low),
+      high: toNum(r.high),
+      color: r.color,
+      ordem: r.ordem,
+    }));
+    const zonasInstitucionais = overrideZones(overrideRows);
+    const zones: Zone[] | null =
+      zonasInstitucionais ??
+      computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
+
+    // Classifica cada célula na sua zona (cor honesta da faixa).
+    const cellsObj = Object.fromEntries(
+      [...line.cells.entries()].map(([ck, cell]) => {
+        const z = classifyIntoZones(cell.valueNum, zones);
+        return [
+          ck,
+          { ...cell, zone: z ? { key: z.key, name: z.name, color: z.color } : null },
+        ];
+      }),
+    );
+
+    return {
+      key,
+      name: line.name,
+      unit: line.unit,
+      refLow: line.refLow,
+      refHigh: line.refHigh,
+      direction,
+      zonesSource: zonasInstitucionais ? ("institucional" as const) : zones ? ("derivada" as const) : null,
+      zones: zones
+        ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
+        : null,
+      trend,
+      cells: cellsObj,
+    };
+  });
+
+  analytes.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  return { columns, analytes };
+}
+
+export type EvolucaoMontada = Awaited<ReturnType<typeof montarEvolucao>>;
+
 export async function handleEvolucao(clientId: number, req: Request, res: Response): Promise<void> {
   try {
-    // clientId já chega validado e escopado à clínica/ao token pelo chamador.
-    // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
-    //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
-    //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
-    //   CEO ver a evolucao antes da conferencia humana. Afeta SO a Evolucao.
-    const rawToggle = await getSetting("exames.exigirValidacaoHumana");
-    const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
-    const statusPermitidos = exigirValidacao
-      ? ["conferido"]
-      : ["recebido", "conferido_1", "conferido"];
-
-    const joined = await db
-      .select({
-        result: examResultsTable,
-        docStatus: examDocumentsTable.status,
-        conf1Name: examDocumentsTable.conf1Name,
-        conf1Cargo: examDocumentsTable.conf1Cargo,
-        conf2Name: examDocumentsTable.conf2Name,
-        conf2Cargo: examDocumentsTable.conf2Cargo,
-      })
-      .from(examResultsTable)
-      .innerJoin(
-        examDocumentsTable,
-        eq(examResultsTable.examDocumentId, examDocumentsTable.id),
-      )
-      .where(
-        and(
-          eq(examResultsTable.clientId, clientId),
-          inArray(examDocumentsTable.status, statusPermitidos),
-        ),
-      )
-      .orderBy(examResultsTable.collectionDate, examResultsTable.id);
-    const rows = joined.map((j) => j.result);
-
-    // Selo por coluna (data + laboratorio): nivel de conferencia (ia/c1/c2) +
-    // conferente (nome/cargo do snapshot). O documento mais novo (maior id) que
-    // alimenta a coluna define o selo, alinhado com "ultimo escrito vence".
-    interface ColSeal {
-      docId: number;
-      confLevel: "ia" | "c1" | "c2" | null;
-      conferenteName: string | null;
-      conferenteCargo: string | null;
-    }
-    const seals = new Map<string, ColSeal>();
-    for (const j of joined) {
-      const r = j.result;
-      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      const prev = seals.get(key);
-      if (prev && prev.docId >= r.examDocumentId) continue;
-      const level = confLevelFromStatus(j.docStatus);
-      // C2: usa snapshot da fase 2 (documentos legados sem snapshot => "conferencia legada").
-      // C1: usa snapshot da fase 1. IA: sem conferente.
-      let conferenteName: string | null = null;
-      let conferenteCargo: string | null = null;
-      if (level === "c2") {
-        conferenteName = j.conf2Name ?? (j.docStatus === "conferido" ? "Conferência legada" : null);
-        conferenteCargo = j.conf2Cargo;
-      } else if (level === "c1") {
-        conferenteName = j.conf1Name;
-        conferenteCargo = j.conf1Cargo;
-      }
-      seals.set(key, {
-        docId: r.examDocumentId,
-        confLevel: level,
-        conferenteName,
-        conferenteCargo,
-      });
-    }
-
-    // Determina se uma coluna e inteiramente historica (todos os resultados
-    // dela vieram do historico interno de outro laudo, nao de exame proprio).
-    const colIsHistory = new Map<string, boolean>();
-    for (const r of rows) {
-      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      if (!r.isHistory) {
-        colIsHistory.set(key, false);          // qualquer nao-historico torna a coluna real
-      } else if (!colIsHistory.has(key)) {
-        colIsHistory.set(key, true);           // primeiro encontrado: assume historico
-      }
-    }
-
-    // Colunas do comparativo: par unico (data + laboratorio), em ordem de data
-    const columnKeys: string[] = [];
-    const columns: Array<{
-      key: string;
-      date: string | null;
-      lab: string | null;
-      confLevel: "ia" | "c1" | "c2" | null;
-      conferenteName: string | null;
-      conferenteCargo: string | null;
-      isHistory: boolean;
-    }> = [];
-    for (const r of rows) {
-      const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      if (!columnKeys.includes(key)) {
-        columnKeys.push(key);
-        const seal = seals.get(key);
-        columns.push({
-          key,
-          date: r.collectionDate,
-          lab: r.labName,
-          confLevel: seal?.confLevel ?? null,
-          conferenteName: seal?.conferenteName ?? null,
-          conferenteCargo: seal?.conferenteCargo ?? null,
-          isHistory: colIsHistory.get(key) ?? false,
-        });
-      }
-    }
-
-    // Linhas: 1 por analito (codigo canonico quando casado; senao nome cru)
-    interface Cell {
-      value: string | null;
-      valueNum: number | null;
-      unit: string | null;
-      unitConverted: boolean;
-      status: string | null;
-      documentId: number;
-    }
-    const lines = new Map<
-      string,
-      { name: string; unit: string | null; refLow: string | null; refHigh: string | null; cells: Map<string, Cell> }
-    >();
-    for (const r of rows) {
-      const lineKey = r.analyteCode ?? r.analyteNameRaw.toLowerCase();
-      if (!lines.has(lineKey)) {
-        lines.set(lineKey, {
-          name: r.analyteNameRaw,
-          unit: r.unitCanonical ?? r.unitRaw,
-          refLow: r.refLow,
-          refHigh: r.refHigh,
-          cells: new Map(),
-        });
-      }
-      const line = lines.get(lineKey)!;
-      const colKey = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
-      // ultimo escrito vence (documento mais novo re-confirma o valor)
-      line.cells.set(colKey, {
-        value: r.valueRaw,
-        valueNum: r.valueCanonical === null ? null : Number(r.valueCanonical),
-        // Quando houve conversao, mostra a NOSSA unidade (o valueNum ja e canonico).
-        unit: r.unitConverted ? (r.unitCanonical ?? r.unitRaw) : r.unitRaw,
-        unitConverted: !!r.unitConverted,
-        status: r.status,
-        documentId: r.examDocumentId,
-      });
-    }
-
-    // ---- Motor de FAIXAS (5 zonas): direção real + trisecção do min/max real --
-    // Direção: 1) exam_analyte_catalog.direction; 2) direcao_favoravel_exame
-    // (transmutado do IHE, casado pelo nome); 3) target (neutro). Faixas
-    // explícitas do Subcadastro (exam_analyte_ranges) mandam quando existirem.
-    const catRows = await db
-      .select({
-        code: examAnalyteCatalogTable.code,
-        direction: examAnalyteCatalogTable.direction,
-        sexDependent: examAnalyteCatalogTable.sexDependent,
-      })
-      .from(examAnalyteCatalogTable);
-    const dirByCode = new Map<string, string | null>();
-    const sexDepByCode = new Map<string, boolean>();
-    for (const c of catRows) {
-      dirByCode.set(c.code, c.direction);
-      sexDepByCode.set(c.code, c.sexDependent ?? false);
-    }
-
-    // Sexo do cliente (clients.ficha_clinica.sexo: 'M' | 'F') para escolher o
-    // conjunto de faixas dos analitos sexo-dependentes. Fallback 'any'.
-    const [clientRow] = await db
-      .select({ ficha: clientsTable.fichaClinica })
-      .from(clientsTable)
-      .where(eq(clientsTable.id, clientId))
-      .limit(1);
-    const rawSexo = ((clientRow?.ficha as { sexo?: string } | null)?.sexo ?? "")
-      .toString()
-      .trim()
-      .toUpperCase();
-    const clientSex: "male" | "female" | null =
-      rawSexo === "M" ? "male" : rawSexo === "F" ? "female" : null;
-
-    const dirRows = await db
-      .select({
-        nome: direcaoFavoravelExameTable.nomeExame,
-        dir: direcaoFavoravelExameTable.direcaoFavoravel,
-      })
-      .from(direcaoFavoravelExameTable);
-    const norm = (s: string) => removeDiacritics(s).trim().toUpperCase();
-    const dirByName = new Map<string, string | null>();
-    for (const d of dirRows) dirByName.set(norm(d.nome), d.dir);
-
-    const rangeRows = await db.select().from(examAnalyteRangesTable);
-    const rangesByCode = new Map<string, typeof rangeRows>();
-    for (const r of rangeRows) {
-      const rk = chaveFaixa(r.analyteCode);
-      const arr = rangesByCode.get(rk) ?? [];
-      arr.push(r);
-      rangesByCode.set(rk, arr);
-    }
-
-    const toNum = (s: string | null): number | null => {
-      if (s === null) return null;
-      const n = Number(String(s).replace(",", "."));
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const analytes = [...lines.entries()].map(([key, line]) => {
-      // tendencia: compara os 2 ultimos valores numericos
-      const nums = columns
-        .map((c) => line.cells.get(c.key)?.valueNum)
-        .filter((v): v is number => v !== null && v !== undefined);
-      let trend: "subiu" | "caiu" | "estavel" | null = null;
-      if (nums.length >= 2) {
-        const prev = nums[nums.length - 2];
-        const last = nums[nums.length - 1];
-        trend = last > prev ? "subiu" : last < prev ? "caiu" : "estavel";
-      }
-
-      // Direção do exame (código canônico primeiro; senão pelo nome cru).
-      const catalogDir = key ? (dirByCode.get(key) ?? null) : null;
-      const iheDir = dirByName.get(norm(line.name)) ?? null;
-      const direction: Direction = resolveDirection(catalogDir, iheDir);
-
-      // Zonas: override do Subcadastro OU trisecção do min/max real.
-      // Chave normalizada por NOME do exame (unifica Config <-> Cockpit e casa
-      // com a semente), independente do code cru da linha.
-      // Faixas: prefere a chave do CODE canonico da linha (casa a semente e os
-      // sinonimos casados); cai para o nome cru quando a linha nao casou.
-      const allRows =
-        rangesByCode.get(chaveFaixa(key)) ??
-        rangesByCode.get(chaveFaixa(line.name)) ??
-        [];
-      // Escolha do conjunto por sexo: analito sexo-dependente + sexo do cliente
-      // conhecido usa 'male'/'female' (com fallback 'any' se aquele sexo estiver
-      // vazio); caso contrario usa apenas a faixa geral 'any'.
-      const isSexDep = key ? (sexDepByCode.get(key) ?? false) : false;
-      const pickBySex = (() => {
-        if (isSexDep && clientSex) {
-          const bySex = allRows.filter((r) => r.sex === clientSex);
-          if (bySex.length) return bySex;
-        }
-        return allRows.filter((r) => (r.sex ?? "any") === "any");
-      })();
-      const overrideRows = pickBySex.map((r) => ({
-        faixaName: r.faixaName,
-        low: toNum(r.low),
-        high: toNum(r.high),
-        color: r.color,
-        ordem: r.ordem,
-      }));
-      const zones: Zone[] | null =
-        overrideZones(overrideRows) ??
-        computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
-
-      // Classifica cada célula na sua zona (cor honesta da faixa).
-      const cellsObj = Object.fromEntries(
-        [...line.cells.entries()].map(([ck, cell]) => {
-          const z = classifyIntoZones(cell.valueNum, zones);
-          return [
-            ck,
-            { ...cell, zone: z ? { key: z.key, name: z.name, color: z.color } : null },
-          ];
-        }),
-      );
-
-      return {
-        key,
-        name: line.name,
-        unit: line.unit,
-        refLow: line.refLow,
-        refHigh: line.refHigh,
-        direction,
-        zones: zones
-          ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
-          : null,
-        trend,
-        cells: cellsObj,
-      };
-    });
-
-    analytes.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-    res.json({ columns, analytes });
+    res.json(await montarEvolucao(clientId));
   } catch (err) {
     console.error("[ExamesLab] Erro na evolucao:", (err as Error).message);
     res.status(500).json({ error: "Erro ao montar evolucao" });
