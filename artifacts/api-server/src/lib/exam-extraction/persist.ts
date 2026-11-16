@@ -5,11 +5,12 @@ import {
   examAnalyteCatalogTable,
   examAnalyteRangesTable,
   examAnalyteUnitsTable,
+  clientsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
 import { loadCatalogFull, triageOnImport, readTriagemOptions } from "./triagem";
-import { chaveVariante, VARIANTE_MIN } from "./zones";
+import { chaveFaixa, chaveVariante, VARIANTE_MIN, classifyIntoZones, escolherFaixasInstitucionais, overrideZones, sexoDaFicha } from "./zones";
 
 // ============================================================================
 // Trajetoria do Exame Uploadado — persistencia (Onda 3 da spec)
@@ -219,6 +220,21 @@ export async function persistExtractedResults(
   const collectionIso = brDateToIso(extracted.collectionDate);
   const lab = extracted.labName ?? null;
 
+  // Faixas institucionais: lidas UMA vez, com a MESMA chave (chaveFaixa) e a MESMA escolha por sexo
+  // da rota de evolução (escolherFaixasInstitucionais). Antes: busca por code exato, sem ordem e sem sexo.
+  const rangeRows = await db.select().from(examAnalyteRangesTable);
+  const rangesPorChave = new Map<string, typeof rangeRows>();
+  for (const r of rangeRows) {
+    const k = chaveFaixa(r.analyteCode);
+    rangesPorChave.set(k, [...(rangesPorChave.get(k) ?? []), r]);
+  }
+  const sexoDepPorCode = new Map<string, boolean>();
+  for (const c of await db.select({ code: examAnalyteCatalogTable.code, sd: examAnalyteCatalogTable.sexDependent }).from(examAnalyteCatalogTable)) {
+    sexoDepPorCode.set(c.code, c.sd ?? false);
+  }
+  const [fichaRow] = await db.select({ ficha: clientsTable.fichaClinica }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+  const sexoCliente = sexoDaFicha(fichaRow?.ficha);
+
   const summary: PersistExamSummary = {
     resultsInserted: 0,
     historyInserted: 0,
@@ -257,16 +273,21 @@ export async function persistExtractedResults(
     // quando existirem para o analito casado. Classifica pelo valor CANONICO.
     let finalStatus: string | null = status;
     if (code && value !== null) {
-      const ranges = await db
-        .select()
-        .from(examAnalyteRangesTable)
-        .where(eq(examAnalyteRangesTable.analyteCode, code));
-      const faixa = ranges.find((r) => {
-        const lo = r.low === null ? null : Number(r.low);
-        const hi = r.high === null ? null : Number(r.high);
-        return (lo === null || value >= lo) && (hi === null || value <= hi);
-      });
-      if (faixa) finalStatus = faixa.faixaName;
+      const conjunto = escolherFaixasInstitucionais(
+        rangesPorChave.get(chaveFaixa(code)) ?? [],
+        sexoDepPorCode.get(code) ?? false,
+        sexoCliente,
+      );
+      const zonas = overrideZones(conjunto.map((r) => ({
+        faixaName: r.faixaName,
+        low: r.low === null ? null : Number(r.low),
+        high: r.high === null ? null : Number(r.high),
+        color: r.color,
+        ordem: r.ordem,
+      })));
+      // Mesma regra de zona da leitura (classifyIntoZones). Sem conjunto aplicável: fica a classificação simples.
+      const zona = classifyIntoZones(value, zonas);
+      if (zona) finalStatus = zona.name;
     }
     // Unidade diferente sem fator: honesto -> pede conferencia humana.
     if (conv.unknownUnit) finalStatus = "conferencia";

@@ -9,6 +9,7 @@ Legenda de prova: MOCK (dependências simuladas), BANCO (PostgreSQL descartável
 | 1 | Composição segura das leituras Gemini/Claude/OpenAI | TESTADO | MOCK de IA + BANCO | EXTERNA (IA real) e PRODUÇÃO não feitas; conflitos só na trilha, sem tela |
 | 2 | Fluxo de exames ponta a ponta (C1/C2, conversão, evolução) | TESTADO | BANCO + MOCK: 9 testes novos; 308 de regressão | tela de unidade pendente; recuperação de presos; IA real; produção |
 | 3 | Recebimento pela Área do Cliente | TESTADO | BANCO + MOCK: 10 testes novos, bug de contagem corrigido | captura de tela; JPEG/PNG sem leitura; produção |
+| 3b | Adendo 2 da SPEC 3: faixa na gravação por sexo (falha provada e corrigida), contagem real de classificação, Cockpit | TESTADO | 7 + 11 BANCO, 8 puros, 13 navegador | IAs simuladas; produção, login real e Cockpit em navegador não verificados; HOMOLOGAÇÃO do proprietário |
 | 3a | Adendo da SPEC 3: Envios recentes com marcos explícitos (16/11/2026) | TESTADO | 11 puros + 6 BANCO + 11 navegador (API simulada) | hover não validado; "sinapses/fisiologia" não implementada; login real; HOMOLOGAÇÃO do proprietário |
 | 4 | Anexos PDF/foto no Telegram | TESTADO | MOCK: 10 testes novos; suíte Telegram 381 testes; teste de perfil do worker corrigido (3 crons) | prova EXTERNA e banco real do anexo; produção |
 | 5 | Cadastro de profissionais: Sede, Outro Local, Online, Home Care | PENDENTE | rótulo "Local externo" ainda existe | spec, compatibilidade, testes de persistência |

@@ -35,3 +35,10 @@ LGPD (acesso gratuito aos próprios dados preservado; serviço opcional é a com
 
 ## Nomenclatura (decisão técnica de 16/11/2026)
 Nome comercial = UM ponto de troca (`lib/evolucao-exames-nome.ts`, hoje "TEX"; DEEx é alias em discussão). Identificadores técnicos (arquivos, rota `/evolucao-exames/...`, evento de log, código de erro `EVOLUCAO_EXAMES_NAO_CONFERIDO`, futuras tabelas `evolucao_exames_*`, chave de recurso `evolucao_exames`) são neutros e NUNCA mudam. Trocar TEX por DEEx depois custa uma linha. Nenhuma tabela ou rota pública existia, então a renomeação interna não afetou dados.
+
+## Adendo (16/11/2026) — Faixa institucional na gravação e contagem real
+1. Os cinco níveis de faixa continuam calculados na leitura (`montarEvolucao`); o PDF/DEEx não persiste classificador novo.
+2. A gravação (`persistExtractedResults`) agora escolhe a faixa pela mesma regra da leitura (sexo do cadastro; analito sexo-dependente sem sexo e sem faixa geral não recebe faixa). Antes escolhia a primeira faixa encontrada sem filtro de sexo (falha demonstrada por teste e corrigida). Dados antigos não foram reprocessados.
+3. Qualquer texto de progresso ou de PDF sobre classificação deve usar a contagem de `lib/exam-progresso-resultados.ts` ("X de Y classificados; Z pendentes"); a frase "100% classificados" é proibida.
+4. "Sinapses" de exame: não existem; as do repositório são da anamnese. Nada foi integrado nem simulado.
+5. Detalhes e provas: SPEC 3, adendo 2.

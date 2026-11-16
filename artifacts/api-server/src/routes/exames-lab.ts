@@ -24,8 +24,11 @@ import {
   VARIANTE_MIN,
   type Direction,
   type Zone,
+  escolherFaixasInstitucionais,
+  sexoDaFicha,
 } from "../lib/exam-extraction/zones";
 import { getSetting } from "../lib/secure-settings";
+import { resumirDocumentos } from "../lib/exam-progresso-resultados";
 import { saveInternalCopy, hasInternalCopy, getInternalCopy } from "../lib/exam-file-store";
 import { requireCollaborator } from "./collaborator";
 import examConferenceRouter from "./exam-conference";
@@ -903,6 +906,24 @@ router.get(
 );
 
 // ---- GET /exames-lab/documentos?clientId= ----
+/** Progresso REAL da classificação por documento (Cockpit). Só leitura; mesmo guard de empresa de /documentos. */
+router.get("/exames-lab/progresso", async (req: Request, res: Response) => {
+  try {
+    const clientId = Number(req.query.clientId);
+    if (!sessionEmpresaId(req)) { res.status(401).json({ error: "Faça login de colaborador." }); return; }
+    if (!Number.isInteger(clientId) || clientId <= 0) { res.status(400).json({ error: "clientId inválido." }); return; }
+    if (!(await requireClientInSession(req, res, clientId))) return;
+    const ids = (await db.select({ id: examDocumentsTable.id }).from(examDocumentsTable)
+      .where(and(eq(examDocumentsTable.clientId, clientId), eq(examDocumentsTable.empresaId, sessionEmpresaId(req)!), ne(examDocumentsTable.status, "ignorado"))))
+      .map((r) => r.id);
+    const mapa = await resumirDocumentos(clientId, ids);
+    res.json(Object.fromEntries([...mapa.entries()]));
+  } catch (err) {
+    console.error("[ExamesLab] progresso:", (err as Error).message);
+    res.status(500).json({ error: "Erro ao montar o progresso." });
+  }
+});
+
 router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
   try {
     const clientId = req.query.clientId ? Number(req.query.clientId) : null;
@@ -1272,12 +1293,7 @@ export async function montarEvolucao(clientId: number) {
     .from(clientsTable)
     .where(eq(clientsTable.id, clientId))
     .limit(1);
-  const rawSexo = ((clientRow?.ficha as { sexo?: string } | null)?.sexo ?? "")
-    .toString()
-    .trim()
-    .toUpperCase();
-  const clientSex: "male" | "female" | null =
-    rawSexo === "M" ? "male" : rawSexo === "F" ? "female" : null;
+  const clientSex: "male" | "female" | null = sexoDaFicha(clientRow?.ficha);
 
   const dirRows = await db
     .select({
@@ -1334,13 +1350,7 @@ export async function montarEvolucao(clientId: number) {
     // conhecido usa 'male'/'female' (com fallback 'any' se aquele sexo estiver
     // vazio); caso contrario usa apenas a faixa geral 'any'.
     const isSexDep = key ? (sexDepByCode.get(key) ?? false) : false;
-    const pickBySex = (() => {
-      if (isSexDep && clientSex) {
-        const bySex = allRows.filter((r) => r.sex === clientSex);
-        if (bySex.length) return bySex;
-      }
-      return allRows.filter((r) => (r.sex ?? "any") === "any");
-    })();
+    const pickBySex = escolherFaixasInstitucionais(allRows, isSexDep, clientSex);
     const overrideRows = pickBySex.map((r) => ({
       faixaName: r.faixaName,
       low: toNum(r.low),

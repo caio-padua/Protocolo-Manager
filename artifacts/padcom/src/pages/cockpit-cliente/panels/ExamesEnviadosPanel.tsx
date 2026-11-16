@@ -27,6 +27,16 @@ type DocRow = {
   conf2Cargo: string | null;
 };
 
+type Progresso = { total: number; elegiveis: number; convertidos: number; cincoZonas: number; simples: number; divergentes: number; pendentes: number;
+  excluidos: { naoMapeados: number; semUnidadeHomologada: number; semValorNumerico: number } };
+/** Texto exato, só com contagem real: nunca "100% classificados". */
+function fraseProgresso(p: Progresso | undefined): string {
+  if (!p) return "Contagem indisponível";
+  if (p.total === 0) return "Sem resultados";
+  const exc = p.excluidos.naoMapeados + p.excluidos.semUnidadeHomologada + p.excluidos.semValorNumerico;
+  return `${p.cincoZonas} de ${p.elegiveis} classificados nas 5 faixas; ${p.pendentes} pendentes` + (exc ? `; ${exc} fora (curadoria)` : "");
+}
+
 const STATUS_VISUAL: Record<string, { rotulo: string; cor: string }> = {
   processando: { rotulo: "Processando", cor: "#0e7490" },
   recebido: { rotulo: "Recebido", cor: "#d97706" },
@@ -46,6 +56,7 @@ export default function ExamesEnviadosPanel({ clientId }: { clientId: number }) 
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
+  const [prog, setProg] = useState<Record<string, Progresso>>({});
 
   useEffect(() => {
     let ativo = true;
@@ -68,6 +79,16 @@ export default function ExamesEnviadosPanel({ clientId }: { clientId: number }) 
     return () => {
       ativo = false;
     };
+  }, [clientId]);
+
+  // Contagem real por documento (somente leitura). Falha aqui não derruba a lista: mostra "indisponível".
+  useEffect(() => {
+    let ativo = true;
+    fetch(`${API}/exames-lab/progresso?clientId=${clientId}`, { headers: collabAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d) => { if (ativo) setProg(d as Record<string, Progresso>); })
+      .catch(() => { if (ativo) setProg({}); });
+    return () => { ativo = false; };
   }, [clientId]);
 
   return (
@@ -111,6 +132,7 @@ export default function ExamesEnviadosPanel({ clientId }: { clientId: number }) 
                 <th className="py-2 pr-3">Coleta</th>
                 <th className="py-2 pr-3">Status</th>
                 <th className="py-2 pr-3">Conferências</th>
+                <th className="py-2 pr-3">Classificação</th>
                 <th className="py-2">Entrada</th>
               </tr>
             </thead>
@@ -144,6 +166,9 @@ export default function ExamesEnviadosPanel({ clientId }: { clientId: number }) 
                       {d.conf2Name
                         ? `C2 ${d.conf2Name}${d.conf2Cargo ? ` (${d.conf2Cargo})` : ""}`
                         : "C2 —"}
+                    </td>
+                    <td className="py-2 pr-3" style={{ color: "#4a5d75" }} data-testid={`progresso-${d.id}`}>
+                      {fraseProgresso(prog[String(d.id)])}
                     </td>
                     <td className="py-2" style={{ color: "#4a5d75" }}>
                       {fmtData(d.createdAt)}

@@ -4,6 +4,7 @@
  * é aceito na URL, no corpo ou na consulta: o que vier é ignorado. A clínica é a do cadastro do cliente.
  * O cliente nunca vê modelo de IA, motivo de quarentena nem dado de outra pessoa.
  */
+import { resumirDocumentos } from "../lib/exam-progresso-resultados";
 import { montarMarcosEnvio, type EntradaMarcos } from "../lib/exam-marcos";
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
@@ -142,6 +143,7 @@ router.get("/area-paciente/exames/envios", async (req: Request, res: Response) =
       }
     }
 
+    const resumos = await resumirDocumentos(client.id, ids);
     res.json(rows.map((r) => {
       const label = STATUS_LABEL[r.status] ?? { etapa: "leitura", texto: "Em andamento", final: false };
       const m = montarMarcosEnvio({
@@ -152,6 +154,7 @@ router.get("/area-paciente/exames/envios", async (req: Request, res: Response) =
         id: r.id, arquivo: r.fileName, enviadoEm: r.createdAt, etapa: label.etapa, situacao: label.texto, finalizado: label.final,
         analitos: r.status === "quarentena" ? 0 : r.analitos,
         percentual: m.percentual, etapas: m.etapas, etapaAvancada: m.etapaAvancada,
+        resultados: r.status === "quarentena" ? null : (resumos.get(r.id) ?? null),
       };
     }));
   } catch (err) {

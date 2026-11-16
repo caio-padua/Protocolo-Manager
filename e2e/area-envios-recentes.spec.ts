@@ -13,10 +13,15 @@ const et = (estados: Array<"pendente" | "executando" | "concluido" | "falhou">, 
   return base.map(([chave, rotulo], i) => ({ chave, rotulo, estado: estados[i], em: estados[i] === "concluido" ? ISO : null, metodo: chave === "identidade_validada" && estados[i] === "concluido" ? metodoId : null }));
 };
 const AV = { rotulo: "Cérebro e sinapses (medicina de alta precisão) — configuração pendente", estado: "pendente" };
+const RES = (o: Record<string, unknown> = {}) => ({
+  total: 12, elegiveis: 10, convertidos: 2, cincoZonas: 8, simples: 1, divergentes: 1, semClassificacao: 0, faixaIncompleta: 0, faltaSexo: 0, pendentes: 2,
+  excluidos: { naoMapeados: 1, semUnidadeHomologada: 1, semValorNumerico: 0 },
+  leituras: { leituras: ["gemini", "claude"], reconciliacao: "concluida", analitosRetiradosPorConflito: 0 }, ...o,
+});
 const ENVIOS = [
-  { id: 3, arquivo: "hemograma-sintetico-em-andamento.pdf", enviadoEm: ISO, etapa: "identidade", situacao: "Em conferência pela equipe", finalizado: false, analitos: 0, percentual: 50, etapas: et(["concluido", "concluido", "concluido", "pendente", "pendente", "pendente"]), etapaAvancada: AV },
-  { id: 2, arquivo: "perfil-sintetico-validado.pdf", enviadoEm: ISO, etapa: "concluido", situacao: "Concluído", finalizado: true, analitos: 12, percentual: 100, etapas: et(["concluido", "concluido", "concluido", "concluido", "concluido", "concluido"]), etapaAvancada: AV },
-  { id: 1, arquivo: "arquivo-sintetico-ilegivel.pdf", enviadoEm: ISO, etapa: "erro", situacao: "Não foi possível ler este arquivo", finalizado: true, analitos: 0, percentual: 17, etapas: et(["concluido", "falhou", "pendente", "pendente", "pendente", "pendente"]), etapaAvancada: AV },
+  { id: 3, arquivo: "hemograma-sintetico-em-andamento.pdf", enviadoEm: ISO, etapa: "identidade", situacao: "Em conferência pela equipe", finalizado: false, analitos: 0, percentual: 50, resultados: null, etapas: et(["concluido", "concluido", "concluido", "pendente", "pendente", "pendente"]), etapaAvancada: AV },
+  { id: 2, arquivo: "perfil-sintetico-validado.pdf", enviadoEm: ISO, etapa: "concluido", situacao: "Concluído", finalizado: true, analitos: 12, percentual: 100, resultados: RES(), etapas: et(["concluido", "concluido", "concluido", "concluido", "concluido", "concluido"]), etapaAvancada: AV },
+  { id: 1, arquivo: "arquivo-sintetico-ilegivel.pdf", enviadoEm: ISO, etapa: "erro", situacao: "Não foi possível ler este arquivo", finalizado: true, analitos: 0, percentual: 17, resultados: null, etapas: et(["concluido", "falhou", "pendente", "pendente", "pendente", "pendente"]), etapaAvancada: AV },
 ];
 const PROTO = [{ id: 1, title: "Protocolo Sintético de Teste", status: "active", startDate: "2026-10-01", endDate: "2026-12-31", unit: "Sede", serviceType: "ev", totalSessions: 8, completedSessions: 3, totalValue: 0, items: [] }];
 
@@ -73,8 +78,9 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       await expect(c3.getByTestId("etapa-3-revisao_c2")).toContainText("motor clínico do sistema distribui cada resultado");
       await expect(c3).not.toContainText("100%");
       await expect(c2).toContainText("100%");
-      await expect(c2).toContainText("Validado");
+      
       await expect(c2.getByTestId("legenda-2")).toContainText("conferido com o seu nome");
+      await expect(c3.getByTestId("resultados-3")).toHaveCount(0);
       await expect(c2.getByTestId("legenda-2")).toContainText("equipe técnica e pelo Cérebro Clínico");
       await expect(c1.getByTestId("etapa-1-leitura_preliminar")).toContainText("Falhou");
       await expect(c1).toContainText("Envie uma versão mais nítida");
@@ -86,7 +92,12 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       await abrirEnviar(page);
       const c2 = page.getByTestId("envio-2");
       await expect(c2.getByTestId("etapa-2-avancada")).toHaveCount(0);
-      await expect(c2.getByTestId("legenda-2")).toContainText("12 resultados foram registrados e classificados");
+      await expect(c2.getByTestId("legenda-2")).toContainText("8 de 10 resultados elegíveis foram classificados nas faixas de referência");
+      await expect(c2.getByTestId("legenda-2")).toContainText("2 pendentes de revisão ou curadoria");
+      await expect(c2.getByTestId("legenda-2")).not.toContainText("todos");
+      await expect(c2.getByTestId("resultados-2")).toContainText("8 de 10");
+      await expect(c2.getByTestId("resultados-2")).toContainText("Fora: sem cadastro no catálogo");
+      await expect(c2).toContainText("Verificado, com pendências");
       await expect(c2.getByRole("note")).toHaveCount(0);
     });
 
@@ -128,4 +139,18 @@ test("o painel de envios também aparece na aba EVOLUÇÃO, acima dos gráficos"
   await expect(painel.getByTestId("envio-2")).toContainText("100%", { timeout: 20000 });
   await semRolagemHorizontal(page);
   await page.screenshot({ path: "specs/paxterloop/evidencias/envios/evolucao-celular.png", fullPage: false });
+});
+
+test("100% sem pendências: frase 'sem pendências'; classificação nunca é afirmada sem contagem", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const limpo = { ...ENVIOS[1], resultados: RES({ total: 5, elegiveis: 5, convertidos: 0, cincoZonas: 5, simples: 0, divergentes: 0, pendentes: 0, excluidos: { naoMapeados: 0, semUnidadeHomologada: 0, semValorNumerico: 0 } }) };
+  const semContagem = { ...ENVIOS[1], id: 9, resultados: null };
+  await preparar(page, [limpo, semContagem]);
+  await abrirEnviar(page);
+  await expect(page.getByTestId("legenda-2")).toContainText("5 de 5 resultados elegíveis foram classificados nas faixas de referência; sem pendências.");
+  await expect(page.getByTestId("envio-2")).toContainText("Validado");
+  await expect(page.getByTestId("legenda-9")).toContainText("A contagem dos resultados não está disponível");
+  await expect(page.getByTestId("legenda-9")).not.toContainText("classificados nas faixas");
+  await semRolagemHorizontal(page);
+  await page.screenshot({ path: "specs/paxterloop/evidencias/envios/envio-100-resultados-celular.png", fullPage: true });
 });

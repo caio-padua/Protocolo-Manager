@@ -2283,6 +2283,14 @@ type EtapaEnvioUi = { chave: string; rotulo: string; estado: "pendente" | "execu
 type EnvioItem = {
   id: number; arquivo: string; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; analitos: number;
   percentual: number; etapas: EtapaEnvioUi[]; etapaAvancada: { rotulo: string; estado: "pendente" };
+  /** Contagem REAL gravada/derivada pelos serviços existentes (null = sem leitura confiável, ex.: quarentena). */
+  resultados: ResumoResultadosUi | null;
+};
+type ResumoResultadosUi = {
+  total: number; elegiveis: number; convertidos: number; cincoZonas: number; simples: number; divergentes: number;
+  semClassificacao: number; faixaIncompleta: number; faltaSexo: number; pendentes: number;
+  excluidos: { naoMapeados: number; semUnidadeHomologada: number; semValorNumerico: number };
+  leituras: { leituras: string[]; reconciliacao: "nao_aplicavel" | "concluida" | "com_conflitos" | "indisponivel"; analitosRetiradosPorConflito: number };
 };
 const ESTADO_ETAPA_TXT: Record<EtapaEnvioUi["estado"], { t: string; cls: string }> = {
   pendente: { t: "Pendente", cls: "text-muted-foreground" },
@@ -2305,12 +2313,61 @@ const FRASES_ETAPA: Record<string, { titulo: string; explica: string; agora: str
   revisao_c1:          { titulo: "Conferência dos dados",     explica: "Nossa equipe confere cada valor lido com o documento original.", agora: "Nossa equipe está conferindo cada valor com o documento original." },
   revisao_c2:          { titulo: "Classificação e análise clínica", explica: "O motor clínico do sistema distribui cada resultado na sua faixa de referência da medicina de alta precisão, e o médico analisa o que já está catalogado, para explicar a você com clareza.", agora: "O motor clínico está distribuindo os seus resultados nas faixas de referência da medicina de alta precisão, e o médico fará a análise do que já está catalogado." },
 };
+const pl = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+/** Frase exata sobre a classificação, só com o que foi contado; nunca afirma "todos" sem prova. */
+function fraseClassificacao(r: ResumoResultadosUi | null): string {
+  if (!r) return "A contagem dos resultados não está disponível para este envio.";
+  if (r.total === 0) return "Nenhum resultado foi registrado neste envio.";
+  const exc = r.excluidos.naoMapeados + r.excluidos.semUnidadeHomologada + r.excluidos.semValorNumerico;
+  if (r.elegiveis === 0) return `Nenhum dos ${r.total} resultados pôde entrar na classificação ainda; ${exc === 1 ? "ele aguarda" : "eles aguardam"} a curadoria da equipe.`;
+  const partes = [`${r.cincoZonas} de ${pl(r.elegiveis, "resultado elegível foi classificado", "resultados elegíveis foram classificados")} nas faixas de referência`];
+  partes.push(r.pendentes === 0 ? "sem pendências" : `${pl(r.pendentes, "pendente", "pendentes")} de revisão ou curadoria`);
+  let t = `${partes.join("; ")}.`;
+  if (exc > 0) t += ` ${pl(exc, "resultado ficou", "resultados ficaram")} fora da classificação até a curadoria (sem cadastro no catálogo, sem unidade homologada ou sem valor numérico).`;
+  return t;
+}
 function legendaEnvio(e: EnvioItem): string {
-  if (e.percentual === 100) return `Tudo pronto. O seu exame foi recebido e conferido com o seu nome. ${e.analitos === 1 ? "O resultado foi registrado e classificado" : `Os ${e.analitos} resultados foram registrados e classificados`} de acordo com a faixa de cada um, e ${e.analitos === 1 ? "está" : "estão"} à disposição de você e do seu médico, que analisará o que já está catalogado na consulta. Trabalho realizado pela nossa equipe técnica e pelo Cérebro Clínico do sistema.`;
+  if (e.percentual === 100) {
+    const base = "Verificações concluídas: o seu exame foi recebido e conferido com o seu nome.";
+    const fim = " Tudo fica à disposição de você e do seu médico, que analisará o que já está catalogado na consulta. Trabalho realizado pela nossa equipe técnica e pelo Cérebro Clínico do sistema.";
+    return base + " " + fraseClassificacao(e.resultados) + fim;
+  }
   const falha = e.etapas.find((x) => x.estado === "falhou");
   if (falha) return "Não conseguimos concluir esta etapa. Seu arquivo continua guardado; nossa equipe pode ajudar.";
   const atual = e.etapas.find((x) => x.estado !== "concluido");
   return atual ? (FRASES_ETAPA[atual.chave]?.agora ?? atual.rotulo) : "";
+}
+
+function BlocoResultados({ id, r }: { id: number; r: ResumoResultadosUi }) {
+  const linhas: Array<[string, string]> = [
+    ["Resultados lidos", String(r.total)],
+    ["Elegíveis para classificação", String(r.elegiveis)],
+    ["Unidades convertidas", String(r.convertidos)],
+    ["Classificados nas 5 faixas", `${r.cincoZonas} de ${r.elegiveis}`],
+  ];
+  if (r.simples > 0) linhas.push(["Só abaixo/dentro/acima do laudo", String(r.simples)]);
+  if (r.pendentes > 0) linhas.push(["Aguardam revisão ou curadoria", String(r.pendentes)]);
+  const exc = r.excluidos;
+  if (exc.naoMapeados > 0) linhas.push(["Fora: sem cadastro no catálogo", String(exc.naoMapeados)]);
+  if (exc.semUnidadeHomologada > 0) linhas.push(["Fora: unidade não homologada", String(exc.semUnidadeHomologada)]);
+  if (exc.semValorNumerico > 0) linhas.push(["Fora: sem valor numérico", String(exc.semValorNumerico)]);
+  if (r.faltaSexo > 0) linhas.push(["Falta o sexo no cadastro", String(r.faltaSexo)]);
+  const l = r.leituras;
+  const rec = l.reconciliacao === "concluida" ? "reconciliadas sem conflito" : l.reconciliacao === "com_conflitos" ? `reconciliadas; ${pl(l.analitosRetiradosPorConflito, "item retirado por divergência", "itens retirados por divergência")}` : l.reconciliacao === "nao_aplicavel" ? "leitura única" : "sem registro";
+  return (
+    <div className="px-4 pb-3" data-testid={`resultados-${id}`}>
+      <p className="text-accent text-[9px] font-black uppercase tracking-widest mb-1.5">RESULTADOS DO EXAME</p>
+      <div className="concave-3d rounded-xl p-3 space-y-1">
+        {linhas.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-2">
+            <span className="text-muted-foreground text-[10px] leading-snug">{k}</span>
+            <span className="text-primary text-xs font-black shrink-0">{v}</span>
+          </div>
+        ))}
+        {l.leituras.length > 0 && <p className="text-muted-foreground text-[10px] pt-1">Leituras de IA registradas: {l.leituras.length} ({rec}).</p>}
+      </div>
+    </div>
+  );
 }
 
 function EnvioCard({ e }: { e: EnvioItem }) {
@@ -2318,7 +2375,7 @@ function EnvioCard({ e }: { e: EnvioItem }) {
   const pronto = e.percentual === 100;
   const falhou = e.etapas.some((x) => x.estado === "falhou") || e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
   const concluidas = e.etapas.filter((x) => x.estado === "concluido").length;
-  const estadoTxt = e.etapa === "erro" ? "Falha na leitura" : e.etapa === "identidade" && e.finalizado ? "Não incorporado" : pronto ? "Validado" : e.situacao;
+  const estadoTxt = e.etapa === "erro" ? "Falha na leitura" : e.etapa === "identidade" && e.finalizado ? "Não incorporado" : pronto ? (e.resultados && e.resultados.pendentes > 0 ? "Verificado, com pendências" : "Validado") : e.situacao;
   return (
     <div className="panel-3d rounded-xl overflow-hidden group" tabIndex={0} data-testid={`envio-${e.id}`}>
       <div className="login-card-topbar px-4 pt-4 pb-3">
@@ -2336,6 +2393,7 @@ function EnvioCard({ e }: { e: EnvioItem }) {
         <SegmentedBar completed={concluidas} total={e.etapas.length} height={10} />
         <p className={`text-[11px] leading-snug mt-2 ${falhou ? "text-red-600" : "text-primary"}`} data-testid={`legenda-${e.id}`} aria-live="polite">{legendaEnvio(e)}</p>
       </div>
+      {e.resultados && e.resultados.total > 0 && <BlocoResultados id={e.id} r={e.resultados} />}
       <div className="border-t border-border/40">
         <button onClick={() => setAberto((x) => !x)} aria-expanded={aberto}
           className="w-full flex items-center justify-between px-4 py-2.5 text-accent hover:text-primary transition-colors">

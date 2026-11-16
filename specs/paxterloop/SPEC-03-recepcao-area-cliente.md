@@ -70,3 +70,46 @@ DEEx = nome comercial escolhido pelo proprietário (constante NOME_COMERCIAL_EVO
 | Navegador (API simulada sintética) | e2e/area-envios-recentes.spec.ts, 11 testes, celular 390 e desktop 1280 (ordem, percentuais, falha, vazio, erro, hover, barra igual à do protocolo, sem rolagem horizontal) | passou |
 | Captura de tela | evidencias/envios/*.png | gerada com API simulada; não é prova com servidor real |
 Não validado: login real por CPF e nascimento; hover validado pelo proprietário; botão DEEx em navegador (só typecheck).
+
+## Adendo 2 (16/11/2026) — Correção conceitual: classificação real, sem classificador novo
+
+### 1. Arquitetura REAL confirmada (nada novo foi criado)
+| Camada | Onde está | Observação verificada |
+|---|---|---|
+| Leitura por IA | `processExamDocument` (routes/exames-lab.ts) | Gemini (configuração `exames.llmGeminiAtivo`, padrão ligado), Claude (`exames.llmClaudeAtivo`, padrão desligado), OpenAI (`exames.llmOpenaiAtivo`, padrão desligado). Não se sabe quais estão ligadas em produção. |
+| Reconciliação | `mergeExtractions` / `composeExamCandidates` | Duas ou mais leituras: divergência de paciente = quarentena; analito divergente é retirado, nunca escolhido. Fica em `exam_documents.llm_pipeline` (passo "reconciliacao"). |
+| Identidade | `runIdentityGate` | Antes de incorporar ao prontuário. |
+| Gravação | `persistExtractedResults` | Catálogo, normalização, unidades (`resolveConversion`), classificação simples (abaixo/dentro/acima) e zona institucional. |
+| Faixas | `exam_analyte_ranges`, `computeZones`, `overrideZones`, `classifyIntoZones` | Cinco zonas institucionais. Na LEITURA (evolução) são calculadas; na GRAVAÇÃO grava-se o NOME da zona em `exam_results.status`. |
+| "Sinapses" de exame | NÃO encontradas | Só existem as da anamnese/Craniotomia (motor de anamnese). Nenhum serviço de sinapse de analito local. Repositório IHE não foi consultado nesta rodada. |
+
+### 2. Risco auditado em persist.ts: CONFIRMADO por teste
+Antes: `ranges.find` por `analyte_code` exato, sem filtro de sexo, sem ordenação, sem `chaveFaixa`. Teste sintético em banco descartável (`exam-faixa-selecao-postgres.test.ts`) falhou em 5 de 7 casos: cliente feminina recebia o nome da faixa MASCULINA (`M-abaixo`), sexo desconhecido também, e a fronteira (80) caía na zona anterior, diferente da leitura.
+Correção mínima: a escolha por sexo da rota de evolução virou função compartilhada (`escolherFaixasInstitucionais`, `sexoDaFicha` em zones.ts) e a gravação passou a usar a MESMA regra e a MESMA `classifyIntoZones`. Nenhuma tabela nova, nenhum dado antigo reprocessado. Resultados antigos podem ter nome de faixa errado; o resumo os marca como "divergentes" (aguardam revisão), nunca como classificados.
+
+### 3. Progresso real (substitui a ideia de "100% classificados")
+`lib/exam-progresso-resultados.ts` apenas CONTA, com o serviço existente. Não grava, não classifica, não chama IA.
+| Contagem | Critério |
+|---|---|
+| Fora da classificação | sem cadastro no catálogo; unidade sem fator homologado (status "conferencia"); sem valor numérico |
+| Elegíveis | o restante |
+| Convertidos | `unit_converted` |
+| Cinco zonas comprovadas | conjunto institucional de 5 zonas aplicável (sexo/geral) E status gravado = zona onde o valor canônico cai |
+| Divergentes | há zona, mas o status gravado difere: aguarda revisão |
+| Simples | só abaixo/dentro/acima do laudo |
+| Faixa incompleta / falta sexo | curadoria; nunca se escolhe faixa |
+Decisão: o percentual da barra continua sendo as seis verificações com evidência (C2 real). A frase ao cliente é sempre "X de Y resultados elegíveis foram classificados nas faixas de referência; Z pendentes de revisão ou curadoria" (ou "sem pendências"). 100% da barra NÃO afirma conclusão do classificador. Alternativa rejeitada: travar a barra em 99% com pendências (exames com analito sem cadastro nunca chegariam a 100%). Estado final do cartão: "Verificado, com pendências" quando houver pendentes.
+Exposição: Área do Cliente (`/area-paciente/exames/envios`, campo `resultados`) e Cockpit (`/exames-lab/progresso?clientId=`, mesmo guard de clínica; coluna "Classificação" em Exames enviados).
+
+### 4. Mudanças de interface posteriores ao adendo 1
+Aba renomeada para "UPLOAD EXAMES"; painel de envios também no topo de EVOLUÇÃO; frases por etapa para o cliente (a etapa C2 diz que o motor clínico distribui nas faixas e o médico analisa o que está catalogado); linha "Cérebro e sinapses" removida da tela.
+
+### 5. Provas (sintéticas; IAs SIMULADAS por mock, nenhum provedor real chamado)
+| Nível | Arquivo | Resultado |
+|---|---|---|
+| Banco descartável | exam-faixa-selecao-postgres.test.ts (7) | passou após a correção (5 falhas antes) |
+| Banco + cadeia real | exam-orquestracao-progresso-postgres.test.ts (11): 3 IAs ligadas/desligadas, divergência, analito mapeado/não, conversão, cinco zonas x simples, sexo, tenant, C1/C2, rota do Cockpit | passou |
+| Puro | exam-progresso-resultados.test.ts (8) | passou |
+| Regressão | exam-marcos-envio*, exam-fluxo-ponta-a-ponta, evolucao-exames, exam-conference-auth (78 testes no conjunto) | passou |
+| Navegador | e2e/area-envios-recentes.spec.ts (13), celular 390 e desktop 1280, API simulada | passou |
+Não verificado: provedores reais de IA, produção, login real, upload real da paciente, tela do Cockpit em navegador (só typecheck e teste de rota). Estado: TESTADO. HOMOLOGAÇÃO é do proprietário.
