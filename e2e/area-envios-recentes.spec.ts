@@ -74,7 +74,8 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       await expect(c3).not.toContainText("100%");
       await expect(c2).toContainText("100%");
       await expect(c2).toContainText("Validado");
-      await expect(c2.getByTestId("legenda-2")).toContainText("Tudo pronto");
+      await expect(c2.getByTestId("legenda-2")).toContainText("conferido com o seu nome");
+      await expect(c2.getByTestId("legenda-2")).toContainText("equipe técnica e pelo Cérebro Clínico");
       await expect(c1.getByTestId("etapa-1-leitura_preliminar")).toContainText("Falhou");
       await expect(c1).toContainText("Envie uma versão mais nítida");
       await expect(page.getByText(/em breve/i)).toHaveCount(0);
@@ -85,8 +86,8 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       await abrirEnviar(page);
       const c2 = page.getByTestId("envio-2");
       await expect(c2.getByTestId("etapa-2-avancada")).toHaveCount(0);
-      await c2.hover();
-      await expect(c2.getByRole("note")).toContainText("12 resultados");
+      await expect(c2.getByTestId("legenda-2")).toContainText("12 resultados foram registrados e classificados");
+      await expect(c2.getByRole("note")).toHaveCount(0);
     });
 
     test("estados: vazio, erro de conexão e nenhuma escrita na API", async ({ page }) => {

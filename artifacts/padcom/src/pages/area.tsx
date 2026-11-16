@@ -2306,7 +2306,7 @@ const FRASES_ETAPA: Record<string, { titulo: string; explica: string; agora: str
   revisao_c2:          { titulo: "Análise clínica e faixas",  explica: "O médico valida os resultados e os posiciona nas faixas de referência da medicina de alta precisão, para você acompanhar a sua evolução.", agora: "O médico está validando os seus resultados e posicionando-os nas faixas de referência da medicina de alta precisão." },
 };
 function legendaEnvio(e: EnvioItem): string {
-  if (e.percentual === 100) return `Tudo pronto. ${e.analitos} resultado${e.analitos !== 1 ? "s" : ""} já ${e.analitos !== 1 ? "estão" : "está"} na aba EVOLUÇÃO, nas faixas de referência.`;
+  if (e.percentual === 100) return `Tudo pronto. O seu exame foi recebido e conferido com o seu nome. ${e.analitos === 1 ? "O resultado foi registrado e classificado" : `Os ${e.analitos} resultados foram registrados e classificados`} de acordo com a faixa de cada um, e ${e.analitos === 1 ? "está" : "estão"} à disposição de você e do seu médico para a consulta. Trabalho realizado pela nossa equipe técnica e pelo Cérebro Clínico do sistema.`;
   const falha = e.etapas.find((x) => x.estado === "falhou");
   if (falha) return "Não conseguimos concluir esta etapa. Seu arquivo continua guardado; nossa equipe pode ajudar.";
   const atual = e.etapas.find((x) => x.estado !== "concluido");
@@ -2358,12 +2358,6 @@ function EnvioCard({ e }: { e: EnvioItem }) {
               </div>
             ))}
           </div>
-        )}
-        {/* PROVISÓRIO, NÃO VALIDADO pelo proprietário: texto de passar o mouse ao chegar a 100% (conteúdo exato a esclarecer). */}
-        {pronto && (
-          <p className="text-muted-foreground text-[10px] px-4 pb-3 hidden group-hover:block group-focus:block" role="note">
-            Validado. {e.analitos} resultado{e.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO.
-          </p>
         )}
         {falhou && e.etapa === "erro" && (
           <p className="text-red-600 text-[10px] px-4 pb-3" role="alert">Não foi possível ler este arquivo. Ele continua guardado no seu cadastro. Envie uma versão mais nítida em PDF ou fale com a clínica.</p>
