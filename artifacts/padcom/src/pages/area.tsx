@@ -1901,7 +1901,7 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
       </div>
     );
   }
-  if (!data || data.analytes.length === 0) {
+  if (!data || !Array.isArray(data.analytes) || data.analytes.length === 0) {
     return (
       <div className="panel-3d rounded-xl p-8 text-center text-muted-foreground text-sm">
         Nenhum analito disponível ainda. Envie um exame para que o motor faça a extração.
@@ -2373,8 +2373,9 @@ function BlocoResultados({ id, r }: { id: number; r: ResumoResultadosUi }) {
 function EnvioCard({ e }: { e: EnvioItem }) {
   const [aberto, setAberto] = useState(e.percentual !== 100);
   const pronto = e.percentual === 100;
-  const falhou = e.etapas.some((x) => x.estado === "falhou") || e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
-  const concluidas = e.etapas.filter((x) => x.estado === "concluido").length;
+  const etapasEnvio = e.etapas ?? [];
+  const falhou = etapasEnvio.some((x) => x.estado === "falhou") || e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
+  const concluidas = etapasEnvio.filter((x) => x.estado === "concluido").length;
   const estadoTxt = e.etapa === "erro" ? "Falha na leitura" : e.etapa === "identidade" && e.finalizado ? "Não incorporado" : pronto ? (e.resultados && e.resultados.pendentes > 0 ? "Verificado, com pendências" : "Validado") : e.situacao;
   return (
     <div className="panel-3d rounded-xl overflow-hidden group" tabIndex={0} data-testid={`envio-${e.id}`}>
@@ -2438,7 +2439,7 @@ function EnviosRecentesPanel({ token }: { token: string }) {
         if (!r.ok) throw new Error(String(r.status));
         const dados = (await r.json()) as EnvioItem[];
         if (!ativo) return;
-        setLista(dados); setFalhou(false);
+        setLista(Array.isArray(dados) ? dados.map((d) => ({ ...d, etapas: d.etapas ?? [] })) : []); setFalhou(false);
       } catch { if (ativo) setFalhou(true); }
       if (ativo) timer = setTimeout(() => { void consultar(); }, 4000);
     }
