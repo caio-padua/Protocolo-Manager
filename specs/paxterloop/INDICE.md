@@ -81,3 +81,15 @@ Nota jurídica: o que foi dito sobre a legalidade dos repasses e descontos é op
 Correções: o percentual de 50% foi RETIRADO de qualquer regra operacional (D1 passa a "intenção original esquecida pelo proprietário; sem regra"). A SPEC 19 não cria repasse automático; só simulador e contratos em rascunho. A SPEC 18 (convite de médicos) é a tela administrativa da modalidade 3 da SPEC 21.
 Nova ordem: 7 -> 8 -> 21 -> 9 -> 10 -> 11 -> 12 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 13 -> 5 -> 6.
 
+
+## Kaizen P0/P1 (16/11/2026) — fila e estado
+
+| Prioridade | Item | Estado | Evidência |
+|---|---|---|---|
+| P0 | `PUT /settings/exames` só para CEO (plataforma) no servidor; `GET` segue aberto a colaborador | FEITO | `settings-exames-p0.test.ts` (401, 403, CEO 200, GET 200) |
+| P0 | Toggle `exames.exigirValidacaoHumana` não vale mais para o portal do paciente; só profissional autenticado (Cockpit e prévia interna do PDF com `previa=1`) | FEITO | teste Postgres descartável "P0: portal NÃO expõe recebido/conferido_1"; fluxo C1/C2 ponta a ponta verde |
+| P1 | Custo de IA: empresaId real, documentId, modelo, tokens do Gemini, tarifa versionada, cota | FILA (SPEC 2) | não iniciado |
+| P1 | Modo de orquestração (Gemini apenas / verificação seletiva / dupla leitura + arbitragem Claude) | FILA (SPEC 3), depois do custo | não iniciado |
+| P1 | Faixas versionadas por clínica | FILA (SPEC 4) | não iniciado |
+| P1 | Go-to-market, planos sugeridos, pré-requisitos de venda | FILA (SPEC 5) | não iniciado |
+| Congelado | Cabeçalho das colunas da evolução (laboratório, data, status, auditoria) | NÃO ALTERADO | nenhum arquivo de tela tocado |

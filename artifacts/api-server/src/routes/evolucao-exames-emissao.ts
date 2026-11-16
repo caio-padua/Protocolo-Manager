@@ -36,7 +36,7 @@ router.get("/evolucao-exames/cliente/:clientId/pdf", requireCollaborator, async 
     }
 
     const [cli] = await db.select({ birth: clientsTable.birthDate }).from(clientsTable).where(eq(clientsTable.id, escopo.id)).limit(1);
-    const evolucao = await montarEvolucao(escopo.id);
+    const evolucao = await montarEvolucao(escopo.id, { respeitarToggleProfissional: true });
     if (evolucao.columns.length === 0) { res.status(404).json({ error: "Sem resultados de exames para este cliente." }); return; }
 
     const nasc = cli?.birth && /^\d{4}-\d{2}-\d{2}/.test(cli.birth) ? cli.birth.slice(0, 10).split("-").reverse().join("/") : null;

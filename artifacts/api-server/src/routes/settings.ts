@@ -529,7 +529,7 @@ router.get("/settings/exames", requireCollaborator, async (_req, res): Promise<v
   res.json(await examesPayload());
 });
 
-router.put("/settings/exames", requireCollaborator, async (req, res): Promise<void> => {
+router.put("/settings/exames", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
   const chaves: Record<string, string> = {
     exigirValidacaoHumana: "exames.exigirValidacaoHumana",
     triagemAtiva: "exames.triagemAtiva",

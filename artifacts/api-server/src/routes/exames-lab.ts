@@ -1106,7 +1106,7 @@ router.get("/exames-lab/documentos/:id", async (req: Request, res: Response) => 
 
 // ---- GET /exames-lab/evolucao/:clientId — antes/depois por analito ----
 router.get("/exames-lab/evolucao/:clientId", (req: Request, res: Response) =>
-  handleEvolucao(Number(req.params.clientId), req, res),
+  handleEvolucao(Number(req.params.clientId), req, res, true),
 );
 
 /** Corpo da evolução; reutilizado pela rota do paciente (clientId vem do token, nunca da URL). */
@@ -1114,13 +1114,21 @@ router.get("/exames-lab/evolucao/:clientId", (req: Request, res: Response) =>
  * Fonte ÚNICA da evolução de exames (tela do Cockpit, Área do Cliente e relatório TEX).
  * Isolamento por cliente/clínica é responsabilidade de quem chama.
  */
-export async function montarEvolucao(clientId: number) {
+export async function montarEvolucao(
+  clientId: number,
+  opts: { respeitarToggleProfissional?: boolean } = {},
+) {
   // clientId já chega validado e escopado à clínica/ao token pelo chamador.
   // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
   //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
   //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
   //   CEO ver a evolucao antes da conferencia humana. Afeta SO a Evolucao.
-  const rawToggle = await getSetting("exames.exigirValidacaoHumana");
+  // P0 (Kaizen 16/11/2026): o toggle SO vale para profissional autenticado
+  // (Cockpit/previa interna). Portal do paciente e demais chamadores sao
+  // SEMPRE estritos: apenas documentos conferidos (C2).
+  const rawToggle = opts.respeitarToggleProfissional
+    ? await getSetting("exames.exigirValidacaoHumana")
+    : null;
   const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
   const statusPermitidos = exigirValidacao
     ? ["conferido"]
@@ -1396,9 +1404,14 @@ export async function montarEvolucao(clientId: number) {
 
 export type EvolucaoMontada = Awaited<ReturnType<typeof montarEvolucao>>;
 
-export async function handleEvolucao(clientId: number, req: Request, res: Response): Promise<void> {
+export async function handleEvolucao(
+  clientId: number,
+  req: Request,
+  res: Response,
+  profissional = false,
+): Promise<void> {
   try {
-    res.json(await montarEvolucao(clientId));
+    res.json(await montarEvolucao(clientId, { respeitarToggleProfissional: profissional }));
   } catch (err) {
     console.error("[ExamesLab] Erro na evolucao:", (err as Error).message);
     res.status(500).json({ error: "Erro ao montar evolucao" });

@@ -96,6 +96,7 @@ beforeAll(async () => {
   await pool.query(`ALTER TABLE exam_documents ADD COLUMN llm_pipeline jsonb, ADD COLUMN reprocessamento_count int, ADD COLUMN reprocessado_at timestamptz`);
   await pool.query(`CREATE TABLE direcao_favoravel_exame (nome_exame text primary key, direcao_favoravel text)`);
   await pool.query(`CREATE TABLE drive_watcher_files (file_id text primary key, exam_document_id int, processed_at timestamptz, original_name text, renamed_to text, copied_drive_id text, copied_name text)`);
+  await (await import("../lib/ensure-exam-marcos-schema")).ensureExamMarcosSchema();
   await (await import("../lib/ensure-exam-identity-schema")).ensureExamIdentitySchema();
 
   await pool.query(`INSERT INTO empresas (id, nome) VALUES (5,'Clínica Cinco'),(6,'Clínica Seis')`);
@@ -223,6 +224,22 @@ describe("recepção pela Área do Cliente", () => {
     expect(JSON.stringify(ev.body)).not.toContain("Glicose");
     expect((await request(app).get("/api/area-paciente/exames/envios")).status).toBe(401);
     expect((await request(app).get("/api/area-paciente/exames/envios?clientId=1").set(bearer(2))).body).toEqual([]);
+  });
+
+  it("P0: com o toggle de validação DESLIGADO o portal NÃO expõe documento recebido/conferido_1", async () => {
+    sim.settings["exames.exigirValidacaoHumana"] = "false";
+    try {
+      for (const st of ["recebido", "conferido_1"]) {
+        await q(`UPDATE exam_documents SET status=$2 WHERE id=$1`, [docA, st]);
+        const ev = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(1));
+        expect(ev.status).toBe(200);
+        expect(ev.body.analytes).toEqual([]);
+        expect(ev.body.columns).toEqual([]);
+      }
+    } finally {
+      delete sim.settings["exames.exigirValidacaoHumana"];
+      await q(`UPDATE exam_documents SET status='recebido' WHERE id=$1`, [docA]);
+    }
   });
 
   it("falha de leitura aparece como erro final, sem resultados", async () => {
