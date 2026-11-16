@@ -33,6 +33,7 @@ import { extractExamFromText } from "../lib/exam-extraction/extract";
 import { extractExamWithClaude, CLAUDE_MODEL_NAME } from "../lib/exam-extraction/extract-anthropic";
 import { extractExamWithOpenAI, OPENAI_MODEL } from "../lib/exam-extraction/extract-openai";
 import type { ExtractedExam } from "../lib/exam-extraction/schema";
+import { composeExamCandidates, type ExtractionCandidate } from "../lib/exam-extraction/reconciliation";
 import {
   persistExtractedResults,
   finalizeDocument,
@@ -217,6 +218,8 @@ interface LlmStep {
   analitos?: number;
   ms?: number;
   error?: string;
+  /** Trilha da composição das leituras (conflitos, exclusões, fontes, confiança). */
+  detalhe?: unknown;
 }
 
 /** Mescla analitos de dois resultados (union por nome normalizado). */
@@ -263,6 +266,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     const llmPipeline: LlmStep[] = [];
     let mergedData: ExtractedExam | null = null;
     let primaryModel = "gemini-2.5-flash";
+    const candidatos: ExtractionCandidate[] = [];
 
     // ── Passo 1: Gemini ──────────────────────────────────────────────────────
     if (llmGeminiAtivo) {
@@ -271,6 +275,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
         const { data, modelUsed } = await extractExamFromText(pdfText.text);
         primaryModel = modelUsed;
         mergedData = data;
+        candidatos.push({ provider: "gemini", data });
         llmPipeline.push({
           provider: "gemini",
           model: modelUsed,
@@ -293,6 +298,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     if (llmClaudeAtivo) {
       const claudeResult = await extractExamWithClaude(pdfText.text);
       if (claudeResult) {
+        candidatos.push({ provider: "claude", data: claudeResult.data });
         if (mergedData) {
           mergedData = mergeExtractions(mergedData, claudeResult.data);
         } else {
@@ -320,6 +326,7 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     if (llmOpenaiAtivo) {
       const openaiResult = await extractExamWithOpenAI(pdfText.text);
       if (openaiResult) {
+        candidatos.push({ provider: "openai", data: openaiResult.data });
         if (mergedData) {
           mergedData = mergeExtractions(mergedData, openaiResult.data);
         } else {
@@ -347,8 +354,29 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
       throw new Error("Nenhum LLM ativo conseguiu processar o documento");
     }
 
+    // Composição segura (SPEC 1): com 2+ leituras, nenhuma é escolhida quando divergem.
+    if (candidatos.length > 1) {
+      const composed = composeExamCandidates(candidatos);
+      if (composed.exam) mergedData = composed.exam;
+      llmPipeline.push({
+        provider: "reconciliacao",
+        model: "composeExamCandidates",
+        ok: true,
+        analitos: composed.exam?.analytes.length ?? 0,
+        detalhe: {
+          conflitos: composed.conflicts,
+          analitosRetiradosPorConflito: composed.excludedAnalytes,
+          fontes: composed.sources,
+          confianca: composed.confidences,
+          conflitoDePaciente: composed.patientConflict,
+        },
+      });
+    }
     const data = mergedData;
     const modelUsed = primaryModel;
+    const conflitoPaciente = llmPipeline.some(
+      (s) => s.provider === "reconciliacao" && (s.detalhe as { conflitoDePaciente?: boolean } | undefined)?.conflitoDePaciente === true,
+    );
 
     const gate = await runIdentityGate({
       documentId,
@@ -357,6 +385,9 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
       modelUsed,
       pipeline: llmPipeline,
       evidenceText: pdfText.text,
+      forceQuarantineReason: conflitoPaciente
+        ? "As leituras de IA divergem sobre nome, CPF ou nascimento do paciente: revisão humana obrigatória."
+        : undefined,
     });
     if (gate.quarantined) {
       logger.warn(

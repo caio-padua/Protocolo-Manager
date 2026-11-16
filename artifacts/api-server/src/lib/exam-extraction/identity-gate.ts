@@ -11,6 +11,8 @@ import { getActiveRules, loadKnownAliases, recordAlias } from "./identity-rules-
 import type { ExtractedExam } from "./schema.js";
 
 export interface IdentityGateInput {
+  /** Quando as leituras de IA divergem sobre o paciente: retém o documento, qualquer que seja o resto. */
+  forceQuarantineReason?: string;
   documentId: number;
   clientId: number;
   extracted: ExtractedExam;
@@ -87,6 +89,16 @@ export async function runIdentityGate(input: IdentityGateInput): Promise<Identit
     }
   }
 
+  if (input.forceQuarantineReason) {
+    assessment = {
+      ...assessment,
+      verdict: "contradicao",
+      decision: "quarentena",
+      aliasToRecord: null,
+      reasons: [input.forceQuarantineReason, ...assessment.reasons],
+      trail: [input.forceQuarantineReason, ...assessment.trail],
+    };
+  }
   const quarantined = assessment.verdict !== "confirmada" || empresaId == null;
   // Registrado como "preliminar" só quando há clínica; nos demais casos retidos, "quarentena".
   const decision = !quarantined ? assessment.decision : assessment.decision === "preliminar" && empresaId != null ? "preliminar" : "quarentena";
