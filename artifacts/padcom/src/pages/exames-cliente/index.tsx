@@ -391,7 +391,7 @@ export default function ExamesCliente() {
         `${BASE}/api/exames-lab/documentos/${docSelecionado}/conferir`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
           body: JSON.stringify({ fase }),
         },
       );

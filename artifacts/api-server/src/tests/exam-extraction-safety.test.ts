@@ -36,7 +36,7 @@ describe("recebimento sintético e proteção do processamento de exames", () =>
     expect(hashExamDocument(buffer)).not.toBe(hashExamDocument(Buffer.from("outro arquivo sintético")));
     expect(duplicateIngestionAction("recebido")).toBe("skip");
     expect(duplicateIngestionAction("processando")).toBe("skip");
-    expect(duplicateIngestionAction("erro")).toBe("retry");
+    expect(duplicateIngestionAction("erro")).toBe("skip");
   });
 
   it("mantém data e laboratório ausentes como nulos, sem preenchimento inventado", () => {

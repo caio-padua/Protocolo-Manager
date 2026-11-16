@@ -31,6 +31,9 @@ vi.mock("@workspace/db", async () => ({
   },
 }));
 vi.mock("../lib/secure-settings", () => ({ getSetting: vi.fn() }));
+vi.mock("../lib/logger", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 vi.mock("../lib/exam-file-store", () => ({
   saveInternalCopy: vi.fn(),
   hasInternalCopy: vi.fn().mockResolvedValue(true),
@@ -72,7 +75,7 @@ vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-import { startExamIngestion } from "../routes/exames-lab.js";
+import { startExamIngestion, recoverStuckDocuments } from "../routes/exames-lab.js";
 import examLabRouter from "../routes/exames-lab.js";
 import { extractExamFromText } from "../lib/exam-extraction/extract.js";
 import express from "express";
@@ -134,7 +137,7 @@ describe("ingestão sintética e idempotente de exames", () => {
     expect(extractExamFromText).not.toHaveBeenCalled();
   });
 
-  it("permite nova tentativa automática somente para documento marcado com erro", async () => {
+  it("preserva documento em erro sem reiniciar extração que pode ter resultados parciais", async () => {
     state.existing = [{ id: 773, status: "erro" }];
     const result = await startExamIngestion({
       clientId: 7001,
@@ -142,9 +145,18 @@ describe("ingestão sintética e idempotente de exames", () => {
       fileName: "laudo-sintetico.pdf",
     });
 
-    expect(result).toEqual({ documentId: 773, duplicate: false });
-    expect(state.updates).toContainEqual(expect.objectContaining({ status: "processando" }));
-    expect(state.scheduled.length).toBeGreaterThanOrEqual(2);
+    expect(result).toEqual({ documentId: 773, duplicate: true });
+    expect(state.updates).toHaveLength(0);
+    expect(state.scheduled).toHaveLength(1);
+    expect(extractExamFromText).not.toHaveBeenCalled();
+  });
+
+  it("não recupera automaticamente extrações antigas enquanto não existe versionamento", async () => {
+    state.existing = [{ id: 775, status: "erro", rawJson: { synthetic: true } }];
+    await recoverStuckDocuments();
+    expect(state.updates).toHaveLength(0);
+    expect(state.inserts).toHaveLength(0);
+    expect(state.scheduled).toHaveLength(0);
     expect(extractExamFromText).not.toHaveBeenCalled();
   });
 

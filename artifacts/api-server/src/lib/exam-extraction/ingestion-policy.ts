@@ -5,5 +5,11 @@ export function hashExamDocument(buffer: Buffer): string {
 }
 
 export function duplicateIngestionAction(status: string): "retry" | "skip" {
-  return status === "erro" ? "retry" : "skip";
+  // Mesmo um erro pode ter sido gravado após resultados parciais.
+  // Não reutilizar a extração antes de existir histórico versionado.
+  return "skip";
+}
+
+export function automaticExamRecoveryAllowed(): boolean {
+  return false;
 }

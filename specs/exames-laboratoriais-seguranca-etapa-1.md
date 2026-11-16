@@ -15,6 +15,8 @@ Proteger a conferência clínica do módulo existente de exames e impedir que um
 7. Testes usam somente conteúdo e identidades sintéticos, sem chamadas de modelos, banco de produção ou dados clínicos.
 8. Nenhuma configuração global dos modelos é alterada.
 9. A separação Gemini/OpenAI/Claude só será integrada nesta etapa se o contrato dos provedores e o tratamento de conflitos puderem ser comprovados sem chamadas pagas. Caso contrário, permanece registrada como pendência.
+10. O bloqueio de reprocessamento inclui arquivo duplicado em erro e recuperação automática após reinício, pois uma falha pode ter ocorrido depois de gravar resultados parciais.
+11. A conferência em empresa diferente da empresa principal permanece recusada até a interface transmitir a seleção validada pelo servidor e existir teste com o middleware real.
 
 ## Falhas previstas e barreiras
 

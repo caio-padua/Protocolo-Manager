@@ -75,7 +75,7 @@ import { sendGmailMessage } from "../lib/google-gmail";
 import { moduleGuard } from "../middleware/moduleGuard";
 import { protectCurationMutation } from "../lib/exam-curation-access";
 import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
-import { hashExamDocument, duplicateIngestionAction } from "../lib/exam-extraction/ingestion-policy";
+import { hashExamDocument, automaticExamRecoveryAllowed } from "../lib/exam-extraction/ingestion-policy";
 import { rejectUnversionedReprocessing } from "../lib/exam-extraction/reprocessing-safety";
 
 const router: IRouter = Router();
@@ -453,7 +453,7 @@ export async function startExamIngestion(params: {
   const hash = hashExamDocument(params.buffer);
 
   // Idempotencia POR PACIENTE: mesmo arquivo em outro cliente gera doc proprio.
-  // EXCECAO: se o doc existente tem status='erro', reprocessa em vez de ignorar.
+  // Até existir versionamento, erro anterior também é duplicado: pode ter resultados parciais.
   const existing = await db
     .select({ id: examDocumentsTable.id, status: examDocumentsTable.status })
     .from(examDocumentsTable)
@@ -478,38 +478,8 @@ export async function startExamIngestion(params: {
         }
       }).catch(() => {});
     });
-    // Se ja concluido ou ainda processando, retorna como duplicado sem fazer nada.
-    if (duplicateIngestionAction(existingDoc.status) === "skip") {
-      return { documentId: existingDoc.id, duplicate: true };
-    }
-    // Se estava com erro: atualiza o Drive ID (se novo disponivel), reseta para
-    // processando e dispara a extracao novamente.
-    logger.info(
-      { docId: existingDoc.id },
-      "[ExamesLab] Duplicado com status=erro — reprocessando em vez de ignorar",
-    );
-    await db
-      .update(examDocumentsTable)
-      .set({
-        status: "processando",
-        ...(params.sourcePdfDriveId
-          ? { sourcePdfDriveId: params.sourcePdfDriveId }
-          : {}),
-      })
-      .where(eq(examDocumentsTable.id, existingDoc.id));
-    setImmediate(() => {
-      void processExamDocument({
-        documentId: existingDoc.id,
-        clientId: params.clientId,
-        buffer: params.buffer,
-        fileName: params.fileName,
-        sourcePdfDriveId:
-          params.sourcePdfDriveId ?? null,
-        notify: params.notify ?? false,
-        userDateStr: params.userDateStr ?? null,
-      });
-    });
-    return { documentId: existingDoc.id, duplicate: false };
+    // Não sobrescrever extração anterior, inclusive se houve erro parcial.
+    return { documentId: existingDoc.id, duplicate: true };
   }
 
   const [doc] = await db
@@ -568,6 +538,10 @@ function extractDatePrefixFromFileName(fileName: string): string | null {
 }
 
 export async function recoverStuckDocuments(): Promise<void> {
+  if (!automaticExamRecoveryAllowed()) {
+    logger.warn("[ExamesLab] Recuperação automática bloqueada até existir histórico versionado; documentos anteriores preservados.");
+    return;
+  }
   const cutoffMs = Date.now() - 5 * 60 * 1000;
   // BUG-FIX: também recupera docs em "erro" recentes (últimos 7 dias) —
   // podem ser erros de restart, não erros definitivos de PDF inválido.
