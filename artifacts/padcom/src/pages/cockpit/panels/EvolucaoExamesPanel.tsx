@@ -1069,7 +1069,11 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   if (columnsRaw.length === 0 || analytes.length === 0) {
     return (
       <div className="flex flex-col gap-4 py-4">
-        <p className="text-sm text-[#647c97]">Nenhum exame para este cliente ainda.</p>
+        <p className="text-sm text-[#647c97]">
+          {modoCliente
+            ? "A sua evolução aparece aqui assim que a conferência final de um exame for concluída. Acompanhe cada etapa no painel “Envios recentes”, logo acima."
+            : "Nenhum exame para este cliente ainda."}
+        </p>
         {uploadWidget}
       </div>
     );

@@ -2370,6 +2370,127 @@ function BlocoResultados({ id, r }: { id: number; r: ResumoResultadosUi }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// JORNADA DO EXAME (SPEC 3, adendo 16/11/2026): frases para o cliente por situação REAL.
+// Só lê o que o servidor já registrou (etapas, etapa, finalizado); nunca promete prazo de conferência.
+// ---------------------------------------------------------------------------
+type TomJornada = "andamento" | "espera" | "ok" | "atencao";
+type SituacaoJornada = { tom: TomJornada; selo: string; titulo: string; agora: string; proximo: string; voce: string };
+
+function situacaoJornada(e: EnvioItem): SituacaoJornada {
+  const etapas = e.etapas ?? [];
+  const feita = (k: string) => etapas.find((x) => x.chave === k)?.estado === "concluido";
+  if (e.etapa === "erro") {
+    return { tom: "atencao", selo: "PRECISA DE UMA AÇÃO", titulo: "Não conseguimos ler este arquivo",
+      agora: "O arquivo está guardado com segurança no seu cadastro, mas a leitura não foi possível.",
+      proximo: "Nada avança até recebermos uma versão legível.",
+      voce: "Envie novamente em PDF mais nítido, ou fale com a clínica." };
+  }
+  if (e.etapa === "identidade" && e.finalizado) {
+    return { tom: "atencao", selo: "NÃO INCORPORADO", titulo: "Este exame não foi incorporado ao seu histórico",
+      agora: "Não foi possível confirmar que o documento pertence a você (nome, CPF e data de nascimento).",
+      proximo: "Por segurança, ele não entra na sua evolução.",
+      voce: "Fale com a clínica para conferir o documento. Seu arquivo continua guardado." };
+  }
+  if (e.percentual === 100) {
+    return { tom: "ok", selo: "CONCLUÍDO", titulo: "Seu exame está na sua evolução",
+      agora: "Todas as verificações foram concluídas e os resultados já estão na planilha da evolução.",
+      proximo: "Seu médico analisa o que já está catalogado na consulta.",
+      voce: "Nada a fazer. Você pode comparar este exame com os anteriores logo abaixo." };
+  }
+  if (e.etapa === "identidade") {
+    return { tom: "espera", selo: "CONFERÊNCIA DE IDENTIDADE", titulo: "Estamos confirmando que o exame é seu",
+      agora: "Nossa equipe compara nome, CPF e data de nascimento do documento com o seu cadastro.",
+      proximo: "Depois disso, os resultados seguem para conferência valor a valor.",
+      voce: "Nada a fazer agora. Cuidamos disso para proteger o seu histórico." };
+  }
+  if (feita("revisao_c1")) {
+    return { tom: "espera", selo: "ANÁLISE CLÍNICA", titulo: "Seu exame aguarda a análise clínica do médico",
+      agora: "Os valores já foram conferidos com o documento original pela nossa equipe.",
+      proximo: "Quando o médico concluir, os resultados entram na sua evolução automaticamente.",
+      voce: "Nada a fazer. Esta tela se atualiza sozinha." };
+  }
+  if (feita("dados_extraidos")) {
+    return { tom: "espera", selo: "CONFERÊNCIA DA EQUIPE", titulo: "Seu exame foi lido e aguarda a conferência da equipe",
+      agora: "Os resultados foram identificados no documento. Nossa equipe confere cada valor com o original.",
+      proximo: "Em seguida o médico faz a análise clínica, e então a evolução é liberada.",
+      voce: "Nada a fazer. A evolução aparece aqui assim que a conferência terminar." };
+  }
+  return { tom: "andamento", selo: "LENDO O DOCUMENTO", titulo: "Estamos lendo o seu exame",
+    agora: "O documento é lido página por página e cada resultado é separado com a sua unidade de medida.",
+    proximo: "Em seguida, a equipe confere os valores com o documento original.",
+    voce: "Nada a fazer. A leitura costuma levar cerca de dois minutos." };
+}
+
+const COR_TOM: Record<TomJornada, string> = { andamento: "text-cyan-600", espera: "text-amber-600", ok: "text-green-600", atencao: "text-red-600" };
+const LED_TOM: Record<TomJornada, string> = { andamento: "", espera: "paxter-led-amber", ok: "paxter-led-green", atencao: "paxter-led-red" };
+
+const ROTULO_CURTO: Record<string, string> = {
+  arquivo_recebido: "Recebido", leitura_preliminar: "Leitura", dados_extraidos: "Resultados",
+  identidade_validada: "Identidade", revisao_c1: "Conferência", revisao_c2: "Análise",
+};
+
+/** Régua de 6 marcos: concluído = navy com ✓; etapa atual = ouro com luz; pendente = côncavo; falha = vermelho. */
+function JornadaRegua({ e }: { e: EnvioItem }) {
+  const etapas = e.etapas ?? [];
+  const idxAtual = etapas.findIndex((x) => x.estado !== "concluido");
+  return (
+    <ol className="flex items-start" aria-label="Etapas do exame" data-testid={`jornada-regua-${e.id}`}>
+      {etapas.map((x, i) => {
+        const feito = x.estado === "concluido";
+        const falhou = x.estado === "falhou";
+        const atual = i === idxAtual && !falhou;
+        return (
+          <li key={x.chave} className="flex-1 min-w-0 flex flex-col items-center relative" aria-current={atual ? "step" : undefined}>
+            {i > 0 && (
+              <span aria-hidden className="absolute top-[13px] right-1/2 w-full h-[3px] -z-0"
+                style={{ background: feito || (etapas[i - 1]?.estado === "concluido" && atual) ? "#16284a" : "rgba(22,40,74,0.15)" }} />
+            )}
+            <span
+              className={`relative z-10 flex items-center justify-center w-[28px] h-[28px] rounded-[6px] text-[11px] font-black ${
+                falhou ? "bg-red-600 text-white" : feito ? "bg-primary text-white bevel-3d" : atual ? "panel-3d text-primary" : "concave-3d text-muted-foreground"
+              }`}
+              style={atual ? { boxShadow: "0 0 0 2px #c9a24b" } : undefined}
+            >
+              {falhou ? "!" : feito ? <CheckCircle className="w-4 h-4" /> : atual ? <span className="paxter-led paxter-led-amber paxter-led-breathe" aria-hidden /> : i + 1}
+            </span>
+            <span className={`mt-1.5 text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-center leading-tight px-0.5 ${
+              falhou ? "text-red-600" : atual ? "text-primary" : feito ? "text-primary/80" : "text-muted-foreground"
+            }`}>{ROTULO_CURTO[x.chave] ?? x.rotulo}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function JornadaDoExame({ e }: { e: EnvioItem }) {
+  const s = situacaoJornada(e);
+  return (
+    <div className="px-4 pb-3 space-y-3" data-testid={`jornada-${e.id}`}>
+      <JornadaRegua e={e} />
+      <div className="concave-3d rounded-xl p-3 space-y-2" role="status" aria-live="polite">
+        <div className="flex items-center gap-2">
+          <span className={`paxter-led ${LED_TOM[s.tom]} ${s.tom === "ok" ? "" : "paxter-led-breathe"}`} aria-hidden />
+          <span className={`text-[9px] font-black uppercase tracking-widest ${COR_TOM[s.tom]}`} data-testid={`jornada-selo-${e.id}`}>{s.selo}</span>
+        </div>
+        <p className="text-primary text-sm font-black leading-snug">{s.titulo}</p>
+        <p className="text-primary/90 text-[11px] leading-snug">{s.agora}</p>
+        <div className="grid gap-2 pt-1 sm:grid-cols-2">
+          <div>
+            <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">PRÓXIMO PASSO</p>
+            <p className="text-muted-foreground text-[11px] leading-snug">{s.proximo}</p>
+          </div>
+          <div>
+            <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">O QUE VOCÊ PRECISA FAZER</p>
+            <p className={`text-[11px] leading-snug ${s.tom === "atencao" ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>{s.voce}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EnvioCard({ e }: { e: EnvioItem }) {
   const [aberto, setAberto] = useState(e.percentual !== 100);
   const pronto = e.percentual === 100;
@@ -2386,6 +2507,7 @@ function EnvioCard({ e }: { e: EnvioItem }) {
         <MetaField label="ENVIADO EM" value={fmtEm(e.enviadoEm)} />
         <MetaField label="SITUAÇÃO" value={<span className={`font-black text-xs ${falhou ? "text-red-600" : pronto ? "text-green-500" : "text-cyan-500"}`}>{estadoTxt}</span>} />
       </div>
+      <JornadaDoExame e={e} />
       <div className="px-4 pb-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
