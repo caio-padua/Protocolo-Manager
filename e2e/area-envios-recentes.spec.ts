@@ -68,10 +68,13 @@ for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop
       const c3 = page.getByTestId("envio-3"), c2 = page.getByTestId("envio-2"), c1 = page.getByTestId("envio-1");
       await expect(c3).toContainText("50%"); await expect(c3).toContainText("3 de 6 etapas");
       await expect(c3.getByTestId("etapa-3-identidade_validada")).toContainText("Pendente");
-      await expect(c3.getByTestId("etapa-3-avancada")).toContainText("Cérebro e sinapses (medicina de alta precisão) — configuração pendente");
+      await expect(c3.getByTestId("etapa-3-avancada")).toHaveCount(0);
+      await expect(c3.getByTestId("legenda-3")).toContainText("confirmando que este exame pertence a você");
+      await expect(c3.getByTestId("etapa-3-revisao_c2")).toContainText("faixas de referência da medicina de alta precisão");
       await expect(c3).not.toContainText("100%");
       await expect(c2).toContainText("100%");
       await expect(c2).toContainText("Validado");
+      await expect(c2.getByTestId("legenda-2")).toContainText("Tudo pronto");
       await expect(c1.getByTestId("etapa-1-leitura_preliminar")).toContainText("Falhou");
       await expect(c1).toContainText("Envie uma versão mais nítida");
       await expect(page.getByText(/em breve/i)).toHaveCount(0);

@@ -2296,6 +2296,23 @@ function fmtEm(iso: string | null): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+// Textos para o cliente, por etapa. O estado vem do servidor (registro real); aqui só se escolhe a frase.
+const FRASES_ETAPA: Record<string, { titulo: string; explica: string; agora: string }> = {
+  arquivo_recebido:    { titulo: "Exame recebido",            explica: "Seu exame chegou com segurança e já está guardado no seu cadastro.", agora: "Seu exame chegou com segurança e já está guardado no seu cadastro." },
+  leitura_preliminar:  { titulo: "Leitura do documento",      explica: "O documento é lido com atenção, página por página.", agora: "Estamos lendo o seu documento com atenção, página por página." },
+  dados_extraidos:     { titulo: "Resultados identificados",  explica: "Cada resultado é separado e organizado com a sua unidade de medida.", agora: "Estamos separando cada resultado e organizando-o com a sua unidade de medida." },
+  identidade_validada: { titulo: "Identidade confirmada",     explica: "Conferimos que o exame é seu: nome, CPF e data de nascimento.", agora: "Estamos confirmando que este exame pertence a você: nome, CPF e data de nascimento." },
+  revisao_c1:          { titulo: "Conferência dos dados",     explica: "Nossa equipe confere cada valor lido com o documento original.", agora: "Nossa equipe está conferindo cada valor com o documento original." },
+  revisao_c2:          { titulo: "Análise clínica e faixas",  explica: "O médico valida os resultados e os posiciona nas faixas de referência da medicina de alta precisão, para você acompanhar a sua evolução.", agora: "O médico está validando os seus resultados e posicionando-os nas faixas de referência da medicina de alta precisão." },
+};
+function legendaEnvio(e: EnvioItem): string {
+  if (e.percentual === 100) return `Tudo pronto. ${e.analitos} resultado${e.analitos !== 1 ? "s" : ""} já ${e.analitos !== 1 ? "estão" : "está"} na aba EVOLUÇÃO, nas faixas de referência.`;
+  const falha = e.etapas.find((x) => x.estado === "falhou");
+  if (falha) return "Não conseguimos concluir esta etapa. Seu arquivo continua guardado; nossa equipe pode ajudar.";
+  const atual = e.etapas.find((x) => x.estado !== "concluido");
+  return atual ? (FRASES_ETAPA[atual.chave]?.agora ?? atual.rotulo) : "";
+}
+
 function EnvioCard({ e }: { e: EnvioItem }) {
   const [aberto, setAberto] = useState(e.percentual !== 100);
   const pronto = e.percentual === 100;
@@ -2317,6 +2334,7 @@ function EnvioCard({ e }: { e: EnvioItem }) {
           <span className={`text-xs font-black ${falhou ? "text-red-600" : "text-accent"}`}>{e.percentual}%</span>
         </div>
         <SegmentedBar completed={concluidas} total={e.etapas.length} height={10} />
+        <p className={`text-[11px] leading-snug mt-2 ${falhou ? "text-red-600" : "text-primary"}`} data-testid={`legenda-${e.id}`} aria-live="polite">{legendaEnvio(e)}</p>
       </div>
       <div className="border-t border-border/40">
         <button onClick={() => setAberto((x) => !x)} aria-expanded={aberto}
@@ -2329,7 +2347,8 @@ function EnvioCard({ e }: { e: EnvioItem }) {
             {e.etapas.map((x) => (
               <div key={x.chave} className="flex items-start justify-between gap-2" data-testid={`etapa-${e.id}-${x.chave}`}>
                 <div className="min-w-0">
-                  <p className="text-primary text-xs font-black leading-tight">{x.rotulo}</p>
+                  <p className="text-primary text-xs font-black leading-tight">{FRASES_ETAPA[x.chave]?.titulo ?? x.rotulo}</p>
+                  {FRASES_ETAPA[x.chave] && <p className="text-muted-foreground text-[10px] leading-snug">{FRASES_ETAPA[x.chave].explica}</p>}
                   {x.metodo && <p className="text-muted-foreground text-[10px] leading-snug">{x.metodo}</p>}
                 </div>
                 <div className="text-right shrink-0">
@@ -2338,12 +2357,6 @@ function EnvioCard({ e }: { e: EnvioItem }) {
                 </div>
               </div>
             ))}
-            {!pronto && (
-              <div className="flex items-start justify-between gap-2 opacity-70" data-testid={`etapa-${e.id}-avancada`}>
-                <p className="text-primary text-xs font-black leading-tight">{e.etapaAvancada.rotulo}</p>
-                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground shrink-0">Pendente</p>
-              </div>
-            )}
           </div>
         )}
         {/* PROVISÓRIO, NÃO VALIDADO pelo proprietário: texto de passar o mouse ao chegar a 100% (conteúdo exato a esclarecer). */}
