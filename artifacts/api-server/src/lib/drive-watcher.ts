@@ -11,11 +11,8 @@ import {
 } from "./google-drive.js";
 import { extractExamFromMedia } from "./exam-extraction/extract.js";
 import { extractPdfText } from "./exam-extraction/pdf-text.js";
-import {
-  persistExtractedResults,
-  finalizeDocument,
-  markDocumentError,
-} from "./exam-extraction/persist.js";
+import { markDocumentError } from "./exam-extraction/persist.js";
+import { persistExtractionIfIdentityConfirmed } from "./exam-extraction/verified-persist.js";
 import { normalizeName, loadClients, resolveClient } from "./drive-import/matcher.js";
 import { saveInternalCopy, hasInternalCopy } from "./exam-file-store.js";
 import { logger } from "./logger.js";
@@ -447,7 +444,7 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
             .insert(examDocumentsTable)
             .values({
               clientId,
-              empresaId: 5,
+              empresaId: sql<number>`(SELECT empresa_id FROM clients WHERE id = ${clientId})`,
               hash,
               fileName: newName,
               examKind,
@@ -462,9 +459,17 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
           if (docRow) {
             examDocId = docRow.id;
             if (isBlood && extraction) {
-              await finalizeDocument(docRow.id, extraction.data, extraction.modelUsed);
-              await persistExtractedResults({ documentId: docRow.id, clientId, extracted: extraction.data });
-              logLine(`    Extração (vision): ${analytes} analito(s) extraído(s)`);
+              const outcome = await persistExtractionIfIdentityConfirmed({
+                documentId: docRow.id,
+                clientId,
+                extracted: extraction.data,
+                modelUsed: extraction.modelUsed,
+              });
+              if (outcome.incorporated) {
+                logLine(`    Extração (vision): ${analytes} analito(s) extraído(s)`);
+              } else {
+                logLine(`    IDENTIDADE do laudo não confirmada (${outcome.verdict}): documento em quarentena, nenhum resultado gravado no prontuário`);
+              }
             } else if (tryBlood) {
               logLine(`    Extração (vision): nenhum analito — registrado como "${examKind}"`);
             }

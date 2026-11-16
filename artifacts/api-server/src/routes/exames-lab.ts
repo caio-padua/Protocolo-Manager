@@ -12,7 +12,6 @@ import {
   professionalsTable,
 } from "@workspace/db";
 import { eq, ne, desc, and, or, inArray, isNull, isNotNull, sql } from "drizzle-orm";
-import { resolveEmpresaId } from "../middleware/tenantContext";
 import { z } from "zod/v4";
 import {
   resolveDirection,
@@ -77,11 +76,54 @@ import { protectCurationMutation } from "../lib/exam-curation-access";
 import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
 import { hashExamDocument, automaticExamRecoveryAllowed } from "../lib/exam-extraction/ingestion-policy";
 import { rejectUnversionedReprocessing } from "../lib/exam-extraction/reprocessing-safety";
+import { runIdentityGate } from "../lib/exam-extraction/identity-gate";
+import { createExamIdentityRouter } from "./exam-identity";
+import { createExamIdentityGovernanceRouter } from "./exam-identity-governance";
+import {
+  requireClientInSession,
+  requireDocumentInSession,
+  sessionEmpresaId,
+} from "../lib/exam-tenant";
 
 const router: IRouter = Router();
 router.use(moduleGuard("exames_lab"));
 router.use(protectCurationMutation);
 router.use(examConferenceRouter);
+
+// ── Isolamento por clínica (specs/depuracao-exames-etapa-2-identidade-tenant.md, 3.3) ──
+// Toda rota que toca dado de UM cliente/documento exige colaborador ativo e confere que o
+// cliente pertence à clínica da sessão. Falha = 404 (não revela existência).
+function scopeDocumentParam(req: Request, res: Response, next: () => void): void {
+  void requireDocumentInSession(req, res, Number(req.params.ref))
+    .then((scope) => { if (scope) next(); })
+    .catch((err) => {
+      logger.error({ err }, "[ExamesLab] falha ao conferir clínica do documento");
+      if (!res.headersSent) res.status(500).json({ error: "Falha ao conferir a clínica do documento." });
+    });
+}
+function scopeClientParam(req: Request, res: Response, next: () => void): void {
+  void requireClientInSession(req, res, Number(req.params.ref))
+    .then((scope) => { if (scope) next(); })
+    .catch((err) => {
+      logger.error({ err }, "[ExamesLab] falha ao conferir clínica do cliente");
+      if (!res.headersSent) res.status(500).json({ error: "Falha ao conferir a clínica do cliente." });
+    });
+}
+router.use("/exames-lab/documento/:ref", requireCollaborator, scopeDocumentParam);
+router.use("/exames-lab/documentos/:ref", requireCollaborator, scopeDocumentParam);
+router.use("/exames-lab/doc-status/:ref", requireCollaborator, scopeDocumentParam);
+router.use("/exames-lab/evolucao/:ref", requireCollaborator, scopeClientParam);
+router.use(
+  [
+    "/exames-lab/documentos",
+    "/exames-lab/resultados",
+    "/exames-lab/ingest",
+    "/exames-lab/monitor",
+    "/exames-lab/recovery",
+    "/exames-lab/demo-conversao",
+  ],
+  requireCollaborator,
+);
 
 /** Deduz o mime-type pela extensão do nome do arquivo. */
 export function guessMime(fileName: string): string {
@@ -297,145 +339,176 @@ export async function processExamDocument(job: IngestJobInput): Promise<void> {
     const data = mergedData;
     const modelUsed = primaryModel;
 
-    await finalizeDocumentWithPipeline(documentId, data, modelUsed, llmPipeline);
-
-    // 5b/5c/5d — Verificar data: se a IA encontrou data diferente da que o usuário
-    // digitou, renomear o arquivo no Drive para usar a data extraída (mais confiável).
-    if (
-      job.userDateStr &&
-      job.sourcePdfDriveId &&
-      data.collectionDate
-    ) {
-      const extractedPrefix = collectionDateToPrefix(data.collectionDate);
-      if (extractedPrefix && extractedPrefix !== job.userDateStr) {
-        const correctedName = fileName.replace(job.userDateStr, extractedPrefix);
-        try {
-          await renameDriveFile(job.sourcePdfDriveId, correctedName);
-          await db
-            .update(examDocumentsTable)
-            .set({ fileName: correctedName })
-            .where(eq(examDocumentsTable.id, documentId));
-          console.log(
-            `[ExamesLab] doc ${documentId}: data corrigida no Drive: "${job.userDateStr}" → "${extractedPrefix}" → ${correctedName}`,
-          );
-        } catch (renameErr: any) {
-          console.error(
-            `[ExamesLab] doc ${documentId}: falha ao renomear no Drive: ${renameErr.message}`,
-          );
-        }
-      }
-    }
-    const summary = await persistExtractedResults({
+    const gate = await runIdentityGate({
       documentId,
       clientId,
       extracted: data,
+      modelUsed,
+      pipeline: llmPipeline,
+      evidenceText: pdfText.text,
     });
-    console.log(
-      `[ExamesLab] doc ${documentId}: ${summary.resultsInserted} resultados + ${summary.historyInserted} historicos (casados: ${summary.matched}, sem catalogo: ${summary.unmatched})`,
-    );
-
-    // Arquivo no Drive (EXAMES) — best-effort, idempotente por nome unico
-    if (!job.sourcePdfDriveId) {
-      try {
-        const clients = await db
-          .select()
-          .from(clientsTable)
-          .where(eq(clientsTable.id, clientId));
-        const client = clients[0];
-        if (client && client.cpf) {
-          const structure = await ensureClientFolderStructure(client.name, client.cpf);
-          const examesFolderId = structure.subfolders["EXAMES"];
-          if (examesFolderId) {
-            const now = new Date();
-            const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-            const clean = removeDiacritics(client.name).toUpperCase();
-            const driveName = `${dateStr} EXAME ${clean} (DOC ${documentId}).pdf`;
-            const uploaded = await uploadFileToDrive(
-              examesFolderId,
-              driveName,
-              "application/pdf",
-              buffer,
-            );
-            await db
-              .update(examDocumentsTable)
-              .set({ sourcePdfDriveId: uploaded.fileId })
-              .where(eq(examDocumentsTable.id, documentId));
-          }
-        }
-      } catch (err) {
-        console.error(
-          `[ExamesLab] doc ${documentId}: falha ao arquivar no Drive: ${(err as Error).message}`,
-        );
-      }
-    } else {
-      await db
-        .update(examDocumentsTable)
-        .set({ sourcePdfDriveId: job.sourcePdfDriveId })
-        .where(eq(examDocumentsTable.id, documentId));
-    }
-
-    // ── Espelho R2 (Item 40) — best-effort, não bloqueia nem falha o pipeline ──
-    // A data de coleta pode ainda não estar no banco neste ponto; usamos a que
-    // a IA extraiu (finalizeDocument já gravou). Buscamos do banco para garantir.
-    try {
-      const [docRow] = await db
-        .select({ clientId: examDocumentsTable.clientId, collectionDate: examDocumentsTable.collectionDate })
-        .from(examDocumentsTable)
-        .where(eq(examDocumentsTable.id, documentId));
-      const r2 = await mirrorExamToR2({
-        clientId: docRow?.clientId ?? job.clientId,
-        documentId,
-        collectionDate: docRow?.collectionDate ?? null,
-        buffer,
-      });
-      logger.info(
-        { docId: documentId, r2Key: r2.r2Key, bytes: r2.bytes, alreadyExisted: r2.alreadyExists },
-        "[ExamesLab] doc espelhado no cofre de objetos",
+    if (gate.quarantined) {
+      logger.warn(
+        { docId: documentId, verdict: gate.assessment.verdict, fields: gate.assessment.fields },
+        "[ExamesLab] identidade do laudo não confirmada: documento em quarentena, sem resultados no prontuário",
       );
-    } catch (err) {
-      console.error(
-        `[ExamesLab] doc ${documentId}: falha ao espelhar no cofre (Drive ok): ${(err as Error).message}`,
-      );
+      return;
     }
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Aviso "exame recebido" — best-effort
-    if (job.notify) {
-      try {
-        const clients = await db
-          .select()
-          .from(clientsTable)
-          .where(eq(clientsTable.id, clientId));
-        const client = clients[0];
-        if (client) {
-          const firstName = client.name.split(" ")[0];
-          if (client.email) {
-            await sendGmailMessage({
-              to: client.email,
-              subject: "Clinica Padua | Exame recebido",
-              html: `<p>Ola, ${firstName}!</p><p>Recebemos o seu exame (<strong>${fileName}</strong>) e ele ja foi lido e arquivado no seu prontuario.</p><p>Qualquer ponto de atencao sera avaliado pela equipe.</p><p>Equipe PaxMed</p>`,
-            });
-          }
-          if (client.phone) {
-            await sendWhatsapp(
-              client.phone,
-              `Ola, ${firstName}! Recebemos o seu exame (${fileName}) e ele ja foi lido e arquivado no seu prontuario. Qualquer ponto de atencao sera avaliado pela equipe.`,
-              { contexto: "exame_recebido", clienteId: clientId },
-            );
-          }
-        }
-      } catch (err) {
-        console.error(
-          `[ExamesLab] doc ${documentId}: falha no aviso: ${(err as Error).message}`,
-        );
-      }
-    }
+    await incorporateExtractedExam(job, data, modelUsed, llmPipeline);
   } catch (err) {
     const message = (err as Error).message ?? "erro desconhecido";
     console.error(`[ExamesLab] doc ${documentId}: ERRO no processamento: ${message}`);
     await markDocumentError(documentId, message).catch(() => undefined);
   }
 }
+
+/**
+ * Incorpora ao prontuário uma extração JÁ VERIFICADA (identidade confirmada pelo porteiro
+ * ou liberada por humano): grava resultados, arquiva no Drive, espelha no cofre e avisa.
+ * Erros propagam para o chamador, que decide marcar erro ou reverter a quarentena.
+ */
+export async function incorporateExtractedExam(
+  job: IngestJobInput,
+  data: ExtractedExam,
+  modelUsed: string,
+  llmPipeline: LlmStep[],
+): Promise<void> {
+  const { documentId, clientId, buffer, fileName } = job;
+  await finalizeDocumentWithPipeline(documentId, data, modelUsed, llmPipeline);
+
+  // 5b/5c/5d — Verificar data: se a IA encontrou data diferente da que o usuário
+  // digitou, renomear o arquivo no Drive para usar a data extraída (mais confiável).
+  if (
+    job.userDateStr &&
+    job.sourcePdfDriveId &&
+    data.collectionDate
+  ) {
+    const extractedPrefix = collectionDateToPrefix(data.collectionDate);
+    if (extractedPrefix && extractedPrefix !== job.userDateStr) {
+      const correctedName = fileName.replace(job.userDateStr, extractedPrefix);
+      try {
+        await renameDriveFile(job.sourcePdfDriveId, correctedName);
+        await db
+          .update(examDocumentsTable)
+          .set({ fileName: correctedName })
+          .where(eq(examDocumentsTable.id, documentId));
+        console.log(
+          `[ExamesLab] doc ${documentId}: data corrigida no Drive: "${job.userDateStr}" → "${extractedPrefix}" → ${correctedName}`,
+        );
+      } catch (renameErr: any) {
+        console.error(
+          `[ExamesLab] doc ${documentId}: falha ao renomear no Drive: ${renameErr.message}`,
+        );
+      }
+    }
+  }
+  const summary = await persistExtractedResults({
+    documentId,
+    clientId,
+    extracted: data,
+  });
+  console.log(
+    `[ExamesLab] doc ${documentId}: ${summary.resultsInserted} resultados + ${summary.historyInserted} historicos (casados: ${summary.matched}, sem catalogo: ${summary.unmatched})`,
+  );
+
+  // Arquivo no Drive (EXAMES) — best-effort, idempotente por nome unico
+  if (!job.sourcePdfDriveId) {
+    try {
+      const clients = await db
+        .select()
+        .from(clientsTable)
+        .where(eq(clientsTable.id, clientId));
+      const client = clients[0];
+      if (client && client.cpf) {
+        const structure = await ensureClientFolderStructure(client.name, client.cpf);
+        const examesFolderId = structure.subfolders["EXAMES"];
+        if (examesFolderId) {
+          const now = new Date();
+          const dateStr = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+          const clean = removeDiacritics(client.name).toUpperCase();
+          const driveName = `${dateStr} EXAME ${clean} (DOC ${documentId}).pdf`;
+          const uploaded = await uploadFileToDrive(
+            examesFolderId,
+            driveName,
+            "application/pdf",
+            buffer,
+          );
+          await db
+            .update(examDocumentsTable)
+            .set({ sourcePdfDriveId: uploaded.fileId })
+            .where(eq(examDocumentsTable.id, documentId));
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[ExamesLab] doc ${documentId}: falha ao arquivar no Drive: ${(err as Error).message}`,
+      );
+    }
+  } else {
+    await db
+      .update(examDocumentsTable)
+      .set({ sourcePdfDriveId: job.sourcePdfDriveId })
+      .where(eq(examDocumentsTable.id, documentId));
+  }
+
+  // ── Espelho R2 (Item 40) — best-effort, não bloqueia nem falha o pipeline ──
+  // A data de coleta pode ainda não estar no banco neste ponto; usamos a que
+  // a IA extraiu (finalizeDocument já gravou). Buscamos do banco para garantir.
+  try {
+    const [docRow] = await db
+      .select({ clientId: examDocumentsTable.clientId, collectionDate: examDocumentsTable.collectionDate })
+      .from(examDocumentsTable)
+      .where(eq(examDocumentsTable.id, documentId));
+    const r2 = await mirrorExamToR2({
+      clientId: docRow?.clientId ?? job.clientId,
+      documentId,
+      collectionDate: docRow?.collectionDate ?? null,
+      buffer,
+    });
+    logger.info(
+      { docId: documentId, r2Key: r2.r2Key, bytes: r2.bytes, alreadyExisted: r2.alreadyExists },
+      "[ExamesLab] doc espelhado no cofre de objetos",
+    );
+  } catch (err) {
+    console.error(
+      `[ExamesLab] doc ${documentId}: falha ao espelhar no cofre (Drive ok): ${(err as Error).message}`,
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Aviso "exame recebido" — best-effort
+  if (job.notify) {
+    try {
+      const clients = await db
+        .select()
+        .from(clientsTable)
+        .where(eq(clientsTable.id, clientId));
+      const client = clients[0];
+      if (client) {
+        const firstName = client.name.split(" ")[0];
+        if (client.email) {
+          await sendGmailMessage({
+            to: client.email,
+            subject: "Clinica Padua | Exame recebido",
+            html: `<p>Ola, ${firstName}!</p><p>Recebemos o seu exame (<strong>${fileName}</strong>) e ele ja foi lido e arquivado no seu prontuario.</p><p>Qualquer ponto de atencao sera avaliado pela equipe.</p><p>Equipe PaxMed</p>`,
+          });
+        }
+        if (client.phone) {
+          await sendWhatsapp(
+            client.phone,
+            `Ola, ${firstName}! Recebemos o seu exame (${fileName}) e ele ja foi lido e arquivado no seu prontuario. Qualquer ponto de atencao sera avaliado pela equipe.`,
+            { contexto: "exame_recebido", clienteId: clientId },
+          );
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[ExamesLab] doc ${documentId}: falha no aviso: ${(err as Error).message}`,
+      );
+    }
+  }
+}
+
 
 /**
  * Cria o documento (status=processando) e dispara o processamento em
@@ -451,6 +524,21 @@ export async function startExamIngestion(params: {
   userDateStr?: string | null;
 }): Promise<{ documentId: number; duplicate: boolean }> {
   const hash = hashExamDocument(params.buffer);
+
+  // A clínica do documento é SEMPRE a do cliente (nunca "empresa 5" por padrão).
+  const [ownerClient] = await db
+    .select({ empresaId: clientsTable.empresaId })
+    .from(clientsTable)
+    .where(eq(clientsTable.id, params.clientId))
+    .limit(1);
+  if (!ownerClient) throw new Error("Cliente não encontrado para receber o exame.");
+  if (ownerClient.empresaId == null) {
+    throw new Error("Cliente sem clínica definida: o exame não pode ser recebido.");
+  }
+  if (params.empresaId != null && params.empresaId !== ownerClient.empresaId) {
+    throw new Error("A clínica informada não é a clínica do cliente.");
+  }
+  const documentEmpresaId = ownerClient.empresaId;
 
   // Idempotencia POR PACIENTE: mesmo arquivo em outro cliente gera doc proprio.
   // Até existir versionamento, erro anterior também é duplicado: pode ter resultados parciais.
@@ -492,7 +580,7 @@ export async function startExamIngestion(params: {
       // BUG-FIX: persistir o Drive ID imediatamente — se o servidor reiniciar
       // durante o setImmediate, o ID ainda estará no banco para recuperação.
       sourcePdfDriveId: params.sourcePdfDriveId ?? null,
-      ...(params.empresaId != null ? { empresaId: params.empresaId } : {}),
+      empresaId: documentEmpresaId,
     })
     .returning({ id: examDocumentsTable.id });
 
@@ -663,17 +751,11 @@ router.post(
         res.status(400).json({ error: "Por enquanto apenas PDF e aceito nesta trilha" });
         return;
       }
-      const clients = await db
-        .select({ id: clientsTable.id })
-        .from(clientsTable)
-        .where(eq(clientsTable.id, clientId));
-      if (clients.length === 0) {
-        res.status(404).json({ error: "Cliente nao encontrado" });
-        return;
-      }
+      const clientScope = await requireClientInSession(req, res, clientId);
+      if (!clientScope) return;
 
       const notify = req.body.notify === "true" || req.body.notify === true;
-      const empresaId = resolveEmpresaId(req);
+      const empresaId = clientScope.empresaId;
       const result = await startExamIngestion({
         clientId,
         buffer: file.buffer,
@@ -776,7 +858,12 @@ router.get(
 router.get("/exames-lab/documentos", async (req: Request, res: Response) => {
   try {
     const clientId = req.query.clientId ? Number(req.query.clientId) : null;
-    const empresaId = resolveEmpresaId(req);
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) {
+      res.status(401).json({ error: "Faça login de colaborador." });
+      return;
+    }
+    if (clientId !== null && !(await requireClientInSession(req, res, clientId))) return;
     const base = db
       .select({
         id: examDocumentsTable.id,
@@ -874,6 +961,7 @@ router.get("/exames-lab/resultados", async (req: Request, res: Response) => {
       res.status(400).json({ error: "clientId obrigatorio" });
       return;
     }
+    if (!(await requireClientInSession(req, res, clientId))) return;
     const results = await db
       .select({
         id: examResultsTable.id,
@@ -948,9 +1036,14 @@ router.get("/exames-lab/documentos/:id", async (req: Request, res: Response) => 
 });
 
 // ---- GET /exames-lab/evolucao/:clientId — antes/depois por analito ----
-router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response) => {
+router.get("/exames-lab/evolucao/:clientId", (req: Request, res: Response) =>
+  handleEvolucao(Number(req.params.clientId), req, res),
+);
+
+/** Corpo da evolução; reutilizado pela rota do paciente (clientId vem do token, nunca da URL). */
+export async function handleEvolucao(clientId: number, req: Request, res: Response): Promise<void> {
   try {
-    const clientId = Number(req.params.clientId);
+    // clientId já chega validado e escopado à clínica/ao token pelo chamador.
     // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
     //   LIGADO (padrao seguro): so entram resultados de documentos CONFERIDOS (C2).
     //   DESLIGADO: entram todos que a IA ja leu (menos processando/erro), para o
@@ -1234,7 +1327,7 @@ router.get("/exames-lab/evolucao/:clientId", async (req: Request, res: Response)
     console.error("[ExamesLab] Erro na evolucao:", (err as Error).message);
     res.status(500).json({ error: "Erro ao montar evolucao" });
   }
-});
+}
 
 // ===========================================================================
 // CRUD das FAIXAS por exame (bloco editável do painel EVOLUÇÃO).
@@ -2744,8 +2837,17 @@ router.post("/exames-lab/documento/:docId/clonar-drive", async (req: Request, re
 // Idempotente: roda duas vezes sem duplicar.
 router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) => {
   try {
-    const clientId = Number(req.query.clientId ?? 3747);
-    const DEMO_HASH = "demo-conversao-hemoglobina-v1";
+    // Somente o proprietário da plataforma; cliente explícito e da própria clínica da sessão.
+    if (!req.tenantContext?.isPlatformOwner) {
+      return res.status(403).json({ error: "Apenas o proprietário da plataforma gera a demonstração." });
+    }
+    const clientId = Number(req.query.clientId);
+    if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+      return res.status(400).json({ error: "Informe clientId explícito." });
+    }
+    const demoClient = await requireClientInSession(req, res, clientId);
+    if (!demoClient) return;
+    const DEMO_HASH = `demo-conversao-hemoglobina-v1:${clientId}`;
 
     // 1. Documento fictício (idempotente por hash)
     const existing = await db
@@ -2762,7 +2864,7 @@ router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) =>
         .insert(examDocumentsTable)
         .values({
           clientId,
-          empresaId: 5,
+          empresaId: demoClient.empresaId,
           hash: DEMO_HASH,
           fileName: "DEMO — Conversão de Unidade g_L para g_dL.pdf",
           labName: "Laboratório Demonstração PaxMed",
@@ -2823,18 +2925,22 @@ router.post("/exames-lab/demo-conversao", async (req: Request, res: Response) =>
 // ---- GET /exames-lab/monitor — status global do motor ----
 router.get("/exames-lab/monitor", async (req: Request, res: Response) => {
   try {
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(401).json({ error: "Faça login de colaborador." });
     const stats = await db.execute(sql`
-      SELECT status, COUNT(*)::int AS total
-      FROM exam_documents
-      GROUP BY status
-      ORDER BY status
+      SELECT d.status, COUNT(*)::int AS total
+      FROM exam_documents d
+      JOIN clients c ON d.client_id = c.id
+      WHERE c.empresa_id = ${empresaId}
+      GROUP BY d.status
+      ORDER BY d.status
     `);
     const pendentes = await db.execute(sql`
       SELECT d.id, d.client_id, d.status, d.file_name, d.created_at, d.source_pdf_drive_id,
              c.name AS client_name
       FROM exam_documents d
-      LEFT JOIN clients c ON d.client_id = c.id
-      WHERE d.status IN ('erro', 'processando')
+      JOIN clients c ON d.client_id = c.id
+      WHERE c.empresa_id = ${empresaId} AND d.status IN ('erro', 'processando', 'quarentena')
       ORDER BY d.created_at DESC
       LIMIT 60
     `);
@@ -2848,6 +2954,9 @@ router.get("/exames-lab/monitor", async (req: Request, res: Response) => {
 // ---- POST /exames-lab/recovery — acionar recovery manual ----
 router.post("/exames-lab/recovery", async (req: Request, res: Response) => {
   try {
+    if (!req.tenantContext?.isPlatformOwner) {
+      return res.status(403).json({ error: "Apenas o proprietário da plataforma aciona o recovery global." });
+    }
     setImmediate(() => {
       recoverStuckDocuments().catch((e) =>
         logger.error({ err: e }, "recovery manual falhou")
@@ -2938,7 +3047,7 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
                   ELSE NULL END AS elapsed_s,
              (SELECT COUNT(*)::int FROM exam_results r WHERE r.exam_document_id = d.id) AS analitos
       FROM exam_documents d
-      LEFT JOIN clients c ON c.id = d.client_id
+      JOIN clients c ON c.id = d.client_id AND c.empresa_id = ${sessionEmpresaId(req) ?? 0}
       LEFT JOIN LATERAL (
         SELECT processed_at FROM drive_watcher_files
         WHERE exam_document_id = d.id AND processed_at IS NOT NULL
@@ -2949,9 +3058,10 @@ router.get("/exames-lab/auditoria", requireCollaborator, async (req: Request, re
     `);
     // Adiciona colunas de auditoria multi-IA (adicionadas via ALTER TABLE)
     const rows2 = await db.execute(sql`
-      SELECT id, reprocessamento_count, reprocessado_at, llm_pipeline
-      FROM exam_documents
-      ORDER BY created_at DESC
+      SELECT x.id, x.reprocessamento_count, x.reprocessado_at, x.llm_pipeline
+      FROM exam_documents x
+      JOIN clients cx ON cx.id = x.client_id AND cx.empresa_id = ${sessionEmpresaId(req) ?? 0}
+      ORDER BY x.created_at DESC
       LIMIT ${limit}
     `);
     // Mescla colunas extras por id
@@ -2981,7 +3091,7 @@ router.post("/exames-lab/reprocessar/:id", requireCollaborator, async (req: Requ
 });
 
 // ─── Status público de documento (usado pelo portal do cliente) ───────────────
-// GET /api/exames-lab/doc-status/:documentId — sem auth, retorna apenas status
+// GET /api/exames-lab/doc-status/:documentId — colaborador da mesma clínica; retorna apenas status
 router.get("/exames-lab/doc-status/:documentId", async (req: Request, res: Response) => {
   const docId = Number(req.params.documentId);
   if (!docId || Number.isNaN(docId)) return res.status(400).json({ error: "ID inválido" });
@@ -3000,5 +3110,8 @@ router.get("/exames-lab/doc-status/:documentId", async (req: Request, res: Respo
     return res.status(500).json({ error: "Erro interno" });
   }
 });
+
+router.use(createExamIdentityRouter(incorporateExtractedExam));
+router.use(createExamIdentityGovernanceRouter());
 
 export default router;

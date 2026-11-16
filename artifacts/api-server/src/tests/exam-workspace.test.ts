@@ -24,8 +24,23 @@ vi.mock("@workspace/db", async () => ({
 }));
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (req: any, res: any, next: any) =>
-    req.get("Authorization") === "Bearer synthetic-test" ? next() : res.status(401).json({ error: "Login obrigatório" }),
+    req.get("Authorization") === "Bearer synthetic-test"
+      ? (req.collaborator = { professionalId: 1, role: "medico", credentialVersion: 0 }, next())
+      : res.status(401).json({ error: "Login obrigatório" }),
 }));
+// A sessão sintética agora é completa (req.collaborator preenchido, como no requireCollaborator real).
+// A decisão de acesso clínico (matriz x concessão local) é SIMULADA aqui como "direto": ela tem testes
+// próprios; o que este arquivo prova é a emissão. Sem colaborador na requisição a recusa 401 real continua.
+vi.mock("../lib/clinical-access", async () => {
+  const actual = await vi.importActual<any>("../lib/clinical-access");
+  return {
+    ...actual,
+    clinicalToolAccess: vi.fn(async (req: any) => {
+      if (!req.collaborator) throw new actual.ClinicalAccessError(401, "Faça login de colaborador.");
+      return { mode: "direto", member: {} };
+    }),
+  };
+});
 vi.mock("../lib/clinical-emitter", async () => {
   const actual = await vi.importActual<any>("../lib/clinical-emitter");
   return { ...actual, resolveClinicalEmitter: mock.identity };
@@ -241,6 +256,8 @@ it("preserves every link in a large Telegram batch rather than truncating the ca
 });
 it("generates one file per selected exam in one request without messaging", async () => {
   const items = ["Holter 24 horas", "Mapa 24 horas"].map(nomeExame => ({ nomeExame, tipo: "OUTROS" }));
+  // Catálogo ativo sintético: a rota recusa (422) exame fora do catálogo; a leitura é a 1ª consulta ao banco.
+  mock.rows = [items.map((item, i) => ({ codigoExame: `SINT-${i}`, nomeExame: item.nomeExame, grupoPrincipal: "OUTROS", ativo: true }))];
   const response = await request(app).post("/api/exam-requests/emit").set(authorization)
     .send({ clientId: 101, individualDocuments: true, items });
   expect(response.status).toBe(200);

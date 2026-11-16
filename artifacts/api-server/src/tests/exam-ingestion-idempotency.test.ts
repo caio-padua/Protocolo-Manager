@@ -2,18 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   existing: [] as any[],
+  client: [{ empresaId: 7002 }] as any[],
   inserted: [{ id: 771 }],
   inserts: [] as any[],
   updates: [] as any[],
   scheduled: [] as Array<(...args: any[]) => void>,
 }));
 
+import { clientsTable } from "../../../../lib/db/src/schema";
 vi.mock("@workspace/db", async () => ({
   ...await import("../../../../lib/db/src/schema"),
   db: {
     select: () => ({
-      from: () => ({
-        where: async () => state.existing,
+      from: (table: unknown) => ({
+        // Cliente dono do exame (clínica derivada do cadastro): consulta com .limit(1).
+        where: table === clientsTable
+          ? () => ({ limit: async () => state.client })
+          : async () => state.existing,
       }),
     }),
     insert: () => ({
@@ -71,6 +76,12 @@ vi.mock("../lib/examR2Storage", () => ({
   mirrorExamToR2: vi.fn(),
   examR2Key: vi.fn(),
 }));
+// Escopo de clínica do documento SIMULADO: o isolamento real tem prova própria em
+// exam-identity-tenant-postgres.test.ts (banco descartável, autenticação real).
+vi.mock("../lib/exam-tenant", async (orig) => ({
+  ...(await orig<any>()),
+  requireDocumentInSession: vi.fn(async (_req: unknown, _res: unknown, id: number) => ({ id, clientId: 7001, empresaId: 7002, status: "recebido" })),
+}));
 vi.mock("../routes/collaborator", () => ({
   requireCollaborator: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -86,6 +97,7 @@ const app = express().use(express.json()).use(examLabRouter);
 describe("ingestão sintética e idempotente de exames", () => {
   beforeEach(() => {
     state.existing = [];
+    state.client = [{ empresaId: 7002 }];
     state.inserted = [{ id: 771 }];
     state.inserts = [];
     state.updates = [];

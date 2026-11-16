@@ -10,6 +10,7 @@ import { ensureSystemErrorLogTable } from "./lib/system-error-log";
 import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
 import { ensureExamesAvulsosTable } from "./lib/exames-avulsos.js";
+import { ensureExamIdentitySchema } from "./lib/ensure-exam-identity-schema.js";
 import { ensureAsaasTesteTable } from "./lib/asaas-teste-cobrancas.js";
 import { ensureAsaasConciliacaoTables } from "./lib/asaas-conciliacao.js";
 import { ensureBoloesTables } from "./lib/boloes.js";
@@ -112,6 +113,13 @@ if (Number.isNaN(port) || port <= 0) {
     await ensureExamesAvulsosTable();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela exam_avulso_requests — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureExamIdentitySchema();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela exam_identity_checks — abortando boot");
     process.exit(1);
   }
 

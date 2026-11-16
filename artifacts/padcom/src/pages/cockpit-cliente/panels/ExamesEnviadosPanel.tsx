@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileUp, Loader2, TrendingUp } from "lucide-react";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 // ===========================================================================
 // EXAMES ENVIADOS (Cockpit da Consulta — aba Exames): documentos de exame
@@ -50,7 +51,7 @@ export default function ExamesEnviadosPanel({ clientId }: { clientId: number }) 
     let ativo = true;
     setCarregando(true);
     setErro("");
-    fetch(`${API}/exames-lab/documentos?clientId=${clientId}`)
+    fetch(`${API}/exames-lab/documentos?clientId=${clientId}`, { headers: collabAuthHeaders() })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<DocRow[]>;

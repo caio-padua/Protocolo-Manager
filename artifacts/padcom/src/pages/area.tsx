@@ -268,8 +268,8 @@ export default function Area() {
         )}
         {tab === "evolucao"   && (
           <div className="space-y-6">
-            <EvolucaoExamesPanel clientId={client.id} />
-            <PlanilhaComparativaPortal clientId={client.id} />
+            <EvolucaoExamesPanel clientId={client.id} portalToken={client.token} />
+            <PlanilhaComparativaPortal token={client.token} />
           </div>
         )}
       </main>
@@ -1875,7 +1875,7 @@ function legendaZonas(analytes: PAnalyte[]): { name: string; color: string }[] {
   return Array.from(seen.entries()).map(([name, color]) => ({ name, color }));
 }
 
-function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
+function PlanilhaComparativaPortal({ token }: { token: string }) {
   const [data, setData]         = useState<PEvolucaoData | null>(null);
   const [filtro, setFiltro]     = useState("");
   const [carregando, setCarregando] = useState(true);
@@ -1883,13 +1883,14 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
   useEffect(() => {
     let ativo = true;
     setCarregando(true);
-    fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`)
+    // Identificação só pelo token do portal: o número do cliente não é enviado.
+    fetch(`${API_BASE}/api/area-paciente/exames/evolucao`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: PEvolucaoData | null) => { if (ativo) setData(json); })
       .catch(() => {})
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, [clientId]);
+  }, [token]);
 
   if (carregando) {
     return (
@@ -2030,83 +2031,77 @@ function PlanilhaComparativaPortal({ clientId }: { clientId: number }) {
 // ---------------------------------------------------------------------------
 function UploadStatusPoller({
   fileName,
-  clientId,
+  documentoId,
+  token,
   onReset,
 }: {
   fileName: string;
-  clientId: number;
+  documentoId: number | null;
   token: string;
   onReset: () => void;
 }) {
-  const [fase, setFase] = useState<"processando" | "concluido" | "timeout">("processando");
-  const [analitos, setAnalitos] = useState<number | null>(null);
+  // Estado REAL vindo do servidor (nenhum progresso inventado, nenhum "tempo esgotado" prometido):
+  // a leitura pode demorar e o exame pode aguardar conferência da equipe.
+  const [envio, setEnvio] = useState<{ etapa: string; situacao: string; finalizado: boolean; analitos: number } | null>(null);
+  const [semConexao, setSemConexao] = useState(false);
 
   useEffect(() => {
-    let tentativas = 0;
-    const MAX = 36; // ~3 minutos (36 × 5s)
-    let baseline: number | null = null;
-
-    async function checar() {
+    if (documentoId === null) return;
+    let ativo = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function consultar() {
       try {
-        const r = await fetch(`${API_BASE}/api/exames-lab/evolucao/${clientId}`);
-        if (!r.ok) return;
-        const json = await r.json();
-        const raw: unknown[] = Array.isArray(json) ? json : (json?.rows ?? json?.analitos ?? []);
-        const count = raw.length;
-        if (baseline === null) {
-          baseline = count;
-          return;
-        }
-        if (count > baseline) {
-          setAnalitos(count - baseline);
-          setFase("concluido");
-          return;
-        }
-      } catch {}
-      tentativas++;
-      if (tentativas >= MAX) setFase("timeout");
+        const r = await fetch(`${API_BASE}/api/area-paciente/exames/envios`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error(String(r.status));
+        const lista = (await r.json()) as Array<{ id: number; etapa: string; situacao: string; finalizado: boolean; analitos: number }>;
+        const meu = lista.find((i) => i.id === documentoId) ?? null;
+        if (!ativo) return;
+        setSemConexao(false);
+        setEnvio(meu);
+        if (meu?.finalizado) return;
+      } catch {
+        if (!ativo) return;
+        setSemConexao(true);
+      }
+      timer = setTimeout(() => { void consultar(); }, 5000);
     }
+    void consultar();
+    return () => { ativo = false; if (timer) clearTimeout(timer); };
+  }, [documentoId, token]);
 
-    void checar();
-    const t = setInterval(() => { void checar(); }, 5000);
-    return () => clearInterval(t);
-  }, [clientId]);
+  const concluido = envio?.etapa === "concluido";
+  const naoIncorporado = envio?.etapa === "identidade" && envio.finalizado;
+  const comErro = envio?.etapa === "erro";
+  const emAndamento = documentoId !== null && !envio?.finalizado;
 
-  const isProcessing = fase === "processando";
-  const isDone = fase === "concluido";
+  const titulo = documentoId === null ? "ARQUIVO RECEBIDO"
+    : concluido ? "EXAME CONCLUÍDO"
+    : naoIncorporado ? "EXAME NÃO INCORPORADO"
+    : comErro ? "NÃO FOI POSSÍVEL LER"
+    : "EXAME RECEBIDO";
+  const texto = documentoId === null
+    ? "O arquivo foi guardado no seu cadastro e será conferido pela equipe."
+    : semConexao && !envio ? "Não foi possível consultar a situação agora. O exame continua sendo processado; tentando novamente."
+    : envio ? `Situação: ${envio.situacao}.${concluido ? ` ${envio.analitos} resultado${envio.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO.` : ""}`
+    : "Consultando a situação do exame…";
 
   return (
-    <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4">
+    <div className="panel-3d rounded-xl p-8 flex flex-col items-center text-center space-y-4" role="status" aria-live="polite">
       <div className={`w-16 h-16 rounded-full flex items-center justify-center border-2 ${
-        isDone ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
+        concluido ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
       }`}>
-        {isDone
+        {concluido
           ? <CheckCircle className="w-8 h-8 text-green-500" />
-          : <Clock className={`w-8 h-8 text-blue-400 ${isProcessing ? "animate-pulse" : ""}`} />}
+          : <Clock className={`w-8 h-8 text-blue-400 ${emAndamento ? "animate-pulse" : ""}`} />}
       </div>
 
-      <h2 className="text-primary font-black text-lg uppercase">
-        {isDone ? "EXAME PROCESSADO!" : fase === "timeout" ? "ARQUIVO RECEBIDO" : "PROCESSANDO…"}
-      </h2>
-
-      <p className="text-accent text-sm">
-        {isDone
-          ? `Extração concluída — ${analitos ?? ""} analito${analitos !== 1 ? "s" : ""} identificado${analitos !== 1 ? "s" : ""} pela IA.`
-          : fase === "timeout"
-            ? "O arquivo está na fila de processamento. Os resultados aparecerão em breve na aba EVOLUÇÃO."
-            : "A inteligência artificial está lendo o seu exame. Aguarde alguns instantes…"}
-      </p>
+      <h2 className="text-primary font-black text-lg uppercase">{titulo}</h2>
+      <p className="text-accent text-sm">{texto}</p>
 
       <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
         <p className="text-muted-foreground text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
         <p className="text-primary text-sm font-mono truncate">{fileName}</p>
       </div>
-
-      {isProcessing && (
-        <div className="w-full bg-border/30 rounded-full h-1.5 overflow-hidden">
-          <div className="h-full bg-accent rounded-full animate-[pulse_2s_ease-in-out_infinite] w-1/2" />
-        </div>
-      )}
 
       <button onClick={onReset} className="btn-3d-soft w-full h-12 text-sm font-black uppercase tracking-wider">
         ENVIAR OUTRO ARQUIVO
@@ -2129,7 +2124,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading]     = useState(false);
   const [error, setError]             = useState("");
-  const [done, setDone]               = useState<{ fileName: string } | null>(null);
+  const [done, setDone]               = useState<{ fileName: string; exameDocumentoId?: number | null } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showBodyRegion = TYPES_WITH_BODY.includes(fileType);
@@ -2161,7 +2156,7 @@ function EnviarTab({ client }: { client: ClientInfo }) {
   if (done) {
     return <UploadStatusPoller
       fileName={done.fileName}
-      clientId={client.id}
+      documentoId={done.exameDocumentoId ?? null}
       token={client.token}
       onReset={reset}
     />;

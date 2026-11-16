@@ -298,7 +298,7 @@ export default function ExamesCliente() {
   };
 
   const carregarDocs = useCallback(() => {
-    return fetch(`${BASE}/api/exames-lab/documentos`)
+    return fetch(`${BASE}/api/exames-lab/documentos`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d: DocRow[]) => setDocs(Array.isArray(d) ? d : []))
       .catch(() => undefined)
@@ -322,7 +322,7 @@ export default function ExamesCliente() {
   }, [temProcessando, docSelecionado]);
 
   const carregarDetalhe = useCallback((id: number) => {
-    return fetch(`${BASE}/api/exames-lab/documentos/${id}`)
+    return fetch(`${BASE}/api/exames-lab/documentos/${id}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("detalhe"))))
       .then((d: DocDetail) => setDetalhe(d))
       .catch(() => setDetalhe(null));
@@ -339,7 +339,7 @@ export default function ExamesCliente() {
       return;
     }
     setCarregandoEvolucao(true);
-    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`)
+    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`, { headers: collabAuthHeaders() })
       .then((r) => r.json())
       .then((d: EvolucaoData) => setEvolucao(d))
       .catch(() => setEvolucao(null))
@@ -364,6 +364,7 @@ export default function ExamesCliente() {
       fd.append("file", file);
       const r = await fetch(`${BASE}/api/exames-lab/ingest`, {
         method: "POST",
+        headers: collabAuthHeaders(),
         body: fd,
       });
       const d = await r.json();

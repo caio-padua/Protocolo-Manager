@@ -17,7 +17,7 @@ import {
   Loader2, MapPin, RefreshCw, Upload, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getCollabToken } from "@/lib/collab-auth";
+import { collabAuthHeaders, getCollabToken } from "@/lib/collab-auth";
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const NAVY  = "#16284a";
@@ -650,7 +650,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
     try {
       const r = await fetch(`/api/exames-lab/documento/${doc.id}/clonar-drive`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
       });
       const j = await r.json();
       if (r.ok && j.copiedDriveId) {
@@ -692,7 +692,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
     if (baixando || !doc.sourcePdfDriveId) return;
     setBaixando(true);
     try {
-      const r = await fetch(`${BASE}/api/exames-lab/documento/${doc.id}/arquivo`);
+      const r = await fetch(`${BASE}/api/exames-lab/documento/${doc.id}/arquivo`, { headers: collabAuthHeaders() });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const blob = await r.blob();
       const url  = URL.createObjectURL(blob);
@@ -710,7 +710,7 @@ function DocumentoCard({ doc, analitos, onRefresh }: { doc: DocRow; analitos: An
     try {
       const r = await fetch(`${BASE}/api/exames-lab/documento/${doc.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: collabAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ labName: labValor.trim() || null }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -1119,9 +1119,9 @@ export default function ProcedenciaDocumentosBloco({ clientId, comCabecalho = fa
     setErro("");
 
     Promise.all([
-      fetch(`${BASE}/api/exames-lab/documentos?clientId=${clientId}`, { signal: ctrl.signal })
+      fetch(`${BASE}/api/exames-lab/documentos?clientId=${clientId}`, { headers: collabAuthHeaders(), signal: ctrl.signal })
         .then((r) => { if (!r.ok) throw new Error(`docs ${r.status}`); return r.json() as Promise<DocRow[]>; }),
-      fetch(`${BASE}/api/exames-lab/resultados?clientId=${clientId}`, { signal: ctrl.signal })
+      fetch(`${BASE}/api/exames-lab/resultados?clientId=${clientId}`, { headers: collabAuthHeaders(), signal: ctrl.signal })
         .then((r) => { if (!r.ok) throw new Error(`results ${r.status}`); return r.json() as Promise<AnalyteResult[]>; }),
     ])
       .then(([d, a]) => { setDocs(d); setAnalitos(a); })

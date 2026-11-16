@@ -29,6 +29,7 @@ import {
 } from "recharts";
 import { BASE } from "../../comunicacao/_shared";
 import { ConsoleExamesTool } from "@/components/ConsoleExamesTool";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 
 // ===========================================================================
 // PAINEL: EVOLUCAO DE EXAMES (client-scoped) — motor de 5 FAIXAS do IHE.
@@ -755,7 +756,13 @@ const LAYOUTS: { id: LayoutMode; label: string }[] = [
 ];
 
 // ============================================================== PAINEL ========
-export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) {
+/**
+ * `portalToken` liga o MODO CLIENTE (Área do Cliente): os dados vêm de /api/area-paciente/exames/evolucao,
+ * identificados só pelo token do portal (o clientId não vai à rede), e as ferramentas da equipe
+ * (envio administrativo e cadastro de faixas) não aparecem. Sem a propriedade, o painel é o do cockpit.
+ */
+export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientId: number; portalToken?: string }) {
+  const modoCliente = Boolean(portalToken);
   const [data, setData] = useState<EvolucaoData | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
@@ -767,14 +774,18 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; txt: string } | null>(null);
   const [zonaAcesa, setZonaAcesa] = useState<string | null>(null);
   const [fixadas, setFixadas] = useState<string[]>([]);
-  const [layout, setLayout] = useState<LayoutMode>("lado");
+  // Cliente (celular/área do cliente): gráfico no topo por padrão; equipe mantém o layout lateral.
+  const [layout, setLayout] = useState<LayoutMode>(modoCliente ? "topo" : "lado");
   const [colapsados, setColapsados] = useState<string[]>([]);
   const [mostrarDirecoes, setMostrarDirecoes] = useState(false);
 
   const carregar = useCallback((cid: number) => {
     setCarregando(true);
     setErro(false);
-    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`)
+    const request = modoCliente
+      ? fetch(`${BASE}/api/area-paciente/exames/evolucao`, { headers: { Authorization: `Bearer ${portalToken}` } })
+      : fetch(`${BASE}/api/exames-lab/evolucao/${cid}`, { headers: collabAuthHeaders() });
+    request
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("evolucao"))))
       .then((d: EvolucaoData) => setData(d))
       .catch(() => {
@@ -782,7 +793,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         setErro(true);
       })
       .finally(() => setCarregando(false));
-  }, []);
+  }, [modoCliente, portalToken]);
 
   const handleAdminUpload = useCallback(async () => {
     if (!uploadFile || uploading) return;
@@ -792,7 +803,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
       const fd = new FormData();
       fd.append("file", uploadFile);
       fd.append("clientId", String(clientId));
-      const r = await fetch(`${BASE}/api/exames-lab/ingest`, { method: "POST", body: fd });
+      const r = await fetch(`${BASE}/api/exames-lab/ingest`, { method: "POST", headers: collabAuthHeaders(), body: fd });
       const json = await r.json();
       if (r.ok) {
         setUploadMsg({ ok: true, txt: json.duplicate ? "Exame já existia (duplicata detectada)." : "Exame recebido! O motor Gemini vai processar em ~60-90 segundos." });
@@ -886,7 +897,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
     );
   }
   // ── Widget de upload admin (reutilizado no estado vazio e no topo do painel) ──
-  const uploadWidget = (
+  const uploadWidget = modoCliente ? null : (
     <div className="bevel-3d flex flex-col gap-3 rounded-md p-4">
       <div className="flex items-center gap-2">
         <FileUp className="h-4 w-4 text-[#45B8CC]" />
@@ -1267,8 +1278,8 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
         </section>
       )}
 
-      {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes */}
-      <div className="mt-5">
+      {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes — só equipe */}
+      {!modoCliente && <div className="mt-5">
         <button
           type="button"
           onClick={() => setMostrarDirecoes((v) => !v)}
@@ -1282,7 +1293,7 @@ export default function EvolucaoExamesPanel({ clientId }: { clientId: number }) 
             <ConsoleExamesTool titulo="Faixas dos Exames (catálogo completo)" />
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { db, examDocumentsTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { driveListChildren, driveDownloadFile } from "../google-drive";
 import { extractPdfText } from "../exam-extraction/pdf-text";
 import { extractExamFromText, extractExamFromMedia } from "../exam-extraction/extract";
@@ -10,11 +10,8 @@ import {
   extractImageFromText,
   extractImageFromMedia,
 } from "../exam-extraction/extract-image";
-import {
-  persistExtractedResults,
-  finalizeDocument,
-  markDocumentError,
-} from "../exam-extraction/persist";
+import { markDocumentError } from "../exam-extraction/persist";
+import { persistExtractionIfIdentityConfirmed } from "../exam-extraction/verified-persist";
 import { persistExtractedImage, finalizeImageDocument } from "../exam-extraction/persist-image";
 import {
   loadClients,
@@ -254,6 +251,7 @@ async function insertDoc(
       fileName,
       status,
       examKind,
+      empresaId: sql<number>`(SELECT empresa_id FROM clients WHERE id = ${client.id})`,
       origin: "drive-import",
       sourcePath: `${client.name} / ${sourcePath}`,
       sourcePdfDriveId: driveId,
@@ -263,7 +261,7 @@ async function insertDoc(
   return doc?.id ?? null;
 }
 
-type Effect = "lab" | "imagem" | "dup" | "nao-exame" | "erro";
+type Effect = "lab" | "imagem" | "dup" | "nao-exame" | "erro" | "quarentena";
 
 /** Ingere 1 arquivo (PDF ou imagem) ja baixado para um cliente resolvido. */
 async function ingestFile(client: ClientLite, buffer: Buffer, file: FileRef): Promise<Effect> {
@@ -282,9 +280,8 @@ async function ingestFile(client: ClientLite, buffer: Buffer, file: FileRef): Pr
         return "imagem";
       }
       const { data, modelUsed } = await extractExamFromMedia(buffer, mimeType);
-      await finalizeDocument(docId, data, modelUsed);
-      await persistExtractedResults({ documentId: docId, clientId: client.id, extracted: data });
-      return "lab";
+      const outcome = await persistExtractionIfIdentityConfirmed({ documentId: docId, clientId: client.id, extracted: data, modelUsed });
+      return outcome.incorporated ? "lab" : "quarentena";
     } catch (err) {
       await markDocumentError(docId, (err as Error).message);
       return "erro";
@@ -327,9 +324,8 @@ async function ingestFile(client: ClientLite, buffer: Buffer, file: FileRef): Pr
       return "imagem";
     }
     const { data, modelUsed } = await extractExamFromText(pdfText.text);
-    await finalizeDocument(docId, data, modelUsed);
-    await persistExtractedResults({ documentId: docId, clientId: client.id, extracted: data });
-    return "lab";
+    const outcome = await persistExtractionIfIdentityConfirmed({ documentId: docId, clientId: client.id, extracted: data, modelUsed, evidenceText: pdfText.text });
+    return outcome.incorporated ? "lab" : "quarentena";
   } catch (err) {
     await markDocumentError(docId, (err as Error).message);
     return "erro";
@@ -478,6 +474,11 @@ async function runImport(opts: RunOptions): Promise<void> {
           } else if (effect === "nao-exame") {
             cr.nonExam++;
             state.totals.nonExam++;
+          } else if (effect === "quarentena") {
+            // Identidade do laudo não confirmada: nada entrou no prontuário; aguarda decisão humana.
+            cr.errors++;
+            state.totals.errors++;
+            state.errors.push({ folderName: folder.name, fileName: file.name, message: "identidade do laudo nao confirmada: em quarentena para decisao humana" });
           } else if (effect === "erro") {
             cr.errors++;
             state.totals.errors++;

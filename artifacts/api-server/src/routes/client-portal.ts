@@ -206,6 +206,7 @@ router.post(
         "laudo",
         "outro",
       ]);
+      let exameDocumentoId: number | null = null;
       if (file.mimetype === "application/pdf" && EXAM_TYPES.has(fileType)) {
         try {
           const ingestion = await startExamIngestion({
@@ -216,6 +217,7 @@ router.post(
             notify: true,
             userDateStr: userDateStr ?? dateStr,
           });
+          exameDocumentoId = ingestion.documentId;
           console.log(
             `[Portal] Exame encaminhado ao motor: doc ${ingestion.documentId}${ingestion.duplicate ? " (duplicado, ja processado)" : ""}`,
           );
@@ -229,6 +231,7 @@ router.post(
         fileName,
         folder,
         fileId: result.fileId,
+        exameDocumentoId,
       });
     } catch (err: any) {
       console.error("[Portal] Erro no upload:", err.message);

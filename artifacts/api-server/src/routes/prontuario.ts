@@ -120,7 +120,11 @@ router.get("/prontuario/:clientId", requireCollaborator, async (req, res): Promi
         labName: examResultsTable.labName,
       })
       .from(examResultsTable)
-      .where(eq(examResultsTable.clientId, clientId))
+      .where(and(
+        eq(examResultsTable.clientId, clientId),
+        // Vínculo marcado como incorreto na auditoria de identidade: o resultado não aparece no prontuário (nada é apagado).
+        sql`${examResultsTable.examDocumentId} NOT IN (SELECT id FROM exam_documents WHERE client_id = ${clientId} AND status = 'identidade_rejeitada')`,
+      ))
       .orderBy(examResultsTable.collectionDate, examResultsTable.analyteNameRaw)
       .limit(2000);
 

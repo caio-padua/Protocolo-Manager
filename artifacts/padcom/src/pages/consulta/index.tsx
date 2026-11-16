@@ -362,7 +362,7 @@ export default function ConsultaProntuario() {
     }
     setCarregandoEvolucao(true);
     setErroEvolucao(false);
-    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`)
+    fetch(`${BASE}/api/exames-lab/evolucao/${cid}`, { headers: collabAuthHeaders() })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("evolucao"))))
       .then((d: EvolucaoData) => setEvolucao(d))
       .catch(() => {
