@@ -178,3 +178,41 @@ for (const w of VIEWPORTS) {
     }
   });
 }
+
+// Analito B (rótulos de 3 dígitos + unidade) e barra inferior: toque/mouse em 3 coletas.
+for (const w of [402, 1366]) {
+  test.describe(`Analito B ${w}px`, () => {
+    test.use({ viewport: { width: w, height: 900 }, hasTouch: w <= 768 });
+    test("eixo Y sem truncar e barra inferior segue as 3 coletas", async ({ page }) => {
+      await abrir(page, 3);
+      await page.getByRole("button", { name: "Abaixo da linha" }).click();
+      const linha = page.getByRole("button", { name: /Analito Sintético B/ }).first();
+      if (w <= 768) await linha.tap(); else await linha.click();
+      const cartao = page.locator("[data-evolucao-cartao]").first();
+      await expect(cartao).toBeVisible();
+      await cartao.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+      const eixo = await page.evaluate(() => {
+        const wrap = document.querySelector("[data-evolucao-cartao]")!;
+        const svgL = wrap.querySelector("svg.recharts-surface")!.getBoundingClientRect().left;
+        const ticks = Array.from(wrap.querySelectorAll(".recharts-yAxis text")).map((t) => ({ txt: t.textContent ?? "", left: t.getBoundingClientRect().left }));
+        return { svgL, ticks, unidade: wrap.textContent?.includes("ng/mL") ?? false };
+      });
+      expect(eixo.unidade, "unidade ng/mL visível").toBe(true);
+      expect(eixo.ticks.some((t) => /^\d{3}$/.test(t.txt)), "há rótulo de 3 dígitos").toBe(true);
+      for (const t of eixo.ticks) expect(t.left, `rótulo ${t.txt}`).toBeGreaterThanOrEqual(eixo.svgL - 0.5);
+      const box = (await page.locator("[data-evolucao-cartao] .recharts-surface").first().boundingBox())!;
+      const esperado = ["80", "117", "154"];
+      const vistos = new Set<string>();
+      for (let f = 0.12; f <= 0.9; f += 0.04) {
+        const x = box.x + box.width * f, y = box.y + box.height * 0.5;
+        if (w <= 768) await page.touchscreen.tap(x, y); else await page.mouse.move(x, y);
+        const v = (await page.getByTestId("evo-valor").first().textContent())!.trim();
+        expect(esperado, `valor da barra "${v}"`).toContain(v);
+        vistos.add(v);
+      }
+      expect([...vistos].sort(), "as 3 coletas aparecem na barra").toEqual([...esperado].sort());
+      await page.screenshot({ path: `screenshots/evolucao/${w}-3-analitoB-barra.png` });
+    });
+  });
+}

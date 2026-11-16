@@ -759,13 +759,13 @@ function CartaoGrafico({
             shrink-0 no wrapper → os boxes nunca oscilam ao mudar de ponto. */}
         <div className="flex shrink-0 items-stretch gap-1.5">
           {/* VALOR — 82px fixos */}
-          <div className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
+          <div data-testid="evo-valor-caixa" className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
               {ponteiro ? "no ponto" : "última"}
             </span>
             <span className="flex items-baseline gap-0.5 tabular-nums">
-              <span className="text-[15px] font-black leading-tight text-[#16294a]">
-                {pontoAtivo?.valor ?? "—"}
+              <span data-testid="evo-valor" className="text-[15px] font-black leading-tight text-[#16294a]">
+                {pontoAtivo ? String(pontoAtivo.valor).replace(".", ",") : "—"}
               </span>
               {analyte.unit && (
                 <span className="text-[9px] font-semibold text-[#16294a]">{analyte.unit}</span>
@@ -775,7 +775,7 @@ function CartaoGrafico({
           {/* DATA — 70px fixos; datas "DD/MM/AA" cabem com um pouco de ar */}
           <div className="concave-3d flex w-[70px] flex-col items-center justify-center py-1.5">
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
-            <span className="text-[11px] font-bold leading-tight text-[#16294a]">
+            <span data-testid="evo-data" className="text-[11px] font-bold leading-tight text-[#16294a]">
               {pontoAtivo?.data || "—"}
             </span>
           </div>

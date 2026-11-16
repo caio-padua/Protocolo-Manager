@@ -113,8 +113,19 @@ router.use("/exames-lab/documento/:ref", requireCollaborator, scopeDocumentParam
 router.use("/exames-lab/documentos/:ref", requireCollaborator, scopeDocumentParam);
 router.use("/exames-lab/doc-status/:ref", requireCollaborator, scopeDocumentParam);
 router.use("/exames-lab/evolucao/:ref", requireCollaborator, scopeClientParam);
+// Reprocessamento hoje é recusado (409), mas a rota também confere a clínica do documento.
+router.use("/exames-lab/reprocessar/:ref", requireCollaborator, scopeDocumentParam);
 router.use(
   [
+    // Catálogo, triagem e curadoria: antes aceitavam leitura anônima. Agora exigem colaborador
+    // (o console já envia o token em todas as chamadas a /api/exames-lab/).
+    "/exames-lab/faixas",
+    "/exames-lab/direcoes",
+    "/exames-lab/catalogo-faixas",
+    "/exames-lab/catalogo",
+    "/exames-lab/triagem",
+    "/exames-lab/exames",
+    "/exames-lab/reassignments",
     "/exames-lab/documentos",
     "/exames-lab/resultados",
     "/exames-lab/ingest",
@@ -2513,6 +2524,7 @@ interface ProcedenciaItem {
 async function montarProcedencia(
   filtro: "code" | "normKey",
   valor: string,
+  empresaId: number,
 ): Promise<ProcedenciaItem[]> {
   if (!valor) return [];
   const rows = await db
@@ -2533,9 +2545,13 @@ async function montarProcedencia(
     .innerJoin(examDocumentsTable, eq(examResultsTable.examDocumentId, examDocumentsTable.id))
     .innerJoin(clientsTable, eq(examResultsTable.clientId, clientsTable.id))
     .where(
-      filtro === "code"
-        ? eq(examResultsTable.analyteCode, valor)
-        : isNull(examResultsTable.analyteCode),
+      and(
+        // Procedência lista paciente, arquivo e valor: só da clínica da sessão.
+        eq(clientsTable.empresaId, empresaId),
+        filtro === "code"
+          ? eq(examResultsTable.analyteCode, valor)
+          : isNull(examResultsTable.analyteCode),
+      ),
     );
 
   const filtradas =
@@ -2579,7 +2595,9 @@ router.get("/exames-lab/triagem/:id/procedencia", async (req: Request, res: Resp
       .where(eq(examAnalyteTriagemTable.id, id))
       .limit(1);
     if (rows.length === 0) return res.status(404).json({ error: "Item não encontrado" });
-    const itens = await montarProcedencia("normKey", rows[0].normKey);
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(403).json({ error: "Sem clínica ativa na sessão." });
+    const itens = await montarProcedencia("normKey", rows[0].normKey, empresaId);
     return res.json({ itens });
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/triagem/:id/procedencia falhou");
@@ -2592,7 +2610,9 @@ router.get("/exames-lab/catalogo/:code/procedencia", async (req: Request, res: R
   try {
     const code = String(req.params.code ?? "").trim();
     if (!code) return res.status(400).json({ error: "code inválido" });
-    const itens = await montarProcedencia("code", code);
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(403).json({ error: "Sem clínica ativa na sessão." });
+    const itens = await montarProcedencia("code", code, empresaId);
     return res.json({ itens });
   } catch (e) {
     req.log?.error({ err: e }, "GET /exames-lab/catalogo/:code/procedencia falhou");
@@ -2670,7 +2690,9 @@ router.get("/exames-lab/exames/:code/impacto", async (req: Request, res: Respons
   try {
     const code = String(req.params.code ?? "").trim();
     if (!code) return res.status(400).json({ error: "code inválido" });
-    return res.json(await impactoExame(code));
+    const empresaId = sessionEmpresaId(req);
+    if (!empresaId) return res.status(403).json({ error: "Sem clínica ativa na sessão." });
+    return res.json(await impactoExame(code, empresaId));
   } catch (e) {
     return handleReassignError(res, e, req.log, "GET /exames-lab/exames/:code/impacto falhou");
   }

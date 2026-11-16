@@ -447,7 +447,8 @@ export interface ImpactoExame {
 }
 
 /** Prévia de impacto de um exame: quantos resultados/clientes/documentos ele tem. */
-export async function impactoExame(code: string): Promise<ImpactoExame> {
+/** `empresaId` restringe a contagem à clínica (leitura por tela); sem ele, contagem global (uso interno da curadoria). */
+export async function impactoExame(code: string, empresaId?: number): Promise<ImpactoExame> {
   const entry = await getCatalogEntry(code);
   const agg = await db
     .select({
@@ -456,7 +457,14 @@ export async function impactoExame(code: string): Promise<ImpactoExame> {
       documentos: sql<number>`count(distinct ${examResultsTable.examDocumentId})`,
     })
     .from(examResultsTable)
-    .where(eq(examResultsTable.analyteCode, code));
+    .where(
+      empresaId == null
+        ? eq(examResultsTable.analyteCode, code)
+        : and(
+            eq(examResultsTable.analyteCode, code),
+            sql`${examResultsTable.clientId} IN (SELECT id FROM clients WHERE empresa_id = ${empresaId})`,
+          ),
+    );
   const row = agg[0] ?? { resultados: 0, clientes: 0, documentos: 0 };
   return {
     code,
