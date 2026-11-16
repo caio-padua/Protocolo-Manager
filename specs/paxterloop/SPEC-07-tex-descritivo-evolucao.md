@@ -31,4 +31,7 @@ Estado: EM EXECUÇÃO (fatias 1 e 2 testadas em MOCK; a fatia 2 é só backend, 
 LGPD (acesso gratuito aos próprios dados preservado; serviço opcional é a compilação), Código de Ética Médica, CDC (transparência pré-contratual: escopo, preço, consentimento antes da cobrança). Sem citar jurisprudência de conselho.
 
 ## Prova
-`src/tests/tex-evolucao-pdf.test.ts`: 11 testes (0, 1, 5, 6, 10, 11, 20 datas; últimas 5; não conferido; ordem cronológica). PDFs de evidência sintéticos em `specs/paxterloop/evidencias/tex/`. Regressão: exames 19 testes; receituário/PAXMED 68 testes; `tsc` limpo.
+`src/tests/evolucao-exames-pdf.test.ts`: 11 testes (0, 1, 5, 6, 10, 11, 20 datas; últimas 5; não conferido; ordem cronológica). PDFs de evidência sintéticos em `specs/paxterloop/evidencias/tex/`. Regressão: exames 19 testes; receituário/PAXMED 68 testes; `tsc` limpo.
+
+## Nomenclatura (decisão técnica de 16/11/2026)
+Nome comercial = UM ponto de troca (`lib/evolucao-exames-nome.ts`, hoje "TEX"; DEEx é alias em discussão). Identificadores técnicos (arquivos, rota `/evolucao-exames/...`, evento de log, código de erro `EVOLUCAO_EXAMES_NAO_CONFERIDO`, futuras tabelas `evolucao_exames_*`, chave de recurso `evolucao_exames`) são neutros e NUNCA mudam. Trocar TEX por DEEx depois custa uma linha. Nenhuma tabela ou rota pública existia, então a renomeação interna não afetou dados.

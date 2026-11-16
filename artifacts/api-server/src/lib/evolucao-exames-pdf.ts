@@ -13,6 +13,7 @@ import {
 } from "./documentos/paxmed-modelo-2b-prova";
 import type { TextosEmpresa2b } from "./documentos/paxmed-2b-limites";
 import type { EvolucaoMontada } from "../routes/exames-lab";
+import { NOME_COMERCIAL_EVOLUCAO } from "./evolucao-exames-nome";
 
 const MM = 72 / 25.4;
 const INK = rgb(20 / 255, 34 / 255, 56 / 255);
@@ -22,15 +23,15 @@ const BAND = rgb(0.965, 0.955, 0.93);
 const GOLD = rgb(0.72, 0.55, 0.25);
 const ALERT = rgb(0.65, 0.08, 0.08);
 
-export type ModoTex = "ultimas5" | "completo";
-export type OrientacaoTex = "retrato" | "paisagem";
+export type ModoEvolucaoExames = "ultimas5" | "completo";
+export type OrientacaoEvolucaoExames = "retrato" | "paisagem";
 
-export interface DadosTex {
+export interface DadosEvolucaoExames {
   evolucao: EvolucaoMontada;
   paciente: { nome: string; documentoMinimo?: string | null };
   /** YYYY-MM-DD (BRT) */
   emissao: string;
-  modo: ModoTex;
+  modo: ModoEvolucaoExames;
   /** Identidade da clínica já validada pelo servidor; ausente = Instituto Pádua (arte aprovada). */
   identidade?: { empresaId?: number; textos: TextosEmpresa2b; simboloDourado: Uint8Array };
   /** Rótulo de ambiente exibido no PDF (prova sintética). */
@@ -40,16 +41,16 @@ export interface DadosTex {
   qr?: Uint8Array | null;
 }
 
-export interface ColunaTex {
+export interface ColunaEvolucaoExames {
   key: string;
   date: string | null;
   lab: string | null;
   confLevel: "ia" | "c1" | "c2" | null;
 }
 
-export interface ResultadoTex {
+export interface ResultadoEvolucaoExames {
   pdf: Uint8Array;
-  orientacao: OrientacaoTex;
+  orientacao: OrientacaoEvolucaoExames;
   colunasUsadas: number;
   blocos: number;
   paginas: number;
@@ -86,7 +87,7 @@ function ajustar(texto: string, font: PDFFont, size: number, max: number): strin
 }
 
 /** Decisão pura de formato (testável): quantas colunas por bloco e a orientação. */
-export function decidirFormato(nColunas: number, modo: ModoTex): { orientacao: OrientacaoTex; porBloco: number } {
+export function decidirFormato(nColunas: number, modo: ModoEvolucaoExames): { orientacao: OrientacaoEvolucaoExames; porBloco: number } {
   const retratoLargura = 595.28 - 2 * PAD - COL_NOME - COL_UNID - COL_REF;
   const maxRetrato = Math.floor(retratoLargura / LARG_DATA_MIN); // 5
   if (modo === "ultimas5" || nColunas <= maxRetrato) return { orientacao: "retrato", porBloco: maxRetrato };
@@ -94,7 +95,7 @@ export function decidirFormato(nColunas: number, modo: ModoTex): { orientacao: O
   return { orientacao: "paisagem", porBloco: Math.min(10, Math.floor(paisagemLargura / LARG_DATA_MIN)) };
 }
 
-export function selecionarColunas(evo: EvolucaoMontada, modo: ModoTex): ColunaTex[] {
+export function selecionarColunas(evo: EvolucaoMontada, modo: ModoEvolucaoExames): ColunaEvolucaoExames[] {
   const cols = evo.columns.map((c) => ({ key: c.key, date: c.date, lab: c.lab, confLevel: c.confLevel }));
   // Cronológico crescente; sem data vai primeiro (nunca à direita, que é o mais recente).
   cols.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "") || a.key.localeCompare(b.key));
@@ -103,7 +104,7 @@ export function selecionarColunas(evo: EvolucaoMontada, modo: ModoTex): ColunaTe
 
 const SELO: Record<string, string> = { c2: "Conferido (C2)", c1: "Conferência parcial (C1)", ia: "Não conferido (IA)" };
 
-export async function gerarTexPdf(d: DadosTex): Promise<ResultadoTex> {
+export async function gerarEvolucaoExamesPdf(d: DadosEvolucaoExames): Promise<ResultadoEvolucaoExames> {
   const colunas = selecionarColunas(d.evolucao, d.modo);
   if (colunas.length === 0) throw new Error("Não há resultados de exames para compor o descritivo.");
   const { orientacao, porBloco } = decidirFormato(colunas.length, d.modo);
@@ -121,7 +122,7 @@ export async function gerarTexPdf(d: DadosTex): Promise<ResultadoTex> {
   const qrImg = d.qr ? await doc.embedPng(d.qr) : null;
 
   // Blocos de colunas (cronológicos); o último bloco contém a data mais recente à direita.
-  const blocos: ColunaTex[][] = [];
+  const blocos: ColunaEvolucaoExames[][] = [];
   for (let i = 0; i < colunas.length; i += porBloco) blocos.push(colunas.slice(i, i + porBloco));
 
   const W = dims[0];
@@ -138,7 +139,7 @@ export async function gerarTexPdf(d: DadosTex): Promise<ResultadoTex> {
     return { page, y: TOPO_CONT() };
   }
 
-  let pg = novaPagina("TEX · Evolução de Exames", "Descritivo comparativo");
+  let pg = novaPagina(`${NOME_COMERCIAL_EVOLUCAO} · Evolução de Exames`, "Descritivo comparativo");
   const idLinhas = [`Paciente: ${limpar(d.paciente.nome)}${d.paciente.documentoMinimo ? `   ·   ${limpar(d.paciente.documentoMinimo)}` : ""}`,
     `Emissão: ${fmtData(d.emissao)}   ·   Período: ${fmtData(colunas[0].date)} a ${fmtData(colunas[colunas.length - 1].date)}   ·   ${d.modo === "completo" ? "Histórico completo" : "Últimas 5 coletas"}`];
   idLinhas.forEach((t, i) => { pg.page.drawText(ajustar(t, i === 0 ? bold : reg, 10.5, areaLarg), { x: areaX0, y: pg.y - i * 14, font: i === 0 ? bold : reg, size: 10.5, color: INK }); });
@@ -173,7 +174,7 @@ export async function gerarTexPdf(d: DadosTex): Promise<ResultadoTex> {
     };
 
     if (bi > 0) {
-      pg = novaPagina("TEX · Evolução de Exames", "Continuação cronológica");
+      pg = novaPagina(`${NOME_COMERCIAL_EVOLUCAO} · Evolução de Exames`, "Continuação cronológica");
       pg.page.drawText(`Bloco ${bi + 1} de ${blocos.length} — coletas de ${fmtData(bloco[0].date)} a ${fmtData(bloco[bloco.length - 1].date)}`, { x: areaX0, y: pg.y, font: ital, size: 10, color: MUTED });
       pg.y -= 18;
     } else if (blocos.length > 1) {
@@ -185,7 +186,7 @@ export async function gerarTexPdf(d: DadosTex): Promise<ResultadoTex> {
     analitos.forEach((a, ai) => {
       if (!bloco.some((c) => a.cells[c.key]) && blocos.length > 1) return; // exame sem dado neste bloco
       if (pg.y - ALT_LIN < BASE) {
-        pg = novaPagina("TEX · Evolução de Exames", "Continuação");
+        pg = novaPagina(`${NOME_COMERCIAL_EVOLUCAO} · Evolução de Exames`, "Continuação");
         desenharCabTabela();
       }
       const { page } = pg;
@@ -233,7 +234,7 @@ export async function gerarTexPdf(d: DadosTex): Promise<ResultadoTex> {
     "Não substitui os laudos originais dos laboratórios nem a consulta médica, e não constitui laudo ou relatório médico.",
     `Faixas "Ref. laboratório" são as impressas em cada laudo; valores marcados em vermelho ainda não receberam conferência final.${d.protocolo ? `   Protocolo: ${limpar(d.protocolo)}` : ""}`,
   ];
-  if (pg.y - fecho.length * 11 - 14 < BASE) { pg = novaPagina("TEX · Evolução de Exames", "Observações"); }
+  if (pg.y - fecho.length * 11 - 14 < BASE) { pg = novaPagina(`${NOME_COMERCIAL_EVOLUCAO} · Evolução de Exames`, "Observações"); }
   pg.page.drawLine({ start: { x: areaX0, y: pg.y }, end: { x: areaX0 + areaLarg, y: pg.y }, thickness: 0.6, color: GOLD });
   pg.y -= 12;
   for (const t of fecho) {

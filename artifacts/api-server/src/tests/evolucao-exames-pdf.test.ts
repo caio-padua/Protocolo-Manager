@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { gerarTexPdf, decidirFormato, selecionarColunas } from "../lib/tex-evolucao-pdf";
+import { gerarEvolucaoExamesPdf, decidirFormato, selecionarColunas } from "../lib/evolucao-exames-pdf";
 import type { EvolucaoMontada } from "../routes/exames-lab";
 
 function evo(nDatas: number, naoConferida = false): EvolucaoMontada {
@@ -44,7 +44,7 @@ describe("decisão de formato", () => {
 describe("PDF único", () => {
   for (const [n, modo, orient, blocos] of [[1, "completo", "retrato", 1], [5, "completo", "retrato", 1], [6, "completo", "paisagem", 1], [10, "completo", "paisagem", 1], [11, "completo", "paisagem", 2], [20, "completo", "paisagem", 2], [20, "ultimas5", "retrato", 1]] as const) {
     it(`${n} datas, modo ${modo}: ${orient}, ${blocos} bloco(s), um só arquivo`, async () => {
-      const r = await gerarTexPdf({ ...base, modo, evolucao: evo(n) });
+      const r = await gerarEvolucaoExamesPdf({ ...base, modo, evolucao: evo(n) });
       const doc = await PDFDocument.load(r.pdf);
       expect(r.orientacao).toBe(orient);
       expect(r.blocos).toBe(blocos);
@@ -56,11 +56,11 @@ describe("PDF único", () => {
     });
   }
   it("0 datas: recusa com erro claro", async () => {
-    await expect(gerarTexPdf({ ...base, modo: "completo", evolucao: evo(0) })).rejects.toThrow(/Não há resultados/);
+    await expect(gerarEvolucaoExamesPdf({ ...base, modo: "completo", evolucao: evo(0) })).rejects.toThrow(/Não há resultados/);
   });
   it("resultado não conferido é sinalizado", async () => {
-    const r = await gerarTexPdf({ ...base, modo: "completo", evolucao: evo(3, true) });
+    const r = await gerarEvolucaoExamesPdf({ ...base, modo: "completo", evolucao: evo(3, true) });
     expect(r.contemNaoConferidos).toBe(true);
-    expect((await gerarTexPdf({ ...base, modo: "completo", evolucao: evo(3) })).contemNaoConferidos).toBe(false);
+    expect((await gerarEvolucaoExamesPdf({ ...base, modo: "completo", evolucao: evo(3) })).contemNaoConferidos).toBe(false);
   });
 });

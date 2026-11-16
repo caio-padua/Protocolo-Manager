@@ -8,19 +8,20 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { requireCollaborator } from "./collaborator";
 import { requireClientInSession } from "../lib/exam-tenant";
 import { montarEvolucao } from "./exames-lab";
-import { gerarTexPdf, type ModoTex } from "../lib/tex-evolucao-pdf";
+import { gerarEvolucaoExamesPdf, type ModoEvolucaoExames } from "../lib/evolucao-exames-pdf";
 import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
 import { brtISODate } from "../lib/brt";
+import { NOME_COMERCIAL_EVOLUCAO } from "../lib/evolucao-exames-nome";
 import { db, clientsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-function modoDe(v: unknown): ModoTex | null {
+function modoDe(v: unknown): ModoEvolucaoExames | null {
   return v === "ultimas5" || v === "completo" ? v : null;
 }
 
-router.get("/tex/cliente/:clientId/pdf", requireCollaborator, async (req: Request, res: Response) => {
+router.get("/evolucao-exames/cliente/:clientId/pdf", requireCollaborator, async (req: Request, res: Response) => {
   try {
     const modo = modoDe(req.query["modo"] ?? "ultimas5");
     if (!modo) { res.status(400).json({ error: "modo deve ser ultimas5 ou completo." }); return; }
@@ -39,23 +40,23 @@ router.get("/tex/cliente/:clientId/pdf", requireCollaborator, async (req: Reques
     if (evolucao.columns.length === 0) { res.status(404).json({ error: "Sem resultados de exames para este cliente." }); return; }
 
     const nasc = cli?.birth && /^\d{4}-\d{2}-\d{2}/.test(cli.birth) ? cli.birth.slice(0, 10).split("-").reverse().join("/") : null;
-    const r = await gerarTexPdf({
+    const r = await gerarEvolucaoExamesPdf({
       evolucao, modo, emissao: brtISODate(), identidade,
       paciente: { nome: escopo.name, documentoMinimo: nasc ? `Nasc. ${nasc}` : null },
       rotuloAmbiente: null,
     });
     if (r.contemNaoConferidos && req.query["previa"] !== "1") {
-      res.status(409).json({ error: "Há resultados sem conferência final. Emita como prévia interna (previa=1) ou conclua a conferência.", codigo: "TEX_NAO_CONFERIDO" });
+      res.status(409).json({ error: "Há resultados sem conferência final. Emita como prévia interna (previa=1) ou conclua a conferência.", codigo: "EVOLUCAO_EXAMES_NAO_CONFERIDO" });
       return;
     }
-    req.log?.info({ evento: "tex_emitido", clientId: escopo.id, empresaId: escopo.empresaId, modo, colunas: r.colunasUsadas, paginas: r.paginas, previa: r.contemNaoConferidos }, "TEX emitido (interno)");
+    req.log?.info({ evento: "evolucao_exames_emitido", clientId: escopo.id, empresaId: escopo.empresaId, modo, colunas: r.colunasUsadas, paginas: r.paginas, previa: r.contemNaoConferidos }, "Evolução de exames emitida (interno)");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Disposition", `attachment; filename="TEX-${escopo.id}-${brtISODate()}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${NOME_COMERCIAL_EVOLUCAO}-${escopo.id}-${brtISODate()}.pdf"`);
     res.send(Buffer.from(r.pdf));
   } catch (err) {
-    req.log?.error({ err: String(err) }, "TEX: falha ao emitir");
-    if (!res.headersSent) res.status(500).json({ error: "Não foi possível gerar o TEX." });
+    req.log?.error({ err: String(err) }, "Evolução de exames: falha ao emitir");
+    if (!res.headersSent) res.status(500).json({ error: "Não foi possível gerar o descritivo de evolução de exames." });
   }
 });
 

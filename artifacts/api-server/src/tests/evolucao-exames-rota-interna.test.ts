@@ -33,7 +33,7 @@ vi.mock("@workspace/db", () => {
 });
 vi.mock("drizzle-orm", () => ({ eq: vi.fn() }));
 
-import texRouter from "../routes/tex";
+import texRouter from "../routes/evolucao-exames-emissao";
 
 const app = () => { const a = express(); a.use((q, _s, n) => { (q as unknown as { log: object }).log = { info: vi.fn(), error: vi.fn() }; n(); }); a.use(texRouter); return a; };
 const evo = (conf: "c2" | "ia") => ({
@@ -42,35 +42,35 @@ const evo = (conf: "c2" | "ia") => ({
 });
 beforeEach(() => { vi.clearAllMocks(); mockEscopo.mockImplementation(async (id: number) => (id === 7 ? { id: 7, empresaId: 5, name: "Paciente Sintético" } : id === 8 ? { id: 8, empresaId: 99, name: "Outro" } : null)); mockEvo.mockResolvedValue(evo("c2")); });
 
-describe("TEX rota interna", () => {
+describe("Evolução de exames: rota interna", () => {
   it("cliente conferido: um único PDF, sem cache", async () => {
-    const r = await request(app()).get("/tex/cliente/7/pdf?modo=ultimas5").buffer().parse((res, cb) => { const d: Buffer[] = []; res.on("data", (x) => d.push(x)); res.on("end", () => cb(null, Buffer.concat(d))); });
+    const r = await request(app()).get("/evolucao-exames/cliente/7/pdf?modo=ultimas5").buffer().parse((res, cb) => { const d: Buffer[] = []; res.on("data", (x) => d.push(x)); res.on("end", () => cb(null, Buffer.concat(d))); });
     expect(r.status).toBe(200);
     expect(r.headers["content-type"]).toContain("application/pdf");
     expect(r.headers["cache-control"]).toBe("no-store");
     expect((r.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
   });
   it("cliente de outra clínica: 404 e a evolução nem é lida", async () => {
-    const r = await request(app()).get("/tex/cliente/123/pdf");
+    const r = await request(app()).get("/evolucao-exames/cliente/123/pdf");
     expect(r.status).toBe(404);
     expect(mockEvo).not.toHaveBeenCalled();
   });
   it("modo inválido: 400", async () => {
-    expect((await request(app()).get("/tex/cliente/7/pdf?modo=tudo")).status).toBe(400);
+    expect((await request(app()).get("/evolucao-exames/cliente/7/pdf?modo=tudo")).status).toBe(400);
   });
   it("não conferido: 409 sem prévia; 200 com prévia explícita", async () => {
     mockEvo.mockResolvedValue(evo("ia"));
-    const r1 = await request(app()).get("/tex/cliente/7/pdf");
+    const r1 = await request(app()).get("/evolucao-exames/cliente/7/pdf");
     expect(r1.status).toBe(409);
-    expect(r1.body.codigo).toBe("TEX_NAO_CONFERIDO");
-    expect((await request(app()).get("/tex/cliente/7/pdf?previa=1")).status).toBe(200);
+    expect(r1.body.codigo).toBe("EVOLUCAO_EXAMES_NAO_CONFERIDO");
+    expect((await request(app()).get("/evolucao-exames/cliente/7/pdf?previa=1")).status).toBe(200);
   });
   it("clínica sem identidade validada: 422, nunca cai em modelo genérico", async () => {
-    const r = await request(app()).get("/tex/cliente/8/pdf");
+    const r = await request(app()).get("/evolucao-exames/cliente/8/pdf");
     expect(r.status).toBe(422);
   });
   it("sem resultados: 404", async () => {
     mockEvo.mockResolvedValue({ columns: [], analytes: [] });
-    expect((await request(app()).get("/tex/cliente/7/pdf")).status).toBe(404);
+    expect((await request(app()).get("/evolucao-exames/cliente/7/pdf")).status).toBe(404);
   });
 });
