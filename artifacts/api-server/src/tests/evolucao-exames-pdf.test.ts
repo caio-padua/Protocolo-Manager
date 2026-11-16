@@ -26,6 +26,8 @@ function evo(nDatas: number, naoConferida = false): EvolucaoMontada {
 }
 const base = { paciente: { nome: "Paciente Fictício Teste", documentoMinimo: "Nasc. 01/01/1980" }, emissao: "2026-11-16", rotuloAmbiente: "DOCUMENTO SINTÉTICO — SEM VALIDADE CLÍNICA" };
 
+import { mkdirSync as __mk } from "node:fs";
+__mk("/tmp/deex", { recursive: true });
 describe("decisão de formato", () => {
   it("até 5 datas: retrato; 6 a 10: paisagem; modo últimas 5 sempre retrato", () => {
     expect(decidirFormato(5, "completo").orientacao).toBe("retrato");
@@ -51,8 +53,8 @@ describe("PDF único", () => {
       expect(doc.getPageCount()).toBe(r.paginas);
       const [w, h] = [doc.getPage(0).getWidth(), doc.getPage(0).getHeight()];
       expect(orient === "retrato" ? w < h : w > h).toBe(true);
-      if (n === 5 || n === 11) writeFileSync(`/tmp/tex/tex-${n}-${modo}.pdf`, r.pdf);
-      if (n === 6) writeFileSync(`/tmp/tex/tex-6.pdf`, r.pdf);
+      if (n === 5 || n === 11) writeFileSync(`/tmp/deex/deex-${n}-${modo}.pdf`, r.pdf);
+      if (n === 6) writeFileSync(`/tmp/deex/deex-6.pdf`, r.pdf);
     });
   }
   it("0 datas: recusa com erro claro", async () => {

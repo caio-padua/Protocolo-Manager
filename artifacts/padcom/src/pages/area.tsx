@@ -2121,7 +2121,7 @@ function UploadStatusPoller({
 // Tipos de arquivo que são exames clínicos — exigem campo "Data do Exame"
 const TYPES_NEED_DATE = ["exame_sangue", "ultrassom", "tomografia", "ressonancia", "densitometria", "laudo", "outro"];
 
-function EnviarTab({ client }: { client: ClientInfo }) {
+function EnviarTabForm({ client }: { client: ClientInfo }) {
   const [fileType, setFileType]       = useState("");
   const [bodyRegion, setBodyRegion]   = useState("");
   const [description, setDescription] = useState("");
@@ -2268,6 +2268,83 @@ function EnviarTab({ client }: { client: ClientInfo }) {
           {uploading ? <><Loader2 className="w-5 h-5 animate-spin" /> ENVIANDO...</> : <><Upload className="w-5 h-5" /> ENVIAR ARQUIVO</>}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TERCEIRO PAINEL: ENVIOS RECENTES (progresso real por etapa, derivado do status gravado no servidor)
+// ---------------------------------------------------------------------------
+const ETAPAS_ENVIO = ["UPLOAD REALIZADO", "ANÁLISE PRELIMINAR", "ANÁLISE DE DADOS", "NOME DO CLIENTE CONFERE", "SINAPSES E FISIOLOGIA"];
+type EnvioItem = { id: number; arquivo: string; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; fase: number; fasesTotal: number; analitos: number };
+
+function EnviosRecentesPanel({ token }: { token: string }) {
+  const [lista, setLista] = useState<EnvioItem[] | null>(null);
+  const [falhou, setFalhou] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function consultar() {
+      try {
+        const r = await fetch(`${API_BASE}/api/area-paciente/exames/envios`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error(String(r.status));
+        const dados = (await r.json()) as EnvioItem[];
+        if (!ativo) return;
+        setLista(dados); setFalhou(false);
+      } catch { if (ativo) setFalhou(true); }
+      if (ativo) timer = setTimeout(() => { void consultar(); }, 4000);
+    }
+    void consultar();
+    return () => { ativo = false; if (timer) clearTimeout(timer); };
+  }, [token]);
+
+  return (
+    <div className="panel-3d rounded-xl overflow-hidden" data-testid="painel-envios-recentes">
+      <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
+        <Clock className="w-5 h-5 text-accent" />
+        <h2 className="text-primary font-black text-sm uppercase tracking-widest">ENVIOS RECENTES</h2>
+      </div>
+      <div className="p-3 space-y-3">
+        {lista === null && !falhou && <p className="text-muted-foreground text-xs text-center py-4">Carregando seus envios…</p>}
+        {falhou && <p className="text-red-600 text-xs text-center py-2" role="alert">Não foi possível atualizar agora. Tentando novamente.</p>}
+        {lista !== null && lista.length === 0 && <p className="text-muted-foreground text-xs text-center py-4">Nenhum arquivo enviado ainda.</p>}
+        {(lista ?? []).map((e) => {
+          const pct = Math.round((e.fase / e.fasesTotal) * 100);
+          const pronto = e.etapa === "concluido";
+          const parou = e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
+          const atual = Math.min(e.fase, e.fasesTotal - 1); // índice da etapa em andamento
+          return (
+            <div key={e.id} className="concave-3d rounded-lg p-3 space-y-2 group" tabIndex={0} data-testid={`envio-${e.id}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-primary text-sm font-mono truncate">{e.arquivo}</p>
+                <p className={`font-black text-sm ${parou ? "text-red-600" : "text-accent"}`}>{pct}%</p>
+              </div>
+              <SegmentedBar completed={e.fase} total={e.fasesTotal} height={10} />
+              <p className="text-accent text-[10px] font-black uppercase tracking-widest">
+                {parou ? e.situacao : pronto ? "VALIDADO" : `${ETAPAS_ENVIO[atual]}…`}
+              </p>
+              {!pronto && !parou && (
+                <p className="text-muted-foreground text-[10px] uppercase tracking-widest">SINAPSES E FISIOLOGIA: EM BREVE</p>
+              )}
+              {pronto && (
+                <p className="text-muted-foreground text-[10px] hidden group-hover:block group-focus:block" role="note">
+                  Validado. {e.analitos} resultado{e.analitos !== 1 ? "s" : ""} na aba EVOLUÇÃO. Etapas: {ETAPAS_ENVIO.join(" › ")}.
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EnviarTab({ client }: { client: ClientInfo }) {
+  return (
+    <div className="space-y-4">
+      <EnviarTabForm client={client} />
+      <EnviosRecentesPanel token={client.token} />
     </div>
   );
 }

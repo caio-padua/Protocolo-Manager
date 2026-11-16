@@ -15,14 +15,16 @@ import { handleEvolucao, startExamIngestion } from "./exames-lab";
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 
-const STATUS_LABEL: Record<string, { etapa: string; texto: string; final: boolean }> = {
-  processando: { etapa: "leitura", texto: "Em leitura", final: false },
-  quarentena: { etapa: "identidade", texto: "Em conferência pela equipe", final: false },
-  recebido: { etapa: "conferencia", texto: "Lido, aguardando conferência da equipe", final: false },
-  conferido_1: { etapa: "conferencia", texto: "Em conferência clínica", final: false },
-  conferido: { etapa: "concluido", texto: "Concluído", final: true },
-  erro: { etapa: "erro", texto: "Não foi possível ler este arquivo", final: true },
-  identidade_rejeitada: { etapa: "identidade", texto: "Não incorporado ao seu prontuário", final: true },
+// fase = quantas das 5 etapas do painel "Envios recentes" já foram CUMPRIDAS (derivado do status real gravado;
+// nada é simulado). Etapas: 1 upload, 2 análise preliminar, 3 análise de dados, 4 nome do cliente, 5 conferência clínica.
+const STATUS_LABEL: Record<string, { etapa: string; texto: string; final: boolean; fase: number }> = {
+  processando: { etapa: "leitura", texto: "Em leitura", final: false, fase: 1 },
+  quarentena: { etapa: "identidade", texto: "Em conferência pela equipe", final: false, fase: 3 },
+  recebido: { etapa: "conferencia", texto: "Lido, aguardando conferência da equipe", final: false, fase: 4 },
+  conferido_1: { etapa: "conferencia", texto: "Em conferência clínica", final: false, fase: 4 },
+  conferido: { etapa: "concluido", texto: "Concluído", final: true, fase: 5 },
+  erro: { etapa: "erro", texto: "Não foi possível ler este arquivo", final: true, fase: 1 },
+  identidade_rejeitada: { etapa: "identidade", texto: "Não incorporado ao seu prontuário", final: true, fase: 3 },
 };
 
 function portalClient(req: Request): number | null {
@@ -105,8 +107,8 @@ router.get("/area-paciente/exames/envios", async (req: Request, res: Response) =
       .orderBy(desc(examDocumentsTable.id))
       .limit(50);
     res.json(rows.map((r) => {
-      const label = STATUS_LABEL[r.status] ?? { etapa: "leitura", texto: "Em andamento", final: false };
-      return { id: r.id, arquivo: r.fileName, enviadoEm: r.createdAt, etapa: label.etapa, situacao: label.texto, finalizado: label.final, analitos: r.status === "quarentena" ? 0 : r.analitos };
+      const label = STATUS_LABEL[r.status] ?? { etapa: "leitura", texto: "Em andamento", final: false, fase: 1 };
+      return { id: r.id, arquivo: r.fileName, enviadoEm: r.createdAt, etapa: label.etapa, situacao: label.texto, finalizado: label.final, fase: label.fase, fasesTotal: 5, analitos: r.status === "quarentena" ? 0 : r.analitos };
     }));
   } catch (err) {
     logger.error({ err }, "[ExamesPaciente] lista de envios falhou");
