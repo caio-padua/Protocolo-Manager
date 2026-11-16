@@ -23,3 +23,5 @@ Estado real em 16/11/2026. "não" = inexistente. Nada está HOMOLOGADO.
 | Anexos no Telegram | 4 | n/a | existente | n/a | n/a | sim | sim | MOCK 381 | spec 4 | EXISTENTE (sem tela própria) |
 | Cadastro de profissionais por forma de atendimento | 5 | a auditar | a auditar | a auditar | n/a | a auditar | a auditar | não | nenhuma | PENDENTE |
 | Gerenciador comercial Prata/Ouro/Platinum/Diamond | 6 | a auditar | a auditar | a auditar | n/a | a auditar | a auditar | não | nenhuma | PENDENTE |
+| App Member (landing, cadastro, login, painel, assinatura) | 8 | não | não | não | não | não | não | não | nenhuma | NÃO IMPLEMENTADO |
+| Indique o PAXMED / Convites e Indicações | 21 | não | não | não | não | não | não | não | nenhuma | NÃO IMPLEMENTADO |

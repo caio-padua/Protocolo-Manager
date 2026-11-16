@@ -10,3 +10,7 @@ Limite declarado: o texto literal das mensagens anteriores à compactação do c
 | C5 | "Meu advogado ... validado juridicamente ... nomes diferentes ... cockpit não vai mostrar a categoria dele do Pax Med só na área do cliente" | Categoria Member só na Área do Cliente; nomes distintos | Teste negativo: Cockpit não retorna categoria Member | Ausente | nenhuma | nenhuma |
 | C6 | "Tex seria o DEEx? ..." | Possível nome alternativo | Conservar TEX | Nenhuma renomeação | D4 | nenhuma |
 | C7 | "Nada do que é criado ... tem que estar no menu à esquerda" | Regra global de pronto | Ver INDICE | Registrada no índice; tela de auditoria é SPEC 20 | nenhuma | INDICE.md |
+| C8 | "não me lembro especificamente a ideia" (sobre o 50%) | Percentual de 50% sem regra definida | Nenhuma regra, nenhum repasse | Retirado de qualquer regra | D1 encerrada como "sem regra" | INDICE.md |
+| C9 | "puxar um braço e fazer uma outra entrada"; "Em vez de acessar pelo PaxMed Clínicas, eu ter um outro acesso" | Segundo app Member | SPEC 8 | Ausente | login (método fechado na SPEC 8: e-mail verificado + senha, passkey quando suportado) | SPEC-08 |
+| C10 | "médicos indiquem, clínicas indiquem um cliente, paciente indique para outro" | Programa de indicação de software | SPEC 21 | Ausente | valores dependem de margem e parecer | SPEC-21 |
+

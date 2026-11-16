@@ -71,3 +71,11 @@ Arquitetura de produto (ordem de 16/11/2026): (A) PAXMED Clínicas B2B; (B) oper
 | D6 | Modelo de receituário vigente em produção; zona institucional de referência no TEX | PENDENTE |
 Nota jurídica: o que foi dito sobre a legalidade dos repasses e descontos é opinião simulada. Não consta como validado juridicamente.
 
+## Adendo de 16/11/2026 (arquitetura Member e PAXMED Indica)
+| Nº | SPEC | Estado | Observação |
+|---|---|---|---|
+| 8 | PAXMED Member: segundo app web `artifacts/member` (arquitetura B), identidade própria, sem componente clínico | FILA, SPEC escrita (`SPEC-08-paxmed-member-arquitetura.md`) | Prioridade acima das campanhas 14 a 17; depende de concluir a SPEC 7 |
+| 21 | PAXMED Indica: programa de indicação de software, tudo desativado | FILA, SPEC escrita (`SPEC-21-paxmed-indica.md`) | Depende de 8 e 12/17 |
+Correções: o percentual de 50% foi RETIRADO de qualquer regra operacional (D1 passa a "intenção original esquecida pelo proprietário; sem regra"). A SPEC 19 não cria repasse automático; só simulador e contratos em rascunho. A SPEC 18 (convite de médicos) é a tela administrativa da modalidade 3 da SPEC 21.
+Nova ordem: 7 -> 8 -> 21 -> 9 -> 10 -> 11 -> 12 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 13 -> 5 -> 6.
+
