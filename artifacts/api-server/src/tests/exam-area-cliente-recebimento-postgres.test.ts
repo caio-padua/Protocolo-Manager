@@ -18,7 +18,12 @@ import { createTableFromSchema } from "./helpers/schema-ddl";
 const sim = vi.hoisted(() => ({
   settings: {} as Record<string, string>,
   extracted: null as any, claude: null as any, openai: null as any,
-  drive: { upload: vi.fn(async () => ({ fileId: "drive-sintetico" })), rename: vi.fn(), structure: vi.fn(async () => ({ subfolders: { EXAMES: "pasta" } })) },
+  drive: {
+    upload: vi.fn(async () => ({ fileId: "drive-sintetico" })),
+    uniqueName: vi.fn(async (_folderId: string, name: string) => name),
+    rename: vi.fn(),
+    structure: vi.fn(async () => ({ subfolders: { EXAMES: "pasta" } })),
+  },
   mirror: vi.fn(async () => ({ r2Key: "k", bytes: 1, alreadyExists: false })),
   mail: vi.fn(), wpp: vi.fn(),
   emitterOk: true,
@@ -34,6 +39,7 @@ vi.mock("../lib/google-drive", async (orig) => ({
   ...(await orig<any>()),
   ensureClientFolderStructure: sim.drive.structure,
   uploadFileToDrive: sim.drive.upload,
+  getUniqueDriveFileName: sim.drive.uniqueName,
   renameDriveFile: sim.drive.rename,
 }));
 vi.mock("../lib/examR2Storage", async (orig) => ({ ...(await orig<any>()), mirrorExamToR2: sim.mirror }));
@@ -141,10 +147,12 @@ const laudoPortal = (collectionDate: string) => ({
 });
 const pdf = (n: string) => PDF(n);
 const bearer = (id: number) => ({ Authorization: `Bearer ${portalToken(id)}` });
-const enviar = (token: string | null, buf: Buffer, opts: { fileType?: string; mime?: string; name?: string } = {}) => {
+const enviar = (token: string | null, buf: Buffer, opts: { fileType?: string; mime?: string; name?: string; examDate?: string; description?: string } = {}) => {
   let r = request(app).post("/api/client-portal/upload");
   if (token) r = r.field("token", token);
   if (opts.fileType !== undefined || true) r = r.field("fileType", opts.fileType ?? "exame_sangue");
+  if (opts.examDate) r = r.field("examDate", opts.examDate);
+  if (opts.description) r = r.field("description", opts.description);
   return r.attach("file", buf, { filename: opts.name ?? "exame.pdf", contentType: opts.mime ?? "application/pdf" });
 };
 const esperar = async (id: number) => {
@@ -176,12 +184,14 @@ describe("recepção pela Área do Cliente", () => {
 
   it("PDF válido: recebido, leitura iniciada, status real sem prometer conclusão", async () => {
     sim.extracted = laudoPortal("10/11/2026");
-    const r = await enviar(portalToken(1), pdf("valido"));
+    const r = await enviar(portalToken(1), pdf("valido"), { examDate: "10/11/2026" });
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ success: true, processamento: "iniciado" });
+    expect(r.body.fileName).toBe("26.11.10 LABOR MARIA APARECIDA DE SOUZA LIMA.PDF");
     docA = r.body.exameDocumentoId;
     expect(docA).toBeGreaterThan(0);
     expect(sim.drive.upload).toHaveBeenCalledTimes(1);
+    expect((sim.drive.upload.mock.calls[0] as unknown[])[4]).toBe(true);
     const [d] = await q(`SELECT client_id, empresa_id FROM exam_documents WHERE id=$1`, [docA]);
     expect(d).toMatchObject({ client_id: 1, empresa_id: 5 });
     expect(await esperar(docA)).toBe("recebido");
@@ -189,6 +199,27 @@ describe("recepção pela Área do Cliente", () => {
     const meu = e.body.find((x: any) => x.id === docA);
     expect(meu).toMatchObject({ etapa: "conferencia", finalizado: false, analitos: 1 });
     expect(meu.situacao).not.toMatch(/conclu/i);
+  });
+
+  it("recusa uma data de exame impossível sem enviar arquivo ao Drive", async () => {
+    const uploadsBefore = sim.drive.upload.mock.calls.length;
+    const r = await enviar(portalToken(1), pdf("data-invalida"), { examDate: "31/02/2026" });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/Data do exame inválida/);
+    expect(sim.drive.upload.mock.calls.length).toBe(uploadsBefore);
+  });
+
+  it("nomeia cintilografia pelo texto informado sem criar sigla", async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const r = await enviar(portalToken(1), jpeg, {
+      fileType: "outro",
+      mime: "image/jpeg",
+      name: "exame.jpg",
+      examDate: "09/11/2026",
+      description: "Cintilografia miocárdica",
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.fileName).toBe("26.11.09 CINTILOGRAFIA MIOCARDICA MARIA APARECIDA DE SOUZA LIMA.JPG");
   });
 
   it("token no cabeçalho Authorization também vale", async () => {

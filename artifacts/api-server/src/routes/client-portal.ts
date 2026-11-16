@@ -6,11 +6,17 @@ import multer from "multer";
 import {
   ensureClientFolderStructure,
   uploadFileToDrive,
-  removeDiacritics,
+  getUniqueDriveFileName,
 } from "../lib/google-drive";
 import { createPortalToken, verifyPortalToken } from "../lib/portal-token";
 import { startExamIngestion } from "./exames-lab";
 import { brtDateStr } from "../lib/brt";
+import {
+  buildExamFileName,
+  classifyExamLabel,
+  classifyExamRegion,
+  parseExamDatePrefix,
+} from "../lib/exam-file-naming.js";
 
 const router = Router();
 
@@ -23,10 +29,6 @@ function detectFileKind(buf: Buffer): "pdf" | "jpeg" | "png" | null {
 }
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-/**
- * Converte data digitada pelo usuário (DD/MM/AAAA ou DD/MM/AA) para YY.MM.DD.
- * Retorna null se o formato não for reconhecido.
- */
 const EXAM_FILE_TYPES = new Set([
   "exame_sangue",
   "ultrassom",
@@ -36,27 +38,6 @@ const EXAM_FILE_TYPES = new Set([
   "laudo",
   "outro",
 ]);
-
-function parseUserExamDate(examDate: string): string | null {
-  const digits = examDate.replace(/\D/g, "");
-  if (digits.length === 8) {
-    // DDMMAAAA
-    const dd = digits.slice(0, 2);
-    const mm = digits.slice(2, 4);
-    const yy = digits.slice(6, 8);
-    if (Number(dd) > 31 || Number(mm) > 12) return null;
-    return `${yy}.${mm}.${dd}`;
-  }
-  if (digits.length === 6) {
-    // DDMMAA
-    const dd = digits.slice(0, 2);
-    const mm = digits.slice(2, 4);
-    const yy = digits.slice(4, 6);
-    if (Number(dd) > 31 || Number(mm) > 12) return null;
-    return `${yy}.${mm}.${dd}`;
-  }
-  return null;
-}
 
 const FILE_TYPE_TO_FOLDER: Record<string, string> = {
   "exame_sangue": "EXAMES",
@@ -73,7 +54,7 @@ const FILE_TYPE_TO_FOLDER: Record<string, string> = {
 };
 
 const FILE_TYPE_LABELS: Record<string, string> = {
-  "exame_sangue": "EXAME",
+  "exame_sangue": "LABOR",
   "ultrassom": "USG",
   "tomografia": "TC",
   "ressonancia": "RMN",
@@ -209,21 +190,35 @@ router.post(
 
       // 5a: data digitada pelo usuário (DD/MM/AAAA) → YY.MM.DD.
       // Fallback: data atual em BRT (UTC-3) — corrige bug de UTC avançar o dia.
-      const userDateStr = examDate ? parseUserExamDate(String(examDate)) : null;
+      const userDateStr = examDate ? parseExamDatePrefix(String(examDate)) : null;
+      if (examDate && !userDateStr) {
+        res.status(400).json({ error: "Data do exame inválida. Use DD/MM/AAAA e confira o dia no calendário." });
+        return;
+      }
       const dateStr = userDateStr ?? brtDateStr();
-      const clientNameClean = removeDiacritics(client.name).toUpperCase();
-      const regionPart = bodyRegion ? ` ${bodyRegion.toUpperCase()}` : "";
       const ext = file.originalname.includes(".")
         ? "." + file.originalname.split(".").pop()!.toLowerCase()
         : "";
-
-      const fileName = `${dateStr} ${typeLabel}${regionPart} ${clientNameClean}${ext}`;
+      const describedExamLabel = fileType === "outro" && description
+        ? classifyExamLabel(String(description))
+        : null;
+      const fileNameBase = buildExamFileName({
+        date: dateStr,
+        type: describedExamLabel ?? typeLabel,
+        region: bodyRegion
+          ? String(bodyRegion)
+          : classifyExamRegion(String(description ?? "")) ?? null,
+        clientName: client.name,
+        extension: ext,
+      });
+      const fileName = await getUniqueDriveFileName(targetFolderId, fileNameBase);
 
       const result = await uploadFileToDrive(
         targetFolderId,
         fileName,
         file.mimetype,
-        file.buffer
+        file.buffer,
+        true
       );
 
       console.log(`[Portal] Upload: ${fileName} -> ${folder} (${client.name})`);

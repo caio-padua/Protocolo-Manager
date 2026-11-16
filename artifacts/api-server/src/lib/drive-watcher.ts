@@ -5,9 +5,9 @@ import { sql } from "drizzle-orm";
 import {
   driveListChildren,
   driveDownloadFile,
-  uploadFileToDrive,
   ensureClientFolderStructure,
   driveCopyFileInFolder,
+  getUniqueDriveFileName,
 } from "./google-drive.js";
 import { extractExamFromMedia } from "./exam-extraction/extract.js";
 import { extractPdfText } from "./exam-extraction/pdf-text.js";
@@ -16,6 +16,12 @@ import { persistExtractionIfIdentityConfirmed } from "./exam-extraction/verified
 import { normalizeName, loadClients, resolveClient } from "./drive-import/matcher.js";
 import { saveInternalCopy, hasInternalCopy } from "./exam-file-store.js";
 import { logger } from "./logger.js";
+import { brtISODate } from "./brt.js";
+import {
+  buildExamFileName,
+  classifyExamLabel,
+  classifyExamRegion,
+} from "./exam-file-naming.js";
 
 // ============================================================================
 // Motor de Vigilância de Pasta Drive
@@ -151,34 +157,6 @@ async function autoCreateClient(name: string): Promise<number> {
   return row.id;
 }
 
-// ─── Nomenclatura de arquivo (padrão PAXTER) ─────────────────────────────────
-
-function buildNewName(
-  originalName: string,
-  clientName: string,
-  dateStr: string,           // YYYY-MM-DD
-): string {
-  const ext = (originalName.match(/\.[^/.]+$/) ?? [".pdf"])[0].toLowerCase();
-  const yy = dateStr.slice(2, 4);
-  const mm = dateStr.slice(5, 7);
-  const dd = dateStr.slice(8, 10);
-  const datePrefix = `${yy}.${mm}.${dd}`;
-
-  let nomeSlug = clientName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9 ]/g, "")
-    .trim()
-    .toUpperCase()
-    .slice(0, 40);
-
-  // Evitar duplicata: se o "nome do cliente" veio do filename e contém tipo de exame
-  const tipoRegex = /^(EXAME\s+SANGUE|EXAME\s+IMAGEM|LAUDO\s+COMPLETO|LAUDO\s+)\s*/i;
-  nomeSlug = nomeSlug.replace(tipoRegex, "").trim().slice(0, 40) || nomeSlug.slice(0, 40);
-
-  return `${datePrefix} ${nomeSlug}${ext}`;
-}
-
 /**
  * Dupla checagem da data do laudo (criticidade médica):
  * aceita DD/MM/AAAA extraída do CONTEÚDO; rejeita futura ou > 5 anos atrás.
@@ -302,7 +280,7 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
     const known = await getKnownFileIds();
     const clients = await loadClients();
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = brtISODate();
 
     // ── Coletar a fila de arquivos novos de todas as pastas vigiadas ──────────
     type QueueItem = { file: { id: string; name: string }; folder: (typeof WATCHED_FOLDERS)[number] };
@@ -349,25 +327,29 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
 
         // 2. Identificar paciente
         let candidateName: string | null = extractNameFromFilename(file.name);
+        let fileText = "";
 
-        if (!candidateName && isPdf) {
+        if (isPdf) {
           try {
             const rawResult = await extractPdfText(buffer);
-            const rawText = rawResult.text;
+            fileText = rawResult.text;
+            const rawText = fileText;
             const namePatterns = [
               /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\n(?:Gênero|Genero):/,
               /(?:nome do paciente|paciente)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
               /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})\s*\nCPF:/i,
               /(?:paciente|nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ '\-]{3,59})/i,
             ];
-            for (const pat of namePatterns) {
-              const match = rawText.match(pat);
-              if (match?.[1]) {
-                const candidate = match[1].trim();
-                if (!/^(dr|dra|medico|enfermeiro|laboratorio|resultado|material)/i.test(candidate)) {
-                  candidateName = candidate;
-                  logLine(`    Nome extraído do PDF: "${candidateName}"`);
-                  break;
+            if (!candidateName) {
+              for (const pat of namePatterns) {
+                const match = rawText.match(pat);
+                if (match?.[1]) {
+                  const candidate = match[1].trim();
+                  if (!/^(dr|dra|medico|enfermeiro|laboratorio|resultado|material)/i.test(candidate)) {
+                    candidateName = candidate;
+                    logLine(`    Nome extraído do PDF: "${candidateName}"`);
+                    break;
+                  }
                 }
               }
             }
@@ -429,15 +411,28 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
           logLine(`    Data validada pelo conteúdo do laudo: ${laudoDate}`);
         }
 
-        // 5. Nomenclatura: aa.mm.dd NOME PACIENTE.ext
-        const newName = buildNewName(file.name, clientName, effectiveDate);
+        // 5. Código único de nomeação. Sangue é sempre LABOR; outros tipos usam
+        // modalidade identificada no nome/conteúdo sem inventar sigla.
+        const nameSuggestsImage = /\b(usg|ultrass?om?|rx|raio|rmn|resson|tc\b|tomo|densito|doppler|mamogra|eco|imagem|angio)/i.test(file.name);
+        const examKind = isBlood ? "lab" : (!isPdf || nameSuggestsImage ? "imagem" : "lab");
+        const fileTextAndName = `${file.name} ${fileText}`;
+        const label = isBlood
+          ? "LABOR"
+          : classifyExamLabel(fileTextAndName) ?? (examKind === "imagem" ? "IMAGEM" : "EXAME");
+        const region = classifyExamRegion(fileTextAndName);
+        const extension = (file.name.match(/\.[^/.]+$/) ?? [".pdf"])[0].toLowerCase();
+        const newName = buildExamFileName({
+          date: effectiveDate,
+          type: label,
+          region,
+          clientName,
+          extension,
+        });
         logLine(`    Renomeado para: ${newName}`);
 
         // 6. Registrar documento (idempotente por hash) e persistir resultados
         // A4: 0 analitos só vira "imagem" se a extensão for de imagem ou o nome sugerir imagem;
         // PDF sem analitos e sem indício de imagem fica "lab" (falha de extração não mascarada).
-        const nameSuggestsImage = /\b(usg|ultrass?om?|rx|raio|rmn|resson|tc\b|tomo|densito|doppler|mamogra|eco|imagem|angio)/i.test(file.name);
-        const examKind = isBlood ? "lab" : (!isPdf || nameSuggestsImage ? "imagem" : "lab");
         let examDocId: number | undefined;
         try {
           const [docRow] = await db
@@ -499,6 +494,7 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
 
         // 7. Copiar para a pasta pessoal do paciente no Drive (destino principal)
         let copiedDriveId: string | undefined;
+        let copiedName: string | undefined;
         let clientExamesFolderId: string | undefined;
         try {
           const [clientRow] = await db
@@ -520,9 +516,11 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
         const copyDestFolder = clientExamesFolderId ?? folder.id;
         const copyDestLabel = clientExamesFolderId ? "pasta pessoal do paciente" : "pasta vigiada (fallback)";
         try {
-          const copied = await driveCopyFileInFolder(file.id, copyDestFolder, newName);
+          const uniqueName = await getUniqueDriveFileName(copyDestFolder, newName);
+          const copied = await driveCopyFileInFolder(file.id, copyDestFolder, uniqueName);
           copiedDriveId = copied.fileId;
-          logLine(`    Cópia canônica criada na ${copyDestLabel}: ${newName} (id=${copied.fileId})`);
+          copiedName = uniqueName;
+          logLine(`    Cópia canônica criada na ${copyDestLabel}: ${uniqueName} (id=${copied.fileId})`);
         } catch (copyErr) {
           logLine(`    AVISO cópia no Drive: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
         }
@@ -539,7 +537,7 @@ export async function processWatchedFolders(opts?: { maxFiles?: number }): Promi
           status: "processado",
           examDocumentId: examDocId,
           copiedDriveId,
-          copiedName: copiedDriveId ? newName : undefined,
+          copiedName,
         });
 
         _state.filesProcessed++;

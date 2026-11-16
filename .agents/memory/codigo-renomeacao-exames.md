@@ -5,8 +5,10 @@ description: Nome oficial aprovado pelo CEO para a regra única de nomear arquiv
 
 Nome oficial (aprovado pelo CEO): **"Código de Renomeação de Exames"** (não "Código do Arquivo Paxter").
 
-Formato proposto: `AA.MM.DD SIGLA [REGIÃO LADO] NOME_DO_PACIENTE.ext`; tipo decidido pelo conteúdo; nunca apagar homônimo (sufixo); arquivos antigos não são renomeados.
+Formato aprovado para execução: `AA.MM.DD TIPO [REGIÃO E LADO] NOME DO CLIENTE.ext`; maiúsculas, sem acentos, palavras separadas por espaços; prefixo de data existente preservado.
 
-**Why:** hoje 3 caminhos nomeiam por regras separadas (portal e renomeador em massa com sigla USG/RMN/TC/RX; varredura da pasta vigiada sem sigla). O CEO lembra das siglas do passado e quer regra única.
+O CEO determinou `LABOR` para exame de sangue/laboratorial. Preservar `USG`, `RMN`, `TC` e `RX`. Cintilografia usa o nome reconhecível por extenso (por exemplo, `CINTILOGRAFIA MIOCARDICA` e `CINTILOGRAFIA RENAL ESTATICA`), sem inventar sigla.
 
-**How to apply:** implementar em módulo único usado pelos 3 caminhos só depois de o CEO escolher A/B/C (A = LAB no lugar de EXAME, B = manter EXAME, C = só corrigir apagamento de homônimo). Tabela de siglas final ainda não aprovada.
+**Why:** o catálogo atual tem exames sem sigla curta canônica e a nomenclatura precisa continuar compreensível; arquivos de nomes iguais não podem apagar documentos anteriores.
+
+**How to apply:** aplicar a regra em um único construtor compartilhado por upload do portal, varredura automática e renomeador manual; nomes repetidos recebem sufixo numérico e os arquivos existentes nunca são apagados. Não executar renomeação em massa sem ordem separada.

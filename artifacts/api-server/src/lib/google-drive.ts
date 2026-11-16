@@ -587,6 +587,39 @@ export async function uploadFileToDrive(
   };
 }
 
+/**
+ * Escolhe um nome livre na pasta sem substituir arquivos já armazenados.
+ * O Drive permite nomes iguais; por isso, exames repetidos recebem " 2", " 3"...
+ * antes da extensão. A verificação evita colisões comuns; a escrita sempre usa
+ * allowDuplicates=true para que uma corrida entre duas requisições nunca apague
+ * o arquivo da outra.
+ */
+export async function getUniqueDriveFileName(
+  folderId: string,
+  desiredName: string,
+  excludeFileId?: string,
+): Promise<string> {
+  const drive = await getUncachableDriveClient();
+  const dot = desiredName.lastIndexOf(".");
+  const hasExtension = dot > 0;
+  const stem = hasExtension ? desiredName.slice(0, dot) : desiredName;
+  const extension = hasExtension ? desiredName.slice(dot) : "";
+  const escapeQuery = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+  for (let suffix = 1; suffix <= 100; suffix++) {
+    const candidate = suffix === 1 ? desiredName : `${stem} ${suffix}${extension}`;
+    const existing = await drive.files.list({
+      q: `'${escapeQuery(folderId)}' in parents and name='${escapeQuery(candidate)}' and trashed=false`,
+      fields: "files(id)",
+      pageSize: 100,
+    });
+    const collision = (existing.data.files ?? []).some((file) => file.id !== excludeFileId);
+    if (!collision) return candidate;
+  }
+
+  throw new Error(`Não foi possível reservar um nome livre para "${desiredName}".`);
+}
+
 export interface DriveChild {
   id: string;
   name: string;
