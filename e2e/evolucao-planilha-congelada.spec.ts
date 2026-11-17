@@ -109,7 +109,7 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
           return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left) };
         }),
       );
-      expect(caixas.length).toBe(11); // 1 "Todas" + 5 faixas + 3 layouts + 2 DEEx do cliente
+      expect(caixas.length).toBe(9); // 1 "Todas" + 5 faixas + 3 layouts (grade das ferramentas; DEEx fica em linha própria)
       expect(new Set(caixas.map((c) => c.h)).size).toBe(1);
       expect(new Set(caixas.map((c) => c.w)).size).toBe(1);
       await page.getByTestId("evolucao-ferramentas").scrollIntoViewIfNeeded();

@@ -16,6 +16,7 @@ import {
   Check,
   FileUp,
   FileText,
+  Info,
   Upload,
   CheckCircle,
 } from "lucide-react";
@@ -1360,36 +1361,48 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
               </div>
             </div>
             <div data-testid="deex-painel">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">{modoCliente ? "DEEx" : "DEEx e Envio"}</div>
-              <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
-                <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
-                  className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · 5 coletas</button>
-                <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
-                  className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · Completo</button>
-                {deexBusy && <div className="flex h-10 items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-[color:var(--evo-muted)]" /></div>}
-                {deexArquivo && (
-                  <a href={deexArquivo.url} download={deexArquivo.nome} target="_blank" rel="noopener" data-testid="deex-arquivo"
-                    title={deexArquivo.nome} aria-label={`Abrir ${deexArquivo.nome}`}
-                    className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo gap-1`}>
-                    <FileText className="h-4 w-4 shrink-0" />
-                    <span className="truncate">PDF</span>
-                  </a>
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">
+                {modoCliente ? "DEEx" : "DEEx e Envio"}
+                <span className="group relative inline-flex">
+                  <button type="button" aria-label="O que é o DEEx" className="flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--evo-muted)] hover:text-[color:var(--evo-ink)] focus:text-[color:var(--evo-ink)] focus:outline-none">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                  <span role="tooltip" className="evo-bevel pointer-events-none absolute left-5 top-1/2 z-[60] hidden w-64 -translate-y-1/2 rounded-[6px] px-3 py-2 text-left text-[10px] font-semibold normal-case leading-snug tracking-normal group-hover:block group-focus-within:block">
+                    DEEx · Descritivo de Evolução de Exames. PDF com os resultados lado a lado, por data de coleta.
+                  </span>
+                </span>
+              </div>
+              {/* Uma só linha: DEEx à esquerda, envio de PDF no extremo direito (a equipe). */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
+                    className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 disabled:opacity-50`}>DEEx · 5 coletas</button>
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
+                    className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 disabled:opacity-50`}>DEEx · Completo</button>
+                  {deexBusy && <Loader2 className="h-4 w-4 animate-spin text-[color:var(--evo-muted)]" />}
+                  {deexArquivo && (
+                    <a href={deexArquivo.url} download={deexArquivo.nome} target="_blank" rel="noopener" data-testid="deex-arquivo"
+                      title={deexArquivo.nome} aria-label={`Abrir ${deexArquivo.nome}`}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo !w-10 px-0`}>
+                      <FileText className="h-4 w-4 shrink-0" />
+                    </a>
+                  )}
+                </div>
+                {!modoCliente && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <label className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 cursor-pointer`}>
+                      <FileUp className="mr-1 h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate" title={uploadFile?.name}>{uploadFile ? uploadFile.name : "Selecionar"}</span>
+                      <input type="file" accept="application/pdf" className="sr-only"
+                        onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setUploadMsg(null); }} />
+                    </label>
+                    <button type="button" onClick={handleAdminUpload} disabled={!uploadFile || uploading}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo !w-24 disabled:opacity-40`}>
+                      {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Upload className="mr-1 h-3.5 w-3.5" />Enviar</>}
+                    </button>
+                  </div>
                 )}
               </div>
-              {!modoCliente && (
-                <div className="mt-1.5 grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
-                  <label className={`${BOTAO_FERRAMENTA} evo-bevel cursor-pointer`}>
-                    <FileUp className="mr-1 h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{uploadFile ? uploadFile.name.slice(0, 18) : "Selecionar PDF"}</span>
-                    <input type="file" accept="application/pdf" className="sr-only"
-                      onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setUploadMsg(null); }} />
-                  </label>
-                  <button type="button" onClick={handleAdminUpload} disabled={!uploadFile || uploading}
-                    className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo disabled:opacity-40`}>
-                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Upload className="mr-1 h-3.5 w-3.5" />Enviar</>}
-                  </button>
-                </div>
-              )}
               {deexMsg && (
                 <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
                   {deexMsg.txt}
