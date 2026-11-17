@@ -90,13 +90,76 @@ async function novoDocumento(clientId: number, nome: string) {
   return rows[0].id as number;
 }
 
+let syntheticResultSeq = 0;
+async function novoResultadoPortalSintetico(input: {
+  clientId: number;
+  empresaId: number;
+  status: string;
+  analyte: string;
+  date: string;
+  lab: string;
+  identity?: "confirmada" | "contradicao" | "liberacao_humana" | null;
+  resultClientId?: number;
+  resultStatus?: string | null;
+}) {
+  const sequence = ++syntheticResultSeq;
+  const [document] = await q(
+    `INSERT INTO exam_documents
+      (client_id, hash, file_name, status, empresa_id, collection_date, lab_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [
+      input.clientId,
+      `prelim-sintetico-${sequence}`,
+      `prelim-sintetico-${sequence}.pdf`,
+      input.status,
+      input.empresaId,
+      input.date,
+      input.lab,
+    ],
+  );
+  const resultStatus = input.resultStatus === undefined ? "dentro" : input.resultStatus;
+  await q(
+    `INSERT INTO exam_results
+      (exam_document_id, client_id, analyte_name_raw, value_raw, unit_raw,
+       value_canonical, unit_canonical, status, collection_date, lab_name)
+     VALUES ($1,$2,$3,'10','mg/dL',$4,'mg/dL',$5,$6,$7)`,
+    [
+      document.id,
+      input.resultClientId ?? input.clientId,
+      input.analyte,
+      resultStatus === "conferencia" ? null : "10",
+      resultStatus,
+      input.date,
+      input.lab,
+    ],
+  );
+  if (input.identity) {
+    const humanRelease = input.identity === "liberacao_humana";
+    await q(
+      `INSERT INTO exam_identity_checks
+        (document_id, empresa_id, client_id, event, verdict, professional_id)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [
+        document.id,
+        input.empresaId,
+        input.clientId,
+        humanRelease ? "liberacao_humana" : "verificacao",
+        input.identity === "confirmada" ? "confirmada" : input.identity === "contradicao" ? "contradicao" : null,
+        humanRelease ? 101 : null,
+      ],
+    );
+  }
+  return document.id as number;
+}
+
 beforeAll(async () => {
   const db = await import("@workspace/db");
   const schema = await import("@workspace/db/schema");
   pool = db.pool;
   for (const t of [schema.empresasTable, schema.clientsTable, schema.professionalsTable, schema.locationsTable,
     schema.locationProfessionalsTable, schema.professionalEmpresasTable, schema.examDocumentsTable, schema.examResultsTable,
-    schema.examAnalyteCatalogTable, schema.examAnalyteRangesTable, schema.examAnalyteUnitsTable]) {
+    schema.examAnalyteCatalogTable, schema.examAnalyteRangesTable, schema.examAnalyteUnitsTable,
+    schema.appSettingsTable, schema.collaboratorAuditTable]) {
     await pool.query(createTableFromSchema(t));
   }
   await pool.query(`ALTER TABLE exam_documents ADD COLUMN llm_pipeline jsonb, ADD COLUMN reprocessamento_count int, ADD COLUMN reprocessado_at timestamptz`);
@@ -115,7 +178,9 @@ beforeAll(async () => {
     (1,'Maria Aparecida de Souza Lima','${CPF_A}','15/03/1980',5,'active'),
     (2,'Cliente Da Clínica Seis','${CPF_B}','01/01/1990',6,'active'),
     (3,'Joana Sem Documentos',null,null,5,'active'),
-    (4,'Cliente Sem Clínica','${CPF_B}','02/02/1992',null,'active')`);
+    (4,'Cliente Sem Clínica','${CPF_B}','02/02/1992',null,'active'),
+    (90,'Cliente Sintético Toggle Cinco',null,null,5,'active'),
+    (91,'Cliente Sintético Toggle Seis',null,null,6,'active')`);
 
   tokenOf = (await import("../lib/collaborator-auth")).createCollaboratorToken as any;
   const mk = (await import("../lib/collaborator-auth")).createCollaboratorToken;
@@ -369,4 +434,141 @@ describe("recepção pela Área do Cliente", () => {
     const r = await enviar(portalToken(1), jpg, { fileType: "foto", mime: "image/jpeg", name: "f.jpg" });
     expect(r.body).toMatchObject({ success: true, processamento: "nao_aplicavel", exameDocumentoId: null });
   });
+
+  it("toggle preliminar é independente, valida identidade e clínica, e preserva C2", async () => {
+    const { chaveVisibilidadePreliminarExames, salvarVisibilidadePreliminarExames } =
+      await import("../lib/exam-preliminary-visibility");
+    const chaveCinco = chaveVisibilidadePreliminarExames(5);
+    const chaveSeis = chaveVisibilidadePreliminarExames(6);
+    delete sim.settings[chaveCinco];
+    delete sim.settings[chaveSeis];
+    sim.settings["exames.exigirValidacaoHumana"] = "false";
+
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "conferido", analyte: "C2 Sintético",
+      date: "2026-11-10", lab: "Laboratório Sintético C2",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "recebido", analyte: "IA Mesmo Cabeçalho",
+      date: "2026-11-10", lab: "Laboratório Sintético C2", identity: "confirmada",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "recebido", analyte: "IA Confirmada",
+      date: "2026-11-11", lab: "Laboratório Sintético IA", identity: "confirmada",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "conferido_1", analyte: "C1 Confirmada",
+      date: "2026-11-12", lab: "Laboratório Sintético C1", identity: "confirmada",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "recebido", analyte: "Identidade Liberada",
+      date: "2026-11-13", lab: "Laboratório Sintético Liberado", identity: "liberacao_humana",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "quarentena", analyte: "Quarentena Excluída",
+      date: "2026-11-14", lab: "Laboratório Sintético Quarentena", identity: "contradicao",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "recebido", analyte: "Sem Prova de Identidade",
+      date: "2026-11-15", lab: "Laboratório Sintético Sem Prova",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 6, status: "recebido", analyte: "Clínica Divergente",
+      date: "2026-11-16", lab: "Laboratório Sintético Outra Clínica", identity: "confirmada",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 6, status: "conferido", analyte: "C2 Clínica Divergente",
+      date: "2026-11-16", lab: "Laboratório Sintético C2 Outra Clínica",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 91, empresaId: 6, status: "recebido", analyte: "Cliente Divergente",
+      date: "2026-11-17", lab: "Laboratório Sintético Outro Cliente",
+      identity: "confirmada", resultClientId: 90,
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "recebido", analyte: "Unidade Não Convertida",
+      date: "2026-11-18", lab: "Laboratório Sintético Conversão",
+      identity: "confirmada", resultStatus: "conferencia",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 91, empresaId: 6, status: "conferido_1", analyte: "C1 Da Clínica Seis",
+      date: "2026-11-19", lab: "Laboratório Sintético Clínica Seis", identity: "confirmada",
+    });
+
+    const strict = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(90));
+    expect(strict.status).toBe(200);
+    expect(strict.body.analytes.map((a: any) => a.name)).toEqual(["C2 Sintético"]);
+
+    sim.settings[chaveCinco] = "true";
+    const liberada = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(90));
+    expect(liberada.status).toBe(200);
+    const nomes = liberada.body.analytes.map((a: any) => a.name);
+    expect(nomes).toEqual(expect.arrayContaining([
+      "C2 Sintético", "IA Confirmada", "C1 Confirmada", "Identidade Liberada",
+    ]));
+    expect(nomes).not.toEqual(expect.arrayContaining([
+      "IA Mesmo Cabeçalho", "Quarentena Excluída", "Sem Prova de Identidade",
+      "Clínica Divergente", "C2 Clínica Divergente", "Cliente Divergente", "Unidade Não Convertida",
+    ]));
+    const colunaC2 = liberada.body.columns.find((c: any) => c.lab === "Laboratório Sintético C2");
+    expect(colunaC2.confLevel).toBe("c2");
+    const colunaIa = liberada.body.columns.find((c: any) => c.lab === "Laboratório Sintético IA");
+    expect(colunaIa.confLevel).toBe("ia");
+    const colunaC1 = liberada.body.columns.find((c: any) => c.lab === "Laboratório Sintético C1");
+    expect(colunaC1.confLevel).toBe("c1");
+    const celulaPreliminar = liberada.body.analytes.find((a: any) => a.name === "IA Confirmada")
+      .cells[`${colunaIa.date}|${colunaIa.lab}`];
+    expect(celulaPreliminar).toMatchObject({
+      zone: null,
+      valueNum: null,
+      status: null,
+      refLow: null,
+      refHigh: null,
+    });
+
+    const seisAindaFechada = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(91));
+    expect(seisAindaFechada.body.analytes).toEqual([]);
+    sim.settings[chaveSeis] = "true";
+    const seisLiberada = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(91));
+    expect(seisLiberada.body.analytes.map((a: any) => a.name)).toEqual(["C1 Da Clínica Seis"]);
+    expect(JSON.stringify(seisLiberada.body)).not.toContain("IA Confirmada");
+
+    const primeiro = await salvarVisibilidadePreliminarExames({
+      empresaId: 999,
+      habilitado: true,
+      professionalId: 101,
+    });
+    expect(primeiro.valorAnterior).toBeNull();
+    const segundo = await salvarVisibilidadePreliminarExames({
+      empresaId: 999,
+      habilitado: false,
+      professionalId: 101,
+    });
+    expect(segundo.valorAnterior).toBe(true);
+    const gravado = await q(`SELECT value FROM app_settings WHERE key=$1`, [
+      chaveVisibilidadePreliminarExames(999),
+    ]);
+    const auditoria = await q(
+      `SELECT empresa_id, action, method, path, detail
+       FROM collaborator_audit
+       WHERE empresa_id=999 AND path='/settings/exames'
+       ORDER BY id`,
+    );
+    expect(gravado[0].value).toBe("false");
+    expect(auditoria).toHaveLength(2);
+    expect(auditoria[0]).toMatchObject({
+      empresa_id: 999,
+      action: "write",
+      method: "PUT",
+      detail: {
+        setting: "exibirResultadosPreliminaresAreaCliente",
+        previousValue: null,
+        newValue: true,
+      },
+    });
+    expect(auditoria[1].detail).toMatchObject({ previousValue: true, newValue: false });
+    delete sim.settings[chaveCinco];
+    delete sim.settings[chaveSeis];
+    delete sim.settings["exames.exigirValidacaoHumana"];
+  }, 120_000);
 });

@@ -292,6 +292,7 @@ function ColunaCabecalho({
   onFixar,
   sticky,
   left,
+  mostrarPreliminar,
 }: {
   c: EvolucaoColumn;
   ultima: boolean;
@@ -299,6 +300,7 @@ function ColunaCabecalho({
   onFixar: () => void;
   sticky: boolean;
   left: number;
+  mostrarPreliminar?: boolean;
 }) {
   // z:20 — ACIMA da cortina da zona congelada (z:10); senão o quadradinho,
   // a data e o laboratório da coluna fixada somem atrás da cortina.
@@ -393,6 +395,14 @@ function ColunaCabecalho({
       <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[#8a97a9]">
         {c.conferenteName ? (c.confLevel === "c2" ? "Conferido" : "Lançado") : "Aguardando"}
       </span>
+      {mostrarPreliminar && (c.confLevel === "ia" || c.confLevel === "c1") && (
+        <span
+          className="mt-0.5 flex h-[13px] items-center rounded-[3px] bg-amber-100 px-1 text-[7px] font-black leading-none text-amber-900"
+          title="PRELIMINAR — NÃO CONFERIDO PELO MÉDICO"
+        >
+          PRELIMINAR · {c.confLevel === "ia" ? "IA" : "C1"}
+        </span>
+      )}
     </div>
   );
 }
@@ -420,11 +430,13 @@ function CartaoGrafico({
   columns,
   ordem,
   onRemover,
+  exigirConferencia,
 }: {
   analyte: EvolucaoAnalyte;
   columns: EvolucaoColumn[];
   ordem: number;
   onRemover: () => void;
+  exigirConferencia?: boolean;
 }) {
   const data = useMemo(
     () =>
@@ -446,7 +458,11 @@ function CartaoGrafico({
 
   const zones = analyte.zones;
   const ultimo = data.length > 0 ? data[data.length - 1] : null;
-  const tend = analyte.trend ? TEND[analyte.trend] : TEND.estavel;
+  const tend = analyte.trend
+    ? TEND[analyte.trend]
+    : exigirConferencia
+      ? null
+      : TEND.estavel;
 
   // Domínio do eixo Y: engloba valores + limites finitos das zonas.
   const dominio = useMemo(() => {
@@ -600,7 +616,9 @@ function CartaoGrafico({
 
       {data.length === 0 ? (
         <div className="concave-3d px-3 py-8 text-center text-[12px] text-[#647c97]">
-          Sem valores numéricos para desenhar o gráfico deste exame.
+          {exigirConferencia
+            ? "Nenhum resultado conferido com valor numérico para este gráfico."
+            : "Sem valores numéricos para desenhar o gráfico deste exame."}
         </div>
       ) : (
         <div className="screen-tv-3d p-2">
@@ -795,7 +813,7 @@ function CartaoGrafico({
           >
             <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
             <span className="text-[11px] font-black capitalize leading-tight text-[#16294a]">
-              {tend.rotulo}
+              {tend?.rotulo ?? "—"}
             </span>
           </div>
           {/* SITUAÇÃO — MAIS LARGA (80px), ÚLTIMA da direita, TODA EM
@@ -957,6 +975,10 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   const analytes = data?.analytes ?? [];
   const columnsRaw = data?.columns ?? [];
   const ultimaColKey = columnsRaw.length > 0 ? columnsRaw[columnsRaw.length - 1].key : null;
+  const temPreliminares = modoCliente && columnsRaw.some((c) => c.confLevel === "ia" || c.confLevel === "c1");
+  const columnsGraficos = modoCliente
+    ? columnsRaw.filter((c) => c.confLevel === "c2")
+    : columnsRaw;
 
   // Colunas fixadas vão primeiro (grudadas); as demais rolam.
   const orderedColumns = useMemo(() => {
@@ -1071,7 +1093,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       <div className="flex flex-col gap-4 py-4">
         <p className="text-sm text-[#647c97]">
           {modoCliente
-            ? "A sua evolução aparece aqui assim que a conferência final de um exame for concluída. Acompanhe cada etapa no painel “Envios recentes”, logo acima."
+            ? "Ainda não há resultados visíveis nesta evolução. Acompanhe cada etapa no painel “Envios recentes”, logo acima."
             : "Nenhum exame para este cliente ainda."}
         </p>
         {uploadWidget}
@@ -1110,7 +1132,13 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
               </button>
               {aberto && (
                 <div className="px-2 pb-2">
-                  <CartaoGrafico analyte={a} columns={columnsRaw} ordem={i + 1} onRemover={() => alternar(key)} />
+                  <CartaoGrafico
+                    analyte={a}
+                    columns={columnsGraficos}
+                    ordem={i + 1}
+                    onRemover={() => alternar(key)}
+                    exigirConferencia={modoCliente}
+                  />
                 </div>
               )}
             </div>
@@ -1130,7 +1158,14 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           const a = analytePorKey.get(key);
           if (!a) return null;
           return (
-            <CartaoGrafico key={key} analyte={a} columns={columnsRaw} ordem={i + 1} onRemover={() => alternar(key)} />
+          <CartaoGrafico
+            key={key}
+            analyte={a}
+            columns={columnsGraficos}
+            ordem={i + 1}
+            onRemover={() => alternar(key)}
+            exigirConferencia={modoCliente}
+          />
           );
         })}
       </div>
@@ -1159,6 +1194,16 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
         <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
       </div>
+      {temPreliminares && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mb-3 rounded-[5px] border border-amber-300 bg-amber-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-amber-950"
+        >
+          PRELIMINAR — NÃO CONFERIDO PELO MÉDICO. IA significa extração automática; C1 significa primeira etapa de conferência.
+          Estes valores não recebem faixa, tendência ou gráfico clínico antes da conferência médica.
+        </div>
+      )}
 
       {/* CONTROLES — rodada 8 final (pedido do CEO 25/07/2026): cada categoria
           é um PAINEL com título na linha de cima e botões embaixo, na horizontal.
@@ -1269,6 +1314,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                   onFixar={() => fixar(c.key)}
                   sticky={isPinned}
                   left={isPinned ? stickyLeft(idx) : 0}
+                  mostrarPreliminar={modoCliente}
                 />
               );
             })}
@@ -1281,7 +1327,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           <div className="space-y-2">
             {analytes.map((a) => {
               const selecionada = selecionados.includes(a.key);
-              const tend = a.trend ? TEND[a.trend] : TEND.estavel;
+              const tend = a.trend ? TEND[a.trend] : modoCliente ? null : TEND.estavel;
               return (
                 <div key={a.key}>
                 <div
@@ -1326,7 +1372,10 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                   {/* valores por data */}
                   {orderedColumns.list.map((c, idx) => {
                     const isPinned = idx < orderedColumns.pinCols.length;
-                    const cell = a.cells[c.key];
+                    const originalCell = a.cells[c.key];
+                    const cell = modoCliente && c.confLevel !== "c2" && originalCell
+                      ? { ...originalCell, zone: null }
+                      : originalCell;
                     const acesa = zonaAcesa !== null && cell?.zone?.key === zonaAcesa;
                     return (
                       <Cela
@@ -1342,9 +1391,15 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                   })}
                   {/* tendência */}
                   <div className="bevel-3d flex w-[92px] shrink-0 items-center justify-center gap-1 py-1.5">
-                    <span className={`paxter-led ${tend.led} paxter-led-on`} />
-                    <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
-                    <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
+                    {tend ? (
+                      <>
+                        <span className={`paxter-led ${tend.led} paxter-led-on`} />
+                        <tend.Icon className={`h-3.5 w-3.5 ${tend.cor}`} />
+                        <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-[#647c97]">—</span>
+                    )}
                   </div>
                 </div>
                 {/* LAYOUT "Abaixo da linha": o gráfico abre logo embaixo da linha
@@ -1359,9 +1414,10 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                   >
                     <CartaoGrafico
                       analyte={a}
-                      columns={columnsRaw}
+                      columns={columnsGraficos}
                       ordem={selecionados.indexOf(a.key) + 1}
                       onRemover={() => alternar(a.key)}
+                      exigirConferencia={modoCliente}
                     />
                   </div>
                 )}
@@ -1373,9 +1429,9 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       </div>
 
       <p className="mt-4 text-[11px] italic text-[#647c97]">
-        Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na
-        listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha
-        onde os gráficos aparecem no seletor "Gráficos". No fim da tela você edita as faixas de cada exame.
+        {modoCliente
+          ? "Resultados preliminares permanecem neutros até a conferência médica; faixas, tendências e gráficos usam somente resultados C2 conferidos."
+          : "Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha onde os gráficos aparecem no seletor Gráficos. No fim da tela você edita as faixas de cada exame."}
       </p>
     </section>
   );

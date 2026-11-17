@@ -1116,7 +1116,11 @@ router.get("/exames-lab/evolucao/:clientId", (req: Request, res: Response) =>
  */
 export async function montarEvolucao(
   clientId: number,
-  opts: { respeitarToggleProfissional?: boolean } = {},
+  opts: {
+    respeitarToggleProfissional?: boolean;
+    portalEmpresaId?: number;
+    permitirPreliminaresPortal?: boolean;
+  } = {},
 ) {
   // clientId já chega validado e escopado à clínica/ao token pelo chamador.
   // Toggle global "liberar validacoes" (exames.exigirValidacaoHumana):
@@ -1130,10 +1134,39 @@ export async function montarEvolucao(
     ? await getSetting("exames.exigirValidacaoHumana")
     : null;
   const exigirValidacao = rawToggle === null ? true : rawToggle === "true";
-  const statusPermitidos = exigirValidacao
-    ? ["conferido"]
-    : ["recebido", "conferido_1", "conferido"];
+  const portalEmpresaId =
+    Number.isSafeInteger(opts.portalEmpresaId) && (opts.portalEmpresaId ?? 0) > 0
+      ? opts.portalEmpresaId!
+      : null;
+  const exibirPreliminaresPortal = portalEmpresaId !== null && opts.permitirPreliminaresPortal === true;
+  const statusPermitidos = exibirPreliminaresPortal
+    ? ["recebido", "conferido_1", "conferido"]
+    : (portalEmpresaId !== null || exigirValidacao)
+      ? ["conferido"]
+      : ["recebido", "conferido_1", "conferido"];
 
+  const preliminarComIdentidadeConfirmada = exibirPreliminaresPortal
+    ? or(
+        eq(examDocumentsTable.status, "conferido"),
+        and(
+          inArray(examDocumentsTable.status, ["recebido", "conferido_1"]),
+          eq(examDocumentsTable.clientId, clientId),
+          eq(examDocumentsTable.empresaId, portalEmpresaId!),
+          sql`${examResultsTable.valueRaw} IS NOT NULL AND btrim(${examResultsTable.valueRaw}) <> ''`,
+          or(isNull(examResultsTable.status), ne(examResultsTable.status, "conferencia")),
+          sql`EXISTS (
+            SELECT 1 FROM exam_identity_checks i
+            WHERE i.document_id = ${examDocumentsTable.id}
+              AND i.client_id = ${clientId}
+              AND i.empresa_id = ${portalEmpresaId!}
+              AND (
+                (i.event = 'verificacao' AND i.verdict = 'confirmada')
+                OR (i.event = 'liberacao_humana' AND i.professional_id IS NOT NULL)
+              )
+          )`,
+        ),
+      )
+    : null;
   const joined = await db
     .select({
       result: examResultsTable,
@@ -1152,10 +1185,35 @@ export async function montarEvolucao(
       and(
         eq(examResultsTable.clientId, clientId),
         inArray(examDocumentsTable.status, statusPermitidos),
+        ...(portalEmpresaId !== null
+          ? [
+              eq(examDocumentsTable.clientId, clientId),
+              eq(examDocumentsTable.empresaId, portalEmpresaId!),
+            ]
+          : []),
+        ...(preliminarComIdentidadeConfirmada ? [preliminarComIdentidadeConfirmada] : []),
       ),
     )
     .orderBy(examResultsTable.collectionDate, examResultsTable.id);
-  const rows = joined.map((j) => j.result);
+  // A coluna aprovada continua sendo data + laboratório. Se nela houver C2,
+  // não misturamos valores IA/C1 com o selo definitivo; entre preliminares, C1
+  // prevalece sobre IA. Sem o novo modo, preserva-se a ordenação atual.
+  const rankStatus = (status: string): number =>
+    status === "conferido" ? 3 : status === "conferido_1" ? 2 : status === "recebido" ? 1 : 0;
+  const highestLevelByColumn = new Map<string, number>();
+  if (exibirPreliminaresPortal) {
+    for (const row of joined) {
+      const key = `${row.result.collectionDate ?? "?"}|${row.result.labName ?? "?"}`;
+      highestLevelByColumn.set(key, Math.max(highestLevelByColumn.get(key) ?? 0, rankStatus(row.docStatus)));
+    }
+  }
+  const joinedForEvolution = exibirPreliminaresPortal
+    ? joined.filter((row) => {
+        const key = `${row.result.collectionDate ?? "?"}|${row.result.labName ?? "?"}`;
+        return rankStatus(row.docStatus) === highestLevelByColumn.get(key);
+      })
+    : joined;
+  const rows = joinedForEvolution.map((j) => j.result);
 
   // Selo por coluna (data + laboratorio): nivel de conferencia (ia/c1/c2) +
   // conferente (nome/cargo do snapshot). O documento mais novo (maior id) que
@@ -1167,7 +1225,7 @@ export async function montarEvolucao(
     conferenteCargo: string | null;
   }
   const seals = new Map<string, ColSeal>();
-  for (const j of joined) {
+  for (const j of joinedForEvolution) {
     const r = j.result;
     const key = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
     const prev = seals.get(key);
@@ -1330,7 +1388,10 @@ export async function montarEvolucao(
 
   const analytes = [...lines.entries()].map(([key, line]) => {
     // tendencia: compara os 2 ultimos valores numericos
-    const nums = columns
+    const trendColumns = exibirPreliminaresPortal
+      ? columns.filter((column) => column.confLevel === "c2")
+      : columns;
+    const nums = trendColumns
       .map((c) => line.cells.get(c.key)?.valueNum)
       .filter((v): v is number => v !== null && v !== undefined);
     let trend: "subiu" | "caiu" | "estavel" | null = null;
@@ -1372,25 +1433,46 @@ export async function montarEvolucao(
       computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
 
     // Classifica cada célula na sua zona (cor honesta da faixa).
+    const columnConfLevel = new Map(columns.map((column) => [column.key, column.confLevel]));
     const cellsObj = Object.fromEntries(
       [...line.cells.entries()].map(([ck, cell]) => {
-        const z = classifyIntoZones(cell.valueNum, zones);
+        const isPreliminary = exibirPreliminaresPortal && columnConfLevel.get(ck) !== "c2";
+        const z = isPreliminary ? null : classifyIntoZones(cell.valueNum, zones);
         return [
           ck,
-          { ...cell, zone: z ? { key: z.key, name: z.name, color: z.color } : null },
+          {
+            ...cell,
+            ...(isPreliminary
+              ? {
+                  valueNum: null,
+                  status: null,
+                  unitRaw: null,
+                  unitConverted: false,
+                  refLow: null,
+                  refHigh: null,
+                }
+              : {}),
+            zone: z ? { key: z.key, name: z.name, color: z.color } : null,
+          },
         ];
       }),
     );
+    const hasConfirmedCell = exibirPreliminaresPortal &&
+      [...line.cells.keys()].some((columnKey) => columnConfLevel.get(columnKey) === "c2");
 
     return {
       key,
       name: line.name,
       unit: line.unit,
-      refLow: line.refLow,
-      refHigh: line.refHigh,
-      direction,
-      zonesSource: zonasInstitucionais ? ("institucional" as const) : zones ? ("derivada" as const) : null,
-      zones: zones
+      refLow: exibirPreliminaresPortal && !hasConfirmedCell ? null : line.refLow,
+      refHigh: exibirPreliminaresPortal && !hasConfirmedCell ? null : line.refHigh,
+      direction: exibirPreliminaresPortal && !hasConfirmedCell ? "target" as Direction : direction,
+      zonesSource: exibirPreliminaresPortal && !hasConfirmedCell
+        ? null
+        : zonasInstitucionais ? ("institucional" as const) : zones ? ("derivada" as const) : null,
+      zones: exibirPreliminaresPortal && !hasConfirmedCell
+        ? null
+        : zones
         ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
         : null,
       trend,
@@ -1409,9 +1491,14 @@ export async function handleEvolucao(
   req: Request,
   res: Response,
   profissional = false,
+  portal?: { empresaId: number; habilitado: boolean },
 ): Promise<void> {
   try {
-    res.json(await montarEvolucao(clientId, { respeitarToggleProfissional: profissional }));
+    res.json(await montarEvolucao(clientId, {
+      respeitarToggleProfissional: profissional,
+      portalEmpresaId: portal?.empresaId,
+      permitirPreliminaresPortal: portal?.habilitado,
+    }));
   } catch (err) {
     console.error("[ExamesLab] Erro na evolucao:", (err as Error).message);
     res.status(500).json({ error: "Erro ao montar evolucao" });

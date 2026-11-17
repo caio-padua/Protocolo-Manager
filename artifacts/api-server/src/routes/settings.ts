@@ -21,6 +21,11 @@ import {
 } from "@workspace/governanca";
 import { requireCollaborator } from "./collaborator";
 import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
+import { sessionEmpresaId } from "../lib/exam-tenant";
+import {
+  lerVisibilidadePreliminarExames,
+  salvarVisibilidadePreliminarExames,
+} from "../lib/exam-preliminary-visibility";
 import { ClinicalIdentityError } from "../lib/clinical-emitter";
 import { getPrescriptionCertificateStatus, inspectPrescriptionCertificate } from "../lib/prescription-signing";
 import { getTelegramBotInfo, setTelegramBotName } from "../lib/telegram";
@@ -486,12 +491,12 @@ router.post(
 );
 
 // ------------------------------------------------- EXAMES (validacao humana) ---
-// Toggle global "liberar validacoes": quando LIGADO (padrao), a Evolucao do
-// cliente so mostra resultados de documentos CONFERIDOS por humano. Quando
-// DESLIGADO, a Evolucao mostra tudo que ja foi lido pela IA (menos processando/
-// erro). Guardado em app_settings (nao-sensivel). Chave: exames.exigirValidacaoHumana.
+// Toggle global da evolução profissional. O portal do cliente mantém a regra C2
+// e tem uma opção independente, escopada por clínica, para resultados preliminares.
+// Chave existente: exames.exigirValidacaoHumana; não reutilizar para o portal.
 interface ExamesConfig {
   exigirValidacaoHumana: boolean;
+  exibirResultadosPreliminaresAreaCliente: boolean;
   triagemAtiva: boolean;
   autoCriarDescoberto: boolean;
   autoAbsorverApelidoAltaConfianca: boolean;
@@ -504,9 +509,10 @@ interface ExamesConfig {
 
 // Cada chave ausente => padrao SEGURO/ligado (true) para os existentes;
 // novos LLMs secundários default FALSE (nao ativar sem config explícita).
-async function examesPayload(): Promise<ExamesConfig> {
-  const [ev, ta, ac, aa, lg, lc, lo] = await Promise.all([
+async function examesPayload(empresaId: number | null): Promise<ExamesConfig> {
+  const [ev, preliminares, ta, ac, aa, lg, lc, lo] = await Promise.all([
     getSetting("exames.exigirValidacaoHumana"),
+    lerVisibilidadePreliminarExames(empresaId),
     getSetting("exames.triagemAtiva"),
     getSetting("exames.autoCriarDescoberto"),
     getSetting("exames.autoAbsorverApelidoAltaConfianca"),
@@ -516,6 +522,7 @@ async function examesPayload(): Promise<ExamesConfig> {
   ]);
   return {
     exigirValidacaoHumana: ev === null ? true : ev === "true",
+    exibirResultadosPreliminaresAreaCliente: preliminares,
     triagemAtiva: ta === null ? true : ta === "true",
     autoCriarDescoberto: ac === null ? true : ac === "true",
     autoAbsorverApelidoAltaConfianca: aa === null ? true : aa === "true",
@@ -525,8 +532,8 @@ async function examesPayload(): Promise<ExamesConfig> {
   };
 }
 
-router.get("/settings/exames", requireCollaborator, async (_req, res): Promise<void> => {
-  res.json(await examesPayload());
+router.get("/settings/exames", requireCollaborator, async (req, res): Promise<void> => {
+  res.json(await examesPayload(sessionEmpresaId(req)));
 });
 
 router.put("/settings/exames", requireCollaborator, requirePlatformOwner, async (req, res): Promise<void> => {
@@ -539,23 +546,48 @@ router.put("/settings/exames", requireCollaborator, requirePlatformOwner, async 
     llmClaudeAtivo: "exames.llmClaudeAtivo",
     llmOpenaiAtivo: "exames.llmOpenaiAtivo",
   };
+  const preliminares = req.body?.exibirResultadosPreliminaresAreaCliente;
+  if (preliminares !== undefined && typeof preliminares !== "boolean") {
+    res.status(400).json({ error: "exibirResultadosPreliminaresAreaCliente deve ser booleano" });
+    return;
+  }
+  if (preliminares !== undefined && Object.keys(chaves).some((campo) => req.body?.[campo] !== undefined)) {
+    res.status(400).json({ error: "Atualize a visibilidade preliminar separadamente das outras configurações." });
+    return;
+  }
+  const empresaId = sessionEmpresaId(req);
+  if (preliminares !== undefined && (!empresaId || !req.tenantContext.professionalId)) {
+    res.status(403).json({ error: "Não foi possível confirmar a clínica e o autor desta alteração." });
+    return;
+  }
+  for (const campo of Object.keys(chaves)) {
+    const v = req.body?.[campo];
+    if (v !== undefined && typeof v !== "boolean") {
+      res.status(400).json({ error: `${campo} deve ser booleano` });
+      return;
+    }
+  }
   // aceita atualizacao parcial: so grava as chaves booleanas enviadas.
   let tocou = false;
   for (const [campo, settingKey] of Object.entries(chaves)) {
     const v = req.body?.[campo];
     if (v === undefined) continue;
-    if (typeof v !== "boolean") {
-      res.status(400).json({ error: `${campo} deve ser booleano` });
-      return;
-    }
     await setSetting(settingKey, v ? "true" : "false");
+    tocou = true;
+  }
+  if (preliminares !== undefined && empresaId && req.tenantContext.professionalId) {
+    await salvarVisibilidadePreliminarExames({
+      empresaId,
+      habilitado: preliminares,
+      professionalId: req.tenantContext.professionalId,
+    });
     tocou = true;
   }
   if (!tocou) {
     res.status(400).json({ error: "Nenhuma configuração de exames enviada" });
     return;
   }
-  res.json(await examesPayload());
+  res.json(await examesPayload(empresaId));
 });
 
 // -------------------------------------------------------------- GOVERNANCA ---

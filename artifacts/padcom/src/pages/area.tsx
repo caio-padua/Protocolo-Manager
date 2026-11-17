@@ -1855,7 +1855,12 @@ interface PAnalyte {
   zones: { key: string; name: string; color: string }[] | null;
   cells: Record<string, PCell>;
 }
-interface PColumn { key: string; date: string | null; lab: string | null; }
+interface PColumn {
+  key: string;
+  date: string | null;
+  lab: string | null;
+  confLevel: "ia" | "c1" | "c2" | null;
+}
 interface PEvolucaoData { columns: PColumn[]; analytes: PAnalyte[]; }
 
 function fmtDatePlanilha(iso: string | null | undefined): string {
@@ -1904,21 +1909,35 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
   if (!data || !Array.isArray(data.analytes) || data.analytes.length === 0) {
     return (
       <div className="panel-3d rounded-xl p-8 text-center text-muted-foreground text-sm">
-        Nenhum analito disponível ainda. Envie um exame para que o motor faça a extração.
+        Nenhum resultado está visível na evolução neste momento. Acompanhe o estado do envio em “Envios recentes”.
       </div>
     );
   }
 
   const { columns, analytes } = data;
+  const temPreliminares = columns.some((col) => col.confLevel === "ia" || col.confLevel === "c1");
 
   const analitosFiltrados = filtro.trim()
     ? analytes.filter((a) => a.name.toLowerCase().includes(filtro.toLowerCase()))
     : analytes;
 
-  const legenda = legendaZonas(analytes);
+  const colunasConferidas = new Set(columns.filter((col) => col.confLevel === "c2").map((col) => col.key));
+  const legenda = legendaZonas(analytes.filter((a) =>
+    Object.keys(a.cells).some((key) => colunasConferidas.has(key)),
+  ));
 
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
+      {temPreliminares && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-amber-950"
+        >
+          PRELIMINAR — NÃO CONFERIDO PELO MÉDICO. IA significa extração automática; C1 significa primeira etapa de conferência.
+          Estes valores são informativos e não têm classificação clínica automática.
+        </div>
+      )}
       {/* Cabeçalho */}
       <div className="login-card-topbar px-5 py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -1947,6 +1966,14 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
               {columns.map((col) => (
                 <th key={col.key} className="text-center px-3 py-2 font-black whitespace-nowrap min-w-[80px]">
                   {fmtDatePlanilha(col.date)}
+                  {(col.confLevel === "ia" || col.confLevel === "c1") && (
+                    <div
+                      className="mt-1 rounded bg-amber-200 px-1 py-0.5 text-[8px] font-black text-amber-950"
+                      title="PRELIMINAR — NÃO CONFERIDO PELO MÉDICO"
+                    >
+                      PRELIMINAR · {col.confLevel === "ia" ? "IA" : "C1"}
+                    </div>
+                  )}
                   {col.lab && (
                     <div className="text-[9px] font-normal opacity-75 truncate max-w-[76px]">{col.lab}</div>
                   )}
@@ -1974,8 +2001,9 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
                       </td>
                     );
                   }
-                  const cor = cell.zone?.color ?? null;
-                  const faixaNome = cell.zone?.name ?? null;
+                  const c2 = col.confLevel === "c2";
+                  const cor = c2 ? cell.zone?.color ?? null : null;
+                  const faixaNome = c2 ? cell.zone?.name ?? null : null;
                   return (
                     <td key={col.key} className="px-2 py-1.5 text-center">
                       {/* Célula com borda esquerda colorida na cor da faixa (padrão idêntico ao EvolucaoExamesPanel) */}
@@ -2011,7 +2039,7 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
       {/* Legenda dinâmica — cores reais das 5 faixas configuradas */}
       {legenda.length > 0 && (
         <div className="flex flex-wrap gap-3 px-4 py-2 text-[10px] text-muted-foreground border-t border-border/30">
-          <span className="font-black uppercase tracking-wider text-primary/60 self-center">FAIXAS:</span>
+          <span className="font-black uppercase tracking-wider text-primary/60 self-center">FAIXAS DOS RESULTADOS CONFERIDOS:</span>
           {legenda.map((z) => (
             <span key={z.name} className="flex items-center gap-1">
               <span

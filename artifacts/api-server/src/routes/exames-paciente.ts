@@ -13,6 +13,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { clientsTable, db, examDocumentsTable } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { logger } from "../lib/logger";
+import { lerVisibilidadePreliminarExames } from "../lib/exam-preliminary-visibility";
 import { handleEvolucao, startExamIngestion } from "./exames-lab";
 
 const router: IRouter = Router();
@@ -58,7 +59,11 @@ router.get("/area-paciente/exames/evolucao", async (req: Request, res: Response)
   try {
     const client = await ownClient(req, res);
     if (!client) return;
-    await handleEvolucao(client.id, req, res);
+    const preliminares = await lerVisibilidadePreliminarExames(client.empresaId);
+    await handleEvolucao(client.id, req, res, false, {
+      empresaId: client.empresaId,
+      habilitado: preliminares,
+    });
   } catch (err) {
     logger.error({ err }, "[ExamesPaciente] evolução falhou");
     if (!res.headersSent) res.status(500).json({ error: "Erro ao montar a evolução." });
