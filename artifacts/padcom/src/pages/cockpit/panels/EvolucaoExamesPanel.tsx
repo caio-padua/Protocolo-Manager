@@ -118,6 +118,20 @@ interface EvolucaoData {
   analytes: EvolucaoAnalyte[];
 }
 
+/** Valor do ponto no gráfico: vírgula decimal, até 2 casas, sem zeros sobrando. */
+function rotuloValorPonto(v: number): string {
+  return v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
+/** Texto branco ou azul-marinho conforme a luminosidade da cor da faixa (legibilidade). */
+function textoSobre(cor: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(cor.trim());
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.62 ? "#16294a" : "#ffffff";
+}
+
 function diaMes(iso: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -705,7 +719,21 @@ function CartaoGrafico({
                   dot={(props: { cx?: number; cy?: number; payload?: PontoSerie; index?: number }) => {
                     const { cx, cy, payload, index } = props;
                     if (cx == null || cy == null || !payload || payload.fantasma || payload.valor == null) return <g key={`d-${index}`} />;
-                    return <circle key={`d-${index}`} cx={cx} cy={cy} r={4} fill={NAVY} stroke="#fff" strokeWidth={1.5} />;
+                    // Valor na interseção: etiqueta discreta com a cor da faixa do ponto.
+                    const txt = rotuloValorPonto(payload.valor);
+                    const w = txt.length * 5.8 + 10;
+                    const h = 15;
+                    const acima = cy - h - 8 >= 0;
+                    const ry = acima ? cy - h - 7 : cy + 7;
+                    return (
+                      <g key={`d-${index}`} pointerEvents="none">
+                        <rect x={cx - w / 2} y={ry} width={w} height={h} rx={3.5} fill={payload.cor} fillOpacity={0.95} stroke="#fff" strokeWidth={1} />
+                        <text x={cx} y={ry + h / 2 + 3.2} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={textoSobre(payload.cor)}>
+                          {txt}
+                        </text>
+                        <circle cx={cx} cy={cy} r={4} fill={NAVY} stroke="#fff" strokeWidth={1.5} />
+                      </g>
+                    );
                   }}
                   activeDot={(props: { cx?: number; cy?: number }) => {
                     const { cx, cy } = props;
