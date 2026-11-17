@@ -24,6 +24,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { normalizeAnalyteName } from "./persist";
 import { chaveFaixa, chaveVariante, slugInterno, VARIANTE_MIN } from "./zones";
 import { getSetting } from "../secure-settings";
+import { logger } from "../logger";
 
 // ---------------------------------------------------------------------------
 // Opcoes de automacao (Configuracao de Exames — tela do CEO). O motor obedece:
@@ -601,7 +602,10 @@ export async function triageOnImport(
       cls.reason,
     );
     return null;
-  } catch {
+  } catch (e) {
+    // Observabilidade técnica sem PII: só código/tipo do erro e tamanho do nome. O upload segue (sem código).
+    const err = e as { code?: string; name?: string };
+    logger.error({ errCode: err.code ?? null, errName: err.name ?? "Error", nameLen: rawName.length }, "[TRIAGEM_FALHA] triageOnImport falhou; resultado segue sem código para curadoria");
     return null;
   }
 }

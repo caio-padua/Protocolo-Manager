@@ -95,6 +95,9 @@ export const examResultsTable = pgTable(
     // (o laboratorio imprime resultados de coletas anteriores no mesmo PDF).
     // Distingue do resultado real da data de coleta daquele documento.
     isHistory: boolean("is_history").notNull().default(false),
+    // Clínica do resultado, copiada do DOCUMENTO validado na gravação (coluna já existe no banco).
+    // Anulável: registros antigos continuam nulos até um backfill autorizado; a leitura isola pelo documento.
+    empresaId: integer("empresa_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

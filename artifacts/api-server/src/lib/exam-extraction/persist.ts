@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { ExtractedExam } from "./schema";
+import { validarEscopoGravacao } from "./escopo-gravacao";
 import { loadCatalogFull, triageOnImport, readTriagemOptions } from "./triagem";
 import { chaveFaixa, chaveVariante, VARIANTE_MIN, classifyIntoZones, escolherFaixasInstitucionais, overrideZones, sexoDaFicha } from "./zones";
 
@@ -196,6 +197,8 @@ export interface PersistExamInput {
   documentId: number;
   clientId: number;
   extracted: ExtractedExam;
+  /** Clínica da sessão/trabalho, quando o chamador a conhece: se divergir do documento, a gravação é recusada. */
+  tenantId?: number | null;
 }
 
 export interface PersistExamSummary {
@@ -242,6 +245,9 @@ export async function persistExtractedResults(
     unmatched: 0,
   };
 
+  await db.transaction(async (tx) => {
+  // Escopo conferido DENTRO da transação (documento e cliente travados): vale para todas as gravações abaixo.
+  const escopo = await validarEscopoGravacao(tx, { documentId, clientId, tenantId: input.tenantId });
   for (const analyte of extracted.analytes) {
     // Casa no catalogo; se nao casar, a Sala de Triagem resolve (apelido/novo)
     // ou enfileira (ambiguo/nao_exame) sem NUNCA quebrar a importacao.
@@ -299,11 +305,12 @@ export async function persistExtractedResults(
       }
     }
 
-    const inserted = await db
+    const inserted = await tx
       .insert(examResultsTable)
       .values({
         examDocumentId: documentId,
         clientId,
+        empresaId: escopo.empresaId,
         analyteCode: code,
         analyteNameRaw: analyte.name,
         valueRaw: analyte.value,
@@ -335,11 +342,12 @@ export async function persistExtractedResults(
       const histStatus = histConv.unknownUnit
         ? "conferencia"
         : classifyByRef(histValue, ref.low, ref.high);
-      const histInserted = await db
+      const histInserted = await tx
         .insert(examResultsTable)
         .values({
           examDocumentId: documentId,
           clientId,
+          empresaId: escopo.empresaId,
           analyteCode: code,
           analyteNameRaw: analyte.name,
           valueRaw: point.value,
@@ -359,6 +367,7 @@ export async function persistExtractedResults(
       if (histInserted.length > 0) summary.historyInserted++;
     }
   }
+  });
 
   return summary;
 }
