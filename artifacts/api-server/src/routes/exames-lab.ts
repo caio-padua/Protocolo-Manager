@@ -1306,6 +1306,10 @@ export async function montarEvolucao(
     string,
     { name: string; unit: string | null; refLow: string | null; refHigh: string | null; cells: Map<string, Cell> }
   >();
+  const metadataFromC2 = new Set<string>();
+  const confirmedDocumentIds = exibirPreliminaresPortal
+    ? new Set(joinedForEvolution.filter((row) => row.docStatus === "conferido").map((row) => row.result.examDocumentId))
+    : new Set<number>();
   for (const r of rows) {
     const lineKey = r.analyteCode ?? r.analyteNameRaw.toLowerCase();
     if (!lines.has(lineKey)) {
@@ -1318,6 +1322,15 @@ export async function montarEvolucao(
       });
     }
     const line = lines.get(lineKey)!;
+    // O primeiro C2 fornece os metadados, tal como na consulta estrita C2.
+    // Uma extração anterior não pode alterar unidade, referência ou faixa de C2.
+    if (exibirPreliminaresPortal && confirmedDocumentIds.has(r.examDocumentId) && !metadataFromC2.has(lineKey)) {
+      line.name = r.analyteNameRaw;
+      line.unit = r.unitCanonical ?? r.unitRaw;
+      line.refLow = r.refLow;
+      line.refHigh = r.refHigh;
+      metadataFromC2.add(lineKey);
+    }
     const colKey = `${r.collectionDate ?? "?"}|${r.labName ?? "?"}`;
     // ultimo escrito vence (documento mais novo re-confirma o valor)
     line.cells.set(colKey, {

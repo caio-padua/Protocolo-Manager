@@ -32,4 +32,8 @@ Fluxo de status do documento de exame:
 
 **How to apply:** qualquer mudança na evolução do portal deve preservar o caminho C2 atual, a separação por clínica e a proibição de transformar preliminares em dados clínicos definitivos.
 
-**Why / armadilha:** as rotas `/settings/*` exigem `requireCollaborator`. Fetch cru do frontend NÃO herda o token dos hooks gerados (setAuthTokenGetter só cabeia o api-client). Tem de mandar `Authorization: Bearer ${getCollabToken()}` manualmente, senão 401 silencioso e o toggle "não salva". Rotas de `/exames-lab/*` e `/professionals` seguem sem auth (padrão single-tenant do app).
+**Armadilha histórica:** uma requisição direta do navegador não herda automaticamente a autenticação dos clientes gerados.
+
+**Why:** autorização de uma requisição depende da sessão enviada, não do acesso visual à página.
+
+**How to apply:** reutilizar o mecanismo de autenticação apropriado ao consumidor e verificar a autorização atual da rota, sem presumir acesso público por comportamento histórico.

@@ -101,6 +101,8 @@ async function novoResultadoPortalSintetico(input: {
   identity?: "confirmada" | "contradicao" | "liberacao_humana" | null;
   resultClientId?: number;
   resultStatus?: string | null;
+  refLow?: string;
+  refHigh?: string;
 }) {
   const sequence = ++syntheticResultSeq;
   const [document] = await q(
@@ -121,8 +123,8 @@ async function novoResultadoPortalSintetico(input: {
   await q(
     `INSERT INTO exam_results
       (exam_document_id, client_id, analyte_name_raw, value_raw, unit_raw,
-       value_canonical, unit_canonical, status, collection_date, lab_name)
-     VALUES ($1,$2,$3,'10','mg/dL',$4,'mg/dL',$5,$6,$7)`,
+       value_canonical, unit_canonical, status, collection_date, lab_name, ref_low, ref_high)
+     VALUES ($1,$2,$3,'10','mg/dL',$4,'mg/dL',$5,$6,$7,$8,$9)`,
     [
       document.id,
       input.resultClientId ?? input.clientId,
@@ -131,6 +133,8 @@ async function novoResultadoPortalSintetico(input: {
       resultStatus,
       input.date,
       input.lab,
+      input.refLow ?? null,
+      input.refHigh ?? null,
     ],
   );
   if (input.identity) {
@@ -506,10 +510,10 @@ describe("recepção pela Área do Cliente", () => {
     expect(nomes).toEqual(expect.arrayContaining([
       "C2 Sintético", "IA Confirmada", "C1 Confirmada", "Identidade Liberada",
     ]));
-    expect(nomes).not.toEqual(expect.arrayContaining([
+    for (const excluido of [
       "IA Mesmo Cabeçalho", "Quarentena Excluída", "Sem Prova de Identidade",
       "Clínica Divergente", "C2 Clínica Divergente", "Cliente Divergente", "Unidade Não Convertida",
-    ]));
+    ]) expect(nomes).not.toContain(excluido);
     const colunaC2 = liberada.body.columns.find((c: any) => c.lab === "Laboratório Sintético C2");
     expect(colunaC2.confLevel).toBe("c2");
     const colunaIa = liberada.body.columns.find((c: any) => c.lab === "Laboratório Sintético IA");
@@ -571,4 +575,36 @@ describe("recepção pela Área do Cliente", () => {
     delete sim.settings[chaveSeis];
     delete sim.settings["exames.exigirValidacaoHumana"];
   }, 120_000);
+
+  it("referência preliminar anterior nunca altera a faixa clínica de C2", async () => {
+    const { chaveVisibilidadePreliminarExames } = await import("../lib/exam-preliminary-visibility");
+    const chave = chaveVisibilidadePreliminarExames(5);
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "recebido", analyte: "Referência Sintética Mista",
+      date: "2026-09-01", lab: "Laboratório Preliminar", identity: "confirmada",
+      refLow: "100", refHigh: "200",
+    });
+    await novoResultadoPortalSintetico({
+      clientId: 90, empresaId: 5, status: "conferido", analyte: "Referência Sintética Mista",
+      date: "2026-10-01", lab: "Laboratório Conferido", refLow: "0", refHigh: "30",
+    });
+    try {
+      delete sim.settings[chave];
+      const off = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(90));
+      const baseline = off.body.analytes.find((a: any) => a.name === "Referência Sintética Mista");
+      expect(baseline.refLow).toBe("0");
+      expect(baseline.refHigh).toBe("30");
+      sim.settings[chave] = "true";
+      const on = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(90));
+      const mixed = on.body.analytes.find((a: any) => a.name === "Referência Sintética Mista");
+      expect(mixed.refLow).toBe(baseline.refLow);
+      expect(mixed.refHigh).toBe(baseline.refHigh);
+      expect(mixed.unit).toBe(baseline.unit);
+      expect(mixed.zones).toEqual(baseline.zones);
+      expect(mixed.cells["2026-10-01|Laboratório Conferido"]).toEqual(baseline.cells["2026-10-01|Laboratório Conferido"]);
+      expect(mixed.cells["2026-09-01|Laboratório Preliminar"]).toMatchObject({ zone: null, valueNum: null, refLow: null, refHigh: null });
+    } finally {
+      delete sim.settings[chave];
+    }
+  });
 });

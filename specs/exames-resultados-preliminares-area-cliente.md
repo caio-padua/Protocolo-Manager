@@ -29,7 +29,7 @@ O padrão é desligado. Desligado, a Área do Cliente mantém a regra atual e ex
 1. O valor é independente por clínica, salvo em chave própria e com padrão seguro `false`.
 2. A clínica usada para ler e gravar vem do contexto autenticado do servidor; `empresaId` enviado pelo navegador é ignorado.
 3. A alteração permanece restrita a proprietário global/CEO, com registro de clínica, autor, opção e valores anterior/novo.
-4. No modo novo, tanto as linhas C2 existentes quanto as preliminares precisam pertencer ao mesmo cliente e à mesma clínica do token autenticado.
+4. Na rota do portal, tanto as linhas C2 existentes quanto as preliminares precisam pertencer ao mesmo cliente e à mesma clínica do token autenticado, com a opção ligada ou desligada.
 5. O modo preliminar só aceita linhas persistidas com valor presente, documento nos estados `recebido` ou `conferido_1`, clínica e cliente coincidentes, e prova de identidade confirmada automaticamente (`verificacao/confirmada`) ou liberada por decisão humana registrada (`liberacao_humana`) para aquele documento.
 6. Linhas marcadas `conferencia` (sem conversão reconhecida) não aparecem como preliminares.
 7. Excluem-se quarentena, identidade rejeitada, erro, ignorado, processamento, resultados pendentes, documento de outro cliente ou clínica e identidade não confirmada.
@@ -69,8 +69,13 @@ O padrão é desligado. Desligado, a Área do Cliente mantém a regra atual e ex
 
 ## 8. Estado atual do ciclo
 
-1. Implementação e testes direcionados estão no código; ainda não declarar homologado.
-2. Verificações executadas: 27 testes direcionados passaram; compilação e verificação de tipos da API passaram.
-3. A compilação da interface passou, mas sua verificação completa de tipos ainda aponta erros preexistentes em outros módulos; nenhum deles é nos arquivos desta alteração.
-4. Os dois serviços reiniciaram. A captura da rota de configuração mostrou a tela de acesso, pois a captura não tem sessão autenticada; não foi feito desvio de autenticação.
-5. Revisão independente exigida pelo PAXTER Loop está BLOQUEADA porque o revisor separado não está disponível neste ambiente. A implementação permanece EM REVISAO, não HOMOLOGADA, até essa revisão e a verificação visual autenticada.
+1. Estado: implementação verificada em desenvolvimento com dados sintéticos; não publicada e não ativada para nenhuma clínica real pelo executor.
+2. `pnpm --filter @workspace/api-server exec vitest run src/tests/settings-exames-p0.test.ts src/tests/exam-area-cliente-recebimento-postgres.test.ts src/tests/evolucao-exames-rota-interna.test.ts --maxWorkers=1`: 28 testes passaram.
+3. `pnpm exec playwright test e2e/exames-preliminares-toggle.spec.ts --workers=1 --timeout=60000`: quatro testes passaram, em 390 e 1.280 pixels, cobrindo localização, gravação simulada, recarga, independência da validação humana e aviso nas duas planilhas do portal.
+4. As capturas sintéticas ficaram em `generated-artifacts/exames-preliminares/`, fora do versionamento e da publicação.
+5. Compilação e verificação de tipos da interface de programação da aplicação passaram; a compilação da interface visual passou.
+6. A checagem completa de tipos da interface visual ainda aponta 35 erros preexistentes em outros módulos; nenhum nos arquivos desta alteração.
+7. Revisão independente identificou referência preliminar contaminando metadados C2; foi corrigido para que metadados clínicos venham do primeiro C2, e o teste novo compara o mesmo analito com a opção ligada e desligada.
+8. A verificação sequencial do revisor confirmou a resolução do bloqueador e não encontrou problema novo concreto.
+9. Os serviços foram reiniciados e os registros de inicialização inspecionados; nenhum desvio da autenticação foi criado.
+10. Limites: a navegação real autenticada com dados da clínica não foi exercitada; os testes visuais usam sessão e respostas sintéticas interceptadas no navegador, sem tocar em dados reais.
