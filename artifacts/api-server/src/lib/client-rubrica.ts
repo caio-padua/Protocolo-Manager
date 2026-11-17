@@ -102,6 +102,14 @@ export async function salvarRubricaCliente(entrada: {
   });
 }
 
+/** O cliente tem rubrica ativa? Só consulta o registro; não lê a imagem. */
+export async function temRubricaAtiva(clientId: number, empresaId: number): Promise<boolean> {
+  await ensureClientRubricas();
+  const linhas = await rowsOf<{ id: number }>(sql`
+    SELECT id FROM client_rubricas WHERE client_id = ${clientId} AND empresa_id = ${empresaId} AND ativa LIMIT 1`);
+  return linhas.length > 0;
+}
+
 /**
  * PNG da rubrica ATIVA do cliente (da empresa informada) ou null se ele não tem. Se a linha existe mas o
  * arquivo não pode ser lido, LANÇA: quem emite documento não pode trocar a rubrica por iniciais em silêncio.

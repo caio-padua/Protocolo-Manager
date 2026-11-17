@@ -21,4 +21,4 @@ confirmação mais forte posterior não substitui uma captura histórica existen
 - Rubrica registrada e ilegível, ou com hash diferente do registro, LANÇA erro; nunca cai em iniciais em silêncio.
 - pngjs 5 em modo síncrono aceita PNG cortado ao meio (devolve a metade em branco) e descomprime PNG entrelaçado sem teto de memória: conferir os capítulos do arquivo e recusar entrelaçado ANTES de decodificar. jpeg-js já lança em JPEG cortado.
 - Troca nunca apaga a versão anterior (Regra de Ouro); o índice único parcial garante uma ativa por cliente e a troca usa trava de transação.
-- Sem rota de histórico nem envio pelo próprio cliente (fora do escopo; seria código sem chamador).
+- Sem rota de histórico. O próprio cliente envia a rubrica pelo link de cadastro (campo `rubrica` do submit público, validada ANTES de gravar o cadastro; falha ao guardar não desfaz o cadastro e é informada). O cartão do profissional na edição do cliente continua separado e vale igual.

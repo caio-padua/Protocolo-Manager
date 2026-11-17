@@ -12,6 +12,8 @@ import { ObjectStorageService } from "../lib/objectStorage.js";
 import { enviarMensagemPaxter, type PaxterDoc } from "../lib/messaging/index.js";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAiTenant, logAiUsage } from "../lib/ai-central";
+import { RubricaImagemError, prepararRubrica, type RubricaPronta } from "../lib/client-rubrica-imagem";
+import { salvarRubricaCliente, temRubricaAtiva } from "../lib/client-rubrica";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -38,6 +40,27 @@ function runUpload(req: Request, res: Response): Promise<boolean> {
         resolve(false);
         return;
       }
+      resolve(true);
+    });
+  });
+}
+
+// Cadastro completo: foto do rosto ("file") e rubrica opcional ("rubrica"), ambas pelo link pessoal.
+const uploadCadastro = upload.fields([{ name: "file", maxCount: 1 }, { name: "rubrica", maxCount: 1 }]);
+function runUploadCadastro(req: Request, res: Response): Promise<boolean> {
+  return new Promise((resolve) => {
+    uploadCadastro(req, res, (err: unknown) => {
+      if (err) {
+        if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+          res.status(400).json({ error: "Imagem grande demais. O limite é 15 MB." });
+        } else {
+          res.status(400).json({ error: "Não foi possível receber o arquivo. Tente outra imagem." });
+        }
+        resolve(false);
+        return;
+      }
+      const arquivos = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
+      req.file = arquivos["file"]?.[0];
       resolve(true);
     });
   });
@@ -70,7 +93,7 @@ function docCadastro(clientName: string, link: string): PaxterDoc {
     paragrafos: [
       "Para começarmos o seu acompanhamento, toque no botão abaixo e preencha o seu cadastro pelo próprio celular.",
       "Você pode preencher falando: cada campo tem um microfone.",
-      "No final, basta enviar uma foto do rosto.",
+      "No final, envie uma foto do rosto e a sua rubrica (a sua assinatura em uma imagem).",
     ],
     botao: { label: "Completar meu cadastro", url: link },
     notaRodape: "Link pessoal — expira em 7 dias.",
@@ -164,6 +187,7 @@ router.get("/client-registration/info", async (req: Request, res: Response): Pro
       comoConheceu: clientsTable.comoConheceu,
       locationId: clientsTable.locationId,
       photoUrl: clientsTable.photoUrl,
+      empresaId: clientsTable.empresaId,
     })
     .from(clientsTable)
     .where(eq(clientsTable.id, clientId))
@@ -172,7 +196,10 @@ router.get("/client-registration/info", async (req: Request, res: Response): Pro
     res.status(404).json({ error: "Cliente não encontrado" });
     return;
   }
-  res.json(client);
+  const { empresaId, ...publico } = client;
+  // Só informa SE já existe rubrica (nunca a imagem): a tela mostra "já enviada" e deixa trocar.
+  const hasRubrica = empresaId != null ? await temRubricaAtiva(client.id, empresaId) : false;
+  res.json({ ...publico, hasRubrica });
 });
 
 // Pega um campo de texto do corpo multipart e devolve string aparada, ou
@@ -194,7 +221,7 @@ function field(body: Record<string, unknown>, key: string): string | undefined {
 router.post(
   "/client-registration/submit",
   async (req: Request, res: Response): Promise<void> => {
-    if (!(await runUpload(req, res))) return;
+    if (!(await runUploadCadastro(req, res))) return;
     const body = (req.body as Record<string, unknown>) || {};
     const token = String(body.token || req.query.token || "");
     const clientId = verifyRegistrationToken(token);
@@ -204,7 +231,7 @@ router.post(
     }
 
     const [exists] = await db
-      .select({ id: clientsTable.id })
+      .select({ id: clientsTable.id, empresaId: clientsTable.empresaId })
       .from(clientsTable)
       .where(eq(clientsTable.id, clientId))
       .limit(1);
@@ -252,6 +279,25 @@ router.post(
       updates.locationId = Number(locationIdRaw);
     }
 
+    // Rubrica opcional: validada ANTES de gravar qualquer coisa (imagem ruim = 400, nada é alterado).
+    const arquivoRubrica = ((req.files ?? {}) as Record<string, Express.Multer.File[]>)["rubrica"]?.[0];
+    let rubricaPronta: RubricaPronta | null = null;
+    if (arquivoRubrica) {
+      if (exists.empresaId == null) {
+        res.status(409).json({ error: "Cadastro sem clínica definida. Fale com a equipe para enviar a rubrica." });
+        return;
+      }
+      try {
+        rubricaPronta = prepararRubrica(arquivoRubrica.buffer);
+      } catch (error) {
+        if (error instanceof RubricaImagemError) {
+          res.status(400).json({ error: `Rubrica: ${error.message}` });
+          return;
+        }
+        throw error;
+      }
+    }
+
     // Foto opcional.
     const file = req.file;
     let photoUrl: string | undefined;
@@ -275,7 +321,18 @@ router.post(
 
     try {
       await db.update(clientsTable).set(updates).where(eq(clientsTable.id, clientId));
-      res.json({ ok: true, photoUrl: photoUrl ?? null });
+      // Cadastro já gravado; a rubrica é um passo à parte. Se ela falhar, o cliente é avisado (nada some em silêncio).
+      let rubrica: "salva" | "falhou" | "nao_enviada" = "nao_enviada";
+      if (rubricaPronta && exists.empresaId != null) {
+        try {
+          await salvarRubricaCliente({ clientId, empresaId: exists.empresaId, professionalId: null, pronta: rubricaPronta });
+          rubrica = "salva";
+        } catch (error) {
+          req.log.error({ err: error }, "Falha ao salvar a rubrica do cadastro");
+          rubrica = "falhou";
+        }
+      }
+      res.json({ ok: true, photoUrl: photoUrl ?? null, rubrica });
     } catch (error) {
       req.log.error({ err: error }, "Falha ao salvar cadastro do cliente");
       res.status(500).json({ error: "Falha ao salvar cadastro" });

@@ -10,6 +10,7 @@ import {
   Mic,
   Search,
   Send,
+  PenLine,
 } from "lucide-react";
 import { PaxterLockup } from "@/components/layout/paxter-fx/PaxterLockup";
 import { PAXTER_SITE_URL } from "@/lib/brand";
@@ -154,6 +155,12 @@ export default function Cadastro() {
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
   const [done, setDone] = useState(false);
+  // Rubrica (opcional): imagem da assinatura do cliente, enviada junto com o cadastro.
+  const [rubricaFile, setRubricaFile] = useState<File | null>(null);
+  const [rubricaPreview, setRubricaPreview] = useState<string | null>(null);
+  const [rubricaJaEnviada, setRubricaJaEnviada] = useState(false);
+  const [rubricaFalhou, setRubricaFalhou] = useState(false);
+  const rubricaInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadingCep, setLoadingCep] = useState(false);
@@ -244,6 +251,7 @@ export default function Cadastro() {
         setPais(d.pais || "BRASIL");
         setLocationId(d.locationId ? String(d.locationId) : "");
         setCurrentPhoto(d.photoUrl || null);
+        setRubricaJaEnviada(d.hasRubrica === true);
       } catch {
         setInvalid(true);
       } finally {
@@ -428,6 +436,26 @@ export default function Cadastro() {
     setPreview(URL.createObjectURL(file));
   }, []);
 
+  const onPickRubrica = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.type !== "image/png" && file.type !== "image/jpeg") {
+      setError("A rubrica deve ser uma imagem PNG ou JPEG.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("A rubrica deve ter no máximo 2 MB.");
+      return;
+    }
+    setError("");
+    setRubricaFile(file);
+    setRubricaPreview((anterior) => {
+      if (anterior) URL.revokeObjectURL(anterior);
+      return URL.createObjectURL(file);
+    });
+  }, []);
+
   // ---------- Envio ----------
   const handleSubmit = useCallback(async () => {
     setError("");
@@ -469,6 +497,7 @@ export default function Cadastro() {
         if (locationId) fd.append("locationId", locationId);
       }
       if (selectedFile) fd.append("file", selectedFile);
+      if (rubricaFile) fd.append("rubrica", rubricaFile);
 
       const res = await fetch(`${API_BASE}/api/client-registration/submit`, {
         method: "POST",
@@ -479,6 +508,8 @@ export default function Cadastro() {
         setError(data.error || "Não foi possível salvar o cadastro.");
         return;
       }
+      const ok = await res.json().catch(() => ({}));
+      setRubricaFalhou(ok.rubrica === "falhou");
       setDone(true);
     } catch {
       setError("Erro de conexão. Tente novamente.");
@@ -503,6 +534,7 @@ export default function Cadastro() {
     comoConheceu,
     locationId,
     selectedFile,
+    rubricaFile,
     token,
     mode,
   ]);
@@ -679,6 +711,11 @@ export default function Cadastro() {
               <p className="text-[#7e93b8] text-sm">
                 Obrigado{name ? `, ${name.split(" ")[0]}` : ""}. Seus dados foram recebidos pela clínica.
               </p>
+              {rubricaFalhou && (
+                <p role="alert" className="text-amber-300 text-sm mt-3">
+                  Seu cadastro foi salvo, mas não conseguimos guardar a sua rubrica. Avise a clínica para enviá-la novamente.
+                </p>
+              )}
             </div>
           )}
 
@@ -945,6 +982,44 @@ export default function Cadastro() {
                 {cameraNote && (
                   <p className="text-[#9fb1d0] text-[11px] text-center leading-relaxed px-1">{cameraNote}</p>
                 )}
+              </div>
+
+              {/* Rubrica (opcional): a assinatura do cliente em imagem, usada nos documentos da clínica */}
+              <div className="panel-3d p-5 space-y-4" data-testid="cadastro-rubrica">
+                <h2 className="text-white font-semibold text-sm uppercase tracking-wide flex items-center gap-2">
+                  <PenLine className="w-4 h-4 text-[#c2a05a]" /> Sua Rubrica (opcional)
+                </h2>
+                <p className="text-[#9fb1d0] text-[12px] leading-relaxed">
+                  Assine em um papel branco com caneta escura, fotografe e envie. Imagem PNG ou JPEG, até 2 MB.
+                  {rubricaJaEnviada && !rubricaFile ? " A clínica já tem uma rubrica sua; enviar outra substitui a atual." : ""}
+                </p>
+                <div className="flex justify-center">
+                  <div className="concave-3d rounded-[6px] p-1.5">
+                    <div className="w-56 h-24 rounded-[4px] overflow-hidden bg-white flex items-center justify-center">
+                      {rubricaPreview ? (
+                        <img src={rubricaPreview} alt="Pré-visualização da rubrica" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <PenLine className="w-8 h-8 text-slate-300" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <input
+                  ref={rubricaInputRef}
+                  data-testid="cadastro-rubrica-arquivo"
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={onPickRubrica}
+                />
+                <button
+                  type="button"
+                  onClick={() => rubricaInputRef.current?.click()}
+                  className="bevel-3d w-full h-12 font-semibold text-sm uppercase tracking-wider flex items-center justify-center gap-2 text-white"
+                >
+                  <Upload className="w-4 h-4 text-[#c2a05a]" />
+                  {rubricaFile || rubricaJaEnviada ? "ENVIAR OUTRA RUBRICA" : "ENVIAR RUBRICA"}
+                </button>
               </div>
 
               {/* Convite animado para o Cadastro Completo (bloqueia digitação ~1,2s) */}
