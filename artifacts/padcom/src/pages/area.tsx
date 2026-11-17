@@ -1104,7 +1104,7 @@ function ValidarCodigo({ client }: { client: ClientInfo }) {
 }
 
 function ComunicacaoTab({ client }: { client: ClientInfo }) {
-  const { data, loading, error } = useApi<{ vinculado: boolean; senha: string | null; botUsername: string; botLink: string }>(client, "comunicacao");
+  const { data, loading, error } = useApi<{ vinculado: boolean; botUsername: string; botLink: string; clinicaSlug?: string | null }>(client, "comunicacao");
   const [link, setLink] = useState<string | null>(null);
   const [erroLink, setErroLink] = useState("");
   const [gerando, setGerando] = useState(false);
@@ -1148,17 +1148,21 @@ function ComunicacaoTab({ client }: { client: ClientInfo }) {
             <li>Toque em <b>Abrir o Telegram e ativar</b>.</li>
             <li>No Telegram, toque em <b>Iniciar</b> (Start).</li>
           </ol>
-          {data.senha && (
-            <div className="rounded-md border p-4 space-y-1">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">Se preferir usar o código</div>
-              <div className="font-mono text-2xl font-bold tracking-[0.3em] text-center">{data.senha}</div>
-              <p className="text-xs text-muted-foreground">
-                Abra <b>@{data.botUsername}</b>, toque em Iniciar e envie este código. Ele é do seu cadastro na clínica, não é a senha do Telegram.
-              </p>
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground" data-testid="comunicacao-link-regra">
+            O link é só seu, vale uma única vez e por 7 dias. Gerar outro cancela o anterior. O robô nunca inicia a conversa: você precisa tocar em Iniciar.
+          </p>
         </>
       )}
+      <p className="rounded-md border p-3 text-xs" data-testid="comunicacao-aviso-urgencia">
+        O Telegram não é canal de emergência nem de consulta imediata. Em urgência, ligue 192 (SAMU) ou procure o pronto atendimento.
+      </p>
+      <a
+        href={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`}
+        target="_blank" rel="noreferrer" data-testid="comunicacao-abrir-manual"
+        className="block rounded-md border px-4 py-3 text-center text-sm font-bold"
+      >
+        Abrir o Manual do Cliente PaxMed
+      </a>
       <div className="rounded-md border p-4 space-y-1 text-sm">
         <div className="font-semibold">Esqueceu a senha da Área do Cliente?</div>
         <p className="text-xs text-muted-foreground">

@@ -199,3 +199,4 @@
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
 - [Evolução /area — planilha congelada e nomes de upload](evolucao-area-cliente-planilha-congelada.md) — sticky fora do overflow-x; gráfico inicial no topo; nome original do upload vive na cópia interna.
 - [Fotos de evolução corporal](fotos-corpo-privacidade-comparador.md) — fotos privadas por rota autenticada, substituir=soft delete, grade calibrada por altura só com mesmo enquadramento.
+- [Manual do Cliente /guia-digital](manual-cliente-guia-digital.md) — mesma rota, tenant por ?tenant=, aba COMUNICAÇÃO só linka; sem código previsível; e2e protege textos proibidos.

@@ -299,7 +299,15 @@ router.get("/area-paciente/comunicacao", async (req: Request, res: Response): Pr
         }
       }
     }
-    res.json({ vinculado, senha, botUsername: BOT_USERNAME, botLink: BOT_LINK });
+    // Identificador publico da clinica do proprio cliente: so serve para o manual abrir com a
+    // marca certa (?tenant=). Falha aqui nunca derruba a tela (manual cai no texto neutro).
+    let clinicaSlug: string | null = null;
+    try {
+      const r = await db.execute(sql`SELECT e.slug FROM clients c JOIN empresas e ON e.id = c.empresa_id WHERE c.id = ${clientId} LIMIT 1`);
+      const slug = (r.rows[0] as { slug: string | null } | undefined)?.slug;
+      clinicaSlug = slug ?? null;
+    } catch { clinicaSlug = null; }
+    res.json({ vinculado, senha, botUsername: BOT_USERNAME, botLink: BOT_LINK, clinicaSlug });
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao carregar comunicacao");
     res.status(500).json({ error: "Erro ao carregar dados" });
