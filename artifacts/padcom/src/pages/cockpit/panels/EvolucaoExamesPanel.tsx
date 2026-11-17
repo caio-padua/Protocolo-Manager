@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Check,
   FileUp,
+  FileText,
   Upload,
   CheckCircle,
 } from "lucide-react";
@@ -974,22 +975,27 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   // DEEx (SPEC 7): PDF interno da equipe. Só resultados conferidos; prévia interna só por escolha explícita.
   const [deexBusy, setDeexBusy] = useState(false);
   const [deexMsg, setDeexMsg] = useState<{ ok: boolean; txt: string; podePrevia?: "ultimas5" | "completo" } | null>(null);
+  // Arquivo emitido: fica disponível como ícone ao lado dos botões (clicar abre/baixa o PDF).
+  const [deexArquivo, setDeexArquivo] = useState<{ url: string; nome: string } | null>(null);
+  useEffect(() => () => { if (deexArquivo) URL.revokeObjectURL(deexArquivo.url); }, [deexArquivo]);
   const baixarDeex = useCallback(async (modo: "ultimas5" | "completo", previa: boolean) => {
-    setDeexBusy(true); setDeexMsg(null);
+    setDeexBusy(true); setDeexMsg(null); setDeexArquivo(null);
     try {
-      const r = await fetch(`${BASE}/api/evolucao-exames/cliente/${clientId}/pdf?modo=${modo}${previa ? "&previa=1" : ""}`, { headers: collabAuthHeaders() });
+      const r = modoCliente
+        ? await fetch(`${BASE}/api/area-paciente/exames/evolucao/pdf?modo=${modo}`, { headers: { Authorization: `Bearer ${portalToken}` } })
+        : await fetch(`${BASE}/api/evolucao-exames/cliente/${clientId}/pdf?modo=${modo}${previa ? "&previa=1" : ""}`, { headers: collabAuthHeaders() });
       if (r.ok) {
         const url = URL.createObjectURL(await r.blob());
-        window.open(url, "_blank", "noopener");
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        setDeexMsg({ ok: true, txt: previa ? "DEEx aberto como PRÉVIA INTERNA (contém resultados sem conferência final)." : "DEEx aberto." });
+        const hoje = new Date().toISOString().slice(0, 10);
+        setDeexArquivo({ url, nome: `DEEx-${modo === "completo" ? "completo" : "5-coletas"}-${hoje}.pdf` });
+        setDeexMsg(previa ? { ok: true, txt: "PRÉVIA INTERNA: contém resultados sem conferência final." } : null);
       } else {
         const j = await r.json().catch(() => ({}));
-        setDeexMsg({ ok: false, txt: j.error ?? "Não foi possível gerar o DEEx.", podePrevia: j.codigo === "EVOLUCAO_EXAMES_NAO_CONFERIDO" ? modo : undefined });
+        setDeexMsg({ ok: false, txt: j.error ?? "Não foi possível gerar o DEEx.", podePrevia: !modoCliente && j.codigo === "EVOLUCAO_EXAMES_NAO_CONFERIDO" ? modo : undefined });
       }
     } catch { setDeexMsg({ ok: false, txt: "Falha de conexão ao gerar o DEEx." }); }
     finally { setDeexBusy(false); }
-  }, [clientId]);
+  }, [clientId, modoCliente, portalToken]);
 
   const carregar = useCallback((cid: number) => {
     setCarregando(true);
@@ -1353,14 +1359,25 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                 })}
               </div>
             </div>
-            {!modoCliente && (
-              <div data-testid="deex-painel">
-                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">DEEx e Envio</div>
-                <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
-                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
-                    className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · 5 coletas</button>
-                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
-                    className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · Completo</button>
+            <div data-testid="deex-painel">
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">{modoCliente ? "DEEx" : "DEEx e Envio"}</div>
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
+                <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
+                  className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · 5 coletas</button>
+                <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
+                  className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · Completo</button>
+                {deexBusy && <div className="flex h-10 items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-[color:var(--evo-muted)]" /></div>}
+                {deexArquivo && (
+                  <a href={deexArquivo.url} download={deexArquivo.nome} target="_blank" rel="noopener" data-testid="deex-arquivo"
+                    title={deexArquivo.nome} aria-label={`Abrir ${deexArquivo.nome}`}
+                    className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo gap-1`}>
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="truncate">PDF</span>
+                  </a>
+                )}
+              </div>
+              {!modoCliente && (
+                <div className="mt-1.5 grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
                   <label className={`${BOTAO_FERRAMENTA} evo-bevel cursor-pointer`}>
                     <FileUp className="mr-1 h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{uploadFile ? uploadFile.name.slice(0, 18) : "Selecionar PDF"}</span>
@@ -1371,24 +1388,23 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                     className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo disabled:opacity-40`}>
                     {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Upload className="mr-1 h-3.5 w-3.5" />Enviar</>}
                   </button>
-                  {deexBusy && <Loader2 className="h-4 w-4 animate-spin self-center text-[color:var(--evo-muted)]" />}
                 </div>
-                {deexMsg && (
-                  <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
-                    {deexMsg.txt}
-                    {deexMsg.podePrevia && (
-                      <button type="button" className="ml-2 underline font-bold" onClick={() => void baixarDeex(deexMsg.podePrevia!, true)}>Gerar como prévia interna</button>
-                    )}
-                  </p>
-                )}
-                {uploadMsg && (
-                  <p className={`mt-2 flex items-center gap-1.5 text-xs ${uploadMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
-                    {uploadMsg.ok ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                    {uploadMsg.txt}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
+              {deexMsg && (
+                <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
+                  {deexMsg.txt}
+                  {deexMsg.podePrevia && (
+                    <button type="button" className="ml-2 underline font-bold" onClick={() => void baixarDeex(deexMsg.podePrevia!, true)}>Gerar como prévia interna</button>
+                  )}
+                </p>
+              )}
+              {!modoCliente && uploadMsg && (
+                <p className={`mt-2 flex items-center gap-1.5 text-xs ${uploadMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
+                  {uploadMsg.ok ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                  {uploadMsg.txt}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

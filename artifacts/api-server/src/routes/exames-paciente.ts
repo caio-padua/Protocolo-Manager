@@ -14,7 +14,11 @@ import { clientsTable, db, examDocumentsTable } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { logger } from "../lib/logger";
 import { lerVisibilidadePreliminarExames } from "../lib/exam-preliminary-visibility";
-import { handleEvolucao, startExamIngestion } from "./exames-lab";
+import { handleEvolucao, montarEvolucao, startExamIngestion } from "./exames-lab";
+import { gerarEvolucaoExamesPdf } from "../lib/evolucao-exames-pdf";
+import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
+import { brtISODate } from "../lib/brt";
+import { NOME_COMERCIAL_EVOLUCAO } from "../lib/evolucao-exames-nome";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
@@ -67,6 +71,62 @@ router.get("/area-paciente/exames/evolucao", async (req: Request, res: Response)
   } catch (err) {
     logger.error({ err }, "[ExamesPaciente] evolução falhou");
     if (!res.headersSent) res.status(500).json({ error: "Erro ao montar a evolução." });
+  }
+});
+
+// DEEx do próprio cliente. Identidade só pelo token; modo fixo por consulta (ultimas5|completo).
+// Sempre ESTRITO: só resultados conferidos (C2). Não existe prévia nesta rota; se algo não conferido
+// aparecesse, a emissão é recusada em vez de entregar dado sem conferência.
+router.get("/area-paciente/exames/evolucao/pdf", async (req: Request, res: Response) => {
+  try {
+    const client = await ownClient(req, res);
+    if (!client) return;
+    const modoQ = req.query["modo"] ?? "ultimas5";
+    if (modoQ !== "ultimas5" && modoQ !== "completo") {
+      res.status(400).json({ error: "Modo inválido." });
+      return;
+    }
+    let identidade;
+    try {
+      identidade = await carregarIdentidadeClinica2b(client.empresaId);
+    } catch (e) {
+      if (e instanceof IdentidadeEmpresa2bError) {
+        res.status(e.status).json({ error: "Documento indisponível no momento." });
+        return;
+      }
+      throw e;
+    }
+    const [cli] = await db
+      .select({ name: clientsTable.name, birth: clientsTable.birthDate })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, client.id))
+      .limit(1);
+    const evolucao = await montarEvolucao(client.id, { portalEmpresaId: client.empresaId });
+    if (evolucao.columns.length === 0) {
+      res.status(404).json({ error: "Ainda não há resultados conferidos para gerar o DEEx." });
+      return;
+    }
+    const nasc = cli?.birth && /^\d{4}-\d{2}-\d{2}/.test(cli.birth) ? cli.birth.slice(0, 10).split("-").reverse().join("/") : null;
+    const r = await gerarEvolucaoExamesPdf({
+      evolucao,
+      modo: modoQ,
+      emissao: brtISODate(),
+      identidade,
+      paciente: { nome: cli?.name ?? "", documentoMinimo: nasc ? `Nasc. ${nasc}` : null },
+      rotuloAmbiente: null,
+    });
+    if (r.contemNaoConferidos) {
+      res.status(409).json({ error: "Documento indisponível enquanto houver resultado em conferência." });
+      return;
+    }
+    logger.info({ evento: "evolucao_exames_emitido_portal", clientId: client.id, modo: modoQ, colunas: r.colunasUsadas }, "DEEx emitido ao próprio cliente");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="${NOME_COMERCIAL_EVOLUCAO}-${brtISODate()}.pdf"`);
+    res.send(Buffer.from(r.pdf));
+  } catch (err) {
+    logger.error({ err }, "[ExamesPaciente] DEEx falhou");
+    if (!res.headersSent) res.status(500).json({ error: "Não foi possível gerar o DEEx." });
   }
 });
 

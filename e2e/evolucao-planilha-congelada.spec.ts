@@ -109,7 +109,7 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
           return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left) };
         }),
       );
-      expect(caixas.length).toBe(9); // 1 "Todas" + 5 faixas + 3 layouts do cliente
+      expect(caixas.length).toBe(11); // 1 "Todas" + 5 faixas + 3 layouts + 2 DEEx do cliente
       expect(new Set(caixas.map((c) => c.h)).size).toBe(1);
       expect(new Set(caixas.map((c) => c.w)).size).toBe(1);
       await page.getByTestId("evolucao-ferramentas").scrollIntoViewIfNeeded();
@@ -137,12 +137,42 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
       expect(pos.graficoTop).toBeLessThan(pos.planilhaTop);
       await expect(page.getByText("Cadastro de Faixas de TODOS os exames")).toHaveCount(0);
       await expect(page.getByText(/Envios recentes/i)).toHaveCount(0);
-      await expect(page.getByTestId("deex-painel")).toHaveCount(0);
+      await expect(page.getByTestId("deex-painel")).toBeVisible();
+      await expect(page.getByText("Selecionar PDF")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Gerar como prévia interna" })).toHaveCount(0);
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: `screenshots/evolucao/topo-${vp.nome}.png` });
     });
   });
 }
+
+test("DEEx na Área do Cliente: gerar mostra o ícone do arquivo ao lado dos botões", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  let pedido = "";
+  await abrir(page);
+  // registrada depois de abrir(): a rota mais recente tem prioridade sobre o curinga de abrir()
+  await page.route("**/api/area-paciente/exames/evolucao/pdf**", (route) => {
+    pedido = route.request().url();
+    return route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4\n%sintetico\n" });
+  });
+  await expect(page.getByTestId("deex-arquivo")).toHaveCount(0);
+  await page.getByTestId("deex-completo").click();
+  const icone = page.getByTestId("deex-arquivo");
+  await expect(icone).toBeVisible();
+  expect(pedido).toContain("modo=completo");
+  expect(pedido).not.toContain("previa");
+  expect(await icone.getAttribute("href")).toMatch(/^blob:/);
+  expect(await icone.getAttribute("download")).toMatch(/^DEEx-completo-\d{4}-\d{2}-\d{2}\.pdf$/);
+});
+
+test("DEEx na Área do Cliente: recusa do servidor aparece sem ícone", async ({ page }) => {
+  await abrir(page);
+  await page.route("**/api/area-paciente/exames/evolucao/pdf**", (route) =>
+    route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Documento indisponível enquanto houver resultado em conferência." }) }));
+  await page.getByTestId("deex-ultimas5").click();
+  await expect(page.getByRole("alert")).toContainText("indisponível");
+  await expect(page.getByTestId("deex-arquivo")).toHaveCount(0);
+});
 
 test("tema escuro: cabeçalho congelado e planilha legíveis (texto claro sobre fundo escuro)", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 700 });
