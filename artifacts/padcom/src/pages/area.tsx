@@ -236,7 +236,7 @@ export default function Area() {
       </header>
 
       {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
-      <main className="flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
+      <main className="relative isolate z-0 flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
@@ -1924,7 +1924,7 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
   const legenda = legendaZonas(analytes);
 
   return (
-    <div className="panel-3d rounded-xl overflow-hidden">
+    <div className="panel-3d relative isolate z-0 rounded-xl overflow-hidden">
       {temPreliminares && (
         <div
           role="alert"

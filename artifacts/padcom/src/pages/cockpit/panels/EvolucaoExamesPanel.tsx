@@ -1217,7 +1217,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
   // ----------------------------- planilha -----------------------------
   const planilha = (
-    <section className="panel-3d min-w-0 p-4">
+    <section className="panel-3d relative isolate z-0 min-w-0 p-4">
       <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
         <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
       </div>
