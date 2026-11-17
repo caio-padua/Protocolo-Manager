@@ -9,6 +9,7 @@ import {
   FlaskConical,
   X,
   Square,
+  SlidersHorizontal,
   SquareCheck,
   ChevronDown,
   ChevronRight,
@@ -1280,39 +1281,37 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
       {/* FERRAMENTAS — sanfona: faixas e gráficos. Todos os botões têm o MESMO tamanho (grade de colunas
           iguais, a mesma nos dois painéis, para alinharem na vertical) no celular e no computador. */}
-      <div className="mb-3 border-b border-[#16294a]/10 pb-3 dark:border-white/15" data-testid="evolucao-ferramentas">
+      <div className="mb-3" data-testid="evolucao-ferramentas">
+        {/* TRAVE: retângulo de ponta a ponta; título à esquerda, estado atual no meio, botão no extremo direito */}
         <button
           type="button"
           onClick={alternarFerramentas}
           aria-expanded={ferramentasAbertas}
           aria-controls="evolucao-ferramentas-corpo"
-          title={ferramentasAbertas ? "Recolher ferramentas" : "Abrir ferramentas"}
-          className="group flex w-full items-center gap-2 rounded-[6px] px-1 py-1 text-left"
+          title={ferramentasAbertas ? "Recolher" : "Abrir"}
+          className="evo-trave group flex w-full items-center gap-2 px-3 py-2 text-left"
         >
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[#b8924d]" aria-hidden />
           <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">Ferramentas da planilha</span>
-          {!ferramentasAbertas && (
-            <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[color:var(--evo-muted)]">
-              {`Faixa: ${zonaAcesa === null ? "todas" : (FAIXAS_POSICAO.find((f) => f.key === zonaAcesa)?.label ?? "—")} · Gráfico: ${LAYOUTS.find((l) => l.id === layout)?.label ?? "—"}`}
-            </span>
-          )}
-          <span className={`${ferramentasAbertas ? "ml-auto" : ""} concave-3d flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--evo-muted)] transition-colors group-hover:text-[color:var(--evo-ink)]`} aria-hidden>
+          <span className="ml-auto flex min-w-0 items-center gap-1.5 overflow-hidden">
+            <span className="evo-chip truncate">{zonaAcesa === null ? "Todas" : (FAIXAS_POSICAO.find((f) => f.key === zonaAcesa)?.label ?? "—")}</span>
+            <span className="evo-chip truncate">{LAYOUTS.find((l) => l.id === layout)?.label ?? "—"}</span>
+          </span>
+          <span className="evo-bevel flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--evo-ink)]" aria-hidden>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${ferramentasAbertas ? "rotate-180" : ""}`} />
           </span>
         </button>
 
         {ferramentasAbertas && (
-          <div id="evolucao-ferramentas-corpo" className="mt-2 flex flex-col gap-2">
-            {/* PAINEL 1 — FAIXAS DE EXAMES */}
-            <div className="concave-3d rounded-[6px] px-3 py-2">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
-                Faixas de Exames
-              </div>
+          <div id="evolucao-ferramentas-corpo" className="evo-corpo mt-1.5 flex flex-col gap-2 p-2">
+            <div>
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">Faixas de Exames</div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
                 <button
                   type="button"
                   onClick={() => setZonaAcesa(null)}
-                  className={`${BOTAO_FERRAMENTA} ${zonaAcesa === null ? "btn-3d ring-1 ring-[#b8924d]" : "btn-3d-soft"}`}
-                  style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: INK }}
+                  aria-pressed={zonaAcesa === null}
+                  className={`${BOTAO_FERRAMENTA} evo-bevel ${zonaAcesa === null ? "evo-bevel-ativo" : ""}`}
                 >
                   Todas
                 </button>
@@ -1323,8 +1322,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                       key={f.key}
                       type="button"
                       onClick={() => setZonaAcesa(ativo ? null : f.key)}
-                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d ring-1 ring-[#b8924d]" : "btn-3d-soft"}`}
-                      style={ativo ? { background: NAVY, color: "#fff" } : { color: INK }}
+                      aria-pressed={ativo}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel ${ativo ? "evo-bevel-ativo" : ""}`}
                     >
                       {f.label}
                     </button>
@@ -1332,12 +1331,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                 })}
               </div>
             </div>
-
-            {/* PAINEL 2 — GRÁFICOS */}
-            <div className="concave-3d rounded-[6px] px-3 py-2">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
-                Gráficos
-              </div>
+            <div>
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">Gráficos</div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
                 {LAYOUTS.map((l) => {
                   const ativo = layout === l.id;
@@ -1346,24 +1341,14 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                       key={l.id}
                       type="button"
                       onClick={() => setLayout(l.id)}
-                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d ring-1 ring-[#b8924d]" : "btn-3d-soft"}`}
-                      style={ativo ? { background: NAVY, color: "#fff" } : { color: INK }}
+                      aria-pressed={ativo}
+                      className={`${BOTAO_FERRAMENTA} evo-bevel ${ativo ? "evo-bevel-ativo" : ""}`}
                     >
                       {l.label}
                     </button>
                   );
                 })}
               </div>
-            </div>
-
-            {/* INSTRUÇÕES em relevo CÔNCAVO */}
-            <div className="concave-3d flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--evo-muted)]">
-              <span className="flex items-center gap-1">
-                <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
-              </span>
-              <span className="flex items-center gap-1">
-                <Square className="h-3.5 w-3.5" /> Quadradinho no cabeçalho fixa a coluna
-              </span>
             </div>
           </div>
         )}
@@ -1404,7 +1389,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                   {/* Pedido do CEO (25/07/2026): painel UP-BEVEL de altura CHEIA
                       (mesma altura do cabeçalho das colunas), cobrindo o fundo
                       liso; o toggle fica no ponto MÉDIO deste painel. */}
-                  <div className="bevel-3d mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
+                  <div className="evo-bevel mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
                     <Toggle
                       ligado={mostrarFaixas}
                       onToggle={() => setMostrarFaixas((v) => !v)}

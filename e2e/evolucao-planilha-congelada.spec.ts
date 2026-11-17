@@ -166,5 +166,6 @@ test("tema escuro: cabeçalho congelado e planilha legíveis (texto claro sobre 
   expect(m.fundoCab, "fundo do cabeçalho escuro").toBeLessThan(0.3);
   expect(m.textoRotulo, "rótulo da faixinha claro").toBeGreaterThan(0.7);
   expect(m.textoNome, "nome do exame claro").toBeGreaterThan(0.7);
+  await page.getByTestId("evolucao-ferramentas").scrollIntoViewIfNeeded();
   await page.screenshot({ path: "screenshots/evolucao/escuro-desktop.png" });
 });
