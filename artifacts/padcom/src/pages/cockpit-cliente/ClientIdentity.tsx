@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { AVALIACOES, TIPOS_AVALIACAO } from "@workspace/avaliacoes-corporais";
 import type { TipoAvaliacao } from "@workspace/avaliacoes-corporais";
+import { FotosModal } from "./fotos/FotosModal";
+import { useFotosCorpo } from "./fotos/api";
 import { AvaliacaoModal } from "./avaliacoes/AvaliacaoModal";
 import { ICONES_AVALIACAO } from "./avaliacoes/icones";
 import { dataBr, useMedicoes } from "./avaliacoes/api";
@@ -106,6 +108,16 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
     setEscuro(Boolean(document.querySelector(".cc-shell.dark")));
     setAvaliacaoAberta(tipo);
   };
+  const fotos = useFotosCorpo(client.id);
+  const [fotosAberto, setFotosAberto] = useState(false);
+  const abrirFotos = () => {
+    setEscuro(Boolean(document.querySelector(".cc-shell.dark")));
+    setFotosAberto(true);
+  };
+  const resumoFotos = fotos.isLoading ? "Carregando fotos de evolução…"
+    : fotos.isError ? "Não foi possível carregar as fotos de evolução."
+    : !(fotos.data?.series.length) ? "O cliente ainda não enviou fotos de evolução."
+    : `${fotos.data.series.reduce((n, s) => n + Object.values(s.fotos).filter(Boolean).length, 0)} fotos em ${fotos.data.series.length} ${fotos.data.series.length === 1 ? "data" : "datas"} (última: ${dataBr(fotos.data.series[fotos.data.series.length - 1].data)}).`;
   const resumoAvaliacao = (tipo: TipoAvaliacao) => {
     if (medicoes.isLoading) return "Carregando…";
     if (medicoes.isError) return "Erro ao carregar";
@@ -189,11 +201,17 @@ export default function ClientIdentity({ client, onMensagens }: ClientIdentityPr
             <div>
               <strong>Foto do cadastro</strong>
               <p>{client.photoUrl ? "Imagem de identificação do cliente." : "Nenhuma foto de cadastro informada."}</p>
-              <p>A galeria de imagens clínicas ainda não está conectada.</p>
+              <p>{resumoFotos}</p>
+              <button type="button" className="btn-3d-soft mt-2 inline-flex min-h-9 items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-widest"
+                onClick={abrirFotos}>
+                <Camera size={14} aria-hidden="true" /> Fotos de evolução
+              </button>
             </div>
           </div>
         )}
       </div>
+      <FotosModal clientId={client.id} clienteNome={tituloProprio(client.name)} aberto={fotosAberto} escuro={escuro}
+        onClose={() => setFotosAberto(false)} />
       <AvaliacaoModal clientId={client.id} clienteNome={tituloProprio(client.name)} tipo={avaliacaoAberta}
         medicoes={medicoes.data ?? []} escuro={escuro} onClose={() => setAvaliacaoAberta(null)} />
     </section>

@@ -1003,3 +1003,9 @@ apresentacao muda, o motor nunca.
 2. Volante dentro de um poco concavo (concave-3d); faixa de selecao fica em painel-3d-sub fixada acima da barra inferior: dezenas marcadas, quantidade, texto de ajuda e preco em EB Garamond. Preco vem sempre do servidor; sem preco oficial = "—".
 3. Resultado sorteado = bola dourada pequena (mj-bola-resultado), so leitura. Estado de pedido = linha do tempo de 5 passos com icone + rotulo + texto para leitor de tela.
 4. Acoes em 2 colunas (Limpar/Aleatorio, Favorito/Ao pedido), alvo minimo 44 px; confirmacao em duas etapas com texto claro; botao desativado mostra o motivo escrito ao lado.
+
+### Padrao 46 - Fotos de evolucao corporal (Area do Cliente + Comparador do Cockpit)
+1. Envio (celular): 4 cartoes concavos em 2 colunas (Frente, Costas, Perfil esquerdo, Perfil direito), cada um com silhueta guia (componente Silhueta), texto de como posar e botao btn-3d-soft de 44 px; guia "Como tirar as fotos" recolhivel em bevel-3d; consentimento em caixa de 20 px.
+2. Historico = um poco concavo por data (DD/MM/AAAA, ouro), 4 miniaturas 3:4; vaga sem foto mostra "—", nunca espaco em branco.
+3. Comparador (modal panel-3d, maximizavel): abas de angulo (bevel-3d ativo), chips de data btn-3d-soft/bevel-3d com "n/4 fotos", modos Lado a lado / Cortina / Transicao, grade ouro com linhas ciano de cabeca e pes; data sem foto no angulo fica desabilitada com "—".
+4. Foto corporal so aparece por rota autenticada (blob local temporario); nunca por endereco publico.
