@@ -1400,9 +1400,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                   {orderedColumns.list.map((c, idx) => {
                     const isPinned = idx < orderedColumns.pinCols.length;
                     const originalCell = a.cells[c.key];
-                    const cell = modoCliente && c.confLevel !== "c2" && originalCell
-                      ? { ...originalCell, zone: null }
-                      : originalCell;
+                    const cell = originalCell;
                     const acesa = zonaAcesa !== null && cell?.zone?.key === zonaAcesa;
                     return (
                       <Cela

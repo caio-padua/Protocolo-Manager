@@ -1921,10 +1921,7 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
     ? analytes.filter((a) => a.name.toLowerCase().includes(filtro.toLowerCase()))
     : analytes;
 
-  const colunasConferidas = new Set(columns.filter((col) => col.confLevel === "c2").map((col) => col.key));
-  const legenda = legendaZonas(analytes.filter((a) =>
-    Object.keys(a.cells).some((key) => colunasConferidas.has(key)),
-  ));
+  const legenda = legendaZonas(analytes);
 
   return (
     <div className="panel-3d rounded-xl overflow-hidden">
@@ -1935,7 +1932,7 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
           className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-[11px] font-bold leading-relaxed text-amber-950"
         >
           PRELIMINAR — NÃO CONFERIDO PELO MÉDICO. IA significa extração automática; C1 significa primeira etapa de conferência.
-          Estes valores são informativos e não têm classificação clínica automática.
+          As faixas e cores nesses valores são indicativas até a conferência.
         </div>
       )}
       {/* Cabeçalho */}
@@ -2001,9 +1998,8 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
                       </td>
                     );
                   }
-                  const c2 = col.confLevel === "c2";
-                  const cor = c2 ? cell.zone?.color ?? null : null;
-                  const faixaNome = c2 ? cell.zone?.name ?? null : null;
+                  const cor = cell.zone?.color ?? null;
+                  const faixaNome = cell.zone?.name ?? null;
                   return (
                     <td key={col.key} className="px-2 py-1.5 text-center">
                       {/* Célula com borda esquerda colorida na cor da faixa (padrão idêntico ao EvolucaoExamesPanel) */}
