@@ -11,6 +11,7 @@ import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-prot
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
 import { ensureExamesAvulsosTable } from "./lib/exames-avulsos.js";
 import { ensureExamIdentitySchema } from "./lib/ensure-exam-identity-schema.js";
+import { ensureExamUnitReviewSchema } from "./lib/ensure-exam-unit-review-schema.js";
 import { ensureExamMarcosSchema } from "./lib/ensure-exam-marcos-schema";
 import { ensureAsaasTesteTable } from "./lib/asaas-teste-cobrancas.js";
 import { ensureAsaasConciliacaoTables } from "./lib/asaas-conciliacao.js";
@@ -121,6 +122,13 @@ if (Number.isNaN(port) || port <= 0) {
     await ensureExamIdentitySchema();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela exam_identity_checks — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await ensureExamUnitReviewSchema();
+  } catch (e) {
+    logger.error({ err: e }, "Falha crítica ao criar tabela exam_unit_review_request — abortando boot");
     process.exit(1);
   }
 

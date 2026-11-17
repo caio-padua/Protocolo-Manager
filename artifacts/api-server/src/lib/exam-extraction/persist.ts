@@ -290,7 +290,14 @@ export async function persistExtractedResults(
       if (zona) finalStatus = zona.name;
     }
     // Unidade diferente sem fator: honesto -> pede conferencia humana.
-    if (conv.unknownUnit) finalStatus = "conferencia";
+    if (conv.unknownUnit) {
+      finalStatus = "conferencia";
+      // Candidato de unidade (nunca bloqueia o upload; import dinamico evita ciclo com normUnit).
+      if (code) {
+        const { registrarCandidatoDoDocumento } = await import("../exam-units/pedido-revisao");
+        await registrarCandidatoDoDocumento(documentId, code, analyte.unit, info?.canonicalUnit ?? null);
+      }
+    }
 
     const inserted = await db
       .insert(examResultsTable)
