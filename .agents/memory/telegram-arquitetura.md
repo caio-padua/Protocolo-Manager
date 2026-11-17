@@ -68,3 +68,8 @@ Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`
 
 **Why:** credenciais de ativação não podem transferir um chat que já tem dono nem misturar históricos clínicos.
 **How to apply:** preservar as duas formas de ativação e verificar a exclusividade do vínculo mesmo sob solicitações simultâneas.
+
+## Porta de entrada e liberação (17/11/2026)
+- Número de celular no Telegram é conta pessoal: NÃO se liga a bot. O caminho é link/QR `t.me/<bot>` (Central Telegram, painel "Porta de entrada do bot") ou link individual `?start=<token>` (cartão "Foto e Contato do Cliente", botão LIBERAR TELEGRAM, usa `/clients/:id/telegram-link`).
+- Atendimento da assistente: `atendimento.ia.modo` = desligado/lista/ligado; em "lista" só clientes em `atendimento.ia.permitidos` (por id de cliente) são atendidos; visitante só em "ligado" ou chat na lista de visitantes. Não existe tela para mudar o modo (decisão do CEO pendente).
+- Alternativa que liga bot a número: Telegram Business "Chatbots" (exige Premium na conta); não implementada.

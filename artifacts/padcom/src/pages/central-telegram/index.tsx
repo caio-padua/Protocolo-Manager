@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, MessageCircle, Search } from "lucide-react";
 import { getCollabToken } from "@/lib/collab-auth";
+import PortaEntrada from "./PortaEntrada";
 import TelegramPanel from "@/pages/cockpit-cliente/panels/TelegramPanel";
 
 interface Conversa {
@@ -55,6 +56,7 @@ export default function CentralTelegram() {
         <h1 className="text-2xl font-black">Central Telegram</h1>
         <p className="text-sm text-muted-foreground">Todas as conversas dos clientes com o bot. Escolha uma para ler e responder; a resposta vai somente para o chat daquele cliente.</p>
       </header>
+      <PortaEntrada />
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <section className="panel-3d-sub p-3" aria-label="Conversas">
           <label className="field-engraved mb-2 flex items-center gap-2 px-2 py-1.5">

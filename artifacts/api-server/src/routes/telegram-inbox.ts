@@ -18,6 +18,7 @@
  *     da lib pelo vi.mock, sem necessidade de banco real nos testes)
  */
 
+import { BOT_USERNAME, BOT_LINK } from "../lib/telegram-magic-link";
 import { Router } from "express";
 import {
   db,
@@ -290,6 +291,8 @@ inboxRouter.get("/telegram-inbox/painel-operacional", requireCollaborator, requi
   const modoLembrete = (await seguro(() => getSetting("lembrete.telegram.modo")))?.trim().toLowerCase() ?? "desligado";
   const lista = async (k: string) => { try { const a: unknown = JSON.parse((await getSetting(k)) ?? "[]"); return Array.isArray(a) ? a.length : 0; } catch { return 0; } };
   res.json({
+    // Dados públicos do bot (o paciente os vê): permitem à tela montar o QR e o texto de convite.
+    bot: { usuario: BOT_USERNAME, link: BOT_LINK },
     token: token ? { definido: token.isSet, origem: token.source } : null,
     segredoWebhook: segredo ? { definido: segredo.isSet } : null,
     canalAtivo: ativo === null ? null : ativo === "true",
