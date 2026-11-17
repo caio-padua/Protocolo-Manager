@@ -252,7 +252,7 @@ export async function persistExtractedResults(
     // Casa no catalogo; se nao casar, a Sala de Triagem resolve (apelido/novo)
     // ou enfileira (ambiguo/nao_exame) sem NUNCA quebrar a importacao.
     let code = matchAnalyte(catalog, analyte.name);
-    if (!code) code = await triageOnImport(analyte.name, catalog, triagemOpts);
+    if (!code) code = await triageOnImport(analyte.name, catalog, triagemOpts, { unit: analyte.unit, method: analyte.method });
     if (code) summary.matched++;
     else summary.unmatched++;
 
