@@ -1353,6 +1353,42 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                 })}
               </div>
             </div>
+            {!modoCliente && (
+              <div data-testid="deex-painel">
+                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">DEEx e Envio</div>
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
+                    className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · 5 coletas</button>
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
+                    className={`${BOTAO_FERRAMENTA} evo-bevel disabled:opacity-50`}>DEEx · Completo</button>
+                  <label className={`${BOTAO_FERRAMENTA} evo-bevel cursor-pointer`}>
+                    <FileUp className="mr-1 h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{uploadFile ? uploadFile.name.slice(0, 18) : "Selecionar PDF"}</span>
+                    <input type="file" accept="application/pdf" className="sr-only"
+                      onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setUploadMsg(null); }} />
+                  </label>
+                  <button type="button" onClick={handleAdminUpload} disabled={!uploadFile || uploading}
+                    className={`${BOTAO_FERRAMENTA} evo-bevel evo-bevel-ativo disabled:opacity-40`}>
+                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Upload className="mr-1 h-3.5 w-3.5" />Enviar</>}
+                  </button>
+                  {deexBusy && <Loader2 className="h-4 w-4 animate-spin self-center text-[color:var(--evo-muted)]" />}
+                </div>
+                {deexMsg && (
+                  <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
+                    {deexMsg.txt}
+                    {deexMsg.podePrevia && (
+                      <button type="button" className="ml-2 underline font-bold" onClick={() => void baixarDeex(deexMsg.podePrevia!, true)}>Gerar como prévia interna</button>
+                    )}
+                  </p>
+                )}
+                {uploadMsg && (
+                  <p className={`mt-2 flex items-center gap-1.5 text-xs ${uploadMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
+                    {uploadMsg.ok ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                    {uploadMsg.txt}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1550,7 +1586,6 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   // ----------------------------- montagem por layout -----------------------------
   return (
     <div>
-      <div className="mb-4">{uploadWidget}</div>
       {layout === "topo" && selecionados.length > 0 && (
         <section className="panel-3d mb-5 p-4">
           {cabecalhoGraficos}
@@ -1580,27 +1615,6 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           {cabecalhoGraficos}
           {graficos}
         </section>
-      )}
-
-      {!modoCliente && (
-        <div className="mt-5" data-testid="deex-painel">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wide text-[color:var(--evo-ink)]">DEEx — PDF da evolução</span>
-            <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
-              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)] disabled:opacity-50">Últimas 5 coletas</button>
-            <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
-              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)] disabled:opacity-50">Histórico completo</button>
-            {deexBusy && <Loader2 className="w-4 h-4 animate-spin" />}
-          </div>
-          {deexMsg && (
-            <p role={deexMsg.ok ? "status" : "alert"} className={`mt-2 text-xs ${deexMsg.ok ? "text-green-700" : "text-red-700"}`}>
-              {deexMsg.txt}
-              {deexMsg.podePrevia && (
-                <button type="button" className="ml-2 underline font-bold" onClick={() => void baixarDeex(deexMsg.podePrevia!, true)}>Gerar como prévia interna</button>
-              )}
-            </p>
-          )}
-        </div>
       )}
 
       {/* ferramenta ÚNICA de faixas (mesma do menu Cadastros): direção + cortes — só equipe */}
