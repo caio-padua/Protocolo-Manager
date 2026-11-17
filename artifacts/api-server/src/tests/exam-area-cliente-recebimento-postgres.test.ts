@@ -253,7 +253,7 @@ describe("recepção pela Área do Cliente", () => {
 
   it("PDF válido: recebido, leitura iniciada, status real sem prometer conclusão", async () => {
     sim.extracted = laudoPortal("10/11/2026");
-    const r = await enviar(portalToken(1), pdf("valido"), { examDate: "10/11/2026" });
+    const r = await enviar(portalToken(1), pdf("valido"), { examDate: "10/11/2026", name: "laudo-ação.pdf" });
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ success: true, processamento: "iniciado" });
     expect(r.body.fileName).toBe("26.11.10 LABOR MARIA APARECIDA DE SOUZA LIMA.PDF");
@@ -268,6 +268,13 @@ describe("recepção pela Área do Cliente", () => {
     const meu = e.body.find((x: any) => x.id === docA);
     expect(meu).toMatchObject({ etapa: "conferencia", finalizado: false, analitos: 1 });
     expect(meu.situacao).not.toMatch(/conclu/i);
+    // Nome como chegou (com acento desfeito do latin1 do multer) x nome para o qual foi renomeado.
+    for (let t = 0; t < 40 && !(await q(`SELECT 1 FROM exam_document_files WHERE document_id=$1`, [docA])).length; t++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const comNomes = (await envios(1)).body.find((x: any) => x.id === docA);
+    expect(comNomes.nomeOriginal).toBe("laudo-ação.pdf");
+    expect(comNomes.nomeRenomeado).toBe("26.11.10 LABOR MARIA APARECIDA DE SOUZA LIMA.PDF");
   });
 
   it("recusa uma data de exame impossível sem enviar arquivo ao Drive", async () => {

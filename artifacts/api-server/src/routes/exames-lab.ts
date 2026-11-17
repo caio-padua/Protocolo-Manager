@@ -574,6 +574,8 @@ export async function startExamIngestion(params: {
   notify?: boolean;
   empresaId?: number | null;
   userDateStr?: string | null;
+  /** Nome do arquivo como chegou (antes de qualquer renomeação). Fica na cópia interna e é mostrado ao cliente. */
+  originalFileName?: string | null;
 }): Promise<{ documentId: number; duplicate: boolean }> {
   const hash = hashExamDocument(params.buffer);
 
@@ -611,7 +613,7 @@ export async function startExamIngestion(params: {
         if (!ok) {
           await saveInternalCopy({
             documentId: existingDoc.id,
-            fileName: params.fileName,
+            fileName: params.originalFileName ?? params.fileName,
             mimeType: guessMime(params.fileName),
             buffer: params.buffer,
           });
@@ -640,7 +642,7 @@ export async function startExamIngestion(params: {
   setImmediate(() => {
     void saveInternalCopy({
       documentId: doc.id,
-      fileName: params.fileName,
+      fileName: params.originalFileName ?? params.fileName,
       mimeType: guessMime(params.fileName),
       buffer: params.buffer,
     });

@@ -187,6 +187,37 @@ router.get("/area-paciente/exames/envios", async (req: Request, res: Response) =
       }
     }
 
+    // Nome do arquivo ao chegar x nome atual (renomeado). A cópia interna guarda o nome do envio;
+    // a varredura do Drive guarda original_name/renamed_to. Só ids deste cliente; nunca bytes.
+    const nomeOriginalPorDoc = new Map<number, string>();
+    const nomeRenomeadoPorDoc = new Map<number, string>();
+    if (ids.length > 0) {
+      const lista = sql.join(ids.map((i) => sql`${i}`), sql`, `);
+      try {
+        const copias = await db.execute(sql`
+          SELECT document_id, file_name FROM exam_document_files WHERE document_id IN (${lista})
+        `);
+        for (const c of (copias as unknown as { rows: Array<Record<string, any>> }).rows) {
+          if (typeof c.file_name === "string" && c.file_name) nomeOriginalPorDoc.set(Number(c.document_id), c.file_name);
+        }
+      } catch (err) {
+        logger.warn({ err }, "[ExamesPaciente] nomes da cópia interna indisponíveis");
+      }
+      try {
+        const varredura = await db.execute(sql`
+          SELECT exam_document_id, original_name, renamed_to FROM drive_watcher_files
+          WHERE exam_document_id IN (${lista}) AND client_id = ${client.id}
+        `);
+        for (const w of (varredura as unknown as { rows: Array<Record<string, any>> }).rows) {
+          const d = Number(w.exam_document_id);
+          if (typeof w.original_name === "string" && w.original_name) nomeOriginalPorDoc.set(d, w.original_name);
+          if (typeof w.renamed_to === "string" && w.renamed_to) nomeRenomeadoPorDoc.set(d, w.renamed_to);
+        }
+      } catch (err) {
+        logger.warn({ err }, "[ExamesPaciente] nomes da varredura indisponíveis");
+      }
+    }
+
     const idsComResultados = rows
       .filter((r) => r.status !== "quarentena" && r.status !== "identidade_rejeitada")
       .map((r) => r.id);
@@ -198,7 +229,11 @@ router.get("/area-paciente/exames/envios", async (req: Request, res: Response) =
         marcos: marcosPorDoc.get(r.id) ?? {}, identidade: identPorDoc.get(r.id) ?? {},
       });
       return {
-        id: r.id, arquivo: r.fileName, enviadoEm: r.createdAt, etapa: label.etapa, situacao: label.texto, finalizado: label.final,
+        id: r.id, arquivo: r.fileName,
+        nomeOriginal: nomeOriginalPorDoc.get(r.id) ?? r.fileName,
+        nomeRenomeado: ((nomeRenomeadoPorDoc.get(r.id) ?? r.fileName) !== (nomeOriginalPorDoc.get(r.id) ?? r.fileName))
+          ? (nomeRenomeadoPorDoc.get(r.id) ?? r.fileName) : null,
+        enviadoEm: r.createdAt, etapa: label.etapa, situacao: label.texto, finalizado: label.final,
         analitos: r.status === "quarentena" || r.status === "identidade_rejeitada" ? 0 : r.analitos,
         percentual: m.percentual, etapas: m.etapas, etapaAvancada: m.etapaAvancada,
         resultados: r.status === "quarentena" || r.status === "identidade_rejeitada" ? null : (resumos.get(r.id) ?? null),

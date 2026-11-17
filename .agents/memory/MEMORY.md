@@ -197,3 +197,4 @@
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
 - **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
+- [Evolução /area — planilha congelada e nomes de upload](evolucao-area-cliente-planilha-congelada.md) — sticky fora do overflow-x; gráfico inicial no topo; nome original do upload vive na cópia interna.

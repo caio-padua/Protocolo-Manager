@@ -124,6 +124,19 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
 // ---------------------------------------------------------------------------
 // Root
 // ---------------------------------------------------------------------------
+// Publica a altura REAL da faixa superior fixa em --paxter-topbar-h, para que a planilha
+// de exames congele o cabeçalho (datas e laboratórios) logo abaixo dela, sem número mágico.
+function publicarAlturaTopbar(el: HTMLElement | null) {
+  if (!el) {
+    document.documentElement.style.removeProperty("--paxter-topbar-h");
+    return;
+  }
+  const medir = () => document.documentElement.style.setProperty("--paxter-topbar-h", `${el.offsetHeight}px`);
+  medir();
+  // O observador vive enquanto o elemento existir (some junto com ele ao sair da tela).
+  new ResizeObserver(medir).observe(el);
+}
+
 export default function Area() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [tab, setTab] = useState<TabKey>("inicio");
@@ -184,7 +197,7 @@ export default function Area() {
         </div>
       )}
       {/* Header logado — símbolo glass + wordmark PADAXOR oficial + subtítulo */}
-      <header className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
+      <header ref={publicarAlturaTopbar} className="panel-3d sticky top-0 z-20 flex items-center justify-between px-4 py-3 border-b border-border/60">
 
         {/* Esquerda: símbolo glass + PADAXOR wordmark oficial */}
         <a
@@ -268,7 +281,6 @@ export default function Area() {
         )}
         {tab === "evolucao"   && (
           <div className="space-y-6">
-            <EnviosRecentesPanel token={client.token} onEnviarOutro={() => setTab("enviar")} />
             <EvolucaoExamesPanel clientId={client.id} portalToken={client.token} />
             <PlanilhaComparativaPortal token={client.token} />
           </div>
@@ -942,11 +954,11 @@ function Empty({ msg }: { msg: string }) {
 }
 
 // MetaField canônico — slot fixo, vazio = "—", nunca some
-function MetaField({ label, value }: { label: string; value: React.ReactNode }) {
+function MetaField({ label, value, quebrar = false }: { label: string; value: React.ReactNode; quebrar?: boolean }) {
   return (
     <div className="concave-3d rounded-lg px-3 py-2">
       <p className="text-accent text-[9px] font-black uppercase tracking-widest leading-none mb-1">{label}</p>
-      <p className="text-primary text-xs font-semibold truncate">{value || "—"}</p>
+      <p className={`text-primary text-xs font-semibold ${quebrar ? "break-all" : "truncate"}`}>{value || "—"}</p>
     </div>
   );
 }
@@ -1909,7 +1921,7 @@ function PlanilhaComparativaPortal({ token }: { token: string }) {
   if (!data || !Array.isArray(data.analytes) || data.analytes.length === 0) {
     return (
       <div className="panel-3d rounded-xl p-8 text-center text-muted-foreground text-sm">
-        Nenhum resultado está visível na evolução neste momento. Acompanhe o estado do envio em “Envios recentes”.
+        Nenhum resultado está visível na evolução neste momento. Acompanhe o estado de cada envio na aba Upload Exames.
       </div>
     );
   }
@@ -2332,7 +2344,7 @@ function EnviarTabForm({ client }: { client: ClientInfo }) {
 // ---------------------------------------------------------------------------
 type EtapaEnvioUi = { chave: string; rotulo: string; estado: "pendente" | "executando" | "concluido" | "falhou"; em: string | null; metodo: string | null };
 type EnvioItem = {
-  id: number; arquivo: string; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; analitos: number;
+  id: number; arquivo: string; nomeOriginal?: string; nomeRenomeado?: string | null; enviadoEm: string; etapa: string; situacao: string; finalizado: boolean; analitos: number;
   percentual: number; etapas: EtapaEnvioUi[]; etapaAvancada: { rotulo: string; estado: "pendente" };
   /** Contagem REAL gravada/derivada pelos serviços existentes (null = sem leitura confiável, ex.: quarentena). */
   resultados: ResumoResultadosUi | null;
@@ -2453,7 +2465,7 @@ function situacaoJornada(e: EnvioItem): SituacaoJornada {
     return { tom: "ok", selo: "CONCLUÍDO", titulo: "Seu exame está na sua evolução",
       agora: "Todas as verificações foram concluídas e os resultados já estão na planilha da evolução.",
       proximo: "Seu médico analisa o que já está catalogado na consulta.",
-      voce: "Nada a fazer. Você pode comparar este exame com os anteriores logo abaixo." };
+      voce: "Nada a fazer. Você pode comparar este exame com os anteriores na aba Evolução." };
   }
   if (e.etapa === "identidade") {
     return { tom: "espera", selo: "CONFERÊNCIA DE IDENTIDADE", titulo: "Estamos confirmando que o exame é seu",
@@ -2624,6 +2636,8 @@ function IdentidadeDivergentePanel({
 
 function EnvioCard({ e, onEnviarOutro }: { e: EnvioItem; onEnviarOutro: () => void }) {
   const [aberto, setAberto] = useState(e.percentual !== 100);
+  // Cartão inteiro recolhível (sanfona): nasce aberto; a pessoa minimiza os que já conferiu.
+  const [cartaoAberto, setCartaoAberto] = useState(true);
   const pronto = e.percentual === 100;
   const etapasEnvio = e.etapas ?? [];
   const falhou = etapasEnvio.some((x) => x.estado === "falhou") || e.etapa === "erro" || (e.etapa === "identidade" && e.finalizado);
@@ -2631,8 +2645,35 @@ function EnvioCard({ e, onEnviarOutro }: { e: EnvioItem; onEnviarOutro: () => vo
   const estadoTxt = e.etapa === "erro" ? "Falha na leitura" : e.etapa === "identidade" && e.finalizado ? "Não incorporado" : pronto ? (e.resultados && e.resultados.pendentes > 0 ? "Verificado, com pendências" : "Validado") : e.situacao;
   return (
     <div className="panel-3d rounded-xl overflow-hidden group" tabIndex={0} data-testid={`envio-${e.id}`}>
-      <div className="login-card-topbar px-4 pt-4 pb-3">
-        <h3 className="text-primary font-black text-sm leading-snug break-words">{e.arquivo}</h3>
+      <button
+        type="button"
+        onClick={() => setCartaoAberto((x) => !x)}
+        aria-expanded={cartaoAberto}
+        aria-label={cartaoAberto ? "Recolher este envio" : "Abrir este envio"}
+        data-testid={`alternar-envio-${e.id}`}
+        className="login-card-topbar flex w-full items-center gap-3 px-4 pt-4 pb-3 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-primary font-black text-sm leading-snug break-words">{e.nomeOriginal ?? e.arquivo}</span>
+          {!cartaoAberto && (
+            <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider">
+              <span className={falhou ? "text-red-600" : pronto ? "text-green-600" : "text-cyan-600"}>{estadoTxt}</span>
+              <span className="text-muted-foreground"> · {fmtEm(e.enviadoEm)} · {e.percentual}%</span>
+            </span>
+          )}
+        </span>
+        <span className="concave-3d flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-accent" aria-hidden>
+          {cartaoAberto ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </span>
+      </button>
+      {cartaoAberto && (<>
+      <div className="px-4 pt-3 space-y-2" data-testid={`nomes-envio-${e.id}`}>
+        <MetaField label="NOME ORIGINAL DO ARQUIVO" quebrar value={e.nomeOriginal ?? e.arquivo} />
+        <MetaField
+          label="RENOMEADO PARA"
+          quebrar
+          value={e.nomeRenomeado ?? <span className="font-normal text-muted-foreground">Sem renomeação até agora</span>}
+        />
       </div>
       <div className="grid grid-cols-2 gap-2 p-4 pb-3">
         <MetaField label="ENVIADO EM" value={fmtEm(e.enviadoEm)} />
@@ -2682,6 +2723,7 @@ function EnvioCard({ e, onEnviarOutro }: { e: EnvioItem; onEnviarOutro: () => vo
           <p className="text-red-600 text-[10px] px-4 pb-3" role="alert">Não foi possível ler este arquivo. Ele continua guardado no seu cadastro. Envie uma versão mais nítida em PDF ou fale com a clínica.</p>
         )}
       </div>
+      </>)}
     </div>
   );
 }

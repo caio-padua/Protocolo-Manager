@@ -66,7 +66,7 @@ async function abrir(page: Page, n: number) {
   });
   await page.goto("/area?preview_id=1&preview_name=Cliente%20Sintetico&preview_token=sintetico");
   await page.getByRole("button", { name: /EVOLUÇÃO/i }).first().click();
-  await expect(page.getByText(n === 0 ? /Nenhum exame para este cliente ainda/i : /Gráficos/i).first()).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText(n === 0 ? /Ainda não há resultados visíveis nesta evolução/i : /Gráficos/i).first()).toBeVisible({ timeout: 20000 });
 }
 
 const VIEWPORTS = [402, 768, 1366, 1649];
@@ -82,7 +82,7 @@ for (const w of VIEWPORTS) {
         await abrir(page, n);
 
         if (n === 0) {
-          await expect(page.getByText(/Nenhum exame para este cliente ainda/i)).toBeVisible();
+          await expect(page.getByText(/Ainda não há resultados visíveis nesta evolução/i)).toBeVisible();
           await page.screenshot({ path: `screenshots/evolucao/${w}-${n}-vazio.png` });
           const sobra = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           expect(sobra, "rolagem lateral da página").toBeLessThanOrEqual(0);
@@ -91,8 +91,11 @@ for (const w of VIEWPORTS) {
 
         await page.getByRole("button", { name: "Abaixo da linha" }).click();
         const linha = page.getByRole("button", { name: /Analito Sintético A/ }).first();
-        if (w <= 768) await linha.tap();
-        else await linha.click();
+        // No modo cliente um gráfico já nasce aberto; só clica se o cartão ainda não estiver na tela.
+        if ((await page.locator("[data-evolucao-cartao]").count()) === 0) {
+          if (w <= 768) await linha.tap();
+          else await linha.click();
+        }
         const cartao = page.locator("[data-evolucao-cartao]").first();
         await expect(cartao).toBeVisible();
         await cartao.scrollIntoViewIfNeeded();
@@ -185,6 +188,8 @@ for (const w of [402, 1366]) {
     test.use({ viewport: { width: w, height: 900 }, hasTouch: w <= 768 });
     test("eixo Y sem truncar e barra inferior segue as 3 coletas", async ({ page }) => {
       await abrir(page, 3);
+      // O gráfico do exame com mais coletas já nasce aberto (layout topo); limpa para o teste abrir só o do Analito B.
+      await page.getByRole("button", { name: "Limpar" }).click();
       await page.getByRole("button", { name: "Abaixo da linha" }).click();
       const linha = page.getByRole("button", { name: /Analito Sintético B/ }).first();
       if (w <= 768) await linha.tap(); else await linha.click();

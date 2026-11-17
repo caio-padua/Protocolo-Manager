@@ -50,6 +50,10 @@ import { collabAuthHeaders } from "@/lib/collab-auth";
 // ===========================================================================
 
 const NAVY = "#16294a";
+// Botão único das ferramentas: mesma altura e largura (preenche a coluna da grade), texto centralizado
+// e com quebra de linha, independente da frase.
+const BOTAO_FERRAMENTA =
+  "flex h-10 w-full items-center justify-center rounded-[5px] px-2 text-center text-[10px] font-bold uppercase leading-tight tracking-wide";
 const MUTED = "#647c97";
 const GOLD = "#b8924d";
 // Pedido do CEO (24/07/2026): coluna congelada SEM "painel" cinza atrás.
@@ -912,8 +916,10 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   // cartão "abaixo da linha" nunca pode ser mais largo que ela, senão a borda
   // direita é recortada pelo overflow-x da moldura.
   const roMolduraRef = useRef<ResizeObserver | null>(null);
+  const planilhaElRef = useRef<HTMLDivElement | null>(null);
   const [larguraMoldura, setLarguraMoldura] = useState<number | null>(null);
   const planilhaRef = useCallback((el: HTMLDivElement | null) => {
+    planilhaElRef.current = el;
     roMolduraRef.current?.disconnect();
     roMolduraRef.current = null;
     if (!el) return;
@@ -924,6 +930,31 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
     roMolduraRef.current = ro;
   }, []);
   const [mostrarFaixas, setMostrarFaixas] = useState(true);
+  // Cabeçalho congelado da planilha: vive FORA da área de rolagem lateral (o overflow-x da
+  // moldura impede o "sticky" vertical), e acompanha o scroll lateral por sincronização.
+  const cabecalhoScrollRef = useRef<HTMLDivElement | null>(null);
+  const roConteudoRef = useRef<ResizeObserver | null>(null);
+  const [larguraConteudo, setLarguraConteudo] = useState<number | null>(null);
+  const conteudoRef = useCallback((el: HTMLDivElement | null) => {
+    roConteudoRef.current?.disconnect();
+    roConteudoRef.current = null;
+    if (!el) return;
+    const medir = () => setLarguraConteudo(el.offsetWidth);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    roConteudoRef.current = ro;
+  }, []);
+  // Ferramentas (faixas + gráficos): sanfona; a escolha da pessoa é lembrada neste aparelho.
+  const CHAVE_FERRAMENTAS = "paxter.evolucao.ferramentasAbertas";
+  const [ferramentasAbertas, setFerramentasAbertas] = useState<boolean>(() => {
+    try { return window.localStorage.getItem(CHAVE_FERRAMENTAS) !== "0"; } catch { return true; }
+  });
+  const alternarFerramentas = () => setFerramentasAbertas((v) => {
+    const novo = !v;
+    try { window.localStorage.setItem(CHAVE_FERRAMENTAS, novo ? "1" : "0"); } catch { /* sem armazenamento: só não lembra */ }
+    return novo;
+  });
   // ── Upload admin de PDF ──────────────────────────────────────────────────
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -1002,6 +1033,19 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
   const analytes = data?.analytes ?? [];
   const columnsRaw = data?.columns ?? [];
+  // Modo cliente: o gráfico já nasce aberto no topo. Escolhe o exame com mais pontos numéricos
+  // (empate: ordem alfabética da lista); só acontece uma vez por carga e nunca sobrescreve escolha da pessoa.
+  const abriuGraficoInicial = useRef(false);
+  useEffect(() => {
+    if (!modoCliente || !data || abriuGraficoInicial.current) return;
+    abriuGraficoInicial.current = true;
+    let melhor: { key: string; pontos: number } | null = null;
+    for (const a of data.analytes) {
+      const pontos = Object.values(a.cells).filter((c) => c && typeof c.valueNum === "number").length;
+      if (pontos > 0 && (!melhor || pontos > melhor.pontos)) melhor = { key: a.key, pontos };
+    }
+    if (melhor) setSelecionados([melhor.key]);
+  }, [data, modoCliente]);
   const ultimaColKey = columnsRaw.length > 0 ? columnsRaw[columnsRaw.length - 1].key : null;
   const temPreliminares = modoCliente && columnsRaw.some((c) => c.confLevel === "ia" || c.confLevel === "c1");
   // Preliminares entram no gráfico e nas faixas; o selo PRELIMINAR da coluna avisa que não foi conferido.
@@ -1120,7 +1164,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       <div className="flex flex-col gap-4 py-4">
         <p className="text-sm text-[#647c97]">
           {modoCliente
-            ? "Ainda não há resultados visíveis nesta evolução. Acompanhe cada etapa no painel “Envios recentes”, logo acima."
+            ? "Ainda não há resultados visíveis nesta evolução. Acompanhe o andamento de cada envio na aba Upload Exames."
             : "Nenhum exame para este cliente ainda."}
         </p>
         {uploadWidget}
@@ -1176,8 +1220,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       // TOPO / FIXO usam grade; LADO empilha em coluna (via wrapper).
       <div
         className={
-          layout === "lado"
-            ? "flex flex-col gap-3"
+          layout === "lado" || modoCliente
+            ? "flex flex-col gap-3" // Área do Cliente: coluna estreita (max-w-lg), um gráfico por linha, largura cheia
             : "grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
         }
       >
@@ -1228,127 +1272,179 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           className="mb-3 rounded-[5px] border border-amber-300 bg-amber-50 px-3 py-2 text-[10px] font-bold leading-relaxed text-amber-950"
         >
           PRELIMINAR — NÃO CONFERIDO PELO MÉDICO. IA significa extração automática; C1 significa primeira etapa de conferência.
-          Estes valores não recebem faixa, tendência ou gráfico clínico antes da conferência médica.
+          Faixas, cores e tendência nesses valores são indicativas até a conferência médica.
         </div>
       )}
 
-      {/* CONTROLES — rodada 8 final (pedido do CEO 25/07/2026): cada categoria
-          é um PAINEL com título na linha de cima e botões embaixo, na horizontal.
-          Os três painéis ficam EMPILHADOS verticalmente (um abaixo do outro). */}
-      <div className="mb-3 flex flex-col gap-2 border-b border-[#16294a]/10 pb-3">
+      {/* FERRAMENTAS — sanfona: faixas e gráficos. Todos os botões têm o MESMO tamanho (grade de colunas
+          iguais, a mesma nos dois painéis, para alinharem na vertical) no celular e no computador. */}
+      <div className="mb-3 border-b border-[#16294a]/10 pb-3" data-testid="evolucao-ferramentas">
+        <button
+          type="button"
+          onClick={alternarFerramentas}
+          aria-expanded={ferramentasAbertas}
+          aria-controls="evolucao-ferramentas-corpo"
+          title={ferramentasAbertas ? "Recolher ferramentas" : "Abrir ferramentas"}
+          className="group flex w-full items-center gap-2 rounded-[6px] px-1 py-1 text-left"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">Ferramentas da planilha</span>
+          {!ferramentasAbertas && (
+            <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+              {`Faixa: ${zonaAcesa === null ? "todas" : (FAIXAS_POSICAO.find((f) => f.key === zonaAcesa)?.label ?? "—")} · Gráfico: ${LAYOUTS.find((l) => l.id === layout)?.label ?? "—"}`}
+            </span>
+          )}
+          <span className={`${ferramentasAbertas ? "ml-auto" : ""} concave-3d flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#647c97] transition-colors group-hover:text-[#16294a]`} aria-hidden>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${ferramentasAbertas ? "rotate-180" : ""}`} />
+          </span>
+        </button>
 
-        {/* PAINEL 1 — FAIXAS DE EXAMES */}
-        <div className="concave-3d rounded-[6px] px-3 py-2">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-            Faixas de Exames
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setZonaAcesa(null)}
-              className={`h-[28px] min-w-[72px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
-              style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-            >
-              Todas
-            </button>
-            {FAIXAS_POSICAO.map((f) => {
-              const ativo = zonaAcesa === f.key;
-              return (
+        {ferramentasAbertas && (
+          <div id="evolucao-ferramentas-corpo" className="mt-2 flex flex-col gap-2">
+            {/* PAINEL 1 — FAIXAS DE EXAMES */}
+            <div className="concave-3d rounded-[6px] px-3 py-2">
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+                Faixas de Exames
+              </div>
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
                 <button
-                  key={f.key}
                   type="button"
-                  onClick={() => setZonaAcesa(ativo ? null : f.key)}
-                  className={`h-[28px] min-w-[112px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                  style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                  onClick={() => setZonaAcesa(null)}
+                  className={`${BOTAO_FERRAMENTA} ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
+                  style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
                 >
-                  {f.label}
+                  Todas
                 </button>
-              );
-            })}
-          </div>
-        </div>
+                {FAIXAS_POSICAO.map((f) => {
+                  const ativo = zonaAcesa === f.key;
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setZonaAcesa(ativo ? null : f.key)}
+                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                      style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* PAINEL 2 — GRÁFICOS */}
-        <div className="concave-3d rounded-[6px] px-3 py-2">
-          <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
-            Gráficos
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {LAYOUTS.map((l) => {
-              const ativo = layout === l.id;
-              return (
-                <button
-                  key={l.id}
-                  type="button"
-                  onClick={() => setLayout(l.id)}
-                  className={`h-[28px] min-w-[112px] rounded-[5px] px-2 text-[10px] font-bold uppercase tracking-wide ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                  style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
-                >
-                  {l.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+            {/* PAINEL 2 — GRÁFICOS */}
+            <div className="concave-3d rounded-[6px] px-3 py-2">
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+                Gráficos
+              </div>
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
+                {LAYOUTS.map((l) => {
+                  const ativo = layout === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => setLayout(l.id)}
+                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d" : "btn-3d-soft"}`}
+                      style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                    >
+                      {l.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-
+            {/* INSTRUÇÕES em relevo CÔNCAVO */}
+            <div className="concave-3d flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+              <span className="flex items-center gap-1">
+                <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
+              </span>
+              <span className="flex items-center gap-1">
+                <Square className="h-3.5 w-3.5" /> Quadradinho no cabeçalho fixa a coluna
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* INSTRUÇÕES em relevo CÔNCAVO (inset bevel — pedido do CEO 24/07/2026) */}
-      <div className="concave-3d mb-3 flex flex-wrap items-center gap-4 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
-        <span className="flex items-center gap-1">
-          <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
-        </span>
-        <span className="flex items-center gap-1">
-          <Square className="h-3.5 w-3.5" /> Quadradinho no cabeçalho fixa a coluna
-        </span>
+      {/* CABEÇALHO CONGELADO: datas, laboratórios e o toggle da faixinha ficam presos logo abaixo da
+          faixa superior da página enquanto a planilha rola para baixo. Fica FORA da moldura de rolagem
+          lateral (o overflow-x dela quebraria o sticky vertical) e acompanha o scroll lateral dela. */}
+      <div
+        className="sticky z-[40] -mx-1 px-1 pt-1"
+        style={{
+          top: "var(--paxter-topbar-h, 0px)",
+          background: PIN_BG,
+          boxShadow: "0 8px 8px -8px rgba(22,41,74,0.35)",
+        }}
+        data-testid="evolucao-cabecalho-congelado"
+      >
+        <div
+          ref={cabecalhoScrollRef}
+          className="overflow-x-auto"
+          style={{ scrollbarWidth: "none" }}
+          onScroll={(e) => {
+            // Rolagem lateral nos dois sentidos (arrastar o cabeçalho também move a planilha).
+            const corpo = planilhaElRef.current;
+            if (corpo && corpo.scrollLeft !== e.currentTarget.scrollLeft) corpo.scrollLeft = e.currentTarget.scrollLeft;
+          }}
+        >
+          <div style={{ minWidth: larguraConteudo ?? undefined, width: "max-content" }}>
+              <div className="flex items-start gap-2 pb-2 pr-2">
+                {/* cortina da zona congelada no cabeçalho */}
+                <CortinaZona extra={8} />
+                {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
+                    células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
+                <div
+                  className="sticky left-0 z-[25] flex shrink-0 self-stretch"
+                  style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
+                >
+                  {/* Pedido do CEO (25/07/2026): painel UP-BEVEL de altura CHEIA
+                      (mesma altura do cabeçalho das colunas), cobrindo o fundo
+                      liso; o toggle fica no ponto MÉDIO deste painel. */}
+                  <div className="bevel-3d mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
+                    <Toggle
+                      ligado={mostrarFaixas}
+                      onToggle={() => setMostrarFaixas((v) => !v)}
+                      texto="Faixinha de cor"
+                    />
+                  </div>
+                </div>
+                {orderedColumns.list.map((c, idx) => {
+                  const isPinned = idx < orderedColumns.pinCols.length;
+                  return (
+                    <ColunaCabecalho
+                      key={c.key}
+                      c={c}
+                      ultima={c.key === ultimaColKey}
+                      fixada={fixadas.includes(c.key)}
+                      onFixar={() => fixar(c.key)}
+                      sticky={isPinned}
+                      left={isPinned ? stickyLeft(idx) : 0}
+                      mostrarPreliminar={modoCliente}
+                    />
+                  );
+                })}
+                <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
+                  Tendência
+                </div>
+              </div>
+          </div>
+        </div>
       </div>
 
       {/* planilha com rolagem lateral; nome + colunas fixadas grudam à esquerda */}
-      <div ref={planilhaRef} className="overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
-        <div className="min-w-max">
-          {/* cabeçalho — z-[30] + relative: garante que o header row pinta
-              acima de TODAS as linhas de dados (panel-3d-sub com GPU layer
-              que vem depois no DOM). */}
-          <div className="relative z-[30] flex items-start gap-2 pb-2">
-            {/* cortina da zona congelada no cabeçalho */}
-            <CortinaZona extra={8} />
-            {/* Painel bevel-3d do toggle — sticky, z-[25] pinta acima das
-                células de dados (z:20) e dos cabeçalhos de coluna (z:3). */}
-            <div
-              className="sticky left-0 z-[25] flex shrink-0 self-stretch"
-              style={{ width: NAME_W, background: NOME_BG, boxShadow: `${GAP}px 0 0 0 ${NOME_BG}` }}
-            >
-              {/* Pedido do CEO (25/07/2026): painel UP-BEVEL de altura CHEIA
-                  (mesma altura do cabeçalho das colunas), cobrindo o fundo
-                  liso; o toggle fica no ponto MÉDIO deste painel. */}
-              <div className="bevel-3d mx-1 flex w-full items-center justify-center self-stretch rounded-[6px] px-2">
-                <Toggle
-                  ligado={mostrarFaixas}
-                  onToggle={() => setMostrarFaixas((v) => !v)}
-                  texto="Faixinha de cor"
-                />
-              </div>
-            </div>
-            {orderedColumns.list.map((c, idx) => {
-              const isPinned = idx < orderedColumns.pinCols.length;
-              return (
-                <ColunaCabecalho
-                  key={c.key}
-                  c={c}
-                  ultima={c.key === ultimaColKey}
-                  fixada={fixadas.includes(c.key)}
-                  onFixar={() => fixar(c.key)}
-                  sticky={isPinned}
-                  left={isPinned ? stickyLeft(idx) : 0}
-                  mostrarPreliminar={modoCliente}
-                />
-              );
-            })}
-            <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
-              Tendência
-            </div>
-          </div>
+      <div
+        ref={planilhaRef}
+        data-testid="evolucao-planilha-corpo"
+        className="overflow-x-auto pb-1"
+        style={{ scrollbarWidth: "thin" }}
+        onScroll={(e) => {
+          const topo = cabecalhoScrollRef.current;
+          if (topo && topo.scrollLeft !== e.currentTarget.scrollLeft) topo.scrollLeft = e.currentTarget.scrollLeft;
+        }}
+      >
+        <div ref={conteudoRef} className="min-w-max">
 
           {/* linhas */}
           <div className="space-y-2">

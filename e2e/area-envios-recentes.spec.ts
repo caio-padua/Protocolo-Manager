@@ -147,16 +147,35 @@ test("referência: barra do envio usa a mesma barra segmentada do protocolo do p
   expect(await page.getByTestId("envio-3").locator(".paxter-bar-track").count()).toBe(6);
 });
 
-test("o painel de envios também aparece na aba EVOLUÇÃO, acima dos gráficos", async ({ page }) => {
+test("a aba EVOLUÇÃO não mostra envios nem processamento de upload (isso fica só em UPLOAD EXAMES)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await preparar(page, ENVIOS);
   await page.goto(URL_AREA);
   await page.locator("nav").getByRole("button", { name: /EVOLUÇÃO/ }).click({ timeout: 20000 });
-  const painel = page.getByTestId("painel-envios-recentes");
-  await expect(painel).toBeVisible({ timeout: 15000 });
-  await expect(painel.getByTestId("envio-2")).toContainText("100%", { timeout: 20000 });
+  await expect(page.getByText(/Ainda não há resultados visíveis nesta evolução/i)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("painel-envios-recentes")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="envio-"]')).toHaveCount(0);
+  await expect(page.getByText("Cadastro de Faixas de TODOS os exames")).toHaveCount(0);
   await semRolagemHorizontal(page);
-  await page.screenshot({ path: "specs/paxterloop/evidencias/envios/evolucao-celular.png", fullPage: false });
+});
+
+test("cartão de envio: mostra o nome original e o nome renomeado, e minimiza/maximiza", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const renomeado = { ...ENVIOS[1], id: 7, arquivo: "26.11.16 LABOR MARIA SINTETICA.pdf", nomeOriginal: "laudo-original-sintetico.pdf", nomeRenomeado: "26.11.16 LABOR MARIA SINTETICA.pdf" };
+  const semRenomear = { ...ENVIOS[1], id: 8, arquivo: "sem-renomear-sintetico.pdf", nomeOriginal: "sem-renomear-sintetico.pdf", nomeRenomeado: null };
+  await preparar(page, [renomeado, semRenomear]);
+  await abrirEnviar(page);
+  const c7 = page.getByTestId("envio-7"), c8 = page.getByTestId("envio-8");
+  await expect(c7.getByTestId("nomes-envio-7")).toContainText("laudo-original-sintetico.pdf", { timeout: 15000 });
+  await expect(c7.getByTestId("nomes-envio-7")).toContainText("26.11.16 LABOR MARIA SINTETICA.pdf");
+  await expect(c8.getByTestId("nomes-envio-8")).toContainText("Sem renomeação até agora");
+  await c7.getByTestId("alternar-envio-7").click();
+  await expect(c7.getByTestId("nomes-envio-7")).toHaveCount(0);
+  await expect(c7.getByTestId("legenda-7")).toHaveCount(0);
+  await expect(c7).toContainText("laudo-original-sintetico.pdf");
+  await c7.getByTestId("alternar-envio-7").click();
+  await expect(c7.getByTestId("legenda-7")).toBeVisible();
+  await semRolagemHorizontal(page);
 });
 
 test("100% sem pendências: frase 'sem pendências'; classificação nunca é afirmada sem contagem", async ({ page }) => {

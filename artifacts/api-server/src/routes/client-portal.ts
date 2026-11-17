@@ -29,6 +29,18 @@ function detectFileKind(buf: Buffer): "pdf" | "jpeg" | "png" | null {
 }
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+/** Nome do arquivo como a pessoa enviou: o multer entrega UTF-8 lido como latin1 ("JoÃ£o"); desfaz isso quando for seguro. */
+function nomeOriginalLegivel(bruto: string): string {
+  const cabeEmLatin1 = [...bruto].every((c) => c.charCodeAt(0) <= 0xff);
+  const decodificado = cabeEmLatin1 ? Buffer.from(bruto, "latin1").toString("utf8") : bruto;
+  const nome = (decodificado.includes("\uFFFD") ? bruto : decodificado)
+    .replace(/[\\/]/g, "_")
+    .replace(/[\u0000-\u001f]/g, "")
+    .trim()
+    .slice(0, 200);
+  return nome || "arquivo";
+}
+
 const EXAM_FILE_TYPES = new Set([
   "exame_sangue",
   "ultrassom",
@@ -239,6 +251,7 @@ router.post(
             sourcePdfDriveId: result.fileId,
             notify: true,
             userDateStr: userDateStr ?? dateStr,
+            originalFileName: nomeOriginalLegivel(file.originalname),
           });
           exameDocumentoId = ingestion.documentId;
           processamento = "iniciado";
