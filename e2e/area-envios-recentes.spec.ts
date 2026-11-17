@@ -23,6 +23,24 @@ const ENVIOS = [
   { id: 2, arquivo: "perfil-sintetico-validado.pdf", enviadoEm: ISO, etapa: "concluido", situacao: "Concluído", finalizado: true, analitos: 12, percentual: 100, resultados: RES(), etapas: et(["concluido", "concluido", "concluido", "concluido", "concluido", "concluido"]), etapaAvancada: AV },
   { id: 1, arquivo: "arquivo-sintetico-ilegivel.pdf", enviadoEm: ISO, etapa: "erro", situacao: "Não foi possível ler este arquivo", finalizado: true, analitos: 0, percentual: 17, resultados: null, etapas: et(["concluido", "falhou", "pendente", "pendente", "pendente", "pendente"]), etapaAvancada: AV },
 ];
+const ENVIOS_DIVERGENTES = [{
+  id: 44,
+  arquivo: "documento-de-teste-sintetico.pdf",
+  enviadoEm: ISO,
+  etapa: "identidade",
+  situacao: "Em conferência pela equipe",
+  finalizado: false,
+  analitos: 0,
+  percentual: 50,
+  resultados: null,
+  etapas: et(["concluido", "concluido", "concluido", "pendente", "pendente", "pendente"]),
+  etapaAvancada: AV,
+  inconsistenciaIdentidade: {
+    nome: { valor: "Bruno H. de Exemplo Lima", status: "diferente" },
+    cpf: { valor: "000.0••.•••-••", status: "diferente" },
+    dataNascimento: { valor: "04/05/1970", status: "igual" },
+  },
+}];
 const PROTO = [{ id: 1, title: "Protocolo Sintético de Teste", status: "active", startDate: "2026-10-01", endDate: "2026-12-31", unit: "Sede", serviceType: "ev", totalSessions: 8, completedSessions: 3, totalValue: 0, items: [] }];
 
 async function preparar(page: Page, envios: unknown, status = 200) {
@@ -153,4 +171,52 @@ test("100% sem pendências: frase 'sem pendências'; classificação nunca é af
   await expect(page.getByTestId("legenda-9")).not.toContainText("classificados nas faixas");
   await semRolagemHorizontal(page);
   await page.screenshot({ path: "specs/paxterloop/evidencias/envios/envio-100-resultados-celular.png", fullPage: true });
+});
+
+for (const vp of [{ nome: "celular", width: 390, height: 844 }, { nome: "desktop", width: 1280, height: 900 }]) {
+  test(`divergência de identidade visível com privacidade preservada — ${vp.nome}`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await preparar(page, ENVIOS_DIVERGENTES);
+    await abrirEnviar(page);
+    const painel = page.getByTestId("identity-issue-44");
+    await expect(painel).toBeVisible({ timeout: 15000 });
+    await expect(painel).toContainText("DIVERGÊNCIA DE IDENTIDADE");
+    await expect(painel).toContainText("Bruno H. de Exemplo Lima");
+    await expect(painel).toContainText("CPF no documento");
+    await expect(painel).toContainText("000.0••.•••-••");
+    await expect(painel).toContainText("04/05/1970");
+    await expect(painel).toContainText("Diferente do cadastro");
+    await expect(painel).toContainText("Compatível");
+    await expect(painel).not.toContainText("000.000.000-00");
+    await expect(painel).not.toContainText("VALOR_CLINICO_SINTETICO");
+    await painel.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `/tmp/identidade-divergente-${vp.nome}.png` });
+    await painel.getByRole("button", { name: "ENVIAR O EXAME CORRETO" }).click();
+    await expect(page.locator("#formulario-upload-exame")).toBeVisible();
+    await semRolagemHorizontal(page);
+  });
+}
+
+test("após upload, a mesma divergência aparece e o botão retorna ao formulário", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await preparar(page, ENVIOS_DIVERGENTES);
+  await page.route("**/api/client-portal/upload", (route) => route.fulfill(json({
+    fileName: "documento-de-teste-sintetico.pdf",
+    exameDocumentoId: 44,
+    processamento: "iniciado",
+  })));
+  await abrirEnviar(page);
+  await page.locator("select").first().selectOption("exame_sangue");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "documento-de-teste-sintetico.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4 conteúdo sintético de teste"),
+  });
+  await page.getByPlaceholder("Ex: 26/06/2026").fill("16/11/2026");
+  await page.getByRole("button", { name: "ENVIAR ARQUIVO" }).click();
+  const painel = page.getByTestId("upload-identity-issue");
+  await expect(painel).toBeVisible({ timeout: 15000 });
+  await expect(painel).toContainText("Bruno H. de Exemplo Lima");
+  await painel.getByRole("button", { name: "ENVIAR O EXAME CORRETO" }).click();
+  await expect(page.getByText("UPLOAD DE EXAMES", { exact: true })).toBeVisible();
 });

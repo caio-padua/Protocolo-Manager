@@ -66,7 +66,6 @@
 - [Histórico de alterações de acesso](historico-acesso-profissional.md) — valores comuns anteriores ficam visíveis somente ao titular; CPF e e-mail são protegidos; credenciais nunca entram no histórico.
 - [Importacao em massa do Drive](drive-import-migracao-massa.md) — homonimo=mesma pessoa salvo CPF diferente; tirar CPF do nome antes de casar; porteiro fail-open.
 - [Emissão de documento substitui variáveis no servidor](emissao-documento-variaveis-servidor.md) — /emitir aplica {{...}} e grava corpo final no back (idempotente); rotas gêmeas com contrato idêntico.
-- PADTEAM hub 5 abas + raw SQL — módulo de equipe remota: hub único /padteam (5 abas); 8 tabelas via raw SQL; 10 posições seed no boot; Trello fail-graceful sem secrets.
 - [Fusão mestre-detalhe (exames)](fusao-mestre-detalhe-exames.md) — detalhe async exige guard de corrida por reqId em useRef; lista por merge tem de ser UNIÃO (left-join esconde linhas).
 - [Postgres upper() não remove acento](postgres-upper-nao-remove-acento.md) — match por nome entre rotas gêmeas exige normalização igual dos 2 lados (removeDiacritics em JS); upper() cru vs valor sem acento = fallback silencioso.
 - **Seeds** — [idempotência por completude](seed-idempotencia-por-completude.md) · [materializer não destrutivo](seed-materializer-nao-destrutivo.md).
@@ -196,5 +195,5 @@
 - [Grupo VIP e Conexão Milionária](grupo-vip-conexao-milionaria.md) — independente da categoria; convite só registro; efetivado só com comprovante; cobrança Asaas só leitura; CAIXA pendente.
 - [Webhook órfão ZapSign + vínculo cobrança×bolão por titular](assinatura-webhook-orfao-e-cobranca-bolao-titular.md) — órfão fica pendente (200); cobrança só vincula a bolão se o titular for o mesmo cliente.
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
-- **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) — quarentena sem identidade confirmada; clínica vem do cliente; CPF igual aceita variante de nome; sem CPF só preliminar.
+- **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.

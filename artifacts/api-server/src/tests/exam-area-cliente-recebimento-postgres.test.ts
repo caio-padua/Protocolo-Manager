@@ -257,6 +257,82 @@ describe("recepção pela Área do Cliente", () => {
     expect((await request(app).get("/api/area-paciente/exames/envios?clientId=1").set(bearer(2))).body).toEqual([]);
   });
 
+  it("mostra somente identidade mascarada na quarentena e não cruza clínica ou cliente", async () => {
+    const doc = await novoDocumento(1, "identidade-sintetica-portal.pdf");
+    await q(`UPDATE exam_documents SET status='quarentena' WHERE id=$1`, [doc]);
+    const extracted = {
+      extracted: {
+        patient: {
+          name: "Bruno Henrique de Exemplo Lima",
+          cpf: "000.000.000-00",
+          birthDate: "04/05/1970",
+        },
+        analytes: [{ name: "VALOR_CLINICO_SINTETICO", value: "999" }],
+      },
+      modelUsed: "NAO_EXIBIR",
+      pipeline: { trace: "NAO_EXIBIR" },
+    };
+    const fields = {
+      name: "diferente",
+      cpf: "diferente",
+      birthDate: "igual",
+      reasons: ["MOTIVO_INTERNO_NAO_EXIBIR"],
+    };
+    await q(`INSERT INTO exam_identity_checks
+      (document_id, empresa_id, client_id, event, verdict, field_results, extracted_json, decision)
+      VALUES ($1, 5, 1, 'verificacao', 'contradicao', $2::jsonb, $3::jsonb, 'quarentena')`,
+    [doc, JSON.stringify(fields), JSON.stringify(extracted)]);
+
+    const docComCheckDeOutraClinica = await novoDocumento(1, "check-outra-clinica-sintetico.pdf");
+    await q(`UPDATE exam_documents SET status='quarentena' WHERE id=$1`, [docComCheckDeOutraClinica]);
+    await q(`INSERT INTO exam_identity_checks
+      (document_id, empresa_id, client_id, event, verdict, field_results, extracted_json, decision)
+      VALUES ($1, 6, 1, 'verificacao', 'contradicao', $2::jsonb, $3::jsonb, 'quarentena')`,
+    [docComCheckDeOutraClinica, JSON.stringify(fields), JSON.stringify(extracted)]);
+
+    const resposta = await envios(1);
+    expect(resposta.status).toBe(200);
+    const mostrado = resposta.body.find((item: any) => item.id === doc);
+    expect(mostrado).toMatchObject({
+      analitos: 0,
+      resultados: null,
+      inconsistenciaIdentidade: {
+        nome: { valor: "Bruno H. de Exemplo Lima", status: "diferente" },
+        cpf: { valor: "000.0••.•••-••", status: "diferente" },
+        dataNascimento: { valor: "04/05/1970", status: "igual" },
+      },
+    });
+    const semCheckDaOutraClinica = resposta.body.find((item: any) => item.id === docComCheckDeOutraClinica);
+    expect(semCheckDaOutraClinica.inconsistenciaIdentidade).toBeNull();
+
+    const docRejeitado = await novoDocumento(1, "identidade-rejeitada-sintetica.pdf");
+    await q(`UPDATE exam_documents SET status='identidade_rejeitada' WHERE id=$1`, [docRejeitado]);
+    await q(`INSERT INTO exam_identity_checks
+      (document_id, empresa_id, client_id, event, verdict, field_results, extracted_json, decision)
+      VALUES ($1, 5, 1, 'verificacao', 'contradicao', $2::jsonb, $3::jsonb, 'quarentena')`,
+    [docRejeitado, JSON.stringify(fields), JSON.stringify(extracted)]);
+    const respostaFinal = await envios(1);
+    expect(respostaFinal.body.find((item: any) => item.id === docRejeitado)).toMatchObject({
+      etapa: "identidade",
+      finalizado: true,
+      analitos: 0,
+      resultados: null,
+      inconsistenciaIdentidade: {
+        nome: { valor: "Bruno H. de Exemplo Lima", status: "diferente" },
+      },
+    });
+
+    const corpo = JSON.stringify(resposta.body);
+    expect(corpo).not.toContain("000.000.000-00");
+    expect(corpo).not.toContain("Bruno Henrique");
+    expect(corpo).not.toContain("VALOR_CLINICO_SINTETICO");
+    expect(corpo).not.toContain("MOTIVO_INTERNO_NAO_EXIBIR");
+    expect(corpo).not.toContain("NAO_EXIBIR");
+
+    const outroCliente = await envios(2);
+    expect(outroCliente.body).toEqual([]);
+  });
+
   it("P0: com o toggle de validação DESLIGADO o portal NÃO expõe documento recebido/conferido_1", async () => {
     sim.settings["exames.exigirValidacaoHumana"] = "false";
     try {

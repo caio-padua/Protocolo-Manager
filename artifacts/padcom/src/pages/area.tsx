@@ -268,7 +268,7 @@ export default function Area() {
         )}
         {tab === "evolucao"   && (
           <div className="space-y-6">
-            <EnviosRecentesPanel token={client.token} />
+            <EnviosRecentesPanel token={client.token} onEnviarOutro={() => setTab("enviar")} />
             <EvolucaoExamesPanel clientId={client.id} portalToken={client.token} />
             <PlanilhaComparativaPortal token={client.token} />
           </div>
@@ -2045,7 +2045,13 @@ function UploadStatusPoller({
 }) {
   // Estado REAL vindo do servidor (nenhum progresso inventado, nenhum "tempo esgotado" prometido):
   // a leitura pode demorar e o exame pode aguardar conferência da equipe.
-  const [envio, setEnvio] = useState<{ etapa: string; situacao: string; finalizado: boolean; analitos: number } | null>(null);
+  const [envio, setEnvio] = useState<{
+    etapa: string;
+    situacao: string;
+    finalizado: boolean;
+    analitos: number;
+    inconsistenciaIdentidade?: PortalIdentityIssue | null;
+  } | null>(null);
   const [semConexao, setSemConexao] = useState(false);
 
   useEffect(() => {
@@ -2056,7 +2062,14 @@ function UploadStatusPoller({
       try {
         const r = await fetch(`${API_BASE}/api/area-paciente/exames/envios`, { headers: { Authorization: `Bearer ${token}` } });
         if (!r.ok) throw new Error(String(r.status));
-        const lista = (await r.json()) as Array<{ id: number; etapa: string; situacao: string; finalizado: boolean; analitos: number }>;
+        const lista = (await r.json()) as Array<{
+          id: number;
+          etapa: string;
+          situacao: string;
+          finalizado: boolean;
+          analitos: number;
+          inconsistenciaIdentidade?: PortalIdentityIssue | null;
+        }>;
         const meu = lista.find((i) => i.id === documentoId) ?? null;
         if (!ativo) return;
         setSemConexao(false);
@@ -2104,14 +2117,24 @@ function UploadStatusPoller({
       <h2 className="text-primary font-black text-lg uppercase">{titulo}</h2>
       <p className="text-accent text-sm">{texto}</p>
 
+      {envio?.inconsistenciaIdentidade && (
+        <IdentidadeDivergentePanel
+          issue={envio.inconsistenciaIdentidade}
+          testId="upload-identity-issue"
+          onEnviarOutro={onReset}
+        />
+      )}
+
       <div className="concave-3d rounded-lg px-4 py-3 w-full text-left">
         <p className="text-muted-foreground text-xs uppercase font-black tracking-wider mb-1">ARQUIVO</p>
         <p className="text-primary text-sm font-mono truncate">{fileName}</p>
       </div>
 
-      <button onClick={onReset} className="btn-3d-soft w-full h-12 text-sm font-black uppercase tracking-wider">
-        ENVIAR OUTRO ARQUIVO
-      </button>
+      {!envio?.inconsistenciaIdentidade && (
+        <button onClick={onReset} className="btn-3d-soft w-full h-12 text-sm font-black uppercase tracking-wider">
+          ENVIAR OUTRO ARQUIVO
+        </button>
+      )}
     </div>
   );
 }
@@ -2160,17 +2183,21 @@ function EnviarTabForm({ client }: { client: ClientInfo }) {
   };
 
   if (done) {
-    return <UploadStatusPoller
-      fileName={done.fileName}
-      documentoId={done.exameDocumentoId ?? null}
-      processamento={done.processamento}
-      token={client.token}
-      onReset={reset}
-    />;
+    return (
+      <div id="formulario-upload-exame">
+        <UploadStatusPoller
+          fileName={done.fileName}
+          documentoId={done.exameDocumentoId ?? null}
+          processamento={done.processamento}
+          token={client.token}
+          onReset={reset}
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="panel-3d rounded-xl overflow-hidden">
+    <div id="formulario-upload-exame" className="panel-3d rounded-xl overflow-hidden">
       {/* TOP BAR */}
       <div className="login-card-topbar px-5 py-4 flex items-center gap-3">
         <FileUp className="w-5 h-5 text-accent" />
@@ -2285,6 +2312,12 @@ type EnvioItem = {
   percentual: number; etapas: EtapaEnvioUi[]; etapaAvancada: { rotulo: string; estado: "pendente" };
   /** Contagem REAL gravada/derivada pelos serviços existentes (null = sem leitura confiável, ex.: quarentena). */
   resultados: ResumoResultadosUi | null;
+  inconsistenciaIdentidade: PortalIdentityIssue | null;
+};
+type PortalIdentityIssue = {
+  nome: { valor: string | null; status: "igual" | "variante" | "parcial" | "diferente" | "ausente" | "invalido" | "nao_avaliado" };
+  cpf: { valor: string | null; status: "igual" | "variante" | "parcial" | "diferente" | "ausente" | "invalido" | "nao_avaliado" };
+  dataNascimento: { valor: string | null; status: "igual" | "variante" | "parcial" | "diferente" | "ausente" | "invalido" | "nao_avaliado" };
 };
 type ResumoResultadosUi = {
   total: number; elegiveis: number; convertidos: number; cincoZonas: number; simples: number; divergentes: number;
@@ -2491,7 +2524,81 @@ function JornadaDoExame({ e }: { e: EnvioItem }) {
   );
 }
 
-function EnvioCard({ e }: { e: EnvioItem }) {
+const IDENTITY_STATUS: Record<PortalIdentityIssue["nome"]["status"], { label: string; color: string }> = {
+  igual: { label: "Compatível", color: "text-green-600" },
+  variante: { label: "Variação identificada", color: "text-green-600" },
+  parcial: { label: "Correspondência parcial", color: "text-amber-600" },
+  diferente: { label: "Diferente do cadastro", color: "text-red-600" },
+  ausente: { label: "Dado ausente", color: "text-amber-600" },
+  invalido: { label: "Formato inválido", color: "text-red-600" },
+  nao_avaliado: { label: "Aguardando conferência", color: "text-muted-foreground" },
+};
+
+function IdentidadeDivergentePanel({
+  issue,
+  testId,
+  onEnviarOutro,
+}: {
+  issue: PortalIdentityIssue;
+  testId: string;
+  onEnviarOutro: () => void;
+}) {
+  const campos = [
+    ["Nome no documento", issue.nome],
+    ["CPF no documento", issue.cpf],
+    ["Data de nascimento no documento", issue.dataNascimento],
+  ] as const;
+  const grave = campos.some(([, campo]) => campo.status === "diferente" || campo.status === "invalido");
+
+  return (
+    <section
+      className={`panel-3d-sub mx-4 mb-4 rounded-xl p-4 space-y-3 border ${
+        grave ? "border-red-300/70" : "border-amber-300/70"
+      }`}
+      role="alert"
+      data-testid={testId}
+    >
+      <div>
+        <p className={`text-[10px] font-black uppercase tracking-widest ${grave ? "text-red-600" : "text-amber-700"}`}>
+          {grave ? "DIVERGÊNCIA DE IDENTIDADE" : "IDENTIDADE AGUARDANDO CONFERÊNCIA"}
+        </p>
+        <p className="text-primary text-sm font-black mt-1">
+          Não foi possível confirmar automaticamente que este documento pertence a este cadastro.
+        </p>
+        <p className="text-muted-foreground text-[11px] leading-snug mt-1">
+          Os dados abaixo foram lidos automaticamente e podem conter erros. Por segurança, o documento não foi incluído na evolução.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {campos.map(([label, campo]) => (
+          <div key={label} className="concave-3d rounded-lg p-3 min-w-0">
+            <p className="text-muted-foreground text-[9px] font-black uppercase tracking-wider">{label}</p>
+            <p className="text-primary text-sm font-semibold break-words mt-1" data-testid={`identidade-valor-${label}`}>
+              {campo.valor ?? "Não identificado no documento"}
+            </p>
+            <p className={`text-[10px] font-black mt-1 ${IDENTITY_STATUS[campo.status].color}`}>
+              {IDENTITY_STATUS[campo.status].label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-muted-foreground text-[10px] leading-snug">
+        O arquivo continua guardado e aguarda a conferência da equipe. Se este exame é de outra pessoa, envie o documento correto; se o cadastro estiver errado, fale com a clínica.
+      </p>
+      <button
+        type="button"
+        onClick={onEnviarOutro}
+        className="btn-3d-soft w-full min-h-11 px-3 text-xs font-black uppercase tracking-wider"
+      >
+        ENVIAR O EXAME CORRETO
+      </button>
+    </section>
+  );
+}
+
+function EnvioCard({ e, onEnviarOutro }: { e: EnvioItem; onEnviarOutro: () => void }) {
   const [aberto, setAberto] = useState(e.percentual !== 100);
   const pronto = e.percentual === 100;
   const etapasEnvio = e.etapas ?? [];
@@ -2508,6 +2615,13 @@ function EnvioCard({ e }: { e: EnvioItem }) {
         <MetaField label="SITUAÇÃO" value={<span className={`font-black text-xs ${falhou ? "text-red-600" : pronto ? "text-green-500" : "text-cyan-500"}`}>{estadoTxt}</span>} />
       </div>
       <JornadaDoExame e={e} />
+      {e.inconsistenciaIdentidade && (
+        <IdentidadeDivergentePanel
+          issue={e.inconsistenciaIdentidade}
+          testId={`identity-issue-${e.id}`}
+          onEnviarOutro={onEnviarOutro}
+        />
+      )}
       <div className="px-4 pb-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-accent text-[9px] font-black uppercase tracking-widest">PROGRESSO</span>
@@ -2548,7 +2662,7 @@ function EnvioCard({ e }: { e: EnvioItem }) {
   );
 }
 
-function EnviosRecentesPanel({ token }: { token: string }) {
+function EnviosRecentesPanel({ token, onEnviarOutro }: { token: string; onEnviarOutro: () => void }) {
   const [lista, setLista] = useState<EnvioItem[] | null>(null);
   const [falhou, setFalhou] = useState(false);
 
@@ -2578,16 +2692,19 @@ function EnviosRecentesPanel({ token }: { token: string }) {
       {lista === null && !falhou && <Loading />}
       {falhou && <ErrorBox msg="Não foi possível atualizar agora. Tentando novamente." />}
       {lista !== null && lista.length === 0 && <Empty msg="Nenhum arquivo enviado ainda." />}
-      {(lista ?? []).map((e) => <EnvioCard key={e.id} e={e} />)}
+      {(lista ?? []).map((e) => <EnvioCard key={e.id} e={e} onEnviarOutro={onEnviarOutro} />)}
     </div>
   );
 }
 
 function EnviarTab({ client }: { client: ClientInfo }) {
+  const irParaFormulario = () => {
+    document.getElementById("formulario-upload-exame")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   return (
     <div className="space-y-4">
       <EnviarTabForm client={client} />
-      <EnviosRecentesPanel token={client.token} />
+      <EnviosRecentesPanel token={client.token} onEnviarOutro={irParaFormulario} />
     </div>
   );
 }
