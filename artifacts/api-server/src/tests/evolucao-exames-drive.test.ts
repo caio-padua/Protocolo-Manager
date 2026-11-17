@@ -26,16 +26,16 @@ beforeEach(() => {
 });
 
 describe("nome do DEEx", () => {
-  it("segue AA.MM.DD - DEEx - DESCRITIVO EVOLUCAO EXAMES - NOME, em maiúsculas e sem acento", () => {
+  it("segue AA.MM.DD DEEx DESCRITIVO EVOLUCAO EXAMES NOME, em maiúsculas e sem acento", () => {
     const nome = nomeArquivoDeex("Maria da Conceição", false, new Date("2026-11-17T15:00:00Z"));
-    expect(nome).toBe("26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - MARIA DA CONCEICAO.pdf");
+    expect(nome).toBe("26.11.17 DEEx DESCRITIVO EVOLUCAO EXAMES MARIA DA CONCEICAO.pdf");
   });
   it("usa a data de Brasília na virada do dia", () => {
-    expect(nomeArquivoDeex("Ana", false, new Date("2026-11-18T01:30:00Z"))).toMatch(/^26\.11\.17 - /);
+    expect(nomeArquivoDeex("Ana", false, new Date("2026-11-18T01:30:00Z"))).toMatch(/^26\.11\.17 DEEx /);
   });
   it("tira caracteres proibidos em nome de arquivo e marca a prévia", () => {
-    const nome = nomeArquivoDeex('Ana/Maria: "X"', true, new Date("2026-11-17T15:00:00Z"));
-    expect(nome).toBe("26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - ANA MARIA X - PREVIA INTERNA.pdf");
+    const nome = nomeArquivoDeex('Ana-Maria: "X"', true, new Date("2026-11-17T15:00:00Z"));
+    expect(nome).toBe("26.11.17 DEEx DESCRITIVO EVOLUCAO EXAMES ANA MARIA X PREVIA INTERNA.pdf");
   });
 });
 
@@ -47,7 +47,7 @@ describe("cópia na pasta EXAMES", () => {
     expect(mockEstrutura).toHaveBeenCalledWith("Paciente Sintético", "00000000000", "RAIZ-EMPRESA-5");
     const [pasta, nome, mime, , permitirDuplicados] = mockUpload.mock.calls[0]!;
     expect(pasta).toBe("PASTA-EXAMES");
-    expect(String(nome)).toContain(" - DEEx - DESCRITIVO EVOLUCAO EXAMES - PACIENTE SINTETICO.pdf");
+    expect(String(nome)).toContain(" DEEx DESCRITIVO EVOLUCAO EXAMES PACIENTE SINTETICO.pdf");
     expect(mime).toBe("application/pdf");
     expect(permitirDuplicados).toBe(true);
   });
@@ -69,5 +69,11 @@ describe("cópia na pasta EXAMES", () => {
   it("erro do Drive vira 'falhou' e não estoura", async () => {
     mockUpload.mockRejectedValue(new Error("403"));
     expect((await arquivarDeexNoDrive(dados)).estado).toBe("falhou");
+  });
+});
+
+describe("sem traços", () => {
+  it("o nome inteiro não tem hífen, nem vindo do nome do paciente", () => {
+    expect(nomeArquivoDeex("Ana-Maria Souza", false, new Date("2026-11-17T15:00:00Z"))).not.toContain("-");
   });
 });

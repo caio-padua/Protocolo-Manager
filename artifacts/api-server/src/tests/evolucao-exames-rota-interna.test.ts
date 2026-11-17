@@ -42,7 +42,7 @@ const evo = (conf: "c2" | "ia") => ({
   columns: [{ key: "2025-01-10|L", date: "2025-01-10", lab: "L", confLevel: conf, conferenteName: null, conferenteCargo: null, isHistory: false }],
   analytes: [{ key: "A", name: "Exame A", unit: "mg/dL", refLow: "1", refHigh: "2", zones: null, cells: { "2025-01-10|L": { value: "1,5", valueNum: 1.5, unit: "mg/dL", unitConverted: false, unitRaw: "mg/dL", refLow: "1", refHigh: "2", status: null, documentId: 1, zone: null } } }],
 });
-beforeEach(() => { vi.clearAllMocks(); mockEscopo.mockImplementation(async (id: number) => (id === 7 ? { id: 7, empresaId: 5, name: "Paciente Sintético" } : id === 8 ? { id: 8, empresaId: 99, name: "Outro" } : null)); mockEvo.mockResolvedValue(evo("c2")); mockDrive.mockResolvedValue({ estado: "salvo", nome: "26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - PACIENTE SINTETICO.pdf" }); });
+beforeEach(() => { vi.clearAllMocks(); mockEscopo.mockImplementation(async (id: number) => (id === 7 ? { id: 7, empresaId: 5, name: "Paciente Sintético" } : id === 8 ? { id: 8, empresaId: 99, name: "Outro" } : null)); mockEvo.mockResolvedValue(evo("c2")); mockDrive.mockResolvedValue({ estado: "salvo", nome: "26.11.17 DEEx DESCRITIVO EVOLUCAO EXAMES PACIENTE SINTETICO.pdf" }); });
 
 describe("Evolução de exames: rota interna", () => {
   it("cliente conferido: um único PDF, sem cache", async () => {
@@ -57,14 +57,14 @@ describe("Evolução de exames: rota interna", () => {
     expect(mockDrive).toHaveBeenCalledTimes(1);
     expect(mockDrive.mock.calls[0]![0]).toMatchObject({ empresaId: 5, nomePaciente: "Paciente Sintético" });
     expect(r.headers["x-deex-drive"]).toBe("salvo");
-    expect(r.headers["content-disposition"]).toContain("DEEx - DESCRITIVO EVOLUCAO EXAMES - PACIENTE SINTETICO");
+    expect(r.headers["content-disposition"]).toContain("DEEx DESCRITIVO EVOLUCAO EXAMES PACIENTE SINTETICO");
   });
   it("falha no Drive não impede o PDF e é informada", async () => {
     mockDrive.mockResolvedValue({ estado: "falhou", nome: null });
     const r = await request(app()).get("/evolucao-exames/cliente/7/pdf");
     expect(r.status).toBe(200);
     expect(r.headers["x-deex-drive"]).toBe("falhou");
-    expect(r.headers["content-disposition"]).toMatch(/\d\d\.\d\d\.\d\d - DEEx - DESCRITIVO EVOLUCAO EXAMES - PACIENTE SINTETICO/);
+    expect(r.headers["content-disposition"]).toMatch(/\d\d\.\d\d\.\d\d DEEx DESCRITIVO EVOLUCAO EXAMES PACIENTE SINTETICO/);
   });
   it("prévia nunca vai para a pasta do paciente", async () => {
     mockEvo.mockResolvedValue(evo("ia"));

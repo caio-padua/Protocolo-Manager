@@ -1,6 +1,6 @@
 /**
  * DEEx: cópia automática na pasta EXAMES do paciente, no Drive da clínica dele.
- * Nome: "AA.MM.DD - DEEx - DESCRITIVO EVOLUCAO EXAMES - NOME DO PACIENTE.pdf" (data em BRT).
+ * Nome: "AA.MM.DD DEEx DESCRITIVO EVOLUCAO EXAMES NOME DO PACIENTE.pdf" (só espaço, sem traços) (data em BRT).
  * Regras: só entra o documento DEFINITIVO (a prévia nunca vai para a pasta do paciente);
  * a raiz de clientes é a da empresa do paciente, sem cair na pasta global; arquivo existente nunca é
  * apagado (nome repetido recebe número); falha no Drive nunca impede o download do PDF.
@@ -16,11 +16,11 @@ export type EstadoDrive = "salvo" | "falhou" | "indisponivel" | "previa";
 export function nomeArquivoDeex(nomePaciente: string, previa = false, data?: Date): string {
   const paciente = removeDiacritics(nomePaciente ?? "")
     .toUpperCase()
-    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/[\\/:*?"<>|-]/g, " ")
     .replace(/\s+/g, " ")
     .trim() || "PACIENTE";
-  const sufixo = previa ? " - PREVIA INTERNA" : "";
-  return `${brtDateStr(data)} - ${NOME_COMERCIAL_EVOLUCAO} - DESCRITIVO EVOLUCAO EXAMES - ${paciente}${sufixo}.pdf`;
+  const sufixo = previa ? " PREVIA INTERNA" : "";
+  return `${brtDateStr(data)} ${NOME_COMERCIAL_EVOLUCAO} DESCRITIVO EVOLUCAO EXAMES ${paciente}${sufixo}.pdf`;
 }
 
 async function raizClientesDaEmpresa(empresaId: number): Promise<string | null> {

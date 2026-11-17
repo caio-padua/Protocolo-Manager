@@ -163,7 +163,7 @@ test("DEEx na Área do Cliente: gerar mostra o ícone do arquivo ao lado dos bot
     pedido = route.request().url();
     return route.fulfill({
       status: 200, contentType: "application/pdf", body: "%PDF-1.4\n%sintetico\n",
-      headers: { "X-Deex-Drive": "salvo", "Content-Disposition": 'attachment; filename="26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - CLIENTE SINTETICO.pdf"' },
+      headers: { "X-Deex-Drive": "salvo", "Content-Disposition": 'attachment; filename="26.11.17 DEEx DESCRITIVO EVOLUCAO EXAMES CLIENTE SINTETICO.pdf"' },
     });
   });
   await expect(page.getByTestId("deex-arquivo")).toHaveCount(0);
@@ -173,7 +173,7 @@ test("DEEx na Área do Cliente: gerar mostra o ícone do arquivo ao lado dos bot
   expect(pedido).toContain("modo=completo");
   expect(pedido).not.toContain("previa");
   expect(await icone.getAttribute("href")).toMatch(/^blob:/);
-  expect(await icone.getAttribute("download")).toBe("26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - CLIENTE SINTETICO.pdf");
+  expect(await icone.getAttribute("download")).toBe("26.11.17 DEEx DESCRITIVO EVOLUCAO EXAMES CLIENTE SINTETICO.pdf");
   await expect(page.getByRole("status")).toContainText("Salvo na pasta Exames do paciente");
 });
 
