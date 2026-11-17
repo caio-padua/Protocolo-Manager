@@ -1004,9 +1004,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   const columnsRaw = data?.columns ?? [];
   const ultimaColKey = columnsRaw.length > 0 ? columnsRaw[columnsRaw.length - 1].key : null;
   const temPreliminares = modoCliente && columnsRaw.some((c) => c.confLevel === "ia" || c.confLevel === "c1");
-  const columnsGraficos = modoCliente
-    ? columnsRaw.filter((c) => c.confLevel === "c2")
-    : columnsRaw;
+  // Preliminares entram no gráfico e nas faixas; o selo PRELIMINAR da coluna avisa que não foi conferido.
+  const columnsGraficos = columnsRaw;
 
   // Colunas fixadas vão primeiro (grudadas); as demais rolam.
   const orderedColumns = useMemo(() => {
@@ -1165,7 +1164,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                     columns={columnsGraficos}
                     ordem={i + 1}
                     onRemover={() => alternar(key)}
-                    exigirConferencia={modoCliente}
+                    exigirConferencia={false}
                   />
                 </div>
               )}
@@ -1192,7 +1191,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
             columns={columnsGraficos}
             ordem={i + 1}
             onRemover={() => alternar(key)}
-            exigirConferencia={modoCliente}
+            exigirConferencia={false}
           />
           );
         })}
@@ -1445,7 +1444,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                       columns={columnsGraficos}
                       ordem={selecionados.indexOf(a.key) + 1}
                       onRemover={() => alternar(a.key)}
-                      exigirConferencia={modoCliente}
+                      exigirConferencia={false}
                     />
                   </div>
                 )}
@@ -1458,7 +1457,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
       <p className="mt-4 text-[11px] italic text-[#647c97]">
         {modoCliente
-          ? "Resultados preliminares permanecem neutros até a conferência médica; faixas, tendências e gráficos usam somente resultados C2 conferidos."
+          ? "Resultados marcados PRELIMINAR ainda não foram conferidos pelo médico; faixas, cores e tendência neles são indicativas até a conferência."
           : "Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha onde os gráficos aparecem no seletor Gráficos. No fim da tela você edita as faixas de cada exame."}
       </p>
     </section>

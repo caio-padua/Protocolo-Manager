@@ -1404,9 +1404,8 @@ export async function montarEvolucao(
 
   const analytes = [...lines.entries()].map(([key, line]) => {
     // tendencia: compara os 2 ultimos valores numericos
-    const trendColumns = exibirPreliminaresPortal
-      ? columns.filter((column) => column.confLevel === "c2")
-      : columns;
+    // Preliminares aparecem com valor, faixa e tendência (rotulados 'preliminar' pela coluna/confLevel).
+    const trendColumns = columns;
     const nums = trendColumns
       .map((c) => line.cells.get(c.key)?.valueNum)
       .filter((v): v is number => v !== null && v !== undefined);
@@ -1449,46 +1448,27 @@ export async function montarEvolucao(
       computeZones(toNum(line.refLow), toNum(line.refHigh), direction);
 
     // Classifica cada célula na sua zona (cor honesta da faixa).
-    const columnConfLevel = new Map(columns.map((column) => [column.key, column.confLevel]));
     const cellsObj = Object.fromEntries(
       [...line.cells.entries()].map(([ck, cell]) => {
-        const isPreliminary = exibirPreliminaresPortal && columnConfLevel.get(ck) !== "c2";
-        const z = isPreliminary ? null : classifyIntoZones(cell.valueNum, zones);
+        const z = classifyIntoZones(cell.valueNum, zones);
         return [
           ck,
           {
             ...cell,
-            ...(isPreliminary
-              ? {
-                  valueNum: null,
-                  status: null,
-                  unitRaw: null,
-                  unitConverted: false,
-                  refLow: null,
-                  refHigh: null,
-                }
-              : {}),
             zone: z ? { key: z.key, name: z.name, color: z.color } : null,
           },
         ];
       }),
     );
-    const hasConfirmedCell = exibirPreliminaresPortal &&
-      [...line.cells.keys()].some((columnKey) => columnConfLevel.get(columnKey) === "c2");
-
     return {
       key,
       name: line.name,
       unit: line.unit,
-      refLow: exibirPreliminaresPortal && !hasConfirmedCell ? null : line.refLow,
-      refHigh: exibirPreliminaresPortal && !hasConfirmedCell ? null : line.refHigh,
-      direction: exibirPreliminaresPortal && !hasConfirmedCell ? "target" as Direction : direction,
-      zonesSource: exibirPreliminaresPortal && !hasConfirmedCell
-        ? null
-        : zonasInstitucionais ? ("institucional" as const) : zones ? ("derivada" as const) : null,
-      zones: exibirPreliminaresPortal && !hasConfirmedCell
-        ? null
-        : zones
+      refLow: line.refLow,
+      refHigh: line.refHigh,
+      direction,
+      zonesSource: zonasInstitucionais ? ("institucional" as const) : zones ? ("derivada" as const) : null,
+      zones: zones
         ? zones.map((z) => ({ key: z.key, name: z.name, color: z.color, low: z.low, high: z.high }))
         : null,
       trend,

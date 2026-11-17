@@ -522,13 +522,9 @@ describe("recepção pela Área do Cliente", () => {
     expect(colunaC1.confLevel).toBe("c1");
     const celulaPreliminar = liberada.body.analytes.find((a: any) => a.name === "IA Confirmada")
       .cells[`${colunaIa.date}|${colunaIa.lab}`];
-    expect(celulaPreliminar).toMatchObject({
-      zone: null,
-      valueNum: null,
-      status: null,
-      refLow: null,
-      refHigh: null,
-    });
+    // Decisão do médico (17/11/2026): preliminar aparece com valor numérico; a coluna segue marcada
+    // como "ia" (selo PRELIMINAR no portal). Nenhum resultado salvo é alterado.
+    expect(typeof celulaPreliminar.valueNum).toBe("number");
 
     const seisAindaFechada = await request(app).get("/api/area-paciente/exames/evolucao").set(bearer(91));
     expect(seisAindaFechada.body.analytes).toEqual([]);
@@ -602,7 +598,8 @@ describe("recepção pela Área do Cliente", () => {
       expect(mixed.unit).toBe(baseline.unit);
       expect(mixed.zones).toEqual(baseline.zones);
       expect(mixed.cells["2026-10-01|Laboratório Conferido"]).toEqual(baseline.cells["2026-10-01|Laboratório Conferido"]);
-      expect(mixed.cells["2026-09-01|Laboratório Preliminar"]).toMatchObject({ zone: null, valueNum: null, refLow: null, refHigh: null });
+      // A referência da linha e as faixas continuam as do conferido; o ponto preliminar aparece com valor numérico.
+      expect(typeof mixed.cells["2026-09-01|Laboratório Preliminar"].valueNum).toBe("number");
     } finally {
       delete sim.settings[chave];
     }
