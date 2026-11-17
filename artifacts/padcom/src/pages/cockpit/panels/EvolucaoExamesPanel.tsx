@@ -177,16 +177,48 @@ const TEND = {
   estavel: { rotulo: "ESTÁVEL", cor: "text-amber-700", hex: "#c17a2b", led: "paxter-led-amber", Icon: Minus },
 } as const;
 
+/** Ícone "i" com explicação ao passar o mouse (ou focar/tocar). */
+function Dica({ texto, rotulo }: { texto: string; rotulo: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button type="button" aria-label={rotulo} className="flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--evo-muted)] hover:text-[color:var(--evo-ink)] focus:text-[color:var(--evo-ink)] focus:outline-none">
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      <span role="tooltip" className="evo-bevel pointer-events-none absolute left-5 top-1/2 z-[60] hidden w-64 -translate-y-1/2 rounded-[6px] px-3 py-2 text-left text-[10px] font-semibold normal-case leading-snug tracking-normal group-hover:block group-focus-within:block">
+        {texto}
+      </span>
+    </span>
+  );
+}
+
+/** Medidor de posição: cinco barras crescentes; a barra acesa é a faixa escolhida (nível 0 = todas acesas). */
+function MedidorFaixa({ nivel }: { nivel: number }) {
+  return (
+    <span className="flex h-4 items-end gap-[3px]" aria-hidden>
+      {[5, 8, 11, 14, 17].map((h, i) => {
+        const acesa = nivel === 0 || nivel === i + 1;
+        return (
+          <span
+            key={i}
+            className="w-[4px] rounded-[1px]"
+            style={{ height: h, background: acesa ? (nivel === 0 ? "currentColor" : "#d4a64f") : "currentColor", opacity: acesa ? 1 : 0.28 }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 // SINALIZAR FAIXA: 5 posições fixas do MENOR valor ao MAIOR (espelha ZoneKey do
 // backend: below→t1→t2→t3→above). O filtro é por POSIÇÃO, nunca por nome — assim
 // os nomes custom de cada exame não poluem a planilha (eles vivem só no gráfico
 // individual). A célula acesa brilha na cor da própria faixa daquele exame.
 const FAIXAS_POSICAO = [
-  { key: "below", label: "1/5 Extremo Baixo" },
-  { key: "t1", label: "2/5 Baixo" },
-  { key: "t2", label: "3/5 Médio" },
-  { key: "t3", label: "4/5 Alto" },
-  { key: "above", label: "5/5 Extremo Alto" },
+  { key: "below", label: "Extremo baixo" },
+  { key: "t1", label: "Baixo" },
+  { key: "t2", label: "Médio" },
+  { key: "t3", label: "Alto" },
+  { key: "above", label: "Extremo alto" },
 ] as const;
 
 // ------------------------------------------------------------------ célula ---
@@ -987,9 +1019,13 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
         : await fetch(`${BASE}/api/evolucao-exames/cliente/${clientId}/pdf?modo=${modo}${previa ? "&previa=1" : ""}`, { headers: collabAuthHeaders() });
       if (r.ok) {
         const url = URL.createObjectURL(await r.blob());
-        const hoje = new Date().toISOString().slice(0, 10);
-        setDeexArquivo({ url, nome: `DEEx-${modo === "completo" ? "completo" : "5-coletas"}-${hoje}.pdf` });
-        setDeexMsg(previa ? { ok: true, txt: "PRÉVIA INTERNA: contém resultados sem conferência final." } : null);
+        const nome = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") ?? "")?.[1] ?? "DEEx.pdf";
+        setDeexArquivo({ url, nome });
+        const drive = r.headers.get("X-Deex-Drive");
+        if (previa) setDeexMsg({ ok: true, txt: "PRÉVIA INTERNA: contém resultados sem conferência final. Não foi salva na pasta do paciente." });
+        else if (drive === "salvo") setDeexMsg({ ok: true, txt: "Salvo na pasta Exames do paciente." });
+        else if (!modoCliente) setDeexMsg({ ok: false, txt: "PDF gerado, mas não foi salvo na pasta Exames do paciente (Drive indisponível ou cadastro sem CPF/pasta da clínica)." });
+        else setDeexMsg(null);
       } else {
         const j = await r.json().catch(() => ({}));
         setDeexMsg({ ok: false, txt: j.error ?? "Não foi possível gerar o DEEx.", podePrevia: !modoCliente && j.codigo === "EVOLUCAO_EXAMES_NAO_CONFERIDO" ? modo : undefined });
@@ -1315,27 +1351,23 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
         {ferramentasAbertas && (
           <div id="evolucao-ferramentas-corpo" className="evo-corpo mt-1.5 flex flex-col gap-2 p-2">
             <div>
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">Faixas de Exames</div>
-              <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
-                <button
-                  type="button"
-                  onClick={() => setZonaAcesa(null)}
-                  aria-pressed={zonaAcesa === null}
-                  className={`${BOTAO_FERRAMENTA} evo-bevel ${zonaAcesa === null ? "evo-bevel-ativo" : ""}`}
-                >
-                  Todas
-                </button>
-                {FAIXAS_POSICAO.map((f) => {
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">
+                Faixas de Exames
+                <Dica rotulo="O que são as faixas" texto="Acende na planilha os resultados que estão naquela posição da referência de cada exame: de extremo baixo (primeira barra) a extremo alto (última barra). Clique de novo para desligar." />
+              </div>
+              <div data-testid="evolucao-faixas" className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                {[{ key: null as string | null, label: "Todas", nivel: 0 }, ...FAIXAS_POSICAO.map((f, i) => ({ key: f.key as string | null, label: f.label, nivel: i + 1 }))].map((f) => {
                   const ativo = zonaAcesa === f.key;
                   return (
                     <button
-                      key={f.key}
+                      key={f.key ?? "todas"}
                       type="button"
-                      onClick={() => setZonaAcesa(ativo ? null : f.key)}
+                      onClick={() => setZonaAcesa(f.key === null || ativo ? null : f.key)}
                       aria-pressed={ativo}
-                      className={`${BOTAO_FERRAMENTA} evo-bevel ${ativo ? "evo-bevel-ativo" : ""}`}
+                      className={`evo-bevel flex h-14 w-full flex-col items-center justify-center gap-1.5 rounded-[5px] px-1 text-center text-[9px] font-bold uppercase leading-tight tracking-wide ${ativo ? "evo-bevel-ativo" : ""}`}
                     >
-                      {f.label}
+                      <MedidorFaixa nivel={f.nivel} />
+                      <span>{f.label}</span>
                     </button>
                   );
                 })}
@@ -1343,7 +1375,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
             </div>
             <div>
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">Gráficos</div>
-              <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
+              <div data-testid="evolucao-graficos" className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
                 {LAYOUTS.filter((l) => !modoCliente || LAYOUTS_CLIENTE.includes(l.id)).map((l) => {
                   const ativo = layout === l.id;
                   return (
@@ -1363,21 +1395,14 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
             <div data-testid="deex-painel">
               <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">
                 {modoCliente ? "DEEx" : "DEEx e Envio"}
-                <span className="group relative inline-flex">
-                  <button type="button" aria-label="O que é o DEEx" className="flex h-4 w-4 items-center justify-center rounded-full text-[color:var(--evo-muted)] hover:text-[color:var(--evo-ink)] focus:text-[color:var(--evo-ink)] focus:outline-none">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                  <span role="tooltip" className="evo-bevel pointer-events-none absolute left-5 top-1/2 z-[60] hidden w-64 -translate-y-1/2 rounded-[6px] px-3 py-2 text-left text-[10px] font-semibold normal-case leading-snug tracking-normal group-hover:block group-focus-within:block">
-                    DEEx · Descritivo de Evolução de Exames. PDF com os resultados lado a lado, por data de coleta.
-                  </span>
-                </span>
+                <Dica rotulo="O que é o DEEx" texto="DEEx · Descritivo de Evolução de Exames. PDF com os resultados lado a lado, por data de coleta. Ao gerar, uma cópia vai para a pasta Exames do paciente." />
               </div>
               {/* Uma só linha: DEEx à esquerda, envio de PDF no extremo direito (a equipe). */}
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5" title="DEEx: PDF com as 5 coletas mais recentes"
                     className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 disabled:opacity-50`}>DEEx · 5 coletas</button>
-                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
+                  <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo" title="DEEx: PDF com todo o histórico de coletas"
                     className={`${BOTAO_FERRAMENTA} evo-bevel !w-24 disabled:opacity-50`}>DEEx · Completo</button>
                   {deexBusy && <Loader2 className="h-4 w-4 animate-spin text-[color:var(--evo-muted)]" />}
                   {deexArquivo && (

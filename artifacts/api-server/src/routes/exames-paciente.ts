@@ -18,7 +18,7 @@ import { handleEvolucao, montarEvolucao, startExamIngestion } from "./exames-lab
 import { gerarEvolucaoExamesPdf } from "../lib/evolucao-exames-pdf";
 import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
 import { brtISODate } from "../lib/brt";
-import { NOME_COMERCIAL_EVOLUCAO } from "../lib/evolucao-exames-nome";
+import { arquivarDeexNoDrive, nomeArquivoDeex } from "../lib/evolucao-exames-drive";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
@@ -97,7 +97,7 @@ router.get("/area-paciente/exames/evolucao/pdf", async (req: Request, res: Respo
       throw e;
     }
     const [cli] = await db
-      .select({ name: clientsTable.name, birth: clientsTable.birthDate })
+      .select({ name: clientsTable.name, birth: clientsTable.birthDate, cpf: clientsTable.cpf })
       .from(clientsTable)
       .where(eq(clientsTable.id, client.id))
       .limit(1);
@@ -120,9 +120,13 @@ router.get("/area-paciente/exames/evolucao/pdf", async (req: Request, res: Respo
       return;
     }
     logger.info({ evento: "evolucao_exames_emitido_portal", clientId: client.id, modo: modoQ, colunas: r.colunasUsadas }, "DEEx emitido ao próprio cliente");
+    // O definitivo também vai para a pasta EXAMES do próprio paciente; falha no Drive não impede o download.
+    const drive = await arquivarDeexNoDrive({ empresaId: client.empresaId, nomePaciente: cli?.name ?? "", cpf: cli?.cpf ?? null, pdf: r.pdf });
+    const nomeArquivo = drive.nome ?? nomeArquivoDeex(cli?.name ?? "");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Disposition", `attachment; filename="${NOME_COMERCIAL_EVOLUCAO}-${brtISODate()}.pdf"`);
+    res.setHeader("X-Deex-Drive", drive.estado);
+    res.setHeader("Content-Disposition", `attachment; filename="${nomeArquivo.replace(/[^\x20-\x7e]/g, "")}"`);
     res.send(Buffer.from(r.pdf));
   } catch (err) {
     logger.error({ err }, "[ExamesPaciente] DEEx falhou");

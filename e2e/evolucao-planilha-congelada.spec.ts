@@ -101,17 +101,25 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
       expect(mov.cab, JSON.stringify(mov)).toBe(mov.corpo);
     });
 
-    test("botões das faixas e dos gráficos têm o mesmo tamanho", async ({ page }) => {
+    test("botões das faixas e dos gráficos têm o mesmo tamanho dentro de cada grupo", async ({ page }) => {
       await abrir(page);
-      const caixas = await page.evaluate(() =>
-        Array.from(document.querySelectorAll("[data-testid=evolucao-ferramentas] #evolucao-ferramentas-corpo .grid button")).map((b) => {
-          const r = b.getBoundingClientRect();
-          return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left) };
-        }),
-      );
-      expect(caixas.length).toBe(9); // 1 "Todas" + 5 faixas + 3 layouts (grade das ferramentas; DEEx fica em linha própria)
-      expect(new Set(caixas.map((c) => c.h)).size).toBe(1);
-      expect(new Set(caixas.map((c) => c.w)).size).toBe(1);
+      const medir = (id: string) =>
+        page.evaluate((testid) =>
+          Array.from(document.querySelectorAll(`[data-testid=${testid}] button`)).map((b) => {
+            const r = b.getBoundingClientRect();
+            return { w: Math.round(r.width), h: Math.round(r.height) };
+          }), id);
+      const faixas = await medir("evolucao-faixas");
+      const graficos = await medir("evolucao-graficos");
+      expect(faixas.length).toBe(6); // Todas + 5 posições
+      expect(graficos.length).toBe(3); // formas do cliente
+      for (const g of [faixas, graficos]) {
+        expect(new Set(g.map((c) => c.h)).size).toBe(1);
+        expect(new Set(g.map((c) => c.w)).size).toBe(1);
+      }
+      // sem frações: o rótulo é o nome da posição
+      await expect(page.getByTestId("evolucao-faixas")).not.toContainText("/5");
+      await expect(page.getByTestId("evolucao-faixas").getByRole("button", { name: /Extremo baixo/i })).toBeVisible();
       await page.getByTestId("evolucao-ferramentas").scrollIntoViewIfNeeded();
       await page.screenshot({ path: `screenshots/evolucao/ferramentas-${vp.nome}.png` });
     });
@@ -153,7 +161,10 @@ test("DEEx na Área do Cliente: gerar mostra o ícone do arquivo ao lado dos bot
   // registrada depois de abrir(): a rota mais recente tem prioridade sobre o curinga de abrir()
   await page.route("**/api/area-paciente/exames/evolucao/pdf**", (route) => {
     pedido = route.request().url();
-    return route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4\n%sintetico\n" });
+    return route.fulfill({
+      status: 200, contentType: "application/pdf", body: "%PDF-1.4\n%sintetico\n",
+      headers: { "X-Deex-Drive": "salvo", "Content-Disposition": 'attachment; filename="26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - CLIENTE SINTETICO.pdf"' },
+    });
   });
   await expect(page.getByTestId("deex-arquivo")).toHaveCount(0);
   await page.getByTestId("deex-completo").click();
@@ -162,7 +173,8 @@ test("DEEx na Área do Cliente: gerar mostra o ícone do arquivo ao lado dos bot
   expect(pedido).toContain("modo=completo");
   expect(pedido).not.toContain("previa");
   expect(await icone.getAttribute("href")).toMatch(/^blob:/);
-  expect(await icone.getAttribute("download")).toMatch(/^DEEx-completo-\d{4}-\d{2}-\d{2}\.pdf$/);
+  expect(await icone.getAttribute("download")).toBe("26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - CLIENTE SINTETICO.pdf");
+  await expect(page.getByRole("status")).toContainText("Salvo na pasta Exames do paciente");
 });
 
 test("DEEx na Área do Cliente: recusa do servidor aparece sem ícone", async ({ page }) => {

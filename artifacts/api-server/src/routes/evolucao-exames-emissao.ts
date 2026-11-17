@@ -11,7 +11,7 @@ import { montarEvolucao } from "./exames-lab";
 import { gerarEvolucaoExamesPdf, type ModoEvolucaoExames } from "../lib/evolucao-exames-pdf";
 import { carregarIdentidadeClinica2b, IdentidadeEmpresa2bError } from "../lib/documentos/paxmed-2b-identidade-clinica";
 import { brtISODate } from "../lib/brt";
-import { NOME_COMERCIAL_EVOLUCAO } from "../lib/evolucao-exames-nome";
+import { arquivarDeexNoDrive, nomeArquivoDeex } from "../lib/evolucao-exames-drive";
 import { db, clientsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -35,7 +35,7 @@ router.get("/evolucao-exames/cliente/:clientId/pdf", requireCollaborator, async 
       throw e;
     }
 
-    const [cli] = await db.select({ birth: clientsTable.birthDate }).from(clientsTable).where(eq(clientsTable.id, escopo.id)).limit(1);
+    const [cli] = await db.select({ birth: clientsTable.birthDate, cpf: clientsTable.cpf }).from(clientsTable).where(eq(clientsTable.id, escopo.id)).limit(1);
     const evolucao = await montarEvolucao(escopo.id, { respeitarToggleProfissional: true });
     if (evolucao.columns.length === 0) { res.status(404).json({ error: "Sem resultados de exames para este cliente." }); return; }
 
@@ -50,9 +50,16 @@ router.get("/evolucao-exames/cliente/:clientId/pdf", requireCollaborator, async 
       return;
     }
     req.log?.info({ evento: "evolucao_exames_emitido", clientId: escopo.id, empresaId: escopo.empresaId, modo, colunas: r.colunasUsadas, paginas: r.paginas, previa: r.contemNaoConferidos }, "Evolução de exames emitida (interno)");
+    // Definitivo vai também para a pasta EXAMES do paciente; a prévia nunca. Falha no Drive não impede o download.
+    const drive = r.contemNaoConferidos
+      ? { estado: "previa" as const, nome: null }
+      : await arquivarDeexNoDrive({ empresaId: escopo.empresaId, nomePaciente: escopo.name, cpf: cli?.cpf ?? null, pdf: r.pdf });
+    const nomeArquivo = drive.nome ?? nomeArquivoDeex(escopo.name, r.contemNaoConferidos);
+    req.log?.info({ evento: "evolucao_exames_drive", clientId: escopo.id, estado: drive.estado }, "DEEx: cópia no Drive");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Disposition", `attachment; filename="${NOME_COMERCIAL_EVOLUCAO}-${escopo.id}-${brtISODate()}.pdf"`);
+    res.setHeader("X-Deex-Drive", drive.estado);
+    res.setHeader("Content-Disposition", `attachment; filename="${nomeArquivo.replace(/[^\x20-\x7e]/g, "")}"`);
     res.send(Buffer.from(r.pdf));
   } catch (err) {
     req.log?.error({ err: String(err) }, "Evolução de exames: falha ao emitir");

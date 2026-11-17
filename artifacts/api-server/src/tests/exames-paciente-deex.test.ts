@@ -10,6 +10,8 @@ vi.mock("../lib/exam-preliminary-visibility", () => ({ lerVisibilidadePreliminar
 vi.mock("../lib/logger", () => ({ logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
 vi.mock("../lib/portal-token", () => ({ verifyPortalToken: (t: string) => (t === "tok-7" ? 7 : t === "tok-8" ? 8 : null) }));
 const mockEvo = vi.fn();
+const mockDrive = vi.fn();
+vi.mock("../lib/evolucao-exames-drive", async (orig) => ({ ...(await orig<typeof import("../lib/evolucao-exames-drive")>()), arquivarDeexNoDrive: (...a: unknown[]) => mockDrive(...a) }));
 vi.mock("../routes/exames-lab", () => ({ handleEvolucao: vi.fn(), startExamIngestion: vi.fn(), montarEvolucao: (...a: unknown[]) => mockEvo(...a) }));
 vi.mock("../lib/documentos/paxmed-2b-identidade-clinica", async () => {
   class IdentidadeEmpresa2bError extends Error { constructor(public status: 422 | 503, m: string) { super(m); } }
@@ -54,7 +56,7 @@ const get = (url: string, token?: string) => {
   const r = request(app()).get(url);
   return (token ? r.set("Authorization", `Bearer ${token}`) : r).buffer().parse((res, cb) => { const d: Buffer[] = []; res.on("data", (x) => d.push(x)); res.on("end", () => cb(null, Buffer.concat(d))); });
 };
-beforeEach(() => { vi.clearAllMocks(); mockEvo.mockResolvedValue(evo("c2")); });
+beforeEach(() => { vi.clearAllMocks(); mockEvo.mockResolvedValue(evo("c2")); mockDrive.mockResolvedValue({ estado: "salvo", nome: "26.11.17 - DEEx - DESCRITIVO EVOLUCAO EXAMES - PACIENTE SINTETICO.pdf" }); });
 
 describe("DEEx do próprio cliente", () => {
   it("sem token: 401 e nada é lido", async () => {
@@ -68,6 +70,23 @@ describe("DEEx do próprio cliente", () => {
     expect(r.headers["cache-control"]).toBe("no-store");
     expect((r.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
     expect(mockEvo).toHaveBeenCalledWith(7, { portalEmpresaId: 5 });
+  });
+  it("copia na pasta EXAMES do próprio paciente, com a empresa dele", async () => {
+    const r = await get("/area-paciente/exames/evolucao/pdf", "tok-7");
+    expect(mockDrive.mock.calls[0]![0]).toMatchObject({ empresaId: 5, nomePaciente: "Paciente Sintético" });
+    expect(r.headers["x-deex-drive"]).toBe("salvo");
+    expect(r.headers["content-disposition"]).toContain("DEEx - DESCRITIVO EVOLUCAO EXAMES - PACIENTE SINTETICO");
+  });
+  it("falha no Drive: o paciente ainda recebe o PDF", async () => {
+    mockDrive.mockResolvedValue({ estado: "falhou", nome: null });
+    const r = await get("/area-paciente/exames/evolucao/pdf", "tok-7");
+    expect(r.status).toBe(200);
+    expect(r.headers["x-deex-drive"]).toBe("falhou");
+  });
+  it("recusa por não conferido não copia nada para o Drive", async () => {
+    mockEvo.mockResolvedValue(evo("ia"));
+    await get("/area-paciente/exames/evolucao/pdf", "tok-7");
+    expect(mockDrive).not.toHaveBeenCalled();
   });
   it("clientId na URL é ignorado (identidade só pelo token)", async () => {
     await get("/area-paciente/exames/evolucao/pdf?clientId=8&previa=1", "tok-7");
