@@ -508,11 +508,14 @@ describe("recepção pela Área do Cliente", () => {
     expect(liberada.status).toBe(200);
     const nomes = liberada.body.analytes.map((a: any) => a.name);
     expect(nomes).toEqual(expect.arrayContaining([
-      "C2 Sintético", "IA Confirmada", "C1 Confirmada", "Identidade Liberada",
+      "C2 Sintético", "IA Confirmada", "C1 Confirmada", "Identidade Liberada", "Unidade Não Convertida",
     ]));
+    // Decisão do médico: linha "conferencia" aparece com valor, mas nunca com cor de faixa.
+    const naoConv = liberada.body.analytes.find((a: any) => a.name === "Unidade Não Convertida");
+    for (const c of Object.values<any>(naoConv.cells)) expect(c.zone).toBeNull();
     for (const excluido of [
       "IA Mesmo Cabeçalho", "Quarentena Excluída", "Sem Prova de Identidade",
-      "Clínica Divergente", "C2 Clínica Divergente", "Cliente Divergente", "Unidade Não Convertida",
+      "Clínica Divergente", "C2 Clínica Divergente", "Cliente Divergente",
     ]) expect(nomes).not.toContain(excluido);
     const colunaC2 = liberada.body.columns.find((c: any) => c.lab === "Laboratório Sintético C2");
     expect(colunaC2.confLevel).toBe("c2");

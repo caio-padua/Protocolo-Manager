@@ -1154,7 +1154,6 @@ export async function montarEvolucao(
           eq(examDocumentsTable.clientId, clientId),
           eq(examDocumentsTable.empresaId, portalEmpresaId!),
           sql`${examResultsTable.valueRaw} IS NOT NULL AND btrim(${examResultsTable.valueRaw}) <> ''`,
-          or(isNull(examResultsTable.status), ne(examResultsTable.status, "conferencia")),
           sql`EXISTS (
             SELECT 1 FROM exam_identity_checks i
             WHERE i.document_id = ${examDocumentsTable.id}
@@ -1450,7 +1449,9 @@ export async function montarEvolucao(
     // Classifica cada célula na sua zona (cor honesta da faixa).
     const cellsObj = Object.fromEntries(
       [...line.cells.entries()].map(([ck, cell]) => {
-        const z = classifyIntoZones(cell.valueNum, zones);
+        // Linha marcada "conferencia" (ex.: unidade não convertida) aparece com o valor, mas sem cor de faixa:
+        // comparar número em unidade diferente da faixa pintaria um veredito falso.
+        const z = cell.status === "conferencia" ? null : classifyIntoZones(cell.valueNum, zones);
         return [
           ck,
           {
