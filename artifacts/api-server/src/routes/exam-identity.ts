@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { clientsTable, db, examDocumentsTable, professionalsTable } from "@workspace/db";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter.js";
 import { authorizeExamReviewer } from "../lib/exam-review-policy.js";
@@ -149,6 +149,20 @@ export function createExamIdentityRouter(incorporate: IncorporateFn): IRouter {
         return;
       }
 
+      // Documento que já tinha resultados gravados (contradição detectada depois da leitura): a liberação
+      // só restaura o status. Não reincorpora, não reextrai e não duplica nenhum resultado.
+      const [jaTemResultados] = (
+        await db.execute(sql`SELECT 1 AS ok FROM exam_results WHERE exam_document_id = ${scope.id} LIMIT 1`)
+      ).rows as Array<{ ok: number }>;
+      if (jaTemResultados) {
+        if ((await claimQuarantine(scope.id, "recebido")) !== "claimed") {
+          res.status(409).json({ error: "O documento já foi decidido por outra pessoa." });
+          return;
+        }
+        await recordHumanDecision({ documentId: scope.id, empresaId: scope.empresaId, clientId: scope.clientId, event: "liberacao_humana", professionalId: actorId, note });
+        res.json({ ok: true, status: "recebido" });
+        return;
+      }
       if (!quarantine.payload?.extracted) {
         res.status(422).json({ error: "O conteúdo extraído deste documento não está disponível; reenvie o laudo." });
         return;

@@ -82,6 +82,7 @@ import { mirrorExamToR2, examR2Key } from "../lib/examR2Storage";
 import { hashExamDocument, automaticExamRecoveryAllowed } from "../lib/exam-extraction/ingestion-policy";
 import { rejectUnversionedReprocessing } from "../lib/exam-extraction/reprocessing-safety";
 import { runIdentityGate } from "../lib/exam-extraction/identity-gate";
+import { identidadeNaoBloqueadaSql } from "../lib/exam-visibility-policy";
 import { createExamIdentityRouter } from "./exam-identity";
 import { createExamIdentityGovernanceRouter } from "./exam-identity-governance";
 import {
@@ -1191,6 +1192,8 @@ export async function montarEvolucao(
               eq(examDocumentsTable.empresaId, portalEmpresaId!),
             ]
           : []),
+        // Política única de identidade: vale para todo papel e não depende de nenhum interruptor.
+        identidadeNaoBloqueadaSql(sql`${examDocumentsTable.id}`, sql`${examDocumentsTable.status}`),
         ...(preliminarComIdentidadeConfirmada ? [preliminarComIdentidadeConfirmada] : []),
       ),
     )

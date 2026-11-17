@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { listPlanosByCliente } from "../lib/dieta-planos-storage";
 import { requireCollaborator } from "./collaborator";
 import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { identidadeNaoBloqueadaSql } from "../lib/exam-visibility-policy";
 
 // ============================================================================
 // GET /api/prontuario/:clientId
@@ -123,7 +124,14 @@ router.get("/prontuario/:clientId", requireCollaborator, async (req, res): Promi
       .where(and(
         eq(examResultsTable.clientId, clientId),
         // Vínculo marcado como incorreto na auditoria de identidade: o resultado não aparece no prontuário (nada é apagado).
-        sql`${examResultsTable.examDocumentId} NOT IN (SELECT id FROM exam_documents WHERE client_id = ${clientId} AND status = 'identidade_rejeitada')`,
+        // Política única de identidade (inclui identidade rejeitada, quarentena e contradição).
+        // Defesa em profundidade: o documento também precisa ser do mesmo cliente e da mesma clínica.
+        sql`${examResultsTable.examDocumentId} IN (
+          SELECT d.id FROM exam_documents d
+          WHERE d.client_id = ${clientId}
+            AND (d.empresa_id IS NULL OR d.empresa_id = ${identity.clinic.empresaId})
+            AND ${identidadeNaoBloqueadaSql(sql`d.id`, sql`d.status`)}
+        )`,
       ))
       .orderBy(examResultsTable.collectionDate, examResultsTable.analyteNameRaw)
       .limit(2000);

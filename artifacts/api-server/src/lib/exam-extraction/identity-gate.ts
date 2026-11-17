@@ -126,11 +126,21 @@ export async function runIdentityGate(input: IdentityGateInput): Promise<Identit
   if (quarantined) {
     // Atualização condicional: só documento ainda sem leitura incorporada entra em quarentena
     // ("processando" no fluxo do portal; "recebido" sem resultados nos importadores do Drive).
+    // Documento ainda sem leitura incorporada entra em quarentena como antes. Documento que JÁ tem
+    // resultados também sai de "recebido" quando a verificação gravada é contraditória: os resultados
+    // ficam preservados (nada é apagado nem movido) e só a liberação humana os torna visíveis de novo.
     await db.execute(sql`
       UPDATE exam_documents SET status = 'quarentena'
       WHERE id = ${input.documentId}
-        AND status IN ('processando', 'recebido')
-        AND NOT EXISTS (SELECT 1 FROM exam_results r WHERE r.exam_document_id = ${input.documentId})
+        AND (
+          (status IN ('processando', 'recebido')
+            AND NOT EXISTS (SELECT 1 FROM exam_results r WHERE r.exam_document_id = ${input.documentId}))
+          OR (status IN ('recebido', 'conferido_1')
+            AND EXISTS (
+              SELECT 1 FROM exam_identity_checks c
+              WHERE c.document_id = ${input.documentId} AND c.event = 'verificacao' AND c.verdict IN ('contradicao', 'revisao')
+            ))
+        )
     `);
   }
   if (!quarantined && assessment.decision === "incorporar_com_alias" && assessment.aliasToRecord && empresaId != null) {
@@ -182,7 +192,7 @@ export async function loadQuarantine(documentId: number): Promise<QuarantinedDoc
 export type ClaimResult = "claimed" | "not_in_quarantine";
 
 /** Reivindica o documento em quarentena: apenas uma chamada concorrente vence. */
-export async function claimQuarantine(documentId: number, next: "processando" | "identidade_rejeitada"): Promise<ClaimResult> {
+export async function claimQuarantine(documentId: number, next: "processando" | "identidade_rejeitada" | "recebido"): Promise<ClaimResult> {
   const result = await db.execute(sql`
     UPDATE exam_documents SET status = ${next}
     WHERE id = ${documentId} AND status = 'quarentena'
