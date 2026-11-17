@@ -249,7 +249,7 @@ export default function Area() {
       </header>
 
       {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
-      <main className="relative isolate z-0 flex-1 px-4 py-5 max-w-lg w-full mx-auto pb-24">
+      <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-24 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}

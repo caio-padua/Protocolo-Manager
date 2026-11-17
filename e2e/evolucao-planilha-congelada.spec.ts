@@ -85,6 +85,8 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
     });
 
     test("cabeçalho acompanha a rolagem lateral da planilha", async ({ page }) => {
+      // abaixo de 1024 px a área fica estreita e a planilha precisa rolar para o lado
+      await page.setViewportSize({ width: 900, height: 700 });
       await abrir(page);
       const mov = await page.evaluate(async () => {
         const corpo = document.querySelector<HTMLElement>("[data-testid=evolucao-planilha-corpo]")!;
@@ -107,7 +109,7 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
           return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left) };
         }),
       );
-      expect(caixas.length).toBe(11); // 1 "Todas" + 5 faixas + 5 layouts
+      expect(caixas.length).toBe(9); // 1 "Todas" + 5 faixas + 3 layouts do cliente
       expect(new Set(caixas.map((c) => c.h)).size).toBe(1);
       expect(new Set(caixas.map((c) => c.w)).size).toBe(1);
       await page.getByTestId("evolucao-ferramentas").scrollIntoViewIfNeeded();

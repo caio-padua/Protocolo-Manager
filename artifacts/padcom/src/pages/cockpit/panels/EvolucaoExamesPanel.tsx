@@ -903,6 +903,9 @@ const LAYOUTS: { id: LayoutMode; label: string }[] = [
   { id: "linha", label: "Abaixo da linha" },
 ];
 
+// Na Área do Cliente (coluna estreita) só entram as formas que alinham bem.
+const LAYOUTS_CLIENTE: LayoutMode[] = ["topo", "sanfona", "linha"];
+
 // ============================================================== PAINEL ========
 /**
  * `portalToken` liga o MODO CLIENTE (Área do Cliente): os dados vêm de /api/area-paciente/exames/evolucao,
@@ -1334,7 +1337,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
             <div>
               <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-muted)]">Gráficos</div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
-                {LAYOUTS.map((l) => {
+                {LAYOUTS.filter((l) => !modoCliente || LAYOUTS_CLIENTE.includes(l.id)).map((l) => {
                   const ativo = layout === l.id;
                   return (
                     <button
