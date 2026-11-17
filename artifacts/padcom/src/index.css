@@ -1938,3 +1938,27 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .mj-avatar-finalizado svg, .mj-avatar-braco-a, .mj-avatar-braco-b { animation: none; }
 }
+
+
+/* Evolução de exames: cores da planilha que acompanham o tema.
+   O gráfico (screen-tv-3d) é sempre claro, então volta aos valores claros. */
+:root {
+  --evo-bg: #fbfaf4;
+  --evo-ink: #16294a;
+  --evo-muted: #647c97;
+  --evo-soft: #3a4a63;
+  --evo-faint: #8a97a9;
+}
+.dark {
+  --evo-bg: #163050;
+  --evo-ink: #eaf0f8;
+  --evo-muted: #a9bbd2;
+  --evo-soft: #c6d3e4;
+  --evo-faint: #8fa3bd;
+}
+.screen-tv-3d {
+  --evo-ink: #16294a;
+  --evo-muted: #647c97;
+  --evo-soft: #3a4a63;
+  --evo-faint: #8a97a9;
+}

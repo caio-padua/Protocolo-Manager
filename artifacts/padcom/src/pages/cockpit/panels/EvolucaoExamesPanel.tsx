@@ -50,6 +50,8 @@ import { collabAuthHeaders } from "@/lib/collab-auth";
 // ===========================================================================
 
 const NAVY = "#16294a";
+// Texto que muda com o tema (azul-marinho no claro, quase branco no escuro).
+const INK = "var(--evo-ink)";
 // Botão único das ferramentas: mesma altura e largura (preenche a coluna da grade), texto centralizado
 // e com quebra de linha, independente da frase.
 const BOTAO_FERRAMENTA =
@@ -57,10 +59,10 @@ const BOTAO_FERRAMENTA =
 const MUTED = "#647c97";
 const GOLD = "#b8924d";
 // Pedido do CEO (24/07/2026): coluna congelada SEM "painel" cinza atrás.
-const NOME_BG = "#fbfaf4";
+const NOME_BG = "var(--evo-bg)"; // creme no claro, azul do painel no escuro (index.css)
 // O fundo continua existindo (senão as colunas rolando vazam por baixo),
 // mas na MESMA cor creme do painel — invisível a olho nu.
-const PIN_BG = "#fbfaf4";
+const PIN_BG = "var(--evo-bg)";
 
 // Larguras FIXAS: o cálculo do "grudar" das colunas fixadas depende disso.
 const NAME_W = 200; // coluna do nome (congelada à esquerda)
@@ -262,7 +264,7 @@ function Cela({
       {/* número SEMPRE navy forte e nítido */}
       <span
         className={`whitespace-nowrap ${atual ? "text-[13px] font-black" : "text-[12px] font-bold"}`}
-        style={{ color: NAVY, paddingLeft: temZona ? 6 : 0 }}
+        style={{ color: INK, paddingLeft: temZona ? 6 : 0 }}
       >
         {exibirValor(cell.value)}
       </span>
@@ -353,12 +355,12 @@ function ColunaCabecalho({
       {/* Dia/mês e ano na MESMA fonte e mesmo design; alturas fixas garantem a
           linha horizontal imaginária igual em todas as colunas. */}
       <span
-        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}
+        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[color:var(--evo-ink)]" : "text-[color:var(--evo-soft)]"}`}
       >
         {diaMes(c.date)}
       </span>
       <span
-        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[#16294a]" : "text-[#3a4a63]"}`}
+        className={`flex h-[14px] items-center text-[12px] font-black leading-none ${ultima ? "text-[color:var(--evo-ink)]" : "text-[color:var(--evo-soft)]"}`}
       >
         {ano(c.date)}
       </span>
@@ -410,7 +412,7 @@ function ColunaCabecalho({
         )}
       </span>
 
-      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[#8a97a9]">
+      <span className="mt-0.5 flex h-[11px] items-center text-[8px] font-medium leading-none text-[color:var(--evo-faint)]">
         {c.conferenteName ? (c.confLevel === "c2" ? "Conferido" : "Lançado") : "Aguardando"}
       </span>
       {mostrarPreliminar && (c.confLevel === "ia" || c.confLevel === "c1") && (
@@ -608,11 +610,11 @@ function CartaoGrafico({
             {ordem}
           </span>
           <div>
-            <div className="text-[13px] font-bold leading-tight text-[#16294a]">{analyte.name}</div>
+            <div className="text-[13px] font-bold leading-tight text-[color:var(--evo-ink)]">{analyte.name}</div>
             <div className="flex items-center gap-2">
-              {analyte.unit && <span className="text-[10px] text-[#647c97]">{analyte.unit}</span>}
+              {analyte.unit && <span className="text-[10px] text-[color:var(--evo-muted)]">{analyte.unit}</span>}
               {analyte.refLow && analyte.refHigh && (
-                <span className="text-[10px] text-[#647c97]">
+                <span className="text-[10px] text-[color:var(--evo-muted)]">
                   ref {analyte.refLow}–{analyte.refHigh}
                 </span>
               )}
@@ -624,7 +626,7 @@ function CartaoGrafico({
             type="button"
             onClick={onRemover}
             title="Tirar este gráfico"
-            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[#647c97] hover:text-[#c0392b]"
+            className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[color:var(--evo-muted)] hover:text-[#c0392b]"
             style={{ background: "rgba(22,41,74,0.06)" }}
           >
             <X className="h-3.5 w-3.5" />
@@ -633,7 +635,7 @@ function CartaoGrafico({
       </div>
 
       {data.length === 0 ? (
-        <div className="concave-3d px-3 py-8 text-center text-[12px] text-[#647c97]">
+        <div className="concave-3d px-3 py-8 text-center text-[12px] text-[color:var(--evo-muted)]">
           {exigirConferencia
             ? "Nenhum resultado conferido com valor numérico para este gráfico."
             : "Sem valores numéricos para desenhar o gráfico deste exame."}
@@ -769,29 +771,29 @@ function CartaoGrafico({
       {stats && (
         <div className="mt-2 grid grid-cols-5 gap-1.5">
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Mínimo</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.min.valor)}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.min.data === "—" ? "sem data" : stats.min.data}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Mínimo</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.fmt(stats.min.valor)}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{stats.min.data === "—" ? "sem data" : stats.min.data}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Máximo</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.fmt(stats.max.valor)}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{stats.max.data === "—" ? "sem data" : stats.max.data}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Máximo</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.fmt(stats.max.valor)}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{stats.max.data === "—" ? "sem data" : stats.max.data}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Média</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.media}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">período todo</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Média</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.media}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">período todo</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Variação</span>
-            <span className="text-[12px] font-black leading-tight text-[#16294a]">{stats.variacao ?? "—"}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">desde {stats.desde}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Variação</span>
+            <span className="text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.variacao ?? "—"}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">desde {stats.desde}</span>
           </div>
           <div className="screen-3d flex flex-col items-center px-1 py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">Meta</span>
-            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[#16294a]">{stats.deltaAnterior ?? "—"}</span>
-            <span className="max-w-full truncate text-[7px] font-semibold text-[#647c97]">{data.length} coletas</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">Meta</span>
+            <span className="max-w-full truncate text-[12px] font-black leading-tight text-[color:var(--evo-ink)]">{stats.deltaAnterior ?? "—"}</span>
+            <span className="max-w-full truncate text-[7px] font-semibold text-[color:var(--evo-muted)]">{data.length} coletas</span>
           </div>
         </div>
       )}
@@ -810,22 +812,22 @@ function CartaoGrafico({
         <div className="flex shrink-0 items-stretch gap-1.5">
           {/* VALOR — 82px fixos */}
           <div data-testid="evo-valor-caixa" className="concave-3d flex w-[82px] flex-col items-center justify-center py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">
               {ponteiro ? "no ponto" : "última"}
             </span>
             <span className="flex items-baseline gap-0.5 tabular-nums">
-              <span data-testid="evo-valor" className="text-[15px] font-black leading-tight text-[#16294a]">
+              <span data-testid="evo-valor" className="text-[15px] font-black leading-tight text-[color:var(--evo-ink)]">
                 {pontoAtivo ? String(pontoAtivo.valor).replace(".", ",") : "—"}
               </span>
               {analyte.unit && (
-                <span className="text-[9px] font-semibold text-[#16294a]">{analyte.unit}</span>
+                <span className="text-[9px] font-semibold text-[color:var(--evo-ink)]">{analyte.unit}</span>
               )}
             </span>
           </div>
           {/* DATA — 70px fixos; datas "DD/MM/AA" cabem com um pouco de ar */}
           <div className="concave-3d flex w-[70px] flex-col items-center justify-center py-1.5">
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">data</span>
-            <span data-testid="evo-data" className="text-[11px] font-bold leading-tight text-[#16294a]">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">data</span>
+            <span data-testid="evo-data" className="text-[11px] font-bold leading-tight text-[color:var(--evo-ink)]">
               {pontoAtivo?.data || "—"}
             </span>
           </div>
@@ -843,8 +845,8 @@ function CartaoGrafico({
             className="bevel-3d flex w-[66px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid #b0bec5` }}
           >
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">tendência</span>
-            <span className="text-[11px] font-black capitalize leading-tight text-[#16294a]">
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">tendência</span>
+            <span className="text-[11px] font-black capitalize leading-tight text-[color:var(--evo-ink)]">
               {tend?.rotulo ?? "—"}
             </span>
           </div>
@@ -854,7 +856,7 @@ function CartaoGrafico({
             className="bevel-3d flex w-[80px] shrink-0 flex-col items-center justify-center rounded-[5px] py-1.5"
             style={{ border: `2px solid ${corAtiva}` }}
           >
-            <span className="text-[7px] font-bold uppercase tracking-wide text-[#8a97a9]">situação</span>
+            <span className="text-[7px] font-bold uppercase tracking-wide text-[color:var(--evo-faint)]">situação</span>
             <span className="text-[11px] font-bold uppercase leading-tight" style={{ color: corAtiva }}>
               {rotuloAtivo}
             </span>
@@ -873,7 +875,7 @@ function Toggle({ ligado, onToggle, texto }: { ligado: boolean; onToggle: () => 
       type="button"
       onClick={onToggle}
       aria-pressed={ligado}
-      className="flex items-center gap-2 rounded-[5px] px-1 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
+      className="flex items-center gap-2 rounded-[5px] px-1 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)]"
     >
       {/* Interruptor RETANGULAR (padrão da skill de layout; era redondo) */}
       <span
@@ -1097,7 +1099,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
   if (carregando) {
     return (
-      <div className="flex items-center gap-2 py-6 text-sm text-[#647c97]">
+      <div className="flex items-center gap-2 py-6 text-sm text-[color:var(--evo-muted)]">
         <Loader2 className="h-4 w-4 animate-spin" /> Carregando evolução…
       </div>
     );
@@ -1111,7 +1113,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
         <button
           type="button"
           onClick={() => carregar(clientId)}
-          className="btn-3d-soft rounded px-2 py-1 text-xs font-semibold uppercase text-[#16294a]"
+          className="btn-3d-soft rounded px-2 py-1 text-xs font-semibold uppercase text-[color:var(--evo-ink)]"
         >
           Tentar novamente
         </button>
@@ -1123,10 +1125,10 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
     <div className="bevel-3d flex flex-col gap-3 rounded-md p-4">
       <div className="flex items-center gap-2">
         <FileUp className="h-4 w-4 text-[#45B8CC]" />
-        <span className="text-xs font-bold uppercase tracking-wide text-[#16294a]">Enviar PDF de Exame</span>
+        <span className="text-xs font-bold uppercase tracking-wide text-[color:var(--evo-ink)]">Enviar PDF de Exame</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="btn-3d-soft cursor-pointer rounded px-3 py-1.5 text-xs font-semibold text-[#16294a]">
+        <label className="btn-3d-soft cursor-pointer rounded px-3 py-1.5 text-xs font-semibold text-[color:var(--evo-ink)]">
           {uploadFile ? uploadFile.name.slice(0, 40) : "Selecionar PDF…"}
           <input
             type="file"
@@ -1145,7 +1147,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="inline h-3 w-3 mr-1" />Enviar</>}
         </button>
         {uploadFile && !uploading && (
-          <button type="button" onClick={() => { setUploadFile(null); setUploadMsg(null); }} className="text-xs text-[#647c97] hover:text-red-500">
+          <button type="button" onClick={() => { setUploadFile(null); setUploadMsg(null); }} className="text-xs text-[color:var(--evo-muted)] hover:text-red-500">
             <X className="h-3 w-3" />
           </button>
         )}
@@ -1162,7 +1164,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   if (columnsRaw.length === 0 || analytes.length === 0) {
     return (
       <div className="flex flex-col gap-4 py-4">
-        <p className="text-sm text-[#647c97]">
+        <p className="text-sm text-[color:var(--evo-muted)]">
           {modoCliente
             ? "Ainda não há resultados visíveis nesta evolução. Acompanhe o andamento de cada envio na aba Upload Exames."
             : "Nenhum exame para este cliente ainda."}
@@ -1176,8 +1178,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   const graficos =
     selecionados.length === 0 ? (
       <div className="concave-3d flex flex-col items-center gap-2 px-4 py-10 text-center">
-        <MousePointerClick className="h-6 w-6 text-[#647c97]" />
-        <span className="text-[12px] text-[#647c97]">
+        <MousePointerClick className="h-6 w-6 text-[color:var(--evo-muted)]" />
+        <span className="text-[12px] text-[color:var(--evo-muted)]">
           Clique num exame na planilha para abrir o gráfico aqui. Você pode empilhar vários.
         </span>
       </div>
@@ -1195,9 +1197,9 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                 onClick={() => colapsar(key)}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left"
               >
-                {aberto ? <ChevronDown className="h-4 w-4 text-[#647c97]" /> : <ChevronRight className="h-4 w-4 text-[#647c97]" />}
-                <span className="text-[13px] font-bold text-[#16294a]">{a.name}</span>
-                <span className="ml-auto text-[10px] font-semibold uppercase text-[#647c97]">
+                {aberto ? <ChevronDown className="h-4 w-4 text-[color:var(--evo-muted)]" /> : <ChevronRight className="h-4 w-4 text-[color:var(--evo-muted)]" />}
+                <span className="text-[13px] font-bold text-[color:var(--evo-ink)]">{a.name}</span>
+                <span className="ml-auto text-[10px] font-semibold uppercase text-[color:var(--evo-muted)]">
                   {aberto ? "fechar" : "abrir"}
                 </span>
               </button>
@@ -1244,14 +1246,14 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
   const cabecalhoGraficos = (
     <div className="mb-2 flex items-center justify-between">
-      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+      <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
         Gráficos abertos ({selecionados.length})
       </span>
       {selecionados.length > 0 && (
         <button
           type="button"
           onClick={() => setSelecionados([])}
-          className="text-[10px] font-bold uppercase tracking-wide text-[#647c97] hover:text-[#c0392b]"
+          className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--evo-muted)] hover:text-[#c0392b]"
         >
           Limpar
         </button>
@@ -1262,7 +1264,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
   // ----------------------------- planilha -----------------------------
   const planilha = (
     <section className="panel-3d relative isolate z-0 min-w-0 p-4">
-      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+      <div className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
         <FlaskConical className="h-4 w-4" style={{ color: "#9a7b32" }} /> Exames — Evolução
       </div>
       {temPreliminares && (
@@ -1278,7 +1280,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
       {/* FERRAMENTAS — sanfona: faixas e gráficos. Todos os botões têm o MESMO tamanho (grade de colunas
           iguais, a mesma nos dois painéis, para alinharem na vertical) no celular e no computador. */}
-      <div className="mb-3 border-b border-[#16294a]/10 pb-3" data-testid="evolucao-ferramentas">
+      <div className="mb-3 border-b border-[#16294a]/10 pb-3 dark:border-white/15" data-testid="evolucao-ferramentas">
         <button
           type="button"
           onClick={alternarFerramentas}
@@ -1287,13 +1289,13 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           title={ferramentasAbertas ? "Recolher ferramentas" : "Abrir ferramentas"}
           className="group flex w-full items-center gap-2 rounded-[6px] px-1 py-1 text-left"
         >
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">Ferramentas da planilha</span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">Ferramentas da planilha</span>
           {!ferramentasAbertas && (
-            <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+            <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[color:var(--evo-muted)]">
               {`Faixa: ${zonaAcesa === null ? "todas" : (FAIXAS_POSICAO.find((f) => f.key === zonaAcesa)?.label ?? "—")} · Gráfico: ${LAYOUTS.find((l) => l.id === layout)?.label ?? "—"}`}
             </span>
           )}
-          <span className={`${ferramentasAbertas ? "ml-auto" : ""} concave-3d flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#647c97] transition-colors group-hover:text-[#16294a]`} aria-hidden>
+          <span className={`${ferramentasAbertas ? "ml-auto" : ""} concave-3d flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[color:var(--evo-muted)] transition-colors group-hover:text-[color:var(--evo-ink)]`} aria-hidden>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${ferramentasAbertas ? "rotate-180" : ""}`} />
           </span>
         </button>
@@ -1302,15 +1304,15 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
           <div id="evolucao-ferramentas-corpo" className="mt-2 flex flex-col gap-2">
             {/* PAINEL 1 — FAIXAS DE EXAMES */}
             <div className="concave-3d rounded-[6px] px-3 py-2">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
                 Faixas de Exames
               </div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
                 <button
                   type="button"
                   onClick={() => setZonaAcesa(null)}
-                  className={`${BOTAO_FERRAMENTA} ${zonaAcesa === null ? "btn-3d" : "btn-3d-soft"}`}
-                  style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                  className={`${BOTAO_FERRAMENTA} ${zonaAcesa === null ? "btn-3d ring-1 ring-[#b8924d]" : "btn-3d-soft"}`}
+                  style={zonaAcesa === null ? { background: NAVY, color: "#fff" } : { color: INK }}
                 >
                   Todas
                 </button>
@@ -1321,8 +1323,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                       key={f.key}
                       type="button"
                       onClick={() => setZonaAcesa(ativo ? null : f.key)}
-                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                      style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d ring-1 ring-[#b8924d]" : "btn-3d-soft"}`}
+                      style={ativo ? { background: NAVY, color: "#fff" } : { color: INK }}
                     >
                       {f.label}
                     </button>
@@ -1333,7 +1335,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
 
             {/* PAINEL 2 — GRÁFICOS */}
             <div className="concave-3d rounded-[6px] px-3 py-2">
-              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#16294a]">
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--evo-ink)]">
                 Gráficos
               </div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))" }}>
@@ -1344,8 +1346,8 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                       key={l.id}
                       type="button"
                       onClick={() => setLayout(l.id)}
-                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d" : "btn-3d-soft"}`}
-                      style={ativo ? { background: NAVY, color: "#fff" } : { color: NAVY }}
+                      className={`${BOTAO_FERRAMENTA} ${ativo ? "btn-3d ring-1 ring-[#b8924d]" : "btn-3d-soft"}`}
+                      style={ativo ? { background: NAVY, color: "#fff" } : { color: INK }}
                     >
                       {l.label}
                     </button>
@@ -1355,7 +1357,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
             </div>
 
             {/* INSTRUÇÕES em relevo CÔNCAVO */}
-            <div className="concave-3d flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#647c97]">
+            <div className="concave-3d flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[6px] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--evo-muted)]">
               <span className="flex items-center gap-1">
                 <MousePointerClick className="h-3.5 w-3.5" /> Clique no exame para abrir o gráfico
               </span>
@@ -1425,7 +1427,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                     />
                   );
                 })}
-                <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[#647c97]">
+                <div className="flex w-[92px] shrink-0 items-end justify-center text-[10px] font-bold uppercase tracking-wide text-[color:var(--evo-muted)]">
                   Tendência
                 </div>
               </div>
@@ -1483,9 +1485,9 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                             style={{ background: GOLD, boxShadow: `0 0 6px 1px ${GOLD}` }}
                           />
                         )}
-                        <span className="text-[12px] font-bold leading-tight text-[#16294a]">{a.name}</span>
+                        <span className="text-[12px] font-bold leading-tight text-[color:var(--evo-ink)]">{a.name}</span>
                       </div>
-                      <div className="text-[9px] uppercase tracking-wide text-[#647c97]">
+                      <div className="text-[9px] uppercase tracking-wide text-[color:var(--evo-muted)]">
                         {[a.unit, a.refLow && a.refHigh ? `ref ${a.refLow}–${a.refHigh}` : null]
                           .filter(Boolean)
                           .join(" · ") || "—"}
@@ -1519,7 +1521,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
                         <span className={`text-[9px] font-bold uppercase tracking-wide ${tend.cor}`}>{tend.rotulo}</span>
                       </>
                     ) : (
-                      <span className="text-[10px] font-semibold text-[#647c97]">—</span>
+                      <span className="text-[10px] font-semibold text-[color:var(--evo-muted)]">—</span>
                     )}
                   </div>
                 </div>
@@ -1549,7 +1551,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
         </div>
       </div>
 
-      <p className="mt-4 text-[11px] italic text-[#647c97]">
+      <p className="mt-4 text-[11px] italic text-[color:var(--evo-muted)]">
         {modoCliente
           ? "Resultados marcados PRELIMINAR ainda não foram conferidos pelo médico; faixas, cores e tendência neles são indicativas até a conferência."
           : "Cinco faixas oficiais do IHE por exame: o número fica sempre nítido em azul; a cor da faixa aparece na listinha lateral e no fundo do gráfico. Fixe colunas pelo alfinete para comparar datas distantes; escolha onde os gráficos aparecem no seletor Gráficos. No fim da tela você edita as faixas de cada exame."}
@@ -1595,11 +1597,11 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
       {!modoCliente && (
         <div className="mt-5" data-testid="deex-painel">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wide text-[#16294a]">DEEx — PDF da evolução</span>
+            <span className="text-[11px] font-black uppercase tracking-wide text-[color:var(--evo-ink)]">DEEx — PDF da evolução</span>
             <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("ultimas5", false)} data-testid="deex-ultimas5"
-              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a] disabled:opacity-50">Últimas 5 coletas</button>
+              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)] disabled:opacity-50">Últimas 5 coletas</button>
             <button type="button" disabled={deexBusy} onClick={() => void baixarDeex("completo", false)} data-testid="deex-completo"
-              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a] disabled:opacity-50">Histórico completo</button>
+              className="btn-3d-soft rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)] disabled:opacity-50">Histórico completo</button>
             {deexBusy && <Loader2 className="w-4 h-4 animate-spin" />}
           </div>
           {deexMsg && (
@@ -1618,7 +1620,7 @@ export default function EvolucaoExamesPanel({ clientId, portalToken }: { clientI
         <button
           type="button"
           onClick={() => setMostrarDirecoes((v) => !v)}
-          className="btn-3d-soft flex items-center gap-2 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#16294a]"
+          className="btn-3d-soft flex items-center gap-2 rounded-[6px] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--evo-ink)]"
         >
           {mostrarDirecoes ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           Cadastro de Faixas de TODOS os exames

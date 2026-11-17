@@ -141,3 +141,30 @@ for (const vp of [{ nome: "celular", width: 402, height: 874 }, { nome: "desktop
     });
   });
 }
+
+test("tema escuro: cabeçalho congelado e planilha legíveis (texto claro sobre fundo escuro)", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 700 });
+  await abrir(page);
+  await page.getByRole("button", { name: "Mudar para tema escuro" }).click();
+  await page.getByTestId("evolucao-cabecalho-congelado").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 500));
+  await page.waitForTimeout(400);
+  const m = await page.evaluate(() => {
+    const lum = (c: string) => {
+      const v = (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      return (0.299 * v[0] + 0.587 * v[1] + 0.114 * v[2]) / 255;
+    };
+    const cab = document.querySelector("[data-testid=evolucao-cabecalho-congelado]") as HTMLElement;
+    const rot = cab.querySelector("button[aria-pressed]") as HTMLElement;
+    const nome = Array.from(document.querySelectorAll("[data-testid=evolucao-planilha-corpo] *")).find((e) => /^Analito Sintético 1\d$/.test(e.textContent?.trim() ?? "") && e.children.length === 0) as HTMLElement;
+    return {
+      fundoCab: lum(getComputedStyle(cab).backgroundColor),
+      textoRotulo: lum(getComputedStyle(rot).color),
+      textoNome: lum(getComputedStyle(nome).color),
+    };
+  });
+  expect(m.fundoCab, "fundo do cabeçalho escuro").toBeLessThan(0.3);
+  expect(m.textoRotulo, "rótulo da faixinha claro").toBeGreaterThan(0.7);
+  expect(m.textoNome, "nome do exame claro").toBeGreaterThan(0.7);
+  await page.screenshot({ path: "screenshots/evolucao/escuro-desktop.png" });
+});
