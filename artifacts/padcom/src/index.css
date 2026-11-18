@@ -2100,3 +2100,7 @@ body,
 .comm-raiz { color: hsl(var(--foreground)); }
 .dark .comm-raiz, .dark .comm-raiz .comm-ladrilho { color: #f3ead6; }
 .dark .comm-raiz .text-muted-foreground { color: #b9c3d6; }
+
+/* Exemplo de tela (Manual do Cliente): ilustracao esquematica + alvo com neon dourado */
+.ex-destaque { position: relative; border-radius: 8px; animation: commNeon 3.6s ease-in-out infinite; outline: 2px solid hsl(39 85% 55%); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .ex-destaque { animation: none; box-shadow: 0 0 12px 2px hsl(39 80% 55% / .55); } }

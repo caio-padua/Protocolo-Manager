@@ -21,6 +21,8 @@ import {
   GuiaConfigContext, TELEGRAM_LINKS, detectDevice, registrarEvento, useGuiaConfigLoader,
 } from "./config";
 
+import { ExemploTelaBotao, type TipoExemplo } from "./ExemploTela";
+
 type Aparelho = "iphone" | "android" | "desktop";
 
 // ── Hook TTS — Web Speech API nativa (pt-BR, zero custo) ─────────────────────
@@ -82,7 +84,7 @@ function Divisor() {
   );
 }
 
-function Passo({ n, texto, detalhe }: { n: number; texto: string; detalhe?: string }) {
+function Passo({ n, texto, detalhe, exemplo }: { n: number; texto: string; detalhe?: string; exemplo?: TipoExemplo }) {
   return (
     <div className="flex gap-3 items-start py-3 border-b border-border/25 last:border-0">
       <div className="screen-3d shrink-0 w-9 h-9 flex items-center justify-center text-sm font-black leading-none">{n}</div>
@@ -90,6 +92,7 @@ function Passo({ n, texto, detalhe }: { n: number; texto: string; detalhe?: stri
         <p className="leva-q m-0 text-[1rem] font-semibold text-primary leading-snug">{texto}</p>
         {detalhe && <p className="leva-q m-0 text-[0.9rem] text-muted-foreground leading-relaxed">{detalhe}</p>}
       </div>
+      {exemplo && <ExemploTelaBotao tipo={exemplo} />}
       <BotaoAudio texto={texto} detalhe={detalhe} />
     </div>
   );
@@ -219,6 +222,21 @@ function SecPaxmed() {
   );
 }
 
+/** Tres modelos do icone do Safari, lado a lado, para o CEO escolher (depois fica so um). */
+function SafariModelos() {
+  const base = import.meta.env.BASE_URL;
+  return (
+    <div className="grid grid-cols-3 gap-2 my-3" data-testid="guia-safari-modelos">
+      {(["a", "b", "c"] as const).map((m) => (
+        <div key={m} className="bevel-3d rounded-[6px] grid grid-rows-[96px_24px] justify-items-center items-center py-2">
+          <img src={`${base}safari/safari-${m}.png`} alt={`Ícone do Safari, modelo ${m.toUpperCase()}`} className="w-20 h-20 object-contain" />
+          <span className="text-[11px] font-black uppercase tracking-widest">Modelo {m.toUpperCase()}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho: (a: Aparelho) => void }) {
   const { clinicaNome } = useContext(GuiaConfigContext);
   const abas: { k: Aparelho; r: string; Icon: React.ComponentType<{ className?: string }> }[] = [
@@ -253,11 +271,12 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
       {aparelho === "iphone" && (
         <div data-testid="guia-painel-iphone">
           <Alerta tipo="aviso" texto="No iPhone, a instalação só funciona pelo Safari (ícone de bússola azul). Se estiver em outro navegador, abra o Safari primeiro." />
+          <SafariModelos />
           <Passo n={1} texto="Abra o Safari e acesse o endereço da Área do Cliente:" detalhe="Se a clínica enviou o link, toque nele." />
           <UrlInsert />
-          <Passo n={2} texto="Toque no botão Compartilhar, na barra inferior" detalhe="É um quadrado com uma seta para cima." />
-          <Passo n={3} texto="Role a lista e toque em Adicionar à Tela de Início" />
-          <Passo n={4} texto="Toque em Adicionar, no canto superior direito" />
+          <Passo n={2} texto="Toque no botão Compartilhar, na barra inferior" detalhe="É um quadrado com uma seta para cima." exemplo="iphone-compartilhar" />
+          <Passo n={3} texto="Role a lista e toque em Adicionar à Tela de Início" exemplo="iphone-lista" />
+          <Passo n={4} texto="Toque em Adicionar, no canto superior direito" exemplo="iphone-adicionar" />
           <Alerta tipo="ok" texto={`Pronto. O atalho do PaxMed (${clinicaNome}) aparece na tela inicial.`} />
         </div>
       )}
@@ -265,9 +284,9 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
         <div data-testid="guia-painel-android">
           <Passo n={1} texto="Abra o Chrome e acesse o endereço da Área do Cliente:" detalhe="Se a clínica enviou o link, toque nele." />
           <UrlInsert />
-          <Passo n={2} texto="Toque nos 3 pontinhos, no canto superior direito" />
-          <Passo n={3} texto="Toque em Instalar aplicativo ou em Adicionar à tela inicial" detalhe="O nome da opção muda conforme o aparelho." />
-          <Passo n={4} texto="Confirme em Instalar ou Adicionar" />
+          <Passo n={2} texto="Toque nos 3 pontinhos, no canto superior direito" exemplo="android-menu" />
+          <Passo n={3} texto="Toque em Instalar aplicativo ou em Adicionar à tela inicial" detalhe="O nome da opção muda conforme o aparelho." exemplo="android-instalar" />
+          <Passo n={4} texto="Confirme em Instalar ou Adicionar" exemplo="android-confirma" />
           <Alerta tipo="info" texto="Em outros navegadores (Samsung Internet, Firefox, Edge) o caminho é parecido: menu do navegador e depois Adicionar à tela inicial." />
           <Alerta tipo="ok" texto="Pronto. O atalho do PaxMed aparece na tela inicial." />
         </div>
@@ -276,7 +295,7 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
         <div data-testid="guia-painel-desktop">
           <Passo n={1} texto="No Chrome ou no Edge, acesse o endereço da Área do Cliente:" />
           <UrlInsert />
-          <Passo n={2} texto="Procure o ícone de instalação no fim da barra de endereço" detalhe="Se não aparecer, abra o menu do navegador e procure Instalar ou Salvar e compartilhar." />
+          <Passo n={2} texto="Procure o ícone de instalação no fim da barra de endereço" detalhe="Se não aparecer, abra o menu do navegador e procure Instalar ou Salvar e compartilhar." exemplo="desktop-icone" />
           <Passo n={3} texto="Clique em Instalar" />
           <Alerta tipo="info" texto="Em Firefox ou Safari não há instalação: use o endereço normalmente e salve nos Favoritos (Ctrl+D no Windows, Comando+D no Mac)." />
         </div>
