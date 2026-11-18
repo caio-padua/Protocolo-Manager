@@ -47,6 +47,8 @@ export const clientsTable = pgTable("clients", {
   codigoSemantico: text("codigo_semantico"),
   fichaClinica: jsonb("ficha_clinica").default({}),
   needsReview: boolean("needs_review").notNull().default(false),
+  // Cadastro que representa o celular oficial da empresa/licenca; so o CEO liga (rota /clients/:id/canal-clinica).
+  numeroOficialEmpresa: boolean("numero_oficial_empresa").notNull().default(false),
   deletedAt: timestamp("deleted_at", { withTimezone: true }).default(sql`NULL`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

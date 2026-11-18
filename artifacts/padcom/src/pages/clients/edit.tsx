@@ -3,7 +3,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useGetClient, useUpdateClient, getGetClientQueryKey, getListClientsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
+import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -108,6 +110,35 @@ export default function EditClient() {
   const queryClient = useQueryClient();
   const { data: client, isLoading, isError, error } = useGetClient(id, { query: { enabled: !!id, queryKey: getGetClientQueryKey(id) } });
   const updateClient = useUpdateClient();
+  const canalApi = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
+  const canalQuery = useQuery<{ ativo: boolean; cnpj: string | null; podeAlterar: boolean; empresa?: { nome: string; nomeFantasia: string | null; razaoSocial: string | null; cnpj: string | null; endereco: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null; cep: string | null } | null }>({
+    queryKey: ["cliente-canal-clinica", id],
+    enabled: !!id,
+    retry: false,
+    queryFn: async () => {
+      const r = await fetch(`${canalApi}/clients/${id}/canal-clinica`, { headers: collabAuthHeaders() });
+      if (!r.ok) throw new Error("canal");
+      return r.json();
+    },
+  });
+  const [canalErro, setCanalErro] = useState("");
+  const [canalSalvando, setCanalSalvando] = useState(false);
+  const canalAtivo = canalQuery.data?.ativo === true;
+  // Cadastro marcado como celular oficial da empresa: so os campos de contato (WhatsApp/Telegram) ficam editaveis.
+  const trava = canalAtivo ? "opacity-50 grayscale pointer-events-none select-none" : "";
+  const inertProps = (canalAtivo ? { inert: "" } : {}) as Record<string, unknown>;
+  async function alternarCanal(ativo: boolean) {
+    setCanalErro(""); setCanalSalvando(true);
+    try {
+      const r = await fetch(`${canalApi}/clients/${id}/canal-clinica`, {
+        method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ ativo }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error ?? "Não foi possível alterar.");
+      queryClient.setQueryData(["cliente-canal-clinica", id], j);
+    } catch (e) { setCanalErro((e as Error).message); }
+    finally { setCanalSalvando(false); }
+  }
   const [aba, setAba] = useState<"dados" | "vinculo" | "preferencias" | "endereco" | "midia" | "notas" | "cadastro">("dados");
   const [loadingCep, setLoadingCep] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -307,6 +338,11 @@ export default function EditClient() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight uppercase">EDITAR CLIENTE</h1>
           <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest mt-1">{client.name}</p>
+          {canalAtivo && (
+            <span className="bevel-3d mt-2 inline-flex items-center gap-2 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest" data-testid="canal-clinica-selo">
+              <Building2 className="h-3 w-3 text-primary" /> Canal oficial · {canalQuery.data?.empresa?.nomeFantasia ?? canalQuery.data?.empresa?.nome}
+            </span>
+          )}
         </div>
       </div>
 
@@ -365,6 +401,55 @@ export default function EditClient() {
                     )}
                   />
                   
+                  {canalQuery.data && (
+                    <div className="col-span-full bevel-3d rounded-[6px] px-4 py-3 flex items-start gap-3" data-testid="canal-clinica">
+                      <Switch
+                        checked={canalAtivo}
+                        disabled={!canalQuery.data.podeAlterar || canalSalvando}
+                        onCheckedChange={alternarCanal}
+                        aria-label="Este cadastro é o celular oficial da empresa"
+                        data-testid="canal-clinica-toggle"
+                      />
+                      <div className="space-y-1">
+                        <p className="m-0 text-[11px] font-black uppercase tracking-widest">Celular oficial da empresa (WhatsApp e Telegram)</p>
+                        <p className="m-0 text-xs text-muted-foreground">
+                          Ligue quando este cadastro representa o celular da própria clínica, e não uma pessoa. O CPF continua como está; aparecem o CNPJ e os dados da empresa abaixo. Só os campos de contato ficam editáveis. {canalQuery.data.podeAlterar ? "" : "Somente o CEO pode alterar esta chave."}
+                        </p>
+                        {canalErro && <p role="alert" className="m-0 text-xs font-semibold text-red-700 dark:text-red-300">{canalErro}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {canalAtivo && canalQuery.data?.empresa && (
+                    <div className="col-span-full panel-3d-sub p-4 space-y-3" data-testid="canal-clinica-empresa">
+                      <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2">
+                        <Building2 className="h-3 w-3 text-primary" /> Dados da empresa (somente leitura)
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[["Símbolo", "Símbolo não cadastrado na empresa"], ["Logo", "Logo não cadastrado na empresa"]].map(([rot, vazio]) => (
+                          <div key={rot} className="concave-3d rounded-[6px] p-3 min-h-[64px] flex flex-col justify-center">
+                            <span className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">{rot}</span>
+                            <span className="text-xs text-muted-foreground" data-testid={`canal-clinica-${rot.toLowerCase()}`}>{vazio}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        {([
+                          ["CNPJ", canalQuery.data.empresa.cnpj ?? "CNPJ não cadastrado na empresa", "canal-clinica-cnpj"],
+                          ["Nome da clínica", canalQuery.data.empresa.nome, null],
+                          ["Nome fantasia", canalQuery.data.empresa.nomeFantasia ?? "—", null],
+                          ["Razão social", canalQuery.data.empresa.razaoSocial ?? "—", null],
+                          ["Endereço", [canalQuery.data.empresa.endereco, canalQuery.data.empresa.bairro, canalQuery.data.empresa.cidade && `${canalQuery.data.empresa.cidade}/${canalQuery.data.empresa.estado ?? ""}`, canalQuery.data.empresa.cep].filter(Boolean).join(" · ") || "—", null],
+                        ] as [string, string, string | null][]).map(([rot, val, tid]) => (
+                          <div key={rot} className="concave-3d rounded-[6px] px-3 py-2">
+                            <dt className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">{rot}</dt>
+                            <dd className="m-0 font-semibold" data-testid={tid ?? undefined}>{val}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
+
                   <FormField
                     control={form.control}
                     name="cpf"
@@ -373,7 +458,8 @@ export default function EditClient() {
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">CPF *</FormLabel>
                         <FormControl>
                           <Input
-                            className="field-engraved"
+                            className={`field-engraved ${trava}`}
+                            disabled={canalAtivo}
                             value={field.value}
                             onChange={(e) => field.onChange(formatCPF(e.target.value))}
                           />
@@ -382,7 +468,7 @@ export default function EditClient() {
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="email"
@@ -390,7 +476,7 @@ export default function EditClient() {
                       <FormItem>
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Email *</FormLabel>
                         <FormControl>
-                          <Input type="email" {...field} className="field-engraved" />
+                          <Input type="email" {...field} className={`field-engraved ${trava}`} disabled={canalAtivo} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -422,7 +508,7 @@ export default function EditClient() {
                       <FormItem>
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Data de Nascimento</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} className="field-engraved" />
+                          <Input type="date" {...field} className={`field-engraved ${trava}`} disabled={canalAtivo} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -436,9 +522,9 @@ export default function EditClient() {
                       <FormItem>
                         <FormLabel className="uppercase tracking-widest text-[10px] font-extrabold text-muted-foreground">Status *</FormLabel>
                         <div className="concave-3d p-1">
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={canalAtivo}>
                             <FormControl>
-                              <SelectTrigger className="border-none bg-transparent shadow-none focus:ring-0">
+                              <SelectTrigger className={`border-none bg-transparent shadow-none focus:ring-0 ${trava}`}>
                                 <SelectValue />
                               </SelectTrigger>
                             </FormControl>
@@ -458,7 +544,7 @@ export default function EditClient() {
               </div>
               </div>
 
-              <div className={aba === "vinculo" ? "space-y-8" : "hidden"}>
+              <div className={aba === "vinculo" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <Building2 className="h-3 w-3 text-primary" /> Vínculo
@@ -492,7 +578,7 @@ export default function EditClient() {
               </div>
               </div>
 
-              <div className={aba === "preferencias" ? "space-y-8" : "hidden"}>
+              <div className={aba === "preferencias" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <Crown className="h-3 w-3 text-primary" /> Preferências
@@ -518,7 +604,7 @@ export default function EditClient() {
               <ClientRubricaCard clientId={id} />
               </div>
 
-              <div className={aba === "endereco" ? "space-y-8" : "hidden"}>
+              <div className={aba === "endereco" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <MapPin className="h-3 w-3 text-primary" /> Endereço
@@ -659,7 +745,7 @@ export default function EditClient() {
               </div>
               </div>
 
-              <div className={aba === "notas" ? "space-y-8" : "hidden"}>
+              <div className={aba === "notas" ? `space-y-8 ${trava}` : "hidden"} {...inertProps}>
               <div className="panel-3d-sub p-5 space-y-6 relative overflow-visible">
                 <div className="bevel-3d px-3 py-1.5 uppercase tracking-widest text-[10px] font-extrabold inline-flex items-center gap-2 absolute -top-3 left-4">
                   <Plus className="h-3 w-3 text-primary" /> Adicionais e Notas

@@ -291,6 +291,57 @@ router.get("/clients/visit-preference-options", requireCollaborator, async (req,
 
 // Leitura individual usada pela tela de edição. A identidade e a empresa são
 // verificadas no servidor antes de devolver os dados do cliente.
+async function dadosEmpresaCanal(empresaId: number) {
+  const [e] = await db.select({
+    nome: empresasTable.nome, nomeFantasia: empresasTable.nomeFantasia, razaoSocial: empresasTable.razaoSocial,
+    cnpj: empresasTable.cnpj, endereco: empresasTable.endereco, numero: empresasTable.numero, bairro: empresasTable.bairro,
+    cidade: empresasTable.cidade, estado: empresasTable.estado, cep: empresasTable.cep,
+  }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+  return e ?? null;
+}
+
+// Canal oficial da clinica: marca o cadastro que corresponde ao celular (WhatsApp/Telegram) da empresa.
+// Leitura: qualquer profissional da clinica. Escrita: SOMENTE o CEO (administrador da plataforma).
+// Nao altera nenhum outro campo (nome, CPF, telefone, chat do Telegram, situacao).
+router.get("/clients/:id/canal-clinica", requireClientWriter, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Cliente inválido." }); return; }
+  const empresaId = req.tenantContext.empresaId;
+  const [c] = await db.select({ ativo: clientsTable.numeroOficialEmpresa }).from(clientsTable)
+    .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId))).limit(1);
+  if (!c) { res.status(404).json({ error: "Cliente não encontrado." }); return; }
+  const e = c.ativo ? await dadosEmpresaCanal(empresaId) : null;
+  res.json({ ativo: c.ativo, cnpj: e?.cnpj ?? null, empresa: e, podeAlterar: req.tenantContext.isPlatformOwner === true });
+});
+
+router.put("/clients/:id/canal-clinica", requireClientWriter, async (req, res): Promise<void> => {
+  if (req.tenantContext.isPlatformOwner !== true) {
+    res.status(403).json({ error: "Somente o CEO pode marcar o cadastro como celular oficial da empresa." });
+    return;
+  }
+  const id = Number(req.params.id);
+  const ativo = req.body?.ativo;
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof ativo !== "boolean") {
+    res.status(400).json({ error: "Informe o cliente e ativo (verdadeiro ou falso)." });
+    return;
+  }
+  const empresaId = req.tenantContext.empresaId;
+  try {
+    const [c] = await db.update(clientsTable).set({ numeroOficialEmpresa: ativo })
+      .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId), isNull(clientsTable.deletedAt)))
+      .returning({ ativo: clientsTable.numeroOficialEmpresa });
+    if (!c) { res.status(404).json({ error: "Cliente não encontrado ou removido." }); return; }
+    const e = c.ativo ? await dadosEmpresaCanal(empresaId) : null;
+    res.json({ ativo: c.ativo, cnpj: e?.cnpj ?? null, empresa: e, podeAlterar: true });
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505") {
+      res.status(409).json({ error: "Já existe outro cadastro marcado como celular oficial desta empresa. Desmarque-o primeiro." });
+      return;
+    }
+    throw err;
+  }
+});
+
 router.get("/clients/:id", requireCollaborator, async (req, res): Promise<void> => {
   if (!req.tenantContext?.authenticated || req.tenantContext.professionalId !== req.collaborator?.professionalId) {
     res.status(401).json({ error: "Entre com seu acesso profissional." });

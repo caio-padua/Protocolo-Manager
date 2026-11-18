@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, MessageCircle, Search } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
+import { useListClients } from "@workspace/api-client-react";
+import { PaxterClientSelector } from "@/components/PaxterClientSelector";
 import { getCollabToken } from "@/lib/collab-auth";
 import PortaEntrada from "./PortaEntrada";
 import TelegramPanel from "@/pages/cockpit-cliente/panels/TelegramPanel";
@@ -20,16 +22,19 @@ function quando(iso: string): string {
 }
 
 export default function CentralTelegram() {
-  const [busca, setBusca] = useState("");
   const [soNaoLidas, setSoNaoLidas] = useState(false);
-  const [aberta, setAberta] = useState<Conversa | null>(null);
+  const [abertaId, setAbertaId] = useState<number | null>(null);
+  const { data: clientes } = useListClients();
+  const opcoes = useMemo(
+    () => (clientes ?? []).map((c) => ({ id: c.id, name: c.name, cpf: c.cpf, phone: c.phone, photoUrl: c.photoUrl })),
+    [clientes],
+  );
   const lista = useQuery<{ conversas: Conversa[] }>({
-    queryKey: ["central-telegram", busca, soNaoLidas],
+    queryKey: ["central-telegram", soNaoLidas],
     retry: false,
     refetchInterval: 15_000,
     queryFn: async ({ signal }) => {
       const q = new URLSearchParams();
-      if (busca.trim()) q.set("busca", busca.trim());
       if (soNaoLidas) q.set("naoLidas", "1");
       const r = await fetch(`${api}/telegram-inbox/conversas?${q}`, { signal, headers: { Authorization: `Bearer ${getCollabToken() ?? ""}` } });
       if (!r.ok) throw new Error("Não foi possível carregar as conversas.");
@@ -37,6 +42,9 @@ export default function CentralTelegram() {
     },
   });
   const conversas = lista.data?.conversas ?? [];
+  // Nome sempre da leitura mais recente (lista de conversas ou cadastro), nunca de uma cópia antiga.
+  const abertaNome = abertaId === null ? null
+    : (conversas.find((c) => c.clienteId === abertaId)?.nome ?? opcoes.find((o) => o.id === abertaId)?.name ?? `Cliente ${abertaId}`);
   const visitantes = useQuery<VisitantesResp>({
     queryKey: ["central-telegram-visitantes"],
     retry: false,
@@ -59,23 +67,22 @@ export default function CentralTelegram() {
       <PortaEntrada />
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <section className="panel-3d-sub p-3" aria-label="Conversas">
-          <label className="field-engraved mb-2 flex items-center gap-2 px-2 py-1.5">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente" className="w-full bg-transparent text-sm outline-none" />
-          </label>
+          <div className="mb-2" data-testid="central-seletor-cliente">
+            <PaxterClientSelector clientes={opcoes} value={abertaId} onChange={setAbertaId} />
+          </div>
           <label className="mb-2 flex items-center gap-2 text-xs font-bold">
             <input type="checkbox" checked={soNaoLidas} onChange={(e) => setSoNaoLidas(e.target.checked)} /> Só não lidas
           </label>
           {lista.isLoading && <p className="flex items-center gap-2 p-3 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>}
           {lista.isError && <p role="alert" className="p-3 text-sm font-semibold text-red-700">Não foi possível carregar as conversas. Tente novamente.</p>}
           {!lista.isLoading && !lista.isError && conversas.length === 0 && (
-            <p className="p-3 text-sm text-muted-foreground">Nenhuma conversa{busca || soNaoLidas ? " com este filtro" : " ainda"}.</p>
+            <p className="p-3 text-sm text-muted-foreground">Nenhuma conversa{soNaoLidas ? " com este filtro" : " ainda"}.</p>
           )}
           <ul className="max-h-[70vh] space-y-2 overflow-y-auto">
             {conversas.map((c) => (
               <li key={c.clienteId}>
-                <button type="button" onClick={() => setAberta(c)} aria-pressed={aberta?.clienteId === c.clienteId}
-                  className={`${aberta?.clienteId === c.clienteId ? "bevel-3d" : "btn-3d-soft"} w-full px-3 py-2 text-left`}>
+                <button type="button" onClick={() => setAbertaId(c.clienteId)} aria-pressed={abertaId === c.clienteId}
+                  className={`${abertaId === c.clienteId ? "bevel-3d" : "btn-3d-soft"} w-full px-3 py-2 text-left`}>
                   <span className="flex items-center justify-between gap-2">
                     <strong className="truncate text-sm">{c.nome}</strong>
                     {c.naoLidas > 0 && <span className="rounded-full bg-[#b8924d] px-2 text-[10px] font-black text-white">{c.naoLidas}</span>}
@@ -88,10 +95,10 @@ export default function CentralTelegram() {
           </ul>
         </section>
         <section className="panel-3d-sub min-h-[320px] p-3" aria-label="Conversa aberta">
-          {aberta ? (
+          {abertaId !== null ? (
             <>
-              <h2 className="mb-2 text-lg font-black">{aberta.nome}</h2>
-              <TelegramPanel key={aberta.clienteId} clientId={aberta.clienteId} />
+              <h2 className="mb-2 text-lg font-black" data-testid="central-conversa-titulo">{abertaNome}</h2>
+              <TelegramPanel key={abertaId} clientId={abertaId} />
             </>
           ) : (
             <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><MessageCircle className="h-4 w-4" /> Escolha uma conversa na lista.</p>
