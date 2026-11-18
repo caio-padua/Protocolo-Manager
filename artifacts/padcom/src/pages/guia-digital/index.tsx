@@ -225,11 +225,20 @@ function SecPaxmed() {
 /** Icone oficial escolhido do Safari (modelo A), com linha fina de contorno para destacar do fundo claro. */
 function SafariIcone() {
   const base = import.meta.env.BASE_URL;
+  const destino = `${window.location.origin}${base}area`;
   return (
     <div className="flex items-center justify-center my-3" data-testid="guia-safari-icone">
-      <img src={`${base}safari/safari-a.png`} alt="Ícone do Safari: bússola azul com ponteiro vermelho"
-        className="w-20 h-20 object-contain rounded-[22.5%]"
-        style={{ boxShadow: "0 0 0 1px rgba(22,40,74,0.55)" }} />
+      <a href={destino} target="_blank" rel="noreferrer" aria-label="Toque para abrir a Área do Cliente"
+        data-testid="guia-safari-botao"
+        className="bevel-3d relative flex items-center justify-center w-[104px] h-[104px] rounded-[10px] overflow-hidden no-underline active:translate-y-px"
+        style={{
+          background: "linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(243,236,221,0.65) 100%)",
+          boxShadow: "inset 0 1px 0 #fff, inset 3px 0 4px -2px rgba(255,255,255,0.9), inset -3px 0 4px -2px rgba(22,40,74,0.25), 0 6px 14px rgba(22,40,74,0.28)",
+        }}>
+        <span aria-hidden className="absolute inset-x-0 top-0 h-[42%] pointer-events-none" style={{ background: "rgba(255,255,255,0.45)" }} />
+        <img src={`${base}safari/safari-a.png`} alt="Ícone do Safari: bússola azul com ponteiro vermelho"
+          className="relative w-20 h-20 object-contain rounded-[22.5%]" />
+      </a>
     </div>
   );
 }
