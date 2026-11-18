@@ -21,11 +21,12 @@ h1{font-size:20px;color:#d4af37;text-align:center}h2{font-size:13px;color:#d4af3
 </div>
 <div class="n">Corpo Clinico agendavel<small>medicos, enfermagem, recepcao, administrativo, financeiro</small></div>
 
-<h2>2. Clinicas externas (opcional)</h2>
+<h2>2. Clinicas externas cadastradas (opcional)</h2>
 <div class="r">
- <div class="n x">Clinica externa A<small>ex.: Consultorio Jardins - endereco proprio</small></div>
- <div class="n x">Clinica externa B<small>ex.: Consultorio Sao Miguel Paulista - endereco proprio</small></div>
+ <div class="n x">Clinica externa A<small>ex.: Consultorio Jardins - CNPJ proprio, endereco proprio</small></div>
+ <div class="n x">Clinica externa B<small>ex.: Consultorio Sao Miguel Paulista - CNPJ proprio, endereco proprio</small></div>
 </div>
+<div class="n x">Cadastrada dentro da sede (aba Locais externos), com CNPJ proprio<small>a sede apenas SUBLOCA o espaco; a clinica externa nao vira empresa nem filial do sistema, nao tem login nem carteira propria</small></div>
 <div class="n">O dono libera um profissional seu para atender na clinica externa, usando o agendamento do sistema<small>a liberacao e decisao do dono, profissional por profissional</small></div>
 
 <h2>3. Agenda (Agenda Configuracao) = categoria profissional + FORMA de atendimento</h2>
@@ -38,5 +39,6 @@ h1{font-size:20px;color:#d4af37;text-align:center}h2{font-size:13px;color:#d4af3
 </div>
 
 <div class="leg"><b>Regra de conceito:</b> Sede, Local externo, Online e Home Care sao FORMAS de atendimento, nao locais. A agenda e criada por forma. O LOCAL e uma variavel que cada forma pode ter: na forma Local externo, o local e uma clinica externa escolhida entre as cadastradas; na Sede, o endereco da clinica; no Home Care, o endereco do cliente; no Online, nenhum.<br>
+<b>Clinica externa:</b> e o espaco sublocado por um consultorio de outro CNPJ. Fica cadastrada na sede, com os dados do CNPJ dela, e serve de local para a forma Local externo. Pode atender ali um medico da equipe ou o proprio dono.<br>
 <b>Pessoa, agenda, forma e local sao quatro coisas diferentes</b> e nenhuma e deduzida da outra. Mesma pessoa, duas entidades: dono (cadastro 27) e medico (cadastro 6).</div>
 </body></html>

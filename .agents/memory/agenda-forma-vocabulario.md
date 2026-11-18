@@ -19,3 +19,4 @@ CEO insistiu (11/11/2026): agenda NUNCA se chama "local" na tela (aba do cadastr
 **How to apply:** manter estes quatro rótulos e preservar os valores legados; não migrar dados existentes nem confundir a disponibilidade do profissional com o estado da empresa.
 
 **Organograma (18/11/2026, CEO bateu na mesma tecla):** Sede/Local externo/Online/Home Care são FORMAS, nunca "locais". Local é variável por forma (Local externo = clínica externa cadastrada; Sede = endereço da clínica; Home Care = endereço do cliente; Online = nenhum). Uma clínica sede pode ter clínicas externas; o dono libera profissional para atender nelas pela agenda do sistema.
+Clínica externa (CEO 18/11/2026): cadastrada DENTRO da sede (aba Locais externos), com CNPJ próprio, porque a sede apenas sublocou o espaço; NÃO é empresa/filial do sistema (sem login, sem carteira própria). Atende ali médico da equipe ou o próprio dono.
