@@ -434,7 +434,7 @@ function MiniQRHeader({ url }: { url: string }) {
 
 const SECOES = [
   { id: "sec-paxmed", key: "paxmed", icon: Sparkles, titulo: "O PaxMed para você", subtitulo: "O que é e o que ele não é" },
-  { id: "sec-instalar", key: "instalar", icon: Smartphone, titulo: "Instalar o atalho", subtitulo: "iPhone, Android ou computador" },
+  { id: "sec-instalar", key: "instalar", icon: Smartphone, titulo: "Instalar o App PaxMed", subtitulo: "iPhone, Android ou computador" },
   { id: "sec-entrar", key: "entrar", icon: LogIn, titulo: "Entrar na Área", subtitulo: "CPF com data de nascimento ou senha" },
   { id: "sec-telegram", key: "telegram", icon: MessageCircle, titulo: "Ativar o Telegram", subtitulo: "Link individual, de uso único" },
   { id: "sec-modulos", key: "modulos", icon: LayoutGrid, titulo: "O que a Área oferece", subtitulo: "Recursos que existem hoje" },
@@ -497,7 +497,7 @@ export default function GuiaDigital() {
   const guiaUrl = window.location.href;
   const nomeClinica = config.identidade === "ok" ? config.clinicaNome : "";
   const resumo =
-    "Manual do Cliente PaxMed. Aqui você aprende a instalar o atalho, entrar na Área do Cliente e ativar o Telegram pelo seu link individual. O Telegram não é canal de emergência. Em urgência, ligue 192.";
+    "Manual do Cliente PaxMed. Aqui você aprende a instalar o App PaxMed, entrar na Área do Cliente e ativar o Telegram pelo seu link individual. O Telegram não é canal de emergência. Em urgência, ligue 192.";
 
   return (
     <GuiaConfigContext.Provider value={config}>
