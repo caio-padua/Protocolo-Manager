@@ -31,6 +31,7 @@ import { ChaveOuro } from "@/components/ui/chave-ouro";
 import { BarraGrupo } from "@/components/ui/barra-grupo";
 import { JanelaDado } from "@/components/ui/janela-dado";
 import { LocaisExternosAba } from "@/components/empresa/LocaisExternosAba";
+import { ResponsavelEmpresaAba } from "@/components/empresa/ResponsavelEmpresaAba";
 
 const apiBase = import.meta.env.VITE_API_URL || "/api";
 
@@ -213,7 +214,7 @@ const EMPTY: FormValues = {
   googleCalendarId: "", googleDriveFolderId: "",
 };
 
-const ABAS_VALIDAS = ["ident", "classificacao", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos", "locais-externos"];
+const ABAS_VALIDAS = ["ident", "classificacao", "marca-documento", "fiscal", "end", "referencias", "nfe", "integ", "contratos", "locais-externos", "resp-empresarial", "resp-medico"];
 
 // ── Labels de referência ───────────────────────────────────────────────────────
 const TIPO_LABELS: Record<string, string> = {
@@ -286,6 +287,8 @@ const ABAS_EMPRESA: ItemTrilho[] = [
   { value: "fiscal", label: "Fiscal e CNAE", grupo: "fiscal" },
   { value: "nfe", label: "Notas fiscais", grupo: "fiscal" },
   { value: "referencias", label: "Origem", grupo: "fiscal" },
+  { value: "resp-empresarial", label: "Responsável empresarial", grupo: "responsaveis" },
+  { value: "resp-medico", label: "Responsável médico", grupo: "responsaveis" },
   { value: "integ", label: "Integrações", grupo: "sistema" },
   { value: "contratos", label: "Contratos", grupo: "sistema" },
   { value: "locais-atendimento", label: "Agendas", grupo: "locais" },
@@ -1997,11 +2000,22 @@ export default function CadastroEmpresas() {
                   )}
                 </TabsContent>
 
+                {/* ── ABAS: RESPONSÁVEIS (empresarial = dono; médico = responsável técnico) ── */}
+                {(["resp-empresarial", "resp-medico"] as const).map((v) => (
+                  <TabsContent key={v} value={v} className="flex-1 overflow-y-auto px-6 py-4 mt-0">
+                    {!editingId ? (
+                      <p className="concave-3d p-4 text-xs">Salve a empresa primeiro e depois abra sua edição para definir os responsáveis.</p>
+                    ) : (
+                      <ResponsavelEmpresaAba key={`${editingId}-${v}`} empresaId={editingId} funcao={v === "resp-medico" ? "medico" : "empresarial"} />
+                    )}
+                  </TabsContent>
+                ))}
+
               </Tabs>
 
               {/* Rodapé fixo com botões */}
               <div className="flex justify-end gap-2 px-6 py-3 border-t border-border/40 shrink-0" data-testid="empresa-dialogo-rodape">
-                {activeFormTab === "locais-externos" || activeFormTab === "locais-atendimento" ? (
+                {activeFormTab === "locais-externos" || activeFormTab === "locais-atendimento" || activeFormTab === "resp-empresarial" || activeFormTab === "resp-medico" ? (
                   // Estas abas não usam o salvar da empresa (externos têm botão próprio); aqui só fecha a janela.
                   <Button type="button" className="btn-3d-soft" onClick={() => handleFormOpen(false)}>FECHAR</Button>
                 ) : (

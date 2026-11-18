@@ -117,7 +117,7 @@ export async function resolveClinicalEmitter(req: Request, clientId: unknown) {
   const identity = validateClinicalIdentity(await loadClinicalRecords(req, clientId));
   // Interruptor "Profissional Médico" do CEO: desligado = o cadastro médico do CEO não emite.
   if (!(await medicoDoCeoPodeEmitir(identity.professional.id))) {
-    throw new ClinicalIdentityError(403, "O Profissional Médico do CEO está desativado. Ative o interruptor em Identidade do CEO para emitir documentos.");
+    throw new ClinicalIdentityError(403, "O Profissional Médico do CEO está desativado. Ative o interruptor em CEO da Pax Med para emitir documentos.");
   }
   return identity;
 }

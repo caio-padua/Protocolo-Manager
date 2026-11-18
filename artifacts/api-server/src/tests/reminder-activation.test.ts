@@ -13,8 +13,11 @@ vi.mock("@workspace/db", async () => {
       { nome: "Fórmula sintética", posologia: "ditado manual", posologiaManual: true },
     ] }], horariosEnvio: ["07:00"] });
   return { ...schema, db: {
-    select: () => ({ from: () => {
-      const chain: any = { then: (yes: any, no: any) => Promise.resolve([row()]).then(yes, no) };
+    select: () => ({ from: (table: unknown) => {
+      // Sessão real do colaborador: a rota revalida o profissional no banco antes de qualquer autorização.
+      const data = table === schema.professionalsTable
+        ? [{ id: 41, role: "executor", active: true, credentialVersion: 0 }] : [row()];
+      const chain: any = { then: (yes: any, no: any) => Promise.resolve(data).then(yes, no) };
       chain.where = chain.innerJoin = chain.orderBy = chain.limit = () => chain;
       return chain;
     } }),

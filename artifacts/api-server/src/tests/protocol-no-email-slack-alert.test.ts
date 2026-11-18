@@ -56,6 +56,7 @@ vi.mock("@workspace/db", () => {
     protocolEmissoesTable:       makeT("protocol_emissoes"),
     locationProfessionalsTable:  makeT("location_professionals"),
     locationsTable:              makeT("locations"),
+    empresasTable:               makeT("empresas"),
     pool: { query: vi.fn().mockResolvedValue(undefined) },
   };
 });
@@ -222,6 +223,7 @@ function makeDbChain(client: typeof CLIENT_SEM_EMAIL) {
     assinatura_solicitacoes: [],
     assinatura_templates:   [],
     protocol_emissoes:      [],
+    empresas:               [{ id: 5, nome: "Instituto Pádua", ativa: true }],
   };
 
   function chain(data: any[]): any {
@@ -258,7 +260,8 @@ function buildApp() {
 
 function setupFor(client: typeof CLIENT_SEM_EMAIL) {
   integracaoDeIdentidade.ativa = false;
-  FAKE_PROTOCOL.professionalId = null;
+  // A rota exige médico responsável vinculado ao protocolo (409 sem ele); o do cenário é o profissional 1.
+  FAKE_PROTOCOL.professionalId = 1;
   vi.clearAllMocks();
   vi.mocked(db.select).mockReturnValue(makeDbChain(client) as any);
   vi.mocked(db.insert).mockReturnValue(makeInsertChain() as any);
@@ -369,7 +372,9 @@ describe("proteção real de autoria nas quatro rotas de protocolo", () => {
     FAKE_PROTOCOL.professionalId = responsavel;
     const response = await request(buildApp())[method](`/api/protocols/55/${route}`)
       .set("Authorization", "Bearer fake-token");
-    expect(response.status).toBe(403);
+    // Sem responsável, a prévia do documento recusa antes da guarda de autoria (409); as demais recusam com 403.
+    const semResponsavelNaPrevia = method === "get" && route === "document-pdf" && responsavel === null;
+    expect(response.status).toBe(semResponsavelNaPrevia ? 409 : 403);
     expect(slackLib.postSlackAlert).not.toHaveBeenCalled();
     expect(pdfSigner.generateProtocolDocumentPdf).not.toHaveBeenCalled();
     expect(pdfSigner.generatePhysicalRASPdf).not.toHaveBeenCalled();

@@ -114,6 +114,7 @@ const INVENTARIO: Record<string, Classe> = {
   "POST /exames-lab/documento/:docId/clonar-drive": "documento",
   "POST /exames-lab/demo-conversao": "sessao",
   "GET /exames-lab/monitor": "sessao",
+  "GET /exames-lab/progresso": "cliente",
   "POST /exames-lab/recovery": "sessao",
   "GET /exames-lab/documento/:id/download": "documento",
   "GET /exames-lab/documento/:id/links": "documento",
@@ -241,6 +242,12 @@ describe("vazamento de conteúdo entre clínicas (leitura)", () => {
     expect(JSON.stringify(aud.body)).not.toContain("laudo-cinco.pdf");
     const monCinco = await send("GET", "/api/exames-lab/monitor", H(101));
     expect(JSON.stringify(monCinco.body)).toContain("erro-cinco.pdf");
+  });
+  it("progresso por documento: exige login, valida o cliente e nega cliente de outra clínica", async () => {
+    expect((await send("GET", "/api/exames-lab/progresso?clientId=1")).status).toBe(401);
+    expect((await send("GET", "/api/exames-lab/progresso", H(101))).status).toBe(400);
+    expect((await send("GET", "/api/exames-lab/progresso?clientId=1", H(201))).status).toBe(404);
+    expect((await send("GET", "/api/exames-lab/progresso?clientId=1", H(101))).status).toBe(200);
   });
   it("com filtro por cliente de outra clínica => 404", async () => {
     expect((await send("GET", "/api/exames-lab/documentos?clientId=1", H(201))).status).toBe(404);

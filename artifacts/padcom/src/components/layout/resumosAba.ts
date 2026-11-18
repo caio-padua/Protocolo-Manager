@@ -84,7 +84,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/configuracoes/certificados": "Certificados de assinatura",
   "/configuracoes/assinatura": "Assinatura eletrônica de documentos",
   "/configuracoes/pagamentos": "Formas de receber",
-  "/configuracoes/medico": "Identidade do CEO e profissional médico",
+  "/configuracoes/medico": "CEO da Pax Med e profissional médico",
   "/professionals?selfAccess=1": "Seus dados e acesso",
   "/configuracoes/receituario": "Faixas do receituário",
   "/modelo-receituario": "Aparência do receituário",

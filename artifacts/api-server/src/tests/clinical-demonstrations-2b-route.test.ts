@@ -73,7 +73,10 @@ describe("Demonstração clínica usa a empresa autorizada", () => {
     expect(response.status).toBe(201);
     expect(state.getIdentity).toHaveBeenCalledWith(state.identity.clinic.empresaId);
     const motor = kind === "prescricao" ? state.prescription : state.examination;
-    expect(motor.mock.calls[0][0]).toMatchObject({ modelo2bProva: true, identidade2bProva: state.visual, homologacao: true });
+    // Exames usam o modelo 2B de prova; a prescrição usa o modelo clínico atual (Grand Finale) com a identidade da clínica.
+    expect(motor.mock.calls[0][0]).toMatchObject(kind === "prescricao"
+      ? { modeloGrandFinaleClinico: true, identidade2bClinica: state.visual, homologacao: true }
+      : { modelo2bProva: true, identidade2bProva: state.visual, homologacao: true });
     if (kind === "prescricao") {
       expect(motor.mock.calls[0][0]).not.toHaveProperty("designerConfig");
       expect(motor.mock.calls[0][0]).not.toHaveProperty("bandModel");

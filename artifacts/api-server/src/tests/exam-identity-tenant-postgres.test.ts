@@ -92,6 +92,7 @@ beforeAll(async () => {
   await pool.query(`CREATE TABLE direcao_favoravel_exame (nome_exame text primary key, direcao_favoravel text)`);
   await pool.query(`CREATE TABLE drive_watcher_files (file_id text primary key, exam_document_id int, processed_at timestamptz, original_name text, renamed_to text, copied_drive_id text, copied_name text)`);
   await (await import("../lib/ensure-exam-identity-schema")).ensureExamIdentitySchema();
+  await (await import("../lib/ensure-exam-marcos-schema")).ensureExamMarcosSchema();
 
   await pool.query(`INSERT INTO empresas (id, nome) VALUES (5,'Clínica Cinco'),(6,'Clínica Seis')`);
   await pool.query(`INSERT INTO professionals (id, name, empresa_id, category, role, professional_type, crm, registration_council, active, credential_version) VALUES

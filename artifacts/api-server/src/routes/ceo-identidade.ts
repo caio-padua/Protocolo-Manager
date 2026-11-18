@@ -65,6 +65,13 @@ router.get("/ceo/identidade/foto", requireCollaborator, async (req, res): Promis
   await enviarFotoCeo(ceo.fotoPath, res);
 });
 
+// Foto PRÓPRIA do CEO, sempre (as duas molduras ficam lado a lado na tela).
+router.get("/ceo/identidade/foto-ceo", requireCollaborator, async (req, res): Promise<void> => {
+  if (donoDaPlataforma(req, res) === null) return;
+  res.setHeader("Cache-Control", "private, no-store");
+  await enviarFotoCeo((await lerCeoIdentidade()).fotoPath, res);
+});
+
 router.get("/ceo/identidade/foto-medico", requireCollaborator, async (req, res): Promise<void> => {
   if (donoDaPlataforma(req, res) === null) return;
   const ceo = await lerCeoIdentidade();
@@ -165,6 +172,52 @@ router.put("/ceo/clinicas-responsaveis/:empresaId", requireCollaborator, async (
   if ((antes?.adm ?? null) !== novo.adm) await db.execute(sql`INSERT INTO empresa_responsaveis_auditoria (empresa_id, funcao, antes, depois, por) VALUES (${empresaId}, 'administrador', ${antes?.adm ?? null}, ${novo.adm}, ${por})`);
   if ((antes?.rt ?? null) !== novo.rt) await db.execute(sql`INSERT INTO empresa_responsaveis_auditoria (empresa_id, funcao, antes, depois, por) VALUES (${empresaId}, 'responsavel_tecnico', ${antes?.rt ?? null}, ${novo.rt}, ${por})`);
   res.json({ ok: true });
+});
+
+// ── Cadastro de cada empresa: Responsável médico (técnico) e Responsável empresarial (proprietário/administrador) ──
+async function responsavelDetalhe(profissionalId: number | null) {
+  if (!profissionalId) return null;
+  const [p] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, profissionalId)).limit(1);
+  if (!p) return null;
+  return {
+    id: p.id, nome: p.name, tipo: p.professionalType, crm: p.registrationNumber ?? p.crm ?? null, especialidade: p.specialty ?? null,
+    cpfFinal: p.cpf ? String(p.cpf).replace(/\D/g, "").slice(-4) : null, temFoto: !!p.photoUrl, ativo: !!p.active,
+  };
+}
+
+async function responsaveisDaEmpresa(empresaId: number) {
+  const r = (await db.execute(sql`SELECT administrador_professional_id AS adm, responsavel_tecnico_professional_id AS rt FROM empresa_responsaveis WHERE empresa_id = ${empresaId}`))
+    .rows[0] as { adm: number | null; rt: number | null } | undefined;
+  return { adm: r?.adm ?? null, rt: r?.rt ?? null };
+}
+
+router.get("/ceo/empresas/:empresaId/responsaveis", requireCollaborator, async (req, res): Promise<void> => {
+  if (donoDaPlataforma(req, res) === null) return;
+  const empresaId = Number(req.params.empresaId);
+  if (!Number.isSafeInteger(empresaId)) { res.status(400).json({ error: "Empresa inválida." }); return; }
+  const emp = await db.execute(sql`SELECT id, nome FROM empresas WHERE id = ${empresaId}`);
+  if (!emp.rows[0]) { res.status(404).json({ error: "Empresa não encontrada." }); return; }
+  const { adm, rt } = await responsaveisDaEmpresa(empresaId);
+  const ceoMed = (await lerCeoIdentidade()).medicoProfessionalId;
+  const p = await db.execute(sql`SELECT id, name, professional_type FROM professionals WHERE active AND (empresa_id = ${empresaId} OR id = ${ceoMed}) ORDER BY name`);
+  res.json({
+    empresaId,
+    responsavelEmpresarial: await responsavelDetalhe(adm),
+    responsavelMedico: await responsavelDetalhe(rt),
+    candidatos: (p.rows as Array<{ id: number; name: string; professional_type: string }>).map(x => ({ id: x.id, nome: x.name, tipo: x.professional_type })),
+  });
+});
+
+router.get("/ceo/empresas/:empresaId/responsaveis/:funcao/foto", requireCollaborator, async (req, res): Promise<void> => {
+  if (donoDaPlataforma(req, res) === null) return;
+  const empresaId = Number(req.params.empresaId);
+  const funcao = req.params.funcao;
+  if (!Number.isSafeInteger(empresaId) || (funcao !== "medico" && funcao !== "empresarial")) { res.status(400).json({ error: "Pedido inválido." }); return; }
+  const { adm, rt } = await responsaveisDaEmpresa(empresaId);
+  const f = await carregarFotoProfissional(funcao === "medico" ? rt : adm);
+  if (!f) { res.status(404).json({ error: "Sem foto cadastrada." }); return; }
+  res.setHeader("Cache-Control", "private, no-store");
+  res.type(f.formato === "png" ? "png" : "jpeg").send(f.bytes);
 });
 
 export default router;

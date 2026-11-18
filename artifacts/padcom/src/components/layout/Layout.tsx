@@ -256,7 +256,7 @@ const navigation: NavEntry[] = [
       { name: "Certificados Digitais", href: "/configuracoes/certificados", icon: ShieldCheck },
       { name: "Assinatura Eletrônica (ZapSign)", href: "/configuracoes/assinatura", icon: PenTool },
       { name: "Portas de Pagamento", href: "/configuracoes/pagamentos", icon: CreditCard },
-      { name: "Identidade do CEO", href: "/configuracoes/medico", icon: Stethoscope },
+      { name: "CEO da Pax Med", href: "/configuracoes/medico", icon: Stethoscope },
       { name: "Perfil do Administrador", href: "/professionals?selfAccess=1", icon: UserRound },
       { name: "Faixas do Receituário", href: "/configuracoes/receituario", icon: LayoutTemplate },
       { name: "Modelo de Receituários", href: "/modelo-receituario", icon: LayoutTemplate },

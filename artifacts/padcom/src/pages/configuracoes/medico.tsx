@@ -11,10 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { SettingsPanel, FieldRow } from "@/components/settings/SettingsUI";
-import { getCollabToken } from "@/lib/collab-auth";
+import { baixarFoto, ceoApi as api } from "@/lib/ceo-api";
 import { usePermissoes } from "@/lib/permissoes";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface Identidade {
   medicoAtivo: boolean;
@@ -27,31 +25,26 @@ interface Clinicas {
   profissionais: Array<{ id: number; nome: string; tipo: string; empresaId: number | null }>;
 }
 
-function authHeaders(): Record<string, string> {
-  const token = getCollabToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+type Destaque = "ouro" | "pulso" | null;
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${BASE}/api${path}`, { ...init, headers: { ...authHeaders(), ...(init?.headers ?? {}) }, cache: "no-store" });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}));
-    throw new Error((e as { error?: string }).error ?? "Falha na operação.");
-  }
-  return r.json() as Promise<T>;
-}
-
-async function baixarFoto(path: string): Promise<string | null> {
-  const r = await fetch(`${BASE}/api${path}`, { headers: authHeaders(), cache: "no-store" });
-  if (!r.ok) return null;
-  return URL.createObjectURL(await r.blob());
-}
-
-function Retrato({ url, vazio }: { url: string | null; vazio: string }) {
+/** Moldura com sinalização. O brilho vive num elemento próprio (não no retrato 3D) para não apagar o relevo. */
+function Retrato({ url, vazio, destaque, legenda, estado }: { url: string | null; vazio: string; destaque: Destaque; legenda: string; estado: string }) {
+  const anel = destaque === "ouro"
+    ? "ring-2 ring-amber-400 shadow-[0_0_22px_4px_rgba(251,191,36,0.55)]"
+    : destaque === "pulso"
+      ? "ring-2 ring-sky-400 shadow-[0_0_26px_6px_rgba(56,189,248,0.55)] animate-pulse"
+      : "";
   return (
-    <div className="concave-3d w-[120px] h-[150px] p-1.5 flex items-center justify-center overflow-hidden shrink-0">
-      {url ? <img src={url} alt="" className="w-full h-full object-cover rounded-[6px]" />
-        : <p className="text-xs text-muted-foreground text-center px-2">{vazio}</p>}
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative">
+        <div aria-hidden className={`pointer-events-none absolute -inset-1.5 rounded-[12px] transition-all duration-500 ${anel}`} />
+        <div className={`concave-3d relative w-[130px] h-[165px] p-1.5 flex items-center justify-center overflow-hidden shrink-0 transition-opacity duration-500 ${destaque ? "" : "opacity-60"}`}>
+          {url ? <img src={url} alt={legenda} className="w-full h-full object-cover rounded-[6px]" />
+            : <p className="text-xs text-muted-foreground text-center px-2">{vazio}</p>}
+        </div>
+      </div>
+      <p className="text-xs font-bold uppercase tracking-wide">{legenda}</p>
+      <p className={`text-[11px] font-semibold ${destaque ? "text-amber-600" : "text-muted-foreground"}`}>{estado}</p>
     </div>
   );
 }
@@ -72,7 +65,7 @@ export default function IdentidadeCeo() {
     try {
       const dados = await api<Identidade>("/ceo/identidade");
       setId(dados);
-      const [fc, fm] = await Promise.all([baixarFoto("/ceo/identidade/foto"), baixarFoto("/ceo/identidade/foto-medico")]);
+      const [fc, fm] = await Promise.all([baixarFoto("/ceo/identidade/foto-ceo"), baixarFoto("/ceo/identidade/foto-medico")]);
       setFotoCeo((a) => { if (a) URL.revokeObjectURL(a); return fc; });
       setFotoMedico((a) => { if (a) URL.revokeObjectURL(a); return fm; });
       setClin(await api<Clinicas>("/ceo/clinicas-responsaveis"));
@@ -132,7 +125,7 @@ export default function IdentidadeCeo() {
       <div className="max-w-2xl mx-auto panel-3d p-6 flex items-start gap-3 text-red-600">
         <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
         <div>
-          <p className="font-semibold">Não foi possível carregar a identidade do CEO</p>
+          <p className="font-semibold">Não foi possível carregar a CEO da Pax Med</p>
           <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => void carregar()}>
             <RefreshCw className="w-4 h-4" /> Tentar novamente
           </Button>
@@ -149,25 +142,32 @@ export default function IdentidadeCeo() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <header>
-        <h1 className="text-2xl font-bold tracking-tight">Identidade do CEO da PaxMed</h1>
+        <h1 className="text-2xl font-bold tracking-tight">CEO da Pax Med</h1>
         <p className="text-sm text-muted-foreground mt-1">
           O CEO é a entidade empresarial dona do sistema. Os documentos clínicos saem sempre no nome do médico que fez o login.
         </p>
       </header>
 
-      <SettingsPanel icon={Building2} title="CEO da PaxMed (entidade empresarial)">
-        <div className="flex gap-4 items-start">
-          <Retrato url={fotoCeo} vazio="Sem foto" />
-          <div className="space-y-3 min-w-0">
-            <p className="text-sm" data-testid="foto-exibida">
-              {id.fotoExibida === "medico"
-                ? "Interruptor ligado: a foto exibida é a do médico (Dr. Caio) importado."
-                : "Interruptor desligado: a foto exibida é a do CEO."}
-            </p>
-            <Input ref={arquivo} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" className="field-engraved min-h-10"
-              onChange={(e) => void enviarFoto(e.target.files?.[0] ?? null)} />
-            <p className="text-xs text-muted-foreground"><Upload className="inline w-3 h-3 mr-1" />Foto própria do CEO (JPEG ou PNG, até 2 MB). Ela aparece quando o Profissional Médico estiver desligado.</p>
+      <SettingsPanel icon={Building2} title="CEO da Pax Med (entidade empresarial)">
+        <div className="flex flex-wrap gap-8 items-start justify-center" data-testid="fotos-lado-a-lado">
+          <div data-testid="retrato-ceo" data-destaque={!id.medicoAtivo ? "ativo" : "inativo"}>
+            <Retrato url={fotoCeo} vazio="Sem foto" legenda="CEO" destaque={id.medicoAtivo ? null : "pulso"}
+              estado={id.medicoAtivo ? "Em repouso" : "Em exercício: sem emissão médica"} />
           </div>
+          <div data-testid="retrato-medico" data-destaque={id.medicoAtivo ? "ativo" : "inativo"}>
+            <Retrato url={fotoMedico} vazio="Médico sem foto no Corpo Clínico" legenda="Profissional Médico" destaque={id.medicoAtivo ? "ouro" : null}
+              estado={id.medicoAtivo ? "Ativo: pode emitir" : "Desativado"} />
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm" data-testid="foto-exibida">
+            {id.fotoExibida === "medico"
+              ? "Interruptor ligado: a foto exibida é a do médico (Dr. Caio) importado."
+              : "Interruptor desligado: a foto exibida é a do CEO."}
+          </p>
+          <Input ref={arquivo} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" className="field-engraved min-h-10"
+            onChange={(e) => void enviarFoto(e.target.files?.[0] ?? null)} />
+          <p className="text-xs text-muted-foreground"><Upload className="inline w-3 h-3 mr-1" />Foto própria do CEO (JPEG ou PNG, até 2 MB).</p>
         </div>
       </SettingsPanel>
 
@@ -184,7 +184,7 @@ export default function IdentidadeCeo() {
         </div>
         {id.medico ? (
           <div className="flex gap-4 items-start">
-            <Retrato url={fotoMedico} vazio="Médico sem foto no Corpo Clínico" />
+            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
               <FieldRow label="Nome completo"><Input readOnly className="field-engraved" value={id.medico.nome} /></FieldRow>
               <FieldRow label="CRM"><Input readOnly className="field-engraved" value={id.medico.crm ?? ""} /></FieldRow>
