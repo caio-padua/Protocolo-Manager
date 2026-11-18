@@ -1064,11 +1064,11 @@ export default function Professionals() {
       toast({ title: "Perfil de acesso é obrigatório", variant: "destructive" });
       return;
     }
-    if (!form.areaId) {
+    if (!ehAdmin && !form.areaId) {
       toast({ title: "Categoria profissional é obrigatória", variant: "destructive" });
       return;
     }
-    if (!form.specialtyId && (carregandoEspecialidades || erroEspecialidades || specialties.length > 0)) {
+    if (!ehAdmin && !form.specialtyId && (carregandoEspecialidades || erroEspecialidades || specialties.length > 0)) {
       toast({
         title: form.professionalType === "medico" ? "Especialidade é obrigatória" : "Especialização é obrigatória",
         variant: "destructive",
@@ -1082,8 +1082,8 @@ export default function Professionals() {
       professionalType: form.professionalType,
       category: form.category,
       role: form.role.trim() || null,
-      areaId: Number(form.areaId),
-      specialtyId: form.specialtyId ? Number(form.specialtyId) : null,
+      areaId: ehAdmin || !form.areaId ? null : Number(form.areaId),
+      specialtyId: !ehAdmin && form.specialtyId ? Number(form.specialtyId) : null,
       ...(estadoAreas.disponivel && (!editingId || estadoAreas.alterado) ? { workAreaIds: estadoAreas.ids } : {}),
       registrationCouncil: form.registrationCouncil.trim() || null,
       registrationNumber: form.registrationNumber.trim() || null,
@@ -1118,6 +1118,8 @@ export default function Professionals() {
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  // Administrador de clínica = dono/empresarial: campos profissionais ficam apagados (sem conflito com agenda/registro).
+  const ehAdmin = form.category === "administrador_clinica";
   const councilPlaceholder = form.professionalType === "medico" ? "CRM" : "COREN / CRP / CRN";
 
   // A categoria profissional é independente do perfil de acesso legado.
@@ -1175,7 +1177,7 @@ export default function Professionals() {
                   ...(isSelfEditing
                     ? [{ value: "acesso", label: "ACESSO", Icon: KeyRound }]
                     : []),
-                  { value: "vinculos", label: "VÍNCULOS", Icon: Link2, disabled: !editingId },
+                  { value: "vinculos", label: "VÍNCULOS", Icon: Link2, disabled: !editingId || ehAdmin },
                   { value: "documentos", label: "DOCUMENTOS", Icon: FileText, disabled: !editingId },
                   ...(canViewProfessionalHistory
                     ? [{ value: "historico", label: "HISTÓRICO", Icon: History }]
@@ -1237,6 +1239,8 @@ export default function Professionals() {
                   </div>
                 </div>
 
+                <fieldset disabled={ehAdmin} className={ehAdmin ? "space-y-4 opacity-45 grayscale pointer-events-none select-none" : "space-y-4"} data-testid="campos-profissionais" aria-label="Campos profissionais">
+                {ehAdmin && <p className="text-[11px] font-semibold text-amber-700">Administrador de clínica é cadastro empresarial: tipo, categoria, especialização, áreas, conselho e registro ficam desativados.</p>}
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipo *</Label>
                   <div className="grid grid-cols-2 gap-3">
@@ -1316,6 +1320,8 @@ export default function Professionals() {
                     />
                   </div>
                 </div>
+
+                </fieldset>
 
                 {/* Contato */}
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 pt-2">
@@ -1407,7 +1413,7 @@ export default function Professionals() {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tipos de atendimento</Label>
                   <div className="space-y-3" data-testid="bloco-atendimento-profissional">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="tipos-de-atendimento">
+                    <fieldset disabled={ehAdmin} className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${ehAdmin ? "opacity-45 grayscale pointer-events-none" : ""}`} data-testid="tipos-de-atendimento">
                       {SERVICE_OPTIONS.map((opt) => (
                         <div key={opt.value} className="concave-3d flex items-center gap-3 px-3 py-2.5">
                           <Switch
@@ -1419,7 +1425,7 @@ export default function Professionals() {
                           <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{opt.label}</Label>
                         </div>
                       ))}
-                    </div>
+                    </fieldset>
                     <div className="concave-3d flex items-center gap-3 px-4 py-3" data-testid="disponibilidade-profissional">
                       <Switch
                         id="professional-active"

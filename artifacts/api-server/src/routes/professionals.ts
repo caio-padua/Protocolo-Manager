@@ -452,7 +452,9 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
     res.status(400).json({ error: "E-mail principal é obrigatório para cadastrar um profissional." });
     return;
   }
-  const parsed = CreateProfessionalBody.safeParse(req.body);
+  // Administrador de clínica é cadastro empresarial: sem categoria profissional, especialização ou áreas.
+  const ehAdminClinica = String(req.body?.category ?? "").trim().toLowerCase() === "administrador_clinica";
+  const parsed = CreateProfessionalBody.safeParse(ehAdminClinica ? { ...req.body, areaId: 1, specialtyId: null, workAreaIds: undefined } : req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -518,6 +520,7 @@ router.post("/professionals", requireCollaborator, requirePlatformOwner, async (
     secondaryEmail: normalizedSecondaryEmail,
     cpf: normalizedCpf,
     category: normalizeCategory(parsed.data.category),
+    ...(ehAdminClinica ? { areaId: null, specialtyId: null } : {}),
     role: parsed.data.role ?? "executor",
     professionalType: parsed.data.professionalType ?? "medico",
     active: parsed.data.active ?? true,
