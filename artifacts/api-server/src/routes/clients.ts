@@ -15,6 +15,7 @@ import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/pro
 import type { ClientVisitPreferences } from "@workspace/db";
 import { logIntegracao } from "./agentes-integracoes";
 import { sql } from "drizzle-orm";
+import { cnpjValido } from "../lib/cnpj";
 import {
   ListClientsQueryParams,
   CreateClientBody,
@@ -352,6 +353,10 @@ router.put("/clients/:id/canal-clinica", requireClientWriter, async (req, res): 
       const hist = await tx.execute(sql`SELECT (EXISTS (SELECT 1 FROM protocols WHERE client_id = ${id})
         OR EXISTS (SELECT 1 FROM exam_results WHERE client_id = ${id})) AS tem`);
       const temHistorico = (hist.rows[0] as { tem?: boolean } | undefined)?.tem === true;
+      if (ativo && !atual.ativo) {
+        const [emp] = await tx.select({ cnpj: empresasTable.cnpj }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+        if (!cnpjValido(emp?.cnpj)) return { status: 422 as const };
+      }
       if (ativo && !atual.ativo && temHistorico && !confirmarHistorico) return { status: 409 as const, historico: true };
       if (atual.ativo === ativo) return { status: 200 as const, ativo };
       await tx.update(clientsTable).set({ numeroOficialEmpresa: ativo }).where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId)));
@@ -360,6 +365,7 @@ router.put("/clients/:id/canal-clinica", requireClientWriter, async (req, res): 
       return { status: 200 as const, ativo };
     });
     if (out.status === 404) { res.status(404).json({ error: "Cliente não encontrado ou removido." }); return; }
+    if (out.status === 422) { res.status(422).json({ code: "CNPJ_INVALIDO", error: "CNPJ não cadastrado ou inválido na empresa. Cadastre o CNPJ em Empresas antes de ligar." }); return; }
     if (out.status === 409) {
       res.status(409).json({ code: "HISTORICO_CLINICO", error: "Este cadastro já tem histórico clínico (protocolos ou exames). Nada será apagado ou convertido; confirme para marcá-lo como celular oficial da empresa." });
       return;

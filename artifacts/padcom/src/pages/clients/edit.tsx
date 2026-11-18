@@ -103,6 +103,8 @@ function parseAddressToFields(address: string | null | undefined): { cep: string
   return result;
 }
 
+import { MarcaEmpresaQuadro } from "@/components/clients/MarcaEmpresaQuadro";
+
 export default function EditClient() {
   const [, params] = useRoute("/clients/:id/edit");
   const [, setLocation] = useLocation();
@@ -417,7 +419,7 @@ export default function EditClient() {
                         data-testid="canal-clinica-toggle"
                       />
                       <div className="space-y-2">
-                        <p className="m-0 text-[11px] font-black uppercase tracking-widest">Celular oficial da empresa (WhatsApp e Telegram)</p>
+                        <p className="m-0 text-[11px] font-black uppercase tracking-widest">Canal oficial da clínica (WhatsApp e Telegram)</p>
                         <ul className="m-0 list-none space-y-1 p-0 text-xs text-muted-foreground" data-testid="canal-clinica-regra">
                           <li>1. Ligue só se este cadastro é o celular da própria clínica, e não uma pessoa.</li>
                           <li>2. O CNPJ e os dados mostrados são sempre os da empresa de quem está logado, nunca de outra.</li>
@@ -441,12 +443,8 @@ export default function EditClient() {
                         <Building2 className="h-3 w-3 text-primary" /> Dados da empresa (somente leitura)
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        {[["Símbolo", "Símbolo não cadastrado na empresa"], ["Logo", "Logo não cadastrado na empresa"]].map(([rot, vazio]) => (
-                          <div key={rot} className="concave-3d rounded-[6px] p-3 min-h-[64px] flex flex-col justify-center">
-                            <span className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground">{rot}</span>
-                            <span className="text-xs text-muted-foreground" data-testid={`canal-clinica-${rot.toLowerCase()}`}>{vazio}</span>
-                          </div>
-                        ))}
+                        <MarcaEmpresaQuadro tipo="simbolo" rotulo="Símbolo" podeTrocar={false} />
+                        <MarcaEmpresaQuadro tipo="logo" rotulo="Logo" podeTrocar={canalQuery.data.podeAlterar} />
                       </div>
                       <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                         {([

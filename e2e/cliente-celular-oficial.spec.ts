@@ -30,6 +30,8 @@ async function setup(context: BrowserContext, podeAlterar: boolean, exigeConfirm
       }
       return json({ ativo: state.ativo, cnpj: state.ativo ? "00.000.000/0001-00" : null, empresa: state.ativo ? { nome: "Clínica Sintética", nomeFantasia: "Fantasia Sintética", razaoSocial: "CLÍNICA SINTÉTICA LTDA", cnpj: "00.000.000/0001-00", endereco: "Rua Teste, 1", numero: "1", bairro: "Centro", cidade: "São Paulo", estado: "SP", cep: "00000-000" } : null, podeAlterar });
     }
+    if (path === "/api/empresa-marca/simbolo") return json({ error: "x" }, 404);
+    if (path === "/api/empresa-marca/logo") return json({ error: "x" }, 404);
     if (path === "/api/clients/42" && method === "GET") return json(client);
     if (method !== "GET") state.outrasEscritas.push(`${method} ${path}`);
     if (path === "/api/clients/clinicas-origem") return json({ empresaAtualId: 5, clinicas: [] });
@@ -52,7 +54,8 @@ test("CEO liga a chave: CPF vira CNPJ, outros campos travam e contato continua e
   await expect(page.getByText("CPF *")).toBeVisible();
   await expect(page.getByTestId("canal-clinica-regra")).toContainText("sempre os da empresa de quem está logado");
   await expect(page.getByTestId("canal-clinica-selo")).toContainText("Fantasia Sintética");
-  await expect(page.getByTestId("canal-clinica-empresa")).toContainText("Logo não cadastrado na empresa");
+  await expect(page.getByTestId("canal-clinica-empresa")).toContainText("Logo não cadastrado")
+  await expect(page.getByTestId("canal-clinica-logo-arquivo")).toBeAttached();
   expect(state.puts).toEqual([{ ativo: true, confirmarHistorico: false }]);
   await expect(page.getByLabel(/Celular/i).first()).toBeEnabled();
   await expect(page.locator('input[type="email"]')).toBeDisabled();
