@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Eye, X, Share, MoreVertical, Plus, Download, ChevronLeft, ChevronRight, BookOpen, Copy as CopyIcon } from "lucide-react";
+import { Eye, X, Share, MoreVertical, Plus, Download, SquarePlus, Check, ChevronLeft, ChevronRight, BookOpen, Copy as CopyIcon } from "lucide-react";
 
 /**
  * Exemplos de tela do Manual do Cliente: ILUSTRACOES esquematicas (nao sao capturas reais).
@@ -145,4 +145,19 @@ export function ExemploTelaBotao({ tipo }: { tipo: TipoExemplo }) {
       )}
     </>
   );
+}
+
+/** Figurinha do botao que o cliente vai procurar na tela (mesma forma e cor do aparelho). Tamanho fixo = alinhado. */
+export function GlifoPasso({ tipo }: { tipo: TipoExemplo }) {
+  const base = "shrink-0 h-9 min-w-9 px-1 flex items-center justify-center rounded-[6px] border border-neutral-300 bg-white text-[10px] font-bold leading-none";
+  const c: Record<TipoExemplo, ReactNode> = {
+    "iphone-compartilhar": <Share className="w-5 h-5 text-blue-600" />,
+    "iphone-lista": <SquarePlus className="w-5 h-5 text-neutral-800" />,
+    "iphone-adicionar": <Check className="w-5 h-5 text-blue-600" />,
+    "android-menu": <MoreVertical className="w-5 h-5 text-neutral-700" />,
+    "android-instalar": <Download className="w-5 h-5 text-neutral-700" />,
+    "android-confirma": <Check className="w-5 h-5 text-blue-600" />,
+    "desktop-icone": <Download className="w-5 h-5 text-neutral-700" />,
+  };
+  return <span className={base} data-testid={`guia-glifo-${tipo}`} aria-hidden>{c[tipo]}</span>;
 }
