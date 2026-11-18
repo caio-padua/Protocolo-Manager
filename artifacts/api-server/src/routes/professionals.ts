@@ -30,7 +30,8 @@ import {
 
 const router: IRouter = Router();
 
-const CATEGORIES = ["medico", "enfermagem", "recepcao", "administrativo", "financeiro", "outro"] as const;
+// "administrador_clinica" = dono/administrador de clínica (entidade empresarial), distinto de "administrativo" (equipe).
+const CATEGORIES = ["medico", "enfermagem", "recepcao", "administrativo", "financeiro", "administrador_clinica", "outro"] as const;
 const DEFAULT_COMPANY_ID = 5;
 type Category = (typeof CATEGORIES)[number];
 

@@ -9,7 +9,7 @@ import {
   professionalSpecialtiesTable,
   clientsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, ne, sql } from "drizzle-orm";
 import {
   createSchedulingToken,
   verifySchedulingToken,
@@ -228,7 +228,7 @@ async function loadBookableProfessionals(): Promise<
   const profs = await db
     .select()
     .from(professionalsTable)
-    .where(and(eq(professionalsTable.active, true), eq(professionalsTable.isPrimaryDoctor, false)))
+    .where(and(eq(professionalsTable.active, true), eq(professionalsTable.isPrimaryDoctor, false), ne(professionalsTable.category, "administrador_clinica")))
     .orderBy(asc(professionalsTable.name));
 
   const resources = await db

@@ -26,6 +26,13 @@ function donoDaPlataforma(req: Request, res: Response): number | null {
   return prof;
 }
 
+/** CPF inteiro, só para as telas do CEO (rotas já restritas ao dono da plataforma); campo somente leitura na tela. */
+function cpfFormatado(cpf: string | null | undefined): string | null {
+  const d = (cpf ?? "").replace(/\D/g, "");
+  if (d.length !== 11) return d || null;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
 function tipoImagem(b: Buffer): "image/jpeg" | "image/png" | null {
   if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
   if (b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
@@ -44,7 +51,7 @@ router.get("/ceo/identidade", requireCollaborator, async (req, res): Promise<voi
     const [p] = await db.select().from(professionalsTable).where(eq(professionalsTable.id, ceo.medicoProfessionalId)).limit(1);
     if (p) medico = {
       id: p.id, nome: p.name, crm: p.registrationNumber ?? p.crm ?? null, especialidade: p.specialty ?? null,
-      cpfFinal: p.cpf ? String(p.cpf).replace(/\D/g, "").slice(-4) : null, temFoto: !!p.photoUrl,
+      cpfFinal: p.cpf ? String(p.cpf).replace(/\D/g, "").slice(-4) : null, cpf: cpfFormatado(p.cpf), temFoto: !!p.photoUrl,
     };
   }
   res.json({
@@ -132,11 +139,11 @@ router.get("/ceo/clinicas-responsaveis", requireCollaborator, async (req, res): 
     SELECT e.id AS empresa_id, e.nome, r.administrador_professional_id AS adm, r.responsavel_tecnico_professional_id AS rt
     FROM empresas e LEFT JOIN empresa_responsaveis r ON r.empresa_id = e.id
     WHERE e.ativa ORDER BY e.nome`);
-  const p = await db.execute(sql`SELECT id, name, professional_type, empresa_id FROM professionals WHERE active ORDER BY name`);
+  const p = await db.execute(sql`SELECT id, name, professional_type, category, empresa_id FROM professionals WHERE active ORDER BY name`);
   res.json({
     clinicas: (e.rows as Linha[]).map(l => ({ empresaId: l.empresa_id, nome: l.nome, administradorId: l.adm, responsavelTecnicoId: l.rt })),
-    profissionais: (p.rows as Array<{ id: number; name: string; professional_type: string; empresa_id: number | null }>)
-      .map(x => ({ id: x.id, nome: x.name, tipo: x.professional_type, empresaId: x.empresa_id })),
+    profissionais: (p.rows as Array<{ id: number; name: string; professional_type: string; category: string; empresa_id: number | null }>)
+      .map(x => ({ id: x.id, nome: x.name, tipo: x.professional_type, categoria: x.category, empresaId: x.empresa_id })),
   });
 });
 
@@ -162,6 +169,15 @@ router.put("/ceo/clinicas-responsaveis/:empresaId", requireCollaborator, async (
     if (funcao === "responsavel_tecnico") {
       const med = await db.execute(sql`SELECT 1 FROM professionals WHERE id = ${id} AND professional_type = 'medico'`);
       if (!med.rows[0]) { res.status(400).json({ error: "O responsável técnico precisa ser médico." }); return; }
+      // Quem já estava gravado pode permanecer; uma nova escolha precisa ser médico de fato (não licenciado).
+      if (id !== (antes?.rt ?? null)) {
+        const cat = await db.execute(sql`SELECT 1 FROM professionals WHERE id = ${id} AND category = 'medico'`);
+        if (!cat.rows[0]) { res.status(400).json({ error: "O responsável técnico precisa ser médico do Corpo Clínico." }); return; }
+      }
+    }
+    if (funcao === "administrador" && id !== (antes?.adm ?? null)) {
+      const adm = await db.execute(sql`SELECT 1 FROM professionals WHERE id = ${id} AND category = 'administrador_clinica'`);
+      if (!adm.rows[0]) { res.status(400).json({ error: "O responsável empresarial precisa estar cadastrado como Administrador de clínica no Corpo Clínico." }); return; }
     }
   }
   await db.execute(sql`INSERT INTO empresa_responsaveis (empresa_id, administrador_professional_id, responsavel_tecnico_professional_id, atualizado_por)
@@ -181,7 +197,8 @@ async function responsavelDetalhe(profissionalId: number | null) {
   if (!p) return null;
   return {
     id: p.id, nome: p.name, tipo: p.professionalType, crm: p.registrationNumber ?? p.crm ?? null, especialidade: p.specialty ?? null,
-    cpfFinal: p.cpf ? String(p.cpf).replace(/\D/g, "").slice(-4) : null, temFoto: !!p.photoUrl, ativo: !!p.active,
+    cpfFinal: p.cpf ? String(p.cpf).replace(/\D/g, "").slice(-4) : null, cpf: cpfFormatado(p.cpf), temFoto: !!p.photoUrl, ativo: !!p.active,
+    categoria: p.category,
   };
 }
 
@@ -199,12 +216,22 @@ router.get("/ceo/empresas/:empresaId/responsaveis", requireCollaborator, async (
   if (!emp.rows[0]) { res.status(404).json({ error: "Empresa não encontrada." }); return; }
   const { adm, rt } = await responsaveisDaEmpresa(empresaId);
   const ceoMed = (await lerCeoIdentidade()).medicoProfessionalId;
-  const p = await db.execute(sql`SELECT id, name, professional_type FROM professionals WHERE active AND (empresa_id = ${empresaId} OR id = ${ceoMed}) ORDER BY name`);
+  // Duas listas separadas, uma por função: nunca a mesma lista misturada.
+  //  - empresarial: só cadastros da divisão "Administradores de clínica";
+  //  - médico: só médicos do Corpo Clínico (sem licenciado e sem cadastros de teste).
+  // Quem já está gravado sempre aparece, para a tela nunca esconder o estado real.
+  const adms = await db.execute(sql`SELECT id, name, category FROM professionals
+    WHERE active AND (id = ${adm ?? 0} OR (category = 'administrador_clinica' AND empresa_id = ${empresaId})) ORDER BY name`);
+  const meds = await db.execute(sql`SELECT id, name, category FROM professionals
+    WHERE active AND (id = ${rt ?? 0} OR (professional_type = 'medico' AND category = 'medico' AND name NOT LIKE '[TESTE%'
+      AND (empresa_id = ${empresaId} OR id = ${ceoMed}))) ORDER BY name`);
+  const lista = (rows: unknown) => (rows as Array<{ id: number; name: string; category: string }>).map(x => ({ id: x.id, nome: x.name, categoria: x.category }));
   res.json({
     empresaId,
     responsavelEmpresarial: await responsavelDetalhe(adm),
     responsavelMedico: await responsavelDetalhe(rt),
-    candidatos: (p.rows as Array<{ id: number; name: string; professional_type: string }>).map(x => ({ id: x.id, nome: x.name, tipo: x.professional_type })),
+    candidatosEmpresarial: lista(adms.rows),
+    candidatosMedico: lista(meds.rows),
   });
 });
 

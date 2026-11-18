@@ -10,11 +10,12 @@ import { usePermissoes } from "@/lib/permissoes";
 import { baixarFoto, ceoApi } from "@/lib/ceo-api";
 
 type Funcao = "medico" | "empresarial";
-interface Detalhe { id: number; nome: string; tipo: string; crm: string | null; especialidade: string | null; cpfFinal: string | null; temFoto: boolean; ativo: boolean }
+interface Detalhe { id: number; nome: string; tipo: string; crm: string | null; especialidade: string | null; cpfFinal: string | null; cpf: string | null; temFoto: boolean; ativo: boolean }
 interface Dados {
   responsavelEmpresarial: Detalhe | null;
   responsavelMedico: Detalhe | null;
-  candidatos: Array<{ id: number; nome: string; tipo: string }>;
+  candidatosEmpresarial: Array<{ id: number; nome: string; categoria: string }>;
+  candidatosMedico: Array<{ id: number; nome: string; categoria: string }>;
 }
 
 const TEXTOS: Record<Funcao, { titulo: string; explica: string; vazio: string; campoApi: "responsavelTecnicoId" | "administradorId" }> = {
@@ -26,7 +27,7 @@ const TEXTOS: Record<Funcao, { titulo: string; explica: string; vazio: string; c
   },
   empresarial: {
     titulo: "Responsável empresarial (proprietário)",
-    explica: "Pessoa dona ou administradora da clínica. Não precisa ser médica: o dono pode contratar médicos para trabalhar na clínica.",
+    explica: "Pessoa dona ou administradora da clínica. Lista só com cadastros da divisão \"Administradores de clínica\" do Corpo Clínico. Não precisa ser médica.",
     vazio: "Nenhum responsável empresarial definido para esta clínica.",
     campoApi: "administradorId",
   },
@@ -75,7 +76,7 @@ export function ResponsavelEmpresaAba({ empresaId, funcao }: { empresaId: number
   if (!dados) return <Loader2 className="w-4 h-4 animate-spin" />;
 
   const atual = funcao === "medico" ? dados.responsavelMedico : dados.responsavelEmpresarial;
-  const opcoes = funcao === "medico" ? dados.candidatos.filter((c) => c.tipo === "medico") : dados.candidatos;
+  const opcoes = funcao === "medico" ? dados.candidatosMedico : dados.candidatosEmpresarial;
 
   return (
     <div className="space-y-4" data-testid={`responsavel-${funcao}`}>
@@ -100,7 +101,7 @@ export function ResponsavelEmpresaAba({ empresaId, funcao }: { empresaId: number
             <div><label className="lbl">Nome completo</label><Input readOnly className="field-engraved" value={atual.nome} /></div>
             <div><label className="lbl">Registro (CRM)</label><Input readOnly className="field-engraved" value={atual.crm ?? ""} /></div>
             <div><label className="lbl">Especialidade</label><Input readOnly className="field-engraved" value={atual.especialidade ?? ""} /></div>
-            <div><label className="lbl">CPF (final)</label><Input readOnly className="field-engraved" value={atual.cpfFinal ?? ""} /></div>
+            <div><label className="lbl">CPF</label><Input disabled readOnly aria-label="CPF (somente leitura)" data-testid={`cpf-${funcao}`} className="field-engraved cursor-not-allowed opacity-60 bg-muted" value={atual.cpf ?? ""} /></div>
             <p className="sm:col-span-2 text-xs text-muted-foreground">Dados importados do cadastro no Corpo Clínico. Para alterar, edite lá.</p>
           </div>
         </div>

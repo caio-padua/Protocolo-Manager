@@ -18,11 +18,11 @@ interface Identidade {
   medicoAtivo: boolean;
   temFotoCeo: boolean;
   fotoExibida: "medico" | "ceo" | "nenhuma";
-  medico: { id: number; nome: string; crm: string | null; especialidade: string | null; cpfFinal: string | null; temFoto: boolean } | null;
+  medico: { id: number; nome: string; crm: string | null; especialidade: string | null; cpfFinal: string | null; cpf: string | null; temFoto: boolean } | null;
 }
 interface Clinicas {
   clinicas: Array<{ empresaId: number; nome: string; administradorId: number | null; responsavelTecnicoId: number | null }>;
-  profissionais: Array<{ id: number; nome: string; tipo: string; empresaId: number | null }>;
+  profissionais: Array<{ id: number; nome: string; tipo: string; categoria: string; empresaId: number | null }>;
 }
 
 type Destaque = "ouro" | "pulso" | null;
@@ -189,7 +189,7 @@ export default function IdentidadeCeo() {
               <FieldRow label="Nome completo"><Input readOnly className="field-engraved" value={id.medico.nome} /></FieldRow>
               <FieldRow label="CRM"><Input readOnly className="field-engraved" value={id.medico.crm ?? ""} /></FieldRow>
               <FieldRow label="Especialidade"><Input readOnly className="field-engraved" value={id.medico.especialidade ?? ""} /></FieldRow>
-              <FieldRow label="CPF (final)"><Input readOnly className="field-engraved" value={id.medico.cpfFinal ?? ""} /></FieldRow>
+              <FieldRow label="CPF"><Input disabled readOnly aria-label="CPF (somente leitura)" data-testid="cpf-medico-ceo" className="field-engraved cursor-not-allowed opacity-60 bg-muted" value={id.medico.cpf ?? ""} /></FieldRow>
               <p className="sm:col-span-2 text-xs text-muted-foreground">
                 Dados importados do cadastro do médico no Corpo Clínico. Para alterar, edite lá.
               </p>
@@ -210,13 +210,13 @@ export default function IdentidadeCeo() {
                 <FieldRow label="Administrador da clínica">
                   <select className={campo} value={c.administradorId ?? ""} onChange={(e) => void responsavel(c.empresaId, "administradorId", e.target.value)}>
                     <option value="">Não definido</option>
-                    {daClinica(c.empresaId).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    {daClinica(c.empresaId).filter((p) => p.categoria === "administrador_clinica" || p.id === c.administradorId).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
                   </select>
                 </FieldRow>
                 <FieldRow label="Responsável técnico (médico)">
                   <select className={campo} value={c.responsavelTecnicoId ?? ""} onChange={(e) => void responsavel(c.empresaId, "responsavelTecnicoId", e.target.value)}>
                     <option value="">Não definido</option>
-                    {daClinica(c.empresaId).filter((p) => p.tipo === "medico").map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    {daClinica(c.empresaId).filter((p) => (p.tipo === "medico" && p.categoria === "medico") || p.id === c.responsavelTecnicoId).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
                   </select>
                 </FieldRow>
               </div>

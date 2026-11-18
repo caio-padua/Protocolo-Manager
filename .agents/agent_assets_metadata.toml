@@ -1264,3 +1264,17 @@ mtime_ms = 1794780411563
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/9c1eeadf-b469-447b-88c4-888eefe525cc/423af266-02da-4096-99c6-af01a66c7137"
 storage_version_token = "1794780597871239"
 content_type = "image/png"
+
+[[outputs]]
+id = "bFhcMZpMzj0IfOJbWKuwj"
+uri = "file://docs/organograma-instituto-padua.html"
+type = "html"
+title = "Organograma - Instituto Padua"
+description = "Dono, medico responsavel, corpo clinico, agendas e locais."
+logical_id = "85f37893-824a-46f6-aca4-aff85219e09d"
+content_hash = "sha256:00983486e75e8e0dbc1929dc3d51463678eadb46493ff0fa5910731218de13bf"
+size = 2220
+mtime_ms = 1795008482819
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/85f37893-824a-46f6-aca4-aff85219e09d/0be322b6-b261-431d-8955-0ace3a207469"
+storage_version_token = "1795008485048753"
+content_type = "text/html"

@@ -782,6 +782,7 @@ const CATEGORY_OPTIONS = [
   { value: "recepcao", label: "Recepção" },
   { value: "administrativo", label: "Administrativo" },
   { value: "financeiro", label: "Financeiro" },
+  { value: "administrador_clinica", label: "Administrador de clínica (dono/empresarial, não agendável)" },
   { value: "outro", label: "Outro" },
 ];
 
@@ -1123,16 +1124,19 @@ export default function Professionals() {
   const grouped = useMemo(() => {
     if (!professionals) return [];
     const map = new Map<string, { category: string; label: string; items: typeof professionals }>();
+    // Divisão própria: administradores de clínica (entidade empresarial) nunca se misturam às categorias profissionais.
+    const ehAdmin = (p: (typeof professionals)[number]) => (p as { category?: string }).category === "administrador_clinica";
     for (const p of professionals) {
-      const key = p.areaId ? String(p.areaId) : "nao-informada";
+      const key = ehAdmin(p) ? "administradores-clinica" : p.areaId ? String(p.areaId) : "nao-informada";
       if (!map.has(key)) map.set(key, {
         category: key,
-        label: p.areaName ? nomeDaProfissao(p.areaName) : (p.areaId ? "Categoria indisponível" : "Categoria não informada"),
+        label: ehAdmin(p) ? "Administradores de clínica" : p.areaName ? nomeDaProfissao(p.areaName) : (p.areaId ? "Categoria indisponível" : "Categoria não informada"),
         items: [],
       });
       map.get(key)!.items.push(p);
     }
-    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    return [...map.values()].sort((a, b) =>
+      (a.category === "administradores-clinica" ? -1 : 0) - (b.category === "administradores-clinica" ? -1 : 0) || a.label.localeCompare(b.label, "pt-BR"));
   }, [professionals]);
 
   return (
