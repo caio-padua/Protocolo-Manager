@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { PaxmedNoCelular } from "@/components/area/PaxmedNoCelular";
 import { tituloProprio } from "@/lib/utils";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
@@ -1155,6 +1156,11 @@ function ComunicacaoTab({ client }: { client: ClientInfo }) {
       )}
       <p className="rounded-md border p-3 text-xs" data-testid="comunicacao-aviso-urgencia">
         O Telegram não é canal de emergência nem de consulta imediata. Em urgência, ligue 192 (SAMU) ou procure o pronto atendimento.
+      </p>
+      <PaxmedNoCelular
+        guiaHref={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`} />
+      <p className="rounded-md border p-3 text-xs" data-testid="comunicacao-whatsapp-preparacao">
+        <b>WhatsApp:</b> em preparação. Por enquanto, os avisos chegam pelo Telegram.
       </p>
       <a
         href={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`}

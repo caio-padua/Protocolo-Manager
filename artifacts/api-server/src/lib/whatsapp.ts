@@ -10,7 +10,7 @@
 // atualiza a linha por MessageSid. O telefone é guardado inteiro no banco (dado
 // nativo do cliente); a API/tela é que mascaram. Nunca logamos o token.
 import { db, whatsappMensagensLogTable, clientsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { logger } from "./logger";
 import { getSecret } from "./secure-settings";
 import { sendTelegram } from "./telegram";
@@ -30,7 +30,8 @@ async function espelharParaTelegram(
     const [c] = await db
       .select({ telegramChatId: clientsTable.telegramChatId })
       .from(clientsTable)
-      .where(eq(clientsTable.id, clienteId))
+      // Cliente arquivado (soft delete / status deleted) nunca recebe espelho no Telegram.
+      .where(and(eq(clientsTable.id, clienteId), isNull(clientsTable.deletedAt), ne(clientsTable.status, "deleted")))
       .limit(1);
     if (c?.telegramChatId) {
       const result = await sendTelegram(c.telegramChatId, message);
@@ -423,7 +424,7 @@ async function registrarTelegramBloqueado(
     const [c] = await db
       .select({ telegramChatId: clientsTable.telegramChatId })
       .from(clientsTable)
-      .where(eq(clientsTable.id, opts.clienteId))
+      .where(and(eq(clientsTable.id, opts.clienteId), isNull(clientsTable.deletedAt), ne(clientsTable.status, "deleted")))
       .limit(1);
     if (!c?.telegramChatId) return;
 
