@@ -278,14 +278,17 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
       {aparelho === "iphone" && (
         <div data-testid="guia-painel-iphone">
           <Alerta tipo="aviso" texto="No iPhone, a instalação só funciona pelo Safari (ícone de bússola azul). Se estiver em outro navegador, abra o Safari primeiro." />
-          <Passo n={1} texto="Toque no ícone do Safari, aqui embaixo" detalhe="A bússola azul. Se ele não abrir sozinho, procure o Safari na tela do seu iPhone." />
+          <Passo n={1} texto="Toque no ícone do Safari aqui embaixo" detalhe="O Safari tem um ícone de bússola azul. Se ele não abrir, procure-o na tela do seu iPhone." />
           <SafariIcone />
-          <Passo n={2} texto="Copie o endereço da Área do Cliente" detalhe="Toque no botão COPIAR, aqui embaixo. Se a clínica enviou o link, pode tocar nele." />
+          <Passo n={2} texto="Copie o endereço do link para abrir o app Área do Cliente" detalhe="Toque no botão COPIAR. Se a clínica enviou o link, você também pode tocar nele." />
           <UrlInsert />
-          <Passo n={3} texto="Cole o endereço na barra do Safari e toque em Ir" detalhe="Toque na barra de endereço, segure o dedo até aparecer Colar, toque em Colar e depois em Ir (ou Enter)." />
-          <Passo n={4} texto="Procure o botão Compartilhar" detalhe="É um quadrado com uma seta para cima. Se só aparecerem três pontinhos, toque neles e depois em Compartilhar. Toque no botão do olho para ver o exemplo." exemplo="iphone-compartilhar" />
-          <Passo n={5} texto="Role a lista e toque em Adicionar à Tela de Início" detalhe="Passe o dedo para cima na lista até achar a frase." exemplo="iphone-lista" />
-          <Passo n={6} texto="Toque em Adicionar, no canto superior direito" exemplo="iphone-adicionar" />
+          <Passo n={3} texto="Cole o endereço na barra do Safari e toque em Ir" detalhe="Toque na barra de endereço e segure o dedo até aparecer Colar. Toque em Colar e depois em Ir." />
+          <Passo n={4} texto="Procure os três pontinhos, ao lado do endereço" detalhe="Eles ficam no canto da barra onde o endereço aparece. Toque neles. O quadrado vermelho mostra onde." />
+          <img src={`${import.meta.env.BASE_URL}guia/barra-tres-pontinhos.png`} data-testid="guia-img-tres-pontinhos"
+            alt="Barra de endereço com o botão dos três pontinhos marcado em vermelho" className="w-full rounded-[6px] my-3 border" />
+          <Passo n={5} texto="Toque em Compartilhar" detalhe="É um quadrado com uma seta para cima." exemplo="iphone-compartilhar" />
+          <Passo n={6} texto="Role a lista e toque em Adicionar à Tela de Início" detalhe="Passe o dedo para cima na lista até achar a frase." exemplo="iphone-lista" />
+          <Passo n={7} texto="Toque em Adicionar, no canto superior direito" exemplo="iphone-adicionar" />
           <Alerta tipo="ok" texto={`Pronto. O atalho do PaxMed (${clinicaNome}) aparece na tela inicial.`} />
         </div>
       )}
