@@ -222,17 +222,14 @@ function SecPaxmed() {
   );
 }
 
-/** Tres modelos do icone do Safari, lado a lado, para o CEO escolher (depois fica so um). */
-function SafariModelos() {
+/** Icone oficial escolhido do Safari (modelo A), com linha fina de contorno para destacar do fundo claro. */
+function SafariIcone() {
   const base = import.meta.env.BASE_URL;
   return (
-    <div className="grid grid-cols-3 gap-2 my-3" data-testid="guia-safari-modelos">
-      {(["a", "b", "c"] as const).map((m) => (
-        <div key={m} className="bevel-3d rounded-[6px] grid grid-rows-[96px_24px] justify-items-center items-center py-2">
-          <img src={`${base}safari/safari-${m}.png`} alt={`Ícone do Safari, modelo ${m.toUpperCase()}`} className="w-20 h-20 object-contain" />
-          <span className="text-[11px] font-black uppercase tracking-widest">Modelo {m.toUpperCase()}</span>
-        </div>
-      ))}
+    <div className="flex items-center justify-center my-3" data-testid="guia-safari-icone">
+      <img src={`${base}safari/safari-a.png`} alt="Ícone do Safari: bússola azul com ponteiro vermelho"
+        className="w-20 h-20 object-contain rounded-[22.5%]"
+        style={{ boxShadow: "0 0 0 1px rgba(22,40,74,0.55)" }} />
     </div>
   );
 }
@@ -271,7 +268,7 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
       {aparelho === "iphone" && (
         <div data-testid="guia-painel-iphone">
           <Alerta tipo="aviso" texto="No iPhone, a instalação só funciona pelo Safari (ícone de bússola azul). Se estiver em outro navegador, abra o Safari primeiro." />
-          <SafariModelos />
+          <SafariIcone />
           <Passo n={1} texto="Abra o Safari e acesse o endereço da Área do Cliente:" detalhe="Se a clínica enviou o link, toque nele." />
           <UrlInsert />
           <Passo n={2} texto="Toque no botão Compartilhar, na barra inferior" detalhe="É um quadrado com uma seta para cima." exemplo="iphone-compartilhar" />
