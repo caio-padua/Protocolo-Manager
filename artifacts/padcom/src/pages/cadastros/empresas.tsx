@@ -1360,12 +1360,7 @@ export default function CadastroEmpresas() {
                         </div>
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="donoNome" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="lbl">Responsável Principal</FormLabel>
-                        <FormControl><Input placeholder="Dr. Nome Completo" {...field} className="field-engraved" /></FormControl>
-                      </FormItem>
-                    )} />
+                    {/* "Responsável Principal" (donoNome) saiu da aba Dados: quem responde pela clínica vem das abas Responsável empresarial e Responsável médico. A coluna no banco e o valor gravado são preservados. */}
                     <FormField control={form.control} name="slug" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="lbl">Slug (URL interna)</FormLabel>
