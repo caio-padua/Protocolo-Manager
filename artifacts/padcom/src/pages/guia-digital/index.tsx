@@ -227,7 +227,7 @@ function SafariIcone() {
   const base = import.meta.env.BASE_URL;
   const destino = `${window.location.origin}${base}area`;
   return (
-    <div className="flex items-center justify-center my-3" data-testid="guia-safari-icone">
+    <div className="flex flex-col items-center justify-center gap-2 my-3" data-testid="guia-safari-icone">
       <a href={destino} target="_blank" rel="noreferrer" aria-label="Toque para abrir a Área do Cliente"
         data-testid="guia-safari-botao"
         className="bevel-3d relative flex items-center justify-center w-[104px] h-[104px] rounded-[10px] overflow-hidden no-underline active:translate-y-px"
@@ -239,6 +239,7 @@ function SafariIcone() {
         <img src={`${base}safari/safari-a.png`} alt="Ícone do Safari: bússola azul com ponteiro vermelho"
           className="relative w-20 h-20 object-contain rounded-[22.5%]" />
       </a>
+      <span className="text-[11px] font-black uppercase tracking-widest text-primary">Toque aqui</span>
     </div>
   );
 }
@@ -277,12 +278,14 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
       {aparelho === "iphone" && (
         <div data-testid="guia-painel-iphone">
           <Alerta tipo="aviso" texto="No iPhone, a instalação só funciona pelo Safari (ícone de bússola azul). Se estiver em outro navegador, abra o Safari primeiro." />
+          <Passo n={1} texto="Toque no ícone do Safari, aqui embaixo" detalhe="A bússola azul. Se ele não abrir sozinho, procure o Safari na tela do seu iPhone." />
           <SafariIcone />
-          <Passo n={1} texto="Abra o Safari e acesse o endereço da Área do Cliente:" detalhe="Se a clínica enviou o link, toque nele." />
+          <Passo n={2} texto="Copie o endereço da Área do Cliente" detalhe="Toque no botão COPIAR, aqui embaixo. Se a clínica enviou o link, pode tocar nele." />
           <UrlInsert />
-          <Passo n={2} texto="Toque no botão Compartilhar, na barra inferior" detalhe="É um quadrado com uma seta para cima." exemplo="iphone-compartilhar" />
-          <Passo n={3} texto="Role a lista e toque em Adicionar à Tela de Início" exemplo="iphone-lista" />
-          <Passo n={4} texto="Toque em Adicionar, no canto superior direito" exemplo="iphone-adicionar" />
+          <Passo n={3} texto="Cole o endereço na barra do Safari e toque em Ir" detalhe="Toque na barra de endereço, segure o dedo até aparecer Colar, toque em Colar e depois em Ir (ou Enter)." />
+          <Passo n={4} texto="Procure o botão Compartilhar" detalhe="É um quadrado com uma seta para cima. Se só aparecerem três pontinhos, toque neles e depois em Compartilhar. Toque no botão do olho para ver o exemplo." exemplo="iphone-compartilhar" />
+          <Passo n={5} texto="Role a lista e toque em Adicionar à Tela de Início" detalhe="Passe o dedo para cima na lista até achar a frase." exemplo="iphone-lista" />
+          <Passo n={6} texto="Toque em Adicionar, no canto superior direito" exemplo="iphone-adicionar" />
           <Alerta tipo="ok" texto={`Pronto. O atalho do PaxMed (${clinicaNome}) aparece na tela inicial.`} />
         </div>
       )}
