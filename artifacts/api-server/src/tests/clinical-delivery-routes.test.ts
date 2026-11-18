@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../lib/ceo-identidade", () => ({ medicoDoCeoPodeEmitir: async () => true }));
 import express from "express";
 import request from "supertest";
 import { PgDialect } from "drizzle-orm/pg-core";

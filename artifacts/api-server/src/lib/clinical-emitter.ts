@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { db, clientsTable, professionalsTable, locationsTable, locationProfessionalsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
+import { medicoDoCeoPodeEmitir } from "./ceo-identidade";
 
 export class ClinicalIdentityError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -113,5 +114,10 @@ export async function resolveClinicalMember(req: Request, clientId: unknown) {
 }
 
 export async function resolveClinicalEmitter(req: Request, clientId: unknown) {
-  return validateClinicalIdentity(await loadClinicalRecords(req, clientId));
+  const identity = validateClinicalIdentity(await loadClinicalRecords(req, clientId));
+  // Interruptor "Profissional Médico" do CEO: desligado = o cadastro médico do CEO não emite.
+  if (!(await medicoDoCeoPodeEmitir(identity.professional.id))) {
+    throw new ClinicalIdentityError(403, "O Profissional Médico do CEO está desativado. Ative o interruptor em Identidade do CEO para emitir documentos.");
+  }
+  return identity;
 }

@@ -202,3 +202,4 @@
 
 - [Canal oficial da clínica](canal-oficial-clinica-regra.md) — toggle só CEO: cadastro = celular da clínica; CNPJ sempre da empresa da sessão; CNPJs do dev são fictícios.
 - [Foto da capa = profissional que atende](capa-foto-profissional-que-atende.md) — capa usa photo_url do profissional do protocolo; sem foto, sem retrato; nunca a foto global do CEO.
+- [CEO entidade + interruptor Profissional Médico](ceo-entidade-e-profissional-medico.md) — CEO≠médico; interruptor liga o cadastro médico (Dr. Caio); documento sai no nome do médico logado.
