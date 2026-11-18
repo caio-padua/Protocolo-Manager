@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, degrees } from "pdf-lib";
+import { carregarFotoProfissional } from "./professional-photo";
 import type { PDFFont } from "pdf-lib";
 import forge from "node-forge";
 import fs from "fs";
@@ -905,6 +906,8 @@ interface ProtocolDocPayment {
 
 interface ProtocolDocumentData {
   protocolId: number;
+  /** Profissional que atende: a foto da capa sai do cadastro dele, nunca de outra pessoa. */
+  professionalId?: number | null;
   protocolTitle: string;
   clientName: string;
   clientCpf: string;
@@ -1448,6 +1451,16 @@ async function embedJpegAsset(pdfDoc: PDFDocument, fileName: string): Promise<Em
     }
   }
   return null;
+}
+
+export async function embedFotoProfissional(pdfDoc: PDFDocument, professionalId: number | null | undefined): Promise<EmbeddedPng | null> {
+  const foto = await carregarFotoProfissional(professionalId);
+  if (!foto) return null;
+  try {
+    return foto.formato === "jpg" ? await pdfDoc.embedJpg(stripJpegMetadata(foto.bytes)) : await pdfDoc.embedPng(foto.bytes);
+  } catch {
+    return null;
+  }
 }
 
 function maskCpf(cpf: string | undefined): string {
@@ -2705,7 +2718,7 @@ export async function buildProtocolDocumentLayout(
     embedBrandPng(pdfDoc, "padcon-words.png"),       // PADCON + Platform® + Advanced Systems Architecture
     embedPaxterQr(pdfDoc),
     embedBrandPng(pdfDoc, "padua-wordmark.png"),    // logo Instituto Pádua (capa + subcapa)
-    embedJpegAsset(pdfDoc, "dr-caio-photo.jpg"),    // foto do Dr. Caio (opcional — layout Gamma-inspired)
+    embedFotoProfissional(pdfDoc, data.professionalId),  // foto do profissional que atende (opcional)
   ]);
 
   const allPages: PDFPage[] = [];

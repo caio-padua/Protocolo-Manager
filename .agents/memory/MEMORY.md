@@ -201,3 +201,4 @@
 - [Manual do Cliente /guia-digital](manual-cliente-guia-digital.md) — mesma rota, tenant por ?tenant=, aba COMUNICAÇÃO só linka; sem código previsível; e2e protege textos proibidos.
 
 - [Canal oficial da clínica](canal-oficial-clinica-regra.md) — toggle só CEO: cadastro = celular da clínica; CNPJ sempre da empresa da sessão; CNPJs do dev são fictícios.
+- [Foto da capa = profissional que atende](capa-foto-profissional-que-atende.md) — capa usa photo_url do profissional do protocolo; sem foto, sem retrato; nunca a foto global do CEO.

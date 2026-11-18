@@ -32,6 +32,7 @@ import {
   drawPadconMark,
   drawPremiumCover,
   stripJpegMetadata,
+  embedFotoProfissional,
   PADCON_INNER_SCALE,
 } from "./pdf-signer";
 
@@ -129,6 +130,7 @@ export interface CartaTratamentoData {
   protocolTitle:     string;
   clientName:        string;
   clientCpf:         string;
+  professionalId?:   number | null;
   professionalName:  string;
   professionalCrm?:  string | null;
   unit:              string;
@@ -939,20 +941,19 @@ async function loadFonts(pdfDoc: PDFDocument): Promise<CartaFonts> {
   };
 }
 
-async function loadAssets(pdfDoc: PDFDocument): Promise<CartaAssets> {
+async function loadAssets(pdfDoc: PDFDocument, professionalId?: number | null): Promise<CartaAssets> {
   const assets: CartaAssets = {};
   const symbolBuf  = readAsset("paxmed-symbol.png");
   const wordmarkBuf = readAsset("paxmed-wordmark.png");
   const clinicBuf  = readAsset("padua-wordmark.png");
   const padconSymBuf = readAsset("padcon-symbol.png");
   const padconWrdBuf = readAsset("padcon-words.png");
-  const drCaioPhotoBuf = readAsset("dr-caio-photo.jpg");
   if (symbolBuf)  try { assets.symbolGlass = await pdfDoc.embedPng(symbolBuf); } catch { /**/ }
   if (wordmarkBuf) try { assets.wordmarkImg = await pdfDoc.embedPng(wordmarkBuf); } catch { /**/ }
   if (clinicBuf)  try { assets.clinicImg   = await pdfDoc.embedPng(clinicBuf);  } catch { /**/ }
   if (padconSymBuf) try { assets.padconSymbol = await pdfDoc.embedPng(padconSymBuf); } catch { /**/ }
   if (padconWrdBuf) try { assets.padconWords  = await pdfDoc.embedPng(padconWrdBuf); } catch { /**/ }
-  if (drCaioPhotoBuf) try { assets.drCaioPhoto = await pdfDoc.embedJpg(stripJpegMetadata(drCaioPhotoBuf)); } catch { /**/ }
+  assets.drCaioPhoto = (await embedFotoProfissional(pdfDoc, professionalId)) ?? undefined; // foto do profissional que atende
   return assets;
 }
 
@@ -963,6 +964,7 @@ export function buildCartaTratamentoDto(raw: {
   protocolTitle: string;
   clientName: string;
   clientCpf?: string | null;
+  professionalId?: number | null;
   professionalName: string;
   professionalCrm?: string | null;
   unit: string;
@@ -1074,6 +1076,7 @@ export function buildCartaTratamentoDto(raw: {
     protocolTitle:     raw.protocolTitle,
     clientName:        raw.clientName,
     clientCpf:         raw.clientCpf ?? "",
+    professionalId:    raw.professionalId ?? null,
     professionalName:  raw.professionalName,
     professionalCrm:   raw.professionalCrm,
     unit:              raw.unit,
@@ -1091,7 +1094,7 @@ export async function buildCartaTratamentoLayout(
   pdfDoc: PDFDocument,
   dto: CartaTratamentoData,
 ): Promise<void> {
-  const [fonts, assets] = await Promise.all([loadFonts(pdfDoc), loadAssets(pdfDoc)]);
+  const [fonts, assets] = await Promise.all([loadFonts(pdfDoc), loadAssets(pdfDoc, dto.professionalId)]);
   const totalPages = 1 + 1 + dto.substances.length + 1;
 
   const allPages: PDFPage[] = [];
