@@ -55,12 +55,22 @@ export default function Entrada() {
   const [, setLocation] = useLocation();
   const [fase, setFase] = useState<"splash" | "escolha">("splash");
 
+  // App instalado (tela inicial do celular): entra direto na Area do cliente, sem splash nem escolha.
+  // A escolha continua existindo no navegador comum.
+  const instalado = typeof window !== "undefined" && (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true
+  );
+  useEffect(() => { if (instalado) setLocation("/area", { replace: true }); }, [instalado, setLocation]);
+
   // Auto-avanca para a escolha apos a abertura. Tocar na tela pula na hora.
   useEffect(() => {
-    if (fase !== "splash") return;
+    if (instalado || fase !== "splash") return;
     const t = setTimeout(() => setFase("escolha"), 2800);
     return () => clearTimeout(t);
-  }, [fase]);
+  }, [fase, instalado]);
+
+  if (instalado) return null;
 
   return (
     <div className="entrada-bg min-h-[100dvh] w-full text-white flex flex-col items-center justify-center px-5 py-10 overflow-hidden">

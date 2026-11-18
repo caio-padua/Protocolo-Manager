@@ -18,7 +18,7 @@ describe("manifest e service worker", () => {
   const sw = readFileSync(new URL("sw.js", raiz), "utf8");
   it("manifest instalavel com icones 192, 512 e maskable", () => {
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toBe("/entrada");
+    expect(manifest.start_url).toBe("/area");
     const tam = manifest.icons.map((i: { sizes: string; purpose: string }) => `${i.sizes}:${i.purpose}`);
     expect(tam).toEqual(expect.arrayContaining(["192x192:any", "512x512:any", "512x512:maskable"]));
   });
