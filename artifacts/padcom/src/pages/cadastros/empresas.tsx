@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { ceoApi } from "@/lib/ceo-api";
 import { semAcento, compararEmpresas, ehInstitutoPadua } from "./locais/locais-modo";
 import "./locais/locais.css";
 import "./empresas-cartao.css";
@@ -352,6 +353,19 @@ function LogoEmpresa({ empresaId, nome }: { empresaId: number; nome: string }) {
   );
 }
 
+// Nome do Responsável empresarial vindo do cadastro novo (abas de responsáveis); sem acesso do dono da plataforma, não mostra nada.
+function useResponsavelEmpresarial(empresaId: number): string | null {
+  const [nome, setNome] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    ceoApi<{ responsavelEmpresarial: { nome: string } | null }>(`/ceo/empresas/${empresaId}/responsaveis`)
+      .then(d => { if (vivo) setNome(d.responsavelEmpresarial?.nome ?? null); })
+      .catch(() => { if (vivo) setNome(null); });
+    return () => { vivo = false; };
+  }, [empresaId]);
+  return nome;
+}
+
 function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
   empresa: Empresa;
   onEdit: () => void;
@@ -360,6 +374,7 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
 }) {
   // O Instituto Pádua é a empresa de acesso do sistema: desativá-lo derrubaria o login (regra também no servidor).
   const protegida = ehInstitutoPadua(empresa.nome) && empresa.ativa;
+  const respEmpresarial = useResponsavelEmpresarial(empresa.id);
   return (
     <div className={`panel-3d relative overflow-hidden flex flex-col cursor-default ${protegida ? "panel-3d-active" : ""} ${empresa.ativa ? "" : "opacity-60"}`} data-testid={`empresa-card-${empresa.id}`}>
       {/* Faixa lateral: genesis=dourado, ativa=teal, inativa=amber */}
@@ -389,7 +404,7 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
           )}
           {empresa.telefone && <JanelaDado rotulo="Telefone">{empresa.telefone}</JanelaDado>}
           {empresa.emailGeral && <JanelaDado rotulo="E-mail">{empresa.emailGeral}</JanelaDado>}
-          {empresa.donoNome && <JanelaDado rotulo="Responsável">{empresa.donoNome}</JanelaDado>}
+          {respEmpresarial && <JanelaDado rotulo="Responsável">{respEmpresarial}</JanelaDado>}
           {empresa.tipoContrato && (
             <JanelaDado rotulo="Contrato">{CONTRATO_LABELS[empresa.tipoContrato] ?? empresa.tipoContrato}</JanelaDado>
           )}
@@ -421,6 +436,7 @@ function EmpresaCard({ empresa, onEdit, onToggleAtiva, onOpen }: {
 
 // ── Painel lateral de equipe ───────────────────────────────────────────────────
 function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => void }) {
+  const respEmpresarial = useResponsavelEmpresarial(empresa.id);
   const [tab, setTab] = useState<"cargos" | "colaboradores">("colaboradores");
   const [expandedCargo, setExpandedCargo] = useState<number | null>(null);
 
@@ -458,8 +474,8 @@ function PainelEquipe({ empresa, onClose }: { empresa: Empresa; onClose: () => v
             Fechar
           </button>
         </div>
-        {empresa.donoNome && (
-          <p className="text-[11px] text-primary font-semibold mt-1.5">Responsável: {empresa.donoNome}</p>
+        {respEmpresarial && (
+          <p className="text-[11px] text-primary font-semibold mt-1.5">Responsável: {respEmpresarial}</p>
         )}
         {empresa.tipoContrato && (
           <p className="text-[9px] text-muted-foreground/60 uppercase font-bold mt-0.5">
