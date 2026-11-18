@@ -410,11 +410,15 @@ export default function EditClient() {
                         aria-label="Este cadastro é o celular oficial da empresa"
                         data-testid="canal-clinica-toggle"
                       />
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <p className="m-0 text-[11px] font-black uppercase tracking-widest">Celular oficial da empresa (WhatsApp e Telegram)</p>
-                        <p className="m-0 text-xs text-muted-foreground">
-                          Ligue quando este cadastro representa o celular da própria clínica, e não uma pessoa. O CPF continua como está; aparecem o CNPJ e os dados da empresa abaixo. Só os campos de contato ficam editáveis. {canalQuery.data.podeAlterar ? "" : "Somente o CEO pode alterar esta chave."}
-                        </p>
+                        <ul className="m-0 list-none space-y-1 p-0 text-xs text-muted-foreground" data-testid="canal-clinica-regra">
+                          <li>1. Ligue só se este cadastro é o celular da própria clínica, e não uma pessoa.</li>
+                          <li>2. O CNPJ e os dados mostrados são sempre os da empresa de quem está logado, nunca de outra.</li>
+                          <li>3. Este celular conversa com o bot do Telegram da clínica.</li>
+                          <li>4. Ligado: só número, WhatsApp e Telegram ficam editáveis; o resto fica cinza.</li>
+                          <li>5. Só pode haver um por empresa, e só o CEO liga ou desliga. {canalQuery.data.podeAlterar ? "" : "Somente o CEO pode alterar esta chave."}</li>
+                        </ul>
                         {canalErro && <p role="alert" className="m-0 text-xs font-semibold text-red-700 dark:text-red-300">{canalErro}</p>}
                       </div>
                     </div>

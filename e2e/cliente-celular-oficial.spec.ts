@@ -46,6 +46,7 @@ test("CEO liga a chave: CPF vira CNPJ, outros campos travam e contato continua e
   await page.getByTestId("canal-clinica-toggle").click();
   await expect(page.getByTestId("canal-clinica-cnpj")).toHaveText("00.000.000/0001-00");
   await expect(page.getByText("CPF *")).toBeVisible();
+  await expect(page.getByTestId("canal-clinica-regra")).toContainText("sempre os da empresa de quem está logado");
   await expect(page.getByTestId("canal-clinica-selo")).toContainText("Fantasia Sintética");
   await expect(page.getByTestId("canal-clinica-empresa")).toContainText("Logo não cadastrado na empresa");
   expect(state.puts).toEqual([{ ativo: true }]);

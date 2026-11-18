@@ -177,8 +177,7 @@
 - [Encaixe rápido interno (Quick Book)](agenda-encaixe-interno.md) — canal decidido no servidor (rota+Governança), antecedência em minutos no app_settings, mesma decisão no seletor e na confirmação, sem cadeia.
 - [Agenda — barra congelada e cartão rápido](agenda-barra-congelada.md) — sticky precisa de top negativo = padding do Layout; sem scroll-snap na faixa; e2e do filtro clica o + antes; goto lento no dev.
 - [Telegram — chat do CEO, repasse e status](telegram-diagnostico-repasse-ceo.md) — webhook único aponta para um ambiente; repasse ao CEO sem eco; status honesto na Central de Auditoria.
-- [Telegram — deduplicação por update_id](telegram-dedupe-update-id.md) — chave (chat_id, update_id); gravar antes de repassar; 500 só em falha transitória.
-- [Telegram webhook — claim, outbox, config única](telegram-webhook-claim-outbox.md) — dedupe por bot+update (500 em andamento), outbox sem reenvio de "incerto", chat de alerta só por telegram-config.
+- **Telegram — webhook** — [dedupe por update_id](telegram-dedupe-update-id.md) · [claim, outbox, config única](telegram-webhook-claim-outbox.md) — chave (chat,update); gravar antes de repassar.
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
 - [Lembrete no Telegram](lembrete-telegram-motor.md) — mesmo motor, canal por modo em app_settings; janela leva só seus períodos; prova automática isolando o Job 2.
 - [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único em lib/avaliacoes-corporais; campos vazios; remoção por deleted_at.
@@ -200,3 +199,5 @@
 - [Evolução /area — planilha congelada e nomes de upload](evolucao-area-cliente-planilha-congelada.md) — sticky fora do overflow-x; gráfico inicial no topo; nome original do upload vive na cópia interna.
 - [Fotos de evolução corporal](fotos-corpo-privacidade-comparador.md) — fotos privadas por rota autenticada, substituir=soft delete, grade calibrada por altura só com mesmo enquadramento.
 - [Manual do Cliente /guia-digital](manual-cliente-guia-digital.md) — mesma rota, tenant por ?tenant=, aba COMUNICAÇÃO só linka; sem código previsível; e2e protege textos proibidos.
+
+- [Canal oficial da clínica](canal-oficial-clinica-regra.md) — toggle só CEO: cadastro = celular da clínica; CNPJ sempre da empresa da sessão; CNPJs do dev são fictícios.
