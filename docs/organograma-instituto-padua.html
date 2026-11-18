@@ -1,20 +1,42 @@
-<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Organograma - Instituto Padua</title>
-<style>body{font-family:Inter,Arial,sans-serif;background:#0b1630;color:#f4efe0;margin:0;padding:24px}
-h1{font-size:20px;color:#d4af37}.n{border:1px solid #d4af37;border-radius:8px;padding:10px 14px;margin:6px auto;text-align:center;background:#13224a;max-width:360px}
-.n small{display:block;color:#b9c3dd;font-size:11px}.t{background:#2a3a1f;border-color:#8fbf5a}.r{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
-.l{width:2px;height:16px;background:#d4af37;margin:0 auto}.p{background:#4a2a2a;border-color:#d98080}.leg{max-width:760px;margin:16px auto;font-size:12px;color:#b9c3dd}</style>
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Organograma - Instituto Padua (v2)</title>
+<style>
+body{font-family:Inter,Arial,sans-serif;background:#0b1630;color:#f4efe0;margin:0;padding:24px}
+h1{font-size:20px;color:#d4af37;text-align:center}h2{font-size:13px;color:#d4af37;text-align:center;margin:18px 0 4px;letter-spacing:.08em;text-transform:uppercase}
+.n{border:1px solid #d4af37;border-radius:8px;padding:10px 14px;margin:6px auto;text-align:center;background:#13224a;max-width:380px}
+.n small{display:block;color:#b9c3dd;font-size:11px}
+.t{background:#2a3a1f;border-color:#8fbf5a}.p{background:#4a2a2a;border-color:#d98080}.f{background:#1f3a4a;border-color:#5ab4bf}.x{background:#3a2a4a;border-color:#b08fd9}
+.r{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+.l{width:2px;height:16px;background:#d4af37;margin:0 auto}
+.leg{max-width:820px;margin:16px auto;font-size:12px;color:#b9c3dd;line-height:1.5}
+</style></head><body>
 <h1>Organograma - Instituto Padua (empresa 5)</h1>
-<div class="n">PAXMED / CEO da plataforma<small>entidade empresarial dona do sistema</small></div><div class="l"></div>
-<div class="n">Instituto Padua<small>empresa 5 (cadastro empresarial)</small></div><div class="l"></div>
+
+<h2>1. Pessoas e empresa</h2>
+<div class="n">PAXMED / dono da plataforma<small>entidade empresarial dona do sistema</small></div><div class="l"></div>
+<div class="n">Instituto Padua - clinica SEDE<small>cadastro empresarial; pode ter clinicas externas vinculadas</small></div><div class="l"></div>
 <div class="r">
-<div><div class="n">Responsavel empresarial (dono)<small>Divisao "Administradores de clinica"</small></div>
-<div class="n t">Caio Henrique Fernandes Padua<small>PESSOA FISICA - cadastro 27 [TESTE FICTICIO] - nao agendavel, nao emite documento clinico</small></div></div>
-<div><div class="n">Responsavel medico (tecnico)<small>Corpo Clinico - categoria Medico</small></div>
-<div class="n t">Dr. Caio Henrique Fernandes Padua<small>MEDICO - cadastro 6 - CRM SP 125.475 - emite e assina</small></div></div></div>
-<div class="l"></div>
-<div class="r"><div class="n">Corpo Clinico agendavel<small>Medicos, enfermagem, recepcao, administrativo, financeiro</small></div>
-<div class="n p">Fora da agenda<small>Administradores de clinica; licenciado</small></div></div>
-<div class="l"></div>
-<div class="n">Agendas (Agenda Configuracao)<small>cada agenda aponta para 1 local e pode ter 1 profissional titular</small></div><div class="l"></div>
-<div class="n">Locais (sede, externo, online, home care)<small>endereco fisico ou "a definir"</small></div>
-<p class="leg">Mesma pessoa, duas entidades: dono (cadastro 27) e medico (cadastro 6). Pessoa, agenda e local sao tres coisas diferentes e nenhuma e deduzida da outra.</p></html>
+ <div class="n p">Responsavel empresarial (dono)<small>Administradores de clinica - cadastro 27 [TESTE FICTICIO]<br>nao agendavel, nao emite documento clinico</small></div>
+ <div class="n t">Responsavel medico (tecnico)<small>Corpo Clinico, categoria Medico - cadastro 6<br>emite e assina</small></div>
+</div>
+<div class="n">Corpo Clinico agendavel<small>medicos, enfermagem, recepcao, administrativo, financeiro</small></div>
+
+<h2>2. Clinicas externas (opcional)</h2>
+<div class="r">
+ <div class="n x">Clinica externa A<small>ex.: Consultorio Jardins - endereco proprio</small></div>
+ <div class="n x">Clinica externa B<small>ex.: Consultorio Sao Miguel Paulista - endereco proprio</small></div>
+</div>
+<div class="n">O dono libera um profissional seu para atender na clinica externa, usando o agendamento do sistema<small>a liberacao e decisao do dono, profissional por profissional</small></div>
+
+<h2>3. Agenda (Agenda Configuracao) = categoria profissional + FORMA de atendimento</h2>
+<div class="n f">Agenda de atendimento<small>nome, categoria profissional, forma, duracao, cor, profissionais ligados</small></div><div class="l"></div>
+<div class="r">
+ <div class="n f">Forma: SEDE<small>local = endereco da propria clinica sede</small></div>
+ <div class="n f">Forma: LOCAL EXTERNO<small>local = uma clinica externa cadastrada (varia por atendimento)</small></div>
+ <div class="n f">Forma: ONLINE<small>sem endereco</small></div>
+ <div class="n f">Forma: HOME CARE<small>local = endereco do cliente</small></div>
+</div>
+
+<div class="leg"><b>Regra de conceito:</b> Sede, Local externo, Online e Home Care sao FORMAS de atendimento, nao locais. A agenda e criada por forma. O LOCAL e uma variavel que cada forma pode ter: na forma Local externo, o local e uma clinica externa escolhida entre as cadastradas; na Sede, o endereco da clinica; no Home Care, o endereco do cliente; no Online, nenhum.<br>
+<b>Pessoa, agenda, forma e local sao quatro coisas diferentes</b> e nenhuma e deduzida da outra. Mesma pessoa, duas entidades: dono (cadastro 27) e medico (cadastro 6).</div>
+</body></html>
