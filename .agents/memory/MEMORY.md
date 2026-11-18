@@ -144,7 +144,6 @@
 - [PQQ: via do consultório](pqq-via-intramuscular.md) — médico confirmou via intramuscular, nunca endovenosa; corrigir divergências do cadastro na fonte.
 - [Intervalo de protocolos](intervalo-minimo-protocolos.md) — médico escolheu frequência menos quatro dias como mínimo; frequências curtas exigem trava positiva.
 - [Transmutação e origem privada](transmutacao-catalogo-fonte-privada.md) — endereço público pode retornar 404 enquanto a integração autenticada lê o catálogo.
-- [Governança e agenda pessoal](agenda-governanca-pessoal.md) — liberação gradual e bloqueio de recursos pessoais.
 - [Importação e sessões](ics-importacao-sessoes-do-sistema.md) — diferenciar compromissos importados de sessões do sistema.
 - [Informações clínicas no Google](agenda-evento-google-padrao.md) — conectar o formato existente às duas agendas, sem inventar dados ou estados.
 - [Planejador de protocolo + participação médica](protocolo-planejador-dimensionamento.md) — IV/IM/SC sem médico, implante com; planejador puro existe mas sem rota; lacuna = vagas + reserva conjunta.
@@ -203,3 +202,4 @@
 - [Canal oficial da clínica](canal-oficial-clinica-regra.md) — toggle só CEO: cadastro = celular da clínica; CNPJ sempre da empresa da sessão; CNPJs do dev são fictícios.
 - [Foto da capa = profissional que atende](capa-foto-profissional-que-atende.md) — capa usa photo_url do profissional do protocolo; sem foto, sem retrato; nunca a foto global do CEO.
 - [CEO entidade + interruptor Profissional Médico](ceo-entidade-e-profissional-medico.md) — CEO≠médico; interruptor liga o cadastro médico (Dr. Caio); documento sai no nome do médico logado.
+- [Administrador de clínica](administrador-clinica-entidade-empresarial.md) — dono = entidade empresarial não agendável, campos profissionais apagados.
