@@ -127,13 +127,15 @@ export default function EditClient() {
   // Cadastro marcado como celular oficial da empresa: so os campos de contato (WhatsApp/Telegram) ficam editaveis.
   const trava = canalAtivo ? "opacity-50 grayscale pointer-events-none select-none" : "";
   const inertProps = (canalAtivo ? { inert: "" } : {}) as Record<string, unknown>;
-  async function alternarCanal(ativo: boolean) {
-    setCanalErro(""); setCanalSalvando(true);
+  const [canalPedeConfirmar, setCanalPedeConfirmar] = useState(false);
+  async function alternarCanal(ativo: boolean, confirmarHistorico = false) {
+    setCanalErro(""); setCanalSalvando(true); setCanalPedeConfirmar(false);
     try {
       const r = await fetch(`${canalApi}/clients/${id}/canal-clinica`, {
-        method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ ativo }),
+        method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ ativo, confirmarHistorico }),
       });
       const j = await r.json().catch(() => ({}));
+      if (r.status === 409 && j.code === "HISTORICO_CLINICO") { setCanalErro(j.error); setCanalPedeConfirmar(true); return; }
       if (!r.ok) throw new Error(j.error ?? "Não foi possível alterar.");
       queryClient.setQueryData(["cliente-canal-clinica", id], j);
     } catch (e) { setCanalErro((e as Error).message); }
@@ -262,8 +264,12 @@ export default function EditClient() {
     ].filter(Boolean);
     const address = addressParts.join(", ");
 
+    // Celular oficial da empresa: so nome e telefone seguem; o servidor tambem recusa o resto.
+    const dadosEnviados = canalAtivo
+      ? ({ name: tituloProprio(values.name), phone: values.phone } as unknown as Parameters<typeof updateClient.mutate>[0]["data"])
+      : null;
     updateClient.mutate(
-      { id, data: {
+      { id, data: dadosEnviados ?? {
         name: tituloProprio(values.name),
         cpf: values.cpf,
         email: values.email,
@@ -406,7 +412,7 @@ export default function EditClient() {
                       <Switch
                         checked={canalAtivo}
                         disabled={!canalQuery.data.podeAlterar || canalSalvando}
-                        onCheckedChange={alternarCanal}
+                        onCheckedChange={(v) => alternarCanal(v)}
                         aria-label="Este cadastro é o celular oficial da empresa"
                         data-testid="canal-clinica-toggle"
                       />
@@ -420,6 +426,11 @@ export default function EditClient() {
                           <li>5. Só pode haver um por empresa, e só o CEO liga ou desliga. {canalQuery.data.podeAlterar ? "" : "Somente o CEO pode alterar esta chave."}</li>
                         </ul>
                         {canalErro && <p role="alert" className="m-0 text-xs font-semibold text-red-700 dark:text-red-300">{canalErro}</p>}
+                        {canalPedeConfirmar && (
+                          <Button type="button" size="sm" className="btn-3d" disabled={canalSalvando} onClick={() => alternarCanal(true, true)} data-testid="canal-clinica-confirmar">
+                            Confirmar: marcar como celular oficial
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}

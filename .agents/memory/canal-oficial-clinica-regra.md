@@ -13,3 +13,5 @@ Regra (decisão do CEO, 18/11/2026): o cadastro marcado como "celular oficial da
 
 **Why:** o mesmo erro (mistura de cadastro de pessoa com número da clínica no Telegram) se repetiria em cada clínica licenciada.
 **How to apply:** ao mexer em cadastro de cliente, Central Telegram ou empresas, ler isto antes; texto explicativo da regra vive no painel do toggle (edit.tsx, data-testid canal-clinica-regra).
+
+Atualização 18/11/2026: o CEO ordenou deixar o cadastro 44 LIGADO (assume a empresa 5) e implementar tudo. Feito: auditoria (tabela canal_clinica_auditoria), bloqueio de dados pessoais também no servidor (403 em PUT/PATCH), ligar com histórico clínico exige confirmação explícita (409 HISTORICO_CLINICO + botão), nada é convertido ou apagado. Permissão segue isPlatformOwner; "CEO por clínica licenciada" ainda não existe como papel. O 44 foi ligado antes da auditoria, então não há linha de auditoria dessa ligação.

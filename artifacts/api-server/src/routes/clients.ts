@@ -64,6 +64,23 @@ async function validateClinicaOrigem(executor: Pick<typeof db, "select">, id: nu
 
 class ClinicaOrigemConflict extends Error {}
 
+// Cadastro marcado como celular oficial da empresa: dados pessoais/clinicos ficam somente leitura tambem no servidor.
+export class CanalOficialBloqueio extends Error {}
+const CAMPOS_PESSOAIS_CANAL = ["cpf", "email", "birthDate", "address", "pais", "instagram", "comoConheceu", "notes", "complemento", "fichaClinica", "photoUrl"] as const;
+function normalizarCampo(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  return typeof v === "string" ? v.trim() : JSON.stringify(v);
+}
+export function validarBloqueioCanalOficial(existing: Record<string, unknown>, clientData: Record<string, unknown>, visitPreferences: unknown): void {
+  if (existing.numeroOficialEmpresa !== true) return;
+  const mudados = CAMPOS_PESSOAIS_CANAL.filter((k) => k in clientData && normalizarCampo(clientData[k]) !== normalizarCampo(existing[k]));
+  if (visitPreferences !== undefined) mudados.push("visitPreferences" as never);
+  if ("status" in clientData && clientData.status !== existing.status) mudados.push("status" as never);
+  if (mudados.length) {
+    throw new CanalOficialBloqueio(`Este cadastro é o celular oficial da empresa: dados pessoais ficam somente leitura (${mudados.join(", ")}).`);
+  }
+}
+
 type AgendaUpdate = {
   clinicaOrigemEmpresaId?: number | null;
   agendaEnfermagemPadraoId?: number | null;
@@ -321,18 +338,34 @@ router.put("/clients/:id/canal-clinica", requireClientWriter, async (req, res): 
   }
   const id = Number(req.params.id);
   const ativo = req.body?.ativo;
+  const confirmarHistorico = req.body?.confirmarHistorico === true;
   if (!Number.isSafeInteger(id) || id <= 0 || typeof ativo !== "boolean") {
     res.status(400).json({ error: "Informe o cliente e ativo (verdadeiro ou falso)." });
     return;
   }
   const empresaId = req.tenantContext.empresaId;
   try {
-    const [c] = await db.update(clientsTable).set({ numeroOficialEmpresa: ativo })
-      .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId), isNull(clientsTable.deletedAt)))
-      .returning({ ativo: clientsTable.numeroOficialEmpresa });
-    if (!c) { res.status(404).json({ error: "Cliente não encontrado ou removido." }); return; }
-    const e = c.ativo ? await dadosEmpresaCanal(empresaId) : null;
-    res.json({ ativo: c.ativo, cnpj: e?.cnpj ?? null, empresa: e, podeAlterar: true });
+    const out = await db.transaction(async (tx) => {
+      const [atual] = await tx.select({ ativo: clientsTable.numeroOficialEmpresa }).from(clientsTable)
+        .where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId), isNull(clientsTable.deletedAt))).for("update");
+      if (!atual) return { status: 404 as const };
+      const hist = await tx.execute(sql`SELECT (EXISTS (SELECT 1 FROM protocols WHERE client_id = ${id})
+        OR EXISTS (SELECT 1 FROM exam_results WHERE client_id = ${id})) AS tem`);
+      const temHistorico = (hist.rows[0] as { tem?: boolean } | undefined)?.tem === true;
+      if (ativo && !atual.ativo && temHistorico && !confirmarHistorico) return { status: 409 as const, historico: true };
+      if (atual.ativo === ativo) return { status: 200 as const, ativo };
+      await tx.update(clientsTable).set({ numeroOficialEmpresa: ativo }).where(and(eq(clientsTable.id, id), eq(clientsTable.empresaId, empresaId)));
+      await tx.execute(sql`INSERT INTO canal_clinica_auditoria (empresa_id, client_id, professional_id, acao, antes, depois, tinha_historico, confirmou_historico)
+        VALUES (${empresaId}, ${id}, ${req.tenantContext.professionalId}, ${ativo ? "ligar" : "desligar"}, ${atual.ativo}, ${ativo}, ${temHistorico}, ${confirmarHistorico})`);
+      return { status: 200 as const, ativo };
+    });
+    if (out.status === 404) { res.status(404).json({ error: "Cliente não encontrado ou removido." }); return; }
+    if (out.status === 409) {
+      res.status(409).json({ code: "HISTORICO_CLINICO", error: "Este cadastro já tem histórico clínico (protocolos ou exames). Nada será apagado ou convertido; confirme para marcá-lo como celular oficial da empresa." });
+      return;
+    }
+    const e = out.ativo ? await dadosEmpresaCanal(empresaId) : null;
+    res.json({ ativo: out.ativo, cnpj: e?.cnpj ?? null, empresa: e, podeAlterar: true });
   } catch (err) {
     if ((err as { code?: string }).code === "23505") {
       res.status(409).json({ error: "Já existe outro cadastro marcado como celular oficial desta empresa. Desmarque-o primeiro." });
@@ -503,6 +536,7 @@ router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> 
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
       if (!existing) return null;
+      validarBloqueioCanalOficial(existing as Record<string, unknown>, clientData as Record<string, unknown>, visitPreferences);
       await checkAgendaUpdate(tx, empresaId, existing, clientData, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada);
       if (clientData.clinicaOrigemEmpresaId !== undefined) {
         if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
@@ -535,6 +569,7 @@ router.put("/clients/:id", requireClientWriter, async (req, res): Promise<void> 
     if (!result) { res.status(404).json({ error: "Client not found" }); return; }
     res.json(result);
   } catch (error) {
+    if (error instanceof CanalOficialBloqueio) { res.status(403).json({ error: error.message }); return; }
     if (error instanceof ClinicaOrigemConflict) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
     if (error instanceof InvalidPreferredAgendas) {
@@ -566,6 +601,7 @@ router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void
     const result = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(clientsTable).where(tenantWhere).for("update");
       if (!existing) return null;
+      validarBloqueioCanalOficial(existing as Record<string, unknown>, clientData as Record<string, unknown>, visitPreferences);
       await checkAgendaUpdate(tx, empresaId, existing, clientData, clinicaOrigemEsperada, agendaEnfermagemEsperada, agendaMedicoEsperada);
       if (clientData.clinicaOrigemEmpresaId !== undefined) {
         if (clinicaOrigemEsperada === undefined || clinicaOrigemEsperada !== existing.clinicaOrigemEmpresaId) {
@@ -598,6 +634,7 @@ router.patch("/clients/:id", requireClientWriter, async (req, res): Promise<void
     if (!result) { res.status(404).json({ error: "Client not found" }); return; }
     res.json(result);
   } catch (error) {
+    if (error instanceof CanalOficialBloqueio) { res.status(403).json({ error: error.message }); return; }
     if (error instanceof ClinicaOrigemConflict) { res.status(409).json({ error: error.message }); return; }
     if (error instanceof VisitPreferenceError) { res.status(error.status).json({ error: error.message }); return; }
     if (error instanceof InvalidPreferredAgendas) {
