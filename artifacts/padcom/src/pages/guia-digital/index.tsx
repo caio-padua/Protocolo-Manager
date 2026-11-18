@@ -21,7 +21,7 @@ import {
   GuiaConfigContext, TELEGRAM_LINKS, detectDevice, registrarEvento, useGuiaConfigLoader,
 } from "./config";
 
-import { ExemploTelaBotao, GlifoPasso, type TipoExemplo } from "./ExemploTela";
+import { ExemploTelaBotao, type TipoExemplo } from "./ExemploTela";
 
 type Aparelho = "iphone" | "android" | "desktop";
 
@@ -92,7 +92,6 @@ function Passo({ n, texto, detalhe, exemplo }: { n: number; texto: string; detal
         <p className="leva-q m-0 text-[1rem] font-semibold text-primary leading-snug">{texto}</p>
         {detalhe && <p className="leva-q m-0 text-[0.9rem] text-muted-foreground leading-relaxed">{detalhe}</p>}
       </div>
-      {exemplo && <GlifoPasso tipo={exemplo} />}
       {exemplo && <ExemploTelaBotao tipo={exemplo} />}
       <BotaoAudio texto={texto} detalhe={detalhe} />
     </div>
