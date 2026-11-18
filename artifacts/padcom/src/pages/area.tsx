@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
-import { PaxmedNoCelular } from "@/components/area/PaxmedNoCelular";
+import { ComunicacaoPaineis } from "@/components/area/ComunicacaoPaineis";
 import { tituloProprio } from "@/lib/utils";
 import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
@@ -1126,59 +1126,9 @@ function ComunicacaoTab({ client }: { client: ClientInfo }) {
   if (loading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
   if (error || !data) return <p className="text-sm text-destructive">{error || "Erro ao carregar."}</p>;
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-bold">Receba seus avisos no Telegram</h2>
-      {data.vinculado ? (
-        <p className="text-sm">Seu Telegram já está ativo. Você receberá os avisos da clínica por lá.</p>
-      ) : (
-        <>
-          <p className="text-sm">O jeito mais simples é o seu link individual. Ele é só seu e liga o Telegram ao seu cadastro com um toque.</p>
-          <button onClick={gerarLink} disabled={gerando}
-            className="block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground disabled:opacity-60">
-            {gerando ? "Gerando..." : "Gerar meu link para o Telegram"}
-          </button>
-          {erroLink && <p className="text-xs text-destructive">{erroLink}</p>}
-          {link && (
-            <a href={link} target="_blank" rel="noreferrer"
-               className="block rounded-md border px-4 py-3 text-center text-sm font-bold">
-              Abrir o Telegram e ativar
-            </a>
-          )}
-          <ol className="list-decimal pl-5 space-y-1 text-sm">
-            <li>Toque em <b>Gerar meu link</b>.</li>
-            <li>Toque em <b>Abrir o Telegram e ativar</b>.</li>
-            <li>No Telegram, toque em <b>Iniciar</b> (Start).</li>
-          </ol>
-          <p className="text-xs text-muted-foreground" data-testid="comunicacao-link-regra">
-            O link é só seu, vale uma única vez e por 7 dias. Gerar outro cancela o anterior. O robô nunca inicia a conversa: você precisa tocar em Iniciar.
-          </p>
-        </>
-      )}
-      <p className="rounded-md border p-3 text-xs" data-testid="comunicacao-aviso-urgencia">
-        O Telegram não é canal de emergência nem de consulta imediata. Em urgência, ligue 192 (SAMU) ou procure o pronto atendimento.
-      </p>
-      <PaxmedNoCelular
-        guiaHref={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`} />
-      <p className="rounded-md border p-3 text-xs" data-testid="comunicacao-whatsapp-preparacao">
-        <b>WhatsApp:</b> em preparação. Por enquanto, os avisos chegam pelo Telegram.
-      </p>
-      <a
-        href={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`}
-        target="_blank" rel="noreferrer" data-testid="comunicacao-abrir-manual"
-        className="block rounded-md border px-4 py-3 text-center text-sm font-bold"
-      >
-        Abrir o Manual do Cliente PaxMed
-      </a>
-      <div className="rounded-md border p-4 space-y-1 text-sm">
-        <div className="font-semibold">Esqueceu a senha da Área do Cliente?</div>
-        <p className="text-xs text-muted-foreground">
-          Na tela de entrada, toque em <b>Entrar com data de nascimento</b> e use seu CPF e sua data de nascimento.
-        </p>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Ainda não é cliente? Abra <b>@{data.botUsername}</b> no Telegram e escreva sua dúvida. Não precisa de senha nem de cadastro.
-      </p>
-    </div>
+    <ComunicacaoPaineis
+      data={data} link={link} gerando={gerando} erroLink={erroLink} onGerar={gerarLink}
+      guiaHref={`${import.meta.env.BASE_URL}guia-digital${data.clinicaSlug ? `?tenant=${encodeURIComponent(data.clinicaSlug)}` : ""}`} />
   );
 }
 
