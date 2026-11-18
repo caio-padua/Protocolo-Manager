@@ -1278,3 +1278,17 @@ mtime_ms = 1795022353340
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/85f37893-824a-46f6-aca4-aff85219e09d/3cab1659-ef1d-4b23-aa6e-a1f8a12f1319"
 storage_version_token = "1795022354817628"
 content_type = "text/html"
+
+[[outputs]]
+id = "0YxJi9cg975GIhrL5vZmP"
+uri = "file://docs/organograma-instituto-padua.pdf"
+type = "pdf"
+title = "Organograma Instituto Padua (PDF)"
+description = "Versão mais recente, com formas de atendimento, locais variáveis e clínicas externas."
+logical_id = "efd13399-7489-4ee9-9203-e187558ff8e7"
+content_hash = "sha256:3a1f01851a3d4beadca50bbbb736372a56e10b3a5a684dcdb2ddc1b323698df0"
+size = 57811
+mtime_ms = 1795022706391
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/efd13399-7489-4ee9-9203-e187558ff8e7/40a2add3-d92c-4cae-b4c2-9e9b12ba6cac"
+storage_version_token = "1795022710313141"
+content_type = "application/pdf"
