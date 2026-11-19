@@ -20,7 +20,7 @@ const _siteBase = import.meta.env.VITE_SITE_URL
   ?? import.meta.env.VITE_AREA_URL?.replace(/\/area\/?$/, "")
   ?? null;
 // Sobe junto com a imagem og-paxmed-vN.jpg do index.html.
-const PREVIA_VERSAO = "6";
+const PREVIA_VERSAO = "7";
 const GUIA_BASE: string = _siteBase
   ? `${_siteBase}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/")
   : "⚠️ [VITE_SITE_URL NÃO CONFIGURADA — obrigatória antes do lançamento]";
