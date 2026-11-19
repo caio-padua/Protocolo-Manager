@@ -571,8 +571,7 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-ferr-pills i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 2px 9px; border-radius: 10px; background: #e9edf6; border: 1px solid #c3cde4; color: var(--navy); }
 .mx-ferr > .mx-ctrl { border-top: 1px dashed var(--line-2); box-shadow: none; background: transparent; border-radius: 0; }
 /* fundo em risca de giz clara */
-.mx-root { background-color: #f6f2e6;
-  background-image: repeating-linear-gradient(90deg, rgba(22,40,74,.045) 0 1px, transparent 1px 22px); }
+
 
 /* quadradinho de categoria (cor + sigla); blend leva tarja inferior */
 .mx-cat-q { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 0; color: #fff; overflow: hidden;
@@ -627,3 +626,13 @@ button.mx-apr { cursor: pointer; font: inherit; }
 .mx-sbar-lapis { border: 1px solid var(--line-2); background: #fff; color: var(--ink); }
 .mx-sbar-lapis:hover { background: #f3ecd8; }
 .mx-sbar .mx-search input { background: #fff; }
+
+/* forro de terno claro, risca de giz em toda a area, sem bordas brancas (sangra sobre o padding do Layout) */
+.mx-root {
+  background-color: #f3ecda;
+  background-image:
+    repeating-linear-gradient(178deg, transparent 0 22px, rgba(150,120,60,.13) 22px 23px, transparent 23px 26px, rgba(150,120,60,.06) 26px 27px),
+    linear-gradient(180deg, #f7f0e1, #efe5cf);
+  margin: -1rem; min-height: calc(100% + 2rem);
+}
+@media (min-width: 768px) { .mx-root { margin: -1.5rem -2rem -2rem; min-height: calc(100% + 3.5rem); } }
