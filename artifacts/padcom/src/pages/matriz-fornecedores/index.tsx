@@ -412,10 +412,11 @@ export default function MatrizFornecedores() {
               <V c={o.custoEmbalagemCentavos} peso={700} className="mx-money mx-mid" />
             </div>
             <div className="mx-lab-3" role="group" aria-label={`Apresentação: ${q} ${unidadeTxt(l.forma, q)} por caixa`}>
+              <span className="mx-lab-k" title="Unidades por caixa">Qtd.</span>
               {fixos.map((n) => (
-                <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined}>{n} Unid</span>
+                <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined} title={`${n} ${n > 1 ? "unidades" : "unidade"} por caixa`}>{n}</span>
               ))}
-              <button type="button" className="mx-apr mx-apr-x" data-on={quarto !== null ? 1 : 0} aria-current={quarto !== null ? "true" : undefined} title="Gravar outra quantidade na caixa" onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: o.fornecedorId }); setModal("apr"); }}>{quarto ?? "X"} Unid</button>
+              <button type="button" className="mx-apr mx-apr-x" data-on={quarto !== null ? 1 : 0} aria-current={quarto !== null ? "true" : undefined} title={quarto !== null ? `${quarto} unidades por caixa (clique para alterar)` : "Gravar outra quantidade na caixa"} onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: o.fornecedorId }); setModal("apr"); }}data-len={String(quarto ?? "X").length}>{quarto ?? "X"}</button>
             </div>
           </div>
         </td>
