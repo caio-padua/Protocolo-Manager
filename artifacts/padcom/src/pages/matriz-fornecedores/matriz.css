@@ -1120,3 +1120,13 @@ main:has(.mx-root) {
 .mx-sbar-dados > div { padding: 0 16px 0 0; min-width: 0; }
 .mx-sbar-dados span { white-space: normal; overflow-wrap: anywhere; }
 .mx-sbar-vias { flex-wrap: wrap; }
+
+/* Coluna do meio: 3 itens com o mesmo espaço entre eles; margens de cima e de baixo maiores para o painel respirar */
+.mx-root > .mx-dock-top { padding: 22px 18px 24px; }
+.mx-dock-top .mx-sbar { align-items: center; }
+.mx-dock-top .mx-sbar-z2 { display: flex; flex-direction: column; justify-content: center; gap: 12px; padding-top: 0; padding-bottom: 0; }
+.mx-dock-top .mx-sbar-z2-l1 { gap: 12px; margin: 0; }
+.mx-dock-top .mx-sbar-z2 .mx-sbar-tog, .mx-dock-top .mx-sbar-z2 .mx-sbar-busca { margin: 0; }
+.mx-dock-top .mx-sbar-z2 .mx-search, .mx-dock-top .mx-sbar-z2 .mx-search input { height: 36px; margin: 0; }
+.mx-dock-top .mx-sbar-z2 .mx-search svg { top: 10px; }
+.mx-dock-top .mx-sbar-z2 .mx-search-x { top: 6px; }
