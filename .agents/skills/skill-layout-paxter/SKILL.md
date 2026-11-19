@@ -1009,3 +1009,6 @@ apresentacao muda, o motor nunca.
 2. Historico = um poco concavo por data (DD/MM/AAAA, ouro), 4 miniaturas 3:4; vaga sem foto mostra "—", nunca espaco em branco.
 3. Comparador (modal panel-3d, maximizavel): abas de angulo (bevel-3d ativo), chips de data btn-3d-soft/bevel-3d com "n/4 fotos", modos Lado a lado / Cortina / Transicao, grade ouro com linhas ciano de cabeca e pes; data sem foto no angulo fica desabilitada com "—".
 4. Foto corporal so aparece por rota autenticada (blob local temporario); nunca por endereco publico.
+
+### Previa de link (WhatsApp/Telegram)
+Todo cartao de previa de link segue o padrao em references/previa-de-link.md (imagem de referencia e componente na pasta references/previa-de-link/). Ler antes de criar qualquer previa nova.
