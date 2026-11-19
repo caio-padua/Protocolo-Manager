@@ -30,6 +30,7 @@ async function carregar(): Promise<Matriz> {
 
 type Rascunho = { p: Parametros; c: ConfigCategoria[] };
 const CATW = 40;
+const SIGLA_VIA: Record<string, string> = { IM: "IM", EV: "EV", SC: "SC", ID: "ID", TOPICO: "TÓP", IMPLANTE: "IMP" };
 type ColKind = "prod" | "via" | "lab" | "best" | "eco" | "ref" | "custo" | "venda" | "orc" | "estq";
 type Col = { kind: ColKind; lab?: number; w: number; letter: string };
 type SortKey = "prod" | "best" | "eco" | "venda" | "estq";
@@ -74,7 +75,7 @@ export default function MatrizFornecedores() {
   const [desligados, setDesligados] = useState<number[] | null>(null);
   const [fechados, setFechados] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
-  const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
+  const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 2, modo: "cell" });
   const [modal, setModal] = useState<null | "ped" | "res" | "blend" | "cat" | "apr">(null);
   const [blendInicial, setBlendInicial] = useState<BlendInicial | undefined>(undefined);
   const [apr, setApr] = useState<{ varianteId: number; fornecedorId: number } | null>(null);
@@ -160,7 +161,7 @@ export default function MatrizFornecedores() {
   const labsVisiveis = forn.filter((f) => ligados.has(f.id));
   const cols: Col[] = useMemo(() => {
     const base: Omit<Col, "letter">[] = [
-      { kind: "prod", w: 272 }, { kind: "via", w: 104 },
+      { kind: "prod", w: 272 },
       ...[...labsVisiveis].sort((a, b) => Number(congelados.includes(b.id)) - Number(congelados.includes(a.id))).map((f) => ({ kind: "lab" as const, lab: f.id, w: 168 })),
       { kind: "best", w: 160 }, { kind: "eco", w: 128 }, { kind: "ref", w: 112 }, { kind: "custo", w: 128 },
       { kind: "venda", w: 176 }, { kind: "orc", w: 168 }, { kind: "estq", w: 176 },
@@ -171,7 +172,7 @@ export default function MatrizFornecedores() {
   const leftCongelado = (lab: number | undefined): number | undefined => {
     if (lab === undefined || !congelados.includes(lab)) return undefined;
     const k = cols.filter((x) => x.kind === "lab" && congelados.includes(x.lab as number)).findIndex((x) => x.lab === lab);
-    return CATW + 272 + 104 + 168 * k;
+    return CATW + 272 + 168 * k;
   };
   const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
   const c = Math.min(sel.c, cols.length - 1);
@@ -379,6 +380,13 @@ export default function MatrizFornecedores() {
                 <div className="mx-pc-r" title={l.concentracao ?? ""}><i>Conc.</i><span>{l.concentracao ?? "—"}</span></div>
               </>
             )}
+            <div className="mx-pc-v" role="group" aria-label="Vias de uso">
+              <i>Via</i>
+              <div>{BOTOES_VIA.filter((x) => x.id !== "TODAS" && x.id !== "SEM_VIA").map((x) => {
+                const on = temVia(l, x.id);
+                return <b key={x.id} data-on={on ? 1 : 0} title={`${x.nome}${on ? " · usada nesta substância" : ""}`}>{SIGLA_VIA[x.id] ?? x.rotulo.toUpperCase()}</b>;
+              })}</div>
+            </div>
           </div>
         </td>
       );

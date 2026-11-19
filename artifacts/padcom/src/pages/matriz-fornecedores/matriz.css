@@ -1130,3 +1130,17 @@ main:has(.mx-root) {
 .mx-dock-top .mx-sbar-z2 .mx-search, .mx-dock-top .mx-sbar-z2 .mx-search input { height: 36px; margin: 0; }
 .mx-dock-top .mx-sbar-z2 .mx-search svg { top: 10px; }
 .mx-dock-top .mx-sbar-z2 .mx-search-x { top: 6px; }
+
+/* Vias: último andar da substância, 6 posições FIXAS (IM EV SC ID TÓP IMP); cada uma com moldura, forte quando a substância tem a via */
+.mx-sbar-linha { flex-direction: column; align-items: flex-start; gap: 8px; }
+.mx-sbar-vias { display: grid; grid-template-columns: repeat(6, 38px); gap: 5px; flex-wrap: nowrap; margin: 0; }
+.mx-sbar-via { width: 38px; min-width: 38px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: 3px; border: 1px dashed rgba(138,106,34,.35); background: transparent; color: #a9b0c0; font-size: 10px; font-weight: 700; }
+.mx-sbar-via[data-on="1"] { border: 1.5px solid #b8924d; color: var(--evo-ink); background: linear-gradient(180deg, #fffbe9, #f3e3b8); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(120,80,10,.45); }
+
+/* Vias no último andar da célula do produto: 6 posições fixas, moldura forte = via disponível */
+.mx-root { --row: 106px; }
+.mx-pc-v { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; column-gap: 8px; height: 24px; margin-top: 2px; }
+.mx-pc-v > i { font-style: normal; font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.mx-pc-v > div { display: grid; grid-template-columns: repeat(6, 30px); gap: 3px; }
+.mx-pc-v b { height: 18px; display: grid; place-items: center; border-radius: 3px; border: 1px dashed rgba(138,106,34,.3); color: #b0b6c4; font: 700 8.5px Inter, system-ui, sans-serif; }
+.mx-pc-v b[data-on="1"] { border: 1.5px solid #b8924d; color: var(--ink); background: linear-gradient(180deg, #fffbe9, #f3e3b8); box-shadow: inset 0 1px 0 #fff; }
