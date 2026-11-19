@@ -1319,3 +1319,6 @@ main:has(.mx-root) {
   .mx-t2-labs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mx-t2-kv em { display: none; }
 }
+/* quadradinho de cor (sem sigla), em Up Bevel */
+.mx-cs-q { width: 18px !important; height: 18px !important; border-radius: 4px !important; border: 1px solid rgba(7,22,43,.35) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 3px rgba(0,0,0,.22), 0 3px 5px -2px rgba(7,22,43,.45) !important; font-size: 0 !important; }
+.mx-cs-op .mx-cs-q { width: 24px !important; height: 24px !important; }

@@ -127,10 +127,10 @@ export default function MatrizFornecedores() {
   }, [todos, busca, viaSel, soComp, soReserva, soFalta, soBlend, substFoco, catSel]);
 
   const opcoesCategoria = useMemo(() => {
-    const m = new Map<string, { titulo: string; n: number }>();
-    for (const c of todos) { const k = chaveClasse(c.linha.classe); const x = m.get(k); m.set(k, { titulo: classeTxt(c.linha.classe), n: (x?.n ?? 0) + 1 }); }
-    return [...m.entries()].map(([chave, v]) => ({ chave, titulo: v.titulo, n: v.n })).sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
-  }, [todos]);
+    const m = new Map<string, { titulo: string; n: number; cor: string }>();
+    for (const c of todos) { const k = chaveClasse(c.linha.classe); const x = m.get(k); m.set(k, { titulo: classeTxt(c.linha.classe), n: (x?.n ?? 0) + 1, cor: cats.de(c.linha).cor }); }
+    return [...m.entries()].map(([chave, v]) => ({ chave, titulo: v.titulo, n: v.n, cor: v.cor })).sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
+  }, [todos, cats.lista]);
 
   const grupos = useMemo(() => {
     type G = { id: string; titulo: string; margem: number | null; lista: Calc[] };

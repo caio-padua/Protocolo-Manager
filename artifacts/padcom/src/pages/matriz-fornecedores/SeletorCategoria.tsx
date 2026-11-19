@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
-export type OpcaoCategoria = { chave: string; titulo: string; n: number };
+export type OpcaoCategoria = { chave: string; titulo: string; n: number; cor: string };
 
-const sigla = (t: string) => t.replace(/[^A-Za-zÀ-ú ]/g, "").trim().slice(0, 2).toUpperCase() || "—";
+const TODAS = "linear-gradient(135deg, #16284a 0 50%, #b8924d 50% 100%)";
 
 /**
  * Seletor de categoria no cabeçalho do Produto. Lista comum, vertical, com rolagem
@@ -33,11 +33,11 @@ export function SeletorCategoria({ opcoes, valor, onChange }: { opcoes: OpcaoCat
   }, [aberto]);
 
   const escolher = (v: string | null) => { onChange(v); setAberto(false); };
-  const linha = (chave: string | null, titulo: string, n: number | null) => {
+  const linha = (chave: string | null, titulo: string, n: number | null, cor?: string) => {
     const sel = valor === chave;
     return (
       <button key={chave ?? "todas"} type="button" role="option" aria-selected={sel} className="mx-cs-op" data-sel={sel ? 1 : 0} onClick={() => escolher(chave)}>
-        <span className="mx-cs-q">{chave === null ? "∗" : sigla(titulo)}</span>
+        <span className="mx-cs-q bevel-3d" style={{ background: cor ? `linear-gradient(180deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,.18) 100%), ${cor}` : TODAS }} aria-hidden />
         <span className="mx-cs-nm">{titulo}</span>
         {n !== null && <em>{n}</em>}
         {sel && <Check size={14} className="mx-cs-ck" aria-hidden />}
@@ -49,13 +49,13 @@ export function SeletorCategoria({ opcoes, valor, onChange }: { opcoes: OpcaoCat
     <>
       <button ref={bt} type="button" className="mx-cs-bt concave-3d" data-ativo={valor ? 1 : 0} aria-haspopup="listbox" aria-expanded={aberto}
         onClick={(e) => { e.stopPropagation(); abrir(); }} data-testid="seletor-categoria" title="Escolher uma categoria para listar só os produtos dela">
-        <span className="mx-cs-q">{atual ? sigla(atual.titulo) : "∗"}</span>
+        <span className="mx-cs-q bevel-3d" style={{ background: atual ? `linear-gradient(180deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,.18) 100%), ${atual.cor}` : TODAS }} aria-hidden />
         <span className="mx-cs-nm">{atual ? atual.titulo : "Categorias"}</span><ChevronDown size={13} aria-hidden />
       </button>
       {aberto && createPortal(
         <div ref={caixa} className="mx-cs-pop panel-3d" role="listbox" aria-label="Categorias" style={{ left: pos.left, top: pos.top, width: pos.w }} onClick={(e) => e.stopPropagation()}>
           {linha(null, "Todas as categorias", null)}
-          <div className="mx-cs-grade">{opcoes.map((o) => linha(o.chave, o.titulo, o.n))}</div>
+          <div className="mx-cs-grade">{opcoes.map((o) => linha(o.chave, o.titulo, o.n, o.cor))}</div>
         </div>, document.body)}
     </>
   );
