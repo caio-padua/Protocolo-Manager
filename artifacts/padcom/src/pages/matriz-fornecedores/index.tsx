@@ -395,7 +395,7 @@ export default function MatrizFornecedores() {
       return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in"><span className="mx-via" title={l.via ?? ""}>{l.via || "—"}</span></div></td>;
     if (col.kind === "lab") {
       const o = l.celulas.find((x) => x.fornecedorId === col.lab);
-      if (!o) return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-hatch")}><div className="mx-td-in mx-r"><button type="button" className="mx-addpreco" title="Gravar apresentação deste laboratório" onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: col.lab as number }); setModal("apr"); }}>+ preço</button></div></td>;
+      if (!o) return <td key={ci} {...tdProps(ri, ci)} style={{ left: leftCongelado(col.lab as number) }} className={cls(ri, ci, `mx-vazio ${congelados.includes(col.lab as number) ? "mx-td-frz" : ""}`)}><div className="mx-td-in mx-r"><button type="button" className="mx-addpreco" title="Gravar apresentação deste laboratório" onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: col.lab as number }); setModal("apr"); }}>+ preço</button></div></td>;
       const ganha = cc.incl.length > 1 && cc.vencedoras.includes(o);
       const q = o.quantidadeEmbalagem;
       const fixos = [1, 5, 10];
