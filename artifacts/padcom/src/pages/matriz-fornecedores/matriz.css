@@ -669,3 +669,31 @@ button.mx-apr { cursor: pointer; font: inherit; }
 .mx-sel, .mx-conf-cell.mx-sel, .mx-win.mx-sel { box-shadow: inset 0 0 0 2px var(--gold-d), inset 0 0 0 3px #fff; }
 .mx-sel::after { background: var(--gold-d); }
 .mx-sbar-av { background: var(--gold-soft); color: var(--ink); }
+
+/* selecionado = azul-marinho com filete dourado, como as abas e faixas do Cockpit de Evolução */
+.mx-chip[aria-pressed="true"], .mx-seg button[aria-pressed="true"] {
+  background: linear-gradient(180deg, var(--navy-2), var(--navy) 60%, var(--navy-3)); color: #fff; border-color: var(--navy-3);
+  box-shadow: inset 0 0 0 1px var(--gold-line), inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 #0b1630;
+}
+.mx-chip[aria-pressed="true"] small { color: var(--gold); opacity: 1; }
+.mx-chip-lab[aria-pressed="true"] { background: linear-gradient(180deg, #fff, #f3eddc); color: var(--ink); box-shadow: inset 0 1px 0 #fff, 0 2px 0 var(--lc), inset 0 -3px 0 var(--lc); border-color: var(--line-2); }
+.mx-chip-lab[aria-pressed="true"] small { color: var(--muted); }
+/* interruptor: trilho marrom, botão dourado (como "Faixinha de cor") */
+.mx-switch[aria-checked="true"] i { background: linear-gradient(180deg, #8a6a2a, #a8832f); }
+.mx-switch[aria-checked="true"] i::after { background: linear-gradient(180deg, #f6d98c, #c99a38); }
+/* moldura que circula no menor preço (sem troféu) */
+@property --mx-ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes mx-gira { to { --mx-ang: 360deg; } }
+.mx-lab { position: relative; }
+.mx-lab[data-ganha="1"][data-moldura="1"]::before {
+  content: ""; position: absolute; inset: 1px; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--mx-ang), rgba(201,162,74,.25) 0deg, rgba(201,162,74,.25) 230deg, #f6d98c 290deg, #fff 330deg, #c99a38 350deg, rgba(201,162,74,.25) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: mx-gira 3.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .mx-lab[data-ganha="1"][data-moldura="1"]::before { animation: none; } }
+/* colunas congeladas */
+.mx-frz-box { display: grid; place-items: center; flex: none; }
+.mx-frz-box input { width: 14px; height: 14px; accent-color: var(--gold-d); cursor: pointer; }
+.mx-th-frz { position: sticky; z-index: 6; }
+.mx-td-frz { position: sticky; z-index: 2; border-right: 2px solid var(--gold-line); }

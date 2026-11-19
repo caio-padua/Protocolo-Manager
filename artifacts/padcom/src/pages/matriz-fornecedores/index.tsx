@@ -76,6 +76,8 @@ export default function MatrizFornecedores() {
   const [blendInicial, setBlendInicial] = useState<BlendInicial | undefined>(undefined);
   const [apr, setApr] = useState<{ varianteId: number; fornecedorId: number } | null>(null);
   const cats = useCategorias();
+  const [moldura, setMoldura] = useState(true);
+  const [congelados, setCongelados] = useState<number[]>([]);
   const [confA, setConfA] = useState<number | null>(null);
   const [confB, setConfB] = useState<number | null>(null);
   const trocarCat = useMutation({
@@ -157,13 +159,18 @@ export default function MatrizFornecedores() {
   const cols: Col[] = useMemo(() => {
     const base: Omit<Col, "letter">[] = [
       { kind: "prod", w: 272 }, { kind: "via", w: 104 },
-      ...labsVisiveis.map((f) => ({ kind: "lab" as const, lab: f.id, w: 168 })),
+      ...[...labsVisiveis].sort((a, b) => Number(congelados.includes(b.id)) - Number(congelados.includes(a.id))).map((f) => ({ kind: "lab" as const, lab: f.id, w: 168 })),
       { kind: "best", w: 160 }, { kind: "eco", w: 128 }, { kind: "ref", w: 112 }, { kind: "custo", w: 128 },
       { kind: "venda", w: 176 }, { kind: "orc", w: 168 }, { kind: "estq", w: 176 },
     ];
     return base.map((c, i) => ({ ...c, letter: String.fromCharCode(65 + i) }));
-  }, [labsVisiveis]);
+  }, [labsVisiveis, congelados]);
 
+  const leftCongelado = (lab: number | undefined): number | undefined => {
+    if (lab === undefined || !congelados.includes(lab)) return undefined;
+    const k = cols.filter((x) => x.kind === "lab" && congelados.includes(x.lab as number)).findIndex((x) => x.lab === lab);
+    return 48 + 272 + 104 + 168 * k;
+  };
   const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
   const c = Math.min(sel.c, cols.length - 1);
   const atual = flat[r];
@@ -384,8 +391,8 @@ export default function MatrizFornecedores() {
       const fixos = [1, 5, 10];
       const quarto = fixos.includes(q) ? null : q;
       return (
-        <td key={ci} {...tdProps(ri, ci)} style={{ ["--wc" as string]: corDe(o.fornecedorId) }} className={cls(ri, ci, ganha ? "mx-win" : "")}>
-          <div className="mx-lab" data-ganha={ganha ? 1 : 0}>
+        <td key={ci} {...tdProps(ri, ci)} style={{ ["--wc" as string]: corDe(o.fornecedorId), left: leftCongelado(o.fornecedorId) }} className={cls(ri, ci, `${ganha ? "mx-win" : ""} ${congelados.includes(o.fornecedorId) ? "mx-td-frz" : ""}`)}>
+          <div className="mx-lab" data-ganha={ganha ? 1 : 0} data-moldura={moldura ? 1 : 0}>
             <div className="mx-lab-1">
               <span className="mx-lab-k">Unid.</span>
               <V c={o.custoUnitarioCentavos} peso={800} className="mx-money mx-big" />
@@ -400,7 +407,6 @@ export default function MatrizFornecedores() {
               ))}
               <button type="button" className="mx-apr mx-apr-x" data-on={quarto !== null ? 1 : 0} aria-current={quarto !== null ? "true" : undefined} title="Gravar outra quantidade na caixa" onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: o.fornecedorId }); setModal("apr"); }}>{quarto ?? "X"} Unid</button>
             </div>
-            {ganha && <span className="mx-lapela" title="Menor preço" role="img" aria-label="Menor preço"><Trophy size={10} fill="currentColor" /></span>}
           </div>
         </td>
       );
@@ -510,10 +516,16 @@ export default function MatrizFornecedores() {
     const sub = lab ? `${nPorLab[forn.indexOf(lab)]} apresentações${lab.ativo ? "" : " · inativo"}` : ({ prod: `${flat.length} apresentações`, via: "cadastro", best: "menor + laboratório", eco: "menor vs. maior", ref: MODO_TXT[modo], custo: "ref. + frete e perda", venda: "publicada · unidade", orc: "preço no Orçamento", estq: "livre · reservado", lab: "" } as const)[col.kind];
     const Seta = sort && sortKey === sort.key ? (sort.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown;
     return (
-      <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""} ${col.kind === "prod" ? "mx-th-fix" : ""}`}
-        style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: col.kind === "prod" ? 48 : undefined }}
+      <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""} ${col.kind === "prod" ? "mx-th-fix" : ""} ${lab && congelados.includes(lab.id) ? "mx-th-frz" : ""}`}
+        style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: col.kind === "prod" ? 48 : leftCongelado(lab?.id) }}
         data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
         <div className="mx-th-in">
+          {lab && (
+            <label className="mx-frz-box" title="Congelar esta coluna: ela fica fixa ao lado do produto" onClick={(e) => e.stopPropagation()}>
+              <input type="checkbox" checked={congelados.includes(lab.id)} aria-label={`Congelar ${lab.nome}`}
+                onChange={() => setCongelados((a) => (a.includes(lab.id) ? a.filter((x) => x !== lab.id) : [...a, lab.id]))} />
+            </label>
+          )}
           <div className="mx-th-t"><b title={lab?.nome}>{titulo}</b><span>{sub}</span></div>
           {sortKey && (
             <button type="button" className="mx-th-sort" data-on={sort?.key === sortKey ? 1 : 0} aria-label={`Ordenar por ${titulo}`}
@@ -594,6 +606,15 @@ export default function MatrizFornecedores() {
               </div>
             </div>
           </div>
+        </div>
+        <div className="mx-crow">
+          <span className="mx-rowlab">Destaques</span>
+          <div className="mx-cl">
+            <button type="button" className="mx-switch" role="switch" aria-checked={moldura} onClick={() => setMoldura((v) => !v)} data-testid="toggle-moldura-melhor-preco">
+              <i /><span>Moldura que circula no melhor preço</span>
+            </button>
+          </div>
+          <div className="mx-cr" />
         </div>
         <div className="mx-crow">
           <span className="mx-rowlab">Confronto</span>
