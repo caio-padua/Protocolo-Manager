@@ -1106,3 +1106,8 @@ main:has(.mx-root) {
 .mx-sbar-rail .mx-tw button[role="switch"] { flex: 0 0 auto; margin: 0; }
 .mx-sbar-rail { width: 372px; }
 .mx-dock-top .mx-sbar { grid-template-columns: minmax(340px, 1fr) 280px minmax(372px, 1fr); }
+
+/* Chave ligada: o Tailwind move o botão por "translate" e o sulco por "transform" -> somavam e o botão saía do trilho. Fica só o transform. */
+.mx-tw button[role="switch"] > span { translate: none !important; transform: translateX(0); }
+.mx-tw button[role="switch"][data-state="checked"] > span { translate: none !important; transform: translateX(14px); }
+.mx-tw button[role="switch"] { overflow: hidden; }
