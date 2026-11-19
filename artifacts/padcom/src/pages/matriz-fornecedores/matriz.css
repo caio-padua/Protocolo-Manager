@@ -886,3 +886,13 @@ main:has(.mx-root) {
 .mx-blend-btn { position: absolute; top: 6px; right: 10px; width: 62px; height: 22px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 0; font: 700 10px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); cursor: pointer; border-radius: 4px; }
 .mx-blend-btn:active { transform: translateY(1px); }
 .mx-bp-row i, .mx-bp-leg i { box-shadow: 0 0 0 1px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.4); }
+
+/* Célula A1 (cabeçalho do Produto): placa Saliente (up bevel) com texto de alto contraste */
+.mx-th-prod { padding: 5px 6px 9px; }
+.mx-th-prod-in { height: calc(100% - 0px); padding: 6px 10px 6px 8px; border-radius: 5px; gap: 5px; }
+.mx-th-prod-l3 { color: var(--ink); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.mx-th-prod-l3 span { color: var(--ink); }
+.mx-th-prod-l3 b { color: #6b4e0d; font: 800 15px Inter, sans-serif; letter-spacing: 0; }
+.mx-tw { color: #111827; font-weight: 800; }
+.mx-tw span { color: #111827; }
+.mx-th-prod .mx-th-sort { color: var(--ink); border-color: var(--ink); }

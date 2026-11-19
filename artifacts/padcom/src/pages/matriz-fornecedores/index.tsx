@@ -514,7 +514,7 @@ export default function MatrizFornecedores() {
       const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
       return (
         <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 48 + CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
-          <div className="mx-th-prod-in" onClick={parar}>
+          <div className="mx-th-prod-in bevel-3d" onClick={parar}>
             <div className="mx-th-prod-l1">
               <ToggleWell compacto checked={moldura} onChange={setMoldura} label="Menor preço" testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha" />
               <button type="button" className="mx-th-sort" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}><Seta size={13} /></button>
