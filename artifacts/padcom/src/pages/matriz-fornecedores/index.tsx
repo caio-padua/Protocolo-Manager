@@ -548,13 +548,11 @@ export default function MatrizFornecedores() {
     if (col.kind === "prod") {
       const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
       return (
-        <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
-          <div className="mx-th-prod-in bevel-3d" onClick={parar}>
-            <div className="mx-th-prod-l1">
-              <b className="mx-th-prod-t">Produto</b>
-              <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}>{ordTxt("prod")}</button>
-            </div>
+        <th key={ci} colSpan={2} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 0 }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
+          <div className="mx-th-prod-in" onClick={parar}>
+            <b className="mx-th-prod-t">Substâncias</b>
             <SeletorCategoria opcoes={opcoesCategoria} valor={catSel} onChange={setCatSel} />
+            <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar substâncias" onClick={() => ciclarSort("prod")}>{ordTxt("prod")}</button>
           </div>
         </th>
       );
@@ -730,8 +728,7 @@ export default function MatrizFornecedores() {
             <colgroup><col style={{ width: CATW }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
             <thead>
               <tr>
-                <th className="mx-corner mx-corner-cat" style={{ top: "var(--dock-h, 0px)", height: 88, zIndex: 8, left: 0 }} aria-label="Categoria" />
-                {cols.map(cabecalho)}
+                                {cols.map(cabecalho)}
               </tr>
             </thead>
             <tbody>

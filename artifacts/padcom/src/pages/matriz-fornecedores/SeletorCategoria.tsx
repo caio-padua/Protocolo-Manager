@@ -7,8 +7,8 @@ export type OpcaoCategoria = { chave: string; titulo: string; n: number };
 const sigla = (t: string) => t.replace(/[^A-Za-zÀ-ú ]/g, "").trim().slice(0, 2).toUpperCase() || "—";
 
 /**
- * Seletor de categoria no cabeçalho do Produto. Lista abre em painel que ocupa toda a largura da planilha
- * (âncora = elemento marcado com data-ancora-lista). Cada opção leva um quadradinho à esquerda, como no seletor de cliente.
+ * Seletor de categoria no cabeçalho do Produto. Lista comum, vertical, com rolagem
+ * (alinhada ao botão, nunca maior que a tela). Cada opção leva um quadradinho à esquerda, como no seletor de cliente.
  */
 export function SeletorCategoria({ opcoes, valor, onChange }: { opcoes: OpcaoCategoria[]; valor: string | null; onChange: (v: string | null) => void }) {
   const [aberto, setAberto] = useState(false);
@@ -19,8 +19,7 @@ export function SeletorCategoria({ opcoes, valor, onChange }: { opcoes: OpcaoCat
 
   const abrir = () => {
     const b = bt.current?.getBoundingClientRect();
-    const a = bt.current?.closest("[data-ancora-lista]")?.getBoundingClientRect();
-    if (b) setPos({ left: a?.left ?? b.left, top: b.bottom + 6, w: a?.width ?? 520 });
+    if (b) { const w = Math.min(Math.max(b.width, 280), window.innerWidth - 24); setPos({ left: Math.max(12, Math.min(b.left, window.innerWidth - w - 12)), top: b.bottom + 6, w }); }
     setAberto((v) => !v);
   };
 
