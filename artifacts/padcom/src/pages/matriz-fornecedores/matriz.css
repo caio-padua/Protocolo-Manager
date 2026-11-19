@@ -1016,3 +1016,24 @@ main:has(.mx-root) {
 .mx-sbar-dados { padding: 2px 0; }
 .mx-sbar-via { min-width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; background: transparent; color: var(--faint); font-size: 10.5px; }
 .mx-sbar-via[data-on="1"] { background: transparent; border: 2px solid #b8924d; color: var(--evo-ink); box-shadow: none; font-weight: 800; }
+
+/* ===== Painel da substância, compacto: esquerda (símbolo + nome + dados + vias), direita (copiar + toggle e, embaixo, busca) ===== */
+.mx-dock-top .mx-sbar { grid-template-columns: minmax(0, 1fr) 500px; }
+.mx-sbar-z1 { gap: 16px; padding-right: 20px; }
+.mx-sbar-z1 .mx-cat-q-forte, .mx-sbar-z1 .mx-cat-q-vazio { width: 80px !important; height: 72px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="1"] b, .mx-sbar-z1 .mx-cat-q-forte[data-len="2"] b { font-size: 28px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="3"] b { font-size: 23px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="4"] b { font-size: 19px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="5"] b { font-size: 15px !important; }
+.mx-sbar-z1 .mx-sbar-sel { gap: 4px; justify-content: center; }
+.mx-sbar-z1 .mx-sbar-l1 b { font-size: 22px; line-height: 26px; }
+.mx-sbar-linha { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.mx-sbar-vias { margin-left: auto; gap: 5px; }
+.mx-sbar-via { width: 30px; min-width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 9.5px; letter-spacing: 0; }
+.mx-sbar-z2 { width: 500px; padding: 0 0 0 18px; border-right: 0; border-left: 1px solid var(--line-2); flex-direction: column !important; align-items: stretch; gap: 8px; justify-content: center; }
+.mx-sbar-z2-l1 { display: flex; align-items: center; gap: 10px; }
+.mx-sbar-z2 .mx-sbar-copy2 { width: 218px; height: 40px; flex: none; flex-direction: row; gap: 8px; }
+.mx-sbar-z2 .mx-tw { min-height: 40px; }
+.mx-sbar-z2 .mx-sbar-busca { width: 100%; }
+.mx-dock-top .mx-sbar-pop { width: 500px; }
+@media (max-width: 1250px) { .mx-dock-top .mx-sbar { grid-template-columns: 1fr; } .mx-sbar-z2 { width: 100%; padding: 0; border: 0; } .mx-dock-top .mx-sbar-pop { width: auto; } }

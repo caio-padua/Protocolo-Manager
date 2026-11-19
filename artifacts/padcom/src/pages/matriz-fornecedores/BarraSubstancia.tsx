@@ -17,6 +17,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
   const [catSel, setCatSel] = useState("");
   const [copiado, setCopiado] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const SIGLA_VIA: Record<string, string> = { IM: "IM", EV: "EV", SC: "SC", ID: "ID", TOPICO: "TÓP", IMPLANTE: "IMP" };
   const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
   const opcoes = useMemo(() => {
@@ -46,29 +47,29 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
       <div className="mx-sbar-z1">
       {l ? <Quadrado cat={catDe(l)} blend={l.isBlend} tam={64} /> : <span className="mx-cat-q-vazio" />}
       <div className="mx-sbar-sel">
-        <small>Substância selecionada</small>
         <div className="mx-sbar-l1" title={l ? nomeDe(l) : ""}><b>{l ? nomeDe(l) : "Nenhuma"}</b></div>
+        <div className="mx-sbar-linha">
         <div className="mx-sbar-dados">
           <div><i>Dose</i><span className="mx-c0">{l ? doseCurta(l.doseTotal) : "—"}</span></div>
           <div><i>Concentração</i><span>{l?.concentracao ?? "—"}</span></div>
           <div><i>Volume</i><span>{l?.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—"}</span></div>
         </div>
         <div className="mx-sbar-vias" role="group" aria-label="Vias de uso da substância">
-          <i>Via</i>
           {BOTOES_VIA.filter((x) => x.id !== "TODAS" && x.id !== "SEM_VIA").map((x) => {
             const on = !!l && temVia(l, x.id);
-            return <span key={x.id} className="mx-sbar-via" data-on={on ? 1 : 0} title={`${x.nome}${on ? " · usada nesta substância" : ""}`}>{x.rotulo === "Implante" ? "Impl." : x.rotulo === "Tópico" ? "Tóp." : x.rotulo}</span>;
+            return <span key={x.id} className="mx-sbar-via" data-on={on ? 1 : 0} title={`${x.nome}${on ? " · usada nesta substância" : ""}`}>{SIGLA_VIA[x.id] ?? x.rotulo.toUpperCase()}</span>;
           })}
+        </div>
         </div>
       </div>
       </div>
-      <div className="mx-sbar-togs mx-sbar-z2">
+      <div className="mx-sbar-z2">
+        <div className="mx-sbar-z2-l1">
         <button type="button" className="mx-sbar-copy2 evo-bevel" onClick={copiar} disabled={!l} title="Copia nome, dose e via da substância selecionada" aria-label="Copiar dados da substância selecionada" data-testid="botao-copiar-dados-substancia">
           {copiado ? <Check size={16} /> : <Copy size={16} />}<span>{copiado ? "Dados copiados" : "Copiar dados da substância"}</span>
         </button>
         <div className="mx-sbar-tog"><ToggleWell checked={soEsta} disabled={!l} onChange={onSoEsta} label="Mostrar só esta na planilha" title="Esconde as outras substâncias e deixa na planilha apenas as apresentações desta." /></div>
       </div>
-      <div className="mx-sbar-z3">
       <div className="mx-sbar-busca" ref={ref}>
         <div className="mx-search mx-search-prem">
           <Search size={15} />

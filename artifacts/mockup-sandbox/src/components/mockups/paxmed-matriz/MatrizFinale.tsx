@@ -4,13 +4,13 @@ import "./matriz-finale.css";
 import { DADOS_V2 } from "./dados-v2";
 
 /* ------------------------------------------------------------------ dados */
-type Offer = { unit: number; qtd: number };
+export type Offer = { unit: number; qtd: number };
 type Comp = { nome: string; mg: number };
-type Row = {
+export type Row = {
   id: number; nome: string; dose: string; conc: string; vol: string; via: string;
   tipo: "ampola" | "frasco" | "implante"; comps: Comp[] | null; offers: (Offer | null)[];
 };
-const LABS = [
+export const LABS = [
   { nome: "Farmatec", full: "Farmatec Laboratório de Injetáveis", cor: "#2d73b5", sub: "Tabela 29/09/2025" },
   { nome: "Bio meds Brasil", full: "Bio meds Brasil", cor: "#8a4fb0", sub: "A conferir" },
   { nome: "Formédica", full: "Formédica", cor: "#c4572f", sub: "Histórico 05/2022" },
@@ -55,32 +55,32 @@ function montar(): Row[] {
   ];
   return [...rows, ...blends].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
-const ROWS = montar();
+export const ROWS = montar();
 
 /* ------------------------------------------------------------ formatação */
-const nf = (n: number, d = 2) => n.toLocaleString("pt-BR", { maximumFractionDigits: d });
-const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const iniciais = (s: string) => s.split(/\s+/).filter((w) => w.length > 1 || /\d/.test(w)).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+export const nf = (n: number, d = 2) => n.toLocaleString("pt-BR", { maximumFractionDigits: d });
+export const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+export const iniciais = (s: string) => s.split(/\s+/).filter((w) => w.length > 1 || /\d/.test(w)).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 const volNum = (v: string) => parseFloat(v.replace(",", ".")) || 1;
 
-function Money({ c, className }: { c: number; className?: string }) {
+export function Money({ c, className }: { c: number; className?: string }) {
   return (
     <span className={`mf-money ${className ?? ""}`} aria-label={`R$ ${Math.floor(c / 100)},${String(c % 100).padStart(2, "0")}`}>
       <i>R$</i>{Math.floor(c / 100).toLocaleString("pt-BR")}<u>,{String(c % 100).padStart(2, "0")}</u>
     </span>
   );
 }
-function Marca({ t, q }: { t: string; q: string }) {
+export function Marca({ t, q }: { t: string; q: string }) {
   const i = q ? norm(t).indexOf(norm(q)) : -1;
   if (i < 0) return <>{t}</>;
   return <>{t.slice(0, i)}<mark>{t.slice(i, i + q.length)}</mark>{t.slice(i + q.length)}</>;
 }
-const Flag = () => (
+export const Flag = () => (
   <span className="mf-flag" title="Menor preço" aria-label="Menor preço"><span><Trophy size={9} strokeWidth={2.4} fill="currentColor" /></span></span>
 );
 
 /* ------------------------------------------------------- célula de laboratório */
-function LabCell({ o, qtd, win, row, onQtd }: { o: Offer | null; qtd: number; win: boolean; row: Row; onQtd: (n: number) => void }) {
+export function LabCell({ o, qtd, win, row, onQtd }: { o: Offer | null; qtd: number; win: boolean; row: Row; onQtd: (n: number) => void }) {
   const [aberto, setAberto] = useState(false);
   const [txt, setTxt] = useState("");
   const ref = useRef<HTMLDivElement>(null);
