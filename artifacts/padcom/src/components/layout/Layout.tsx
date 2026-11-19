@@ -83,6 +83,7 @@ import {
   ChevronDown,
   MessageCircle,
   Ticket,
+  Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -200,6 +201,7 @@ const navigation: NavEntry[] = [
       { name: "Protocolos", href: "/protocols", icon: FlaskConical },
       { name: "Procedimentos", href: "/procedimentos", icon: ClipboardList },
       { name: "Fornecedores e Fabricantes", href: "/fornecedores", icon: Building2 },
+      { name: "Matrix: Substâncias x Fornecedores", href: "/matriz-fornecedores", icon: Table2 },
       { name: "RASP", href: "/ras", icon: FileText },
       { name: "Catálogos", href: "/catalogos", icon: Library },
       { name: "Estoque", href: "/stock", icon: Box },

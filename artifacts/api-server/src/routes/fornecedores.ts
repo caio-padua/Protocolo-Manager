@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { pool } from "@workspace/db";
 import { requireCollaborator } from "./collaborator";
 import { ErroFornecedor, listarFornecedores, salvarFornecedor } from "../lib/fornecedores-store";
+import { montarMatriz } from "../lib/matriz-fornecedores";
 import { listarVariantesSubstancia } from "../lib/substance-variantes-store";
 
 const router = Router();
@@ -45,6 +46,14 @@ router.get("/substances/:id/variantes", requireCollaborator, acesso, estrutura, 
   const empresa = await pool.query("SELECT nome FROM empresas WHERE id=$1 AND ativa=true AND status='ATIVO'", [req.tenantContext.empresaId]);
   if (!empresa.rowCount) { res.status(403).json({ error: "A clínica da sessão não está disponível." }); return; }
   res.json({ clinica: empresa.rows[0].nome, variantes: await listarVariantesSubstancia(pool, req.tenantContext.empresaId, Number(id)) });
+});
+
+router.get("/matriz-fornecedores", requireCollaborator, acesso, estrutura, async (req, res) => {
+  const tabelas = await pool.query("SELECT to_regclass('substance_variantes') AS variantes, to_regclass('substance_ofertas') AS ofertas");
+  if (!tabelas.rows[0]?.variantes || !tabelas.rows[0]?.ofertas) {
+    res.status(503).json({ error: "Apresentações e ofertas ainda não estão disponíveis." }); return;
+  }
+  res.json(await montarMatriz(pool, req.tenantContext.empresaId));
 });
 
 router.post("/fornecedores", requireCollaborator, acesso, estrutura, async (req, res) => {

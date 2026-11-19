@@ -46,6 +46,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/protocols": "Protocolos dos clientes",
   "/procedimentos": "Procedimentos e doses",
   "/fornecedores": "Fornecedores e fabricantes",
+  "/matriz-fornecedores": "Matrix: Substâncias x Fornecedores",
   "/ras": "Registro de aplicações",
   "/catalogos": "Catálogos de apoio",
   "/stock": "Estoque de insumos",
