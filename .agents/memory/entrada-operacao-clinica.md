@@ -71,3 +71,8 @@ Quer marcar varios exames, gerar os pedidos na mesma acao, escolher e-mail, What
 **Why:** A prioridade e reduzir repeticao durante o atendimento sem retirar a escolha e a conferencia do medico.
 
 **How to apply:** Reutilizar o catalogo real; filtros por especialidade nao equivalem a recomendacao nem autorizam selecionar exames automaticamente; preservar documento e resultado dos envios, distinguindo geracao, aceite do provedor e entrega ao destinatario.
+
+## Sistema em testes: carga completa, sem revisão item a item
+O Dr. Caio disse (19/11/2026) que o sistema está em testes e que não quer revisar item por item antes: carregar tudo como disponível, com valores preenchidos, e ele confere aos poucos depois.
+**Why:** marcar carga como "indisponível aguardando revisão" foi tratado como esquecimento do contexto de teste.
+**How to apply:** cargas de catálogo entram disponíveis e com preço; nunca reduzir preço existente, só preencher vazio ou corrigir abaixo do custo.
