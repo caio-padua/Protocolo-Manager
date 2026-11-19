@@ -3,10 +3,10 @@ import { Percentual, Valor } from "@/components/numeral/Numeral";
 
 /** Dinheiro em centavos, sempre pelo mostrador oficial (Lei do Numeral). */
 export function V({ c, peso = 700, className = "mx-money" }: { c: number | null | undefined; peso?: number; className?: string }) {
-  return <Valor valor={c == null ? null : c / 100} peso={peso} className={className} />;
+  return <Valor planilha valor={c == null ? null : c / 100} peso={peso} className={className} />;
 }
 export function P({ v, peso = 700, className = "mx-money" }: { v: number | null | undefined; peso?: number; className?: string }) {
-  return <Percentual valor={v} peso={peso} className={className} />;
+  return <Percentual planilha valor={v} peso={peso} className={className} />;
 }
 
 /** Texto puro (área de transferência, dicas): mesma formatação brasileira. */

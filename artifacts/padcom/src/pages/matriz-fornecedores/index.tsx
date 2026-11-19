@@ -303,19 +303,25 @@ export default function MatrizFornecedores() {
       const o = l.celulas.find((x) => x.fornecedorId === col.lab);
       if (!o) return vazia(ci, ri, ci, "—");
       const ganha = cc.incl.length > 1 && cc.vencedoras.includes(o);
-      const cheias = Math.min(o.quantidadeEmbalagem, 10);
+      const q = o.quantidadeEmbalagem;
+      const opcoes = [1, 5, 10].includes(q) ? [1, 5, 10] : [1, 5, 10, q].sort((x, y) => x - y);
       return (
         <td key={ci} {...tdProps(ri, ci)} style={{ ["--wc" as string]: corDe(o.fornecedorId) }} className={cls(ri, ci, ganha ? "mx-win" : "")}>
-          <div className="mx-td-in mx-3f">
-            <div className="mx-f1 mx-line" data-base={1}>
-              {ganha ? <span className="mx-tag mx-tag-win"><Trophy size={9} />menor</span> : <span className="mx-lbl">unid.</span>}
-              <V c={o.custoUnitarioCentavos} peso={800} />
+          <div className="mx-lab" data-ganha={ganha ? 1 : 0}>
+            <div className="mx-lab-1">
+              <span className="mx-lab-k">Unidade</span>
+              <V c={o.custoUnitarioCentavos} peso={800} className="mx-money mx-big" />
             </div>
-            <div className="mx-f2 mx-line mx-cx" data-base={0}><span className="mx-lbl">{l.forma === "implante" ? "unidade" : "caixa"}</span><V c={o.custoEmbalagemCentavos} peso={600} className="mx-money mx-m13" /></div>
-            <div className="mx-f3 mx-pres" title={`Apresentação: ${o.quantidadeEmbalagem} ${unidadeTxt(l.forma, o.quantidadeEmbalagem)} por caixa`}>
-              <span className="mx-pres-t">c/ {o.quantidadeEmbalagem} un.</span>
-              <span className="mx-slots" aria-hidden="true">{Array.from({ length: 10 }, (_, k) => <i key={k} data-on={k < cheias ? 1 : 0} />)}</span>
+            <div className="mx-lab-2">
+              <span className="mx-lab-k">{l.forma === "implante" ? "Implante" : `Apres. ${q} un.`}</span>
+              <V c={o.custoEmbalagemCentavos} peso={700} className="mx-money mx-mid" />
             </div>
+            <div className="mx-lab-3" role="group" aria-label={`Apresentação: ${q} ${unidadeTxt(l.forma, q)} por caixa`}>
+              {opcoes.map((n) => (
+                <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined}>{n === 1 ? "Unid." : `${n} un.`}</span>
+              ))}
+            </div>
+            {ganha && <div className="mx-lab-foot"><Trophy size={11} /><b>Menor preço</b></div>}
           </div>
         </td>
       );
