@@ -586,38 +586,35 @@ export default function MatrizFornecedores() {
           </span>
           <span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={ferrAberto ? 1 : 0} /></span>
         </button>
-      {ferrAberto && <div className="mx-ctrl">
-        <div className="mx-crow">
-          <span className="mx-rowlab">Ações</span>
-          <div className="mx-cl" />
-          <div className="mx-cr">
-            <button type="button" className="mx-btn" onClick={() => { setBlendInicial(undefined); setModal("blend"); }} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
-            <button type="button" className="mx-btn" onClick={() => setModal("cat")} data-testid="botao-categorias">Categorias</button>
-            <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
-            <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
+      {ferrAberto && <div className="evo-corpo mx-ev">
+        <div>
+          <div className="mx-ev-l">Ações</div>
+          <div className="mx-ev-g mx-ev-g4">
+            <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => { setBlendInicial(undefined); setModal("blend"); }} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
+            <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setModal("cat")} data-testid="botao-categorias">Categorias</button>
+            <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
+            <button type="button" className="evo-bevel evo-bevel-ativo mx-ev-b h40" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
           </div>
         </div>
-        <div className="mx-crow">
-          <span className="mx-rowlab">Laboratórios</span>
-          <div className="mx-cl" role="group" aria-label="Laboratórios">
+        <div>
+          <div className="mx-ev-l">Laboratórios {difereDoCadastro && <span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: difere do cadastro</span>}</div>
+          <div className="mx-ev-g mx-ev-glab" role="group" aria-label="Laboratórios">
             {forn.map((f) => (
-              <button key={f.id} type="button" className="mx-chip mx-chip-lab" style={{ ["--lc" as string]: corDe(f.id) }} aria-pressed={ligados.has(f.id)} onClick={() => alternarLab(f.id)}>
-                <span className="mx-sw" style={{ background: corDe(f.id) }} />{f.nome}<small>{nPorLab[forn.indexOf(f)]}</small>
+              <button key={f.id} type="button" className={`evo-bevel mx-ev-b h56 mx-ev-lab ${ligados.has(f.id) ? "evo-bevel-ativo" : ""}`} aria-pressed={ligados.has(f.id)} onClick={() => alternarLab(f.id)}>
+                <i style={{ background: corDe(f.id) }} /><span>{f.nome}</span><small>{nPorLab[forn.indexOf(f)]} apresentações</small>
               </button>
             ))}
-            {difereDoCadastro && <span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: difere do cadastro</span>}
-          </div>
-          <div className="mx-cr">
-            <div className="mx-group"><label>Referência</label>
-              <div className="mx-well mx-seg" role="group" aria-label="Regra da referência">
-                {(["maior", "media", "menor"] as ReferenciaModo[]).map((m) => <button key={m} type="button" aria-pressed={modo === m} onClick={() => setRascunho({ ...rascunho, p: { ...rascunho.p, referenciaModo: m } })}>{MODO_TXT[m]}</button>)}
-              </div>
-            </div>
           </div>
         </div>
-        <div className="mx-crow">
-          <span className="mx-rowlab">Confronto</span>
-          <div className="mx-cl mx-conf" role="group" aria-label="Confronto entre dois laboratórios">
+        <div>
+          <div className="mx-ev-l">Referência do preço</div>
+          <div className="mx-ev-g mx-ev-g3" role="group" aria-label="Regra da referência">
+            {(["maior", "media", "menor"] as ReferenciaModo[]).map((m) => <button key={m} type="button" className={`evo-bevel mx-ev-b h40 ${modo === m ? "evo-bevel-ativo" : ""}`} aria-pressed={modo === m} onClick={() => setRascunho({ ...rascunho, p: { ...rascunho.p, referenciaModo: m } })}>{MODO_TXT[m]}</button>)}
+          </div>
+        </div>
+        <div>
+          <div className="mx-ev-l">Confronto entre laboratórios</div>
+          <div className="mx-conf" role="group" aria-label="Confronto entre dois laboratórios">
             <select value={confA ?? ""} onChange={(e) => setConfA(e.target.value ? Number(e.target.value) : null)} aria-label="Laboratório A"><option value="">Laboratório A</option>{forn.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}</select>
             <span className="mx-conf-x">×</span>
             <select value={confB ?? ""} onChange={(e) => setConfB(e.target.value ? Number(e.target.value) : null)} aria-label="Laboratório B"><option value="">Laboratório B</option>{forn.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}</select>
@@ -631,34 +628,32 @@ export default function MatrizFornecedores() {
               )
             ) : <span className="mx-empty">Escolha dois laboratórios diferentes.</span>}
           </div>
-          <div className="mx-cr" />
         </div>
-        <div className="mx-crow">
-          <span className="mx-rowlab">Via de uso</span>
-          <div className="mx-cl" role="group" aria-label="Via de uso">
+        <div>
+          <div className="mx-ev-l">Via de uso</div>
+          <div className="mx-ev-g mx-ev-gvia" role="group" aria-label="Via de uso">
             {BOTOES_VIA.map((x) => {
               const n = x.id === "TODAS" ? todos.length : todos.filter((t) => temVia(t.linha, x.id)).length;
               return (
-                <span key={x.id} style={{ display: "contents" }}>
-                  {x.id === "IM" && <span className="mx-vsep" />}
-                  <button type="button" className="mx-chip" title={x.nome} data-vazio={n === 0 ? 1 : 0} aria-pressed={viaSel === x.id} onClick={() => setViaSel(x.id)}>{x.rotulo} <small>{n}</small></button>
-                </span>
+                <button key={x.id} type="button" className={`evo-bevel mx-ev-b h56 mx-ev-via ${viaSel === x.id ? "evo-bevel-ativo" : ""}`} title={x.nome} data-vazio={n === 0 ? 1 : 0} aria-pressed={viaSel === x.id} onClick={() => setViaSel(x.id)}><span>{x.rotulo}</span><small>{n}</small></button>
               );
             })}
           </div>
-          <div className="mx-cr">
-            <div className="mx-group"><label>Agrupar por</label>
-              <div className="mx-well mx-seg" role="group" aria-label="Agrupar a lista">
-                <button type="button" aria-pressed={agrupar === "via"} onClick={() => setAgrupar("via")}>Via</button>
-                <button type="button" aria-pressed={agrupar === "classe"} onClick={() => setAgrupar("classe")}>Categoria clínica</button>
-              </div>
+        </div>
+        <div className="mx-ev-duo">
+          <div>
+            <div className="mx-ev-l">Agrupar por</div>
+            <div className="mx-ev-g mx-ev-g2" role="group" aria-label="Agrupar a lista">
+              <button type="button" className={`evo-bevel mx-ev-b h40 ${agrupar === "via" ? "evo-bevel-ativo" : ""}`} aria-pressed={agrupar === "via"} onClick={() => setAgrupar("via")}>Via</button>
+              <button type="button" className={`evo-bevel mx-ev-b h40 ${agrupar === "classe" ? "evo-bevel-ativo" : ""}`} aria-pressed={agrupar === "classe"} onClick={() => setAgrupar("classe")}>Categoria clínica</button>
             </div>
-            <div className="mx-group"><label>Mostrar</label>
-              <div className="mx-well mx-checks">
-                <label className="mx-check"><input type="checkbox" checked={soComp} onChange={(e) => setSoComp(e.target.checked)} />Só comparáveis</label>
-                <label className="mx-check"><input type="checkbox" checked={soReserva} onChange={(e) => setSoReserva(e.target.checked)} />Com reserva</label>
-                <label className="mx-check"><input type="checkbox" checked={soFalta} onChange={(e) => setSoFalta(e.target.checked)} />Em falta</label>
-              </div>
+          </div>
+          <div>
+            <div className="mx-ev-l">Mostrar</div>
+            <div className="mx-ev-g mx-ev-g3" role="group" aria-label="Filtros de exibição">
+              <button type="button" className={`evo-bevel mx-ev-b h40 ${soComp ? "evo-bevel-ativo" : ""}`} aria-pressed={soComp} onClick={() => setSoComp(!soComp)}>Só comparáveis</button>
+              <button type="button" className={`evo-bevel mx-ev-b h40 ${soReserva ? "evo-bevel-ativo" : ""}`} aria-pressed={soReserva} onClick={() => setSoReserva(!soReserva)}>Com reserva</button>
+              <button type="button" className={`evo-bevel mx-ev-b h40 ${soFalta ? "evo-bevel-ativo" : ""}`} aria-pressed={soFalta} onClick={() => setSoFalta(!soFalta)}>Em falta</button>
             </div>
           </div>
         </div>

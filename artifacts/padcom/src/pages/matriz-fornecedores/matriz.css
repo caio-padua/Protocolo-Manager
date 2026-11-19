@@ -896,3 +896,24 @@ main:has(.mx-root) {
 .mx-tw { color: #111827; font-weight: 800; }
 .mx-tw span { color: #111827; }
 .mx-th-prod .mx-th-sort { color: var(--ink); border-color: var(--ink); }
+
+/* ===== Ferramentas da planilha no padrão da Evolução de exames: rótulo pequeno em cima, grade de botões Saliente iguais, ativo = evo-bevel-ativo ===== */
+.mx-ev { display: flex; flex-direction: column; gap: 14px; padding: 12px; margin-top: 6px; }
+.mx-ev-l { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.mx-ev-g { display: grid; gap: 6px; }
+.mx-ev-g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mx-ev-g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mx-ev-g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mx-ev-glab { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.mx-ev-gvia { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.mx-ev-b { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 0 8px; border-radius: 5px; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; line-height: 1.15; cursor: pointer; }
+.mx-ev-b.h40 { height: 40px; }
+.mx-ev-b.h56 { height: 56px; }
+.mx-ev-lab, .mx-ev-via { flex-direction: column; gap: 3px; position: relative; }
+.mx-ev-lab i { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 0 0 4px 4px; }
+.mx-ev-lab small, .mx-ev-via small { font-size: 10px; font-weight: 600; letter-spacing: 0; text-transform: none; opacity: .85; }
+.mx-ev-via small { font: 700 13px "EB Garamond", serif; }
+.mx-ev-via[data-vazio="1"]:not(.evo-bevel-ativo) { opacity: .55; }
+.mx-ev-duo { display: grid; grid-template-columns: 1fr 1.5fr; gap: 18px; }
+.mx-ev .mx-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+@media (max-width: 760px) { .mx-ev-g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mx-ev-duo { grid-template-columns: 1fr; } }
