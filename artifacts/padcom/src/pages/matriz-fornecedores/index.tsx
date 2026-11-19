@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
+import { SlidersHorizontal, ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Numeral } from "@/components/numeral/Numeral";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -555,20 +555,18 @@ export default function MatrizFornecedores() {
       </div>
 
       <div className="mx-panel mx-ferr">
-        <button type="button" className="mx-ferr-h" aria-expanded={ferrAberto} onClick={() => setFerrAberto((v) => !v)} data-testid="botao-ferramentas-planilha">
-          <ChevronDown size={15} className="mx-chev" data-open={ferrAberto ? 1 : 0} />
-          <b>Ferramentas da planilha</b>
-          {!ferrAberto && (
-            <span className="mx-ferr-pills">
-              <i>Via: {BOTOES_VIA.find((x) => x.id === viaSel)?.rotulo}</i>
-              <i>{labsVisiveis.length} laboratórios</i>
-              <i>{agrupar === "via" ? "Por via" : "Por categoria clínica"}</i>
-              <i>Referência: {MODO_TXT[modo]}</i>
-              {busca && <i>Busca: {busca}</i>}
-              {(soComp || soReserva || soFalta) && <i>Filtros ativos</i>}
-            </span>
-          )}
-          <small>{ferrAberto ? "recolher" : "abrir"}</small>
+        <button type="button" className="evo-trave mx-trave" aria-expanded={ferrAberto} onClick={() => setFerrAberto((v) => !v)} data-testid="botao-ferramentas-planilha" title={ferrAberto ? "Recolher" : "Abrir"}>
+          <SlidersHorizontal size={14} className="mx-trave-i" aria-hidden />
+          <span className="mx-trave-t">Ferramentas da planilha</span>
+          <span className="mx-trave-chips">
+            <i className="evo-chip">Via: {BOTOES_VIA.find((x) => x.id === viaSel)?.rotulo}</i>
+            <i className="evo-chip">{labsVisiveis.length} laboratórios</i>
+            <i className="evo-chip">{agrupar === "via" ? "Por via" : "Por categoria clínica"}</i>
+            <i className="evo-chip">Referência: {MODO_TXT[modo]}</i>
+            {busca && <i className="evo-chip">Busca: {busca}</i>}
+            {(soComp || soReserva || soFalta) && <i className="evo-chip">Filtros ativos</i>}
+          </span>
+          <span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={ferrAberto ? 1 : 0} /></span>
         </button>
       {ferrAberto && <div className="mx-ctrl">
         <div className="mx-crow">

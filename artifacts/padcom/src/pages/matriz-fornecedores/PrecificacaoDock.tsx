@@ -54,10 +54,17 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
 
   return (
     <section className="mx-panel mx-dock" aria-label="Precificação">
-      <header className="mx-dock-h">
-        <button type="button" className="mx-dock-t" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}>
-          <ChevronDown size={16} className="mx-chev" data-open={aberto ? 1 : 0} /><Calculator size={16} />Precificação
-        </button>
+      <button type="button" className="evo-trave mx-trave" aria-expanded={aberto} onClick={() => setAberto((v) => !v)} title={aberto ? "Recolher" : "Abrir"}>
+        <Calculator size={14} className="mx-trave-i" aria-hidden />
+        <span className="mx-trave-t">Precificação</span>
+        <span className="mx-trave-chips">
+          {sujo && <i className="evo-chip" role="status">Alterações não salvas</i>}
+          <i className="evo-chip">{catsAtivas.length} vias</i>
+          <i className="evo-chip">{todasAuto ? "Todos atualizam sozinhos" : "Preços parcialmente congelados"}</i>
+        </span>
+        <span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={aberto ? 1 : 0} /></span>
+      </button>
+      {aberto && <header className="mx-dock-h">
         <button type="button" className="mx-btn" style={{ height: 28 }} aria-label={todasZonas ? "Fechar todos os blocos de parâmetros" : "Abrir todos os blocos de parâmetros"}
           onClick={() => { setAberto(true); setZonas({ a: !todasZonas, b: !todasZonas, c: !todasZonas }); }}>{todasZonas ? "Fechar blocos" : "Abrir blocos"}</button>
         <span className="mx-dock-f">Venda = custo efetivo ÷ (1 − impostos − cartão − comissão − despesas − margem)</span>
@@ -79,11 +86,11 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
           </button>
           <button type="button" className="mx-btn mx-btn-gold" disabled={!sujo || salvando} onClick={onSalvar}><Save size={15} />{salvando ? "Salvando…" : "Salvar e aplicar"}</button>
         </div>
-      </header>
+      </header>}
       {aberto && (
         <div className="mx-dock-b" style={{ ["--ca" as string]: zonas.a ? "556px" : "190px", ["--cb" as string]: zonas.b ? "minmax(0, 1fr)" : "190px", ["--cc" as string]: zonas.c ? "300px" : "190px" }}>
           <div className="mx-dz mx-dz-a" data-fechada={zonas.a ? 0 : 1}>
-            <h3><button type="button" className="mx-dz-t" aria-expanded={zonas.a} onClick={() => alt("a")}><ChevronDown size={14} className="mx-chev" data-open={zonas.a ? 1 : 0} /><b>1</b>Custos e encargos <em>valem para todos os produtos</em></button></h3>
+            <button type="button" className="evo-trave mx-trave" aria-expanded={zonas.a} onClick={() => alt("a")}><b className="mx-trave-n">1</b><span className="mx-trave-t">Custos e encargos</span><span className="mx-trave-chips"><i className="evo-chip">valem para todos os produtos</i></span><span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={zonas.a ? 1 : 0} /></span></button>
             {zonas.a && <><div className="mx-flds">
               {([
                 ["fretePct", "Frete e entrada", "sobre o custo"], ["perdaPct", "Perda (quebra)", "quebra e validade"], ["impostosPct", "Impostos", "sobre a venda"],
@@ -106,7 +113,7 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
           </div>
 
           <div className="mx-dz mx-dz-b" data-fechada={zonas.b ? 0 : 1}>
-            <h3><button type="button" className="mx-dz-t" aria-expanded={zonas.b} onClick={() => alt("b")}><ChevronDown size={14} className="mx-chev" data-open={zonas.b ? 1 : 0} /><b>2</b>Margem de lucro por via <em>o interruptor decide se o preço acompanha</em></button></h3>
+            <button type="button" className="evo-trave mx-trave" aria-expanded={zonas.b} onClick={() => alt("b")}><b className="mx-trave-n">2</b><span className="mx-trave-t">Margem de lucro por via</span><span className="mx-trave-chips"><i className="evo-chip">o interruptor decide se o preço acompanha</i></span><span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={zonas.b ? 1 : 0} /></span></button>
             {zonas.b && <><div className="mx-cats" style={{ ["--n" as string]: catsAtivas.length }}>
               {catsAtivas.map((x) => {
                 const st = statCat[x.id]; const c = cfg(x.id); const auto = c.modo === "auto";
@@ -138,7 +145,7 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
           </div>
 
           <div className="mx-dz mx-dz-c" data-fechada={zonas.c ? 0 : 1}>
-            <h3><button type="button" className="mx-dz-t" aria-expanded={zonas.c} onClick={() => alt("c")}><ChevronDown size={14} className="mx-chev" data-open={zonas.c ? 1 : 0} /><b>3</b>Como se forma o preço <em>{atual ? `${nomeDe(atual.linha)} ${atual.linha.doseTotal}` : "selecione uma linha"}</em></button></h3>
+            <button type="button" className="evo-trave mx-trave" aria-expanded={zonas.c} onClick={() => alt("c")}><b className="mx-trave-n">3</b><span className="mx-trave-t">Como se forma o preço</span><span className="mx-trave-chips"><i className="evo-chip">{atual ? `${nomeDe(atual.linha)} ${atual.linha.doseTotal}` : "selecione uma linha"}</i></span><span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={zonas.c ? 1 : 0} /></span></button>
             {zonas.c && (f ? (<>
               <div className="mx-stack" role="img" aria-label="Composição do preço de venda">
                 {itens.map(([n, v, c]) => <i key={n} style={{ flexGrow: Math.max(v, 0), background: c }} title={n} />)}
