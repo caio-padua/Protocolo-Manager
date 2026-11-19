@@ -1098,3 +1098,11 @@ main:has(.mx-root) {
 .mx-sbar-z2 .mx-sbar-copy2 { height: var(--tw-h); }
 .mx-dock-top .mx-sbar { grid-template-columns: minmax(340px, 1fr) 280px minmax(348px, 1fr); }
 @media (max-width: 1350px) { .mx-dock-top .mx-sbar { grid-template-columns: 1fr; } .mx-sbar-rail { width: auto; } }
+
+/* Toggles da direita: nada pode passar do limite da própria caixa (centralizar com excesso cortava a esquerda) */
+.mx-sbar-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mx-sbar-rail .mx-tw { justify-content: flex-start; overflow: hidden; padding: 0 8px 0 7px; gap: 7px; font-size: 10.5px; }
+.mx-sbar-rail .mx-tw > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.mx-sbar-rail .mx-tw button[role="switch"] { flex: 0 0 auto; margin: 0; }
+.mx-sbar-rail { width: 372px; }
+.mx-dock-top .mx-sbar { grid-template-columns: minmax(340px, 1fr) 280px minmax(372px, 1fr); }
