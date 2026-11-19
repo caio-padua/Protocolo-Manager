@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Copy, FileSpreadsheet, Minus, Plus, Search, ShoppingCart, Trophy, X,
+  ArrowDown, ArrowUp, ArrowUpDown, Calculator, ChevronDown, Copy, FileSpreadsheet, Lock, Minus, Plus, RefreshCw, Search, ShoppingCart, Trophy, X,
 } from "lucide-react";
 import "./matriz-fornecedores-v2.css";
 import { DADOS_V2 } from "./dados-v2";
@@ -46,6 +46,27 @@ const brl = (c: number) => `R$ ${Math.floor(c / 100).toLocaleString("pt-BR")},${
 const pct1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pctTxt = (x: number) => `${pct1.format(x)}%`;
 
+const sinal = (x: number) => `${x >= 0 ? "+" : "−"}${pct1.format(Math.abs(x))}%`;
+const fmtIn = (n: number) => String(n).replace(".", ",");
+
+/** Campo numérico com vírgula decimal; guarda o texto digitado e normaliza ao sair do campo. */
+function NumField({ value, onChange, max = 95, label, w = 64 }: { value: number; onChange: (n: number) => void; max?: number; label: string; w?: number }) {
+  const [txt, setTxt] = useState(fmtIn(value));
+  const foco = useRef(false);
+  useEffect(() => { if (!foco.current) setTxt(fmtIn(value)); }, [value]);
+  return (
+    <input className="mx-num" style={{ width: w }} value={txt} inputMode="decimal" aria-label={label}
+      onFocus={(e) => { foco.current = true; e.currentTarget.select(); }}
+      onBlur={() => { foco.current = false; setTxt(fmtIn(value)); }}
+      onChange={(e) => {
+        const t = e.target.value.replace(/[^\d,.]/g, "");
+        setTxt(t);
+        const n = parseFloat(t.replace(",", "."));
+        onChange(Number.isNaN(n) ? 0 : Math.min(max, Math.max(0, Math.round(n * 10) / 10)));
+      }} />
+  );
+}
+
 function Money({ c }: { c: number }) {
   return (
     <span className="mx-money">
@@ -59,12 +80,33 @@ function Money({ c }: { c: number }) {
 /* --------------------------------------------------------------- cálculo */
 type Modo = "maior" | "media" | "menor";
 type Base = "unit" | "caixa";
-type Cfg = { base: Base; modo: Modo; incConf: boolean; incHist: boolean; labsOn: boolean[]; mg: Record<Cat, number> };
+type Arred = "nenhum" | "inteiro" | "90";
+/** Custos e encargos (valem para todos). frete e perda incidem sobre o custo; os demais, sobre a venda. */
+type Preco = { frete: number; perda: number; imp: number; cartao: number; comissao: number; desp: number; arred: Arred };
+type Congelado = Record<Cat, Record<number, number> | null>;
+type Cfg = { base: Base; modo: Modo; incConf: boolean; incHist: boolean; labsOn: boolean[]; mg: Record<Cat, number>; preco: Preco; cong: Congelado };
+type Forma = { ref: number; entrada: number; custoEf: number; imp: number; cartao: number; comissao: number; desp: number; lucro: number; venda: number; margemReal: number };
 type Calc = {
-  row: Row; incl: Offer[]; min: number | null; max: number | null; ref: number | null; venda: number | null;
+  row: Row; incl: Offer[]; min: number | null; max: number | null; ref: number | null;
+  forma: Forma | null; invalido: boolean; venda: number | null; pub: number | null; pend: boolean;
   winners: Offer[]; eco: number | null; margem: number;
 };
 const val = (o: Offer, base: Base) => (base === "unit" ? o.unit : o.caixa);
+const PRECO0: Preco = { frete: 2.5, perda: 1.5, imp: 6, cartao: 3.2, comissao: 2, desp: 8, arred: "90" };
+const MG0: Record<Cat, number> = { IM: 38, SC: 42, IMP: 35, OT: 30, SV: 30 };
+const CONG0: Congelado = { IM: null, SC: null, IMP: null, OT: null, SV: null };
+
+/** Preço = custo efetivo ÷ (1 − impostos − cartão − comissão − despesas − margem). Devolve null se a soma passar de 95%. */
+function formar(ref: number, margem: number, p: Preco): Forma | null {
+  const custoEf = ref * (1 + p.frete / 100) * (1 + p.perda / 100);
+  const divisor = 1 - (p.imp + p.cartao + p.comissao + p.desp + margem) / 100;
+  if (divisor < 0.05) return null;
+  const bruto = custoEf / divisor;
+  const venda = p.arred === "inteiro" ? Math.ceil(bruto / 100) * 100 : p.arred === "90" ? Math.max(90, Math.ceil((bruto - 90) / 100) * 100 + 90) : Math.round(bruto);
+  const imp = (venda * p.imp) / 100, cartao = (venda * p.cartao) / 100, comissao = (venda * p.comissao) / 100, desp = (venda * p.desp) / 100;
+  const lucro = venda - custoEf - imp - cartao - comissao - desp;
+  return { ref, entrada: custoEf - ref, custoEf, imp, cartao, comissao, desp, lucro, venda, margemReal: (lucro / venda) * 100 };
+}
 
 function calcular(row: Row, cfg: Cfg): Calc {
   const incl = row.offers.filter((o): o is Offer =>
@@ -74,16 +116,21 @@ function calcular(row: Row, cfg: Cfg): Calc {
   const max = vs.length ? Math.max(...vs) : null;
   const ref = !vs.length ? null : cfg.modo === "maior" ? max : cfg.modo === "menor" ? min : Math.round(vs.reduce((a, b) => a + b, 0) / vs.length);
   const margem = cfg.mg[row.cat];
+  const forma = ref === null ? null : formar(ref, margem, cfg.preco);
+  const venda = forma ? Math.round(forma.venda) : null;
+  const snap = cfg.cong[row.cat];
+  const pub = snap ? (snap[row.id] ?? null) : venda;
   return {
-    row, incl, min, max, ref, margem,
-    venda: ref === null ? null : Math.round(ref / (1 - margem / 100)),
+    row, incl, min, max, ref, margem, forma, venda, pub,
+    invalido: ref !== null && forma === null,
+    pend: !!snap && pub !== venda,
     winners: min === null ? [] : incl.filter((o) => val(o, cfg.base) === min),
     eco: incl.length >= 2 && max ? (max - (min as number)) / max : null,
   };
 }
 
 /* --------------------------------------------------------------- colunas */
-type ColKind = "prod" | "via" | "lab" | "best" | "eco" | "ref" | "mg" | "venda";
+type ColKind = "prod" | "via" | "lab" | "best" | "eco" | "ref" | "custo" | "venda";
 type Col = { kind: ColKind; lab?: 0 | 1 | 2; w: number; letter: string };
 type SortKey = "prod" | "best" | "eco" | "venda";
 const MODO_TXT: Record<Modo, string> = { maior: "Maior valor", media: "Média", menor: "Menor valor" };
@@ -93,8 +140,8 @@ function numeroDaCelula(c: Calc, col: Col, base: Base): { v: number; tipo: "mone
   if (col.kind === "best") return c.min === null ? null : { v: c.min, tipo: "money" };
   if (col.kind === "eco") return c.eco === null ? null : { v: c.eco * 100, tipo: "pct" };
   if (col.kind === "ref") return c.ref === null ? null : { v: c.ref, tipo: "money" };
-  if (col.kind === "mg") return { v: c.margem, tipo: "pct" };
-  if (col.kind === "venda") return c.venda === null ? null : { v: c.venda, tipo: "money" };
+  if (col.kind === "custo") return c.forma === null ? null : { v: c.forma.custoEf, tipo: "money" };
+  if (col.kind === "venda") return c.pub === null ? null : { v: c.pub, tipo: "money" };
   return null;
 }
 const fmtNum = (n: { v: number; tipo: "money" | "pct" }) => (n.tipo === "money" ? brl(Math.round(n.v)) : pctTxt(n.v));
@@ -109,7 +156,11 @@ export function MatrizFornecedoresV2() {
   const [incConf, setIncConf] = useState(true);
   const [incHist, setIncHist] = useState(true);
   const [labsOn, setLabsOn] = useState([true, true, true]);
-  const [mg, setMg] = useState<Record<Cat, number>>({ IM: 38, SC: 42, IMP: 35, OT: 30, SV: 30 });
+  const [mg, setMg] = useState<Record<Cat, number>>(MG0);
+  const [preco, setPreco] = useState<Preco>(PRECO0);
+  const [cong, setCong] = useState<Congelado>(CONG0);
+  const [dockAberto, setDockAberto] = useState(true);
+  const [igual, setIgual] = useState(35);
   const [fechados, setFechados] = useState<Cat[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 5, modo: "cell" });
@@ -119,7 +170,7 @@ export function MatrizFornecedoresV2() {
   const buscaRef = useRef<HTMLInputElement>(null);
   const toastT = useRef<number | undefined>(undefined);
 
-  const cfg: Cfg = useMemo(() => ({ base, modo, incConf, incHist, labsOn, mg }), [base, modo, incConf, incHist, labsOn, mg]);
+  const cfg: Cfg = useMemo(() => ({ base, modo, incConf, incHist, labsOn, mg, preco, cong }), [base, modo, incConf, incHist, labsOn, mg, preco, cong]);
   const todos = useMemo(() => ROWS.map((r) => calcular(r, cfg)), [cfg]);
 
   const filtrados = useMemo(() => {
@@ -136,7 +187,7 @@ export function MatrizFornecedoresV2() {
       if (sort) {
         const k = sort.key;
         const chave = (c: Calc): number | string | null =>
-          k === "prod" ? `${c.row.nome} ${c.row.dose}` : k === "best" ? c.min : k === "eco" ? c.eco : c.venda;
+          k === "prod" ? `${c.row.nome} ${c.row.dose}` : k === "best" ? c.min : k === "eco" ? c.eco : c.pub;
         lista = [...lista].sort((a, b) => {
           const x = chave(a), y = chave(b);
           if (x === null && y === null) return 0;
@@ -153,9 +204,9 @@ export function MatrizFornecedoresV2() {
 
   const cols: Col[] = useMemo(() => {
     const base: Omit<Col, "letter">[] = [
-      { kind: "prod", w: 296 }, { kind: "via", w: 112 },
-      ...([0, 1, 2] as const).filter((i) => labsOn[i]).map((i) => ({ kind: "lab" as const, lab: i, w: 176 })),
-      { kind: "best", w: 176 }, { kind: "eco", w: 136 }, { kind: "ref", w: 128 }, { kind: "mg", w: 96 }, { kind: "venda", w: 152 },
+      { kind: "prod", w: 272 }, { kind: "via", w: 112 },
+      ...([0, 1, 2] as const).filter((i) => labsOn[i]).map((i) => ({ kind: "lab" as const, lab: i, w: 168 })),
+      { kind: "best", w: 160 }, { kind: "eco", w: 128 }, { kind: "ref", w: 112 }, { kind: "custo", w: 128 }, { kind: "venda", w: 176 },
     ];
     return base.map((c, i) => ({ ...c, letter: String.fromCharCode(65 + i) }));
   }, [labsOn]);
@@ -219,12 +270,51 @@ export function MatrizFornecedoresV2() {
   };
   const ciclarSort = (key: SortKey) =>
     setSort((s) => (!s || s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
-  const ajustar = (cat: Cat, d: number) => setMg((m) => ({ ...m, [cat]: Math.min(95, Math.max(0, m[cat] + d)) }));
+  const ajustar = (cat: Cat, d: number) => setMg((m) => ({ ...m, [cat]: Math.min(95, Math.max(0, Math.round((m[cat] + d) * 10) / 10)) }));
+  const ajusteGeral = (d: number) => { setMg((m) => Object.fromEntries(CATS.map((x) => [x.id, Math.min(95, Math.max(0, m[x.id] + d))])) as Record<Cat, number>); avisar(`Todas as margens ${d > 0 ? "subiram" : "desceram"} ${Math.abs(d)} ponto`); };
+  const igualarTodas = () => { setMg(Object.fromEntries(CATS.map((x) => [x.id, igual])) as Record<Cat, number>); avisar(`Todas as categorias com margem de ${pctTxt(igual)}`); };
+  const mudarPreco = (k: keyof Preco, v: number | Arred) => setPreco((p) => ({ ...p, [k]: v }));
+
+  /* ---- precificação: toggle por categoria (automático x congelado) ---- */
+  const fotografar = (cat: Cat) =>
+    Object.fromEntries(todos.filter((t) => t.row.cat === cat && t.venda !== null).map((t) => [t.row.id, t.venda as number]));
+  const definirAuto = (cat: Cat, ligado: boolean) => {
+    setCong((c) => ({ ...c, [cat]: ligado ? null : fotografar(cat) }));
+    avisar(ligado ? `${CATS.find((x) => x.id === cat)?.curto}: preços voltam a acompanhar custo e margem` : `${CATS.find((x) => x.id === cat)?.curto}: preços congelados no valor de agora`);
+  };
+  const definirTodas = (ligado: boolean) => {
+    setCong((c) => {
+      const n = { ...c };
+      for (const x of CATS) n[x.id] = ligado ? null : fotografar(x.id);
+      return n;
+    });
+    avisar(ligado ? "Todos os preços voltam a acompanhar custo e margem" : "Todos os preços congelados no valor de agora");
+  };
+  const aplicarAgora = (cat: Cat) => { setCong((c) => ({ ...c, [cat]: fotografar(cat) })); avisar(`${CATS.find((x) => x.id === cat)?.curto}: novos preços aplicados`); };
 
   /* ---- indicadores ---- */
   const comparaveis = filtrados.filter((x) => x.incl.length >= 2);
   const ecoMedia = comparaveis.length ? (comparaveis.reduce((a, x) => a + (x.eco as number), 0) / comparaveis.length) * 100 : null;
   const aConferir = filtrados.reduce((a, x) => a + x.row.offers.filter((o) => o && o.st !== "ok").length, 0);
+  const nPorLab = LABS.map((_, i) => ROWS.filter((x) => x.offers[i]).length);
+  const catsAtivas = CATS.filter((x) => todos.some((t) => t.row.cat === x.id));
+  const todasAuto = catsAtivas.every((x) => cong[x.id] === null);
+  const encargos = preco.imp + preco.cartao + preco.comissao + preco.desp;
+  const statCat = useMemo(() => {
+    const out = {} as Record<Cat, { n: number; avg: number | null; pend: number; diff: number | null; ruim: boolean }>;
+    for (const cat of CATS) {
+      const ls = todos.filter((t) => t.row.cat === cat.id);
+      const com = ls.filter((t) => t.pub !== null);
+      const pend = ls.filter((t) => t.pend && t.venda !== null);
+      const diffs = pend.filter((t) => t.pub).map((t) => (((t.venda as number) - (t.pub as number)) / (t.pub as number)) * 100);
+      out[cat.id] = {
+        n: ls.length, pend: pend.length, ruim: ls.some((t) => t.invalido),
+        avg: com.length ? Math.round(com.reduce((a, t) => a + (t.pub as number), 0) / com.length) : null,
+        diff: diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null,
+      };
+    }
+    return out;
+  }, [todos]);
   const placar = LABS.map((_, i) => filtrados.filter((x) => x.winners[0]?.lab === i).length);
   const placarTotal = placar.reduce((a, b) => a + b, 0);
 
@@ -264,8 +354,11 @@ export function MatrizFornecedoresV2() {
       return cc.min === null ? <>Sem preço comparável.</> : <>Menor preço: <b>{brl(cc.min)}</b> · {cc.winners.map((w) => LABS[w.lab].nome).join(" e ")}{cc.max !== null && cc.max !== cc.min ? ` · maior: ${brl(cc.max)}` : " · única oferta, sem comparação"}</>;
     if (colAtual.kind === "eco") return cc.eco === null ? <>É preciso ao menos 2 ofertas para comparar.</> : <>Economia de <b>{pctTxt(cc.eco * 100)}</b> do menor sobre o maior preço.</>;
     if (colAtual.kind === "ref") return cc.ref === null ? <>Sem referência.</> : <>Referência ({MODO_TXT[modo].toLowerCase()}): <b>{brl(cc.ref)}</b>. Alimenta Substâncias e Orçamento na etapa 4.</>;
-    if (colAtual.kind === "mg") return <>Margem de lucro da categoria <b>{pctTxt(cc.margem)}</b>. Edite no quadro abaixo.</>;
-    return cc.venda === null ? <>Sem preço.</> : <>{brl(cc.ref as number)} ÷ (1 − {pct1.format(cc.margem)}%) = <b>{brl(cc.venda)}</b></>;
+    if (colAtual.kind === "custo")
+      return cc.forma === null ? <>{cc.invalido ? "A soma de encargos e margem passa de 95%: ajuste a precificação." : "Sem custo."}</> :
+        <>{brl(cc.forma.ref)} + frete {pct1.format(preco.frete)}% + perda {pct1.format(preco.perda)}% = custo efetivo <b>{brl(Math.round(cc.forma.custoEf))}</b></>;
+    if (cc.forma === null) return <>{cc.invalido ? "A soma de encargos e margem passa de 95%: ajuste a precificação." : "Sem preço."}</>;
+    return <>{brl(Math.round(cc.forma.custoEf))} ÷ (1 − {pct1.format(encargos)}% encargos − {pct1.format(cc.margem)}% margem) = <b>{brl(cc.forma.venda)}</b>{preco.arred !== "nenhum" ? ` (arredondado ${preco.arred === "90" ? "para ,90" : "para o real"})` : ""} · lucro <b>{brl(Math.round(cc.forma.lucro))}</b> ({pctTxt(cc.forma.margemReal)}){cong[cc.row.cat] ? ` · preço congelado em ${cc.pub === null ? "—" : brl(cc.pub)}` : ""}</>;
   };
 
   /* ---- pedidos por laboratório ---- */
@@ -368,12 +461,45 @@ export function MatrizFornecedoresV2() {
         </td>
       );
     if (col.kind === "ref")
-      return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in mx-r">{cc.ref === null ? <span className="mx-empty">—</span> : <Money c={cc.ref} />}</div></td>;
-    if (col.kind === "mg")
-      return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in mx-r"><span className="mx-mg">{pctTxt(cc.margem)}</span></div></td>;
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}>
+          <div className="mx-td-in mx-r">{cc.ref === null ? <span className="mx-empty">—</span> : <><Money c={cc.ref} /><span className="mx-sub2">{MODO_TXT[modo].toLowerCase()}</span></>}</div>
+        </td>
+      );
+    if (col.kind === "custo")
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}>
+          <div className="mx-td-in mx-r">
+            {cc.forma === null ? <span className="mx-empty">{cc.invalido ? "inviável" : "—"}</span> : <><Money c={Math.round(cc.forma.custoEf)} /><span className="mx-sub2">+{pct1.format((cc.forma.custoEf / cc.forma.ref - 1) * 100)}% frete e perda</span></>}
+          </div>
+        </td>
+      );
+    const f = cc.forma;
+    const frz = !!cong[row.cat];
+    const dif = cc.pend && cc.venda !== null && cc.pub ? ((cc.venda - cc.pub) / cc.pub) * 100 : null;
     return (
-      <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-venda")}>
-        <div className="mx-td-in mx-r">{cc.venda === null ? <span className="mx-empty">—</span> : <Money c={cc.venda} />}</div>
+      <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, `mx-venda ${frz ? "mx-frz" : ""}`)}>
+        <div className="mx-td-in mx-3f">
+          <div className="mx-f1 mx-line">
+            {frz ? <span className="mx-tag mx-tag-frz"><Lock size={9} />congelado</span> : <span className="mx-lbl">venda</span>}
+            {cc.pub === null ? <span className="mx-empty">{cc.invalido ? "inviável" : "—"}</span> : <Money c={cc.pub} />}
+          </div>
+          <div className="mx-f2 mx-line mx-cx">
+            {cc.pend && cc.venda !== null ? (
+              <span className="mx-pend">seria <Money c={cc.venda} />{dif !== null && <b data-up={dif >= 0 ? 1 : 0}>{sinal(dif)}</b>}</span>
+            ) : (<><span className="mx-lbl">lucro</span>{f ? <Money c={Math.round(f.lucro)} /> : <span className="mx-empty">—</span>}</>)}
+          </div>
+          <div className="mx-f3 mx-comp" title={f ? `Custo ${brl(Math.round(f.custoEf))} · encargos ${brl(Math.round(f.imp + f.cartao + f.comissao + f.desp))} · lucro ${brl(Math.round(f.lucro))}` : ""}>
+            {f && (<>
+              <span className="mx-compbar" aria-hidden="true">
+                <i style={{ flexGrow: f.custoEf, background: "#16284a" }} />
+                <i style={{ flexGrow: f.imp + f.cartao + f.comissao + f.desp, background: "#c9962f" }} />
+                <i style={{ flexGrow: Math.max(f.lucro, 0), background: "#3fa66b" }} />
+              </span>
+              <span className="mx-comp-t">margem {pctTxt(f.margemReal)}</span>
+            </>)}
+          </div>
+        </div>
       </td>
     );
   }
@@ -382,8 +508,8 @@ export function MatrizFornecedoresV2() {
     const on = (sel.modo === "col" && c === ci) || (sel.modo === "cell" && c === ci);
     const sortKey: SortKey | null = col.kind === "prod" ? "prod" : col.kind === "best" ? "best" : col.kind === "eco" ? "eco" : col.kind === "venda" ? "venda" : null;
     const lab = col.kind === "lab" ? LABS[col.lab as number] : null;
-    const titulo = lab ? lab.nome : { prod: "Produto", via: "Via", best: "Melhor valor", eco: "Economia", ref: "Referência", mg: "Margem", venda: "Venda", lab: "" }[col.kind];
-    const sub = lab ? lab.sub : { prod: `${flat.length} apresentações`, via: "cadastro", best: "menor + laboratório", eco: "menor vs. maior", ref: MODO_TXT[modo], mg: "da categoria", venda: base === "unit" ? "sugerida · unidade" : "sugerida · caixa", lab: "" }[col.kind];
+    const titulo = lab ? lab.nome : { prod: "Produto", via: "Via", best: "Melhor valor", eco: "Economia", ref: "Referência", custo: "Custo efetivo", venda: "Venda", lab: "" }[col.kind];
+    const sub = lab ? lab.sub : { prod: `${flat.length} apresentações`, via: "cadastro", best: "menor + laboratório", eco: "menor vs. maior", ref: MODO_TXT[modo], custo: "ref. + frete e perda", venda: base === "unit" ? "publicada · unidade" : "publicada · caixa", lab: "" }[col.kind];
     const Seta = sort && sortKey === sort.key ? (sort.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown;
     return (
       <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""} ${col.kind === "prod" ? "mx-th-fix" : ""}`}
@@ -431,48 +557,66 @@ export function MatrizFornecedoresV2() {
         </div>
       </div>
 
-      {/* ------------------------------ controles */}
+      {/* ------------------------------ controles: 3 linhas, rótulo na mesma coluna */}
       <div className="mx-panel mx-ctrl">
-        <div className="mx-search">
-          <Search size={15} />
-          <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar substância ou dose" aria-label="Buscar substância ou dose" />
-          {busca ? <button type="button" aria-label="Limpar busca" onClick={() => setBusca("")} style={{ position: "absolute", right: 6, top: 6, width: 24, height: 24, border: 0, background: "transparent", display: "grid", placeItems: "center" }}><X size={14} /></button> : <kbd>/</kbd>}
-        </div>
-        <div className="mx-group" role="group" aria-label="Categoria">
-          <button type="button" className="mx-chip" aria-pressed={catSel === "TODAS"} onClick={() => setCatSel("TODAS")}>Todas <small>{todos.length}</small></button>
-          {CATS.map((x) => {
-            const n = todos.filter((t) => t.row.cat === x.id).length;
-            return n ? <button key={x.id} type="button" className="mx-chip" aria-pressed={catSel === x.id} onClick={() => setCatSel(x.id)}>{x.curto} <small>{n}</small></button> : null;
-          })}
-        </div>
-        <div className="mx-sep" />
-        <div className="mx-group" role="group" aria-label="Laboratórios">
-          {LABS.map((l, i) => (
-            <button key={l.nome} type="button" className="mx-lab" aria-pressed={labsOn[i]} onClick={() => alternarLab(i)}>
-              <span className="mx-sw" style={{ background: l.cor }} />{l.nome}
-            </button>
-          ))}
-        </div>
-        <div className="mx-sep" />
-        <div className="mx-group"><label>Preço por</label>
-          <div className="mx-well mx-seg" role="group" aria-label="Base do preço">
-            <button type="button" aria-pressed={base === "unit"} onClick={() => setBase("unit")}>Unidade</button>
-            <button type="button" aria-pressed={base === "caixa"} onClick={() => setBase("caixa")}>Caixa</button>
+        <div className="mx-crow">
+          <span className="mx-rowlab">Buscar</span>
+          <div className="mx-cl">
+            <div className="mx-search">
+              <Search size={15} />
+              <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar substância ou dose" aria-label="Buscar substância ou dose" />
+              {busca ? <button type="button" aria-label="Limpar busca" className="mx-search-x" onClick={() => setBusca("")}><X size={14} /></button> : <kbd>/</kbd>}
+            </div>
+          </div>
+          <div className="mx-cr">
+            <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
+            <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("ref")}><FileSpreadsheet size={15} />Enviar referência às Substâncias</button>
           </div>
         </div>
-        <div className="mx-group"><label>Referência</label>
-          <div className="mx-well mx-seg" role="group" aria-label="Regra da referência">
-            {(["maior", "media", "menor"] as Modo[]).map((m) => <button key={m} type="button" aria-pressed={modo === m} onClick={() => setModo(m)}>{MODO_TXT[m]}</button>)}
+        <div className="mx-crow">
+          <span className="mx-rowlab">Laboratórios</span>
+          <div className="mx-cl" role="group" aria-label="Laboratórios">
+            <button type="button" className="mx-chip" aria-pressed={labsOn.every(Boolean)} onClick={() => setLabsOn([true, true, true])}>Todos <small>{LABS.length}</small></button>
+            <span className="mx-vsep" />
+            {LABS.map((l, i) => (
+              <button key={l.nome} type="button" className="mx-chip mx-chip-lab" style={{ ["--lc" as string]: l.cor }} aria-pressed={labsOn[i]} onClick={() => alternarLab(i)}>
+                <span className="mx-sw" style={{ background: l.cor }} />{l.nome}<small>{nPorLab[i]}</small>
+              </button>
+            ))}
+          </div>
+          <div className="mx-cr">
+            <div className="mx-group"><label>Preço por</label>
+              <div className="mx-well mx-seg" role="group" aria-label="Base do preço">
+                <button type="button" aria-pressed={base === "unit"} onClick={() => setBase("unit")}>Unidade</button>
+                <button type="button" aria-pressed={base === "caixa"} onClick={() => setBase("caixa")}>Caixa</button>
+              </div>
+            </div>
+            <div className="mx-group"><label>Referência</label>
+              <div className="mx-well mx-seg" role="group" aria-label="Regra da referência">
+                {(["maior", "media", "menor"] as Modo[]).map((m) => <button key={m} type="button" aria-pressed={modo === m} onClick={() => setModo(m)}>{MODO_TXT[m]}</button>)}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="mx-well" style={{ display: "flex", alignItems: "center" }}>
-          <label className="mx-check"><input type="checkbox" checked={soComp} onChange={(e) => setSoComp(e.target.checked)} />Só comparáveis</label>
-          <label className="mx-check"><input type="checkbox" checked={incConf} onChange={(e) => setIncConf(e.target.checked)} />Incluir a conferir</label>
-          <label className="mx-check"><input type="checkbox" checked={incHist} onChange={(e) => setIncHist(e.target.checked)} />Incluir 2022</label>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-          <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
-          <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("ref")}><FileSpreadsheet size={15} />Enviar referência às Substâncias</button>
+        <div className="mx-crow">
+          <span className="mx-rowlab">Via de uso</span>
+          <div className="mx-cl" role="group" aria-label="Via de uso">
+            <button type="button" className="mx-chip" aria-pressed={catSel === "TODAS"} onClick={() => setCatSel("TODAS")}>Todas <small>{todos.length}</small></button>
+            <span className="mx-vsep" />
+            {CATS.map((x) => {
+              const n = todos.filter((t) => t.row.cat === x.id).length;
+              return n ? <button key={x.id} type="button" className="mx-chip" aria-pressed={catSel === x.id} onClick={() => setCatSel(x.id)}>{x.curto} <small>{n}</small></button> : null;
+            })}
+          </div>
+          <div className="mx-cr">
+            <div className="mx-group"><label>Incluir</label>
+              <div className="mx-well mx-checks">
+                <label className="mx-check"><input type="checkbox" checked={soComp} onChange={(e) => setSoComp(e.target.checked)} />Só comparáveis</label>
+                <label className="mx-check"><input type="checkbox" checked={incConf} onChange={(e) => setIncConf(e.target.checked)} />A conferir</label>
+                <label className="mx-check"><input type="checkbox" checked={incHist} onChange={(e) => setIncHist(e.target.checked)} />2022</label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -546,31 +690,117 @@ export function MatrizFornecedoresV2() {
         )}
       </div>
 
-      {/* ------------------------------ margem + status */}
-      <div className="mx-foot">
-        <div className="mx-panel mx-margins">
-          <b>Margem de lucro<br />por categoria</b>
-          {CATS.filter((x) => todos.some((t) => t.row.cat === x.id)).map((x) => (
-            <div key={x.id} className="mx-well mx-mgin">
-              <span>{x.curto}<em>{todos.filter((t) => t.row.cat === x.id).length} produtos</em></span>
-              <button type="button" aria-label={`Diminuir margem de ${x.curto}`} onClick={() => ajustar(x.id, -1)}><Minus size={13} /></button>
-              <input value={mg[x.id]} inputMode="numeric" aria-label={`Margem de ${x.curto} em porcentagem`}
-                onChange={(e) => { const n = Number(e.target.value.replace(/\D/g, "")); setMg((m) => ({ ...m, [x.id]: Math.min(95, n) })); }} />
-              <span style={{ minWidth: 0, fontWeight: 700 }}>%</span>
-              <button type="button" aria-label={`Aumentar margem de ${x.curto}`} onClick={() => ajustar(x.id, 1)}><Plus size={13} /></button>
-            </div>
-          ))}
-          <span className="mx-note" style={{ marginLeft: "auto", maxWidth: 260 }}>Venda = referência ÷ (1 − margem). Margens de exemplo.</span>
-        </div>
-        <div className="mx-panel mx-stat" aria-live="polite">
-          <div className="mx-statlab"><span>Seleção</span><b>{estat ? estat.rotulo : "—"}</b></div>
-          <div><span>Contagem</span><b>{estat ? estat.n : "—"}</b></div>
-          <div><span>Mínimo</span><b>{estat ? estat.min : "—"}</b></div>
-          <div><span>Média</span><b>{estat ? estat.media : "—"}</b></div>
-          <div><span>Máximo</span><b>{estat ? estat.max : "—"}</b></div>
-          <div style={{ marginLeft: "auto", textAlign: "right" }}><span>Atalhos</span><b style={{ fontFamily: "Inter", fontSize: 11 }}>Setas navegam · Ctrl+C copia · / busca</b></div>
-        </div>
+      {/* ------------------------------ barra de status (como no Excel) */}
+      <div className="mx-panel mx-stat" aria-live="polite">
+        <div className="mx-statlab"><span>Seleção</span><b>{estat ? estat.rotulo : "—"}</b></div>
+        <div><span>Contagem</span><b>{estat ? estat.n : "—"}</b></div>
+        <div><span>Mínimo</span><b>{estat ? estat.min : "—"}</b></div>
+        <div><span>Média</span><b>{estat ? estat.media : "—"}</b></div>
+        <div><span>Máximo</span><b>{estat ? estat.max : "—"}</b></div>
+        <div style={{ marginLeft: "auto", textAlign: "right" }}><span>Atalhos</span><b style={{ fontFamily: "Inter", fontSize: 11 }}>Setas navegam · Ctrl+C copia · / busca</b></div>
       </div>
+
+      {/* ------------------------------ precificação */}
+      <section className="mx-panel mx-dock" aria-label="Precificação">
+        <header className="mx-dock-h">
+          <button type="button" className="mx-dock-t" aria-expanded={dockAberto} onClick={() => setDockAberto((v) => !v)}>
+            <ChevronDown size={16} className="mx-chev" data-open={dockAberto ? 1 : 0} /><Calculator size={16} />Precificação
+          </button>
+          <span className="mx-dock-f">Venda = custo efetivo ÷ (1 − impostos − cartão − comissão − despesas − margem)</span>
+          <div className="mx-dock-act">
+            <div className="mx-well mx-adj" role="group" aria-label="Ajuste geral das margens">
+              <span>Ajuste geral</span>
+              <button type="button" aria-label="Diminuir todas as margens em 1 ponto" onClick={() => ajusteGeral(-1)}><Minus size={13} /></button>
+              <b>1 pt</b>
+              <button type="button" aria-label="Aumentar todas as margens em 1 ponto" onClick={() => ajusteGeral(1)}><Plus size={13} /></button>
+            </div>
+            <div className="mx-well mx-adj" role="group" aria-label="Igualar todas as margens">
+              <span>Igualar todas a</span>
+              <NumField label="Margem única em porcentagem" value={igual} onChange={setIgual} w={52} /><b>%</b>
+              <button type="button" className="mx-adj-go" onClick={igualarTodas}>Igualar</button>
+            </div>
+            <button type="button" className="mx-switch mx-switch-all" role="switch" aria-checked={todasAuto} onClick={() => definirTodas(!todasAuto)}>
+              <i /><span>{todasAuto ? "Todos os preços atualizam sozinhos" : "Atualizar todos os preços"}</span>
+            </button>
+          </div>
+        </header>
+        {dockAberto && (
+          <div className="mx-dock-b">
+            <div className="mx-dz mx-dz-a">
+              <h3><b>1</b>Custos e encargos <em>valem para todos os produtos</em></h3>
+              <div className="mx-flds">
+              <div className="mx-fld"><span>Frete e entrada</span><div className="mx-well mx-fld-in"><NumField label="Frete e entrada em porcentagem" value={preco.frete} onChange={(v) => mudarPreco("frete", v)} w={58} /><b>%</b></div><em>sobre o custo</em></div>
+              <div className="mx-fld"><span>Perda (quebra)</span><div className="mx-well mx-fld-in"><NumField label="Perda por quebra ou validade em porcentagem" value={preco.perda} onChange={(v) => mudarPreco("perda", v)} w={58} /><b>%</b></div><em>quebra e validade</em></div>
+              <div className="mx-fld"><span>Impostos</span><div className="mx-well mx-fld-in"><NumField label="Impostos em porcentagem" value={preco.imp} onChange={(v) => mudarPreco("imp", v)} w={58} /><b>%</b></div><em>sobre a venda</em></div>
+              <div className="mx-fld"><span>Taxa de cartão</span><div className="mx-well mx-fld-in"><NumField label="Taxa de cartão em porcentagem" value={preco.cartao} onChange={(v) => mudarPreco("cartao", v)} w={58} /><b>%</b></div><em>média, sobre a venda</em></div>
+              <div className="mx-fld"><span>Comissão</span><div className="mx-well mx-fld-in"><NumField label="Comissão em porcentagem" value={preco.comissao} onChange={(v) => mudarPreco("comissao", v)} w={58} /><b>%</b></div><em>sobre a venda</em></div>
+              <div className="mx-fld"><span>Despesas rateadas</span><div className="mx-well mx-fld-in"><NumField label="Despesas fixas rateadas em porcentagem" value={preco.desp} onChange={(v) => mudarPreco("desp", v)} w={58} /><b>%</b></div><em>sobre a venda</em></div>
+                <div className="mx-fld"><span>Arredondar preço</span>
+                  <div className="mx-well mx-seg mx-seg-s" role="group" aria-label="Arredondamento do preço">
+                    {([["nenhum", "Não"], ["inteiro", ",00"], ["90", ",90"]] as [Arred, string][]).map(([k, t]) => <button key={k} type="button" aria-pressed={preco.arred === k} onClick={() => mudarPreco("arred", k)}>{t}</button>)}
+                  </div>
+                  <em>sempre para cima</em>
+                </div>
+                <div className="mx-fld mx-fld-sum"><span>Encargos sobre a venda</span><div className="mx-sumv"><b className="mx-serif">{pctTxt(encargos)}</b></div><em>impostos + cartão + comissão + despesas</em></div>
+              </div>
+              <p className="mx-note mx-ex">Percentuais de exemplo. Confirmar alíquotas com o contador antes de gravar.</p>
+            </div>
+
+            <div className="mx-dz mx-dz-b">
+              <h3><b>2</b>Margem de lucro por categoria <em>um valor muda a categoria inteira; o interruptor decide se o preço acompanha</em></h3>
+              <div className="mx-cats" style={{ ["--n" as string]: catsAtivas.length }}>
+                {catsAtivas.map((x) => {
+                  const st = statCat[x.id];
+                  const auto = cong[x.id] === null;
+                  return (
+                    <div key={x.id} className="mx-cat" data-auto={auto ? 1 : 0} data-bad={st.ruim ? 1 : 0}>
+                      <div className="mx-cat-h"><b>{x.curto}</b><em>{st.n} produtos</em></div>
+                      <div className="mx-well mx-mgin2">
+                        <button type="button" aria-label={`Diminuir margem de ${x.curto}`} onClick={() => ajustar(x.id, -1)}><Minus size={13} /></button>
+                        <NumField label={`Margem de ${x.curto} em porcentagem`} value={mg[x.id]} onChange={(v) => setMg((m) => ({ ...m, [x.id]: v }))} w={52} /><b>%</b>
+                        <button type="button" aria-label={`Aumentar margem de ${x.curto}`} onClick={() => ajustar(x.id, 1)}><Plus size={13} /></button>
+                      </div>
+                      <input type="range" className="mx-range" min={0} max={70} step={0.5} value={Math.min(mg[x.id], 70)} aria-label={`Ajustar margem de ${x.curto}`}
+                        onChange={(e) => setMg((m) => ({ ...m, [x.id]: Number(e.target.value) }))} />
+                      <div className="mx-cat-m"><span>Preço médio</span>{st.avg === null ? <span className="mx-empty">—</span> : <Money c={st.avg} />}</div>
+                      <button type="button" className="mx-switch" role="switch" aria-checked={auto} onClick={() => definirAuto(x.id, !auto)}>
+                        <i /><span>{auto ? "Atualiza sozinho" : "Congelado"}</span>
+                      </button>
+                      <div className="mx-cat-s" data-k={st.ruim ? "bad" : st.pend ? "pend" : "ok"}>
+                        {st.ruim ? <>Inviável: soma passa de 95%</>
+                          : st.pend ? (<><span>{st.pend} preços mudariam{st.diff !== null ? ` (${sinal(st.diff)})` : ""}</span><button type="button" onClick={() => aplicarAgora(x.id)}><RefreshCw size={11} />Aplicar agora</button></>)
+                          : auto ? <>Preços em dia com o custo</> : <>Congelado, sem diferença</>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mx-dz mx-dz-c">
+              <h3><b>3</b>Como se forma o preço <em>{atual ? `${atual.row.nome} ${atual.row.dose}` : "selecione uma linha"}</em></h3>
+              {atual?.forma ? (() => {
+                const f = atual.forma;
+                const itens: [string, number, string][] = [
+                  ["Custo do produto", f.ref, "#16284a"], ["Frete e perda", f.entrada, "#5f719b"], ["Impostos", f.imp, "#a86a0c"],
+                  ["Cartão", f.cartao, "#d3a14a"], ["Comissão", f.comissao, "#c9b27a"], ["Despesas rateadas", f.desp, "#9aa4b8"], ["Lucro líquido", f.lucro, "#3fa66b"],
+                ];
+                return (<>
+                  <div className="mx-stack" role="img" aria-label="Composição do preço de venda">
+                    {itens.map(([n, v, c]) => <i key={n} style={{ flexGrow: Math.max(v, 0), background: c }} title={n} />)}
+                  </div>
+                  <ul className="mx-legend">
+                    {itens.map(([n, v, c]) => (
+                      <li key={n}><span className="mx-sw" style={{ background: c }} /><span>{n}</span><Money c={Math.round(v)} /><em>{pctTxt((v / f.venda) * 100)}</em></li>
+                    ))}
+                    <li className="mx-legend-t"><span /><span>Preço de venda</span><Money c={Math.round(f.venda)} /><em>100%</em></li>
+                  </ul>
+                </>);
+              })() : <p className="mx-note">{atual?.invalido ? "A soma de encargos e margem passa de 95%." : "Esta linha ainda não tem preço de custo."}</p>}
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ------------------------------ modal */}
       {modal && (
@@ -590,14 +820,14 @@ export function MatrizFornecedoresV2() {
                   <div className="mx-well" style={{ padding: 4 }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                       <thead><tr style={{ textAlign: "left", color: "var(--muted)", fontSize: 10, letterSpacing: ".12em", textTransform: "uppercase" }}>
-                        <th style={{ padding: "8px 10px" }}>Produto</th><th style={{ textAlign: "right" }}>Referência</th><th style={{ textAlign: "right" }}>Margem</th><th style={{ textAlign: "right", paddingRight: 10 }}>Venda sugerida</th></tr></thead>
+                        <th style={{ padding: "8px 10px" }}>Produto</th><th style={{ textAlign: "right" }}>Referência</th><th style={{ textAlign: "right" }}>Custo efetivo</th><th style={{ textAlign: "right", paddingRight: 10 }}>Venda publicada</th></tr></thead>
                       <tbody>
                         {filtrados.filter((x) => x.ref !== null).slice(0, 7).map((x) => (
                           <tr key={x.row.id} style={{ borderTop: "1px solid var(--line)" }}>
                             <td style={{ padding: "8px 10px", fontWeight: 600, textTransform: "uppercase" }}>{x.row.nome} <span style={{ color: "var(--muted)", fontWeight: 500 }}>{x.row.dose}</span></td>
                             <td style={{ textAlign: "right" }}><Money c={x.ref as number} /></td>
-                            <td style={{ textAlign: "right" }}><span className="mx-mg">{pctTxt(x.margem)}</span></td>
-                            <td style={{ textAlign: "right", paddingRight: 10 }}><Money c={x.venda as number} /></td>
+                            <td style={{ textAlign: "right" }}>{x.forma ? <Money c={Math.round(x.forma.custoEf)} /> : "—"}</td>
+                            <td style={{ textAlign: "right", paddingRight: 10 }}>{x.pub === null ? "—" : <Money c={x.pub} />}</td>
                           </tr>
                         ))}
                       </tbody>
