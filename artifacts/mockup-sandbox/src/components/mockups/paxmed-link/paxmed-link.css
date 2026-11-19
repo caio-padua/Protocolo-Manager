@@ -1,116 +1,91 @@
-@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,800;1,500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700&display=swap");
 
 .pxl-root {
   width: 1200px; height: 630px; position: relative; overflow: hidden; isolation: isolate;
-  font-family: "EB Garamond", Georgia, serif; color: #e8ecf5;
-  background:
-    radial-gradient(ellipse 62% 72% at 50% 36%, #22437a 0%, #12284d 48%, #0a1630 78%, #060d1f 100%);
+  font-family: "EB Garamond", Georgia, serif; color: #e9edf6;
+  background: linear-gradient(180deg, #13233f 0%, #0d1830 100%);
 }
 
-/* Terno risca de giz: fios finos verticais, esvanecendo nas bordas */
+/* TECIDO — terno risca de giz navy (mesma receita do .dark .leva-fabric do sistema) */
 .pxl-tecido {
-  position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background: repeating-linear-gradient(90deg, rgba(214, 226, 255, 0.05) 0 1px, transparent 1px 15px);
-  -webkit-mask-image: radial-gradient(ellipse 80% 85% at 50% 45%, #000 20%, transparent 100%);
-  mask-image: radial-gradient(ellipse 80% 85% at 50% 45%, #000 20%, transparent 100%);
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.9;
+  background-image: repeating-linear-gradient(
+    160deg,
+    transparent 0px, transparent 9px,
+    rgba(190, 215, 255, 0.22) 9px, rgba(190, 215, 255, 0.22) 10.5px,
+    transparent 10.5px, transparent 13px,
+    rgba(190, 215, 255, 0.10) 13px, rgba(190, 215, 255, 0.10) 13.5px,
+    transparent 13.5px, transparent 22px
+  );
+}
+.pxl-root::after { /* vinheta suave: o tecido respira nas bordas */
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 80% 85% at 50% 48%, transparent 40%, rgba(5, 10, 24, 0.55) 100%);
 }
 
-/* Placa de vidro: topo reto iluminado, laterais chanfradas, base na sombra */
-.pxl-vidro {
-  position: absolute; inset: 26px; z-index: 1; border-radius: 6px 6px 22px 22px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 40%, rgba(4, 10, 26, 0.18) 100%);
+/* PAINEL UP BEVEL — navy em degradê, topo iluminado reto, aro fino azulado, sombra de base */
+.pxl-painel {
+  position: absolute; z-index: 2; border-radius: 14px; box-sizing: border-box;
+  background: linear-gradient(180deg, #1b3866 0%, #142c55 38%, #0e2142 100%);
+  border: 1px solid rgba(130, 170, 215, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.26);
   box-shadow:
-    inset 0 1px 0 rgba(255, 244, 200, 0.55),
-    inset 1px 0 0 rgba(255, 255, 255, 0.09),
-    inset -1px 0 0 rgba(0, 0, 0, 0.35),
-    inset 0 -40px 70px rgba(0, 0, 0, 0.28),
-    0 18px 40px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.32),
+    inset 2px 0 0 rgba(255, 255, 255, 0.05),
+    inset -2px 0 0 rgba(0, 0, 0, 0.25),
+    0 4px 0 #091428,
+    0 22px 40px rgba(2, 6, 18, 0.65);
 }
-/* Moldura dourada em degrade: so o anel, o miolo fica transparente (vidro) */
-.pxl-vidro::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
-  background: linear-gradient(180deg, #f6dd93 0%, #b8872c 45%, #7a5a1c 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
+.pxl-painel::before { /* verniz reto no topo */
+  content: ""; position: absolute; left: 1px; right: 1px; top: 1px; height: 30%; border-radius: 13px 13px 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0)); pointer-events: none;
 }
-.pxl-canto { position: absolute; width: 22px; height: 22px; border: 0 solid rgba(236, 202, 118, 0.85); }
-.pxl-canto.c1 { left: 14px; top: 14px; border-width: 1.5px 0 0 1.5px; }
-.pxl-canto.c2 { right: 14px; top: 14px; border-width: 1.5px 1.5px 0 0; }
-.pxl-canto.c3 { left: 14px; bottom: 14px; border-width: 0 0 1.5px 1.5px; }
-.pxl-canto.c4 { right: 14px; bottom: 14px; border-width: 0 1.5px 1.5px 0; }
+.pxl-painel-sim { left: 52px; top: 76px; width: 470px; height: 478px; padding: 26px; }
+.pxl-painel-txt { left: 560px; top: 76px; width: 588px; height: 478px; padding: 26px; display: flex; flex-direction: column; gap: 22px; }
 
-.pxl-halo {
-  position: absolute; z-index: 1; left: 150px; right: 150px; top: 44px; height: 230px; pointer-events: none;
-  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(240, 200, 110, 0.16), transparent 70%);
+/* POÇO (côncavo) — onde a marca em ouro entra, como o quadradinho do ícone no print */
+.pxl-poco {
+  position: relative; border-radius: 10px; flex: none;
+  background: linear-gradient(180deg, #08142a 0%, #0c1b36 100%);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.07), 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+.pxl-poco-sim { width: 100%; height: 100%; }
+.pxl-poco-nome { width: 100%; height: 112px; }
 
-/* Lockup: posições fixas para a máscara casar pixel a pixel com a arte */
-.pxl-lockup { position: absolute; z-index: 2; left: 140px; top: 66px; width: 921px; height: 180px; }
-.pxl-sym { position: absolute; left: 0; top: 0; height: 180px; width: 192px; filter: saturate(1.45) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45)); }
-.pxl-word { position: absolute; left: 232px; top: 0; width: 689px; height: 180px; filter: saturate(1.45) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45)); }
+.pxl-arte { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pxl-arte img { display: block; width: 100%; height: 100%; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55)); }
+.pxl-sim { width: 365px; height: 368.5px; }
+.pxl-nome { width: 470px; height: 78.7px; }
 
-/* A LUZ: mascara = silhueta do proprio simbolo + nome. Nada fora das letras. */
-.pxl-luz {
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none; mix-blend-mode: screen;
-  -webkit-mask-size: 192px 180px, 689px 180px; mask-size: 192px 180px, 689px 180px;
-  -webkit-mask-position: 0 0, 232px 0; mask-position: 0 0, 232px 0;
-  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+/* LUZ só dentro do metal — ciclo de 7 s, descanso curto */
+.pxl-luz { position: absolute; inset: 0; overflow: hidden; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mix-blend-mode: screen; }
+.pxl-raio {
+  position: absolute; top: -20%; bottom: -20%; left: 0; width: 34%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 244, 205, 0) 12%, rgba(255, 246, 214, 0.88) 50%, rgba(255, 244, 205, 0) 88%, transparent 100%);
+  transform: translateX(-130%) skewX(-18deg);
+  animation: pxlVarre 7s ease-in-out infinite;
 }
-.pxl-polvora, .pxl-sol { position: absolute; top: -50px; height: 280px; left: 0; will-change: transform; transform: translateX(-380px) skewX(-22deg); }
-/* Polvora: faisca fina que corre na frente */
-.pxl-polvora {
-  width: 34px;
-  background: linear-gradient(90deg, transparent, rgba(255, 246, 214, 1) 50%, transparent);
-  animation: pxlPolvora 12s linear infinite;
+.pxl-luz-nome .pxl-raio { animation-delay: 0.45s; }
+@keyframes pxlVarre {
+  0%, 12% { transform: translateX(-130%) skewX(-18deg); }
+  58%, 100% { transform: translateX(330%) skewX(-18deg); }
 }
-/* Sol: faixa larga, especular, que acende o metal por dentro */
-.pxl-sol {
-  width: 250px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 214, 120, 0.30) 30%, rgba(255, 248, 224, 0.95) 50%, rgba(255, 214, 120, 0.30) 70%, transparent 100%);
-  animation: pxlSol 12s cubic-bezier(0.42, 0.05, 0.4, 1) infinite;
-}
-@keyframes pxlPolvora {
-  0%, 2%   { transform: translateX(-380px) skewX(-22deg); opacity: 0; }
-  4%       { opacity: 1; }
-  24%      { transform: translateX(1000px) skewX(-22deg); opacity: 1; }
-  25%, 100% { transform: translateX(1000px) skewX(-22deg); opacity: 0; }
-}
-@keyframes pxlSol {
-  0%, 26%  { transform: translateX(-380px) skewX(-22deg); }
-  48%      { transform: translateX(1000px) skewX(-22deg); }
-  100%     { transform: translateX(1000px) skewX(-22deg); }
-}
+.pxl-estatico .pxl-raio { animation: none; }
+.pxl-estatico .pxl-luz-sim .pxl-raio { transform: translateX(95%) skewX(-18deg); width: 30%; }
+.pxl-estatico .pxl-luz-nome .pxl-raio { transform: translateX(150%) skewX(-18deg); width: 26%; }
 
-/* Versao congelada (JPG do WhatsApp): luz parada dentro do X e do M */
-.pxl-estatico .pxl-polvora { animation: none; opacity: 1; transform: translateX(612px) skewX(-22deg); }
-.pxl-estatico .pxl-sol { animation: none; transform: translateX(470px) skewX(-22deg); }
-
-.pxl-divisor {
-  position: absolute; z-index: 2; left: 360px; right: 360px; top: 276px; height: 14px;
-  display: flex; align-items: center; justify-content: center; gap: 16px;
-}
-.pxl-divisor i { flex: 1; height: 1.5px; background: linear-gradient(90deg, transparent, rgba(236, 202, 118, 0.85)); }
-.pxl-divisor i:last-child { background: linear-gradient(270deg, transparent, rgba(236, 202, 118, 0.85)); }
-.pxl-divisor b { width: 10px; height: 10px; background: linear-gradient(135deg, #f6dd93, #b8872c); transform: rotate(45deg); box-shadow: 0 0 0 3px rgba(236, 202, 118, 0.14); }
-
-.pxl-texto { position: absolute; z-index: 2; left: 0; right: 0; top: 308px; text-align: center; }
-.pxl-p1 {
-  margin: 0 auto; max-width: 880px; font-size: 33px; line-height: 1.5; font-weight: 500;
-  color: #eef1f8; text-wrap: balance;
-}
-.pxl-p2 { margin: 24px 0 0; font-size: 28px; line-height: 1.4; font-weight: 400; color: #b9c4dc; white-space: nowrap; }
-.pxl-p2 em { font-style: normal; font-weight: 600; color: #f1d58c; }
+/* TEXTO — espaço entre linhas */
+.pxl-texto { display: flex; flex-direction: column; justify-content: space-between; flex: 1; padding: 6px 6px 2px; }
+.pxl-texto p { margin: 0; }
+.pxl-p1 { font-size: 35px; line-height: 1.28; font-weight: 600; color: #f1f4fb; }
+.pxl-p2 { font-size: 31px; line-height: 1.28; font-weight: 600; color: #f1f4fb; }
 .pxl-confira {
-  margin: 20px 0 0; display: flex; align-items: center; justify-content: center; gap: 22px;
-  font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: 0.1em;
-  background: linear-gradient(180deg, #fbe7ab 0%, #e6b952 52%, #b8872c 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
+  display: flex; align-items: center; gap: 16px; font-size: 40px; font-weight: 700; letter-spacing: 3px; line-height: 1;
+  background: linear-gradient(180deg, #fbe7a6 0%, #d9a944 55%, #a8751f 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.pxl-confira i { display: block; width: 74px; height: 1.5px; background: linear-gradient(90deg, transparent, rgba(236, 202, 118, 0.8)); -webkit-text-fill-color: initial; }
-.pxl-confira i:last-child { background: linear-gradient(270deg, transparent, rgba(236, 202, 118, 0.8)); }
+.pxl-confira i { display: block; flex: 1; height: 1.5px; background: linear-gradient(90deg, rgba(224, 178, 84, 0.85), rgba(224, 178, 84, 0)); }
+.pxl-confira i:first-child { flex: 0 0 34px; background: rgba(224, 178, 84, 0.85); }
 
-@media (prefers-reduced-motion: reduce) {
-  .pxl-polvora { animation: none; opacity: 0; }
-  .pxl-sol { animation: none; transform: translateX(470px) skewX(-22deg); }
-}
+@media (prefers-reduced-motion: reduce) { .pxl-raio { animation: none; } }
