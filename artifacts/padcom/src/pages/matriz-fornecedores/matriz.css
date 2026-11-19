@@ -487,9 +487,10 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-root { --row: 84px; }
 .mx-lab { height: 100%; display: grid; grid-template-rows: 1fr 1fr 1fr; padding: 0 12px 0 20px; min-width: 0; position: relative; }
 .mx-lab > div { display: grid; align-items: center; min-width: 0; }
-.mx-lab-1, .mx-lab-2 { grid-template-columns: 56px 1fr; }
+.mx-lab-1, .mx-lab-2 { grid-template-columns: 40px 1fr; }
 .mx-lab-1 .mx-money, .mx-lab-2 .mx-money { justify-self: end; }
-.mx-lab-3 { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.mx-lab-3 { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.mx-apr { font-size: 8.5px; letter-spacing: 0; }
 .mx-lab-k { font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
 .mx-money.mx-big { font-size: 17px; line-height: 1; font-weight: 700; color: var(--ink); }
 .mx-money.mx-mid { font-size: 13px; line-height: 1; font-weight: 500; color: var(--muted); }
@@ -505,7 +506,7 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 /* ---------- célula de produto (comum e blend): mesma grade, mesma tipografia, rótulos na mesma coluna ---------- */
 .mx-pc { justify-content: center; gap: 0; padding-top: 6px; padding-bottom: 6px; }
 .mx-pc-n { display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0; }
-.mx-pc-r { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; column-gap: 8px; height: 20px; }
+.mx-pc-r { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; column-gap: 8px; height: 20px; }
 .mx-pc-r i { font-style: normal; font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
 .mx-pc-r span { grid-column: 2; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 600; color: var(--navy); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-pc-r em { grid-column: 3; font-style: normal; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; text-align: right; }
@@ -518,3 +519,44 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 
 /* sem linhas: os andares se separam só pelo espaço */
 .mx-3f > .mx-f1, .mx-3f > .mx-f2 { border-bottom: 0; }
+
+/* lapela: troféu dourado escovado colado na quina superior esquerda */
+.mx-lapela { left: 0; top: 0; width: 15px; height: 19px; padding-top: 3px; color: #4a3508;
+  background: repeating-linear-gradient(100deg, rgba(255,255,255,.28) 0 1px, rgba(0,0,0,.05) 1px 2px), linear-gradient(135deg, #f1d98a 0%, #c9a24a 45%, #a67f2c 100%);
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.25)); }
+.mx-apr-x { text-align: center; }
+
+/* blend clicável + painel */
+.mx-blend-btn { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; font-family: inherit; }
+.mx-bl-chev { transition: transform .15s; }
+.mx-bl-chev[data-open="1"] { transform: rotate(90deg); }
+.mx-blend-open td { background: #f7f3e6; border-bottom: 1px solid var(--line-2); padding: 0; }
+.mx-blend-pn { display: grid; grid-template-columns: 1.1fr 1fr 1fr auto; gap: 24px; align-items: start; padding: 12px 20px 12px 68px; position: sticky; left: 0; }
+.mx-blend-t { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.mx-blend-t span { font-size: 10.5px; color: var(--muted); }
+.mx-blend-l { display: flex; flex-direction: column; gap: 3px; }
+.mx-blend-i { display: grid; grid-template-columns: 1fr auto; gap: 12px; font-size: 11.5px; color: var(--muted); }
+.mx-blend-i b, .mx-blend-i .mx-money { font-family: Inter, system-ui, sans-serif; font-size: 11.5px; color: var(--ink); }
+
+/* barra da substância (acima da tabela) */
+.mx-sbar { display: flex; align-items: center; gap: 24px; padding: 10px 16px; border-radius: 6px; color: #eef1f8;
+  background: linear-gradient(180deg, #1c2f5a, #13234a); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 3px rgba(22,40,74,.35); }
+.mx-sbar-sel { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mx-sbar-sel small { font-size: 8.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #aab7d6; }
+.mx-sbar-nome { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.mx-sbar-nome b { font-family: "EB Garamond", serif; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-sbar-nome span { font-family: Inter, system-ui, sans-serif; font-size: 15px; font-weight: 700; color: #e3b659; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mx-sbar-nome em { font-style: normal; font-size: 11px; color: #aab7d6; }
+.mx-sbar-so { color: #dbe2f2 !important; }
+.mx-sbar-busca { position: relative; width: 360px; flex: none; }
+.mx-search-prem { width: 100%; }
+.mx-sbar-lista { position: absolute; z-index: 40; top: calc(100% + 4px); right: 0; width: 100%; max-height: 320px; overflow: auto; margin: 0; padding: 4px; list-style: none;
+  background: #fffdf6; color: var(--ink); border: 1px solid var(--line-2); border-radius: 6px; box-shadow: 0 8px 24px rgba(22,40,74,.28); }
+.mx-sbar-lista li { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.mx-sbar-lista li[data-on="1"] { background: #e9edf6; }
+.mx-sbar-av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; background: linear-gradient(180deg, #2f4377, #1c2f5a); }
+.mx-sbar-ot { display: flex; flex-direction: column; min-width: 0; }
+.mx-sbar-ot b { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-sbar-ot small { font-size: 10.5px; color: var(--muted); }
+.mx-sbar-pr { font-size: 12px; }
+.mx-sbar-vazio { padding: 10px; font-size: 12px; color: var(--muted); cursor: default; }

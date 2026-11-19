@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Numeral } from "@/components/numeral/Numeral";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import { P, V, brl, pctTxt, qtdTxt, sinal } from "./componentes";
 import { Modal, PedidoPorLaboratorio, ReservasDeEstoque } from "./Modais";
 import { NovoBlend } from "./NovoBlend";
 import { PrecificacaoDock } from "./PrecificacaoDock";
+import { BarraSubstancia } from "./BarraSubstancia";
 import "./matriz.css";
 
 const CORES = ["#2d73b5", "#8a4fb0", "#c4572f", "#2f7d6b", "#c9962b", "#6d7a8f"];
@@ -70,6 +71,9 @@ export default function MatrizFornecedores() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
   const [modal, setModal] = useState<null | "ped" | "res" | "blend">(null);
+  const [substFoco, setSubstFoco] = useState<number | null>(null);
+  const [pick, setPick] = useState<number | null>(null);
+  const [blendsAbertos, setBlendsAbertos] = useState<number[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const buscaRef = useRef<HTMLInputElement>(null);
@@ -89,12 +93,13 @@ export default function MatrizFornecedores() {
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return todos.filter((c) =>
+      (substFoco === null || c.linha.substanciaId === substFoco) &&
       temVia(c.linha, viaSel) &&
       (!soComp || c.incl.length >= 2) &&
       (!soReserva || (c.linha.estoque?.dinamico ?? 0) > 0) &&
       (!soFalta || (c.linha.estoque?.falta ?? 0) > 0) &&
       (!t || `${c.linha.produto} ${nomeDe(c.linha)} ${c.linha.doseTotal} ${c.linha.composicao ?? ""} ${c.linha.classe}`.toLowerCase().includes(t)));
-  }, [todos, busca, viaSel, soComp, soReserva, soFalta]);
+  }, [todos, busca, viaSel, soComp, soReserva, soFalta, substFoco]);
 
   const grupos = useMemo(() => {
     type G = { id: string; titulo: string; margem: number | null; lista: Calc[] };
@@ -147,6 +152,15 @@ export default function MatrizFornecedores() {
   const c = Math.min(sel.c, cols.length - 1);
   const atual = flat[r];
   const colAtual = cols[c];
+
+  useEffect(() => {
+    if (pick === null) return;
+    const i = flat.findIndex((x) => x.linha.varianteId === pick);
+    if (i >= 0) { setSel((p) => ({ r: i, c: p.c, modo: "cell" })); setPick(null); return; }
+    const alvo = todos.find((x) => x.linha.varianteId === pick);
+    if (alvo) { setBusca(""); setViaSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); setFechados([]); }
+    else setPick(null);
+  }, [pick, flat, todos]);
 
   const avisar = useCallback((t: string) => {
     setToast(t);
@@ -290,7 +304,7 @@ export default function MatrizFornecedores() {
           <div className="mx-td-in mx-pc" title={l.isBlend ? `${nomeDe(l)} (${l.produto})` : nomeDe(l)}>
             <div className="mx-pc-n">
               <span className="mx-prod-n mx-prod">{nomeDe(l)}</span>
-              {l.isBlend && <span className="mx-tag mx-tag-blend">Blend</span>}
+              {l.isBlend && <button type="button" className="mx-tag mx-tag-blend mx-blend-btn" aria-expanded={blendsAbertos.includes(l.varianteId)} title="Abrir a composição do blend" onClick={(e) => { e.stopPropagation(); setBlendsAbertos((a) => (a.includes(l.varianteId) ? a.filter((x) => x !== l.varianteId) : [...a, l.varianteId])); }}><ChevronRight size={10} className="mx-bl-chev" data-open={blendsAbertos.includes(l.varianteId) ? 1 : 0} />Blend</button>}
               {!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}
             </div>
             {l.isBlend ? (
@@ -298,7 +312,7 @@ export default function MatrizFornecedores() {
                 {comps.map((k, i) => (
                   <div key={i} className="mx-pc-r"><i>{i === 0 ? "Comp." : ""}</i><span title={k.nome}>{k.nome}</span><em>{k.dose || "—"}</em></div>
                 ))}
-                <div className="mx-pc-r"><i>Volume</i><span>{formaTxt} · {volTxt}</span></div>
+                <div className="mx-pc-r"><i>Vol.</i><span>{formaTxt} · {volTxt}</span></div>
               </>
             ) : (
               <>
@@ -317,24 +331,26 @@ export default function MatrizFornecedores() {
       if (!o) return vazia(ci, ri, ci, "—");
       const ganha = cc.incl.length > 1 && cc.vencedoras.includes(o);
       const q = o.quantidadeEmbalagem;
-      const opcoes = [1, 5, 10].includes(q) ? [1, 5, 10] : [1, 5, 10, q].sort((x, y) => x - y);
+      const fixos = [1, 5, 10];
+      const quarto = fixos.includes(q) ? null : q;
       return (
         <td key={ci} {...tdProps(ri, ci)} style={{ ["--wc" as string]: corDe(o.fornecedorId) }} className={cls(ri, ci, ganha ? "mx-win" : "")}>
           <div className="mx-lab" data-ganha={ganha ? 1 : 0}>
             <div className="mx-lab-1">
-              <span className="mx-lab-k">Unidade</span>
+              <span className="mx-lab-k">Unid.</span>
               <V c={o.custoUnitarioCentavos} peso={800} className="mx-money mx-big" />
             </div>
             <div className="mx-lab-2">
-              <span className="mx-lab-k">Caixa</span>
+              <span className="mx-lab-k">Cx.</span>
               <V c={o.custoEmbalagemCentavos} peso={700} className="mx-money mx-mid" />
             </div>
             <div className="mx-lab-3" role="group" aria-label={`Apresentação: ${q} ${unidadeTxt(l.forma, q)} por caixa`}>
-              {opcoes.map((n) => (
-                <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined}>{n === 1 ? "Unid." : `${n} un.`}</span>
+              {fixos.map((n) => (
+                <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined}>{n} Unid</span>
               ))}
+              <span className="mx-apr mx-apr-x" data-on={quarto !== null ? 1 : 0} aria-current={quarto !== null ? "true" : undefined}>{quarto ?? "X"} Unid</span>
             </div>
-            {ganha && <span className="mx-lapela" title="Menor preço" role="img" aria-label="Menor preço"><Trophy size={9} /></span>}
+            {ganha && <span className="mx-lapela" title="Menor preço" role="img" aria-label="Menor preço"><Trophy size={10} fill="currentColor" /></span>}
           </div>
         </td>
       );
@@ -556,6 +572,9 @@ export default function MatrizFornecedores() {
         <div className="mx-fx-act"><button type="button" className="mx-btn" style={{ height: 28 }} onClick={copiar} disabled={!atual}><Copy size={13} />Copiar <kbd style={{ fontSize: 10, opacity: .6 }}>Ctrl+C</kbd></button></div>
       </div>
 
+      <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
+        onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
+
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
         {grupos.length === 0 ? (
           <div className="mx-none">
@@ -593,12 +612,28 @@ export default function MatrizFornecedores() {
                   </tr>,
                   ...g.abertos.map((cc) => {
                     const ri = numero++;
-                    return (
+                    return [
                       <tr key={cc.linha.varianteId} data-zebra={ri % 2} style={cc.linha.isBlend ? { ["--row" as string]: `${Math.max(84, 52 + componentesDe(cc.linha).length * 20 + 24)}px` } : undefined}>
                         <th className="mx-rn" scope="row" data-on={(sel.modo === "row" || sel.modo === "cell") && r === ri ? 1 : 0} onClick={() => setSel({ r: ri, c, modo: "row" })}>{ri + 1}</th>
                         {cols.map((col, ci) => celula(cc, col, ri, ci))}
-                      </tr>
-                    );
+                      </tr>,
+                      cc.linha.isBlend && blendsAbertos.includes(cc.linha.varianteId) && (
+                        <tr key={`bp-${cc.linha.varianteId}`} className="mx-blend-open">
+                          <td colSpan={cols.length + 1}>
+                            <div className="mx-blend-pn">
+                              <div className="mx-blend-t"><b>Composição de {nomeDe(cc.linha)}</b><span>todas as substâncias abaixo estão dentro de {cc.linha.volumeMl ? `${Number(cc.linha.volumeMl).toLocaleString("pt-BR")} mL` : "um mesmo volume"}</span></div>
+                              <div className="mx-blend-l">
+                                {componentesDe(cc.linha).map((k, i) => <div key={i} className="mx-blend-i"><span>{k.nome}</span><b>{k.dose || "—"}</b></div>)}
+                              </div>
+                              <div className="mx-blend-l">
+                                {cc.linha.celulas.map((o) => <div key={o.fornecedorId} className="mx-blend-i"><span><i className="mx-sw" style={{ background: corDe(o.fornecedorId), marginRight: 6 }} />{nomeForn(o.fornecedorId)}</span><V c={o.custoUnitarioCentavos} peso={700} className="" /></div>)}
+                              </div>
+                              <button type="button" className="mx-btn" onClick={() => { const t = `${nomeDe(cc.linha)}: ${componentesDe(cc.linha).map((k) => `${k.nome} ${k.dose}`.trim()).join(" + ")}`; try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ } avisar("Composição copiada."); }}><Copy size={13} />Copiar composição</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ),
+                    ];
                   }),
                 ];
               })}
