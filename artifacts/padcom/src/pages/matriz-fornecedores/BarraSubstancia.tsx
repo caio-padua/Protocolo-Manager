@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Search, X } from "lucide-react";
 import type { Calc } from "./calculo";
-import { doseCurta, nomeDe } from "./calculo";
+import { BOTOES_VIA, doseCurta, nomeDe, temVia } from "./calculo";
 import { V } from "./componentes";
 import { ToggleWell } from "./ToggleWell";
 import { Quadrado, type CategoriaSubst } from "./Categorias";
@@ -48,13 +48,25 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
       <div className="mx-sbar-sel">
         <small>Substância selecionada</small>
         <div className="mx-sbar-l1" title={l ? nomeDe(l) : ""}><b>{l ? nomeDe(l) : "Nenhuma"}</b></div>
-        <div className="mx-sbar-l2"><i>Dose</i><span>{l ? doseCurta(l.doseTotal) : "—"}</span>{l?.via && <em>{l.via}</em>}</div>
-        <div className="mx-sbar-l3"><i>Conc.</i><span className="mx-c1">{l?.concentracao ?? "—"}</span><i>Vol.</i><span className="mx-c2">{l?.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—"}</span></div>
+        <div className="mx-sbar-dados">
+          <div><i>Dose</i><span className="mx-c0">{l ? doseCurta(l.doseTotal) : "—"}</span></div>
+          <div><i>Concentração</i><span>{l?.concentracao ?? "—"}</span></div>
+          <div><i>Volume</i><span>{l?.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—"}</span></div>
+        </div>
+        <div className="mx-sbar-vias" role="group" aria-label="Vias de uso da substância">
+          <i>Via</i>
+          {BOTOES_VIA.filter((x) => x.id !== "TODAS" && x.id !== "SEM_VIA").map((x) => {
+            const on = !!l && temVia(l, x.id);
+            return <span key={x.id} className="mx-sbar-via" data-on={on ? 1 : 0} title={`${x.nome}${on ? " · usada nesta substância" : ""}`}>{x.rotulo === "Implante" ? "Impl." : x.rotulo === "Tópico" ? "Tóp." : x.rotulo}</span>;
+          })}
+        </div>
       </div>
       </div>
       <div className="mx-sbar-togs mx-sbar-z2">
-        <div className="mx-sbar-tog"><ToggleWell checked={soEsta} disabled={!l} onChange={onSoEsta} label="Só esta substância" title="Mostra na tabela apenas as apresentações dela." /></div>
-        <div className="mx-sbar-qtd"><i>Apresentações desta substância</i><b>{l ? lista.filter((x) => x.linha.substanciaId === l.substanciaId).length : 0}</b></div>
+        <button type="button" className="mx-sbar-copy2 evo-bevel" onClick={copiar} disabled={!l} title="Copia nome, dose e via da substância selecionada" aria-label="Copiar dados da substância selecionada" data-testid="botao-copiar-dados-substancia">
+          {copiado ? <Check size={16} /> : <Copy size={16} />}<span>{copiado ? "Dados copiados" : "Copiar dados da substância"}</span>
+        </button>
+        <div className="mx-sbar-tog"><ToggleWell checked={soEsta} disabled={!l} onChange={onSoEsta} label="Mostrar só esta na planilha" title="Esconde as outras substâncias e deixa na planilha apenas as apresentações desta." /></div>
       </div>
       <div className="mx-sbar-z3">
       <div className="mx-sbar-busca" ref={ref}>
@@ -91,9 +103,6 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
           </div>
         )}
       </div>
-      <button type="button" className="mx-sbar-copy2 evo-bevel" onClick={copiar} disabled={!l} title="Copia nome, dose e via da substância selecionada" aria-label="Copiar dados da substância selecionada" data-testid="botao-copiar-dados-substancia">
-        {copiado ? <Check size={15} /> : <Copy size={15} />}<span>{copiado ? "Dados copiados" : "Copiar dados da substância"}</span>
-      </button>
       </div>
     </div>
   );
