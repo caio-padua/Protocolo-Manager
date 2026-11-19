@@ -5,6 +5,7 @@ import { moduleGuard } from "../middleware/moduleGuard";
 import { acesso } from "./fornecedores";
 import { montarMatrizCompleta } from "../lib/matriz-completa";
 import { aplicarAgora, CATEGORIAS, ErroPrecificacao, salvarConfiguracao, validarConfiguracao, type Categoria } from "../lib/precificacao";
+import { gravarOferta, validarOferta } from "../lib/oferta-apresentacao";
 import { cadastrarBlend, ErroBlend, validarBlend } from "../lib/blend-cadastro";
 import { liberarReservaProtocolo, saldosPorSubstancia } from "../lib/estoque-reserva";
 import { resolveEmpresaId } from "../middleware/tenantContext";
@@ -36,6 +37,16 @@ router.post("/matriz-fornecedores/blend", requireCollaborator, acesso, estrutura
     const entrada = validarBlend(req.body);
     const r = await cadastrarBlend(pool, req.tenantContext.empresaId, req.tenantContext.professionalId as number, entrada);
     res.status(201).json({ ok: true, ...r });
+  } catch (e) {
+    if (e instanceof ErroBlend) { res.status(e.status).json({ error: e.message }); return; }
+    throw e;
+  }
+});
+
+router.post("/matriz-fornecedores/oferta", requireCollaborator, acesso, estrutura, async (req, res) => {
+  try {
+    const r = await gravarOferta(pool, req.tenantContext.empresaId, req.tenantContext.professionalId as number, validarOferta(req.body));
+    res.status(r.atualizada ? 200 : 201).json({ ok: true, ...r });
   } catch (e) {
     if (e instanceof ErroBlend) { res.status(e.status).json({ error: e.message }); return; }
     throw e;

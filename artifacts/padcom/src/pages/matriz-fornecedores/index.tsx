@@ -10,7 +10,8 @@ import {
 } from "./calculo";
 import { P, V, brl, pctTxt, qtdTxt, sinal } from "./componentes";
 import { Modal, PedidoPorLaboratorio, ReservasDeEstoque } from "./Modais";
-import { NovoBlend } from "./NovoBlend";
+import { NovoBlend, type BlendInicial } from "./NovoBlend";
+import { NovaApresentacao } from "./NovaApresentacao";
 import { PrecificacaoDock } from "./PrecificacaoDock";
 import { BarraSubstancia } from "./BarraSubstancia";
 import { GerenciarCategorias, useCategorias } from "./Categorias";
@@ -71,7 +72,9 @@ export default function MatrizFornecedores() {
   const [fechados, setFechados] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
-  const [modal, setModal] = useState<null | "ped" | "res" | "blend" | "cat">(null);
+  const [modal, setModal] = useState<null | "ped" | "res" | "blend" | "cat" | "apr">(null);
+  const [blendInicial, setBlendInicial] = useState<BlendInicial | undefined>(undefined);
+  const [apr, setApr] = useState<{ varianteId: number; fornecedorId: number } | null>(null);
   const cats = useCategorias();
   const [confA, setConfA] = useState<number | null>(null);
   const [confB, setConfB] = useState<number | null>(null);
@@ -245,6 +248,26 @@ export default function MatrizFornecedores() {
   };
   const ciclarSort = (key: SortKey) => setSort((s) => (!s || s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
 
+  /* ---- ferramentas do blend ---- */
+  const emMg = (dose: string): number | null => {
+    const m = /^([\d.,]+)\s*(mg|mcg|g)\b/i.exec(dose.trim()); if (!m) return null;
+    const v = parseFloat(m[1].replace(/\./g, "").replace(",", ".")); if (!Number.isFinite(v)) return null;
+    const u = m[2].toLowerCase(); return u === "g" ? v * 1000 : u === "mcg" ? v / 1000 : v;
+  };
+  const propDe = (l: Calc["linha"], dose: string): string => {
+    const mg = emMg(dose); if (mg === null) return "";
+    const total = componentesDe(l).reduce((a, k) => a + (emMg(k.dose) ?? 0), 0);
+    const vol = l.volumeMl ? Number(l.volumeMl) : 0;
+    const partes = [vol > 0 ? `${(mg / vol).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mg/mL` : "", total > 0 ? `${((mg / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : ""];
+    return partes.filter(Boolean).join(" · ");
+  };
+  const blendDe = (l: Calc["linha"], copia: boolean): BlendInicial => ({
+    nome: copia ? `${nomeDe(l)} (cópia)` : nomeDe(l),
+    via: l.via?.split(/[\s/,]+/)[0], forma: l.forma === "frasco" ? "frasco" : "ampola",
+    volume: l.volumeMl ? String(Number(l.volumeMl)).replace(".", ",") : undefined,
+    comps: componentesDe(l).map((k) => { const m = /^([\d.,]+)\s*(mg|mcg|g|UI|%|mL)/i.exec(k.dose.trim()); return { nome: k.nome, dose: m ? m[1] : "", unidade: m ? m[2].replace(/^ui$/i, "UI") : "mg" }; }),
+  });
+
   /* ---- confronto A x B ---- */
   const confronto = useMemo(() => {
     if (confA === null || confB === null || confA === confB) return null;
@@ -355,7 +378,7 @@ export default function MatrizFornecedores() {
       return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in"><span className="mx-via" title={l.via ?? ""}>{l.via || "—"}</span></div></td>;
     if (col.kind === "lab") {
       const o = l.celulas.find((x) => x.fornecedorId === col.lab);
-      if (!o) return vazia(ci, ri, ci, "—");
+      if (!o) return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-hatch")}><div className="mx-td-in mx-r"><button type="button" className="mx-addpreco" title="Gravar apresentação deste laboratório" onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: col.lab as number }); setModal("apr"); }}>+ preço</button></div></td>;
       const ganha = cc.incl.length > 1 && cc.vencedoras.includes(o);
       const q = o.quantidadeEmbalagem;
       const fixos = [1, 5, 10];
@@ -375,7 +398,7 @@ export default function MatrizFornecedores() {
               {fixos.map((n) => (
                 <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined}>{n} Unid</span>
               ))}
-              <span className="mx-apr mx-apr-x" data-on={quarto !== null ? 1 : 0} aria-current={quarto !== null ? "true" : undefined}>{quarto ?? "X"} Unid</span>
+              <button type="button" className="mx-apr mx-apr-x" data-on={quarto !== null ? 1 : 0} aria-current={quarto !== null ? "true" : undefined} title="Gravar outra quantidade na caixa" onClick={(e) => { e.stopPropagation(); setApr({ varianteId: l.varianteId, fornecedorId: o.fornecedorId }); setModal("apr"); }}>{quarto ?? "X"} Unid</button>
             </div>
             {ganha && <span className="mx-lapela" title="Menor preço" role="img" aria-label="Menor preço"><Trophy size={10} fill="currentColor" /></span>}
           </div>
@@ -554,7 +577,7 @@ export default function MatrizFornecedores() {
             </div>
           </div>
           <div className="mx-cr">
-            <button type="button" className="mx-btn" onClick={() => setModal("blend")} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
+            <button type="button" className="mx-btn" onClick={() => { setBlendInicial(undefined); setModal("blend"); }} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
             <button type="button" className="mx-btn" onClick={() => setModal("cat")} data-testid="botao-categorias">Categorias</button>
             <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
             <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
@@ -687,10 +710,15 @@ export default function MatrizFornecedores() {
                             <div className="mx-blend-pn">
                               <div className="mx-blend-t"><b>Composição de {nomeDe(cc.linha)}</b><span>todas as substâncias abaixo estão dentro de {cc.linha.volumeMl ? `${Number(cc.linha.volumeMl).toLocaleString("pt-BR")} mL` : "um mesmo volume"}</span></div>
                               <div className="mx-blend-l">
-                                {componentesDe(cc.linha).map((k, i) => <div key={i} className="mx-blend-i"><span>{k.nome}</span><b>{k.dose || "—"}</b></div>)}
+                                {componentesDe(cc.linha).map((k, i) => <div key={i} className="mx-blend-i"><span>{k.nome}</span><b>{k.dose || "—"}</b><em className="mx-blend-prop">{propDe(cc.linha, k.dose)}</em></div>)}
                               </div>
                               <div className="mx-blend-l">
                                 {cc.linha.celulas.map((o) => <div key={o.fornecedorId} className="mx-blend-i"><span><i className="mx-sw" style={{ background: corDe(o.fornecedorId), marginRight: 6 }} />{nomeForn(o.fornecedorId)}</span><V c={o.custoUnitarioCentavos} peso={700} className="" /></div>)}
+                              </div>
+                              <div className="mx-blend-tools">
+                                <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(cc.linha, false)); setModal("blend"); }}>Editar / incluir preço</button>
+                                <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(cc.linha, true)); setModal("blend"); }}>Duplicar</button>
+                                <button type="button" className="mx-btn" disabled={cc.min === null} onClick={() => { avisar(`Menor preço de ${nomeDe(cc.linha)}: ${cc.vencedoras.map((w) => nomeForn(w.fornecedorId)).join(" e ")}. Abrindo o pedido por laboratório.`); setModal("ped"); }}>Pedir no menor preço</button>
                               </div>
                               <button type="button" className="mx-btn" onClick={() => { const t = `${nomeDe(cc.linha)}: ${componentesDe(cc.linha).map((k) => `${k.nome} ${k.dose}`.trim()).join(" + ")}`; try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ } avisar("Composição copiada."); }}><Copy size={13} />Copiar composição</button>
                             </div>
@@ -722,7 +750,8 @@ export default function MatrizFornecedores() {
 
       {modal === "ped" && <Modal titulo="Pedido por laboratório" onFechar={() => setModal(null)}><PedidoPorLaboratorio fornecedores={labsVisiveis} cor={corDe} linhas={filtrados} avisar={avisar} /></Modal>}
       {modal === "cat" && <GerenciarCategorias lista={cats.lista} onFechar={() => setModal(null)} />}
-      {modal === "blend" && <Modal titulo="Novo blend" onFechar={() => setModal(null)}><NovoBlend fornecedores={forn} avisar={avisar} aoCriar={() => { setModal(null); void recarregar(); }} /></Modal>}
+      {modal === "apr" && apr && (() => { const lh = todos.find((t) => t.linha.varianteId === apr.varianteId)?.linha; return lh ? <Modal titulo="Gravar apresentação" onFechar={() => setModal(null)}><NovaApresentacao linha={lh} fornecedorId={apr.fornecedorId} fornecedorNome={nomeForn(apr.fornecedorId)} avisar={avisar} aoGravar={() => { setModal(null); void recarregar(); }} /></Modal> : null; })()}
+      {modal === "blend" && <Modal titulo={blendInicial ? "Blend a partir de um existente" : "Novo blend"} onFechar={() => setModal(null)}><NovoBlend key={blendInicial?.nome ?? "novo"} inicial={blendInicial} fornecedores={forn} avisar={avisar} aoCriar={() => { setModal(null); void recarregar(); }} /></Modal>}
       {modal === "res" && <Modal titulo="Reservas de estoque" onFechar={() => setModal(null)}><ReservasDeEstoque avisar={avisar} aoMudar={() => void recarregar()} /></Modal>}
       {toast && <div className="mx-bevel mx-toast" role="status">{toast}</div>}
     </div>

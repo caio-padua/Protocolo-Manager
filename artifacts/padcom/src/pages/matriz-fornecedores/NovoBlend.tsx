@@ -5,7 +5,7 @@ import { collabAuthHeaders } from "@/lib/collab-auth";
 import type { Fornecedor } from "./calculo";
 import { V } from "./componentes";
 
-type Comp = { nome: string; dose: string; unidade: string };
+export type Comp = { nome: string; dose: string; unidade: string };
 const VIAS = ["IM", "EV", "SC", "ID"] as const;
 const UNIDADES = ["mg", "mcg", "g", "UI", "%", "mL"];
 const vazio = (): Comp => ({ nome: "", dose: "", unidade: "mg" });
@@ -13,16 +13,17 @@ const num = (t: string): number => { const n = parseFloat(t.replace(/\./g, "").r
 const numSimples = (t: string): number => { const n = parseFloat(t.replace(",", ".")); return Number.isFinite(n) ? n : 0; };
 
 /** Cadastro visual de blend: a prévia em etiquetas mostra exatamente o que será gravado. */
-export function NovoBlend({ fornecedores, avisar, aoCriar }: { fornecedores: Fornecedor[]; avisar: (t: string) => void; aoCriar: () => void }) {
+export type BlendInicial = { nome: string; via?: string; forma?: "ampola" | "frasco"; volume?: string; comps: Comp[] };
+export function NovoBlend({ fornecedores, avisar, aoCriar, inicial }: { fornecedores: Fornecedor[]; avisar: (t: string) => void; aoCriar: () => void; inicial?: BlendInicial }) {
   const ativos = fornecedores.filter((f) => f.ativo);
-  const [nome, setNome] = useState("");
-  const [via, setVia] = useState<(typeof VIAS)[number]>("IM");
-  const [forma, setForma] = useState<"ampola" | "frasco">("ampola");
-  const [volume, setVolume] = useState("2");
+  const [nome, setNome] = useState(inicial?.nome ?? "");
+  const [via, setVia] = useState<(typeof VIAS)[number]>((VIAS as readonly string[]).includes(inicial?.via ?? "") ? (inicial!.via as (typeof VIAS)[number]) : "IM");
+  const [forma, setForma] = useState<"ampola" | "frasco">(inicial?.forma ?? "ampola");
+  const [volume, setVolume] = useState(inicial?.volume ?? "2");
   const [lab, setLab] = useState<number>(ativos[0]?.id ?? 0);
   const [qtd, setQtd] = useState("10");
   const [caixa, setCaixa] = useState("");
-  const [comps, setComps] = useState<Comp[]>([vazio(), vazio()]);
+  const [comps, setComps] = useState<Comp[]>(inicial?.comps.length ? inicial.comps : [vazio(), vazio()]);
   const [erro, setErro] = useState<string | null>(null);
 
   const mudar = (i: number, patch: Partial<Comp>) => setComps((cs) => cs.map((c, k) => (k === i ? { ...c, ...patch } : c)));

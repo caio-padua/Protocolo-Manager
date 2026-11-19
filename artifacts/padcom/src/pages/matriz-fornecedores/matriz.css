@@ -610,3 +610,10 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-conf-x { font-weight: 700; color: var(--muted); }
 .mx-conf-res { font-size: 12px; color: var(--ink); }
 .mx-conf-res i { display: inline-block; width: 1px; height: 12px; background: var(--line-2); margin: 0 10px; vertical-align: middle; }
+
+/* gravar apresentacao + ferramentas do blend */
+.mx-addpreco { border: 1px dashed var(--line-2); background: transparent; color: var(--muted); font-size: 11px; font-weight: 600; padding: 4px 10px; cursor: pointer; border-radius: 0; }
+.mx-addpreco:hover { background: #e9edf6; color: var(--navy); }
+button.mx-apr { cursor: pointer; font: inherit; }
+.mx-blend-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.mx-blend-prop { font-style: normal; font-size: 10px; color: var(--muted); margin-left: 8px; white-space: nowrap; }
