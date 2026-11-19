@@ -233,3 +233,10 @@
 .cc-grade-plan span[data-plano="diamond"] { color: #0b3b52; background: linear-gradient(180deg,#d9f2fc,#79cbe9); }
 /* Nivel antigo sem equivalente seguro: valor preservado, aguardando escolha da equipe (contorno tracejado, sem cor de nivel). */
 .cc-grade-plan span[data-plano="pendente"] { color: #2b3340; background: #f4f1ea; outline: 1.5px dashed #6b7280; outline-offset: -3px; }
+
+/* ===== Régua de ferramentas: nunca cortar botão nem sombra (celular e desktop) =====
+   overflow-x:auto força overflow-y a cortar; a lista ganha altura própria + folga embaixo para o relevo (sombra de 3px + 7px). */
+.cc-rail { align-items: start; }
+.cc-rail-list { align-items: flex-start; min-height: 52px; padding: 2px 2px 12px; margin-bottom: -8px; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x; }
+.cc-rail-item, .cc-rail-arrow { height: 42px; min-height: 42px; }
+.cc-rail-arrow { align-self: start; margin-top: 2px; }
