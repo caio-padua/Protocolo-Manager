@@ -19,6 +19,8 @@ const API_BASE    = import.meta.env.BASE_URL.replace(/\/$/, "");
 const _siteBase = import.meta.env.VITE_SITE_URL
   ?? import.meta.env.VITE_AREA_URL?.replace(/\/area\/?$/, "")
   ?? null;
+// Sobe junto com a imagem og-paxmed-vN.jpg do index.html.
+const PREVIA_VERSAO = "4";
 const GUIA_BASE: string = _siteBase
   ? `${_siteBase}${import.meta.env.BASE_URL}guia-digital`.replace(/([^:])\/\//g, "$1/")
   : "⚠️ [VITE_SITE_URL NÃO CONFIGURADA — obrigatória antes do lançamento]";
@@ -327,6 +329,8 @@ export default function GuiaPaciente() {
     const params = new URLSearchParams();
     if (slug) params.set("tenant", slug);
     if (clientId) params.set("c", String(clientId));
+    // Versao da previa do link (WhatsApp/Telegram guardam a previa por endereco): subir ao trocar a imagem.
+    params.set("v", PREVIA_VERSAO);
     const qs = params.toString();
     return qs ? `${GUIA_BASE}?${qs}` : GUIA_BASE;
   })();
