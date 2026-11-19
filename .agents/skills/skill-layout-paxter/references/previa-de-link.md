@@ -3,7 +3,7 @@
 Vale para QUALQUER link compartilhado (WhatsApp, Telegram): o cartao da previa (imagem og:image) segue este modelo.
 
 ## Arquivos de referencia (nesta pasta)
-1. previa-de-link/referencia-paxmed-v11.jpg = imagem aprovada (1200 x 630).
+1. previa-de-link/referencia-paxmed-v12.jpg = imagem aprovada (1200 x 630).
 2. previa-de-link/PaxmedLinkReceituario.tsx.txt = componente (copiar sem o .txt).
 3. previa-de-link/paxmed-link-receituario.css.txt = estilos (copiar sem o .txt).
 4. Original vivo: artifacts/mockup-sandbox/src/components/mockups/paxmed-link/ (canvas: /__mockup/preview/paxmed-link/PaxmedLinkReceituario).
@@ -46,9 +46,9 @@ Vale para QUALQUER link compartilhado (WhatsApp, Telegram): o cartao da previa (
 4. previa-de-link/codigo-padcom/guia-paciente-trecho.tsx.txt = constante PREVIA_VERSAO e montagem do link (?v=N, junto de ?tenant= e ?c=).
 
 ## Estado de uso (18/11/2026)
-1. Imagem em uso: artifacts/padcom/public/og-paxmed-v11.jpg (identica a referencia-paxmed-v11.jpg).
-2. PREVIA_VERSAO = "12" (subiu junto com a troca da frase de descricao).
-3. Historico das versoes: v1 a v10 foram testes; v11 = aprovada com tagline.
+1. Imagem em uso: artifacts/padcom/public/og-paxmed-v12.jpg (identica a referencia-paxmed-v12.jpg).
+2. PREVIA_VERSAO = "13" (subiu junto com a troca da frase de descricao).
+3. Historico das versoes: v1 a v10 foram testes; v11 = aprovada com tagline; v12 = sem raio, exportada em 2x e reduzida.
 
 ## Como gerar o JPG (passo a passo)
 1. Abrir /__mockup/preview/paxmed-link/PaxmedLinkReceituario?static=1 (congela o raio de luz).
@@ -77,3 +77,9 @@ Regras:
 3. Nunca incluir dado de cliente, nome de cliente ou informacao clinica na previa (ela e publica para quem recebe o link).
 4. Botao e so desenho: o toque abre o link inteiro.
 5. Se o texto nao couber em 1 linha, encurtar o texto; nunca diminuir a fonte nem apertar o espaco entre linhas.
+
+## Renderizacao sem distorcao (regra, 18/11/2026)
+1. A imagem do link NAO leva raio de luz (previa e parada): ?static=1 esconde o raio por completo. O raio animado existe so no canvas.
+2. Exportar em 2x: abrir com fator de escala 2 (2400 x 1260, PNG), aguardar 3,5 s para as fontes, depois reduzir para 1200 x 630 com filtro Lanczos (ImageMagick: -filter Lanczos -resize 1200x630! -colorspace sRGB -strip -interlace none -quality 93). Fica nitida ao expandir.
+3. Proporcao exata 1200 x 630 (1,91:1), JPEG sRGB sem perfil extra, abaixo de 300 KB (hoje cerca de 150 KB). Nao usar outra proporcao: o app corta ou estica.
+4. Manter o cartao com margem de seguranca: nenhum texto a menos de 150 px das bordas laterais (hoje a pilha tem 800 px centralizados), porque alguns apps cortam as bordas.

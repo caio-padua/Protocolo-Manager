@@ -38,7 +38,7 @@
   transform: translateX(-130%) skewX(-18deg); animation: plrVarre 7s ease-in-out infinite;
 }
 @keyframes plrVarre { 0%, 12% { transform: translateX(-130%) skewX(-18deg); } 58%, 100% { transform: translateX(330%) skewX(-18deg); } }
-.plr-estatico .plr-raio { animation: none; transform: translateX(95%) skewX(-18deg); width: 30%; }
+.plr-estatico .plr-luz { display: none; } /* imagem do link: sem raio (previa e parada) */
 
 /* PAINEL ESCURO (desliza por baixo da placa) */
 .plr-gaveta {
