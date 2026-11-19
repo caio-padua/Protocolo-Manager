@@ -1,0 +1,85 @@
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap");
+
+.pxp-root {
+  width: 1200px; height: 630px; position: relative; overflow: hidden; isolation: isolate;
+  font-family: "EB Garamond", Georgia, serif; color: #e9edf6;
+  background: radial-gradient(ellipse 70% 80% at 32% 45%, #1f3d72 0%, #12284d 50%, #091329 100%);
+}
+/* Risca de giz: fios verticais finos que se apagam nas bordas */
+.pxp-tecido {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, rgba(214, 226, 255, 0.055) 0 1px, transparent 1px 14px);
+  -webkit-mask-image: radial-gradient(ellipse 85% 90% at 40% 45%, #000 25%, transparent 100%);
+  mask-image: radial-gradient(ellipse 85% 90% at 40% 45%, #000 25%, transparent 100%);
+}
+
+/* PLACA SALIENTE (bevel): topo reto iluminado, laterais chanfradas, aro dourado, base com sombra */
+.pxp-placa {
+  position: absolute; z-index: 2; border-radius: 10px;
+  background: linear-gradient(180deg, #2c4c85 0%, #1a3563 34%, #112448 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 238, 178, 0.65),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.5),
+    inset 3px 0 0 rgba(255, 255, 255, 0.12),
+    inset -3px 0 0 rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(224, 178, 84, 0.85),
+    0 5px 0 #070f25,
+    0 26px 44px rgba(0, 0, 0, 0.55);
+}
+/* verniz de vidro: faixa reta no topo */
+.pxp-placa::before {
+  content: ""; position: absolute; left: 3px; right: 3px; top: 3px; height: 38%; border-radius: 7px 7px 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03));
+  pointer-events: none;
+}
+/* chanfro interno: fio dourado fino */
+.pxp-placa::after {
+  content: ""; position: absolute; inset: 9px; border-radius: 5px; pointer-events: none;
+  border: 1px solid rgba(232, 190, 100, 0.28);
+}
+
+.pxp-placa-sim { left: 56px; top: 84px; width: 462px; height: 462px; }
+.pxp-sim { width: 352px; height: 355px; }
+
+.pxp-coluna {
+  position: absolute; z-index: 2; left: 566px; top: 84px; width: 578px; height: 462px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.pxp-placa-nome { position: relative; left: 0; top: 0; width: 578px; height: 118px; flex: none; }
+.pxp-nome { width: 480px; height: 80.3px; }
+
+/* arte centrada na placa, na proporção original */
+.pxp-arte { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pxp-arte img { display: block; width: 100%; height: 100%; filter: drop-shadow(0 5px 7px rgba(0, 0, 0, 0.5)); }
+
+/* LUZ só dentro do metal */
+.pxp-luz { position: absolute; inset: 0; overflow: hidden; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mix-blend-mode: screen; }
+.pxp-raio {
+  position: absolute; top: -20%; bottom: -20%; left: 0; width: 34%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 244, 205, 0.0) 12%, rgba(255, 246, 214, 0.85) 50%, rgba(255, 244, 205, 0.0) 88%, transparent 100%);
+  transform: translateX(-130%) skewX(-18deg);
+  animation: pxpVarre 12s ease-in-out infinite;
+}
+.pxp-luz-nome .pxp-raio { animation-delay: 0.6s; }
+@keyframes pxpVarre {
+  0%, 22% { transform: translateX(-130%) skewX(-18deg); }
+  48%, 100% { transform: translateX(330%) skewX(-18deg); }
+}
+.pxp-estatico .pxp-raio { animation: none; }
+.pxp-estatico .pxp-luz-sim .pxp-raio { transform: translateX(95%) skewX(-18deg); width: 30%; }
+.pxp-estatico .pxp-luz-nome .pxp-raio { transform: translateX(150%) skewX(-18deg); width: 26%; }
+
+/* Texto */
+.pxp-texto { display: flex; flex-direction: column; gap: 17px; }
+.pxp-texto p { margin: 0; }
+.pxp-p1 { font-size: 34px; line-height: 1.26; font-weight: 600; color: #f1f4fb; letter-spacing: 0.1px; }
+.pxp-p2 { font-size: 31px; line-height: 1.26; font-weight: 400; color: #bcc8de; }
+.pxp-p2 em { font-style: normal; font-weight: 700; color: #ecc976; }
+.pxp-confira {
+  display: flex; align-items: center; gap: 16px; font-size: 40px; font-weight: 700; letter-spacing: 3px; line-height: 1;
+  background: linear-gradient(180deg, #fbe7a6 0%, #d9a944 55%, #a8751f 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.pxp-confira i { display: block; flex: 1; height: 1.5px; background: linear-gradient(90deg, rgba(224, 178, 84, 0.85), rgba(224, 178, 84, 0)); }
+.pxp-confira i:first-child { flex: 0 0 34px; background: rgba(224, 178, 84, 0.85); }
+
+@media (prefers-reduced-motion: reduce) { .pxp-raio { animation: none; } }
