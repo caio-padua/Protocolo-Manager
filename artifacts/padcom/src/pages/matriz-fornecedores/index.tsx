@@ -281,37 +281,35 @@ export default function MatrizFornecedores() {
 
   function celula(cc: Calc, col: Col, ri: number, ci: number) {
     const l = cc.linha;
-    if (col.kind === "prod" && l.isBlend) {
-      const comps = componentesDe(l);
-      const vol = l.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—";
+    if (col.kind === "prod") {
+      const comps = l.isBlend ? componentesDe(l) : [];
+      const volTxt = l.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—";
+      const formaTxt = l.forma === "frasco" ? "Frasco" : l.forma === "implante" ? "Implante" : "Ampola";
       return (
         <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-td-fix")}>
-          <div className="mx-td-in mx-bl" title={l.composicao ?? ""}>
-            <div className="mx-bl-1"><span className="mx-prod-n mx-prod">{nomeDe(l)}</span><span className="mx-tag mx-tag-blend">Blend</span>{!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}</div>
-            <div className="mx-bl-2"><span className="mx-bl-k">{l.forma === "frasco" ? "Frasco" : l.forma === "implante" ? "Implante" : "Ampola"}</span><b>{vol}</b></div>
-            <div className="mx-bl-3">
-              {comps.map((k, i) => <div key={i} className="mx-bl-c"><span title={k.nome}>{k.nome}</span><b>{k.dose || "—"}</b></div>)}
+          <div className="mx-td-in mx-pc" title={l.isBlend ? `${nomeDe(l)} (${l.produto})` : nomeDe(l)}>
+            <div className="mx-pc-n">
+              <span className="mx-prod-n mx-prod">{nomeDe(l)}</span>
+              {l.isBlend && <span className="mx-tag mx-tag-blend">Blend</span>}
+              {!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}
             </div>
+            {l.isBlend ? (
+              <>
+                {comps.map((k, i) => (
+                  <div key={i} className="mx-pc-r"><i>{i === 0 ? "Comp." : ""}</i><span title={k.nome}>{k.nome}</span><em>{k.dose || "—"}</em></div>
+                ))}
+                <div className="mx-pc-r"><i>Volume</i><span>{formaTxt} · {volTxt}</span></div>
+              </>
+            ) : (
+              <>
+                <div className="mx-pc-r" title={l.doseTotal}><i>Dose</i><span>{doseCurta(l.doseTotal)}</span></div>
+                <div className="mx-pc-r" title={l.concentracao ?? ""}><i>Conc.</i><span>{l.concentracao ?? "—"}</span></div>
+              </>
+            )}
           </div>
         </td>
       );
     }
-    if (col.kind === "prod")
-      return (
-        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-td-fix")}>
-          <div className="mx-td-in mx-3f">
-            <div className="mx-f1 mx-prod" title={l.isBlend && l.produto !== nomeDe(l) ? `${nomeDe(l)} (${l.produto})` : nomeDe(l)}>
-              <span className="mx-prod-n">{nomeDe(l)}</span>
-              {l.isBlend && <span className="mx-tag mx-tag-blend">Blend</span>}
-              {!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}
-            </div>
-            <div className="mx-f2 mx-dose" title={l.doseTotal}><i>Dose</i><b>{doseCurta(l.doseTotal)}</b></div>
-            {l.isBlend
-              ? <div className="mx-f3 mx-conc mx-chips" title={l.composicao ?? ""}><i>Comp.</i>{componentesDe(l).slice(0, 3).map((k, i) => <span key={i} className="mx-bchip"><b>{k.nome}</b></span>)}{componentesDe(l).length > 3 && <span className="mx-bchip">+{componentesDe(l).length - 3}</span>}</div>
-              : <div className="mx-f3 mx-conc" title={l.concentracao ?? ""}><i>Conc.</i><span>{l.concentracao ?? "—"}</span></div>}
-          </div>
-        </td>
-      );
     if (col.kind === "via")
       return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in"><span className="mx-via" title={l.via ?? ""}>{l.via || "—"}</span></div></td>;
     if (col.kind === "lab") {
@@ -596,7 +594,7 @@ export default function MatrizFornecedores() {
                   ...g.abertos.map((cc) => {
                     const ri = numero++;
                     return (
-                      <tr key={cc.linha.varianteId} data-zebra={ri % 2} style={cc.linha.isBlend ? { ["--row" as string]: `${Math.max(84, 66 + componentesDe(cc.linha).length * 17)}px` } : undefined}>
+                      <tr key={cc.linha.varianteId} data-zebra={ri % 2} style={cc.linha.isBlend ? { ["--row" as string]: `${Math.max(84, 52 + componentesDe(cc.linha).length * 20 + 24)}px` } : undefined}>
                         <th className="mx-rn" scope="row" data-on={(sel.modo === "row" || sel.modo === "cell") && r === ri ? 1 : 0} onClick={() => setSel({ r: ri, c, modo: "row" })}>{ri + 1}</th>
                         {cols.map((col, ci) => celula(cc, col, ri, ci))}
                       </tr>

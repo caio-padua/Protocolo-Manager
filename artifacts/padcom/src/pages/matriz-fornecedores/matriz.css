@@ -502,20 +502,19 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-lapela { position: absolute; top: 0; left: 3px; width: 13px; height: 17px; display: grid; place-items: start center; padding-top: 3px; background: #c9a24a; color: #3a2a05;
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); }
 
-/* ---------- produto blend: nome / volume / substâncias com dose ---------- */
-.mx-bl { justify-content: flex-start; gap: 0; padding-top: 6px; padding-bottom: 6px; }
-.mx-bl-1 { display: flex; align-items: center; gap: 8px; height: 26px; min-width: 0; }
-.mx-bl-1 .mx-prod { min-width: 0; }
-.mx-bl-2 { display: grid; grid-template-columns: 56px 1fr; align-items: center; height: 22px; }
-.mx-bl-k { font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
-.mx-bl-2 b { font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
-.mx-bl-3 { display: flex; flex-direction: column; }
-.mx-bl-c { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; height: 17px; font-size: 11px; color: var(--muted); }
-.mx-bl-c span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.mx-bl-c b { font-family: Inter, system-ui, sans-serif; font-weight: 600; font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
-
+/* ---------- célula de produto (comum e blend): mesma grade, mesma tipografia, rótulos na mesma coluna ---------- */
+.mx-pc { justify-content: center; gap: 0; padding-top: 6px; padding-bottom: 6px; }
+.mx-pc-n { display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0; }
+.mx-pc-r { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; column-gap: 8px; height: 20px; }
+.mx-pc-r i { font-style: normal; font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.mx-pc-r span { grid-column: 2; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 600; color: var(--navy); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-pc-r em { grid-column: 3; font-style: normal; font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; text-align: right; }
+.mx-pc-r span:last-child { grid-column: 2 / 4; }
 /* melhor valor: o nome do laboratório nunca invade a coluna vizinha */
 .mx-best .mx-td-in { overflow: hidden; }
 .mx-bestlab { max-width: 100%; min-width: 0; justify-content: flex-end; }
 .mx-bestlab .mx-sw { flex: none; }
 .mx-bestlab-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* sem linhas: os andares se separam só pelo espaço */
+.mx-3f > .mx-f1, .mx-3f > .mx-f2 { border-bottom: 0; }
