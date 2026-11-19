@@ -1,0 +1,83 @@
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;800&display=swap");
+
+/* Cartão de prévia do link PaxMed — 1200 x 630 (proporção do WhatsApp/Telegram). */
+.pxl-root {
+  width: 1200px;
+  height: 630px;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse 70% 80% at 50% 38%, #213f70 0%, #0d1b36 62%, #070e1f 100%);
+  font-family: "EB Garamond", Georgia, serif;
+  color: #e9edf6;
+}
+
+.pxl-vidro {
+  position: absolute;
+  inset: 30px;
+  border-radius: 20px;
+  border: 2px solid rgba(232, 198, 112, 0.6);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.045) 22%, rgba(255, 255, 255, 0.04) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 200, 0.35);
+}
+
+/* Linha do logo: símbolo (160 de altura) + nome. Posições fixas para a máscara casar. */
+.pxl-logo { position: absolute; left: 176px; top: 66px; width: 830px; height: 160px; }
+.pxl-sym { position: absolute; left: 0; top: 0; height: 160px; width: auto; filter: saturate(1.5); }
+.pxl-word { position: absolute; left: 216px; top: 0; width: 614px; height: auto; filter: saturate(1.5); }
+
+/* O RAIO: a faixa de luz só existe onde há letra. A máscara é o recorte do próprio
+   símbolo e do próprio nome; por isso a luz percorre o corpo do metal, não passa por cima. */
+.pxl-raio-mascara {
+  position: absolute; inset: 0;
+  /* mask-image vem inline no .tsx (caminho publico do sandbox) */
+  -webkit-mask-size: auto 160px, 614px auto;
+  mask-size: auto 160px, 614px auto;
+  -webkit-mask-position: 0 0, 216px 0;
+  mask-position: 0 0, 216px 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  mix-blend-mode: screen;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pxl-faixa {
+  position: absolute; top: -40px; height: 260px;
+  transform: translateX(-340px) skewX(-23deg);
+  will-change: transform;
+}
+.pxl-faixa.principal {
+  left: 0; width: 230px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 224, 150, 0.35) 28%, rgba(255, 250, 225, 1) 50%, rgba(255, 224, 150, 0.35) 72%, transparent 100%);
+  animation: pxlVarre 6.5s cubic-bezier(0.45, 0.05, 0.35, 1) -2.4s infinite;
+}
+.pxl-faixa.eco {
+  left: 0; width: 110px;
+  background: linear-gradient(90deg, transparent, rgba(255, 236, 180, 0.8) 50%, transparent);
+  animation: pxlVarre 6.5s cubic-bezier(0.45, 0.05, 0.35, 1) -2.12s infinite;
+}
+@keyframes pxlVarre {
+  0%   { transform: translateX(-340px) skewX(-23deg); }
+  62%  { transform: translateX(1000px) skewX(-23deg); }
+  100% { transform: translateX(1000px) skewX(-23deg); }
+}
+
+.pxl-divisor {
+  position: absolute; left: 330px; right: 330px; top: 268px; height: 18px;
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+}
+.pxl-divisor i { flex: 1; height: 2px; background: linear-gradient(90deg, transparent, rgba(232, 198, 112, 0.7)); }
+.pxl-divisor i:last-child { background: linear-gradient(270deg, transparent, rgba(232, 198, 112, 0.7)); }
+.pxl-divisor b { width: 12px; height: 12px; background: #e8c670; transform: rotate(45deg); }
+
+.pxl-texto { position: absolute; left: 0; right: 0; padding: 0 120px; top: 292px; text-align: center; }
+.pxl-p1 { margin: 0 auto; max-width: 960px; font-size: 38px; line-height: 1.5; font-weight: 400; }
+.pxl-p2 { margin: 34px 0 0; white-space: nowrap; font-size: 38px; line-height: 1.4; font-weight: 400; }
+.pxl-confira {
+  margin: 28px 0 0; font-size: 50px; line-height: 1; font-weight: 800; letter-spacing: 0.08em;
+  color: #f1d58c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pxl-faixa.principal { animation: none; transform: translateX(500px) skewX(-23deg); }
+  .pxl-faixa.eco { animation: none; transform: translateX(130px) skewX(-23deg); }
+}
