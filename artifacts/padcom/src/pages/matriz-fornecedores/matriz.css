@@ -1206,3 +1206,8 @@ main:has(.mx-root) {
 .mx-th-lab .mx-th-t span { font-size: 9px; }
 .mx-th-lab .mx-th-t { gap: 2px; }
 .mx-th-in.mx-th-lab { gap: 3px; padding-top: 2px; }
+
+/* ===== Camadas ao rolar: a célula selecionada (e qualquer célula solta) NUNCA passa por cima das colunas congeladas ===== */
+.mx-td.mx-sel { z-index: 1; }
+.mx-td.mx-td-frz, .mx-td.mx-td-frz.mx-sel { z-index: 2; }
+.mx-td.mx-td-fix, .mx-td.mx-td-fix.mx-sel { z-index: 3; }
