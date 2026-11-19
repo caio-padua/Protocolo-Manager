@@ -1003,3 +1003,16 @@ main:has(.mx-root) {
 .mx-sbar-via { min-width: 30px; height: 30px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 50%; border: 1px solid transparent; font: 700 10px Inter, sans-serif; color: var(--faint); }
 .mx-sbar-via[data-on="1"] { color: var(--evo-ink); border: 2px solid #b8924d; background: linear-gradient(180deg, #fff, #f3ecdc); box-shadow: inset 0 1px 0 #fff, 0 2px 4px -1px rgba(22,40,74,.35); }
 @media (max-width: 1250px) { .mx-dock-top .mx-sbar { grid-template-columns: 1fr; row-gap: 10px; } .mx-sbar-z2, .mx-sbar-z3 { width: 100%; padding: 0; border: 0; } .mx-dock-top .mx-sbar-pop { width: auto; } }
+
+/* ===== Revisão de proporção: símbolo da categoria com a altura do bloco do nome; via = ANEL dourado em volta (sem preenchimento) ===== */
+.mx-sbar-z1 .mx-cat-q-forte, .mx-sbar-z1 .mx-cat-q-vazio { width: 96px !important; height: 104px !important; border-radius: 8px; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="1"] b, .mx-sbar-z1 .mx-cat-q-forte[data-len="2"] b { font-size: 34px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="3"] b { font-size: 28px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="4"] b { font-size: 23px !important; }
+.mx-sbar-z1 .mx-cat-q-forte[data-len="5"] b { font-size: 18px !important; }
+.mx-sbar-z1 .mx-cat-q-forte i { height: 18px; font-size: 10px; line-height: 18px; }
+.mx-sbar-z1 { gap: 18px; }
+.mx-sbar-z1 .mx-sbar-sel { gap: 6px; }
+.mx-sbar-dados { padding: 2px 0; }
+.mx-sbar-via { min-width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; background: transparent; color: var(--faint); font-size: 10.5px; }
+.mx-sbar-via[data-on="1"] { background: transparent; border: 2px solid #b8924d; color: var(--evo-ink); box-shadow: none; font-weight: 800; }

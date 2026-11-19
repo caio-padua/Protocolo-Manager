@@ -286,7 +286,9 @@ export function MatrizFinale() {
               {foc.comps && <span className="mf-tag mf-tag-b">Blend</span>}
             </div>
             <div className="mf-bar-l2">
-              <span>Via <b>{foc.via}</b></span>
+              <span className="mf-vias" aria-label="Vias de uso"><i>Via</i>{["IM", "EV", "SC", "ID", "Tóp.", "Impl."].map((v) => (
+                <em key={v} data-on={foc.via.split("/").map((x) => x.trim()).includes(v) ? 1 : 0}>{v}</em>
+              ))}</span>
               <span>Vol. <b>{foc.vol}</b></span>
               {foc.conc && <span>Conc. <b>{foc.conc}</b></span>}
               <span><b>{labsDe(foc)}</b> laboratórios com preço</span>
