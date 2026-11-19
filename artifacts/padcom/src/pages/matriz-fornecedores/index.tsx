@@ -668,6 +668,7 @@ export default function MatrizFornecedores() {
         <ToggleWell compacto checked={soComp} onChange={setSoComp} label="Só comparáveis" testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar" />
         <ToggleWell compacto checked={soBlend} onChange={setSoBlend} label="Só blends" testid="toggle-so-blends" title="Mostra só os blends (misturas de ativos)" />
         <ToggleWell compacto checked={sort?.key === "best" && sort.dir === 1} onChange={(v) => setSort(v ? { key: "best", dir: 1 } : { key: "eco", dir: -1 })} label="Do mais barato" testid="toggle-do-mais-barato" title="Ordena do menor preço para o maior; desligado volta à ordem por economia" />
+        <div className="mx-sbar-count"><span>Substâncias</span><b>{new Set(filtrados.map((x) => x.linha.substanciaId)).size}</b></div>
       </>} />
       </div>
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">

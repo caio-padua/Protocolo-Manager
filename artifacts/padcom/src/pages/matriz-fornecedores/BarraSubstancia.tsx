@@ -45,7 +45,6 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
 
   return (
     <div className="mx-sbar" data-testid="barra-substancia">
-      {trilho && <div className="mx-sbar-rail" role="group" aria-label="Ferramentas da planilha">{trilho}</div>}
       <div className="mx-sbar-z1">
       {l ? <Quadrado cat={catDe(l)} blend={l.isBlend} tam={64} /> : <span className="mx-cat-q-vazio" />}
       <div className="mx-sbar-sel">
@@ -107,6 +106,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
         )}
       </div>
       </div>
+      {trilho && <div className="mx-sbar-rail" role="group" aria-label="Ferramentas da planilha">{trilho}</div>}
     </div>
   );
 }
