@@ -89,31 +89,31 @@ export function CollaboratorGate({ children }: { children: ReactNode }) {
   const faixa = (
     <div
       className={faixaTopo
-        ? "flex items-center gap-3 text-[11px] text-white/85"
+        ? "flex items-center gap-3 text-[11px] text-[#16284a]"
         : "mb-4 flex items-center justify-between rounded-md border border-[#16284a]/30 bg-[#16284a]/5 px-4 py-2"}
       data-testid="faixa-colaborador"
     >
       <div className={faixaTopo ? "tracking-wide" : "text-sm"}>
-        <span className={`font-semibold uppercase tracking-wide ${faixaTopo ? "text-[#e3b659]" : "text-[#16284a]"}`}>
+        <span className={`font-semibold uppercase tracking-wide ${"text-[#16284a]"}`}>
           Colaborador
         </span>{" "}
-        <span className={faixaTopo ? "text-white" : "text-foreground"}>{prof?.name ?? "—"}</span>
+        <span className={faixaTopo ? "font-semibold text-[#16284a]" : "text-foreground"}>{prof?.name ?? "—"}</span>
         {prof?.role ? (
-          <span className={`ml-2 text-xs uppercase tracking-wide ${faixaTopo ? "text-white/60" : "text-muted-foreground"}`}>
+          <span className={`ml-2 text-xs uppercase tracking-wide ${faixaTopo ? "text-[#5d6a85]" : "text-muted-foreground"}`}>
             {prof.role}
           </span>
         ) : null}
       </div>
       <div className="flex items-center gap-2">
         <Link href="/cadastros/auditoria">
-          <Button variant="outline" size={faixaTopo ? "sm" : "sm"} className={faixaTopo ? "h-7 rounded-[4px] border-[#e3b659]/60 bg-transparent px-3 text-[11px] text-[#e3b659] hover:bg-[#e3b659]/15 hover:text-[#e3b659]" : ""} data-testid="link-auditoria">
+          <Button variant="outline" size={faixaTopo ? "sm" : "sm"} className={faixaTopo ? "h-7 rounded-[4px] border-[#16284a]/45 bg-white/60 px-3 text-[11px] font-semibold text-[#16284a] hover:bg-[#16284a]/10 hover:text-[#16284a]" : ""} data-testid="link-auditoria">
             Auditoria
           </Button>
         </Link>
         <Button
           variant="ghost"
           size="sm"
-          className={faixaTopo ? "h-7 rounded-[4px] px-3 text-[11px] text-white/85 hover:bg-white/10 hover:text-white" : ""}
+          className={faixaTopo ? "h-7 rounded-[4px] px-3 text-[11px] font-semibold text-[#16284a] hover:bg-[#16284a]/10 hover:text-[#16284a]" : ""}
           data-testid="button-logout-colaborador"
           onClick={() => clearCollabSession()}
         >
