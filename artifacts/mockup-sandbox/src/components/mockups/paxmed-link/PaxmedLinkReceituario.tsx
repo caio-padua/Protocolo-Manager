@@ -1,6 +1,6 @@
 import "./paxmed-link-receituario.css";
 
-/* Variante "Receituário" v3: tudo centralizado, painéis compactos para mostrar o tecido risca de giz.
+/* Variante "Receituário" v4 (cores trocadas, sem fio vertical): tudo centralizado, painéis compactos para mostrar o tecido risca de giz.
    Placa em relevo (símbolo grande + nome menor) sobre um painel escuro único que desliza por baixo dela. */
 
 const BASE = "/__mockup/images";
@@ -44,7 +44,6 @@ export function PaxmedLinkReceituario() {
             <img src={SIM} alt="Símbolo PaxMed" />
             <Luz src={SIM} />
           </div>
-          <i className="plr-sep" aria-hidden />
           <div className="plr-arte plr-nome">
             <img src={NOME} alt="PAXMED" />
             <Luz src={NOME} />
