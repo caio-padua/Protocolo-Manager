@@ -92,57 +92,77 @@ export default function MatrizFornecedores() {
       {q.isError && <div className="panel-3d p-4 text-sm" role="alert">{(q.error as Error).message}</div>}
 
       {q.data && (
-        <div className="panel-3d overflow-x-auto">
-          <table className="w-full min-w-[760px] border-separate border-spacing-0 text-sm" data-testid="tabela-matriz">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-widest">
-                <th className="sticky left-0 z-10 bg-[#16284a] p-3 text-white">Produto ({linhas.length})</th>
-                {visiveis.map((f) => (
-                  <th key={f.id} className="p-3 text-white" style={{ background: "#16284a", borderBottom: `4px solid ${cor(f.id)}` }}>{f.nome}</th>
-                ))}
-                <th className="p-3 text-[#16284a]" style={{ background: "#e3b659" }}><Trophy className="mr-1 inline h-3.5 w-3.5" />Melhor valor</th>
-                <th className="p-3 text-white" style={{ background: "#16284a" }}>Referência (maior)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linhas.map((l) => {
-                const validas = l.celulas.filter((c) => visiveis.some((f) => f.id === c.fornecedorId));
-                const menor = validas.length ? Math.min(...validas.map((c) => c.custoUnitarioCentavos)) : null;
-                const maior = validas.length ? Math.max(...validas.map((c) => c.custoUnitarioCentavos)) : null;
-                const vencedoras = validas.filter((c) => c.custoUnitarioCentavos === menor);
-                return (
-                  <tr key={l.varianteId} className="align-top">
-                    <td className="sticky left-0 z-10 border-b bg-white p-3 dark:bg-[#0f1b33]">
-                      <div className="font-semibold uppercase">{l.produto}</div>
-                      <div className="text-xs opacity-70">{l.doseTotal} · {l.forma}{l.volumeMl ? ` · ${Number(l.volumeMl).toLocaleString("pt-BR")} ml` : ""} · {l.via ?? "via não informada"}</div>
-                    </td>
-                    {visiveis.map((f) => {
-                      const c = l.celulas.find((x) => x.fornecedorId === f.id);
-                      const ganha = !!c && c.custoUnitarioCentavos === menor && validas.length > 1;
-                      return (
-                        <td key={f.id} className="border-b p-3" style={ganha ? { background: `${cor(f.id)}26`, boxShadow: `inset 4px 0 0 ${cor(f.id)}` } : undefined}>
-                          {c ? (<>
-                            <Valor valor={c.custoUnitarioCentavos / 100} />
-                            <div className="text-xs opacity-70">caixa c/ {c.quantidadeEmbalagem}: <Valor valor={c.custoEmbalagemCentavos / 100} peso={500} /></div>
-                          </>) : <span className="text-xs opacity-50">sem preço</span>}
-                        </td>
-                      );
-                    })}
-                    <td className="border-b p-3" style={{ background: "#e3b65922" }}>
-                      {menor === null ? <span className="text-xs opacity-50">sem preço</span> : (<>
-                        <Valor valor={menor / 100} peso={800} />
-                        {vencedoras.map((c) => (
-                          <div key={c.fornecedorId} className="mt-1 text-[11px] font-bold uppercase" style={{ color: cor(c.fornecedorId) }}>{nome(c.fornecedorId)}</div>
-                        ))}
-                      </>)}
-                    </td>
-                    <td className="border-b p-3">{maior === null ? <span className="text-xs opacity-50">sem preço</span> : <Valor valor={maior / 100} />}</td>
-                  </tr>
-                );
-              })}
-              {linhas.length === 0 && <tr><td colSpan={visiveis.length + 3} className="p-6 text-center text-sm opacity-70">Nenhum produto com esses filtros.</td></tr>}
-            </tbody>
-          </table>
+        <div className="panel-3d p-2" data-testid="planilha-matriz">
+          <div className="concave-3d overflow-auto" style={{ maxHeight: "68vh" }}>
+            <table className="w-full min-w-[820px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-matriz">
+              <thead>
+                <tr className="text-center text-[10px] font-semibold tracking-widest" style={{ background: "#e9edf4", color: "#5b6a86" }}>
+                  <th className="sticky left-0 top-0 z-30 w-10 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1" />
+                  <th className="sticky left-10 top-0 z-30 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1">A</th>
+                  {visiveis.map((f, i) => (
+                    <th key={f.id} className="sticky top-0 z-20 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1">{String.fromCharCode(66 + i)}</th>
+                  ))}
+                  <th className="sticky top-0 z-20 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1">{String.fromCharCode(66 + visiveis.length)}</th>
+                  <th className="sticky top-0 z-20 border-b border-[#c5cddb] bg-[#e9edf4] py-1">{String.fromCharCode(67 + visiveis.length)}</th>
+                </tr>
+                <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-white">
+                  <th className="sticky left-0 top-[25px] z-30 w-10 border-r border-[#2b4170] p-2" style={{ background: "#16284a" }} />
+                  <th className="sticky left-10 top-[25px] z-30 min-w-[240px] border-r border-[#2b4170] p-2" style={{ background: "#16284a" }}>Produto ({linhas.length})</th>
+                  {visiveis.map((f) => (
+                    <th key={f.id} className="sticky top-[25px] z-20 min-w-[150px] border-r border-[#2b4170] p-2" style={{ background: "#16284a", boxShadow: `inset 0 -4px 0 ${cor(f.id)}` }}>{f.nome}</th>
+                  ))}
+                  <th className="sticky top-[25px] z-20 min-w-[160px] border-r border-[#b8923a] p-2 text-[#16284a]" style={{ background: "linear-gradient(#f0cd7c,#d9a940)" }}><Trophy className="mr-1 inline h-3.5 w-3.5" />Melhor valor</th>
+                  <th className="sticky top-[25px] z-20 min-w-[130px] p-2" style={{ background: "#16284a" }}>Referência (maior)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {linhas.map((l, idx) => {
+                  const validas = l.celulas.filter((c) => visiveis.some((f) => f.id === c.fornecedorId));
+                  const menor = validas.length ? Math.min(...validas.map((c) => c.custoUnitarioCentavos)) : null;
+                  const maior = validas.length ? Math.max(...validas.map((c) => c.custoUnitarioCentavos)) : null;
+                  const vencedoras = validas.filter((c) => c.custoUnitarioCentavos === menor);
+                  const fundo = idx % 2 ? "#f5f7fb" : "#ffffff";
+                  const grade = "border-b border-r border-[#d5dbe7]";
+                  return (
+                    <tr key={l.varianteId} className="align-middle hover:[&>td]:!bg-[#fff6dd]">
+                      <td className={`sticky left-0 z-10 w-10 ${grade} px-1 py-1.5 text-center text-[10px] font-semibold`} style={{ background: "#e9edf4", color: "#5b6a86" }}>{idx + 1}</td>
+                      <td className={`sticky left-10 z-10 ${grade} px-2 py-1.5`} style={{ background: fundo }}>
+                        <div className="font-semibold uppercase leading-tight text-[#16284a]">{l.produto}</div>
+                        <div className="text-[11px] leading-tight text-[#5b6a86]">{l.doseTotal} · {l.forma}{l.volumeMl ? ` · ${Number(l.volumeMl).toLocaleString("pt-BR")} ml` : ""} · {l.via ?? "via não informada"}</div>
+                      </td>
+                      {visiveis.map((f) => {
+                        const c = l.celulas.find((x) => x.fornecedorId === f.id);
+                        const ganha = !!c && c.custoUnitarioCentavos === menor && validas.length > 1;
+                        return (
+                          <td key={f.id} className={`${grade} px-2 py-1.5 text-right`} style={{ background: ganha ? `${cor(f.id)}33` : fundo, boxShadow: ganha ? `inset 3px 0 0 ${cor(f.id)}` : undefined }}>
+                            {c ? (<>
+                              <Valor valor={c.custoUnitarioCentavos / 100} />
+                              <div className="text-[10px] leading-tight text-[#5b6a86]">cx {c.quantidadeEmbalagem}: <Valor valor={c.custoEmbalagemCentavos / 100} peso={500} /></div>
+                            </>) : <span className="text-[11px] text-[#9aa5bb]">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className={`${grade} px-2 py-1.5 text-right`} style={{ background: menor === null ? fundo : "#fbf0cf" }}>
+                        {menor === null ? <span className="text-[11px] text-[#9aa5bb]">—</span> : (<>
+                          <Valor valor={menor / 100} peso={800} />
+                          {vencedoras.map((c) => (
+                            <div key={c.fornecedorId} className="text-[10px] font-bold uppercase leading-tight" style={{ color: cor(c.fornecedorId) }}>{nome(c.fornecedorId)}</div>
+                          ))}
+                        </>)}
+                      </td>
+                      <td className="border-b border-[#d5dbe7] px-2 py-1.5 text-right" style={{ background: fundo }}>{maior === null ? <span className="text-[11px] text-[#9aa5bb]">—</span> : <Valor valor={maior / 100} />}</td>
+                    </tr>
+                  );
+                })}
+                {linhas.length === 0 && <tr><td colSpan={visiveis.length + 4} className="p-6 text-center text-sm text-[#5b6a86]">Nenhum produto com esses filtros.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#5b6a86]" data-testid="barra-estado-matriz">
+            <span>{linhas.length} de {q.data.linhas.length} produtos</span>
+            <span>{linhas.filter((l) => l.celulas.length > 0).length} com preço</span>
+            <span>{visiveis.length} laboratório(s) na comparação</span>
+          </div>
         </div>
       )}
       <p className="text-xs opacity-70">Valores de custo por unidade. A Referência usa o maior valor entre os laboratórios mostrados. Custo nunca altera preço de venda nem estoque.</p>
