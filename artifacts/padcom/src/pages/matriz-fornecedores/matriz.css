@@ -697,3 +697,27 @@ button.mx-apr { cursor: pointer; font: inherit; }
 .mx-frz-box input { width: 14px; height: 14px; accent-color: var(--gold-d); cursor: pointer; }
 .mx-th-frz { position: sticky; z-index: 6; }
 .mx-td-frz { position: sticky; z-index: 2; border-right: 2px solid var(--gold-line); }
+
+/* quadradinho de categoria: placa Up Bevel, letra única (branca ou preta) */
+.mx-cat-q { border-radius: 5px !important; border: 1px solid; }
+.mx-cat-q b { transform: none; font-size: 11px; font-weight: 800; letter-spacing: .03em; }
+.mx-sbar-copy { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; color: var(--ink); cursor: pointer; border-radius: 0 !important; }
+.mx-sbar-copy:disabled { opacity: .45; cursor: default; }
+.mx-sbar-copy:active:not(:disabled) { transform: translateY(2px); }
+/* cadastro de categorias (modelo Agenda Configuração) */
+.mx-catg { min-width: 560px; max-width: 760px; display: flex; flex-direction: column; gap: 14px; }
+.mx-catg-novo { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.mx-catg-tit { align-self: flex-start; padding: 4px 10px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.mx-catg-campo { display: flex; flex-direction: column; gap: 4px; }
+.mx-catg-campo > span { font: 700 12px "EB Garamond", serif; color: var(--muted); }
+.mx-catg-campo input, .mx-catg-campo select, .mx-catg-item select { height: 36px; padding: 0 10px; font-size: 13px; width: 100%; }
+.mx-catg-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mx-catg-previa { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+.mx-catg-previa b { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.mx-catg-add { align-self: stretch; height: 40px; font-weight: 700; }
+.mx-fonte { display: flex; gap: 8px; }
+.mx-fonte button { flex: 1; height: 34px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--ink); }
+.mx-fonte button[aria-pressed="true"] { font-weight: 800; }
+.mx-catg-lista { display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow: auto; padding: 2px; }
+.mx-catg-item { display: grid; grid-template-columns: 40px 1fr 90px 130px 210px 70px; gap: 10px; align-items: center; padding: 8px 12px; }
+.mx-catg-item[data-off="1"] { opacity: .5; }

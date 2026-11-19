@@ -80,14 +80,6 @@ export default function MatrizFornecedores() {
   const [congelados, setCongelados] = useState<number[]>([]);
   const [confA, setConfA] = useState<number | null>(null);
   const [confB, setConfB] = useState<number | null>(null);
-  const trocarCat = useMutation({
-    mutationFn: async (a: { id: number; nome: string }) => {
-      const r = await fetch(`/api/substances/${a.id}`, { method: "PATCH", headers: { ...collabAuthHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ category: a.nome }) });
-      if (!r.ok) throw new Error("Não foi possível trocar a categoria. Nada foi alterado.");
-    },
-    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ["matriz-fornecedores-completa"] }); avisar("Categoria da substância atualizada."); },
-    onError: (e: Error) => avisar(e.message),
-  });
   const [ferrAberto, setFerrAberto] = useState(true);
   const [substFoco, setSubstFoco] = useState<number | null>(null);
   const [pick, setPick] = useState<number | null>(null);
@@ -667,7 +659,7 @@ export default function MatrizFornecedores() {
       </div>
 
       <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
-        onTrocarCat={(id, nome) => trocarCat.mutate({ id, nome })} catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
+        catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
         onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
 
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">

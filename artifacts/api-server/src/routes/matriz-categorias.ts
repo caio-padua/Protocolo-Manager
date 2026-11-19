@@ -22,6 +22,7 @@ function garantir(): Promise<void> {
     await pool.query(`CREATE TABLE IF NOT EXISTS matriz_categorias (
       id serial PRIMARY KEY, chave text NOT NULL UNIQUE, nome text NOT NULL, sigla text NOT NULL, cor text NOT NULL,
       ativo boolean NOT NULL DEFAULT true, criado_em timestamptz NOT NULL DEFAULT now())`);
+    await pool.query(`ALTER TABLE matriz_categorias ADD COLUMN IF NOT EXISTS fonte text NOT NULL DEFAULT 'branca'`);
     for (const [k, n, s, c] of SEMENTE)
       await pool.query(`INSERT INTO matriz_categorias (chave,nome,sigla,cor) VALUES ($1,$2,$3,$4) ON CONFLICT (chave) DO NOTHING`, [k, n, s, c]);
   })().catch((e) => { pronto = null; throw e; });
@@ -29,19 +30,21 @@ function garantir(): Promise<void> {
 }
 const chaveDe = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
 const corOk = (c: unknown): c is string => typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c);
+const fonteOk = (f: unknown): f is "branca" | "preta" => f === "branca" || f === "preta";
 const siglaOk = (s: unknown): s is string => typeof s === "string" && s.trim().length >= 2 && s.trim().length <= 5;
 
-async function listar(res: Response) { const { rows } = await pool.query(`SELECT id, chave, nome, sigla, cor, ativo FROM matriz_categorias ORDER BY nome`); res.json(rows); }
+async function listar(res: Response) { const { rows } = await pool.query(`SELECT id, chave, nome, sigla, cor, fonte, ativo FROM matriz_categorias ORDER BY nome`); res.json(rows); }
 
 router.get("/matriz-fornecedores/categorias", requireCollaborator, acesso, async (_req: Request, res: Response) => { await garantir(); await listar(res); });
 
 router.post("/matriz-fornecedores/categorias", requireCollaborator, acesso, async (req: Request, res: Response) => {
   await garantir();
-  const { nome, sigla, cor } = req.body ?? {};
+  const { nome, sigla, cor, fonte } = req.body ?? {};
+  if (fonte !== undefined && !fonteOk(fonte)) { res.status(400).json({ error: "Cor da letra: branca ou preta." }); return; }
   if (typeof nome !== "string" || !nome.trim()) { res.status(400).json({ error: "Informe o nome da categoria." }); return; }
   if (!siglaOk(sigla)) { res.status(400).json({ error: "A sigla precisa ter de 2 a 5 letras." }); return; }
   if (!corOk(cor)) { res.status(400).json({ error: "Escolha uma cor válida." }); return; }
-  const r = await pool.query(`INSERT INTO matriz_categorias (chave,nome,sigla,cor) VALUES ($1,$2,$3,$4) ON CONFLICT (chave) DO NOTHING RETURNING id`, [chaveDe(nome), nome.trim(), sigla.trim(), cor]);
+  const r = await pool.query(`INSERT INTO matriz_categorias (chave,nome,sigla,cor,fonte) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (chave) DO NOTHING RETURNING id`, [chaveDe(nome), nome.trim(), sigla.trim(), cor, fonte ?? "branca"]);
   if (!r.rowCount) { res.status(409).json({ error: "Já existe uma categoria com esse nome." }); return; }
   await listar(res);
 });
@@ -49,13 +52,14 @@ router.post("/matriz-fornecedores/categorias", requireCollaborator, acesso, asyn
 router.patch("/matriz-fornecedores/categorias/:id", requireCollaborator, acesso, async (req: Request, res: Response) => {
   await garantir();
   const id = Number(req.params.id);
-  const { nome, sigla, cor, ativo } = req.body ?? {};
+  const { nome, sigla, cor, ativo, fonte } = req.body ?? {};
+  if (fonte !== undefined && !fonteOk(fonte)) { res.status(400).json({ error: "Cor da letra: branca ou preta." }); return; }
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Categoria inválida." }); return; }
   if (nome !== undefined && (typeof nome !== "string" || !nome.trim())) { res.status(400).json({ error: "Nome inválido." }); return; }
   if (sigla !== undefined && !siglaOk(sigla)) { res.status(400).json({ error: "A sigla precisa ter de 2 a 5 letras." }); return; }
   if (cor !== undefined && !corOk(cor)) { res.status(400).json({ error: "Cor inválida." }); return; }
-  const r = await pool.query(`UPDATE matriz_categorias SET nome=COALESCE($2,nome), sigla=COALESCE($3,sigla), cor=COALESCE($4,cor), ativo=COALESCE($5,ativo) WHERE id=$1 RETURNING id`,
-    [id, nome?.trim() ?? null, sigla?.trim() ?? null, cor ?? null, typeof ativo === "boolean" ? ativo : null]);
+  const r = await pool.query(`UPDATE matriz_categorias SET nome=COALESCE($2,nome), sigla=COALESCE($3,sigla), cor=COALESCE($4,cor), ativo=COALESCE($5,ativo), fonte=COALESCE($6,fonte) WHERE id=$1 RETURNING id`,
+    [id, nome?.trim() ?? null, sigla?.trim() ?? null, cor ?? null, typeof ativo === "boolean" ? ativo : null, fonte ?? null]);
   if (!r.rowCount) { res.status(404).json({ error: "Categoria não encontrada." }); return; }
   await listar(res);
 });

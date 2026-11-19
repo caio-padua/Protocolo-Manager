@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import type { Linha } from "./calculo";
 import { Modal } from "./Modais";
+import { SeletorCorVidro } from "@/components/VidroCor";
 
-export type CategoriaSubst = { id: number; chave: string; nome: string; sigla: string; cor: string; ativo: boolean };
+export type CategoriaSubst = { id: number; chave: string; nome: string; sigla: string; cor: string; fonte: "branca" | "preta"; ativo: boolean };
 export const chaveClasse = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
 
 export const SIGLAS = ["Atx", "Horm", "Vita", "Min", "Orto", "Meta", "Derm", "Neuro", "Oste", "Imun", "Mito", "Lipo", "Hepa", "Infl", "Impl", "Ger", "Peptd", "Aminoa"];
@@ -25,16 +26,21 @@ export function useCategorias() {
   const porChave = new Map(lista.map((c) => [c.chave, c]));
   const de = (l: Pick<Linha, "classe">): CategoriaSubst => {
     const k = chaveClasse(l.classe || "");
-    return porChave.get(k) ?? { id: 0, chave: k, nome: l.classe || "Sem categoria", sigla: (l.classe || "—").slice(0, 4), cor: "#6d7a8f", ativo: true };
+    return porChave.get(k) ?? { id: 0, chave: k, nome: l.classe || "Sem categoria", sigla: (l.classe || "—").slice(0, 4), cor: "#6d7a8f", fonte: "branca", ativo: true };
   };
   return { lista, de };
 }
 
-/** Quadradinho do ativo: cor + sigla da categoria. Blend leva uma tarja inferior. */
+/** Quadradinho do ativo: placa em relevo (Up Bevel) na cor escolhida; a sigla usa SEMPRE a letra do cadastro (branca ou preta). Blend leva uma tarja inferior. */
 export function Quadrado({ cat, blend, tam = 32 }: { cat: CategoriaSubst; blend?: boolean; tam?: number }) {
+  const letra = cat.fonte === "preta" ? "#111" : "#fff";
   return (
-    <span className="mx-cat-q" style={{ width: tam, height: tam, background: cat.cor }} title={`${cat.nome}${blend ? " · Blend" : ""}`}>
-      <b>{cat.sigla}</b>{blend && <i>Blend</i>}
+    <span className="mx-cat-q bevel-3d" style={{
+      width: tam, height: tam, color: letra,
+      background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), ${cat.cor}`,
+      borderColor: `color-mix(in srgb, ${cat.cor} 55%, #b8924d)`,
+    }} title={`${cat.nome}${blend ? " · Blend" : ""}`}>
+      <b style={{ color: letra, textShadow: cat.fonte === "preta" ? "0 1px 0 rgba(255,255,255,.35)" : "0 1px 1px rgba(0,0,0,.35)" }}>{cat.sigla}</b>{blend && <i style={{ color: "#fff" }}>Blend</i>}
     </span>
   );
 }
@@ -42,6 +48,7 @@ export function Quadrado({ cat, blend, tam = 32 }: { cat: CategoriaSubst; blend?
 export function GerenciarCategorias({ lista, onFechar }: { lista: CategoriaSubst[]; onFechar: () => void }) {
   const qc = useQueryClient();
   const [nome, setNome] = useState(""); const [sigla, setSigla] = useState(SIGLAS[0]); const [cor, setCor] = useState(CORES_CAT[0].hex);
+  const [fonte, setFonte] = useState<"branca" | "preta">("branca");
   const [erro, setErro] = useState<string | null>(null);
   const enviar = useMutation({
     mutationFn: async (a: { url: string; metodo: string; corpo: unknown }) => {
@@ -54,27 +61,42 @@ export function GerenciarCategorias({ lista, onFechar }: { lista: CategoriaSubst
     onError: (e: Error) => setErro(e.message),
   });
   const patch = (id: number, corpo: object) => enviar.mutate({ url: `/api/matriz-fornecedores/categorias/${id}`, metodo: "PATCH", corpo });
+  const previa: CategoriaSubst = { id: 0, chave: "", nome: nome || "Nova categoria", sigla, cor, fonte, ativo: true };
+  const FonteSel = ({ valor, onChange }: { valor: "branca" | "preta"; onChange: (f: "branca" | "preta") => void }) => (
+    <div className="mx-fonte" role="group" aria-label="Cor da letra">
+      {(["branca", "preta"] as const).map((f) => <button key={f} type="button" aria-pressed={valor === f} className={valor === f ? "concave-3d" : "bevel-3d"} onClick={() => onChange(f)}>{f === "branca" ? "Letra branca" : "Letra preta"}</button>)}
+    </div>
+  );
   return (
     <Modal titulo="Categorias de substância" onFechar={onFechar}>
       <div className="mx-catg">
-        <div className="mx-catg-row mx-catg-new">
-          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome da nova categoria" aria-label="Nome da categoria" />
-          <select value={sigla} onChange={(e) => setSigla(e.target.value)} aria-label="Sigla">{SIGLAS.map((s) => <option key={s}>{s}</option>)}</select>
-          <select value={cor} onChange={(e) => setCor(e.target.value)} aria-label="Cor" style={{ borderLeft: `10px solid ${cor}` }}>{CORES_CAT.map((c) => <option key={c.hex} value={c.hex}>{c.nome}</option>)}</select>
-          <button type="button" className="mx-btn mx-btn-gold" disabled={!nome.trim() || enviar.isPending} onClick={() => { enviar.mutate({ url: "/api/matriz-fornecedores/categorias", metodo: "POST", corpo: { nome, sigla, cor } }); setNome(""); }}>Cadastrar</button>
+        <div className="panel-3d-sub mx-catg-novo">
+          <span className="bevel-3d mx-catg-tit">+ Nova categoria</span>
+          <label className="mx-catg-campo"><span>Nome da categoria</span>
+            <input className="field-engraved" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Antioxidante" aria-label="Nome da categoria" /></label>
+          <div className="mx-catg-duo">
+            <label className="mx-catg-campo"><span>Sigla</span>
+              <select className="field-engraved" value={sigla} onChange={(e) => setSigla(e.target.value)} aria-label="Sigla">{SIGLAS.map((s) => <option key={s}>{s}</option>)}</select></label>
+            <div className="mx-catg-campo"><span>Cor do quadradinho</span><SeletorCorVidro rotulo="Cor da categoria" valor={cor} onChange={setCor} /></div>
+          </div>
+          <div className="mx-catg-campo"><span>Cor da letra</span><FonteSel valor={fonte} onChange={setFonte} /></div>
+          <div className="mx-catg-campo"><span>Como fica</span><div className="concave-3d mx-catg-previa"><Quadrado cat={previa} tam={40} /><b>{previa.nome}</b></div></div>
+          <button type="button" className="btn-3d mx-catg-add" disabled={!nome.trim() || enviar.isPending}
+            onClick={() => { enviar.mutate({ url: "/api/matriz-fornecedores/categorias", metodo: "POST", corpo: { nome, sigla, cor, fonte } }); setNome(""); }}>Adicionar</button>
         </div>
         {erro && <div className="mx-catg-erro" role="alert">{erro}</div>}
-        {lista.map((c) => (
-          <div key={c.id} className="mx-catg-row" data-off={c.ativo ? 0 : 1}>
-            <Quadrado cat={c} />
-            <span className="mx-catg-n">{c.nome}</span>
-            <select value={c.sigla} onChange={(e) => patch(c.id, { sigla: e.target.value })} aria-label={`Sigla de ${c.nome}`}>{[...new Set([c.sigla, ...SIGLAS])].map((s) => <option key={s}>{s}</option>)}</select>
-            <select value={CORES_CAT.some((x) => x.hex === c.cor) ? c.cor : ""} onChange={(e) => patch(c.id, { cor: e.target.value })} aria-label={`Cor de ${c.nome}`}>
-              {!CORES_CAT.some((x) => x.hex === c.cor) && <option value="">Outra</option>}{CORES_CAT.map((x) => <option key={x.hex} value={x.hex}>{x.nome}</option>)}
-            </select>
-            <label className="mx-check"><input type="checkbox" checked={c.ativo} onChange={(e) => patch(c.id, { ativo: e.target.checked })} />Ativa</label>
-          </div>
-        ))}
+        <div className="mx-catg-lista">
+          {lista.map((c) => (
+            <div key={c.id} className="tecla-3d mx-catg-item" data-off={c.ativo ? 0 : 1}>
+              <Quadrado cat={c} />
+              <span className="mx-catg-n">{c.nome}</span>
+              <select className="field-engraved" value={c.sigla} onChange={(e) => patch(c.id, { sigla: e.target.value })} aria-label={`Sigla de ${c.nome}`}>{[...new Set([c.sigla, ...SIGLAS])].map((s) => <option key={s}>{s}</option>)}</select>
+              <SeletorCorVidro rotulo={`Cor de ${c.nome}`} valor={c.cor} onChange={(v) => patch(c.id, { cor: v })} />
+              <FonteSel valor={c.fonte} onChange={(f) => patch(c.id, { fonte: f })} />
+              <label className="mx-check"><input type="checkbox" checked={c.ativo} onChange={(e) => patch(c.id, { ativo: e.target.checked })} />Ativa</label>
+            </div>
+          ))}
+        </div>
       </div>
     </Modal>
   );
