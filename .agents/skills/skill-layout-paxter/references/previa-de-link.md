@@ -29,3 +29,32 @@ Vale para QUALQUER link compartilhado (WhatsApp, Telegram): o cartao da previa (
 1. PNG oficiais do simbolo e do nome (ouro escovado, transparentes) ficam em artifacts/mockup-sandbox/public/images/ (paxmed-link-simbolo.png, paxmed-link-nome.png). Outra marca = usar a arte oficial dela, nunca redesenhar.
 2. og:image exige endereco ABSOLUTO (WhatsApp ignora caminho relativo); Vite prefixa o base path, por isso o plugin com order "pre" troca __SITE_URL__.
 3. Icone do app (PWA) NAO leva moldura gravada: o iOS aplica a mascara sozinho.
+
+## Texto aprovado do cartao PaxMed (18/11/2026)
+1. Tagline na placa: CLINICAL INTELLIGENCE SYSTEM.
+2. Titulo: "Todo o seu cuidado, na palma da mao" (trecho "na palma da mao" em italico dourado).
+3. Itens: Receitas, Exames, Protocolos, Agendas (losangos dourados entre eles, sem numeracao).
+4. Frase de apoio: "Veja como instalar o aplicativo PaxMed em segundos".
+5. Botao dourado (so desenho, o toque abre o link inteiro): "Acessar guia de instalacao".
+6. Descricao abaixo da imagem (og:description): "Todo o seu cuidado, na palma da mao. Veja como instalar o aplicativo PaxMed em segundos."
+7. og:title: "PaxMed · Manual do Cliente".
+
+## Arquivos guardados nesta skill (copias de 18/11/2026)
+1. previa-de-link/paxmed-link-simbolo.png e paxmed-link-nome.png = artes oficiais em ouro escovado (sem elas o componente nao renderiza; no canvas ficam em /__mockup/images/).
+2. previa-de-link/codigo-padcom/index.html.txt = tags og:image (URL absoluta com __SITE_URL__), og:image:width 1200, og:image:height 630, twitter:card summary_large_image, twitter:image.
+3. previa-de-link/codigo-padcom/vite.config.ts.txt = plugin "paxmed-og-site-url" (transformIndexHtml order "pre") que troca __SITE_URL__ por VITE_SITE_URL ou https://REPLIT_DEV_DOMAIN.
+4. previa-de-link/codigo-padcom/guia-paciente-trecho.tsx.txt = constante PREVIA_VERSAO e montagem do link (?v=N, junto de ?tenant= e ?c=).
+
+## Estado de uso (18/11/2026)
+1. Imagem em uso: artifacts/padcom/public/og-paxmed-v11.jpg (identica a referencia-paxmed-v11.jpg).
+2. PREVIA_VERSAO = "12" (subiu junto com a troca da frase de descricao).
+3. Historico das versoes: v1 a v10 foram testes; v11 = aprovada com tagline.
+
+## Como gerar o JPG (passo a passo)
+1. Abrir /__mockup/preview/paxmed-link/PaxmedLinkReceituario?static=1 (congela o raio de luz).
+2. Janela de 1200 x 630, fator de escala 1, aguardar 3 segundos para as fontes carregarem.
+3. Salvar JPG qualidade 92 (cerca de 100 KB).
+4. Conferir a imagem a olho antes de aplicar.
+
+## Licao de cache
+O WhatsApp guarda a previa por nome de arquivo E por endereco do link. Trocar so o conteudo do arquivo nao atualiza. Sempre: nome novo (og-marca-vN.jpg) + ?v=N maior no link.
