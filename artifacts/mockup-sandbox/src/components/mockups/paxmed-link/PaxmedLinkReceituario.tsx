@@ -16,7 +16,7 @@ function Luz({ src }: { src: string }) {
   );
 }
 
-const ITENS = ["Prescrições", "Protocolos", "Agendamentos"];
+const ITENS = ["Receitas", "Protocolos", "Consultas"];
 
 export function PaxmedLinkReceituario() {
   const estatico = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("static");
@@ -25,7 +25,7 @@ export function PaxmedLinkReceituario() {
       <div className="plr-pilha">
         <main className="plr-gaveta">
           <p className="plr-titulo">
-            Tudo do seu cuidado <em>no seu celular</em>
+            Todo o seu cuidado, <em>na palma da mão</em>
           </p>
           <ul className="plr-lista">
             {ITENS.map((t, i) => (
@@ -35,8 +35,8 @@ export function PaxmedLinkReceituario() {
               </li>
             ))}
           </ul>
-          <p className="plr-manual">O manual traz o passo a passo para instalar o APP PaxMed.</p>
-          <div className="plr-confira">Confira</div>
+          <p className="plr-manual">Veja como instalar o aplicativo PaxMed em poucos segundos.</p>
+          <div className="plr-confira">Acessar guia de instalação</div>
         </main>
 
         <header className="plr-bevel">
