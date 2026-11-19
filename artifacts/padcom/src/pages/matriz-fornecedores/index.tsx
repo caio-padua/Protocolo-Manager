@@ -281,6 +281,21 @@ export default function MatrizFornecedores() {
 
   function celula(cc: Calc, col: Col, ri: number, ci: number) {
     const l = cc.linha;
+    if (col.kind === "prod" && l.isBlend) {
+      const comps = componentesDe(l);
+      const vol = l.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—";
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-td-fix")}>
+          <div className="mx-td-in mx-bl" title={l.composicao ?? ""}>
+            <div className="mx-bl-1"><span className="mx-prod-n mx-prod">{nomeDe(l)}</span><span className="mx-tag mx-tag-blend">Blend</span>{!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}</div>
+            <div className="mx-bl-2"><span className="mx-bl-k">{l.forma === "frasco" ? "Frasco" : l.forma === "implante" ? "Implante" : "Ampola"}</span><b>{vol}</b></div>
+            <div className="mx-bl-3">
+              {comps.map((k, i) => <div key={i} className="mx-bl-c"><span title={k.nome}>{k.nome}</span><b>{k.dose || "—"}</b></div>)}
+            </div>
+          </div>
+        </td>
+      );
+    }
     if (col.kind === "prod")
       return (
         <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-td-fix")}>
@@ -581,7 +596,7 @@ export default function MatrizFornecedores() {
                   ...g.abertos.map((cc) => {
                     const ri = numero++;
                     return (
-                      <tr key={cc.linha.varianteId} data-zebra={ri % 2}>
+                      <tr key={cc.linha.varianteId} data-zebra={ri % 2} style={cc.linha.isBlend ? { ["--row" as string]: `${Math.max(84, 66 + componentesDe(cc.linha).length * 17)}px` } : undefined}>
                         <th className="mx-rn" scope="row" data-on={(sel.modo === "row" || sel.modo === "cell") && r === ri ? 1 : 0} onClick={() => setSel({ r: ri, c, modo: "row" })}>{ri + 1}</th>
                         {cols.map((col, ci) => celula(cc, col, ri, ci))}
                       </tr>
