@@ -1,7 +1,8 @@
 import { ToggleWell } from "./ToggleWell";
+import { FaixaCategorias } from "./FaixaCategorias";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SlidersHorizontal, ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Numeral } from "@/components/numeral/Numeral";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +31,7 @@ async function carregar(): Promise<Matriz> {
 
 type Rascunho = { p: Parametros; c: ConfigCategoria[] };
 const CATW = 40;
+const chaveClasse = (c: string) => c.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 const SIGLA_VIA: Record<string, string> = { IM: "IM", EV: "EV", SC: "SC", ID: "ID", TOPICO: "TÓP", IMPLANTE: "IMP" };
 type ColKind = "prod" | "via" | "lab" | "best" | "eco" | "ref" | "custo" | "venda" | "orc" | "estq";
 type Col = { kind: ColKind; lab?: number; w: number; letter: string };
@@ -72,6 +74,7 @@ export default function MatrizFornecedores() {
   const [soReserva, setSoReserva] = useState(false);
   const [soFalta, setSoFalta] = useState(false);
   const [soBlend, setSoBlend] = useState(false);
+  const [catSel, setCatSel] = useState<string | null>(null);
   const [desligados, setDesligados] = useState<number[] | null>(null);
   const [fechados, setFechados] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
@@ -117,10 +120,17 @@ export default function MatrizFornecedores() {
       temVia(c.linha, viaSel) &&
       (!soComp || c.incl.length >= 2) &&
       (!soBlend || c.linha.isBlend) &&
+      (catSel === null || chaveClasse(c.linha.classe) === catSel) &&
       (!soReserva || (c.linha.estoque?.dinamico ?? 0) > 0) &&
       (!soFalta || (c.linha.estoque?.falta ?? 0) > 0) &&
       (!t || `${c.linha.produto} ${nomeDe(c.linha)} ${c.linha.doseTotal} ${c.linha.composicao ?? ""} ${c.linha.classe}`.toLowerCase().includes(t)));
-  }, [todos, busca, viaSel, soComp, soReserva, soFalta, soBlend, substFoco]);
+  }, [todos, busca, viaSel, soComp, soReserva, soFalta, soBlend, substFoco, catSel]);
+
+  const opcoesCategoria = useMemo(() => {
+    const m = new Map<string, { titulo: string; n: number }>();
+    for (const c of todos) { const k = chaveClasse(c.linha.classe); const x = m.get(k); m.set(k, { titulo: classeTxt(c.linha.classe), n: (x?.n ?? 0) + 1 }); }
+    return [...m.entries()].map(([chave, v]) => ({ chave, titulo: v.titulo, n: v.n })).sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
+  }, [todos]);
 
   const grupos = useMemo(() => {
     type G = { id: string; titulo: string; margem: number | null; lista: Calc[] };
@@ -299,6 +309,15 @@ export default function MatrizFornecedores() {
   const reservadas = unicas.reduce((a, e) => a + e.dinamico, 0);
   const emFalta = unicas.filter((e) => e.falta > 0).length;
   const placar = forn.map((f) => filtrados.filter((x) => x.vencedoras[0]?.fornecedorId === f.id).length);
+  const ranking = useMemo(() => forn.map((f, i) => {
+    let soma = 0, n = 0;
+    for (const x of comparaveis) {
+      const c = x.incl.find((k) => k.fornecedorId === f.id);
+      if (!c || c.custoUnitarioCentavos <= 0 || !x.min) continue;
+      soma += c.custoUnitarioCentavos / x.min; n++;
+    }
+    return { id: f.id, nome: f.nome, vitorias: placar[i], n, indice: n ? (soma / n) * 100 : null };
+  }).sort((p, q) => (p.indice ?? 1e9) - (q.indice ?? 1e9) || q.vitorias - p.vitorias), [forn, comparaveis, placar]);
   const nPorLab = forn.map((f) => todos.filter((x) => x.linha.celulas.some((cl) => cl.fornecedorId === f.id)).length);
   const comPreco = todos.filter((x) => x.linha.celulas.length > 0).length;
 
@@ -525,18 +544,16 @@ export default function MatrizFornecedores() {
     const lab = col.kind === "lab" ? forn.find((f) => f.id === col.lab) : null;
     const titulo = lab ? lab.nome : ({ prod: "Produto", via: "Via", best: "Melhor valor", eco: "Economia", ref: "Referência", custo: "Custo efetivo", venda: "Venda", orc: "Orçamento", estq: "Estoque", lab: "" } as const)[col.kind];
     const sub = lab ? `${nPorLab[forn.indexOf(lab)]} apresentações${lab.ativo ? "" : " · inativo"}` : ({ prod: `${flat.length} apresentações`, via: "cadastro", best: "menor + laboratório", eco: "menor vs. maior", ref: MODO_TXT[modo], custo: "ref. + frete e perda", venda: "publicada · unidade", orc: "preço no Orçamento", estq: "livre · reservado", lab: "" } as const)[col.kind];
-    const Seta = sort && sortKey === sort.key ? (sort.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown;
+    const ordTxt = (k: SortKey) => (sort?.key !== k ? "Ordenar" : sort.dir === 1 ? "Crescente" : "Decrescente");
     if (col.kind === "prod") {
-      const nSubst = new Set(filtrados.map((x) => x.linha.substanciaId)).size;
       const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
       return (
         <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
           <div className="mx-th-prod-in bevel-3d" onClick={parar}>
             <div className="mx-th-prod-l1">
               <b className="mx-th-prod-t">Produto</b>
-              <button type="button" className="mx-th-sort" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}><Seta size={13} /></button>
+              <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}>{ordTxt("prod")}</button>
             </div>
-            <div className="mx-th-prod-l3"><span>Substâncias:</span><b>{nSubst}</b></div>
           </div>
         </th>
       );
@@ -545,14 +562,14 @@ export default function MatrizFornecedores() {
       <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""}  ${lab && congelados.includes(lab.id) ? "mx-th-frz" : ""}`}
         style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: leftCongelado(lab?.id) }}
         data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
-        <div className={`mx-th-in ${lab ? "mx-th-lab" : ""}`}>
+        <div className={`mx-th-in ${lab ? "mx-th-lab" : "mx-th-col"}`}>
           <div className="mx-th-l1">
             <div className="mx-th-t"><b title={lab?.nome}>{titulo}</b><span>{sub}</span></div>
-            {sortKey && (
-              <button type="button" className="mx-th-sort" data-on={sort?.key === sortKey ? 1 : 0} aria-label={`Ordenar por ${titulo}`}
-                onClick={(e) => { e.stopPropagation(); ciclarSort(sortKey); }}><Seta size={13} /></button>
-            )}
           </div>
+          {sortKey && (
+            <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === sortKey ? 1 : 0} aria-label={`Ordenar por ${titulo}`}
+              onClick={(e) => { e.stopPropagation(); ciclarSort(sortKey); }}>{ordTxt(sortKey)}</button>
+          )}
           {lab && (
             <ToggleWell compacto checked={congelados.includes(lab.id)} label="Congelar coluna" testid={`toggle-congelar-${lab.id}`}
               title="Congelar esta coluna: ela fica fixa ao lado do produto"
@@ -572,24 +589,43 @@ export default function MatrizFornecedores() {
   
   return (
     <div className="mx-root" data-testid="page-matriz-fornecedores">
-      <div className="mx-top">
-        <div className="mx-bevel mx-plate"><small>CADASTROS CLÍNICOS</small><h1>Matrix: Substâncias x Fornecedores</h1></div>
-        <div className="mx-kpis">
-          <div className="mx-panel mx-kpi"><span>Produtos na tela</span><b><Numeral peso={800}>{filtrados.length}</Numeral></b><em>de {todos.length} · {comPreco} com preço</em></div>
-          <div className="mx-panel mx-kpi"><span>Economia média</span><b>{ecoMedia === null ? "—" : <P v={ecoMedia} peso={800} className="" />}</b><em>menor sobre o maior · {comparaveis.length} comparáveis</em></div>
-          <div className="mx-panel mx-kpi"><span>Unidades reservadas</span><b><Numeral peso={800}>{qtdTxt(reservadas)}</Numeral></b><em>{dados.reservasAtivas} reservas de protocolo</em></div>
-          <div className="mx-panel mx-kpi"><span>Substâncias em falta</span><b style={{ color: emFalta ? "#8c2f1b" : undefined }}><Numeral peso={800}>{emFalta}</Numeral></b><em>{dados.semLote ? `${dados.semLote} baixas sem lote` : "reserva maior que o físico"}</em></div>
-        </div>
-        <div className="mx-panel mx-score">
-          <span>Quem tem o menor preço</span>
-          <div className="mx-scorebar" role="img" aria-label="Placar de menores preços por laboratório">
-            {forn.map((f, i) => placar[i] > 0 && <i key={f.id} style={{ flexGrow: placar[i], background: corDe(f.id) }} title={`${f.nome}: ${placar[i]}`} />)}
+      <div className="mx-t2" data-testid="faixa-topo-matriz">
+        <h1 className="bevel-3d mx-t2-plate" title="Matrix: Substâncias x Fornecedores">Matrix: Substâncias x Fornecedores</h1>
+        <div className="mx-t2-kpis">
+          <div className="panel-3d-sub mx-t2-k" title={`${filtrados.length} de ${todos.length} produtos na tela · ${comPreco} com preço`}>
+            <span className="bevel-3d mx-t2-kl">Produtos na tela</span>
+            <div className="concave-3d mx-t2-kv"><b><Numeral peso={800}>{filtrados.length}</Numeral></b><em>de {todos.length} · {comPreco} com preço</em></div>
           </div>
-          <div className="mx-scoreleg">{forn.map((f, i) => <span key={f.id}><i className="mx-sw" style={{ background: corDe(f.id), marginRight: 5 }} /><b>{placar[i]}</b> {f.nome.split(" ")[0]}</span>)}</div>
+          <div className="panel-3d-sub mx-t2-k" title={`Economia média: o menor preço sobre o maior, em ${comparaveis.length} produtos comparáveis`}>
+            <span className="bevel-3d mx-t2-kl">Economia média</span>
+            <div className="concave-3d mx-t2-kv"><b>{ecoMedia === null ? "—" : <P v={ecoMedia} peso={800} className="" />}</b><em>{comparaveis.length} comparáveis</em></div>
+          </div>
+          <div className="panel-3d-sub mx-t2-k" title={`${dados.reservasAtivas} reservas de protocolo somam ${qtdTxt(reservadas)} unidades`}>
+            <span className="bevel-3d mx-t2-kl">Unidades reservadas</span>
+            <div className="concave-3d mx-t2-kv"><b><Numeral peso={800}>{qtdTxt(reservadas)}</Numeral></b><em>{dados.reservasAtivas} reservas</em></div>
+          </div>
+          <div className="panel-3d-sub mx-t2-k" title="Substâncias em que a reserva é maior que o estoque físico">
+            <span className="bevel-3d mx-t2-kl">Substâncias em falta</span>
+            <div className="concave-3d mx-t2-kv"><b style={{ color: emFalta ? "#8c2f1b" : undefined }}><Numeral peso={800}>{emFalta}</Numeral></b><em>{dados.semLote ? `${dados.semLote} baixas sem lote` : "reserva > físico"}</em></div>
+          </div>
+        </div>
+        <div className="panel-3d-sub mx-t2-rank" role="group" aria-label="Ranking de preço dos laboratórios">
+          <span className="bevel-3d mx-t2-kl" title="Menores preços ganhos e Índice de preço: média de (preço do laboratório ÷ menor preço da linha) x 100. 100,0 = sempre o mais barato; quanto maior, mais caro.">Ranking: menor preço · índice</span>
+          <div className="mx-t2-labs">
+            {ranking.map((r, pos) => (
+              <div key={r.id} className="concave-3d mx-t2-lab" data-top={pos === 0 && r.n > 0 ? 1 : 0} style={{ ["--lc" as string]: corDe(r.id) }}
+                title={`${r.nome}: menor preço em ${r.vitorias} de ${r.n} linhas comparadas · índice ${r.indice === null ? "—" : r.indice.toFixed(1).replace(".", ",")} (100,0 = sempre o mais barato)`}>
+                <span className="mx-t2-nm">{r.nome.split(" ")[0]}</span>
+                <b className="mx-serif">{r.vitorias}</b>
+                <i className="mx-t2-ix">{r.indice === null ? "—" : r.indice.toFixed(1).replace(".", ",")}</i>
+                <u style={{ width: `${r.n ? (r.vitorias / r.n) * 100 : 0}%` }} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="mx-panel mx-ferr">
+      <div className="mx-panel panel-3d mx-ferr">
         <button type="button" className="evo-trave mx-trave" aria-expanded={ferrAberto} onClick={() => setFerrAberto((v) => !v)} data-testid="botao-ferramentas-planilha" title={ferrAberto ? "Recolher" : "Abrir"}>
           <SlidersHorizontal size={14} className="mx-trave-i" aria-hidden />
           <span className="mx-trave-t">Ferramentas da planilha</span>
@@ -681,19 +717,20 @@ export default function MatrizFornecedores() {
         <div className="mx-sbar-count"><span>Substâncias</span><b>{new Set(filtrados.map((x) => x.linha.substanciaId)).size}</b></div>
       </>} />
       </div>
+      <FaixaCategorias opcoes={opcoesCategoria} valor={catSel} onChange={setCatSel} />
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
         {grupos.length === 0 ? (
           <div className="mx-none">
             <FileSpreadsheet size={36} /><b>Nenhum produto com esses filtros</b>
             <span>Tire a busca ou volte para &quot;Todas&quot; as vias.</span>
-            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setViaSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); setSoBlend(false); }}>Limpar filtros</button>
+            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setViaSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); setSoBlend(false); setCatSel(null); }}>Limpar filtros</button>
           </div>
         ) : (
           <table className="mx-table" style={{ width: "100%", minWidth: larguraTotal }} data-testid="tabela-matriz">
             <colgroup><col style={{ width: CATW }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
             <thead>
               <tr>
-                <th className="mx-corner mx-corner-cat" style={{ top: "var(--dock-h, 0px)", height: 88, zIndex: 8, left: 0 }} title="Categoria"><span>Cat.</span></th>
+                <th className="mx-corner mx-corner-cat" style={{ top: "var(--dock-h, 0px)", height: 88, zIndex: 8, left: 0 }} aria-label="Categoria" />
                 {cols.map(cabecalho)}
               </tr>
             </thead>
@@ -781,7 +818,7 @@ export default function MatrizFornecedores() {
         )}
       </div>
 
-      <div className="mx-panel mx-stat" aria-live="polite" data-testid="barra-estado-matriz">
+      <div className="mx-panel panel-3d mx-stat" aria-live="polite" data-testid="barra-estado-matriz">
         <div className="mx-statlab"><span>Seleção</span><b>{estat ? estat.rotulo : "—"}</b></div>
         <div><span>Contagem</span><b>{estat ? estat.n : "—"}</b></div>
         <div><span>Mínimo</span><b>{estat ? estat.min : "—"}</b></div>
