@@ -483,24 +483,21 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-nb-money span:first-child { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
 @media (max-width: 760px) { .mx-nb { grid-template-columns: minmax(0, 1fr); } .mx-nb-prev { position: static; } }
 
-/* ---------- célula de laboratório: 3 andares + rodapé do menor preço ---------- */
-.mx-lab { height: 100%; display: flex; flex-direction: column; padding: 0 10px; min-width: 0; }
-.mx-lab[data-ganha="1"] { padding-bottom: 17px; }
-.mx-lab > div { display: flex; align-items: center; min-width: 0; }
-.mx-lab-1 { flex: 1.35 1 0; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line-2); }
-.mx-lab-2 { flex: 1 1 0; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line-2); }
-.mx-lab-3 { flex: 1.1 1 0; gap: 4px; }
-.mx-lab-k { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-.mx-money.mx-big { font-size: 22px; line-height: 1; color: #0d1b36; }
-.mx-money.mx-mid { font-size: 14px; line-height: 1; color: #3b4a68; }
-.mx-apr { flex: 1 1 0; text-align: center; font-size: 9.5px; font-weight: 600; letter-spacing: .02em; padding: 2px 0; border-radius: 3px; white-space: nowrap;
-  color: #9aa3b6; background: rgba(22,40,74,.05); border: 1px solid transparent; }
-.mx-apr[data-on="1"] { color: #0b0b0b; background: #fff; font-weight: 800; border: 2px solid #0b0b0b; padding: 1px 0; box-shadow: 0 1px 0 rgba(0,0,0,.25); }
-/* menor preço: moldura na célula inteira + rodapé com troféu, na cor do laboratório */
+/* ---------- célula de laboratório: grade fixa (rótulo à esquerda, valor à direita, chips em 3 posições fixas) ---------- */
+.mx-root { --row: 84px; }
+.mx-lab { height: 100%; display: grid; grid-template-rows: 1fr 1fr 1fr; padding: 0 12px; min-width: 0; position: relative; }
+.mx-lab > div { display: grid; align-items: center; min-width: 0; }
+.mx-lab-1, .mx-lab-2 { grid-template-columns: 56px 1fr; border-bottom: 1px solid var(--line); }
+.mx-lab-1 .mx-money, .mx-lab-2 .mx-money { justify-self: end; }
+.mx-lab-3 { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.mx-lab-k { font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+.mx-money.mx-big { font-size: 17px; line-height: 1; font-weight: 700; color: var(--ink); }
+.mx-money.mx-mid { font-size: 13px; line-height: 1; font-weight: 500; color: var(--muted); }
+.mx-apr { text-align: center; font-size: 9px; font-weight: 500; padding: 2px 0; border-radius: 2px; white-space: nowrap; color: var(--faint); border: 1px solid var(--line); background: transparent; }
+.mx-apr[data-on="1"] { color: #0b0b0b; font-weight: 700; border: 1.5px solid #0b0b0b; padding: 1.5px 0; background: #fff; }
+/* menor preço: contorno fino na cor do laboratório + lapela (marcador de livro) pendurada no topo */
 .mx-win::before { display: none; }
-.mx-win { box-shadow: inset 0 0 0 2px var(--wc); }
-.mx-win.mx-sel { box-shadow: inset 0 0 0 2px var(--navy), inset 0 0 0 4px #fff; }
-.mx-lab-foot { position: absolute; left: 0; right: 0; bottom: 0; height: 17px; display: flex; align-items: center; gap: 5px; padding: 0 10px;
-  background: var(--wc); color: #fff; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; text-shadow: 0 1px 0 rgba(0,0,0,.35); }
-.mx-lab-foot b { font-weight: 800; }
-.mx-lab-foot svg { flex: none; color: #ffd76a; filter: drop-shadow(0 1px 0 rgba(0,0,0,.4)); }
+.mx-win { box-shadow: inset 0 0 0 1px var(--wc); }
+.mx-win.mx-sel { box-shadow: inset 0 0 0 2px var(--navy), inset 0 0 0 3px #fff; }
+.mx-lapela { position: absolute; top: 0; right: 8px; width: 13px; height: 17px; display: grid; place-items: start center; padding-top: 3px; background: var(--wc); color: #fff;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); opacity: .9; }

@@ -313,7 +313,7 @@ export default function MatrizFornecedores() {
               <V c={o.custoUnitarioCentavos} peso={800} className="mx-money mx-big" />
             </div>
             <div className="mx-lab-2">
-              <span className="mx-lab-k">{l.forma === "implante" ? "Implante" : `Apres. ${q} un.`}</span>
+              <span className="mx-lab-k">Caixa</span>
               <V c={o.custoEmbalagemCentavos} peso={700} className="mx-money mx-mid" />
             </div>
             <div className="mx-lab-3" role="group" aria-label={`Apresentação: ${q} ${unidadeTxt(l.forma, q)} por caixa`}>
@@ -321,7 +321,7 @@ export default function MatrizFornecedores() {
                 <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined}>{n === 1 ? "Unid." : `${n} un.`}</span>
               ))}
             </div>
-            {ganha && <div className="mx-lab-foot"><Trophy size={11} /><b>Menor preço</b></div>}
+            {ganha && <span className="mx-lapela" title="Menor preço" role="img" aria-label="Menor preço"><Trophy size={9} /></span>}
           </div>
         </td>
       );
