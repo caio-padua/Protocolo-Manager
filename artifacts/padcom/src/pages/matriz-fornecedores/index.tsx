@@ -88,6 +88,12 @@ export default function MatrizFornecedores() {
   const [blendsAbertos, setBlendsAbertos] = useState<number[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = dockRef.current, w = wrapRef.current; if (!el || !w) return;
+    const ap = () => w.style.setProperty("--dock-h", `${el.offsetHeight}px`);
+    ap(); const ro = new ResizeObserver(ap); ro.observe(el); return () => ro.disconnect();
+  });
   
   const toastT = useRef<number | undefined>(undefined);
 
@@ -163,7 +169,7 @@ export default function MatrizFornecedores() {
   const leftCongelado = (lab: number | undefined): number | undefined => {
     if (lab === undefined || !congelados.includes(lab)) return undefined;
     const k = cols.filter((x) => x.kind === "lab" && congelados.includes(x.lab as number)).findIndex((x) => x.lab === lab);
-    return 48 + CATW + 272 + 104 + 168 * k;
+    return CATW + 272 + 104 + 168 * k;
   };
   const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
   const c = Math.min(sel.c, cols.length - 1);
@@ -513,7 +519,7 @@ export default function MatrizFornecedores() {
       const nSubst = new Set(filtrados.map((x) => x.linha.substanciaId)).size;
       const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
       return (
-        <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 48 + CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
+        <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
           <div className="mx-th-prod-in bevel-3d" onClick={parar}>
             <div className="mx-th-prod-l1">
               <ToggleWell compacto checked={moldura} onChange={setMoldura} label="Menor preço" testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha" />
@@ -551,7 +557,7 @@ export default function MatrizFornecedores() {
     return <div className="p-6"><div className="panel-3d p-4 text-sm" role="alert">{q.isError ? (q.error as Error).message : "Carregando a matriz…"}</div></div>;
 
   let numero = 0;
-  const larguraTotal = 48 + CATW + cols.reduce((a, x) => a + x.w, 0);
+  const larguraTotal = CATW + cols.reduce((a, x) => a + x.w, 0);
   
   return (
     <div className="mx-root" data-testid="page-matriz-fornecedores">
@@ -594,16 +600,6 @@ export default function MatrizFornecedores() {
             <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setModal("cat")} data-testid="botao-categorias">Categorias</button>
             <button type="button" className="evo-bevel mx-ev-b h40" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
             <button type="button" className="evo-bevel evo-bevel-ativo mx-ev-b h40" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
-          </div>
-        </div>
-        <div>
-          <div className="mx-ev-l">Laboratórios {difereDoCadastro && <span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: difere do cadastro</span>}</div>
-          <div className="mx-ev-g mx-ev-glab" role="group" aria-label="Laboratórios">
-            {forn.map((f) => (
-              <button key={f.id} type="button" className={`evo-bevel mx-ev-b h56 mx-ev-lab ${ligados.has(f.id) ? "evo-bevel-ativo" : ""}`} aria-pressed={ligados.has(f.id)} onClick={() => alternarLab(f.id)}>
-                <i style={{ background: corDe(f.id) }} /><span>{f.nome}</span><small>{nPorLab[forn.indexOf(f)]} apresentações</small>
-              </button>
-            ))}
           </div>
         </div>
         <div>
@@ -660,11 +656,22 @@ export default function MatrizFornecedores() {
       </div>}
       </div>
 
-      <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
-        catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
-        onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
 
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
+        <div className="mx-dock-top panel-3d" ref={dockRef} onKeyDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <div className="mx-dock-labs" role="group" aria-label="Laboratórios">
+            <span className="mx-ev-l" style={{ margin: 0 }}>Laboratórios</span>
+            {forn.map((f) => (
+              <button key={f.id} type="button" className={`evo-bevel mx-dock-lab ${ligados.has(f.id) ? "evo-bevel-ativo" : ""}`} aria-pressed={ligados.has(f.id)} onClick={() => alternarLab(f.id)} title={`${nPorLab[forn.indexOf(f)]} apresentações`}>
+                <i style={{ background: corDe(f.id) }} /><span>{f.nome}</span><small>{nPorLab[forn.indexOf(f)]}</small>
+              </button>
+            ))}
+            {difereDoCadastro && <span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: difere do cadastro</span>}
+          </div>
+          <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
+        catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
+        onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
+        </div>
         {grupos.length === 0 ? (
           <div className="mx-none">
             <FileSpreadsheet size={36} /><b>Nenhum produto com esses filtros</b>
@@ -673,15 +680,10 @@ export default function MatrizFornecedores() {
           </div>
         ) : (
           <table className="mx-table" style={{ width: "100%", minWidth: larguraTotal }} data-testid="tabela-matriz">
-            <colgroup><col style={{ width: 48 }} /><col style={{ width: CATW }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
+            <colgroup><col style={{ width: CATW }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
             <thead>
               <tr>
-                <th className="mx-corner" style={{ height: 26 }} /><th className="mx-corner" style={{ height: 26, left: 48 }} />
-                {cols.map((x, i) => <th key={i} className="mx-letter" data-on={sel.modo !== "row" && c === i ? 1 : 0} onClick={() => setSel({ r, c: i, modo: "col" })}>{x.letter}</th>)}
-              </tr>
-              <tr>
-                <th className="mx-corner" style={{ top: 26, height: 88, zIndex: 8 }}><div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--gold-d)" }}><FileSpreadsheet size={16} /></div></th>
-                <th className="mx-corner mx-corner-cat" style={{ top: 26, height: 88, zIndex: 8, left: 48 }} title="Categoria"><span>Cat.</span></th>
+                <th className="mx-corner mx-corner-cat" style={{ top: "var(--dock-h, 0px)", height: 88, zIndex: 8, left: 0 }} title="Categoria"><span>Cat.</span></th>
                 {cols.map(cabecalho)}
               </tr>
             </thead>
@@ -692,7 +694,7 @@ export default function MatrizFornecedores() {
                 const eco = comp.length ? (comp.reduce((a, x) => a + (x.eco as number), 0) / comp.length) * 100 : null;
                 return [
                   <tr key={`b-${g.id}`} className="mx-band" onClick={() => setFechados((f) => (f.includes(g.id) ? f.filter((x) => x !== g.id) : [...f, g.id]))}>
-                    <td colSpan={cols.length + 2}>
+                    <td colSpan={cols.length + 1}>
                       <div className="mx-band-in" data-open={aberto ? 1 : 0}>
                         <ChevronDown size={15} className="mx-chev" />{g.titulo}
                         <small>{g.todos.length} produtos</small>{g.margem !== null && <small>margem {pctTxt(g.margem)}</small>}
@@ -704,7 +706,6 @@ export default function MatrizFornecedores() {
                     const ri = numero++;
                     return [
                       <tr key={cc.linha.varianteId} data-zebra={ri % 2} style={cc.linha.isBlend ? { ["--row" as string]: `${Math.max(84, 52 + componentesDe(cc.linha).length * 20 + 24)}px` } : undefined}>
-                        <th className="mx-rn" scope="row" data-on={(sel.modo === "row" || sel.modo === "cell") && r === ri ? 1 : 0} onClick={() => setSel({ r: ri, c, modo: "row" })}>{ri + 1}</th>
                         <td className="mx-cat-col" data-zebra={ri % 2}>{(() => { const k = cats.de(cc.linha); return (
                           <div className="mx-cat-v" title={`${k.nome}${cc.linha.isBlend ? " · Blend" : ""}`}>
                             <span className="mx-cat-v-sig">{k.sigla}</span>
@@ -714,7 +715,7 @@ export default function MatrizFornecedores() {
                       </tr>,
                       cc.linha.isBlend && blendsAbertos.includes(cc.linha.varianteId) && (
                         <tr key={`bp-${cc.linha.varianteId}`} className="mx-blend-open">
-                          <td colSpan={cols.length + 2}>
+                          <td colSpan={cols.length + 1}>
                             <div className="mx-blend-pn panel-3d-sub" style={{ width: Math.max(640, Math.min((wrapRef.current?.clientWidth ?? 1000) - 104, 1100)) }}>
                               {(() => {
                                 const l = cc.linha; const comps = componentesDe(l);

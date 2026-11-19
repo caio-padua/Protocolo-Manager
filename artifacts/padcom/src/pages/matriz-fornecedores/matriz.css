@@ -917,3 +917,20 @@ main:has(.mx-root) {
 .mx-ev-duo { display: grid; grid-template-columns: 1fr 1.5fr; gap: 18px; }
 .mx-ev .mx-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 @media (max-width: 760px) { .mx-ev-g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mx-ev-duo { grid-template-columns: 1fr; } }
+
+/* ===== painel único fixo (laboratórios + substância) dentro da área rolável; sem letras e sem coluna de números ===== */
+.mx-gridwrap { --dock-h: 0px; }
+.mx-dock-top { position: sticky; top: 0; left: 0; z-index: 30; width: 100%; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; border-radius: 0 !important; }
+.mx-dock-labs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.mx-dock-lab { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; overflow: hidden; }
+.mx-dock-lab i { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.mx-dock-lab small { font: 700 13px "EB Garamond", serif; letter-spacing: 0; opacity: .85; }
+.mx-dock-top .mx-sbar { box-shadow: none; padding: 6px 10px; }
+.mx-th { top: var(--dock-h, 0px); height: 88px; }
+.mx-th-fix { left: 40px; }
+.mx-td-fix { left: 40px; }
+.mx-cat-col { left: 0; }
+.mx-corner-cat { left: 0; }
+.mx-blend-pn { left: 40px; }
+.mx-td { scroll-margin-top: calc(var(--dock-h, 0px) + 100px); }
+.mx-gridwrap { height: 72vh; }

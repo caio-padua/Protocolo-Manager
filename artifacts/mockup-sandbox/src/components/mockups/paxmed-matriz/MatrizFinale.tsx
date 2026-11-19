@@ -205,6 +205,15 @@ export function MatrizFinale() {
   const labsDe = (r: Row) => r.offers.filter(Boolean).length;
   const alt = (id: number) => setAbertos((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
 
+  const dockRef = useRef<HTMLDivElement>(null);
+  const [dockH, setDockH] = useState(190);
+  useEffect(() => {
+    const el = dockRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => setDockH(Math.round(el.getBoundingClientRect().height)));
+    ro.observe(el); setDockH(Math.round(el.getBoundingClientRect().height));
+    return () => ro.disconnect();
+  }, []);
+
   const totalLabs = modo === "juntos" ? on.filter(Boolean).length : cols.length;
 
   return (
@@ -222,103 +231,105 @@ export function MatrizFinale() {
         </div>
       </div>
 
-      {/* comparador */}
-      <section className="mf-cmp" aria-label="Comparar laboratórios">
-        <div className="mf-cmp-h">
-          <div className="mf-eyebrow">Laboratórios</div>
-          <div className="mf-seg" role="group" aria-label="Modo de comparação">
-            <button aria-pressed={modo === "juntos"} onClick={() => setModo("juntos")}><Layers size={13} />Juntos</button>
-            <button aria-pressed={modo === "confronto"} onClick={() => setModo("confronto")}><Swords size={13} />Confronto A × B</button>
-          </div>
-          <div className="mf-cmp-res">
-            {modo === "confronto" ? (
-              <>
-                <span className="mf-vs"><i data-s="A">A</i><b>{nomesLado(1)}</b></span>
-                <span style={{ color: "#8f98ad" }}>contra</span>
-                <span className="mf-vs"><i data-s="B">B</i><b>{nomesLado(2)}</b></span>
-                <span>· A vence <b>{placar.a}</b> · B vence <b>{placar.b}</b> · empate <b>{placar.e}</b></span>
-              </>
-            ) : <span>Toque num laboratório para ligar ou desligar. No Confronto, ponha cada um de um lado.</span>}
-          </div>
-        </div>
-        <div className="mf-labs">
-          {LABS.map((l, i) => {
-            const n = ROWS.filter((r) => r.offers[i]).length;
-            const ativo = modo === "juntos" ? on[i] : lado[i] > 0;
-            return (
-              <div key={l.nome} className="mf-lab" data-on={ativo ? 1 : 0} style={{ ["--lc" as string]: l.cor }}>
-                <button className="mf-lab-main" aria-pressed={ativo}
-                  onClick={() => modo === "juntos" ? setOn((o) => o.map((x, j) => (j === i ? !x : x))) : setLado((s) => s.map((x, j) => (j === i ? ((x + 1) % 3) as Lado : x)))}>
-                  <b>{l.nome}</b><span className="mf-lab-n">{n}</span><small>{l.sub}</small>
-                </button>
-                {modo === "confronto" && (
-                  <div className="mf-ab" role="group" aria-label={`Lado de ${l.nome}`}>
-                    {([[1, "A"], [2, "B"], [0, "Fora"]] as [Lado, string][]).map(([v, t]) => (
-                      <button key={t} data-s={v === 0 ? "0" : t} aria-pressed={lado[i] === v} onClick={() => setLado((s) => s.map((x, j) => (j === i ? v : x)))}>{t}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* barra da substância */}
-      <section className="mf-bar" aria-label="Substância selecionada">
-        <div className="mf-av">{iniciais(foc.nome)}</div>
-        <div className="mf-bar-id">
-          <div className="mf-bar-l1">
-            <span className="mf-bar-nome">{foc.nome}</span>
-            <span className="mf-bar-dose">{foc.dose}</span>
-            {foc.comps && <span className="mf-tag mf-tag-b">Blend</span>}
-          </div>
-          <div className="mf-bar-l2">
-            <span>Via <b>{foc.via}</b></span>
-            <span>Vol. <b>{foc.vol}</b></span>
-            {foc.conc && <span>Conc. <b>{foc.conc}</b></span>}
-            <span><b>{labsDe(foc)}</b> laboratórios com preço</span>
-            {menorDe(foc) !== null && <span>menor unidade <b>R$ {nf((menorDe(foc) as number) / 100)}</b></span>}
-          </div>
-        </div>
-        <div className="mf-bar-tools">
-          <button className="mf-tbtn" aria-pressed={soEsta} onClick={() => setSoEsta((s) => !s)} title="Mostrar só as doses desta substância"><ListFilter size={14} />Só esta substância</button>
-          <button className="mf-tbtn" onClick={() => avisar("Linha copiada")}><Copy size={14} />Copiar</button>
-        </div>
-        <div className="mf-sel" ref={selRef}>
-          <div className="mf-sel-in">
-            <Search size={16} color="#5d6a85" />
-            <input ref={inRef} value={q} placeholder="Trocar substância ou ativo" aria-label="Buscar substância ou ativo" role="combobox" aria-expanded={lista}
-              onFocus={() => setLista(true)} onChange={(e) => { setQ(e.target.value); setHi(0); setLista(true); }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(h + 1, resultados.length - 1)); }
-                if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
-                if (e.key === "Enter" && resultados[hi]) escolher(resultados[hi]);
-                if (e.key === "Escape") { setLista(false); inRef.current?.blur(); }
-              }} />
-            {q ? <button aria-label="Limpar" onClick={() => setQ("")} style={{ border: 0, background: "transparent", display: "grid" }}><X size={15} /></button> : <span className="mf-kbd">/</span>}
-          </div>
-          {lista && (
-            <div className="mf-pop" role="listbox">
-              <div className="mf-pop-h">{q ? `${resultados.length} resultado(s)` : "Substâncias e ativos"}</div>
-              {resultados.length === 0 && <div className="mf-pop-empty">Nada encontrado para “{q}”.</div>}
-              {resultados.map((r, i) => (
-                <div key={r.id} className="mf-opt" role="option" aria-selected={r.id === foco} data-hi={i === hi ? 1 : 0} onMouseEnter={() => setHi(i)} onMouseDown={(e) => { e.preventDefault(); escolher(r); }}>
-                  <div className="mf-av">{iniciais(r.nome)}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="mf-opt-n"><Marca t={r.nome} q={q} /> {r.comps && <span className="mf-tag mf-tag-b" style={{ marginLeft: 4 }}>Blend</span>}</div>
-                    <div className="mf-opt-s"><b>{r.dose}</b><span>{r.via}</span><span>{r.vol}</span></div>
-                  </div>
-                  <div className="mf-opt-p">{menorDe(r) !== null && <b>R$ {nf((menorDe(r) as number) / 100)}</b>}{labsDe(r)} lab.</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* tabela */}
-      <div className="mf-wrap">
+      <div className="mf-wrap" style={{ ["--dock-h" as string]: `${dockH}px` }}>
+        <div className="mf-dock" ref={dockRef}>
+        {/* comparador */}
+        <section className="mf-cmp" aria-label="Comparar laboratórios">
+          <div className="mf-cmp-h">
+            <div className="mf-eyebrow">Laboratórios</div>
+            <div className="mf-seg" role="group" aria-label="Modo de comparação">
+              <button aria-pressed={modo === "juntos"} onClick={() => setModo("juntos")}><Layers size={13} />Juntos</button>
+              <button aria-pressed={modo === "confronto"} onClick={() => setModo("confronto")}><Swords size={13} />Confronto A × B</button>
+            </div>
+            <div className="mf-cmp-res">
+              {modo === "confronto" ? (
+                <>
+                  <span className="mf-vs"><i data-s="A">A</i><b>{nomesLado(1)}</b></span>
+                  <span style={{ color: "#8f98ad" }}>contra</span>
+                  <span className="mf-vs"><i data-s="B">B</i><b>{nomesLado(2)}</b></span>
+                  <span>· A vence <b>{placar.a}</b> · B vence <b>{placar.b}</b> · empate <b>{placar.e}</b></span>
+                </>
+              ) : <span>Toque num laboratório para ligar ou desligar. No Confronto, ponha cada um de um lado.</span>}
+            </div>
+          </div>
+          <div className="mf-labs">
+            {LABS.map((l, i) => {
+              const n = ROWS.filter((r) => r.offers[i]).length;
+              const ativo = modo === "juntos" ? on[i] : lado[i] > 0;
+              return (
+                <div key={l.nome} className="mf-lab" data-on={ativo ? 1 : 0} style={{ ["--lc" as string]: l.cor }}>
+                  <button className="mf-lab-main" aria-pressed={ativo}
+                    onClick={() => modo === "juntos" ? setOn((o) => o.map((x, j) => (j === i ? !x : x))) : setLado((s) => s.map((x, j) => (j === i ? ((x + 1) % 3) as Lado : x)))}>
+                    <b>{l.nome}</b><span className="mf-lab-n">{n}</span><small>{l.sub}</small>
+                  </button>
+                  {modo === "confronto" && (
+                    <div className="mf-ab" role="group" aria-label={`Lado de ${l.nome}`}>
+                      {([[1, "A"], [2, "B"], [0, "Fora"]] as [Lado, string][]).map(([v, t]) => (
+                        <button key={t} data-s={v === 0 ? "0" : t} aria-pressed={lado[i] === v} onClick={() => setLado((s) => s.map((x, j) => (j === i ? v : x)))}>{t}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* barra da substância */}
+        <section className="mf-bar" aria-label="Substância selecionada">
+          <div className="mf-av">{iniciais(foc.nome)}</div>
+          <div className="mf-bar-id">
+            <div className="mf-bar-l1">
+              <span className="mf-bar-nome">{foc.nome}</span>
+              <span className="mf-bar-dose">{foc.dose}</span>
+              {foc.comps && <span className="mf-tag mf-tag-b">Blend</span>}
+            </div>
+            <div className="mf-bar-l2">
+              <span>Via <b>{foc.via}</b></span>
+              <span>Vol. <b>{foc.vol}</b></span>
+              {foc.conc && <span>Conc. <b>{foc.conc}</b></span>}
+              <span><b>{labsDe(foc)}</b> laboratórios com preço</span>
+              {menorDe(foc) !== null && <span>menor unidade <b>R$ {nf((menorDe(foc) as number) / 100)}</b></span>}
+            </div>
+          </div>
+          <div className="mf-bar-tools">
+            <button className="mf-tbtn" aria-pressed={soEsta} onClick={() => setSoEsta((s) => !s)} title="Mostrar só as doses desta substância"><ListFilter size={14} />Só esta substância</button>
+            <button className="mf-tbtn" onClick={() => avisar("Linha copiada")}><Copy size={14} />Copiar</button>
+          </div>
+          <div className="mf-sel" ref={selRef}>
+            <div className="mf-sel-in">
+              <Search size={16} color="#5d6a85" />
+              <input ref={inRef} value={q} placeholder="Trocar substância ou ativo" aria-label="Buscar substância ou ativo" role="combobox" aria-expanded={lista}
+                onFocus={() => setLista(true)} onChange={(e) => { setQ(e.target.value); setHi(0); setLista(true); }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(h + 1, resultados.length - 1)); }
+                  if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+                  if (e.key === "Enter" && resultados[hi]) escolher(resultados[hi]);
+                  if (e.key === "Escape") { setLista(false); inRef.current?.blur(); }
+                }} />
+              {q ? <button aria-label="Limpar" onClick={() => setQ("")} style={{ border: 0, background: "transparent", display: "grid" }}><X size={15} /></button> : <span className="mf-kbd">/</span>}
+            </div>
+            {lista && (
+              <div className="mf-pop" role="listbox">
+                <div className="mf-pop-h">{q ? `${resultados.length} resultado(s)` : "Substâncias e ativos"}</div>
+                {resultados.length === 0 && <div className="mf-pop-empty">Nada encontrado para “{q}”.</div>}
+                {resultados.map((r, i) => (
+                  <div key={r.id} className="mf-opt" role="option" aria-selected={r.id === foco} data-hi={i === hi ? 1 : 0} onMouseEnter={() => setHi(i)} onMouseDown={(e) => { e.preventDefault(); escolher(r); }}>
+                    <div className="mf-av">{iniciais(r.nome)}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="mf-opt-n"><Marca t={r.nome} q={q} /> {r.comps && <span className="mf-tag mf-tag-b" style={{ marginLeft: 4 }}>Blend</span>}</div>
+                      <div className="mf-opt-s"><b>{r.dose}</b><span>{r.via}</span><span>{r.vol}</span></div>
+                    </div>
+                    <div className="mf-opt-p">{menorDe(r) !== null && <b>R$ {nf((menorDe(r) as number) / 100)}</b>}{labsDe(r)} lab.</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        </div>
         <table className="mf-t" style={{ width: "100%", minWidth: 340 + 84 + cols.length * 204 + 176 }}>
           <colgroup><col style={{ width: 340 }} /><col style={{ width: 84 }} />{cols.map((l) => <col key={l} style={{ width: 204 }} />)}<col style={{ width: 176 }} /></colgroup>
           <thead>
