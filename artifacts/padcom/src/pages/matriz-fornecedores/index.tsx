@@ -92,7 +92,7 @@ export default function MatrizFornecedores() {
   const [blendsAbertos, setBlendsAbertos] = useState<number[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const buscaRef = useRef<HTMLInputElement>(null);
+  
   const toastT = useRef<number | undefined>(undefined);
 
   const forn = dados?.fornecedores ?? [];
@@ -187,7 +187,7 @@ export default function MatrizFornecedores() {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const tag = document.activeElement?.tagName;
-      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") { e.preventDefault(); buscaRef.current?.focus(); }
+      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") { e.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid="barra-substancia"] input')?.focus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -568,14 +568,8 @@ export default function MatrizFornecedores() {
         </button>
       {ferrAberto && <div className="mx-ctrl">
         <div className="mx-crow">
-          <span className="mx-rowlab">Buscar</span>
-          <div className="mx-cl">
-            <div className="mx-search">
-              <Search size={15} />
-              <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar substância ou dose" aria-label="Buscar substância ou dose" data-testid="input-busca-matriz" />
-              {busca ? <button type="button" aria-label="Limpar busca" className="mx-search-x" onClick={() => setBusca("")}><X size={14} /></button> : <kbd>/</kbd>}
-            </div>
-          </div>
+          <span className="mx-rowlab">Ações</span>
+          <div className="mx-cl" />
           <div className="mx-cr">
             <button type="button" className="mx-btn" onClick={() => { setBlendInicial(undefined); setModal("blend"); }} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
             <button type="button" className="mx-btn" onClick={() => setModal("cat")} data-testid="botao-categorias">Categorias</button>
