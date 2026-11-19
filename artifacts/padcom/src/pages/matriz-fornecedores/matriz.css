@@ -1272,3 +1272,27 @@ main:has(.mx-root) {
 .mx-fc-b:hover { filter: brightness(1.03); }
 .mx-fc-b:active { transform: translateY(1px); }
 .mx-fc-b[data-sel="1"] { color: #fff; background: linear-gradient(180deg, #2a4378 0%, #16284a 100%); border-color: var(--gold-d); box-shadow: inset 0 3px 0 rgba(255,255,255,.18), inset 0 -5px 9px rgba(0,0,0,.28), 0 8px 14px -8px rgba(7,22,43,.5); }
+
+/* ===== Cabeçalho = UM painel Saliente só, da borda esquerda à direita ===== */
+.mx-table thead th { background: linear-gradient(180deg, #ffffff 0%, #f8f5ec 55%, #efe8d6 100%) !important; border-top: 1px solid rgba(184,146,77,.55) !important; border-bottom: 1px solid rgba(184,146,77,.55) !important; border-left: 0 !important; border-right: 0 !important; box-shadow: inset 0 3px 0 rgba(255,255,255,.98), inset 0 -6px 11px rgba(0,53,58,.14) !important; }
+.mx-table thead th.mx-corner-cat { border-left: 1px solid rgba(184,146,77,.55) !important; border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+.mx-table thead th:last-child { border-right: 1px solid rgba(184,146,77,.55) !important; border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+.mx-table thead th.mx-th-best { background: linear-gradient(180deg, #fbe6a6 0%, #f0cd75 55%, #d9ae4a 100%) !important; }
+/* o quadro interno do Produto deixa de ser painel próprio: o painel é o cabeçalho inteiro */
+.mx-th-prod-in.bevel-3d { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.mx-th-prod { padding-top: 0 !important; }
+
+/* ===== Seletor de categoria (dentro do cabeçalho) ===== */
+.mx-cs-bt { align-self: stretch; height: 26px; padding: 0 7px 0 4px; display: flex; align-items: center; gap: 7px; font: 700 10px Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); cursor: pointer; min-width: 0; }
+.mx-cs-bt svg { margin-left: auto; flex: none; color: #6b4e0d; }
+.mx-cs-bt[data-ativo="1"] { box-shadow: inset 0 4px 7px rgba(7,22,43,.18), 0 0 0 1px var(--gold-d); }
+.mx-cs-q { flex: none; width: 20px; height: 20px; border-radius: 3px; display: inline-grid; place-items: center; font: 800 9px Inter, system-ui, sans-serif; letter-spacing: 0; color: #fff; background: linear-gradient(180deg, #2a4378, #16284a); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(7,22,43,.35); }
+.mx-cs-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-cs-pop { position: fixed; z-index: 90; padding: 10px; border: 1px solid rgba(184,146,77,.55); border-radius: 6px; max-height: min(60vh, 440px); overflow: auto; }
+.mx-cs-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 10px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(184,146,77,.3); }
+.mx-cs-op { display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 10px 0 8px; border-radius: 5px; border: 1px solid transparent; background: transparent; text-align: left; font: 700 11px Inter, system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); cursor: pointer; }
+.mx-cs-op .mx-cs-q { width: 26px; height: 26px; font-size: 10px; border-radius: 4px; }
+.mx-cs-op em { margin-left: auto; font: 600 10px Inter, system-ui, sans-serif; font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mx-cs-op:hover { background: linear-gradient(180deg, #fff, #f3ecd8); border-color: rgba(184,146,77,.45); }
+.mx-cs-op[data-sel="1"] { background: linear-gradient(160deg, #ece6d7, #f6f1e6); border-color: rgba(184,146,77,.6); box-shadow: inset 0 3px 5px rgba(7,22,43,.16); }
+.mx-cs-ck { color: #6b4e0d; flex: none; }

@@ -1,5 +1,5 @@
 import { ToggleWell } from "./ToggleWell";
-import { FaixaCategorias } from "./FaixaCategorias";
+import { SeletorCategoria } from "./SeletorCategoria";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SlidersHorizontal, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
@@ -554,6 +554,7 @@ export default function MatrizFornecedores() {
               <b className="mx-th-prod-t">Produto</b>
               <button type="button" className="mx-ord bevel-3d" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}>{ordTxt("prod")}</button>
             </div>
+            <SeletorCategoria opcoes={opcoesCategoria} valor={catSel} onChange={setCatSel} />
           </div>
         </th>
       );
@@ -717,8 +718,7 @@ export default function MatrizFornecedores() {
         <div className="mx-sbar-count"><span>Substâncias</span><b>{new Set(filtrados.map((x) => x.linha.substanciaId)).size}</b></div>
       </>} />
       </div>
-      <FaixaCategorias opcoes={opcoesCategoria} valor={catSel} onChange={setCatSel} />
-      <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
+      <div className="mx-gridwrap" data-ancora-lista ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
         {grupos.length === 0 ? (
           <div className="mx-none">
             <FileSpreadsheet size={36} /><b>Nenhum produto com esses filtros</b>
