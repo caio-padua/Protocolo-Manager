@@ -206,7 +206,7 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-none b { font-family: "EB Garamond", serif; font-size: 24px; color: var(--ink); }
 
 /* ---------- modal ---------- */
-.mx-scrim { position: fixed; inset: 0; background: rgba(15,29,56,.55); display: grid; place-items: center; z-index: 50; animation: mx-fade .18s ease-out; }
+.mx-scrim { position: fixed; inset: 0; background: rgba(15,29,56,.55); display: grid; place-items: center; z-index: 200; animation: mx-fade .18s ease-out; }
 .mx-modal { width: min(960px, calc(100% - 48px)); max-height: calc(100% - 64px); display: flex; flex-direction: column; overflow: hidden; animation: mx-rise .22s ease-out; }
 .mx-modal-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
 .mx-modal-h h2 { margin: 0; font-family: "EB Garamond", serif; font-size: 22px; font-weight: 700; color: var(--gold); }
@@ -219,7 +219,7 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-ped li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--line); }
 .mx-ped li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-note { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.mx-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 60; padding: 10px 18px; font-size: 13px; font-weight: 600; animation: mx-rise .2s ease-out; }
+.mx-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 210; padding: 10px 18px; font-size: 13px; font-weight: 600; animation: mx-rise .2s ease-out; }
 .mx-tabs { display: flex; gap: 6px; }
 
 @keyframes mx-fade { from { opacity: 0; } }
