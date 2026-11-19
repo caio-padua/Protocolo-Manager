@@ -1111,3 +1111,12 @@ main:has(.mx-root) {
 .mx-tw button[role="switch"] > span { translate: none !important; transform: translateX(0); }
 .mx-tw button[role="switch"][data-state="checked"] > span { translate: none !important; transform: translateX(14px); }
 .mx-tw button[role="switch"] { overflow: hidden; }
+
+/* Dose/Concentração/Volume nunca passam por baixo das ferramentas do meio: encolhem o espaço e, se faltar, quebram de linha */
+.mx-sbar-z1 { min-width: 0; overflow: hidden; }
+.mx-sbar-z1 .mx-sbar-sel { min-width: 0; flex: 1 1 auto; }
+.mx-sbar-linha { min-width: 0; max-width: 100%; }
+.mx-sbar-dados { flex-wrap: wrap; row-gap: 4px; max-width: 100%; }
+.mx-sbar-dados > div { padding: 0 16px 0 0; min-width: 0; }
+.mx-sbar-dados span { white-space: normal; overflow-wrap: anywhere; }
+.mx-sbar-vias { flex-wrap: wrap; }
