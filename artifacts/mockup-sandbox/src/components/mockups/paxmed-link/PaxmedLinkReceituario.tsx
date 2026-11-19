@@ -1,8 +1,7 @@
 import "./paxmed-link-receituario.css";
 
 /* Variante "Receituário": papel marfim + lombada navy.
-   Hipótese: a prévia é lida como um documento clínico — a informação vira índice
-   de funcionalidades (3 linhas) + faixa de ação com os passos do manual. */
+   Duas faixas horizontais: placa navy em relevo (símbolo + nome, sem moldura) sobre a folha marfim com o índice. */
 
 const BASE = "/__mockup/images";
 const SIM = `${BASE}/paxmed-link-simbolo.png`;
@@ -27,25 +26,20 @@ export function PaxmedLinkReceituario() {
   const estatico = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("static");
   return (
     <div className={`plr-root${estatico ? " plr-estatico" : ""}`} data-testid="paxmed-link-receituario">
-      <aside className="plr-lombada">
-        <div className="plr-poco">
-          <div className="plr-arte plr-sim">
-            <img src={SIM} alt="Símbolo PaxMed" />
-            <Luz src={SIM} />
-          </div>
+      <header className="plr-bevel">
+        <div className="plr-arte plr-sim">
+          <img src={SIM} alt="Símbolo PaxMed" />
+          <Luz src={SIM} />
         </div>
-        <div className="plr-nomebox">
-          <div className="plr-arte plr-nome" style={{ left: 0, top: 0, transform: "none" }}>
-            <img src={NOME} alt="PAXMED" />
-            <Luz src={NOME} />
-          </div>
+        <i className="plr-sep" aria-hidden />
+        <div className="plr-arte plr-nome">
+          <img src={NOME} alt="PAXMED" />
+          <Luz src={NOME} />
         </div>
-        <small>Paciente · Acesso</small>
-      </aside>
+      </header>
 
       <main className="plr-folha">
         <div className="plr-rx" aria-hidden>℞</div>
-        <div className="plr-cab">Seu acesso PaxMed<i /></div>
 
         <h1 className="plr-titulo">
           Prescrições, protocolos e agenda <em>no seu celular.</em>
