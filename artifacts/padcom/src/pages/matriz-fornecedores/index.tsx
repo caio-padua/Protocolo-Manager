@@ -332,7 +332,7 @@ export default function MatrizFornecedores() {
         <td key={ci} {...tdProps(ri, ci)} style={{ ["--bc" as string]: corDe(cc.vencedoras[0].fornecedorId) }} className={cls(ri, ci, "mx-best")}>
           <div className="mx-td-in mx-r">
             <V c={cc.min} peso={800} />
-            <div className="mx-bestlab"><span className="mx-sw" style={{ background: corDe(cc.vencedoras[0].fornecedorId) }} />{cc.vencedoras.map((x) => nomeForn(x.fornecedorId)).join(" · ")}</div>
+            <div className="mx-bestlab"><span className="mx-sw" style={{ background: corDe(cc.vencedoras[0].fornecedorId) }} /><span className="mx-bestlab-t" title={cc.vencedoras.map((x) => nomeForn(x.fornecedorId)).join(" · ")}>{cc.vencedoras.map((x) => nomeForn(x.fornecedorId)).join(" · ")}</span></div>
           </div>
         </td>
       );
