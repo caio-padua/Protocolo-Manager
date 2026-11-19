@@ -515,12 +515,12 @@ export default function MatrizFornecedores() {
         <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 48 + CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
           <div className="mx-th-prod-in" onClick={parar}>
             <div className="mx-th-prod-l1">
-              <button type="button" className="mx-switch mx-switch-mini" role="switch" aria-checked={moldura} onClick={() => setMoldura((v) => !v)} data-testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha">
+              <button type="button" className="mx-switch mx-switch-mini concave-3d" role="switch" aria-checked={moldura} onClick={() => setMoldura((v) => !v)} data-testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha">
                 <i /><span>Menor preço</span>
               </button>
               <button type="button" className="mx-th-sort" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}><Seta size={13} /></button>
             </div>
-            <button type="button" className="mx-switch mx-switch-mini" role="switch" aria-checked={soComp} onClick={() => setSoComp((v) => !v)} data-testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar">
+            <button type="button" className="mx-switch mx-switch-mini concave-3d" role="switch" aria-checked={soComp} onClick={() => setSoComp((v) => !v)} data-testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar">
               <i /><span>Só comparáveis</span>
             </button>
             <div className="mx-th-prod-l3"><span>Substâncias:</span><b>{nSubst}</b></div>
@@ -723,7 +723,7 @@ export default function MatrizFornecedores() {
                       cc.linha.isBlend && blendsAbertos.includes(cc.linha.varianteId) && (
                         <tr key={`bp-${cc.linha.varianteId}`} className="mx-blend-open">
                           <td colSpan={cols.length + 2}>
-                            <div className="mx-blend-pn" style={{ width: Math.max(640, Math.min((wrapRef.current?.clientWidth ?? 1000) - 104, 1100)) }}>
+                            <div className="mx-blend-pn panel-3d-sub" style={{ width: Math.max(640, Math.min((wrapRef.current?.clientWidth ?? 1000) - 104, 1100)) }}>
                               {(() => {
                                 const l = cc.linha; const comps = componentesDe(l);
                                 const cores = ["#2d73b5", "#c4572f", "#2f7d6b", "#8a4fb0", "#c9962b", "#3a8fa0", "#b0507a", "#7a6a2f"];
@@ -735,29 +735,29 @@ export default function MatrizFornecedores() {
                                 return (<>
                                   <div className="mx-bp-top">
                                     <section className="mx-bp-sec">
-                                      <h4>Composição · {vol}</h4>
+                                      <h4 className="bevel-3d">Composição · {vol}</h4>
                                       <div className="mx-bp-tab">
                                         {comps.map((k, i) => { const pr = propDe(l, k.dose).split(" · "); return (
-                                          <div key={i} className="mx-bp-row"><i style={{ background: cores[i % cores.length] }} /><span>{k.nome}</span><b>{k.dose || "—"}</b><em>{pr[0] || ""}</em><em>{pr[1] || ""}</em></div>); })}
+                                          <div key={i} className="mx-bp-row concave-3d"><i style={{ background: cores[i % cores.length] }} /><span>{k.nome}</span><b>{k.dose || "—"}</b><em>{pr[0] || ""}</em><em>{pr[1] || ""}</em></div>); })}
                                       </div>
                                     </section>
                                     <section className="mx-bp-sec mx-bp-tools">
-                                      <h4>Ferramentas</h4>
-                                      <button type="button" className="mx-btn" onClick={() => { const t = `${nomeDe(l)}: ${comps.map((k) => `${k.nome} ${k.dose}`.trim()).join(" + ")}`; try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ } avisar("Composição copiada."); }}><Copy size={13} />Copiar composição</button>
-                                      <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(l, false)); setModal("blend"); }}>Editar / incluir preço</button>
-                                      <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(l, true)); setModal("blend"); }}>Duplicar como novo</button>
-                                      <button type="button" className="mx-btn mx-btn-gold" disabled={cc.min === null} onClick={() => { avisar(`Menor preço de ${nomeDe(l)}: ${cc.vencedoras.map((w) => nomeForn(w.fornecedorId)).join(" e ")}. Abrindo o pedido por laboratório.`); setModal("ped"); }}>Pedir no menor preço</button>
+                                      <h4 className="bevel-3d">Ferramentas</h4>
+                                      <button type="button" className="btn-3d-soft mx-bp-btn" onClick={() => { const t = `${nomeDe(l)}: ${comps.map((k) => `${k.nome} ${k.dose}`.trim()).join(" + ")}`; try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ } avisar("Composição copiada."); }}><Copy size={13} />Copiar composição</button>
+                                      <button type="button" className="btn-3d-soft mx-bp-btn" onClick={() => { setBlendInicial(blendDe(l, false)); setModal("blend"); }}>Editar / incluir preço</button>
+                                      <button type="button" className="btn-3d-soft mx-bp-btn" onClick={() => { setBlendInicial(blendDe(l, true)); setModal("blend"); }}>Duplicar como novo</button>
+                                      <button type="button" className="btn-3d mx-bp-btn" disabled={cc.min === null} onClick={() => { avisar(`Menor preço de ${nomeDe(l)}: ${cc.vencedoras.map((w) => nomeForn(w.fornecedorId)).join(" e ")}. Abrindo o pedido por laboratório.`); setModal("ped"); }}>Pedir no menor preço</button>
                                     </section>
                                     <section className="mx-bp-sec">
-                                      <h4>Unidade por laboratório</h4>
+                                      <h4 className="bevel-3d">Unidade por laboratório</h4>
                                       <div className="mx-bp-labs">
-                                        {l.celulas.map((o) => <div key={o.fornecedorId} className="mx-bp-lab"><span><i className="mx-sw" style={{ background: corDe(o.fornecedorId) }} />{nomeForn(o.fornecedorId)}</span><V c={o.custoUnitarioCentavos} peso={700} className="" /></div>)}
+                                        {l.celulas.map((o) => <div key={o.fornecedorId} className="mx-bp-lab concave-3d"><span><i className="mx-sw" style={{ background: corDe(o.fornecedorId) }} />{nomeForn(o.fornecedorId)}</span><V c={o.custoUnitarioCentavos} peso={700} className="" /></div>)}
                                         {l.celulas.length === 0 && <span className="mx-empty">Sem preço de laboratório.</span>}
                                       </div>
                                     </section>
                                   </div>
                                   <div className="mx-bp-strip">
-                                    <h4>Proporção da mistura</h4>
+                                    <h4 className="bevel-3d">Proporção da mistura</h4>
                                     <div className="mx-bp-donut" role="img" aria-label="Proporção da mistura" style={{ background: `conic-gradient(${fatias})` }}><span>{comps.length}<small>ativos</small></span></div>
                                     <div className="mx-bp-leg">
                                       {comps.map((k, i) => <span key={i}><i style={{ background: cores[i % cores.length] }} />{k.nome} <b>{propDe(l, k.dose).split(" · ")[1] || ""}</b></span>)}

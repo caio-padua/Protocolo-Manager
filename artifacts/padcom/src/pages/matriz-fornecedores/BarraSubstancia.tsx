@@ -53,7 +53,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
         {copiado ? <Check size={16} /> : <Copy size={16} />}
       </button>
       <div className="mx-sbar-togs">
-        <div className="mx-sbar-tog"><button type="button" className="mx-switch" role="switch" aria-checked={soEsta} disabled={!l} onClick={() => onSoEsta(!soEsta)}><i /><span>Só esta substância</span></button><small>Mostra na tabela apenas as apresentações dela.</small></div>
+        <div className="mx-sbar-tog"><button type="button" className="mx-switch concave-3d" role="switch" aria-checked={soEsta} disabled={!l} onClick={() => onSoEsta(!soEsta)}><i /><span>Só esta substância</span></button><small>Mostra na tabela apenas as apresentações dela.</small></div>
         <div className="mx-sbar-qtd"><i>Apresentações desta substância</i><b>{l ? lista.filter((x) => x.linha.substanciaId === l.substanciaId).length : 0}</b></div>
       </div>
       <div className="mx-sbar-busca" ref={ref}>
