@@ -88,7 +88,7 @@ beforeAll(async () => {
     CREATE TABLE agenda_resources (id serial PRIMARY KEY, name text NOT NULL, kind text NOT NULL DEFAULT 'enfermagem', modality text NOT NULL DEFAULT 'local',
       color text NOT NULL DEFAULT '#3D7A7A', slot_minutes integer NOT NULL DEFAULT 30, professional_id integer, location_id integer,
       google_calendar_id text, category_id integer, active boolean NOT NULL DEFAULT true, sort_order integer NOT NULL DEFAULT 0,
-      external_cep text, external_logradouro text, external_bairro text, external_cidade text, external_uf text, external_numero text, external_complemento text, empresa_id integer,
+      external_cep text, external_logradouro text, external_bairro text, external_cidade text, external_uf text, external_numero text, external_complemento text, display_name text, empresa_id integer,
       created_at timestamptz NOT NULL DEFAULT now());
     CREATE TABLE agenda_windows (id serial PRIMARY KEY, resource_id integer NOT NULL, weekday integer NOT NULL, start_time text NOT NULL, end_time text NOT NULL,
       repeat_weeks integer NOT NULL DEFAULT 1, anchor_date text, active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now());
