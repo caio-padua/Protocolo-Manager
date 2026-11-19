@@ -1211,3 +1211,10 @@ main:has(.mx-root) {
 .mx-td.mx-sel { z-index: 1; }
 .mx-td.mx-td-frz, .mx-td.mx-td-frz.mx-sel { z-index: 2; }
 .mx-td.mx-td-fix, .mx-td.mx-td-fix.mx-sel { z-index: 3; }
+
+/* Cabeçalho do laboratório: 2 andares RESERVADOS para o nome; nome de 1 linha fica no andar de cima (nunca centralizado) */
+.mx-th-in.mx-th-lab { justify-content: space-between; }
+.mx-th-lab .mx-th-l1 { align-items: flex-start; }
+.mx-th-lab .mx-th-t { justify-content: flex-start; }
+.mx-th-lab .mx-th-t b { min-height: 2.3em; line-height: 1.15; }
+.mx-th-lab .mx-th-sort { margin-top: 0; }
