@@ -817,3 +817,18 @@ main:has(.mx-root) {
 .mx-sbar-tog small { display: none; }
 .mx-sbar-tog .mx-switch { height: 28px; }
 .mx-sbar-qtd { padding-top: 3px; }
+
+/* painel do blend aberto: colado abaixo da linha, com a largura da área visível (não da tabela inteira) */
+.mx-blend-pn { display: grid; grid-template-columns: 1.25fr 1fr 190px; gap: 22px; align-items: start; padding: 14px 18px 14px 18px; position: sticky; left: 88px; box-sizing: border-box; max-width: calc(100% - 88px); }
+.mx-blend-open td { padding: 0; }
+.mx-bp-sec h4 { margin: 0 0 6px; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.mx-bp-row { display: grid; grid-template-columns: 8px 1fr auto 74px 46px; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px dashed var(--line-2); font-size: 12px; }
+.mx-bp-row i { width: 8px; height: 8px; border-radius: 2px; }
+.mx-bp-row b { font: 700 12px Inter, sans-serif; text-align: right; }
+.mx-bp-row em { font-style: normal; font-size: 10.5px; color: var(--muted); text-align: right; white-space: nowrap; }
+.mx-bp-bar { display: flex; height: 12px; border-radius: 2px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(22,40,74,.35); }
+.mx-bp-bar span { min-width: 3px; }
+.mx-bp-lab { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 11.5px; padding: 2px 0; }
+.mx-bp-lab .mx-sw { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 2px; }
+.mx-bp-tools { display: flex; flex-direction: column; gap: 6px; }
+.mx-bp-tools .mx-btn { width: 100%; justify-content: flex-start; }

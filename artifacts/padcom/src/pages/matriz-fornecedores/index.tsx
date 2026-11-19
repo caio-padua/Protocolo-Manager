@@ -723,20 +723,40 @@ export default function MatrizFornecedores() {
                       cc.linha.isBlend && blendsAbertos.includes(cc.linha.varianteId) && (
                         <tr key={`bp-${cc.linha.varianteId}`} className="mx-blend-open">
                           <td colSpan={cols.length + 2}>
-                            <div className="mx-blend-pn">
-                              <div className="mx-blend-t"><b>Composição de {nomeDe(cc.linha)}</b><span>todas as substâncias abaixo estão dentro de {cc.linha.volumeMl ? `${Number(cc.linha.volumeMl).toLocaleString("pt-BR")} mL` : "um mesmo volume"}</span></div>
-                              <div className="mx-blend-l">
-                                {componentesDe(cc.linha).map((k, i) => <div key={i} className="mx-blend-i"><span>{k.nome}</span><b>{k.dose || "—"}</b><em className="mx-blend-prop">{propDe(cc.linha, k.dose)}</em></div>)}
-                              </div>
-                              <div className="mx-blend-l">
-                                {cc.linha.celulas.map((o) => <div key={o.fornecedorId} className="mx-blend-i"><span><i className="mx-sw" style={{ background: corDe(o.fornecedorId), marginRight: 6 }} />{nomeForn(o.fornecedorId)}</span><V c={o.custoUnitarioCentavos} peso={700} className="" /></div>)}
-                              </div>
-                              <div className="mx-blend-tools">
-                                <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(cc.linha, false)); setModal("blend"); }}>Editar / incluir preço</button>
-                                <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(cc.linha, true)); setModal("blend"); }}>Duplicar</button>
-                                <button type="button" className="mx-btn" disabled={cc.min === null} onClick={() => { avisar(`Menor preço de ${nomeDe(cc.linha)}: ${cc.vencedoras.map((w) => nomeForn(w.fornecedorId)).join(" e ")}. Abrindo o pedido por laboratório.`); setModal("ped"); }}>Pedir no menor preço</button>
-                              </div>
-                              <button type="button" className="mx-btn" onClick={() => { const t = `${nomeDe(cc.linha)}: ${componentesDe(cc.linha).map((k) => `${k.nome} ${k.dose}`.trim()).join(" + ")}`; try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ } avisar("Composição copiada."); }}><Copy size={13} />Copiar composição</button>
+                            <div className="mx-blend-pn" style={{ width: Math.max(720, Math.min((wrapRef.current?.clientWidth ?? 1000) - 8, 1180)) }}>
+                              {(() => {
+                                const l = cc.linha; const comps = componentesDe(l);
+                                const cores = ["#2d73b5", "#c4572f", "#2f7d6b", "#8a4fb0", "#c9962b", "#3a8fa0", "#b0507a", "#7a6a2f"];
+                                const pct = (d: string) => { const m = /([\d.,]+)%/.exec(propDe(l, d)); return m ? Number(m[1].replace(/\./g, "").replace(",", ".")) : 0; };
+                                const vol = l.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR")} mL` : "volume não informado";
+                                return (<>
+                                  <section className="mx-bp-sec">
+                                    <h4>Composição · {vol}</h4>
+                                    <div className="mx-bp-tab">
+                                      {comps.map((k, i) => { const pr = propDe(l, k.dose).split(" · "); return (
+                                        <div key={i} className="mx-bp-row"><i style={{ background: cores[i % cores.length] }} /><span>{k.nome}</span><b>{k.dose || "—"}</b><em>{pr[0] || ""}</em><em>{pr[1] || ""}</em></div>); })}
+                                    </div>
+                                  </section>
+                                  <section className="mx-bp-sec">
+                                    <h4>Proporção da mistura</h4>
+                                    <div className="mx-bp-bar" role="img" aria-label="Proporção da mistura">
+                                      {comps.map((k, i) => <span key={i} style={{ flex: Math.max(pct(k.dose), 0.5), background: cores[i % cores.length] }} title={`${k.nome}: ${propDe(l, k.dose)}`} />)}
+                                    </div>
+                                    <h4 style={{ marginTop: 10 }}>Unidade por laboratório</h4>
+                                    <div className="mx-bp-labs">
+                                      {l.celulas.map((o) => <div key={o.fornecedorId} className="mx-bp-lab"><span><i className="mx-sw" style={{ background: corDe(o.fornecedorId) }} />{nomeForn(o.fornecedorId)}</span><V c={o.custoUnitarioCentavos} peso={700} className="" /></div>)}
+                                      {l.celulas.length === 0 && <span className="mx-empty">Sem preço de laboratório.</span>}
+                                    </div>
+                                  </section>
+                                  <section className="mx-bp-sec mx-bp-tools">
+                                    <h4>Ferramentas</h4>
+                                    <button type="button" className="mx-btn" onClick={() => { const t = `${nomeDe(l)}: ${comps.map((k) => `${k.nome} ${k.dose}`.trim()).join(" + ")}`; try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ } avisar("Composição copiada."); }}><Copy size={13} />Copiar composição</button>
+                                    <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(l, false)); setModal("blend"); }}>Editar / incluir preço</button>
+                                    <button type="button" className="mx-btn" onClick={() => { setBlendInicial(blendDe(l, true)); setModal("blend"); }}>Duplicar como novo</button>
+                                    <button type="button" className="mx-btn mx-btn-gold" disabled={cc.min === null} onClick={() => { avisar(`Menor preço de ${nomeDe(l)}: ${cc.vencedoras.map((w) => nomeForn(w.fornecedorId)).join(" e ")}. Abrindo o pedido por laboratório.`); setModal("ped"); }}>Pedir no menor preço</button>
+                                  </section>
+                                </>);
+                              })()}
                             </div>
                           </td>
                         </tr>
