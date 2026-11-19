@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +63,15 @@ export function CollaboratorGate({ children }: { children: ReactNode }) {
     };
   }, [phase, token]);
 
+  // A faixa do colaborador sobe para o canto superior direito (a barra azul do topo, #aba-acoes).
+  // Sem essa barra (celular), ela fica no lugar de antes.
+  const [alvo, setAlvo] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.getElementById("aba-acoes");
+    const larga = typeof window.matchMedia === "function" && window.matchMedia("(min-width: 768px)").matches;
+    setAlvo(el && larga ? el : null);
+  }, [location]);
+
   if (phase === "checking") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">
@@ -75,36 +85,47 @@ export function CollaboratorGate({ children }: { children: ReactNode }) {
     return <Redirect to={`/login?returnTo=${returnTo}`} />;
   }
 
+  const faixaTopo = alvo !== null;
+  const faixa = (
+    <div
+      className={faixaTopo
+        ? "flex items-center gap-3 text-[11px] text-white/85"
+        : "mb-4 flex items-center justify-between rounded-md border border-[#16284a]/30 bg-[#16284a]/5 px-4 py-2"}
+      data-testid="faixa-colaborador"
+    >
+      <div className={faixaTopo ? "tracking-wide" : "text-sm"}>
+        <span className={`font-semibold uppercase tracking-wide ${faixaTopo ? "text-[#e3b659]" : "text-[#16284a]"}`}>
+          Colaborador
+        </span>{" "}
+        <span className={faixaTopo ? "text-white" : "text-foreground"}>{prof?.name ?? "—"}</span>
+        {prof?.role ? (
+          <span className={`ml-2 text-xs uppercase tracking-wide ${faixaTopo ? "text-white/60" : "text-muted-foreground"}`}>
+            {prof.role}
+          </span>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <Link href="/cadastros/auditoria">
+          <Button variant="outline" size={faixaTopo ? "sm" : "sm"} className={faixaTopo ? "h-7 rounded-[4px] border-[#e3b659]/60 bg-transparent px-3 text-[11px] text-[#e3b659] hover:bg-[#e3b659]/15 hover:text-[#e3b659]" : ""} data-testid="link-auditoria">
+            Auditoria
+          </Button>
+        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={faixaTopo ? "h-7 rounded-[4px] px-3 text-[11px] text-white/85 hover:bg-white/10 hover:text-white" : ""}
+          data-testid="button-logout-colaborador"
+          onClick={() => clearCollabSession()}
+        >
+          Sair
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between rounded-md border border-[#16284a]/30 bg-[#16284a]/5 px-4 py-2">
-        <div className="text-sm">
-          <span className="font-semibold uppercase tracking-wide text-[#16284a]">
-            Colaborador
-          </span>{" "}
-          <span className="text-foreground">{prof?.name ?? "—"}</span>
-          {prof?.role ? (
-            <span className="ml-2 text-xs uppercase tracking-wide text-muted-foreground">
-              {prof.role}
-            </span>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/cadastros/auditoria">
-            <Button variant="outline" size="sm" data-testid="link-auditoria">
-              Auditoria
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            data-testid="button-logout-colaborador"
-            onClick={() => clearCollabSession()}
-          >
-            Sair
-          </Button>
-        </div>
-      </div>
+      {alvo ? createPortal(faixa, alvo) : faixa}
       {children}
     </div>
   );
