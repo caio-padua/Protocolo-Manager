@@ -71,6 +71,7 @@ export default function MatrizFornecedores() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
   const [modal, setModal] = useState<null | "ped" | "res" | "blend">(null);
+  const [ferrAberto, setFerrAberto] = useState(true);
   const [substFoco, setSubstFoco] = useState<number | null>(null);
   const [pick, setPick] = useState<number | null>(null);
   const [blendsAbertos, setBlendsAbertos] = useState<number[]>([]);
@@ -500,7 +501,23 @@ export default function MatrizFornecedores() {
         </div>
       </div>
 
-      <div className="mx-panel mx-ctrl">
+      <div className="mx-panel mx-ferr">
+        <button type="button" className="mx-ferr-h" aria-expanded={ferrAberto} onClick={() => setFerrAberto((v) => !v)} data-testid="botao-ferramentas-planilha">
+          <ChevronDown size={15} className="mx-chev" data-open={ferrAberto ? 1 : 0} />
+          <b>Ferramentas da planilha</b>
+          {!ferrAberto && (
+            <span className="mx-ferr-pills">
+              <i>Via: {BOTOES_VIA.find((x) => x.id === viaSel)?.rotulo}</i>
+              <i>{labsVisiveis.length} laboratórios</i>
+              <i>{agrupar === "via" ? "Por via" : "Por categoria clínica"}</i>
+              <i>Referência: {MODO_TXT[modo]}</i>
+              {busca && <i>Busca: {busca}</i>}
+              {(soComp || soReserva || soFalta) && <i>Filtros ativos</i>}
+            </span>
+          )}
+          <small>{ferrAberto ? "recolher" : "abrir"}</small>
+        </button>
+      {ferrAberto && <div className="mx-ctrl">
         <div className="mx-crow">
           <span className="mx-rowlab">Buscar</span>
           <div className="mx-cl">
@@ -563,6 +580,7 @@ export default function MatrizFornecedores() {
             </div>
           </div>
         </div>
+      </div>}
       </div>
 
       <div className="mx-panel mx-fx" aria-live="polite">

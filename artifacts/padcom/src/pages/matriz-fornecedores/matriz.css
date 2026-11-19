@@ -560,3 +560,16 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 .mx-sbar-ot small { font-size: 10.5px; color: var(--muted); }
 .mx-sbar-pr { font-size: 12px; }
 .mx-sbar-vazio { padding: 10px; font-size: 12px; color: var(--muted); cursor: default; }
+
+/* painel "Ferramentas da planilha": abre e fecha com um clique */
+.mx-ferr { padding: 0; }
+.mx-ferr-h { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 14px; border: 0; background: transparent; cursor: pointer; text-align: left; color: var(--ink); font-family: inherit; }
+.mx-ferr-h b { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--navy); }
+.mx-ferr-h small { margin-left: auto; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.mx-ferr-h .mx-chev[data-open="0"] { transform: rotate(-90deg); }
+.mx-ferr-pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.mx-ferr-pills i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 2px 9px; border-radius: 10px; background: #e9edf6; border: 1px solid #c3cde4; color: var(--navy); }
+.mx-ferr > .mx-ctrl { border-top: 1px dashed var(--line-2); box-shadow: none; background: transparent; border-radius: 0; }
+/* fundo em risca de giz clara */
+.mx-root { background-color: #f6f2e6;
+  background-image: repeating-linear-gradient(90deg, rgba(22,40,74,.045) 0 1px, transparent 1px 22px); }
