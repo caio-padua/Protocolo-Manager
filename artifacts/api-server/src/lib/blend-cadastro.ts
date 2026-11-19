@@ -11,6 +11,7 @@ const FORMAS = ["ampola", "frasco"] as const;
 
 export type BlendEntrada = {
   nome: string; via: (typeof VIAS)[number]; forma: (typeof FORMAS)[number]; volumeMl: number;
+  categoria?: string;
   fornecedorId: number; quantidadeEmbalagem: number; precoCaixaCentavos: number;
   componentes: { nome: string; dose: number; unidade: (typeof UNIDADES)[number] }[];
 };
@@ -51,7 +52,8 @@ export function validarBlend(b: unknown): BlendEntrada {
     vistos.add(chave);
     return { nome: cn, dose, unidade: k.unidade as BlendEntrada["componentes"][number]["unidade"] };
   });
-  return { nome, via: o.via as BlendEntrada["via"], forma: o.forma as BlendEntrada["forma"], volumeMl, fornecedorId, quantidadeEmbalagem, precoCaixaCentavos, componentes };
+  const categoria = o.categoria === undefined || o.categoria === null || o.categoria === "" ? undefined : txt(o.categoria, 2, 60, "Categoria");
+  return { nome, categoria, via: o.via as BlendEntrada["via"], forma: o.forma as BlendEntrada["forma"], volumeMl, fornecedorId, quantidadeEmbalagem, precoCaixaCentavos, componentes };
 }
 
 const num = (n: number) => String(n).replace(".", ",");
@@ -73,9 +75,16 @@ export async function cadastrarBlend(pool: Pool, empresaId: number, profissional
     let substanciaNova = false;
     if (sub && !sub.is_blend) throw new ErroBlend(409, "Já existe um produto simples com este nome. Escolha outro nome para o blend.");
     if (!sub) {
+      let categoriaNome = "ORTOMOLECULAR";
+      if (entrada.categoria) {
+        const chave = entrada.categoria.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
+        const cat = await cli.query("SELECT nome FROM matriz_categorias WHERE chave=$1 AND ativo=true", [chave]);
+        if (!cat.rowCount) throw new ErroBlend(400, "Categoria inexistente ou inativa. Escolha uma da lista.");
+        categoriaNome = cat.rows[0].nome;
+      }
       const r = await cli.query(`INSERT INTO substances(name,category,color,procedure_type,category_type,sub_categoria,via_uso,disponivel,is_blend,composicao)
-        VALUES($1,'ORTOMOLECULAR','#3D7A7A',$2,'Blend','COMPOSTO',$3,false,true,$4) RETURNING id`,
-        [nome, entrada.via === "EV" ? "iv" : entrada.via === "SC" ? "sc" : "im", entrada.via, comp]);
+        VALUES($1,$5,'#3D7A7A',$2,'Blend','COMPOSTO',$3,false,true,$4) RETURNING id`,
+        [nome, entrada.via === "EV" ? "iv" : entrada.via === "SC" ? "sc" : "im", entrada.via, comp, categoriaNome]);
       sub = r.rows[0]; substanciaNova = true;
     }
     const vs = await cli.query("SELECT id,composicao,forma,volume_ml FROM substance_variantes WHERE empresa_id=$1 AND substance_id=$2", [empresaId, sub.id]);

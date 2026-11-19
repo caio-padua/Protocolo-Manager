@@ -4,6 +4,7 @@ import { FlaskConical, Plus, Trash2 } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import type { Fornecedor } from "./calculo";
 import { V } from "./componentes";
+import { Quadrado, useCategorias } from "./Categorias";
 
 export type Comp = { nome: string; dose: string; unidade: string };
 const VIAS = ["IM", "EV", "SC", "ID"] as const;
@@ -25,6 +26,10 @@ export function NovoBlend({ fornecedores, avisar, aoCriar, inicial }: { forneced
   const [caixa, setCaixa] = useState("");
   const [comps, setComps] = useState<Comp[]>(inicial?.comps.length ? inicial.comps : [vazio(), vazio()]);
   const [erro, setErro] = useState<string | null>(null);
+  const cats = useCategorias();
+  const ativas = cats.lista.filter((c) => c.ativo);
+  const [categoria, setCategoria] = useState<string>("");
+  const catSel = ativas.find((c) => c.chave === categoria) ?? ativas.find((c) => c.chave === "ORTOMOLECULAR") ?? ativas[0];
 
   const mudar = (i: number, patch: Partial<Comp>) => setComps((cs) => cs.map((c, k) => (k === i ? { ...c, ...patch } : c)));
   const validos = useMemo(() => comps.filter((c) => c.nome.trim().length >= 2 && numSimples(c.dose) > 0), [comps]);
@@ -38,7 +43,7 @@ export function NovoBlend({ fornecedores, avisar, aoCriar, inicial }: { forneced
       const r = await fetch("/api/matriz-fornecedores/blend", {
         method: "POST", headers: { ...collabAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({
-          nome: nome.trim(), via, forma, volumeMl: numSimples(volume), fornecedorId: lab, quantidadeEmbalagem: qtdN, precoCaixaCentavos: caixaCent,
+          nome: nome.trim(), categoria: catSel?.nome, via, forma, volumeMl: numSimples(volume), fornecedorId: lab, quantidadeEmbalagem: qtdN, precoCaixaCentavos: caixaCent,
           componentes: comps.map((c) => ({ nome: c.nome.trim(), dose: numSimples(c.dose), unidade: c.unidade })),
         }),
       });
@@ -58,6 +63,12 @@ export function NovoBlend({ fornecedores, avisar, aoCriar, inicial }: { forneced
       <div className="mx-nb-form">
         <div className="mx-fld"><span>Nome do blend</span>
           <div className="mx-well mx-fld-in"><input className="mx-txt" value={nome} maxLength={120} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Pool Cognitivo" aria-label="Nome do blend" /></div></div>
+        <div className="mx-fld"><span>Categoria</span>
+          <div className="mx-well mx-fld-in" style={{ gap: 10 }}>
+            {catSel && <Quadrado cat={catSel} tam={28} />}
+            <select className="mx-txt" value={catSel?.chave ?? ""} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoria do blend" data-testid="blend-categoria">
+              {ativas.map((c) => <option key={c.chave} value={c.chave}>{c.nome}</option>)}
+            </select></div></div>
         <div className="mx-nb-row">
           <div className="mx-fld"><span>Via de uso</span>
             <div className="mx-well mx-seg" role="group" aria-label="Via de uso do blend">
@@ -99,7 +110,7 @@ export function NovoBlend({ fornecedores, avisar, aoCriar, inicial }: { forneced
       <aside className="mx-panel mx-nb-prev" aria-label="Prévia do blend">
         <span className="mx-nb-h">Prévia</span>
         <div className="mx-nb-card">
-          <div className="mx-nb-title"><FlaskConical size={16} /><b>{nome.trim() || "Nome do blend"}</b><span className="mx-tag mx-tag-blend">Blend</span></div>
+          <div className="mx-nb-title">{catSel ? <Quadrado cat={catSel} tam={22} /> : <FlaskConical size={16} />}<b>{nome.trim() || "Nome do blend"}</b><span className="mx-tag mx-tag-blend">Blend</span></div>
           <div className="mx-nb-meta"><span>{via}</span><span>{forma === "ampola" ? "Ampola" : "Frasco"} de {numSimples(volume) || "—"} mL</span><span className="mx-tag mx-tag-conf">Indisponível até revisão</span></div>
           <div className="mx-chips" aria-label="Componentes">
             {validos.length === 0 && <span className="mx-empty">Preencha ao menos 2 componentes.</span>}
