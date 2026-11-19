@@ -73,6 +73,16 @@ export default function MatrizFornecedores() {
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
   const [modal, setModal] = useState<null | "ped" | "res" | "blend" | "cat">(null);
   const cats = useCategorias();
+  const [confA, setConfA] = useState<number | null>(null);
+  const [confB, setConfB] = useState<number | null>(null);
+  const trocarCat = useMutation({
+    mutationFn: async (a: { id: number; nome: string }) => {
+      const r = await fetch(`/api/substances/${a.id}`, { method: "PATCH", headers: { ...collabAuthHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ category: a.nome }) });
+      if (!r.ok) throw new Error("Não foi possível trocar a categoria. Nada foi alterado.");
+    },
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ["matriz-fornecedores-completa"] }); avisar("Categoria da substância atualizada."); },
+    onError: (e: Error) => avisar(e.message),
+  });
   const [ferrAberto, setFerrAberto] = useState(true);
   const [substFoco, setSubstFoco] = useState<number | null>(null);
   const [pick, setPick] = useState<number | null>(null);
@@ -234,6 +244,20 @@ export default function MatrizFornecedores() {
     setDesligados(forn.filter((f) => !novos.includes(f.id)).map((f) => f.id));
   };
   const ciclarSort = (key: SortKey) => setSort((s) => (!s || s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
+
+  /* ---- confronto A x B ---- */
+  const confronto = useMemo(() => {
+    if (confA === null || confB === null || confA === confB) return null;
+    let a = 0, b = 0, empate = 0, soma = 0;
+    for (const x of filtrados) {
+      const ca = x.linha.celulas.find((k) => k.fornecedorId === confA), cb = x.linha.celulas.find((k) => k.fornecedorId === confB);
+      if (!ca || !cb || ca.custoUnitarioCentavos <= 0 || cb.custoUnitarioCentavos <= 0) continue;
+      if (ca.custoUnitarioCentavos < cb.custoUnitarioCentavos) a++; else if (cb.custoUnitarioCentavos < ca.custoUnitarioCentavos) b++; else empate++;
+      soma += (cb.custoUnitarioCentavos - ca.custoUnitarioCentavos) / Math.max(ca.custoUnitarioCentavos, cb.custoUnitarioCentavos);
+    }
+    const n = a + b + empate;
+    return { a, b, empate, n, medio: n ? (soma / n) * 100 : 0 };
+  }, [filtrados, confA, confB]);
 
   /* ---- indicadores ---- */
   const comparaveis = filtrados.filter((x) => x.incl.length >= 2);
@@ -555,6 +579,24 @@ export default function MatrizFornecedores() {
           </div>
         </div>
         <div className="mx-crow">
+          <span className="mx-rowlab">Confronto</span>
+          <div className="mx-cl mx-conf" role="group" aria-label="Confronto entre dois laboratórios">
+            <select value={confA ?? ""} onChange={(e) => setConfA(e.target.value ? Number(e.target.value) : null)} aria-label="Laboratório A"><option value="">Laboratório A</option>{forn.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}</select>
+            <span className="mx-conf-x">×</span>
+            <select value={confB ?? ""} onChange={(e) => setConfB(e.target.value ? Number(e.target.value) : null)} aria-label="Laboratório B"><option value="">Laboratório B</option>{forn.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}</select>
+            {confronto ? (
+              confronto.n === 0 ? <span className="mx-empty">Nenhuma substância com preço dos dois.</span> : (
+                <span className="mx-conf-res" data-testid="confronto-resultado">
+                  <b style={{ color: corDe(confA as number) }}>{nomeForn(confA as number)}</b> mais barato em <b>{confronto.a}</b>
+                  <i /> <b style={{ color: corDe(confB as number) }}>{nomeForn(confB as number)}</b> mais barato em <b>{confronto.b}</b>
+                  <i /> empate em <b>{confronto.empate}</b><i /> de <b>{confronto.n}</b> comparáveis · diferença média <P v={Math.abs(confronto.medio)} className="" /> a favor de {confronto.medio === 0 ? "nenhum" : nomeForn(confronto.medio > 0 ? (confA as number) : (confB as number))}
+                </span>
+              )
+            ) : <span className="mx-empty">Escolha dois laboratórios diferentes.</span>}
+          </div>
+          <div className="mx-cr" />
+        </div>
+        <div className="mx-crow">
           <span className="mx-rowlab">Via de uso</span>
           <div className="mx-cl" role="group" aria-label="Via de uso">
             {BOTOES_VIA.map((x) => {
@@ -594,7 +636,7 @@ export default function MatrizFornecedores() {
       </div>
 
       <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
-        catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
+        onTrocarCat={(id, nome) => trocarCat.mutate({ id, nome })} catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
         onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
 
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
