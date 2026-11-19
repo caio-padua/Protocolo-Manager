@@ -782,3 +782,38 @@ main:has(.mx-root) {
 .mx-dz > :not(.mx-trave) { margin-inline: 6px; }
 .mx-dz > .mx-trave + * { margin-top: 10px; }
 .mx-dz > :last-child:not(.mx-trave) { margin-bottom: 8px; }
+
+/* ---- ajustes: cabeçalho do produto, coluna de categoria, barra da substância mais baixa ---- */
+.mx-th { height: 88px; }
+.mx-th-fix { left: 88px; }
+.mx-td-fix { left: 88px; }
+.mx-corner-cat { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: center; vertical-align: bottom; padding-bottom: 6px; }
+.mx-th-prod-in { display: flex; flex-direction: column; justify-content: center; gap: 4px; height: 100%; padding: 4px 10px 8px 12px; }
+.mx-th-prod-l1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.mx-switch-mini { height: 22px; gap: 7px; padding: 0 8px 0 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; align-self: flex-start; }
+.mx-switch-mini i { width: 28px; height: 14px; }
+.mx-switch-mini i::after { width: 10px; height: 10px; top: 2px; left: 2px; }
+.mx-switch-mini[aria-checked="true"] i::after { transform: translateX(14px); }
+.mx-th-prod-l3 { display: flex; align-items: baseline; gap: 6px; font-size: 11px; color: #cfd8ee; }
+.mx-th-prod-l3 b { font: 700 13px Inter, sans-serif; color: var(--gold); font-variant-numeric: tabular-nums; }
+.mx-cat-col { position: sticky; left: 48px; z-index: 3; width: 40px; padding: 0 !important; background: #fbf7ea; border-right: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+.mx-cat-col[data-zebra="1"] { background: #f5efdd; }
+.mx-cat-v { display: flex; align-items: center; justify-content: center; gap: 4px; height: 100%; min-height: 56px; padding: 6px 0; }
+.mx-cat-v-sig { writing-mode: vertical-rl; transform: rotate(180deg); font: 700 10.5px Inter, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+.mx-cat-v-bar { align-self: stretch; width: 7px; border-radius: 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), inset 0 -1px 0 rgba(0,0,0,.25), 0 0 0 1px rgba(0,0,0,.15); }
+
+/* barra da substância: mais baixa e alinhada */
+.mx-sbar { padding: 6px 14px; gap: 16px; }
+.mx-cat-q-forte { width: 54px !important; height: 54px !important; }
+.mx-cat-q-forte b { font-size: 17px !important; }
+.mx-sbar-sel { flex: 0 1 300px; min-width: 240px; grid-template-rows: 11px 24px 18px 18px; row-gap: 1px; padding-left: 14px; }
+.mx-sbar-l1 b { font-size: 20px; line-height: 24px; }
+.mx-sbar-l2, .mx-sbar-l3 { grid-template-columns: 38px auto auto; justify-content: start; column-gap: 8px; align-items: baseline; }
+.mx-sbar-l3 { grid-template-columns: 38px auto 26px auto; column-gap: 8px; }
+.mx-sbar-l2 span { font-size: 14px; }
+.mx-sbar-l3 span { font-size: 12px; }
+.mx-sbar-copy { width: 34px; height: 34px; }
+.mx-sbar-togs { width: 240px; gap: 4px; }
+.mx-sbar-tog small { display: none; }
+.mx-sbar-tog .mx-switch { height: 28px; }
+.mx-sbar-qtd { padding-top: 3px; }

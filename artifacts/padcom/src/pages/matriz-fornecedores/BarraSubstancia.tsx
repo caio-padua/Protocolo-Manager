@@ -6,8 +6,8 @@ import { V } from "./componentes";
 import { Quadrado, type CategoriaSubst } from "./Categorias";
 
 /** Barra logo acima da tabela: à esquerda a substância selecionada com a dose; à direita o seletor de busca (padrão do seletor de clientes). */
-export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, catDe, cats, onGerenciar }: {
-  catDe: (l: Calc["linha"]) => CategoriaSubst; cats: CategoriaSubst[]; onGerenciar: () => void;
+export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, catDe, cats }: {
+  catDe: (l: Calc["linha"]) => CategoriaSubst; cats: CategoriaSubst[]; onGerenciar?: () => void;
   atual: Calc | undefined; lista: Calc[]; onEscolher: (varianteId: number) => void; soEsta: boolean; onSoEsta: (v: boolean) => void;
 }) {
   const [texto, setTexto] = useState("");
@@ -75,7 +75,6 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
             <select value={catSel} onChange={(e) => setCatSel(e.target.value)} aria-label="Filtrar por categoria">
               <option value="">Todas as categorias</option>{cats.filter((c) => c.ativo).map((c) => <option key={c.chave} value={c.chave}>{c.nome}</option>)}
             </select>
-            <button type="button" className="mx-sbar-ger" onClick={onGerenciar}>Gerenciar</button>
           </div>
           <ul className="mx-sbar-lista" role="listbox">
             {opcoes.length === 0 && <li className="mx-sbar-vazio">Nenhuma substância com esse nome.</li>}

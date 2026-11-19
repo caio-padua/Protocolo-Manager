@@ -28,6 +28,7 @@ async function carregar(): Promise<Matriz> {
 }
 
 type Rascunho = { p: Parametros; c: ConfigCategoria[] };
+const CATW = 40;
 type ColKind = "prod" | "via" | "lab" | "best" | "eco" | "ref" | "custo" | "venda" | "orc" | "estq";
 type Col = { kind: ColKind; lab?: number; w: number; letter: string };
 type SortKey = "prod" | "best" | "eco" | "venda" | "estq";
@@ -161,7 +162,7 @@ export default function MatrizFornecedores() {
   const leftCongelado = (lab: number | undefined): number | undefined => {
     if (lab === undefined || !congelados.includes(lab)) return undefined;
     const k = cols.filter((x) => x.kind === "lab" && congelados.includes(x.lab as number)).findIndex((x) => x.lab === lab);
-    return 48 + 272 + 104 + 168 * k;
+    return 48 + CATW + 272 + 104 + 168 * k;
   };
   const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
   const c = Math.min(sel.c, cols.length - 1);
@@ -507,9 +508,29 @@ export default function MatrizFornecedores() {
     const titulo = lab ? lab.nome : ({ prod: "Produto", via: "Via", best: "Melhor valor", eco: "Economia", ref: "Referência", custo: "Custo efetivo", venda: "Venda", orc: "Orçamento", estq: "Estoque", lab: "" } as const)[col.kind];
     const sub = lab ? `${nPorLab[forn.indexOf(lab)]} apresentações${lab.ativo ? "" : " · inativo"}` : ({ prod: `${flat.length} apresentações`, via: "cadastro", best: "menor + laboratório", eco: "menor vs. maior", ref: MODO_TXT[modo], custo: "ref. + frete e perda", venda: "publicada · unidade", orc: "preço no Orçamento", estq: "livre · reservado", lab: "" } as const)[col.kind];
     const Seta = sort && sortKey === sort.key ? (sort.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown;
+    if (col.kind === "prod") {
+      const nSubst = new Set(filtrados.map((x) => x.linha.substanciaId)).size;
+      const parar = (e: { stopPropagation: () => void }) => e.stopPropagation();
+      return (
+        <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 48 + CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
+          <div className="mx-th-prod-in" onClick={parar}>
+            <div className="mx-th-prod-l1">
+              <button type="button" className="mx-switch mx-switch-mini" role="switch" aria-checked={moldura} onClick={() => setMoldura((v) => !v)} data-testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha">
+                <i /><span>Menor preço</span>
+              </button>
+              <button type="button" className="mx-th-sort" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}><Seta size={13} /></button>
+            </div>
+            <button type="button" className="mx-switch mx-switch-mini" role="switch" aria-checked={soComp} onClick={() => setSoComp((v) => !v)} data-testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar">
+              <i /><span>Só comparáveis</span>
+            </button>
+            <div className="mx-th-prod-l3"><span>Substâncias:</span><b>{nSubst}</b></div>
+          </div>
+        </th>
+      );
+    }
     return (
-      <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""} ${col.kind === "prod" ? "mx-th-fix" : ""} ${lab && congelados.includes(lab.id) ? "mx-th-frz" : ""}`}
-        style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: col.kind === "prod" ? 48 : leftCongelado(lab?.id) }}
+      <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""}  ${lab && congelados.includes(lab.id) ? "mx-th-frz" : ""}`}
+        style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: leftCongelado(lab?.id) }}
         data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
         <div className="mx-th-in">
           {lab && (
@@ -533,7 +554,7 @@ export default function MatrizFornecedores() {
     return <div className="p-6"><div className="panel-3d p-4 text-sm" role="alert">{q.isError ? (q.error as Error).message : "Carregando a matriz…"}</div></div>;
 
   let numero = 0;
-  const larguraTotal = 48 + cols.reduce((a, x) => a + x.w, 0);
+  const larguraTotal = 48 + CATW + cols.reduce((a, x) => a + x.w, 0);
   
   return (
     <div className="mx-root" data-testid="page-matriz-fornecedores">
@@ -598,15 +619,6 @@ export default function MatrizFornecedores() {
           </div>
         </div>
         <div className="mx-crow">
-          <span className="mx-rowlab">Destaques</span>
-          <div className="mx-cl">
-            <button type="button" className="mx-switch" role="switch" aria-checked={moldura} onClick={() => setMoldura((v) => !v)} data-testid="toggle-moldura-melhor-preco">
-              <i /><span>Moldura que circula no melhor preço</span>
-            </button>
-          </div>
-          <div className="mx-cr" />
-        </div>
-        <div className="mx-crow">
           <span className="mx-rowlab">Confronto</span>
           <div className="mx-cl mx-conf" role="group" aria-label="Confronto entre dois laboratórios">
             <select value={confA ?? ""} onChange={(e) => setConfA(e.target.value ? Number(e.target.value) : null)} aria-label="Laboratório A"><option value="">Laboratório A</option>{forn.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}</select>
@@ -669,14 +681,15 @@ export default function MatrizFornecedores() {
           </div>
         ) : (
           <table className="mx-table" style={{ width: "100%", minWidth: larguraTotal }} data-testid="tabela-matriz">
-            <colgroup><col style={{ width: 48 }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
+            <colgroup><col style={{ width: 48 }} /><col style={{ width: CATW }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
             <thead>
               <tr>
-                <th className="mx-corner" style={{ height: 26 }} />
+                <th className="mx-corner" style={{ height: 26 }} /><th className="mx-corner" style={{ height: 26, left: 48 }} />
                 {cols.map((x, i) => <th key={i} className="mx-letter" data-on={sel.modo !== "row" && c === i ? 1 : 0} onClick={() => setSel({ r, c: i, modo: "col" })}>{x.letter}</th>)}
               </tr>
               <tr>
-                <th className="mx-corner" style={{ top: 26, height: 56, zIndex: 8 }}><div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--gold-d)" }}><FileSpreadsheet size={16} /></div></th>
+                <th className="mx-corner" style={{ top: 26, height: 88, zIndex: 8 }}><div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--gold-d)" }}><FileSpreadsheet size={16} /></div></th>
+                <th className="mx-corner mx-corner-cat" style={{ top: 26, height: 88, zIndex: 8, left: 48 }} title="Categoria"><span>Cat.</span></th>
                 {cols.map(cabecalho)}
               </tr>
             </thead>
@@ -687,7 +700,7 @@ export default function MatrizFornecedores() {
                 const eco = comp.length ? (comp.reduce((a, x) => a + (x.eco as number), 0) / comp.length) * 100 : null;
                 return [
                   <tr key={`b-${g.id}`} className="mx-band" onClick={() => setFechados((f) => (f.includes(g.id) ? f.filter((x) => x !== g.id) : [...f, g.id]))}>
-                    <td colSpan={cols.length + 1}>
+                    <td colSpan={cols.length + 2}>
                       <div className="mx-band-in" data-open={aberto ? 1 : 0}>
                         <ChevronDown size={15} className="mx-chev" />{g.titulo}
                         <small>{g.todos.length} produtos</small>{g.margem !== null && <small>margem {pctTxt(g.margem)}</small>}
@@ -700,11 +713,16 @@ export default function MatrizFornecedores() {
                     return [
                       <tr key={cc.linha.varianteId} data-zebra={ri % 2} style={cc.linha.isBlend ? { ["--row" as string]: `${Math.max(84, 52 + componentesDe(cc.linha).length * 20 + 24)}px` } : undefined}>
                         <th className="mx-rn" scope="row" data-on={(sel.modo === "row" || sel.modo === "cell") && r === ri ? 1 : 0} onClick={() => setSel({ r: ri, c, modo: "row" })}>{ri + 1}</th>
+                        <td className="mx-cat-col" data-zebra={ri % 2}>{(() => { const k = cats.de(cc.linha); return (
+                          <div className="mx-cat-v" title={`${k.nome}${cc.linha.isBlend ? " · Blend" : ""}`}>
+                            <span className="mx-cat-v-sig">{k.sigla}</span>
+                            <i className="mx-cat-v-bar" style={{ background: k.cor }} />
+                          </div>); })()}</td>
                         {cols.map((col, ci) => celula(cc, col, ri, ci))}
                       </tr>,
                       cc.linha.isBlend && blendsAbertos.includes(cc.linha.varianteId) && (
                         <tr key={`bp-${cc.linha.varianteId}`} className="mx-blend-open">
-                          <td colSpan={cols.length + 1}>
+                          <td colSpan={cols.length + 2}>
                             <div className="mx-blend-pn">
                               <div className="mx-blend-t"><b>Composição de {nomeDe(cc.linha)}</b><span>todas as substâncias abaixo estão dentro de {cc.linha.volumeMl ? `${Number(cc.linha.volumeMl).toLocaleString("pt-BR")} mL` : "um mesmo volume"}</span></div>
                               <div className="mx-blend-l">

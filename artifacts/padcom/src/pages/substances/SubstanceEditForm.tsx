@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { BODY_SYSTEM_LABELS, barColorForScore, CATEGORY_METERS, CATEGORY_METER_ORDER } from "./shared";
 import { VariantesSubstanciaConsulta } from "./VariantesSubstanciaConsulta";
+import { GerenciarCategorias, Quadrado, useCategorias } from "../matriz-fornecedores/Categorias";
 
 const NULLABLE_TEXT = "";
 
@@ -442,6 +443,8 @@ export function SubstanceEditForm({
   const queryClient = useQueryClient();
   const update = useUpdateSubstance();
   const [form, setForm] = useState<Record<string, any>>({});
+  const categoriasMatriz = useCategorias();
+  const [gerenciarCategorias, setGerenciarCategorias] = useState(false);
   const [components, setComponents] = useState<BlendComponentDraft[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -595,6 +598,12 @@ export function SubstanceEditForm({
                     value={form.category}
                     onChange={(v) => setField("category", v)}
                   />
+                  <div className="mt-2 flex items-center gap-3" data-testid="categoria-sigla-cor">
+                    <Quadrado cat={categoriasMatriz.de({ classe: form.category ?? "" })} tam={36} />
+                    <span className="text-xs text-muted-foreground flex-1">Sigla e cor desta categoria (aparecem na Matriz de fornecedores).</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setGerenciarCategorias(true)}>Sigla e cor</Button>
+                  </div>
+                  {gerenciarCategorias && <GerenciarCategorias lista={categoriasMatriz.lista} onFechar={() => setGerenciarCategorias(false)} />}
                 </Field>
                 <Field label="Tipo / Categoria (exibição)">
                   <CatalogSelect
