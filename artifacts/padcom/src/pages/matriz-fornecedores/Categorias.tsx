@@ -35,12 +35,12 @@ export function useCategorias() {
 export function Quadrado({ cat, blend, tam = 32 }: { cat: CategoriaSubst; blend?: boolean; tam?: number }) {
   const letra = cat.fonte === "preta" ? "#111" : "#fff";
   return (
-    <span className="mx-cat-q bevel-3d" style={{
+    <span className={`mx-cat-q bevel-3d ${tam >= 48 ? "mx-cat-q-forte" : ""}`} style={{
       width: tam, height: tam, color: letra,
       background: `linear-gradient(180deg, rgba(255,255,255,.30) 0%, rgba(255,255,255,0) 48%, rgba(0,0,0,.16) 100%), ${cat.cor}`,
       borderColor: `color-mix(in srgb, ${cat.cor} 55%, #b8924d)`,
     }} title={`${cat.nome}${blend ? " · Blend" : ""}`}>
-      <b style={{ color: letra, textShadow: cat.fonte === "preta" ? "0 1px 0 rgba(255,255,255,.35)" : "0 1px 1px rgba(0,0,0,.35)" }}>{cat.sigla}</b>{blend && <i style={{ color: "#fff" }}>Blend</i>}
+      <b style={{ fontSize: Math.max(10.5, Math.round(tam * 0.3)), color: letra, textShadow: cat.fonte === "preta" ? "0 1px 0 rgba(255,255,255,.35)" : "0 1px 1px rgba(0,0,0,.35)" }}>{cat.sigla}</b>{blend && <i style={{ color: "#fff" }}>Blend</i>}
     </span>
   );
 }

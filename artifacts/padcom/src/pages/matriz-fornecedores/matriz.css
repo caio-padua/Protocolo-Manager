@@ -721,3 +721,25 @@ button.mx-apr { cursor: pointer; font: inherit; }
 .mx-catg-lista { display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow: auto; padding: 2px; }
 .mx-catg-item { display: grid; grid-template-columns: 40px 1fr 90px 130px 210px 70px; gap: 10px; align-items: center; padding: 8px 12px; }
 .mx-catg-item[data-off="1"] { opacity: .5; }
+
+/* Barra da substância: posições fixas (nome / dose / concentração e volume) e placa em Up Bevel forte */
+.mx-sbar { gap: 18px; }
+.mx-cat-q-forte { border-radius: 8px; border: 1px solid rgba(0,0,0,.35) !important;
+  box-shadow: inset 0 3px 2px rgba(255,255,255,.65), inset 0 -4px 3px rgba(0,0,0,.38), inset 2px 0 2px rgba(255,255,255,.2), inset -2px 0 2px rgba(0,0,0,.15), 0 5px 0 rgba(0,0,0,.28), 0 9px 14px -4px rgba(22,40,74,.5) !important; }
+.mx-cat-q-forte b { transform: none; text-shadow: 0 1px 1px rgba(0,0,0,.4); letter-spacing: .03em; }
+.mx-cat-q-forte i { height: 13px; font-size: 8px; line-height: 13px; }
+.mx-cat-q-vazio { width: 64px; height: 64px; flex: none; }
+.mx-sbar-sel { flex: 1; display: grid; grid-template-rows: auto 26px 20px 20px; gap: 2px; }
+.mx-sbar-l1 b { display: block; font: 700 21px/26px "EB Garamond", serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-sbar-l2, .mx-sbar-l3 { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.mx-sbar-l2 i, .mx-sbar-l3 i { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); width: 34px; }
+.mx-sbar-l3 i:nth-of-type(2) { margin-left: 14px; width: 26px; }
+.mx-sbar-l2 span { font: 700 15px Inter, sans-serif; color: #8a6a1c; }
+.mx-sbar-l3 span { font: 600 12.5px Inter, sans-serif; }
+.mx-sbar-copy { width: 40px; height: 40px; flex: none; display: grid; place-items: center; cursor: pointer; border-radius: 6px; color: var(--navy); }
+.mx-sbar-togs { display: flex; flex-direction: column; gap: 6px; width: 250px; flex: none; }
+.mx-sbar-togs .mx-check > span { display: flex; flex-direction: column; }
+.mx-sbar-togs .mx-check small { font-size: 10.5px; color: var(--muted); font-weight: 400; }
+.mx-sbar-qtd { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line-2); padding-top: 4px; }
+.mx-sbar-qtd i { font-style: normal; font-size: 10.5px; color: var(--muted); }
+.mx-sbar-qtd b { font: 700 16px Inter, sans-serif; font-variant-numeric: tabular-nums; }
