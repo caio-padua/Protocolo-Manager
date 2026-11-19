@@ -1,0 +1,10 @@
+/* Opção B, ferramentas do meio mais estreitas: sobra área para dose, concentração e volume; a lista da busca abre logo abaixo do campo */
+.pn-B .pn-top { grid-template-columns: minmax(0, 1fr) 250px; gap: 6px 22px; }
+.pn-B .pn-actions { gap: 5px; align-content: center; }
+.pn-B .pn-actions-r1 { display: grid; grid-template-columns: 1fr; gap: 5px; }
+.pn-B .pn-actions .pn-btn, .pn-B .pn-actions .pn-tg { width: 100%; min-width: 0; height: 28px; font-size: 9.5px; letter-spacing: .05em; justify-content: flex-start; padding-left: 8px; padding-right: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pn-B .pn-sel { width: 100%; }
+.pn-B .pn-sel-in { height: 28px; }
+.pn-B .pn-pop { top: calc(100% + 4px); left: auto; right: 0; width: 340px; max-width: calc(100vw - 40px); }
+.pn-B .pn-facts { gap: 26px; }
+.pn-B .pn-l2 { gap: 28px; }
