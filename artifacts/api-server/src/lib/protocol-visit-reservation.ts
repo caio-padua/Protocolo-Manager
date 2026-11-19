@@ -5,6 +5,7 @@ import {
   sessionsTable, substanceApplicationsTable, substancesTable,
 } from "@workspace/db";
 import { lockAgendaResource, SIM_TAG } from "./agenda-booking";
+import { reservarEstoqueDoProtocolo } from "./estoque-ganchos";
 import { loadProtocolSlots } from "./protocol-slot-source";
 import { NURSING_PERIOD_MINUTES, sizeVisit } from "./protocol-visit-sizing";
 import { durationSecondsFromMinutes, substanceDurationMinutes } from "./substance-duration";
@@ -514,6 +515,8 @@ export async function reserveProtocolVisits(
       await tx.update(protocolsTable)
         .set({ status: "validated", scheduledTime: visits[0].time, unit: resource.locationName, serviceType: "clinic" })
         .where(eq(protocolsTable.id, protocol.id));
+      // Protocolo confirmado: as unidades de cada item saem do estoque estático e ficam reservadas (dinâmico).
+      await reservarEstoqueDoProtocolo(tx, protocol.id);
       return { ok: true, protocolStatus: "validated", visits: reserved };
     });
   } catch (error) {

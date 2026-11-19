@@ -1,171 +1,570 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { RotateCw, Search, Table2, Trophy } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Copy, FileSpreadsheet, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
-import { Valor } from "@/components/numeral/Numeral";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Numeral } from "@/components/numeral/Numeral";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  CATEGORIAS, MODO_TXT, calcular, doseCurta, unidadeTxt,
+  type Calc, type Categoria, type ConfigCategoria, type Matriz, type Parametros, type ReferenciaModo,
+} from "./calculo";
+import { P, V, brl, pctTxt, qtdTxt, sinal } from "./componentes";
+import { Modal, PedidoPorLaboratorio, ReservasDeEstoque } from "./Modais";
+import { PrecificacaoDock } from "./PrecificacaoDock";
+import "./matriz.css";
 
-type Celula = { fornecedorId: number; custoUnitarioCentavos: number; custoEmbalagemCentavos: number; quantidadeEmbalagem: number };
-type Categoria = "IM" | "SC" | "IMPLANTE" | "OUTRAS" | "SEM_VIA";
-type Linha = {
-  varianteId: number; produto: string; doseTotal: string; forma: string; volumeMl: string | null;
-  via: string | null; categoria: Categoria; celulas: Celula[];
-};
-type Fornecedor = { id: number; nome: string; ativo: boolean };
-type Matriz = { fornecedores: Fornecedor[]; linhas: Linha[] };
-
-// Uma cor por laboratório (ordem fixa do cadastro): bate o olho e reconhece quem tem o menor preço.
-const CORES = ["#c9962b", "#2f7d6b", "#7a4fb5", "#c4503f", "#2d6cb0", "#8a6d2f"];
-const CATEGORIAS: { id: Categoria | "TODAS"; nome: string }[] = [
-  { id: "TODAS", nome: "Todas" }, { id: "IM", nome: "Injetáveis IM" }, { id: "SC", nome: "Injetáveis SC" },
-  { id: "IMPLANTE", nome: "Implantes" }, { id: "OUTRAS", nome: "Outras vias" }, { id: "SEM_VIA", nome: "Sem via" },
-];
+const CORES = ["#2d73b5", "#8a4fb0", "#c4572f", "#2f7d6b", "#c9962b", "#6d7a8f"];
 
 async function carregar(): Promise<Matriz> {
-  const r = await fetch("/api/matriz-fornecedores", { headers: collabAuthHeaders() });
+  const r = await fetch("/api/matriz-fornecedores/completa", { headers: collabAuthHeaders() });
   if (r.status === 401) throw new Error("Entre novamente com seu acesso profissional.");
   if (r.status === 403) throw new Error("Somente o proprietário pode ver esta matriz.");
   if (!r.ok) throw new Error("A matriz está indisponível neste momento.");
   return r.json();
 }
 
+type Rascunho = { p: Parametros; c: ConfigCategoria[] };
+type ColKind = "prod" | "via" | "lab" | "best" | "eco" | "ref" | "custo" | "venda" | "orc" | "estq";
+type Col = { kind: ColKind; lab?: number; w: number; letter: string };
+type SortKey = "prod" | "best" | "eco" | "venda" | "estq";
+type Num = { v: number; tipo: "money" | "pct" | "qtd" };
+
+const numeroDaCelula = (c: Calc, col: Col): Num | null => {
+  if (col.kind === "lab") { const o = c.linha.celulas.find((x) => x.fornecedorId === col.lab); return o ? { v: o.custoUnitarioCentavos, tipo: "money" } : null; }
+  if (col.kind === "best") return c.min === null ? null : { v: c.min, tipo: "money" };
+  if (col.kind === "eco") return c.eco === null ? null : { v: c.eco * 100, tipo: "pct" };
+  if (col.kind === "ref") return c.ref === null ? null : { v: c.ref, tipo: "money" };
+  if (col.kind === "custo") return c.forma === null ? null : { v: c.forma.custoEfetivo, tipo: "money" };
+  if (col.kind === "venda") return c.pub === null ? null : { v: c.pub, tipo: "money" };
+  if (col.kind === "orc") return c.linha.orcamento ? { v: c.linha.orcamento.precoCentavos, tipo: "money" } : null;
+  if (col.kind === "estq") return c.linha.estoque ? { v: c.linha.estoque.estatico, tipo: "qtd" } : null;
+  return null;
+};
+const fmtNum = (n: Num) => (n.tipo === "money" ? brl(Math.round(n.v)) : n.tipo === "pct" ? pctTxt(n.v) : qtdTxt(n.v));
+
 export default function MatrizFornecedores() {
-  const q = useQuery({ queryKey: ["matriz-fornecedores"], queryFn: carregar });
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["matriz-fornecedores-completa"], queryFn: carregar });
+  const dados = q.data;
+
+  const [rascunho, setRascunho] = useState<Rascunho | null>(null);
+  const servidorRef = useRef("");
+  useEffect(() => {
+    if (!dados) return;
+    const novo: Rascunho = { p: dados.parametros, c: dados.categorias };
+    const json = JSON.stringify(novo);
+    setRascunho((prev) => (prev === null || JSON.stringify(prev) === servidorRef.current ? novo : prev));
+    servidorRef.current = json;
+  }, [dados]);
+  const sujo = !!rascunho && JSON.stringify(rascunho) !== servidorRef.current;
+
   const [busca, setBusca] = useState("");
-  const [categoria, setCategoria] = useState<Categoria | "TODAS">("TODAS");
-  const [soComPreco, setSoComPreco] = useState(false);
-  const [escondidos, setEscondidos] = useState<number[]>([]);
+  const [catSel, setCatSel] = useState<Categoria | "TODAS">("TODAS");
+  const [soComp, setSoComp] = useState(false);
+  const [soReserva, setSoReserva] = useState(false);
+  const [soFalta, setSoFalta] = useState(false);
+  const [desligados, setDesligados] = useState<number[] | null>(null);
+  const [fechados, setFechados] = useState<Categoria[]>([]);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
+  const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
+  const [modal, setModal] = useState<null | "ped" | "res">(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const buscaRef = useRef<HTMLInputElement>(null);
+  const toastT = useRef<number | undefined>(undefined);
 
-  const forn = q.data?.fornecedores ?? [];
-  const cor = (id: number) => CORES[Math.max(0, forn.findIndex((f) => f.id === id)) % CORES.length];
-  const nome = (id: number) => forn.find((f) => f.id === id)?.nome ?? "—";
-  const visiveis = forn.filter((f) => !escondidos.includes(f.id));
+  const forn = dados?.fornecedores ?? [];
+  const corDe = useCallback((id: number) => CORES[Math.max(0, forn.findIndex((f) => f.id === id)) % CORES.length], [forn]);
+  // Por padrão a comparação usa os laboratórios ativos do cadastro (a mesma regra do servidor ao publicar).
+  const ligados = useMemo(() => new Set(forn.filter((f) => (desligados ?? forn.filter((x) => !x.ativo).map((x) => x.id)).indexOf(f.id) < 0).map((f) => f.id)), [forn, desligados]);
+  const difereDoCadastro = forn.some((f) => ligados.has(f.id) !== f.ativo);
 
-  const linhas = useMemo(() => {
+  const parametros = rascunho?.p ?? dados?.parametros;
+  const categorias = rascunho?.c ?? dados?.categorias;
+  const margens = useMemo(() => Object.fromEntries((categorias ?? []).map((c) => [c.categoria, c.margemPct])) as Record<Categoria, number>, [categorias]);
+  const todos = useMemo(() => (dados && parametros ? dados.linhas.map((l) => calcular(l, ligados, parametros, margens)) : []), [dados, parametros, margens, ligados]);
+
+  const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    return (q.data?.linhas ?? []).filter((l) =>
-      (categoria === "TODAS" || l.categoria === categoria) &&
-      (!soComPreco || l.celulas.length > 0) &&
-      (!t || `${l.produto} ${l.doseTotal}`.toLowerCase().includes(t)));
-  }, [q.data, busca, categoria, soComPreco]);
+    return todos.filter((c) =>
+      (catSel === "TODAS" || c.linha.categoria === catSel) &&
+      (!soComp || c.incl.length >= 2) &&
+      (!soReserva || (c.linha.estoque?.dinamico ?? 0) > 0) &&
+      (!soFalta || (c.linha.estoque?.falta ?? 0) > 0) &&
+      (!t || `${c.linha.produto} ${c.linha.doseTotal}`.toLowerCase().includes(t)));
+  }, [todos, busca, catSel, soComp, soReserva, soFalta]);
 
-  const alternar = (id: number) => setEscondidos((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id]));
+  const grupos = useMemo(() => CATEGORIAS.map((cat) => {
+    let lista = filtrados.filter((c) => c.linha.categoria === cat.id);
+    if (sort) {
+      const chave = (c: Calc): number | string | null =>
+        sort.key === "prod" ? `${c.linha.produto} ${c.linha.doseTotal}` : sort.key === "best" ? c.min : sort.key === "eco" ? c.eco : sort.key === "estq" ? (c.linha.estoque?.estatico ?? null) : c.pub;
+      lista = [...lista].sort((a, b) => {
+        const x = chave(a), y = chave(b);
+        if (x === null && y === null) return 0;
+        if (x === null) return 1;
+        if (y === null) return -1;
+        return (typeof x === "string" ? x.localeCompare(y as string, "pt-BR") : (x as number) - (y as number)) * sort.dir;
+      });
+    }
+    return { cat, todos: lista, abertos: fechados.includes(cat.id) ? [] : lista };
+  }).filter((g) => g.todos.length > 0), [filtrados, sort, fechados]);
+
+  const flat = useMemo(() => grupos.flatMap((g) => g.abertos), [grupos]);
+  const labsVisiveis = forn.filter((f) => ligados.has(f.id));
+  const cols: Col[] = useMemo(() => {
+    const base: Omit<Col, "letter">[] = [
+      { kind: "prod", w: 272 }, { kind: "via", w: 104 },
+      ...labsVisiveis.map((f) => ({ kind: "lab" as const, lab: f.id, w: 168 })),
+      { kind: "best", w: 160 }, { kind: "eco", w: 128 }, { kind: "ref", w: 112 }, { kind: "custo", w: 128 },
+      { kind: "venda", w: 176 }, { kind: "orc", w: 168 }, { kind: "estq", w: 176 },
+    ];
+    return base.map((c, i) => ({ ...c, letter: String.fromCharCode(65 + i) }));
+  }, [labsVisiveis]);
+
+  const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
+  const c = Math.min(sel.c, cols.length - 1);
+  const atual = flat[r];
+  const colAtual = cols[c];
+
+  const avisar = useCallback((t: string) => {
+    setToast(t);
+    window.clearTimeout(toastT.current);
+    toastT.current = window.setTimeout(() => setToast(null), 3200);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const tag = document.activeElement?.tagName;
+      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") { e.preventDefault(); buscaRef.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => {
+    wrapRef.current?.querySelector<HTMLElement>(`[data-r="${r}"][data-c="${c}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [r, c, flat.length]);
+
+  /* ---- gravar ---- */
+  const enviar = async (url: string, metodo: string, corpo: unknown) => {
+    const resp = await fetch(url, { method: metodo, headers: { ...collabAuthHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+    const j = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(j.error ?? "Não foi possível gravar agora. Nada foi alterado.");
+    return j as { publicadas: number; inviaveis: number };
+  };
+  const recarregar = () => qc.invalidateQueries({ queryKey: ["matriz-fornecedores-completa"] });
+  const salvar = useMutation({
+    mutationFn: async () => enviar("/api/precificacao", "PUT", { parametros: rascunho!.p, categorias: rascunho!.c }),
+    onSuccess: async (j) => { await recarregar(); avisar(`Precificação salva. ${j.publicadas} preços publicados${j.inviaveis ? `, ${j.inviaveis} inviáveis` : ""}.`); },
+    onError: (e: Error) => avisar(e.message),
+  });
+  const aplicar = useMutation({
+    mutationFn: async (cat: Categoria) => {
+      if (sujo) await enviar("/api/precificacao", "PUT", { parametros: rascunho!.p, categorias: rascunho!.c });
+      return enviar("/api/precificacao/aplicar", "POST", { categorias: [cat] });
+    },
+    onSuccess: async (j) => { await recarregar(); avisar(`Novos preços aplicados: ${j.publicadas} publicados no Orçamento e nas Substâncias.`); },
+    onError: (e: Error) => avisar(e.message),
+  });
+
+  const textoCelula = (cc: Calc, col: Col): string => {
+    if (col.kind === "prod") return `${cc.linha.produto} ${cc.linha.doseTotal}`;
+    if (col.kind === "via") return cc.linha.via || "—";
+    const n = numeroDaCelula(cc, col);
+    return n ? fmtNum(n) : "—";
+  };
+  const copiar = () => {
+    if (!atual || !colAtual) return;
+    const t = textoCelula(atual, colAtual);
+    try { void navigator.clipboard?.writeText(t); } catch { /* sem permissão */ }
+    avisar(`Copiado: ${t}`);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const mov = (dr: number, dc: number) => { e.preventDefault(); setSel({ r: Math.min(Math.max(r + dr, 0), flat.length - 1), c: Math.min(Math.max(c + dc, 0), cols.length - 1), modo: "cell" }); };
+    if (e.key === "ArrowDown") mov(1, 0);
+    else if (e.key === "ArrowUp") mov(-1, 0);
+    else if (e.key === "ArrowRight") mov(0, 1);
+    else if (e.key === "ArrowLeft") mov(0, -1);
+    else if (e.key === "Home") { e.preventDefault(); setSel({ r: e.ctrlKey ? 0 : r, c: 0, modo: "cell" }); }
+    else if (e.key === "End") { e.preventDefault(); setSel({ r: e.ctrlKey ? flat.length - 1 : r, c: cols.length - 1, modo: "cell" }); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") { e.preventDefault(); copiar(); }
+  };
+  const alternarLab = (id: number) => {
+    const atuais = forn.filter((f) => ligados.has(f.id)).map((f) => f.id);
+    if (ligados.has(id) && atuais.length === 1) { avisar("Mantenha ao menos um laboratório ligado."); return; }
+    const novos = ligados.has(id) ? atuais.filter((x) => x !== id) : [...atuais, id];
+    setDesligados(forn.filter((f) => !novos.includes(f.id)).map((f) => f.id));
+  };
+  const ciclarSort = (key: SortKey) => setSort((s) => (!s || s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
+
+  /* ---- indicadores ---- */
+  const comparaveis = filtrados.filter((x) => x.incl.length >= 2);
+  const ecoMedia = comparaveis.length ? (comparaveis.reduce((a, x) => a + (x.eco as number), 0) / comparaveis.length) * 100 : null;
+  const unicas = useMemo(() => { const m = new Map<number, NonNullable<Calc["linha"]["estoque"]>>(); for (const t of todos) if (t.linha.estoque) m.set(t.linha.substanciaId, t.linha.estoque); return [...m.values()]; }, [todos]);
+  const reservadas = unicas.reduce((a, e) => a + e.dinamico, 0);
+  const emFalta = unicas.filter((e) => e.falta > 0).length;
+  const placar = forn.map((f) => filtrados.filter((x) => x.vencedoras[0]?.fornecedorId === f.id).length);
+  const nPorLab = forn.map((f) => todos.filter((x) => x.linha.celulas.some((cl) => cl.fornecedorId === f.id)).length);
+  const comPreco = todos.filter((x) => x.linha.celulas.length > 0).length;
+
+  const estat = useMemo(() => {
+    let nums: Num[] = []; let rotulo = "";
+    if (sel.modo === "row" && atual) { nums = cols.map((cl) => numeroDaCelula(atual, cl)).filter((x): x is Num => !!x && x.tipo === "money"); rotulo = `Linha ${r + 1}`; }
+    else if (colAtual) { nums = flat.map((cc) => numeroDaCelula(cc, colAtual)).filter((x): x is Num => !!x); rotulo = `Coluna ${colAtual.letter}`; }
+    if (!nums.length) return null;
+    const vs = nums.map((n) => n.v); const tipo = nums[0].tipo; const f = (v: number) => fmtNum({ v, tipo });
+    return { rotulo, n: vs.length, min: f(Math.min(...vs)), max: f(Math.max(...vs)), media: f(vs.reduce((a, b) => a + b, 0) / vs.length) };
+  }, [sel.modo, atual, cols, colAtual, flat, r]);
+
+  /* ---- barra de fórmula ---- */
+  const nomeForn = (id: number) => forn.find((f) => f.id === id)?.nome ?? "—";
+  const modo = parametros?.referenciaModo ?? "maior";
+  const descricao = (): ReactNode => {
+    if (!atual || !colAtual || !parametros) return <span style={{ color: "var(--muted)" }}>Nenhuma célula selecionada.</span>;
+    const l = atual.linha;
+    const enc = parametros.impostosPct + parametros.cartaoPct + parametros.comissaoPct + parametros.despesasPct;
+    if (colAtual.kind === "prod")
+      return <>{l.produto} · dose {l.doseTotal} · concentração {l.concentracao ?? "não informada"} · {CATEGORIAS.find((x) => x.id === l.categoria)?.nome} · mesma dose = mesmo produto, mesmo com concentração diferente</>;
+    if (colAtual.kind === "via") return <>Via de uso cadastrada: {l.via || "não informada (a categoria não é adivinhada)"}</>;
+    if (colAtual.kind === "lab") {
+      const o = l.celulas.find((x) => x.fornecedorId === colAtual.lab);
+      if (!o) return <>{nomeForn(colAtual.lab as number)} · sem preço para esta apresentação</>;
+      return <>{nomeForn(o.fornecedorId)} · caixa com {o.quantidadeEmbalagem} {unidadeTxt(l.forma, o.quantidadeEmbalagem)} <V c={o.custoEmbalagemCentavos} className="mx-fxn" /> · <V c={o.custoUnitarioCentavos} className="mx-fxn" /> por unidade</>;
+    }
+    if (colAtual.kind === "best")
+      return atual.min === null ? <>Sem preço comparável.</> : <>Menor preço: <V c={atual.min} className="mx-fxn" /> · {atual.vencedoras.map((w) => nomeForn(w.fornecedorId)).join(" e ")}{atual.max !== null && atual.max !== atual.min ? " · maior: " : " · única oferta, sem comparação"}{atual.max !== null && atual.max !== atual.min && <V c={atual.max} className="mx-fxn" />}</>;
+    if (colAtual.kind === "eco") return atual.eco === null ? <>É preciso ao menos 2 ofertas para comparar.</> : <>Economia de <P v={atual.eco * 100} className="mx-fxn" /> do menor sobre o maior preço.</>;
+    if (colAtual.kind === "ref") return atual.ref === null ? <>Sem referência.</> : <>Referência ({MODO_TXT[modo].toLowerCase()}): <V c={atual.ref} className="mx-fxn" />. É a base do preço de venda que alimenta Orçamento e Substâncias.</>;
+    if (colAtual.kind === "custo")
+      return atual.forma === null ? <>{atual.invalido ? "A soma de encargos e margem passa de 95%: ajuste a precificação." : "Sem custo."}</> :
+        <><V c={atual.forma.referencia} className="mx-fxn" /> + frete <P v={parametros.fretePct} className="mx-fxn" /> + perda <P v={parametros.perdaPct} className="mx-fxn" /> = custo efetivo <V c={Math.round(atual.forma.custoEfetivo)} className="mx-fxn" /></>;
+    if (colAtual.kind === "orc")
+      return l.orcamento
+        ? <>Item do Orçamento &quot;{l.orcamento.nome}&quot; está com <V c={l.orcamento.precoCentavos} className="mx-fxn" />{atual.pub === null ? " · ainda não há preço publicado pela matriz" : l.orcamento.precoCentavos === atual.pub ? " · igual ao preço publicado" : " · diferente do preço publicado (o Orçamento só muda quando a matriz publica)"}</>
+        : <>Sem ligação automática com o Orçamento: a substância tem mais de uma apresentação ou não consta no catálogo do Orçamento.</>;
+    if (colAtual.kind === "estq")
+      return l.estoque
+        ? <>Físico {qtdTxt(l.estoque.fisico)} · reservado para protocolos confirmados {qtdTxt(l.estoque.dinamico)} · livre {qtdTxt(l.estoque.estatico)}{l.estoque.falta > 0 ? ` · faltam ${qtdTxt(l.estoque.falta)} para cobrir as reservas` : ""} (estoque por substância, todas as apresentações)</>
+        : <>Sem lote cadastrado e sem reserva para esta substância.</>;
+    if (atual.forma === null) return <>{atual.invalido ? "A soma de encargos e margem passa de 95%: ajuste a precificação." : "Sem preço."}</>;
+    return <><V c={Math.round(atual.forma.custoEfetivo)} className="mx-fxn" /> ÷ (1 − <P v={enc} className="mx-fxn" /> encargos − <P v={atual.margem} className="mx-fxn" /> margem) = <V c={atual.forma.venda} className="mx-fxn" />{parametros.arredondamento !== "nenhum" ? ` (arredondado ${parametros.arredondamento === "90" ? "para ,90" : "para o real"})` : ""} · lucro <V c={Math.round(atual.forma.lucro)} className="mx-fxn" />{atual.linha.publicado ? ` · publicado em ${new Date(atual.linha.publicado.publicadoEm).toLocaleDateString("pt-BR")}` : " · ainda não publicado"}</>;
+  };
+
+  /* ---- células ---- */
+  const tdProps = (ri: number, ci: number) => ({ "data-r": ri, "data-c": ci, onClick: () => { setSel({ r: ri, c: ci, modo: "cell" }); wrapRef.current?.focus(); } });
+  const cls = (ri: number, ci: number, extra = "") =>
+    `mx-td ${extra} ${sel.modo === "cell" && r === ri && c === ci ? "mx-sel" : ""} ${(sel.modo === "col" && c === ci) || (sel.modo === "row" && r === ri) ? "mx-colsel" : ""}`;
+  const vazia = (key: number, ri: number, ci: number, txt: string) =>
+    <td key={key} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-hatch")}><div className="mx-td-in mx-r"><span className="mx-empty">{txt}</span></div></td>;
+
+  function celula(cc: Calc, col: Col, ri: number, ci: number) {
+    const l = cc.linha;
+    if (col.kind === "prod")
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-td-fix")}>
+          <div className="mx-td-in mx-3f">
+            <div className="mx-f1 mx-prod" title={l.produto}><span className="mx-prod-n">{l.produto}</span></div>
+            <div className="mx-f2 mx-dose" title={l.doseTotal}><i>Dose</i><b>{doseCurta(l.doseTotal)}</b></div>
+            <div className="mx-f3 mx-conc" title={l.concentracao ?? ""}><i>Conc.</i><span>{l.concentracao ?? "—"}</span></div>
+          </div>
+        </td>
+      );
+    if (col.kind === "via")
+      return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in"><span className="mx-via" title={l.via ?? ""}>{l.via || "—"}</span></div></td>;
+    if (col.kind === "lab") {
+      const o = l.celulas.find((x) => x.fornecedorId === col.lab);
+      if (!o) return vazia(ci, ri, ci, "—");
+      const ganha = cc.incl.length > 1 && cc.vencedoras.includes(o);
+      const cheias = Math.min(o.quantidadeEmbalagem, 10);
+      return (
+        <td key={ci} {...tdProps(ri, ci)} style={{ ["--wc" as string]: corDe(o.fornecedorId) }} className={cls(ri, ci, ganha ? "mx-win" : "")}>
+          <div className="mx-td-in mx-3f">
+            <div className="mx-f1 mx-line" data-base={1}>
+              {ganha ? <span className="mx-tag mx-tag-win"><Trophy size={9} />menor</span> : <span className="mx-lbl">unid.</span>}
+              <V c={o.custoUnitarioCentavos} peso={800} />
+            </div>
+            <div className="mx-f2 mx-line mx-cx" data-base={0}><span className="mx-lbl">{l.forma === "implante" ? "unidade" : "caixa"}</span><V c={o.custoEmbalagemCentavos} peso={600} className="mx-money mx-m13" /></div>
+            <div className="mx-f3 mx-pres" title={`Apresentação: ${o.quantidadeEmbalagem} ${unidadeTxt(l.forma, o.quantidadeEmbalagem)} por caixa`}>
+              <span className="mx-pres-t">c/ {o.quantidadeEmbalagem} un.</span>
+              <span className="mx-slots" aria-hidden="true">{Array.from({ length: 10 }, (_, k) => <i key={k} data-on={k < cheias ? 1 : 0} />)}</span>
+            </div>
+          </div>
+        </td>
+      );
+    }
+    if (col.kind === "best") {
+      if (cc.min === null) return vazia(ci, ri, ci, "sem preço");
+      return (
+        <td key={ci} {...tdProps(ri, ci)} style={{ ["--bc" as string]: corDe(cc.vencedoras[0].fornecedorId) }} className={cls(ri, ci, "mx-best")}>
+          <div className="mx-td-in mx-r">
+            <V c={cc.min} peso={800} />
+            <div className="mx-bestlab"><span className="mx-sw" style={{ background: corDe(cc.vencedoras[0].fornecedorId) }} />{cc.vencedoras.map((x) => nomeForn(x.fornecedorId)).join(" · ")}</div>
+          </div>
+        </td>
+      );
+    }
+    if (col.kind === "eco")
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}>
+          <div className="mx-td-in">
+            {cc.eco === null ? <span className="mx-empty mx-r" style={{ textAlign: "right" }}>1 oferta</span> : (
+              <div className="mx-eco"><div className="mx-ecobar"><i style={{ width: `${Math.min(100, (cc.eco / 0.6) * 100)}%` }} /></div><P v={cc.eco * 100} /></div>
+            )}
+          </div>
+        </td>
+      );
+    if (col.kind === "ref")
+      return <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}><div className="mx-td-in mx-r">{cc.ref === null ? <span className="mx-empty">—</span> : <><V c={cc.ref} /><span className="mx-sub2">{MODO_TXT[modo].toLowerCase()}</span></>}</div></td>;
+    if (col.kind === "custo")
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}>
+          <div className="mx-td-in mx-r">
+            {cc.forma === null ? <span className="mx-empty">{cc.invalido ? "inviável" : "—"}</span> : <><V c={Math.round(cc.forma.custoEfetivo)} /><span className="mx-sub2">+{pctTxt((cc.forma.custoEfetivo / cc.forma.referencia - 1) * 100)} frete e perda</span></>}
+          </div>
+        </td>
+      );
+    if (col.kind === "orc") {
+      const o = l.orcamento;
+      if (!o) return vazia(ci, ri, ci, "sem ligação");
+      const igual = cc.pub !== null && o.precoCentavos === cc.pub;
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}>
+          <div className="mx-td-in mx-3f">
+            <div className="mx-f1 mx-line"><span className="mx-tag mx-tag-link">orçamento</span><V c={o.precoCentavos} peso={800} /></div>
+            <div className="mx-f2 mx-line mx-cx">{cc.pub === null ? <span className="mx-empty">aguarda publicação</span> : igual ? <span className="mx-tag mx-tag-ok">em dia</span> : <span className="mx-pend">publicado <V c={cc.pub} peso={600} className="mx-money mx-m13" /></span>}</div>
+            <div className="mx-f3 mx-conc" title={o.nome}><span>{o.nome}</span></div>
+          </div>
+        </td>
+      );
+    }
+    if (col.kind === "estq") {
+      const e = l.estoque;
+      if (!e) return vazia(ci, ri, ci, "sem lote");
+      const total = Math.max(e.fisico, e.dinamico, 1);
+      return (
+        <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci)}>
+          <div className="mx-td-in mx-3f">
+            <div className="mx-f1 mx-line"><span className="mx-lbl">livre</span><Numeral peso={800} className={`mx-money ${e.estatico < 0 ? "mx-num-bad" : "mx-num-ok"}`}>{qtdTxt(e.estatico)}</Numeral></div>
+            <div className="mx-f2 mx-line mx-cx"><span className="mx-lbl">reservado</span><Numeral peso={600} className="mx-money mx-m13">{qtdTxt(e.dinamico)}</Numeral></div>
+            <div className="mx-f3 mx-comp" title={`Físico ${qtdTxt(e.fisico)} · reservado ${qtdTxt(e.dinamico)}`}>
+              <span className="mx-stk" aria-hidden="true">
+                <i style={{ flexGrow: Math.min(e.dinamico, e.fisico), background: "#c9962f" }} />
+                <i style={{ flexGrow: Math.max(e.fisico - e.dinamico, 0), background: "#3fa66b" }} />
+                {e.falta > 0 && <i style={{ flexGrow: e.falta, background: "#c4503f" }} />}
+                <i style={{ flexGrow: Math.max(total - Math.max(e.fisico, e.dinamico), 0), background: "transparent" }} />
+              </span>
+              {e.falta > 0 ? <span className="mx-tag mx-tag-bad">falta {qtdTxt(e.falta)}</span> : <span className="mx-comp-t">físico {qtdTxt(e.fisico)}</span>}
+            </div>
+          </div>
+        </td>
+      );
+    }
+    const f = cc.forma;
+    const congelada = categorias?.find((x) => x.categoria === l.categoria)?.modo === "congelado";
+    const dif = cc.pend && cc.venda !== null && cc.pub ? ((cc.venda - cc.pub) / cc.pub) * 100 : null;
+    return (
+      <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, `mx-venda ${congelada ? "mx-frz" : ""}`)}>
+        <div className="mx-td-in mx-3f">
+          <div className="mx-f1 mx-line">
+            {congelada ? <span className="mx-tag mx-tag-frz"><Lock size={9} />congelado</span> : <span className="mx-lbl">venda</span>}
+            {cc.pub === null ? <span className="mx-empty">{cc.invalido ? "inviável" : "não publicado"}</span> : <V c={cc.pub} peso={800} />}
+          </div>
+          <div className="mx-f2 mx-line mx-cx">
+            {cc.pend && cc.venda !== null ? (
+              <span className="mx-pend">seria <V c={cc.venda} peso={600} className="mx-money mx-m13" />{dif !== null && <b data-up={dif >= 0 ? 1 : 0}>{sinal(dif)}</b>}</span>
+            ) : (<><span className="mx-lbl">lucro</span>{f ? <V c={Math.round(f.lucro)} peso={600} className="mx-money mx-m13" /> : <span className="mx-empty">—</span>}</>)}
+          </div>
+          <div className="mx-f3 mx-comp" title={f ? `Custo ${brl(Math.round(f.custoEfetivo))} · encargos ${brl(Math.round(f.impostos + f.cartao + f.comissao + f.despesas))} · lucro ${brl(Math.round(f.lucro))}` : ""}>
+            {f && (<>
+              <span className="mx-compbar" aria-hidden="true">
+                <i style={{ flexGrow: f.custoEfetivo, background: "#16284a" }} />
+                <i style={{ flexGrow: f.impostos + f.cartao + f.comissao + f.despesas, background: "#c9962f" }} />
+                <i style={{ flexGrow: Math.max(f.lucro, 0), background: "#3fa66b" }} />
+              </span>
+              <span className="mx-comp-t">margem {pctTxt(f.margemReal)}</span>
+            </>)}
+          </div>
+        </div>
+      </td>
+    );
+  }
+
+  const cabecalho = (col: Col, ci: number) => {
+    const on = c === ci && sel.modo !== "row";
+    const sortKey: SortKey | null = col.kind === "prod" ? "prod" : col.kind === "best" ? "best" : col.kind === "eco" ? "eco" : col.kind === "venda" ? "venda" : col.kind === "estq" ? "estq" : null;
+    const lab = col.kind === "lab" ? forn.find((f) => f.id === col.lab) : null;
+    const titulo = lab ? lab.nome : ({ prod: "Produto", via: "Via", best: "Melhor valor", eco: "Economia", ref: "Referência", custo: "Custo efetivo", venda: "Venda", orc: "Orçamento", estq: "Estoque", lab: "" } as const)[col.kind];
+    const sub = lab ? `${nPorLab[forn.indexOf(lab)]} apresentações${lab.ativo ? "" : " · inativo"}` : ({ prod: `${flat.length} apresentações`, via: "cadastro", best: "menor + laboratório", eco: "menor vs. maior", ref: MODO_TXT[modo], custo: "ref. + frete e perda", venda: "publicada · unidade", orc: "preço no Orçamento", estq: "livre · reservado", lab: "" } as const)[col.kind];
+    const Seta = sort && sortKey === sort.key ? (sort.dir === 1 ? ArrowUp : ArrowDown) : ArrowUpDown;
+    return (
+      <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""} ${col.kind === "prod" ? "mx-th-fix" : ""}`}
+        style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: col.kind === "prod" ? 48 : undefined }}
+        data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
+        <div className="mx-th-in">
+          <div className="mx-th-t"><b title={lab?.nome}>{titulo}</b><span>{sub}</span></div>
+          {sortKey && (
+            <button type="button" className="mx-th-sort" data-on={sort?.key === sortKey ? 1 : 0} aria-label={`Ordenar por ${titulo}`}
+              onClick={(e) => { e.stopPropagation(); ciclarSort(sortKey); }}><Seta size={13} /></button>
+          )}
+        </div>
+      </th>
+    );
+  };
+
+  if (q.isLoading) return <div className="p-6"><Skeleton className="h-96 w-full" /></div>;
+  if (q.isError || !dados || !rascunho || !parametros || !categorias)
+    return <div className="p-6"><div className="panel-3d p-4 text-sm" role="alert">{q.isError ? (q.error as Error).message : "Carregando a matriz…"}</div></div>;
+
+  let numero = 0;
+  const larguraTotal = 48 + cols.reduce((a, x) => a + x.w, 0);
+  const tituloCat = (id: Categoria) => CATEGORIAS.find((x) => x.id === id)?.nome ?? id;
 
   return (
-    <div className="space-y-5 p-4 md:p-6" data-testid="page-matriz-fornecedores">
-      <div className="panel-3d p-4 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="bevel-3d inline-flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-widest">
-            <Table2 className="h-4 w-4" /> Matrix: Substâncias x Fornecedores
+    <div className="mx-root" data-testid="page-matriz-fornecedores">
+      <div className="mx-top">
+        <div className="mx-bevel mx-plate"><small>CADASTROS CLÍNICOS</small><h1>Matrix: Substâncias x Fornecedores</h1></div>
+        <div className="mx-kpis">
+          <div className="mx-panel mx-kpi"><span>Produtos na tela</span><b><Numeral peso={800}>{filtrados.length}</Numeral></b><em>de {todos.length} · {comPreco} com preço</em></div>
+          <div className="mx-panel mx-kpi"><span>Economia média</span><b>{ecoMedia === null ? "—" : <P v={ecoMedia} peso={800} className="" />}</b><em>menor sobre o maior · {comparaveis.length} comparáveis</em></div>
+          <div className="mx-panel mx-kpi"><span>Unidades reservadas</span><b><Numeral peso={800}>{qtdTxt(reservadas)}</Numeral></b><em>{dados.reservasAtivas} reservas de protocolo</em></div>
+          <div className="mx-panel mx-kpi"><span>Substâncias em falta</span><b style={{ color: emFalta ? "#8c2f1b" : undefined }}><Numeral peso={800}>{emFalta}</Numeral></b><em>{dados.semLote ? `${dados.semLote} baixas sem lote` : "reserva maior que o físico"}</em></div>
+        </div>
+        <div className="mx-panel mx-score">
+          <span>Quem tem o menor preço</span>
+          <div className="mx-scorebar" role="img" aria-label="Placar de menores preços por laboratório">
+            {forn.map((f, i) => placar[i] > 0 && <i key={f.id} style={{ flexGrow: placar[i], background: corDe(f.id) }} title={`${f.nome}: ${placar[i]}`} />)}
           </div>
-          <Button type="button" variant="outline" size="icon" className="btn-3d-soft h-10 w-10" aria-label="Atualizar matriz"
-            onClick={() => q.refetch()} disabled={q.isFetching}><RotateCw className="h-4 w-4" /></Button>
-        </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 opacity-60" />
-            <Input className="field-engraved pl-9" placeholder="Buscar substância ou dose" value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="input-busca-matriz" />
-          </div>
-          <label className="concave-3d flex items-center gap-2 px-3 py-2 text-sm">
-            <input type="checkbox" checked={soComPreco} onChange={(e) => setSoComPreco(e.target.checked)} /> Só com preço
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Categoria">
-          {CATEGORIAS.map((c) => (
-            <button key={c.id} type="button" onClick={() => setCategoria(c.id)} aria-pressed={categoria === c.id}
-              className={`${categoria === c.id ? "bevel-3d" : "btn-3d-soft"} px-3 py-2 text-xs font-semibold uppercase tracking-wide`}>{c.nome}</button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Laboratórios">
-          {forn.map((f) => (
-            <button key={f.id} type="button" onClick={() => alternar(f.id)} aria-pressed={!escondidos.includes(f.id)}
-              className="concave-3d flex items-center gap-2 px-3 py-2 text-xs font-semibold" style={{ opacity: escondidos.includes(f.id) ? 0.45 : 1 }}>
-              <span className="inline-block h-3 w-3 rounded-[2px]" style={{ background: cor(f.id) }} /> {f.nome}
-            </button>
-          ))}
+          <div className="mx-scoreleg">{forn.map((f, i) => <span key={f.id}><i className="mx-sw" style={{ background: corDe(f.id), marginRight: 5 }} /><b>{placar[i]}</b> {f.nome.split(" ")[0]}</span>)}</div>
         </div>
       </div>
 
-      {q.isLoading && <Skeleton className="h-64 w-full" />}
-      {q.isError && <div className="panel-3d p-4 text-sm" role="alert">{(q.error as Error).message}</div>}
-
-      {q.data && (
-        <div className="panel-3d p-2" data-testid="planilha-matriz">
-          <div className="concave-3d overflow-auto" style={{ maxHeight: "68vh" }}>
-            <table className="w-full min-w-[820px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-matriz">
-              <thead>
-                <tr className="text-center text-[10px] font-semibold tracking-widest" style={{ background: "#e9edf4", color: "#5b6a86" }}>
-                  <th className="sticky left-0 top-0 z-30 w-10 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1" />
-                  <th className="sticky left-10 top-0 z-30 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1">A</th>
-                  {visiveis.map((f, i) => (
-                    <th key={f.id} className="sticky top-0 z-20 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1">{String.fromCharCode(66 + i)}</th>
-                  ))}
-                  <th className="sticky top-0 z-20 border-b border-r border-[#c5cddb] bg-[#e9edf4] py-1">{String.fromCharCode(66 + visiveis.length)}</th>
-                  <th className="sticky top-0 z-20 border-b border-[#c5cddb] bg-[#e9edf4] py-1">{String.fromCharCode(67 + visiveis.length)}</th>
-                </tr>
-                <tr className="text-left text-[11px] font-bold uppercase tracking-widest text-white">
-                  <th className="sticky left-0 top-[25px] z-30 w-10 border-r border-[#2b4170] p-2" style={{ background: "#16284a" }} />
-                  <th className="sticky left-10 top-[25px] z-30 min-w-[240px] border-r border-[#2b4170] p-2" style={{ background: "#16284a" }}>Produto ({linhas.length})</th>
-                  {visiveis.map((f) => (
-                    <th key={f.id} className="sticky top-[25px] z-20 min-w-[150px] border-r border-[#2b4170] p-2" style={{ background: "#16284a", boxShadow: `inset 0 -4px 0 ${cor(f.id)}` }}>{f.nome}</th>
-                  ))}
-                  <th className="sticky top-[25px] z-20 min-w-[160px] border-r border-[#b8923a] p-2 text-[#16284a]" style={{ background: "linear-gradient(#f0cd7c,#d9a940)" }}><Trophy className="mr-1 inline h-3.5 w-3.5" />Melhor valor</th>
-                  <th className="sticky top-[25px] z-20 min-w-[130px] p-2" style={{ background: "#16284a" }}>Referência (maior)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((l, idx) => {
-                  const validas = l.celulas.filter((c) => visiveis.some((f) => f.id === c.fornecedorId));
-                  const menor = validas.length ? Math.min(...validas.map((c) => c.custoUnitarioCentavos)) : null;
-                  const maior = validas.length ? Math.max(...validas.map((c) => c.custoUnitarioCentavos)) : null;
-                  const vencedoras = validas.filter((c) => c.custoUnitarioCentavos === menor);
-                  const fundo = idx % 2 ? "#f5f7fb" : "#ffffff";
-                  const grade = "border-b border-r border-[#d5dbe7]";
-                  return (
-                    <tr key={l.varianteId} className="align-middle hover:[&>td]:!bg-[#fff6dd]">
-                      <td className={`sticky left-0 z-10 w-10 ${grade} px-1 py-1.5 text-center text-[10px] font-semibold`} style={{ background: "#e9edf4", color: "#5b6a86" }}>{idx + 1}</td>
-                      <td className={`sticky left-10 z-10 ${grade} px-2 py-1.5`} style={{ background: fundo }}>
-                        <div className="font-semibold uppercase leading-tight text-[#16284a]">{l.produto}</div>
-                        <div className="text-[11px] leading-tight text-[#5b6a86]">{l.doseTotal} · {l.forma}{l.volumeMl ? ` · ${Number(l.volumeMl).toLocaleString("pt-BR")} ml` : ""} · {l.via ?? "via não informada"}</div>
-                      </td>
-                      {visiveis.map((f) => {
-                        const c = l.celulas.find((x) => x.fornecedorId === f.id);
-                        const ganha = !!c && c.custoUnitarioCentavos === menor && validas.length > 1;
-                        return (
-                          <td key={f.id} className={`${grade} px-2 py-1.5 text-right`} style={{ background: ganha ? `${cor(f.id)}33` : fundo, boxShadow: ganha ? `inset 3px 0 0 ${cor(f.id)}` : undefined }}>
-                            {c ? (<>
-                              <Valor valor={c.custoUnitarioCentavos / 100} />
-                              <div className="text-[10px] leading-tight text-[#5b6a86]">cx {c.quantidadeEmbalagem}: <Valor valor={c.custoEmbalagemCentavos / 100} peso={500} /></div>
-                            </>) : <span className="text-[11px] text-[#9aa5bb]">—</span>}
-                          </td>
-                        );
-                      })}
-                      <td className={`${grade} px-2 py-1.5 text-right`} style={{ background: menor === null ? fundo : "#fbf0cf" }}>
-                        {menor === null ? <span className="text-[11px] text-[#9aa5bb]">—</span> : (<>
-                          <Valor valor={menor / 100} peso={800} />
-                          {vencedoras.map((c) => (
-                            <div key={c.fornecedorId} className="text-[10px] font-bold uppercase leading-tight" style={{ color: cor(c.fornecedorId) }}>{nome(c.fornecedorId)}</div>
-                          ))}
-                        </>)}
-                      </td>
-                      <td className="border-b border-[#d5dbe7] px-2 py-1.5 text-right" style={{ background: fundo }}>{maior === null ? <span className="text-[11px] text-[#9aa5bb]">—</span> : <Valor valor={maior / 100} />}</td>
-                    </tr>
-                  );
-                })}
-                {linhas.length === 0 && <tr><td colSpan={visiveis.length + 4} className="p-6 text-center text-sm text-[#5b6a86]">Nenhum produto com esses filtros.</td></tr>}
-              </tbody>
-            </table>
+      <div className="mx-panel mx-ctrl">
+        <div className="mx-crow">
+          <span className="mx-rowlab">Buscar</span>
+          <div className="mx-cl">
+            <div className="mx-search">
+              <Search size={15} />
+              <input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar substância ou dose" aria-label="Buscar substância ou dose" data-testid="input-busca-matriz" />
+              {busca ? <button type="button" aria-label="Limpar busca" className="mx-search-x" onClick={() => setBusca("")}><X size={14} /></button> : <kbd>/</kbd>}
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-[#5b6a86]" data-testid="barra-estado-matriz">
-            <span>{linhas.length} de {q.data.linhas.length} produtos</span>
-            <span>{linhas.filter((l) => l.celulas.length > 0).length} com preço</span>
-            <span>{visiveis.length} laboratório(s) na comparação</span>
+          <div className="mx-cr">
+            <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
+            <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
           </div>
         </div>
-      )}
-      <p className="text-xs opacity-70">Valores de custo por unidade. A Referência usa o maior valor entre os laboratórios mostrados. Custo nunca altera preço de venda nem estoque.</p>
+        <div className="mx-crow">
+          <span className="mx-rowlab">Laboratórios</span>
+          <div className="mx-cl" role="group" aria-label="Laboratórios">
+            {forn.map((f) => (
+              <button key={f.id} type="button" className="mx-chip mx-chip-lab" style={{ ["--lc" as string]: corDe(f.id) }} aria-pressed={ligados.has(f.id)} onClick={() => alternarLab(f.id)}>
+                <span className="mx-sw" style={{ background: corDe(f.id) }} />{f.nome}<small>{nPorLab[forn.indexOf(f)]}</small>
+              </button>
+            ))}
+            {difereDoCadastro && <span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: difere do cadastro</span>}
+          </div>
+          <div className="mx-cr">
+            <div className="mx-group"><label>Referência</label>
+              <div className="mx-well mx-seg" role="group" aria-label="Regra da referência">
+                {(["maior", "media", "menor"] as ReferenciaModo[]).map((m) => <button key={m} type="button" aria-pressed={modo === m} onClick={() => setRascunho({ ...rascunho, p: { ...rascunho.p, referenciaModo: m } })}>{MODO_TXT[m]}</button>)}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mx-crow">
+          <span className="mx-rowlab">Via de uso</span>
+          <div className="mx-cl" role="group" aria-label="Via de uso">
+            <button type="button" className="mx-chip" aria-pressed={catSel === "TODAS"} onClick={() => setCatSel("TODAS")}>Todas <small>{todos.length}</small></button>
+            <span className="mx-vsep" />
+            {CATEGORIAS.map((x) => { const n = todos.filter((t) => t.linha.categoria === x.id).length; return n ? <button key={x.id} type="button" className="mx-chip" aria-pressed={catSel === x.id} onClick={() => setCatSel(x.id)}>{x.curto} <small>{n}</small></button> : null; })}
+          </div>
+          <div className="mx-cr">
+            <div className="mx-group"><label>Mostrar</label>
+              <div className="mx-well mx-checks">
+                <label className="mx-check"><input type="checkbox" checked={soComp} onChange={(e) => setSoComp(e.target.checked)} />Só comparáveis</label>
+                <label className="mx-check"><input type="checkbox" checked={soReserva} onChange={(e) => setSoReserva(e.target.checked)} />Com reserva</label>
+                <label className="mx-check"><input type="checkbox" checked={soFalta} onChange={(e) => setSoFalta(e.target.checked)} />Em falta</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-panel mx-fx" aria-live="polite">
+        <div className="mx-fx-name">{atual && colAtual ? `${colAtual.letter}${r + 1}` : "—"}</div>
+        <div className="mx-fx-i">fx</div>
+        <div className="mx-fx-txt">{descricao()}</div>
+        <div className="mx-fx-act"><button type="button" className="mx-btn" style={{ height: 28 }} onClick={copiar} disabled={!atual}><Copy size={13} />Copiar <kbd style={{ fontSize: 10, opacity: .6 }}>Ctrl+C</kbd></button></div>
+      </div>
+
+      <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
+        {grupos.length === 0 ? (
+          <div className="mx-none">
+            <FileSpreadsheet size={36} /><b>Nenhum produto com esses filtros</b>
+            <span>Tire a busca ou volte para &quot;Todas&quot; as categorias.</span>
+            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setCatSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); }}>Limpar filtros</button>
+          </div>
+        ) : (
+          <table className="mx-table" style={{ width: "100%", minWidth: larguraTotal }} data-testid="tabela-matriz">
+            <colgroup><col style={{ width: 48 }} />{cols.map((x, i) => <col key={i} style={{ width: x.w }} />)}</colgroup>
+            <thead>
+              <tr>
+                <th className="mx-corner" style={{ height: 26 }} />
+                {cols.map((x, i) => <th key={i} className="mx-letter" data-on={sel.modo !== "row" && c === i ? 1 : 0} onClick={() => setSel({ r, c: i, modo: "col" })}>{x.letter}</th>)}
+              </tr>
+              <tr>
+                <th className="mx-corner" style={{ top: 26, height: 56, zIndex: 8 }}><div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--gold-d)" }}><FileSpreadsheet size={16} /></div></th>
+                {cols.map(cabecalho)}
+              </tr>
+            </thead>
+            <tbody>
+              {grupos.map((g) => {
+                const aberto = !fechados.includes(g.cat.id);
+                const comp = g.todos.filter((x) => x.incl.length >= 2);
+                const eco = comp.length ? (comp.reduce((a, x) => a + (x.eco as number), 0) / comp.length) * 100 : null;
+                return [
+                  <tr key={`b-${g.cat.id}`} className="mx-band" onClick={() => setFechados((f) => (f.includes(g.cat.id) ? f.filter((x) => x !== g.cat.id) : [...f, g.cat.id]))}>
+                    <td colSpan={cols.length + 1}>
+                      <div className="mx-band-in" data-open={aberto ? 1 : 0}>
+                        <ChevronDown size={15} className="mx-chev" />{tituloCat(g.cat.id)}
+                        <small>{g.todos.length} produtos</small><small>margem {pctTxt(margens[g.cat.id])}</small>
+                        {eco !== null && <small>economia média {pctTxt(eco)}</small>}
+                      </div>
+                    </td>
+                  </tr>,
+                  ...g.abertos.map((cc) => {
+                    const ri = numero++;
+                    return (
+                      <tr key={cc.linha.varianteId} data-zebra={ri % 2}>
+                        <th className="mx-rn" scope="row" data-on={(sel.modo === "row" || sel.modo === "cell") && r === ri ? 1 : 0} onClick={() => setSel({ r: ri, c, modo: "row" })}>{ri + 1}</th>
+                        {cols.map((col, ci) => celula(cc, col, ri, ci))}
+                      </tr>
+                    );
+                  }),
+                ];
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="mx-panel mx-stat" aria-live="polite" data-testid="barra-estado-matriz">
+        <div className="mx-statlab"><span>Seleção</span><b>{estat ? estat.rotulo : "—"}</b></div>
+        <div><span>Contagem</span><b>{estat ? estat.n : "—"}</b></div>
+        <div><span>Mínimo</span><b>{estat ? estat.min : "—"}</b></div>
+        <div><span>Média</span><b>{estat ? estat.media : "—"}</b></div>
+        <div><span>Máximo</span><b>{estat ? estat.max : "—"}</b></div>
+        <div style={{ marginLeft: "auto", textAlign: "right" }}><span>Atalhos</span><b style={{ fontFamily: "Inter", fontSize: 11 }}>Setas navegam · Ctrl+C copia · / busca</b></div>
+      </div>
+
+      <PrecificacaoDock
+        parametros={rascunho.p} categorias={rascunho.c} todos={todos} atual={atual} sujo={sujo} salvando={salvar.isPending || aplicar.isPending}
+        onParametros={(p) => setRascunho({ ...rascunho, p })} onCategorias={(cs) => setRascunho({ ...rascunho, c: cs })}
+        onSalvar={() => salvar.mutate()} onAplicar={(cat) => aplicar.mutate(cat)} avisar={avisar} />
+
+      {modal === "ped" && <Modal titulo="Pedido por laboratório" onFechar={() => setModal(null)}><PedidoPorLaboratorio fornecedores={labsVisiveis} cor={corDe} linhas={filtrados} avisar={avisar} /></Modal>}
+      {modal === "res" && <Modal titulo="Reservas de estoque" onFechar={() => setModal(null)}><ReservasDeEstoque avisar={avisar} aoMudar={() => void recarregar()} /></Modal>}
+      {toast && <div className="mx-bevel mx-toast" role="status">{toast}</div>}
     </div>
   );
 }

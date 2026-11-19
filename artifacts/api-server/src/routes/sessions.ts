@@ -12,6 +12,7 @@ import { buildVCalendar, durationFromProcedureTypes, type IcsEventInput } from "
 import { estadoAplicacao } from "../lib/estado-aplicacao-protocolo";
 import { carregarItensDoProtocolo, resumirSubstanciasDaVisita, type ItemDoProtocolo } from "../lib/substancias-constantes";
 import { queueApplicationNotice } from "../lib/visit-application-notice";
+import { baixarEstoqueDaAplicacao } from "../lib/estoque-ganchos";
 import {
   ListSessionsQueryParams,
   CreateSessionBody,
@@ -432,6 +433,8 @@ router.post("/sessions/:id/confirm-substance", requireCollaborator, async (req, 
         confirmedAt: new Date().toISOString(),
         notes: body.data.notes ?? null,
       }).where(eq(substanceApplicationsTable.id, target.id));
+      // Aplicação feita: 1 unidade sai do dinâmico (reserva do protocolo) e do lote que vence primeiro.
+      if (desiredStatus === "applied") await baixarEstoqueDaAplicacao(tx, target.id);
       const updated = applications.map(a => a.id === target.id ? { ...a, status: desiredStatus } : a);
       const due = updated.filter(a => a.availability === "disp");
       if (due.length > 0 && due.every(a => a.status === "applied" || a.status === "missed")) {

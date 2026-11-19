@@ -7,7 +7,7 @@ import { listarVariantesSubstancia } from "../lib/substance-variantes-store";
 
 const router = Router();
 
-function acesso(req: Request, res: Response, next: NextFunction): void {
+export function acesso(req: Request, res: Response, next: NextFunction): void {
   const contexto = req.tenantContext;
   if (!contexto?.authenticated || !contexto.professionalId || !req.collaborator ||
       contexto.professionalId !== req.collaborator.professionalId) {
