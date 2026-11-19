@@ -8,3 +8,11 @@
 .pn-B .pn-pop { top: calc(100% + 4px); left: auto; right: 0; width: 340px; max-width: calc(100vw - 40px); }
 .pn-B .pn-facts { gap: 26px; }
 .pn-B .pn-l2 { gap: 28px; }
+
+/* Vias numa linha própria, embaixo da substância; ferramentas do meio centralizadas no painel */
+.pn-B .pn-top { grid-template-columns: minmax(0, 1fr) 250px minmax(0, 1fr); }
+.pn-B .pn-id { grid-column: 1; grid-row: 1; }
+.pn-B .pn-actions { grid-column: 2; grid-row: 1; justify-self: center; width: 250px; align-self: center; }
+.pn-B .pn-idtxt { gap: 6px; }
+.pn-B .pn-l2 { flex-direction: column; align-items: flex-start; gap: 7px; }
+.pn-B .pn-vias { display: flex; gap: 5px; }
