@@ -162,7 +162,7 @@ export default function MatrizFornecedores() {
   const cols: Col[] = useMemo(() => {
     const base: Omit<Col, "letter">[] = [
       { kind: "prod", w: 250 },
-      ...[...labsVisiveis].sort((a, b) => Number(congelados.includes(b.id)) - Number(congelados.includes(a.id))).map((f) => ({ kind: "lab" as const, lab: f.id, w: 176 })),
+      ...[...labsVisiveis].sort((a, b) => Number(congelados.includes(b.id)) - Number(congelados.includes(a.id))).map((f) => ({ kind: "lab" as const, lab: f.id, w: 164 })),
       { kind: "best", w: 160 }, { kind: "eco", w: 128 }, { kind: "ref", w: 112 }, { kind: "custo", w: 128 },
       { kind: "venda", w: 176 }, { kind: "orc", w: 168 }, { kind: "estq", w: 176 },
     ];
@@ -172,7 +172,7 @@ export default function MatrizFornecedores() {
   const leftCongelado = (lab: number | undefined): number | undefined => {
     if (lab === undefined || !congelados.includes(lab)) return undefined;
     const k = cols.filter((x) => x.kind === "lab" && congelados.includes(x.lab as number)).findIndex((x) => x.lab === lab);
-    return CATW + 250 + 176 * k;
+    return CATW + 250 + 164 * k;
   };
   const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
   const c = Math.min(sel.c, cols.length - 1);
@@ -412,7 +412,7 @@ export default function MatrizFornecedores() {
               <V c={o.custoEmbalagemCentavos} peso={700} className="mx-money mx-mid" />
             </div>
             <div className="mx-lab-3" role="group" aria-label={`Apresentação: ${q} ${unidadeTxt(l.forma, q)} por caixa`}>
-              <span className="mx-lab-k" title="Unidades por caixa">Qtd.</span>
+              <span className="mx-lab-k mx-lab-uc" title="Unidades por caixa">Unid.<br />por cx.</span>
               {fixos.map((n) => (
                 <span key={n} className="mx-apr" data-on={n === q ? 1 : 0} aria-current={n === q ? "true" : undefined} title={`${n} ${n > 1 ? "unidades" : "unidade"} por caixa`}>{n}</span>
               ))}
@@ -545,17 +545,18 @@ export default function MatrizFornecedores() {
       <th key={ci} className={`mx-th ${col.kind === "best" ? "mx-th-best" : ""}  ${lab && congelados.includes(lab.id) ? "mx-th-frz" : ""}`}
         style={{ ["--tc" as string]: lab ? corDe(lab.id) : col.kind === "best" ? undefined : "#5f719b", left: leftCongelado(lab?.id) }}
         data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
-        <div className="mx-th-in">
+        <div className={`mx-th-in ${lab ? "mx-th-lab" : ""}`}>
+          <div className="mx-th-l1">
+            <div className="mx-th-t"><b title={lab?.nome}>{titulo}</b><span>{sub}</span></div>
+            {sortKey && (
+              <button type="button" className="mx-th-sort" data-on={sort?.key === sortKey ? 1 : 0} aria-label={`Ordenar por ${titulo}`}
+                onClick={(e) => { e.stopPropagation(); ciclarSort(sortKey); }}><Seta size={13} /></button>
+            )}
+          </div>
           {lab && (
-            <label className="mx-frz-box" title="Congelar esta coluna: ela fica fixa ao lado do produto" onClick={(e) => e.stopPropagation()}>
-              <input type="checkbox" checked={congelados.includes(lab.id)} aria-label={`Congelar ${lab.nome}`}
-                onChange={() => setCongelados((a) => (a.includes(lab.id) ? a.filter((x) => x !== lab.id) : [...a, lab.id]))} />
-            </label>
-          )}
-          <div className="mx-th-t"><b title={lab?.nome}>{titulo}</b><span>{sub}</span></div>
-          {sortKey && (
-            <button type="button" className="mx-th-sort" data-on={sort?.key === sortKey ? 1 : 0} aria-label={`Ordenar por ${titulo}`}
-              onClick={(e) => { e.stopPropagation(); ciclarSort(sortKey); }}><Seta size={13} /></button>
+            <ToggleWell compacto checked={congelados.includes(lab.id)} label="Congelar coluna" testid={`toggle-congelar-${lab.id}`}
+              title="Congelar esta coluna: ela fica fixa ao lado do produto"
+              onChange={() => setCongelados((a) => (a.includes(lab.id) ? a.filter((x) => x !== lab.id) : [...a, lab.id]))} />
           )}
         </div>
       </th>

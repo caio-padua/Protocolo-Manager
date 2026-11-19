@@ -1181,3 +1181,17 @@ main:has(.mx-root) {
 .mx-lab-3 .mx-apr-x[data-len="3"] { font-size: 9.5px; padding: 0 2px; }
 .mx-lab-3 .mx-apr-x[data-len="4"] { font-size: 8.5px; padding: 0 2px; }
 .mx-lab-3 { grid-template-columns: 34px repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr); }
+
+/* ===== Laboratório (ajuste final): coluna 164px, chips todos do MESMO tamanho, rótulo "Unid. por cx.", cabeçalho em 2 linhas ===== */
+.mx-lab { padding: 0 9px 0 10px; }
+.mx-lab-3 { grid-template-columns: 36px repeat(4, minmax(0, 1fr)); gap: 4px; }
+.mx-lab-3 .mx-apr, .mx-lab-3 .mx-apr[data-on="1"] { height: 22px; padding: 0; font-size: 10.5px; }
+.mx-lab-3 .mx-apr-x[data-len="3"] { font-size: 9px; padding: 0; }
+.mx-lab-3 .mx-apr-x[data-len="4"] { font-size: 7.5px; padding: 0; letter-spacing: -.02em; }
+.mx-lab-3 .mx-lab-uc { font-size: 7px; line-height: 1.05; letter-spacing: .02em; }
+.mx-lab-1, .mx-lab-2 { grid-template-columns: 36px 1fr; }
+
+.mx-th-in.mx-th-lab { flex-direction: column; align-items: stretch; justify-content: center; gap: 5px; padding: 3px 7px 8px; }
+.mx-th-lab .mx-th-l1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; padding: 0 2px; }
+.mx-th-lab .mx-tw { width: 100%; min-height: 30px; padding: 0 8px 0 7px; gap: 8px; justify-content: flex-start; font-size: 10.5px; border: 1px solid var(--line-2); border-radius: 4px; box-shadow: inset 0 2px 4px rgba(22,40,74,.22), inset 0 -1px 0 #fff; }
+.mx-th-lab .mx-tw button[role="switch"] { height: 16px; width: 30px; flex: none; }
