@@ -666,13 +666,6 @@ export default function MatrizFornecedores() {
       </div>}
       </div>
 
-      <div className="mx-panel mx-fx" aria-live="polite">
-        <div className="mx-fx-name">{atual && colAtual ? `${colAtual.letter}${r + 1}` : "—"}</div>
-        <div className="mx-fx-i">fx</div>
-        <div className="mx-fx-txt">{descricao()}</div>
-        <div className="mx-fx-act"><button type="button" className="mx-btn" style={{ height: 28 }} onClick={copiar} disabled={!atual}><Copy size={13} />Copiar <kbd style={{ fontSize: 10, opacity: .6 }}>Ctrl+C</kbd></button></div>
-      </div>
-
       <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
         onTrocarCat={(id, nome) => trocarCat.mutate({ id, nome })} catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
         onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
