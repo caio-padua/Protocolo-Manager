@@ -70,6 +70,7 @@ export default function MatrizFornecedores() {
   const [soComp, setSoComp] = useState(false);
   const [soReserva, setSoReserva] = useState(false);
   const [soFalta, setSoFalta] = useState(false);
+  const [soBlend, setSoBlend] = useState(false);
   const [desligados, setDesligados] = useState<number[] | null>(null);
   const [fechados, setFechados] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
@@ -114,10 +115,11 @@ export default function MatrizFornecedores() {
       (substFoco === null || c.linha.substanciaId === substFoco) &&
       temVia(c.linha, viaSel) &&
       (!soComp || c.incl.length >= 2) &&
+      (!soBlend || c.linha.isBlend) &&
       (!soReserva || (c.linha.estoque?.dinamico ?? 0) > 0) &&
       (!soFalta || (c.linha.estoque?.falta ?? 0) > 0) &&
       (!t || `${c.linha.produto} ${nomeDe(c.linha)} ${c.linha.doseTotal} ${c.linha.composicao ?? ""} ${c.linha.classe}`.toLowerCase().includes(t)));
-  }, [todos, busca, viaSel, soComp, soReserva, soFalta, substFoco]);
+  }, [todos, busca, viaSel, soComp, soReserva, soFalta, soBlend, substFoco]);
 
   const grupos = useMemo(() => {
     type G = { id: string; titulo: string; margem: number | null; lista: Calc[] };
@@ -522,10 +524,9 @@ export default function MatrizFornecedores() {
         <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
           <div className="mx-th-prod-in bevel-3d" onClick={parar}>
             <div className="mx-th-prod-l1">
-              <ToggleWell compacto checked={moldura} onChange={setMoldura} label="Menor preço" testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha" />
+              <b className="mx-th-prod-t">Produto</b>
               <button type="button" className="mx-th-sort" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}><Seta size={13} /></button>
             </div>
-            <ToggleWell compacto checked={soComp} onChange={setSoComp} label="Só comparáveis" testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar" />
             <div className="mx-th-prod-l3"><span>Substâncias:</span><b>{nSubst}</b></div>
           </div>
         </th>
@@ -588,7 +589,7 @@ export default function MatrizFornecedores() {
             <i className="evo-chip">{agrupar === "via" ? "Por via" : "Por categoria clínica"}</i>
             <i className="evo-chip">Referência: {MODO_TXT[modo]}</i>
             {busca && <i className="evo-chip">Busca: {busca}</i>}
-            {(soComp || soReserva || soFalta) && <i className="evo-chip">Filtros ativos</i>}
+            {(soComp || soReserva || soFalta || soBlend) && <i className="evo-chip">Filtros ativos</i>}
           </span>
           <span className="evo-bevel mx-trave-b" aria-hidden><ChevronDown size={14} className="mx-chev" data-open={ferrAberto ? 1 : 0} /></span>
         </button>
@@ -661,14 +662,20 @@ export default function MatrizFornecedores() {
         {difereDoCadastro && <div className="mx-dock-aviso"><span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: laboratórios diferentes do cadastro</span></div>}
         <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
       catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
-      onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
+      onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)}
+      trilho={<>
+        <ToggleWell compacto checked={moldura} onChange={setMoldura} label="Menor preço" testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha" />
+        <ToggleWell compacto checked={soComp} onChange={setSoComp} label="Só comparáveis" testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar" />
+        <ToggleWell compacto checked={soBlend} onChange={setSoBlend} label="Só blends" testid="toggle-so-blends" title="Mostra só os blends (misturas de ativos)" />
+        <ToggleWell compacto checked={sort?.key === "best" && sort.dir === 1} onChange={(v) => setSort(v ? { key: "best", dir: 1 } : { key: "eco", dir: -1 })} label="Do mais barato" testid="toggle-do-mais-barato" title="Ordena do menor preço para o maior; desligado volta à ordem por economia" />
+      </>} />
       </div>
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
         {grupos.length === 0 ? (
           <div className="mx-none">
             <FileSpreadsheet size={36} /><b>Nenhum produto com esses filtros</b>
             <span>Tire a busca ou volte para &quot;Todas&quot; as vias.</span>
-            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setViaSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); }}>Limpar filtros</button>
+            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setViaSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); setSoBlend(false); }}>Limpar filtros</button>
           </div>
         ) : (
           <table className="mx-table" style={{ width: "100%", minWidth: larguraTotal }} data-testid="tabela-matriz">

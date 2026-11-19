@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, Search, X } from "lucide-react";
 import type { Calc } from "./calculo";
 import { BOTOES_VIA, doseCurta, nomeDe, temVia } from "./calculo";
@@ -7,7 +7,8 @@ import { ToggleWell } from "./ToggleWell";
 import { Quadrado, type CategoriaSubst } from "./Categorias";
 
 /** Barra logo acima da tabela: à esquerda a substância selecionada com a dose; à direita o seletor de busca (padrão do seletor de clientes). */
-export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, catDe, cats }: {
+export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, catDe, cats, trilho }: {
+  trilho?: ReactNode;
   catDe: (l: Calc["linha"]) => CategoriaSubst; cats: CategoriaSubst[]; onGerenciar?: () => void;
   atual: Calc | undefined; lista: Calc[]; onEscolher: (varianteId: number) => void; soEsta: boolean; onSoEsta: (v: boolean) => void;
 }) {
@@ -44,6 +45,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
 
   return (
     <div className="mx-sbar" data-testid="barra-substancia">
+      {trilho && <div className="mx-sbar-rail" role="group" aria-label="Ferramentas da planilha">{trilho}</div>}
       <div className="mx-sbar-z1">
       {l ? <Quadrado cat={catDe(l)} blend={l.isBlend} tam={64} /> : <span className="mx-cat-q-vazio" />}
       <div className="mx-sbar-sel">
