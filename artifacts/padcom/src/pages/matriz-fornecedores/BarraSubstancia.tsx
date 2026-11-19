@@ -69,7 +69,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
         <button type="button" className="mx-sbar-copy2 evo-bevel" onClick={copiar} disabled={!l} title="Copia nome, dose e via da substância selecionada" aria-label="Copiar dados da substância selecionada" data-testid="botao-copiar-dados-substancia">
           {copiado ? <Check size={16} /> : <Copy size={16} />}<span>{copiado ? "Dados copiados" : "Copiar dados da substância"}</span>
         </button>
-        <div className="mx-sbar-tog"><ToggleWell checked={soEsta} disabled={!l} onChange={onSoEsta} label="Mostrar só esta na planilha" title="Esconde as outras substâncias e deixa na planilha apenas as apresentações desta." /></div>
+        <div className="mx-sbar-tog"><ToggleWell compacto checked={soEsta} disabled={!l} onChange={onSoEsta} label="Mostrar só esta na planilha" title="Esconde as outras substâncias e deixa na planilha apenas as apresentações desta." /></div>
       </div>
       <div className="mx-sbar-busca" ref={ref}>
         <div className="mx-search mx-search-prem">

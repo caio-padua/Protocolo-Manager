@@ -1087,3 +1087,14 @@ main:has(.mx-root) {
 .mx-sbar-linha { flex-direction: column; align-items: flex-start; gap: 8px; flex-wrap: nowrap; }
 .mx-sbar-vias { margin-left: 0; }
 @media (max-width: 1350px) { .mx-dock-top .mx-sbar { grid-template-columns: 1fr; } .mx-sbar-rail { width: auto; justify-self: stretch; } }
+
+/* ===== Padrão 5 unificado: todos os toggles do painel (trilho e meio) com o MESMO sulco, altura, chave e fonte ===== */
+.mx-sbar-rail, .mx-sbar-z2 { --tw-h: 36px; }
+.mx-sbar-rail .mx-tw, .mx-sbar-z2 .mx-tw { box-sizing: border-box; height: var(--tw-h); min-height: var(--tw-h); width: 100%; min-width: 0; padding: 0 10px 0 8px; gap: 9px; justify-content: flex-start; font: 700 11px Inter, system-ui, sans-serif; letter-spacing: 0; text-transform: none; border-radius: 4px; overflow: visible; }
+.mx-sbar-rail .mx-tw span:not([data-state]), .mx-sbar-z2 .mx-tw > span { overflow: visible; text-overflow: clip; white-space: nowrap; }
+.mx-sbar-rail .mx-tw button[role="switch"], .mx-sbar-z2 .mx-tw button[role="switch"] { flex: none; height: 16px; width: 30px; }
+.mx-sbar-rail { width: 348px; gap: 8px; }
+.mx-sbar-rail .mx-tw button[role="switch"] span, .mx-sbar-z2 .mx-tw button[role="switch"] span { overflow: visible; }
+.mx-sbar-z2 .mx-sbar-copy2 { height: var(--tw-h); }
+.mx-dock-top .mx-sbar { grid-template-columns: minmax(340px, 1fr) 280px minmax(348px, 1fr); }
+@media (max-width: 1350px) { .mx-dock-top .mx-sbar { grid-template-columns: 1fr; } .mx-sbar-rail { width: auto; } }
