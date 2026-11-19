@@ -161,7 +161,7 @@ export default function MatrizFornecedores() {
   const labsVisiveis = forn.filter((f) => ligados.has(f.id));
   const cols: Col[] = useMemo(() => {
     const base: Omit<Col, "letter">[] = [
-      { kind: "prod", w: 272 },
+      { kind: "prod", w: 250 },
       ...[...labsVisiveis].sort((a, b) => Number(congelados.includes(b.id)) - Number(congelados.includes(a.id))).map((f) => ({ kind: "lab" as const, lab: f.id, w: 168 })),
       { kind: "best", w: 160 }, { kind: "eco", w: 128 }, { kind: "ref", w: 112 }, { kind: "custo", w: 128 },
       { kind: "venda", w: 176 }, { kind: "orc", w: 168 }, { kind: "estq", w: 176 },
@@ -172,7 +172,7 @@ export default function MatrizFornecedores() {
   const leftCongelado = (lab: number | undefined): number | undefined => {
     if (lab === undefined || !congelados.includes(lab)) return undefined;
     const k = cols.filter((x) => x.kind === "lab" && congelados.includes(x.lab as number)).findIndex((x) => x.lab === lab);
-    return CATW + 272 + 168 * k;
+    return CATW + 250 + 168 * k;
   };
   const r = Math.min(Math.max(sel.r, 0), Math.max(flat.length - 1, 0));
   const c = Math.min(sel.c, cols.length - 1);

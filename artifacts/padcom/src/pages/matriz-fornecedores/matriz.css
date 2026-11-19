@@ -1144,3 +1144,17 @@ main:has(.mx-root) {
 .mx-pc-v > div { display: grid; grid-template-columns: repeat(6, 30px); gap: 3px; }
 .mx-pc-v b { height: 18px; display: grid; place-items: center; border-radius: 3px; border: 1px dashed rgba(138,106,34,.3); color: #b0b6c4; font: 700 8.5px Inter, system-ui, sans-serif; }
 .mx-pc-v b[data-on="1"] { border: 1.5px solid #b8924d; color: var(--ink); background: linear-gradient(180deg, #fffbe9, #f3e3b8); box-shadow: inset 0 1px 0 #fff; }
+
+/* ===== Célula do produto: discreta, rótulos legíveis, tudo colado à esquerda; nome só quebra quando não cabe ===== */
+.mx-root { --row: 98px; }
+.mx-pc { padding-left: 10px; padding-right: 8px; padding-top: 5px; padding-bottom: 5px; }
+.mx-pc-n { padding-right: 0; min-height: 26px; }
+.mx-pc-n:has(.mx-blend-btn) { padding-right: 74px; }
+.mx-pc-n .mx-prod-n { -webkit-line-clamp: 2; white-space: normal; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; hyphens: none; }
+.mx-pc-r { grid-template-columns: 32px minmax(0, 1fr) auto; column-gap: 5px; height: 17px; }
+.mx-pc-r i { font-size: 8px; font-weight: 700; letter-spacing: .08em; color: #5d6a85; }
+.mx-pc-r span { font-size: 11px; font-weight: 600; color: var(--ink); }
+.mx-pc-r em { font-size: 11px; color: var(--ink); }
+.mx-pc-v { grid-template-columns: minmax(0, 1fr); height: 22px; margin-top: 3px; }
+.mx-pc-v > i { display: none; }
+.mx-pc-v > div { grid-template-columns: repeat(6, 30px); gap: 3px; justify-content: start; }
