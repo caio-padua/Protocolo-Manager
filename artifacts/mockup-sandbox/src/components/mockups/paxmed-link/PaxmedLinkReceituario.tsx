@@ -16,7 +16,7 @@ function Luz({ src }: { src: string }) {
   );
 }
 
-const ITENS = ["Receitas", "Protocolos", "Consultas"];
+const ITENS = ["Receitas", "Exames", "Protocolos", "Agendas"];
 
 export function PaxmedLinkReceituario() {
   const estatico = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("static");
@@ -35,7 +35,7 @@ export function PaxmedLinkReceituario() {
               </li>
             ))}
           </ul>
-          <p className="plr-manual">Veja como instalar o aplicativo PaxMed em poucos segundos.</p>
+          <p className="plr-manual">Veja como instalar o aplicativo PaxMed em segundos</p>
           <div className="plr-confira">Acessar guia de instalação</div>
         </main>
 
