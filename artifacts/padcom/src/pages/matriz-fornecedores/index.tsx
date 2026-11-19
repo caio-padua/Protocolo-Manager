@@ -13,6 +13,7 @@ import { Modal, PedidoPorLaboratorio, ReservasDeEstoque } from "./Modais";
 import { NovoBlend } from "./NovoBlend";
 import { PrecificacaoDock } from "./PrecificacaoDock";
 import { BarraSubstancia } from "./BarraSubstancia";
+import { GerenciarCategorias, useCategorias } from "./Categorias";
 import "./matriz.css";
 
 const CORES = ["#2d73b5", "#8a4fb0", "#c4572f", "#2f7d6b", "#c9962b", "#6d7a8f"];
@@ -70,7 +71,8 @@ export default function MatrizFornecedores() {
   const [fechados, setFechados] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
-  const [modal, setModal] = useState<null | "ped" | "res" | "blend">(null);
+  const [modal, setModal] = useState<null | "ped" | "res" | "blend" | "cat">(null);
+  const cats = useCategorias();
   const [ferrAberto, setFerrAberto] = useState(true);
   const [substFoco, setSubstFoco] = useState<number | null>(null);
   const [pick, setPick] = useState<number | null>(null);
@@ -529,6 +531,7 @@ export default function MatrizFornecedores() {
           </div>
           <div className="mx-cr">
             <button type="button" className="mx-btn" onClick={() => setModal("blend")} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
+            <button type="button" className="mx-btn" onClick={() => setModal("cat")} data-testid="botao-categorias">Categorias</button>
             <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
             <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
           </div>
@@ -591,6 +594,7 @@ export default function MatrizFornecedores() {
       </div>
 
       <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
+        catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
         onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />
 
       <div className="mx-gridwrap" ref={wrapRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-label="Matriz de preços por substância e fornecedor" data-testid="planilha-matriz">
@@ -675,6 +679,7 @@ export default function MatrizFornecedores() {
         onSalvar={() => salvar.mutate()} onAplicar={(cat) => aplicar.mutate(cat)} avisar={avisar} />
 
       {modal === "ped" && <Modal titulo="Pedido por laboratório" onFechar={() => setModal(null)}><PedidoPorLaboratorio fornecedores={labsVisiveis} cor={corDe} linhas={filtrados} avisar={avisar} /></Modal>}
+      {modal === "cat" && <GerenciarCategorias lista={cats.lista} onFechar={() => setModal(null)} />}
       {modal === "blend" && <Modal titulo="Novo blend" onFechar={() => setModal(null)}><NovoBlend fornecedores={forn} avisar={avisar} aoCriar={() => { setModal(null); void recarregar(); }} /></Modal>}
       {modal === "res" && <Modal titulo="Reservas de estoque" onFechar={() => setModal(null)}><ReservasDeEstoque avisar={avisar} aoMudar={() => void recarregar()} /></Modal>}
       {toast && <div className="mx-bevel mx-toast" role="status">{toast}</div>}

@@ -573,3 +573,26 @@ tr:hover .mx-td:not(.mx-sel) { background-image: linear-gradient(rgba(22,40,74,.
 /* fundo em risca de giz clara */
 .mx-root { background-color: #f6f2e6;
   background-image: repeating-linear-gradient(90deg, rgba(22,40,74,.045) 0 1px, transparent 1px 22px); }
+
+/* quadradinho de categoria (cor + sigla); blend leva tarja inferior */
+.mx-cat-q { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 0; color: #fff; overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.25); align-self: center; }
+.mx-cat-q b { font: 700 10.5px Inter, system-ui, sans-serif; letter-spacing: .02em; transform: translateY(-2px); }
+.mx-cat-q i { position: absolute; left: 0; right: 0; bottom: 0; height: 9px; background: rgba(0,0,0,.42); font: 700 6px/9px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; text-align: center; }
+/* seletor de substância: quinas retas, padrão do seletor de clientes */
+.mx-sbar, .mx-sbar .mx-search, .mx-sbar-lista, .mx-sbar-lista li, .mx-sbar-pop { border-radius: 0 !important; }
+.mx-sbar-pop { position: absolute; z-index: 40; top: calc(100% + 4px); right: 0; width: 100%; background: #fffdf6; border: 1px solid var(--line-2); box-shadow: 0 8px 24px rgba(22,40,74,.28); color: var(--ink); }
+.mx-sbar-pop .mx-sbar-lista { position: static; box-shadow: none; border: 0; width: auto; max-height: 280px; }
+.mx-sbar-filtro { display: flex; gap: 8px; padding: 6px; border-bottom: 1px solid var(--line-2); }
+.mx-sbar-filtro select { flex: 1; height: 28px; border: 1px solid var(--line-2); border-radius: 0; background: #fff; font-size: 12px; padding: 0 6px; }
+.mx-sbar-ger { border: 1px solid var(--line-2); background: #e9edf6; padding: 0 10px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 0; color: var(--navy); }
+.mx-sbar-nome { align-items: center; }
+.mx-sbar-lista li { grid-template-columns: 32px 1fr auto; }
+/* cadastro de categorias */
+.mx-catg { display: flex; flex-direction: column; gap: 6px; min-width: 520px; }
+.mx-catg-row { display: grid; grid-template-columns: 32px 1fr 90px 120px 80px; gap: 10px; align-items: center; }
+.mx-catg-new { grid-template-columns: 1fr 90px 120px 96px; padding-bottom: 8px; border-bottom: 1px dashed var(--line-2); }
+.mx-catg input[type="text"], .mx-catg-new input, .mx-catg select { height: 30px; border: 1px solid var(--line-2); border-radius: 0; padding: 0 8px; background: #fff; font-size: 12px; }
+.mx-catg-row[data-off="1"] { opacity: .5; }
+.mx-catg-n { font-size: 13px; font-weight: 600; }
+.mx-catg-erro { color: #a33; font-size: 12px; }
