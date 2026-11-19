@@ -58,3 +58,22 @@ Vale para QUALQUER link compartilhado (WhatsApp, Telegram): o cartao da previa (
 
 ## Licao de cache
 O WhatsApp guarda a previa por nome de arquivo E por endereco do link. Trocar so o conteudo do arquivo nao atualiza. Sempre: nome novo (og-marca-vN.jpg) + ?v=N maior no link.
+
+## Como montar os textos de um link novo (derivado do cartao aprovado; o Dr. Caio ajusta se quiser)
+Estrutura fixa, de cima para baixo. Cada linha tem uma funcao e um limite.
+
+| Linha | Funcao | Limite | Exemplo aprovado (PaxMed) |
+|---|---|---|---|
+| Tagline (placa, abaixo do nome) | o que o sistema e, em ingles, caixa alta | 3 palavras | CLINICAL INTELLIGENCE SYSTEM |
+| Titulo | beneficio para a pessoa, em frase acolhedora; ultimo trecho em italico dourado | 1 linha (cerca de 35 caracteres) | Todo o seu cuidado, na palma da mao |
+| Itens | 3 a 4 funcoes reais, substantivos curtos, sem numeracao | 1 linha | Receitas, Exames, Protocolos, Agendas |
+| Frase de apoio | a acao pedida, no infinitivo, com prazo curto | 1 linha (cerca de 50 caracteres) | Veja como instalar o aplicativo PaxMed em segundos |
+| Botao | verbo + objeto do destino do link | ate 4 palavras | Acessar guia de instalacao |
+| og:description | titulo + frase de apoio, juntos | 2 frases | Todo o seu cuidado, na palma da mao. Veja como instalar o aplicativo PaxMed em segundos. |
+
+Regras:
+1. Tom acolhedor e sofisticado, voce no singular, sem exclamacao e sem emoji.
+2. Itens so podem listar o que existe de fato no sistema (nao prometer funcao inexistente).
+3. Nunca incluir dado de cliente, nome de cliente ou informacao clinica na previa (ela e publica para quem recebe o link).
+4. Botao e so desenho: o toque abre o link inteiro.
+5. Se o texto nao couber em 1 linha, encurtar o texto; nunca diminuir a fonte nem apertar o espaco entre linhas.
