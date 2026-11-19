@@ -942,3 +942,7 @@ main:has(.mx-root) {
 .mx-root .mx-ev-b, .mx-root .mx-dock-lab { font-family: "Inter", system-ui, sans-serif; }
 .mx-root .mx-dock-lab span { white-space: nowrap; }
 .mx-root .mx-dock-lab { min-width: 150px; justify-content: center; }
+
+/* Painel dos laboratórios + substância é um painel SEPARADO acima da planilha (fora da área rolável) */
+.mx-root > .mx-dock-top { position: relative; top: auto; z-index: 3; width: 100%; border-radius: 6px !important; padding: 10px 12px 12px; margin-bottom: -2px; }
+.mx-gridwrap { --dock-h: 0px !important; }
