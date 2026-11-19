@@ -1,3 +1,4 @@
+import { ToggleWell } from "./ToggleWell";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SlidersHorizontal, ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
@@ -354,7 +355,7 @@ export default function MatrizFornecedores() {
           <div className="mx-td-in mx-pc" title={l.isBlend ? `${nomeDe(l)} (${l.produto})` : nomeDe(l)}>
             <div className="mx-pc-n">
               <span className="mx-prod-n mx-prod">{nomeDe(l)}</span>
-              {l.isBlend && <button type="button" className="mx-tag mx-tag-blend mx-blend-btn" aria-expanded={blendsAbertos.includes(l.varianteId)} title="Abrir a composição do blend" onClick={(e) => { e.stopPropagation(); setBlendsAbertos((a) => (a.includes(l.varianteId) ? a.filter((x) => x !== l.varianteId) : [...a, l.varianteId])); }}><ChevronRight size={10} className="mx-bl-chev" data-open={blendsAbertos.includes(l.varianteId) ? 1 : 0} />Blend</button>}
+              {l.isBlend && <button type="button" className="bevel-3d mx-blend-btn" aria-expanded={blendsAbertos.includes(l.varianteId)} title="Abrir a composição do blend" onClick={(e) => { e.stopPropagation(); setBlendsAbertos((a) => (a.includes(l.varianteId) ? a.filter((x) => x !== l.varianteId) : [...a, l.varianteId])); }}><ChevronRight size={11} className="mx-bl-chev" data-open={blendsAbertos.includes(l.varianteId) ? 1 : 0} />Blend</button>}
               {!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}
             </div>
             {l.isBlend ? (
@@ -515,14 +516,10 @@ export default function MatrizFornecedores() {
         <th key={ci} className="mx-th mx-th-fix mx-th-prod" style={{ ["--tc" as string]: "#5f719b", left: 48 + CATW }} data-on={on ? 1 : 0} onClick={() => setSel({ r, c: ci, modo: "col" })}>
           <div className="mx-th-prod-in" onClick={parar}>
             <div className="mx-th-prod-l1">
-              <button type="button" className="mx-switch mx-switch-mini concave-3d" role="switch" aria-checked={moldura} onClick={() => setMoldura((v) => !v)} data-testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha">
-                <i /><span>Menor preço</span>
-              </button>
+              <ToggleWell compacto checked={moldura} onChange={setMoldura} label="Menor preço" testid="toggle-moldura-melhor-preco" title="Moldura que circula no menor preço de cada linha" />
               <button type="button" className="mx-th-sort" data-on={sort?.key === "prod" ? 1 : 0} aria-label="Ordenar por Produto" onClick={() => ciclarSort("prod")}><Seta size={13} /></button>
             </div>
-            <button type="button" className="mx-switch mx-switch-mini concave-3d" role="switch" aria-checked={soComp} onClick={() => setSoComp((v) => !v)} data-testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar">
-              <i /><span>Só comparáveis</span>
-            </button>
+            <ToggleWell compacto checked={soComp} onChange={setSoComp} label="Só comparáveis" testid="toggle-so-comparaveis" title="Mostra só os produtos com pelo menos 2 preços para comparar" />
             <div className="mx-th-prod-l3"><span>Substâncias:</span><b>{nSubst}</b></div>
           </div>
         </th>
@@ -726,7 +723,7 @@ export default function MatrizFornecedores() {
                             <div className="mx-blend-pn panel-3d-sub" style={{ width: Math.max(640, Math.min((wrapRef.current?.clientWidth ?? 1000) - 104, 1100)) }}>
                               {(() => {
                                 const l = cc.linha; const comps = componentesDe(l);
-                                const cores = ["#2d73b5", "#c4572f", "#2f7d6b", "#8a4fb0", "#c9962b", "#3a8fa0", "#b0507a", "#7a6a2f"];
+                                const cores = ["#1f6fd0", "#e0531f", "#1f9d6b", "#9b3fd1", "#e3a008", "#0fa3b8", "#d6336c", "#5c6b1f", "#16284a", "#8d5524", "#e03131", "#6741d9"];
                                 const pct = (d: string) => { const m = /([\d.,]+)%/.exec(propDe(l, d)); return m ? Number(m[1].replace(/\./g, "").replace(",", ".")) : 0; };
                                 const vol = l.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR")} mL` : "volume não informado";
                                 const tot = comps.reduce((a, k) => a + Math.max(pct(k.dose), 0.5), 0) || 1;

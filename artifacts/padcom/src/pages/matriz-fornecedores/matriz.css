@@ -869,3 +869,20 @@ main:has(.mx-root) {
 /* toggles em sulco côncavo (Padrão 5): o botão inteiro é o poço */
 .mx-switch.concave-3d { border-radius: 4px; }
 .mx-switch-mini { height: 26px; padding: 0 10px 0 5px; }
+
+/* ToggleWell: Switch padrão do sistema em sulco côncavo (Padrão 5) */
+.mx-tw { display: inline-flex; align-items: center; gap: 10px; padding: 6px 12px 6px 8px; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; border-radius: 4px; }
+.mx-tw-c { padding: 3px 10px 3px 6px; gap: 8px; font-size: 11px; }
+.mx-tw-c button[role="switch"] { height: 16px; width: 30px; }
+.mx-tw-c button[role="switch"] span { height: 11px; width: 11px; }
+.mx-tw-c button[role="switch"][data-state="checked"] span { transform: translateX(14px); }
+.mx-tw button[role="switch"][data-state="checked"] { background: linear-gradient(180deg, #8a6a2a, #a8832f); }
+.mx-th-prod-in .mx-tw { align-self: flex-start; }
+
+/* Botão Blend: posição fixa no canto superior direito da célula; nome quebra em até 2 linhas */
+.mx-pc { position: relative; }
+.mx-pc-n { height: auto; min-height: 30px; align-items: flex-start; padding-right: 74px; }
+.mx-pc-n .mx-prod-n { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 12.5px; line-height: 1.15; overflow: hidden; }
+.mx-blend-btn { position: absolute; top: 6px; right: 10px; width: 62px; height: 22px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 0; font: 700 10px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); cursor: pointer; border-radius: 4px; }
+.mx-blend-btn:active { transform: translateY(1px); }
+.mx-bp-row i, .mx-bp-leg i { box-shadow: 0 0 0 1px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.4); }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Calculator, ChevronDown, Minus, Plus, RefreshCw, Save } from "lucide-react";
 import { CATEGORIAS, nomeDe, type Arredondamento, type Calc, type Categoria, type ConfigCategoria, type Parametros } from "./calculo";
+import { ToggleWell } from "./ToggleWell";
 import { NumField, P, V, pctTxt, sinal } from "./componentes";
 
 type Props = {
@@ -81,9 +82,7 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
             <NumField label="Margem única em porcentagem" value={igual} onChange={setIgual} w={52} /><b>%</b>
             <button type="button" className="mx-adj-go" onClick={igualar}>Igualar</button>
           </div>
-          <button type="button" className="mx-switch mx-switch-all" role="switch" aria-checked={todasAuto} onClick={() => todas(!todasAuto)}>
-            <i /><span>{todasAuto ? "Todos atualizam sozinhos" : "Atualizar todos sozinhos"}</span>
-          </button>
+          <ToggleWell checked={todasAuto} onChange={(v) => todas(v)} label={todasAuto ? "Todos atualizam sozinhos" : "Atualizar todos sozinhos"} />
           <button type="button" className="mx-btn mx-btn-gold" disabled={!sujo || salvando} onClick={onSalvar}><Save size={15} />{salvando ? "Salvando…" : "Salvar e aplicar"}</button>
         </div>
       </header>}
@@ -128,9 +127,7 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
                     <input type="range" className="mx-range" min={0} max={70} step={0.5} value={Math.min(c.margemPct, 70)} aria-label={`Ajustar margem de ${x.curto}`}
                       onChange={(e) => setCat(x.id, { margemPct: Number(e.target.value) })} />
                     <div className="mx-cat-m"><span>Preço médio</span>{st.avg === null ? <span className="mx-empty">—</span> : <V c={st.avg} />}</div>
-                    <button type="button" className="mx-switch" role="switch" aria-checked={auto} onClick={() => setCat(x.id, { modo: auto ? "congelado" : "auto" })}>
-                      <i /><span>{auto ? "Atualiza sozinho" : "Congelado"}</span>
-                    </button>
+                    <ToggleWell compacto checked={auto} onChange={(v) => setCat(x.id, { modo: v ? "auto" : "congelado" })} label={auto ? "Atualiza sozinho" : "Congelado"} />
                     <div className="mx-cat-s" data-k={st.ruim ? "bad" : st.pend ? "pend" : "ok"}>
                       {st.ruim ? <>Inviável: soma passa de 95%</>
                         : st.pend ? (<><span>{st.pend} preços mudariam{st.diff !== null ? ` (${sinal(st.diff)})` : ""}</span>

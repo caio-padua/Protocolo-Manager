@@ -3,6 +3,7 @@ import { Check, Copy, Search, X } from "lucide-react";
 import type { Calc } from "./calculo";
 import { doseCurta, nomeDe } from "./calculo";
 import { V } from "./componentes";
+import { ToggleWell } from "./ToggleWell";
 import { Quadrado, type CategoriaSubst } from "./Categorias";
 
 /** Barra logo acima da tabela: à esquerda a substância selecionada com a dose; à direita o seletor de busca (padrão do seletor de clientes). */
@@ -53,7 +54,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
         {copiado ? <Check size={16} /> : <Copy size={16} />}
       </button>
       <div className="mx-sbar-togs">
-        <div className="mx-sbar-tog"><button type="button" className="mx-switch concave-3d" role="switch" aria-checked={soEsta} disabled={!l} onClick={() => onSoEsta(!soEsta)}><i /><span>Só esta substância</span></button><small>Mostra na tabela apenas as apresentações dela.</small></div>
+        <div className="mx-sbar-tog"><ToggleWell checked={soEsta} disabled={!l} onChange={onSoEsta} label="Só esta substância" title="Mostra na tabela apenas as apresentações dela." /></div>
         <div className="mx-sbar-qtd"><i>Apresentações desta substância</i><b>{l ? lista.filter((x) => x.linha.substanciaId === l.substanciaId).length : 0}</b></div>
       </div>
       <div className="mx-sbar-busca" ref={ref}>
