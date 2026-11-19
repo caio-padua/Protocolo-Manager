@@ -24,3 +24,8 @@ Vale para QUALQUER link compartilhado (WhatsApp, Telegram): o cartao da previa (
 5. Subir PREVIA_VERSAO em artifacts/padcom/src/pages/comunicacao/guia-paciente.tsx (os links gerados terminam com ?v=N).
 6. Testar colando o link no proprio chat; NUNCA usar envio automatico a clientes.
 7. Apos publicar, apontar VITE_SITE_URL para o endereco oficial (hoje a imagem vem do endereco de desenvolvimento).
+
+## Marca e arte
+1. PNG oficiais do simbolo e do nome (ouro escovado, transparentes) ficam em artifacts/mockup-sandbox/public/images/ (paxmed-link-simbolo.png, paxmed-link-nome.png). Outra marca = usar a arte oficial dela, nunca redesenhar.
+2. og:image exige endereco ABSOLUTO (WhatsApp ignora caminho relativo); Vite prefixa o base path, por isso o plugin com order "pre" troca __SITE_URL__.
+3. Icone do app (PWA) NAO leva moldura gravada: o iOS aplica a mascara sozinho.

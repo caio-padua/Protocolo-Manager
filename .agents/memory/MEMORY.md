@@ -1,4 +1,5 @@
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).
+- [Previa de link — padrao Receituario](previa-link-padrao-receituario.md) — cartao aprovado; ler skill-layout-paxter/references/previa-de-link.md; nome novo + ?v=N; og:image URL absoluta.
 - [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na raiz) ou architect reprova.
 - **Drive watcher** — [guard global bloqueia rotas abaixo](drive-watcher-guard-global.md) · [empresa_id + vision multimodal](drive-watcher-empresa-id.md) · [PK e file_id, nao id](drive-watcher-files-pk.md) · [so DELETE reprocessa](drive-watcher-reprocessar.md) · [copia vai p/ pasta do paciente](drive-watcher-copia-pasta-paciente.md) · [import 4h + planilha comparativa](drive-watcher-analitos.md)
 - [Filtros nulos em SQL drizzle — fragmentos condicionais](sql-null-int-filter.md) — ${null}::int explode no Postgres; usar frag condicional: `faseMin !== null ? sql\`AND col >= ${faseMin}\` : sql\`\``.

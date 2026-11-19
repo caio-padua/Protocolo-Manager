@@ -1,6 +1,6 @@
 ---
 name: skill-layout-paxter
-description: "Sistema de design Paxter (Padcon Conect / PADCOM). Linguagem visual skeuomorfica 3D, vocabulario oficial (Saliente/Bevel, Concavo/Well, Painel 3D), tokens da marca e padroes do Console de Orcamento. Ler ANTES de criar ou redesenhar qualquer tela do Manager para manter a essencia 3D."
+description: "Sistema de design Paxter (Padcon Conect / PADCOM). Linguagem visual skeuomorfica 3D, vocabulario oficial (Saliente/Bevel, Concavo/Well, Painel 3D), tokens da marca e padroes do Console de Orcamento. Ler ANTES de criar ou redesenhar qualquer tela do Manager para manter a essencia 3D. Tambem ler para QUALQUER previa de link (og:image, WhatsApp, Telegram, cartao de compartilhamento): seguir references/previa-de-link.md."
 ---
 
 # Skill Layout Paxter — Sistema de Design (Padcon Conect)
@@ -11,6 +11,8 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 
 ## 0. Arquivos de referencia (ler conforme a tarefa)
 
+**Pedido de PREVIA DE LINK (WhatsApp/Telegram/og:image): ler `references/previa-de-link.md` ANTES de desenhar. O padrao aprovado NAO se reinventa.**
+
 | Arquivo | Quando ler |
 |---|---|
 | `references/componentes-3d.md` | criar/redesenhar qualquer botao/controle 3D (receita + JSX de cada um) |
@@ -19,6 +21,7 @@ Toda mudanca e de APRESENTACAO; o motor de calculo e o payload de salvar nunca m
 | `references/grade-imaginaria.md` | construir QUALQUER card ou lista de itens (modelo mental de zonas, anti-padroes, receita JSX, checklist de 10 pontos) — ler ANTES de criar card/linha nova em QUALQUER sistema |
 | `references/marca/marca.md` | usar a LOGO: qual peca (loginho com vidro x logo sem vidro) usar em cada fundo; molde visual numerado (`molde-paxter.png`) + referencia de codigo de cada peca |
 | `references/relevo-3d-ouro/tecnica.md` | renderizar TEXTO/WORDMARK/selo em ALTO-RELEVO 3D DOURADO (ex.: "PAXTER" no topo claro): receita das 3 camadas (parede/face/halo), valores testados e armadilhas (contorno "carcomido", tema escuro intacto) + imagens antes/depois. Ler ANTES de mexer em wordmark/selo dourado em relevo |
+| `references/previa-de-link.md` | QUALQUER previa de link (WhatsApp/Telegram, og:image): padrao "Receituario" aprovado (placa up bevel + gaveta, risca de giz, tagline), imagem e componente de referencia em `references/previa-de-link/`, passo a passo de exportar e subir `?v=N` |
 
 Fluxo de uso: para card/lista -> ler `references/grade-imaginaria.md` PRIMEIRO -> escolher controle por
 INTENCAO (secao 4) -> montar com receita (`componentes-3d.md`) -> alinhar e espacar
@@ -1009,6 +1012,3 @@ apresentacao muda, o motor nunca.
 2. Historico = um poco concavo por data (DD/MM/AAAA, ouro), 4 miniaturas 3:4; vaga sem foto mostra "—", nunca espaco em branco.
 3. Comparador (modal panel-3d, maximizavel): abas de angulo (bevel-3d ativo), chips de data btn-3d-soft/bevel-3d com "n/4 fotos", modos Lado a lado / Cortina / Transicao, grade ouro com linhas ciano de cabeca e pes; data sem foto no angulo fica desabilitada com "—".
 4. Foto corporal so aparece por rota autenticada (blob local temporario); nunca por endereco publico.
-
-### Previa de link (WhatsApp/Telegram)
-Todo cartao de previa de link segue o padrao em references/previa-de-link.md (imagem de referencia e componente na pasta references/previa-de-link/). Ler antes de criar qualquer previa nova.
