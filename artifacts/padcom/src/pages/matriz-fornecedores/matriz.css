@@ -636,3 +636,36 @@ button.mx-apr { cursor: pointer; font: inherit; }
   margin: -1rem; min-height: calc(100% + 2rem);
 }
 @media (min-width: 768px) { .mx-root { margin: -1.5rem -2rem -2rem; min-height: calc(100% + 3.5rem); } }
+
+/* ===== Padrão claro do Cockpit de consulta: sem azul-marinho; creme, dourado e texto escuro ===== */
+.mx-root { --cream-hi: #fffdf6; --cream-lo: #f1e8d2; --gold-line: #c9a24a; }
+.mx-bevel, .mx-dock-h {
+  background: linear-gradient(180deg, var(--cream-hi), var(--cream-lo)); color: var(--ink);
+  border: 1px solid var(--line-2); box-shadow: inset 0 1px 0 #fff, 0 2px 0 var(--line-2), 0 8px 14px -8px rgba(120,90,30,.35);
+}
+.mx-dock-h { border-bottom: 1px solid var(--gold-line); box-shadow: inset 0 1px 0 #fff; }
+.mx-dock-t { color: var(--gold-d); }
+.mx-dock-f { color: var(--muted); }
+.mx-modal-x { border: 1px solid var(--line-2); background: #fff; color: var(--ink); }
+/* cabeçalho das colunas */
+.mx-th { color: var(--ink); background: linear-gradient(180deg, var(--cream-hi), var(--cream-lo)); border-right: 1px solid var(--line-2); border-top: 1px solid #fff; box-shadow: inset 0 -4px 0 var(--tc, var(--gold-line)); }
+.mx-th-t span { color: var(--muted); }
+.mx-th-sort { border: 1px solid var(--line-2); background: #fff; color: var(--muted); }
+.mx-th-sort:hover { background: #f3ecd8; }
+.mx-th-sort[data-on="1"] { color: var(--gold-d); border-color: var(--gold-d); }
+.mx-letter[data-on="1"], .mx-rn[data-on="1"] { background: var(--gold-soft); color: var(--ink); }
+/* ligado = vazado em creme com filete dourado (não azul) */
+.mx-chip[aria-pressed="true"], .mx-seg button[aria-pressed="true"] {
+  background: linear-gradient(180deg, #f3e3b8, #ecd9a0); color: var(--ink); border-color: var(--gold-d);
+  box-shadow: inset 0 2px 3px rgba(120,90,30,.28), 0 0 0 1px var(--gold-line);
+}
+.mx-chip-lab[aria-pressed="true"] { background: linear-gradient(180deg, #fff, #f3eddc); box-shadow: inset 0 1px 0 #fff, 0 2px 0 var(--lc), inset 0 -3px 0 var(--lc); border-color: var(--line-2); }
+.mx-check input { accent-color: var(--gold-d); }
+/* etiquetas e pílulas azuladas viram neutras quentes */
+.mx-mg, .mx-more, .mx-ferr-pills i, .mx-sbar-ger, .mx-addpreco:hover { background: #f6efdc; border-color: var(--line-2); color: var(--ink); }
+.mx-tag-frz, .mx-tag-link { background: #f6efdc; color: var(--gold-d); border: 1px solid var(--gold-line); }
+.mx-dz h3 b, .mx-dz-t b { background: var(--gold-soft); color: var(--ink); }
+/* seleção da célula: contorno dourado escuro */
+.mx-sel, .mx-conf-cell.mx-sel, .mx-win.mx-sel { box-shadow: inset 0 0 0 2px var(--gold-d), inset 0 0 0 3px #fff; }
+.mx-sel::after { background: var(--gold-d); }
+.mx-sbar-av { background: var(--gold-soft); color: var(--ink); }
