@@ -47,13 +47,13 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
         <small>Substância selecionada</small>
         <div className="mx-sbar-l1" title={l ? nomeDe(l) : ""}><b>{l ? nomeDe(l) : "Nenhuma"}</b></div>
         <div className="mx-sbar-l2"><i>Dose</i><span>{l ? doseCurta(l.doseTotal) : "—"}</span>{l?.via && <em>{l.via}</em>}</div>
-        <div className="mx-sbar-l3"><i>Conc.</i><span>{l?.concentracao ?? "—"}</span><i>Vol.</i><span>{l?.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—"}</span></div>
+        <div className="mx-sbar-l3"><i>Conc.</i><span className="mx-c1">{l?.concentracao ?? "—"}</span><i>Vol.</i><span className="mx-c2">{l?.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—"}</span></div>
       </div>
       <button type="button" className="mx-sbar-copy bevel-3d" onClick={copiar} disabled={!l} title="Copiar nome, dose e via" aria-label="Copiar a substância selecionada">
         {copiado ? <Check size={16} /> : <Copy size={16} />}
       </button>
       <div className="mx-sbar-togs">
-        <label className="mx-check mx-sbar-so"><input type="checkbox" checked={soEsta} onChange={(e) => onSoEsta(e.target.checked)} disabled={!l} /><span><b>Só esta substância</b><small>Mostra na tabela apenas as apresentações dela.</small></span></label>
+        <div className="mx-sbar-tog"><button type="button" className="mx-switch" role="switch" aria-checked={soEsta} disabled={!l} onClick={() => onSoEsta(!soEsta)}><i /><span>Só esta substância</span></button><small>Mostra na tabela apenas as apresentações dela.</small></div>
         <div className="mx-sbar-qtd"><i>Apresentações desta substância</i><b>{l ? lista.filter((x) => x.linha.substanciaId === l.substanciaId).length : 0}</b></div>
       </div>
       <div className="mx-sbar-busca" ref={ref}>
