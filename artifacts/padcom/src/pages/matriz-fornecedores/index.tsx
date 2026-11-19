@@ -658,15 +658,7 @@ export default function MatrizFornecedores() {
 
 
       <div className="mx-dock-top panel-3d" ref={dockRef} data-testid="painel-laboratorios-substancia">
-        <div className="mx-dock-labs" role="group" aria-label="Laboratórios">
-          <span className="mx-ev-l" style={{ margin: 0 }}>Laboratórios</span>
-          {forn.map((f) => (
-            <button key={f.id} type="button" className={`evo-bevel mx-dock-lab ${ligados.has(f.id) ? "evo-bevel-ativo" : ""}`} aria-pressed={ligados.has(f.id)} onClick={() => alternarLab(f.id)} title={`${nPorLab[forn.indexOf(f)]} apresentações`}>
-              <i style={{ background: corDe(f.id) }} /><span>{f.nome}</span><small>{nPorLab[forn.indexOf(f)]}</small>
-            </button>
-          ))}
-          {difereDoCadastro && <span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: difere do cadastro</span>}
-        </div>
+        {difereDoCadastro && <div className="mx-dock-aviso"><span className="mx-dirty" title="O preço publicado sempre usa os laboratórios ativos no cadastro de fornecedores.">Simulação: laboratórios diferentes do cadastro</span></div>}
         <BarraSubstancia atual={atual} lista={todos} onEscolher={setPick} soEsta={substFoco !== null}
       catDe={cats.de} cats={cats.lista} onGerenciar={() => setModal("cat")}
       onSoEsta={(v) => setSubstFoco(v && atual ? atual.linha.substanciaId : null)} />

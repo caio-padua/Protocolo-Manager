@@ -43,6 +43,7 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
 
   return (
     <div className="mx-sbar" data-testid="barra-substancia">
+      <div className="mx-sbar-z1">
       {l ? <Quadrado cat={catDe(l)} blend={l.isBlend} tam={64} /> : <span className="mx-cat-q-vazio" />}
       <div className="mx-sbar-sel">
         <small>Substância selecionada</small>
@@ -50,13 +51,12 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
         <div className="mx-sbar-l2"><i>Dose</i><span>{l ? doseCurta(l.doseTotal) : "—"}</span>{l?.via && <em>{l.via}</em>}</div>
         <div className="mx-sbar-l3"><i>Conc.</i><span className="mx-c1">{l?.concentracao ?? "—"}</span><i>Vol.</i><span className="mx-c2">{l?.volumeMl ? `${Number(l.volumeMl).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} mL` : "—"}</span></div>
       </div>
-      <button type="button" className="mx-sbar-copy bevel-3d" onClick={copiar} disabled={!l} title="Copiar nome, dose e via" aria-label="Copiar a substância selecionada">
-        {copiado ? <Check size={16} /> : <Copy size={16} />}
-      </button>
-      <div className="mx-sbar-togs">
+      </div>
+      <div className="mx-sbar-togs mx-sbar-z2">
         <div className="mx-sbar-tog"><ToggleWell checked={soEsta} disabled={!l} onChange={onSoEsta} label="Só esta substância" title="Mostra na tabela apenas as apresentações dela." /></div>
         <div className="mx-sbar-qtd"><i>Apresentações desta substância</i><b>{l ? lista.filter((x) => x.linha.substanciaId === l.substanciaId).length : 0}</b></div>
       </div>
+      <div className="mx-sbar-z3">
       <div className="mx-sbar-busca" ref={ref}>
         <div className="mx-search mx-search-prem">
           <Search size={15} />
@@ -90,6 +90,10 @@ export function BarraSubstancia({ atual, lista, onEscolher, soEsta, onSoEsta, ca
           </ul>
           </div>
         )}
+      </div>
+      <button type="button" className="mx-sbar-copy2 evo-bevel" onClick={copiar} disabled={!l} title="Copia nome, dose e via da substância selecionada" aria-label="Copiar dados da substância selecionada" data-testid="botao-copiar-dados-substancia">
+        {copiado ? <Check size={15} /> : <Copy size={15} />}<span>{copiado ? "Dados copiados" : "Copiar dados da substância"}</span>
+      </button>
       </div>
     </div>
   );

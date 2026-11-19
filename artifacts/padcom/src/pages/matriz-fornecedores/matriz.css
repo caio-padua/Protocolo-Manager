@@ -946,3 +946,29 @@ main:has(.mx-root) {
 /* Painel dos laboratórios + substância é um painel SEPARADO acima da planilha (fora da área rolável) */
 .mx-root > .mx-dock-top { position: relative; top: auto; z-index: 3; width: 100%; border-radius: 6px !important; padding: 10px 12px 12px; margin-bottom: -2px; }
 .mx-gridwrap { --dock-h: 0px !important; }
+
+/* ===== Painel da substância: 3 zonas. Esquerda VARIA com a substância; meio e direita têm largura FIXA ===== */
+.mx-root > .mx-dock-top { padding: 12px 14px; border: 1px solid rgba(184,146,77,.6); box-shadow: inset 0 2px 0 rgba(255,255,255,.95), inset 0 -5px 10px rgba(0,53,58,.10), 0 10px 16px -6px rgba(7,22,43,.5), 0 2px 0 #b8924d; background: linear-gradient(180deg, #fffefb, #f4eddb); }
+.mx-dock-top .mx-sbar { display: grid; grid-template-columns: minmax(300px, 1fr) 250px 380px; column-gap: 0; padding: 0; background: none; border: 0; box-shadow: none; align-items: stretch; }
+.mx-sbar-z1 { display: flex; align-items: center; gap: 16px; min-width: 0; padding-right: 18px; }
+.mx-sbar-z1 .mx-sbar-sel { flex: 1; padding-left: 0; border-left: 0; min-width: 0; }
+.mx-sbar-z2 { width: 250px; padding: 0 18px; border-left: 1px solid var(--line-2); border-right: 1px solid var(--line-2); justify-content: center; }
+.mx-sbar-z3 { width: 380px; padding-left: 18px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.mx-sbar-z3 .mx-sbar-busca { width: 100%; }
+.mx-sbar-copy2 { display: flex; align-items: center; justify-content: center; gap: 8px; height: 34px; width: 100%; border-radius: 5px; font: 700 10px Inter, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.mx-root button.mx-sbar-copy2 { color: var(--evo-ink); }
+.mx-sbar-copy2:disabled { opacity: .45; cursor: default; }
+.mx-dock-aviso { margin-bottom: 6px; }
+@media (max-width: 1100px) { .mx-dock-top .mx-sbar { grid-template-columns: 1fr; row-gap: 10px; } .mx-sbar-z2, .mx-sbar-z3 { width: 100%; padding: 0; border: 0; } }
+
+/* Quadrado de categoria: levemente retangular e letra menor conforme o tamanho da sigla (4+ letras não encostam nas laterais) */
+.mx-cat-q-forte { width: 68px !important; height: 56px !important; }
+.mx-cat-q b { letter-spacing: 0 !important; padding: 0 3px; }
+.mx-cat-q-forte[data-len="1"] b, .mx-cat-q-forte[data-len="2"] b { font-size: 22px !important; }
+.mx-cat-q-forte[data-len="3"] b { font-size: 17px !important; }
+.mx-cat-q-forte[data-len="4"] b { font-size: 14px !important; }
+.mx-cat-q-forte[data-len="5"] b { font-size: 11.5px !important; }
+.mx-cat-q:not(.mx-cat-q-forte)[data-len="3"] b { font-size: 10px !important; }
+.mx-cat-q:not(.mx-cat-q-forte)[data-len="4"] b { font-size: 8.5px !important; }
+.mx-cat-q:not(.mx-cat-q-forte)[data-len="5"] b { font-size: 7px !important; }
+.mx-cat-q-vazio { width: 68px; height: 56px; }
