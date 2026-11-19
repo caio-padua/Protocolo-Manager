@@ -151,11 +151,11 @@ const navigation: NavEntry[] = [
     ],
   },
   {
-    name: "Área do Cliente",
+    name: "App do Cliente",
     icon: Smartphone,
     children: [
       { name: "Experiência do Cliente (Admin Preview)", href: "/experiencia-cliente", icon: Sparkles },
-      { name: "Área do Paciente (Direto)", href: "/area", icon: Users },
+      { name: "PaxMed Members (Direto)", href: "/area", icon: Users },
     ],
   },
   // GRUPO VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.
@@ -295,7 +295,7 @@ const GRUPO_MODULO: Record<string, string | null> = {
   "Agenda & Recepção":             "agenda",
   "O Ato Médico":                  null,     // cockpit e anamnese têm acesso universal
   "Exames":                        "exames_lab",
-  "Área do Cliente":               null,
+  "App do Cliente":                null,
   "GRUPO VIP":                     null,     // acesso à tela vem do CollaboratorGate da rota /boloes
   "Órgãos de Prescrição":         "protocolos",
   "Arsenal Clínico":               "protocolos",
