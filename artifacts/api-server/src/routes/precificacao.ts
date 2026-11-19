@@ -5,6 +5,7 @@ import { moduleGuard } from "../middleware/moduleGuard";
 import { acesso } from "./fornecedores";
 import { montarMatrizCompleta } from "../lib/matriz-completa";
 import { aplicarAgora, CATEGORIAS, ErroPrecificacao, salvarConfiguracao, validarConfiguracao, type Categoria } from "../lib/precificacao";
+import { cadastrarBlend, ErroBlend, validarBlend } from "../lib/blend-cadastro";
 import { liberarReservaProtocolo, saldosPorSubstancia } from "../lib/estoque-reserva";
 import { resolveEmpresaId } from "../middleware/tenantContext";
 
@@ -27,6 +28,18 @@ function tratar(res: Response, e: unknown): void {
 // Matriz completa: preços, precificação, preço publicado, vínculo com o Orçamento e estoque estático/dinâmico.
 router.get("/matriz-fornecedores/completa", requireCollaborator, acesso, estrutura, async (req, res) => {
   res.json(await montarMatrizCompleta(pool, req.tenantContext.empresaId));
+});
+
+// Cadastro visual de blend: nasce INDISPONÍVEL (aguarda revisão clínica), com composição e preço da caixa de um laboratório.
+router.post("/matriz-fornecedores/blend", requireCollaborator, acesso, estrutura, async (req, res) => {
+  try {
+    const entrada = validarBlend(req.body);
+    const r = await cadastrarBlend(pool, req.tenantContext.empresaId, req.tenantContext.professionalId as number, entrada);
+    res.status(201).json({ ok: true, ...r });
+  } catch (e) {
+    if (e instanceof ErroBlend) { res.status(e.status).json({ error: e.message }); return; }
+    throw e;
+  }
 });
 
 router.put("/precificacao", requireCollaborator, acesso, estrutura, async (req, res) => {

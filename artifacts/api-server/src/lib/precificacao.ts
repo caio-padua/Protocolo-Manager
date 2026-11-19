@@ -4,7 +4,7 @@ import { montarMatriz, type CelulaMatriz, type LinhaMatriz } from "./matriz-forn
 type Consulta = Pick<Pool | PoolClient, "query">;
 
 export type Categoria = LinhaMatriz["categoria"];
-export const CATEGORIAS: Categoria[] = ["IM", "SC", "IMPLANTE", "OUTRAS", "SEM_VIA"];
+export const CATEGORIAS: Categoria[] = ["IM", "EV", "SC", "ID", "IMPLANTE", "OUTRAS", "SEM_VIA"];
 export type Arredondamento = "nenhum" | "inteiro" | "90";
 export type ReferenciaModo = "maior" | "media" | "menor";
 export type ModoCategoria = "auto" | "congelado";

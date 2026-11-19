@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
-import type { Calc, Fornecedor } from "./calculo";
+import { nomeDe, type Calc, type Fornecedor } from "./calculo";
 import { V, brl, qtdTxt } from "./componentes";
 
 export function Modal({ titulo, onFechar, children }: { titulo: string; onFechar: () => void; children: ReactNode }) {
@@ -27,7 +27,7 @@ export function PedidoPorLaboratorio({ fornecedores, cor, linhas, avisar }: { fo
       const c = x.vencedoras[0];
       const falta = x.linha.estoque?.falta ?? 0;
       const caixas = falta > 0 ? Math.ceil(falta / c.quantidadeEmbalagem) : soFalta ? 0 : 1;
-      return { nome: `${x.linha.produto} ${x.linha.doseTotal}`, caixas, qtd: c.quantidadeEmbalagem, falta, total: caixas * c.custoEmbalagemCentavos, caixa: c.custoEmbalagemCentavos };
+      return { nome: `${nomeDe(x.linha)} ${x.linha.doseTotal}`, caixas, qtd: c.quantidadeEmbalagem, falta, total: caixas * c.custoEmbalagemCentavos, caixa: c.custoEmbalagemCentavos };
     }).filter((i) => i.caixas > 0);
     return { f, itens, total: itens.reduce((a, b) => a + b.total, 0) };
   }), [fornecedores, linhas, soFalta]);

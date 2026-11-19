@@ -1,5 +1,6 @@
 /** Tipos da tela e réplica do cálculo de preço. O servidor é a autoridade; aqui só se simula antes de salvar. */
-export type Categoria = "IM" | "SC" | "IMPLANTE" | "OUTRAS" | "SEM_VIA";
+export type Categoria = "IM" | "EV" | "SC" | "ID" | "IMPLANTE" | "OUTRAS" | "SEM_VIA";
+export type ViaCodigo = "IM" | "EV" | "SC" | "ID" | "TOPICO" | "IMPLANTE";
 export type Arredondamento = "nenhum" | "inteiro" | "90";
 export type ReferenciaModo = "maior" | "media" | "menor";
 export type ModoCategoria = "auto" | "congelado";
@@ -9,6 +10,7 @@ export type Estoque = { fisico: number; dinamico: number; estatico: number; falt
 export type Linha = {
   varianteId: number; substanciaId: number; produto: string; doseTotal: string; forma: string; volumeMl: string | null;
   concentracao: string | null; via: string | null; categoria: Categoria; celulas: Celula[];
+  vias: ViaCodigo[]; classe: string; isBlend: boolean; composicao: string | null; produtoFonte: string | null; disponivel: boolean;
   estoque: Estoque | null;
   publicado: { precoCentavos: number; origem: string; publicadoEm: string } | null;
   orcamento: { catalogoId: number; nome: string; precoCentavos: number } | null;
@@ -25,12 +27,38 @@ export type Matriz = {
 };
 
 export const CATEGORIAS: { id: Categoria; nome: string; curto: string }[] = [
-  { id: "IM", nome: "Injetáveis IM", curto: "IM" },
-  { id: "SC", nome: "Injetáveis SC", curto: "SC" },
+  { id: "IM", nome: "Injetáveis IM (intramuscular)", curto: "IM" },
+  { id: "EV", nome: "Injetáveis EV (endovenosa)", curto: "EV" },
+  { id: "SC", nome: "Injetáveis SC (subcutânea)", curto: "SC" },
+  { id: "ID", nome: "Injetáveis ID (intradérmica)", curto: "ID" },
   { id: "IMPLANTE", nome: "Implantes", curto: "Implantes" },
-  { id: "OUTRAS", nome: "Outras vias (EV, ID, tópico)", curto: "Outras vias" },
+  { id: "OUTRAS", nome: "Outras vias (tópico)", curto: "Tópico" },
   { id: "SEM_VIA", nome: "Sem via informada", curto: "Sem via" },
 ];
+/** Botões de via: um produto "EV / IM" aparece em EV e em IM. Todos aparecem, mesmo vazios. */
+export type FiltroVia = "TODAS" | ViaCodigo | "SEM_VIA";
+export const BOTOES_VIA: { id: FiltroVia; rotulo: string; nome: string }[] = [
+  { id: "TODAS", rotulo: "Todas", nome: "Todas as vias" },
+  { id: "IM", rotulo: "IM", nome: "Intramuscular" },
+  { id: "EV", rotulo: "EV", nome: "Endovenosa" },
+  { id: "SC", rotulo: "SC", nome: "Subcutânea" },
+  { id: "ID", rotulo: "ID", nome: "Intradérmica" },
+  { id: "TOPICO", rotulo: "Tópico", nome: "Tópico" },
+  { id: "IMPLANTE", rotulo: "Implante", nome: "Implante" },
+  { id: "SEM_VIA", rotulo: "Sem via", nome: "Sem via informada" },
+];
+export const temVia = (l: Linha, v: FiltroVia): boolean => v === "TODAS" || (v === "SEM_VIA" ? l.categoria === "SEM_VIA" : l.vias.includes(v));
+
+/** Nome mostrado: para blend vale o nome comercial do laboratório, quando existe. */
+export const nomeDe = (l: Linha): string => (l.isBlend && l.produtoFonte ? l.produtoFonte : l.produto);
+/** Componentes de um blend, no formato "Nome dose + Nome dose". */
+export const componentesDe = (l: Linha): { nome: string; dose: string }[] =>
+  !l.isBlend || !l.composicao ? [] : l.composicao.split(/\s\+\s/).map((x) => {
+    const m = /^(.*?)\s+((?:\d[\d.,]*)\s*(?:mg|mcg|g|UI|%|mL)\b.*)$/i.exec(x.trim());
+    return m ? { nome: m[1], dose: m[2] } : { nome: x.trim(), dose: "" };
+  }).filter((c) => c.nome);
+/** Área clínica para agrupar, escrita de forma legível (ex.: "Vitamínico"). */
+export const classeTxt = (c: string): string => { const t = c.trim().toLowerCase(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Sem classe"; };
 export const MODO_TXT: Record<ReferenciaModo, string> = { maior: "Maior valor", media: "Média", menor: "Menor valor" };
 
 export type Formacao = {

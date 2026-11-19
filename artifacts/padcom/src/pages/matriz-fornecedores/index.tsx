@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Copy, FileSpreadsheet, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Copy, FileSpreadsheet, FlaskConical, Lock, Search, ShoppingCart, Trophy, Boxes, X } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { Numeral } from "@/components/numeral/Numeral";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  CATEGORIAS, MODO_TXT, calcular, doseCurta, unidadeTxt,
-  type Calc, type Categoria, type ConfigCategoria, type Matriz, type Parametros, type ReferenciaModo,
+  BOTOES_VIA, CATEGORIAS, MODO_TXT, calcular, classeTxt, componentesDe, doseCurta, nomeDe, temVia, unidadeTxt,
+  type Calc, type FiltroVia, type Categoria, type ConfigCategoria, type Matriz, type Parametros, type ReferenciaModo,
 } from "./calculo";
 import { P, V, brl, pctTxt, qtdTxt, sinal } from "./componentes";
 import { Modal, PedidoPorLaboratorio, ReservasDeEstoque } from "./Modais";
+import { NovoBlend } from "./NovoBlend";
 import { PrecificacaoDock } from "./PrecificacaoDock";
 import "./matriz.css";
 
@@ -59,15 +60,16 @@ export default function MatrizFornecedores() {
   const sujo = !!rascunho && JSON.stringify(rascunho) !== servidorRef.current;
 
   const [busca, setBusca] = useState("");
-  const [catSel, setCatSel] = useState<Categoria | "TODAS">("TODAS");
+  const [viaSel, setViaSel] = useState<FiltroVia>("TODAS");
+  const [agrupar, setAgrupar] = useState<"via" | "classe">("via");
   const [soComp, setSoComp] = useState(false);
   const [soReserva, setSoReserva] = useState(false);
   const [soFalta, setSoFalta] = useState(false);
   const [desligados, setDesligados] = useState<number[] | null>(null);
-  const [fechados, setFechados] = useState<Categoria[]>([]);
+  const [fechados, setFechados] = useState<string[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>({ key: "eco", dir: -1 });
   const [sel, setSel] = useState<{ r: number; c: number; modo: "cell" | "col" | "row" }>({ r: 0, c: 3, modo: "cell" });
-  const [modal, setModal] = useState<null | "ped" | "res">(null);
+  const [modal, setModal] = useState<null | "ped" | "res" | "blend">(null);
   const [toast, setToast] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const buscaRef = useRef<HTMLInputElement>(null);
@@ -87,28 +89,47 @@ export default function MatrizFornecedores() {
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return todos.filter((c) =>
-      (catSel === "TODAS" || c.linha.categoria === catSel) &&
+      temVia(c.linha, viaSel) &&
       (!soComp || c.incl.length >= 2) &&
       (!soReserva || (c.linha.estoque?.dinamico ?? 0) > 0) &&
       (!soFalta || (c.linha.estoque?.falta ?? 0) > 0) &&
-      (!t || `${c.linha.produto} ${c.linha.doseTotal}`.toLowerCase().includes(t)));
-  }, [todos, busca, catSel, soComp, soReserva, soFalta]);
+      (!t || `${c.linha.produto} ${nomeDe(c.linha)} ${c.linha.doseTotal} ${c.linha.composicao ?? ""} ${c.linha.classe}`.toLowerCase().includes(t)));
+  }, [todos, busca, viaSel, soComp, soReserva, soFalta]);
 
-  const grupos = useMemo(() => CATEGORIAS.map((cat) => {
-    let lista = filtrados.filter((c) => c.linha.categoria === cat.id);
-    if (sort) {
-      const chave = (c: Calc): number | string | null =>
-        sort.key === "prod" ? `${c.linha.produto} ${c.linha.doseTotal}` : sort.key === "best" ? c.min : sort.key === "eco" ? c.eco : sort.key === "estq" ? (c.linha.estoque?.estatico ?? null) : c.pub;
-      lista = [...lista].sort((a, b) => {
-        const x = chave(a), y = chave(b);
-        if (x === null && y === null) return 0;
-        if (x === null) return 1;
-        if (y === null) return -1;
-        return (typeof x === "string" ? x.localeCompare(y as string, "pt-BR") : (x as number) - (y as number)) * sort.dir;
-      });
+  const grupos = useMemo(() => {
+    type G = { id: string; titulo: string; margem: number | null; lista: Calc[] };
+    const brutos: G[] = [];
+    if (agrupar === "classe") {
+      const m = new Map<string, G>();
+      for (const c of filtrados) {
+        const chave = c.linha.classe.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+        const g = m.get(chave) ?? { id: `classe-${chave}`, titulo: classeTxt(c.linha.classe), margem: null, lista: [] };
+        g.lista.push(c); m.set(chave, g);
+      }
+      brutos.push(...[...m.values()].sort((x, y) => x.titulo.localeCompare(y.titulo, "pt-BR")));
+    } else if (viaSel !== "TODAS") {
+      // Via escolhida: tudo que pode ser aplicado por ela, em um bloco só (um produto "EV / IM" não se repete).
+      const nome = BOTOES_VIA.find((x) => x.id === viaSel)?.nome ?? viaSel;
+      brutos.push({ id: `via-${viaSel}`, titulo: `Pode ser aplicado: ${nome}`, margem: null, lista: filtrados });
+    } else {
+      for (const cat of CATEGORIAS) brutos.push({ id: cat.id, titulo: cat.nome, margem: margens[cat.id], lista: filtrados.filter((c) => c.linha.categoria === cat.id) });
     }
-    return { cat, todos: lista, abertos: fechados.includes(cat.id) ? [] : lista };
-  }).filter((g) => g.todos.length > 0), [filtrados, sort, fechados]);
+    return brutos.map((g) => {
+      let lista = g.lista;
+      if (sort) {
+        const chave = (c: Calc): number | string | null =>
+          sort.key === "prod" ? `${nomeDe(c.linha)} ${c.linha.doseTotal}` : sort.key === "best" ? c.min : sort.key === "eco" ? c.eco : sort.key === "estq" ? (c.linha.estoque?.estatico ?? null) : c.pub;
+        lista = [...lista].sort((a, b) => {
+          const x = chave(a), y = chave(b);
+          if (x === null && y === null) return 0;
+          if (x === null) return 1;
+          if (y === null) return -1;
+          return (typeof x === "string" ? x.localeCompare(y as string, "pt-BR") : (x as number) - (y as number)) * sort.dir;
+        });
+      }
+      return { ...g, todos: lista, abertos: fechados.includes(g.id) ? [] : lista };
+    }).filter((g) => g.todos.length > 0);
+  }, [filtrados, sort, fechados, agrupar, viaSel, margens]);
 
   const flat = useMemo(() => grupos.flatMap((g) => g.abertos), [grupos]);
   const labsVisiveis = forn.filter((f) => ligados.has(f.id));
@@ -168,7 +189,7 @@ export default function MatrizFornecedores() {
   });
 
   const textoCelula = (cc: Calc, col: Col): string => {
-    if (col.kind === "prod") return `${cc.linha.produto} ${cc.linha.doseTotal}`;
+    if (col.kind === "prod") return `${nomeDe(cc.linha)} ${cc.linha.doseTotal}`;
     if (col.kind === "via") return cc.linha.via || "—";
     const n = numeroDaCelula(cc, col);
     return n ? fmtNum(n) : "—";
@@ -224,7 +245,8 @@ export default function MatrizFornecedores() {
     const l = atual.linha;
     const enc = parametros.impostosPct + parametros.cartaoPct + parametros.comissaoPct + parametros.despesasPct;
     if (colAtual.kind === "prod")
-      return <>{l.produto} · dose {l.doseTotal} · concentração {l.concentracao ?? "não informada"} · {CATEGORIAS.find((x) => x.id === l.categoria)?.nome} · mesma dose = mesmo produto, mesmo com concentração diferente</>;
+      return <>{nomeDe(l)}{l.isBlend && l.produto !== nomeDe(l) ? ` (blend ${l.produto})` : ""} · dose {l.doseTotal} · concentração {l.concentracao ?? "não informada"} · {CATEGORIAS.find((x) => x.id === l.categoria)?.nome} · classe {classeTxt(l.classe)}{!l.disponivel ? " · INDISPONÍVEL até revisão clínica" : ""}
+        {l.isBlend && <span className="mx-fx-chips">{componentesDe(l).map((k, i) => <span key={i} className="mx-bchip"><b>{k.nome}</b>{k.dose}</span>)}</span>}</>;
     if (colAtual.kind === "via") return <>Via de uso cadastrada: {l.via || "não informada (a categoria não é adivinhada)"}</>;
     if (colAtual.kind === "lab") {
       const o = l.celulas.find((x) => x.fornecedorId === colAtual.lab);
@@ -263,9 +285,15 @@ export default function MatrizFornecedores() {
       return (
         <td key={ci} {...tdProps(ri, ci)} className={cls(ri, ci, "mx-td-fix")}>
           <div className="mx-td-in mx-3f">
-            <div className="mx-f1 mx-prod" title={l.produto}><span className="mx-prod-n">{l.produto}</span></div>
+            <div className="mx-f1 mx-prod" title={l.isBlend && l.produto !== nomeDe(l) ? `${nomeDe(l)} (${l.produto})` : nomeDe(l)}>
+              <span className="mx-prod-n">{nomeDe(l)}</span>
+              {l.isBlend && <span className="mx-tag mx-tag-blend">Blend</span>}
+              {!l.disponivel && <span className="mx-tag mx-tag-off" title="Aguardando revisão clínica">Indisp.</span>}
+            </div>
             <div className="mx-f2 mx-dose" title={l.doseTotal}><i>Dose</i><b>{doseCurta(l.doseTotal)}</b></div>
-            <div className="mx-f3 mx-conc" title={l.concentracao ?? ""}><i>Conc.</i><span>{l.concentracao ?? "—"}</span></div>
+            {l.isBlend
+              ? <div className="mx-f3 mx-conc mx-chips" title={l.composicao ?? ""}><i>Comp.</i>{componentesDe(l).slice(0, 3).map((k, i) => <span key={i} className="mx-bchip"><b>{k.nome}</b></span>)}{componentesDe(l).length > 3 && <span className="mx-bchip">+{componentesDe(l).length - 3}</span>}</div>
+              : <div className="mx-f3 mx-conc" title={l.concentracao ?? ""}><i>Conc.</i><span>{l.concentracao ?? "—"}</span></div>}
           </div>
         </td>
       );
@@ -417,8 +445,7 @@ export default function MatrizFornecedores() {
 
   let numero = 0;
   const larguraTotal = 48 + cols.reduce((a, x) => a + x.w, 0);
-  const tituloCat = (id: Categoria) => CATEGORIAS.find((x) => x.id === id)?.nome ?? id;
-
+  
   return (
     <div className="mx-root" data-testid="page-matriz-fornecedores">
       <div className="mx-top">
@@ -449,6 +476,7 @@ export default function MatrizFornecedores() {
             </div>
           </div>
           <div className="mx-cr">
+            <button type="button" className="mx-btn" onClick={() => setModal("blend")} data-testid="botao-novo-blend"><FlaskConical size={15} />Novo blend</button>
             <button type="button" className="mx-btn" onClick={() => setModal("ped")}><ShoppingCart size={15} />Pedido por laboratório</button>
             <button type="button" className="mx-btn mx-btn-gold" onClick={() => setModal("res")}><Boxes size={15} />Reservas de estoque</button>
           </div>
@@ -474,11 +502,23 @@ export default function MatrizFornecedores() {
         <div className="mx-crow">
           <span className="mx-rowlab">Via de uso</span>
           <div className="mx-cl" role="group" aria-label="Via de uso">
-            <button type="button" className="mx-chip" aria-pressed={catSel === "TODAS"} onClick={() => setCatSel("TODAS")}>Todas <small>{todos.length}</small></button>
-            <span className="mx-vsep" />
-            {CATEGORIAS.map((x) => { const n = todos.filter((t) => t.linha.categoria === x.id).length; return n ? <button key={x.id} type="button" className="mx-chip" aria-pressed={catSel === x.id} onClick={() => setCatSel(x.id)}>{x.curto} <small>{n}</small></button> : null; })}
+            {BOTOES_VIA.map((x) => {
+              const n = x.id === "TODAS" ? todos.length : todos.filter((t) => temVia(t.linha, x.id)).length;
+              return (
+                <span key={x.id} style={{ display: "contents" }}>
+                  {x.id === "IM" && <span className="mx-vsep" />}
+                  <button type="button" className="mx-chip" title={x.nome} data-vazio={n === 0 ? 1 : 0} aria-pressed={viaSel === x.id} onClick={() => setViaSel(x.id)}>{x.rotulo} <small>{n}</small></button>
+                </span>
+              );
+            })}
           </div>
           <div className="mx-cr">
+            <div className="mx-group"><label>Agrupar por</label>
+              <div className="mx-well mx-seg" role="group" aria-label="Agrupar a lista">
+                <button type="button" aria-pressed={agrupar === "via"} onClick={() => setAgrupar("via")}>Via</button>
+                <button type="button" aria-pressed={agrupar === "classe"} onClick={() => setAgrupar("classe")}>Categoria clínica</button>
+              </div>
+            </div>
             <div className="mx-group"><label>Mostrar</label>
               <div className="mx-well mx-checks">
                 <label className="mx-check"><input type="checkbox" checked={soComp} onChange={(e) => setSoComp(e.target.checked)} />Só comparáveis</label>
@@ -501,8 +541,8 @@ export default function MatrizFornecedores() {
         {grupos.length === 0 ? (
           <div className="mx-none">
             <FileSpreadsheet size={36} /><b>Nenhum produto com esses filtros</b>
-            <span>Tire a busca ou volte para &quot;Todas&quot; as categorias.</span>
-            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setCatSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); }}>Limpar filtros</button>
+            <span>Tire a busca ou volte para &quot;Todas&quot; as vias.</span>
+            <button type="button" className="mx-btn" onClick={() => { setBusca(""); setViaSel("TODAS"); setSoComp(false); setSoReserva(false); setSoFalta(false); }}>Limpar filtros</button>
           </div>
         ) : (
           <table className="mx-table" style={{ width: "100%", minWidth: larguraTotal }} data-testid="tabela-matriz">
@@ -519,15 +559,15 @@ export default function MatrizFornecedores() {
             </thead>
             <tbody>
               {grupos.map((g) => {
-                const aberto = !fechados.includes(g.cat.id);
+                const aberto = !fechados.includes(g.id);
                 const comp = g.todos.filter((x) => x.incl.length >= 2);
                 const eco = comp.length ? (comp.reduce((a, x) => a + (x.eco as number), 0) / comp.length) * 100 : null;
                 return [
-                  <tr key={`b-${g.cat.id}`} className="mx-band" onClick={() => setFechados((f) => (f.includes(g.cat.id) ? f.filter((x) => x !== g.cat.id) : [...f, g.cat.id]))}>
+                  <tr key={`b-${g.id}`} className="mx-band" onClick={() => setFechados((f) => (f.includes(g.id) ? f.filter((x) => x !== g.id) : [...f, g.id]))}>
                     <td colSpan={cols.length + 1}>
                       <div className="mx-band-in" data-open={aberto ? 1 : 0}>
-                        <ChevronDown size={15} className="mx-chev" />{tituloCat(g.cat.id)}
-                        <small>{g.todos.length} produtos</small><small>margem {pctTxt(margens[g.cat.id])}</small>
+                        <ChevronDown size={15} className="mx-chev" />{g.titulo}
+                        <small>{g.todos.length} produtos</small>{g.margem !== null && <small>margem {pctTxt(g.margem)}</small>}
                         {eco !== null && <small>economia média {pctTxt(eco)}</small>}
                       </div>
                     </td>
@@ -563,6 +603,7 @@ export default function MatrizFornecedores() {
         onSalvar={() => salvar.mutate()} onAplicar={(cat) => aplicar.mutate(cat)} avisar={avisar} />
 
       {modal === "ped" && <Modal titulo="Pedido por laboratório" onFechar={() => setModal(null)}><PedidoPorLaboratorio fornecedores={labsVisiveis} cor={corDe} linhas={filtrados} avisar={avisar} /></Modal>}
+      {modal === "blend" && <Modal titulo="Novo blend" onFechar={() => setModal(null)}><NovoBlend fornecedores={forn} avisar={avisar} aoCriar={() => { setModal(null); void recarregar(); }} /></Modal>}
       {modal === "res" && <Modal titulo="Reservas de estoque" onFechar={() => setModal(null)}><ReservasDeEstoque avisar={avisar} aoMudar={() => void recarregar()} /></Modal>}
       {toast && <div className="mx-bevel mx-toast" role="status">{toast}</div>}
     </div>

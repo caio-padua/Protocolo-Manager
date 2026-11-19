@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Calculator, ChevronDown, Minus, Plus, RefreshCw, Save } from "lucide-react";
-import { CATEGORIAS, type Arredondamento, type Calc, type Categoria, type ConfigCategoria, type Parametros } from "./calculo";
+import { CATEGORIAS, nomeDe, type Arredondamento, type Calc, type Categoria, type ConfigCategoria, type Parametros } from "./calculo";
 import { NumField, P, V, pctTxt, sinal } from "./componentes";
 
 type Props = {
@@ -14,6 +14,9 @@ const limitar = (n: number) => Math.min(95, Math.max(0, Math.round(n * 10) / 10)
 
 export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo, salvando, onParametros, onCategorias, onSalvar, onAplicar, avisar }: Props) {
   const [aberto, setAberto] = useState(true);
+  const [zonas, setZonas] = useState({ a: true, b: true, c: true });
+  const alt = (z: "a" | "b" | "c") => setZonas((v) => ({ ...v, [z]: !v[z] }));
+  const todasZonas = zonas.a && zonas.b && zonas.c;
   const [igual, setIgual] = useState(35);
   const encargos = p.impostosPct + p.cartaoPct + p.comissaoPct + p.despesasPct;
   const mudar = (k: keyof Parametros, v: number | Arredondamento) => onParametros({ ...p, [k]: v });
@@ -55,6 +58,8 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
         <button type="button" className="mx-dock-t" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}>
           <ChevronDown size={16} className="mx-chev" data-open={aberto ? 1 : 0} /><Calculator size={16} />Precificação
         </button>
+        <button type="button" className="mx-btn" style={{ height: 28 }} aria-label={todasZonas ? "Fechar todos os blocos de parâmetros" : "Abrir todos os blocos de parâmetros"}
+          onClick={() => { setAberto(true); setZonas({ a: !todasZonas, b: !todasZonas, c: !todasZonas }); }}>{todasZonas ? "Fechar blocos" : "Abrir blocos"}</button>
         <span className="mx-dock-f">Venda = custo efetivo ÷ (1 − impostos − cartão − comissão − despesas − margem)</span>
         <div className="mx-dock-act">
           {sujo && <span className="mx-dirty" role="status">Alterações não salvas</span>}
@@ -76,10 +81,10 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
         </div>
       </header>
       {aberto && (
-        <div className="mx-dock-b">
-          <div className="mx-dz mx-dz-a">
-            <h3><b>1</b>Custos e encargos <em>valem para todos os produtos</em></h3>
-            <div className="mx-flds">
+        <div className="mx-dock-b" style={{ ["--ca" as string]: zonas.a ? "556px" : "190px", ["--cb" as string]: zonas.b ? "minmax(0, 1fr)" : "190px", ["--cc" as string]: zonas.c ? "300px" : "190px" }}>
+          <div className="mx-dz mx-dz-a" data-fechada={zonas.a ? 0 : 1}>
+            <h3><button type="button" className="mx-dz-t" aria-expanded={zonas.a} onClick={() => alt("a")}><ChevronDown size={14} className="mx-chev" data-open={zonas.a ? 1 : 0} /><b>1</b>Custos e encargos <em>valem para todos os produtos</em></button></h3>
+            {zonas.a && <><div className="mx-flds">
               {([
                 ["fretePct", "Frete e entrada", "sobre o custo"], ["perdaPct", "Perda (quebra)", "quebra e validade"], ["impostosPct", "Impostos", "sobre a venda"],
                 ["cartaoPct", "Taxa de cartão", "média, sobre a venda"], ["comissaoPct", "Comissão", "sobre a venda"], ["despesasPct", "Despesas rateadas", "sobre a venda"],
@@ -97,12 +102,12 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
               </div>
               <div className="mx-fld mx-fld-sum"><span>Encargos sobre a venda</span><div className="mx-sumv"><P v={encargos} peso={800} className="mx-serif" /></div><em>impostos + cartão + comissão + despesas</em></div>
             </div>
-            <p className="mx-note mx-ex">Zero significa &quot;ainda não preenchido&quot;. Confirmar as alíquotas com o contador antes de salvar.</p>
+            <p className="mx-note mx-ex">Zero significa &quot;ainda não preenchido&quot;. Confirmar as alíquotas com o contador antes de salvar.</p></>}
           </div>
 
-          <div className="mx-dz mx-dz-b">
-            <h3><b>2</b>Margem de lucro por categoria <em>o interruptor decide se o preço acompanha</em></h3>
-            <div className="mx-cats" style={{ ["--n" as string]: catsAtivas.length }}>
+          <div className="mx-dz mx-dz-b" data-fechada={zonas.b ? 0 : 1}>
+            <h3><button type="button" className="mx-dz-t" aria-expanded={zonas.b} onClick={() => alt("b")}><ChevronDown size={14} className="mx-chev" data-open={zonas.b ? 1 : 0} /><b>2</b>Margem de lucro por via <em>o interruptor decide se o preço acompanha</em></button></h3>
+            {zonas.b && <><div className="mx-cats" style={{ ["--n" as string]: catsAtivas.length }}>
               {catsAtivas.map((x) => {
                 const st = statCat[x.id]; const c = cfg(x.id); const auto = c.modo === "auto";
                 return (
@@ -129,12 +134,12 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
                 );
               })}
             </div>
-            <p className="mx-note mx-ex">Ao publicar, o preço segue para o Orçamento e para o cadastro da Substância (só onde há uma única apresentação). Cada mudança fica no histórico.</p>
+            <p className="mx-note mx-ex">Ao publicar, o preço segue para o Orçamento e para o cadastro da Substância (só onde há uma única apresentação). Cada mudança fica no histórico.</p></>}
           </div>
 
-          <div className="mx-dz mx-dz-c">
-            <h3><b>3</b>Como se forma o preço <em>{atual ? `${atual.linha.produto} ${atual.linha.doseTotal}` : "selecione uma linha"}</em></h3>
-            {f ? (<>
+          <div className="mx-dz mx-dz-c" data-fechada={zonas.c ? 0 : 1}>
+            <h3><button type="button" className="mx-dz-t" aria-expanded={zonas.c} onClick={() => alt("c")}><ChevronDown size={14} className="mx-chev" data-open={zonas.c ? 1 : 0} /><b>3</b>Como se forma o preço <em>{atual ? `${nomeDe(atual.linha)} ${atual.linha.doseTotal}` : "selecione uma linha"}</em></button></h3>
+            {zonas.c && (f ? (<>
               <div className="mx-stack" role="img" aria-label="Composição do preço de venda">
                 {itens.map(([n, v, c]) => <i key={n} style={{ flexGrow: Math.max(v, 0), background: c }} title={n} />)}
               </div>
@@ -144,7 +149,7 @@ export function PrecificacaoDock({ parametros: p, categorias, todos, atual, sujo
                 ))}
                 <li className="mx-legend-t"><span /><span>Preço de venda</span><V c={Math.round(f.venda)} /><P v={100} peso={500} className="mx-pc" /></li>
               </ul>
-            </>) : <p className="mx-note">{atual?.invalido ? "A soma de encargos e margem passa de 95%." : "Esta linha ainda não tem preço de custo."}</p>}
+            </>) : <p className="mx-note">{atual?.invalido ? "A soma de encargos e margem passa de 95%." : "Esta linha ainda não tem preço de custo."}</p>)}
           </div>
         </div>
       )}

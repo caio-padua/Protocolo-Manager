@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({ pool: null as any }));
 vi.mock("@workspace/db", () => ({ get pool() { return state.pool; }, get db() { return null; } }));
 
 import { aplicarAgora, formarPreco, referenciaDe, salvarConfiguracao, PARAMETROS_ZERO, validarConfiguracao, ErroPrecificacao } from "../lib/precificacao";
+import { cadastrarBlend, ErroBlend, validarBlend } from "../lib/blend-cadastro";
+import { categoriaDaLinha, montarMatriz, viasDoTexto } from "../lib/matriz-fornecedores";
 import { consumirAplicacao, liberarReservaProtocolo, reservarProtocolo, saldosPorSubstancia } from "../lib/estoque-reserva";
 import { baixarEstoqueDaAplicacao, reservarEstoqueDoProtocolo } from "../lib/estoque-ganchos";
 
@@ -23,8 +25,11 @@ beforeAll(async () => {
     CREATE TABLE empresas(id integer PRIMARY KEY);
     INSERT INTO empresas VALUES (1),(2);
     CREATE TABLE professionals(id integer PRIMARY KEY);
-    CREATE TABLE substances(id integer PRIMARY KEY, name text, via_uso text, price_per_unit real DEFAULT 0);
-    INSERT INTO substances VALUES (10,'Coenzima Q10','IM',0),(11,'Vitamina C','SC',0);
+    CREATE TABLE substances(id serial PRIMARY KEY, name text, via_uso text, price_per_unit real DEFAULT 0,
+      category text, is_blend boolean DEFAULT false, composicao text, disponivel boolean,
+      color text, procedure_type text, category_type text, sub_categoria text);
+    INSERT INTO substances(id,name,via_uso,price_per_unit) VALUES (10,'Coenzima Q10','IM',0),(11,'Vitamina C','SC',0);
+    SELECT setval(pg_get_serial_sequence('substances','id'), 100);
     CREATE TABLE budget_catalog(id serial PRIMARY KEY, name text, unit_price_cents integer NOT NULL DEFAULT 0,
       active boolean NOT NULL DEFAULT true, substance_id integer, updated_at timestamptz DEFAULT now());
     INSERT INTO budget_catalog(name, unit_price_cents, substance_id) VALUES ('Coenzima', 1, 10);
@@ -40,6 +45,8 @@ beforeAll(async () => {
   await q(migracao("20261111-substance-variantes.sql"));
   await q(migracao("20261119-precificacao-estoque.sql"));
   await q(migracao("20261119-precificacao-estoque.sql")); // idempotente
+  await q(migracao("20261119-matriz-vias-produto-fonte.sql"));
+  await q(migracao("20261119-matriz-vias-produto-fonte.sql")); // idempotente
   await q(`INSERT INTO fornecedores_cadastrados(empresa_id,nome) VALUES (1,'Lab A'),(1,'Lab B')`);
   await q(`INSERT INTO substance_variantes(empresa_id,substance_id,dose_total,forma,vias_fonte) VALUES (1,10,'100 mg','ampola','IM'),(1,11,'500 mg','ampola','SC')`);
   const of = (v: number, f: number, pos: number, c: number) => q(
@@ -73,7 +80,7 @@ describe("fórmula do preço", () => {
 describe("publicação de preço", () => {
   const cfg = (modo: "auto" | "congelado", margem: number) => ({
     parametros: PARAMETROS_ZERO,
-    categorias: (["IM", "SC", "IMPLANTE", "OUTRAS", "SEM_VIA"] as const).map((categoria) => ({ categoria, margemPct: margem, modo })),
+    categorias: (["IM", "EV", "SC", "ID", "IMPLANTE", "OUTRAS", "SEM_VIA"] as const).map((categoria) => ({ categoria, margemPct: margem, modo })),
   });
   it("congelado não mexe em Orçamento nem Substâncias", async () => {
     await salvarConfiguracao(state.pool, 1, null, cfg("congelado", 50));
@@ -153,5 +160,36 @@ describe("estoque estático e dinâmico", () => {
     expect(await consumirAplicacao(db, a)).toMatchObject({ ok: true, baixaFisica: false, lote: null });
     const v = (await saldosPorSubstancia(db, 1)).find((x) => x.substanciaId === 11)!;
     expect(v).toMatchObject({ fisico: 0, dinamico: 1, estatico: -1, falta: 1, semLote: 1 });
+  });
+});
+
+describe("vias e blend visual", () => {
+  it("um produto com várias vias aparece em cada uma; categoria segue IM, SC, EV, ID", () => {
+    expect(viasDoTexto("EV / IM / SC / ID", "ampola")).toEqual(["IM", "EV", "SC", "ID"]);
+    expect(viasDoTexto("PROFUNDO LENTO - IM", "ampola")).toEqual(["IM"]);
+    expect(viasDoTexto("TÓPICO", "frasco")).toEqual(["TOPICO"]);
+    expect(viasDoTexto("EV", "implante")).toEqual(["IMPLANTE"]);
+    expect([categoriaDaLinha("EV", "ampola"), categoriaDaLinha("EV / ID", "ampola"), categoriaDaLinha("ID", "ampola"),
+      categoriaDaLinha("TÓPICO", "frasco"), categoriaDaLinha("", "ampola"), categoriaDaLinha("EV / SC", "ampola")]).toEqual(["EV", "EV", "ID", "OUTRAS", "SEM_VIA", "SC"]);
+  });
+  it("recusa blend com um só componente, dose zero ou componente repetido", () => {
+    const base = { nome: "Blend X", via: "IM", forma: "ampola", volumeMl: 2, fornecedorId: 1, quantidadeEmbalagem: 10, precoCaixaCentavos: 5000 };
+    expect(() => validarBlend({ ...base, componentes: [{ nome: "A", dose: 1, unidade: "mg" }] })).toThrow(ErroBlend);
+    expect(() => validarBlend({ ...base, componentes: [{ nome: "Aa", dose: 0, unidade: "mg" }, { nome: "Bb", dose: 1, unidade: "mg" }] })).toThrow(ErroBlend);
+    expect(() => validarBlend({ ...base, componentes: [{ nome: "Aa", dose: 1, unidade: "mg" }, { nome: "aá", dose: 1, unidade: "mg" }] })).toThrow(ErroBlend);
+  });
+  it("cadastra blend indisponível, aparece na matriz com composição e não repete laboratório", async () => {
+    await q(`INSERT INTO professionals(id) VALUES (1) ON CONFLICT DO NOTHING`);
+    const entrada = validarBlend({ nome: "Blend Teste", via: "EV", forma: "ampola", volumeMl: 5, fornecedorId: 1, quantidadeEmbalagem: 10, precoCaixaCentavos: 12000,
+      componentes: [{ nome: "Vitamina C", dose: 500, unidade: "mg" }, { nome: "Zinco", dose: 2.5, unidade: "mg" }] });
+    const r = await cadastrarBlend(state.pool, 1, 1, entrada);
+    expect(r.substanciaNova).toBe(true);
+    const m = await montarMatriz(state.pool, 1);
+    const l = m.linhas.find((x) => x.varianteId === r.varianteId)!;
+    expect(l).toMatchObject({ produto: "BLEND TESTE", isBlend: true, disponivel: false, categoria: "EV", composicao: "Vitamina C 500 mg + Zinco 2,5 mg", produtoFonte: "Blend Teste" });
+    expect(l.celulas[0]).toMatchObject({ custoUnitarioCentavos: 1200, custoEmbalagemCentavos: 12000 });
+    await expect(cadastrarBlend(state.pool, 1, 1, entrada)).rejects.toMatchObject({ status: 409 });
+    const outro = await cadastrarBlend(state.pool, 1, 1, { ...entrada, fornecedorId: 2, precoCaixaCentavos: 9000 });
+    expect(outro).toMatchObject({ substanciaId: r.substanciaId, varianteId: r.varianteId, substanciaNova: false });
   });
 });
