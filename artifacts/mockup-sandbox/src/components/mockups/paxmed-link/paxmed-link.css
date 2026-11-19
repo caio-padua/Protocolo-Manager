@@ -1,83 +1,116 @@
-@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,800;1,500&display=swap");
 
-/* Cartão de prévia do link PaxMed — 1200 x 630 (proporção do WhatsApp/Telegram). */
 .pxl-root {
-  width: 1200px;
-  height: 630px;
-  position: relative;
-  overflow: hidden;
-  background: radial-gradient(ellipse 70% 80% at 50% 38%, #213f70 0%, #0d1b36 62%, #070e1f 100%);
-  font-family: "EB Garamond", Georgia, serif;
-  color: #e9edf6;
+  width: 1200px; height: 630px; position: relative; overflow: hidden; isolation: isolate;
+  font-family: "EB Garamond", Georgia, serif; color: #e8ecf5;
+  background:
+    radial-gradient(ellipse 62% 72% at 50% 36%, #22437a 0%, #12284d 48%, #0a1630 78%, #060d1f 100%);
 }
 
+/* Terno risca de giz: fios finos verticais, esvanecendo nas bordas */
+.pxl-tecido {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, rgba(214, 226, 255, 0.05) 0 1px, transparent 1px 15px);
+  -webkit-mask-image: radial-gradient(ellipse 80% 85% at 50% 45%, #000 20%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 85% at 50% 45%, #000 20%, transparent 100%);
+}
+
+/* Placa de vidro: topo reto iluminado, laterais chanfradas, base na sombra */
 .pxl-vidro {
-  position: absolute;
-  inset: 30px;
-  border-radius: 20px;
-  border: 2px solid rgba(232, 198, 112, 0.6);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.045) 22%, rgba(255, 255, 255, 0.04) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 244, 200, 0.35);
+  position: absolute; inset: 26px; z-index: 1; border-radius: 6px 6px 22px 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 40%, rgba(4, 10, 26, 0.18) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 200, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.09),
+    inset -1px 0 0 rgba(0, 0, 0, 0.35),
+    inset 0 -40px 70px rgba(0, 0, 0, 0.28),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+}
+/* Moldura dourada em degrade: so o anel, o miolo fica transparente (vidro) */
+.pxl-vidro::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: linear-gradient(180deg, #f6dd93 0%, #b8872c 45%, #7a5a1c 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.pxl-canto { position: absolute; width: 22px; height: 22px; border: 0 solid rgba(236, 202, 118, 0.85); }
+.pxl-canto.c1 { left: 14px; top: 14px; border-width: 1.5px 0 0 1.5px; }
+.pxl-canto.c2 { right: 14px; top: 14px; border-width: 1.5px 1.5px 0 0; }
+.pxl-canto.c3 { left: 14px; bottom: 14px; border-width: 0 0 1.5px 1.5px; }
+.pxl-canto.c4 { right: 14px; bottom: 14px; border-width: 0 1.5px 1.5px 0; }
+
+.pxl-halo {
+  position: absolute; z-index: 1; left: 150px; right: 150px; top: 44px; height: 230px; pointer-events: none;
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(240, 200, 110, 0.16), transparent 70%);
 }
 
-/* Linha do logo: símbolo (160 de altura) + nome. Posições fixas para a máscara casar. */
-.pxl-logo { position: absolute; left: 176px; top: 66px; width: 830px; height: 160px; }
-.pxl-sym { position: absolute; left: 0; top: 0; height: 160px; width: auto; filter: saturate(1.5); }
-.pxl-word { position: absolute; left: 216px; top: 0; width: 614px; height: auto; filter: saturate(1.5); }
+/* Lockup: posições fixas para a máscara casar pixel a pixel com a arte */
+.pxl-lockup { position: absolute; z-index: 2; left: 140px; top: 66px; width: 921px; height: 180px; }
+.pxl-sym { position: absolute; left: 0; top: 0; height: 180px; width: 192px; filter: saturate(1.45) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45)); }
+.pxl-word { position: absolute; left: 232px; top: 0; width: 689px; height: 180px; filter: saturate(1.45) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45)); }
 
-/* O RAIO: a faixa de luz só existe onde há letra. A máscara é o recorte do próprio
-   símbolo e do próprio nome; por isso a luz percorre o corpo do metal, não passa por cima. */
-.pxl-raio-mascara {
-  position: absolute; inset: 0;
-  /* mask-image vem inline no .tsx (caminho publico do sandbox) */
-  -webkit-mask-size: auto 160px, 614px auto;
-  mask-size: auto 160px, 614px auto;
-  -webkit-mask-position: 0 0, 216px 0;
-  mask-position: 0 0, 216px 0;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  mix-blend-mode: screen;
-  overflow: hidden;
-  pointer-events: none;
+/* A LUZ: mascara = silhueta do proprio simbolo + nome. Nada fora das letras. */
+.pxl-luz {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none; mix-blend-mode: screen;
+  -webkit-mask-size: 192px 180px, 689px 180px; mask-size: 192px 180px, 689px 180px;
+  -webkit-mask-position: 0 0, 232px 0; mask-position: 0 0, 232px 0;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
 }
-.pxl-faixa {
-  position: absolute; top: -40px; height: 260px;
-  transform: translateX(-340px) skewX(-23deg);
-  will-change: transform;
+.pxl-polvora, .pxl-sol { position: absolute; top: -50px; height: 280px; left: 0; will-change: transform; transform: translateX(-380px) skewX(-22deg); }
+/* Polvora: faisca fina que corre na frente */
+.pxl-polvora {
+  width: 34px;
+  background: linear-gradient(90deg, transparent, rgba(255, 246, 214, 1) 50%, transparent);
+  animation: pxlPolvora 12s linear infinite;
 }
-.pxl-faixa.principal {
-  left: 0; width: 230px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 224, 150, 0.35) 28%, rgba(255, 250, 225, 1) 50%, rgba(255, 224, 150, 0.35) 72%, transparent 100%);
-  animation: pxlVarre 6.5s cubic-bezier(0.45, 0.05, 0.35, 1) -2.4s infinite;
+/* Sol: faixa larga, especular, que acende o metal por dentro */
+.pxl-sol {
+  width: 250px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 214, 120, 0.30) 30%, rgba(255, 248, 224, 0.95) 50%, rgba(255, 214, 120, 0.30) 70%, transparent 100%);
+  animation: pxlSol 12s cubic-bezier(0.42, 0.05, 0.4, 1) infinite;
 }
-.pxl-faixa.eco {
-  left: 0; width: 110px;
-  background: linear-gradient(90deg, transparent, rgba(255, 236, 180, 0.8) 50%, transparent);
-  animation: pxlVarre 6.5s cubic-bezier(0.45, 0.05, 0.35, 1) -2.12s infinite;
+@keyframes pxlPolvora {
+  0%, 2%   { transform: translateX(-380px) skewX(-22deg); opacity: 0; }
+  4%       { opacity: 1; }
+  24%      { transform: translateX(1000px) skewX(-22deg); opacity: 1; }
+  25%, 100% { transform: translateX(1000px) skewX(-22deg); opacity: 0; }
 }
-@keyframes pxlVarre {
-  0%   { transform: translateX(-340px) skewX(-23deg); }
-  62%  { transform: translateX(1000px) skewX(-23deg); }
-  100% { transform: translateX(1000px) skewX(-23deg); }
+@keyframes pxlSol {
+  0%, 26%  { transform: translateX(-380px) skewX(-22deg); }
+  48%      { transform: translateX(1000px) skewX(-22deg); }
+  100%     { transform: translateX(1000px) skewX(-22deg); }
 }
+
+/* Versao congelada (JPG do WhatsApp): luz parada dentro do X e do M */
+.pxl-estatico .pxl-polvora { animation: none; opacity: 1; transform: translateX(612px) skewX(-22deg); }
+.pxl-estatico .pxl-sol { animation: none; transform: translateX(470px) skewX(-22deg); }
 
 .pxl-divisor {
-  position: absolute; left: 330px; right: 330px; top: 268px; height: 18px;
-  display: flex; align-items: center; justify-content: center; gap: 18px;
+  position: absolute; z-index: 2; left: 360px; right: 360px; top: 276px; height: 14px;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
 }
-.pxl-divisor i { flex: 1; height: 2px; background: linear-gradient(90deg, transparent, rgba(232, 198, 112, 0.7)); }
-.pxl-divisor i:last-child { background: linear-gradient(270deg, transparent, rgba(232, 198, 112, 0.7)); }
-.pxl-divisor b { width: 12px; height: 12px; background: #e8c670; transform: rotate(45deg); }
+.pxl-divisor i { flex: 1; height: 1.5px; background: linear-gradient(90deg, transparent, rgba(236, 202, 118, 0.85)); }
+.pxl-divisor i:last-child { background: linear-gradient(270deg, transparent, rgba(236, 202, 118, 0.85)); }
+.pxl-divisor b { width: 10px; height: 10px; background: linear-gradient(135deg, #f6dd93, #b8872c); transform: rotate(45deg); box-shadow: 0 0 0 3px rgba(236, 202, 118, 0.14); }
 
-.pxl-texto { position: absolute; left: 0; right: 0; padding: 0 120px; top: 292px; text-align: center; }
-.pxl-p1 { margin: 0 auto; max-width: 960px; font-size: 38px; line-height: 1.5; font-weight: 400; }
-.pxl-p2 { margin: 34px 0 0; white-space: nowrap; font-size: 38px; line-height: 1.4; font-weight: 400; }
-.pxl-confira {
-  margin: 28px 0 0; font-size: 50px; line-height: 1; font-weight: 800; letter-spacing: 0.08em;
-  color: #f1d58c;
+.pxl-texto { position: absolute; z-index: 2; left: 0; right: 0; top: 308px; text-align: center; }
+.pxl-p1 {
+  margin: 0 auto; max-width: 880px; font-size: 33px; line-height: 1.5; font-weight: 500;
+  color: #eef1f8; text-wrap: balance;
 }
+.pxl-p2 { margin: 24px 0 0; font-size: 28px; line-height: 1.4; font-weight: 400; color: #b9c4dc; white-space: nowrap; }
+.pxl-p2 em { font-style: normal; font-weight: 600; color: #f1d58c; }
+.pxl-confira {
+  margin: 20px 0 0; display: flex; align-items: center; justify-content: center; gap: 22px;
+  font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: 0.1em;
+  background: linear-gradient(180deg, #fbe7ab 0%, #e6b952 52%, #b8872c 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
+}
+.pxl-confira i { display: block; width: 74px; height: 1.5px; background: linear-gradient(90deg, transparent, rgba(236, 202, 118, 0.8)); -webkit-text-fill-color: initial; }
+.pxl-confira i:last-child { background: linear-gradient(270deg, transparent, rgba(236, 202, 118, 0.8)); }
 
 @media (prefers-reduced-motion: reduce) {
-  .pxl-faixa.principal { animation: none; transform: translateX(500px) skewX(-23deg); }
-  .pxl-faixa.eco { animation: none; transform: translateX(130px) skewX(-23deg); }
+  .pxl-polvora { animation: none; opacity: 0; }
+  .pxl-sol { animation: none; transform: translateX(470px) skewX(-22deg); }
 }
