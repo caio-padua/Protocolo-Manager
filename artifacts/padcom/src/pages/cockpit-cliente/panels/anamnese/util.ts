@@ -5,12 +5,13 @@ export const OURO = "#9a7b32";
 export const MUDO = "#647c97";
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-export type Volatilidade = "fixa" | "acumula" | "muda";
-export const VOL_ROTULO: Record<Volatilidade, string> = { fixa: "Fixa", acumula: "Acumula", muda: "Muda" };
-export const VOL_COR: Record<Volatilidade, string> = { fixa: "#64748b", acumula: OURO, muda: NAVY };
+export type Volatilidade = "fixa" | "acumula" | "evolutiva" | "muda";
+export const VOL_ROTULO: Record<Volatilidade, string> = { fixa: "Fixa", acumula: "Acumula", evolutiva: "Evolutiva", muda: "Muda" };
+export const VOL_COR: Record<Volatilidade, string> = { fixa: "#64748b", acumula: OURO, evolutiva: "#0f766e", muda: NAVY };
 export const VOL_AJUDA: Record<Volatilidade, string> = {
   fixa: "Não muda com o tempo. Vem preenchida da anamnese anterior.",
   acumula: "Só cresce (cirurgias, alergias, doenças, família). Vem preenchida; o cliente acrescenta.",
+  evolutiva: "Condição com curso (ex.: hipertensão). Vem preenchida; o cliente informa se manteve, melhorou, piorou, entrou em remissão ou curou.",
   muda: "Estado atual. Vem em branco; a resposta anterior serve de comparação.",
 };
 

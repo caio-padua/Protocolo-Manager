@@ -174,7 +174,7 @@ export default function AnamnesePreviaPanel({ clientId }: { clientId: number }) 
                 <button type="button" className="underline" onClick={() => setMostrarLegenda((v) => !v)}>{mostrarLegenda ? "Esconder legenda" : "O que é Fixa, Acumula e Muda?"}</button>
               </div>
               {mostrarLegenda && (
-                <div className="concave-3d grid gap-2 p-3 sm:grid-cols-3">
+                <div className="concave-3d grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
                   {(Object.keys(VOL_ROTULO) as Volatilidade[]).map((v) => (
                     <div key={v} className="text-[12px]" style={{ color: NAVY }}>
                       <span className="mr-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ background: VOL_COR[v] }}>{VOL_ROTULO[v]}</span>{VOL_AJUDA[v]}
