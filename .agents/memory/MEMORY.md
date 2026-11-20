@@ -1,3 +1,4 @@
+- [Homologação com participantes presentes](homologacao-presenca-dr-caio.md) — Dr. Caio ao lado do participante = identidade validada; não repetir confirmação.
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).
 - [Previa de link — padrao Receituario](previa-link-padrao-receituario.md) — cartao aprovado; ler skill-layout-paxter/references/previa-de-link.md; nome novo + ?v=N; og:image URL absoluta.
 - [CORS auto REPLIT_DOMAINS + env doc por artefato](cors-replit-domains-env-doc.md) — CORS deve unir ALLOWED_ORIGINS+REPLIT_DOMAINS; cada artefato precisa de .env.railway.example próprio (não só na raiz) ou architect reprova.
@@ -198,4 +199,3 @@
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
 - [Identidades empresariais](identidades-empresariais.md) — canal da clínica, profissional de referência, papéis do CEO e do administrador.
 - [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.
-- [Conversa unificada WWP+TG](comunicacao-unificada-wwp-tg.md) — conversa única, backup e categorias versionadas; trilhas financeiras separadas.
