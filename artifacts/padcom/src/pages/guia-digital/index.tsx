@@ -1,8 +1,8 @@
 /**
  * /guia-digital — Manual do Cliente PaxMed (página PÚBLICA, mesma rota de sempre).
  *
- * Ensina: instalar o atalho (PWA), entrar no App do Cliente e ativar o Telegram pelo link
- * individual gerado no App do Cliente (aba COMUNICAÇÃO) e conhecer os recursos disponíveis.
+ * Ensina: instalar o atalho (PWA), entrar no PaxCare e ativar o Telegram pelo link
+ * individual gerado no PaxCare (aba COMUNICAÇÃO) e conhecer os recursos disponíveis.
  * Identidade: PAXMED = sistema; a clínica entra com o nome próprio (?tenant=).
  * Áudio: Web Speech API nativa (pt-BR), sem custo e sem API externa.
  * Nada aqui envia mensagem: o envio do guia pela equipe continua em /comunicacao/guia-paciente.
@@ -156,7 +156,7 @@ function Secao({
   );
 }
 
-// ── Endereço do App do Cliente (insert côncavo + copiar). Sem endereço: aviso honesto. ──
+// ── Endereço do PaxCare (insert côncavo + copiar). Sem endereço: aviso honesto. ──
 function UrlInsert() {
   const { areaUrl } = useContext(GuiaConfigContext);
   const [copiado, setCopiado] = useState(false);
@@ -165,7 +165,7 @@ function UrlInsert() {
       <Alerta
         tipo="aviso"
         testId="guia-sem-endereco"
-        texto="O endereço do App do Cliente ainda não foi informado por esta clínica. Peça o link à clínica."
+        texto="O endereço do PaxCare ainda não foi informado por esta clínica. Peça o link à clínica."
       />
     );
   }
@@ -228,7 +228,7 @@ function SafariIcone() {
   const destino = `${window.location.origin}${base}area`;
   return (
     <div className="flex flex-col items-center justify-center gap-2 my-3" data-testid="guia-safari-icone">
-      <a href={destino} target="_blank" rel="noreferrer" aria-label="Toque para abrir o App do Cliente"
+      <a href={destino} target="_blank" rel="noreferrer" aria-label="Toque para abrir o PaxCare"
         data-testid="guia-safari-botao"
         className="bevel-3d relative flex items-center justify-center w-[104px] h-[104px] rounded-[10px] overflow-hidden no-underline active:translate-y-px"
         style={{
@@ -280,7 +280,7 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
           <Alerta tipo="aviso" texto="No iPhone, a instalação só funciona pelo Safari (ícone de bússola azul). Se estiver em outro navegador, abra o Safari primeiro." />
           <Passo n={1} texto="Toque no ícone do Safari aqui embaixo" detalhe="O Safari tem um ícone de bússola azul. Se ele não abrir, procure-o na tela do seu iPhone." />
           <SafariIcone />
-          <Passo n={2} texto="Copie o endereço do link para abrir o App do Cliente" detalhe="Toque no botão COPIAR. Se a clínica enviou o link, você também pode tocar nele." />
+          <Passo n={2} texto="Copie o endereço do link para abrir o PaxCare" detalhe="Toque no botão COPIAR. Se a clínica enviou o link, você também pode tocar nele." />
           <UrlInsert />
           <Passo n={3} texto="Cole o endereço na barra do Safari e toque em Ir" detalhe="Toque na barra de endereço e segure o dedo até aparecer Colar. Toque em Colar e depois em Ir." />
           <Passo n={4} texto="Procure os três pontinhos, ao lado do endereço" detalhe="Eles ficam no canto da barra onde o endereço aparece. Toque neles. O quadrado vermelho mostra onde." />
@@ -296,7 +296,7 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
       )}
       {aparelho === "android" && (
         <div data-testid="guia-painel-android">
-          <Passo n={1} texto="Abra o Chrome e acesse o endereço do App do Cliente:" detalhe="Se a clínica enviou o link, toque nele." />
+          <Passo n={1} texto="Abra o Chrome e acesse o endereço do PaxCare:" detalhe="Se a clínica enviou o link, toque nele." />
           <UrlInsert />
           <Passo n={2} texto="Toque nos 3 pontinhos, no canto superior direito" exemplo="android-menu" />
           <Passo n={3} texto="Toque em Instalar aplicativo ou em Adicionar à tela inicial" detalhe="O nome da opção muda conforme o aparelho." exemplo="android-instalar" />
@@ -307,7 +307,7 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
       )}
       {aparelho === "desktop" && (
         <div data-testid="guia-painel-desktop">
-          <Passo n={1} texto="No Chrome ou no Edge, acesse o endereço do App do Cliente:" />
+          <Passo n={1} texto="No Chrome ou no Edge, acesse o endereço do PaxCare:" />
           <UrlInsert />
           <Passo n={2} texto="Procure o ícone de instalação no fim da barra de endereço" detalhe="Se não aparecer, abra o menu do navegador e procure Instalar ou Salvar e compartilhar." exemplo="desktop-icone" />
           <Passo n={3} texto="Clique em Instalar" />
@@ -321,7 +321,7 @@ function SecInstalar({ aparelho, onAparelho }: { aparelho: Aparelho; onAparelho:
 function SecEntrar() {
   return (
     <div>
-      <Passo n={1} texto="Abra o App do Cliente pelo atalho ou pelo endereço:" />
+      <Passo n={1} texto="Abra o PaxCare pelo atalho ou pelo endereço:" />
       <UrlInsert />
       <Passo n={2} texto="Digite seu CPF, só os 11 números" />
       <Passo
@@ -362,9 +362,9 @@ function SecTelegram() {
       <Alerta
         tipo="ok"
         testId="guia-link-individual"
-        texto="Seu link é gerado dentro do App do Cliente, é só seu, vale uma única vez e por 7 dias. Gerar um novo link cancela o anterior. Não compartilhe com ninguém."
+        texto="Seu link é gerado dentro do PaxCare, é só seu, vale uma única vez e por 7 dias. Gerar um novo link cancela o anterior. Não compartilhe com ninguém."
       />
-      <Passo n={1} texto="Entre no App do Cliente e abra a aba COMUNICAÇÃO" />
+      <Passo n={1} texto="Entre no PaxCare e abra a aba COMUNICAÇÃO" />
       <Passo n={2} texto="Toque em Gerar meu link para o Telegram" />
       <Passo n={3} texto="Toque em Abrir o Telegram e ativar" detalhe="O Telegram abre na conversa com o robô da clínica." />
       <Passo n={4} texto="No Telegram, toque em INICIAR (Start)" detalhe="Sem esse toque a ativação não acontece: o robô nunca inicia a conversa sozinho." />
@@ -373,7 +373,7 @@ function SecTelegram() {
 
       <PlacaGrupo texto="3. Pelo computador" />
       <Passo n={1} texto="Abra o Telegram Desktop ou web.telegram.org e entre com o mesmo número" />
-      <Passo n={2} texto="No App do Cliente (no navegador do computador), gere o link e abra" detalhe="O link abre o Telegram do computador na conversa com o robô. Toque em INICIAR." />
+      <Passo n={2} texto="No PaxCare (no navegador do computador), gere o link e abra" detalhe="O link abre o Telegram do computador na conversa com o robô. Toque em INICIAR." />
 
       <Alerta
         tipo="aviso"
@@ -396,7 +396,7 @@ function SecModulos() {
   ];
   return (
     <div>
-      <Alerta tipo="info" texto="Estes são os recursos que existem hoje no App do Cliente. Alguns itens dependem do que a clínica liberou para você." />
+      <Alerta tipo="info" texto="Estes são os recursos que existem hoje no PaxCare. Alguns itens dependem do que a clínica liberou para você." />
       <ul className="m-0 p-0 list-none space-y-2" data-testid="guia-modulos">
         {itens.map(([t, d]) => (
           <li key={t} className="flex gap-3 items-start">
@@ -433,7 +433,7 @@ function SecPrivacidade() {
   const { clinicaNome } = useContext(GuiaConfigContext);
   return (
     <div>
-      <Alerta tipo="info" texto="O App do Cliente só abre com o seu CPF e a sua data de nascimento ou senha. Não compartilhe esse acesso." />
+      <Alerta tipo="info" texto="O PaxCare só abre com o seu CPF e a sua data de nascimento ou senha. Não compartilhe esse acesso." />
       <Alerta tipo="info" texto="Seu link do Telegram é individual, de uso único e vale 7 dias." />
       <Alerta tipo="aviso" texto={`Não envie senhas, números de cartão nem documentos pelo Telegram. Para qualquer dúvida sobre seus dados, fale com ${clinicaNome}.`} />
     </div>
@@ -452,9 +452,9 @@ function MiniQRHeader({ url }: { url: string }) {
 const SECOES = [
   { id: "sec-paxmed", key: "paxmed", icon: Sparkles, titulo: "O PaxMed para você", subtitulo: "O que é e o que ele não é" },
   { id: "sec-instalar", key: "instalar", icon: Smartphone, titulo: "Instalar o App PaxMed", subtitulo: "iPhone, Android ou computador" },
-  { id: "sec-entrar", key: "entrar", icon: LogIn, titulo: "Entrar no App do Cliente", subtitulo: "CPF com data de nascimento ou senha" },
+  { id: "sec-entrar", key: "entrar", icon: LogIn, titulo: "Entrar no PaxCare", subtitulo: "CPF com data de nascimento ou senha" },
   { id: "sec-telegram", key: "telegram", icon: MessageCircle, titulo: "Ativar o Telegram", subtitulo: "Link individual, de uso único" },
-  { id: "sec-modulos", key: "modulos", icon: LayoutGrid, titulo: "O que o App do Cliente oferece", subtitulo: "Recursos que existem hoje" },
+  { id: "sec-modulos", key: "modulos", icon: LayoutGrid, titulo: "O que o PaxCare oferece", subtitulo: "Recursos que existem hoje" },
   { id: "sec-pessoal", key: "pessoal", icon: Sparkles, titulo: "Meu PaxMed Pessoal", subtitulo: "Em preparação — ainda não disponível" },
   { id: "sec-privacidade", key: "privacidade", icon: ShieldCheck, titulo: "Privacidade e segurança", subtitulo: "Cuidados simples" },
 ] as const;
@@ -514,7 +514,7 @@ export default function GuiaDigital() {
   const guiaUrl = window.location.href;
   const nomeClinica = config.identidade === "ok" ? config.clinicaNome : "";
   const resumo =
-    "Manual do Cliente PaxMed. Aqui você aprende a instalar o App PaxMed, entrar no App do Cliente e ativar o Telegram pelo seu link individual. O Telegram não é canal de emergência. Em urgência, ligue 192.";
+    "Manual do Cliente PaxMed. Aqui você aprende a instalar o App PaxMed, entrar no PaxCare e ativar o Telegram pelo seu link individual. O Telegram não é canal de emergência. Em urgência, ligue 192.";
 
   return (
     <GuiaConfigContext.Provider value={config}>

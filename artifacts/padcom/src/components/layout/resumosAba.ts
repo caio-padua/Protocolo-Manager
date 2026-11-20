@@ -27,7 +27,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/cadastros/config-exames": "Regras e faixas de referência",
   "/importar-drive": "Trazer exames da pasta do Drive",
   "/experiencia-cliente": "Como o cliente enxerga o sistema",
-  "/area": "App do Cliente, visão direta",
+  "/area": "PaxCare, visão direta",
   "/prescricao": "Prescrever fórmulas e protocolos",
   "/substances": "Catálogo de fórmulas e substâncias",
   "/dieta": "Plano alimentar do cliente",

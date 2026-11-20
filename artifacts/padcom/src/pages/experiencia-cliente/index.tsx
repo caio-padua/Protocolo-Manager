@@ -64,7 +64,7 @@ export default function ExperienciaCliente() {
                 EXPERIÊNCIA DO CLIENTE
               </h1>
               <p className="text-primary-foreground/70 text-xs mt-1">
-                Veja o App do Cliente exatamente como o cliente vê — selecione um cliente e abra a visualização
+                Veja o PaxCare exatamente como o cliente vê — selecione um cliente e abra a visualização
               </p>
             </div>
           </div>

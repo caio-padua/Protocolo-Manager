@@ -5,7 +5,7 @@ import {
   User, Loader2, AlertCircle, ChevronRight, LogOut, Home, Syringe,
   CalendarDays, FileText, Upload, CheckCircle, Download, Clock,
   FileUp, Wallet, FlaskConical, ClipboardList, KeyRound, ChevronDown, ChevronUp,
-  HelpCircle, MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera,
+  HelpCircle, MessageCircle, TrendingUp, Sun, Moon, Crown, Award, Camera, ShieldCheck,
 } from "lucide-react";
 import { PaxterSymbolGlass } from "@/components/layout/paxter-fx/PaxterSymbolGlass";
 import { PaxterWordmarkArt } from "@/components/layout/paxter-fx/PaxterWordmarkArt";
@@ -26,6 +26,7 @@ import ClubVipCliente from "@/components/ClubVipCliente";
 import MeusJogosCliente from "@/components/meus-jogos/MeusJogosCliente";
 import MinhaCategoriaCliente from "@/components/MinhaCategoriaCliente";
 import FotosCorpoCliente from "@/components/FotosCorpoCliente";
+import PaxCareCofre from "@/components/PaxCareCofre";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -107,7 +108,7 @@ function formatClientName(fullName: string): string {
 // ---------------------------------------------------------------------------
 type ClientInfo = { id: number; name: string; cpf: string | null; token: string };
 type TabKey = "inicio" | "protocolos" | "agenda" | "documentos" | "enviar"
-           | "duvidas" | "suporte" | "evolucao" | "fotos" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes" | "meusjogos";
+           | "duvidas" | "suporte" | "evolucao" | "fotos" | "minhacategoria" | "clubvip" | "comunicacao" | "boloes" | "meusjogos" | "paxcare";
 
 const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "inicio",     label: "INÍCIO",      icon: Home },
@@ -122,6 +123,7 @@ const TABS: { key: TabKey; label: string; icon: typeof Home }[] = [
   { key: "minhacategoria", label: "MINHA CATEGORIA", icon: Award },
   { key: "clubvip",    label: "GRUPO VIP",    icon: Crown },
   { key: "comunicacao", label: "COMUNICAÇÃO", icon: MessageCircle },
+  { key: "paxcare",    label: "PAXCARE",     icon: ShieldCheck },
 ];
 
 // ---------------------------------------------------------------------------
@@ -264,6 +266,7 @@ export default function Area() {
           <ClubVipCliente token={client.token} onAbrirBoloes={() => { setBoloesOrigem("clubvip"); setTab("boloes"); }} onAbrirMeusJogos={() => setTab("meusjogos")} />
         )}
         {tab === "comunicacao" && <ComunicacaoTab client={client} />}
+        {tab === "paxcare" && <PaxCareCofre token={client.token} />}
         {tab === "boloes" && (
           <div className="space-y-3">
             <button onClick={() => setTab(boloesOrigem)}

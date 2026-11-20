@@ -32,9 +32,9 @@ const INTERRUPTORES: Interruptor[] = [
     chave: "exigirValidacaoHumana",
     titulo: "Exigir conferência humana na Evolução da equipe",
     ligado:
-      "A evolução da equipe só mostra resultados conferidos clinicamente. O App do Cliente usa o interruptor independente abaixo.",
+      "A evolução da equipe só mostra resultados conferidos clinicamente. O PaxCare usa o interruptor independente abaixo.",
     desligado:
-      "A equipe pode consultar resultados lidos pela inteligência artificial antes da conferência. Isso não libera o App do Cliente.",
+      "A equipe pode consultar resultados lidos pela inteligência artificial antes da conferência. Isso não libera o PaxCare.",
   },
   {
     chave: "triagemAtiva",
@@ -211,7 +211,7 @@ export default function ConfigExames() {
       </section>
 
       <section className="panel-3d mt-4 px-5 py-4">
-        <BlockTitle icon={ShieldCheck}>Visibilidade no App do Cliente</BlockTitle>
+        <BlockTitle icon={ShieldCheck}>Visibilidade no PaxCare</BlockTitle>
         {carregando || !cfg ? (
           <div className="py-4 text-center text-[12px] text-[#647c97]">Carregando configuração…</div>
         ) : (
@@ -221,12 +221,12 @@ export default function ConfigExames() {
                 on={cfg.exibirResultadosPreliminaresAreaCliente}
                 onClick={() => void flip("exibirResultadosPreliminaresAreaCliente")}
                 disabled={salvando}
-                label="Exibir resultados preliminares no App do Cliente"
+                label="Exibir resultados preliminares no PaxCare"
               />
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-bold text-[#16294a]">
-                Exibir resultados preliminares no App do Cliente
+                Exibir resultados preliminares no PaxCare
               </div>
               <p className="mt-0.5 text-[11.5px] leading-relaxed text-[#647c97]">
                 {cfg.exibirResultadosPreliminaresAreaCliente

@@ -169,7 +169,7 @@ export default function Entrada() {
                 <UserRound className="h-6 w-6" />
               </div>
               <div className="mt-4 text-base font-bold uppercase tracking-widest text-white">
-                Área do Paciente
+                PaxCare — Área do Paciente
               </div>
               <div className="mt-1 text-sm text-[#9fb2d2] leading-relaxed">
                 Acompanhe seu protocolo, agenda, documentos e envie exames.

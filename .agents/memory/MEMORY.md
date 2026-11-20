@@ -1,3 +1,4 @@
+- [PaxCare cofre e vínculos](paxcare-cofre-vinculos.md) — cofre do paciente; compartilhamento por clínica checado em toda leitura; revogação imediata.
 - [Anexos de mensagem + Curadoria Clínica](anexos-mensagem-curadoria-clinica.md) — biblioteca com interruptor; aviso de pedido + oferta do PAM (modo teste por padrão).
 - [Homologação com participantes presentes](homologacao-presenca-dr-caio.md) — Dr. Caio ao lado do participante = identidade validada; não repetir confirmação.
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).

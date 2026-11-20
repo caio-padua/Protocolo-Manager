@@ -486,7 +486,7 @@ export default function ExamesCliente() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           O mesmo motor recebe automaticamente os exames que o cliente envia pelo
-          App do Cliente. O valor lido pela IA so vira verdade clinica depois da
+          PaxCare. O valor lido pela IA so vira verdade clinica depois da
           conferencia humana na Mesa de Validacao.
         </p>
         {aviso && (
