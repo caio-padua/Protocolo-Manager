@@ -28,6 +28,7 @@ import {
 import { eq, and, desc, isNull, sql } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { requireMessageClinic } from "../middleware/messageClinic";
+import { requireCeoInstance } from "../middleware/tenantContext";
 import {
   obterBadge,
   listarInbox,
@@ -305,4 +306,15 @@ inboxRouter.get("/telegram-inbox/painel-operacional", requireCollaborator, requi
     orientacoes, pedidos: pedidos?.[0] ?? null,
     modos: { atendimentoIa: modoIa, lembretes: modoLembrete, atendimentoLista: await lista("atendimento.ia.permitidos"), lembretesLista: await lista("lembrete.telegram.permitidos") },
   });
+});
+
+// Interruptor do atendimento automatico (CEO). Valor vale para o ambiente inteiro (app_settings).
+// "ligado" = responde todo cliente que ja vinculou o Telegram (deu o start); "lista" = so autorizados.
+inboxRouter.put("/telegram-inbox/atendimento-modo", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const modo = typeof req.body?.modo === "string" ? req.body.modo.trim().toLowerCase() : "";
+  if (modo !== "desligado" && modo !== "lista" && modo !== "ligado") { res.status(400).json({ error: "modo invalido" }); return; }
+  const { setSetting } = await import("../lib/secure-settings.js");
+  await setSetting("atendimento.ia.modo", modo);
+  console.info(`[atendimento-ia] modo alterado para ${modo} por profissional ${req.collaborator?.professionalId}`);
+  res.json({ ok: true, modo });
 });

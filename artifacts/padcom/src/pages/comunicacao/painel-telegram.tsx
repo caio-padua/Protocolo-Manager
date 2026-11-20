@@ -75,6 +75,20 @@ export function PainelOperacionalTelegram() {
       .catch((e: unknown) => setErro(e instanceof Error ? e.message : "Não foi possível consultar o painel."));
   }, []);
 
+  const [salvando, setSalvando] = useState(false);
+  const [avisoModo, setAvisoModo] = useState<string | null>(null);
+  const alterarModo = async (modo: "desligado" | "lista" | "ligado") => {
+    setSalvando(true); setAvisoModo(null);
+    try {
+      const t = getCollabToken();
+      const r = await fetch(`${BASE}/api/telegram-inbox/atendimento-modo`, { method: "PUT", headers: { "Content-Type": "application/json", ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ modo }) });
+      if (!r.ok) throw new Error(r.status === 403 ? "Somente o CEO pode alterar." : "Não foi possível alterar.");
+      setP((a) => (a ? { ...a, modos: { ...a.modos, atendimentoIa: modo } } : a));
+      setAvisoModo(`Modo gravado: ${modo}.`);
+    } catch (e) { setAvisoModo(e instanceof Error ? e.message : "Falha ao alterar."); }
+    finally { setSalvando(false); }
+  };
+
   const msg = (d: string) => p?.mensagens?.find((m) => m.direcao === d)?.n ?? 0;
   const atend = (e: string) => p?.atendimento?.find((a) => a.estado === e)?.n ?? 0;
   const orient = (s: string) => p?.orientacoes?.find((o) => o.status === s)?.n ?? 0;
@@ -96,6 +110,17 @@ export function PainelOperacionalTelegram() {
       </div>
       <div className="space-y-4 p-5">
         {erro && <p role="alert" className="concave-3d p-3 text-[12px] text-rose-700 dark:text-rose-400">{erro} Os itens abaixo marcados como lidos do sistema aparecem como pendentes até a consulta funcionar.</p>}
+
+        <div className="concave-3d space-y-2 p-3" data-testid="controle-atendimento-ia">
+          <p className="text-[11px] font-bold uppercase tracking-wide">Atendimento automático no Telegram (somente CEO)</p>
+          <p className="text-[12px] text-muted-foreground">Modo atual: <b>{p?.modos.atendimentoIa ?? "—"}</b>. “Ligado” responde todo cliente que já deu o start no bot. Dúvida clínica sempre vai para a equipe.</p>
+          <div className="flex flex-wrap gap-2">
+            {(["desligado", "lista", "ligado"] as const).map((m) => (
+              <button key={m} type="button" disabled={salvando || !p} onClick={() => void alterarModo(m)} className={`min-h-11 px-4 text-[12px] font-bold uppercase ${p?.modos.atendimentoIa === m ? "btn-3d" : "bevel-3d"}`}>{m}</button>
+            ))}
+          </div>
+          {avisoModo && <p role="status" className="text-[12px]">{avisoModo}</p>}
+        </div>
 
         <Tabela titulo="1. Lido agora do sistema (esta clínica, ambiente em uso)">
           <Linha item="Token do bot" estado={estToken} detalhe={p?.token?.definido ? `Definido (origem: ${p.token.origem === "vault" ? "cofre" : "ambiente"}). Valor nunca exibido.` : "Não definido ou não consultado."} />
