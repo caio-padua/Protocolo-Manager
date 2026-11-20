@@ -32,7 +32,7 @@ router.post("/asaas/teste-cobrancas/:id/enviar-link", ...guard, async (req, res)
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "id invalido" }); return; }
-    res.json({ ...(await enviarLinkCobrancaTeste(id)), itens: await listarTeste() });
+    res.json({ ...(await enviarLinkCobrancaTeste(id, { somenteTelegram: req.body?.somenteTelegram === true })), itens: await listarTeste() });
   } catch (e) {
     if (e instanceof TesteRecusado) { res.status(e.codigo).json({ error: e.message }); return; }
     req.log.error({ err: String(e) }, "Falha ao enviar link de cobranca de teste");

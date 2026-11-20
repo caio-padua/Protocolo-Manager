@@ -236,7 +236,7 @@ const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const brl = (c: number) => (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export interface EnvioLinkResultado {
-  email: "aceito" | "ja_enviado" | "recusado" | "sem_email";
+  email: "aceito" | "ja_enviado" | "recusado" | "sem_email" | "nao_solicitado";
   telegram: "aceito" | "ja_enviado" | "recusado" | "sem_vinculo";
   detalhe: string[];
 }
@@ -247,7 +247,7 @@ export interface EnvioLinkResultado {
  * gravado quando o provedor confirma; resposta perdida exige conferencia humana, nunca reenvio automatico.
  * Aceito pelo provedor NAO e recebido pelo paciente.
  */
-export async function enviarLinkCobrancaTeste(id: number): Promise<EnvioLinkResultado> {
+export async function enviarLinkCobrancaTeste(id: number, opts: { somenteTelegram?: boolean } = {}): Promise<EnvioLinkResultado> {
   const r: any = (await db.execute(sql`
     SELECT id, client_id, valor_centavos, descricao, vencimento, estado, asaas_status, invoice_url, pago_em, link_email_em, link_telegram_em
     FROM asaas_cobrancas_teste WHERE id=${id}`)).rows[0];
@@ -262,7 +262,8 @@ export async function enviarLinkCobrancaTeste(id: number): Promise<EnvioLinkResu
   const resumo = `${brl(r.valor_centavos)} · vence em ${String(r.vencimento).split("-").reverse().join("/")}`;
 
   // E-mail
-  if (r.link_email_em) out.email = "ja_enviado";
+  if (opts.somenteTelegram) out.email = "nao_solicitado";
+  else if (r.link_email_em) out.email = "ja_enviado";
   else if (c.email) {
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1a2540">
       <p style="background:#fff3cd;border:1px solid #e0c36a;padding:10px;border-radius:6px"><strong>TESTE autorizado.</strong> Esta e uma cobranca real de valor de teste, criada com sua autorizacao.</p>
