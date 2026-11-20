@@ -535,14 +535,17 @@ export function Layout({ children }: LayoutProps) {
       {/* Barra superior — mobile */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <PaxterLogo size="sm" />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-sidebar-foreground"
-        >
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        {!sidebarOpen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Abrir menu"
+            onClick={() => setSidebarOpen(true)}
+            className="h-11 w-11 text-sidebar-foreground"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
       {/* Sidebar */}
@@ -557,19 +560,32 @@ export function Layout({ children }: LayoutProps) {
       >
         {/* Botao recolher/expandir (desktop) */}
         {/* Faixa de altura total: o botao e sticky e acompanha a janela ao rolar */}
-        <div className="hidden md:block absolute inset-y-0 -right-3 w-7 z-50 pointer-events-none">
+        <div className="hidden md:block absolute inset-y-0 -right-[22px] w-11 z-50 pointer-events-none">
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
             title={collapsed ? "Expandir menu" : "Recolher menu"}
-            className="pointer-events-auto sticky top-[78px] flex h-7 w-7 items-center justify-center rounded-full bg-sidebar-accent border border-sidebar-primary/50 text-sidebar-primary shadow-lg hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
+            className="pointer-events-auto sticky top-[78px] flex h-11 w-11 items-center justify-center rounded-full bg-sidebar-accent border border-sidebar-primary/50 text-sidebar-primary shadow-lg hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
         <div className="h-full flex flex-col overflow-y-clip">
+          <div className="md:hidden flex items-center justify-between p-4 border-b border-sidebar-border">
+            <PaxterLogo size="sm" />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Fechar menu"
+              onClick={() => setSidebarOpen(false)}
+              className="h-11 w-11 min-w-[44px] shrink-0 text-sidebar-foreground"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+
           {/* Logo */}
           <div
             className={`hidden md:flex items-center justify-center ${

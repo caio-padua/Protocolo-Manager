@@ -1292,3 +1292,17 @@ mtime_ms = 1795022706391
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/efd13399-7489-4ee9-9203-e187558ff8e7/40a2add3-d92c-4cae-b4c2-9e9b12ba6cac"
 storage_version_token = "1795022710313141"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "a83S7bZ5GVAitnvPUFLV5"
+uri = "file://generated-artifacts/mobile-audit/relatorio-final.md"
+type = "text"
+title = "Relatório final da auditoria móvel do Padcon"
+description = "Cobertura das 151 rotas, teste das 12 abas do App do Cliente em cinco tamanhos e limites da homologação."
+logical_id = "4dd912d7-bf6e-4c6b-8dc9-f298350e6ebf"
+content_hash = "sha256:7a53cfee65e252c4f4a5c5805718fe3af83ba7765ea3bee834e006de793e4941"
+size = 4207
+mtime_ms = 1795141758476
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/4dd912d7-bf6e-4c6b-8dc9-f298350e6ebf/d2bd1a57-014d-4227-b206-4f9b77449993"
+storage_version_token = "1795141865438839"
+content_type = "text/markdown"

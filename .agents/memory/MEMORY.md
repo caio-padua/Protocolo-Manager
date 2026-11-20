@@ -88,7 +88,7 @@
 - **Marca PAXTER/PADAXOR** — [wordmark segue a logo aprovada](paxter-wordmark-logo-oficial.md) · [arte oficial PNG, nunca potrace](paxter-wordmark-png-vs-potrace.md) · [conjunto so por PaxterLockup](paxter-lockup-fonte-unica.md) · [um unico motor de luz](paxter-glint-motor-unico.md) · [zero filtro, header navy](padaxor-wordmark-regras.md) · [conferir DATA do arquivo antes de usar](brand-asset-versao-mais-recente.md) · [banner = compor PNG oficial](banner-marca-arte-oficial.md)
 - [Marca PADCON = desenho oficial recortado](padcon-marca-desenho-oficial.md) — PADCON e a ARTE oficial (PNG transparente, flutuante, sem placa), nunca texto digitado; no PDF a capa e a regua e as internas repetem a 50%, marca e peca unica.
 - [Workspace travando = peso do repo](workspace-lento-peso-repo.md) — medir antes de culpar codigo: anexos versionados, size-pack do git e servidores simultaneos; nunca apagar sem ordem escrita.
-- [Área do Cliente: desejo IMPLÍCITO + faixas](area-cliente-desejo-implicito.md) — planos viram ícone-coroa a descobrir (sem upsell/preço na home); cabeçalho em 3 faixas, nome nunca sob PAXTER.
+- [Área do cliente](area-cliente.md) — telas e orientações usam “App do Cliente”; produto “PaxMed Members”; preservar identificadores internos.
 - [Nível do cliente: Prata/Ouro/Platinum/Diamond](classificacao-plano-cliente.md) — substitui Bronze/Platina/Noir; módulo único nivel-cliente.ts; codegen quebra o barrel api-zod; sem progressão.
 - [Radix Select onValueChange("") no mount](radix-select-onvaluechange-vazio.md) — Select controlado perde o valor do reset; guardar contra "" no onValueChange.
 - [Architect pode acusar código pré-existente](architect-falsopositivo-diff.md) — code_review com includeGitDiff confunde linhas antigas do arquivo com mudanças da onda; conferir o diff real antes de reverter.
@@ -196,11 +196,4 @@
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
 - **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
-- [Evolução /area — planilha congelada e nomes de upload](evolucao-area-cliente-planilha-congelada.md) — sticky fora do overflow-x; gráfico inicial no topo; nome original do upload vive na cópia interna.
-- [Fotos de evolução corporal](fotos-corpo-privacidade-comparador.md) — fotos privadas por rota autenticada, substituir=soft delete, grade calibrada por altura só com mesmo enquadramento.
-- [Manual do Cliente /guia-digital](manual-cliente-guia-digital.md) — mesma rota, tenant por ?tenant=, aba COMUNICAÇÃO só linka; sem código previsível; e2e protege textos proibidos.
-
-- [Canal oficial da clínica](canal-oficial-clinica-regra.md) — toggle só CEO: cadastro = celular da clínica; CNPJ sempre da empresa da sessão; CNPJs do dev são fictícios.
-- [Foto da capa = profissional que atende](capa-foto-profissional-que-atende.md) — capa usa photo_url do profissional do protocolo; sem foto, sem retrato; nunca a foto global do CEO.
-- [CEO entidade + interruptor Profissional Médico](ceo-entidade-e-profissional-medico.md) — CEO≠médico; interruptor liga o cadastro médico (Dr. Caio); documento sai no nome do médico logado.
-- [Administrador de clínica](administrador-clinica-entidade-empresarial.md) — dono = entidade empresarial não agendável, campos profissionais apagados.
+- [Identidades empresariais](identidades-empresariais.md) — canal da clínica, profissional de referência, papéis do CEO e do administrador.

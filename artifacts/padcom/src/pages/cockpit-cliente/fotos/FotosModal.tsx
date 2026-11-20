@@ -142,7 +142,7 @@ export function FotosModal({ clientId, clienteNome, aberto, escuro, onClose }: {
           {q.isError && <div className="concave-3d p-6 text-center text-sm text-destructive">{(q.error as Error).message}</div>}
           {q.data && series.length === 0 && (
             <div className="concave-3d p-6 text-center text-sm text-muted-foreground">
-              Este cliente ainda não enviou fotos. Ele envia pela Área do Cliente, na aba MINHAS FOTOS.
+              Este cliente ainda não enviou fotos. Ele envia pelo App do Cliente, na aba MINHAS FOTOS.
             </div>
           )}
           {q.data && series.length > 0 && (

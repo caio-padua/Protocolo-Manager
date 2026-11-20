@@ -119,7 +119,7 @@ export function ClientComunicacao({ clientId }: { clientId: number }) {
       </section>
 
       <section className="panel-3d-sub p-5 space-y-3">
-        <h3 className="text-[11px] font-black uppercase tracking-widest">Área do Cliente</h3>
+        <h3 className="text-[11px] font-black uppercase tracking-widest">App do Cliente</h3>
         <Linha rotulo="CPF cadastrado" valor={a.temCpf ? "Sim" : "Não"} />
         <Linha rotulo="Data de nascimento" valor={a.temDataNascimento ? "Sim" : "Não"} />
         <Linha rotulo="Senha própria" valor={a.temSenhaPropria ? "Criada" : "Ainda não criada"} />
@@ -129,7 +129,7 @@ export function ClientComunicacao({ clientId }: { clientId: number }) {
             : "O cliente ainda não criou senha. Na tela de entrada ele usa CPF e data de nascimento."}
         </p>
         <p className="text-xs text-muted-foreground">
-          Na Área do Cliente, aba COMUNICAÇÃO, ele encontra o passo a passo e o próprio link individual.
+          No App do Cliente, na aba COMUNICAÇÃO, ele encontra o passo a passo e o próprio link individual.
         </p>
       </section>
     </div>

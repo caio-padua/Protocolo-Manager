@@ -252,7 +252,7 @@ export default function Area() {
       </header>
 
       {/* Conteúdo principal — pb-24 libera espaço para bottom nav fixa */}
-      <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-24 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
+      <main className={`relative isolate z-0 flex-1 px-4 py-5 w-full mx-auto pb-28 ${tab === "evolucao" ? "max-w-lg lg:max-w-6xl" : "max-w-lg"}`}>
         {tab === "inicio"     && <InicioTab     client={client} onGo={setTab} />}
         {tab === "protocolos" && <ProtocolosTab client={client} />}
         {tab === "agenda"     && <AgendaTab     client={client} />}
@@ -302,7 +302,7 @@ export default function Area() {
           title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
           className="btn-3d-soft flex items-center justify-center rounded text-accent"
-          style={{ width: 32, height: 24 }}
+          style={{ width: 44, height: 44 }}
         >
           {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
@@ -311,7 +311,7 @@ export default function Area() {
           onClick={handleLogout}
           title="Sair"
           className="btn-3d-soft flex items-center justify-center rounded text-muted-foreground hover:text-accent transition-colors"
-          style={{ width: 32, height: 24 }}
+          style={{ width: 44, height: 44 }}
         >
           <LogOut className="w-3.5 h-3.5" />
         </button>
@@ -812,7 +812,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (c: ClientInfo) => void }) {
   // --- Telas de entrada normal (nascimento OU senha) ---
   const porSenha = mode === "senha";
   return (
-    <LoginShell subtitle="ÁREA DO PACIENTE">
+    <LoginShell subtitle="APP DO CLIENTE">
       <div className="panel-3d rounded-xl overflow-hidden">
         {/* Zona 1 — TOP BAR */}
         <div className="login-card-topbar px-5 py-4">

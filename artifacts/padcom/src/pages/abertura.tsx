@@ -31,8 +31,8 @@ const PORTAIS = [
   {
     href: "/area",
     Icone: UserRound,
-    titulo: "Área do Cliente",
-    texto: "Acompanhe seu protocolo, sessões, exames e pagamentos.",
+    titulo: "App do Cliente",
+    texto: "PaxMed Members: acompanhe seu protocolo, sessões, exames e pagamentos.",
   },
   {
     href: "/entrada",
@@ -251,7 +251,7 @@ export default function Abertura() {
                 href="/area"
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#f1dca6] via-[#d9bd7e] to-[#b8924d] px-7 py-3.5 text-sm font-semibold text-[#1a1206] shadow-[0_14px_34px_-16px_rgba(194,160,90,0.7)] transition-transform hover:-translate-y-0.5"
               >
-                <UserRound className="h-4 w-4" /> Área do Cliente
+                <UserRound className="h-4 w-4" /> App do Cliente
               </Link>
               <Link
                 href="/entrada"
