@@ -16,6 +16,8 @@ import { ClinicalIdentityError, medicalRegistration, resolveClinicalEmitter } fr
 import { resolvePrescriptionSigner, signExistingClinicalPdf } from "../lib/prescription-signing";
 import { ambienteDoCliente, enviarComunicacao } from "../lib/comunicacao-padrao";
 import { brtDateStr, brtDisplayDate } from "../lib/brt";
+import { getSetting, setSetting } from "../lib/secure-settings";
+import { isPlatformOwner } from "../lib/clinical-access";
 import { requireCollaborator } from "./collaborator";
 import { loadAuthorized, type Row } from "./pedidos-medicos";
 
@@ -194,6 +196,21 @@ router.post("/pedidos-medicos/:id/reabrir", requireCollaborator, async (req, res
  RETURNING id`);
   if (upd.rows.length === 0) { res.status(409).json({ error: "Só reabre pedido de exames marcado como emitido sem documento." }); return; }
   res.json({ id: row.id, status: "pago" });
+});
+
+// Chave da validação médica: ligada = todo pedido espera o médico (padrão seguro).
+// Desligada = só registra a preferência; liberação automática NÃO existe (assinatura é sempre humana).
+const CHAVE_VALIDACAO = "pedidoMedico.validacaoAtiva";
+router.get("/pedidos-medicos/validacao-medica", requireCollaborator, async (_req, res): Promise<void> => {
+  res.json({ ativa: (await getSetting(CHAVE_VALIDACAO)) !== "false" });
+});
+router.put("/pedidos-medicos/validacao-medica", requireCollaborator, async (req, res): Promise<void> => {
+  const id = Number(req.collaborator?.professionalId);
+  if (!Number.isSafeInteger(id) || !(await isPlatformOwner(id))) { res.status(403).json({ error: "Acesso restrito ao titular da plataforma." }); return; }
+  const b = z.object({ ativa: z.boolean() }).strict().safeParse(req.body);
+  if (!b.success) { res.status(400).json({ error: "Informe ativa verdadeiro ou falso." }); return; }
+  await setSetting(CHAVE_VALIDACAO, b.data.ativa ? "true" : "false");
+  res.json({ ativa: b.data.ativa });
 });
 
 export default router;

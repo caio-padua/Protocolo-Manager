@@ -127,7 +127,7 @@ export default function PedidosMedicosPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl">
+    <div className="p-4 md:p-6 space-y-6 max-w-6xl">
       <header className="flex items-center gap-2">
         <Stethoscope className="w-6 h-6 text-accent" />
         <h1 className="text-xl font-black uppercase tracking-wider text-primary">Pedidos dos clientes</h1>
