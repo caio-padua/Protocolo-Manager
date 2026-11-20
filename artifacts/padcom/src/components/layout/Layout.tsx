@@ -453,6 +453,10 @@ export function Layout({ children }: LayoutProps) {
       return false;
     }
   });
+  // O recolhimento persistido vale para o computador. Ao abrir a gaveta no
+  // celular, ela sempre mostra os nomes, mesmo que o menu do computador esteja
+  // recolhido.
+  const compactMenu = collapsed && !sidebarOpen;
 
   // Ao trocar de tela pelo menu, volta ao topo (janela e area interna)
   const conteudoRef = useRef<HTMLDivElement>(null);
@@ -604,7 +608,7 @@ export function Layout({ children }: LayoutProps) {
                 const SectionIcon = item.icon;
 
                 // Recolhida: separador fino + so os icones dos itens (todos a mostra).
-                if (collapsed) {
+                if (compactMenu) {
                   return (
                     <div key={item.name} className="pt-1">
                       <div
@@ -741,16 +745,16 @@ export function Layout({ children }: LayoutProps) {
               return (
                 <Link key={item.name} href={item.href} onClick={() => setSidebarOpen(false)}>
                   <div
-                    title={collapsed ? item.name : undefined}
+                    title={compactMenu ? item.name : undefined}
                     className={`relative flex items-center ${
-                      collapsed ? "justify-center" : "gap-3"
+                      compactMenu ? "justify-center" : "gap-3"
                     } px-3 py-2.5 rounded-[5px] border transition-all cursor-pointer ${
                       isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-primary/40 shadow-sm"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border-transparent"
                     }`}
                   >
-                    {isActive && !collapsed && (
+                    {isActive && !compactMenu && (
                       <span className="absolute -left-2.5 top-2 bottom-2 w-[3px] rounded-r-full bg-sidebar-primary" />
                     )}
                     <Icon
@@ -758,7 +762,7 @@ export function Layout({ children }: LayoutProps) {
                         isActive ? "text-sidebar-primary" : "text-sidebar-foreground/50"
                       }`}
                     />
-                    {!collapsed && <span className="text-sm tracking-wide">{item.name}</span>}
+                    {!compactMenu && <span className="text-sm tracking-wide">{item.name}</span>}
                   </div>
                 </Link>
               );
@@ -778,7 +782,7 @@ export function Layout({ children }: LayoutProps) {
                 id="collaborator-profile-actions"
                 aria-label="Identidade e ações do colaborador"
                 className={`panel-3d-sub absolute bottom-full z-[70] mb-2 w-[calc(100%-1rem)] p-2 ${
-                  collapsed ? "md:left-full md:right-auto md:ml-2 md:bottom-2 md:w-64" : "left-2 right-2 md:left-2 md:right-2 md:w-auto"
+                  compactMenu ? "md:left-full md:right-auto md:ml-2 md:bottom-2 md:w-64" : "left-2 right-2 md:left-2 md:right-2 md:w-auto"
                 }`}
               >
                 <div className="border-b border-sidebar-border/70 pb-1">
@@ -881,7 +885,7 @@ export function Layout({ children }: LayoutProps) {
                     : "Abrir menu do colaborador"
                   : "Entrar no sistema"
               }
-              title={collapsed
+              title={compactMenu
                 ? me
                   ? formatProfessionalName(me.name)
                   : hasCollaboratorSession
@@ -898,7 +902,7 @@ export function Layout({ children }: LayoutProps) {
                 setProfileOpen((open) => !open);
               }}
               className={`bevel-3d flex min-h-[44px] w-full items-center ${
-                collapsed ? "justify-center px-2" : "gap-3 px-2.5"
+                compactMenu ? "justify-center px-2" : "gap-3 px-2.5"
               } py-1.5 text-left`}
             >
               <Avatar
@@ -922,7 +926,7 @@ export function Layout({ children }: LayoutProps) {
                   )}
                 </AvatarFallback>
               </Avatar>
-              {!collapsed ? (
+              {!compactMenu ? (
                 <>
                   <span className="grid min-w-0 flex-1 grid-rows-2 leading-tight">
                     <span
