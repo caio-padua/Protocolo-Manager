@@ -97,9 +97,9 @@ export async function renderFlyerPaxmed(e: EntradaFlyer): Promise<Buffer> {
     }
     c.font = "500 15px FlyerJost"; c.fillStyle = "#b9c6e0"; txt(c, ln.rotulo.toUpperCase(), cx, y + 6, 3.2);
     const ausente = !ln.valor;
-    c.font = ausente ? "italic 26px FlyerGaramondIt" : "500 30px FlyerJost";
+    c.font = ausente ? "italic 26px FlyerGaramondIt" : "400 31px FlyerJost";
     c.fillStyle = ausente ? "#8fa0c4" : "#f3efe3";
-    txt(c, ausente ? NAO_LOCALIZADO : (ln.valor as string), cx, y + 44, ausente ? 0.5 : 1);
+    txt(c, ausente ? NAO_LOCALIZADO : (ln.valor as string), cx, y + 44, ausente ? 0.5 : 2.2);
   });
 
   // Clinica SEMPRE por ultimo.

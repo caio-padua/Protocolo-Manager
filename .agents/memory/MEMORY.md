@@ -182,7 +182,6 @@
 - [Testes de auth x tenantContext](telegram-testes-mocks-tenantcontext.md) — falhas vieram de mocks defasados; nunca afrouxar a auth para passar teste.
 - [Lembrete no Telegram](lembrete-telegram-motor.md) — mesmo motor, canal por modo em app_settings; janela leva só seus períodos; prova automática isolando o Job 2.
 - [Avaliações corporais do Cockpit](avaliacoes-corporais-cockpit.md) — catálogo único em lib/avaliacoes-corporais; campos vazios; remoção por deleted_at.
-- [Publicação do Manager indisponível](publicacao-manager-indisponivel.md) — 404 com hasSuccessfulBuild=false; correção preparada em .replitignore, falta publicar.
 - [Assistente de agendamento no Telegram](telegram-assistente-agendamento.md) — cliente reserva real, visitante vira pedido; planejar do pipeline durável; testar via vitest.
 - [Biblioteca de orientações](orientacoes-biblioteca-categorias-tom.md) — categorias aditivas, tom por clínica, marcadores bloqueiam aprovação; "categoria do ensaio" pendente de esclarecimento.
 - [Modelos de orientação como dado](orientacoes-modelos-semente.md) — 28 rascunhos por clínica via API; variáveis ainda não ligadas ao envio; envio pelo cockpit pausa a IA.
@@ -197,7 +196,9 @@
 - [Meus Jogos individuais](meus-jogos-individuais.md) — separado dos bolões; sem aposta/pagamento real automático; Caixa só com canal oficial autorizado; calendário por concurso e margem de quatro horas.
 - **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
-- [Identidades empresariais](identidades-empresariais.md) — canal da clínica, profissional de referência, papéis do CEO e do administrador.
 - [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.
 - [Conversa unificada WWP+TG](comunicacao-unificada-wwp-tg.md) — conversa única, backup e categorias versionadas; trilhas financeiras separadas.
 - [Tela publica de pagamento PaxMed](pagamento-link-tela-publica.md) — /pagar/:token; valor sempre do Asaas; previa estatica; token em hash.
+- [Comunicação padronizada](comunicacao-padronizada.md) — compositor sem IA, modelos por clínica, regra de flyer, histórico.
+- [Identidades empresariais](identidades-empresariais.md) — canal da clínica, referência, papéis.
+- [Publicação do Manager](publicacao-manager-indisponivel.md) — 404 sem build; falta publicar.

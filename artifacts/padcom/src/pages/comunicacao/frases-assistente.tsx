@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { MessageSquareText } from "lucide-react";
 import { BASE } from "./_shared";
 import { getCollabToken } from "@/lib/collab-auth";
+import { ModelosComunicacao } from "./modelos-comunicacao";
 
 interface Frase { chave: string; grupo: string; descricao: string; variaveis: string[]; obrigatorias: string[]; texto: string; padrao: string }
 interface PerguntaAprendida {
@@ -24,7 +25,7 @@ export function FrasesAssistente() {
   const [rascunho, setRascunho] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
-  const [aba, setAba] = useState<"frases" | "aprendidas">("frases");
+  const [aba, setAba] = useState<"frases" | "aprendidas" | "modelos">("frases");
   const [aprendidas, setAprendidas] = useState<PerguntaAprendida[] | null>(null);
   const [rascunhosAprendidos, setRascunhosAprendidos] = useState<Record<number, { pergunta: string; variacoes: string; resposta: string }>>({});
   const [versoes, setVersoes] = useState<Record<number, VersaoAprendida[]>>({});
@@ -111,6 +112,7 @@ export function FrasesAssistente() {
         <div role="tablist" aria-label="Conteúdo do assistente" className="concave-3d flex flex-wrap gap-2 p-2">
           <button type="button" role="tab" aria-selected={aba === "frases"} className={`min-h-11 px-4 text-[12px] font-bold uppercase ${aba === "frases" ? "btn-3d" : "bevel-3d"}`} onClick={() => setAba("frases")}>Frases</button>
           <button type="button" role="tab" aria-selected={aba === "aprendidas"} className={`min-h-11 px-4 text-[12px] font-bold uppercase ${aba === "aprendidas" ? "btn-3d" : "bevel-3d"}`} onClick={() => setAba("aprendidas")}>Aprendidas</button>
+          <button type="button" role="tab" aria-selected={aba === "modelos"} className={`min-h-11 px-4 text-[12px] font-bold uppercase ${aba === "modelos" ? "btn-3d" : "bevel-3d"}`} onClick={() => setAba("modelos")} data-testid="aba-modelos">Modelos de comunicação</button>
         </div>
         {aba === "frases" && <>
         {erro && <p role="alert" className="concave-3d p-3 text-[12px] text-rose-700">{erro}</p>}
@@ -132,6 +134,7 @@ export function FrasesAssistente() {
           </div>
         ))}
         </>}
+        {aba === "modelos" && <ModelosComunicacao />}
         {aba === "aprendidas" && <div className="space-y-4">
           <p className="text-[12px] leading-relaxed text-muted-foreground">A IA apenas agrupa perguntas repetidas. A resposta vem de uma orientação aprovada; nunca é escrita pela IA. Perguntas clínicas, comerciais, pessoais ou sem fonte seguem para a equipe.</p>
           {avisoAprendidas && <p role="status" className="concave-3d p-3 text-[12px]">{avisoAprendidas}</p>}
