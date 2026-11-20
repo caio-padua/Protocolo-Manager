@@ -237,7 +237,7 @@ function paraLinha(r: Record<string, any>): LinhaConversa {
 }
 
 const SELECAO = `SELECT u.*, (${COBRANCA_SQL}) AS cobranca, cl.name AS cliente_nome, cl.cpf AS cliente_cpf, emp.nome AS empresa_nome,
-  rg.categoria_id, rg.categoria_nome, rg.categoria_natureza, rg.regra_versao
+  u.quando::text AS quando_cursor, rg.categoria_id, rg.categoria_nome, rg.categoria_natureza, rg.regra_versao
   FROM u
   LEFT JOIN clients cl ON cl.id = u.cliente_id
   LEFT JOIN empresas emp ON emp.id = u.empresa_id
@@ -253,7 +253,7 @@ export async function listarConversas(
   let antes: { quando: string; ref: string } | null = null;
   if (opts.cursor) {
     const [quando, ref] = Buffer.from(opts.cursor, "base64url").toString("utf8").split("|");
-    if (!quando || !ref || Number.isNaN(Date.parse(quando))) throw new RangeError("cursor invalido");
+    if (!quando || !ref || !/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?|Z)$/.test(quando)) throw new RangeError("cursor invalido");
     antes = { quando, ref };
   }
   const { params, where } = montarFiltro(f, { antes, categoria: true });
@@ -268,7 +268,7 @@ export async function listarConversas(
   return {
     linhas: rows.map(paraLinha),
     proximo: sobra && ultimo
-      ? Buffer.from(`${new Date(ultimo.quando).toISOString()}|${ultimo.ref}`).toString("base64url")
+      ? Buffer.from(`${String(ultimo.quando_cursor)}|${ultimo.ref}`).toString("base64url")
       : null,
   };
 }

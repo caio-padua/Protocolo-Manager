@@ -179,3 +179,28 @@ describe("etapas independentes (sem provar o que nao foi provado)", () => {
     expect(por(etapasDaLinha("tg", "saida", null))).toMatchObject({ leitura: "nao_informado", entrega: "nao_informado" });
   });
 });
+
+describe("cursor de paginacao preserva microssegundos", () => {
+  it("paginar com cursor em texto nao pula linhas que dividem o mesmo milissegundo", async () => {
+    await pool.query(`CREATE TEMP TABLE msgs_cursor (ref text, quando timestamptz)`);
+    await pool.query(`INSERT INTO msgs_cursor VALUES
+      ('t1','2026-11-20 10:00:00.123456+00'),('t2','2026-11-20 10:00:00.123789+00'),
+      ('t3','2026-11-20 10:00:00.123111+00'),('t4','2026-11-20 10:00:00.123111+00'),('t5','2026-11-20 09:00:00+00')`);
+    const vistos: string[] = [];
+    let cursor: { q: string; ref: string } | null = null;
+    for (let i = 0; i < 10; i++) {
+      const r: pg.QueryResult = cursor
+        ? await pool.query(`SELECT ref, quando::text AS q FROM msgs_cursor WHERE (quando, ref) < ($1::timestamptz, $2) ORDER BY quando DESC, ref DESC LIMIT 2`, [cursor.q, cursor.ref])
+        : await pool.query(`SELECT ref, quando::text AS q FROM msgs_cursor ORDER BY quando DESC, ref DESC LIMIT 2`);
+      if (!r.rows.length) break;
+      vistos.push(...r.rows.map((x) => x.ref));
+      const u = r.rows[r.rows.length - 1];
+      cursor = { q: u.q, ref: u.ref };
+    }
+    expect(vistos).toEqual(["t2", "t1", "t4", "t3", "t5"]);
+    // O formato antigo (ISO em milissegundos) perderia t1 ao cortar em t2/t1: prova do defeito corrigido.
+    const iso = new Date("2026-11-20T10:00:00.123456Z").toISOString(); // vira .123 (perde microssegundos)
+    const restantes = await pool.query(`SELECT ref FROM msgs_cursor WHERE (quando, ref) < ($1::timestamptz, 't1')`, [iso]);
+    expect(restantes.rows.map((x) => x.ref)).not.toContain("t3"); // t3 e t4 sumiriam da proxima pagina
+  });
+});

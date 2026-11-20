@@ -13,6 +13,9 @@ export async function garantirTabelasComunicacao(): Promise<void> {
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'whatsapp_log_direcao_check') THEN
       ALTER TABLE whatsapp_mensagens_log ADD CONSTRAINT whatsapp_log_direcao_check CHECK (direcao IN ('entrada','saida'));
     END IF; END $$`);
+  // Colunas usadas pela conversa unificada: bancos novos (criados so pelo esquema versionado) podem nao té-las.
+  await pool.query(`ALTER TABLE whatsapp_mensagens_log ADD COLUMN IF NOT EXISTS empresa_id INTEGER`);
+  await pool.query(`ALTER TABLE whatsapp_mensagens_log ADD COLUMN IF NOT EXISTS cliente_id INTEGER`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_whatsapp_log_empresa_criado ON whatsapp_mensagens_log (empresa_id, criado_em DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_whatsapp_log_cliente ON whatsapp_mensagens_log (cliente_id)`);
 
