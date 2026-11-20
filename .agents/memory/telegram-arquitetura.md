@@ -73,3 +73,11 @@ Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`
 - Número de celular no Telegram é conta pessoal: NÃO se liga a bot. O caminho é link/QR `t.me/<bot>` (Central Telegram, painel "Porta de entrada do bot") ou link individual `?start=<token>` (cartão "Foto e Contato do Cliente", botão LIBERAR TELEGRAM, usa `/clients/:id/telegram-link`).
 - Atendimento da assistente: `atendimento.ia.modo` = desligado/lista/ligado; em "lista" só clientes em `atendimento.ia.permitidos` (por id de cliente) são atendidos; visitante só em "ligado" ou chat na lista de visitantes. Não existe tela para mudar o modo (decisão do CEO pendente).
 - Alternativa que liga bot a número: Telegram Business "Chatbots" (exige Premium na conta); não implementada.
+
+## Respostas e aprendizado da assistente
+- A IA interpreta, mas não redige a mensagem final; o envio deve copiar texto de uma frase ou orientação aprovada.
+- Não enviar CPF, data de nascimento ou outros identificadores ao provedor; o aprendiz só pode padronizar perguntas seguras e copiar a resposta aprovada sem alterá-la.
+- Nunca aprender conteúdo clínico, preço sem fonte válida ou informação ausente; em dúvida, encaminhar para a equipe.
+
+**Why:** o CEO definiu que o assistente reduz custo sem inventar respostas nem ampliar o risco clínico ou de privacidade.
+**How to apply:** qualquer mudança no Telegram que use IA precisa manter separadas interpretação, conferência e resposta aprovada; editar uma FAQ aprendida não deve alterar mensagens já em andamento.

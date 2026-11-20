@@ -109,11 +109,11 @@ describe("interpretacao por IA (sem respostas prontas)", () => {
     const { resp } = await conv(["quero marcar uma consulta", "hmm"], ia({ situacao: null }));
     expect(resp[1]).toMatch(/Não entendi/);
   });
-  it("escolha em linguagem natural", async () => {
-    const d = deps({ interpretar: async (t) => (t.tipo === "escolha" ? { escolha: 1 } : t.tipo === "preferencias" ? { modalidade: "online", periodo: "qualquer", dias: "qualquer" } : { situacao: "nova" }) as never });
-    const { resp } = await conv(["quero marcar", "é a primeira vez", "essa mesma que você falou"], d);
-    expect(resp[1]).toMatch(/Qual dessas opções/);
-    expect(resp[2]).toMatch(/nome completo/);
+  it("escolha em linguagem natural só é interpretada depois de apresentar opções", async () => {
+    const d = deps({ interpretar: async (t) => (t.tipo === "escolha" ? { escolha: 1, confianca: "alta" } : null) as never });
+    const { resp } = await conv(["quero marcar", "é a primeira vez", "online", "terça de manhã", "essa mais conveniente"], d);
+    expect(resp[3]).toMatch(/Qual dessas opções/);
+    expect(resp[4]).toMatch(/nome completo/);
   });
   it("identidade aceita qualquer ordem e frase solta", () => {
     expect(lerIdentidade("Maria Souza 1985 1234")).toEqual({ nome: "Maria Souza", cpf4: "1234", ano: "1985" });

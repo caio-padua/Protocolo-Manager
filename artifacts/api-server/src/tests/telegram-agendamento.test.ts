@@ -65,7 +65,7 @@ describe("assistente de agendamento no Telegram", () => {
     const d = deps({
       interpretar: vi.fn(async (t) => {
         ordem.push(`interprete:${t.tipo}`);
-        return t.tipo === "escolha" ? { escolha: 1, confianca: "alta" } : null;
+        return t.tipo === "escolha" ? { escolha: 1, confianca: "alta" as const } : null;
       }),
       conferirEscolha: vi.fn(async () => { ordem.push("conferente"); return true; }),
       reservar: vi.fn(async () => { ordem.push("reserva"); return { ok: true as const, sessionId: 42 }; }),

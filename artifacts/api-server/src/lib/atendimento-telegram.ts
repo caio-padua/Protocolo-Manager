@@ -142,7 +142,7 @@ export interface EntradaAtendimento {
 }
 
 export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAtendimento): Promise<Desfecho> {
-  let caminhoResolucao: PlanoAtendimento["caminhoResolucao"] = "equipe";
+  let caminhoResolucao: NonNullable<PlanoAtendimento["caminhoResolucao"]> = "equipe";
   let faqId: number | null = null;
   let interpreteChamado = false;
   let conferenteChamado = false;
@@ -218,6 +218,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
         }
       } catch {
         escolhida = escolhaDeterministica(cand);
+        caminhoResolucao = escolhida ? "regra" : "equipe";
       }
     }
   }
@@ -230,6 +231,7 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
   }
 
   // Sem orientação aprovada que sirva: encaminha para pessoa (nada inventado) e pausa a IA nesta conversa.
+  caminhoResolucao = "equipe";
   await deps.passarParaHumano(e.clienteId, "sem_orientacao_aprovada");
   if (!await deps.alertarEquipe(`Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`)) return fechar("falha_alerta");
   const textoEnc = textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
@@ -243,12 +245,12 @@ export interface PlanoAtendimento {
   alerta: string | null;
   resposta: string | null;
   orientacaoId: number | null;
-  faqId: number | null;
+  faqId?: number | null;
   desfecho: Desfecho;
-  caminhoResolucao: "cardapio" | "regra" | "interprete" | "conferente" | "equipe";
-  interpreteChamado: boolean;
-  conferenteChamado: boolean;
-  aprendizChamado: boolean;
+  caminhoResolucao?: "cardapio" | "regra" | "interprete" | "conferente" | "equipe";
+  interpreteChamado?: boolean;
+  conferenteChamado?: boolean;
+  aprendizChamado?: boolean;
 }
 
 /** Usa a MESMA decisão sem executar efeitos. O worker persiste este plano antes da rede. */

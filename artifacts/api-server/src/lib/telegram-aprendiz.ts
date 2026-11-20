@@ -10,7 +10,7 @@ import { db } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { requireAiTenant } from "./ai-central";
 import { logger } from "./logger";
-import { registrarCustoProvedor } from "./mensageria-credito";
+import { garantirTabelasCredito, registrarCustoProvedor } from "./mensageria-credito";
 
 const MODELO_APRENDIZ = "claude-haiku-5-5";
 const LIMIAR_APRENDIZAGEM = 3;
@@ -43,10 +43,10 @@ const PII = [
 ];
 
 const CATEGORIAS_PERMITIDAS: Record<string, Set<string> | null> = {
-  apresentacao: null,
-  cadastro: null,
+  apresentacao: new Set(["clinica", "assistente", "primeiro_contato", "retorno"]),
+  cadastro: new Set(["orientacoes"]),
   duvidas: new Set(["consulta", "aplicativo", "prazos"]),
-  gerais: new Set(["locais", "atendimento", "aplicativo", "exames"]),
+  gerais: new Set(["locais", "atendimento", "aplicativo"]),
 };
 
 export function perguntaSeguraParaAprender(
@@ -115,6 +115,14 @@ export async function migrarTabelasTelegramAprendiz(exec: ExecutorTelegramAprend
       UNIQUE (empresa_id, inbox_message_id)
     )`);
   await exec.execute(sql`
+    CREATE TABLE IF NOT EXISTS telegram_faq_usos (
+      empresa_id INTEGER NOT NULL,
+      inbox_message_id BIGINT NOT NULL,
+      faq_id BIGINT NOT NULL,
+      usada_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (empresa_id, inbox_message_id)
+    )`);
+  await exec.execute(sql`
     CREATE TABLE IF NOT EXISTS telegram_faq_versoes (
       id BIGSERIAL PRIMARY KEY,
       faq_id BIGINT NOT NULL,
@@ -157,10 +165,17 @@ export async function buscarFaqAprendida(empresaId: number, texto: string): Prom
   return row ? { id: Number(row.id), resposta: row.resposta } : null;
 }
 
-export async function registrarUsoFaqAprendida(empresaId: number, faqId: number): Promise<void> {
-  await db.execute(sql`UPDATE telegram_faq_aprendidas
+export async function registrarUsoFaqAprendida(empresaId: number, faqId: number, inboxMessageId: number): Promise<void> {
+  await db.execute(sql`WITH novo AS (
+    INSERT INTO telegram_faq_usos (empresa_id, inbox_message_id, faq_id)
+    VALUES (${empresaId}, ${inboxMessageId}, ${faqId})
+    ON CONFLICT (empresa_id, inbox_message_id) DO NOTHING
+    RETURNING inbox_message_id
+  )
+  UPDATE telegram_faq_aprendidas
     SET usos = usos + 1, economia_ia = economia_ia + 1, atualizada_em = NOW()
-    WHERE id = ${faqId} AND empresa_id = ${empresaId} AND ativa = TRUE AND excluida_em IS NULL`);
+    WHERE id = ${faqId} AND empresa_id = ${empresaId} AND ativa = TRUE AND excluida_em IS NULL
+      AND EXISTS (SELECT 1 FROM novo)`);
 }
 
 function temDadoPessoal(texto: string): boolean {
@@ -194,7 +209,7 @@ async function padronizarPergunta(exemplos: string[], empresaId: number, message
     if (typeof parsed.pergunta !== "string") return null;
     const pergunta = parsed.pergunta.trim().replace(/\s+/g, " ");
     if (!pergunta.endsWith("?") || pergunta.length < 10 || pergunta.length > 120 ||
-        !perguntaSeguraParaAprender(pergunta, "apresentacao", null) || !respostaSegura(pergunta)) return null;
+        !perguntaSeguraParaAprender(pergunta, "apresentacao", "clinica") || !respostaSegura(pergunta)) return null;
     if (!exemplos.some((exemplo) => similaridadePerguntas(pergunta, exemplo) >= SIMILARIDADE_MINIMA)) return null;
     return pergunta;
   } catch (error) {
@@ -235,8 +250,10 @@ export async function observarRespostaAprovada(p: {
     WHERE empresa_id = ${p.empresaId} AND orientacao_id = ${p.orientacaoId}
       AND observada_em > NOW() - INTERVAL '60 days'
     ORDER BY observada_em DESC LIMIT 40`);
-  const cluster = (related.rows as Array<{ pergunta: string; pergunta_normalizada: string }>)
-    .filter((row) => similaridadePerguntas(perguntaNormalizada, row.pergunta_normalizada) >= SIMILARIDADE_MINIMA);
+  const relatedRows = related.rows as Array<{ pergunta: string; pergunta_normalizada: string }>;
+  // Usa a observação mais antiga do recorte como âncora para não perder um grupo por pequenas variações entre as mensagens mais recentes.
+  const ancora = relatedRows[relatedRows.length - 1]?.pergunta_normalizada ?? perguntaNormalizada;
+  const cluster = relatedRows.filter((row) => similaridadePerguntas(ancora, row.pergunta_normalizada) >= SIMILARIDADE_MINIMA);
   const unique = [...new Map(cluster.map((row) => [row.pergunta_normalizada, row])).values()];
   if (unique.length < LIMIAR_APRENDIZAGEM) return false;
   const examples = unique.slice(0, 5).map((row) => row.pergunta);
@@ -285,8 +302,8 @@ export async function editarFaqAprendida(p: {
   const variations = [...new Set(p.variacoes.map((v) => v.trim().replace(/\s+/g, " ")).filter(Boolean))].slice(0, 20);
   if (question.length < 10 || question.length > 120 || !question.endsWith("?") ||
       !respostaSegura(answer) || TERMOS_IDENTIDADE.test(answer) ||
-      !perguntaSeguraParaAprender(question, "apresentacao", null) ||
-      variations.some((v) => !perguntaSeguraParaAprender(v, "apresentacao", null))) {
+      !perguntaSeguraParaAprender(question, "apresentacao", "clinica") ||
+      variations.some((v) => !perguntaSeguraParaAprender(v, "apresentacao", "clinica"))) {
     throw new Error("A pergunta ou a resposta não passou pelos limites de segurança do cardápio.");
   }
   const update = await db.execute(sql`
@@ -345,6 +362,7 @@ export async function registrarResolucaoTelegram(p: {
 }
 
 export async function painelUsoTelegramAprendiz() {
+  await garantirTabelasCredito();
   const r = await db.execute(sql`
     WITH uso AS (
       SELECT empresa_id, caminho, COUNT(*)::int AS total,

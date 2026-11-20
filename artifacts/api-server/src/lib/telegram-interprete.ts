@@ -52,13 +52,15 @@ const DADO_PESSOAL = [
   /\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/,
   /\b(?:19|20)\d{2}\b/,
   /\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/,
-  /\b(cpf|nascimento|ano de nascimento|data de nascimento)\b/i,
+  /\b(cpf|nascimento|ano de nascimento|data de nascimento|nasci|nascido|nascida|aniversario|idade)\b/i,
+  /\btenho\s+\d{1,3}\s+anos\b/i,
 ];
 
 /** Se a mensagem tiver identificador ou data numérica, nenhuma parte dela vai para o provedor. */
 export function textoSeguroParaInterpretar(texto: string): string | null {
-  const limitado = texto.trim().slice(0, 600);
-  if (!limitado || DADO_PESSOAL.some((pattern) => pattern.test(limitado))) return null;
+  const entrada = texto.trim();
+  if (!entrada || DADO_PESSOAL.some((pattern) => pattern.test(entrada))) return null;
+  const limitado = entrada.slice(0, 600);
   const semNome = limitado
     .replace(/\b(?:meu nome (?:é|e)|me chamo|aqui (?:é|e))\s+[\p{L}'’.-]+(?:\s+[\p{L}'’.-]+){0,4}/giu, " ")
     .replace(/\s+/g, " ")

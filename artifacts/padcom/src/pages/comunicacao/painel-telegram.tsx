@@ -145,7 +145,7 @@ export function PainelOperacionalTelegram() {
           <Linha item="Canal ativado" estado={!p || p.canalAtivo == null ? "nao_comprovado" : p.canalAtivo ? "conectado" : "pendente"} detalhe={p?.canalAtivo == null ? "Configuração não lida." : p.canalAtivo ? "Canal marcado como ativo em Configurações." : "Canal desativado em Configurações."} />
           <Linha item="Webhook" estado={estWebhook} detalhe={wh ? (wh.consultado ? `Consulta ao Telegram feita agora. Pendentes: ${wh.pendentes}. Último erro: ${wh.ultimoErro ?? "nenhum"}.` : "O Telegram não pôde ser consultado agora (sem token ou rede).") : "Não consultado."} />
           <Linha item="Histórico de mensagens" estado={!p || p.mensagens == null ? "nao_comprovado" : msg("entrada") + msg("saida") > 0 ? "conectado" : "pendente"} detalhe={`Recebidas: ${n(msg("entrada"))} · Enviadas: ${n(msg("saida"))}. São registros do banco; aceite do Telegram não é confirmação visual no aparelho.`} />
-          <Linha item="Vínculo paciente ↔ conversa" estado={!p || p.vinculados == null ? "nao_comprovado" : p.vinculados > 0 ? "parcial" : "pendente"} detalhe={`${n(p?.vinculados)} cliente(s) com Telegram vinculado. O vínculo é individual (um chat por cliente; colisão nunca vincula). Parcial: poucos vínculos reais, só contatos de teste.`} />
+          <Linha item="Vínculo cliente ↔ conversa" estado={!p || p.vinculados == null ? "nao_comprovado" : p.vinculados > 0 ? "parcial" : "pendente"} detalhe={`${n(p?.vinculados)} cliente(s) com Telegram vinculado. O vínculo é individual (um chat por cliente; colisão nunca vincula). Parcial: poucos vínculos reais, só contatos de teste.`} />
           <Linha item="Orientações aprovadas" estado={!p || p.orientacoes == null ? "nao_comprovado" : orient("aprovada") > 0 ? "conectado" : "pendente"} detalhe={`Aprovadas: ${n(orient("aprovada"))} · Rascunhos: ${n(orient("rascunho"))} · Inativas: ${n(orient("inativa"))}. Sem aprovada, dúvidas vão para a equipe.`} />
           <Linha item="Atendimento humano" estado={!p || p.humano == null ? "nao_comprovado" : "conectado"} detalhe={`${n(p?.humano)} conversa(s) com a assistente pausada para a equipe. Mensagem humana no Cockpit pausa a assistente daquele cliente.`} />
           <Linha item="Falhas do atendimento" estado={!p || p.atendimento == null ? "nao_comprovado" : falhasAtend > 0 ? "parcial" : "conectado"} detalhe={`Concluídas: ${n(atend("concluido"))} · Pendentes: ${n(atend("pendente") + atend("processando"))} · Com falha, esgotadas ou incertas: ${n(falhasAtend)}.`} />
@@ -161,7 +161,9 @@ export function PainelOperacionalTelegram() {
           {usoIA?.map((c) => {
             const total = c.resolucoes.reduce((s, r) => s + Number(r.total), 0);
             const por = (path: string) => c.resolucoes.find((r) => r.caminho === path)?.total ?? 0;
-            const automaticas = ["cardapio", "regra", "interprete", "conferente"].reduce((s, path) => s + Number(por(path)), 0);
+            const chamadasInterprete = c.resolucoes.reduce((s, r) => s + Number(r.interprete), 0);
+            const chamadasConferente = c.resolucoes.reduce((s, r) => s + Number(r.conferente), 0);
+            const automaticas = ["cardapio", "regra", "interprete", "conferente", "agendamento"].reduce((s, path) => s + Number(por(path)), 0);
             const taxa = total ? `${((automaticas / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "sem dados";
             const custos = c.custos_por_moeda.map((x) => `${x.moeda ?? "moeda não informada"}: ${x.custoInformado == null ? "custo não informado pelo provedor" : Number(x.custoInformado).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`).join(" · ");
             return <article key={c.empresaId} className="concave-3d space-y-3 p-3" data-testid={`uso-ia-clinica-${c.empresaId}`}>
@@ -170,12 +172,13 @@ export function PainelOperacionalTelegram() {
                 {[
                   ["Cardápio aprendido", n(por("cardapio"))],
                   ["Regras locais", n(por("regra"))],
-                  ["Intérprete", n(por("interprete"))],
-                  ["Conferente", n(por("conferente"))],
+                  ["Intérprete chamado", n(chamadasInterprete)],
+                  ["Conferente chamado", n(chamadasConferente)],
+                  ["Fluxo de agendamento", n(por("agendamento"))],
                 ].map(([label, value]) => <div key={label} className="bevel-3d p-2 text-[11px]"><span className="block text-muted-foreground">{label}</span><strong>{value} resoluções em 30 dias</strong></div>)}
               </div>
               <div className="grid gap-2 text-[11px] sm:grid-cols-2">
-                <p className="bevel-3d p-2">Taxa de resolução automática: <strong>{taxa}</strong> ({n(automaticas)} de {n(total)}, últimos 30 dias).</p>
+                <p className="bevel-3d p-2">Percentual roteado ao fluxo automático: <strong>{taxa}</strong> ({n(automaticas)} de {n(total)} caminhos registrados nos últimos 30 dias; não confirma entrega ao cliente).</p>
                 <p className="bevel-3d p-2">Chamadas de inteligência artificial: <strong>{n(c.chamadas_ia)}</strong>; entrada: {n(c.tokens_entrada)} tokens; saída: {n(c.tokens_saida)} tokens.</p>
                 <p className="bevel-3d p-2">Custo informado pelo provedor: <strong>{custos || "não informado pelo provedor"}</strong>. Nenhum valor estimado.</p>
                 <p className="bevel-3d p-2">Cardápio: {n(c.usos_faq)} usos acumulados; {n(c.consultas_ia_evitadas)} consultas de IA evitadas.</p>
@@ -201,13 +204,13 @@ export function PainelOperacionalTelegram() {
           <Linha item="Próxima consulta (consulta de agenda do cliente)" estado="pendente" detalhe="Não encontrei no código a leitura da agenda do próprio cliente para responder “quando é minha consulta”. Não existe." />
           <Linha item="Cancelar ou remarcar" estado="parcial" detalhe="A assistente só encaminha à equipe; não cancela nem remarca sozinha." />
           <Linha item="RAS, RASP e prescrição perdida (reenvio pela conversa)" estado="pendente" detalhe="Reenvio de documentos pela conversa não foi encontrado. A especificação funcional desses fluxos não foi localizada. Nenhuma ação foi inferida." />
-          <Linha item="Envio de documentos por Telegram (fora da conversa)" estado="documentado" detalhe="Existe em specs e rotas de envio da equipe; não é um pedido iniciado pelo paciente na conversa." />
+          <Linha item="Envio de documentos por Telegram (fora da conversa)" estado="documentado" detalhe="Existe em specs e rotas de envio da equipe; não é um pedido iniciado pelo cliente na conversa." />
         </Tabela>
 
         <BlockTitle icon={Bot}>Etapas reproduzíveis da evolução</BlockTitle>
         <ol className="concave-3d space-y-2 p-3 text-[12px] leading-relaxed" data-testid="etapas-telegram">
           <li><strong>Etapa 1 · Telegram → Cockpit e retorno.</strong> Receber, gravar no Cockpit, responder pela equipe ou pela assistente. Estado: comprovada em desenvolvimento com o contato pessoal; falta o contato da clínica e a prova em produção (só após o comando de 100%).</li>
-          <li><strong>Etapa 2 · Vínculo do paciente.</strong> Link individual ou senha de validação já existem; colisão nunca vincula. Falta a tela para resolver vínculos ambíguos.</li>
+          <li><strong>Etapa 2 · Vínculo do cliente.</strong> Link individual ou senha de validação já existem; colisão nunca vincula. Falta a tela para resolver vínculos ambíguos.</li>
           <li><strong>Etapa 3 · Orientações aprovadas.</strong> Biblioteca com prévia fiel e aprovação médica. Falta o conteúdo aprovado pelo Dr. Caio.</li>
           <li><strong>Etapa 4 · Documentos e agenda.</strong> Só depois das anteriores: consulta da própria agenda e reenvio de RAS, RASP e prescrição. Cada uma exige especificação, revisão e teste antes de ligar.</li>
         </ol>

@@ -200,7 +200,7 @@ export function depsReaisAtendimento(
         id: Number(x.id), tema: x.tema, perguntasExemplo: x.perguntas_exemplo, resposta: x.resposta,
       }));
     },
-    buscarFaq: buscarFaqAprendida,
+    buscarFaq: (texto, eid) => buscarFaqAprendida(eid, texto),
     nomeClinica: async (eid) => {
       const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
       return (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
@@ -284,7 +284,7 @@ export async function processarAtendimentosPendentes(): Promise<void> {
             if(rep.rows.length) resposta=null;
           }
           return {
-            pausa:ag.pausa, alerta:ag.alerta, resposta, orientacaoId:null, faqId:null,
+            pausa:ag.pausa, alerta:ag.alerta, resposta, orientacaoId:null, faqId:null, aprendizChamado:false,
             desfecho:"agendamento_conduzido" as const, caminhoResolucao:ag.caminhoResolucao,
             interpreteChamado:usoIA.interprete, conferenteChamado:usoIA.conferente,
           };
@@ -320,8 +320,8 @@ export async function processarAtendimentosPendentes(): Promise<void> {
     enviar: (chat,texto)=>sendTelegram(chat,escaparHtmlTelegram(texto)),
     aposRespostaEntregue: async (e,texto,plano)=>{
       await registrarEvento({empresaId:e.empresaId,tipo:"enviada",chave:`enviada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Resposta enviada ao cliente no Telegram"});
-      if(plano.faqId) await registrarUsoFaqAprendida(e.empresaId, plano.faqId);
-      if(plano.orientacaoId) await observarRespostaAprovada({
+      if(plano.faqId) await registrarUsoFaqAprendida(e.empresaId, plano.faqId, e.inboxMessageId);
+      if(plano.orientacaoId) plano.aprendizChamado = await observarRespostaAprovada({
         empresaId:e.empresaId, inboxMessageId:e.inboxMessageId, textoPergunta:e.texto, orientacaoId:plano.orientacaoId,
       });
     },
@@ -329,9 +329,10 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       if(desfecho==="orientacao_enviada") await registrarEvento({empresaId:e.empresaId,tipo:"solucionada",chave:`solucionada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Solicitação solucionada com orientação aprovada"});
       await registrarResolucaoTelegram({
         empresaId:e.empresaId, inboxMessageId:e.inboxMessageId,
-        caminho:plano.caminhoResolucao,
-        interpreteChamado:plano.interpreteChamado,
-        conferenteChamado:plano.conferenteChamado,
+        caminho:plano.caminhoResolucao ?? "equipe",
+        interpreteChamado:plano.interpreteChamado ?? false,
+        conferenteChamado:plano.conferenteChamado ?? false,
+        aprendizChamado:plano.aprendizChamado ?? false,
       });
     },
   });

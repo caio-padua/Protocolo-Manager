@@ -8,13 +8,18 @@ import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 const h = vi.hoisted(() => ({ db: null as any, enviados: [] as { chat: string; texto: string }[], settings: {} as Record<string, string>,
-  noEnvio:null as null|((chat:string)=>Promise<void>), pg: null as any }));
+  noEnvio:null as null|((chat:string)=>Promise<void>), pg: null as any,
+  aprendizResposta: '{"pergunta":"Qual é o horário da clínica?"}' }));
 vi.mock("@workspace/db", () => ({
   db: { execute: (...a: unknown[]) => h.db.execute(...a) },
   // O crédito da mensageria usa o mesmo banco descartável (Instituto, empresa 5, é isento).
   pool: { query: (...a: unknown[]) => h.pg.query(...a), connect: () => h.pg.connect() },
 }));
-vi.mock("@workspace/integrations-anthropic-ai", () => ({ anthropic: {} }));
+vi.mock("@workspace/integrations-anthropic-ai", () => ({
+  anthropic: { messages: { create: async () => ({
+    content: [{ type: "text", text: h.aprendizResposta }], usage: { input_tokens: 8, output_tokens: 4 },
+  }) } },
+}));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("../lib/secure-settings", () => ({ getSetting: async (k: string) => h.settings[k] ?? null }));
 vi.mock("../lib/telegram", () => ({ sendTelegram: async (chat: string, texto: string) => { h.enviados.push({ chat, texto }); await h.noEnvio?.(chat); return { sent: true, mock: false }; } }));
@@ -24,6 +29,10 @@ vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => ({ headers: {} }) }
 import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
   atenderMensagemTelegram,processarAtendimentosPendentes,pausarAtendimentoDuravel } from "../lib/atendimento-telegram-store";
 import { processarAtendimento } from "../lib/atendimento-telegram";
+import {
+  alterarEstadoFaqAprendida, buscarFaqAprendida, editarFaqAprendida, listarFaqAprendidas,
+  listarVersoesFaqAprendida, observarRespostaAprovada, registrarResolucaoTelegram, registrarUsoFaqAprendida,
+} from "../lib/telegram-aprendiz";
 import { aplicarMigracaoUpdateId } from "../lib/telegram-inbox-migracao";
 
 const PG_BIN = process.env.PG_BIN_DIR ?? "/nix/store/bgwr5i8jf8jpg75rr53rz3fqv5k8yrwp-postgresql-16.10/bin";
@@ -59,6 +68,56 @@ const run = (id: number, texto: string, over: Partial<typeof base> = {}) =>
 
 describe("SQL real", () => {
   it("migração é idempotente", async () => { await aplicarMigracaoAtendimento(h.db); await aplicarMigracaoAtendimento(h.db); });
+
+  it("aprende só após três perguntas seguras, repete sem duplicar e não cruza clínicas", async () => {
+    const orient = await pool.query(`INSERT INTO orientacoes_aprovadas
+      (empresa_id,tema,perguntas_exemplo,resposta,status,categoria,subcategoria)
+      VALUES(5,'Horário da clínica','horário funcionamento','A clínica atende das oito às dezoito horas.','aprovada','gerais','atendimento')
+      RETURNING id`);
+    const orientacaoId = Number(orient.rows[0].id);
+    const questions = [
+      "Qual é o horário da clínica?",
+      "Qual é o horário da clínica hoje?",
+      "Qual é o horário da clínica agora?",
+    ];
+    for (let i = 0; i < questions.length; i++) {
+      await observarRespostaAprovada({ empresaId: 5, inboxMessageId: 501 + i, textoPergunta: questions[i]!, orientacaoId });
+    }
+    await observarRespostaAprovada({ empresaId: 5, inboxMessageId: 501, textoPergunta: questions[0]!, orientacaoId });
+    const faq = await buscarFaqAprendida(5, questions[0]!);
+    expect(faq).toEqual({ id: expect.any(Number), resposta: "A clínica atende das oito às dezoito horas." });
+    expect(await buscarFaqAprendida(7, questions[0]!)).toBeNull();
+    const quantidade = await pool.query(`SELECT COUNT(*)::int n FROM telegram_faq_observacoes WHERE empresa_id=5 AND orientacao_id=$1`, [orientacaoId]);
+    expect(quantidade.rows[0].n).toBe(3);
+    await registrarUsoFaqAprendida(5, faq!.id, 601);
+    await registrarUsoFaqAprendida(5, faq!.id, 601);
+    const usos = await pool.query(`SELECT usos,economia_ia FROM telegram_faq_aprendidas WHERE id=$1`, [faq!.id]);
+    expect(usos.rows[0]).toEqual({ usos: "1", economia_ia: "1" });
+    await pool.query(`UPDATE orientacoes_aprovadas SET status='inativa' WHERE id=$1`, [orientacaoId]);
+    expect(await buscarFaqAprendida(5, questions[0]!)).toBeNull();
+    await pool.query(`UPDATE orientacoes_aprovadas SET status='aprovada' WHERE id=$1`, [orientacaoId]);
+    expect(await editarFaqAprendida({
+      empresaId:5, id:faq!.id, pergunta:questions[0]!, variacoes:questions,
+      resposta:"A clínica atende de segunda a sexta, das oito às dezoito horas.", por:"42",
+    })).toBe(true);
+    expect(await buscarFaqAprendida(5, questions[0]!)).toEqual({
+      id:faq!.id, resposta:"A clínica atende de segunda a sexta, das oito às dezoito horas.",
+    });
+    expect(await alterarEstadoFaqAprendida({ empresaId:7, id:faq!.id, ativa:false, por:"77" })).toBe(false);
+    await alterarEstadoFaqAprendida({ empresaId:5, id:faq!.id, ativa:false, por:"42" });
+    expect(await buscarFaqAprendida(5, questions[0]!)).toBeNull();
+    await alterarEstadoFaqAprendida({ empresaId:5, id:faq!.id, ativa:true, por:"42" });
+    const versoes = await listarVersoesFaqAprendida(5, faq!.id);
+    expect(versoes.length).toBeGreaterThanOrEqual(3);
+    expect(await listarVersoesFaqAprendida(7, faq!.id)).toHaveLength(0);
+    await registrarResolucaoTelegram({ empresaId:5, inboxMessageId:701, caminho:"cardapio" });
+    await registrarResolucaoTelegram({ empresaId:5, inboxMessageId:701, caminho:"equipe", interpreteChamado:true });
+    const metricas = await pool.query(`SELECT COUNT(*)::int n,caminho,interprete_chamado FROM telegram_ia_resolucoes WHERE empresa_id=5 AND inbox_message_id=701 GROUP BY caminho,interprete_chamado`);
+    expect(metricas.rows).toEqual([{ n:1,caminho:"cardapio",interprete_chamado:false }]);
+    await alterarEstadoFaqAprendida({ empresaId:5, id:faq!.id, remover:true, por:"42" });
+    expect(await buscarFaqAprendida(5, questions[0]!)).toBeNull();
+    expect(await listarFaqAprendidas(5)).toHaveLength(0);
+  });
 
   it("só orientação APROVADA da PRÓPRIA empresa sai; envia, grava saída e desfecho", async () => {
     h.enviados.length = 0;
