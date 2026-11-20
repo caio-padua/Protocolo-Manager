@@ -11,7 +11,8 @@ import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
 import { brtISODate } from "./brt";
-import { criarInterpretador } from "./telegram-interprete";
+import { criarConferente, criarConferenteLeitura, criarInterpretador, type UsoIA } from "./telegram-interprete";
+import { registrarResolucaoTelegram } from "./telegram-aprendiz";
 import { baseUrlFromEnv } from "./messaging/base-url";
 import { carregarFrases, comGlobais, semearFrases, type FraseDeps } from "./telegram-frases";
 import { normalizar } from "./atendimento-telegram";
@@ -186,16 +187,25 @@ export interface PlanoAgendamentoCliente {
   alerta: string | null;
   resposta: string | null;
   desfecho: string;
+  caminhoResolucao: "regra" | "interprete" | "conferente" | "equipe";
+  interpreteChamado: boolean;
+  conferenteChamado: boolean;
 }
 
 /** Só PLANEJA e grava a reserva real quando o cliente escolheu o horário. O envio é do pipeline durável. */
-export async function planejarAgendamentoCliente(e: { empresaId: number; clienteId: number; texto: string }): Promise<PlanoAgendamentoCliente> {
+export async function planejarAgendamentoCliente(e: {
+  empresaId: number; clienteId: number; texto: string; inboxMessageId?: number;
+  usoIA?: { interprete: boolean; conferente: boolean };
+}): Promise<PlanoAgendamentoCliente> {
   const chave = `cliente:${e.clienteId}`;
   const anterior = await lerEstado(chave);
   const emAndamento = !!anterior && anterior.etapa !== "inicio" && anterior.etapa !== "concluido";
   // Conversa que não é de agendamento nem está em andamento: não toca em mais nada, segue o fluxo de orientações.
   if (!emAndamento && !ehPedidoDeAgendamento(e.texto) && !/\b(atendente|humano|secretaria|equipe)\b/.test(normalizar(e.texto))) {
-    return { tratada: false, pausa: null, alerta: null, resposta: null, desfecho: "fora_do_assunto" };
+    return {
+      tratada: false, pausa: null, alerta: null, resposta: null, desfecho: "fora_do_assunto",
+      caminhoResolucao: "regra", interpreteChamado: false, conferenteChamado: false,
+    };
   }
   const nomeRow = await db.execute(sql`SELECT name FROM clients WHERE id=${e.clienteId} AND empresa_id=${e.empresaId}`);
   const nome = (nomeRow.rows[0] as { name?: string } | undefined)?.name ?? "";
@@ -205,8 +215,15 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
   let frase: FraseDeps;
   try { frase = comGlobais(await carregarFrases(), { clinica: await nomeDaClinica(e.empresaId), primeiroNome: primeiroNome ?? null }); } catch (err) {
     logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-agendamento] frases indisponíveis; sem resposta automática");
-    return { tratada: false, pausa: null, alerta: null, resposta: null, desfecho: "frases_indisponiveis" };
+    return {
+      tratada: false, pausa: null, alerta: null, resposta: null, desfecho: "frases_indisponiveis",
+      caminhoResolucao: "equipe", interpreteChamado: false, conferenteChamado: false,
+    };
   }
+  const onUso: UsoIA = (etapa) => {
+    if (etapa === "interprete" && e.usoIA) e.usoIA.interprete = true;
+    if (etapa === "conferente" && e.usoIA) e.usoIA.conferente = true;
+  };
   const deps: DepsAgendamento = {
     frase, conferirIdentidade: SEM_CONFERENCIA,
     hojeISO: () => brtISODate(),
@@ -216,11 +233,17 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
     encaminharEquipe: async (m) => { motivoEquipe = m; },
     endereco: enderecoReal,
     linkMarcacao: () => `${baseUrlFromEnv()}/agendar`,
-    interpretar: criarInterpretador(e.empresaId),
+    interpretar: criarInterpretador(e.empresaId, e.inboxMessageId, onUso),
+    conferirEscolha: criarConferente(e.empresaId, e.inboxMessageId, onUso),
+    conferirLeitura: criarConferenteLeitura(e.empresaId, e.inboxMessageId, onUso),
   };
   const agora = new Date().toISOString();
   const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId) }, deps, agora);
-  if (!r.tratada) return { tratada: false, pausa: null, alerta: null, resposta: null, desfecho: r.desfecho };
+  if (!r.tratada) return {
+    tratada: false, pausa: null, alerta: null, resposta: null, desfecho: r.desfecho,
+    caminhoResolucao: r.caminhoResolucao, interpreteChamado: e.usoIA?.interprete ?? r.interpreteChamado,
+    conferenteChamado: e.usoIA?.conferente ?? r.conferenteChamado,
+  };
   await gravarEstado(chave, r.estado);
   return {
     tratada: true,
@@ -228,6 +251,9 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
     alerta: motivoEquipe ? `Agendamento pelo Telegram precisa da equipe (${motivoEquipe}), cliente #${e.clienteId}. Abra a conversa no Cockpit protegido.` : null,
     resposta: r.resposta,
     desfecho: r.desfecho,
+    caminhoResolucao: motivoEquipe ? "equipe" : r.caminhoResolucao,
+    interpreteChamado: e.usoIA?.interprete ?? r.interpreteChamado,
+    conferenteChamado: e.usoIA?.conferente ?? r.conferenteChamado,
   };
 }
 
@@ -279,6 +305,11 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
     logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-agendamento] frases indisponíveis; visitante preservado, sem resposta automática");
     return;
   }
+  const usoIA = { interprete: false, conferente: false };
+  const onUso: UsoIA = (etapa) => {
+    if (etapa === "interprete") usoIA.interprete = true;
+    if (etapa === "conferente") usoIA.conferente = true;
+  };
   const deps: DepsAgendamento = {
     frase, conferirIdentidade: (p) => conferirIdentidadeReal(chatId, empresaPadrao, p),
     hojeISO: () => brtISODate(),
@@ -292,7 +323,9 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
     },
     encaminharEquipe: async (m) => { motivo = m; },
     endereco: enderecoReal,
-    interpretar: criarInterpretador(empresaPadrao),
+    interpretar: criarInterpretador(empresaPadrao, msgId ? -Number(msgId) : undefined, onUso),
+    conferirEscolha: criarConferente(empresaPadrao, msgId ? -Number(msgId) : undefined, onUso),
+    conferirLeitura: criarConferenteLeitura(empresaPadrao, msgId ? -Number(msgId) : undefined, onUso),
   };
   const r = await conduzirAgendamento(await lerEstado(chave), texto, { ehCliente: false, primeiroNome: primeiroNomeVisitante ?? undefined, nomeClinica: await nomeDaClinica(empresaId) }, deps, new Date().toISOString());
   let resposta = r.resposta;
@@ -315,6 +348,11 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
       const sid = (saida.rows[0] as { id: number | string }).id;
       await registrarEvento({ empresaId: empresaPadrao, tipo: "enviada", chave: `enviada:vis:${sid}`, conversaRef, descricao: "Resposta enviada ao visitante no Telegram" });
       if (r.desfecho === "pedido_registrado") await registrarEvento({ empresaId: empresaPadrao, tipo: "solucionada", chave: `solucionada:vis:${chatId}:${msgId}`, conversaRef, descricao: "Pedido de agendamento registrado" });
+      if (msgId) await registrarResolucaoTelegram({
+        empresaId: empresaId, inboxMessageId: -Number(msgId),
+        caminho: motivo ? "equipe" : r.caminhoResolucao,
+        interpreteChamado: usoIA.interprete, conferenteChamado: usoIA.conferente,
+      });
     } else {
       logger.warn("[telegram-agendamento] resposta ao visitante não foi aceita pelo Telegram");
     }

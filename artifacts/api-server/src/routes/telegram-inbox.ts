@@ -334,3 +334,70 @@ inboxRouter.put("/telegram-inbox/frases/:chave", requireCollaborator, requireMes
   await gravarFrase(chave, texto as string, req.collaborator?.professionalId ?? null);
   res.json({ ok: true });
 });
+
+// Perguntas comuns aprendidas com orientação aprovada; leitura e escrita ficam no tenant autenticado.
+inboxRouter.get("/telegram-inbox/faq/aprendidas", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const { listarFaqAprendidas } = await import("../lib/telegram-aprendiz");
+  res.json({ itens: await listarFaqAprendidas(req.messageEmpresaId!) });
+});
+
+inboxRouter.get("/telegram-inbox/faq/aprendidas/:id/versoes", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Identificador inválido." }); return; }
+  const { listarVersoesFaqAprendida } = await import("../lib/telegram-aprendiz");
+  res.json({ versoes: await listarVersoesFaqAprendida(req.messageEmpresaId!, id) });
+});
+
+inboxRouter.put("/telegram-inbox/faq/aprendidas/:id", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const pergunta = req.body?.pergunta;
+  const resposta = req.body?.resposta;
+  const variacoes = req.body?.variacoes;
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof pergunta !== "string" || typeof resposta !== "string" ||
+      !Array.isArray(variacoes) || variacoes.some((v: unknown) => typeof v !== "string")) {
+    res.status(400).json({ error: "Informe pergunta, resposta e variações válidas." }); return;
+  }
+  const { editarFaqAprendida } = await import("../lib/telegram-aprendiz");
+  try {
+    const ok = await editarFaqAprendida({
+      empresaId: req.messageEmpresaId!, id, pergunta, resposta, variacoes,
+      por: String(req.collaborator?.professionalId ?? "CEO"),
+    });
+    if (!ok) { res.status(404).json({ error: "Pergunta aprendida não encontrada nesta clínica." }); return; }
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Não foi possível salvar a pergunta." });
+  }
+});
+
+inboxRouter.patch("/telegram-inbox/faq/aprendidas/:id/estado", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || typeof req.body?.ativa !== "boolean") {
+    res.status(400).json({ error: "Informe um estado ativo ou inativo." }); return;
+  }
+  const { alterarEstadoFaqAprendida } = await import("../lib/telegram-aprendiz");
+  const ok = await alterarEstadoFaqAprendida({
+    empresaId: req.messageEmpresaId!, id, ativa: req.body.ativa,
+    por: String(req.collaborator?.professionalId ?? "CEO"),
+  });
+  if (!ok) { res.status(404).json({ error: "Pergunta aprendida não encontrada nesta clínica." }); return; }
+  res.json({ ok: true });
+});
+
+inboxRouter.delete("/telegram-inbox/faq/aprendidas/:id", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) { res.status(400).json({ error: "Identificador inválido." }); return; }
+  const { alterarEstadoFaqAprendida } = await import("../lib/telegram-aprendiz");
+  const ok = await alterarEstadoFaqAprendida({
+    empresaId: req.messageEmpresaId!, id, remover: true,
+    por: String(req.collaborator?.professionalId ?? "CEO"),
+  });
+  if (!ok) { res.status(404).json({ error: "Pergunta aprendida não encontrada nesta clínica." }); return; }
+  res.json({ ok: true });
+});
+
+// Painel administrativo: custo informado pelo provedor é exibido sem estimativas ou tarifas novas.
+inboxRouter.get("/telegram-inbox/painel-ia", requireCollaborator, requireCeoInstance, async (_req, res): Promise<void> => {
+  const { painelUsoTelegramAprendiz } = await import("../lib/telegram-aprendiz");
+  res.json({ clinicas: await painelUsoTelegramAprendiz() });
+});

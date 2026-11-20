@@ -22,6 +22,7 @@ function deps(over: Partial<DepsAtendimento> & { cfg?: ConfigAtendimentoIA; modo
     modoDoCliente: async () => over.modo ?? "ia",
     reivindicar: async (id) => (reiv.has(id) ? false : (reiv.add(id), true)),
     carregarOrientacoes: async () => ORI,
+    conferirComIA: vi.fn(async () => true),
     enviarAoPaciente: vi.fn(async () => true),
     registrarSaida: vi.fn(async () => {}),
     passarParaHumano: vi.fn(async () => {}),
@@ -73,7 +74,7 @@ describe("fluxo de atendimento", () => {
     expect(r).toBe("orientacao_enviada");
     expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", ORI[0].resposta);
     expect(d.registrarSaida).toHaveBeenCalledWith(expect.objectContaining({ texto: ORI[0].resposta }));
-    expect(d.registrarDesfecho).toHaveBeenCalledWith(10, "orientacao_enviada", 1);
+    expect(d.registrarDesfecho).toHaveBeenCalledWith(10, "orientacao_enviada", 1, expect.objectContaining({ caminho: "regra" }));
     expect(d.passarParaHumano).not.toHaveBeenCalled();
   });
   it("sem orientação que sirva: encaminha, alerta, pausa a IA e não inventa", async () => {
@@ -86,11 +87,11 @@ describe("fluxo de atendimento", () => {
   });
   it("a IA só pode escolher entre as candidatas; id inventado vira encaminhamento", async () => {
     const { d } = deps({ escolherComIA: async () => 999 });
-    expect(await processarAtendimento(d, E("quantas horas de jejum para o exame de sangue?"))).toBe("encaminhado_humano");
+    expect(await processarAtendimento(d, E("frasco geladeira jejum exame"))).toBe("encaminhado_humano");
   });
   it("a IA escolhe entre candidatas e a resposta continua sendo o texto aprovado", async () => {
     const { d } = deps({ escolherComIA: async () => 2 });
-    await processarAtendimento(d, E("jejum exame sangue horas"));
+    await processarAtendimento(d, E("frasco geladeira jejum exame"));
     expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", ORI[1].resposta);
   });
   it("IA indisponível: cai na regra determinística (forte) ou encaminha", async () => {
@@ -117,6 +118,27 @@ describe("fluxo de atendimento", () => {
     expect(await processarAtendimento(d, E("quantas horas de jejum para o exame de sangue?"))).toBe("falha_envio");
     expect(d.registrarSaida).not.toHaveBeenCalled();
   });
+  it("cardápio aprendido é consultado após a trava clínica e antes das orientações", async () => {
+    const buscarFaq = vi.fn(async () => ({ id: 4, resposta: "A clínica atende de segunda a sexta." }));
+    const carregarOrientacoes = vi.fn(async () => ORI);
+    const { d } = deps({ buscarFaq, carregarOrientacoes });
+    expect(await processarAtendimento(d, E("Qual horário de atendimento?"))).toBe("orientacao_enviada");
+    expect(buscarFaq).toHaveBeenCalledTimes(1);
+    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", "A clínica atende de segunda a sexta.");
+    expect(carregarOrientacoes).not.toHaveBeenCalled();
+  });
+  it("pergunta clínica nunca consulta o cardápio aprendido", async () => {
+    const buscarFaq = vi.fn(async () => ({ id: 4, resposta: "Resposta segura." }));
+    const { d } = deps({ buscarFaq });
+    expect(await processarAtendimento(d, E("Estou com tontura depois da aplicação."))).toBe("queixa_encaminhada");
+    expect(buscarFaq).not.toHaveBeenCalled();
+  });
+  it("discordância do Conferente bloqueia a orientação escolhida pela IA", async () => {
+    const { d } = deps({ escolherComIA: async () => 2, conferirComIA: async () => false });
+    expect(await processarAtendimento(d, E("frasco geladeira jejum exame"))).toBe("encaminhado_humano");
+    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", TEXTO_ENCAMINHADO);
+    expect(d.enviarAoPaciente).not.toHaveBeenCalledWith("555", ORI[1].resposta);
+  });
 });
 
 describe("queixa clínica (Etapa 8)", () => {
@@ -124,7 +146,7 @@ describe("queixa clínica (Etapa 8)", () => {
     const {d}=deps({cfg:{...CFG,queixaRevisada:true},alertarEquipe:vi.fn(async()=>false)});
     expect(await processarAtendimento(d,E("estou com falta de ar"))).toBe("falha_alerta");
     expect(d.enviarAoPaciente).not.toHaveBeenCalled();
-    expect(d.registrarDesfecho).toHaveBeenCalledWith(expect.any(Number),"falha_alerta",null);
+    expect(d.registrarDesfecho).toHaveBeenCalledWith(expect.any(Number),"falha_alerta",null,expect.objectContaining({caminho:"equipe"}));
     for(const texto of Object.values(TEXTOS_QUEIXA_PARA_REVISAO)) expect(texto).not.toContain("Já avisei");
   });
   it("queixa NUNCA recebe orientação nem IA, mesmo que case com uma orientação; vai para pessoa com prioridade", async () => {

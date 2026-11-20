@@ -9,6 +9,7 @@ function deps(over: Partial<DepsAgendamento> = {}): DepsAgendamento {
     buscarHorarios: async () => ({ ofertas: [oferta], semAgenda: false }),
     reservar: async () => ({ ok: false, motivo: "erro" }), registrarPedido: async () => 77,
     encaminharEquipe: async () => {}, endereco: async () => null,
+    conferirEscolha: async () => true, conferirLeitura: async () => true,
     conferirIdentidade: async (p) => (p.cpf4 === "1234" && p.ano === "1985" ? { ok: true, clienteId: 9 } : { ok: false }),
     ...over,
   };

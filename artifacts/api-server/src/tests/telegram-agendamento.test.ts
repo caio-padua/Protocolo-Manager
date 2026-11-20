@@ -13,6 +13,8 @@ function deps(over: Partial<DepsAgendamento> = {}): DepsAgendamento {
     registrarPedido: vi.fn(async () => 7),
     encaminharEquipe: vi.fn(async () => {}),
     endereco: vi.fn(async () => "Rua Teste, 1"),
+    conferirEscolha: vi.fn(async () => true),
+    conferirLeitura: vi.fn(async () => true),
     ...over,
   };
 }
@@ -44,6 +46,39 @@ describe("assistente de agendamento no Telegram", () => {
     expect(r[3]).toContain("NÃO foi feita");
     expect(r[3]).not.toContain("está reservada");
     expect(d.encaminharEquipe).toHaveBeenCalled();
+  });
+  it("não reserva se o Conferente discorda da escolha", async () => {
+    const d = deps({ conferirEscolha: vi.fn(async () => false) });
+    const r = await conv(["marcar consulta", "sou cliente", "online", "terça de manhã", "1"], true, d);
+    expect(d.conferirEscolha).toHaveBeenCalledTimes(1);
+    expect(d.reservar).not.toHaveBeenCalled();
+    expect(r[4]).not.toContain("está reservada");
+  });
+  it("interpreta somente depois de os leitores locais falharem", async () => {
+    const interpretar = vi.fn(async () => null);
+    const d = deps({ interpretar });
+    await conv(["marcar consulta", "sou cliente", "online", "terça de manhã"], true, d);
+    expect(interpretar).not.toHaveBeenCalled();
+  });
+  it("na leitura ambígua, Intérprete precede Conferente e a reserva", async () => {
+    const ordem: string[] = [];
+    const d = deps({
+      interpretar: vi.fn(async (t) => {
+        ordem.push(`interprete:${t.tipo}`);
+        return t.tipo === "escolha" ? { escolha: 1, confianca: "alta" } : null;
+      }),
+      conferirEscolha: vi.fn(async () => { ordem.push("conferente"); return true; }),
+      reservar: vi.fn(async () => { ordem.push("reserva"); return { ok: true as const, sessionId: 42 }; }),
+    });
+    await conv(["marcar consulta", "sou cliente", "online", "terça de manhã", "prefiro o horário mais conveniente"], true, d);
+    expect(ordem.slice(-3)).toEqual(["interprete:escolha", "conferente", "reserva"]);
+  });
+  it("falha do Intérprete volta à pergunta salva, sem produzir resposta nova", async () => {
+    const d = deps({ interpretar: vi.fn(async () => { throw new Error("indisponível"); }) });
+    const estado = { ...ESTADO_INICIAL(AGORA), etapa: "preferencias" as const, modalidade: "online" as const };
+    const r = await conduzirAgendamento(estado, "talvez algum dia", { ehCliente: true }, d, AGORA);
+    expect(r.resposta).toBeTruthy();
+    expect(d.reservar).not.toHaveBeenCalled();
   });
   it("visitante: nunca reserva, registra pedido e avisa que não está reservado", async () => {
     const d = deps();

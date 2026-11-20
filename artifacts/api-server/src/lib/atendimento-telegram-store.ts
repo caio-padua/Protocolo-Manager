@@ -13,7 +13,20 @@ import { chatAlertaOuNull } from "./telegram-config";
 import { requireAiTenant } from "./ai-central";
 import { registrarEvento, podeAtenderAutomatico, registrarCustoProvedor } from "./mensageria-credito";
 import { randomUUID } from "node:crypto";
+import {
+  alterarEstadoFaqAprendida,
+  buscarFaqAprendida,
+  editarFaqAprendida,
+  listarFaqAprendidas,
+  listarVersoesFaqAprendida,
+  migrarTabelasTelegramAprendiz,
+  observarRespostaAprovada,
+  painelUsoTelegramAprendiz,
+  registrarResolucaoTelegram,
+  registrarUsoFaqAprendida,
+} from "./telegram-aprendiz";
 import { planejarAgendamentoCliente, aplicarMigracaoAgendamentoTelegram } from "./telegram-agendamento-store";
+import { criarConferenteLeitura, textoSeguroParaInterpretar } from "./telegram-interprete";
 import {
   planejarAtendimento, normalizar,
   type ConfigAtendimentoIA, type DepsAtendimento, type Desfecho, type EntradaAtendimento, type Candidata,
@@ -83,6 +96,7 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       fechado_em       TIMESTAMPTZ
     )`);
   await migrarRecuperacaoAtendimento(exec);
+  await migrarTabelasTelegramAprendiz(exec);
   /* Assistente de agendamento: estado, visitantes e pedidos (aditiva) */
   await aplicarMigracaoAgendamentoTelegram(exec);
 }
@@ -118,31 +132,41 @@ export async function lerConfigAtendimento(): Promise<ConfigAtendimentoIA> {
 }
 
 /** A IA só devolve o NÚMERO da orientação aprovada que responde à pergunta (ou 0). Nunca redige texto. */
-export async function escolherOrientacaoComIA(texto: string, cand: Candidata[], empresaId: number): Promise<number | null> {
+export async function escolherOrientacaoComIA(
+  texto: string,
+  cand: Candidata[],
+  empresaId: number,
+  inboxMessageId?: number,
+  onUso?: () => void,
+): Promise<number | null> {
+  const textoSeguro = textoSeguroParaInterpretar(texto);
+  if (!textoSeguro) return null;
   const ctx = requireAiTenant(empresaId, "agent");
   const lista = cand.map((c) => `${c.orientacao.id}: ${c.orientacao.tema} — ${c.orientacao.perguntasExemplo}`.slice(0, 400)).join("\n");
-  const prompt = `Você escolhe qual orientação PRÉ-APROVADA responde exatamente à pergunta de um paciente de clínica.
+  const prompt = `Você escolhe qual orientação PRÉ-APROVADA responde exatamente à pergunta de um cliente de clínica.
 Responda SOMENTE com o número da orientação ou 0 se nenhuma responder claramente, ou se a pergunta pedir diagnóstico, dose, troca de remédio ou renovação.
 Não escreva mais nada.
 
-Pergunta: """${texto.slice(0, 600)}"""
+Pergunta sem dados pessoais: """${textoSeguro}"""
 
 Orientações:
 ${lista}`;
   // Modelo escolhido pela clínica (só modelos realmente conectados); sem escolha, o padrão atual.
-  let modelo = "claude-sonnet-4-6";
+  const modelo = "claude-haiku-5-5";
+  const chave = inboxMessageId ? `telegram:${inboxMessageId}:interprete:orientacao` : `ia:${randomUUID()}`;
+  onUso?.();
+  let msg: Awaited<ReturnType<typeof anthropic.messages.create>>;
   try {
-    const cfg = await db.execute(sql`SELECT provedor, modelo FROM msg_config_ia WHERE empresa_id=${empresaId} AND etapa='escolha_de_orientacao'`);
-    const c = cfg.rows[0] as { provedor?: string; modelo?: string } | undefined;
-    if (c?.provedor === "anthropic" && c.modelo === "claude-sonnet-4-6") modelo = c.modelo;
-  } catch { /* tabela ainda não criada: usa o padrão */ }
-  const msg = await anthropic.messages.create(
-    { model: modelo, max_tokens: 10, messages: [{ role: "user", content: prompt }] },
-    Object.keys(ctx.headers).length ? { headers: ctx.headers } : undefined,
-  );
-  // Custo do provedor fica à parte do saldo da clínica; sem valor informado pelo provedor, fica vazio.
+    msg = await anthropic.messages.create(
+      { model: modelo, max_tokens: 20, messages: [{ role: "user", content: prompt }] },
+      Object.keys(ctx.headers).length ? { headers: ctx.headers } : undefined,
+    );
+  } catch (error) {
+    await registrarCustoProvedor({ empresaId, chave, etapa: "telegram_interprete", provedor: "anthropic", modelo });
+    throw error;
+  }
   await registrarCustoProvedor({
-    empresaId, chave: `ia:${randomUUID()}`, etapa: "escolha_de_orientacao", provedor: "anthropic", modelo,
+    empresaId, chave, etapa: "telegram_interprete", provedor: "anthropic", modelo,
     inputTokens: msg.usage?.input_tokens ?? null, outputTokens: msg.usage?.output_tokens ?? null,
   });
   const out = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
@@ -152,7 +176,14 @@ ${lista}`;
   return id > 0 ? id : null;
 }
 
-export function depsReaisAtendimento(empresaId: number): DepsAtendimento {
+export function depsReaisAtendimento(
+  empresaId: number,
+  inboxMessageId?: number,
+  uso?: { interprete: boolean; conferente: boolean },
+): DepsAtendimento {
+  const conferirLeitura = criarConferenteLeitura(empresaId, inboxMessageId, (etapa) => {
+    if (etapa === "conferente" && uso) uso.conferente = true;
+  });
   return {
     lerConfig: lerConfigAtendimento,
     modoDoCliente: async (clienteId) => {
@@ -169,11 +200,19 @@ export function depsReaisAtendimento(empresaId: number): DepsAtendimento {
         id: Number(x.id), tema: x.tema, perguntasExemplo: x.perguntas_exemplo, resposta: x.resposta,
       }));
     },
+    buscarFaq: buscarFaqAprendida,
     nomeClinica: async (eid) => {
       const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
       return (r.rows[0] as { nome?: string } | undefined)?.nome ?? null;
     },
-    escolherComIA: (texto, cand) => escolherOrientacaoComIA(texto, cand, empresaId),
+    escolherComIA: (texto, cand) => escolherOrientacaoComIA(texto, cand, empresaId, inboxMessageId, () => {
+      if (uso) uso.interprete = true;
+    }),
+    conferirComIA: (texto, cand, id) => conferirLeitura({
+      texto,
+      proposta: `A pergunta corresponde à orientação ${cand.find((c) => c.orientacao.id === id)?.orientacao.tema ?? "selecionada"}.`,
+      opcoes: cand.map((c) => `${c.orientacao.id}: ${c.orientacao.tema} — ${c.orientacao.perguntasExemplo}`.slice(0, 400)),
+    }),
     enviarAoPaciente: async (chatId, texto) => {
       const r = await sendTelegram(chatId, escaparHtmlTelegram(texto));
       return r.sent && !r.mock;
@@ -228,11 +267,14 @@ export async function processarAtendimentosPendentes(): Promise<void> {
       return (await podeAtenderAutomatico(e.empresaId)).pode;
     },
     planejar: async e=>{
-      const deps=depsReaisAtendimento(e.empresaId);
+      const usoIA = { interprete: false, conferente: false };
+      const deps=depsReaisAtendimento(e.empresaId, e.inboxMessageId, usoIA);
       // Agendamento primeiro (só se a conversa for de agendamento); o resto segue o fluxo de orientações.
       const cfg=await deps.lerConfig();
       if(cfg.modo!=="desligado" && (await deps.modoDoCliente(e.clienteId))!=="humano"){
-        const ag=await planejarAgendamentoCliente({empresaId:e.empresaId,clienteId:e.clienteId,texto:e.texto});
+        const ag=await planejarAgendamentoCliente({
+          empresaId:e.empresaId, clienteId:e.clienteId, texto:e.texto, inboxMessageId:e.inboxMessageId, usoIA,
+        });
         if(ag.tratada){
           // Várias mensagens acumuladas no mesmo minuto não devem repetir a mesma pergunta ao cliente.
           let resposta=ag.resposta;
@@ -241,10 +283,17 @@ export async function processarAtendimentosPendentes(): Promise<void> {
               AND direcao='saida' AND texto LIKE ${"%"+resposta.slice(-60).replace(/[%_\\]/g,"\\$&")} AND recebida_em>NOW()-interval '3 minutes' LIMIT 1`);
             if(rep.rows.length) resposta=null;
           }
-          return {pausa:ag.pausa,alerta:ag.alerta,resposta,orientacaoId:null,desfecho:"agendamento_conduzido" as const};
+          return {
+            pausa:ag.pausa, alerta:ag.alerta, resposta, orientacaoId:null, faqId:null,
+            desfecho:"agendamento_conduzido" as const, caminhoResolucao:ag.caminhoResolucao,
+            interpreteChamado:usoIA.interprete, conferenteChamado:usoIA.conferente,
+          };
         }
       }
-      return planejarAtendimento(deps,e);
+      const plano = await planejarAtendimento(deps,e);
+      plano.interpreteChamado ||= usoIA.interprete;
+      plano.conferenteChamado ||= usoIA.conferente;
+      return plano;
     },
     pausar: pausarAtendimentoDuravel,
     chatAlerta: chatAlertaOuNull,
@@ -257,15 +306,33 @@ export async function processarAtendimentosPendentes(): Promise<void> {
           AND empresa_id=${e.empresaId} AND status='aprovada' AND resposta=${plano.resposta}`);
         if(!r.rows.length) return false;
       }
+      if(plano.faqId){
+        const r=await db.execute(sql`SELECT f.id FROM telegram_faq_aprendidas f
+          JOIN orientacoes_aprovadas o ON o.id=f.orientacao_id AND o.empresa_id=f.empresa_id
+          WHERE f.id=${plano.faqId} AND f.empresa_id=${e.empresaId} AND f.ativa=TRUE AND f.excluida_em IS NULL
+            AND f.resposta=${plano.resposta}
+            AND (f.resposta_editada=TRUE OR (o.status='aprovada' AND o.resposta=f.resposta_fonte))`);
+        if(!r.rows.length) return false;
+      }
       const cfg=await lerConfigAtendimento();
       return !plano.pausa || plano.desfecho!=="queixa_texto_enviado" || cfg.queixaRevisada;
     },
     enviar: (chat,texto)=>sendTelegram(chat,escaparHtmlTelegram(texto)),
-    aposRespostaEntregue: async (e,texto)=>{
+    aposRespostaEntregue: async (e,texto,plano)=>{
       await registrarEvento({empresaId:e.empresaId,tipo:"enviada",chave:`enviada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Resposta enviada ao cliente no Telegram"});
+      if(plano.faqId) await registrarUsoFaqAprendida(e.empresaId, plano.faqId);
+      if(plano.orientacaoId) await observarRespostaAprovada({
+        empresaId:e.empresaId, inboxMessageId:e.inboxMessageId, textoPergunta:e.texto, orientacaoId:plano.orientacaoId,
+      });
     },
-    aposConclusao: async (e,desfecho)=>{
+    aposConclusao: async (e,desfecho,plano)=>{
       if(desfecho==="orientacao_enviada") await registrarEvento({empresaId:e.empresaId,tipo:"solucionada",chave:`solucionada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Solicitação solucionada com orientação aprovada"});
+      await registrarResolucaoTelegram({
+        empresaId:e.empresaId, inboxMessageId:e.inboxMessageId,
+        caminho:plano.caminhoResolucao,
+        interpreteChamado:plano.interpreteChamado,
+        conferenteChamado:plano.conferenteChamado,
+      });
     },
   });
 }

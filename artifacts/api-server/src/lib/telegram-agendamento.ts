@@ -10,7 +10,7 @@
  *  - O que o sistema não consegue confirmar vai para a equipe. Queixa de saúde nunca é tratada aqui.
  */
 import { classificarQueixa, normalizar } from "./atendimento-telegram";
-import type { Interpretar } from "./telegram-interprete";
+import type { ConferirEscolha, ConferirLeitura, Interpretar } from "./telegram-interprete";
 import { linhaDoNome, type FraseDeps } from "./telegram-frases";
 
 export type Modalidade = "online" | "presencial";
@@ -64,6 +64,10 @@ export interface DepsAgendamento {
   linkMarcacao?: () => string;
   /** Interpretação por IA do que a pessoa escreveu (opcional). Sem ela, valem os leitores por regras. */
   interpretar?: Interpretar;
+  /** Conferência independente da escolha antes de qualquer reserva ou pedido. */
+  conferirEscolha: ConferirEscolha;
+  /** Conferência adicional quando o Intérprete devolver leitura de confiança média. */
+  conferirLeitura?: ConferirLeitura;
   /** Frases cadastradas (tabela telegram_frases). */
   frase: FraseDeps;
   /** Confere nome + 4 primeiros dígitos do CPF + ano de nascimento. Só devolve id quando há UM cadastro compatível. */
@@ -83,6 +87,9 @@ export interface ResultadoAgendamento {
   estado: EstadoConversa;
   resposta: string | null;
   desfecho: string;
+  caminhoResolucao: "regra" | "interprete" | "conferente" | "equipe";
+  interpreteChamado: boolean;
+  conferenteChamado: boolean;
 }
 
 const DIAS_NOME = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
@@ -290,8 +297,21 @@ export async function conduzirAgendamento(
   estado.atualizadoEm = agoraISO;
   const emAndamento = estado.etapa !== "inicio";
   const n = normalizar(texto);
+  let caminhoResolucao: ResultadoAgendamento["caminhoResolucao"] = "regra";
+  let interpreteChamado = false;
+  let conferenteChamado = false;
   const nome1 = ctx.primeiroNome ? `, ${ctx.primeiroNome}` : "";
-  const fim = (resposta: string | null, desfecho: string, tratada = true): ResultadoAgendamento => ({ tratada, estado, resposta, desfecho });
+  const interpretarSeguro: Interpretar = async (t) => {
+    try { return await deps.interpretar?.(t) ?? null; }
+    catch { return null; }
+  };
+  const conferirSeguro: ConferirLeitura = async (p) => {
+    try { return await deps.conferirLeitura?.(p) ?? false; }
+    catch { return false; }
+  };
+  const fim = (resposta: string | null, desfecho: string, tratada = true): ResultadoAgendamento => ({
+    tratada, estado, resposta, desfecho, caminhoResolucao, interpreteChamado, conferenteChamado,
+  });
   const ap = (corpo: string) => comApresentacao(estado, ctx.nomeClinica, F, corpo, ctx.primeiroNome);
 
   // Queixa de saúde nunca é tratada aqui: segue para a equipe.
@@ -302,7 +322,7 @@ export async function conduzirAgendamento(
     novo.apresentada = true;
     if (!ctx.ehCliente && estado.situacao) { novo.situacao = estado.situacao; novo.clienteId = estado.clienteId; novo.nome = estado.nome; }
     novo.etapa = "modalidade";
-    return { tratada: true, estado: novo, resposta: F("recomecar", { nome1, pergunta_modalidade: F("pergunta_modalidade") }), desfecho: "reiniciada" };
+    return fim(F("recomecar", { nome1, pergunta_modalidade: F("pergunta_modalidade") }), "reiniciada");
   }
   if (PALAVRAS_CANCELAR.test(n)) {
     await deps.encaminharEquipe("cancelar_ou_remarcar");
@@ -333,8 +353,25 @@ export async function conduzirAgendamento(
       return fim(ap(F("pergunta_ja_paciente")), "perguntou_vinculo");
     }
     if (estado.etapa === "vinculo") {
-      const ia = await deps.interpretar?.({ tipo: "vinculo", texto });
-      const v = ia ? (ia.situacao ?? null) : lerVinculo(texto);
+      let v = lerVinculo(texto);
+      if (!v && deps.interpretar) {
+        const ia = await interpretarSeguro({ tipo: "vinculo", texto });
+        if (ia?.situacao && ia.confianca !== "baixa") {
+          interpreteChamado = true;
+          caminhoResolucao = "interprete";
+          if (ia.confianca === "media" || !ia.confianca) {
+            const confirmado = await conferirSeguro({
+              texto, proposta: `A situação informada é ${ia.situacao}.`, opcoes: ["cliente", "nova"],
+            });
+            conferenteChamado = !!deps.conferirLeitura;
+            caminhoResolucao = deps.conferirLeitura ? "conferente" : "interprete";
+            if (!confirmado) v = null;
+            else v = ia.situacao;
+          } else {
+            v = ia.situacao;
+          }
+        }
+      }
       if (!v) {
         estado.tentativas++;
         if (estado.tentativas >= 3) {
@@ -392,26 +429,68 @@ export async function conduzirAgendamento(
   }
 
   // Interpreta o que a pessoa já informou, em qualquer ordem.
-  const ia = estado.etapa === "escolha" ? null : await deps.interpretar?.({ tipo: "preferencias", texto, hojeISO: deps.hojeISO() });
-  const mod = lerModalidade(texto) ?? ia?.modalidade ?? null;
-  if (mod) estado.modalidade = mod;
+  const modRegra = lerModalidade(texto);
   const diasRegra = lerDias(texto, deps.hojeISO());
+  const periodoRegra = lerPeriodo(texto);
+  const temPreferenciaExplicita = /\b(manha|cedo|tarde|almoco|noite|noturno|horario|hora|dia|dias|semana|hoje|amanha|domingo|segunda|terca|quarta|quinta|sexta|sabado|depois|antes|web|video)\b|\b\d{1,2}\s*(?:h|horas)\b/i.test(n);
+  const qualquerRegraLocal = !!modRegra || !!periodoRegra || diasRegra.dias !== undefined || !!diasRegra.datas;
+  const etapaDePreferencia = estado.etapa === "modalidade" || estado.etapa === "preferencias";
+  const precisaInterpretar = etapaDePreferencia && temPreferenciaExplicita && !qualquerRegraLocal;
+  const ia = estado.etapa === "escolha" || !precisaInterpretar || !deps.interpretar
+    ? null
+    : await interpretarSeguro({ tipo: "preferencias", texto, hojeISO: deps.hojeISO() });
+  if (ia) {
+    interpreteChamado = true;
+    caminhoResolucao = "interprete";
+  }
+  let iaPreferencias = ia && ia.confianca !== "baixa" ? ia : null;
+  if (iaPreferencias && (iaPreferencias.confianca === "media" || !iaPreferencias.confianca)) {
+    const proposta = JSON.stringify({
+      modalidade: iaPreferencias.modalidade ?? null, periodo: iaPreferencias.periodo ?? null, dias: iaPreferencias.dias ?? null,
+    });
+    const confirmado = await conferirSeguro({
+      texto, proposta, opcoes: ["modalidade online ou presencial", "período e dias de preferência"],
+    });
+    conferenteChamado = !!deps.conferirLeitura;
+    caminhoResolucao = deps.conferirLeitura ? "conferente" : "interprete";
+    if (!confirmado) iaPreferencias = null;
+  }
+  const mod = modRegra ?? iaPreferencias?.modalidade ?? null;
+  if (mod) estado.modalidade = mod;
   const dias = diasRegra.datas || diasRegra.dias !== undefined ? diasRegra
-    : ia?.dias === "qualquer" ? { dias: null } : Array.isArray(ia?.dias) && ia.dias.length ? { dias: ia.dias } : diasRegra;
+    : iaPreferencias?.dias === "qualquer" ? { dias: null } : Array.isArray(iaPreferencias?.dias) && iaPreferencias.dias.length ? { dias: iaPreferencias.dias } : diasRegra;
   if (dias.datas) { estado.datas = dias.datas; estado.dias = undefined; }
   else if (dias.dias !== undefined) { estado.dias = dias.dias; estado.datas = null; }
-  const per = lerPeriodo(texto) ?? ia?.periodo ?? null;
+  const per = periodoRegra ?? iaPreferencias?.periodo ?? null;
   if (per) estado.periodo = per;
 
   // ── escolha de horário ──
   if (estado.etapa === "escolha" && estado.ofertas?.length) {
-    const iaEsc = await deps.interpretar?.({ tipo: "escolha", texto, opcoes: estado.ofertas.map(descreve) });
-    const esc = iaEsc && (iaEsc.recusou || (iaEsc.escolha != null && iaEsc.escolha >= 1 && iaEsc.escolha <= estado.ofertas.length))
-      ? { indice: iaEsc.recusou ? null : iaEsc.escolha! - 1, recusou: !!iaEsc.recusou, ambiguo: false }
-      : lerEscolha(texto, estado.ofertas);
+    const opcoes = estado.ofertas.map(descreve);
+    let esc = lerEscolha(texto, estado.ofertas);
+    if (esc.indice == null && !esc.recusou && !esc.ambiguo && deps.interpretar) {
+      const iaEsc = await interpretarSeguro({ tipo: "escolha", texto, opcoes });
+      if (iaEsc) {
+        interpreteChamado = true;
+        caminhoResolucao = "interprete";
+      }
+      if (iaEsc && iaEsc.confianca !== "baixa" && (iaEsc.recusou || (iaEsc.escolha != null && iaEsc.escolha >= 1 && iaEsc.escolha <= estado.ofertas.length))) {
+        esc = { indice: iaEsc.recusou ? null : iaEsc.escolha! - 1, recusou: !!iaEsc.recusou, ambiguo: false };
+      }
+    }
     if (esc.indice != null) {
+      // Escolher horário leva a uma reserva ou a um pedido; o segundo modelo confirma antes de qualquer efeito.
+      let confirma = false;
+      try { confirma = await deps.conferirEscolha({ texto, opcoes, escolha: esc.indice + 1 }); } catch { confirma = false; }
+      conferenteChamado = true;
+      caminhoResolucao = "conferente";
+      if (!confirma) {
+        estado.tentativas++;
+        return fim(F("escolha_nao_entendida", { lista: listaOfertas(estado.ofertas) }), "escolha_conferencia_recusada");
+      }
       estado.escolhida = estado.ofertas[esc.indice];
-      if (ctx.ehCliente) return reservarEResponder(estado, deps, nome1);
+      const meta = { caminhoResolucao, interpreteChamado, conferenteChamado };
+      if (ctx.ehCliente) return reservarEResponder(estado, deps, nome1, meta);
       const escolha = descreve(estado.escolhida);
       if (estado.situacao === "cliente") { estado.etapa = "telefone"; return fim(F("escolha_pede_telefone", { escolha }), "pediu_telefone"); }
       estado.etapa = "nome";
@@ -420,7 +499,7 @@ export async function conduzirAgendamento(
     if (esc.ambiguo) return fim(F("escolha_ambigua"), "escolha_ambigua");
     if (esc.recusou) {
       estado.mostradas = [...(estado.mostradas ?? []), ...estado.ofertas.map(chaveOferta)];
-      return ofertar(estado, deps, F("procurando_outras"));
+      return ofertar(estado, deps, F("procurando_outras"), { caminhoResolucao, interpreteChamado, conferenteChamado });
     }
     if (!mod && dias.dias === undefined && !dias.datas && !per) {
       estado.tentativas++;
@@ -432,7 +511,7 @@ export async function conduzirAgendamento(
       return fim(F("escolha_nao_entendida", { lista: listaOfertas(estado.ofertas) }), "escolha_nao_entendida");
     }
     estado.mostradas = []; // mudou preferências: procura de novo
-    return ofertar(estado, deps, F("procurando_preferencia"));
+    return ofertar(estado, deps, F("procurando_preferencia"), { caminhoResolucao, interpreteChamado, conferenteChamado });
   }
 
   // ── levantamento de preferências ──
@@ -450,10 +529,14 @@ export async function conduzirAgendamento(
       return fim(ap(F("certo_modalidade", { modalidade: rotulo(estado.modalidade), pergunta })), "perguntou_preferencias");
     }
   }
-  return ofertar(estado, deps, ap(F("olhando_agenda")));
+  return ofertar(estado, deps, ap(F("olhando_agenda")), { caminhoResolucao, interpreteChamado, conferenteChamado });
 }
 
-async function ofertar(estado: EstadoConversa, deps: DepsAgendamento, prefixo: string): Promise<ResultadoAgendamento> {
+type MetadadosResolucao = Pick<ResultadoAgendamento, "caminhoResolucao" | "interpreteChamado" | "conferenteChamado">;
+
+async function ofertar(
+  estado: EstadoConversa, deps: DepsAgendamento, prefixo: string, meta: MetadadosResolucao = { caminhoResolucao: "regra", interpreteChamado: false, conferenteChamado: false },
+): Promise<ResultadoAgendamento> {
   const F = deps.frase;
   const mod = rotulo(estado.modalidade!);
   const r = await deps.buscarHorarios({
@@ -469,36 +552,36 @@ async function ofertar(estado: EstadoConversa, deps: DepsAgendamento, prefixo: s
       estado.ofertas = alt.ofertas;
       estado.etapa = "escolha";
       estado.tentativas = 0;
-      return { tratada: true, estado, desfecho: "ofereceu_alternativas", resposta: F("ofereceu_alternativas", { prefixo, modalidade: mod, lista: listaOfertas(alt.ofertas) }) };
+      return { tratada: true, estado, desfecho: "ofereceu_alternativas", resposta: F("ofereceu_alternativas", { prefixo, modalidade: mod, lista: listaOfertas(alt.ofertas) }), ...meta };
     }
   }
   if (r.ofertas.length === 0) {
     await deps.encaminharEquipe("sem_horario_disponivel");
     estado.etapa = "concluido";
-    return { tratada: true, estado, desfecho: "sem_horario_encaminhada", resposta: F("sem_horario_encaminhada", { prefixo, modalidade: mod }) };
+    return { tratada: true, estado, desfecho: "sem_horario_encaminhada", resposta: F("sem_horario_encaminhada", { prefixo, modalidade: mod }), ...meta, caminhoResolucao: "equipe" };
   }
   estado.ofertas = r.ofertas;
   estado.etapa = "escolha";
   estado.tentativas = 0;
-  return { tratada: true, estado, desfecho: "ofereceu_horarios", resposta: F("ofereceu_horarios", { prefixo, modalidade: mod, lista: listaOfertas(r.ofertas) }) };
+  return { tratada: true, estado, desfecho: "ofereceu_horarios", resposta: F("ofereceu_horarios", { prefixo, modalidade: mod, lista: listaOfertas(r.ofertas) }), ...meta };
 }
 
-async function reservarEResponder(estado: EstadoConversa, deps: DepsAgendamento, nome1: string): Promise<ResultadoAgendamento> {
+async function reservarEResponder(estado: EstadoConversa, deps: DepsAgendamento, nome1: string, meta: MetadadosResolucao): Promise<ResultadoAgendamento> {
   const F = deps.frase;
   const o = estado.escolhida!;
   const r = await deps.reservar(o);
   if (r.ok) {
     estado.etapa = "concluido";
     const end = o.modalidade === "presencial" ? await deps.endereco("presencial") : null;
-    return { tratada: true, estado, desfecho: "reservado", resposta: F("reservado", { nome1, modalidade: rotulo(o.modalidade), data: dataPorExtenso(o.data), hora: o.hora, local: end ? `\n\nLocal: ${end}.` : "" }) };
+    return { tratada: true, estado, desfecho: "reservado", resposta: F("reservado", { nome1, modalidade: rotulo(o.modalidade), data: dataPorExtenso(o.data), hora: o.hora, local: end ? `\n\nLocal: ${end}.` : "" }), ...meta };
   }
   if (r.motivo === "limite" || r.motivo === "erro") {
     await deps.encaminharEquipe(r.motivo === "limite" ? "limite_de_reservas" : "falha_ao_reservar");
     estado.etapa = "concluido";
-    return { tratada: true, estado, desfecho: r.motivo === "limite" ? "limite_encaminhada" : "erro_encaminhada", resposta: F(r.motivo === "limite" ? "limite_reservas" : "erro_reserva") };
+    return { tratada: true, estado, desfecho: r.motivo === "limite" ? "limite_encaminhada" : "erro_encaminhada", resposta: F(r.motivo === "limite" ? "limite_reservas" : "erro_reserva"), ...meta, caminhoResolucao: "equipe" };
   }
   // Horário foi ocupado no meio tempo: procura de novo, sem prometer nada.
   estado.mostradas = [...(estado.mostradas ?? []), chaveOferta(o)];
   estado.escolhida = undefined;
-  return ofertar(estado, deps, F("horario_ocupado"));
+  return ofertar(estado, deps, F("horario_ocupado"), meta);
 }

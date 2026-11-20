@@ -38,8 +38,19 @@ interface Painel {
   pedidos: { novos: number; total: number } | null;
   modos: { atendimentoIa: string; lembretes: string; atendimentoLista: number; lembretesLista: number };
 }
+interface ClinicaIA {
+  empresaId: number;
+  clinica: string;
+  resolucoes: Array<{ caminho: string; total: number; interprete: number; conferente: number; aprendiz: number }>;
+  chamadas_ia: number;
+  tokens_entrada: number;
+  tokens_saida: number;
+  custos_por_moeda: Array<{ moeda: string | null; custoInformado: number | string | null }>;
+  usos_faq: number;
+  consultas_ia_evitadas: number;
+}
 
-const n = (v: number | null | undefined) => (v == null ? "indisponível" : v.toLocaleString("pt-BR"));
+const n = (v: number | string | null | undefined) => (v == null ? "indisponível" : Number(v).toLocaleString("pt-BR"));
 
 function Linha({ item, estado, detalhe }: { item: string; estado: Estado; detalhe: string }) {
   return (
@@ -68,11 +79,17 @@ function Tabela({ titulo, children }: { titulo: string; children: React.ReactNod
 export function PainelOperacionalTelegram() {
   const [p, setP] = useState<Painel | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [usoIA, setUsoIA] = useState<ClinicaIA[] | null>(null);
+  const [erroIA, setErroIA] = useState<string | null>(null);
   useEffect(() => {
     const t = getCollabToken();
-    fetch(`${BASE}/api/telegram-inbox/painel-operacional`, { headers: t ? { Authorization: `Bearer ${t}` } : {} })
+    const headers = t ? { Authorization: `Bearer ${t}` } : {};
+    fetch(`${BASE}/api/telegram-inbox/painel-operacional`, { headers })
       .then(async (r) => { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Sem acesso. Entre novamente com a conta de colaborador." : "O servidor respondeu com erro."); setP(await r.json()); })
       .catch((e: unknown) => setErro(e instanceof Error ? e.message : "Não foi possível consultar o painel."));
+    fetch(`${BASE}/api/telegram-inbox/painel-ia`, { headers })
+      .then(async (r) => { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Sem acesso aos custos e resultados por clínica." : "O servidor respondeu com erro."); const j = await r.json() as { clinicas: ClinicaIA[] }; setUsoIA(j.clinicas); })
+      .catch((e: unknown) => setErroIA(e instanceof Error ? e.message : "Não foi possível consultar o painel de inteligência artificial."));
   }, []);
 
   const [salvando, setSalvando] = useState(false);
@@ -135,6 +152,37 @@ export function PainelOperacionalTelegram() {
           <Linha item="Pedidos de quem não é cliente" estado={!p || p.pedidos == null ? "nao_comprovado" : "conectado"} detalhe={`Novos: ${n(p?.pedidos?.novos)} · Total: ${n(p?.pedidos?.total)}. Nunca viram reserva sozinhos.`} />
           <Linha item="Assistente de dúvidas e agendamento" estado={!p ? "pendente" : p.modos.atendimentoIa === "desligado" ? "pendente" : "parcial"} detalhe={`Modo: ${p?.modos.atendimentoIa ?? "—"}${p && p.modos.atendimentoIa === "lista" ? ` (${p.modos.atendimentoLista} cliente(s) autorizados)` : ""}. Lembretes por Telegram: ${p?.modos.lembretes ?? "—"}${p && p.modos.lembretes === "lista" ? ` (${p.modos.lembretesLista} autorizados)` : ""}.`} />
         </Tabela>
+
+        <div className="space-y-3">
+          <BlockTitle icon={Bot}>Resultados e custo da inteligência artificial por clínica</BlockTitle>
+          {erroIA && <p role="alert" className="concave-3d p-3 text-[12px]">{erroIA}</p>}
+          {usoIA === null && !erroIA && <p className="concave-3d p-3 text-[12px]">Carregando medições administrativas…</p>}
+          {usoIA?.length === 0 && <p className="concave-3d p-3 text-[12px]">Ainda não há medições no período.</p>}
+          {usoIA?.map((c) => {
+            const total = c.resolucoes.reduce((s, r) => s + Number(r.total), 0);
+            const por = (path: string) => c.resolucoes.find((r) => r.caminho === path)?.total ?? 0;
+            const automaticas = ["cardapio", "regra", "interprete", "conferente"].reduce((s, path) => s + Number(por(path)), 0);
+            const taxa = total ? `${((automaticas / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "sem dados";
+            const custos = c.custos_por_moeda.map((x) => `${x.moeda ?? "moeda não informada"}: ${x.custoInformado == null ? "custo não informado pelo provedor" : Number(x.custoInformado).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`).join(" · ");
+            return <article key={c.empresaId} className="concave-3d space-y-3 p-3" data-testid={`uso-ia-clinica-${c.empresaId}`}>
+              <p className="text-[12px] font-bold uppercase">{c.clinica}</p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Cardápio aprendido", n(por("cardapio"))],
+                  ["Regras locais", n(por("regra"))],
+                  ["Intérprete", n(por("interprete"))],
+                  ["Conferente", n(por("conferente"))],
+                ].map(([label, value]) => <div key={label} className="bevel-3d p-2 text-[11px]"><span className="block text-muted-foreground">{label}</span><strong>{value} resoluções em 30 dias</strong></div>)}
+              </div>
+              <div className="grid gap-2 text-[11px] sm:grid-cols-2">
+                <p className="bevel-3d p-2">Taxa de resolução automática: <strong>{taxa}</strong> ({n(automaticas)} de {n(total)}, últimos 30 dias).</p>
+                <p className="bevel-3d p-2">Chamadas de inteligência artificial: <strong>{n(c.chamadas_ia)}</strong>; entrada: {n(c.tokens_entrada)} tokens; saída: {n(c.tokens_saida)} tokens.</p>
+                <p className="bevel-3d p-2">Custo informado pelo provedor: <strong>{custos || "não informado pelo provedor"}</strong>. Nenhum valor estimado.</p>
+                <p className="bevel-3d p-2">Cardápio: {n(c.usos_faq)} usos acumulados; {n(c.consultas_ia_evitadas)} consultas de IA evitadas.</p>
+              </div>
+            </article>;
+          })}
+        </div>
 
         <Tabela titulo="2. Prova real de ida e volta (desenvolvimento, 14/11/2026, registrada)">
           <Linha item="Mensagem real do contato pessoal" estado="conectado" detalhe="Pedido de consulta recebido e gravado; Dr. Caio relatou o horário local (23h) e conferiu no aparelho." />

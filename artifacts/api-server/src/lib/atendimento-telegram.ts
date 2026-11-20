@@ -115,15 +115,21 @@ export interface DepsAtendimento {
   /** Reivindica a mensagem (uma resposta por mensagem). false = já tratada antes. */
   reivindicar: (inboxMessageId: number) => Promise<boolean>;
   carregarOrientacoes: (empresaId: number) => Promise<OrientacaoAprovada[]>;
+  buscarFaq?: (texto: string, empresaId: number) => Promise<{ id: number; resposta: string } | null>;
   /** IA escolhe um id entre as candidatas (ou null). Pode lançar: então vale a regra determinística. */
   escolherComIA?: (texto: string, c: Candidata[]) => Promise<number | null>;
+  /** Confere a leitura do Intérprete quando a regra local não foi suficiente. */
+  conferirComIA?: (texto: string, c: Candidata[], idProposto: number) => Promise<boolean>;
   enviarAoPaciente: (chatId: string, texto: string) => Promise<boolean>;
   registrarSaida: (p: { empresaId: number; clienteId: number; chatId: string; texto: string }) => Promise<void>;
   passarParaHumano: (clienteId: number, motivo: string) => Promise<void>;
   alertarEquipe: (texto: string) => Promise<boolean>;
   /** Nome real da clínica (empresa). Opcional: ausente = texto genérico. */
   nomeClinica?: (empresaId: number) => Promise<string | null>;
-  registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null) => Promise<void>;
+  registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null, meta?: {
+    caminho: "cardapio" | "regra" | "interprete" | "conferente" | "equipe";
+    faqId: number | null; interpreteChamado: boolean; conferenteChamado: boolean; aprendizChamado: boolean;
+  }) => Promise<void>;
 }
 
 export interface EntradaAtendimento {
@@ -136,6 +142,11 @@ export interface EntradaAtendimento {
 }
 
 export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAtendimento): Promise<Desfecho> {
+  let caminhoResolucao: PlanoAtendimento["caminhoResolucao"] = "equipe";
+  let faqId: number | null = null;
+  let interpreteChamado = false;
+  let conferenteChamado = false;
+  let aprendizChamado = false;
   const cfg = await deps.lerConfig();
   if (cfg.modo === "desligado") return "desligado";
   if (cfg.modo === "lista" && !cfg.permitidos.has(e.clienteId)) return "fora_da_lista";
@@ -147,7 +158,9 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
   if (!(await deps.reivindicar(e.inboxMessageId))) return "ja_tratado";
 
   const fechar = async (d: Desfecho, orientacaoId: number | null = null): Promise<Desfecho> => {
-    await deps.registrarDesfecho(e.inboxMessageId, d, orientacaoId);
+    await deps.registrarDesfecho(e.inboxMessageId, d, orientacaoId, {
+      caminho: caminhoResolucao, faqId, interpreteChamado, conferenteChamado, aprendizChamado,
+    });
     return d;
   };
 
@@ -170,19 +183,42 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
     return fechar("queixa_encaminhada");
   }
 
+  const faq = await deps.buscarFaq?.(e.texto, e.empresaId);
+  if (faq) {
+    caminhoResolucao = "cardapio";
+    faqId = faq.id;
+    const ok = await deps.enviarAoPaciente(e.chatId, faq.resposta);
+    if (!ok) return fechar("falha_envio");
+    await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: faq.resposta });
+    return fechar("orientacao_enviada");
+  }
+
   const orientacoes = await deps.carregarOrientacoes(e.empresaId);
   const cand = candidatas(e.texto, orientacoes);
   let escolhida: OrientacaoAprovada | null = null;
   if (cand.length > 0) {
+    escolhida = escolhaDeterministica(cand);
+    if (escolhida) caminhoResolucao = "regra";
+  }
+  if (!escolhida && cand.length > 0) {
     if (deps.escolherComIA) {
       try {
         const id = await deps.escolherComIA(e.texto, cand);
-        escolhida = id == null ? null : (cand.find((c) => c.orientacao.id === id)?.orientacao ?? null); // id fora da lista = ignorado
+        if (id != null) {
+          interpreteChamado = true;
+          caminhoResolucao = "interprete";
+          const proposta = cand.find((c) => c.orientacao.id === id)?.orientacao ?? null;
+          if (proposta && deps.conferirComIA && await deps.conferirComIA(e.texto, cand, id)) {
+            escolhida = proposta;
+            conferenteChamado = true;
+            caminhoResolucao = "conferente";
+          } else if (proposta && deps.conferirComIA) {
+            conferenteChamado = true;
+          }
+        }
       } catch {
         escolhida = escolhaDeterministica(cand);
       }
-    } else {
-      escolhida = escolhaDeterministica(cand);
     }
   }
 
@@ -207,12 +243,20 @@ export interface PlanoAtendimento {
   alerta: string | null;
   resposta: string | null;
   orientacaoId: number | null;
+  faqId: number | null;
   desfecho: Desfecho;
+  caminhoResolucao: "cardapio" | "regra" | "interprete" | "conferente" | "equipe";
+  interpreteChamado: boolean;
+  conferenteChamado: boolean;
+  aprendizChamado: boolean;
 }
 
 /** Usa a MESMA decisão sem executar efeitos. O worker persiste este plano antes da rede. */
 export async function planejarAtendimento(deps: DepsAtendimento, e: EntradaAtendimento): Promise<PlanoAtendimento> {
-  const plano: PlanoAtendimento = { pausa: null, alerta: null, resposta: null, orientacaoId: null, desfecho: "desligado" };
+  const plano: PlanoAtendimento = {
+    pausa: null, alerta: null, resposta: null, orientacaoId: null, faqId: null, desfecho: "desligado",
+    caminhoResolucao: "equipe", interpreteChamado: false, conferenteChamado: false, aprendizChamado: false,
+  };
   plano.desfecho = await processarAtendimento({
     ...deps,
     reivindicar: async () => true,
@@ -220,7 +264,14 @@ export async function planejarAtendimento(deps: DepsAtendimento, e: EntradaAtend
     alertarEquipe: async texto => { plano.alerta = texto; return true; },
     enviarAoPaciente: async (_chat, texto) => { plano.resposta = texto; return true; },
     registrarSaida: async () => {},
-    registrarDesfecho: async (_id, _d, orientacaoId) => { plano.orientacaoId = orientacaoId; },
+    registrarDesfecho: async (_id, _d, orientacaoId, meta) => {
+      plano.orientacaoId = orientacaoId;
+      plano.faqId = meta?.faqId ?? null;
+      plano.caminhoResolucao = meta?.caminho ?? "equipe";
+      plano.interpreteChamado = meta?.interpreteChamado ?? false;
+      plano.conferenteChamado = meta?.conferenteChamado ?? false;
+      plano.aprendizChamado = meta?.aprendizChamado ?? false;
+    },
   }, e);
   return plano;
 }

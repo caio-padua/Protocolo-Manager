@@ -17,9 +17,9 @@ export interface DepsAtendimentoDuravel {
   autorizarResposta(e: EntradaAtendimento, plano: PlanoAtendimento): Promise<boolean>;
   enviar(chat: string, texto: string): Promise<{ sent: boolean; mock: boolean; error?: string }>;
   /** Medição: chamado só depois que o Telegram aceitou de verdade a resposta ao cliente (nunca em simulação ou falha). */
-  aposRespostaEntregue?(e: EntradaAtendimento, texto: string): Promise<void>;
+  aposRespostaEntregue?(e: EntradaAtendimento, texto: string, plano: PlanoAtendimento): Promise<void>;
   /** Medição: chamado ao concluir o atendimento da mensagem. */
-  aposConclusao?(e: EntradaAtendimento, desfecho: string | null): Promise<void>;
+  aposConclusao?(e: EntradaAtendimento, desfecho: string | null, plano: PlanoAtendimento): Promise<void>;
 }
 interface Etapa { estado: string; erro?: string | null }
 interface Linha {
@@ -146,10 +146,10 @@ export async function tentarAtendimentoDuravel(exec: ExecutorAtendimentoDuravel,
           WHERE inbox_message_id=${id} AND dono=${dono} AND estado='processando'`);
       }
       if (resultado.estado !== "aceito_telegram") { await salvar(resultado.estado,resultado.erro); return; }
-      if (etapa==="resposta" && !enviado.mock) await deps.aposRespostaEntregue?.(e,texto).catch(()=>undefined);
+      if (etapa==="resposta" && !enviado.mock) await deps.aposRespostaEntregue?.(e,texto,plano).catch(()=>undefined);
     }
     await salvar("concluido",null,plano.desfecho);
-    await deps.aposConclusao?.(e,plano.desfecho??null).catch(()=>undefined);
+    await deps.aposConclusao?.(e,plano.desfecho??null,plano).catch(()=>undefined);
   } catch {
     // Nunca copiar exceção para banco/log. Se a barreira foi atravessada, não sabemos se chegou.
     const r = await exec.execute(sql`SELECT etapas,tentativas FROM telegram_atendimento_respostas WHERE inbox_message_id=${id} AND dono=${dono}`);
