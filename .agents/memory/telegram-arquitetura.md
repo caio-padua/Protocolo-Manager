@@ -81,3 +81,11 @@ Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`
 
 **Why:** o CEO definiu que o assistente reduz custo sem inventar respostas nem ampliar o risco clínico ou de privacidade.
 **How to apply:** qualquer mudança no Telegram que use IA precisa manter separadas interpretação, conferência e resposta aprovada; editar uma FAQ aprendida não deve alterar mensagens já em andamento.
+
+## Direção futura: dúvidas sobre receituário
+- O CEO quer que uma evolução futura consulte o receituário, as fórmulas e os protocolos da própria cliente, explique em linguagem simples e ofereça o reenvio do documento.
+- Esse fluxo é separado do aprendiz de perguntas frequentes: não aprende conteúdo clínico nem está disponível no bot atual.
+- Antes de existir, a pergunta sobre receituário continua sendo encaminhada à equipe; não inferir o registro pelo nome nem enviar documento sem confirmação explícita da cliente.
+
+**Why:** a cliente deve conseguir entender o próprio documento e pedir uma segunda via, sem expor receita a outra pessoa nem alterar uma orientação clínica.
+**How to apply:** implementar como fluxo clínico autenticado, restrito ao registro confirmado; escolher uma fonte aprovada para explicar a fórmula e validar destinatário e documento antes de oferecer o reenvio.

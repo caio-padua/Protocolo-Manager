@@ -9,3 +9,11 @@ description: como o motor de lembrete escolhe canal e como provar execução aut
 
 **Why:** o api-worker não tem workflow no desenvolvimento e subir todos os jobs dispararia farmácia, Drive e monitor de LLMs.
 **How to apply:** nunca testar com prescrição real; só chats autorizados; apagar o registro de autorização de teste ao final.
+
+## Acompanhamento futuro após encaminhar exames
+- O CEO quer uma sequência que confirme o recebimento algumas horas após o envio e pergunte, quatro dias depois, se a cliente conseguiu marcar o exame.
+- Esse acompanhamento por etapas ainda precisa ser construído; não é o mesmo que o lembrete periódico de exame já existente.
+- O intervalo exato de horas e as regras para interromper, repetir ou encaminhar a conversa à equipe ainda precisam ser definidos.
+
+**Why:** o objetivo é confirmar que o pedido chegou e ajudar a cliente a avançar sem gerar mensagens duplicadas ou insistentes.
+**How to apply:** ligar cada etapa ao pedido de exame correto, registrar resposta e estado, respeitar a autorização de contato e impedir duplicações; manter a sequência separada do motor de lembretes por horário.
