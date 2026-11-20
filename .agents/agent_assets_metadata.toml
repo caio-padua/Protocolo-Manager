@@ -1432,3 +1432,17 @@ mtime_ms = 1795217661802
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/903a479a-3a96-4374-904f-a904d56f7547/8cbefff9-a05b-43fe-94ff-e4378abe1ddd"
 storage_version_token = "1795217662915812"
 content_type = "text/plain"
+
+[[outputs]]
+id = "sMfL_dISfBKZPDCJQp5w7"
+uri = "file://generated-artifacts/auditoria-parte2c-ultimas-45.txt"
+type = "text"
+title = "Parte 2C corrigida: de id 111 até o final (42 linhas)"
+description = "Substitui o cartão anterior, que começava em id 108"
+logical_id = "854c7f3f-dc63-49c3-80fa-1be104041bc1"
+content_hash = "sha256:f3da16ef2cda0c54f2f62820bff3e5c7645122393903bf779d0d0d99ee3cf45b"
+size = 10486
+mtime_ms = 1795217743363
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/854c7f3f-dc63-49c3-80fa-1be104041bc1/58aa9e9b-29be-4f53-a481-1aa1efaef946"
+storage_version_token = "1795217745653809"
+content_type = "text/plain"
