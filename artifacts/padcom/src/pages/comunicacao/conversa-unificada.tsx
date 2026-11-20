@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { RefreshCw, X, Download, Archive } from "lucide-react";
 import { BASE } from "./_shared";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { api } from "./api-comunicacao";
 import { BotaoMinMax } from "./botao-min-max";
 import { BolhaMensagem, FundoConversa } from "./bolhas-mensagem";
+import { PainelCategorias, PainelFinanceiro, ROT_ESTADO } from "./categorias-auditoria";
 
 // Conversa unificada WWP (WhatsApp) + TG (Telegram), tarifas e backup. Dados sempre da clinica da sessao.
 
@@ -13,6 +15,8 @@ type Linha = {
   ref: string; canal: "wwp" | "tg"; clienteId: number | null; clienteNome: string | null; empresaNome: string | null;
   destino: string; direcao: "entrada" | "saida"; contexto: string | null; origem: string; entrega: string; erro: string | null;
   cobranca: string; valorCentavos: number | null; previa: string; corpo: string; criadoEm: string;
+  categoriaId: number | null; categoriaNome: string | null; natureza: "financeira" | "operacional" | "sem_categoria"; regraVersao: number | null;
+  etapas: { chave: string; rotulo: string; estado: string; evidencia: string }[];
 };
 type Resumo = {
   porCanal: Record<"wwp" | "tg", { total: number; enviadas: number; recebidas: number; falhas: number }>;
@@ -27,12 +31,6 @@ const dh = (iso: string) => new Date(iso).toLocaleString("pt-BR", { timeZone: "A
 const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 const brl = (c: number | null) => c == null ? "—" : (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const r = await fetch(`${BASE}/api${path}`, { ...init, headers: collabAuthHeaders({ "Content-Type": "application/json" }) });
-  const corpo = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((corpo as { error?: string }).error ?? `Falha (${r.status})`);
-  return corpo as T;
-}
 
 /** Painel horizontal recolhivel: maximizar/minimizar fica no extremo direito do cabecalho. */
 export function PainelRecolhivel({ titulo, subtitulo, children, inicialAberto = true, acoes }: {
@@ -58,7 +56,11 @@ export function PainelRecolhivel({ titulo, subtitulo, children, inicialAberto = 
 
 /** Consulta periodica unica, so com a aba visivel. */
 function usePolling(fn: () => void, ms: number) {
+  // Sempre a versao mais recente do carregador, para o timer nunca reaplicar filtros antigos.
+  const ref = useRef(fn);
+  ref.current = fn;
   useEffect(() => {
+    const fn = () => ref.current();
     fn();
     const t = setInterval(() => { if (document.visibilityState === "visible") fn(); }, ms);
     const v = () => { if (document.visibilityState === "visible") fn(); };
@@ -85,12 +87,22 @@ function Detalhe({ l, onFechar }: { l: Linha; onFechar: () => void }) {
             {([
               ["Data e hora (Brasília)", dh(l.criadoEm)], ["Cliente", l.clienteNome ?? "—"], ["Destino", l.destino],
               ["Contexto", l.contexto ?? "—"], ["Origem", ROT_ORIGEM[l.origem]], ["Entrega", l.entrega],
-              ["Cobrança", ROT_COBRANCA[l.cobranca]], ["Valor", brl(l.valorCentavos)], ["Clínica", l.empresaNome ?? "—"],
+              ["Tarifa da mensagem (cobrada da clínica)", ROT_COBRANCA[l.cobranca]], ["Valor da tarifa", brl(l.valorCentavos)], ["Clínica", l.empresaNome ?? "—"],
+              ["Categoria", l.categoriaNome ? `${l.categoriaNome}${l.regraVersao ? ` (regra v${l.regraVersao})` : ""}` : "Sem categoria"],
               ...(l.erro ? [["Código de erro", l.erro]] : []),
             ] as [string, string][]).map(([k, v]) => (
               <div key={k}><dt className="text-[10px] font-bold uppercase text-muted-foreground">{k}</dt><dd className="mt-0.5 break-words">{v}</dd></div>
             ))}
           </dl>
+          <div className="panel-3d-sub space-y-2 p-4 text-[12px]" data-testid="etapas-mensagem">
+            <p className="text-[10px] font-bold uppercase text-muted-foreground">Etapas independentes</p>
+            {l.etapas.map((e) => (
+              <div key={e.chave} className="flex items-start justify-between gap-3 border-t border-border/50 pt-1.5 first:border-0 first:pt-0">
+                <div><p className="font-semibold">{e.rotulo}</p><p className="text-[10px] text-muted-foreground">{e.evidencia}</p></div>
+                <span className="whitespace-nowrap font-bold">{ROT_ESTADO[e.estado] ?? e.estado}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </aside>
     </>
@@ -105,11 +117,16 @@ function Tabela({ periodo }: { periodo: Periodo }) {
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [det, setDet] = useState<Linha | null>(null);
+  const [natureza, setNatureza] = useState<"" | "financeira" | "operacional" | "sem_categoria">("");
+  const [categoria, setCategoria] = useState("");
+  const [cats, setCats] = useState<{ id: number; nome: string }[]>([]);
+  useEffect(() => { api<{ categorias: { id: number; nome: string; ativo: boolean }[] }>("/comunicacao/categorias").then((r) => setCats(r.categorias.filter((c) => c.ativo))).catch(() => setCats([])); }, []);
+  const filtroCat = `${natureza ? `&natureza=${natureza}` : ""}${categoria ? `&categoria=${categoria}` : ""}`;
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      const q = `periodo=${periodo}${canal ? `&canal=${canal}` : ""}`;
+      const q = `periodo=${periodo}${canal ? `&canal=${canal}` : ""}${filtroCat}`;
       const [c, r] = await Promise.all([
         api<{ linhas: Linha[]; proximo: string | null }>(`/comunicacao/conversas?${q}&limite=50`),
         api<Resumo>(`/comunicacao/resumo?${q}`),
@@ -117,13 +134,13 @@ function Tabela({ periodo }: { periodo: Periodo }) {
       setLinhas(c.linhas); setProximo(c.proximo); setResumo(r); setErro("");
     } catch (e) { setErro(e instanceof Error ? e.message : "Falha ao carregar."); }
     finally { setCarregando(false); }
-  }, [periodo, canal]);
+  }, [periodo, canal, filtroCat]);
   usePolling(() => { void carregar(); }, 30000);
   useEffect(() => { void carregar(); }, [carregar]);
 
   const maisAntigas = async () => {
     if (!proximo) return;
-    const q = `periodo=${periodo}${canal ? `&canal=${canal}` : ""}&limite=50&cursor=${encodeURIComponent(proximo)}`;
+    const q = `periodo=${periodo}${canal ? `&canal=${canal}` : ""}${filtroCat}&limite=50&cursor=${encodeURIComponent(proximo)}`;
     const c = await api<{ linhas: Linha[]; proximo: string | null }>(`/comunicacao/conversas?${q}`);
     setLinhas((a) => [...a, ...c.linhas]); setProximo(c.proximo);
   };
@@ -136,21 +153,44 @@ function Tabela({ periodo }: { periodo: Periodo }) {
             {c === "" ? "WWP + TG" : c === "wwp" ? "WWP" : "TG"}
           </button>
         ))}
+        <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
+        {([["", "Todas"], ["financeira", "Envolve valor"], ["operacional", "Sem valor"], ["sem_categoria", "Sem categoria"]] as const).map(([v, r]) => (
+          <button key={v} onClick={() => { setNatureza(v); setCategoria(""); }} aria-pressed={natureza === v && !categoria}
+            className={`bevel-3d px-3 py-1 text-[10px] font-bold uppercase ${natureza === v && !categoria ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{r}</button>
+        ))}
+        <select aria-label="Filtrar por categoria" className="field-engraved rounded-[4px] px-2 py-1 text-[11px]" value={categoria} onChange={(e) => { setCategoria(e.target.value); setNatureza(""); }}>
+          <option value="">Categoria: todas</option>
+          {cats.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          <option value="sem">Sem categoria</option>
+        </select>
         <button onClick={() => void carregar()} className="bevel-3d p-1.5" aria-label="Atualizar"><RefreshCw className={`h-3.5 w-3.5 ${carregando ? "animate-spin" : ""}`} /></button>
       </div>
       {resumo && (
         <div className="grid gap-2 text-[11px] sm:grid-cols-3">
           <div className="panel-3d-sub p-2"><b>WWP</b>: {resumo.porCanal.wwp.enviadas} enviadas · {resumo.porCanal.wwp.recebidas} recebidas · {resumo.porCanal.wwp.falhas} falhas</div>
           <div className="panel-3d-sub p-2"><b>TG</b>: {resumo.porCanal.tg.enviadas} enviadas · {resumo.porCanal.tg.recebidas} recebidas · {resumo.porCanal.tg.falhas} falhas</div>
-          <div className="panel-3d-sub p-2"><b>Cobrança</b>: {resumo.porCobranca.paga} pagas · {resumo.porCobranca.isenta} isentas · {resumo.porCobranca.teste} teste · {brl(resumo.valorPagoCentavos)}</div>
+          <div className="panel-3d-sub p-2"><b>Tarifa da mensagem (clínica)</b>: {resumo.porCobranca.paga} cobradas · {resumo.porCobranca.isenta} isentas · {resumo.porCobranca.teste} teste · {brl(resumo.valorPagoCentavos)}</div>
         </div>
       )}
       {erro && <p className="concave-3d px-3 py-2 text-[12px] text-rose-700">{erro}</p>}
-      <div className="max-h-[28rem] overflow-auto">
+      <ul className="max-h-[32rem] space-y-2 overflow-auto sm:hidden" aria-label="Mensagens">
+        {linhas.map((l) => (
+          <li key={l.ref}>
+            <button onClick={() => setDet(l)} className="panel-3d-sub w-full space-y-1 p-3 text-left text-[12px]">
+              <span className="flex items-center justify-between gap-2"><b>{l.canal === "tg" ? "TG" : "WWP"} · {l.direcao === "entrada" ? "Recebida" : "Enviada"}</b><span className="tabular-nums text-muted-foreground">{dh(l.criadoEm)}</span></span>
+              <span className="block">{l.clienteNome ?? "—"} · {l.categoriaNome ?? "Sem categoria"}</span>
+              <span className="block text-muted-foreground">Entrega: {l.entrega} · Tarifa: {ROT_COBRANCA[l.cobranca]}</span>
+              <span className="block truncate text-foreground/60">{l.previa}</span>
+            </button>
+          </li>
+        ))}
+        {!linhas.length && <li className="text-[12px] text-muted-foreground">{carregando ? "Carregando…" : "Nenhuma mensagem no período."}</li>}
+      </ul>
+      <div className="hidden max-h-[28rem] overflow-auto sm:block">
         <table className="w-full border-collapse text-[11px]">
           <thead className="sticky top-0 bg-background/95">
             <tr className="border-b border-border text-left uppercase tracking-wide text-muted-foreground">
-              {["Data · Hora", "Canal", "Cliente", "Destino", "Direção", "Contexto", "Origem", "Entrega", "Cobrança", "Valor", "Clínica", "Prévia"].map((h) => <th key={h} className="whitespace-nowrap px-2 py-2 font-semibold">{h}</th>)}
+              {["Data · Hora", "Canal", "Cliente", "Destino", "Direção", "Contexto", "Origem", "Entrega", "Categoria", "Tarifa (clínica)", "Valor", "Clínica", "Prévia"].map((h) => <th key={h} className="whitespace-nowrap px-2 py-2 font-semibold">{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -164,13 +204,14 @@ function Tabela({ periodo }: { periodo: Periodo }) {
                 <td className="px-2 py-2 uppercase text-muted-foreground">{l.contexto ?? "—"}</td>
                 <td className="px-2 py-2">{ROT_ORIGEM[l.origem]}</td>
                 <td className="px-2 py-2">{l.entrega}</td>
+                <td className="whitespace-nowrap px-2 py-2">{l.categoriaNome ?? <span className="text-muted-foreground">Sem categoria</span>}</td>
                 <td className="px-2 py-2">{ROT_COBRANCA[l.cobranca]}</td>
                 <td className="px-2 py-2 tabular-nums">{brl(l.valorCentavos)}</td>
                 <td className="px-2 py-2">{l.empresaNome ?? "—"}</td>
                 <td className="max-w-[220px] truncate px-2 py-2 text-foreground/60">{l.previa}</td>
               </tr>
             ))}
-            {!linhas.length && <tr><td colSpan={12} className="px-2 py-3 text-muted-foreground">{carregando ? "Carregando…" : "Nenhuma mensagem no período."}</td></tr>}
+            {!linhas.length && <tr><td colSpan={13} className="px-2 py-3 text-muted-foreground">{carregando ? "Carregando…" : "Nenhuma mensagem no período."}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -281,6 +322,8 @@ export function SecaoComunicacaoUnificada({ periodo }: { periodo: Periodo }) {
       <PainelRecolhivel titulo="Conversa unificada · WWP + TG" subtitulo="Todas as mensagens da clínica, enviadas e recebidas. Clique numa linha para ver o conteúdo completo.">
         <Tabela periodo={periodo} />
       </PainelRecolhivel>
+      <PainelRecolhivel titulo="Categorias e regras" subtitulo="Agrupe as mensagens: com valor financeiro, sem valor ou sem categoria · regras versionadas e trilha de auditoria" inicialAberto={false}><PainelCategorias /></PainelRecolhivel>
+      <PainelRecolhivel titulo="Etapas financeiras · três trilhas separadas" subtitulo="Tarifa da mensagem (clínica) · cobrança do serviço (cliente) · pagamento e conciliação (Asaas)" inicialAberto={false}><PainelFinanceiro /></PainelRecolhivel>
       <PainelRecolhivel titulo="Tarifas e valores" subtitulo="Tarifas ativas da clínica" inicialAberto={false}><PainelTarifas /></PainelRecolhivel>
       {podeBackup && (
         <PainelRecolhivel titulo="Backup de mensagens" subtitulo="Somente administrador da clínica" inicialAberto={false}><PainelBackup /></PainelRecolhivel>

@@ -11,6 +11,7 @@
 import { pool } from "@workspace/db";
 import { brtISODate } from "./brt";
 import { mascararTelefone } from "../routes/whatsapp-status";
+import { CLASSIFICACAO_SQL } from "./comunicacao-categorias";
 
 export type CanalConversa = "wwp" | "tg";
 export type DirecaoConversa = "entrada" | "saida";
@@ -23,7 +24,13 @@ export interface FiltroConversas {
   clienteId?: number | null;
   de?: Date | null;
   ate?: Date | null;
+  /** id da categoria, ou "sem" para mensagens sem categoria. So vale em listarConversas. */
+  categoria?: number | "sem" | null;
+  natureza?: "financeira" | "operacional" | "sem_categoria" | null;
 }
+
+export type EstadoEtapa = "registrado" | "recebido" | "enviado" | "entregue" | "lido" | "falhou" | "nao_informado";
+export interface EtapaMensagem { chave: "envio" | "entrega" | "leitura" | "conclusao_servico"; rotulo: string; estado: EstadoEtapa; evidencia: string }
 
 export interface LinhaConversa {
   ref: string;
@@ -43,6 +50,11 @@ export interface LinhaConversa {
   previa: string;
   corpo: string;
   criadoEm: string;
+  categoriaId: number | null;
+  categoriaNome: string | null;
+  natureza: "financeira" | "operacional" | "sem_categoria";
+  regraVersao: number | null;
+  etapas: EtapaMensagem[];
 }
 
 export const PERIODOS = ["hoje", "7d", "30d", "tudo"] as const;
@@ -118,13 +130,19 @@ u AS (
        ORDER BY (x.ambiente = 'real') DESC, x.id DESC LIMIT 1) e ON TRUE
 )`;
 
-function montarFiltro(f: FiltroConversas, extra: { antes?: { quando: string; ref: string } | null } = {}) {
+function montarFiltro(f: FiltroConversas, extra: { antes?: { quando: string; ref: string } | null; categoria?: boolean } = {}) {
   const params: unknown[] = [f.empresaId];
   const where: string[] = ["u.empresa_id = $1"];
   if (f.canal) { params.push(f.canal); where.push(`u.canal = $${params.length}`); }
   if (f.clienteId) { params.push(f.clienteId); where.push(`u.cliente_id = $${params.length}`); }
   if (f.de) { params.push(f.de.toISOString()); where.push(`u.quando >= $${params.length}::timestamptz`); }
   if (f.ate) { params.push(f.ate.toISOString()); where.push(`u.quando < $${params.length}::timestamptz`); }
+  if (extra.categoria) {
+    if (f.categoria === "sem") where.push(`rg.categoria_id IS NULL`);
+    else if (typeof f.categoria === "number") { params.push(f.categoria); where.push(`rg.categoria_id = $${params.length}`); }
+    if (f.natureza === "sem_categoria") where.push(`rg.categoria_id IS NULL`);
+    else if (f.natureza) { params.push(f.natureza); where.push(`rg.categoria_natureza = $${params.length}`); }
+  }
   if (extra.antes) {
     params.push(extra.antes.quando, extra.antes.ref);
     where.push(`(u.quando, u.ref) < ($${params.length - 1}::timestamptz, $${params.length})`);
@@ -150,6 +168,34 @@ export function entregaDaLinha(canal: CanalConversa, direcao: DirecaoConversa, s
   if (direcao === "entrada") return "Recebido";
   if (canal === "tg" && !statusBruto) return "Enviado";
   return ENTREGA_WWP[statusBruto ?? ""] ?? "Não informado";
+}
+
+/**
+ * Etapas INDEPENDENTES de uma mensagem. Cada uma so assume um estado com dado gravado:
+ * enviar nao prova entregar, entregar nao prova ler, e nenhuma mensagem prova conclusao do servico.
+ */
+export function etapasDaLinha(canal: CanalConversa, direcao: DirecaoConversa, statusBruto: string | null): EtapaMensagem[] {
+  const naoInf = (chave: EtapaMensagem["chave"], rotulo: string, evidencia: string): EtapaMensagem => ({ chave, rotulo, estado: "nao_informado", evidencia });
+  if (direcao === "entrada") {
+    return [
+      { chave: "envio", rotulo: "Mensagem do cliente", estado: "recebido", evidencia: "Registrada na chegada" },
+      naoInf("entrega", "Entrega", "Não se aplica a mensagem recebida"),
+      naoInf("leitura", "Leitura", "Não se aplica a mensagem recebida"),
+      naoInf("conclusao_servico", "Conclusão do serviço", "Mensagem não prova conclusão"),
+    ];
+  }
+  const st = statusBruto ?? "";
+  const falhou = st === "failed" || st === "undelivered";
+  const entregue = st === "delivered" || st === "read";
+  return [
+    { chave: "envio", rotulo: "Envio", estado: falhou ? "falhou" : "registrado", evidencia: canal === "tg" ? "Registrado pelo sistema" : "Registrado pelo sistema, estado do provedor: " + (st || "sem estado") },
+    entregue ? { chave: "entrega", rotulo: "Entrega", estado: "entregue", evidencia: "Confirmada pelo provedor" }
+      : falhou ? { chave: "entrega", rotulo: "Entrega", estado: "falhou", evidencia: "Falha informada pelo provedor" }
+      : naoInf("entrega", "Entrega", "O provedor não informou entrega"),
+    st === "read" ? { chave: "leitura", rotulo: "Leitura", estado: "lido", evidencia: "Confirmada pelo provedor" }
+      : naoInf("leitura", "Leitura", canal === "tg" ? "O Telegram não informa leitura ao sistema" : "O provedor não informou leitura"),
+    naoInf("conclusao_servico", "Conclusão do serviço", "Envio de mensagem não prova conclusão"),
+  ];
 }
 
 function destinoMascarado(canal: CanalConversa, destino: string): string {
@@ -182,13 +228,20 @@ function paraLinha(r: Record<string, any>): LinhaConversa {
     previa: corpo.length > 90 ? `${corpo.slice(0, 90)}…` : corpo,
     corpo,
     criadoEm: new Date(r.quando).toISOString(),
+    categoriaId: r.categoria_id == null ? null : Number(r.categoria_id),
+    categoriaNome: r.categoria_nome ?? null,
+    natureza: r.categoria_natureza ?? "sem_categoria",
+    regraVersao: r.regra_versao == null ? null : Number(r.regra_versao),
+    etapas: etapasDaLinha(canal, direcao, r.status_bruto ?? null),
   };
 }
 
-const SELECAO = `SELECT u.*, (${COBRANCA_SQL}) AS cobranca, cl.name AS cliente_nome, cl.cpf AS cliente_cpf, emp.nome AS empresa_nome
+const SELECAO = `SELECT u.*, (${COBRANCA_SQL}) AS cobranca, cl.name AS cliente_nome, cl.cpf AS cliente_cpf, emp.nome AS empresa_nome,
+  rg.categoria_id, rg.categoria_nome, rg.categoria_natureza, rg.regra_versao
   FROM u
   LEFT JOIN clients cl ON cl.id = u.cliente_id
-  LEFT JOIN empresas emp ON emp.id = u.empresa_id`;
+  LEFT JOIN empresas emp ON emp.id = u.empresa_id
+  ${CLASSIFICACAO_SQL}`;
 
 export interface PaginaConversas { linhas: LinhaConversa[]; proximo: string | null }
 
@@ -203,7 +256,7 @@ export async function listarConversas(
     if (!quando || !ref || Number.isNaN(Date.parse(quando))) throw new RangeError("cursor invalido");
     antes = { quando, ref };
   }
-  const { params, where } = montarFiltro(f, { antes });
+  const { params, where } = montarFiltro(f, { antes, categoria: true });
   params.push(limite + 1);
   const r = await pool.query(
     `${UNIAO_SQL} ${SELECAO} WHERE ${where} ORDER BY u.quando DESC, u.ref DESC LIMIT $${params.length}`,
@@ -272,4 +325,27 @@ export async function clienteDaClinica(
   const r = await pool.query(`SELECT id, name, cpf FROM clients WHERE id = $1 AND empresa_id = $2`, [clienteId, empresaId]);
   const x = r.rows[0];
   return x ? { id: Number(x.id), nome: String(x.name), cpf: x.cpf ?? null } : null;
+}
+
+/** Contextos que ainda nao tem categoria nesta clinica (para o CEO criar a regra). */
+export async function contextosSemCategoria(empresaId: number): Promise<{ contexto: string | null; total: number }[]> {
+  const r = await pool.query(
+    `${UNIAO_SQL}
+     SELECT u.contexto, COUNT(*)::int AS total FROM u ${CLASSIFICACAO_SQL}
+      WHERE u.empresa_id = $1 AND rg.categoria_id IS NULL GROUP BY u.contexto ORDER BY total DESC LIMIT 100`,
+    [empresaId],
+  );
+  return r.rows.map((x) => ({ contexto: x.contexto ?? null, total: x.total }));
+}
+
+/** Totais por categoria (inclui "sem categoria"), mesma clinica e periodo. */
+export async function resumirPorCategoria(f: FiltroConversas) {
+  const { params, where } = montarFiltro(f);
+  const r = await pool.query(
+    `${UNIAO_SQL}
+     SELECT rg.categoria_id, COALESCE(rg.categoria_nome, 'Sem categoria') AS nome, COALESCE(rg.categoria_natureza, 'sem_categoria') AS natureza, COUNT(*)::int AS total
+       FROM u ${CLASSIFICACAO_SQL} WHERE ${where} GROUP BY 1,2,3 ORDER BY total DESC`,
+    params,
+  );
+  return r.rows.map((x) => ({ categoriaId: x.categoria_id == null ? null : Number(x.categoria_id), nome: String(x.nome), natureza: String(x.natureza), total: x.total }));
 }

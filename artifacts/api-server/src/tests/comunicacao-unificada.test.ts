@@ -7,7 +7,8 @@ import { impressaoDigitalDoConjunto, montarJson, montarPdf, montarXlsx, type Con
 const linha = (o: Partial<LinhaConversa> = {}): LinhaConversa => ({
   ref: "t1", canal: "tg", clienteId: 1, clienteNome: "Maria", empresaId: 5, empresaNome: "Clínica A", destino: "chat ••••1234",
   direcao: "entrada", contexto: null, origem: "cliente", entrega: "Recebido", erro: null, cobranca: "teste", valorCentavos: null,
-  previa: "Oi", corpo: "Oi 😀 tudo bem?", criadoEm: "2026-11-20T15:00:00.000Z", ...o,
+  previa: "Oi", corpo: "Oi 😀 tudo bem?", criadoEm: "2026-11-20T15:00:00.000Z",
+  categoriaId: null, categoriaNome: null, natureza: "sem_categoria", regraVersao: null, etapas: [], ...o,
 });
 const ctx = (linhas: LinhaConversa[]): Contexto => ({
   nomeBase: "26.11.20 BACKUP MSG TG GERAL", canal: "TG", escopo: "geral", clinica: "Clínica A", periodoTexto: "Todo o histórico",

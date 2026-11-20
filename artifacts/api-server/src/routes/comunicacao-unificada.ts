@@ -11,6 +11,11 @@ import {
   PERIODOS, inicioDoPeriodo, listarConversas, resumirConversas,
   type CanalConversa, type Periodo,
 } from "../lib/comunicacao-unificada";
+import {
+  ErroCategoria, criarCategoria, editarCategoria, encerrarRegra, garantirModeloInicial, listarCategorias, listarTrilha, salvarRegra,
+} from "../lib/comunicacao-categorias";
+import { financeiroDaClinica } from "../lib/comunicacao-financeiro";
+import { contextosSemCategoria, resumirPorCategoria } from "../lib/comunicacao-unificada";
 import { ErroBackup, gerarBackup, nomeDeArquivoSeguroNoHeader } from "../lib/comunicacao-backup";
 import type { CanalBackup } from "../lib/backup-mensagens-nome";
 
@@ -55,7 +60,11 @@ router.get("/comunicacao/conversas", async (req: Request, res: Response) => {
   try {
     const periodo = periodoDe(req.query.periodo);
     const pagina = await listarConversas(
-      { empresaId, canal: canalDe(req.query.canal), clienteId: inteiroOuNulo(req.query.clienteId), de: inicioDoPeriodo(periodo) },
+      {
+        empresaId, canal: canalDe(req.query.canal), clienteId: inteiroOuNulo(req.query.clienteId), de: inicioDoPeriodo(periodo),
+        categoria: req.query.categoria === "sem" ? "sem" : inteiroOuNulo(req.query.categoria),
+        natureza: ["financeira", "operacional", "sem_categoria"].includes(String(req.query.natureza)) ? (req.query.natureza as "financeira") : null,
+      },
       { limite: Number(req.query.limite) || 50, cursor: typeof req.query.cursor === "string" ? req.query.cursor : null },
     );
     res.json({ periodo, ...pagina });
@@ -70,6 +79,72 @@ router.get("/comunicacao/resumo", async (req: Request, res: Response) => {
   if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
   const periodo = periodoDe(req.query.periodo);
   res.json({ periodo, ...(await resumirConversas({ empresaId, canal: canalDe(req.query.canal), de: inicioDoPeriodo(periodo) })) });
+});
+
+// ── Categorias, regras versionadas, trilha e etapas financeiras ─────────────
+// Leitura: qualquer colaborador da clinica. Escrita: administrador da clinica ou dono da plataforma.
+function exigirEdicao(req: Request, res: Response): number | null {
+  const empresaId = empresaDaSessao(req);
+  if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return null; }
+  if (!podeBackup(req)) { res.status(403).json({ error: "Somente o administrador da clínica edita categorias e regras." }); return null; }
+  return empresaId;
+}
+function responderErro(e: unknown, res: Response): boolean {
+  if (e instanceof ErroCategoria) { res.status(e.status).json({ error: e.message }); return true; }
+  if ((e as { code?: string })?.code === "23505") { res.status(409).json({ error: "Conflito: a regra foi alterada por outra pessoa agora. Recarregue e tente de novo." }); return true; }
+  return false;
+}
+
+router.get("/comunicacao/categorias", async (req: Request, res: Response) => {
+  const empresaId = empresaDaSessao(req);
+  if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
+  await garantirModeloInicial(pool, empresaId);
+  const periodo = periodoDe(req.query.periodo);
+  const [lista, semRegra, totais] = await Promise.all([
+    listarCategorias(pool, empresaId), contextosSemCategoria(empresaId),
+    resumirPorCategoria({ empresaId, de: inicioDoPeriodo(periodo) }),
+  ]);
+  res.json({ ...lista, contextosSemCategoria: semRegra, totais, podeEditar: podeBackup(req) });
+});
+
+router.post("/comunicacao/categorias", async (req: Request, res: Response) => {
+  const empresaId = exigirEdicao(req, res); if (!empresaId) return;
+  try { res.status(201).json(await criarCategoria(pool, empresaId, req.body?.nome, req.body?.natureza, await nomeDoOperador(req))); }
+  catch (e) { if (!responderErro(e, res)) throw e; }
+});
+
+router.patch("/comunicacao/categorias/:id", async (req: Request, res: Response) => {
+  const empresaId = exigirEdicao(req, res); if (!empresaId) return;
+  const id = inteiroOuNulo(req.params.id);
+  if (!id) { res.status(400).json({ error: "Categoria inválida." }); return; }
+  try { res.json(await editarCategoria(pool, empresaId, id, req.body ?? {}, await nomeDoOperador(req))); }
+  catch (e) { if (!responderErro(e, res)) throw e; }
+});
+
+router.post("/comunicacao/regras", async (req: Request, res: Response) => {
+  const empresaId = exigirEdicao(req, res); if (!empresaId) return;
+  try { res.status(201).json(await salvarRegra(pool, empresaId, req.body ?? {}, await nomeDoOperador(req))); }
+  catch (e) { if (!responderErro(e, res)) throw e; }
+});
+
+router.delete("/comunicacao/regras/:id", async (req: Request, res: Response) => {
+  const empresaId = exigirEdicao(req, res); if (!empresaId) return;
+  const id = inteiroOuNulo(req.params.id);
+  if (!id) { res.status(400).json({ error: "Regra inválida." }); return; }
+  try { res.json(await encerrarRegra(pool, empresaId, id, await nomeDoOperador(req))); }
+  catch (e) { if (!responderErro(e, res)) throw e; }
+});
+
+router.get("/comunicacao/trilha", async (req: Request, res: Response) => {
+  const empresaId = empresaDaSessao(req);
+  if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
+  res.json({ eventos: await listarTrilha(pool, empresaId, Number(req.query.limite) || 100) });
+});
+
+router.get("/comunicacao/financeiro", async (req: Request, res: Response) => {
+  const empresaId = empresaDaSessao(req);
+  if (!empresaId) { res.status(401).json({ error: "Entre com seu acesso profissional." }); return; }
+  res.json(await financeiroDaClinica(pool, empresaId));
 });
 
 // ── Backups ──────────────────────────────────────────────────────────────────

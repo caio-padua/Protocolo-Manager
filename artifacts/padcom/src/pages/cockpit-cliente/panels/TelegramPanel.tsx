@@ -5,6 +5,7 @@ import { getCollabToken } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { BolhaMensagem, FundoConversa } from "../../comunicacao/bolhas-mensagem";
 
 interface Message {
   id: number;
@@ -226,20 +227,30 @@ export default function TelegramPanel({
       {!inbox.isLoading && !inbox.isError && messages.length === 0 && (
         <p className="concave-3d p-4 text-sm">Nenhuma mensagem neste cliente.</p>
       )}
-      <div className="space-y-2" aria-label="Mensagens">
-        {messages.map(message => (
-          <div key={message.id} data-message-id={message.id}
-            className={`flex ${message.direcao === "saida" ? "justify-end" : "justify-start"}`}>
-            <article className={`${message.direcao === "saida" ? "bevel-3d" : "concave-3d"} p-3 rounded-md max-w-[85%] min-w-0`}>
-              <p className="text-sm whitespace-pre-wrap break-words">{message.texto}</p>
-              {message.atendimento && <p className="mt-2 text-[10px] font-semibold text-muted-foreground" data-testid={`atendimento-status-${message.id}`}>{statusMessage(message)}</p>}
-              <time className="text-xs text-muted-foreground" dateTime={message.recebidaEm}>
-                {new Date(message.recebidaEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-              </time>
-            </article>
-          </div>
-        ))}
-      </div>
+      <FundoConversa canal="tg">
+        <div className="flex flex-col gap-1.5" aria-label="Mensagens">
+          {messages.map((message, i) => {
+            const dia = new Date(message.recebidaEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+            const diaAnterior = i > 0 ? new Date(messages[i - 1].recebidaEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : null;
+            const saida = message.direcao === "saida";
+            return (
+              <div key={message.id} data-message-id={message.id} className="flex flex-col gap-1">
+                {dia !== diaAnterior && (
+                  <p className="self-center rounded-full bg-white/70 px-3 py-0.5 text-[11px] font-medium text-[#3b4a54]">{dia}</p>
+                )}
+                {/* Saida = registrada como enviada pelo sistema; o Telegram nao informa entrega nem leitura. */}
+                <BolhaMensagem canal="tg" direcao={saida ? "saida" : "entrada"} texto={message.texto}
+                  horario={new Date(message.recebidaEm).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
+                  entrega={saida ? "Enviado" : "Recebido"} />
+                {message.atendimento && (
+                  <p className={`max-w-[85%] text-[10px] font-semibold text-[#3b4a54] ${saida ? "self-end text-right" : "self-start"}`}
+                    data-testid={`atendimento-status-${message.id}`}>{statusMessage(message)}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </FundoConversa>
       <div className="concave-3d p-3 space-y-3" aria-label="Controles do histórico">
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-xs font-medium flex flex-col gap-1">

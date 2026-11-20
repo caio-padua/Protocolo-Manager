@@ -5,6 +5,7 @@
  * - Backups de mensagens e historico de downloads (por clinica).
  */
 import { pool } from "@workspace/db";
+import { criarTabelasCategorias } from "./comunicacao-categorias";
 
 export async function garantirTabelasComunicacao(): Promise<void> {
   await pool.query(`ALTER TABLE whatsapp_mensagens_log ADD COLUMN IF NOT EXISTS direcao TEXT NOT NULL DEFAULT 'saida'`);
@@ -45,4 +46,5 @@ export async function garantirTabelasComunicacao(): Promise<void> {
     baixado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_comunicacao_downloads_empresa ON comunicacao_backup_downloads (empresa_id, baixado_em DESC)`);
+  await criarTabelasCategorias(pool);
 }
