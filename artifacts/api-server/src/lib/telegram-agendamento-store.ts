@@ -11,7 +11,8 @@ import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
 import { brtISODate } from "./brt";
-import { carregarFrases, semearFrases, type FraseDeps } from "./telegram-frases";
+import { baseUrlFromEnv } from "./messaging/base-url";
+import { carregarFrases, comGlobais, semearFrases, type FraseDeps } from "./telegram-frases";
 import { normalizar } from "./atendimento-telegram";
 import { bookSession, computeResourceSlots } from "./agenda-booking";
 import {
@@ -201,7 +202,7 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
   const primeiroNome = primeiro ? primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase() : undefined;
   let motivoEquipe: string | null = null;
   let frase: FraseDeps;
-  try { frase = await carregarFrases(); } catch (err) {
+  try { frase = comGlobais(await carregarFrases(), { clinica: await nomeDaClinica(e.empresaId), primeiroNome: primeiroNome ?? null }); } catch (err) {
     logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-agendamento] frases indisponíveis; sem resposta automática");
     return { tratada: false, pausa: null, alerta: null, resposta: null, desfecho: "frases_indisponiveis" };
   }
@@ -213,6 +214,7 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
     registrarPedido: async () => 0, // cliente não usa pedido: reserva direta
     encaminharEquipe: async (m) => { motivoEquipe = m; },
     endereco: enderecoReal,
+    linkMarcacao: () => `${baseUrlFromEnv()}/agendar`,
   };
   const agora = new Date().toISOString();
   const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId) }, deps, agora);
@@ -235,7 +237,7 @@ async function nomeDaClinica(empresaId: number): Promise<string | undefined> {
   return (r.rows[0] as { nome?: string } | undefined)?.nome?.trim() || undefined;
 }
 
-export async function atenderVisitante(chatId: string, texto: string, updateId: number | null, empresaPadrao: number): Promise<void> {
+export async function atenderVisitante(chatId: string, texto: string, updateId: number | null, empresaPadrao: number, nomeTelegram?: string | null): Promise<void> {
   const ins = await db.execute(sql`INSERT INTO telegram_visitante_mensagens (chat_id, direcao, texto, update_id)
     VALUES (${chatId}, 'entrada', ${texto.slice(0, 2000)}, ${updateId}) ON CONFLICT DO NOTHING RETURNING id`);
   if (!ins.rows.length && updateId !== null) return; // entrega repetida
@@ -269,7 +271,9 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
   let motivo: string | null = null;
   let empresaId = empresaPadrao;
   let frase: FraseDeps;
-  try { frase = await carregarFrases(); } catch (err) {
+  // Nome que o próprio Telegram informa (first_name): só letras, para nunca ecoar lixo.
+  const primeiroNomeVisitante = nomeTelegram && /^[\p{L}][\p{L}'’-]{0,29}$/u.test(nomeTelegram.trim()) ? nomeTelegram.trim() : null;
+  try { frase = comGlobais(await carregarFrases(), { clinica: await nomeDaClinica(empresaId), primeiroNome: primeiroNomeVisitante }); } catch (err) {
     logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram-agendamento] frases indisponíveis; visitante preservado, sem resposta automática");
     return;
   }
@@ -287,7 +291,7 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
     encaminharEquipe: async (m) => { motivo = m; },
     endereco: enderecoReal,
   };
-  const r = await conduzirAgendamento(await lerEstado(chave), texto, { ehCliente: false, nomeClinica: await nomeDaClinica(empresaId) }, deps, new Date().toISOString());
+  const r = await conduzirAgendamento(await lerEstado(chave), texto, { ehCliente: false, primeiroNome: primeiroNomeVisitante ?? undefined, nomeClinica: await nomeDaClinica(empresaId) }, deps, new Date().toISOString());
   let resposta = r.resposta;
   if (!r.tratada) {
     // Queixa de saúde: sem texto automático (revisão do Dr. Caio pendente). Só avisa a equipe e acolhe sem opinar.

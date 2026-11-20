@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { criarFrase, mapaPadrao, validarTextoFrase, FRASES_PADRAO } from "../lib/telegram-frases";
+import { comGlobais, criarFrase, mapaPadrao, validarTextoFrase, FRASES_PADRAO } from "../lib/telegram-frases";
 import { conduzirAgendamento, ESTADO_INICIAL, lerIdentidade, lerVinculo, type DepsAgendamento, type EstadoConversa } from "../lib/telegram-agendamento";
 
 const oferta = { data: "2026-11-17", hora: "10:00", recursoId: 1, modalidade: "online" as const };
 function deps(over: Partial<DepsAgendamento> = {}): DepsAgendamento {
   return {
-    frase: criarFrase(mapaPadrao()), hojeISO: () => "2026-11-16",
+    frase: comGlobais(criarFrase(mapaPadrao()), {}), hojeISO: () => "2026-11-16",
     buscarHorarios: async () => ({ ofertas: [oferta], semAgenda: false }),
     reservar: async () => ({ ok: false, motivo: "erro" }), registrarPedido: async () => 77,
     encaminharEquipe: async () => {}, endereco: async () => null,
@@ -31,7 +31,7 @@ describe("frases cadastradas", () => {
   it("frase ausente e erro explicito", () => { expect(() => criarFrase({})("reservado")).toThrow(); });
   it("o texto vem do mapa (editado), nao do codigo", async () => {
     const m = { ...mapaPadrao(), pergunta_ja_paciente: "TEXTO EDITADO PELO CEO" };
-    const { resp } = await conv(["quero marcar uma consulta"], deps({ frase: criarFrase(m) }));
+    const { resp } = await conv(["quero marcar uma consulta"], deps({ frase: comGlobais(criarFrase(m), {}) }));
     expect(resp[0]).toContain("TEXTO EDITADO PELO CEO");
   });
 });
@@ -75,5 +75,25 @@ describe("quem e a pessoa", () => {
   it("primeira vez segue o fluxo antigo (pede nome)", async () => {
     const { resp } = await conv(["quero marcar uma consulta", "primeira vez", "online qualquer dia tanto faz", "1"], deps());
     expect(resp[3]).toMatch(/nome completo/);
+  });
+});
+
+describe("Helena: apresentacao, nome, paragrafos e link", () => {
+  it("cliente vinculado pedindo consulta recebe saudacao com o nome, Helena, link e assinatura", async () => {
+    const d = deps({ frase: comGlobais(criarFrase(mapaPadrao()), { clinica: "Instituto Padua", primeiroNome: "Carlucia" }), linkMarcacao: () => "https://x.test/agendar" });
+    const r = await conduzirAgendamento(null, "Quero marcar uma consulta", { ehCliente: true, primeiroNome: "Carlucia", nomeClinica: "Instituto Padua" }, d, new Date().toISOString());
+    expect(r.desfecho).toBe("link_marcacao_enviado");
+    expect(r.resposta!.startsWith("Carlucia,\n\nEu me chamo Helena, assistente de Instituto Padua.\n\nTudo bem?\n\n")).toBe(true);
+    expect(r.resposta).toContain("https://x.test/agendar");
+    expect(r.resposta!.endsWith("Helena\nAssistente de Instituto Padua")).toBe(true);
+    expect(r.resposta).not.toMatch(/\{\w+\}/);
+  });
+  it("nenhuma frase padrao deixa variavel solta quando renderizada com os globais", () => {
+    const F = comGlobais(criarFrase(mapaPadrao()), { clinica: "Instituto Padua", primeiroNome: "Ana" });
+    const resolve = (k: string) => { const def = (FRASES_PADRAO as Record<string, { variaveis: string[] }>)[k]; return F(k as never, Object.fromEntries(def.variaveis.map((v) => [v, "X"]))); };
+    for (const k of Object.keys(FRASES_PADRAO)) expect(resolve(k)).not.toMatch(/\{\w+\}/);
+  });
+  it("frases nao presumem o sexo da pessoa (sem 'bem-vindo/a', 'obrigado/a' dirigidos a ela)", () => {
+    for (const d of Object.values(FRASES_PADRAO)) expect(d.texto).not.toMatch(/\b(bem-vind[oa]|querid[oa]|paciente)\b/i);
   });
 });

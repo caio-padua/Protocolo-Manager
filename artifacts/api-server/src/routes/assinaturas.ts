@@ -826,7 +826,7 @@ telegramWebhookRouter.post("/webhooks/telegram", async (req, res): Promise<void>
       if (texto && await visitanteAutorizado(chatId)) {
         // Assistente de agendamento para quem ainda não é cliente (somente chats autorizados; nunca reserva).
         try {
-          await atenderVisitante(chatId, texto, updateIdEntrada, 5);
+          await atenderVisitante(chatId, texto, updateIdEntrada, 5, typeof msg.from?.first_name === "string" ? msg.from.first_name : null);
         } catch (err) {
           logger.error({ errorType: err instanceof Error ? err.constructor.name : typeof err }, "[telegram] falha no atendimento de visitante");
           res.status(500).json({ ok: false });

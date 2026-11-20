@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { criarFrase, mapaPadrao } from "../lib/telegram-frases";
+import { comGlobais, criarFrase, mapaPadrao } from "../lib/telegram-frases";
 import { conduzirAgendamento, ESTADO_INICIAL, type DepsAgendamento, type Oferta } from "../lib/telegram-agendamento";
 
 const AGORA = new Date().toISOString();
 const of = (data: string, hora: string): Oferta => ({ data, hora, recursoId: 24, modalidade: "online" });
 function deps(over: Partial<DepsAgendamento> = {}): DepsAgendamento {
   return {
-    frase: criarFrase(mapaPadrao()), conferirIdentidade: async () => ({ ok: false as const }),
+    frase: comGlobais(criarFrase(mapaPadrao()), {}), conferirIdentidade: async () => ({ ok: false as const }),
     hojeISO: () => "2026-11-16",
     buscarHorarios: vi.fn(async () => ({ ofertas: [of("2026-11-17", "09:00"), of("2026-11-18", "14:00")], semAgenda: false })),
     reservar: vi.fn(async () => ({ ok: true as const, sessionId: 1 })),

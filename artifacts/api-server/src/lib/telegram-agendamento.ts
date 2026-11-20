@@ -10,7 +10,7 @@
  *  - O que o sistema não consegue confirmar vai para a equipe. Queixa de saúde nunca é tratada aqui.
  */
 import { classificarQueixa, normalizar } from "./atendimento-telegram";
-import type { FraseDeps } from "./telegram-frases";
+import { linhaDoNome, type FraseDeps } from "./telegram-frases";
 
 export type Modalidade = "online" | "presencial";
 export type Periodo = "manha" | "tarde" | "noite" | "qualquer";
@@ -59,6 +59,8 @@ export interface DepsAgendamento {
   /** Pausa a assistente nesta conversa e avisa a equipe. */
   encaminharEquipe: (motivo: string) => Promise<void>;
   endereco: (modalidade: Modalidade) => Promise<string | null>;
+  /** Link público de marcação. Quando presente, cliente que pede consulta recebe o link em vez das perguntas. */
+  linkMarcacao?: () => string;
   /** Frases cadastradas (tabela telegram_frases). */
   frase: FraseDeps;
   /** Confere nome + 4 primeiros dígitos do CPF + ano de nascimento. Só devolve id quando há UM cadastro compatível. */
@@ -241,10 +243,10 @@ export function apresentacao(frase: FraseDeps, nomeClinica?: string): string {
   return n ? frase("apresentacao", { clinica: n }) : frase("apresentacao_sem_clinica");
 }
 
-function comApresentacao(estado: EstadoConversa, nomeClinica: string | undefined, frase: FraseDeps, corpo: string): string {
-  if (estado.apresentada) return corpo;
+function comApresentacao(estado: EstadoConversa, nomeClinica: string | undefined, frase: FraseDeps, corpo: string, primeiroNome?: string): string {
+  if (estado.apresentada) return `${linhaDoNome(primeiroNome)}${corpo}`;
   estado.apresentada = true;
-  return `${apresentacao(frase, nomeClinica)} ${corpo}`;
+  return `${apresentacao(frase, nomeClinica)}\n\n${corpo}`;
 }
 
 // ─────────────────────────── identidade ───────────────────────────
@@ -285,7 +287,7 @@ export async function conduzirAgendamento(
   const n = normalizar(texto);
   const nome1 = ctx.primeiroNome ? `, ${ctx.primeiroNome}` : "";
   const fim = (resposta: string | null, desfecho: string, tratada = true): ResultadoAgendamento => ({ tratada, estado, resposta, desfecho });
-  const ap = (corpo: string) => comApresentacao(estado, ctx.nomeClinica, F, corpo);
+  const ap = (corpo: string) => comApresentacao(estado, ctx.nomeClinica, F, corpo, ctx.primeiroNome);
 
   // Queixa de saúde nunca é tratada aqui: segue para a equipe.
   if (classificarQueixa(texto)) return fim(null, "queixa_nao_tratada", false);
@@ -311,6 +313,12 @@ export async function conduzirAgendamento(
     if (ctx.ehCliente) return fim(null, "fora_do_assunto", false);
     await deps.encaminharEquipe("duvida_de_visitante");
     return fim(ap(F("visitante_encaminhado")), "visitante_encaminhado");
+  }
+
+  // Cliente vinculado que quer marcar consulta: recebe o link de marcação (quando configurado).
+  if (ctx.ehCliente && deps.linkMarcacao && ehPedidoDeAgendamento(texto)) {
+    estado.etapa = "concluido";
+    return fim(ap(F("enviar_link_marcacao", { link: deps.linkMarcacao() })), "link_marcacao_enviado");
   }
 
   // ── quem é a pessoa (só quem não está vinculado) ──
@@ -357,7 +365,7 @@ export async function conduzirAgendamento(
       estado.situacao = "cliente"; estado.clienteId = r.clienteId; estado.nome = id.nome; estado.tentativas = 0;
       estado.etapa = "modalidade";
       const p1 = id.nome.split(/\s+/)[0];
-      return fim(F("identidade_confirmada", { nome1: `, ${p1.charAt(0).toUpperCase()}${p1.slice(1).toLowerCase()}`, pergunta_modalidade: F("pergunta_modalidade") }), "identidade_confirmada");
+      return fim(F("identidade_confirmada", { nome_linha: linhaDoNome(`${p1.charAt(0).toUpperCase()}${p1.slice(1).toLowerCase()}`), pergunta_modalidade: F("pergunta_modalidade") }), "identidade_confirmada");
     }
   }
 
@@ -470,7 +478,7 @@ async function reservarEResponder(estado: EstadoConversa, deps: DepsAgendamento,
   if (r.ok) {
     estado.etapa = "concluido";
     const end = o.modalidade === "presencial" ? await deps.endereco("presencial") : null;
-    return { tratada: true, estado, desfecho: "reservado", resposta: F("reservado", { nome1, modalidade: rotulo(o.modalidade), data: dataPorExtenso(o.data), hora: o.hora, local: end ? ` Local: ${end}.` : "" }) };
+    return { tratada: true, estado, desfecho: "reservado", resposta: F("reservado", { nome1, modalidade: rotulo(o.modalidade), data: dataPorExtenso(o.data), hora: o.hora, local: end ? `\n\nLocal: ${end}.` : "" }) };
   }
   if (r.motivo === "limite" || r.motivo === "erro") {
     await deps.encaminharEquipe(r.motivo === "limite" ? "limite_de_reservas" : "falha_ao_reservar");
