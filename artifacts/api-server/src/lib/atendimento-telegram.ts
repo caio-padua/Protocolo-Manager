@@ -116,10 +116,16 @@ export type Desfecho =
   | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado"
   | "falha_envio" | "falha_alerta" | "agendamento_conduzido"
   | "clarificacao_documento"
-  | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado";
+  | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado"
+  | "reenvio_documento_ofertado" | "reenvio_documento_confirmado" | "reenvio_documento_cancelado";
 
 export interface DocumentoAtendimento {
   acao: "ofertar_reenvio" | "confirmar_reenvio" | "cancelar_reenvio";
+  documentType?: "prescricao" | "pedido_exames" | "atestado" | "encaminhamento" |
+    "protocolo" | "ras_fap" | "carta_tratamento" | "documento_assinado";
+  documentId?: number;
+  reissueRequestId?: string;
+  humanReviewRequired?: boolean;
   receitaId?: number;
   prescricaoId?: number;
   ofertaId?: number;
@@ -130,7 +136,9 @@ export type RespostaDocumento =
   | {
       tipo: "resposta";
       texto: string;
-      desfecho: Extract<Desfecho, "orientacao_enviada" | "clarificacao_documento" | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado">;
+      desfecho: Extract<Desfecho, "orientacao_enviada" | "clarificacao_documento" |
+        "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado" |
+        "reenvio_documento_ofertado" | "reenvio_documento_confirmado" | "reenvio_documento_cancelado">;
       orientacaoId?: number | null;
       documento?: DocumentoAtendimento;
     }

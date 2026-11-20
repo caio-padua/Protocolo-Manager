@@ -2,6 +2,9 @@ import { sql, type SQL } from "drizzle-orm";
 import type { EntradaAtendimento, OrientacaoAprovada, PlanoAtendimento, RespostaDocumento } from "./atendimento-telegram";
 import { normalizar } from "./atendimento-telegram";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual";
+import { listIssuedDocumentsForClient, type IssuedDocumentSummary } from "./clinical-document-share";
+import { createReissueRequest } from "./clinical-document-reissue-policy";
+import { createHash } from "node:crypto";
 
 interface ExecutorDocumentos {
   execute(query: SQL): Promise<{ rows: unknown[] }>;
@@ -46,7 +49,9 @@ function handoff(motivo: string, texto?: string): RespostaDocumento {
 
 function resposta(
   texto: string,
-  desfecho: "orientacao_enviada" | "clarificacao_documento" | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado",
+  desfecho: "orientacao_enviada" | "clarificacao_documento" |
+    "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado" |
+    "reenvio_documento_ofertado" | "reenvio_documento_confirmado" | "reenvio_documento_cancelado",
   extra: Omit<Extract<RespostaDocumento, { tipo: "resposta" }>, "tipo" | "texto" | "desfecho"> = {},
 ): RespostaDocumento {
   return { tipo: "resposta", texto, desfecho, ...extra };
@@ -115,13 +120,16 @@ function orientacaoExata(
 }
 
 async function ofertaAtual(exec: ExecutorDocumentos, e: EntradaAtendimento) {
-  const r = await exec.execute(sql`SELECT id,recipe_id,prescription_id,status,expira_em,
+  const r = await exec.execute(sql`SELECT id,recipe_id,prescription_id,document_type,document_id,
+      reissue_request_id,status,expira_em,
       (expira_em > NOW()) AS vigente
     FROM telegram_documento_reenvios
     WHERE empresa_id=${e.empresaId} AND cliente_id=${e.clienteId} AND chat_id=${e.chatId}
     ORDER BY criado_em DESC,id DESC LIMIT 1`);
   return r.rows[0] as {
-    id: number | string; recipe_id: number | string; prescription_id: number | string;
+    id: number | string; recipe_id: number | string | null; prescription_id: number | string | null;
+    document_type?: string | null; document_id?: number | string | null;
+    reissue_request_id?: number | string | null;
     status: string; vigente: boolean;
   } | undefined;
 }
@@ -136,6 +144,150 @@ async function verificarIdentidade(exec: ExecutorDocumentos, e: EntradaAtendimen
 
 function tituloReceita(receita: ReceitaEmitida): string {
   return receita.title || `Receita ${receita.id}`;
+}
+
+const DOCUMENT_TYPE_LABEL: Record<IssuedDocumentSummary["documentType"], string> = {
+  prescricao: "Prescrição",
+  pedido_exames: "Pedido de exames",
+  atestado: "Atestado",
+  encaminhamento: "Encaminhamento",
+  protocolo: "Protocolo",
+  ras_fap: "Relatório RAS FAP",
+  carta_tratamento: "Carta de Tratamento",
+  documento_assinado: "Documento assinado",
+};
+
+function dataBR(date: string): string {
+  const parsed = new Date(`${date}T12:00:00.000Z`);
+  return Number.isFinite(parsed.getTime())
+    ? parsed.toLocaleDateString("pt-BR", { timeZone: "UTC" })
+    : "data não registrada";
+}
+
+async function localizarDocumentosParaSegundaVia(
+  exec: ExecutorDocumentos,
+  e: EntradaAtendimento,
+  texto: string,
+): Promise<RespostaDocumento> {
+  if (!await verificarIdentidade(exec, e)) return handoff("identidade_telegram_nao_confirmada");
+  const location = await exec.execute(sql`SELECT location_id FROM clients
+    WHERE id=${e.clienteId} AND empresa_id=${e.empresaId} AND status='active'
+      AND deleted_at IS NULL AND telegram_chat_id=${e.chatId} LIMIT 1`);
+  const locationId = Number((location.rows[0] as { location_id?: number | string } | undefined)?.location_id);
+  if (!Number.isSafeInteger(locationId) || locationId <= 0) {
+    return handoff("clinica_do_cadastro_nao_confirmada");
+  }
+
+  const docs = await listIssuedDocumentsForClient({
+    clientId: e.clienteId,
+    empresaId: e.empresaId,
+    locationId,
+  });
+  const operationKey = (messageId: number) => {
+    const hex = createHash("sha256")
+      .update(`telegram-reissue:${e.empresaId}:${e.clienteId}:${messageId}`)
+      .digest("hex").slice(0, 32).split("");
+    hex[12] = "5";
+    hex[16] = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+    const raw = hex.join("");
+    return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20)}`;
+  };
+  if (docs.length === 0) {
+    await createReissueRequest({
+      operationKey: operationKey(e.inboxMessageId),
+      clientId: e.clienteId,
+      empresaId: e.empresaId,
+      locationId,
+      documentType: "nao_identificado",
+      documentId: null,
+      requestedByChannel: "telegram",
+      clientConsent: false,
+    });
+    return handoff("documento_emitido_original_nao_encontrado");
+  }
+
+  const normalized = normalizarTitulo(texto);
+  const dateMatch = texto.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b/);
+  const isoDate = dateMatch
+    ? `${dateMatch[3]}-${dateMatch[2].padStart(2, "0")}-${dateMatch[1].padStart(2, "0")}`
+    : null;
+  const explicitlyRecent = /\b(ultimo|ultima|mais recente|recente)\b/.test(normalized);
+  const typeTerms: Record<string, string[]> = {
+    prescricao: ["receita", "receituario", "prescricao", "formula"],
+    pedido_exames: ["pedido de exames", "exames"],
+    atestado: ["atestado"],
+    encaminhamento: ["encaminhamento"],
+    protocolo: ["protocolo"],
+    ras_fap: ["ras fap", "relatorio"],
+    carta_tratamento: ["carta de tratamento", "carta tratamento"],
+    documento_assinado: ["documento assinado", "consentimento", "termo assinado"],
+  };
+  const byText = docs.filter((doc) =>
+    mencionarNome(texto, doc.label) ||
+    (typeTerms[doc.documentType] ?? []).some((term) => normalized.includes(normalizarTitulo(term))),
+  );
+  const byDate = isoDate ? docs.filter((doc) => doc.issuedAt === isoDate) : [];
+  let candidates = byDate.length ? byDate : byText;
+  if (!candidates.length && explicitlyRecent) candidates = [docs[0]];
+  if (!candidates.length && docs.length === 1) candidates = [docs[0]];
+  if (candidates.length !== 1) {
+    const visible = candidates.length ? candidates : docs;
+    const list = visible.slice(0, 8).map((doc) =>
+      `• ${doc.label} — ${DOCUMENT_TYPE_LABEL[doc.documentType]} — ${dataBR(doc.issuedAt)}`,
+    ).join("\n");
+    if (list.length > 3500) return handoff("lista_de_documentos_excede_limite_seguro");
+    await createReissueRequest({
+      operationKey: operationKey(e.inboxMessageId),
+      clientId: e.clienteId,
+      empresaId: e.empresaId,
+      locationId,
+      documentType: "nao_identificado",
+      documentId: null,
+      requestedByChannel: "telegram",
+      clientConsent: false,
+    });
+    return resposta(
+      `Encontrei mais de um documento emitido para você:\n${list}\nQual tipo ou data você quer receber?`,
+      "clarificacao_documento",
+    );
+  }
+
+  const selected = candidates[0];
+  const isPrescription = selected.documentType === "prescricao";
+  const actionLabel = `${DOCUMENT_TYPE_LABEL[selected.documentType]} emitido em ${dataBR(selected.issuedAt)}`;
+  const reissue = await createReissueRequest({
+    operationKey: operationKey(e.inboxMessageId),
+    clientId: e.clienteId,
+    empresaId: e.empresaId,
+    locationId,
+    documentType: selected.documentType,
+    documentId: selected.documentId,
+    requestedByChannel: "telegram",
+    clientConsent: false,
+  });
+  if (reissue.status !== "awaiting_confirmation" || !reissue.documentHash) {
+    return resposta(
+      `Encontrei ${actionLabel} e registrei sua solicitação. A equipe precisa confirmar a vigência do tratamento ou a situação da assinatura antes de informar eventual cobrança ou liberar o documento. Não vou enviar nem cobrar agora.`,
+      isPrescription ? "reenvio_receita_ofertado" : "reenvio_documento_ofertado",
+    );
+  }
+  const feeText = reissue.eligibility === "fee_required"
+    ? ` A taxa administrativa é de R$ ${Number(reissue.feeAmount ?? 0).toFixed(2).replace(".", ",")}. Ainda não houve cobrança; o envio depende da confirmação do pagamento.`
+    : " A segunda via está sem cobrança, sujeita às verificações de liberação.";
+  return resposta(
+    `Encontrei ${actionLabel}.${feeText} Para confirmar a solicitação, responda somente “sim” ou “pode enviar”.`,
+    isPrescription ? "reenvio_receita_ofertado" : "reenvio_documento_ofertado",
+    {
+      documento: {
+        acao: "ofertar_reenvio",
+        documentType: selected.documentType,
+        documentId: selected.documentId,
+        reissueRequestId: reissue.id,
+        ...(isPrescription ? { receitaId: selected.documentId } : {}),
+        titulo: selected.label,
+      },
+    },
+  );
 }
 
 function ofertaDeReenvio(receita: ReceitaEmitida): { acao: "ofertar_reenvio"; receitaId: number; prescricaoId: number; titulo: string } {
@@ -155,16 +307,34 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
     const oferta = await ofertaAtual(exec, e);
     if (oferta?.status === "oferecido" && oferta.vigente) {
       if (afirmativo) {
+        const documentType = oferta.document_type || "prescricao";
+        const documentId = Number(oferta.document_id ?? oferta.recipe_id);
+        const isPrescription = documentType === "prescricao";
         return resposta(
-          "Confirmado. Vou enviar agora um link seguro para a segunda via do seu receituário.",
-          "reenvio_receita_confirmado",
-          { documento: { acao: "confirmar_reenvio", receitaId: Number(oferta.recipe_id), prescricaoId: Number(oferta.prescription_id), ofertaId: Number(oferta.id) } },
+          "Confirmado. Vou encaminhar seu pedido de segunda via para as verificações necessárias.",
+          isPrescription ? "reenvio_receita_confirmado" : "reenvio_documento_confirmado",
+          { documento: {
+            acao: "confirmar_reenvio",
+            documentType: documentType as IssuedDocumentSummary["documentType"],
+            documentId,
+            ...(isPrescription ? { receitaId: documentId, prescricaoId: Number(oferta.prescription_id) } : {}),
+            ofertaId: Number(oferta.id),
+            ...(oferta.reissue_request_id ? { reissueRequestId: String(oferta.reissue_request_id) } : {}),
+          } },
         );
       }
+      const documentType = oferta.document_type || "prescricao";
+      const isPrescription = documentType === "prescricao";
       return resposta(
         "Tudo bem. Não vou enviar a segunda via.",
-        "reenvio_receita_cancelado",
-        { documento: { acao: "cancelar_reenvio", receitaId: Number(oferta.recipe_id), prescricaoId: Number(oferta.prescription_id), ofertaId: Number(oferta.id) } },
+        isPrescription ? "reenvio_receita_cancelado" : "reenvio_documento_cancelado",
+        { documento: {
+          acao: "cancelar_reenvio",
+          documentType: documentType as IssuedDocumentSummary["documentType"],
+          documentId: Number(oferta.document_id ?? oferta.recipe_id),
+          ...(isPrescription ? { receitaId: Number(oferta.recipe_id), prescricaoId: Number(oferta.prescription_id) } : {}),
+          ofertaId: Number(oferta.id),
+        } },
       );
     }
     if (afirmativo && oferta) {
@@ -178,6 +348,8 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
   if (!querReceita && !querProtocolo) return null;
   if (!await verificarIdentidade(exec, e)) return handoff("identidade_telegram_nao_confirmada");
 
+  if (querReenvio) return localizarDocumentosParaSegundaVia(exec, e, texto);
+
   const orientacoes = await lerOrientacoesClinicas(exec, e);
 
   if (querReceita) {
@@ -189,23 +361,6 @@ export async function responderSobreDocumentoTelegram(exec: ExecutorDocumentos, 
     const unicaReceita = receitaAtual.recipes.length === 1 && receitasValidas.length === 1
       ? receitasValidas[0]
       : null;
-
-    if (querReenvio) {
-      if (!unicaReceita) return handoff("segunda_via_ambigua_ou_ausente");
-      const atual = await ofertaAtual(exec, e);
-      if (atual?.status === "oferecido" && atual.vigente) {
-        return resposta(
-          "Já existe uma oferta válida de segunda via para este atendimento. Se deseja recebê-la, responda somente “sim”.",
-          "reenvio_receita_ofertado",
-        );
-      }
-      const item = receitaAtual.recipes[0];
-      return resposta(
-        `Posso enviar a segunda via de “${tituloReceita(item)}” por um link seguro. O link ficará válido por sete dias. Para confirmar, responda somente “sim” ou “pode enviar”.`,
-        "reenvio_receita_ofertado",
-        { documento: ofertaDeReenvio(item) },
-      );
-    }
 
     const nomes = receitaAtual.items;
     const itensMencionados = nomes.filter((nome) => mencionarNome(texto, nome));

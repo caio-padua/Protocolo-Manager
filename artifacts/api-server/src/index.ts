@@ -9,6 +9,7 @@ import { ensureExamSetsTable } from "./lib/exam-sets";
 import { ensureSystemErrorLogTable } from "./lib/system-error-log";
 import { ensurePrescriptionProtocolsTable } from "./lib/ensure-prescription-protocols";
 import { ensurePedidosMedicosTable } from "./lib/ensure-pedidos-medicos.js";
+import { ensureClinicalDocumentReissuesTable } from "./lib/ensure-clinical-document-reissues.js";
 import { ensureExamesAvulsosTable } from "./lib/exames-avulsos.js";
 import { ensureExamIdentitySchema } from "./lib/ensure-exam-identity-schema.js";
 import { ensureExamUnitReviewSchema } from "./lib/ensure-exam-unit-review-schema.js";
@@ -142,6 +143,7 @@ if (Number.isNaN(port) || port <= 0) {
 
   try {
     await ensurePedidosMedicosTable();
+    await ensureClinicalDocumentReissuesTable();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela client_medical_requests — abortando boot");
     process.exit(1);

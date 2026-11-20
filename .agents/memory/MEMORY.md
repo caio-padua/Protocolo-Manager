@@ -197,3 +197,4 @@
 - **Depuração e identidade de Exames** — [porteiro](depuracao-exames-identidade-tenant.md) · [regras por clínica](depuracao-exames-regras-identidade.md) · [marcos](envios-marcos-explicitos.md) · [exibição segura no portal](identidade-divergente-portal.md) — quarentena sem identidade confirmada; clínica vem do cliente; sem CPF só preliminar.
 - [Código de Renomeação de Exames](codigo-renomeacao-exames.md) — regra única aprovada: `LABOR`, siglas históricas, cintilografia por extenso e preservação contra homônimos.
 - [Identidades empresariais](identidades-empresariais.md) — canal da clínica, profissional de referência, papéis do CEO e do administrador.
+- [Segunda via de documentos](segunda-via-documentos-politica.md) — Members só verificado; webhook confere no provedor; recusa bloqueada com cobrança; um só caminho de entrega.

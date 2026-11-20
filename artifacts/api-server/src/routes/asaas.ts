@@ -13,6 +13,7 @@ import {
 import {
   asaasCreateCustomer,
   asaasCreateCharge,
+  asaasGetCharge,
   asaasCreateInvoice,
   asaasListMunicipalServices,
   asaasCreateTransfer,
@@ -24,6 +25,7 @@ import { finalizeConciergeBooking } from "../lib/concierge-finalize.js";
 import { registrarFalha } from "../lib/concierge-penalidade.js";
 import { requireCollaborator } from "./collaborator.js";
 import { aplicarStatusTeste } from "../lib/asaas-teste-cobrancas.js";
+import { deliverApprovedClinicalDocumentReissue } from "../lib/atendimento-telegram-reenvio.js";
 import { montarAssuntoCobranca, formatBRL, formatDataBR } from "../lib/cobranca-mensagem.js";
 import {
   enviarMensagemPaxter,
@@ -674,6 +676,86 @@ router.post("/asaas/webhook", async (req, res): Promise<void> => {
         : event === "PAYMENT_REFUNDED" ? "REFUNDED" : String(payment.status ?? event);
       await aplicarStatusTeste(payment.id, st, payment.paymentDate ?? null);
       res.status(200).json({ ok: true, teste: true });
+      return;
+    }
+
+    const reissueHit = await db.execute(sql`SELECT r.id,r.client_id,r.empresa_id,r.fee_amount,
+        r.require_human_review,r.request_status,c.asaas_customer_id
+      FROM clinical_document_reissue_requests r
+      JOIN clients c ON c.id=r.client_id
+      WHERE r.asaas_charge_id=${String(payment.id)} LIMIT 1`);
+    const reissue = reissueHit.rows[0] as {
+      id: number | string; client_id: number | string; empresa_id: number | string;
+      fee_amount: number | string | null; require_human_review: boolean;
+      request_status: string; asaas_customer_id: string | null;
+    } | undefined;
+    if (reissue) {
+      const expectedReference = `paxmed_reissue:${reissue.id}`;
+      const expectedAmount = Number(reissue.fee_amount);
+      const actualAmount = Number(payment.value);
+      const identityMatches = payment.externalReference === expectedReference &&
+        typeof payment.customer === "string" &&
+        payment.customer === reissue.asaas_customer_id &&
+        Number.isFinite(expectedAmount) && Number.isFinite(actualAmount) &&
+        Math.round(expectedAmount * 100) === Math.round(actualAmount * 100);
+      if (!identityMatches) {
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET request_status='unknown',payment_status='unverified',
+              eligibility_reason='O evento do provedor não correspondeu ao cliente, valor e referência registrados.',
+              updated_at=NOW()
+          WHERE id=${reissue.id}`);
+        res.status(200).json({ ok: true, reissue: "needs_review" });
+        return;
+      }
+      if (event === "PAYMENT_RECEIVED" || event === "PAYMENT_CONFIRMED") {
+        // O evento só dispara a conferência: o estado financeiro vem de leitura direta no Asaas.
+        let live: Awaited<ReturnType<typeof asaasGetCharge>>;
+        try {
+          live = await asaasGetCharge(String(payment.id));
+        } catch (err) {
+          req.log.error({ err: String(err), requestId: String(reissue.id) }, "Segunda via: não foi possível confirmar o pagamento no Asaas");
+          res.status(503).json({ error: "payment_verification_unavailable" });
+          return;
+        }
+        const liveOk = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(String(live.status)) &&
+          Math.round(Number(live.value) * 100) === Math.round(expectedAmount * 100) &&
+          live.externalReference === expectedReference;
+        if (!liveOk) {
+          res.status(200).json({ ok: true, reissue: "not_confirmed_by_provider" });
+          return;
+        }
+        const paidDate = payment.paymentDate || new Date().toISOString();
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET payment_status='paid',paid_at=${paidDate},
+              request_status=CASE WHEN require_human_review THEN 'awaiting_review' ELSE 'approved' END,
+              eligibility_reason='Pagamento confirmado pelo Asaas.',
+              updated_at=NOW()
+          WHERE id=${reissue.id} AND request_status IN ('awaiting_payment','unknown')`);
+        await db.update(paymentsTable).set({ status: "paid", paidAt: paidDate })
+          .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
+        if (!reissue.require_human_review) {
+          await deliverApprovedClinicalDocumentReissue(String(reissue.id)).catch((err) =>
+            req.log.error({ err: String(err), requestId: String(reissue.id) }, "Entrega automática da segunda via após pagamento falhou"),
+          );
+        }
+      } else if (event === "PAYMENT_OVERDUE") {
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET payment_status='overdue',eligibility_reason='A cobrança venceu sem confirmação de pagamento.',updated_at=NOW()
+          WHERE id=${reissue.id} AND request_status IN ('awaiting_payment','unknown')`);
+        await db.update(paymentsTable).set({ status: "overdue" })
+          .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
+      } else if (event === "PAYMENT_DELETED" || event === "PAYMENT_REFUNDED" ||
+          event === "PAYMENT_CHARGEBACK_REQUESTED") {
+        await db.execute(sql`UPDATE clinical_document_reissue_requests
+          SET request_status='cancelled',payment_status='cancelled',
+              delivery_share_expires_at=NOW(),
+              eligibility_reason='Cobrança cancelada, estornada ou contestada.',
+              updated_at=NOW()
+          WHERE id=${reissue.id}`);
+        await db.update(paymentsTable).set({ status: "cancelled" })
+          .where(eq(paymentsTable.asaasChargeId, String(payment.id)));
+      }
+      res.status(200).json({ ok: true, reissue: true });
       return;
     }
 

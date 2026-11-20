@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { FileText, Loader2, Stethoscope } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { usePermissoes } from "@/lib/permissoes";
+import { SegundasVias } from "./SegundasVias";
 
 // Fila do medico para pedidos de receita/exames pagos pelo cliente.
 // A emissao do documento e feita no Cockpit, com o certificado do proprio medico logado.
@@ -237,6 +238,7 @@ export default function PedidosMedicosPage() {
         })}
       </section>
       <ExamesAvulsosFila />
+      {isCeo && <SegundasVias />}
     </div>
   );
 }

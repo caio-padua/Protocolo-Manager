@@ -132,6 +132,7 @@ export interface AsaasCharge {
   value: number;
   netValue?: number;
   paymentDate?: string | null;
+  externalReference?: string | null;
   // Campos de leitura usados pela conciliacao (todos opcionais: o Asaas so os preenche conforme o status).
   clientPaymentDate?: string | null;
   creditDate?: string | null;

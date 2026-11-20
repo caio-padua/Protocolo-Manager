@@ -113,6 +113,9 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       chat_id TEXT NOT NULL,
       recipe_id INTEGER NOT NULL,
       prescription_id INTEGER NOT NULL,
+      document_type TEXT NOT NULL DEFAULT 'prescricao',
+      document_id BIGINT,
+      reissue_request_id BIGINT,
       pdf_sha256 TEXT NOT NULL,
       oferta_inbox_message_id BIGINT NOT NULL UNIQUE,
       confirmacao_inbox_message_id BIGINT UNIQUE,
@@ -121,6 +124,16 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+  await exec.execute(sql`ALTER TABLE telegram_documento_reenvios
+    ADD COLUMN IF NOT EXISTS document_type TEXT NOT NULL DEFAULT 'prescricao'`);
+  await exec.execute(sql`ALTER TABLE telegram_documento_reenvios
+    ADD COLUMN IF NOT EXISTS document_id BIGINT`);
+  await exec.execute(sql`ALTER TABLE telegram_documento_reenvios
+    ADD COLUMN IF NOT EXISTS reissue_request_id BIGINT`);
+  await exec.execute(sql`ALTER TABLE telegram_documento_reenvios
+    ALTER COLUMN recipe_id DROP NOT NULL, ALTER COLUMN prescription_id DROP NOT NULL`);
+  await exec.execute(sql`UPDATE telegram_documento_reenvios
+    SET document_id=recipe_id WHERE document_id IS NULL`);
   await exec.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_telegram_reenvio_aberto
     ON telegram_documento_reenvios (empresa_id, cliente_id)
     WHERE status IN ('ofertando','oferecido','enviando')`);

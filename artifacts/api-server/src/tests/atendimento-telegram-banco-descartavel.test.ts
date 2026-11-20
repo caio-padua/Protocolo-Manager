@@ -1,5 +1,5 @@
 /** Atendimento por IA com SQL real em BANCO DESCARTÁVEL (socket em /tmp; nunca toca DATABASE_URL). Dados sintéticos. */
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,6 +9,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 
 const h = vi.hoisted(() => ({ db: null as any, enviados: [] as { chat: string; texto: string }[], settings: {} as Record<string, string>,
   noEnvio:null as null|((chat:string)=>Promise<void>), pg: null as any,
+  asaasChargeCount: 0,
   aprendizResposta: '{"pergunta":"Qual é o horário da clínica?"}' }));
 vi.mock("@workspace/db", () => ({
   db: { execute: (...a: unknown[]) => h.db.execute(...a) },
@@ -31,20 +32,50 @@ vi.mock("../lib/secure-settings", () => ({
   }),
 }));
 vi.mock("../lib/telegram", () => ({ sendTelegram: async (chat: string, texto: string) => { h.enviados.push({ chat, texto }); await h.noEnvio?.(chat); return { sent: true, mock: false }; } }));
+vi.mock("../lib/asaas", () => ({
+  asaasCreateCustomer: async () => ({ id: "asaas-customer-synthetic" }),
+  asaasCreateCharge: async (input: { value: number; externalReference: string }) => {
+    h.asaasChargeCount += 1;
+    return {
+      id: `asaas-charge-synthetic-${input.externalReference}`,
+      invoiceUrl: "https://asaas.example/synthetic",
+      billingType: "UNDEFINED",
+      status: "PENDING",
+      value: input.value,
+      externalReference: input.externalReference,
+    };
+  },
+  asaasGetCharge: async () => ({}),
+}));
 vi.mock("../lib/telegram-config", () => ({ chatAlertaOuNull: async () => "ALERTA" }));
 vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => ({ headers: {} }) }));
 vi.mock("../lib/clinical-document-share", () => ({
-  getIssuedDocument: async () => ({
-    id: 6001,
+  getIssuedDocument: async (_type: string, id: number) => ({
+    id,
     clientId: 1,
     professionalId: 42,
     prescriptionId: 5001,
     status: "emitted",
+    signatureStatus: "signed",
+    issuedAt: "2026-11-20",
     pdfData: "JVBERi1zeW50aGV0aWM=",
     fileName: "receita.pdf",
     label: "Receituário de demonstração",
     empresaId: 5,
+    locationId: 10,
   }),
+  listIssuedDocumentsForClient: async () => {
+    const recipes = await h.pg.query("SELECT id,title FROM recipes WHERE prescription_id=5001 ORDER BY id");
+    return recipes.rows.map((row: { id: number; title: string }) => ({
+      documentType: "prescricao",
+      documentId: row.id,
+      label: row.title,
+      issuedAt: "2026-11-20",
+      signatureStatus: "signed",
+      pdfSha256: "synthetic-hash",
+      professionalId: 42,
+    }));
+  },
   criarTokenClinicalShare: () => ({
     token: "a".repeat(43),
     tokenHash: "66d34fba71f8f450f7e45598853e53bfc23bbd129027cbb131a2f4ffd7878cd0",
@@ -80,25 +111,41 @@ beforeAll(async () => {
   pool = new pg.Pool({ host: dir, user: "teste", database: "postgres", max: 30 });
   for (let i = 0; i < 80; i++) { try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
   await pool.query(`CREATE TABLE clients(
-      id integer primary key,empresa_id integer,telegram_chat_id text,
+      id integer primary key,empresa_id integer,location_id integer DEFAULT 10,name text,
+      telegram_chat_id text,asaas_customer_id text,cpf text,email text,phone text,
       status text NOT NULL DEFAULT 'active',deleted_at timestamptz
     );
-    INSERT INTO clients(id,empresa_id,telegram_chat_id) VALUES(1,5,'C1'),(2,5,'C2'),(3,7,'C3');
+    INSERT INTO clients(id,empresa_id,name,cpf,asaas_customer_id,telegram_chat_id)
+      VALUES(1,5,'Cliente sintético','12345678901','asaas-customer-synthetic','C1'),
+            (2,5,'Cliente alternativo','12345678902',NULL,'C2'),
+            (3,7,'Outro cliente','12345678903',NULL,'C3');
     CREATE TABLE prescriptions(id integer primary key,client_id integer,empresa_id integer,status text,emitted_at timestamptz);
     CREATE TABLE prescription_items(id serial primary key,prescription_id integer,name text,dose text,order_index integer DEFAULT 0);
     CREATE TABLE recipes(id integer primary key,title text,prescription_id integer,pdf_data text);
-    CREATE TABLE protocols(id integer primary key,client_id integer,empresa_id integer,title text,status text,updated_at timestamptz DEFAULT NOW());
+    CREATE TABLE protocols(id integer primary key,client_id integer,empresa_id integer,title text,status text,
+      start_date text,end_date text,updated_at timestamptz DEFAULT NOW());
     INSERT INTO prescriptions(id,client_id,empresa_id,status,emitted_at) VALUES(5001,1,5,'emitted',NOW());
     INSERT INTO prescription_items(prescription_id,name,dose,order_index) VALUES
       (5001,'Vitamina X','dose sintética não deve aparecer',0);
     INSERT INTO recipes(id,title,prescription_id,pdf_data)
       VALUES(6001,'Receituário de demonstração',5001,'JVBERi1zeW50aGV0aWM=');
-    INSERT INTO protocols(id,client_id,empresa_id,title,status)
-      VALUES(7001,1,5,'Protocolo de suporte','active');
+    INSERT INTO protocols(id,client_id,empresa_id,title,status,start_date,end_date)
+      VALUES(7001,1,5,'Protocolo de suporte','active','2020-01-01','2099-12-31');
     CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0, cliente_id INTEGER NOT NULL,
     chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT)`);
+  await pool.query(`CREATE TABLE payments(
+    id SERIAL PRIMARY KEY,client_id INTEGER,protocol_id INTEGER,amount REAL,method TEXT,status TEXT,
+    due_date TEXT,paid_at TEXT,description TEXT,installments INTEGER,card_label TEXT,provider TEXT,
+    asaas_charge_id TEXT UNIQUE,asaas_invoice_url TEXT,pix_qr_code TEXT,pix_copy_paste TEXT,
+    boleto_url TEXT,billing_type TEXT,stripe_charge_id TEXT,stripe_checkout_url TEXT,
+    empresa_id INTEGER,created_at TIMESTAMPTZ DEFAULT NOW())`);
   h.db = drizzle(pool);
   h.pg = pool;
+  const { ensureClinicalDocumentReissuesTable } = await import("../lib/ensure-clinical-document-reissues");
+  await ensureClinicalDocumentReissuesTable();
+  await pool.query(`INSERT INTO clinical_document_reissue_settings
+    (empresa_id,location_id,enabled,fee_collection_enabled,require_human_review,fee_amount)
+    VALUES(5,10,TRUE,FALSE,FALSE,15.00)`);
   await aplicarMigracaoUpdateId(h.db);
   await aplicarMigracaoAtendimento(h.db);
   await pool.query(`INSERT INTO orientacoes_aprovadas (empresa_id,tema,perguntas_exemplo,resposta,status) VALUES
@@ -115,6 +162,11 @@ beforeAll(async () => {
     "telegram.botToken": "synthetic-telegram-token",
   };
 }, 60000);
+beforeEach(() => {
+  h.enviados = [];
+  h.noEnvio = null;
+  h.asaasChargeCount = 0;
+});
 afterAll(async () => { await pool?.end(); proc?.kill("SIGTERM"); if (dir) rmSync(dir, { recursive: true, force: true }); });
 
 const run = (id: number, texto: string, over: Partial<typeof base> = {}) =>
@@ -247,7 +299,7 @@ describe("documentos clínicos no Telegram", () => {
     expect(resultado).toMatchObject({
       tipo: "resposta",
       desfecho: "reenvio_receita_ofertado",
-      documento: { acao: "ofertar_reenvio", receitaId: 6001, prescricaoId: 5001 },
+      documento: { acao: "ofertar_reenvio", documentType: "prescricao", documentId: 6001, receitaId: 6001 },
     });
     expect(resultado?.texto).toContain("responda somente “sim” ou “pode enviar”");
   });
@@ -287,7 +339,9 @@ describe("documentos clínicos no Telegram", () => {
       VALUES(6002,'Segunda receita',5001,'JVBERi1zeW50aGV0aWM=')`);
     try {
       const segundaVia = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Quero segunda via do receituário"));
-      expect(segundaVia).toMatchObject({ tipo: "encaminhar", motivo: "segunda_via_ambigua_ou_ausente" });
+      expect(segundaVia).toMatchObject({ tipo: "resposta", desfecho: "clarificacao_documento" });
+      expect(segundaVia?.texto).toContain("Receituário de demonstração");
+      expect(segundaVia?.texto).toContain("Segunda receita");
     } finally {
       await pool.query("DELETE FROM recipes WHERE id=6002");
     }
@@ -363,14 +417,21 @@ describe("documentos clínicos no Telegram", () => {
 
     const confirmacaoEntrada = entradaDocumento("sim");
     confirmacaoEntrada.inboxMessageId = 903;
+    const ofertaReal = await pool.query("SELECT id,reissue_request_id FROM telegram_documento_reenvios WHERE oferta_inbox_message_id=902");
     const confirmacaoPlano: PlanoAtendimento = {
       ...ofertaPlano,
       resposta: "Confirmado.",
       desfecho: "reenvio_receita_confirmado",
-      documento: { acao: "confirmar_reenvio", receitaId: 6001, prescricaoId: 5001, ofertaId: 2 },
+      documento: {
+        acao: "confirmar_reenvio",
+        documentType: "prescricao",
+        documentId: 6001,
+        reissueRequestId: String(ofertaReal.rows[0].reissue_request_id),
+        receitaId: 6001,
+        prescricaoId: 5001,
+        ofertaId: Number(ofertaReal.rows[0].id),
+      },
     };
-    const ofertaReal = await pool.query("SELECT id FROM telegram_documento_reenvios WHERE oferta_inbox_message_id=902");
-    confirmacaoPlano.documento!.ofertaId = Number(ofertaReal.rows[0].id);
     expect(await autorizarConfirmacaoReenvio(h.db, confirmacaoEntrada, confirmacaoPlano)).toBe(true);
     expect(await autorizarConfirmacaoReenvio(h.db, confirmacaoEntrada, confirmacaoPlano)).toBe(true);
     const outraConfirmacao = { ...confirmacaoEntrada, inboxMessageId: 904 };
@@ -386,15 +447,165 @@ describe("documentos clínicos no Telegram", () => {
       expect(envio.sent).toBe(true);
       expect(envio.textoHistorico).not.toContain("a".repeat(43));
       expect(h.enviados.at(-1)?.texto).toContain("/api/clinical-documents/share/");
-      const tokenSalvo = await pool.query(`SELECT document_share_token_hash,document_share_expires_at
-        FROM telegram_atendimento_respostas WHERE inbox_message_id=903`);
+      const tokenSalvo = await pool.query(`SELECT delivery_share_token_hash,delivery_share_expires_at
+        FROM clinical_document_reissue_requests WHERE id=$1`, [confirmacaoPlano.documento!.reissueRequestId]);
       expect(tokenSalvo.rows[0]).toEqual({
-        document_share_token_hash: "66d34fba71f8f450f7e45598853e53bfc23bbd129027cbb131a2f4ffd7878cd0",
-        document_share_expires_at: expect.any(Date),
+        delivery_share_token_hash: expect.any(String),
+        delivery_share_expires_at: expect.any(Date),
       });
     } finally {
       if (baseAnterior === undefined) delete process.env.PUBLIC_BASE_URL;
       else process.env.PUBLIC_BASE_URL = baseAnterior;
+    }
+  });
+});
+
+describe("política de segunda via", () => {
+  const baseRequest = {
+    clientId: 1,
+    empresaId: 5,
+    locationId: 10,
+    documentType: "prescricao" as const,
+    documentId: 6001,
+    requestedByChannel: "telegram" as const,
+    clientConsent: false,
+  };
+
+  it("não cobra quando a assinatura PaxMed Members não pode ser verificada", async () => {
+    await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2020-02-01' WHERE id=7001");
+    try {
+      const { createReissueRequest } = await import("../lib/clinical-document-reissue-policy");
+      const result = await createReissueRequest({
+        ...baseRequest,
+        operationKey: "00000000-0000-4000-8000-000000000101",
+      });
+      expect(result).toMatchObject({
+        eligibility: "human_review",
+        status: "awaiting_review",
+        feeAmount: null,
+        paymentStatus: "unverified",
+      });
+    } finally {
+      await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2099-12-31' WHERE id=7001");
+    }
+  });
+
+  it("cobra somente depois da autorização explícita e congela a taxa da solicitação", async () => {
+    await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2020-02-01' WHERE id=7001");
+    await pool.query("UPDATE clinical_document_reissue_settings SET fee_collection_enabled=TRUE WHERE empresa_id=5 AND location_id=10");
+    try {
+      const { createReissueRequest, confirmClinicalDocumentReissueRequest } =
+        await import("../lib/clinical-document-reissue-policy");
+      const created = await createReissueRequest({
+        ...baseRequest,
+        operationKey: "00000000-0000-4000-8000-000000000102",
+        membershipVerification: "inactive_or_unpaid",
+      });
+      expect(created).toMatchObject({
+        eligibility: "fee_required",
+        status: "awaiting_confirmation",
+        feeAmount: 15,
+        paymentStatus: "awaiting_consent",
+      });
+      const confirmed = await confirmClinicalDocumentReissueRequest({
+        requestId: created.id,
+        clientId: 1,
+        empresaId: 5,
+        locationId: 10,
+        confirmationMessageId: 777,
+      });
+      expect(confirmed).toMatchObject({
+        status: "awaiting_payment",
+        paymentStatus: "unverified",
+        feeAmount: 15,
+      });
+      const saved = await pool.query(
+        "SELECT asaas_charge_id,fee_amount FROM clinical_document_reissue_requests WHERE id=$1",
+        [created.id],
+      );
+      expect(saved.rows[0]).toEqual({ asaas_charge_id: null, fee_amount: "15.00" });
+    } finally {
+      await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2099-12-31' WHERE id=7001");
+      await pool.query("UPDATE clinical_document_reissue_settings SET fee_collection_enabled=FALSE WHERE empresa_id=5 AND location_id=10");
+    }
+  });
+
+  it("pagamento simulado: sem pagamento não entrega; pago e aprovado entrega uma única vez a cópia exata", async () => {
+    await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2020-02-01' WHERE id=7001");
+    await pool.query("UPDATE clinical_document_reissue_settings SET fee_collection_enabled=TRUE WHERE empresa_id=5 AND location_id=10");
+    process.env.PUBLIC_BASE_URL = "https://paxmed.example";
+    try {
+      const { createReissueRequest, confirmClinicalDocumentReissueRequest } =
+        await import("../lib/clinical-document-reissue-policy");
+      const { createAndSendReissueCharge } = await import("../lib/clinical-document-reissue-billing");
+      const { deliverApprovedClinicalDocumentReissue } = await import("../lib/atendimento-telegram-reenvio");
+      const { createHash } = await import("node:crypto");
+      const created = await createReissueRequest({
+        ...baseRequest, operationKey: "00000000-0000-4000-8000-000000000104",
+        membershipVerification: "inactive_or_unpaid",
+      });
+      await confirmClinicalDocumentReissueRequest({
+        requestId: created.id, clientId: 1, empresaId: 5, locationId: 10, confirmationMessageId: 779,
+      });
+      await pool.query("UPDATE clinical_document_reissue_requests SET delivery_share_token_hash=NULL WHERE delivery_share_token_hash IS NOT NULL");
+      await createAndSendReissueCharge(created.id, "C1");
+      h.enviados = [];
+      const antes = await deliverApprovedClinicalDocumentReissue(created.id);
+      expect(antes.sent).toBe(false);
+      expect(h.enviados).toHaveLength(0);
+      const sha = createHash("sha256").update(Buffer.from("JVBERi1zeW50aGV0aWM=", "base64")).digest("hex");
+      // Mesmo efeito do webhook PAYMENT_CONFIRMED (revisão humana desligada).
+      await pool.query(`UPDATE clinical_document_reissue_requests SET payment_status='paid',paid_at=NOW(),
+        request_status='approved',require_human_review=FALSE,document_pdf_sha256=$2 WHERE id=$1`, [created.id, sha]);
+      const [a, b] = await Promise.all([
+        deliverApprovedClinicalDocumentReissue(created.id),
+        deliverApprovedClinicalDocumentReissue(created.id),
+      ]);
+      expect([a.sent, b.sent].filter(Boolean)).toHaveLength(1);
+      expect(h.enviados.filter((m) => m.texto.includes("Abrir documento"))).toHaveLength(1);
+    } finally {
+      delete process.env.PUBLIC_BASE_URL;
+      await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2099-12-31' WHERE id=7001");
+      await pool.query("UPDATE clinical_document_reissue_settings SET fee_collection_enabled=FALSE WHERE empresa_id=5 AND location_id=10");
+    }
+  });
+
+  it("cria uma cobrança de forma idempotente apenas depois do consentimento e nunca entrega antes do pagamento", async () => {
+    await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2020-02-01' WHERE id=7001");
+    await pool.query("UPDATE clinical_document_reissue_settings SET fee_collection_enabled=TRUE WHERE empresa_id=5 AND location_id=10");
+    try {
+      const { createReissueRequest, confirmClinicalDocumentReissueRequest } =
+        await import("../lib/clinical-document-reissue-policy");
+      const { createAndSendReissueCharge } = await import("../lib/clinical-document-reissue-billing");
+      const created = await createReissueRequest({
+        ...baseRequest,
+        operationKey: "00000000-0000-4000-8000-000000000103",
+        membershipVerification: "inactive_or_unpaid",
+      });
+      expect(created.status).toBe("awaiting_confirmation");
+      await confirmClinicalDocumentReissueRequest({
+        requestId: created.id, clientId: 1, empresaId: 5, locationId: 10,
+        confirmationMessageId: 778,
+      });
+      const first = await createAndSendReissueCharge(created.id, "C1");
+      const second = await createAndSendReissueCharge(created.id, "C1");
+      expect(first).toMatchObject({ sent: true, invoiceUrl: "https://asaas.example/synthetic" });
+      expect(second.sent).toBe(false);
+      expect(h.asaasChargeCount).toBe(1);
+      expect(h.enviados.at(-1)?.texto).toContain("Pagar taxa");
+      expect(h.enviados.at(-1)?.texto).not.toContain("Abrir documento");
+      const saved = await pool.query(
+        "SELECT payment_status,asaas_charge_id,asaas_invoice_url FROM clinical_document_reissue_requests WHERE id=$1",
+        [created.id],
+      );
+      expect(saved.rows[0]).toMatchObject({
+        payment_status: "pending",
+        asaas_charge_id: `asaas-charge-synthetic-paxmed_reissue:${created.id}`,
+        asaas_invoice_url: "https://asaas.example/synthetic",
+      });
+    } finally {
+      await pool.query("UPDATE protocols SET start_date='2020-01-01',end_date='2099-12-31' WHERE id=7001");
+      await pool.query("UPDATE clinical_document_reissue_settings SET fee_collection_enabled=FALSE WHERE empresa_id=5 AND location_id=10");
     }
   });
 });

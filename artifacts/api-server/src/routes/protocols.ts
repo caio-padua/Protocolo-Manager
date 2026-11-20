@@ -36,6 +36,8 @@ import { loadProtocolRasGrid } from "../lib/protocol-ras-grid";
 import { loadProtocolRasRegistros } from "../lib/ras-fap-registros";
 import { requireCollaborator } from "./collaborator";
 import { ClientProtocolAgendaError, loadClientProtocolAgendas } from "../lib/protocol-client-agendas";
+import { archiveClinicalDocument, finalizeArchivedClinicalDocument } from "../lib/clinical-document-archive";
+import { brtISODate } from "../lib/brt";
 import { isGmailConnected } from "../lib/google-gmail";
 import { resolveClinicalMember } from "../lib/clinical-emitter";
 import { comNomeDaClinica, unidadePertenceAClinica, MENSAGEM_UNIDADE_FORA_DA_CLINICA } from "../lib/clinic-unit";
@@ -884,6 +886,19 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     const mm = protocol.startDate.slice(5, 7);
     const dd = protocol.startDate.slice(8, 10);
     const driveFileName = `${yy}.${mm}.${dd} PROTOCOLO ${client.name.toUpperCase()} (${protocol.title.toUpperCase()}).pdf`;
+    const protocolArchiveId = await archiveClinicalDocument({
+      documentType: "protocolo",
+      sourceId: protocol.id,
+      clientId: client.id,
+      empresaId: clinicalMember.clinic.empresaId,
+      locationId: clinicalMember.clinic.id,
+      professionalId: protocol.professionalId ?? null,
+      documentLabel: `Protocolo — ${protocol.title}`,
+      fileName: driveFileName,
+      issuedAt: brtISODate(),
+      signatureStatus: "signed",
+      bytes: pdfBuffer,
+    });
 
     // Os dois documentos serão enviados juntos para a pasta exclusiva da empresa.
     let driveActuallyUploaded = false;
@@ -892,6 +907,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
     // 3. Gerar RAS FAP + upload Drive
     let rasFapBuffer: Buffer | undefined;
     const rasFapFileName = `${yy}.${mm}.${dd} RASP FAP ${client.name.toUpperCase()}.pdf`;
+    let rasFapArchiveId: number | null = null;
     try {
       const physicalSessions = docSessions.map(sess => ({
         number: sess.number,
@@ -936,9 +952,24 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         sessions: physicalSessions,
       }, "PREMIUM");
       rasFapBuffer = Buffer.from(rasFapBytes);
+      rasFapArchiveId = await archiveClinicalDocument({
+        documentType: "ras_fap",
+        sourceId: protocol.id,
+        clientId: client.id,
+        empresaId: clinicalMember.clinic.empresaId,
+        locationId: clinicalMember.clinic.id,
+        professionalId: protocol.professionalId ?? null,
+        documentLabel: `Relatório RAS FAP — ${protocol.title}`,
+        fileName: rasFapFileName,
+        issuedAt: brtISODate(),
+        signatureStatus: "not_required",
+        bytes: rasFapBuffer,
+      });
       console.log(`[emit] RAS FAP gerado para ${client.name} (${rasFapBuffer.length} bytes)`);
 
     } catch (rasFapErr: any) {
+      const archiveFailedAfterPdfGeneration = Boolean(rasFapBuffer);
+      if (archiveFailedAfterPdfGeneration) rasFapBuffer = undefined;
       console.error("[emit] RAS FAP generation error:", rasFapErr.message);
       await notifySlackRasFapFailure(
         "drive",
@@ -948,6 +979,7 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
         rasFapErr.message,
         process.env.PADAXOR_SLACK_CHANNEL_ID,
       );
+      if (archiveFailedAfterPdfGeneration) throw rasFapErr;
     }
 
     // A pasta raiz é resolvida pela empresa do protocolo e nunca cai na pasta
@@ -1248,6 +1280,10 @@ router.post("/protocols/:id/emit-document", requireCollaborator, async (req, res
       driveUploaded: driveActuallyUploaded,
       driveError,
       rasFapGenerated: Boolean(rasFapBuffer?.length),
+      archivedDocumentIds: {
+        protocolo: protocolArchiveId,
+        rasFap: rasFapArchiveId,
+      },
       message: emailSent
         ? `E-mail do protocolo aceito pelo Gmail para ${client.email}.`
         : `E-mail do protocolo não confirmado${emailError ? ": " + emailError : "; motivo não informado."}`,
@@ -1891,6 +1927,7 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
   const protocolId = parseInt(String(req.params.id));
   if (isNaN(protocolId)) { res.status(400).json({ error: "ID inválido" }); return; }
 
+  let cartaArchiveId: number | null = null;
   try {
     // Checagens BARATAS primeiro. Assinar um PDF de 2,4 MB para só depois
     // descobrir que o paciente não é desta clínica, que não tem e-mail ou que
@@ -1937,6 +1974,27 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
     const r = await montarCartaDeTratamento(req, protocolId);
     if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
     const c = r.carta;
+    const empresaId = Number(c.protocol.empresaId);
+    const locationId = Number(c.client.locationId);
+    if (!Number.isSafeInteger(empresaId) || empresaId <= 0 ||
+        !Number.isSafeInteger(locationId) || locationId <= 0) {
+      res.status(409).json({ sent: false, error: "Não foi possível confirmar a clínica original do documento." });
+      return;
+    }
+    cartaArchiveId = await archiveClinicalDocument({
+      documentType: "carta_tratamento",
+      sourceId: c.protocol.id,
+      clientId: c.client.id,
+      empresaId,
+      locationId,
+      professionalId: c.protocol.professionalId ?? null,
+      documentLabel: `Carta de Tratamento — ${c.protocol.title}`,
+      fileName: c.filename,
+      issuedAt: brtISODate(),
+      signatureStatus: "signed",
+      bytes: Buffer.from(c.pdfBytes),
+      finalizeImmediately: false,
+    });
 
     const envio = await sendCartaTratamentoEmail({
       clientName:        c.client.name,
@@ -1960,11 +2018,13 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
     });
 
     if (!envio.success) {
+      await finalizeArchivedClinicalDocument(cartaArchiveId, "failed");
       console.error(`[carta-email] FALHOU protocolo=${protocolId} destino=${email} motivo="${envio.error}"`);
       res.status(502).json({ sent: false, error: envio.error ?? "Falha no envio" });
       return;
     }
 
+    await finalizeArchivedClinicalDocument(cartaArchiveId, "emitted");
     console.info(
       `[carta-email] ENVIADO protocolo=${protocolId} cliente="${c.client.name}" destino=${email} arquivo=${c.filename} bytes=${c.pdfBytes.length}`,
     );
@@ -1973,10 +2033,14 @@ router.post("/protocols/:id/carta-email", requireCollaborator, async (req, res):
       email,
       filename: c.filename,
       bytes: c.pdfBytes.length,
+      archiveDocumentId: cartaArchiveId,
       completedSessions: c.completedSessions,
       totalSessions: c.totalSessions,
     });
   } catch (err: any) {
+    if (cartaArchiveId !== null) {
+      await finalizeArchivedClinicalDocument(cartaArchiveId, "failed").catch(() => undefined);
+    }
     if (err instanceof ClinicalIdentityError) { res.status(err.status).json({ sent: false, error: err.message }); return; }
     console.error("[carta-email] erro:", err.message);
     res.status(500).json({ sent: false, error: "Erro ao enviar carta", details: err.message });

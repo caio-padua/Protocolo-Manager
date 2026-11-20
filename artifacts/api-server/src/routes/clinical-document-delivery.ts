@@ -6,7 +6,7 @@ import {
 } from "@workspace/db";
 import { z } from "zod";
 import { requireCollaborator } from "./collaborator";
-import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-emitter";
+import { ClinicalIdentityError, resolveClinicalEmitter, resolveClinicalMember } from "../lib/clinical-emitter";
 import { absoluteBaseUrl } from "../lib/messaging/base-url";
 import { enviarMensagemPaxter, type PaxterCanal, type PaxterDoc } from "../lib/messaging/index.js";
 import { authorizedPrescription } from "./prescription-delivery";
@@ -20,7 +20,10 @@ import {
 const router = Router();
 const publicRouter = Router();
 const ResendBody = z.object({
-  documentType: z.enum(["prescricao", "pedido_exames", "atestado", "encaminhamento"]),
+  documentType: z.enum([
+    "prescricao", "pedido_exames", "atestado", "encaminhamento",
+    "protocolo", "ras_fap", "carta_tratamento", "documento_assinado",
+  ]),
   documentId: z.number().int().positive(),
   clientId: z.number().int().positive(),
   channels: z.array(z.enum(["EMAIL", "WHATSAPP", "TELEGRAM"])).min(1).max(3),
@@ -57,11 +60,35 @@ function maskedRecipient(channel: Channel, value: string) {
 
 router.use(requireCollaborator);
 
+router.get("/clinical-document-reissues/client/:clientId", async (req, res) => {
+  noStore(res);
+  const clientId = Number(req.params.clientId);
+  try {
+    const identity = await resolveClinicalMember(req, clientId);
+    const result = await db.execute(sql`SELECT id,document_type,document_label,original_document_issued_at,
+        requested_at,requested_by_channel,request_status,eligibility_status,eligibility_reason,
+        fee_amount,payment_status,paid_at,reviewed_at,delivery_channel,delivery_status,delivery_result
+      FROM clinical_document_reissue_requests
+      WHERE client_id=${identity.client.id} AND empresa_id=${identity.clinic.empresaId}
+        AND location_id=${identity.clinic.id}
+      ORDER BY requested_at DESC,id DESC LIMIT 100`);
+    res.json(result.rows);
+  } catch (error) {
+    if (error instanceof ClinicalIdentityError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    req.log.error({ err: String(error), clientId }, "Falha ao carregar histórico de segundas vias do cliente");
+    res.status(500).json({ error: "Não foi possível carregar o histórico deste cliente." });
+  }
+});
+
 router.get("/clinical-documents/:documentType/:documentId/pdf", async (req, res) => {
   noStore(res);
   const type = req.params.documentType;
   const documentId = Number(req.params.documentId);
-  if (!["prescricao", "pedido_exames", "atestado", "encaminhamento"].includes(type) ||
+  if (!["prescricao", "pedido_exames", "atestado", "encaminhamento", "protocolo",
+      "ras_fap", "carta_tratamento", "documento_assinado"].includes(type) ||
     !Number.isSafeInteger(documentId) || documentId <= 0) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
@@ -75,7 +102,9 @@ router.get("/clinical-documents/:documentType/:documentId/pdf", async (req, res)
   }
   let identity;
   try {
-    identity = await resolveClinicalEmitter(req, document.clientId);
+    identity = type === "documento_assinado"
+      ? await resolveClinicalMember(req, document.clientId)
+      : await resolveClinicalEmitter(req, document.clientId);
   } catch (error) {
     if (error instanceof ClinicalIdentityError) {
       res.status(error.status).json({ error: error.message });
@@ -83,7 +112,7 @@ router.get("/clinical-documents/:documentType/:documentId/pdf", async (req, res)
     }
     throw error;
   }
-  if (identity.professional.id !== document.professionalId) {
+  if (document.professionalId !== null && document.professionalId !== identity.professional.id) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
   }
@@ -150,7 +179,8 @@ router.get("/clinical-documents/delivery-history/:documentType/:documentId", asy
   noStore(res);
   const type = req.params.documentType;
   const documentId = Number(req.params.documentId);
-  if (!["prescricao", "pedido_exames", "atestado", "encaminhamento"].includes(type) ||
+  if (!["prescricao", "pedido_exames", "atestado", "encaminhamento", "protocolo",
+      "ras_fap", "carta_tratamento", "documento_assinado"].includes(type) ||
     !Number.isSafeInteger(documentId) || documentId <= 0) {
     res.status(404).json({ error: "Histórico indisponível." });
     return;
@@ -164,7 +194,9 @@ router.get("/clinical-documents/delivery-history/:documentType/:documentId", asy
   }
   let identity;
   try {
-    identity = await resolveClinicalEmitter(req, document.clientId);
+    identity = type === "documento_assinado"
+      ? await resolveClinicalMember(req, document.clientId)
+      : await resolveClinicalEmitter(req, document.clientId);
   } catch (error) {
     if (error instanceof ClinicalIdentityError) {
       res.status(error.status).json({ error: error.message });
@@ -172,7 +204,7 @@ router.get("/clinical-documents/delivery-history/:documentType/:documentId", asy
     }
     throw error;
   }
-  if (identity.professional.id !== document.professionalId) {
+  if (document.professionalId !== null && document.professionalId !== identity.professional.id) {
     res.status(404).json({ error: "Histórico indisponível." });
     return;
   }
@@ -228,7 +260,9 @@ router.post("/clinical-documents/resend", async (req, res) => {
   const input = parsed.data;
   let identity;
   try {
-    identity = await resolveClinicalEmitter(req, input.clientId);
+    identity = input.documentType === "documento_assinado"
+      ? await resolveClinicalMember(req, input.clientId)
+      : await resolveClinicalEmitter(req, input.clientId);
   } catch (error) {
     if (error instanceof ClinicalIdentityError) {
       res.status(error.status).json({ error: error.message });
@@ -237,7 +271,8 @@ router.post("/clinical-documents/resend", async (req, res) => {
     throw error;
   }
   const document = await getIssuedDocument(input.documentType, input.documentId);
-  if (!document || document.clientId !== identity.client.id || document.professionalId !== identity.professional.id ||
+  if (!document || document.clientId !== identity.client.id ||
+    (document.professionalId !== null && document.professionalId !== identity.professional.id) ||
     document.status !== "emitted" || !document.pdfData) {
     res.status(404).json({ error: "O documento emitido não pertence ao cliente selecionado ou não está disponível." });
     return;
@@ -467,7 +502,10 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
       FROM telegram_atendimento_respostas a
       JOIN telegram_inbox_messages m ON m.id=a.inbox_message_id
       WHERE a.document_share_token_hash=${tokenHash}
-        AND a.document_share_type='prescricao'
+        AND a.document_share_type IN (
+          'prescricao','pedido_exames','atestado','encaminhamento',
+          'protocolo','ras_fap','carta_tratamento','documento_assinado'
+        )
         AND a.document_share_expires_at>NOW()
         AND a.etapas->'resposta'->>'estado'='aceito_telegram'
         AND a.estado IN ('processando','concluido')
@@ -491,6 +529,33 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
           : row.document_share_expires_at,
         state: "provider_accepted",
       };
+    } else {
+      const requestShare = await db.execute(sql`SELECT document_type,document_id,client_id,empresa_id,
+          document_pdf_sha256,delivery_share_expires_at
+        FROM clinical_document_reissue_requests
+        WHERE delivery_share_token_hash=${tokenHash}
+          AND delivery_share_expires_at>NOW()
+          AND request_status='provider_accepted'
+          AND delivery_status='provider_accepted'
+        LIMIT 1`);
+      const requestRow = requestShare.rows[0] as {
+        document_type: string; document_id: string;
+        client_id: number | string; empresa_id: number | string;
+        document_pdf_sha256: string; delivery_share_expires_at: Date | string;
+      } | undefined;
+      if (requestRow) {
+        detail = {
+          documentType: requestRow.document_type,
+          documentId: Number(requestRow.document_id),
+          clientId: Number(requestRow.client_id),
+          empresaId: Number(requestRow.empresa_id),
+          pdfSha256: requestRow.document_pdf_sha256,
+          expiresAt: requestRow.delivery_share_expires_at instanceof Date
+            ? requestRow.delivery_share_expires_at.toISOString()
+            : requestRow.delivery_share_expires_at,
+          state: "provider_accepted",
+        };
+      }
     }
   }
   const expiry = typeof detail?.expiresAt === "string" ? Date.parse(detail.expiresAt) : NaN;
@@ -498,26 +563,35 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
     res.status(404).json({ error: "Link indisponível ou expirado." });
     return;
   }
-  const documentType = detail.documentType;
+  const documentTypeValue = detail.documentType;
   const documentId = Number(detail.documentId);
-  if ((documentType !== "prescricao" && documentType !== "pedido_exames" &&
-      documentType !== "atestado" && documentType !== "encaminhamento") ||
+  const supportedDocumentTypes = new Set<ClinicalDocumentType>([
+    "prescricao", "pedido_exames", "atestado", "encaminhamento", "protocolo",
+    "ras_fap", "carta_tratamento", "documento_assinado",
+  ]);
+  if (typeof documentTypeValue !== "string" || !supportedDocumentTypes.has(documentTypeValue as ClinicalDocumentType) ||
     !Number.isSafeInteger(documentId) || documentId <= 0) {
     res.status(404).json({ error: "Link indisponível ou expirado." });
     return;
   }
+  const documentType = documentTypeValue as ClinicalDocumentType;
   const document = await getIssuedDocument(documentType, documentId);
   if (!document || document.status !== "emitted" || !document.pdfData ||
-    document.clientId !== Number(detail.clientId)) {
+    document.clientId !== Number(detail.clientId) ||
+    document.empresaId !== Number(detail.empresaId) ||
+    ((documentType === "prescricao" || documentType === "documento_assinado") &&
+      document.signatureStatus !== "signed")) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
   }
   const bytes = Buffer.from(document.pdfData, "base64");
   const pdfSha256 = createHash("sha256").update(bytes).digest("hex");
-  if (!bytes.length || document.professionalId !== Number(detail.professionalId) ||
+  const hasExpectedProfessionalId = Object.prototype.hasOwnProperty.call(detail, "professionalId");
+  const expectedProfessionalId = detail.professionalId === null || detail.professionalId === undefined
+    ? null : Number(detail.professionalId);
+  if (!bytes.length || (hasExpectedProfessionalId && document.professionalId !== expectedProfessionalId) ||
     pdfSha256 !== detail.pdfSha256 ||
-    (documentType === "prescricao" && detail.empresaId !== undefined &&
-      document.empresaId !== Number(detail.empresaId))) {
+    document.empresaId !== Number(detail.empresaId)) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
   }
