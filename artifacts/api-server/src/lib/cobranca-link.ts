@@ -9,6 +9,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { asaasGetCharge } from "./asaas.js";
 import { baseUrlFromEnv } from "./messaging/base-url.js";
+import { renderFlyerPaxmed } from "./flyer-paxmed.js";
 
 export type SituacaoLink = "pendente" | "paga" | "vencida" | "cancelada" | "outra";
 export interface LinkPublico {
@@ -95,4 +96,26 @@ export async function consultarLink(token: string): Promise<LinkPublico> {
     teste: String(c.descricao ?? "").length > 0,
     linkPagamento: situacao === "pendente" || situacao === "vencida" ? enderecoAsaasSeguro(ch.invoiceUrl) : null,
   };
+}
+
+const dataBR = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : null);
+const ROTULO_SITUACAO: Record<SituacaoLink, string> = {
+  pendente: "Aguardando pagamento", paga: "Pagamento confirmado", vencida: "Vencida", cancelada: "Cobrança cancelada", outra: "Em análise",
+};
+
+/** Flyer PNG do molde unico PaxMed com os dados AO VIVO do provedor. Campos fixos; ausente = "Não localizado".
+ *  O Asaas informa so a DATA do pagamento; horario so entra se o provedor um dia enviar (hoje: Não localizado). */
+export async function flyerDoLink(token: string): Promise<Buffer> {
+  const d = await consultarLink(token);
+  return renderFlyerPaxmed({
+    titulo: "Pagamento",
+    linhas: [
+      { rotulo: "Situação", valor: ROTULO_SITUACAO[d.situacao] },
+      { rotulo: "Valor", valor: d.valorFormatado },
+      { rotulo: "Vencimento", valor: dataBR(d.vencimento) },
+      { rotulo: "Data do pagamento", valor: dataBR(d.pagaEm) },
+      { rotulo: "Horário do pagamento", valor: null },
+    ],
+    clinica: d.clinica,
+  });
 }

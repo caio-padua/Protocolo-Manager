@@ -83,3 +83,25 @@ Regras:
 2. Exportar em 2x: abrir com fator de escala 2 (2400 x 1260, PNG), aguardar 3,5 s para as fontes, depois reduzir para 1200 x 630 com filtro Lanczos (ImageMagick: -filter Lanczos -resize 1200x630! -colorspace sRGB -strip -interlace none -quality 93). Fica nitida ao expandir.
 3. Proporcao exata 1200 x 630 (1,91:1), JPEG sRGB sem perfil extra, abaixo de 300 KB (hoje cerca de 150 KB). Nao usar outra proporcao: o app corta ou estica.
 4. Manter o cartao com margem de seguranca: nenhum texto a menos de 150 px das bordas laterais (hoje a pilha tem 800 px centralizados), porque alguns apps cortam as bordas.
+
+---
+
+## FLYER DE COMUNICACAO PAXMED (Telegram e WhatsApp) — molde unico (ordem do Dr. Caio, 20/11/2026)
+
+Toda comunicacao do PaxMed enviada por Telegram ou WhatsApp que leve DADOS (pagamento, aviso, confirmacao) usa ESTE molde.
+E copia fiel da previa do app PaxMed Member acima. NAO se recria, NAO se inventa.
+
+| Regra | Valor travado |
+|---|---|
+| Largura da imagem | 1200 px (so a ALTURA cresce, conforme o numero de linhas) |
+| Pilha central | 800 px, margem de 55 px no topo (igual a previa) |
+| Placa PaxMed (Up Bevel) | 208 px, raio 16, NUNCA muda nem estica |
+| Marca na placa | simbolo 148 px + 44 + nome 380 px; tagline "Clinical Intelligence System" SEMPRE embaixo do NOME, nunca embaixo da logo |
+| Gaveta | recuada 34 px de cada lado, desce na vertical conforme a quantidade de informacao |
+| Conteudo | topicos centralizados: rotulo Jost caixa-alta + dado, losango dourado entre linhas |
+| Campos | IMUTAVEIS: mesma ordem e posicao sempre; dado ausente aparece o campo com "Não localizado" |
+| Ultima linha | SEMPRE o nome real da clinica (empresas.nome) |
+| Dado numerico | Jost 500, 30 px, mesmo tamanho em todos (o numeral com cifrao elevado foi reprovado nesta peca) |
+
+Codigo vivo: `artifacts/api-server/src/lib/flyer-paxmed.ts` (`renderFlyerPaxmed`). Arquivos de marca em `artifacts/api-server/assets/flyer/` e fonte `assets/fonts/Jost-Variable.ttf`.
+Nome de arquivo padrao: `flyer-comunicacao-paxmed-<assunto>-<id>.png`. A tela web `/pagar/:token` exibe o MESMO flyer (rota `/api/pagamento/:token/flyer.png`, dados ao vivo).

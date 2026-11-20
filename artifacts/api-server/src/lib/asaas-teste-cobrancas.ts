@@ -12,10 +12,10 @@ import { logger } from "./logger.js";
 import { eq, sql } from "drizzle-orm";
 import { asaasCreateCharge, asaasCreateCustomer, asaasGetCharge, asaasGetCustomer } from "./asaas.js";
 import { sendGmailMessage } from "./google-gmail.js";
-import { sendTelegram } from "./telegram.js";
+import { sendTelegram, sendTelegramPhotoBuffer } from "./telegram.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { brtISODate } from "./brt.js";
-import { emitirLinkTeste } from "./cobranca-link.js";
+import { emitirLinkTeste, flyerDoLink } from "./cobranca-link.js";
 
 export const TESTE_MAX_CENTAVOS_POR_COBRANCA = 500;
 export const TESTE_MAX_COBRANCAS = 10;
@@ -302,7 +302,7 @@ export async function enviarLinkCobrancaTeste(id: number, opts: { somenteTelegra
  * Envia SOMENTE pelo Telegram a tela de pagamento (valor e situacao vem do Asaas ao abrir) de uma cobranca
  * de teste ja existente, qualquer situacao. Nao cria cobranca, nao envia e-mail, nao altera status.
  */
-export async function enviarTelaPagamentoTeste(id: number): Promise<{ telegram: "aceito" | "recusado" | "sem_vinculo"; url?: string }> {
+export async function enviarTelaPagamentoTeste(id: number): Promise<{ telegram: "aceito" | "recusado" | "sem_vinculo"; url?: string; erro?: string }> {
   const r: any = (await db.execute(sql`SELECT id, client_id, valor_centavos, estado, asaas_charge_id FROM asaas_cobrancas_teste WHERE id=${id}`)).rows[0];
   if (!r) throw new TesteRecusado(404, "Cobranca de teste nao encontrada.");
   if (r.estado !== "criada" || !r.asaas_charge_id) throw new TesteRecusado(409, "Cobranca ainda nao foi criada no Asaas.");
@@ -310,11 +310,11 @@ export async function enviarTelaPagamentoTeste(id: number): Promise<{ telegram: 
   if (!c) throw new TesteRecusado(404, "Cliente nao encontrado.");
   if (!(c.telegramChatId && c.empresaId != null
     && await vinculoTelegramAtualUnico(db, { clienteId: c.id, empresaId: c.empresaId, chatId: c.telegramChatId }))) return { telegram: "sem_vinculo" };
-  const emp: any = (await db.execute(sql`SELECT nome FROM empresas WHERE id=${c.empresaId}`)).rows[0];
   const url = await emitirLinkTeste(id);
-  const texto = `<b>[TESTE] Tela de pagamento PaxMed #${id}</b>\n${emp?.nome ? esc(emp.nome) + "\n" : ""}Valor e situacao sao consultados no provedor ao abrir:\n${esc(url)}`;
-  const env = await sendTelegram(c.telegramChatId, texto);
-  if (!(env.sent && !env.mock)) return { telegram: "recusado" };
+  const png = await flyerDoLink(url.split("/pagar/")[1]);
+  const legenda = `<b>PaxMed · Pagamento</b>\nValor e situação atualizados na tela:\n${esc(url)}`;
+  const env = await sendTelegramPhotoBuffer(c.telegramChatId, png, `flyer-comunicacao-paxmed-pagamento-${id}.png`, legenda);
+  if (!(env.sent && !env.mock)) return { telegram: "recusado", erro: env.error };
   await db.execute(sql`INSERT INTO telegram_inbox_messages (empresa_id, cliente_id, chat_id, texto, recebida_em, direcao, lida_em)
     VALUES (${c.empresaId}, ${c.id}, ${c.telegramChatId}, ${`[TESTE] tela de pagamento da cobranca de teste #${id} enviada`}, NOW(), 'saida', NOW())`);
   return { telegram: "aceito", url };

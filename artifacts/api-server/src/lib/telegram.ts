@@ -375,3 +375,24 @@ export async function setTelegramBotName(name: string): Promise<{ ok: boolean; e
     return { ok: false, error: String(e) };
   }
 }
+
+/** Envia uma imagem gerada em memoria (flyer PaxMed) como foto, com legenda de texto curta. Sem degradar em silencio. */
+export async function sendTelegramPhotoBuffer(chatId: string, png: Buffer, filename: string, caption: string): Promise<TelegramResult> {
+  await ensureTelegramTokenLoaded();
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token) return { sent: true, mock: true };
+  try {
+    const fd = new FormData();
+    fd.append("chat_id", chatId);
+    fd.append("caption", caption);
+    fd.append("parse_mode", "HTML");
+    fd.append("photo", new Blob([new Uint8Array(png)], { type: "image/png" }), filename);
+    const resp = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: "POST", body: fd, signal: AbortSignal.timeout(30_000) });
+    if (!resp.ok) return { sent: false, mock: false, error: `telegram_http_${resp.status}` };
+    const data: any = await resp.json();
+    if (data?.ok !== true || !Number.isSafeInteger(data?.result?.message_id)) return { sent: false, mock: false, error: "telegram_resultado_invalido" };
+    return { sent: true, mock: false };
+  } catch {
+    return { sent: false, mock: false, error: "telegram_falha_de_rede_ou_timeout" };
+  }
+}

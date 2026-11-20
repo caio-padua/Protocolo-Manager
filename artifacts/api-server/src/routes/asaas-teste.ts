@@ -45,7 +45,7 @@ router.post("/asaas/teste-cobrancas/:id/enviar-tela", ...guard, async (req, res)
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "id invalido" }); return; }
     const out = await enviarTelaPagamentoTeste(id);
-    res.json({ telegram: out.telegram, url: out.url });
+    res.json({ telegram: out.telegram, url: out.url, erro: out.erro });
   } catch (e) {
     if (e instanceof TesteRecusado) { res.status(e.codigo).json({ error: e.message }); return; }
     req.log.error({ err: String(e) }, "Falha ao enviar tela de pagamento");

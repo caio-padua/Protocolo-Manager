@@ -7,3 +7,5 @@ Link de cobranca do cliente abre /pagar/:token (padcom), que consulta GET /api/p
 **Why:** pedido do Dr. Caio (20/11/2026): nunca mostrar quantia errada nem dados pessoais; a previa do Telegram/WhatsApp e imagem estatica (cartao generico PaxMed), so a pagina traz o valor.
 
 **How to apply:** novos tipos de cobranca entram na tabela cobranca_link_publico (origem) e em consultarLink; emitir link novo NAO revoga os antigos (mensagem enviada nao pode quebrar). Visual reaproveita a skill previa-de-link; Numeral/Valor para o dinheiro.
+
+**Flyer (20/11/2026):** a tela e o Telegram usam o MESMO flyer PNG do molde unico (lib flyer-paxmed, registrado na skill previa-de-link). Campos imutaveis, ausente = Não localizado, clinica por ultimo. Asaas so informa a DATA do pagamento: horario fica Não localizado ate haver fonte.
