@@ -45,5 +45,38 @@ export async function ensurePedidosMedicosTable(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_cmr_charge
       ON client_medical_requests (asaas_charge_id) WHERE asaas_charge_id IS NOT NULL
   `);
+  await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS isento_beneficio_id INTEGER`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS client_member_beneficios (
+      id          SERIAL PRIMARY KEY,
+      empresa_id  INTEGER NOT NULL,
+      client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      beneficio   TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'ativo',
+      ambiente    TEXT NOT NULL DEFAULT 'real',
+      motivo      TEXT NOT NULL,
+      valido_ate  DATE,
+      criado_por  INTEGER,
+      criado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT cmb_beneficio_ck CHECK (beneficio IN ('pedido_exames','receita')),
+      CONSTRAINT cmb_status_ck CHECK (status IN ('ativo','revogado')),
+      CONSTRAINT cmb_ambiente_ck CHECK (ambiente IN ('teste','real'))
+    )`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_cmb_ativo
+      ON client_member_beneficios (empresa_id, client_id, beneficio) WHERE status = 'ativo'`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS client_member_beneficios_hist (
+      id          SERIAL PRIMARY KEY,
+      beneficio_id INTEGER NOT NULL,
+      empresa_id  INTEGER NOT NULL,
+      client_id   INTEGER NOT NULL,
+      acao        TEXT NOT NULL,
+      antes       JSONB,
+      depois      JSONB,
+      por         INTEGER,
+      em          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
   logger.info("client_medical_requests: tabela pronta");
 }

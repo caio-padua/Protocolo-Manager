@@ -5,7 +5,8 @@ import { clientsTable, db } from "@workspace/db";
 import { verifyPortalToken } from "../lib/portal-token";
 import { asaasCreateCharge, asaasCreateCustomer, asaasGetCharge, asaasGetPixQrCode } from "../lib/asaas";
 import { brtISODate } from "../lib/brt";
-import { PEDIDO_LABEL, isPedidoKind, resolvePedidoAmount, type PedidoKind } from "../lib/pedido-medico";
+import { PEDIDO_LABEL, isPedidoKind, resolveAssignee, resolvePedidoAmount, type PedidoKind } from "../lib/pedido-medico";
+import { beneficioAtivo } from "../lib/member-beneficios";
 
 // ===========================================================================
 // PEDIDO MEDICO DO CLIENTE (Area do Cliente). O clientId vem SEMPRE do token do
@@ -29,7 +30,7 @@ function unauthorized(res: Response) {
 interface PedidoRow {
   id: number; client_id: number; kind: PedidoKind; details: string; status: string;
   amount: string | null; asaas_charge_id: string | null; asaas_invoice_url: string | null;
-  asaas_customer_id: string | null; created_at: string; paid_at: string | null; decision_note: string | null;
+  asaas_customer_id: string | null; isento_beneficio_id?: number | null; created_at: string; paid_at: string | null; decision_note: string | null;
 }
 
 function publicView(r: PedidoRow) {
@@ -40,6 +41,7 @@ function publicView(r: PedidoRow) {
     details: r.details,
     status: r.status,
     amount: r.amount === null ? null : Number(r.amount),
+    isentoPorBeneficio: r.isento_beneficio_id != null,
     invoiceUrl: r.asaas_invoice_url,
     paidAt: r.paid_at,
     createdAt: r.created_at,
@@ -71,7 +73,9 @@ router.post("/area-paciente/pedidos-medicos", async (req: Request, res: Response
       res.status(409).json({ error: "Seu cadastro ainda não está vinculado a uma unidade. Fale com a clínica." });
       return;
     }
-    const amount = await resolvePedidoAmount(kind);
+    // Beneficio Member ativo (mesma clinica) dispensa a COBRANCA; a analise medica continua.
+    const beneficio = await beneficioAtivo(clientId, client.empresaId, kind);
+    const amount = beneficio ? 0 : await resolvePedidoAmount(kind);
     if (amount === null) {
       res.status(503).json({ error: "Este pedido ainda não está disponível: o valor não foi configurado pela clínica." });
       return;
@@ -84,11 +88,19 @@ router.post("/area-paciente/pedidos-medicos", async (req: Request, res: Response
          WHERE client_id = ${clientId} AND status = 'aguardando_pagamento'`);
       if (Number((open.rows[0] as { n: number }).n) >= MAX_OPEN_UNPAID) return null;
       const ins = await tx.execute(sql`
-        INSERT INTO client_medical_requests (client_id, empresa_id, location_id, kind, details, amount)
-        VALUES (${clientId}, ${client.empresaId}, ${client.locationId}, ${kind}, ${parsed.data.details}, ${amount})
+        INSERT INTO client_medical_requests (client_id, empresa_id, location_id, kind, details, amount, status, isento_beneficio_id)
+        VALUES (${clientId}, ${client.empresaId}, ${client.locationId}, ${kind}, ${parsed.data.details}, ${amount},
+                ${beneficio ? "pago" : "aguardando_pagamento"}, ${beneficio ? beneficio.id : null})
         RETURNING *`);
       return ins.rows[0] as unknown as PedidoRow;
     });
+    if (created && beneficio) {
+      // Sem pagamento: roteia ao medico agora (paid_at fica vazio, nada e dado como pago).
+      const target = await resolveAssignee(clientId, client.locationId, client.empresaId, kind);
+      await db.execute(sql`
+        UPDATE client_medical_requests SET assigned_professional_id = ${target.professionalId},
+               assigned_reason = ${target.reason}, updated_at = NOW() WHERE id = ${created.id}`);
+    }
     if (!created) {
       res.status(429).json({ error: "Você já tem pedidos aguardando pagamento. Pague ou cancele um deles." });
       return;

@@ -34,6 +34,8 @@ vi.mock("../lib/asaas", () => ({
   asaasGetPixQrCode: vi.fn(async () => ({ encodedImage: "AAA", payload: "000201", expirationDate: null })),
 }));
 const resolveAmount = vi.fn();
+const beneficio = vi.fn(async () => null as null | { id: number });
+vi.mock("../lib/member-beneficios", () => ({ beneficioAtivo: (...a: unknown[]) => (beneficio as any)(...a) }));
 vi.mock("../lib/pedido-medico", async () => {
   const real = await vi.importActual<typeof import("../lib/pedido-medico")>("../lib/pedido-medico").catch(() => null);
   return {
@@ -41,6 +43,7 @@ vi.mock("../lib/pedido-medico", async () => {
     isPedidoKind: (v: unknown) => v === "receita" || v === "pedido_exames",
     resolvePedidoAmount: (...a: unknown[]) => resolveAmount(...a),
     markPedidoPaid: vi.fn(),
+    resolveAssignee: vi.fn(async () => ({ professionalId: 7, reason: "habitual" })),
     __real: real,
   };
 });
@@ -61,7 +64,7 @@ const row = (o: Record<string, unknown> = {}) => ({
   amount: "80.00", asaas_charge_id: null, asaas_invoice_url: null, created_at: "2026-11-06", paid_at: null, decision_note: null, ...o,
 });
 
-beforeEach(() => { exec.mockReset(); selectClient.mockReset(); asaasCreateCharge.mockClear(); resolveAmount.mockReset(); });
+beforeEach(() => { exec.mockReset(); selectClient.mockReset(); asaasCreateCharge.mockClear(); resolveAmount.mockReset(); beneficio.mockReset(); beneficio.mockResolvedValue(null); });
 
 describe("pedido médico do cliente", () => {
   it("sem token do cliente: 401 e nada é gravado", async () => {
@@ -102,6 +105,21 @@ describe("pedido médico do cliente", () => {
     expect(r.body.status).toBe("aguardando_pagamento");
     expect(r.body.amount).toBe(80);
     expect(JSON.stringify(r.body)).not.toMatch(/client_id|assigned|professional/i);
+  });
+
+  it("com benefício Member ativo: sem valor configurado, valor 0, sem cobrança e roteado ao médico", async () => {
+    selectClient.mockResolvedValue([clientOk]);
+    resolveAmount.mockResolvedValue(null);
+    beneficio.mockResolvedValue({ id: 3 });
+    exec.mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ n: 0 }] })
+      .mockResolvedValueOnce({ rows: [row({ status: "pago", amount: "0.00", isento_beneficio_id: 3 })] })
+      .mockResolvedValueOnce({ rows: [] });
+    const r = await request(app()).post("/api/area-paciente/pedidos-medicos").set(auth).send({ kind: "receita", details: "preciso renovar" });
+    expect(r.status).toBe(201);
+    expect(r.body.isentoPorBeneficio).toBe(true);
+    expect(r.body.paidAt).toBeNull();
+    expect(asaasCreateCharge).not.toHaveBeenCalled();
   });
 
   it("limite de pedidos abertos sem pagar: 429", async () => {
