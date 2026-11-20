@@ -1362,3 +1362,17 @@ mtime_ms = 1795208338504
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a3eebdf9-b748-40ff-9a02-d8c4675e9deb/3772eb1b-0b8b-436f-8fad-58e1731ce436"
 storage_version_token = "1795208476703915"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "ebHufAhOKyIxuSvsB8dQ6"
+uri = "file://generated-artifacts/auditoria-paxmed-2026-11-20.txt"
+type = "text"
+title = "Auditoria PaxMed: schema, 117 perguntas e lógica"
+description = "Somente leitura. Schema das tabelas, catálogo completo de perguntas e resumo de rotas."
+logical_id = "ca42480a-af8e-494f-b79e-e7e6d07dad59"
+content_hash = "sha256:d11cab6cce0ae10220bb3516b9dffe32f666c399bbfdd8fa22cf862f74826796"
+size = 61275
+mtime_ms = 1795215961966
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ca42480a-af8e-494f-b79e-e7e6d07dad59/0b339cdf-2215-40b2-b3f9-df1bb29c7f13"
+storage_version_token = "1795215965151070"
+content_type = "text/plain"
