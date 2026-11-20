@@ -19,6 +19,7 @@ import { ensureAsaasConciliacaoTables } from "./lib/asaas-conciliacao.js";
 import { ensureBoloesTables } from "./lib/boloes.js";
 import { ensureMeusJogosTables } from "./lib/meus-jogos.js";
 import { ensureTelegramInboxTable } from "./lib/ensure-telegram-inbox.js";
+import { garantirTabelasComunicacao } from "./lib/comunicacao-migracao.js";
 import { ensureClientBodyPhotosTable } from "./lib/ensure-client-body-photos.js";
 import { runSeedSiteContent } from "./lib/seed-site-content";
 import { runSeedMensageriaPaxmed } from "./lib/seed-mensageria-paxmed";
@@ -181,6 +182,13 @@ if (Number.isNaN(port) || port <= 0) {
     await ensureTelegramInboxTable();
   } catch (e) {
     logger.error({ err: e }, "Falha crítica ao criar tabela telegram_inbox_messages — abortando boot");
+    process.exit(1);
+  }
+
+  try {
+    await garantirTabelasComunicacao();
+  } catch (e) {
+    logger.error({ err: e }, "Falha ao preparar tabelas da comunicacao unificada — abortando boot");
     process.exit(1);
   }
 

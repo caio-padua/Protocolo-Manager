@@ -10,7 +10,7 @@ import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
-import { sendWhatsapp } from "../lib/whatsapp";
+import { sendWhatsapp, registrarLogMensagem } from "../lib/whatsapp";
 import { getSecret } from "../lib/secure-settings";
 import { logger } from "../lib/logger";
 import { requireAiTenant } from "../lib/ai-central";
@@ -85,6 +85,18 @@ async function buscarRemetente(phone: string) {
   return null;
 }
 
+/**
+ * Cliente atribuivel a um telefone recebido: SOMENTE quando exatamente um cadastro bate.
+ * Telefone ambiguo nao e atribuido a nenhuma clinica (a mensagem fica fora da leitura das clinicas).
+ */
+async function clienteUnicoPorTelefone(phone: string): Promise<number | null> {
+  const digits = normalizePhone(phone);
+  const sufixo = digits.slice(-8);
+  if (sufixo.length < 8) return null;
+  const r = await db.execute(sql`SELECT id FROM clients WHERE regexp_replace(COALESCE(phone,''), '\\D', '', 'g') LIKE ${'%' + sufixo} LIMIT 2`);
+  return r.rows.length === 1 ? Number((r.rows[0] as Record<string, unknown>).id) : null;
+}
+
 // ── Monta system prompt contextualizado ───────────────────────────────────────
 function montarSystemPrompt(remetente: Awaited<ReturnType<typeof buscarRemetente>>): string {
   const base = `Você é Aurora ADM, Assistente Administrativa Sênior do sistema PaxMed (Padcon Conect). Você NUNCA chama a clínica de PaxMed: a clínica tem o próprio nome.
@@ -143,6 +155,19 @@ router.post("/whatsapp/inbound", async (req, res): Promise<void> => {
 
   logger.info({ from, bodyLen: body.length }, "[whatsapp/inbound] mensagem recebida");
 
+  // Grava a mensagem RECEBIDA (direcao entrada) para a conversa unificada e a auditoria.
+  const clienteIdRecebida = await clienteUnicoPorTelefone(from).catch(() => null);
+  await registrarLogMensagem({
+    telefone: normalizePhone(from),
+    corpo: body,
+    sid: params.MessageSid ?? null,
+    status: "received",
+    contexto: "inbound",
+    clienteId: clienteIdRecebida ?? undefined,
+    via: "whatsapp",
+    direcao: "entrada",
+  });
+
   // Busca contexto do remetente
   const remetente = await buscarRemetente(from).catch(() => null);
   const systemPrompt = montarSystemPrompt(remetente);
@@ -165,7 +190,7 @@ router.post("/whatsapp/inbound", async (req, res): Promise<void> => {
 
   // Envia resposta (best-effort — não bloqueia o 200 ao Twilio)
   const toPhone = normalizePhone(from);
-  sendWhatsapp(toPhone, resposta, { contexto: "inbound_reply" }).catch((e: unknown) => {
+  sendWhatsapp(toPhone, resposta, { contexto: "inbound_reply", clienteId: clienteIdRecebida ?? undefined }).catch((e: unknown) => {
     logger.warn({ err: e instanceof Error ? e.message : String(e) }, "[whatsapp/inbound] falha ao enviar resposta");
   });
 

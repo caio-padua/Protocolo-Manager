@@ -9,7 +9,7 @@
 // status final chega de forma assíncrona no webhook POST /api/whatsapp/status, que
 // atualiza a linha por MessageSid. O telefone é guardado inteiro no banco (dado
 // nativo do cliente); a API/tela é que mascaram. Nunca logamos o token.
-import { db, whatsappMensagensLogTable, clientsTable } from "@workspace/db";
+import { db, pool, whatsappMensagensLogTable, clientsTable } from "@workspace/db";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { logger } from "./logger";
 import { getSecret } from "./secure-settings";
@@ -183,6 +183,7 @@ export async function registrarLogMensagem(args: {
   contexto?: string;
   clienteId?: number;
   via?: "whatsapp" | "telegram";
+  direcao?: "entrada" | "saida";
 }): Promise<number | undefined> {
   return registrarLog(args);
 }
@@ -198,6 +199,8 @@ async function registrarLog(args: {
   clienteId?: number;
   /** Canal de entrega: 'whatsapp' (padrão) ou 'telegram'. */
   via?: "whatsapp" | "telegram";
+  /** 'saida' (padrão) = envio da clínica; 'entrada' = mensagem recebida do cliente. */
+  direcao?: "entrada" | "saida";
 }): Promise<number | undefined> {
   try {
     const [row] = await db
@@ -213,6 +216,16 @@ async function registrarLog(args: {
         via: args.via ?? "whatsapp",
       })
       .returning({ id: whatsappMensagensLogTable.id });
+    if (row?.id) {
+      // Clínica e direção (colunas fora do esquema Drizzle): a clínica vem SEMPRE do cadastro do cliente.
+      await pool.query(
+        `UPDATE whatsapp_mensagens_log
+            SET direcao = $2,
+                empresa_id = COALESCE(empresa_id, (SELECT empresa_id FROM clients WHERE id = $3))
+          WHERE id = $1`,
+        [row.id, args.direcao ?? "saida", args.clienteId ?? null],
+      );
+    }
     return row?.id;
   } catch (err: any) {
     logger.warn({ err: err?.message }, "falha ao registrar log de mensagem");
