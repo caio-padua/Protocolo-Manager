@@ -1376,3 +1376,45 @@ mtime_ms = 1795215961966
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ca42480a-af8e-494f-b79e-e7e6d07dad59/0b339cdf-2215-40b2-b3f9-df1bb29c7f13"
 storage_version_token = "1795215965151070"
 content_type = "text/plain"
+
+[[outputs]]
+id = "4Fb5UF3Tz6VTyyqCg7QdH"
+uri = "file://generated-artifacts/auditoria-parte1b-schema-restante.txt"
+type = "text"
+title = "Parte 1B: schema restante"
+description = "Somente leitura"
+logical_id = "ceff2c15-bb4c-464f-9b40-fd201636fe37"
+content_hash = "sha256:593e79c23aac41f1b3bee8a1156420a6c0643da6f87e053d9e034df943f54697"
+size = 19727
+mtime_ms = 1795217463060
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/ceff2c15-bb4c-464f-9b40-fd201636fe37/65fdd103-dca3-40e7-a840-88a32d08fd8d"
+storage_version_token = "1795217464952650"
+content_type = "text/plain"
+
+[[outputs]]
+id = "hxrLM4yIU7-K5CbHXvJ62"
+uri = "file://generated-artifacts/auditoria-parte2-catalogo-perguntas.txt"
+type = "text"
+title = "Parte 2: 117 perguntas e mapa do motor"
+description = "Somente leitura"
+logical_id = "c5a45a02-7435-4b1b-8a2c-0d0f42021743"
+content_hash = "sha256:ce3b64808eedb9670e1e3834dccad53a179c190ab6a1a8d3f63bf02ae98cceb5"
+size = 32564
+mtime_ms = 1795217463222
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/c5a45a02-7435-4b1b-8a2c-0d0f42021743/b49503e0-0cad-43aa-8c1d-99201735ebed"
+storage_version_token = "1795217465777422"
+content_type = "text/plain"
+
+[[outputs]]
+id = "Vm5FDHi3SdBcb2drkUCEz"
+uri = "file://generated-artifacts/auditoria-parte3-logica.txt"
+type = "text"
+title = "Parte 3: lógica de anamnese e exames"
+description = "Somente leitura"
+logical_id = "a5884bb5-fcdc-48e8-8257-8fce2d1e1e46"
+content_hash = "sha256:1d3f218128093d8aa943cdb2285cd92c46168b676d317821d488a67867a07cf6"
+size = 2417
+mtime_ms = 1795217463227
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a5884bb5-fcdc-48e8-8257-8fce2d1e1e46/fa80ffdc-70b4-4369-b204-19ab7c0816d7"
+storage_version_token = "1795217466417501"
+content_type = "text/plain"
