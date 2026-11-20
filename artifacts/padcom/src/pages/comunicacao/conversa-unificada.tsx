@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Maximize2, Minimize2, RefreshCw, X, Download, Archive } from "lucide-react";
+import { RefreshCw, X, Download, Archive } from "lucide-react";
 import { BASE } from "./_shared";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { BotaoMinMax } from "./botao-min-max";
 import { BolhaMensagem, FundoConversa } from "./bolhas-mensagem";
 
 // Conversa unificada WWP (WhatsApp) + TG (Telegram), tarifas e backup. Dados sempre da clinica da sessao.
@@ -47,10 +48,7 @@ export function PainelRecolhivel({ titulo, subtitulo, children, inicialAberto = 
         </div>
         <div className="flex items-center gap-2">
           {acoes}
-          <button type="button" className="bevel-3d p-1.5" onClick={() => setAberto(!aberto)}
-            aria-label={aberto ? "Minimizar painel" : "Maximizar painel"} title={aberto ? "Minimizar" : "Maximizar"}>
-            {aberto ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-          </button>
+          <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
         </div>
       </div>
       {aberto && <div className="p-4">{children}</div>}

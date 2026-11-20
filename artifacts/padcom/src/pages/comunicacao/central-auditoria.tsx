@@ -8,6 +8,7 @@ import { ConsoleShell, BlockTitle, StatusVela, BASE } from "./_shared";
 import { getCollabToken } from "@/lib/collab-auth";
 import { PainelOperacionalTelegram } from "./painel-telegram";
 import { SecaoComunicacaoUnificada } from "./conversa-unificada";
+import { BotaoMinMax } from "./botao-min-max";
 import { classificarStatusTelegram, mensagemErroTelegram, type StatusTelegram } from "./telegram-status";
 
 // ============================================================================
@@ -246,7 +247,7 @@ function BlocoWhatsApp({ filtroData }: { filtroData: FiltroData }) {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </button>
-            {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
           </div>
         </div>
 
@@ -371,7 +372,7 @@ function BlocoEmail() {
             <p className="text-[10px] text-muted-foreground">via Gmail API · {loading ? "verificando…" : ativo ? "conectado" : "não configurado"}</p>
           </div>
         </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
 
       {aberto && (
@@ -464,11 +465,11 @@ function BlocoTelegram() {
         <div className="flex items-center gap-3">
           <Bot className="h-5 w-5 text-[#29B6F6]" />
           <div>
-            <p className="text-[13px] font-bold uppercase tracking-wide">Telegram</p>
+            <p className="text-[13px] font-bold uppercase tracking-wide">Telegram · Status do bot</p>
             <p className="text-[10px] text-muted-foreground">via Bot Token · {rotuloEstado}</p>
           </div>
         </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
 
       {aberto && (
@@ -534,7 +535,7 @@ function BlocoTrello() {
             <p className="text-[10px] text-muted-foreground">cards de tarefa interna · não configurado</p>
           </div>
         </div>
-        {aberto ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
 
       {aberto && (
@@ -636,9 +637,9 @@ export default function CentralAuditoriaComunicacao() {
 
       {/* 4 blocos de canal */}
       <BlocoWhatsApp filtroData={filtroData} />
-      <BlocoEmail />
-      <PainelOperacionalTelegram />
       <BlocoTelegram />
+      <PainelOperacionalTelegram />
+      <BlocoEmail />
       <BlocoTrello />
     </ConsoleShell>
   );

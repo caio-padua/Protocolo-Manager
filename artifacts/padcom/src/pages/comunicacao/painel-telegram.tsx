@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 import { BlockTitle, BASE } from "./_shared";
 import { getCollabToken } from "@/lib/collab-auth";
+import { BotaoMinMax } from "./botao-min-max";
 
 type Estado = "conectado" | "parcial" | "documentado" | "nao_comprovado" | "pendente";
 const ROTULO: Record<Estado, string> = {
@@ -82,6 +83,7 @@ function Tabela({ titulo, children }: { titulo: string; children: React.ReactNod
 }
 
 export function PainelOperacionalTelegram() {
+  const [aberto, setAberto] = useState(true);
   const [p, setP] = useState<Painel | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [usoIA, setUsoIA] = useState<ClinicaIA[] | null>(null);
@@ -164,14 +166,17 @@ export function PainelOperacionalTelegram() {
 
   return (
     <section className="panel-3d overflow-hidden" data-testid="painel-operacional-telegram">
-      <div className="bevel-3d flex items-center gap-3 px-5 py-3" style={{ borderLeft: "4px solid #b8924d" }}>
-        <Bot className="h-5 w-5 text-[#b8924d]" />
-        <div>
-          <p className="text-[13px] font-bold uppercase tracking-wide">Painel operacional do Telegram</p>
-          <p className="text-[10px] text-muted-foreground">PAXMED · Clinical Intelligence System · estados honestos, sem valores secretos</p>
+      <div className="bevel-3d flex items-center justify-between gap-3 px-5 py-3" style={{ borderLeft: "4px solid #b8924d" }}>
+        <div className="flex items-center gap-3">
+          <Bot className="h-5 w-5 text-[#b8924d]" />
+          <div>
+            <p className="text-[13px] font-bold uppercase tracking-wide">Telegram · Ferramentas</p>
+            <p className="text-[10px] text-muted-foreground">Atendimento automático, acompanhamento de exames e etapas · estados honestos, sem valores secretos</p>
+          </div>
         </div>
+        <BotaoMinMax aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
-      <div className="space-y-4 p-5">
+      {aberto && <div className="space-y-4 p-5">
         {erro && <p role="alert" className="concave-3d p-3 text-[12px] text-rose-700 dark:text-rose-400">{erro} Os itens abaixo marcados como lidos do sistema aparecem como pendentes até a consulta funcionar.</p>}
 
         <div className="concave-3d space-y-2 p-3" data-testid="controle-atendimento-ia">
@@ -313,7 +318,7 @@ export function PainelOperacionalTelegram() {
           <li><strong>Etapa 3 · Orientações aprovadas.</strong> Biblioteca com prévia fiel e aprovação médica. Falta o conteúdo aprovado pelo Dr. Caio.</li>
           <li><strong>Etapa 4 · Documentos e agenda.</strong> Só depois das anteriores: consulta da própria agenda e reenvio de RAS, RASP e prescrição. Cada uma exige especificação, revisão e teste antes de ligar.</li>
         </ol>
-      </div>
+      </div>}
     </section>
   );
 }
