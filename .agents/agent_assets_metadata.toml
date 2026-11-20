@@ -1418,3 +1418,17 @@ mtime_ms = 1795217463227
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a5884bb5-fcdc-48e8-8257-8fce2d1e1e46/fa80ffdc-70b4-4369-b204-19ab7c0816d7"
 storage_version_token = "1795217466417501"
 content_type = "text/plain"
+
+[[outputs]]
+id = "D4hDUltwOdkp3ghUBFsVH"
+uri = "file://generated-artifacts/auditoria-parte2b-linhas-42-a-117.txt"
+type = "text"
+title = "Parte 2B: 76 perguntas restantes (texto bruto completo)"
+description = "Linhas 42 a 117 do catálogo, com opções em JSON exato"
+logical_id = "903a479a-3a96-4374-904f-a904d56f7547"
+content_hash = "sha256:36e64333829df6a11bb331aa954b941060ec99bac29bf327c93dcb89dee34459"
+size = 18646
+mtime_ms = 1795217661802
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/903a479a-3a96-4374-904f-a904d56f7547/8cbefff9-a05b-43fe-94ff-e4378abe1ddd"
+storage_version_token = "1795217662915812"
+content_type = "text/plain"
