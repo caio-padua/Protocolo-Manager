@@ -7,6 +7,92 @@
  */
 import * as zod from "zod";
 
+export const GetClientTelegramInboxParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const getClientTelegramInboxQueryQuantidadeDefault = 20;
+export const getClientTelegramInboxQueryDirecaoDefault = `todas`;
+export const getClientTelegramInboxQueryPaginaDefault = 1;
+
+export const GetClientTelegramInboxQueryParams = zod.object({
+  quantidade: zod
+    .union([zod.literal(20), zod.literal(50), zod.literal(100)])
+    .default(getClientTelegramInboxQueryQuantidadeDefault),
+  direcao: zod
+    .enum(["todas", "entrada", "saida"])
+    .default(getClientTelegramInboxQueryDirecaoDefault),
+  pagina: zod.coerce
+    .number()
+    .min(1)
+    .default(getClientTelegramInboxQueryPaginaDefault),
+});
+
+export const getClientTelegramInboxResponseNaoLidasMin = 0;
+
+export const GetClientTelegramInboxResponse = zod.object({
+  mensagens: zod.array(
+    zod.object({
+      id: zod.number().min(1),
+      texto: zod.string(),
+      recebidaEm: zod.coerce.date(),
+      lida: zod.boolean(),
+      direcao: zod.enum(["entrada", "saida"]),
+      atendimento: zod
+        .object({
+          estado: zod.enum([
+            "pendente",
+            "processando",
+            "concluido",
+            "falhou",
+            "esgotado",
+            "incerto",
+          ]),
+          desfecho: zod.string().nullable(),
+          orientacaoAprovada: zod.boolean(),
+        })
+        .optional(),
+    }),
+  ),
+  naoLidas: zod.number().min(getClientTelegramInboxResponseNaoLidasMin),
+  temMais: zod.boolean(),
+});
+
+export const GetClientTelegramAtendimentoParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const GetClientTelegramAtendimentoResponse = zod.object({
+  clienteId: zod.number().min(1),
+  vinculado: zod.boolean(),
+  vinculoUnico: zod.boolean(),
+  modoGlobal: zod.enum(["desligado", "lista", "ligado"]),
+  botConfigurado: zod.boolean(),
+  canalAtivo: zod.boolean(),
+  autorizadoIndividualmente: zod.boolean(),
+  modoPermiteResposta: zod.boolean(),
+  pausadoParaEquipe: zod.boolean(),
+  creditoDisponivel: zod.boolean(),
+  creditoMotivo: zod
+    .union([zod.literal("sem_saldo"), zod.literal(null)])
+    .nullable(),
+  respostaAutomaticaAtiva: zod.boolean(),
+  podeAlterarAutorizacaoIndividual: zod.boolean(),
+});
+
+export const UpdateClientTelegramAtendimentoParams = zod.object({
+  clientId: zod.coerce.number().min(1),
+});
+
+export const UpdateClientTelegramAtendimentoBody = zod.object({
+  autorizado: zod.boolean(),
+});
+
+export const UpdateClientTelegramAtendimentoResponse = zod.object({
+  ok: zod.literal(true),
+  autorizado: zod.boolean(),
+});
+
 export const getMensageriaCreditoResponseSaldoCentavosMin = 0;
 
 export const getMensageriaCreditoResponseMensagensAguardandoRetomadaMin = 0;

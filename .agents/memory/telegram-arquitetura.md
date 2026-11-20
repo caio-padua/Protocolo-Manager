@@ -82,10 +82,11 @@ Dois caminhos de ativação convivem e nenhum substitui o outro: link mágico (`
 **Why:** o CEO definiu que o assistente reduz custo sem inventar respostas nem ampliar o risco clínico ou de privacidade.
 **How to apply:** qualquer mudança no Telegram que use IA precisa manter separadas interpretação, conferência e resposta aprovada; editar uma FAQ aprendida não deve alterar mensagens já em andamento.
 
-## Direção futura: dúvidas sobre receituário
-- O CEO quer que uma evolução futura consulte o receituário, as fórmulas e os protocolos da própria cliente, explique em linguagem simples e ofereça o reenvio do documento.
-- Esse fluxo é separado do aprendiz de perguntas frequentes: não aprende conteúdo clínico nem está disponível no bot atual.
-- Antes de existir, a pergunta sobre receituário continua sendo encaminhada à equipe; não inferir o registro pelo nome nem enviar documento sem confirmação explícita da cliente.
+## Atendimento clínico por Telegram
+- O PaxMed pode responder perguntas sobre fórmulas e protocolos somente com explicação exata aprovada por profissional e ligada ao registro atual da própria cliente.
+- Esse fluxo é separado do aprendiz de perguntas frequentes; não usa geração de texto por inteligência artificial e não aprende respostas clínicas automaticamente.
+- A segunda via é limitada à receita emitida que tenha um único arquivo; a cliente precisa confirmar e recebe um link temporário com hash do token guardado no servidor.
+- A equipe continua responsável por sintomas, reações, doses, alterações, interações, renovação, fonte ausente ou resultado de envio incerto.
 
-**Why:** a cliente deve conseguir entender o próprio documento e pedir uma segunda via, sem expor receita a outra pessoa nem alterar uma orientação clínica.
-**How to apply:** implementar como fluxo clínico autenticado, restrito ao registro confirmado; escolher uma fonte aprovada para explicar a fórmula e validar destinatário e documento antes de oferecer o reenvio.
+**Why:** o CEO quer que o sistema PaxMed converse diretamente com clientes, mantendo a explicação clínica sob aprovação profissional e sem confundir cadastros.
+**How to apply:** manter a conversa vinculada por identificador Telegram único e clínica; nunca procurar por nome, nem enviar documento sem confirmação explícita.

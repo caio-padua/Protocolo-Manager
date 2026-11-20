@@ -21,7 +21,7 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // Previne o throw "DATABASE_URL must be set" em lib/db/src/index.ts
 vi.mock("@workspace/db", () => ({
-  db:                  {},
+  db:                  { execute: vi.fn().mockResolvedValue({ rows: [] }) },
   clientsTable:        {},
   telegramInboxTable:  {},
   // tabelas importadas indiretamente por outros módulos que cockpit.ts usa:
@@ -365,6 +365,24 @@ describe("GET /cockpit/:clientId/telegram-inbox — campo direcao no DTO", () =>
     expect(res.status).toBe(200);
     expect(res.body.mensagens.find((m: any) => m.id === 2).direcao).toBe("saida");
     expect(res.body.mensagens.find((m: any) => m.id === 1).direcao).toBe("entrada");
+  });
+});
+
+describe("autorização individual do atendimento automático", () => {
+  it("bloqueia alteração quando a sessão não comprova autoridade de CEO", async () => {
+    const res = await request(buildApp())
+      .put(`/cockpit/${CLIENTE_ID}/telegram-inbox/atendimento`)
+      .send({ autorizado: true });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Acesso restrito ao administrador da plataforma.");
+  });
+
+  it("não permite alteração mesmo quando o corpo é válido", async () => {
+    const res = await request(buildApp())
+      .put("/cockpit/0/telegram-inbox/atendimento")
+      .send({ autorizado: true });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Acesso restrito ao administrador da plataforma.");
   });
 });
 

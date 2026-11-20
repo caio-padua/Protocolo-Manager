@@ -162,7 +162,11 @@ export interface TelegramResult {
 }
 
 /** Envia texto a um chat. MOCK quando sem token (nunca falha por isso). */
-export async function sendTelegram(chatId: string, text: string): Promise<TelegramResult> {
+export async function sendTelegram(
+  chatId: string,
+  text: string,
+  options: { disableWebPagePreview?: boolean } = {},
+): Promise<TelegramResult> {
   // ChatId especial: força falha para testar o fallback Slack (endpoint de teste).
   if (chatId === "PADAXOR_TEST_FORCE_FAIL") {
     logger.info({ chatId }, "[telegram] TEST_FORCE_FAIL — simulando rejeição forçada do Telegram");
@@ -185,7 +189,7 @@ export async function sendTelegram(chatId: string, text: string): Promise<Telegr
         chat_id: chatId,
         text,
         parse_mode: "HTML",
-        disable_web_page_preview: false,
+        disable_web_page_preview: options.disableWebPagePreview ?? false,
       }),
     });
     if (!resp.ok) {

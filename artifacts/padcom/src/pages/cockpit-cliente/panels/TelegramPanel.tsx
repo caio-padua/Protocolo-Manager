@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, MessageCircle } from "lucide-react";
 import { getCollabToken } from "@/lib/collab-auth";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -11,6 +12,21 @@ interface Message {
   recebidaEm: string;
   lida: boolean;
   direcao?: string;
+  atendimento?: { estado: string; desfecho: string | null; orientacaoAprovada: boolean };
+}
+interface AtendimentoStatus {
+  vinculado: boolean;
+  vinculoUnico: boolean;
+  modoGlobal: "desligado" | "lista" | "ligado";
+  botConfigurado: boolean;
+  canalAtivo: boolean;
+  autorizadoIndividualmente: boolean;
+  modoPermiteResposta: boolean;
+  pausadoParaEquipe: boolean;
+  creditoDisponivel: boolean;
+  creditoMotivo: string | null;
+  respostaAutomaticaAtiva: boolean;
+  podeAlterarAutorizacaoIndividual: boolean;
 }
 interface InboxPage {
   mensagens: Message[];
@@ -45,6 +61,19 @@ export default function TelegramPanel({
     getNextPageParam: (page, _pages, pageNumber) => page.temMais ? pageNumber + 1 : undefined,
     refetchInterval: visivel ? 15_000 : false,
     gcTime: 0,
+  });
+  const atendimento = useQuery({
+    queryKey: ["telegram-atendimento", clientId],
+    enabled: visivel,
+    retry: false,
+    refetchInterval: visivel ? 15_000 : false,
+    queryFn: async ({ signal }): Promise<AtendimentoStatus> => {
+      const response = await fetch(`${api}/cockpit/${clientId}/telegram-inbox/atendimento`, {
+        signal, headers: headers(),
+      });
+      if (!response.ok) throw new Error("Não foi possível confirmar a autorização e o estado do atendimento.");
+      return response.json();
+    },
   });
   const messages = useMemo(() => {
     const unique = new Map<number, Message>();
@@ -94,6 +123,42 @@ export default function TelegramPanel({
       title: "Mensagem não enviada", description: error.message, variant: "destructive",
     }),
   });
+  const updateAuthorization = useMutation({
+    mutationFn: async (autorizado: boolean) => {
+      const response = await fetch(`${api}/cockpit/${clientId}/telegram-inbox/atendimento`, {
+        method: "PUT",
+        headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify({ autorizado }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Não foi possível alterar a autorização individual.");
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["telegram-atendimento", clientId] });
+      toast({ title: "Autorização individual atualizada" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Autorização não alterada", description: error.message, variant: "destructive" });
+    },
+  });
+  const status = atendimento.data;
+  const statusMessage = (message: Message) => {
+    const state = message.atendimento;
+    if (!state) return null;
+    if (state.estado === "incerto") return "Resultado incerto; a equipe precisa conferir antes de repetir.";
+    if (state.estado === "falhou" || state.estado === "esgotado") return "Não confirmado; requer conferência da equipe.";
+    if (state.estado === "pendente" || state.estado === "processando") return "Aguardando resposta.";
+    if (state.desfecho === "orientacao_enviada") return state.orientacaoAprovada
+      ? "Respondida com orientação aprovada."
+      : "Respondida.";
+    if (state.desfecho === "clarificacao_documento") return "Aguardando a cliente indicar qual item.";
+    if (state.desfecho === "reenvio_receita_ofertado") return "Oferta de segunda via enviada; falta confirmação.";
+    if (state.desfecho === "reenvio_receita_confirmado") return "Segunda via confirmada e encaminhada.";
+    if (state.desfecho === "reenvio_receita_cancelado") return "Oferta de segunda via cancelada.";
+    if (state.desfecho === "encaminhado_humano" || state.desfecho === "queixa_encaminhada") return "Encaminhada à equipe.";
+    if (state.desfecho === "desligado_ou_fora_da_lista" || state.desfecho === "desligado" || state.desfecho === "fora_da_lista") return "Resposta automática bloqueada pela configuração.";
+    return "Atendimento encerrado.";
+  };
 
   return (
     <section className="panel-3d-sub p-4 space-y-3" aria-label="Histórico Telegram">
@@ -102,6 +167,47 @@ export default function TelegramPanel({
         <Button className="btn-3d-soft" onClick={() => markRead.mutate()} disabled={markRead.isPending}>
           Marcar lidas
         </Button>
+      </div>
+      <div className="concave-3d space-y-3 p-3" aria-label="Estado do atendimento automático">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold">Atendimento automático deste cliente</p>
+            {atendimento.isLoading && <p className="text-xs text-muted-foreground">Verificando vínculo, modo e crédito…</p>}
+            {atendimento.isError && <p role="alert" className="text-xs text-rose-700 dark:text-rose-400">{(atendimento.error as Error).message}</p>}
+            {status && <p className="text-xs text-muted-foreground">
+              Modo global: <b>{status.modoGlobal}</b> · Telegram: <b>{status.vinculado && status.vinculoUnico ? "vinculado e único" : "não confirmado"}</b> · Canal: <b>{status.canalAtivo && status.botConfigurado ? "ativo" : "inativo ou incompleto"}</b> · Crédito: <b>{status.creditoDisponivel ? "disponível" : "indisponível"}</b>
+            </p>}
+          </div>
+          <label className="flex items-center gap-2 text-xs font-semibold">
+            <Switch
+              checked={status?.autorizadoIndividualmente ?? false}
+              onCheckedChange={(checked) => updateAuthorization.mutate(checked)}
+              disabled={!status || !status.podeAlterarAutorizacaoIndividual || updateAuthorization.isPending ||
+                (!status.autorizadoIndividualmente && (!status.vinculado || !status.vinculoUnico))}
+              aria-label="Autorizar atendimento automático para este cliente"
+            />
+            {status?.autorizadoIndividualmente ? "Autorizado" : "Não autorizado"}
+          </label>
+        </div>
+        {status && (
+          <p className="text-xs leading-relaxed text-muted-foreground" role="status">
+            {status.modoGlobal === "ligado"
+              ? "O modo global atende todos os clientes vinculados e ignora a lista individual; por isso, este controle fica bloqueado."
+              : status.pausadoParaEquipe
+                ? "A equipe assumiu esta conversa. A inteligência artificial permanece pausada."
+                : !status.creditoDisponivel
+                  ? "Sem crédito disponível para resposta automática. A mensagem permanece registrada para a equipe."
+                  : status.modoGlobal === "desligado" && status.autorizadoIndividualmente
+                    ? "A autorização fica guardada, mas nenhuma resposta automática sai enquanto o modo global estiver desligado."
+                    : status.modoGlobal === "lista" && !status.autorizadoIndividualmente
+                      ? "O modo Lista está ativo, mas este cliente ainda não foi autorizado."
+                      : status.respostaAutomaticaAtiva
+                        ? "A resposta automática está habilitada para esta conversa. Dúvidas clínicas sem orientação aprovada seguem para a equipe."
+                        : "A autorização está registrada, mas falta uma condição para responder automaticamente."}
+          </p>
+        )}
+        <p className="text-[10px] text-muted-foreground">A autorização individual só pode ser alterada pelo CEO. O servidor valida essa permissão.</p>
+        {status?.modoGlobal === "ligado" && <p className="text-xs text-amber-800 dark:text-amber-300">Para limitar respostas a clientes escolhidos, altere o modo global para “lista” na Central de Auditoria.</p>}
       </div>
       <p className="text-xs text-muted-foreground">As mensagens são consultadas por lotes. Nenhuma classificação de gravidade clínica é aplicada.</p>
       {(inbox.isError || markRead.isError) && (
@@ -126,6 +232,7 @@ export default function TelegramPanel({
             className={`flex ${message.direcao === "saida" ? "justify-end" : "justify-start"}`}>
             <article className={`${message.direcao === "saida" ? "bevel-3d" : "concave-3d"} p-3 rounded-md max-w-[85%] min-w-0`}>
               <p className="text-sm whitespace-pre-wrap break-words">{message.texto}</p>
+              {message.atendimento && <p className="mt-2 text-[10px] font-semibold text-muted-foreground" data-testid={`atendimento-status-${message.id}`}>{statusMessage(message)}</p>}
               <time className="text-xs text-muted-foreground" dateTime={message.recebidaEm}>
                 {new Date(message.recebidaEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </time>

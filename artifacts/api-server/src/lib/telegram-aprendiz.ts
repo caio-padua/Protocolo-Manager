@@ -350,7 +350,7 @@ export async function listarVersoesFaqAprendida(empresaId: number, faqId: number
 }
 
 export async function registrarResolucaoTelegram(p: {
-  empresaId: number; inboxMessageId: number; caminho: "cardapio" | "regra" | "interprete" | "conferente" | "equipe" | "agendamento";
+  empresaId: number; inboxMessageId: number; caminho: "cardapio" | "regra" | "interprete" | "conferente" | "documento" | "equipe" | "agendamento";
   interpreteChamado?: boolean; conferenteChamado?: boolean; aprendizChamado?: boolean;
 }): Promise<void> {
   await db.execute(sql`

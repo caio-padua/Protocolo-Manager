@@ -139,6 +139,7 @@ import type {
   GetAgendaEncaixeDisponibilidadeParams,
   GetAgendaOcupacaoParams,
   GetAgendaSlotsParams,
+  GetClientTelegramInboxParams,
   GetConciergeOfferParams,
   GetExamRequestHistoryParams,
   GetFinancialGoalsSummaryParams,
@@ -220,6 +221,10 @@ import type {
   StockItem,
   Substance,
   SubstanceBlendComponent,
+  TelegramClientAtendimentoStatus,
+  TelegramClientAtendimentoUpdate,
+  TelegramClientAtendimentoUpdated,
+  TelegramInboxResponse,
   UpdateAgendaResourceBody,
   UpdateAgendaSettingsBody,
   UpdatePersonalExamSetBody,
@@ -241,6 +246,295 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getGetClientTelegramInboxUrl = (
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cockpit/${clientId}/telegram-inbox?${stringifiedParams}`
+    : `/api/cockpit/${clientId}/telegram-inbox`;
+};
+
+export const getClientTelegramInbox = async (
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+  options?: RequestInit,
+): Promise<TelegramInboxResponse> => {
+  return customFetch<TelegramInboxResponse>(
+    getGetClientTelegramInboxUrl(clientId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetClientTelegramInboxQueryKey = (
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+) => {
+  return [
+    `/api/cockpit/${clientId}/telegram-inbox`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetClientTelegramInboxQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClientTelegramInbox>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramInbox>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetClientTelegramInboxQueryKey(clientId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClientTelegramInbox>>
+  > = ({ signal }) =>
+    getClientTelegramInbox(clientId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClientTelegramInbox>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClientTelegramInboxQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClientTelegramInbox>>
+>;
+export type GetClientTelegramInboxQueryError = ErrorType<void>;
+
+export function useGetClientTelegramInbox<
+  TData = Awaited<ReturnType<typeof getClientTelegramInbox>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  params?: GetClientTelegramInboxParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramInbox>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClientTelegramInboxQueryOptions(
+    clientId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetClientTelegramAtendimentoUrl = (clientId: number) => {
+  return `/api/cockpit/${clientId}/telegram-inbox/atendimento`;
+};
+
+export const getClientTelegramAtendimento = async (
+  clientId: number,
+  options?: RequestInit,
+): Promise<TelegramClientAtendimentoStatus> => {
+  return customFetch<TelegramClientAtendimentoStatus>(
+    getGetClientTelegramAtendimentoUrl(clientId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetClientTelegramAtendimentoQueryKey = (clientId: number) => {
+  return [`/api/cockpit/${clientId}/telegram-inbox/atendimento`] as const;
+};
+
+export const getGetClientTelegramAtendimentoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetClientTelegramAtendimentoQueryKey(clientId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getClientTelegramAtendimento>>
+  > = ({ signal }) =>
+    getClientTelegramAtendimento(clientId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clientId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetClientTelegramAtendimentoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getClientTelegramAtendimento>>
+>;
+export type GetClientTelegramAtendimentoQueryError = ErrorType<void>;
+
+export function useGetClientTelegramAtendimento<
+  TData = Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+  TError = ErrorType<void>,
+>(
+  clientId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getClientTelegramAtendimento>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetClientTelegramAtendimentoQueryOptions(
+    clientId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getUpdateClientTelegramAtendimentoUrl = (clientId: number) => {
+  return `/api/cockpit/${clientId}/telegram-inbox/atendimento`;
+};
+
+export const updateClientTelegramAtendimento = async (
+  clientId: number,
+  telegramClientAtendimentoUpdate: TelegramClientAtendimentoUpdate,
+  options?: RequestInit,
+): Promise<TelegramClientAtendimentoUpdated> => {
+  return customFetch<TelegramClientAtendimentoUpdated>(
+    getUpdateClientTelegramAtendimentoUrl(clientId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(telegramClientAtendimentoUpdate),
+    },
+  );
+};
+
+export const getUpdateClientTelegramAtendimentoMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+    TError,
+    { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+  TError,
+  { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateClientTelegramAtendimento"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+    { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> }
+  > = (props) => {
+    const { clientId, data } = props ?? {};
+
+    return updateClientTelegramAtendimento(clientId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateClientTelegramAtendimentoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateClientTelegramAtendimento>>
+>;
+export type UpdateClientTelegramAtendimentoMutationBody =
+  BodyType<TelegramClientAtendimentoUpdate>;
+export type UpdateClientTelegramAtendimentoMutationError = ErrorType<void>;
+
+export const useUpdateClientTelegramAtendimento = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+    TError,
+    { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateClientTelegramAtendimento>>,
+  TError,
+  { clientId: number; data: BodyType<TelegramClientAtendimentoUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateClientTelegramAtendimentoMutationOptions(options),
+  );
+};
 
 export const getGetMensageriaCreditoUrl = () => {
   return `/api/mensageria/credito`;

@@ -39,8 +39,80 @@ tags:
     description: Conteúdo editável (fraseologia de botões, textos de pagamento, vídeos)
   - name: agenda
     description: Agenda Configuração — agendas de atendimento, janelas, exceções e liberação anti-ilha
+  - name: telegram
+    description: Atendimento e histórico do Telegram com escopo por clínica
 
 paths:
+  /cockpit/{clientId}/telegram-inbox:
+    get:
+      operationId: getClientTelegramInbox
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: quantidade
+          in: query
+          schema: { type: integer, enum: [20, 50, 100], default: 20 }
+        - name: direcao
+          in: query
+          schema: { type: string, enum: [todas, entrada, saida], default: todas }
+        - name: pagina
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+      responses:
+        "200":
+          description: Mensagens da conversa e estado seguro do atendimento automático.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramInboxResponse" }
+        "404": { description: Cliente não encontrado na clínica autenticada. }
+        "503": { description: Estado do atendimento indisponível. }
+  /cockpit/{clientId}/telegram-inbox/atendimento:
+    get:
+      operationId: getClientTelegramAtendimento
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Vínculo, modo, autorização individual e condições operacionais sem identificador do chat.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramClientAtendimentoStatus" }
+        "404": { description: Cliente não encontrado na clínica autenticada. }
+        "503": { description: Estado do atendimento indisponível. }
+    put:
+      operationId: updateClientTelegramAtendimento
+      tags: [telegram]
+      security: [{ collaboratorBearer: [] }]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelegramClientAtendimentoUpdate" }
+      responses:
+        "200":
+          description: Autorização individual alterada sem modificar o modo global.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelegramClientAtendimentoUpdated" }
+        "400": { description: Cliente ou estado de autorização inválido. }
+        "403": { description: Alteração restrita à sessão autenticada do CEO da plataforma. }
+        "404": { description: Cliente não encontrado na clínica autenticada. }
+        "409": { description: Modo global ou vínculo impede a alteração. }
+        "503": { description: Autorização não pôde ser salva. }
   /mensageria/credito:
     get:
       operationId: getMensageriaCredito
@@ -3988,6 +4060,67 @@ components:
       scheme: bearer
       bearerFormat: HMAC
   schemas:
+    TelegramInboxResponse:
+      type: object
+      additionalProperties: false
+      required: [mensagens, naoLidas, temMais]
+      properties:
+        mensagens:
+          type: array
+          items: { $ref: "#/components/schemas/TelegramInboxMessage" }
+        naoLidas: { type: integer, minimum: 0 }
+        temMais: { type: boolean }
+    TelegramInboxMessage:
+      type: object
+      additionalProperties: false
+      required: [id, texto, recebidaEm, lida, direcao]
+      properties:
+        id: { type: integer, minimum: 1 }
+        texto: { type: string }
+        recebidaEm: { type: string, format: date-time }
+        lida: { type: boolean }
+        direcao: { type: string, enum: [entrada, saida] }
+        atendimento:
+          $ref: "#/components/schemas/TelegramInboxMessageAtendimento"
+    TelegramInboxMessageAtendimento:
+      type: object
+      additionalProperties: false
+      required: [estado, desfecho, orientacaoAprovada]
+      properties:
+        estado: { type: string, enum: [pendente, processando, concluido, falhou, esgotado, incerto] }
+        desfecho: { type: [string, "null"] }
+        orientacaoAprovada: { type: boolean }
+    TelegramClientAtendimentoStatus:
+      type: object
+      additionalProperties: false
+      required: [clienteId, vinculado, vinculoUnico, modoGlobal, botConfigurado, canalAtivo, autorizadoIndividualmente, modoPermiteResposta, pausadoParaEquipe, creditoDisponivel, creditoMotivo, respostaAutomaticaAtiva, podeAlterarAutorizacaoIndividual]
+      properties:
+        clienteId: { type: integer, minimum: 1 }
+        vinculado: { type: boolean }
+        vinculoUnico: { type: boolean }
+        modoGlobal: { type: string, enum: [desligado, lista, ligado] }
+        botConfigurado: { type: boolean }
+        canalAtivo: { type: boolean }
+        autorizadoIndividualmente: { type: boolean }
+        modoPermiteResposta: { type: boolean }
+        pausadoParaEquipe: { type: boolean }
+        creditoDisponivel: { type: boolean }
+        creditoMotivo: { type: [string, "null"], enum: [sem_saldo, null] }
+        respostaAutomaticaAtiva: { type: boolean }
+        podeAlterarAutorizacaoIndividual: { type: boolean }
+    TelegramClientAtendimentoUpdate:
+      type: object
+      additionalProperties: false
+      required: [autorizado]
+      properties:
+        autorizado: { type: boolean }
+    TelegramClientAtendimentoUpdated:
+      type: object
+      additionalProperties: false
+      required: [ok, autorizado]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        autorizado: { type: boolean }
     CreditoRecargaInput:
       type: object
       required: [valorCentavos]

@@ -21,14 +21,46 @@ vi.mock("@workspace/integrations-anthropic-ai", () => ({
   }) } },
 }));
 vi.mock("../lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
-vi.mock("../lib/secure-settings", () => ({ getSetting: async (k: string) => h.settings[k] ?? null }));
+vi.mock("../lib/secure-settings", () => ({
+  getSetting: async (k: string) => h.settings[k] ?? null,
+  getSecretStatus: async (k: string) => ({
+    isSet: Boolean(h.settings[k]),
+    masked: null,
+    source: h.settings[k] ? "env" : null,
+    updatedAt: null,
+  }),
+}));
 vi.mock("../lib/telegram", () => ({ sendTelegram: async (chat: string, texto: string) => { h.enviados.push({ chat, texto }); await h.noEnvio?.(chat); return { sent: true, mock: false }; } }));
 vi.mock("../lib/telegram-config", () => ({ chatAlertaOuNull: async () => "ALERTA" }));
 vi.mock("../lib/ai-central", () => ({ requireAiTenant: () => ({ headers: {} }) }));
+vi.mock("../lib/clinical-document-share", () => ({
+  getIssuedDocument: async () => ({
+    id: 6001,
+    clientId: 1,
+    professionalId: 42,
+    prescriptionId: 5001,
+    status: "emitted",
+    pdfData: "JVBERi1zeW50aGV0aWM=",
+    fileName: "receita.pdf",
+    label: "Receituário de demonstração",
+    empresaId: 5,
+  }),
+  criarTokenClinicalShare: () => ({
+    token: "a".repeat(43),
+    tokenHash: "66d34fba71f8f450f7e45598853e53bfc23bbd129027cbb131a2f4ffd7878cd0",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  }),
+  hashClinicalShareToken: () => "66d34fba71f8f450f7e45598853e53bfc23bbd129027cbb131a2f4ffd7878cd0",
+}));
 
 import { aplicarMigracaoAtendimento, depsReaisAtendimento, pausarParaHumano, devolverParaIA, lerConfigAtendimento,
   atenderMensagemTelegram,processarAtendimentosPendentes,pausarAtendimentoDuravel } from "../lib/atendimento-telegram-store";
-import { processarAtendimento } from "../lib/atendimento-telegram";
+import { processarAtendimento, type PlanoAtendimento } from "../lib/atendimento-telegram";
+import { responderSobreDocumentoTelegram, respostaDocumentoAindaAtual } from "../lib/atendimento-telegram-documentos";
+import {
+  autorizarOfertaReenvio, autorizarConfirmacaoReenvio, marcarOfertaReenvioEntregue,
+  enviarLinkReceitaConfirmada,
+} from "../lib/atendimento-telegram-reenvio";
 import {
   alterarEstadoFaqAprendida, buscarFaqAprendida, editarFaqAprendida, listarFaqAprendidas,
   listarVersoesFaqAprendida, observarRespostaAprovada, registrarResolucaoTelegram, registrarUsoFaqAprendida,
@@ -47,8 +79,22 @@ beforeAll(async () => {
   for (let i = 0; i < 60; i++) { if (existsSync(join(dir, ".s.PGSQL.5432"))) break; await new Promise((r) => setTimeout(r, 250)); }
   pool = new pg.Pool({ host: dir, user: "teste", database: "postgres", max: 30 });
   for (let i = 0; i < 80; i++) { try { await pool.query("SELECT 1"); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
-  await pool.query(`CREATE TABLE clients(id integer primary key,empresa_id integer,telegram_chat_id text);
-    INSERT INTO clients VALUES(1,5,'C1'),(2,5,'C2'),(3,7,'C3');
+  await pool.query(`CREATE TABLE clients(
+      id integer primary key,empresa_id integer,telegram_chat_id text,
+      status text NOT NULL DEFAULT 'active',deleted_at timestamptz
+    );
+    INSERT INTO clients(id,empresa_id,telegram_chat_id) VALUES(1,5,'C1'),(2,5,'C2'),(3,7,'C3');
+    CREATE TABLE prescriptions(id integer primary key,client_id integer,empresa_id integer,status text,emitted_at timestamptz);
+    CREATE TABLE prescription_items(id serial primary key,prescription_id integer,name text,dose text,order_index integer DEFAULT 0);
+    CREATE TABLE recipes(id integer primary key,title text,prescription_id integer,pdf_data text);
+    CREATE TABLE protocols(id integer primary key,client_id integer,empresa_id integer,title text,status text,updated_at timestamptz DEFAULT NOW());
+    INSERT INTO prescriptions(id,client_id,empresa_id,status,emitted_at) VALUES(5001,1,5,'emitted',NOW());
+    INSERT INTO prescription_items(prescription_id,name,dose,order_index) VALUES
+      (5001,'Vitamina X','dose sintética não deve aparecer',0);
+    INSERT INTO recipes(id,title,prescription_id,pdf_data)
+      VALUES(6001,'Receituário de demonstração',5001,'JVBERi1zeW50aGV0aWM=');
+    INSERT INTO protocols(id,client_id,empresa_id,title,status)
+      VALUES(7001,1,5,'Protocolo de suporte','active');
     CREATE TABLE telegram_inbox_messages (id SERIAL PRIMARY KEY, empresa_id INTEGER NOT NULL DEFAULT 0, cliente_id INTEGER NOT NULL,
     chat_id TEXT NOT NULL, texto TEXT NOT NULL, recebida_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), lida_em TIMESTAMPTZ, direcao TEXT NOT NULL DEFAULT 'entrada', update_id BIGINT)`);
   h.db = drizzle(pool);
@@ -59,7 +105,15 @@ beforeAll(async () => {
     (5,'Jejum antes do exame','preciso de jejum para exame de sangue, quantas horas de jejum','APROVADA: jejum de 8 horas.','aprovada'),
     (5,'Jejum rascunho','jejum exame sangue horas rascunho','RASCUNHO NAO PODE SAIR','rascunho'),
     (7,'Jejum outra clinica','jejum exame sangue horas de jejum','OUTRA CLINICA NAO PODE SAIR','aprovada')`);
-  h.settings = { "atendimento.ia.modo": "ligado" };
+  await pool.query(`INSERT INTO orientacoes_aprovadas
+    (empresa_id,tema,perguntas_exemplo,resposta,status,categoria,subcategoria) VALUES
+      (5,'Fórmula: Vitamina X','explique vitamina x','Texto aprovado sobre a finalidade da fórmula.','aprovada','prescricao','formula_explicacao'),
+      (5,'Protocolo: Protocolo de suporte','explique protocolo de suporte','Texto aprovado sobre o protocolo.','aprovada','prescricao','protocolo_explicacao')`);
+  h.settings = {
+    "atendimento.ia.modo": "ligado",
+    "telegram.active": "true",
+    "telegram.botToken": "synthetic-telegram-token",
+  };
 }, 60000);
 afterAll(async () => { await pool?.end(); proc?.kill("SIGTERM"); if (dir) rmSync(dir, { recursive: true, force: true }); });
 
@@ -167,9 +221,191 @@ describe("SQL real", () => {
   });
 });
 
+describe("documentos clínicos no Telegram", () => {
+  const entradaDocumento = (texto: string) => ({
+    empresaId: 5,
+    clienteId: 1,
+    clienteNome: "Cliente sintético",
+    chatId: "C1",
+    inboxMessageId: 900,
+    texto,
+  });
+
+  it("explica somente a fórmula exata aprovada e oferece segunda via sem expor dose", async () => {
+    const resultado = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Explique a Fórmula Vitamina X"));
+    expect(resultado).toMatchObject({
+      tipo: "resposta",
+      texto: "Texto aprovado sobre a finalidade da fórmula.\n\nSe quiser a segunda via deste receituário, responda somente “quero a segunda via”.",
+      orientacaoId: expect.any(Number),
+      documento: { acao: "ofertar_reenvio", receitaId: 6001, prescricaoId: 5001 },
+    });
+    expect(resultado?.texto).not.toContain("dose sintética não deve aparecer");
+  });
+
+  it("oferece segunda via após pedido explícito, sem enviá-la antes da confirmação", async () => {
+    const resultado = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Quero segunda via do meu receituário"));
+    expect(resultado).toMatchObject({
+      tipo: "resposta",
+      desfecho: "reenvio_receita_ofertado",
+      documento: { acao: "ofertar_reenvio", receitaId: 6001, prescricaoId: 5001 },
+    });
+    expect(resultado?.texto).toContain("responda somente “sim” ou “pode enviar”");
+  });
+
+  it("explica protocolo apenas com a orientação aprovada de título correspondente", async () => {
+    const resultado = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Explique meu protocolo"));
+    expect(resultado).toMatchObject({
+      tipo: "resposta",
+      texto: "Texto aprovado sobre o protocolo.",
+      orientacaoId: expect.any(Number),
+    });
+  });
+
+  it("não procura cliente por nome quando o vínculo Telegram se torna ambíguo", async () => {
+    await pool.query("UPDATE clients SET telegram_chat_id='C1' WHERE id=2");
+    try {
+      const resultado = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Explique a Fórmula Vitamina X"));
+      expect(resultado).toMatchObject({ tipo: "encaminhar", motivo: "identidade_telegram_nao_confirmada" });
+    } finally {
+      await pool.query("UPDATE clients SET telegram_chat_id='C2' WHERE id=2");
+    }
+  });
+
+  it("encaminha quando existem várias fórmulas ou mais de um arquivo de receita", async () => {
+    const segundoItem = await pool.query(`INSERT INTO prescription_items(prescription_id,name,dose,order_index)
+      VALUES(5001,'Mineral Y','dose sintética privada',1) RETURNING id`);
+    try {
+      const variasFormulas = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Explique minha fórmula do receituário"));
+      expect(variasFormulas).toMatchObject({ tipo: "resposta", desfecho: "clarificacao_documento" });
+      expect(variasFormulas?.texto).toContain("Mineral Y");
+      expect(variasFormulas?.texto).not.toContain("dose sintética privada");
+    } finally {
+      await pool.query("DELETE FROM prescription_items WHERE id=$1", [segundoItem.rows[0].id]);
+    }
+
+    await pool.query(`INSERT INTO recipes(id,title,prescription_id,pdf_data)
+      VALUES(6002,'Segunda receita',5001,'JVBERi1zeW50aGV0aWM=')`);
+    try {
+      const segundaVia = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Quero segunda via do receituário"));
+      expect(segundaVia).toMatchObject({ tipo: "encaminhar", motivo: "segunda_via_ambigua_ou_ausente" });
+    } finally {
+      await pool.query("DELETE FROM recipes WHERE id=6002");
+    }
+  });
+
+  it("encaminha quando a explicação exata foi inativada", async () => {
+    await pool.query("UPDATE orientacoes_aprovadas SET status='inativa' WHERE tema='Fórmula: Vitamina X'");
+    try {
+      const resultado = await responderSobreDocumentoTelegram(h.db, entradaDocumento("Explique a Fórmula Vitamina X"));
+      expect(resultado).toMatchObject({
+        tipo: "encaminhar",
+        motivo: "explicacao_de_formula_sem_fonte_exata_aprovada",
+      });
+    } finally {
+      await pool.query("UPDATE orientacoes_aprovadas SET status='aprovada' WHERE tema='Fórmula: Vitamina X'");
+    }
+  });
+
+  it("revalida a fórmula e a orientação depois do planejamento e antes do envio", async () => {
+    const e = entradaDocumento("Explique a Fórmula Vitamina X");
+    const respostaPlanejada = await responderSobreDocumentoTelegram(h.db, e);
+    expect(respostaPlanejada?.tipo).toBe("resposta");
+    if (respostaPlanejada?.tipo !== "resposta") return;
+    const plano: PlanoAtendimento = {
+      pausa: null,
+      alerta: null,
+      resposta: respostaPlanejada.texto,
+      orientacaoId: respostaPlanejada.orientacaoId ?? null,
+      desfecho: respostaPlanejada.desfecho,
+      caminhoResolucao: "documento",
+      ...(respostaPlanejada.documento ? { documento: respostaPlanejada.documento } : {}),
+    };
+    expect(await respostaDocumentoAindaAtual(h.db, e, plano)).toBe(true);
+    await pool.query("UPDATE prescription_items SET name='Nome alterado' WHERE prescription_id=5001");
+    expect(await respostaDocumentoAindaAtual(h.db, e, plano)).toBe(false);
+    await pool.query("UPDATE prescription_items SET name='Vitamina X' WHERE prescription_id=5001");
+    await pool.query("UPDATE orientacoes_aprovadas SET status='inativa' WHERE tema='Fórmula: Vitamina X'");
+    try {
+      expect(await respostaDocumentoAindaAtual(h.db, e, plano)).toBe(false);
+    } finally {
+      await pool.query("UPDATE orientacoes_aprovadas SET status='aprovada' WHERE tema='Fórmula: Vitamina X'");
+    }
+  });
+
+  it("exige confirmação em oferta vigente e encaminha confirmação vencida", async () => {
+    await pool.query(`INSERT INTO telegram_documento_reenvios
+      (empresa_id,cliente_id,chat_id,recipe_id,prescription_id,pdf_sha256,oferta_inbox_message_id,status,expira_em)
+      VALUES(5,1,'C1',6001,5001,'synthetic-hash',901,'oferecido',NOW()+interval '1 hour')`);
+    const confirmacao = await responderSobreDocumentoTelegram(h.db, entradaDocumento("sim"));
+    expect(confirmacao).toMatchObject({
+      tipo: "resposta",
+      documento: { acao: "confirmar_reenvio", ofertaId: expect.any(Number) },
+    });
+    await pool.query("UPDATE telegram_documento_reenvios SET expira_em=NOW()-interval '1 minute' WHERE oferta_inbox_message_id=901");
+    const vencida = await responderSobreDocumentoTelegram(h.db, entradaDocumento("sim"));
+    expect(vencida).toMatchObject({ tipo: "encaminhar", motivo: "confirmacao_de_reenvio_sem_oferta_vigente" });
+  });
+
+  it("vincula a oferta ao PDF atual e só aceita uma confirmação por mensagem", async () => {
+    const ofertaEntrada = entradaDocumento("Explique a Fórmula Vitamina X");
+    ofertaEntrada.inboxMessageId = 902;
+    const ofertaPlano: PlanoAtendimento = {
+      pausa: null,
+      alerta: null,
+      resposta: "Posso enviar a segunda via?",
+      orientacaoId: null,
+      desfecho: "reenvio_receita_ofertado",
+      caminhoResolucao: "documento",
+      documento: { acao: "ofertar_reenvio", receitaId: 6001, prescricaoId: 5001, titulo: "Receituário de demonstração" },
+    };
+    expect(await autorizarOfertaReenvio(h.db, ofertaEntrada, ofertaPlano)).toBe(true);
+    await marcarOfertaReenvioEntregue(ofertaEntrada);
+
+    const confirmacaoEntrada = entradaDocumento("sim");
+    confirmacaoEntrada.inboxMessageId = 903;
+    const confirmacaoPlano: PlanoAtendimento = {
+      ...ofertaPlano,
+      resposta: "Confirmado.",
+      desfecho: "reenvio_receita_confirmado",
+      documento: { acao: "confirmar_reenvio", receitaId: 6001, prescricaoId: 5001, ofertaId: 2 },
+    };
+    const ofertaReal = await pool.query("SELECT id FROM telegram_documento_reenvios WHERE oferta_inbox_message_id=902");
+    confirmacaoPlano.documento!.ofertaId = Number(ofertaReal.rows[0].id);
+    expect(await autorizarConfirmacaoReenvio(h.db, confirmacaoEntrada, confirmacaoPlano)).toBe(true);
+    expect(await autorizarConfirmacaoReenvio(h.db, confirmacaoEntrada, confirmacaoPlano)).toBe(true);
+    const outraConfirmacao = { ...confirmacaoEntrada, inboxMessageId: 904 };
+    expect(await autorizarConfirmacaoReenvio(h.db, outraConfirmacao, confirmacaoPlano)).toBe(false);
+    expect((await pool.query("SELECT status FROM telegram_documento_reenvios WHERE oferta_inbox_message_id=902")).rows[0].status).toBe("enviando");
+
+    await pool.query(`INSERT INTO telegram_atendimento_respostas(inbox_message_id,estado,dono,etapas)
+      VALUES(903,'processando','owner-903','{"resposta":{"estado":"enviando"}}')`);
+    const baseAnterior = process.env.PUBLIC_BASE_URL;
+    process.env.PUBLIC_BASE_URL = "https://paxmed.example";
+    try {
+      const envio = await enviarLinkReceitaConfirmada("C1", confirmacaoEntrada, confirmacaoPlano, "owner-903");
+      expect(envio.sent).toBe(true);
+      expect(envio.textoHistorico).not.toContain("a".repeat(43));
+      expect(h.enviados.at(-1)?.texto).toContain("/api/clinical-documents/share/");
+      const tokenSalvo = await pool.query(`SELECT document_share_token_hash,document_share_expires_at
+        FROM telegram_atendimento_respostas WHERE inbox_message_id=903`);
+      expect(tokenSalvo.rows[0]).toEqual({
+        document_share_token_hash: "66d34fba71f8f450f7e45598853e53bfc23bbd129027cbb131a2f4ffd7878cd0",
+        document_share_expires_at: expect.any(Date),
+      });
+    } finally {
+      if (baseAnterior === undefined) delete process.env.PUBLIC_BASE_URL;
+      else process.env.PUBLIC_BASE_URL = baseAnterior;
+    }
+  });
+});
+
 describe("consumidor real do atendimento com banco descartável e somente transporte simulado",()=>{
   const entrada=async(id:number,texto:string,cid=1,empresaId=5)=>{
-    h.settings={"atendimento.ia.modo":"ligado"};h.enviados.length=0;h.noEnvio=null;
+    h.settings={
+      "atendimento.ia.modo":"ligado",
+      "telegram.active":"true",
+      "telegram.botToken":"synthetic-telegram-token",
+    };h.enviados.length=0;h.noEnvio=null;
     await devolverParaIA(h.db,cid,null);
     await pool.query(`INSERT INTO telegram_inbox_messages(id,empresa_id,cliente_id,chat_id,texto,direcao,ambiente_credito)
       VALUES($1,$2,$3,$4,$5,'entrada','teste')`,[id,empresaId,cid,`C${cid}`,texto]);

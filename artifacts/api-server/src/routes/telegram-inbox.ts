@@ -24,11 +24,14 @@ import {
   db,
   clientsTable,
   telegramInboxTable,
+  appSettingsTable,
 } from "@workspace/db";
 import { eq, and, desc, isNull, sql } from "drizzle-orm";
 import { requireCollaborator } from "./collaborator";
 import { requireMessageClinic } from "../middleware/messageClinic";
-import { requireCeoInstance } from "../middleware/tenantContext";
+import { requireCeoInstance, requirePlatformOwner } from "../middleware/tenantContext";
+import { vinculoTelegramAtualUnico } from "../lib/telegram-vinculo-atual";
+import { podeAtenderAutomatico } from "../lib/mensageria-credito";
 import {
   obterBadge,
   listarInbox,
@@ -37,6 +40,39 @@ import {
 } from "../lib/telegram-inbox-flow";
 
 export const inboxRouter = Router();
+
+const TELEGRAM_IA_SETTINGS_LOCK = "paxmed.telegram.atendimento.settings";
+type TelegramSettingsTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function readAiSettingsTx(tx: TelegramSettingsTx) {
+  const result = await tx.select().from(appSettingsTable)
+    .where(sql`${appSettingsTable.key} IN ('atendimento.ia.modo','atendimento.ia.permitidos')`);
+  const values = new Map(result.map((row) => [row.key, row.value]));
+  const rawMode = values.get("atendimento.ia.modo")?.trim().toLowerCase() ?? "desligado";
+  if (rawMode !== "desligado" && rawMode !== "lista" && rawMode !== "ligado") {
+    throw new Error("configuracao_atendimento_invalida");
+  }
+  let allowed: number[] = [];
+  const rawAllowed = values.get("atendimento.ia.permitidos");
+  if (rawAllowed) {
+    const parsed: unknown = JSON.parse(rawAllowed);
+    if (!Array.isArray(parsed) || parsed.some((value) => !Number.isSafeInteger(value) || value <= 0)) {
+      throw new Error("lista_atendimento_invalida");
+    }
+    allowed = [...new Set(parsed as number[])];
+  }
+  return { mode: rawMode, allowed };
+}
+
+async function saveAllowedClientsTx(tx: TelegramSettingsTx, ids: number[]) {
+  const value = JSON.stringify([...ids].sort((a, b) => a - b));
+  await tx.insert(appSettingsTable)
+    .values({ key: "atendimento.ia.permitidos", value })
+    .onConflictDoUpdate({
+      target: appSettingsTable.key,
+      set: { value },
+    });
+}
 
 // Boot migration — adiciona coluna direcao se ainda não existir.
 // "entrada" = paciente → bot; "saida" = CEO → paciente. Default entrada.
@@ -146,9 +182,147 @@ inboxRouter.get("/cockpit/:clientId/telegram-inbox", requireCollaborator, requir
     return;
   }
 
-  // Retira o campo `kind` — o cliente recebe apenas { mensagens, naoLidas }
+  // Retira o campo `kind` e agrega apenas o estado seguro do atendimento; plano e erros internos não saem da API.
   const { kind: _kind, ...payload } = result;
-  res.json(payload);
+  const ids = payload.mensagens.map((message) => message.id);
+  const resultados = ids.length
+    ? await db.execute(sql`SELECT inbox_message_id,estado,desfecho,orientacao_id
+        FROM telegram_atendimento_respostas
+        WHERE inbox_message_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`,`)})`)
+    : { rows: [] };
+  const porMensagem = new Map((resultados.rows as Array<Record<string, unknown>>).map((row) => [
+    Number(row["inbox_message_id"]),
+    {
+      estado: String(row["estado"] ?? "pendente"),
+      desfecho: row["desfecho"] == null ? null : String(row["desfecho"]),
+      orientacaoAprovada: row["orientacao_id"] == null ? false : true,
+    },
+  ]));
+  res.json({
+    ...payload,
+    mensagens: payload.mensagens.map((message) => ({
+      ...message,
+      ...(porMensagem.has(message.id) ? { atendimento: porMensagem.get(message.id) } : {}),
+    })),
+  });
+});
+
+// Estado individual e operacional da conversa. Não revela o identificador do chat.
+inboxRouter.get("/cockpit/:clientId/telegram-inbox/atendimento", requireCollaborator, requireMessageClinic, async (req, res): Promise<void> => {
+  const clienteId = Number(req.params.clientId);
+  if (!Number.isSafeInteger(clienteId) || clienteId <= 0) {
+    res.status(400).json({ error: "Identificador do cliente inválido." });
+    return;
+  }
+  const empresaId = req.messageEmpresaId!;
+  try {
+    const [cliente] = await db.select({
+      id: clientsTable.id,
+      chatId: clientsTable.telegramChatId,
+      status: clientsTable.status,
+      deletedAt: clientsTable.deletedAt,
+    }).from(clientsTable).where(and(
+      eq(clientsTable.id, clienteId),
+      eq(clientsTable.empresaId, empresaId),
+    )).limit(1);
+    if (!cliente) {
+      res.status(404).json({ error: "Cliente não encontrado nesta clínica." });
+      return;
+    }
+    const config = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${TELEGRAM_IA_SETTINGS_LOCK},0))`);
+      return readAiSettingsTx(tx);
+    });
+    const vinculoUnico = Boolean(
+      cliente.chatId && cliente.status === "active" && cliente.deletedAt === null &&
+      await vinculoTelegramAtualUnico(db, { clienteId, empresaId, chatId: cliente.chatId }),
+    );
+    const humanoResult = await db.execute(sql`SELECT modo FROM telegram_atendimento WHERE cliente_id=${clienteId} LIMIT 1`);
+    const humano = humanoResult.rows[0] as { modo?: string } | undefined;
+    const credito = await podeAtenderAutomatico(empresaId);
+    const { getSecretStatus, getSetting } = await import("../lib/secure-settings.js");
+    const [token, canalAtivoRaw] = await Promise.all([
+      getSecretStatus("telegram.botToken"),
+      getSetting("telegram.active"),
+    ]);
+    const botConfigurado = token.isSet;
+    const canalAtivo = canalAtivoRaw === "true";
+    const autorizadoIndividualmente = config.allowed.includes(clienteId);
+    const habilitadoPeloModo = config.mode === "ligado" || (config.mode === "lista" && autorizadoIndividualmente);
+    const pausadoParaEquipe = humano?.modo === "humano";
+    res.json({
+      clienteId,
+      vinculado: Boolean(cliente.chatId),
+      vinculoUnico,
+      modoGlobal: config.mode,
+      botConfigurado,
+      canalAtivo,
+      autorizadoIndividualmente,
+      modoPermiteResposta: habilitadoPeloModo,
+      pausadoParaEquipe,
+      creditoDisponivel: credito.pode,
+      creditoMotivo: credito.motivo ?? null,
+      respostaAutomaticaAtiva: habilitadoPeloModo && vinculoUnico && !pausadoParaEquipe && credito.pode && botConfigurado && canalAtivo,
+      podeAlterarAutorizacaoIndividual: Boolean(
+        req.tenantContext?.authenticated && req.tenantContext.isPlatformOwner && config.mode !== "ligado",
+      ),
+    });
+  } catch {
+    res.status(503).json({ error: "Não foi possível confirmar o estado atual do atendimento." });
+  }
+});
+
+inboxRouter.put("/cockpit/:clientId/telegram-inbox/atendimento", requireCollaborator, requireMessageClinic, requirePlatformOwner, async (req, res): Promise<void> => {
+  const clienteId = Number(req.params.clientId);
+  const autorizado = req.body?.autorizado;
+  if (!Number.isSafeInteger(clienteId) || clienteId <= 0 || typeof autorizado !== "boolean") {
+    res.status(400).json({ error: "Informe um cliente válido e um estado de autorização." });
+    return;
+  }
+  const empresaId = req.messageEmpresaId!;
+  try {
+    const resultado = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${TELEGRAM_IA_SETTINGS_LOCK},0))`);
+      const config = await readAiSettingsTx(tx);
+      if (config.mode === "ligado") return { kind: "modo_global" as const };
+      const [cliente] = await tx.select({
+        id: clientsTable.id,
+        chatId: clientsTable.telegramChatId,
+        status: clientsTable.status,
+        deletedAt: clientsTable.deletedAt,
+      }).from(clientsTable).where(and(
+        eq(clientsTable.id, clienteId),
+        eq(clientsTable.empresaId, empresaId),
+      )).limit(1);
+      if (!cliente) return { kind: "nao_encontrado" as const };
+      if (autorizado) {
+        if (!cliente.chatId || cliente.status !== "active" || cliente.deletedAt !== null ||
+            !await vinculoTelegramAtualUnico(tx, { clienteId, empresaId, chatId: cliente.chatId })) {
+          return { kind: "vinculo" as const };
+        }
+      }
+      const ids = new Set(config.allowed);
+      if (autorizado) ids.add(clienteId);
+      else ids.delete(clienteId);
+      await saveAllowedClientsTx(tx, [...ids]);
+      return { kind: "salvo" as const, autorizado: ids.has(clienteId) };
+    });
+    if (resultado.kind === "modo_global") {
+      res.status(409).json({ error: "O modo global está ligado e ignora a lista individual. Altere o modo global na Central de Auditoria antes de editar este cliente." });
+      return;
+    }
+    if (resultado.kind === "nao_encontrado") {
+      res.status(404).json({ error: "Cliente não encontrado nesta clínica." });
+      return;
+    }
+    if (resultado.kind === "vinculo") {
+      res.status(409).json({ error: "A autorização exige um vínculo Telegram ativo e único deste cliente." });
+      return;
+    }
+    res.json({ ok: true, autorizado: resultado.autorizado });
+  } catch {
+    res.status(503).json({ error: "Não foi possível salvar a autorização individual." });
+  }
 });
 
 // ── 3) POST /cockpit/:clientId/telegram-inbox/marcar-lidas ───────────────────
@@ -310,11 +484,15 @@ inboxRouter.get("/telegram-inbox/painel-operacional", requireCollaborator, requi
 
 // Interruptor do atendimento automatico (CEO). Valor vale para o ambiente inteiro (app_settings).
 // "ligado" = responde todo cliente que ja vinculou o Telegram (deu o start); "lista" = so autorizados.
-inboxRouter.put("/telegram-inbox/atendimento-modo", requireCollaborator, requireMessageClinic, requireCeoInstance, async (req, res): Promise<void> => {
+inboxRouter.put("/telegram-inbox/atendimento-modo", requireCollaborator, requireMessageClinic, requirePlatformOwner, async (req, res): Promise<void> => {
   const modo = typeof req.body?.modo === "string" ? req.body.modo.trim().toLowerCase() : "";
   if (modo !== "desligado" && modo !== "lista" && modo !== "ligado") { res.status(400).json({ error: "modo invalido" }); return; }
-  const { setSetting } = await import("../lib/secure-settings.js");
-  await setSetting("atendimento.ia.modo", modo);
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${TELEGRAM_IA_SETTINGS_LOCK},0))`);
+    await tx.insert(appSettingsTable)
+      .values({ key: "atendimento.ia.modo", value: modo })
+      .onConflictDoUpdate({ target: appSettingsTable.key, set: { value: modo } });
+  });
   console.info(`[atendimento-ia] modo alterado para ${modo} por profissional ${req.collaborator?.professionalId}`);
   res.json({ ok: true, modo });
 });

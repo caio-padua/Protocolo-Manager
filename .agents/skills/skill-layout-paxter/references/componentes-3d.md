@@ -112,5 +112,6 @@ thumb `rounded-[2px]`. Nunca usar a pilula arredondada padrao.
 - Para tingir um bloco em relevo (ex.: alerta verde "dentro do alvo"), `bg-emerald-50` PERDE para o
   unlayered; crie/use classe companheira unlayered (ex.: `bevel-3d-ok`).
 - Pecas com relevo NUNCA se encostam (ver `references/alinhamento-espacamento.md`).
+- **Canal com configuração global e individual (20/11/2026):** mostrar os dois estados em campos separados; o controle individual nunca pode parecer que liga ou desliga o modo global. Se o modo global ignora a lista individual, desabilitar o controle individual e exibir o motivo antes da ação.
 - So a APRESENTACAO muda; nunca alterar motor de calculo nem payload por estetica.
 </content>

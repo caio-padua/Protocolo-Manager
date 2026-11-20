@@ -83,7 +83,8 @@ export function PainelOperacionalTelegram() {
   const [erroIA, setErroIA] = useState<string | null>(null);
   useEffect(() => {
     const t = getCollabToken();
-    const headers = t ? { Authorization: `Bearer ${t}` } : {};
+    const headers = new Headers();
+    if (t) headers.set("Authorization", `Bearer ${t}`);
     fetch(`${BASE}/api/telegram-inbox/painel-operacional`, { headers })
       .then(async (r) => { if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Sem acesso. Entre novamente com a conta de colaborador." : "O servidor respondeu com erro."); setP(await r.json()); })
       .catch((e: unknown) => setErro(e instanceof Error ? e.message : "Não foi possível consultar o painel."));
@@ -163,7 +164,7 @@ export function PainelOperacionalTelegram() {
             const por = (path: string) => c.resolucoes.find((r) => r.caminho === path)?.total ?? 0;
             const chamadasInterprete = c.resolucoes.reduce((s, r) => s + Number(r.interprete), 0);
             const chamadasConferente = c.resolucoes.reduce((s, r) => s + Number(r.conferente), 0);
-            const automaticas = ["cardapio", "regra", "interprete", "conferente", "agendamento"].reduce((s, path) => s + Number(por(path)), 0);
+            const automaticas = ["cardapio", "regra", "interprete", "conferente", "documento", "agendamento"].reduce((s, path) => s + Number(por(path)), 0);
             const taxa = total ? `${((automaticas / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "sem dados";
             const custos = c.custos_por_moeda.map((x) => `${x.moeda ?? "moeda não informada"}: ${x.custoInformado == null ? "custo não informado pelo provedor" : Number(x.custoInformado).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`).join(" · ");
             return <article key={c.empresaId} className="concave-3d space-y-3 p-3" data-testid={`uso-ia-clinica-${c.empresaId}`}>
@@ -172,6 +173,7 @@ export function PainelOperacionalTelegram() {
                 {[
                   ["Cardápio aprendido", n(por("cardapio"))],
                   ["Regras locais", n(por("regra"))],
+                  ["Documentos clínicos aprovados", n(por("documento"))],
                   ["Intérprete chamado", n(chamadasInterprete)],
                   ["Conferente chamado", n(chamadasConferente)],
                   ["Fluxo de agendamento", n(por("agendamento"))],

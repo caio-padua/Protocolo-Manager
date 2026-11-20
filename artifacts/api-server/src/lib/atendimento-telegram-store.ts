@@ -32,6 +32,15 @@ import {
   type ConfigAtendimentoIA, type DepsAtendimento, type Desfecho, type EntradaAtendimento, type Candidata,
 } from "./atendimento-telegram";
 import { migrarRecuperacaoAtendimento, registrarAtendimentoDuravel, processarAtendimentosDuraveis } from "./atendimento-telegram-recuperacao";
+import { responderSobreDocumentoTelegram, respostaDocumentoAindaAtual } from "./atendimento-telegram-documentos";
+import {
+  autorizarCancelamentoReenvio,
+  autorizarConfirmacaoReenvio,
+  autorizarOfertaReenvio,
+  enviarLinkReceitaConfirmada,
+  marcarOfertaReenvioEntregue,
+  marcarReenvioConcluido,
+} from "./atendimento-telegram-reenvio";
 
 export interface ExecutorAtendimento {
   execute: (q: SQL) => Promise<{ rows: unknown[] }>;
@@ -95,6 +104,25 @@ export async function aplicarMigracaoAtendimento(exec: ExecutorAtendimento): Pro
       criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       fechado_em       TIMESTAMPTZ
     )`);
+  await exec.execute(sql`
+    CREATE TABLE IF NOT EXISTS telegram_documento_reenvios (
+      id BIGSERIAL PRIMARY KEY,
+      empresa_id INTEGER NOT NULL,
+      cliente_id INTEGER NOT NULL,
+      chat_id TEXT NOT NULL,
+      recipe_id INTEGER NOT NULL,
+      prescription_id INTEGER NOT NULL,
+      pdf_sha256 TEXT NOT NULL,
+      oferta_inbox_message_id BIGINT NOT NULL UNIQUE,
+      confirmacao_inbox_message_id BIGINT UNIQUE,
+      status TEXT NOT NULL CHECK (status IN ('ofertando','oferecido','enviando','enviado','cancelado','expirado','falhou')),
+      expira_em TIMESTAMPTZ NOT NULL,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  await exec.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_telegram_reenvio_aberto
+    ON telegram_documento_reenvios (empresa_id, cliente_id)
+    WHERE status IN ('ofertando','oferecido','enviando')`);
   await migrarRecuperacaoAtendimento(exec);
   await migrarTabelasTelegramAprendiz(exec);
   /* Assistente de agendamento: estado, visitantes e pedidos (aditiva) */
@@ -200,6 +228,7 @@ export function depsReaisAtendimento(
         id: Number(x.id), tema: x.tema, perguntasExemplo: x.perguntas_exemplo, resposta: x.resposta,
       }));
     },
+    responderDocumento: (e) => responderSobreDocumentoTelegram(db, e),
     buscarFaq: (texto, eid) => buscarFaqAprendida(eid, texto),
     nomeClinica: async (eid) => {
       const r = await db.execute(sql`SELECT nome FROM empresas WHERE id=${eid}`);
@@ -260,6 +289,8 @@ export async function processarAtendimentosPendentes(): Promise<void> {
     permitido: async e=>{
       const cfg=await lerConfigAtendimento();
       if(!(cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId)))) return false;
+      const { getSecretStatus } = await import("./secure-settings.js");
+      if((await getSetting("telegram.active"))!=="true" || !(await getSecretStatus("telegram.botToken")).isSet) return false;
       // Crédito: a mensagem recebida é registrada (e cobrada uma só vez, por chave). Sem saldo, a mensagem fica
       // preservada para a equipe, sem resposta automática, e é retomada após a recarga.
       const rec=await registrarEvento({empresaId:e.empresaId,tipo:"recebida",chave:`recebida:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Mensagem recebida no Telegram"});
@@ -314,19 +345,34 @@ export async function processarAtendimentosPendentes(): Promise<void> {
             AND (f.resposta_editada=TRUE OR (o.status='aprovada' AND o.resposta=f.resposta_fonte))`);
         if(!r.rows.length) return false;
       }
+      if(plano.caminhoResolucao==="documento"){
+        if(!await respostaDocumentoAindaAtual(db,e,plano)) return false;
+      }
       const cfg=await lerConfigAtendimento();
+      if(!(cfg.modo==="ligado" || (cfg.modo==="lista" && cfg.permitidos.has(e.clienteId)))) return false;
+      if(plano.documento?.acao==="ofertar_reenvio" && !await autorizarOfertaReenvio(db,e,plano)) return false;
+      if(plano.documento?.acao==="confirmar_reenvio" && !await autorizarConfirmacaoReenvio(db,e,plano)) return false;
+      if(plano.documento?.acao==="cancelar_reenvio" && !await autorizarCancelamentoReenvio(db,e,plano)) return false;
       return !plano.pausa || plano.desfecho!=="queixa_texto_enviado" || cfg.queixaRevisada;
     },
-    enviar: (chat,texto)=>sendTelegram(chat,escaparHtmlTelegram(texto)),
+    enviar: (chat,texto,contexto)=>{
+      if(contexto?.etapa==="resposta" && contexto.plano.documento?.acao==="confirmar_reenvio"){
+        return enviarLinkReceitaConfirmada(chat,contexto.entrada,contexto.plano,contexto.dono);
+      }
+      return sendTelegram(chat,escaparHtmlTelegram(texto));
+    },
     aposRespostaEntregue: async (e,texto,plano)=>{
       await registrarEvento({empresaId:e.empresaId,tipo:"enviada",chave:`enviada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Resposta enviada ao cliente no Telegram"});
+      if(plano.documento?.acao==="ofertar_reenvio") await marcarOfertaReenvioEntregue(e);
+      if(plano.documento?.acao==="confirmar_reenvio") await marcarReenvioConcluido(e,plano);
       if(plano.faqId) await registrarUsoFaqAprendida(e.empresaId, plano.faqId, e.inboxMessageId);
-      if(plano.orientacaoId) plano.aprendizChamado = await observarRespostaAprovada({
+      if(plano.orientacaoId && plano.caminhoResolucao!=="documento") plano.aprendizChamado = await observarRespostaAprovada({
         empresaId:e.empresaId, inboxMessageId:e.inboxMessageId, textoPergunta:e.texto, orientacaoId:plano.orientacaoId,
       });
     },
     aposConclusao: async (e,desfecho,plano)=>{
       if(desfecho==="orientacao_enviada") await registrarEvento({empresaId:e.empresaId,tipo:"solucionada",chave:`solucionada:cli:${e.inboxMessageId}`,conversaRef:`cli:${e.clienteId}`,inboxMessageId:e.inboxMessageId,descricao:"Solicitação solucionada com orientação aprovada"});
+      if(plano.documento?.acao==="confirmar_reenvio") await marcarReenvioConcluido(e,plano);
       await registrarResolucaoTelegram({
         empresaId:e.empresaId, inboxMessageId:e.inboxMessageId,
         caminho:plano.caminhoResolucao ?? "equipe",

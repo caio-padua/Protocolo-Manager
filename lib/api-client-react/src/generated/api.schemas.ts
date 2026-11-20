@@ -5,6 +5,97 @@
  * PADCOM — Sistema de Gestão de Protocolos Injetáveis
  * OpenAPI spec version: 0.1.0
  */
+export type TelegramInboxMessageDirecao =
+  (typeof TelegramInboxMessageDirecao)[keyof typeof TelegramInboxMessageDirecao];
+
+export const TelegramInboxMessageDirecao = {
+  entrada: "entrada",
+  saida: "saida",
+} as const;
+
+export type TelegramInboxMessageAtendimentoEstado =
+  (typeof TelegramInboxMessageAtendimentoEstado)[keyof typeof TelegramInboxMessageAtendimentoEstado];
+
+export const TelegramInboxMessageAtendimentoEstado = {
+  pendente: "pendente",
+  processando: "processando",
+  concluido: "concluido",
+  falhou: "falhou",
+  esgotado: "esgotado",
+  incerto: "incerto",
+} as const;
+
+export interface TelegramInboxMessageAtendimento {
+  estado: TelegramInboxMessageAtendimentoEstado;
+  /** @nullable */
+  desfecho: string | null;
+  orientacaoAprovada: boolean;
+}
+
+export interface TelegramInboxMessage {
+  /** @minimum 1 */
+  id: number;
+  texto: string;
+  recebidaEm: string;
+  lida: boolean;
+  direcao: TelegramInboxMessageDirecao;
+  atendimento?: TelegramInboxMessageAtendimento;
+}
+
+export interface TelegramInboxResponse {
+  mensagens: TelegramInboxMessage[];
+  /** @minimum 0 */
+  naoLidas: number;
+  temMais: boolean;
+}
+
+export type TelegramClientAtendimentoStatusModoGlobal =
+  (typeof TelegramClientAtendimentoStatusModoGlobal)[keyof typeof TelegramClientAtendimentoStatusModoGlobal];
+
+export const TelegramClientAtendimentoStatusModoGlobal = {
+  desligado: "desligado",
+  lista: "lista",
+  ligado: "ligado",
+} as const;
+
+/**
+ * @nullable
+ */
+export type TelegramClientAtendimentoStatusCreditoMotivo =
+  | (typeof TelegramClientAtendimentoStatusCreditoMotivo)[keyof typeof TelegramClientAtendimentoStatusCreditoMotivo]
+  | null;
+
+export const TelegramClientAtendimentoStatusCreditoMotivo = {
+  sem_saldo: "sem_saldo",
+} as const;
+
+export interface TelegramClientAtendimentoStatus {
+  /** @minimum 1 */
+  clienteId: number;
+  vinculado: boolean;
+  vinculoUnico: boolean;
+  modoGlobal: TelegramClientAtendimentoStatusModoGlobal;
+  botConfigurado: boolean;
+  canalAtivo: boolean;
+  autorizadoIndividualmente: boolean;
+  modoPermiteResposta: boolean;
+  pausadoParaEquipe: boolean;
+  creditoDisponivel: boolean;
+  /** @nullable */
+  creditoMotivo: TelegramClientAtendimentoStatusCreditoMotivo;
+  respostaAutomaticaAtiva: boolean;
+  podeAlterarAutorizacaoIndividual: boolean;
+}
+
+export interface TelegramClientAtendimentoUpdate {
+  autorizado: boolean;
+}
+
+export interface TelegramClientAtendimentoUpdated {
+  ok: boolean;
+  autorizado: boolean;
+}
+
 export interface CreditoRecargaInput {
   /**
    * @minimum 1
@@ -3815,6 +3906,33 @@ export interface BudgetSeedResult {
   catalogTotal: number;
   settingsCreated: boolean;
 }
+
+export type GetClientTelegramInboxParams = {
+  quantidade?: GetClientTelegramInboxQuantidade;
+  direcao?: GetClientTelegramInboxDirecao;
+  /**
+   * @minimum 1
+   */
+  pagina?: number;
+};
+
+export type GetClientTelegramInboxQuantidade =
+  (typeof GetClientTelegramInboxQuantidade)[keyof typeof GetClientTelegramInboxQuantidade];
+
+export const GetClientTelegramInboxQuantidade = {
+  NUMBER_20: 20,
+  NUMBER_50: 50,
+  NUMBER_100: 100,
+} as const;
+
+export type GetClientTelegramInboxDirecao =
+  (typeof GetClientTelegramInboxDirecao)[keyof typeof GetClientTelegramInboxDirecao];
+
+export const GetClientTelegramInboxDirecao = {
+  todas: "todas",
+  entrada: "entrada",
+  saida: "saida",
+} as const;
 
 export type ListProcedimentoOpcoesProfissionais200LocaisItem = {
   id: number;

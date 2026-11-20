@@ -71,6 +71,12 @@ export function classificarQueixa(texto: string): "emergencia" | "queixa" | null
   return null;
 }
 
+/** Pedidos de decisão clínica sempre ficam com a equipe, mesmo que exista orientação aprovada genérica. */
+export function pedidoClinicoExigeEquipe(texto: string): boolean {
+  const n = normalizar(texto);
+  return /\b(dose|posologia|quantidade|aplicar|administrar|aumentar|reduzir|suspender|interromper|trocar|substituir|renovar|renovacao|diagnostico|interacao|misturar|combinar)\b/.test(n);
+}
+
 const STOP = new Set(["para", "como", "qual", "quais", "quando", "onde", "porque", "pelo", "pela", "uma", "uns", "umas", "isso", "esse", "essa", "este", "esta", "meu", "minha", "tenho", "estou", "fazer", "posso", "preciso", "gostaria", "saber", "sobre", "voce", "voces", "nao", "mais", "muito", "tem", "ser", "que", "com", "dos", "das", "por", "ola", "bom", "dia", "tarde", "noite"]);
 
 function tokens(t: string): Set<string> {
@@ -107,7 +113,28 @@ export function escolhaDeterministica(c: Candidata[]): OrientacaoAprovada | null
 
 export type Desfecho =
   | "desligado" | "fora_da_lista" | "pausado_humano" | "ja_tratado"
-  | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado" | "falha_envio" | "falha_alerta" | "agendamento_conduzido";
+  | "orientacao_enviada" | "encaminhado_humano" | "queixa_encaminhada" | "queixa_texto_enviado"
+  | "falha_envio" | "falha_alerta" | "agendamento_conduzido"
+  | "clarificacao_documento"
+  | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado";
+
+export interface DocumentoAtendimento {
+  acao: "ofertar_reenvio" | "confirmar_reenvio" | "cancelar_reenvio";
+  receitaId?: number;
+  prescricaoId?: number;
+  ofertaId?: number;
+  titulo?: string;
+}
+
+export type RespostaDocumento =
+  | {
+      tipo: "resposta";
+      texto: string;
+      desfecho: Extract<Desfecho, "orientacao_enviada" | "clarificacao_documento" | "reenvio_receita_ofertado" | "reenvio_receita_confirmado" | "reenvio_receita_cancelado">;
+      orientacaoId?: number | null;
+      documento?: DocumentoAtendimento;
+    }
+  | { tipo: "encaminhar"; motivo: string; texto?: string };
 
 export interface DepsAtendimento {
   lerConfig: () => Promise<ConfigAtendimentoIA>;
@@ -115,6 +142,8 @@ export interface DepsAtendimento {
   /** Reivindica a mensagem (uma resposta por mensagem). false = já tratada antes. */
   reivindicar: (inboxMessageId: number) => Promise<boolean>;
   carregarOrientacoes: (empresaId: number) => Promise<OrientacaoAprovada[]>;
+  /** Consulta somente dados próprios já vinculados e conteúdo clínico aprovado. */
+  responderDocumento?: (e: EntradaAtendimento) => Promise<RespostaDocumento | null>;
   buscarFaq?: (texto: string, empresaId: number) => Promise<{ id: number; resposta: string } | null>;
   /** IA escolhe um id entre as candidatas (ou null). Pode lançar: então vale a regra determinística. */
   escolherComIA?: (texto: string, c: Candidata[]) => Promise<number | null>;
@@ -127,7 +156,7 @@ export interface DepsAtendimento {
   /** Nome real da clínica (empresa). Opcional: ausente = texto genérico. */
   nomeClinica?: (empresaId: number) => Promise<string | null>;
   registrarDesfecho: (inboxMessageId: number, d: Desfecho, orientacaoId: number | null, meta?: {
-    caminho: "cardapio" | "regra" | "interprete" | "conferente" | "equipe";
+    caminho: "cardapio" | "regra" | "interprete" | "conferente" | "documento" | "equipe";
     faqId: number | null; interpreteChamado: boolean; conferenteChamado: boolean; aprendizChamado: boolean;
   }) => Promise<void>;
 }
@@ -181,6 +210,40 @@ export async function processarAtendimento(deps: DepsAtendimento, e: EntradaAten
       return fechar("falha_envio");
     }
     return fechar("queixa_encaminhada");
+  }
+
+  if (pedidoClinicoExigeEquipe(e.texto)) {
+    caminhoResolucao = "equipe";
+    await deps.passarParaHumano(e.clienteId, "pedido_de_decisao_clinica");
+    if (!await deps.alertarEquipe(
+      `Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, pede avaliação clínica. Abra a conversa no Cockpit protegido.`,
+    )) return fechar("falha_alerta");
+    const texto = textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
+    const ok = await deps.enviarAoPaciente(e.chatId, texto);
+    if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto });
+    return fechar(ok ? "encaminhado_humano" : "falha_envio");
+  }
+
+  const respostaDocumento = await deps.responderDocumento?.(e);
+  if (respostaDocumento?.tipo === "encaminhar") {
+    caminhoResolucao = "equipe";
+    await deps.passarParaHumano(e.clienteId, respostaDocumento.motivo);
+    const alertou = await deps.alertarEquipe(
+      `Atendimento #${e.inboxMessageId}, cliente #${e.clienteId}, requer equipe. Abra a conversa no Cockpit protegido.`,
+    );
+    if (!alertou) return fechar("falha_alerta");
+    const resposta = respostaDocumento.texto ??
+      textoEncaminhado(deps.nomeClinica ? await deps.nomeClinica(e.empresaId).catch(() => null) : null);
+    const ok = await deps.enviarAoPaciente(e.chatId, resposta);
+    if (ok) await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: resposta });
+    return fechar(ok ? "encaminhado_humano" : "falha_envio");
+  }
+  if (respostaDocumento?.tipo === "resposta") {
+    caminhoResolucao = "documento";
+    const ok = await deps.enviarAoPaciente(e.chatId, respostaDocumento.texto);
+    if (!ok) return fechar("falha_envio", respostaDocumento.orientacaoId ?? null);
+    await deps.registrarSaida({ empresaId: e.empresaId, clienteId: e.clienteId, chatId: e.chatId, texto: respostaDocumento.texto });
+    return fechar(respostaDocumento.desfecho, respostaDocumento.orientacaoId ?? null);
   }
 
   const faq = await deps.buscarFaq?.(e.texto, e.empresaId);
@@ -247,7 +310,8 @@ export interface PlanoAtendimento {
   orientacaoId: number | null;
   faqId?: number | null;
   desfecho: Desfecho;
-  caminhoResolucao?: "cardapio" | "regra" | "interprete" | "conferente" | "equipe";
+  caminhoResolucao?: "cardapio" | "regra" | "interprete" | "conferente" | "documento" | "equipe";
+  documento?: DocumentoAtendimento;
   interpreteChamado?: boolean;
   conferenteChamado?: boolean;
   aprendizChamado?: boolean;
@@ -261,6 +325,11 @@ export async function planejarAtendimento(deps: DepsAtendimento, e: EntradaAtend
   };
   plano.desfecho = await processarAtendimento({
     ...deps,
+    responderDocumento: deps.responderDocumento ? async (entrada) => {
+      const resposta = await deps.responderDocumento!(entrada);
+      if (resposta?.tipo === "resposta" && resposta.documento) plano.documento = resposta.documento;
+      return resposta;
+    } : undefined,
     reivindicar: async () => true,
     passarParaHumano: async (_cid, motivo) => { plano.pausa = motivo; },
     alertarEquipe: async texto => { plano.alerta = texto; return true; },

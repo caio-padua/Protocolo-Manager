@@ -77,6 +77,24 @@ describe("fluxo de atendimento", () => {
     expect(d.registrarDesfecho).toHaveBeenCalledWith(10, "orientacao_enviada", 1, expect.objectContaining({ caminho: "regra" }));
     expect(d.passarParaHumano).not.toHaveBeenCalled();
   });
+  it("resposta documental aprovada não chama IA nem aprendiz de perguntas", async () => {
+    const textoAprovado = "Texto clínico aprovado para a fórmula selecionada.";
+    const { d } = deps({
+      responderDocumento: vi.fn(async () => ({
+        tipo: "resposta" as const,
+        texto: textoAprovado,
+        desfecho: "orientacao_enviada" as const,
+        orientacaoId: 77,
+      })),
+      buscarFaq: vi.fn(async () => ({ id: 88, resposta: "Resposta aprendida não deve substituir a orientação clínica." })),
+      escolherComIA: vi.fn(async () => 1),
+    });
+    expect(await processarAtendimento(d, E("explique minha fórmula"))).toBe("orientacao_enviada");
+    expect(d.enviarAoPaciente).toHaveBeenCalledWith("555", textoAprovado);
+    expect(d.responderDocumento).toHaveBeenCalledOnce();
+    expect(d.buscarFaq).not.toHaveBeenCalled();
+    expect(d.escolherComIA).not.toHaveBeenCalled();
+  });
   it("sem orientação que sirva: encaminha, alerta, pausa a IA e não inventa", async () => {
     const { d } = deps();
     const r = await processarAtendimento(d, E("para que serve a minha vitamina X? qual o motivo de eu tomar"));

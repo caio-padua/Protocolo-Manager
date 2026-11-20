@@ -1,9 +1,8 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
-  db, clientsTable, collaboratorAuditTable, medicalCertificatesTable, referralsTable,
-  recipesTable, prescriptionsTable, examRequestPdfsTable,
+  db, clientsTable, collaboratorAuditTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { requireCollaborator } from "./collaborator";
@@ -11,10 +10,15 @@ import { ClinicalIdentityError, resolveClinicalEmitter } from "../lib/clinical-e
 import { absoluteBaseUrl } from "../lib/messaging/base-url";
 import { enviarMensagemPaxter, type PaxterCanal, type PaxterDoc } from "../lib/messaging/index.js";
 import { authorizedPrescription } from "./prescription-delivery";
+import {
+  criarTokenClinicalShare,
+  getIssuedDocument,
+  hashClinicalShareToken,
+  type ClinicalDocumentType,
+} from "../lib/clinical-document-share";
 
 const router = Router();
 const publicRouter = Router();
-const shareLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 const ResendBody = z.object({
   documentType: z.enum(["prescricao", "pedido_exames", "atestado", "encaminhamento"]),
   documentId: z.number().int().positive(),
@@ -26,7 +30,7 @@ const ResendBody = z.object({
   message: "Selecione cada canal apenas uma vez.",
 });
 
-type DocumentType = "prescricao" | "pedido_exames" | "atestado" | "encaminhamento";
+type DocumentType = ClinicalDocumentType;
 type Channel = "EMAIL" | "WHATSAPP" | "TELEGRAM";
 type ResendState = "requested" | "provider_accepted" | "simulated" | "failed" | "unknown";
 
@@ -39,56 +43,8 @@ function noStore(res: Response) {
   });
 }
 
-function hashToken(token: string) {
-  return createHash("sha256").update(token, "utf8").digest("hex");
-}
-
 function safeFilename(value: string) {
   return (value || "documento-clinico.pdf").replace(/[^\p{L}\p{N}._-]+/gu, "_").slice(0, 120);
-}
-
-async function getIssuedDocument(type: DocumentType, documentId: number) {
-  if (type === "prescricao") {
-    const [recipe] = await db.select().from(recipesTable)
-      .where(eq(recipesTable.id, documentId)).limit(1);
-    if (!recipe) return null;
-    const [prescription] = await db.select().from(prescriptionsTable)
-      .where(eq(prescriptionsTable.id, recipe.prescriptionId)).limit(1);
-    if (!prescription) return null;
-    return {
-      id: recipe.id, clientId: prescription.clientId, professionalId: prescription.professionalId,
-      prescriptionId: recipe.prescriptionId, status: prescription.status, pdfData: recipe.pdfData,
-      fileName: recipe.fileName, label: recipe.title || "Receita",
-    };
-  }
-  if (type === "pedido_exames") {
-    const [row] = await db.select().from(examRequestPdfsTable)
-      .where(eq(examRequestPdfsTable.id, documentId)).limit(1);
-    if (!row) return null;
-    return {
-      id: row.id, clientId: row.clientId, professionalId: row.professionalId,
-      status: "emitted", pdfData: row.pdfData, fileName: row.fileName,
-      label: `Pedido de exames — ${row.fileName}`,
-    };
-  }
-  if (type === "atestado") {
-    const [row] = await db.select().from(medicalCertificatesTable)
-      .where(eq(medicalCertificatesTable.id, documentId)).limit(1);
-    if (!row) return null;
-    return {
-      id: row.id, clientId: row.clientId, professionalId: row.professionalId, status: row.status,
-      pdfData: row.pdfData, fileName: row.fileName,
-      label: `Atestado${row.tipo ? ` — ${row.tipo}` : ""}`,
-    };
-  }
-  const [row] = await db.select().from(referralsTable)
-    .where(eq(referralsTable.id, documentId)).limit(1);
-  if (!row) return null;
-  return {
-    id: row.id, clientId: row.clientId, professionalId: row.professionalId, status: row.status,
-    pdfData: row.pdfData, fileName: row.fileName,
-    label: `Encaminhamento${row.especialidadeDestino ? ` — ${row.especialidadeDestino}` : ""}`,
-  };
 }
 
 function maskedRecipient(channel: Channel, value: string) {
@@ -314,11 +270,12 @@ router.post("/clinical-documents/resend", async (req, res) => {
     return;
   }
 
-  const shareToken = input.channels.some((channel) => channel === "WHATSAPP" || channel === "TELEGRAM")
-    ? randomBytes(32).toString("base64url")
+  const share = input.channels.some((channel) => channel === "WHATSAPP" || channel === "TELEGRAM")
+    ? criarTokenClinicalShare()
     : null;
-  const shareTokenHash = shareToken ? hashToken(shareToken) : null;
-  const expiresAt = shareToken ? new Date(Date.now() + shareLifetimeMs).toISOString() : null;
+  const shareToken = share?.token ?? null;
+  const shareTokenHash = share?.tokenHash ?? null;
+  const expiresAt = share?.expiresAt ?? null;
   const publicUrl = shareToken ? `${absoluteBaseUrl(req)}/api/clinical-documents/share/${shareToken}` : null;
   const fileName = safeFilename(document.fileName || `${document.label}.pdf`);
   const pdfBuffer = Buffer.from(document.pdfData, "base64");
@@ -494,7 +451,7 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
     res.status(404).json({ error: "Link indisponível ou expirado." });
     return;
   }
-  const tokenHash = hashToken(token);
+  const tokenHash = hashClinicalShareToken(token);
   const matchingAudits = await db.select().from(collaboratorAuditTable)
     .where(and(
       eq(collaboratorAuditTable.action, "clinical_document_resend"),
@@ -502,7 +459,40 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
     ));
   const audit = matchingAudits.find((row) =>
     (row.detail as Record<string, unknown>)?.state === "provider_accepted");
-  const detail = audit?.detail as Record<string, unknown> | undefined;
+  let detail = audit?.detail as Record<string, unknown> | undefined;
+  if (!detail) {
+    const telegramShare = await db.execute(sql`SELECT a.document_share_type,a.document_share_id,
+        a.document_share_professional_id,a.document_share_pdf_sha256,a.document_share_expires_at,
+        a.etapas->'resposta'->>'estado' AS envio_estado,a.estado,m.empresa_id,m.cliente_id
+      FROM telegram_atendimento_respostas a
+      JOIN telegram_inbox_messages m ON m.id=a.inbox_message_id
+      WHERE a.document_share_token_hash=${tokenHash}
+        AND a.document_share_type='prescricao'
+        AND a.document_share_expires_at>NOW()
+        AND a.etapas->'resposta'->>'estado'='aceito_telegram'
+        AND a.estado IN ('processando','concluido')
+      LIMIT 1`);
+    const row = telegramShare.rows[0] as {
+      document_share_type: string; document_share_id: number | string;
+      document_share_professional_id: number | string | null; document_share_pdf_sha256: string;
+      document_share_expires_at: Date | string; envio_estado: string; estado: string;
+      empresa_id: number | string; cliente_id: number | string;
+    } | undefined;
+    if (row) {
+      detail = {
+        documentType: row.document_share_type,
+        documentId: Number(row.document_share_id),
+        clientId: Number(row.cliente_id),
+        empresaId: Number(row.empresa_id),
+        professionalId: Number(row.document_share_professional_id),
+        pdfSha256: row.document_share_pdf_sha256,
+        expiresAt: row.document_share_expires_at instanceof Date
+          ? row.document_share_expires_at.toISOString()
+          : row.document_share_expires_at,
+        state: "provider_accepted",
+      };
+    }
+  }
   const expiry = typeof detail?.expiresAt === "string" ? Date.parse(detail.expiresAt) : NaN;
   if (!detail || !Number.isFinite(expiry) || expiry <= Date.now()) {
     res.status(404).json({ error: "Link indisponível ou expirado." });
@@ -525,7 +515,9 @@ publicRouter.get("/clinical-documents/share/:token", async (req, res) => {
   const bytes = Buffer.from(document.pdfData, "base64");
   const pdfSha256 = createHash("sha256").update(bytes).digest("hex");
   if (!bytes.length || document.professionalId !== Number(detail.professionalId) ||
-    pdfSha256 !== detail.pdfSha256) {
+    pdfSha256 !== detail.pdfSha256 ||
+    (documentType === "prescricao" && detail.empresaId !== undefined &&
+      document.empresaId !== Number(detail.empresaId))) {
     res.status(404).json({ error: "Documento indisponível." });
     return;
   }

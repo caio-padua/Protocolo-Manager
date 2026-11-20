@@ -548,6 +548,16 @@ export default function DuvidasOrientacoes() {
             <div>
               <label htmlFor="orientation-topic" className="lbl mb-1 block">Tema <span className="normal-case tracking-normal text-muted-foreground">(3–120 caracteres)</span></label>
               <input id="orientation-topic" data-testid="field-topic" value={form.tema} onChange={(event) => setField("tema", event.target.value)} maxLength={120} required minLength={3} placeholder="Ex.: preparo para a primeira consulta" className="field-engraved h-10 w-full rounded-[4px] border px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40" />
+              {form.categoria === "prescricao" && form.subcategoria === "formula_explicacao" && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="formula-topic-guidance">
+                  Para associar esta explicação, use o tema “Fórmula: ” seguido do nome exato que aparece no receituário.
+                </p>
+              )}
+              {form.categoria === "prescricao" && form.subcategoria === "protocolo_explicacao" && (
+                <p className="mt-1 text-xs text-muted-foreground" data-testid="protocol-topic-guidance">
+                  Para associar esta explicação, use o tema “Protocolo: ” seguido do título exato do protocolo.
+                </p>
+              )}
               <p className="mt-1 text-right text-[10px] text-muted-foreground" data-testid="topic-counter">{form.tema.length}/120</p>
             </div>
             <div>

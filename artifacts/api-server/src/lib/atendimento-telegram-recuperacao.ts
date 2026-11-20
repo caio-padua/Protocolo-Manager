@@ -15,7 +15,11 @@ export interface DepsAtendimentoDuravel {
   pausar(e: EntradaAtendimento, motivo: string, dono:string): Promise<void>;
   chatAlerta(): Promise<string | null>;
   autorizarResposta(e: EntradaAtendimento, plano: PlanoAtendimento): Promise<boolean>;
-  enviar(chat: string, texto: string): Promise<{ sent: boolean; mock: boolean; error?: string }>;
+  enviar(
+    chat: string,
+    texto: string,
+    contexto?: { entrada: EntradaAtendimento; plano: PlanoAtendimento; etapa: "alerta" | "resposta"; dono: string },
+  ): Promise<{ sent: boolean; mock: boolean; error?: string; textoHistorico?: string }>;
   /** Medição: chamado só depois que o Telegram aceitou de verdade a resposta ao cliente (nunca em simulação ou falha). */
   aposRespostaEntregue?(e: EntradaAtendimento, texto: string, plano: PlanoAtendimento): Promise<void>;
   /** Medição: chamado ao concluir o atendimento da mensagem. */
@@ -39,6 +43,16 @@ export async function migrarRecuperacaoAtendimento(exec: ExecutorAtendimentoDura
     ADD COLUMN IF NOT EXISTS ultimo_erro TEXT,
     ADD COLUMN IF NOT EXISTS proxima_tentativa_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+  await exec.execute(sql`ALTER TABLE telegram_atendimento_respostas
+    ADD COLUMN IF NOT EXISTS document_share_token_hash TEXT,
+    ADD COLUMN IF NOT EXISTS document_share_type TEXT,
+    ADD COLUMN IF NOT EXISTS document_share_id INTEGER,
+    ADD COLUMN IF NOT EXISTS document_share_professional_id INTEGER,
+    ADD COLUMN IF NOT EXISTS document_share_pdf_sha256 TEXT,
+    ADD COLUMN IF NOT EXISTS document_share_expires_at TIMESTAMPTZ`);
+  await exec.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_telegram_document_share_token_hash
+    ON telegram_atendimento_respostas (document_share_token_hash)
+    WHERE document_share_token_hash IS NOT NULL`);
   // Reivindicação legada sem fechamento NÃO significa que é seguro enviar novamente.
   await exec.execute(sql`UPDATE telegram_atendimento_respostas
     SET estado=CASE WHEN fechado_em IS NULL THEN 'incerto' ELSE 'concluido' END,
@@ -129,7 +143,7 @@ export async function tentarAtendimentoDuravel(exec: ExecutorAtendimentoDuravel,
         WHERE inbox_message_id=${id} AND dono=${dono} AND estado='processando'
           AND atualizado_em>=NOW()-interval '5 minutes' RETURNING inbox_message_id`);
       if (!inicio.rows.length) return;
-      const enviado = await deps.enviar(destino,texto);
+       const enviado = await deps.enviar(destino,texto,{ entrada:e,plano,etapa,dono });
       const resultado = classificarResultado(enviado.mock ? {kind:"simulado"} : enviado.sent ? {kind:"entregue"} :
         {kind:"falhou",erro:enviado.error??"sem_resultado"},Number(l.tentativas));
       const detalhe = JSON.stringify({estado:resultado.estado,erro:resultado.erro});
@@ -138,8 +152,8 @@ export async function tentarAtendimentoDuravel(exec: ExecutorAtendimentoDuravel,
         await exec.execute(sql`WITH aceita AS (
           UPDATE telegram_atendimento_respostas SET etapas=etapas||jsonb_build_object(${etapa}::text,${detalhe}::jsonb),atualizado_em=NOW()
           WHERE inbox_message_id=${id} AND dono=${dono} AND estado='processando' RETURNING inbox_message_id)
-          INSERT INTO telegram_inbox_messages (empresa_id,cliente_id,chat_id,texto,direcao,lida_em)
-          SELECT ${e.empresaId},${e.clienteId},${e.chatId},${texto},'saida',NOW() FROM aceita`);
+           INSERT INTO telegram_inbox_messages (empresa_id,cliente_id,chat_id,texto,direcao,lida_em)
+           SELECT ${e.empresaId},${e.clienteId},${e.chatId},${enviado.textoHistorico ?? texto},'saida',NOW() FROM aceita`);
       } else {
         await exec.execute(sql`UPDATE telegram_atendimento_respostas
           SET etapas=etapas||jsonb_build_object(${etapa}::text,${detalhe}::jsonb),atualizado_em=NOW()
