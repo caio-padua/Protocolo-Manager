@@ -1,0 +1,22 @@
+/* Tecido de risca de giz da tela de Validacao medica (padrao Cockpit / Matriz / Evolucao de exames).
+   Vai de ponta a ponta do conteudo, sem margem branca; os paineis levitam sobre ele.
+   Valores iguais ao --cc-fabric do Cockpit (claro = creme com giz dourado; escuro = azul com giz platina). */
+.pm-tecido {
+  --pm-fabric: repeating-linear-gradient(170deg, transparent 0 9px, rgba(150,120,60,.14) 9px 10.5px, transparent 10.5px 13px, rgba(150,120,60,.07) 13px 13.5px, transparent 13.5px 22px), linear-gradient(180deg,#f7f0e1,#efe5cf);
+  background-image: var(--pm-fabric);
+  background-attachment: fixed;
+  margin: -1rem;
+  padding: 1rem;
+  min-height: calc(100vh - 3rem);
+}
+.dark .pm-tecido {
+  --pm-fabric: repeating-linear-gradient(170deg, transparent 0 9px, rgba(190,215,255,.22) 9px 10.5px, transparent 10.5px 13px, rgba(190,215,255,.10) 13px 13.5px, transparent 13.5px 22px), linear-gradient(180deg,rgba(255,255,255,.12),transparent 38%), linear-gradient(180deg,#294b70,#203e61);
+}
+@media (min-width: 768px) {
+  .pm-tecido { margin: -1.5rem -2rem -2rem -2rem; padding: 1.5rem 2rem 2rem 2rem; }
+}
+/* Painel recolhido: faixa vertical estreita; aberto: ocupa a largura */
+.pm-esteira { transition: flex-grow .3s ease, width .3s ease; }
+.pm-esteira-fechada { writing-mode: vertical-rl; transform: rotate(180deg); }
+.pm-pendente { color: #8a1c1c; }
+@media (prefers-reduced-motion: reduce) { .pm-esteira { transition: none; } }

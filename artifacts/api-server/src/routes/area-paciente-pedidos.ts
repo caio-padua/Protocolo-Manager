@@ -1,3 +1,5 @@
+import { linhaDoTempoPedido, previsaoPedido, MENSAGEM_PAX_MEMBER, CONVITE_PAX_MEMBER } from "../lib/linha-tempo-pedido";
+import { getSetting } from "../lib/secure-settings";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -31,10 +33,15 @@ interface PedidoRow {
   id: number; client_id: number; kind: PedidoKind; details: string; status: string;
   amount: string | null; asaas_charge_id: string | null; asaas_invoice_url: string | null;
   asaas_customer_id: string | null; isento_beneficio_id?: number | null; created_at: string; paid_at: string | null; decision_note: string | null;
+  doc_send_status?: string | null;
 }
 
-function publicView(r: PedidoRow) {
+function publicView(r: PedidoRow, validacaoAtiva = true) {
   return {
+    linhaDoTempo: linhaDoTempoPedido(r),
+    previsao: previsaoPedido({ status: r.status, isento: r.isento_beneficio_id != null, validacaoAtiva }),
+    mensagemMember: r.isento_beneficio_id != null ? MENSAGEM_PAX_MEMBER : null,
+    convitePaxMember: r.isento_beneficio_id == null && r.kind === "pedido_exames" ? CONVITE_PAX_MEMBER : null,
     id: r.id,
     kind: r.kind,
     kindLabel: PEDIDO_LABEL[r.kind],
@@ -119,7 +126,8 @@ router.get("/area-paciente/pedidos-medicos", async (req: Request, res: Response)
     const rows = await db.execute(sql`
       SELECT * FROM client_medical_requests WHERE client_id = ${clientId}
        ORDER BY created_at DESC, id DESC LIMIT 100`);
-    res.json((rows.rows as unknown as PedidoRow[]).map(publicView));
+    const va = (await getSetting("pedidoMedico.validacaoAtiva")) !== "false";
+    res.json((rows.rows as unknown as PedidoRow[]).map((r) => publicView(r, va)));
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao listar pedidos médicos do cliente");
     res.status(500).json({ error: "Não foi possível carregar seus pedidos." });
@@ -220,7 +228,7 @@ router.get("/area-paciente/pedidos-medicos/:id", async (req: Request, res: Respo
         req.log.warn({ err: String(e) }, "Asaas indisponível ao consultar pedido médico");
       }
     }
-    res.json(publicView(row));
+    res.json(publicView(row, (await getSetting("pedidoMedico.validacaoAtiva")) !== "false"));
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao consultar pedido médico");
     res.status(500).json({ error: "Não foi possível carregar o pedido." });
@@ -240,7 +248,7 @@ router.post("/area-paciente/pedidos-medicos/:id/cancelar", async (req: Request, 
    RETURNING *`);
     const row = upd.rows[0] as unknown as PedidoRow | undefined;
     if (!row) { res.status(409).json({ error: "Só é possível cancelar pedidos que aguardam pagamento e ainda não têm cobrança gerada." }); return; }
-    res.json(publicView(row));
+    res.json(publicView(row, (await getSetting("pedidoMedico.validacaoAtiva")) !== "false"));
   } catch (err) {
     req.log.error({ err: String(err) }, "Erro ao cancelar pedido médico");
     res.status(500).json({ error: "Não foi possível cancelar o pedido." });

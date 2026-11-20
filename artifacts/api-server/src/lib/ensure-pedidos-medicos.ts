@@ -51,6 +51,11 @@ export async function ensurePedidosMedicosTable(): Promise<void> {
   await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS doc_send_status TEXT`);
   await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS doc_sent_at TIMESTAMPTZ`);
   await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS doc_send_error TEXT`);
+  await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS liberar_em TIMESTAMPTZ`);
+  await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS liberado_auto BOOLEAN NOT NULL DEFAULT FALSE`);
+  await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS auditoria_status TEXT`);
+  await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS auditoria_nota TEXT`);
+  await db.execute(sql`ALTER TABLE client_medical_requests ADD COLUMN IF NOT EXISTS auditoria_em TIMESTAMPTZ`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS client_member_beneficios (
       id          SERIAL PRIMARY KEY,

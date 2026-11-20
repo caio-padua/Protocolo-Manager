@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Crown, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, Download, Eye, FileSignature, Loader2, Pencil, RotateCcw, Send, Stethoscope } from "lucide-react";
+import { Download, Eye, FileSignature, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
 import { collabAuthHeaders } from "@/lib/collab-auth";
+import { BarraGrupo } from "@/components/ui/barra-grupo";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
+import { ChaveOuro } from "@/components/ui/chave-ouro";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -9,6 +12,7 @@ type Item = {
   id: number; kind: "receita" | "pedido_exames"; kindLabel: string; clientId: number; clientName: string;
   details: string; status: "pago" | "em_analise" | "emitido"; paidAt: string | null; createdAt: string;
   isento: boolean; draftItems: string | null; docToken: string | null;
+  liberadoAuto: boolean; auditoriaStatus: string | null; auditoriaNota: string | null;
   docSendStatus: string | null; docSentAt: string | null; docSendError: string | null;
   assignedProfessionalId: number | null; assignedReason: string | null; asResponsible: boolean;
 };
@@ -32,16 +36,6 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const linhas = (t: string | null | undefined) =>
   String(t ?? "").split(/\r?\n/).map((l) => l.replace(/^[\s\-•*\d.)]+/, "").trim()).filter(Boolean);
 
-function Etapa({ titulo, n, cor, ativo, pulsa }: { titulo: string; n: number; cor: "red" | "gold" | "green"; ativo: boolean; pulsa?: boolean }) {
-  const borda = cor === "red" ? "border-red-600 text-red-700" : cor === "gold" ? "border-amber-600 text-amber-800" : "border-emerald-700 text-emerald-800";
-  return (
-    <div className={`flex-1 min-w-[9rem] rounded-lg border-2 bg-background px-4 py-3 ${borda} ${ativo ? "shadow-md" : "opacity-60"} ${pulsa && ativo ? "animate-pulse" : ""}`}>
-      <p className="text-[11px] font-black uppercase tracking-widest">{titulo}</p>
-      <p className="text-3xl font-black leading-none mt-1">{n}</p>
-    </div>
-  );
-}
-
 export function FilaPedidos() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState("");
@@ -52,6 +46,7 @@ export function FilaPedidos() {
   const [refusing, setRefusing] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [aberta, setAberta] = useState<{ member: boolean; padrao: boolean }>({ member: true, padrao: true });
+  const [primeira, setPrimeira] = useState<"member" | "padrao">("member");
   const [validacao, setValidacao] = useState<boolean | null>(null);
   useEffect(() => { api<{ ativa: boolean }>("/validacao-medica").then((r) => setValidacao(r.ativa)).catch(() => setValidacao(null)); }, []);
   async function trocarValidacao() {
@@ -97,11 +92,11 @@ export function FilaPedidos() {
     const itens = linhas(it.draftItems ?? it.details);
     const aba = it.kind === "receita" ? "prescricao" : "exames";
     return (
-      <div className="rounded-md border border-red-300 bg-background/70 p-3 space-y-3">
+      <div className="concave-3d p-3 space-y-3">
         <div className="flex items-center gap-2">
-          <span className="rounded bg-red-600 text-white text-[10px] font-black uppercase tracking-widest px-2 py-0.5">Pendente</span>
+          <span className="bevel-3d pm-pendente inline-flex h-6 items-center px-2 text-[10px] font-black uppercase tracking-[0.18em]">Pendente</span>
           <span className="text-sm font-semibold text-primary">{it.kindLabel} nº {it.id}</span>
-          <Stethoscope className="w-4 h-4 text-accent ml-auto" />
+          
         </div>
         {it.assignedReason && <p className="text-xs text-muted-foreground">{REASON[it.assignedReason] ?? it.assignedReason}</p>}
         {exames ? (
@@ -160,12 +155,21 @@ export function FilaPedidos() {
   function Concluido({ it }: { it: Item }) {
     const semDoc = !it.docToken; const falha = it.docSendStatus === "falha";
     return (
-      <div className={`rounded-md border p-3 space-y-2 bg-background/70 ${semDoc || falha ? "border-amber-600" : "border-emerald-700"}`}>
+      <div className="concave-3d p-3 space-y-2">
         <div className="flex items-center gap-2 text-sm">
-          {semDoc || falha ? <AlertTriangle className="w-4 h-4 text-amber-700" /> : <CheckCircle2 className="w-4 h-4 text-emerald-700" />}
-          <span className="font-semibold text-primary">{it.kindLabel} nº {it.id}</span>
-          <span className="ml-auto text-[10px] font-black uppercase tracking-widest">{semDoc ? "Emitido, sem documento" : falha ? "Assinado, envio falhou" : "Assinado e enviado"}</span>
+                    <span className="font-semibold text-primary">{it.kindLabel} nº {it.id}</span>
+          <span className="ml-auto text-[10px] font-black uppercase tracking-widest">{semDoc ? "Emitido, sem documento" : falha ? "Assinado, envio falhou" : it.liberadoAuto ? "Assinado automaticamente e enviado" : "Assinado e enviado"}</span>
         </div>
+        {it.liberadoAuto && (
+          <div className="bevel-3d p-2 space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Liberado automaticamente: para a sua conferência</p>
+            <p className={`text-xs ${it.auditoriaStatus === "atencao" || it.auditoriaStatus === "falha_liberacao" ? "pm-pendente font-semibold" : "text-muted-foreground"}`}>
+              {it.auditoriaStatus === "sem_ressalvas" ? "Conferência da IA: sem ressalvas." :
+               it.auditoriaStatus === "atencao" ? `Conferência da IA: atenção. ${it.auditoriaNota ?? ""}` :
+               it.auditoriaStatus === "sem_ia" ? "A IA não conseguiu conferir. Confira a lista manualmente." : "Conferência da IA em andamento."}
+            </p>
+          </div>
+        )}
         {falha && it.docSendError && <p className="text-xs text-muted-foreground">Motivo: {it.docSendError}</p>}
         <div className="flex gap-2">
           {it.docToken && <button type="button" title="Baixar documento assinado" aria-label="Baixar documento assinado" onClick={() => baixar(it.docToken!)} className="btn-3d-soft h-10 w-10 inline-flex items-center justify-center"><Download className="w-4 h-4" /></button>}
@@ -179,43 +183,41 @@ export function FilaPedidos() {
     );
   }
 
-  function Esteira({ id, titulo, sub, lista }: { id: "member" | "padrao"; titulo: string; sub: string; lista: Item[] }) {
+  function Esteira({ id, titulo, lista }: { id: "member" | "padrao"; titulo: string; lista: Item[] }) {
     const abertaAgora = aberta[id];
     const pend = lista.filter((i) => i.status !== "emitido");
-    const conc = lista.filter((i) => i.status === "emitido");
-    const member = id === "member";
+    const conc = lista.filter((i) => i.status === "emitido").sort((a, b) => Number(b.liberadoAuto) - Number(a.liberadoAuto));
+    const alternar = () => { setAberta((a) => ({ ...a, [id]: !a[id] })); if (!aberta[id]) setPrimeira(id); };
     return (
-      <div className={`rounded-lg border-2 panel-3d-sub transition-all ${abertaAgora ? "flex-1 min-w-[20rem]" : "w-16 shrink-0"} ${member ? "border-amber-600" : "border-primary/40"}`}>
-        <button type="button" onClick={() => setAberta((a) => ({ ...a, [id]: !a[id] }))} aria-expanded={abertaAgora}
-          className={`w-full flex ${abertaAgora ? "flex-row items-center gap-2 p-3" : "flex-col items-center gap-3 py-4"} text-left`}>
-          {member ? <Crown className="w-5 h-5 text-amber-700 shrink-0" /> : <Stethoscope className="w-5 h-5 text-primary shrink-0" />}
-          {abertaAgora ? (<>
-            <span className="min-w-0"><span className="block text-sm font-black uppercase tracking-wider text-primary">{titulo}</span><span className="block text-xs text-muted-foreground">{sub}</span></span>
-            <span className={`ml-auto rounded px-2 py-0.5 text-xs font-black ${pend.length ? "bg-red-600 text-white" : "bg-emerald-700 text-white"}`}>{pend.length}</span>
-            <ChevronDown className="w-4 h-4" /></>) : (<>
-            <span className={`rounded px-2 py-0.5 text-xs font-black ${pend.length ? "bg-red-600 text-white" : "bg-emerald-700 text-white"}`}>{pend.length}</span>
-            <span className="text-[11px] font-black uppercase tracking-widest [writing-mode:vertical-rl] rotate-180">{titulo}</span>
-            <ChevronRight className="w-4 h-4" /></>)}
-        </button>
-        {abertaAgora && (
-          <div className="p-3 pt-0 space-y-3 max-h-[70vh] overflow-y-auto">
-            {lista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum pedido nesta esteira.</p>}
-            {grupos(pend).map((g) => (
-              <article key={g.k} className="relative overflow-hidden rounded-lg border-2 border-red-600 bg-card p-3 pl-5 space-y-2">
-                <span className="absolute left-0 inset-y-0 w-2 bg-red-600" aria-hidden />
-                <p className="font-semibold text-primary">{g.itens[0].clientName}</p>
-                <p className="text-xs text-muted-foreground">{dia(g.itens[0])} · {g.itens.length} {g.itens.length === 1 ? "solicitação" : "solicitações"} no dia</p>
-                {g.itens.map((it) => <div key={it.id}>{Pedido({ it })}</div>)}
-              </article>
-            ))}
-            {conc.length > 0 && <h3 className="text-[11px] font-black uppercase tracking-widest text-muted-foreground pt-1">Concluídos (30 dias)</h3>}
-            {grupos(conc).map((g) => (
-              <article key={g.k} className="rounded-lg border border-border bg-card p-3 space-y-2">
-                <p className="font-semibold text-primary text-sm">{g.itens[0].clientName} <span className="text-xs text-muted-foreground font-normal">· {dia(g.itens[0])}</span></p>
-                {g.itens.map((it) => <div key={it.id}>{Concluido({ it })}</div>)}
-              </article>
-            ))}
+      <div className={`pm-esteira panel-3d p-3 ${abertaAgora ? "flex-1 min-w-0" : "md:w-24 md:shrink-0"} ${primeira === id ? "order-first" : "order-last"}`} data-aberta={abertaAgora ? "sim" : "nao"}>
+        {abertaAgora ? (
+          <div className="space-y-3">
+            <BarraGrupo titulo={titulo} aberto onAlternar={alternar} testIdControle={`esteira-${id}`} />
+            <p className="text-xs text-muted-foreground px-1">{pend.length === 0 ? "Nada pendente nesta esteira." : `${pend.length} aguardando a sua avaliação.`}</p>
+            <div className="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
+              {lista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum pedido nesta esteira.</p>}
+              {grupos(pend).map((g) => (
+                <article key={g.k} className="panel-3d-sub p-3 space-y-2">
+                  <p className="font-semibold text-primary">{g.itens[0].clientName}</p>
+                  <p className="text-xs text-muted-foreground">{dia(g.itens[0])}. {g.itens.length === 1 ? "1 solicitação" : `${g.itens.length} solicitações`} neste dia.</p>
+                  {g.itens.map((it) => <div key={it.id}>{Pedido({ it })}</div>)}
+                </article>
+              ))}
+              {conc.length > 0 && <PlacaTitulo titulo="Concluídos em 30 dias" />}
+              {grupos(conc).map((g) => (
+                <article key={g.k} className="panel-3d-sub p-3 space-y-2">
+                  <p className="font-semibold text-primary text-sm">{g.itens[0].clientName} <span className="text-xs text-muted-foreground font-normal">{dia(g.itens[0])}</span></p>
+                  {g.itens.map((it) => <div key={it.id}>{Concluido({ it })}</div>)}
+                </article>
+              ))}
+            </div>
           </div>
+        ) : (
+          <button type="button" onClick={alternar} aria-expanded={false} aria-label={`Abrir ${titulo}`}
+            className="bevel-3d w-full flex md:flex-col items-center justify-between gap-3 px-3 py-3 md:py-5 text-primary md:min-h-[14rem]">
+            <span className="text-[11px] font-black uppercase tracking-[0.18em] md:pm-esteira-fechada">{titulo}{pend.length > 0 ? ` (${pend.length} pendente${pend.length > 1 ? "s" : ""})` : ""}</span>
+            <span aria-hidden className="text-lg font-black">+</span>
+          </button>
         )}
       </div>
     );
@@ -225,30 +227,36 @@ export function FilaPedidos() {
   const padrao = (items ?? []).filter((i) => !i.isento);
   return (
     <section className="space-y-4" aria-label="Linha de produção dos pedidos">
-      <div className="flex flex-wrap items-center gap-3 panel-3d-sub rounded-lg p-3">
-        <div className="min-w-0">
-          <p className="text-sm font-black uppercase tracking-wider text-primary">Validação médica</p>
-          <p className="text-xs text-muted-foreground">{validacao === false ? "Desativada: preferência registrada. A liberação automática ainda não existe; toda assinatura segue com você." : "Ativada: todo pedido espera a sua avaliação, inclusive de Pax Member."}</p>
+      <div className="panel-3d p-4 space-y-3">
+        <PlacaTitulo titulo="Validação médica" />
+        <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
+          <ChaveOuro id="validacao-medica" checked={validacao === true} disabled={validacao === null} onCheckedChange={() => void trocarValidacao()} aria-label="Exigir validação médica antes de liberar" />
+          <label htmlFor="validacao-medica" className="text-sm font-semibold text-primary">Exigir a minha validação antes de liberar o documento</label>
         </div>
-        <button type="button" role="switch" aria-checked={validacao === true} disabled={validacao === null} onClick={() => void trocarValidacao()}
-          className={`ml-auto h-9 w-16 rounded-full border-2 p-0.5 transition ${validacao ? "bg-emerald-700 border-emerald-800" : "bg-muted border-border"} disabled:opacity-40`}>
-          <span className={`block h-7 w-7 rounded-full bg-white shadow transition ${validacao ? "translate-x-7" : ""}`} />
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <Etapa titulo="Pendente de você" n={pendentes.length} cor="red" ativo={pendentes.length > 0} pulsa />
-        <Etapa titulo="Assinado e enviado" n={emitidos.filter((i) => i.docSendStatus === "enviado").length} cor="green" ativo />
-        <Etapa titulo="Exige atenção" n={atencao} cor="gold" ativo={atencao > 0} />
+        <p className="text-xs text-muted-foreground">
+          {validacao === false
+            ? "Desligada: o pedido de exames pago é assinado com o seu certificado 5 minutos depois e enviado ao cliente. Ele aparece aqui como concluído, para você conferir, e uma IA aponta ressalvas."
+            : "Ligada: todo pedido espera a sua avaliação e a sua assinatura, inclusive o de Pax Member."}
+        </p>
       </div>
       {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
-      {info && <p role="status" className="text-sm text-emerald-700">{info}</p>}
-      {items === null && !error && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
-      {items && (
-        <div className="flex gap-3 items-start">
-          {Esteira({ id: "member", titulo: "Pax Member", sub: "Preferência na avaliação médica", lista: member })}
-          {Esteira({ id: "padrao", titulo: "Não Member", sub: "Sem preferência", lista: padrao })}
+      {info && <p role="status" className="text-sm text-primary">{info}</p>}
+      <div className="panel-3d p-4 space-y-3">
+        <PlacaTitulo titulo="Linha de produção" />
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="concave-3d px-3 py-2"><p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">1. Aguardando você</p><p className="text-2xl font-black text-primary">{pendentes.length}</p></div>
+          <div className="concave-3d px-3 py-2"><p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">2. Assinado e enviado</p><p className="text-2xl font-black text-primary">{emitidos.filter((i) => i.docSendStatus === "enviado").length}</p></div>
+          <div className="concave-3d px-3 py-2"><p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">3. Precisa de atenção</p><p className="text-2xl font-black text-primary">{atencao}</p></div>
         </div>
-      )}
+        <p className="text-xs text-muted-foreground">Clique em uma esteira para abrir ou recolher. A última aberta fica em primeiro lugar.</p>
+        {items === null && !error && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
+        {items && (
+          <div className="flex flex-col md:flex-row gap-4 items-stretch">
+            {Esteira({ id: "member", titulo: "Pax Member: preferência na avaliação", lista: member })}
+            {Esteira({ id: "padrao", titulo: "Não Member: sem preferência", lista: padrao })}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

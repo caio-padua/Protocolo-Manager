@@ -1,3 +1,4 @@
+import { rodarLiberacaoAutomatica } from "./lib/liberacao-automatica";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureAgendaIntegrationSchema } from "./lib/agenda-integracao-schema";
@@ -367,6 +368,9 @@ if (Number.isNaN(port) || port <= 0) {
     }
     runPurgeDietaPdfs();
     setInterval(runPurgeDietaPdfs, 24 * 60 * 60 * 1000);
+
+    // Liberação automática de pedido de exames (só com a validação médica desligada). Ciclo de 60 s.
+    setInterval(() => { void rodarLiberacaoAutomatica(); }, 60 * 1000);
 
   });
 })();

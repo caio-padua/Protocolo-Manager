@@ -112,17 +112,21 @@ async function enviarAoCliente(req: Request, requestId: number, clientId: number
   }
 }
 
-// Um clique do médico: assina com o certificado dele, guarda o PDF e envia ao cliente.
-router.post("/pedidos-medicos/:id/assinar-enviar", requireCollaborator, async (req, res): Promise<void> => {
-  const ctx = await carregar(req, res);
-  if (!ctx) return;
-  const { row, actor } = ctx;
-  if (row.kind !== "pedido_exames") { res.status(422).json({ error: "Receita ainda é emitida no Cockpit." }); return; }
+export type ResultadoAssinatura =
+  | { ok: true; docToken: string; envio: { status: string; error: string | null } }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Núcleo da assinatura: usado pelo clique do médico e pela liberação automática (que ele autorizou).
+ * Sempre assina com o certificado do médico DESTINO do pedido (`actor`) e só se o pedido ainda estiver em aberto.
+ */
+export async function assinarEEnviarPedido(req: Request, row: Row, actor: number): Promise<ResultadoAssinatura> {
+  if (row.kind !== "pedido_exames") return { ok: false, status: 422, error: "Receita ainda é emitida no Cockpit." };
   if (!["pago", "em_analise"].includes(row.status) || row.assigned_professional_id !== actor) {
-    res.status(409).json({ error: "Só o médico com o pedido em aberto pode assinar e enviar." }); return;
+    return { ok: false, status: 409, error: "Só o médico com o pedido em aberto pode assinar e enviar." };
   }
   const itens = itensDoTexto(row.draft_items ?? row.details);
-  if (itens.length === 0) { res.status(422).json({ error: "Não há itens para assinar." }); return; }
+  if (itens.length === 0) return { ok: false, status: 422, error: "Não há itens para assinar." };
   try {
     const identity = await resolveClinicalEmitter(req, row.client_id);
     if (identity.professional.id !== actor) throw new ClinicalIdentityError(403, "A assinatura exige o médico autenticado.");
@@ -133,9 +137,9 @@ router.post("/pedidos-medicos/:id/assinar-enviar", requireCollaborator, async (r
     const [rec] = await db.select({ u: professionalsTable.signatureUrl }).from(professionalsTable).where(eq(professionalsTable.id, actor)).limit(1);
     const sigPath = rec?.u?.replace(/^\/api\/storage/, "");
     if (sigPath) {
-      if (!sigPath.startsWith("/objects/uploads/signatures/")) { res.status(422).json({ error: "O caminho da assinatura cadastrada não é válido." }); return; }
+      if (!sigPath.startsWith("/objects/uploads/signatures/")) return { ok: false, status: 422, error: "O caminho da assinatura cadastrada não é válido." };
       const [bytes] = await (await new ObjectStorageService().getObjectEntityFile(sigPath)).download();
-      if (!bytes.length || bytes.length > 2_000_000) { res.status(422).json({ error: "A imagem da assinatura cadastrada está vazia ou grande demais." }); return; }
+      if (!bytes.length || bytes.length > 2_000_000) return { ok: false, status: 422, error: "A imagem da assinatura cadastrada está vazia ou grande demais." };
       assinaturaImagem = { bytes, mime: sigPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg" };
     }
     const unsigned = await generateExamRequestPdf({
@@ -160,14 +164,23 @@ router.post("/pedidos-medicos/:id/assinar-enviar", requireCollaborator, async (r
       await tx.execute(sql`UPDATE client_medical_requests SET doc_pdf_id = ${pdfId}, issued_reference = ${`pdf:${pdfId}`}, doc_send_status = 'pendente' WHERE id = ${row.id}`);
       return pdfId;
     });
-    if (saved === null) { res.status(409).json({ error: "O pedido já foi concluído por outro processo." }); return; }
+    if (saved === null) return { ok: false, status: 409, error: "O pedido já foi concluído por outro processo." };
     const envio = await enviarAoCliente(req, row.id, row.client_id, token);
-    res.json({ id: row.id, status: "emitido", docToken: token, envio });
+    return { ok: true, docToken: token, envio };
   } catch (e) {
-    if (e instanceof ClinicalIdentityError) { res.status(e.status).json({ error: e.message }); return; }
+    if (e instanceof ClinicalIdentityError) return { ok: false, status: e.status, error: e.message };
     req.log.error({ err: String(e) }, "Erro ao assinar e enviar pedido de exames");
-    res.status(500).json({ error: "Não foi possível assinar e enviar agora. Nada foi enviado ao cliente." });
+    return { ok: false, status: 500, error: "Não foi possível assinar e enviar agora. Nada foi enviado ao cliente." };
   }
+}
+
+// Um clique do médico: assina com o certificado dele, guarda o PDF e envia ao cliente.
+router.post("/pedidos-medicos/:id/assinar-enviar", requireCollaborator, async (req, res): Promise<void> => {
+  const ctx = await carregar(req, res);
+  if (!ctx) return;
+  const r = await assinarEEnviarPedido(req, ctx.row, ctx.actor);
+  if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+  res.json({ id: ctx.row.id, status: "emitido", docToken: r.docToken, envio: r.envio });
 });
 
 // Reenvio só quando o último envio FALHOU de forma conhecida; nunca duplica um envio aceito.
@@ -200,7 +213,7 @@ router.post("/pedidos-medicos/:id/reabrir", requireCollaborator, async (req, res
 
 // Chave da validação médica: ligada = todo pedido espera o médico (padrão seguro).
 // Desligada = só registra a preferência; liberação automática NÃO existe (assinatura é sempre humana).
-const CHAVE_VALIDACAO = "pedidoMedico.validacaoAtiva";
+const CHAVE_VALIDACAO = "pedidoMedico.validacaoAtiva"; // mesma de lib/liberacao-automatica
 router.get("/pedidos-medicos/validacao-medica", requireCollaborator, async (_req, res): Promise<void> => {
   res.json({ ativa: (await getSetting(CHAVE_VALIDACAO)) !== "false" });
 });

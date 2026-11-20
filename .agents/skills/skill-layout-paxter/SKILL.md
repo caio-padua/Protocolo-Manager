@@ -1012,3 +1012,14 @@ apresentacao muda, o motor nunca.
 2. Historico = um poco concavo por data (DD/MM/AAAA, ouro), 4 miniaturas 3:4; vaga sem foto mostra "—", nunca espaco em branco.
 3. Comparador (modal panel-3d, maximizavel): abas de angulo (bevel-3d ativo), chips de data btn-3d-soft/bevel-3d com "n/4 fotos", modos Lado a lado / Cortina / Transicao, grade ouro com linhas ciano de cabeca e pes; data sem foto no angulo fica desabilitada com "—".
 4. Foto corporal so aparece por rota autenticada (blob local temporario); nunca por endereco publico.
+
+### Padrao 47 - Tela sobre tecido risca de giz + esteira horizontal retratil (Pedidos dos Clientes)
+Toda tela NOVA nasce assim. Definido pelo CEO em 20/11/2026.
+1. **Fundo = tecido risca de giz de ponta a ponta**: envolver a pagina em `<div className="pm-tecido">` (`pages/pedidos-medicos/pedidos-tecido.css`; mesmos valores do `--cc-fabric` do Cockpit: claro creme com giz dourado, escuro azul com giz platina). Sangra sobre o padding do Layout (margem negativa) e usa `background-attachment: fixed`: nunca aparece faixa branca ao expandir.
+2. **TUDO dentro de painel flutuante**: `panel-3d` (bloco), `panel-3d-sub` (cartao interno), `concave-3d` (janela de dado/area afundada). Nada solto no tecido.
+3. **Linha de producao = esteiras horizontais retrateis**: cada esteira e um `panel-3d` com `BarraGrupo` (+/-). Fechada vira faixa estreita vertical (`pm-esteira-fechada`); aberta ocupa o espaco ao lado. A ultima aberta vai primeiro (`order-first`).
+4. **PROIBIDO retangulo colorido solto** (vermelho/verde/azul de "etapa"). Status = sinal discreto: `bevel-3d` + texto (`pm-pendente` para pendente). Paleta so navy/ouro/creme.
+5. **Interruptor = `ChaveOuro` dentro de `concave-3d`**, com frase dizendo o que liga/desliga e o efeito. Nunca toggle feito a mao.
+6. **Linguagem clara**: verbo que o leigo entende ("Enviar orcamento ao cliente"), nunca "Publicar". Cada bloco diz em 1 frase para que serve.
+7. Secoes secundarias: `BarraGrupo` + `SanfonaVertical` dentro do painel.
+Referencia viva: `pages/pedidos-medicos/FilaPedidos.tsx` e `index.tsx`.

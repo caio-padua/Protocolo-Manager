@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Stethoscope } from "lucide-react";
+import "./pedidos-tecido.css";
+import { BarraGrupo } from "@/components/ui/barra-grupo";
+import { PlacaTitulo } from "@/components/ui/placa-titulo";
+import { SanfonaVertical } from "@/components/ui/sanfona-vertical";
 import { collabAuthHeaders } from "@/lib/collab-auth";
 import { usePermissoes } from "@/lib/permissoes";
 import { SegundasVias } from "./SegundasVias";
@@ -45,6 +48,7 @@ function ExamesAvulsosFila() {
   const [draft, setDraft] = useState<Record<number, { valor: string; nota: string }>>({});
   const [msg, setMsg] = useState("");
   const [hidden, setHidden] = useState(false);
+  const [aberto, setAberto] = useState(true);
   const load = useCallback(async () => {
     const res = await fetch(`${BASE}/api/exames-avulsos/fila`, { headers: collabAuthHeaders() });
     if (res.status === 403 || res.status === 401) { setHidden(true); return; }
@@ -56,24 +60,25 @@ function ExamesAvulsosFila() {
     const d = draft[a.id];
     const valor = Number((d?.valor ?? "").replace(",", "."));
     if (!Number.isFinite(valor) || valor <= 0) { setMsg("Informe um valor maior que zero."); return; }
-    if (!window.confirm(`Publicar o orçamento de ${valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} para ${a.clientName}? O cliente passa a ver este valor.`)) return;
+    if (!window.confirm(`Enviar o orçamento de ${valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} para ${a.clientName}? O cliente passa a ver este valor no aplicativo.`)) return;
     const res = await fetch(`${BASE}/api/exames-avulsos/${a.id}/orcamento`, {
       method: "PUT", headers: collabAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ valor, nota: d?.nota || undefined, confirmo: true }),
     });
     const b = await res.json().catch(() => ({}));
-    setMsg(res.ok ? "Orçamento publicado." : b.error ?? "Não foi possível publicar.");
+    setMsg(res.ok ? "Orçamento enviado ao cliente." : b.error ?? "Não foi possível enviar o orçamento.");
     await load();
   }
   return (
-    <section className="space-y-3" aria-label="Exames avulsos">
-      <h2 className="font-black uppercase tracking-wider text-sm text-primary">Exames avulsos: orçamentos</h2>
-      <p className="text-xs text-muted-foreground">O cliente só escolheu exames. A indicação depende de avaliação profissional. O valor é seu e editável até o cliente aceitar.</p>
+    <section className="panel-3d p-4 space-y-3" aria-label="Exames avulsos">
+      <BarraGrupo titulo="Exames avulsos: orçamento para o cliente" aberto={aberto} onAlternar={() => setAberto(!aberto)} />
+      <SanfonaVertical aberta={aberto}><div className="space-y-3 pt-1">
+      <p className="text-xs text-muted-foreground">O cliente escolheu exames sem pedido médico. Você informa o valor e envia o orçamento. O cliente vê o valor no aplicativo e decide se aceita. Você pode corrigir o valor até ele aceitar.</p>
       {msg && <p role="status" className="text-sm">{msg}</p>}
       {rows?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma solicitação.</p>}
       {(rows ?? []).map((a) => (
         <article key={a.id} className="panel-3d-sub rounded-lg p-4 space-y-2">
-          <p className="font-semibold text-primary text-sm">{a.clientName} · {a.status === "solicitado" ? "Aguardando orçamento" : a.status === "orcamento_enviado" ? "Orçamento publicado" : "Aceito pelo cliente"}</p>
+          <p className="font-semibold text-primary text-sm">{a.clientName} · {a.status === "solicitado" ? "Aguardando orçamento" : a.status === "orcamento_enviado" ? "Orçamento enviado ao cliente" : "Aceito pelo cliente"}</p>
           <p className="text-sm break-words">{a.items.map((i) => i.nome).join(", ")}</p>
           {a.notes && <p className="text-sm text-muted-foreground">Observação do cliente: {a.notes}</p>}
           {a.status !== "aceito" && (
@@ -86,12 +91,13 @@ function ExamesAvulsosFila() {
                 <input maxLength={500} value={draft[a.id]?.nota ?? a.quoteNote ?? ""}
                   onChange={(e) => setDraft((d) => ({ ...d, [a.id]: { valor: d[a.id]?.valor ?? (a.quoteAmount !== null ? String(a.quoteAmount).replace(".", ",") : ""), nota: e.target.value } }))}
                   className="w-full rounded-md border border-border bg-background p-2" /></label>
-              <button type="button" onClick={() => publish(a)} className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider">Publicar orçamento</button>
+              <button type="button" onClick={() => publish(a)} className="btn-3d px-4 h-10 text-xs font-black uppercase tracking-wider">Enviar orçamento ao cliente</button>
             </div>
           )}
           {a.status === "aceito" && a.quoteAmount !== null && <p className="text-sm">Valor aceito: {a.quoteAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Cobrança e emissão seguem o fluxo próprio.</p>}
         </article>
       ))}
+      </div></SanfonaVertical>
     </section>
   );
 }
@@ -102,6 +108,7 @@ export default function PedidosMedicosPage() {
   const [precos, setPrecos] = useState<Precos | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState("");
+  const [abertoPrecos, setAbertoPrecos] = useState(false);
 
   useEffect(() => {
     if (!isCeo) return;
@@ -127,42 +134,43 @@ export default function PedidosMedicosPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-6xl">
-      <header className="flex items-center gap-2">
-        <Stethoscope className="w-6 h-6 text-accent" />
-        <h1 className="text-xl font-black uppercase tracking-wider text-primary">Pedidos dos clientes</h1>
-      </header>
-      <p className="text-sm text-muted-foreground">
-        Pedidos pagos ou isentos por benefício. Cada pedido chega pré-pronto: veja a prévia, confira os itens e assine e envie num clique, com o seu certificado digital.
-      </p>
-      {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
-
-      {isCeo && precos && (
-        <section className="panel-3d-sub rounded-lg p-4 space-y-3">
-          <h2 className="font-black uppercase tracking-wider text-sm text-primary">Valores cobrados do cliente</h2>
-          <p className="text-xs text-muted-foreground">
-            Sem valor definido, o cliente não consegue pedir. Mínimo de R$ {precos.minimo.toFixed(2).replace(".", ",")} por pedido.
+    <div className="pm-tecido">
+      <div className="space-y-4 max-w-6xl mx-auto">
+        <header className="panel-3d p-4 space-y-2">
+          <PlacaTitulo titulo="Pedidos dos clientes" />
+          <p className="text-sm text-muted-foreground">
+            Cada pedido chega pré-pronto. Veja a prévia, confira os itens e assine e envie num clique, com o seu certificado digital.
           </p>
-          <div className="grid sm:grid-cols-2 gap-3">
-            {([["receita", "Receita"], ["pedido_exames", "Pedido de exames"]] as const).map(([k, label]) => (
-              <label key={k} className="text-sm space-y-1 block">
-                <span>{label} (R$)</span>
-                <input inputMode="decimal" value={draft[k] ?? ""} placeholder="Não definido"
-                  onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-background p-2" />
-              </label>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={savePrices} className="btn-3d px-5 h-10 text-xs font-black uppercase tracking-wider">Salvar valores</button>
-            {saved && <span className="text-sm text-emerald-700">{saved}</span>}
-          </div>
-        </section>
-      )}
-
-      <FilaPedidos />
-      <ExamesAvulsosFila />
-      {isCeo && <SegundasVias />}
+        </header>
+        {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
+        <FilaPedidos />
+        {isCeo && precos && (
+          <section className="panel-3d p-4 space-y-3">
+            <BarraGrupo titulo="Valores cobrados do cliente" aberto={abertoPrecos} onAlternar={() => setAbertoPrecos(!abertoPrecos)} />
+            <SanfonaVertical aberta={abertoPrecos}><div className="space-y-3 pt-1">
+              <p className="text-xs text-muted-foreground">
+                Sem valor definido, o cliente não consegue pedir. Mínimo de R$ {precos.minimo.toFixed(2).replace(".", ",")} por pedido.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {([["receita", "Receita"], ["pedido_exames", "Pedido de exames"]] as const).map(([k, label]) => (
+                  <label key={k} className="text-sm space-y-1 block">
+                    <span>{label} (R$)</span>
+                    <input inputMode="decimal" value={draft[k] ?? ""} placeholder="Não definido"
+                      onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+                      className="w-full rounded-md border border-border bg-background p-2" />
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={savePrices} className="btn-3d px-5 h-10 text-xs font-black uppercase tracking-wider">Salvar valores</button>
+                {saved && <span className="text-sm text-primary">{saved}</span>}
+              </div>
+            </div></SanfonaVertical>
+          </section>
+        )}
+        <ExamesAvulsosFila />
+        {isCeo && <section className="panel-3d p-4"><SegundasVias /></section>}
+      </div>
     </div>
   );
 }

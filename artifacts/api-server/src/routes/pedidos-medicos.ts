@@ -26,6 +26,7 @@ export interface Row {
   assigned_professional_id: number | null; assigned_reason: string | null;
   decision_note: string | null; issued_reference: string | null; refund_pending: boolean; created_at: string;
   decided_by_professional_id?: number | null;
+  liberar_em?: string | null; liberado_auto?: boolean; auditoria_status?: string | null; auditoria_nota?: string | null;
   isento_beneficio_id?: number | null; draft_items?: string | null; doc_pdf_id?: number | null;
   doc_send_status?: string | null; doc_sent_at?: string | null; doc_send_error?: string | null;
 }
@@ -92,6 +93,7 @@ router.get("/pedidos-medicos/fila", requireCollaborator, async (req, res): Promi
       clientName: r.client_name, details: r.details, status: r.status,
       paidAt: r.paid_at, createdAt: r.created_at,
       isento: r.isento_beneficio_id != null, draftItems: r.draft_items,
+      liberadoAuto: r.liberado_auto === true, auditoriaStatus: r.auditoria_status ?? null, auditoriaNota: r.auditoria_nota ?? null,
       docToken: r.doc_token ?? null, docSendStatus: r.doc_send_status, docSentAt: r.doc_sent_at, docSendError: r.doc_send_error,
       assignedProfessionalId: r.assigned_professional_id, assignedReason: r.assigned_reason,
       asResponsible: r.assigned_professional_id !== actor,
