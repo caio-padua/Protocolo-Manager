@@ -67,6 +67,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/comunicacao/plataformas": "Plataformas conectadas",
   "/comunicacao/whatsapp-status": "Situação da conexão do WhatsApp",
   "/comunicacao/central-auditoria": "Registro de envios e falhas",
+  "/comunicacao/frases-assistente": "Frases do assistente no Telegram",
   "/comunicacao/guia-paciente": "Enviar guia digital ao cliente",
   "/comunicacao/dominios": "Domínios e apelidos de envio",
   "/comunicacao/avatares": "Voz e vídeo dos avatares",
