@@ -12,3 +12,7 @@ Biblioteca de arquivos por clínica; cada arquivo tem interruptor por mensagem (
 - Decisão do CEO: envio nasce em modo "teste" (só lista de teste); "ligado" é ordem do CEO, nunca ligar sozinho.
 - Não existe "PAM ativo" em tabela: a isenção vem do benefício Member ativo; sem ele, oferta do PAM.
 - Falha depois de tentar enviar = estado "incerto", nunca "recusado": reenvio automático só quando nada saiu.
+
+## Anamnese nova na consulta
+- Decisão do médico: anamnese nova herda só o que não muda (fixa/acumula); estado atual vem em branco. Classificação por pergunta é proposta, revisável pelo médico.
+- Comparar anamneses sempre pelo id numérico da pergunta (perguntaId repete).

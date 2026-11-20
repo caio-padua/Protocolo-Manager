@@ -1,3 +1,4 @@
+import { volatilidadeDa } from "../lib/anamnese-volatilidade.js";
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import {
   isAppPasswordValid,
@@ -1909,6 +1910,10 @@ router.get(
           .where(inArray(anamneseFindingsTable.sessionId, ids))
       : [];
 
+    const contagem = ids.length
+      ? (await db.execute(sql`SELECT session_id, COUNT(*)::int AS n FROM anamnese_session_answers WHERE session_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`,`)}) GROUP BY session_id`)).rows as Array<{ session_id: number; n: number }>
+      : [];
+    const respondidasPor = new Map(contagem.map((c) => [Number(c.session_id), Number(c.n)]));
     const bySession = new Map<number, { diagnosticado: number; suspeito: number; temAlarme: boolean }>();
     for (const f of findings) {
       const cur = bySession.get(f.sessionId) ?? { diagnosticado: 0, suspeito: 0, temAlarme: false };
@@ -1929,6 +1934,7 @@ router.get(
           status: r.status,
           startedAt: r.startedAt.toISOString(),
           completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+          respondidas: respondidasPor.get(r.id) ?? 0,
           diagnosticado: c.diagnosticado,
           suspeito: c.suspeito,
           temAlarme: c.temAlarme,
@@ -1986,6 +1992,7 @@ router.get(
       db
         .select({
           id: anamneseSessionAnswersTable.id,
+          questionRowId: anamneseSessionAnswersTable.questionRowId,
           perguntaId: anamneseSessionAnswersTable.perguntaId,
           valor: anamneseSessionAnswersTable.valor,
           respondidoEm: anamneseSessionAnswersTable.respondidoEm,
@@ -2038,6 +2045,8 @@ router.get(
       })),
       respostas: respostasOrdenadas.map((r) => ({
         id: r.id,
+        questionRowId: r.questionRowId,
+        volatilidade: volatilidadeDa(r.questionRowId),
         perguntaId: r.perguntaId ?? null,
         pergunta: r.pergunta ?? null,
         bloco: r.bloco ?? null,

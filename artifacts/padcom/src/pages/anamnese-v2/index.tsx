@@ -57,7 +57,17 @@ const OPEN_ACCESS = import.meta.env.VITE_OPEN_ACCESS === "1";
 export default function AnamneseV2() {
   const { toast } = useToast();
   const { theme, toggle } = useScreenTheme();
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  // Link de consulta (?s=TOKEN): retoma a sessao aberta pelo medico (herdada da anterior), neste ou em outro aparelho.
+  const [token, setToken] = useState<string | null>(() => {
+    const s = new URLSearchParams(window.location.search).get("s");
+    if (s && /^[a-f0-9]{48}$/.test(s)) {
+      localStorage.setItem(TOKEN_KEY, s);
+      localStorage.setItem(DEMO_KEY, "0");
+      window.history.replaceState(null, "", window.location.pathname);
+      return s;
+    }
+    return localStorage.getItem(TOKEN_KEY);
+  });
   const [answers, setAnswers] = useState<Record<number, Valor>>({});
   const [refused, setRefused] = useState<Set<string>>(new Set());
   const [groupIdx, setGroupIdx] = useState(0);

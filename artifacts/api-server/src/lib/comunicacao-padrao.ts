@@ -13,7 +13,7 @@ import { enviarAnexosDaMensagem } from "./anexos-mensagem.js";
 import { vinculoTelegramAtualUnico } from "./telegram-vinculo-atual.js";
 import { renderFlyerPaxmed } from "./flyer-paxmed.js";
 
-export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido";
+export type Categoria = "link_pagamento" | "boleto" | "documento" | "pedido_exame" | "orcamento" | "lembrete_formal" | "oferta_pam" | "duvida_cliente" | "pedido_recebido" | "anamnese_nova";
 export interface DefCategoria {
   nome: string; variaveis: string[]; texto: string; flyerPadrao: boolean;
   /** Flyer: titulo e linhas (rotulo + campo vinculado). A clinica entra sempre por ultimo. */
@@ -61,6 +61,11 @@ export const CATEGORIAS: Record<Categoria, DefCategoria> = {
     nome: "Aviso de pedido recebido", variaveis: ["referencia"], flyerPadrao: false,
     texto: `${ABERTURA}\n\nEu sou a {assistente}, assistente virtual de {clinica}, e recebi o seu pedido: {referencia}.\n\nEle foi registrado e será avaliado pelo médico. Nada é emitido antes dessa avaliação, e o médico pode pedir mais informações.\n\nAgradecemos pela confiança.\n\n${ASSINATURA}`,
     flyer: { titulo: "Pedido recebido", linhas: [{ rotulo: "Finalidade", campo: "finalidade" }, { rotulo: "Data", campo: "data" }] },
+  },
+  anamnese_nova: {
+    nome: "Envio de nova anamnese", variaveis: ["link"], flyerPadrao: false,
+    texto: `${ABERTURA}\n\nEu sou a {assistente}, assistente virtual de {clinica}. O seu médico pediu que você atualize a sua anamnese.\n\nAs informações que não mudam já estão preenchidas. Confira e responda apenas o que mudou.\n\nLink: {link}\n\n${ASSINATURA}`,
+    flyer: { titulo: "Nova anamnese", linhas: [{ rotulo: "Data", campo: "data" }] },
   },
   lembrete_formal: {
     nome: "Lembrete formal", variaveis: ["referencia", "data", "horario"], flyerPadrao: true,
