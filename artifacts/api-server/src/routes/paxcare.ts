@@ -4,7 +4,7 @@ import multer from "multer";
 import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { db } from "@workspace/db";
-import { verifyPortalToken } from "../lib/portal-token";
+import { verifyPatientToken } from "../lib/portal-token";
 import { requireCollaborator } from "./collaborator.js";
 import { requireMessageClinic } from "../middleware/messageClinic.js";
 import { ObjectStorageService } from "../lib/objectStorage.js";
@@ -21,7 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: LIM
 
 function pacienteId(req: Request): number | null {
   const a = req.headers.authorization;
-  return a && a.startsWith("Bearer ") ? verifyPortalToken(a.slice(7)) : null;
+  return a && a.startsWith("Bearer ") ? verifyPatientToken(a.slice(7)) : null;
 }
 function exigePaciente(req: Request, res: Response, next: NextFunction): void {
   const id = pacienteId(req);

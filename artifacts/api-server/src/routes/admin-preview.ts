@@ -25,7 +25,7 @@ router.post("/admin/preview-client/:clientId", async (req: Request, res: Respons
     return;
   }
 
-  const token = createPortalToken(client.id);
+  const token = createPortalToken(client.id, { preview: true });
   res.json({ id: client.id, name: client.name, cpf: client.cpf ?? null, token });
 });
 

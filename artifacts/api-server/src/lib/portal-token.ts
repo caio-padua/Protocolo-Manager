@@ -6,28 +6,42 @@ import { createHmac, randomBytes } from "node:crypto";
 const TOKEN_SECRET = process.env.SESSION_SECRET || randomBytes(32).toString("hex");
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 
-export function createPortalToken(clientId: number): string {
+export function createPortalToken(clientId: number, opts?: { preview?: boolean }): string {
   const exp = Date.now() + TOKEN_TTL_MS;
-  const payload = `${clientId}:${exp}`;
+  const payload = opts?.preview ? `${clientId}:${exp}:preview` : `${clientId}:${exp}`;
   const sig = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
   return Buffer.from(`${payload}:${sig}`).toString("base64url");
 }
 
-export function verifyPortalToken(token: string): number | null {
+function parseToken(token: string): { clientId: number; preview: boolean } | null {
   try {
-    const decoded = Buffer.from(token, "base64url").toString();
-    const parts = decoded.split(":");
-    if (parts.length !== 3) return null;
-    const [clientIdStr, expStr, sig] = parts;
-    const payload = `${clientIdStr}:${expStr}`;
+    const parts = Buffer.from(token, "base64url").toString().split(":");
+    if (parts.length !== 3 && parts.length !== 4) return null;
+    const preview = parts.length === 4;
+    if (preview && parts[2] !== "preview") return null;
+    const sig = parts[parts.length - 1];
+    const payload = parts.slice(0, -1).join(":");
     const expected = createHmac("sha256", TOKEN_SECRET).update(payload).digest("hex");
     if (sig !== expected) return null;
-    if (Date.now() > Number(expStr)) return null;
-    return Number(clientIdStr);
+    if (Date.now() > Number(parts[1])) return null;
+    const clientId = Number(parts[0]);
+    return Number.isSafeInteger(clientId) ? { clientId, preview } : null;
   } catch {
     return null;
   }
 }
+
+/** Aceita token de paciente e token de previa do administrador (telas somente de visualizacao). */
+export function verifyPortalToken(token: string): number | null {
+  return parseToken(token)?.clientId ?? null;
+}
+
+/** Somente o paciente autenticado: previa do administrador NUNCA passa (cofre, consentimento, contratacao). */
+export function verifyPatientToken(token: string): number | null {
+  const t = parseToken(token);
+  return t && !t.preview ? t.clientId : null;
+}
+
 
 // Token de FOTO de perfil — assinado por HMAC, com validade de 7 dias. O médico
 // gera o link e manda ao cliente (e-mail/WhatsApp); o cliente pode demorar a

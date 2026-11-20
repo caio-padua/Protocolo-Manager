@@ -84,6 +84,7 @@ import {
   MessageCircle,
   Ticket,
   Table2,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -156,6 +157,7 @@ const navigation: NavEntry[] = [
     children: [
       { name: "Experiência do Cliente (Admin Preview)", href: "/experiencia-cliente", icon: Sparkles },
       { name: "PaxCare (Direto)", href: "/area", icon: Users },
+      { name: "Planos PaxCare", href: "/paxcare-planos", icon: Award },
     ],
   },
   // GRUPO VIP (gestão): programa por convite, independente da categoria Prata/Ouro/Platinum/Diamond.

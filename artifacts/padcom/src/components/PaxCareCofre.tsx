@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import PaxCarePlanosPaciente from "@/components/PaxCarePlanosPaciente";
 import { Loader2, ShieldCheck, Trash2, FileText, Building2 } from "lucide-react";
 
 // PAXCARE (experiência do paciente): cofre pessoal + clínicas vinculadas. Tudo vem de rotas
@@ -118,6 +119,8 @@ export default function PaxCareCofre({ token }: { token: string }) {
           </p>
         </div>
       </header>
+
+      <PaxCarePlanosPaciente token={token} />
 
       {msg && <div role="alert" className="concave-3d rounded-lg px-4 py-3 text-sm text-red-600">{msg}</div>}
 
