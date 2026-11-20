@@ -97,3 +97,25 @@ describe("Helena: apresentacao, nome, paragrafos e link", () => {
     for (const d of Object.values(FRASES_PADRAO)) expect(d.texto).not.toMatch(/\b(bem-vind[oa]|querid[oa]|paciente)\b/i);
   });
 });
+
+describe("interpretacao por IA (sem respostas prontas)", () => {
+  const ia = (r: object) => deps({ interpretar: async () => r as never });
+  it("entende 'já me consulto aí' como cliente sem a palavra-chave", async () => {
+    const { resp } = await conv(["quero marcar uma consulta", "ah, eu já me consulto aí com o doutor faz anos"], ia({ situacao: "cliente" }));
+    expect(resp[1]).toMatch(/4 primeiros números do seu CPF/);
+  });
+  it("IA em dúvida (null) pede de novo, sem chutar", async () => {
+    const { resp } = await conv(["quero marcar uma consulta", "hmm"], ia({ situacao: null }));
+    expect(resp[1]).toMatch(/Não entendi/);
+  });
+  it("escolha em linguagem natural", async () => {
+    const d = deps({ interpretar: async (t) => (t.tipo === "escolha" ? { escolha: 1 } : t.tipo === "preferencias" ? { modalidade: "online", periodo: "qualquer", dias: "qualquer" } : { situacao: "nova" }) as never });
+    const { resp } = await conv(["quero marcar", "é a primeira vez", "essa mesma que você falou"], d);
+    expect(resp[1]).toMatch(/Qual dessas opções/);
+    expect(resp[2]).toMatch(/nome completo/);
+  });
+  it("identidade aceita qualquer ordem e frase solta", () => {
+    expect(lerIdentidade("Maria Souza 1985 1234")).toEqual({ nome: "Maria Souza", cpf4: "1234", ano: "1985" });
+    expect(lerIdentidade("Maria Souza 1234 1985")).toEqual({ nome: "Maria Souza", cpf4: "1234", ano: "1985" });
+  });
+});

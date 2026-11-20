@@ -11,6 +11,7 @@ import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
 import { chatAlertaOuNull } from "./telegram-config";
 import { brtISODate } from "./brt";
+import { criarInterpretador } from "./telegram-interprete";
 import { baseUrlFromEnv } from "./messaging/base-url";
 import { carregarFrases, comGlobais, semearFrases, type FraseDeps } from "./telegram-frases";
 import { normalizar } from "./atendimento-telegram";
@@ -215,6 +216,7 @@ export async function planejarAgendamentoCliente(e: { empresaId: number; cliente
     encaminharEquipe: async (m) => { motivoEquipe = m; },
     endereco: enderecoReal,
     linkMarcacao: () => `${baseUrlFromEnv()}/agendar`,
+    interpretar: criarInterpretador(e.empresaId),
   };
   const agora = new Date().toISOString();
   const r = await conduzirAgendamento(anterior, e.texto, { ehCliente: true, primeiroNome, nomeClinica: await nomeDaClinica(e.empresaId) }, deps, agora);
@@ -290,6 +292,7 @@ export async function atenderVisitante(chatId: string, texto: string, updateId: 
     },
     encaminharEquipe: async (m) => { motivo = m; },
     endereco: enderecoReal,
+    interpretar: criarInterpretador(empresaPadrao),
   };
   const r = await conduzirAgendamento(await lerEstado(chave), texto, { ehCliente: false, primeiroNome: primeiroNomeVisitante ?? undefined, nomeClinica: await nomeDaClinica(empresaId) }, deps, new Date().toISOString());
   let resposta = r.resposta;

@@ -10,6 +10,7 @@
  *  - O que o sistema não consegue confirmar vai para a equipe. Queixa de saúde nunca é tratada aqui.
  */
 import { classificarQueixa, normalizar } from "./atendimento-telegram";
+import type { Interpretar } from "./telegram-interprete";
 import { linhaDoNome, type FraseDeps } from "./telegram-frases";
 
 export type Modalidade = "online" | "presencial";
@@ -61,6 +62,8 @@ export interface DepsAgendamento {
   endereco: (modalidade: Modalidade) => Promise<string | null>;
   /** Link público de marcação. Quando presente, cliente que pede consulta recebe o link em vez das perguntas. */
   linkMarcacao?: () => string;
+  /** Interpretação por IA do que a pessoa escreveu (opcional). Sem ela, valem os leitores por regras. */
+  interpretar?: Interpretar;
   /** Frases cadastradas (tabela telegram_frases). */
   frase: FraseDeps;
   /** Confere nome + 4 primeiros dígitos do CPF + ano de nascimento. Só devolve id quando há UM cadastro compatível. */
@@ -265,9 +268,11 @@ export function lerVinculo(texto: string): "nova" | "cliente" | null {
 export function lerIdentidade(texto: string): { nome: string; cpf4: string; ano: string } | null {
   const quatro = [...texto.matchAll(/(?<!\d)(\d{4})(?!\d)/g)].map((m) => m[1]);
   if (quatro.length !== 2) return null;
-  const [cpf4, ano] = quatro;
-  const a = Number(ano);
-  if (a < 1900 || a > new Date().getFullYear()) return null;
+  const anoOk = (x: string) => Number(x) >= 1900 && Number(x) <= new Date().getFullYear();
+  // Aceita qualquer ordem: o número que parece ano de nascimento é o ano; o outro, os 4 dígitos do CPF.
+  let [cpf4, ano] = quatro;
+  if (!anoOk(ano) && anoOk(cpf4)) [cpf4, ano] = [ano, cpf4];
+  if (!anoOk(ano)) return null;
   const nome = lerNome(texto.replace(/[\d.,;:()/\\-]+/g, " ").replace(/\s+/g, " ").trim());
   if (!nome) return null;
   return { nome, cpf4, ano };
@@ -328,7 +333,8 @@ export async function conduzirAgendamento(
       return fim(ap(F("pergunta_ja_paciente")), "perguntou_vinculo");
     }
     if (estado.etapa === "vinculo") {
-      const v = lerVinculo(texto);
+      const ia = await deps.interpretar?.({ tipo: "vinculo", texto });
+      const v = ia ? (ia.situacao ?? null) : lerVinculo(texto);
       if (!v) {
         estado.tentativas++;
         if (estado.tentativas >= 3) {
@@ -386,17 +392,23 @@ export async function conduzirAgendamento(
   }
 
   // Interpreta o que a pessoa já informou, em qualquer ordem.
-  const mod = lerModalidade(texto);
+  const ia = estado.etapa === "escolha" ? null : await deps.interpretar?.({ tipo: "preferencias", texto, hojeISO: deps.hojeISO() });
+  const mod = lerModalidade(texto) ?? ia?.modalidade ?? null;
   if (mod) estado.modalidade = mod;
-  const dias = lerDias(texto, deps.hojeISO());
+  const diasRegra = lerDias(texto, deps.hojeISO());
+  const dias = diasRegra.datas || diasRegra.dias !== undefined ? diasRegra
+    : ia?.dias === "qualquer" ? { dias: null } : Array.isArray(ia?.dias) && ia.dias.length ? { dias: ia.dias } : diasRegra;
   if (dias.datas) { estado.datas = dias.datas; estado.dias = undefined; }
   else if (dias.dias !== undefined) { estado.dias = dias.dias; estado.datas = null; }
-  const per = lerPeriodo(texto);
+  const per = lerPeriodo(texto) ?? ia?.periodo ?? null;
   if (per) estado.periodo = per;
 
   // ── escolha de horário ──
   if (estado.etapa === "escolha" && estado.ofertas?.length) {
-    const esc = lerEscolha(texto, estado.ofertas);
+    const iaEsc = await deps.interpretar?.({ tipo: "escolha", texto, opcoes: estado.ofertas.map(descreve) });
+    const esc = iaEsc && (iaEsc.recusou || (iaEsc.escolha != null && iaEsc.escolha >= 1 && iaEsc.escolha <= estado.ofertas.length))
+      ? { indice: iaEsc.recusou ? null : iaEsc.escolha! - 1, recusou: !!iaEsc.recusou, ambiguo: false }
+      : lerEscolha(texto, estado.ofertas);
     if (esc.indice != null) {
       estado.escolhida = estado.ofertas[esc.indice];
       if (ctx.ehCliente) return reservarEResponder(estado, deps, nome1);
