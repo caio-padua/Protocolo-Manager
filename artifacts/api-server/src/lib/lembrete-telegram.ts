@@ -10,6 +10,9 @@
  */
 import { getSetting } from "./secure-settings";
 import { sendTelegram } from "./telegram";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { enviarAnexosDaMensagem } from "./anexos-mensagem";
 
 export type ModoLembreteTelegram = "desligado" | "lista" | "ligado";
 
@@ -51,6 +54,15 @@ export function formatarParaTelegram(msg: string): string {
     .replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,;:!?])/g, "$1<i>$2</i>");
 }
 
+/** Clinica do chat: so segue se o chat pertencer a UM unico cliente (colisao nunca envia anexo). */
+async function anexosDoLembrete(chatId: string): Promise<void> {
+  try {
+    const rows = (await db.execute(sql`SELECT DISTINCT empresa_id FROM clients WHERE telegram_chat_id=${chatId} AND empresa_id IS NOT NULL`)).rows as any[];
+    if (rows.length !== 1) return;
+    await enviarAnexosDaMensagem(chatId, rows[0].empresa_id, "lembrete_paxmed");
+  } catch { /* anexo e complemento: o lembrete ja foi entregue */ }
+}
+
 export type ResultadoEnvioLembreteTelegram =
   | { kind: "enviado" }
   | { kind: "falhou"; erro: string };
@@ -60,7 +72,10 @@ export async function enviarLembreteTelegram(chatId: string, mensagem: string): 
     const r = await sendTelegram(chatId, formatarParaTelegram(mensagem));
     // Sem token o transporte devolve "mock": NÃO é entrega.
     if (r.sent && r.mock) return { kind: "falhou", erro: "telegram_sem_token" };
-    if (r.sent) return { kind: "enviado" };
+    if (r.sent) {
+      await anexosDoLembrete(chatId); // anexos ligados ao lembrete; falha deles nunca desfaz o lembrete ja entregue
+      return { kind: "enviado" };
+    }
     const m = /^(telegram_http_\d{3})/.exec(r.error ?? "");
     return { kind: "falhou", erro: m ? m[1] : "telegram_falha_de_envio" };
   } catch {

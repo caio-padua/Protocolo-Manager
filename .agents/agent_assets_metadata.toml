@@ -1320,3 +1320,45 @@ mtime_ms = 1795207284659
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/fc337845-f725-4abd-8829-e0ce8a189e80/6a2aa387-b56c-46c0-b57b-0fc9e24cd470"
 storage_version_token = "1795207286967860"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "Yi4XFC1XMssGFYj5eZsEf"
+uri = "file://generated-artifacts/MFC-Manual-Completo.pdf"
+type = "pdf"
+title = "MFC - Manual completo (6 páginas)"
+description = "Arquivo do manual do Instituto Pádua, já cadastrado na biblioteca de anexos."
+logical_id = "7fb76501-e5dd-4997-97cf-f92a4be57def"
+content_hash = "sha256:3f2b4235a80404f5d5ab001b6b36626836f8e980ce150ec3934de63a62fe4714"
+size = 2371630
+mtime_ms = 1795208321427
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/7fb76501-e5dd-4997-97cf-f92a4be57def/bb2bf51f-067f-4547-9b40-2d6ce7defcad"
+storage_version_token = "1795208475103763"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "Ou08MLQDOeICxVDh-3O1F"
+uri = "file://generated-artifacts/MFC-PAM-Programa-de-Acompanhamento-Medico.pdf"
+type = "pdf"
+title = "MFC - PAM (2 páginas)"
+description = "Arquivo do manual do Instituto Pádua, já cadastrado na biblioteca de anexos."
+logical_id = "843c40e6-f4e9-4ebd-bbd5-d89e18bcae18"
+content_hash = "sha256:e51c130c7fb5384e62707104c68c62cc526aa9fde4328a3cd02764c23e727368"
+size = 500977
+mtime_ms = 1795208313707
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/843c40e6-f4e9-4ebd-bbd5-d89e18bcae18/a5b6c03b-57ab-4d6a-adda-f7a650d9cdae"
+storage_version_token = "1795208475914643"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "WGHHAd_WBgDwBdud0GPRY"
+uri = "file://generated-artifacts/MFC-Tirar-Duvidas.pdf"
+type = "pdf"
+title = "MFC - Tirar dúvidas (1 página)"
+description = "Arquivo do manual do Instituto Pádua, já cadastrado na biblioteca de anexos."
+logical_id = "a3eebdf9-b748-40ff-9a02-d8c4675e9deb"
+content_hash = "sha256:8349640cc5aeb40e336ab3ae3a2e01c4489b890f5a4c08ef2f8c4aaa5f3be2c0"
+size = 420644
+mtime_ms = 1795208338504
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:e4777049-2482-4493-bc8d-9ddd502ce731/a3eebdf9-b748-40ff-9a02-d8c4675e9deb/3772eb1b-0b8b-436f-8fad-58e1731ce436"
+storage_version_token = "1795208476703915"
+content_type = "application/pdf"

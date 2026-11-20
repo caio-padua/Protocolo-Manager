@@ -137,7 +137,7 @@ export default function PedidosMedicosPage() {
     <div className="pm-tecido">
       <div className="space-y-4 max-w-6xl mx-auto">
         <header className="panel-3d p-4 space-y-2">
-          <PlacaTitulo titulo="Pedidos dos clientes" />
+          <PlacaTitulo titulo="Curadoria Clínica" />
           <p className="text-sm text-muted-foreground">
             Cada pedido chega pré-pronto. Veja a prévia, confira os itens e assine e envie num clique, com o seu certificado digital.
           </p>

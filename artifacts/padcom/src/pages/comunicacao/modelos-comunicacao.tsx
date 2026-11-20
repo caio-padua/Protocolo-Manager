@@ -10,8 +10,11 @@ import { ChaveOuro } from "@/components/ui/chave-ouro";
 interface Item {
   categoria: string; nome: string; texto: string; versao: number; origem: "clinica" | "padrao"; padrao: string; variaveis: string[];
   flyer: { enviar: boolean; modeloVersao: number; titulo: string; linhas: string[] };
-  anexo: { enviar: boolean; maxBytes: number; arquivos: Array<{ posicao: 1 | 2; nome: string; mime: string; tamanho: number }> };
+  anexo: Anexo;
 }
+interface Arquivo { id: number; nome: string; mime: string; tamanho: number; ativo: boolean }
+interface Anexo { maxBytes: number; arquivos: Arquivo[] }
+interface Extra { chave: string; nome: string; anexo: Anexo }
 interface Envio {
   id: number; ambiente: string; categoria: string; modelo_texto_versao: number | null; modelo_flyer_versao: number | null;
   flyer_enviado: boolean; status: string; status_flyer: string | null; anexos_enviados: number; status_anexo: string | null; erro: string | null; criado_em: string;
@@ -19,14 +22,14 @@ interface Envio {
 const auth = (): Record<string, string> => { const t = getCollabToken(); return t ? { Authorization: `Bearer ${t}` } : {}; };
 
 export function ModelosComunicacao() {
-  const [dados, setDados] = useState<{ itens: Item[]; envios: Envio[] } | null>(null);
+  const [dados, setDados] = useState<{ itens: Item[]; extras: Extra[]; envios: Envio[] } | null>(null);
   const [rascunho, setRascunho] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
 
   const carregar = () =>
     fetch(`${BASE}/api/comunicacao/modelos`, { headers: auth() })
-      .then(async (r) => { if (!r.ok) throw new Error("Sem acesso aos modelos."); return r.json() as Promise<{ itens: Item[]; envios: Envio[] }>; })
+      .then(async (r) => { if (!r.ok) throw new Error("Sem acesso aos modelos."); return r.json() as Promise<{ itens: Item[]; extras: Extra[]; envios: Envio[] }>; })
       .then((j) => { setDados(j); setRascunho(Object.fromEntries(j.itens.map((i) => [i.categoria, i.texto]))); })
       .catch((e: unknown) => setErro(e instanceof Error ? e.message : "Não foi possível carregar."));
   useEffect(() => { void carregar(); }, []);
@@ -44,26 +47,53 @@ export function ModelosComunicacao() {
     if (r.ok) void carregar();
   };
 
-  const alternarAnexo = async (i: Item) => {
-    const r = await fetch(`${BASE}/api/comunicacao/regras/${i.categoria}`, { method: "PUT", headers: { "Content-Type": "application/json", ...auth() }, body: JSON.stringify({ enviarAnexo: !i.anexo.enviar }) });
-    setAviso((a) => ({ ...a, [i.categoria]: r.ok ? (!i.anexo.enviar ? "Anexo ligado: segue junto com a mensagem." : "Anexo desligado.") : r.status === 403 ? "Somente o CEO pode gravar." : "Não gravou." }));
+  const interruptor = async (chave: string, f: Arquivo) => {
+    const r = await fetch(`${BASE}/api/comunicacao/anexos/${f.id}/interruptor/${chave}`, { method: "PUT", headers: { "Content-Type": "application/json", ...auth() }, body: JSON.stringify({ ativo: !f.ativo }) });
+    setAviso((a) => ({ ...a, [chave]: r.ok ? (!f.ativo ? `Ligado: "${f.nome}" segue junto com a mensagem.` : `Desligado: "${f.nome}" não segue.`) : r.status === 403 ? "Somente o CEO pode gravar." : "Não gravou." }));
     if (r.ok) void carregar();
   };
-  const enviarArquivo = async (i: Item, posicao: 1 | 2, arq: File | undefined) => {
+  const novoArquivo = async (chave: string, max: number, arq: File | undefined) => {
     if (!arq) return;
-    if (arq.size > i.anexo.maxBytes) { setAviso((a) => ({ ...a, [i.categoria]: "O arquivo passa de 10 MB." })); return; }
-    setAviso((a) => ({ ...a, [i.categoria]: "Enviando o arquivo…" }));
-    const r = await fetch(`${BASE}/api/comunicacao/anexos/${i.categoria}/${posicao}`, { method: "PUT", headers: { "Content-Type": "application/octet-stream", "X-Nome-Arquivo": encodeURIComponent(arq.name), ...auth() }, body: arq });
+    if (arq.size > max) { setAviso((a) => ({ ...a, [chave]: "O arquivo passa de 10 MB." })); return; }
+    setAviso((a) => ({ ...a, [chave]: "Enviando o arquivo…" }));
+    const r = await fetch(`${BASE}/api/comunicacao/anexos?mensagem=${chave}`, { method: "POST", headers: { "Content-Type": "application/octet-stream", "X-Nome-Arquivo": encodeURIComponent(arq.name), ...auth() }, body: arq });
     const j = await r.json().catch(() => ({})) as { error?: string };
-    setAviso((a) => ({ ...a, [i.categoria]: r.ok ? `Anexo ${posicao} gravado.` : r.status === 403 ? "Somente o CEO pode gravar." : (j.error ?? "Não gravou.") }));
+    setAviso((a) => ({ ...a, [chave]: r.ok ? "Arquivo adicionado e ligado a esta mensagem." : r.status === 403 ? "Somente o CEO pode gravar." : (j.error ?? "Não gravou.") }));
     if (r.ok) void carregar();
   };
-  const removerArquivo = async (i: Item, posicao: 1 | 2) => {
-    const r = await fetch(`${BASE}/api/comunicacao/anexos/${i.categoria}/${posicao}`, { method: "DELETE", headers: auth() });
-    setAviso((a) => ({ ...a, [i.categoria]: r.ok ? `Anexo ${posicao} removido.` : "Não removeu." }));
+  const apagarArquivo = async (chave: string, f: Arquivo) => {
+    if (!window.confirm(`Apagar "${f.nome}" da biblioteca? Ele sai de todas as mensagens.`)) return;
+    const r = await fetch(`${BASE}/api/comunicacao/anexos/${f.id}`, { method: "DELETE", headers: auth() });
+    setAviso((a) => ({ ...a, [chave]: r.ok ? "Arquivo apagado da biblioteca." : "Não apagou." }));
     if (r.ok) void carregar();
   };
   const tam = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+  const BlocoAnexos = ({ chave, nome, anexo }: { chave: string; nome: string; anexo: Anexo }) => {
+    const ligados = anexo.arquivos.filter((f) => f.ativo).length;
+    return (
+      <div className="panel-3d-sub space-y-3 p-3" data-testid={`anexo-${chave}`}>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-primary">Anexos desta mensagem</p>
+        <p className="text-[11px] text-muted-foreground">
+          {ligados === 0 ? "Nenhum anexo ligado: só o texto é enviado." : `${ligados} ${ligados === 1 ? "arquivo ligado segue" : "arquivos ligados seguem"} logo depois do texto.`} Cada arquivo tem o seu interruptor. PDF, PNG ou JPEG, até 10 MB.
+        </p>
+        {anexo.arquivos.length === 0 && <p className="concave-3d p-2.5 text-[12px]">Nenhum arquivo na biblioteca ainda.</p>}
+        {anexo.arquivos.map((f) => (
+          <div key={f.id} className="concave-3d flex flex-wrap items-center gap-3 px-3 py-2" data-testid={`anexo-${chave}-${f.id}`}>
+            <ChaveOuro id={`anexo-${chave}-${f.id}`} checked={f.ativo} onCheckedChange={() => void interruptor(chave, f)} aria-label={`Enviar ${f.nome} com a mensagem de ${nome}`} />
+            <label htmlFor={`anexo-${chave}-${f.id}`} className="min-w-0 flex-1 break-words text-[12px] font-bold">{f.nome} <span className="font-normal text-muted-foreground">({tam(f.tamanho)})</span></label>
+            <span className="bevel-3d px-2 py-1 text-[10px] font-bold uppercase">{f.ativo ? "Envia" : "Não envia"}</span>
+            <button type="button" className="bevel-3d min-h-9 px-3 text-[10px] font-bold uppercase" onClick={() => void apagarArquivo(chave, f)}>Apagar da biblioteca</button>
+          </div>
+        ))}
+        <label className="btn-3d-soft inline-flex min-h-10 cursor-pointer items-center px-3 text-[11px] font-bold uppercase">
+          Adicionar arquivo
+          <input type="file" accept="application/pdf,image/png,image/jpeg" className="sr-only" onChange={(e) => { void novoArquivo(chave, anexo.maxBytes, e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        {aviso[chave] && <p role="status" className="text-[12px]">{aviso[chave]}</p>}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-5" data-testid="modelos-comunicacao">
@@ -83,35 +113,7 @@ export function ModelosComunicacao() {
           <textarea className="min-h-[220px] w-full rounded-md border border-border bg-background p-2 text-[13px] leading-relaxed" value={rascunho[i.categoria] ?? ""} onChange={(e) => setRascunho((r) => ({ ...r, [i.categoria]: e.target.value }))} aria-label={`Texto de ${i.nome}`} />
           <p className="text-[10px] text-muted-foreground">Variáveis: {i.variaveis.map((v) => `{${v}}`).join(", ")}. Linha em branco separa parágrafos.</p>
           <p className="text-[10px] text-muted-foreground">Campos do flyer: {i.flyer.linhas.join(", ")} e clínica (sempre por último).</p>
-          <div className="panel-3d-sub space-y-3 p-3" data-testid={`anexo-${i.categoria}`}>
-            <div className="concave-3d flex items-center gap-3 px-3 py-2.5">
-              <ChaveOuro id={`anexo-chave-${i.categoria}`} checked={i.anexo.enviar} onCheckedChange={() => void alternarAnexo(i)} aria-label={`Enviar anexo com a mensagem de ${i.nome}`} />
-              <label htmlFor={`anexo-chave-${i.categoria}`} className="text-[12px] font-bold text-primary">Enviar anexo junto com a mensagem</label>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              {i.anexo.enviar
-                ? (i.anexo.arquivos.length === 0 ? "Ligado, mas sem arquivo: por enquanto só o texto é enviado." : `Ligado: ${i.anexo.arquivos.length === 1 ? "1 arquivo segue" : "2 arquivos seguem"} logo depois do texto.`)
-                : "Desligado: só o texto é enviado. Os arquivos ficam guardados."} Aceita PDF, PNG ou JPEG, até 10 MB cada.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {([1, 2] as const).map((pos) => {
-                const a = i.anexo.arquivos.find((x) => x.posicao === pos);
-                return (
-                  <div key={pos} className="concave-3d space-y-2 p-2.5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Anexo {pos}</p>
-                    <p className="min-h-5 break-words text-[12px] text-foreground/90">{a ? `${a.nome} (${tam(a.tamanho)})` : "Nenhum arquivo"}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <label className="btn-3d-soft inline-flex min-h-10 cursor-pointer items-center px-3 text-[11px] font-bold uppercase">
-                        {a ? "Trocar arquivo" : "Escolher arquivo"}
-                        <input type="file" accept="application/pdf,image/png,image/jpeg" className="sr-only" onChange={(e) => { void enviarArquivo(i, pos, e.target.files?.[0]); e.target.value = ""; }} />
-                      </label>
-                      {a && <button type="button" className="bevel-3d min-h-10 px-3 text-[11px] font-bold uppercase" onClick={() => void removerArquivo(i, pos)}>Remover</button>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <BlocoAnexos chave={i.categoria} nome={i.nome} anexo={i.anexo} />
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className="btn-3d min-h-11 px-4 text-[12px] font-bold uppercase" disabled={rascunho[i.categoria] === i.texto} onClick={() => void salvar(i)}>Gravar texto</button>
             <button type="button" className="bevel-3d min-h-11 px-4 text-[12px] font-bold uppercase" onClick={() => setRascunho((r) => ({ ...r, [i.categoria]: i.padrao }))}>Voltar ao texto original</button>
@@ -120,6 +122,13 @@ export function ModelosComunicacao() {
             </button>
             {aviso[i.categoria] && <span role="status" className="text-[12px]">{aviso[i.categoria]}</span>}
           </div>
+        </article>
+      ))}
+      {dados?.extras.map((x) => (
+        <article key={x.chave} className="concave-3d space-y-3 p-3" data-testid={`modelo-${x.chave}`}>
+          <p className="text-[12px] font-bold uppercase tracking-wide">{x.nome}</p>
+          <p className="text-[10px] text-muted-foreground">O texto desta mensagem é montado pelo motor PAXMED. Aqui você só escolhe os anexos.</p>
+          <BlocoAnexos chave={x.chave} nome={x.nome} anexo={x.anexo} />
         </article>
       ))}
       <div className="space-y-2" data-testid="historico-comunicacao">

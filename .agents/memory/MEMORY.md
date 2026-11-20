@@ -1,3 +1,4 @@
+- [Anexos de mensagem + Curadoria Clínica](anexos-mensagem-curadoria-clinica.md) — biblioteca com interruptor por arquivo; lista do que ainda não envia anexo.
 - [Homologação com participantes presentes](homologacao-presenca-dr-caio.md) — Dr. Caio ao lado do participante = identidade validada; não repetir confirmação.
 - **Fotos** — [upload e histórico](foto-upload-historico.md) · [nome no Drive](drive-foto-nomenclatura.md) · [arquivo vazio](multer-zero-bytes.md).
 - [Previa de link — padrao Receituario](previa-link-padrao-receituario.md) — cartao aprovado; ler skill-layout-paxter/references/previa-de-link.md; nome novo + ?v=N; og:image URL absoluta.

@@ -9,7 +9,7 @@ export const RESUMO_ABA: Record<string, string> = {
   "/agenda/motor": "Horários, locais e repetições",
   "/clients": "Cadastro e busca de clientes",
   "/cockpit": "Atendimento do cliente em consulta",
-  "/pedidos-medicos": "Pedidos feitos pelos clientes",
+  "/pedidos-medicos": "Avaliação médica dos pedidos",
   "/boloes": "Recibos oficiais de bolões: receber, conferir e liberar",
   "/cockpit-anamnese": "Anamnese do cliente em andamento",
   "/cartorio": "Documentos conferidos e arquivados",
